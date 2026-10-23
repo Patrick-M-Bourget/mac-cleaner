@@ -6,6 +6,11 @@ struct StillApp: App {
     @NSApplicationDelegateAdaptor(StillApplicationDelegate.self) private var delegate
     @StateObject private var lifecycle = AppLifecycleController.shared
     @StateObject private var alerts = AppLifecycleController.shared.alerts
+    #if DEBUG
+    @State private var capturePresented = !ProcessInfo.processInfo.arguments.contains(where: {
+        ["--design-minimum", "--design-initial-size"].contains($0)
+    })
+    #endif
     private var initialSize: CGSize {
         #if DEBUG
         if ProcessInfo.processInfo.arguments.contains("--design-minimum") { return CGSize(width: 900, height: 640) }
@@ -21,7 +26,19 @@ struct StillApp: App {
                 #else
                 WorkspaceView(alerts: lifecycle.alerts)
                 #endif
-            }.frame(minWidth: 900).background { NativeWindowContract() }.modifier(DesignAccessibilityPreview())
+            }
+            #if DEBUG
+            .opacity(capturePresented ? 1 : 0)
+            .accessibilityHidden(!capturePresented)
+            .allowsHitTesting(capturePresented)
+            #endif
+            .frame(minWidth: 900).background {
+                #if DEBUG
+                NativeWindowContract(onCaptureFit: { capturePresented = true })
+                #else
+                NativeWindowContract()
+                #endif
+            }.modifier(DesignAccessibilityPreview())
         }
         .defaultSize(width: initialSize.width, height: initialSize.height)
         .commands {

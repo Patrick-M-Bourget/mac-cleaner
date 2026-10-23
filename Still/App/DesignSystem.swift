@@ -390,10 +390,22 @@ struct InspectableItemRow<Selection: View>: View {
 
 /// Enforce the outer-window minimum independently of a destination's intrinsic content size.
 struct NativeWindowContract: NSViewRepresentable {
-    func makeNSView(context: Context) -> ContractView { ContractView() }
+    #if DEBUG
+    var onCaptureFit: (() -> Void)? = nil
+    #endif
+    func makeNSView(context: Context) -> ContractView {
+        let view = ContractView()
+        #if DEBUG
+        view.onCaptureFit = onCaptureFit
+        #endif
+        return view
+    }
     func updateNSView(_ nsView: ContractView, context: Context) {}
     @MainActor final class ContractView: NSView {
         private var applied = false
+        #if DEBUG
+        var onCaptureFit: (() -> Void)?
+        #endif
         override func viewDidMoveToWindow() {
             super.viewDidMoveToWindow()
             guard let window, !applied else { return }
@@ -420,6 +432,13 @@ struct NativeWindowContract: NSViewRepresentable {
                 let origin = NSPoint(x: min(max(requested.minX, visible.minX), visible.maxX - size.width), y: min(max(requested.minY, visible.minY), visible.maxY - size.height))
                 let fitted = NSRect(origin: origin, size: size)
                 if window.frame != fitted { window.setFrame(fitted, display: true) }
+                #if DEBUG
+                // Capture controls become visible only after this launch's explicit fit.
+                // Their layout was retained while hidden; ordinary launches are unaffected.
+                if ProcessInfo.processInfo.arguments.contains(where: {
+                    ["--design-minimum", "--design-initial-size"].contains($0)
+                }) { self.onCaptureFit?() }
+                #endif
             }
         }
     }
