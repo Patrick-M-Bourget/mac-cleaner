@@ -43,19 +43,21 @@ struct PipInspectionView: View {
     @StateObject private var model = PipInspection()
     let back: () -> Void
     var body: some View {
-        VStack(alignment: .leading, spacing: 18) {
+        VStack(alignment: .leading, spacing: StillDesign.Space.xl) {
             Button("Back to Overview", systemImage: "chevron.left", action: back)
-            Text("pip cache opportunities").font(.largeTitle.weight(.semibold))
-            Text("Read-only inventory qualification · Future milestone").foregroundStyle(.secondary)
+            PageHeader(title: "pip cache opportunities")
+            Text("Read-only inventory qualification").foregroundStyle(.secondary)
             Text("A genuine disposable Python 3.9 / pip 21.2.4 environment passed inventory checks. Other installations still require provenance and unchanged-state qualification.")
+            SettingsRow(title: "Selected installation") {
             HStack {
                 Button("Choose Python interpreter…") { model.choose(isCache: false) }
                 Button("Choose cache folder…") { model.choose(isCache: true) }
                 Button("Inspect selected pip cache") { Task { await model.inspect() } }.disabled(model.python == nil || model.cache == nil || model.inspecting)
             }.disabled(model.inspecting)
+            }
             if let python = model.python { Text("Interpreter: \(python.path)").font(.caption).textSelection(.enabled) }
             if let cache = model.cache { Text("Chosen cache: \(cache.path)").font(.caption).textSelection(.enabled) }
-            Text(model.status).accessibilityIdentifier("pipInventoryStatus")
+            StatusRow(text: model.status, symbol: "info.circle", identifier: "pipInventoryStatus")
             if let inventory = model.inventory {
                 Text(model.isReference ? "Recorded disposable evidence" : "Qualification evidence").font(.headline)
                 Text("Version: \(inventory.version)")

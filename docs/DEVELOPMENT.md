@@ -1,5 +1,7 @@
 # Native development
 
+Native UI implementation follows the mandatory [design system](DESIGN-SYSTEM.md).
+
 The native workspace starts with deterministic in-memory fixtures (issue #2). Issue #3 adds explicit native folder selection and read-only metadata inspection. Nothing scans until the user chooses a folder. Quick Look and Reveal in Finder run only from their explicit controls; preview requires fresh positive locality and matching resource identity. No cleanup target mutation is implemented. Fixture strings and sizes remain illustrative; selecting a real folder replaces fixture findings in that session.
 
 ## Prerequisites and launch
@@ -99,6 +101,9 @@ Selected-volume availability records Important usage versus Available capacity f
 
 The native UI regression selects a newly created temporary folder, removes only that owned fixture, and explicitly rechecks to verify unknown coverage, retained observation time, recovery controls and fixed window bounds. It does not revoke any actual OS grants or unmount volumes. CI also runs existing alert/lifecycle policy tests and isolated iCloud/Xcode/Chrome/Safari fixture packages without enabling real notifications or mutating personal application data.
 
+## Future app-managed storage guidance (#31)
+
+The future-milestone Overview entry opens a read-only management view for backups, Photos, Mail, Messages and system-managed data. No personal inventory runs automatically. Explicit selected-object metadata can establish a file allocation; protected folders/packages/links remain uninspected. All rows are management-only and contribute no cleanup targets or reclaimable estimates. See [scope, native instructions and validation](validation/managed-storage.md). Automated tests use fake launchers and disposable managed sentinels; no real owner apps or personal libraries are opened.
 ## Future pip inventory (#24)
 
 With `--future-milestones`, Overview offers **Review pip cache opportunities**. Interpreter/cache selection is explicit, with useful unsupported guidance and no tool invocation for unqualified installations. A recorded reference demonstrates the genuine disposable pip 21.2.4 inventory evidence without probing the user's cache. See [qualification and reproduction](validation/pip-inventory.md); actual tests provision only an owned temporary venv through bundled ensurepip without network/global installation. Ordinary inventory never provisions packages or enables cleanup.
@@ -115,6 +120,18 @@ DEBUG UI tests may nominate a disposable root with `--ui-test-downloads-root` an
 
 Window > Show Still provides an explicit native route back to a closed pending-plan workspace, alongside Dock reopening. The app-owned inspection/selection objects survive window reconstruction; navigation state may return to Overview, and Cleanup plan retains membership. The focused native UI test verifies checkbox synchronization, filename inspection, hidden search selections, window close/reopen without alerts, and normal Quit/relaunch clearing the unexecuted plan.
 
+## Bulk Downloads and approval boundary (#8)
+
+The native Downloads category uses an AppKit mixed-state checkbox with current eligible count and logical bytes. Bulk selection materializes exact existing file IDs serially off MainActor; it never targets directories or selects subsequent discoveries. Root-level failures keep targets blocked, while a verified ordinary sibling outside an affected failed subtree can remain selectable. Protected package boundaries remain browse-only and unmeasured; they do not imply that independent ordinary files are inaccessible.
+
+Review cleanup captures an immutable target list and draft generation. The fixed-size confirmation has bounded scrolling, exact relative paths, scope/count/size, Trash-held-space consequences and persistent Cancel/Approve controls. Cancel preserves selection and restores focus to Review cleanup. Any selection/scan generation change invalidates an open review. One final approval produces a separate immutable `CleanupApproval` value; no mutation API is invoked in #8. Updating the live plan cannot change an already produced value, and stale reviews cannot approve the new plan.
+
+The execution ticket must consume approval and revalidate target evidence. `SessionPlan.canReview` is the shared readiness gate to extend for refresh/pending choices; `invalidateReview()` changes the generation without clearing membership. A preflight path check does not certify race-safe Trash execution. This build accurately states that approval moves no files until the executor is connected.
+
 ## Future Docker storage (#33)
 
 `--future-milestones` exposes a secondary **Review Docker storage** route from Overview. Explicit selected-file metadata distinguishes logical image-file length, optional host allocation and unknown VM capacity/ownership. CLI/runtime inspection remains unsupported and unexecuted pending genuine disposable qualification. The synthetic report marks persistent volumes and offers no mutation. See [evidence and gates](validation/docker-inventory.md). No default Docker path/socket/context is searched.
+
+### #8 checkpoint validation status
+
+The focused native journey verified category bulk selection, mixed refinement, bounded confirmation geometry and Cancel preserving choices. It exposed unreliable keyboard focus restoration. A one-shot AppKit first-responder bridge now compiles, but its verification attempt ended with the UI runner killed during launch before reaching the control. Final approval/focus assertions are not yet qualified. Feature work is checkpointed for the design-system-first migration; do not treat this branch as completed #8 or enable execution from it.
