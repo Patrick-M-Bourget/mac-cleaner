@@ -132,7 +132,7 @@ struct CleanupHistoryView: View {
                                             }
                                         }
                                     }
-                                }.padding(.leading, 24)
+                                }.padding(.leading, StillDesign.Space.xl)
                             }
                         }
                     }

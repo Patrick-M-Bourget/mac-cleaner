@@ -36,9 +36,9 @@ struct CloudInventoryView: View {
                         .frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
                 }.buttonStyle(.plain).accessibilityValue(evidenceExpanded ? "Expanded" : "Collapsed")
                 if evidenceExpanded {
-                    LazyVStack(alignment: .leading, spacing: 12) {
+                    LazyVStack(alignment: .leading, spacing: StillDesign.Space.md) {
                         ForEach(report.items) { item in
-                            VStack(alignment: .leading, spacing: 4) {
+                            VStack(alignment: .leading, spacing: StillDesign.Space.xs) {
                                 Text(item.url.lastPathComponent).font(.subheadline.weight(.medium))
                                 Text("Download metadata: \(state(item.cloud.downloadState)) · locality: \(item.previewAvailability.rawValue)")
                                 Text("Upload complete: \(flag(item.cloud.uploaded)) · uploading: \(flag(item.cloud.uploading)) · downloading: \(flag(item.cloud.downloading))")

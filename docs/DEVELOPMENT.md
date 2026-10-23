@@ -187,3 +187,7 @@ The [owned21.2.4 experiment](../Validation/PipMutationExperiment/README.md) obse
 ## Redacted diagnostics (#32)
 
 With `--future-milestones`, Overview offers **Review diagnostics** then native **Save diagnostics…**. Review shows the exact frozen allowlisted JSON, included/excluded fields and cancellation/failure recovery. Nothing uploads or clears recovery records. See [payload and qualification evidence](validation/redacted-diagnostics.md).
+
+## Checkpoint standards/spec corrections
+
+[Review-fix evidence](validation/checkpoint-review-fixes.md) records the shared spacing-token migration and opt-out invalidation of pending notification success/failure, with bounded policy/build checks and unchanged native/manual qualification limits.

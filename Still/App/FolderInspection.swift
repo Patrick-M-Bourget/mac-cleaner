@@ -207,7 +207,7 @@ struct FolderInspectionView: View {
                     Text(result.observedAt, format: .dateTime.year().month().day().hour().minute().second()).font(.caption)
                 }
                 StatusRow(text: result.isComplete ? (result.excludedEntryCount > 0 ? "Scan completed within included coverage" : "Scan completed within the selected scope") : "Partial coverage · \(result.issues.count) unreadable or bounded locations", symbol: result.isComplete ? "checkmark.circle" : "exclamationmark.circle", role: result.isComplete ? .success : .caution)
-                VStack(alignment: .leading, spacing: 5) {
+                VStack(alignment: .leading, spacing: StillDesign.Space.xs) {
                     if result.excludedEntryCount > 0 { StatusRow(text: "\(result.excludedEntryCount) custom-excluded boundaries. Their contents and bytes remain unknown.", symbol: "folder.badge.minus") }
                     Text("Complete scope logical bytes: \(bytes(result.totalLogicalBytes))")
                     if (!result.isComplete || result.hasUnmeasuredContents || result.excludedEntryCount > 0) && !result.observations.isEmpty { Text("Known observed logical subtotal: \(bytes(result.logicalBytes)) · Remaining bytes unknown") }
@@ -221,7 +221,7 @@ struct FolderInspectionView: View {
                         Text("Last complete observation: \(previous.observedAt.formatted()) · Historical, not current coverage.").font(.caption).foregroundStyle(.secondary)
                     } else { Text("No previous complete observation for this location.").font(.caption).foregroundStyle(.secondary) }
                     ForEach(Array(result.issues.prefix(20).enumerated()), id: \.offset) { _, issue in
-                        VStack(alignment: .leading, spacing: 4) {
+                        VStack(alignment: .leading, spacing: StillDesign.Space.xs) {
                             Text(issue.url.path).textSelection(.enabled)
                             Text((issue.reason == .directoryChanged ? "Directory changed during scanning" : issue.reason == .timeLimit ? "Scan time budget reached" : issue.reason.rawValue) + " · " + issue.recovery).font(.caption).foregroundStyle(.secondary)
                         }
