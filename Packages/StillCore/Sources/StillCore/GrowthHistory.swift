@@ -50,7 +50,7 @@ public struct GrowthRetention: Sendable {
         self.days = min(90, max(1, days)); self.baselines = min(30, max(1, baselines)); self.bytes = min(250_000_000, max(256, bytes))
     }
 }
-/// Owns only its aggregate file. It never opens, enumerates or evicts operation journals.
+/// Owns aggregate and opaque epoch/lock files. It never opens, enumerates or evicts operation journals.
 public actor GrowthHistoryStore {
     private struct Entry: Codable { let snapshot: GrowthSnapshot; let origin: GrowthComparisonState }
     private struct Archive: Codable { var version = 1; var entries: [Entry] = []; var hadHistory = false; var cleared = false }
@@ -60,6 +60,7 @@ public actor GrowthHistoryStore {
     public func snapshots(now: Date = Date()) throws -> [GrowthSnapshot] { try withStoreLock { try retained(now).entries.map(\.snapshot) } }
     public func latest(now: Date = Date()) throws -> GrowthComparison { try withStoreLock { let value = try retained(now); return comparison(in: value, id: value.entries.last?.snapshot.id) } }
     public func comparison(id: UUID, now: Date = Date()) throws -> GrowthComparison { try withStoreLock { comparison(in: try retained(now), id: id) } }
+    /// Capture before observation; retain across awaits. Never refresh an old capture at commit.
     public func recordingEpoch() throws -> UUID { try withStoreLock { try currentEpoch() } }
     public func record(_ snapshot: GrowthSnapshot, now: Date = Date(), expectedEpoch: UUID) throws -> GrowthComparison {
         try withStoreLock {
