@@ -5,53 +5,32 @@ import StillCore
 @MainActor @Observable final class GrowthHistoryModel {
     static let shared = GrowthHistoryModel()
     static var enabled: Bool { ProcessInfo.processInfo.arguments.contains("--future-milestones") }
-    var comparison: GrowthComparison?
-    var snapshots: [GrowthSnapshot] = []
-    var error: String?
-    private var store: GrowthHistoryStore?
-    private var recorder: GrowthScanRecorder?
-    private var active: UUID?
-    private var attempt = UUID()
-    private func open() throws -> GrowthHistoryStore {
-        if let store { return store }
-        let value = GrowthHistoryStore(directory: try LocalStateLocation.root(create: true).appendingPathComponent("Growth", isDirectory: true))
-        store = value; recorder = GrowthScanRecorder(store: value); return value
+    private var session: GrowthHistorySession?
+    private var openingError: String?
+    var comparison: GrowthComparison? { session?.comparison }
+    var snapshots: [GrowthSnapshot] { session?.snapshots ?? [] }
+    var error: String? { openingError ?? session?.error }
+    private func open() throws -> GrowthHistorySession {
+        if let session { return session }
+        let store = GrowthHistoryStore(directory: try LocalStateLocation.root(create: true).appendingPathComponent("Growth", isDirectory: true))
+        let value = GrowthHistorySession(store: store)
+        session = value; openingError = nil; return value
     }
     func load() async {
         guard Self.enabled else { return }
-        do { let value = try open(); if comparison == nil { comparison = try await value.latest() }; snapshots = try await value.snapshots(); error = nil }
-        catch { comparison = .unknown; self.error = "Comparison history is unavailable. No growth can be inferred from missing observations." }
+        do { await (try open()).load() }
+        catch { openingError = "Comparison history is unavailable. No growth can be inferred from missing observations." }
     }
     func begin(_ scope: URL) async -> GrowthScanToken? {
         guard Self.enabled else { return nil }
-        let request = UUID(); attempt = request
-        do { _ = try open(); let token = try await recorder?.begin(scope: scope); guard attempt == request, !Task.isCancelled else { return nil }; active = token?.id; return token }
-        catch { comparison = .unknown; self.error = "Scope or volume identity could not be verified. This scan cannot establish a comparison baseline."; return nil }
+        do { return await (try open()).begin(scope) }
+        catch { openingError = "Scope or volume identity could not be verified. This scan cannot establish a comparison baseline."; return nil }
     }
-    func complete(_ scan: ScanResult, token: GrowthScanToken?) async {
-        guard let token, active == token.id, let recorder, !Task.isCancelled else { return }
-        do { let result = try await recorder.complete(scan, token: token); guard active == token.id, !Task.isCancelled else { return }; active = nil; comparison = result; snapshots = try await open().snapshots(); error = nil }
-        catch { comparison = .unknown; self.error = "This observation could not be saved. The previous completed baseline is retained." }
-    }
-    func clearCompletedHistory() async throws {
-        attempt = UUID(); active = nil
-        let value = try open()
-        try await value.clearCompletedHistory()
-        snapshots = []; comparison = try await value.latest(); active = nil
-    }
-    func resetHistory() async throws {
-        attempt = UUID(); active = nil
-        let value = try open()
-        try await value.resetHistory()
-        snapshots = []; comparison = try await value.latest(); error = nil
-    }
-    func cancelled() {
-        attempt = UUID(); active = nil; comparison = .unknown
-    }
-    func select(_ id: UUID) async {
-        do { comparison = try await open().comparison(id: id) }
-        catch { comparison = .unknown; self.error = "The selected comparison is unavailable." }
-    }
+    func complete(_ scan: ScanResult, token: GrowthScanToken?) async { await session?.complete(scan, token: token) }
+    func clearCompletedHistory() async throws { try await open().clearCompletedHistory() }
+    func resetHistory() async throws { try await open().resetHistory() }
+    func cancelled() { session?.cancelled() }
+    func select(_ id: UUID) async { await session?.select(id) }
 }
 
 struct GrowthHistoryView: View {

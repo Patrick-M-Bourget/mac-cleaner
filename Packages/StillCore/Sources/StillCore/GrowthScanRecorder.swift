@@ -6,14 +6,16 @@ public struct GrowthScanToken: Sendable {
     public let id = UUID()
     fileprivate let startedAt = Date()
     fileprivate let scope: URL
+    fileprivate let epoch: UUID
     fileprivate let fingerprint: GrowthFingerprint
 }
 /// Metadata-only context around an explicit scan. It never starts enumeration itself.
-public actor GrowthScanRecorder {
+public actor GrowthScanRecorder: GrowthObservationRecording {
     private let store: GrowthHistoryStore
     public init(store: GrowthHistoryStore) { self.store = store }
-    public func begin(scope: URL) throws -> GrowthScanToken {
-        GrowthScanToken(scope: scope.standardizedFileURL, fingerprint: try fingerprint(scope))
+    public func begin(scope: URL) async throws -> GrowthScanToken {
+        let epoch = try await store.recordingEpoch()
+        return GrowthScanToken(scope: scope.standardizedFileURL, epoch: epoch, fingerprint: try fingerprint(scope))
     }
     public func complete(_ scan: ScanResult, token: GrowthScanToken) async throws -> GrowthComparison {
         try Task.checkCancellation()
@@ -22,7 +24,9 @@ public actor GrowthScanRecorder {
               scan.isComplete, !scan.hasUnmeasuredContents, scan.totalLogicalBytes != nil else {
             return GrowthComparison(state: .unknown, current: nil, from: nil, groups: [])
         }
-        var folders: [String: Int64] = ["Files in selected folder": 0]
+        let rootLabel = "Files in selected folder"
+        var folders: [String: Int64] = ["root-files": 0]
+        var folderLabels: [String: String] = ["root-files": rootLabel]
         var categories: [String: Int64] = [:]
         var seen = Set<String>()
         let rootParts = scan.scope.resolvingSymlinksInPath().standardizedFileURL.pathComponents
@@ -40,19 +44,22 @@ public actor GrowthScanRecorder {
             return parts.count > 1 ? parts.first : nil
         }).sorted()
         guard names.count <= 128 else { return .unknown }
-        let recognized = Set(names)
         for item in scan.observations.sorted(by: { $0.url.path < $1.url.path }) where item.kind == .file {
             try Task.checkCancellation()
             guard seen.insert(item.resourceID).inserted, let bytes = item.logicalBytes else { continue }
             let parts = relative(item)!
-            let folder = parts.count > 1 ? (recognized.contains(parts.first!) ? parts.first! : "Other folders") : "Files in selected folder"
+            let folder: String
+            if parts.count > 1, let name = parts.first {
+                folder = "directory:" + Self.digest(name)
+                folderLabels[folder] = name == rootLabel ? "Folder: " + name : name
+            } else { folder = "root-files" }
             folders[folder, default: 0] += bytes
             categories[Self.category(item.url.pathExtension.lowercased()), default: 0] += bytes
         }
-        let groups = folders.map { GrowthAggregate(id: "folder:" + Self.digest($0.key), label: $0.key, logicalBytes: $0.value) }
+        let groups = folders.map { GrowthAggregate(id: "folder:" + $0.key, label: folderLabels[$0.key]!, logicalBytes: $0.value) }
             + categories.map { GrowthAggregate(id: "category:" + $0.key, label: $0.key, logicalBytes: $0.value, dimension: .category) }
         let snapshot = GrowthSnapshot(fingerprint: token.fingerprint, scopeLabel: scan.scope.lastPathComponent, observedAt: scan.observedAt, groups: groups.sorted { $0.id < $1.id })
-        return try await store.record(snapshot)
+        return try await store.record(snapshot, expectedEpoch: token.epoch)
     }
     private func fingerprint(_ scope: URL) throws -> GrowthFingerprint {
         let canonical = scope.resolvingSymlinksInPath().standardizedFileURL
@@ -60,7 +67,7 @@ public actor GrowthScanRecorder {
         guard lstat(canonical.path, &info) == 0, info.st_mode & S_IFMT == S_IFDIR,
               let volume = try canonical.resourceValues(forKeys: [.volumeUUIDStringKey]).volumeUUIDString else { throw CocoaError(.fileReadNoPermission) }
         return GrowthFingerprint(scopeID: Self.digest(canonical.path), rootID: "\(info.st_dev):\(info.st_ino)", volumeID: volume,
-            access: "complete-explicit-metadata-scope-v1-mode\(info.st_mode & 0o777)-uid\(info.st_uid)-gid\(info.st_gid)", rules: "scanner-v2-directory-stability-recheck1-deadline30-depth64-entry100000-packages-unmeasured", exclusions: "scanner-protected-boundaries-v1", classification: "logical-folder128-category-v1")
+            access: "complete-explicit-metadata-scope-v1-mode\(info.st_mode & 0o777)-uid\(info.st_uid)-gid\(info.st_gid)", rules: "scanner-v2-directory-stability-recheck1-deadline30-depth64-entry100000-packages-unmeasured", exclusions: "scanner-protected-boundaries-v1", classification: "logical-folder128-category-v2-semantic-buckets")
     }
     private static func digest(_ text: String) -> String { SHA256.hash(data: Data(text.utf8)).map { String(format: "%02x", $0) }.joined() }
     private static func category(_ ext: String) -> String {
