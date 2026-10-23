@@ -364,6 +364,62 @@ final class WorkspaceUITests: XCTestCase {
     }
 
     @MainActor
+    func testOwnedLargeScanShowsBoundedProgressAndAcknowledgesStop() throws {
+        try assertOwnedProgress(minimum: false)
+    }
+    @MainActor
+    func testMinimumOwnedLargeScanKeepsProgressAndStopReachable() throws {
+        try assertOwnedProgress(minimum: true)
+    }
+    @MainActor
+    private func assertOwnedProgress(minimum: Bool) throws {
+        continueAfterFailure = false
+        let manager = FileManager.default
+        let temporary = manager.temporaryDirectory
+        let available = try temporary.resourceValues(forKeys: [.volumeAvailableCapacityKey]).volumeAvailableCapacity ?? 0
+        guard available > 1_900_000_000 else { throw XCTSkip("Owned progress fixture requires conservative disk headroom") }
+        let root = temporary.appendingPathComponent("StillProgressUI-" + UUID().uuidString)
+        try manager.createDirectory(at: root, withIntermediateDirectories: false)
+        defer { try? manager.removeItem(at: root) }
+        for index in 0..<50_000 {
+            try autoreleasepool {
+                if index % 1000 == 0 { try manager.createDirectory(at: root.appendingPathComponent("batch-\(index / 1000)"), withIntermediateDirectories: false) }
+                try Data().write(to: root.appendingPathComponent("batch-\(index / 1000)/file-\(index)"))
+            }
+        }
+        let app = XCUIApplication()
+        app.launchArguments = [minimum ? "--design-minimum" : "--design-initial-size"]
+        app.launch()
+        XCTAssertTrue(app.buttons["Choose folder…"].waitForExistence(timeout: 5))
+        let bounds = app.windows.firstMatch.frame
+        for appearance in ["Light", "Dark"] {
+            app.popUpButtons.firstMatch.click(); app.menuItems[appearance].click()
+            if appearance == "Light" {
+                app.buttons["Choose folder…"].click()
+                app.typeKey("g", modifierFlags: [.command, .shift])
+                let field = app.textFields.firstMatch
+                XCTAssertTrue(field.waitForExistence(timeout: 5))
+                field.typeKey("a", modifierFlags: .command); field.typeText(root.path)
+                app.typeKey(.return, modifierFlags: [])
+                app.dialogs.buttons["Scan folder"].click()
+            } else { app.buttons["Recheck folder"].click() }
+            XCTAssertTrue(app.staticTexts["scanProgressSummary"].waitForExistence(timeout: 3))
+            XCTAssertTrue(app.buttons["Stop scan"].waitForExistence(timeout: 1))
+            XCTAssertTrue(bounds.contains(app.buttons["Stop scan"].frame))
+            let shot = XCTAttachment(screenshot: app.windows.firstMatch.screenshot())
+            shot.name = "bounded-scan-progress-" + (minimum ? "minimum-" : "") + appearance; shot.lifetime = .keepAlways; add(shot)
+            app.scrollViews.firstMatch.scroll(byDeltaX: 0, deltaY: -40)
+            app.buttons["Stop scan"].click()
+            let stopped = app.staticTexts.matching(NSPredicate(format: "value CONTAINS[c] 'Stop requested' OR value CONTAINS[c] 'Scan stopped'"))
+            XCTAssertTrue(stopped.firstMatch.waitForExistence(timeout: 1))
+            XCTAssertTrue(app.buttons["Recheck folder"].waitForExistence(timeout: 3))
+            XCTAssertEqual(app.windows.firstMatch.frame, bounds)
+            XCTAssertFalse(app.buttons["Review cleanup"].exists)
+        }
+        XCTAssertTrue(manager.fileExists(atPath: root.appendingPathComponent("batch-0/file-0").path))
+    }
+
+    @MainActor
     func testInitialReviewWindowFitsConstrainedDisplayAndKeepsToolbarReachable() throws {
         continueAfterFailure = false
         let app = XCUIApplication()

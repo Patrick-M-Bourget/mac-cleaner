@@ -161,7 +161,11 @@ private struct WorkspaceView: View {
                     }.padding(StillDesign.Space.page).frame(maxWidth: .infinity, alignment: .leading)
                 }
                 .safeAreaInset(edge: .bottom, spacing: 0) {
-                    if inspectionVisible {
+                    if nativeInspectionVisible && folderInspection.isScanning {
+                        ActionStrip(message: "Preliminary observations · No cleanup is running") {
+                            Button("Stop scan") { folderInspection.cancel() }.buttonStyle(.borderedProminent)
+                        }
+                    } else if inspectionVisible {
                         ActionStrip(message: nativeInspectionVisible ? "\(StillDesign.files(selection.draft.selectedCount)) selected" : "Nothing selected") {
                             Button("View cleanup plan") { nativeInspectionVisible = false; inspecting = false; destination = .plan }.buttonStyle(.borderedProminent)
                         }

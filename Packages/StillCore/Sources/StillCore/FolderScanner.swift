@@ -70,7 +70,7 @@ public struct FileObservation: Sendable, Identifiable {
 }
 
 public struct ScanIssue: Sendable {
-    public enum Reason: String, Sendable { case entryLimit, depthLimit, readFailed, metadataUnavailable, differentVolume, accessDenied, accessRevoked, locationUnavailable }
+    public enum Reason: String, Sendable { case entryLimit, issueLimit, depthLimit, readFailed, metadataUnavailable, differentVolume, accessDenied, accessRevoked, locationUnavailable }
     public let url: URL
     public let reason: Reason
     public var recovery: String {
@@ -78,7 +78,7 @@ public struct ScanIssue: Sendable {
         case .accessDenied, .accessRevoked: "Choose this folder again, then recheck access."
         case .locationUnavailable: "Reconnect the volume or choose the folder again, then recheck."
         case .differentVolume: "Choose this volume explicitly to inspect it."
-        case .entryLimit, .depthLimit: "Choose a smaller folder and scan it explicitly."
+        case .entryLimit, .issueLimit, .depthLimit: "Choose a smaller folder and scan it explicitly."
         case .readFailed, .metadataUnavailable: "Recheck this location; unreadable bytes remain unknown."
         }
     }
@@ -106,10 +106,12 @@ public struct ScanResult: Sendable {
 /// Serial actor isolation keeps blocking enumeration off MainActor, without a task per entry.
 public actor FolderScanner {
     private let maximumEntries: Int
+    private let maximumIssues: Int
     private let supplement: any MetadataSupplementReading
     private let access: any ScanAccessChecking
-    public init(supplement: any MetadataSupplementReading = FoundationMetadataSupplement(), maximumEntries: Int = 100_000, access: any ScanAccessChecking = FoundationScanAccess()) {
+    public init(supplement: any MetadataSupplementReading = FoundationMetadataSupplement(), maximumEntries: Int = 100_000, maximumIssues: Int = 1_000, access: any ScanAccessChecking = FoundationScanAccess()) {
         self.maximumEntries = min(max(1, maximumEntries), 100_000)
+        self.maximumIssues = min(max(1, maximumIssues), 1_000)
         self.supplement = supplement
         self.access = access
     }
@@ -127,16 +129,43 @@ public actor FolderScanner {
         return observation.url
     }
 
-    public func scan(_ scope: URL) throws -> ScanResult {
+    public func scan(_ scope: URL, cancellation: ScanCancellation? = nil, onProgress: (@Sendable (ScanProgress) -> Void)? = nil) throws -> ScanResult {
+        try Self.enumerate(scope, maximumEntries: maximumEntries, maximumIssues: maximumIssues,
+            supplement: supplement, access: access, cancellation: cancellation, onProgress: onProgress)
+    }
+
+    // Synchronous call from the scanner actor: remains on its executor, while the local
+    // Foundation objects are confined to this nonisolated stack and autorelease pool.
+    private nonisolated static func enumerate(_ scope: URL, maximumEntries: Int, maximumIssues: Int,
+        supplement: any MetadataSupplementReading, access: any ScanAccessChecking,
+        cancellation: ScanCancellation?, onProgress: (@Sendable (ScanProgress) -> Void)?) throws -> ScanResult {
         guard scope.isFileURL else { throw CocoaError(.fileReadUnsupportedScheme) }
+        func checkCancellation() throws {
+            try Task.checkCancellation()
+            if cancellation?.isCancellationRequested == true { throw CancellationError() }
+        }
+        try checkCancellation()
         var observations: [FileObservation] = []
         var issues: [ScanIssue] = []
         var logical: Int64 = 0
         var allocated: Int64 = 0
         var allocationUnknown = 0
         var counted = Set<String>()
+        let started = ProcessInfo.processInfo.systemUptime
+        var visited = 0
+        var lastProgressTime = started
+        var lastProgressCount = 0
+        func emitProgress(force: Bool = false) {
+            guard let onProgress, observations.count > lastProgressCount else { return }
+            let now = ProcessInfo.processInfo.systemUptime
+            guard force || lastProgressCount == 0 || now - lastProgressTime >= 0.1 else { return }
+            let start = max(lastProgressCount, observations.count - 256)
+            onProgress(.init(scope: scope, visitedEntries: visited, retainedObservations: observations.count,
+                knownLogicalSubtotal: logical, recentObservations: Array(observations[start...]), elapsed: now - started))
+            lastProgressCount = observations.count; lastProgressTime = now
+        }
         do { try access.check(scope) }
-        catch { return ScanResult(scope: scope, observedAt: Date(), observations: [], logicalBytes: 0, allocatedBytes: nil, allocatedUnknownCount: 0, volumeCapacityBytes: nil, volumeAvailableBytes: nil, issues: [.init(url: scope, reason: ScanIssue.classify(error))], volumeAvailableMetric: "Unavailable") }
+        catch { try checkCancellation(); return ScanResult(scope: scope, observedAt: Date(), observations: [], logicalBytes: 0, allocatedBytes: nil, allocatedUnknownCount: 0, volumeCapacityBytes: nil, volumeAvailableBytes: nil, issues: [.init(url: scope, reason: ScanIssue.classify(error))], volumeAvailableMetric: "Unavailable") }
         var rootMetadata = stat()
         guard scope.isFileURL, lstat(scope.path, &rootMetadata) == 0,
               (rootMetadata.st_mode & S_IFMT) == S_IFDIR else {
@@ -146,65 +175,94 @@ public actor FolderScanner {
             throw CocoaError(.fileReadNoPermission)
         }
         let manager = FileManager()
-        let enumerationErrors = EnumerationErrors()
+        let enumerationErrors = EnumerationErrors(maximum: maximumIssues)
         guard let entries = manager.enumerator(at: scope, includingPropertiesForKeys: [.isPackageKey], options: [.skipsPackageDescendants], errorHandler: { url, error in
-            enumerationErrors.issues.append(.init(url: url, reason: ScanIssue.classify(error)))
-            return true
+            if cancellation?.isCancellationRequested == true { return false }
+            return enumerationErrors.append(.init(url: url, reason: ScanIssue.classify(error)))
         }) else {
             throw CocoaError(.fileReadNoPermission)
         }
-        for case let url as URL in entries {
-            try Task.checkCancellation()
-            guard observations.count < maximumEntries else {
-                issues.append(.init(url: scope, reason: .entryLimit))
-                break
+        while true {
+            // Drain Foundation enumeration/resource metadata per entry. Retain a clean URL,
+            // not the enumerator's prefetched NSURL and its cached metadata graph.
+            let keepGoing = try autoreleasepool {
+                try checkCancellation()
+                guard let enumerated = entries.nextObject() as? URL else { return false }
+                let url = URL(fileURLWithPath: enumerated.path)
+                try checkCancellation()
+                guard visited < maximumEntries else {
+                    issues.append(.init(url: scope, reason: .entryLimit))
+                    return false
+                }
+                guard issues.count < maximumIssues else {
+                    issues.append(.init(url: scope, reason: .issueLimit))
+                    return false
+                }
+                visited += 1
+                guard url.standardizedFileURL.pathComponents.starts(with: scope.standardizedFileURL.pathComponents) else {
+                    entries.skipDescendants()
+                    return true
+                }
+                do { try access.check(url) }
+                catch {
+                    entries.skipDescendants()
+                    issues.append(.init(url: url, reason: ScanIssue.classify(error)))
+                    return true
+                }
+                var metadata = stat()
+                guard lstat(url.path, &metadata) == 0 else {
+                    issues.append(.init(url: url, reason: .readFailed))
+                    return true
+                }
+                let type = metadata.st_mode & S_IFMT
+                let isDirectory = type == S_IFDIR
+                let isFile = type == S_IFREG
+                let isPackage = isDirectory && (try? url.resourceValues(forKeys: [.isPackageKey]).isPackage) == true
+                let sameVolume = metadata.st_dev == rootMetadata.st_dev
+                if isPackage || !sameVolume { entries.skipDescendants() }
+                if !sameVolume { issues.append(.init(url: url, reason: .differentVolume)) }
+                if entries.level > 64 {
+                    entries.skipDescendants()
+                    issues.append(.init(url: url, reason: .depthLimit))
+                    return true
+                }
+                let kind: ObservationKind = isPackage ? .package : isDirectory ? .folder : isFile ? .file : type == S_IFLNK ? .symbolicLink : .other
+                let bytes = isFile && sameVolume ? Int64(metadata.st_size) : nil
+                let identity = "\(metadata.st_dev):\(metadata.st_ino)"
+                var extra: MetadataSupplement?
+                if isFile && sameVolume {
+                    do { extra = try supplement.read(url) }
+                    catch { issues.append(.init(url: url, reason: ScanIssue.classify(error, fallback: .metadataUnavailable))) }
+                }
+                var afterMetadata = stat()
+                guard lstat(url.path, &afterMetadata) == 0,
+                      afterMetadata.st_dev == metadata.st_dev, afterMetadata.st_ino == metadata.st_ino,
+                      afterMetadata.st_mode & S_IFMT == type else {
+                    issues.append(.init(url: url, reason: .locationUnavailable))
+                    return true
+                }
+                let duplicate = !counted.insert(identity).inserted
+                if isFile && sameVolume && !duplicate {
+                    logical += bytes ?? 0
+                    if let amount = extra?.allocatedBytes { allocated += amount }
+                    else { allocationUnknown += 1 }
+                }
+                try checkCancellation()
+                observations.append(.init(id: url.path, resourceID: identity, url: url, kind: kind,
+                    logicalBytes: bytes, allocatedBytes: extra?.allocatedBytes,
+                    previewAvailability: extra?.locality ?? .unknown, isDuplicateResource: duplicate, cloud: extra?.cloud ?? .unknown))
+                emitProgress()
+                return true
             }
-            guard url.standardizedFileURL.pathComponents.starts(with: scope.standardizedFileURL.pathComponents) else {
-                entries.skipDescendants()
-                continue
-            }
-            do { try access.check(url) }
-            catch {
-                entries.skipDescendants()
-                issues.append(.init(url: url, reason: ScanIssue.classify(error)))
-                continue
-            }
-            var metadata = stat()
-            guard lstat(url.path, &metadata) == 0 else {
-                issues.append(.init(url: url, reason: .readFailed))
-                continue
-            }
-            let type = metadata.st_mode & S_IFMT
-            let isDirectory = type == S_IFDIR
-            let isFile = type == S_IFREG
-            let isPackage = isDirectory && (try? url.resourceValues(forKeys: [.isPackageKey]).isPackage) == true
-            let sameVolume = metadata.st_dev == rootMetadata.st_dev
-            if isPackage || !sameVolume { entries.skipDescendants() }
-            if !sameVolume { issues.append(.init(url: url, reason: .differentVolume)) }
-            if entries.level > 64 {
-                entries.skipDescendants()
-                issues.append(.init(url: url, reason: .depthLimit))
-                continue
-            }
-            let kind: ObservationKind = isPackage ? .package : isDirectory ? .folder : isFile ? .file : type == S_IFLNK ? .symbolicLink : .other
-            let bytes = isFile && sameVolume ? Int64(metadata.st_size) : nil
-            let identity = "\(metadata.st_dev):\(metadata.st_ino)"
-            let duplicate = !counted.insert(identity).inserted
-            var extra: MetadataSupplement?
-            if isFile && sameVolume {
-                do { extra = try supplement.read(url) }
-                catch { issues.append(.init(url: url, reason: ScanIssue.classify(error, fallback: .metadataUnavailable))) }
-            }
-            if isFile && sameVolume && !duplicate {
-                logical += bytes ?? 0
-                if let amount = extra?.allocatedBytes { allocated += amount }
-                else { allocationUnknown += 1 }
-            }
-            observations.append(.init(id: url.path, resourceID: identity, url: url, kind: kind,
-                logicalBytes: bytes, allocatedBytes: extra?.allocatedBytes,
-                previewAvailability: extra?.locality ?? .unknown, isDuplicateResource: duplicate, cloud: extra?.cloud ?? .unknown))
+            if !keepGoing { break }
         }
-        issues += enumerationErrors.issues
+        try checkCancellation()
+        emitProgress(force: true)
+        let combined = issues + enumerationErrors.issues
+        if enumerationErrors.didStop || combined.count > maximumIssues {
+            issues = Array(combined.prefix(maximumIssues))
+            issues.append(.init(url: scope, reason: .issueLimit))
+        } else { issues = combined }
         do { try access.check(scope) }
         catch { issues.append(.init(url: scope, reason: ScanIssue.classify(error))) }
         var finalRoot = stat()
@@ -222,6 +280,14 @@ public actor FolderScanner {
 /// The collector never escapes the scan or crosses executors.
 private final class EnumerationErrors: @unchecked Sendable {
     var issues: [ScanIssue] = []
+    var didStop = false
+    let maximum: Int
+    init(maximum: Int) { self.maximum = maximum }
+    func append(_ issue: ScanIssue) -> Bool {
+        if issues.count < maximum { issues.append(issue) }
+        if issues.count >= maximum { didStop = true; return false }
+        return true
+    }
 }
 
 
