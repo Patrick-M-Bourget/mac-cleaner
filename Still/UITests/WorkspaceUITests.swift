@@ -173,7 +173,12 @@ final class WorkspaceUITests: XCTestCase {
             XCTAssertTrue(selectedOne().exists)
             revealOverviewControl(app, label: other.lastPathComponent + " · Observed")
             app.buttons[other.lastPathComponent + " · Observed"].click()
-            XCTAssertTrue(app.buttons["Inspect new-browse.txt"].waitForExistence(timeout: 5))
+            let browseSearch = app.textFields["Search inspected files"]
+            revealScrollElement(app, control: browseSearch, label: "Search inspected files")
+            browseSearch.click(); browseSearch.typeKey("a", modifierFlags: .command); browseSearch.typeText("new-browse.txt")
+            let discoveredBrowse = app.buttons["Inspect new-browse.txt"]
+            revealScrollElement(app, control: discoveredBrowse, label: "Inspect new-browse.txt")
+            XCTAssertTrue(discoveredBrowse.isHittable)
             XCTAssertFalse(app.checkBoxes.matching(NSPredicate(format: "label CONTAINS %@", "new-browse.txt")).firstMatch.exists)
             try manager.createDirectory(at: denied, withIntermediateDirectories: false)
             try Data([9]).write(to: denied.appendingPathComponent("not-readable.txt"))
