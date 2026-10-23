@@ -36,10 +36,13 @@ final class ExclusionsUITests: XCTestCase {
         app.buttons["chooseExclusion"].click()
         app.typeKey("g", modifierFlags: [.command, .shift])
         let path = app.textFields.firstMatch
-        XCTAssertTrue(path.waitForExistence(timeout: 3)); path.typeKey("a", modifierFlags: .command); path.typeText(hidden.path)
+        XCTAssertTrue(path.waitForExistence(timeout: 3)); path.typeKey("a", modifierFlags: .command); path.typeText(scope.path)
         app.typeKey(.return, modifierFlags: [])
+        let excludedFile = app.dialogs.staticTexts[hidden.lastPathComponent].firstMatch
+        XCTAssertTrue(excludedFile.waitForExistence(timeout: 5)); excludedFile.click()
         app.dialogs.buttons["Preview exclusion"].click()
         XCTAssertTrue(app.staticTexts["Preview exclusion"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "value == %@", hidden.path)).firstMatch.waitForExistence(timeout: 5))
         let save = app.buttons["Save exclusion"]
         if !save.isHittable { app.scrollViews.firstMatch.scroll(byDeltaX: 0, deltaY: -300) }
         captureThemes(app, state: "preview", minimum: minimum, bounds: bounds)
