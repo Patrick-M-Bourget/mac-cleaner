@@ -97,6 +97,7 @@ private struct ExclusionMetadata: MetadataSupplementReading {
     let excluded = try await scanner.scan(root, exclusions: policy)
     refresh.finish(await RefreshValidator().validate(request, against: excluded), draft: &draft)
     #expect(draft.selectedCount == 0 && refresh.notices.count == 1)
+    #expect(refresh.notices.first?.message == "File is outside the latest included findings. Its previous selection was cleared.")
     let restored = refresh.begin(scope: root, draft: &draft)
     refresh.finish(await RefreshValidator().validate(restored, against: try await scanner.scan(root)), draft: &draft)
     #expect(draft.selectedCount == 0)

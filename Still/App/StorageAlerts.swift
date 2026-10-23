@@ -153,7 +153,7 @@ extension Notification.Name {
         let submit = policy.observe(available: available, total: total, at: Date(), volumeID: volumeID, metric: reading.metric)
         guard persist() else { return }
         if let until = policy.snoozedUntil, until > Date() { status += " Snoozed until \(until.formatted())." }
-        guard submit else { return }
+        guard submit, let reservation = policy.pendingSubmission else { return }
         let content = UNMutableNotificationContent()
         content.title = "Your Mac is running low on space"
         content.body = "Capacity checked at \(Date().formatted(date: .omitted, time: .shortened)). Open Still to review storage and choose whether to scan."
@@ -162,14 +162,14 @@ extension Notification.Name {
         let deliveryResult = await delivery.submit {
             try await self.center.add(UNNotificationRequest(identifier: "Still.lowSpace", content: content, trigger: nil))
         }
+        let changed = policy.reconcileSubmission(deliveryResult, reservation: reservation, at: Date())
+        if changed { _ = persist() }
         switch deliveryResult {
-        case .accepted:
-            policy.submissionAccepted(at: Date()); _ = persist()
-        case .failed:
-            policy.submissionFailed(); _ = persist(); status = "Notification could not be submitted. A later capacity check will retry."
+        case .failed where changed:
+            status = "Notification could not be submitted. A later capacity check will retry."
         case .staleSuccess:
             center.removePendingNotificationRequests(withIdentifiers: ["Still.lowSpace"])
-        case .staleFailure:
+        case .accepted, .failed, .staleFailure:
             break
         }
     }

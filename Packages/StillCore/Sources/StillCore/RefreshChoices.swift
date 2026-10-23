@@ -12,6 +12,7 @@ public struct RefreshOutcome: Sendable {
     fileprivate let replacements: [String: PlannedTarget]
     fileprivate let complete: Bool
     fileprivate var missing: Set<String> = []
+    fileprivate var hasExclusions = false
 }
 public struct RefreshNotice: Sendable, Identifiable {
     public var id: String { target.id }
@@ -68,7 +69,10 @@ public struct RefreshChoices: Sendable {
                 draft.replaceAfterRefresh(original, with: replacement)
             } else {
                 draft.remove(original.id)
-                notices.append(RefreshNotice(target: original, message: outcome.missing.contains(original.id) ? "File was removed or replaced. Its previous selection was cleared." : "File changed or is no longer eligible. Review it again before selecting it."))
+                let message = outcome.missing.contains(original.id)
+                    ? (outcome.hasExclusions ? "File is outside the latest included findings. Its previous selection was cleared." : "File was removed or replaced. Its previous selection was cleared.")
+                    : "File changed or is no longer eligible. Review it again before selecting it."
+                notices.append(RefreshNotice(target: original, message: message))
             }
         }
         // A later complete scope observation also retires pending evidence for deselected files.
@@ -99,6 +103,6 @@ public actor RefreshValidator {
                   fresh.modifiedNanoseconds == original.modifiedNanoseconds else { continue }
             replacements[original.id] = fresh
         }
-        return RefreshOutcome(request: request, replacements: replacements, complete: true, missing: Set(request.targets.filter { observations[$0.id] == nil }.map(\.id)))
+        return RefreshOutcome(request: request, replacements: replacements, complete: true, missing: Set(request.targets.filter { observations[$0.id] == nil }.map(\.id)), hasExclusions: scan.exclusionFingerprint != "none")
     }
 }

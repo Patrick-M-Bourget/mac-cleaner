@@ -1,5 +1,10 @@
 import Foundation
 
+public struct AlertSubmissionReservation: Sendable, Equatable {
+    fileprivate let id: UUID
+    fileprivate let volumeID: String
+}
+
 public struct AlertPolicy: Sendable, Codable {
     public enum Authorization: Sendable { case allowed, denied, unknown }
     public var enabled = false {
@@ -13,6 +18,7 @@ public struct AlertPolicy: Sendable, Codable {
     private struct Episode: Sendable, Codable {
         var suppressed = false
         var reserved = false
+        var reservationID: UUID?
         var recoveryBytes: Int64 = 0
         var snoozeUntil: Date?
         var reminderPending = false
@@ -24,6 +30,10 @@ public struct AlertPolicy: Sendable, Codable {
     private var currentMetric: String?
     private var lastSample: Date?
     public init() {}
+    public var pendingSubmission: AlertSubmissionReservation? {
+        guard let volume = currentVolume, let episode = episodes[volume], episode.reserved, let id = episode.reservationID else { return nil }
+        return AlertSubmissionReservation(id: id, volumeID: volume)
+    }
     public var canRemind: Bool { currentVolume != nil }
     public var snoozedUntil: Date? { currentVolume.flatMap { episodes[$0]?.snoozeUntil } }
     public mutating func shouldSample(at date: Date, authorization: Authorization) -> Bool {
@@ -53,24 +63,38 @@ public struct AlertPolicy: Sendable, Codable {
         if let until = episode.snoozeUntil, date < until { episodes[volumeID] = episode; return false }
         guard !episode.reserved, (!episode.suppressed || episode.reminderPending) else { episodes[volumeID] = episode; return false }
         if let last = episode.lastAttempt, date.timeIntervalSince(last) < 900 { episodes[volumeID] = episode; return false }
-        episode.reserved = true; episode.lastAttempt = date
+        episode.reserved = true; episode.reservationID = UUID(); episode.lastAttempt = date
         episodes[volumeID] = episode
+        return true
+    }
+    /// Completes only the exact still-owned reservation; reset/recovery/new attempts cannot be modified.
+    @discardableResult public mutating func reconcileSubmission(_ result: AlertDeliveryResult, reservation: AlertSubmissionReservation, at date: Date = Date()) -> Bool {
+        guard var episode = episodes[reservation.volumeID], episode.reserved, episode.reservationID == reservation.id else { return false }
+        switch result {
+        case .accepted, .staleSuccess:
+            episode.suppressed = true; episode.acceptedAt = date
+            episode.snoozeUntil = nil; episode.reminderPending = false
+        case .failed, .staleFailure: break
+        }
+        episode.reserved = false; episode.reservationID = nil
+        episodes[reservation.volumeID] = episode
         return true
     }
     public mutating func submissionAccepted(at date: Date = Date()) {
         guard let key = currentVolume, var episode = episodes[key] else { return }
-        episode.reserved = false; episode.suppressed = true; episode.acceptedAt = date
+        episode.reserved = false; episode.reservationID = nil; episode.suppressed = true; episode.acceptedAt = date
         episode.snoozeUntil = nil; episode.reminderPending = false
         episodes[key] = episode
     }
     public mutating func submissionFailed() {
         guard let key = currentVolume else { return }
         episodes[key]?.reserved = false
+        episodes[key]?.reservationID = nil
     }
     /// A reservation found after a restart is uncertain, so suppress rather than replay.
     public mutating func reconcileAfterRestart() {
         for key in episodes.keys where episodes[key]?.reserved == true {
-            episodes[key]?.reserved = false; episodes[key]?.suppressed = true
+            episodes[key]?.reserved = false; episodes[key]?.reservationID = nil; episodes[key]?.suppressed = true
             episodes[key]?.reminderPending = false
         }
     }
@@ -78,7 +102,7 @@ public struct AlertPolicy: Sendable, Codable {
         guard enabled, let key = currentVolume else { return }
         var episode = episodes[key] ?? Episode()
         episode.snoozeUntil = date.addingTimeInterval(86_400)
-        episode.reminderPending = true; episode.suppressed = true; episode.reserved = false
+        episode.reminderPending = true; episode.suppressed = true; episode.reserved = false; episode.reservationID = nil
         episodes[key] = episode
     }
 }
