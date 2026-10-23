@@ -38,8 +38,10 @@ final class ExclusionsUITests: XCTestCase {
         let path = app.textFields.firstMatch
         XCTAssertTrue(path.waitForExistence(timeout: 3)); path.typeKey("a", modifierFlags: .command); path.typeText(scope.path)
         app.typeKey(.return, modifierFlags: [])
-        let excludedFile = app.dialogs.staticTexts[hidden.lastPathComponent].firstMatch
-        XCTAssertTrue(excludedFile.waitForExistence(timeout: 5)); excludedFile.click()
+        // Go to Folder leaves the parent selected in column view. Enter its file column
+        // and use native type selection instead of clicking an offscreen column label.
+        app.typeKey(.rightArrow, modifierFlags: [])
+        app.typeText(hidden.lastPathComponent)
         app.dialogs.buttons["Preview exclusion"].click()
         XCTAssertTrue(app.staticTexts["Preview exclusion"].waitForExistence(timeout: 3))
         XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "value == %@", hidden.path)).firstMatch.waitForExistence(timeout: 5))
