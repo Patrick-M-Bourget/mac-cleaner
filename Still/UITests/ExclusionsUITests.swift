@@ -18,7 +18,7 @@ final class ExclusionsUITests: XCTestCase {
         var info = stat(); XCTAssertEqual(lstat(root.path, &info), 0)
         let app = XCUIApplication()
         app.launchArguments = ["--future-milestones", minimum ? "--design-minimum" : "--design-initial-size"]
-        app.launchEnvironment = ["STILL_TEST_STATE_ROOT": root.path, "STILL_TEST_STATE_ID": "\(info.st_dev):\(info.st_ino)"]
+        app.launchEnvironment = ["STILL_TEST_STATE_ROOT": root.path, "STILL_TEST_STATE_ID": "\(info.st_dev):\(info.st_ino)", "STILL_EXCLUSIONS_DIAGNOSTICS": "1"]
         app.launch(); defer { app.terminate() }
         XCTAssertTrue(app.buttons["Choose folder…"].waitForExistence(timeout: 5))
         let bounds = app.windows.firstMatch.frame
@@ -34,6 +34,11 @@ final class ExclusionsUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Preview exclusion"].waitForExistence(timeout: 3))
         let save = app.buttons["Save exclusion"]
         if !save.isHittable { app.scrollViews.firstMatch.scroll(byDeltaX: 0, deltaY: -300) }
+        let probe = app.staticTexts["exclusionModalProbe"]
+        let state = "[DEBUG-exclusions-modal-31] appEnabled=\(app.isEnabled) windowEnabled=\(app.windows.firstMatch.isEnabled) saveEnabled=\(save.isEnabled) saveHittable=\(save.isHittable) saveFrame=\(save.frame) windowFrame=\(app.windows.firstMatch.frame) dialogs=\(app.dialogs.count) model=\(probe.exists ? (probe.value as? String ?? probe.label) : "missing")"
+        let stateAttachment = XCTAttachment(string: state + "\n" + app.debugDescription); stateAttachment.name = "DEBUG-exclusions-modal-31-state"; stateAttachment.lifetime = .keepAlways; add(stateAttachment)
+        let screenshot = XCTAttachment(screenshot: app.windows.firstMatch.screenshot()); screenshot.name = "DEBUG-exclusions-modal-31-preview"; screenshot.lifetime = .keepAlways; add(screenshot)
+        print(state)
         XCTAssertTrue(save.isHittable); save.click()
         XCTAssertTrue(save.waitForNonExistence(timeout: 5))
         app.terminate()

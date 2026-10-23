@@ -9,6 +9,13 @@ import StillCore
     private(set) var busy = false
     private(set) var error: String?
     var preview: ExclusionRule?
+    #if DEBUG
+    private(set) var diagnostic = ""
+    private func probe(_ phase: String, panel: NSOpenPanel) {
+        guard ProcessInfo.processInfo.environment["STILL_EXCLUSIONS_DIAGNOSTICS"] == "1" else { return }
+        diagnostic = "[DEBUG-exclusions-modal-31] phase=\(phase) panelVisible=\(panel.isVisible) modalIsPicker=\(NSApp.modalWindow === panel) modalPresent=\(NSApp.modalWindow != nil) busy=\(busy) maintenance=\(AppLifecycleController.shared.maintenanceInProgress) executing=\(AppLifecycleController.shared.selection.execution.isRunning) editingBlocked=\(editingBlocked)"
+    }
+    #endif
     private func open() throws -> ExclusionStore {
         if let store { return store }
         let value = ExclusionStore(directory: try LocalStateLocation.root(create: true).appendingPathComponent("Exclusions", isDirectory: true))
@@ -39,9 +46,18 @@ import StillCore
         panel.prompt = "Preview exclusion"
         panel.message = "Choose an exact file or folder. Review the rule before saving; no file will be changed."
         guard panel.runModal() == .OK, let url = panel.url else { return }
+        #if DEBUG
+        probe("picker-returned", panel: panel)
+        #endif
         let access = url.startAccessingSecurityScopedResource()
         defer { if access { url.stopAccessingSecurityScopedResource() } }
-        do { preview = try await Task.detached { try ExclusionRule.capture(url) }.value; error = nil }
+        do {
+            let captured = try await Task.detached { try ExclusionRule.capture(url) }.value
+            #if DEBUG
+            probe("metadata-returned", panel: panel)
+            #endif
+            preview = captured; error = nil
+        }
         catch { self.error = "The selected path and volume could not be verified. No rule was saved." }
     }
     func save() async {
@@ -89,6 +105,9 @@ struct ExclusionsView: View {
             StatusRow(text: "Folder rules cover descendants on the same volume. Renamed or moved items stop matching; replacements at the saved path remain excluded. Missing volumes leave rules dormant.", symbol: "folder.badge.minus")
             if let error = model.error { StatusRow(text: error, symbol: "exclamationmark.circle", role: .caution) }
             SettingsRow(title: "Fixed protections", detail: "Protected libraries, packages, symlinks and volume boundaries remain protected independently of custom rules.") { Label("Always active", systemImage: "lock") }
+            #if DEBUG
+            if !model.diagnostic.isEmpty { Text(model.diagnostic).font(.caption).accessibilityIdentifier("exclusionModalProbe") }
+            #endif
             if let preview = model.preview {
                 SummarySurface {
                     VStack(alignment: .leading, spacing: StillDesign.Space.md) {

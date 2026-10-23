@@ -2,6 +2,15 @@ name: Native Mac workspace
 on:
   push:
   pull_request:
+  workflow_dispatch:
+    inputs:
+      suite:
+        description: Native journey scope (push and pull requests always run all)
+        type: choice
+        default: all
+        options:
+          - all
+          - exclusions
 permissions:
   contents: read
 jobs:
@@ -25,7 +34,15 @@ jobs:
       - name: Build runnable Mac application and UI runner
         run: xcodebuild build-for-testing -project Still/Still.xcodeproj -scheme Still -destination 'platform=macOS' -derivedDataPath .build/xcode
       - name: Exercise fixture navigation and geometry
-        run: xcodebuild test-without-building -project Still/Still.xcodeproj -scheme Still -destination 'platform=macOS' -derivedDataPath .build/xcode -resultBundlePath .build/Workspace.xcresult
+        env:
+          REQUESTED_SUITE: ${{ inputs.suite }}
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          scope=()
+          if [[ "$EVENT_NAME" == "workflow_dispatch" && "$REQUESTED_SUITE" == "exclusions" ]]; then
+            scope=(-only-testing:StillUITests/ExclusionsUITests)
+          fi
+          xcodebuild test-without-building -project Still/Still.xcodeproj -scheme Still -destination 'platform=macOS' -derivedDataPath .build/xcode -resultBundlePath .build/Workspace.xcresult "${scope[@]}"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
