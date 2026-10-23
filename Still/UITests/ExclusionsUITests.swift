@@ -42,16 +42,21 @@ final class ExclusionsUITests: XCTestCase {
         let atScope = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
             app.dialogs.popUpButtons["where popup"].value as? String == scope.lastPathComponent
         }, object: nil)
-        XCTAssertEqual(XCTWaiter.wait(for: [atScope], timeout: 5), .completed)
+        guard XCTWaiter.wait(for: [atScope], timeout: 5) == .completed else {
+            XCTFail("The native picker must reach the owned Scope folder before selecting a file"); return
+        }
         app.dialogs.menuButtons["View Options"].click()
-        print("[DEBUG-scope-picker] " + app.debugDescription)
-        let listView = app.menuItems.matching(NSPredicate(format: "label CONTAINS[c] %@", "list")).firstMatch
-        XCTAssertTrue(listView.waitForExistence(timeout: 5)); listView.click()
+        let listView = app.menuItems["cmdViewAsList:"]
+        guard listView.waitForExistence(timeout: 5) else { XCTFail("Native List view must be available"); return }
+        listView.click()
         let excludedFile = app.dialogs.descendants(matching: .any).matching(NSPredicate(format: "value == %@", hidden.lastPathComponent)).firstMatch
-        XCTAssertTrue(excludedFile.waitForExistence(timeout: 5)); excludedFile.click()
+        guard excludedFile.waitForExistence(timeout: 5) else { XCTFail("The exact owned file must be visible in the picker"); return }
+        excludedFile.click()
         app.dialogs.buttons["Preview exclusion"].click()
         XCTAssertTrue(app.staticTexts["Preview exclusion"].waitForExistence(timeout: 3))
-        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "value == %@", hidden.path)).firstMatch.waitForExistence(timeout: 5))
+        guard app.staticTexts.matching(NSPredicate(format: "value == %@", hidden.path)).firstMatch.waitForExistence(timeout: 5) else {
+            XCTFail("The preview must name the exact file before Save"); return
+        }
         let save = app.buttons["Save exclusion"]
         if !save.isHittable { app.scrollViews.firstMatch.scroll(byDeltaX: 0, deltaY: -300) }
         captureThemes(app, state: "preview", minimum: minimum, bounds: bounds)
