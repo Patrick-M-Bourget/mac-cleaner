@@ -46,3 +46,75 @@ The capability input is an **observation contract**, not a native detector: pass
 5. Populate production version allowlist only after the entire matrix passes; otherwise retain unsupported guidance. Tests here intentionally cannot flip production support.
 
 This ticket's deliverable is a reproducible conservative capability decision. Native cache mutation and relaunch acceptance remain unmet gates for the downstream cleanup adapter, not implied successes.
+
+## Genuine owned Chrome experiment (hosted-only)
+
+`genuine.mjs` adds an explicit, bounded native-browser experiment. It refuses
+outside GitHub Actions/macOS/arm64 and requires Node 22+, Python 3, at least 1 GiB
+free, and the explicitly downloaded **Chrome for Testing 156.0.8078.47** bundle.
+It does not launch installed Chrome or use Launch Services. Provision the
+[exact official archive](https://storage.googleapis.com/chrome-for-testing-public/156.0.8078.47/mac-arm64/chrome-mac-arm64.zip)
+into an owned runner-temporary directory with `provision.py`; record the archive SHA-256 and
+[version manifest](https://googlechromelabs.github.io/chrome-for-testing/156.0.8078.47.json)
+as run artifacts. Never install it into `/Applications` or run its updater.
+
+```sh
+python3 Validation/ChromeProbe/provision.py "$RUNNER_TEMP/chrome-probe"
+node Validation/ChromeProbe/genuine.mjs \
+  "$RUNNER_TEMP/chrome-probe/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing" \
+  "$RUNNER_TEMP/chrome-probe/evidence/report.json"
+```
+
+The script verifies the downloaded bundle's native code signature, exact version
+and executable hash. A fresh UUID tree contains an explicit custom user-data
+root and two sequential native profiles, `Default` and `Profile 1`. A server bound
+only to `127.0.0.1` generates a 512 KiB asset and disposable persistent cookie,
+local storage, IndexedDB and CacheStorage values. CDP observes the owned browser
+and helper process types. Browser background networking, updates, extensions,
+sync and default-browser prompts are disabled through command-line flags;
+mock keychain avoids real keychain access. **Flags are not a network trace**, so
+this does not claim all outbound traffic is absent. No login or personal profile
+is imported and no credentials are collected.
+
+The public experiment checks first-load asset requests, a warm relaunch's actual
+disk-cache hit, refusal while its browser is active and after reopening, and
+closed-only removal of the exact generated `Cache/Cache_Data` regular leaves.
+`remove-owned-cache.py` opens directory descriptors without following links and
+checks each manifest leaf's identity, modification time, type and link count.
+It never recursively deletes a supplied directory. Generated protected browser
+files are hashed immediately before/after removal, and persistent cookie/local
+storage/IndexedDB/offline response semantics are checked after genuine relaunch.
+The fixture server must observe another asset request and Chrome must regenerate
+cache files. Browser shutdown uses `Browser.close`, with termination restricted
+to the fresh detached process group it launched; it never searches/kills by name.
+The ephemeral runner performs final disposal. Reports contain aggregate evidence
+and synthetic relative profile paths, never personal paths or browsing data.
+
+Local checks that launch no browser:
+
+```sh
+node --check Validation/ChromeProbe/genuine.mjs
+python3 Validation/ChromeProbe/test_owned_cache.py
+```
+
+Two public helper-command tests exercise an exact owned leaf versus a protected
+sibling, symlink substitution, replaced identity and an escaping manifest. The
+first was red when the helper command was absent, then green with the guarded
+operation. These are helper safety checks, not Chrome qualification.
+
+**Evidence status:** the genuine experiment is implemented but awaits its first
+hosted execution. Do not interpret the fixture tests or a syntax check as a native
+browser pass. The report's `passed` field is set only after both profiles finish.
+
+This is deliberately **not** the production executor. Its owned process lifetime
+and fresh UUID root do not establish native inactivity for arbitrary installed
+browsers, shared ownership, enterprise policies, OS access denial or closure of
+external reopen/leaf-swap races. Empty native Login Data/Web Data byte preservation
+does not establish authenticated sessions, credentials or autofill semantics.
+Downloads, history/session restoration, real offline applications, minimum OS and
+Intel remain separate gates. The production version allowlist stays empty and
+#19 receives no mutation authority from this partial experiment.
+
+Provisioning is hosted-only and refuses an existing output directory. Download time/size, archive entries and unpacked size are bounded; member traversal, escaping symlinks, duplicate paths and files beneath archive symlinks are rejected before `ditto` extraction. A 3 GiB initial budget and unpacked-size-plus-1-GiB check guard storage. `provision.json` distinguishes the observed archive digest from a publisher checksum and includes signature, OS, Python and CI provenance. No downloaded archive is added to Git.
+
+Flags follow [Google’s Chrome launcher reference](https://github.com/GoogleChrome/chrome-launcher/blob/main/docs/chrome-flags-for-tools.md) and [Chromium’s macOS development instructions](https://chromium.googlesource.com/chromium/src/+/HEAD/docs/mac_build_instructions.md); these describe test switches rather than a production cleanup contract.
