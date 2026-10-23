@@ -120,44 +120,67 @@ struct LiveCleanupPlanView: View {
     @State private var review: CleanupReview?
     @State private var approvalError: String?
     @State private var reviewFocusRequest = 0
+    @State private var choosingItems = true
+    @State private var inspected: FileObservation?
     var body: some View {
-        VStack(alignment: .leading, spacing: 20) {
-            Text("Cleanup plan").font(.largeTitle.weight(.semibold))
-            Text("Selected for Trash").font(.headline)
-            Text("\(selection.draft.selectedCount) files selected · \(ByteCountFormatter.string(fromByteCount: selection.draft.logicalBytes, countStyle: .decimal)) logical bytes across unique storage identities")
-                .accessibilityIdentifier("liveSelectionSummary")
-            Text("Move to Trash · Space stays occupied until Finder empties Trash. Selection changes the plan only. Final approval is separate. No files are moved in this build.").foregroundStyle(.secondary)
-            MacroCategoryCheckbox(state: selection.categoryState, label: "Select all \(selection.rows.count) eligible Downloads files · \(ByteCountFormatter.string(fromByteCount: selection.eligibleLogicalBytes, countStyle: .decimal)) logical", enabled: !selection.isPreparing && !selection.rows.isEmpty) { Task { await selection.toggleAll() } }
-                .fixedSize(horizontal: true, vertical: false).frame(height: 26)
+        VStack(spacing: 0) {
+        ScrollView {
+        VStack(alignment: .leading, spacing: StillDesign.Space.xl) {
+            PageHeader(title: "Cleanup plan", subtitle: "Choose categories, adjust items if needed, then review the changes.")
+            SelectionSummary(value: ByteCountFormatter.string(fromByteCount: selection.draft.logicalBytes, countStyle: .decimal), detail: "\(selection.draft.selectedCount) files selected · unique storage identities", identifier: "liveSelectionSummary")
+            StatusRow(text: "Space stays occupied until Finder empties Trash. No files are moved in this build.", symbol: "trash")
+            HStack(alignment: .top, spacing: StillDesign.Space.md) {
+                CategoryBadge(category: .downloads)
+                VStack(alignment: .leading, spacing: StillDesign.Space.sm) {
+                    MacroCategoryCheckbox(state: selection.categoryState, label: "Select all \(selection.rows.count) eligible Downloads files", enabled: !selection.isPreparing && !selection.rows.isEmpty) { Task { await selection.toggleAll() } }
+                        .fixedSize(horizontal: true, vertical: false).frame(height: 26)
+                    Text("Move exact files to Trash. Personal files and installers are included only when selected.").font(.caption).foregroundStyle(.secondary)
+                }
+                Spacer(minLength: StillDesign.Space.sm)
+                Text(ByteCountFormatter.string(fromByteCount: selection.eligibleLogicalBytes, countStyle: .decimal)).monospacedDigit().font(.callout)
+            }
             if selection.isPreparing { ProgressView("Checking exact Downloads targets…") }
             if let approved = selection.approvedBatch { Text("Approved batch: \(approved.targets.count) files · No files moved.").foregroundStyle(.secondary) }
-            ReviewCleanupButton(enabled: selection.canReview, focusRequest: reviewFocusRequest) {
-                do { review = try selection.review(); approvalError = nil } catch { approvalError = "Recheck the selected targets before reviewing." }
-            }.fixedSize()
             if let approvalError { Text(approvalError).foregroundStyle(.secondary) }
-            TextField("Search Downloads items", text: $search)
-            LazyVStack(alignment: .leading, spacing: 12) {
-            ForEach(selection.draft.selected) { target in
-                HStack {
-                    Toggle(isOn: Binding(get: { true }, set: { if !$0 { selection.remove(target) } })) { Text(target.url.lastPathComponent) }
-                        .accessibilityLabel("Selected \(target.url.lastPathComponent)").disabled(selection.isPreparing)
-                    Text(target.url.path).font(.caption).foregroundStyle(.secondary)
+            DisclosureGroup("Choose items", isExpanded: $choosingItems) {
+                VStack(alignment: .leading, spacing: StillDesign.Space.md) {
+                    TextField("Search Downloads items", text: $search)
+                    if selection.rows.isEmpty { EmptyState(title: "No eligible files", detail: "Choose and scan Downloads or a folder inside it. Protected or unknown targets remain browse only.", symbol: "folder") }
+                    LazyVStack(alignment: .leading, spacing: 0) {
+                        ForEach(selection.rows.filter { search.isEmpty || $0.item.url.path.localizedCaseInsensitiveContains(search) }) { row in
+                            InspectableItemRow(name: row.item.url.lastPathComponent, detail: row.item.url.pathComponents.dropFirst(row.scan.scope.pathComponents.count).joined(separator: "/"), size: ByteCountFormatter.string(fromByteCount: row.item.logicalBytes ?? 0, countStyle: .decimal), symbol: "doc", inspected: inspected?.id == row.item.id, inspect: { inspected = row.item }) {
+                                Toggle("Select \(row.item.url.lastPathComponent)", isOn: Binding(get: { selection.draft.contains(row.item) }, set: { selection.set(row.item, in: row.scan, selected: $0) }))
+                                    .labelsHidden().accessibilityLabel("\(selection.draft.contains(row.item) ? "Selected" : "Select") \(row.item.url.lastPathComponent)").disabled(selection.isPreparing)
+                            }
+                            Divider()
+                        }
+                    }
+                    if let item = inspected {
+                        SummarySurface {
+                            VStack(alignment: .leading, spacing: StillDesign.Space.sm) {
+                                Text(item.url.lastPathComponent).font(StillDesign.TypeStyle.section)
+                                Text(item.url.path).font(.caption).textSelection(.enabled)
+                                Text("Intended action: Move to Trash. Space remains occupied until emptied.").font(.callout).foregroundStyle(.secondary)
+                            }
+                        }
+                    }
+                }.padding(.top, StillDesign.Space.md)
+            }
+            ForEach(selection.draft.selected.filter { target in !selection.rows.contains { $0.item.url.path + "|" + $0.item.resourceID + "|moveToTrash" == target.id } }) { target in
+                SettingsRow(title: target.url.lastPathComponent, detail: "Selection retained · Recheck this location before review") {
+                    Toggle("Selected \(target.url.lastPathComponent)", isOn: Binding(get: { true }, set: { if !$0 { selection.remove(target) } })).disabled(selection.isPreparing)
                 }
-            }
-            }
-            Divider()
-            Text("Eligible Downloads files").font(.headline)
-            if selection.scans.isEmpty { Text("Choose and scan Downloads or a folder inside it to add exact files. Nothing is preselected.").foregroundStyle(.secondary) }
-            LazyVStack(alignment: .leading, spacing: 12) {
-            ForEach(selection.rows.filter { search.isEmpty || $0.item.url.path.localizedCaseInsensitiveContains(search) }) { row in
-                Toggle(isOn: Binding(get: { selection.draft.contains(row.item) }, set: { selection.set(row.item, in: row.scan, selected: $0) })) {
-                    VStack(alignment: .leading) { Text(row.item.url.lastPathComponent); Text(row.item.url.path).font(.caption).foregroundStyle(.secondary) }
-                }.accessibilityLabel("Select \(row.item.url.lastPathComponent)").disabled(selection.isPreparing)
-            }
             }
             if let message = selection.message { Text(message).foregroundStyle(.secondary) }
             Text("Hidden search results keep their selections. Hardlink aliases are separate exact paths; their storage bytes count once.").font(.caption).foregroundStyle(.secondary)
 
+        }.padding(StillDesign.Space.page).frame(maxWidth: .infinity, alignment: .leading)
+        }.background(StillDesign.reading)
+        ActionStrip(message: "Nothing changes until you confirm the next step.") {
+ReviewCleanupButton(enabled: selection.canReview, focusRequest: reviewFocusRequest) {
+                do { review = try selection.review(); approvalError = nil } catch { approvalError = "Recheck the selected targets before reviewing." }
+            }.fixedSize()
+        }
         }
         .sheet(item: $review, onDismiss: { reviewFocusRequest += 1 }) { snapshot in
             CleanupConfirmationView(review: snapshot, cancel: { review = nil }) {
@@ -180,8 +203,8 @@ private struct CleanupConfirmationView: View {
     }
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
-            Text("Review Move to Trash").font(.title2.weight(.semibold))
-            Text("\(review.targets.count) exact files · \(ByteCountFormatter.string(fromByteCount: logicalBytes, countStyle: .decimal)) logical bytes")
+            PageHeader(title: "Review Move to Trash")
+            SummarySurface { Label("\(review.targets.count) exact files · \(ByteCountFormatter.string(fromByteCount: logicalBytes, countStyle: .decimal)) logical bytes", systemImage: "trash") }
             Text("Space remains occupied until Finder empties Trash. Files may have separate Trash locations; folder structure and automatic restoration are not guaranteed.").foregroundStyle(.secondary)
             Text("Downloads scope · No folders or new discoveries will be included.").font(.callout)
             Text("Approval records this exact batch. No files will be moved in this build.").font(.caption).foregroundStyle(.secondary)
@@ -201,7 +224,7 @@ private struct CleanupConfirmationView: View {
             }
             Divider()
             HStack { Button("Cancel", action: cancel).keyboardShortcut(.cancelAction); Spacer(); Button("Approve Move to Trash", action: approve).buttonStyle(.borderedProminent) }
-        }.padding(24).frame(width: 640, height: 520)
+        }.padding(StillDesign.Space.xl).frame(width: 640, height: 520).background(StillDesign.reading)
     }
 }
 

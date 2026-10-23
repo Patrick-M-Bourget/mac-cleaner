@@ -55,6 +55,7 @@ struct SummarySurface<Content: View>: View {
 struct SelectionSummary: View {
     let value: String
     let detail: String
+    var identifier = ""
     var body: some View {
         SummarySurface {
             HStack(alignment: .center) {
@@ -63,17 +64,22 @@ struct SelectionSummary: View {
                     Text(value).font(StillDesign.TypeStyle.value).monospacedDigit()
                 }
                 Spacer(minLength: StillDesign.Space.lg)
-                Text(detail).font(.caption).foregroundStyle(.secondary).multilineTextAlignment(.trailing)
+                Text(detail).font(.caption).foregroundStyle(.secondary).multilineTextAlignment(.trailing).accessibilityIdentifier(identifier)
             }
         }
     }
 }
+enum StatusRole {
+    case neutral, success, caution, failure
+    var color: Color { switch self { case .neutral: .secondary; case .success: .green; case .caution: .orange; case .failure: .red } }
+}
 struct StatusRow: View {
     let text: String
     var symbol = "info.circle"
-    var tone: Color = .secondary
+    var role: StatusRole = .neutral
+    var identifier: String = ""
     var body: some View {
-        Label { Text(text).fixedSize(horizontal: false, vertical: true) } icon: { Image(systemName: symbol).foregroundStyle(tone) }
+        Label { Text(text).fixedSize(horizontal: false, vertical: true).accessibilityIdentifier(identifier) } icon: { Image(systemName: symbol).foregroundStyle(role.color) }
             .font(.callout).foregroundStyle(.secondary).frame(maxWidth: .infinity, alignment: .leading)
     }
 }
@@ -150,7 +156,7 @@ struct CapacityMeter: View {
                         Text("available of \(bytes(total))").foregroundStyle(.secondary)
                     }
                 }
-                ProgressView(value: Double(total - available), total: Double(total)).tint(.secondary)
+                ProgressView(value: Double(total - available), total: Double(total)).tint(Color(nsColor: .secondaryLabelColor))
                     .accessibilityLabel("\(bytes(available)) available of \(bytes(total))")
             } else { Text("Capacity not observed").font(compact ? .caption : .callout).foregroundStyle(.secondary) }
         }
@@ -208,6 +214,7 @@ struct ReviewCleanupButton: NSViewRepresentable {
     func makeNSView(context: Context) -> FocusButton {
         let view = FocusButton(title: "Review cleanup", target: context.coordinator, action: #selector(Coordinator.clicked))
         view.bezelStyle = .rounded
+        view.bezelColor = .controlAccentColor
         view.setAccessibilityLabel("Review cleanup")
         return view
     }
@@ -236,5 +243,31 @@ struct ReviewCleanupButton: NSViewRepresentable {
                 performClick(nil)
             } else { super.keyDown(with: event) }
         }
+    }
+}
+
+struct InspectableItemRow<Selection: View>: View {
+    let name: String
+    let detail: String
+    let size: String
+    let symbol: String
+    let inspected: Bool
+    let inspect: () -> Void
+    @ViewBuilder var selection: () -> Selection
+    var body: some View {
+        HStack(alignment: .center, spacing: StillDesign.Space.md) {
+            selection()
+            Button(action: inspect) {
+                HStack(spacing: StillDesign.Space.md) {
+                    Image(systemName: symbol).foregroundStyle(.secondary).frame(width: 20)
+                    VStack(alignment: .leading, spacing: StillDesign.Space.xs) {
+                        Text(name).foregroundStyle(.primary)
+                        Text(detail).font(.caption).foregroundStyle(.secondary).lineLimit(2)
+                    }.frame(maxWidth: .infinity, alignment: .leading)
+                    Text(size).font(.callout).monospacedDigit().foregroundStyle(.secondary)
+                }.contentShape(Rectangle())
+            }.buttonStyle(.plain).accessibilityLabel("Inspect " + name)
+        }.padding(StillDesign.Space.md)
+            .background(inspected ? Color.accentColor.opacity(0.06) : .clear, in: RoundedRectangle(cornerRadius: StillDesign.Radius.row))
     }
 }

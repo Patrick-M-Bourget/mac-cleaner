@@ -63,10 +63,10 @@ struct ManagedStorageView: View {
     let back: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 20) {
+        VStack(alignment: .leading, spacing: StillDesign.Space.xl) {
             Button("Back to Overview", systemImage: "chevron.left", action: back)
-            Text("App-managed storage").font(.largeTitle.weight(.semibold))
-            Text("Management guidance · Future milestone").foregroundStyle(.secondary)
+            PageHeader(title: "App-managed storage")
+            Text("Management guidance").foregroundStyle(.secondary)
             Text("Libraries and backups stay protected. Only explicitly selected object metadata is inspected; these rows never become cleanup targets or promised savings.")
                 .font(.callout).foregroundStyle(.secondary)
             ForEach(model.rows) { row in
@@ -75,7 +75,8 @@ struct ManagedStorageView: View {
                     model.message = nil
                 } label: {
                     HStack(alignment: .top) {
-                        VStack(alignment: .leading, spacing: 4) {
+                        CategoryBadge(category: .managed)
+                        VStack(alignment: .leading, spacing: StillDesign.Space.xs) {
                             Text(row.category.title).font(.headline).foregroundStyle(.primary)
                             Text(allocation(row.allocation)).font(.callout).foregroundStyle(.secondary)
                         }
@@ -88,7 +89,8 @@ struct ManagedStorageView: View {
                 Divider()
             }
             if let selected = model.selected {
-                VStack(alignment: .leading, spacing: 12) {
+                SummarySurface {
+                VStack(alignment: .leading, spacing: StillDesign.Space.md) {
                     Text("\(selected.category.title) guidance").font(.title3.weight(.semibold))
                     Text(allocation(selected.allocation)).foregroundStyle(.secondary)
                     Text(selected.coverage).foregroundStyle(.secondary)
@@ -108,6 +110,7 @@ struct ManagedStorageView: View {
                             .font(.caption).foregroundStyle(.secondary)
                     }
                     if model.inspecting { ProgressView("Reading selected metadata…") }
+                }
                 }
             }
         }.task { await model.load() }

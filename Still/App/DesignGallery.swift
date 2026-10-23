@@ -32,9 +32,9 @@ struct DesignGallery: View {
                     FindingRow(category: .downloads, title: "Downloads", detail: "Example category", consequence: "Move exact files to Trash; space stays occupied until emptied.") { Button("Choose items") {} }
                     SummarySurface {
                         VStack(alignment: .leading, spacing: StillDesign.Space.md) {
-                            StatusRow(text: "Completed selected-scope observation", symbol: "checkmark.circle", tone: .green)
-                            StatusRow(text: "Partial coverage · Remaining bytes unknown", symbol: "exclamationmark.circle", tone: .orange)
-                            StatusRow(text: "Access unavailable · Choose the folder again", symbol: "lock", tone: .red)
+                            StatusRow(text: "Completed selected-scope observation", symbol: "checkmark.circle", role: .success)
+                            StatusRow(text: "Partial coverage · Remaining bytes unknown", symbol: "exclamationmark.circle", role: .caution)
+                            StatusRow(text: "Access unavailable · Choose the folder again", symbol: "lock", role: .failure)
                             ProgressView("Reading metadata…")
                         }
                     }
@@ -49,3 +49,16 @@ struct DesignGallery: View {
     }
 }
 #endif
+
+/// Explicit debug-only review settings do not alter macOS accessibility preferences.
+struct DesignAccessibilityPreview: ViewModifier {
+    @Environment(\.colorSchemeContrast) private var contrast
+    func body(content: Content) -> some View {
+        #if DEBUG
+        content.environment(\.stillOpaqueChrome, ProcessInfo.processInfo.arguments.contains("--design-opaque-chrome"))
+            .environment(\.colorSchemeContrast, ProcessInfo.processInfo.arguments.contains("--design-increased-contrast") ? .increased : contrast)
+        #else
+        content
+        #endif
+    }
+}

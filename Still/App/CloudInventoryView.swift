@@ -6,8 +6,9 @@ struct CloudInventoryView: View {
     @State private var evidenceExpanded = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Label("iCloud in this scan", systemImage: "icloud").font(.headline).foregroundStyle(.blue)
+        SummarySurface {
+        VStack(alignment: .leading, spacing: StillDesign.Space.sm) {
+            HStack(spacing: StillDesign.Space.sm) { CategoryBadge(category: .cloud); Text("iCloud in this scan").font(StillDesign.TypeStyle.section) }
             Text("\(report.isComplete ? "Completed selected-scope observation" : "Partial selected-scope observation") · \(report.observedAt.formatted(date: .abbreviated, time: .shortened))")
                 .font(.caption).foregroundStyle(.secondary)
             Text("Identified local downloaded allocation: \(bytes(report.localAllocatedBytes)) · \(report.localItemCount) files")
@@ -47,8 +48,8 @@ struct CloudInventoryView: View {
                     }
                 }
             }
-        }.padding(16).frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color.blue.opacity(0.05), in: RoundedRectangle(cornerRadius: 12))
+        }
+        }
     }
 
     private func flag(_ value: Bool?) -> String {

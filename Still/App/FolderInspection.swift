@@ -102,9 +102,9 @@ struct FolderInspectionView: View {
     let back: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 20) {
+        VStack(alignment: .leading, spacing: StillDesign.Space.xl) {
             Button("Back to Overview", systemImage: "chevron.left", action: back)
-            Text("Folder inspection").font(.largeTitle.weight(.semibold))
+            PageHeader(title: "Folder inspection", subtitle: "Inspect names and evidence. Checkboxes update your live cleanup plan.")
             if let scope = model.scope { Text(scope.path).foregroundStyle(.secondary).textSelection(.enabled) }
             HStack {
                 Button("Recheck folder") { if let scope = model.scope { model.scan(scope) } }.disabled(model.isScanning)
@@ -121,14 +121,13 @@ struct FolderInspectionView: View {
                 ProgressView("Reading file metadata…")
                 Button("Stop scan") { model.cancel() }
             }
-            if let message = model.message { Text(message).foregroundStyle(.secondary) }
+            if let message = model.message { StatusRow(text: message, symbol: "info.circle") }
             if let result = model.result {
                 HStack {
                     Text("Observed").font(.caption).foregroundStyle(.secondary)
                     Text(result.observedAt, format: .dateTime.year().month().day().hour().minute().second()).font(.caption)
                 }
-                Text(result.isComplete ? "Scan completed within the selected scope" : "Partial coverage · \(result.issues.count) unreadable or bounded locations")
-                    .font(.callout).foregroundStyle(.secondary)
+                StatusRow(text: result.isComplete ? "Scan completed within the selected scope" : "Partial coverage · \(result.issues.count) unreadable or bounded locations", symbol: result.isComplete ? "checkmark.circle" : "exclamationmark.circle", role: result.isComplete ? .success : .caution)
                 VStack(alignment: .leading, spacing: 5) {
                     Text("Complete scope logical bytes: \(bytes(result.totalLogicalBytes))")
                     if (!result.isComplete || result.hasUnmeasuredContents) && !result.observations.isEmpty { Text("Known observed logical subtotal: \(bytes(result.logicalBytes)) · Remaining bytes unknown") }
@@ -157,26 +156,20 @@ struct FolderInspectionView: View {
                 TextField("Search inspected files", text: $search)
                 LazyVStack(spacing: 0) {
                     ForEach(result.observations.filter { search.isEmpty || $0.url.path.localizedCaseInsensitiveContains(search) }) { item in
-                        Button { model.selected = item } label: {
-                            HStack(alignment: .top) {
-                                Image(systemName: item.kind == .file ? "doc" : "folder")
-                                VStack(alignment: .leading, spacing: 3) {
-                                    Text(item.url.lastPathComponent).foregroundStyle(.primary)
-                                    Text(relative(item.url, to: result.scope)).font(.caption).foregroundStyle(.secondary)
-                                }
-                                Spacer()
-                                Text(item.kind == .file ? bytes(item.logicalBytes) : item.kind.rawValue).foregroundStyle(.secondary)
-                            }.frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, 9).contentShape(Rectangle())
-                        }.buttonStyle(.plain).accessibilityLabel("Inspect \(item.url.lastPathComponent)")
-                        if selection.eligible(item, in: result) {
-                            Toggle("Select \(item.url.lastPathComponent)", isOn: Binding(get: { selection.draft.contains(item) }, set: { selection.set(item, in: result, selected: $0) })).disabled(selection.isPreparing)
-                        } else { Text("Browse only · outside eligible Downloads or protected/unknown target").font(.caption).foregroundStyle(.secondary) }
+                        InspectableItemRow(name: item.url.lastPathComponent, detail: relative(item.url, to: result.scope), size: item.kind == .file ? bytes(item.logicalBytes) : item.kind.rawValue, symbol: item.kind == .file ? "doc" : "folder", inspected: model.selected?.id == item.id, inspect: { model.selected = item }) {
+                            if selection.eligible(item, in: result) {
+                                Toggle("Select \(item.url.lastPathComponent)", isOn: Binding(get: { selection.draft.contains(item) }, set: { selection.set(item, in: result, selected: $0) })).labelsHidden().disabled(selection.isPreparing)
+                            } else {
+                                Image(systemName: "lock").foregroundStyle(.secondary).help("Browse only · outside eligible Downloads or protected/unknown target").accessibilityLabel("Browse only · protected or ineligible target")
+                            }
+                        }
                         Divider()
                     }
                 }
                 if let item = model.selected {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text(item.url.lastPathComponent).font(.headline)
+                    SummarySurface {
+                    VStack(alignment: .leading, spacing: StillDesign.Space.sm) {
+                        Text(item.url.lastPathComponent).font(StillDesign.TypeStyle.section)
                         Text(item.url.path).textSelection(.enabled)
                         Text("Logical size: \(bytes(item.logicalBytes))")
                         Text("Allocated size: \(bytes(item.allocatedBytes))")
@@ -192,11 +185,11 @@ struct FolderInspectionView: View {
                                 .disabled(item.kind != .file || item.previewAvailability != .local)
                             Button("Reveal in Finder") { model.reveal(item) }
                         }
-                    }.padding(16).frame(maxWidth: .infinity, alignment: .leading)
-                        .background(.quaternary.opacity(0.4), in: RoundedRectangle(cornerRadius: 12))
+                    }
+                    }
                 }
                 Text("\(selection.draft.selectedCount) files selected").accessibilityIdentifier("inspectionSelectionSummary")
-                Button("View cleanup plan", action: viewPlan).buttonStyle(.borderedProminent)
+
             }
         }.quickLookPreview($model.previewURL)
             .onChange(of: model.previewURL) { _, url in if url == nil { model.closePreviewAccess() } }
