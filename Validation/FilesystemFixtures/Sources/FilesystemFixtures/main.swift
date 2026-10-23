@@ -24,6 +24,14 @@ private func scanEvidence(_ result: ScanResult) -> [String: Any] {
      }]
 }
 
+private func matchesOwnedFixture(_ observation: FileObservation, _ expected: URL, _ native: stat) -> Bool {
+    // Foundation can return /private/var observations for an explicit /var scope.
+    // Compare both canonical paths and the exact native device/inode, never just a basename.
+    observation.kind == .file
+        && observation.url.resolvingSymlinksInPath().standardizedFileURL == expected.resolvingSymlinksInPath().standardizedFileURL
+        && observation.resourceID == "\(native.st_dev):\(native.st_ino)"
+}
+
 private func nativeEvidence(_ info: stat) -> [String: Any] {
     ["device": info.st_dev, "inode": info.st_ino, "logicalBytes": info.st_size,
      "flags": info.st_flags, "allocatedBlocksBytes": Int64(info.st_blocks) * 512]
@@ -64,19 +72,21 @@ private func nativeEvidence(_ info: stat) -> [String: Any] {
             let sentinel = scope.appendingPathComponent("sentinel.txt")
             let compressed = scope.appendingPathComponent("compressed.txt")
             let info = try metadata(compressed)
-            report["sentinelNative"] = nativeEvidence(try metadata(sentinel))
+            let sentinelInfo = try metadata(sentinel)
+            report["sentinelNative"] = nativeEvidence(sentinelInfo)
             report["compressedNative"] = nativeEvidence(info)
             report["expectedSentinelPath"] = sentinel.path
             report["expectedSentinelURL"] = sentinel.absoluteString
             report["expectedCompressedURL"] = compressed.absoluteString
             report["sentinelURLMatches"] = explicit.observations.map { $0.url == sentinel }
-            let compressedRow = explicit.observations.first { $0.url == compressed }
+            report["sentinelCanonicalIdentityMatches"] = explicit.observations.map { matchesOwnedFixture($0, sentinel, sentinelInfo) }
+            let compressedRow = explicit.observations.first { matchesOwnedFixture($0, compressed, info) }
             report["checks"] = [
                 "boundaryReported": boundary.issues.contains { $0.reason == .differentVolume && $0.url.standardizedFileURL == mount },
                 "noMountedDescendants": !boundary.observations.contains { $0.url.path.hasPrefix(mount.path + "/") },
                 "boundaryTotalsUnknown": !boundary.isComplete && boundary.totalLogicalBytes == nil,
                 "explicitScopeComplete": explicit.isComplete,
-                "knownSentinelObserved": explicit.observations.contains { $0.url == sentinel && $0.logicalBytes == 17 },
+                "knownSentinelObserved": explicit.observations.contains { matchesOwnedFixture($0, sentinel, sentinelInfo) && $0.logicalBytes == 17 },
                 "knownCompressedLogicalLength": compressedRow?.logicalBytes == 1_048_576,
                 "positiveCompression": info.st_flags & UInt32(UF_COMPRESSED) != 0,
                 "knownSmallerCompressedAllocation": compressedRow?.allocatedBytes.map { $0 < 1_048_576 } ?? false,
@@ -88,9 +98,9 @@ private func nativeEvidence(_ info: stat) -> [String: Any] {
             try require(!boundary.observations.contains { $0.url.path.hasPrefix(mount.path + "/") },
                         "Parent scan crossed the mounted volume")
             try require(!boundary.isComplete && boundary.totalLogicalBytes == nil, "Boundary must not produce complete totals")
-            try require(explicit.isComplete && explicit.observations.contains { $0.url == sentinel && $0.logicalBytes == 17 },
+            try require(explicit.isComplete && explicit.observations.contains { matchesOwnedFixture($0, sentinel, sentinelInfo) && $0.logicalBytes == 17 },
                         "Explicit mounted scope must observe the owned 17-byte sentinel")
-            let row = explicit.observations.first { $0.url == compressed }
+            let row = explicit.observations.first { matchesOwnedFixture($0, compressed, info) }
             try require(row?.logicalBytes == 1_048_576, "Logical size must preserve the owned 1 MiB file")
             let flagged = info.st_flags & UInt32(UF_COMPRESSED) != 0
             let allocated = row?.allocatedBytes
