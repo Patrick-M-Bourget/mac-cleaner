@@ -42,7 +42,8 @@ final class ExclusionsUITests: XCTestCase {
         let atScope = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
             app.dialogs.popUpButtons["where popup"].value as? String == scope.lastPathComponent
         }, object: nil)
-        guard XCTWaiter.wait(for: [atScope], timeout: 5) == .completed else {
+        let destinationResult = await XCTWaiter.fulfillment(of: [atScope], timeout: 5)
+        guard destinationResult == .completed else {
             XCTFail("The native picker must reach the owned Scope folder before selecting a file"); return
         }
         app.dialogs.menuButtons["View Options"].click()
