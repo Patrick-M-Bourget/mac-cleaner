@@ -327,6 +327,56 @@ final class WorkspaceUITests: XCTestCase {
     }
 
     @MainActor
+    func testCheckboxSelectionKeepsContentAnchored() throws {
+        continueAfterFailure = false
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("StillSelectionUI-" + UUID().uuidString, isDirectory: true)
+        let nested = root.appendingPathComponent("Long project folder name for layout and keyboard review")
+        try FileManager.default.createDirectory(at: nested, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        for i in 0..<12 { try Data([1]).write(to: nested.appendingPathComponent("A long descriptive document name with several words - \(i).pdf")) }
+        let app = XCUIApplication()
+        app.launchArguments = ["--ui-test-downloads-root", "--design-minimum", "--design-opaque-chrome"]
+        app.launchEnvironment["STILL_TEST_DOWNLOADS_ROOT"] = root.path
+        app.launch(); defer { app.terminate() }
+        XCTAssertTrue(app.buttons["Choose folder…"].waitForExistence(timeout: 10))
+        app.buttons["Choose folder…"].click(); app.typeKey("g", modifierFlags: [.command, .shift])
+        let path = app.textFields.firstMatch
+        XCTAssertTrue(path.waitForExistence(timeout: 5)); path.typeText(root.path)
+        app.typeKey(.return, modifierFlags: []); app.dialogs.buttons["Scan folder"].click()
+        XCTAssertTrue(app.staticTexts["Observed"].waitForExistence(timeout: 10))
+        app.typeKey("2", modifierFlags: .command)
+        let bounds = app.windows.firstMatch.frame
+        let category = app.checkBoxes["downloadsCategorySelection"]
+        XCTAssertTrue(category.waitForExistence(timeout: 5))
+        let categoryFrame = category.frame
+        for index in 0..<4 {
+            let before = XCTAttachment(screenshot: app.windows.firstMatch.screenshot())
+            before.name = "checkbox-category-before-" + String(index); before.lifetime = .keepAlways; add(before)
+            category.click()
+            XCTAssertEqual(category.value as? Int, index.isMultiple(of: 2) ? 1 : 0)
+            XCTAssertEqual(app.windows.firstMatch.frame, bounds)
+            XCTAssertEqual(category.frame, categoryFrame, "Selection must not displace its category control")
+            let after = XCTAttachment(screenshot: app.windows.firstMatch.screenshot())
+            after.name = "checkbox-category-after-" + String(index); after.lifetime = .keepAlways; add(after)
+        }
+        app.scrollViews.firstMatch.scroll(byDeltaX: 0, deltaY: -300)
+        let rows = app.checkBoxes.allElementsBoundByIndex.filter {
+            ($0.label.hasPrefix("Select ") || $0.label.hasPrefix("Selected ")) && $0.isHittable
+        }
+        let row = try XCTUnwrap(rows.dropFirst(rows.count / 2).first)
+        let filename = row.label.replacingOccurrences(of: "Selected ", with: "").replacingOccurrences(of: "Select ", with: "")
+        let control = app.checkBoxes.matching(NSPredicate(format: "label ENDSWITH %@", filename)).firstMatch
+        for index in 0..<4 {
+            let frame = control.frame
+            XCTAssertTrue(control.isHittable)
+            control.click()
+            XCTAssertEqual(control.value as? Int, index.isMultiple(of: 2) ? 1 : 0)
+            XCTAssertEqual(app.windows.firstMatch.frame, bounds)
+            XCTAssertEqual(control.frame, frame, "Selection must keep the clicked item anchored in the viewport")
+        }
+    }
+
+    @MainActor
     func testMinimumPopulatedPlanAndConfirmationRemainReachable() throws {
         continueAfterFailure = false
         let root = FileManager.default.temporaryDirectory.appendingPathComponent("StillSelectionUI-" + UUID().uuidString, isDirectory: true)

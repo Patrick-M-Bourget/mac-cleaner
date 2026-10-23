@@ -12,6 +12,7 @@ on:
           - all
           - exclusions
           - design
+          - selection
 permissions:
   contents: read
 jobs:
@@ -42,6 +43,8 @@ jobs:
           scope=()
           if [[ "$EVENT_NAME" == "workflow_dispatch" && "$REQUESTED_SUITE" == "exclusions" ]]; then
             scope=(-only-testing:StillUITests/ExclusionsUITests)
+          elif [[ "$EVENT_NAME" == "workflow_dispatch" && "$REQUESTED_SUITE" == "selection" ]]; then
+            scope=(-only-testing:StillUITests/WorkspaceUITests/testCheckboxSelectionKeepsContentAnchored)
           elif [[ "$EVENT_NAME" == "workflow_dispatch" && "$REQUESTED_SUITE" == "design" ]]; then
             scope=(
               -only-testing:StillUITests/WorkspaceUITests/testDesignReviewCaptures
