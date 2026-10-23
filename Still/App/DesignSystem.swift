@@ -394,11 +394,57 @@ struct NativeWindowContract: NSViewRepresentable {
     func updateNSView(_ nsView: ContractView, context: Context) {}
     @MainActor final class ContractView: NSView {
         private var applied = false
+        #if DEBUG
+        private var geometryProbeLast = ""
+        private var geometryProbeCount = 0
+        @objc private func geometryProbeNotification(_ notification: Notification) {
+            geometryProbe(notification.name.rawValue)
+        }
+        private func geometryProbe(_ event: String) {
+            guard ProcessInfo.processInfo.arguments.contains("--geometry-probe"),
+                  let window, geometryProbeCount < 80,
+                  ProcessInfo.processInfo.environment["STILL_TEST_STATE_ROOT"] != nil,
+                  let root = try? LocalStateLocation.root(create: false) else { return }
+            let fields: [String: String] = [
+                "outer": NSStringFromRect(window.frame),
+                "contentRect": NSStringFromRect(window.contentRect(forFrameRect: window.frame)),
+                "contentLayout": NSStringFromRect(window.contentLayoutRect),
+                "contentView": NSStringFromRect(window.contentView?.frame ?? .zero),
+                "toolbarVisible": String(window.toolbar?.isVisible ?? false),
+                "toolbarStyle": String(window.toolbarStyle.rawValue),
+                "appearance": window.effectiveAppearance.name.rawValue
+            ]
+            let signature = fields.sorted { $0.key < $1.key }.map { $0.key + "=" + $0.value }.joined(separator: ";")
+            guard signature != geometryProbeLast || event.contains("Contract") else { return }
+            geometryProbeLast = signature; geometryProbeCount += 1
+            var record = fields
+            record["event"] = "[DEBUG-geometry-7a] " + event
+            record["time"] = String(ProcessInfo.processInfo.systemUptime)
+            guard var data = try? JSONSerialization.data(withJSONObject: record, options: [.sortedKeys]) else { return }
+            data.append(10)
+            let path = root.appendingPathComponent("geometry-probe.jsonl")
+            if !FileManager.default.fileExists(atPath: path.path) { FileManager.default.createFile(atPath: path.path, contents: nil) }
+            guard let handle = try? FileHandle(forWritingTo: path) else { return }
+            defer { try? handle.close() }
+            _ = try? handle.seekToEnd(); try? handle.write(contentsOf: data)
+        }
+        #endif
         override func viewDidMoveToWindow() {
             super.viewDidMoveToWindow()
             guard let window, !applied else { return }
             applied = true
+            #if DEBUG
+            if ProcessInfo.processInfo.arguments.contains("--geometry-probe") {
+                for name in [NSWindow.didResizeNotification, NSWindow.didUpdateNotification, NSWindow.didBecomeKeyNotification] {
+                    NotificationCenter.default.addObserver(self, selector: #selector(geometryProbeNotification(_:)), name: name, object: window)
+                }
+                geometryProbe("attached")
+            }
+            #endif
             DispatchQueue.main.async {
+                #if DEBUG
+                self.geometryProbe("beforeContract")
+                #endif
                 guard let screen = window.screen ?? NSScreen.main else { return }
                 var visible = screen.visibleFrame
                 var requested = window.frame
@@ -420,6 +466,9 @@ struct NativeWindowContract: NSViewRepresentable {
                 let origin = NSPoint(x: min(max(requested.minX, visible.minX), visible.maxX - size.width), y: min(max(requested.minY, visible.minY), visible.maxY - size.height))
                 let fitted = NSRect(origin: origin, size: size)
                 if window.frame != fitted { window.setFrame(fitted, display: true) }
+                #if DEBUG
+                self.geometryProbe("afterContract")
+                #endif
             }
         }
     }
