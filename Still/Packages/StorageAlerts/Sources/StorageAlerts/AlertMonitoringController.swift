@@ -39,6 +39,7 @@ public struct AlertCapacityReading: Sendable {
     private var samplingGeneration: UUID?
     private var monitoringGeneration = UUID()
     private let delivery = AlertDeliveryGate()
+    private var terminating = false
     private var persistenceHealthy = true
     private var inFlightNotificationIDs = Set<String>()
     private let system: any AlertMonitoringSystem
@@ -64,25 +65,31 @@ public struct AlertCapacityReading: Sendable {
     public var thresholdValid: Bool { threshold.map { AlertPolicy.validThreshold($0, total: total) } ?? false }
 
     public func resetPreferences() throws {
+        guard !terminating else { throw CocoaError(.userCancelled) }
         monitoringGeneration = UUID()
         delivery.invalidate()
-        stopForTermination()
+        pauseMonitoring()
         removePendingNotifications()
         requested = false; policy = AlertPolicy(); thresholdGB = "40"; persistenceHealthy = true
         try system.reset()
         status = "Alerts are off."
     }
+    /// Terminal for this app session. A new controller may restore the saved preference.
     public func stopForTermination() {
+        terminating = true
+        pauseMonitoring()
+    }
+    private func pauseMonitoring() {
         monitoringGeneration = UUID()
         cancelPolling?(); cancelPolling = nil; effectiveMonitoring = false
     }
     public func configure() {
-        guard system.available else { return }
+        guard system.available, !terminating else { return }
         total = capacity().total
         if requested { Task { await sample() } }
     }
     public func setEnabled(_ enabled: Bool) async {
-        guard system.available else { return }
+        guard system.available, !terminating else { return }
         guard system.allowsNotificationChanges else { status = "Disposable tests do not change notification settings."; return }
         if enabled && !thresholdValid { status = "Enter at least 1 GB and less than startup-volume capacity."; return }
         requested = enabled
@@ -90,7 +97,7 @@ public struct AlertCapacityReading: Sendable {
         delivery.setEnabled(enabled)
         if !enabled {
             monitoringGeneration = UUID()
-            stopForTermination()
+            pauseMonitoring()
             removePendingNotifications()
         }
         guard persist() else { return }
@@ -113,13 +120,14 @@ public struct AlertCapacityReading: Sendable {
         await sample()
     }
     public func applyThreshold() async {
+        guard !terminating else { return }
         guard thresholdValid, let threshold else { status = "Enter at least 1 GB and less than startup-volume capacity."; return }
         policy.thresholdBytes = threshold
         guard persist() else { return }
         if requested { await sample() }
     }
     public func activated() async {
-        guard requested else { return }
+        guard requested, !terminating else { return }
         await sample()
     }
     private func persist() -> Bool {
@@ -133,6 +141,7 @@ public struct AlertCapacityReading: Sendable {
         }
     }
     public func remindLater() {
+        guard !terminating else { return }
         guard requested, policy.canRemind else { status = "A valid capacity reading is required before snoozing."; return }
         policy.remindLater(at: system.now)
         guard persist() else { return }
@@ -147,7 +156,7 @@ public struct AlertCapacityReading: Sendable {
     private func capacity() -> AlertCapacityReading { system.capacity() }
     private func sample() async {
         let generation = monitoringGeneration
-        guard system.available, persistenceHealthy, requested, samplingGeneration != generation else { return }
+        guard system.available, !terminating, persistenceHealthy, requested, samplingGeneration != generation else { return }
         samplingGeneration = generation
         defer { if samplingGeneration == generation { samplingGeneration = nil } }
         let settings = await system.authorization()

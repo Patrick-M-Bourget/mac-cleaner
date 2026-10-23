@@ -168,3 +168,21 @@ import StorageAlerts
     let submits = restored.observe(available: 20_000_000_000, total: 512_000_000_000, at: Date(timeIntervalSince1970: 1_000_000), volumeID: "owned", metric: "important")
     #expect(!submits)
 }
+
+@Test @MainActor func acceptedQuitCannotBeUndoneByActivationOrPreferenceActionsInSameSession() async {
+    let system = ControlledAlertSystem()
+    let alerts = AlertMonitoringController(system: system)
+    alerts.configure()
+    await alerts.setEnabled(true)
+    alerts.stopForTermination()
+    await alerts.activated()
+    alerts.configure()
+    await alerts.setEnabled(true)
+    await alerts.applyThreshold()
+    await Task.yield()
+    #expect(!alerts.effectiveMonitoring)
+    #expect(system.pollers.isEmpty)
+    #expect(alerts.requested)
+    #expect(system.saved.enabled)
+    #expect(system.notifications == 1)
+}
