@@ -37,7 +37,7 @@ The focused UI suite observes native accessibility controls, fixture inspection,
 
 Choose folder opens NSOpenPanel with directory-only single selection. Scan metadata runs serially in a non-MainActor scanner actor, checks cancellation between observations, and balances successful security-scoped access around the operation. No bookmark persists the scope yet. The scan never requests content, thumbnail generation, hashing or a cloud download.
 
-The scanner reports logical file bytes separately from allocated bytes, and selected-volume total/available capacity separately from scanned inventory. Available capacity uses Foundation's important-usage metric, matching the alert policy; missing values remain Unknown with no free-capacity fallback. The selected volume need not be the startup volume. Repeated hardlink identities count once; APFS clones/snapshots are not exclusive-space estimates. Package rows and symlink rows remain visible, with no recursive package or symlink-target inventory. Cross-volume descendants are skipped. Root symlinks are rejected. Enumeration is not a transactional filesystem snapshot.
+The scanner reports logical file bytes separately from allocated bytes, and selected-volume total/available capacity separately from scanned inventory. Available capacity prefers Foundation's important-usage metric and explicitly labels an available-capacity fallback, matching the alert policy; unavailable readings remain Unknown. The selected volume need not be the startup volume. Repeated hardlink identities count once; APFS clones/snapshots are not exclusive-space estimates. Package rows and symlink rows remain visible, with no recursive package or symlink-target inventory. Cross-volume descendants are skipped. Root symlinks are rejected. Enumeration is not a transactional filesystem snapshot.
 
 Bounds are 100,000 observations and depth 64. Reaching a bound or an access/read failure records incomplete coverage. A blocked metadata syscall may delay cancellation; no task is launched per file. The list uses lazy native rows.
 
@@ -85,6 +85,10 @@ The native manifest declares file-metadata reason `3B52.1` for selected-folder m
 
 With `--future-milestones`, Overview offers a secondary **Review Homebrew opportunities** route. Explicitly choose an executable, then Inspect. No real build is qualified, so the native path currently returns guidance without executing it; a clearly marked disposable example demonstrates target/estimate presentation. There is no automatic tool/cache discovery and no cleanup action. See [qualification evidence](validation/homebrew-preview.md) for bounded command tests, the disposable helper demonstration, primary sources and missing real-Homebrew validation gates.
 
+
+## Read-only iCloud breakdown (#5)
+
+Each explicit selected-scope result includes iCloud local allocation, cloud-only logical/allocation totals, unknown membership/locality and provider sync evidence. No cloud action is enabled. See [recorded opportunity and validation boundaries](validation/cloud-inventory.md); a consented bounded personal assessment is recorded, with remaining unobserved coverage explicitly unknown. Core tests inject provider metadata only over disposable files; the native UI journey keeps using its own ordinary temporary folder. No personal paths or contents are committed.
 ## Partial inspection and selected-scope recovery (#4)
 
 Folder scans now carry affected paths and access-denied, revoked, unavailable-location and bounded/read-error recovery reasons. A failed root returns unavailable coverage with unknown totals, distinct from a successful empty folder. Known observed subtotals remain separate from complete-scope totals; uninspected packages and partial coverage prevent complete-size claims. No result represents whole-disk coverage. Access callbacks are injected only in disposable tests; real TCC revocation, volume unmount and signed-app permission behavior remain native integration gates.
