@@ -194,8 +194,11 @@ final class WorkspaceUITests: XCTestCase {
         XCTAssertEqual(category.value as? Int, 2)
         app.buttons["Review cleanup"].click()
         XCTAssertTrue(app.staticTexts["Review Move to Trash"].waitForExistence(timeout: 5))
-        let disclosure = app.disclosureTriangles.firstMatch
-        if disclosure.exists { disclosure.click() }
+        let confirmation = app.sheets.containing(.staticText, identifier: "Review Move to Trash").firstMatch
+        XCTAssertTrue(confirmation.waitForExistence(timeout: 5))
+        let disclosure = confirmation.disclosureTriangles.firstMatch
+        XCTAssertTrue(disclosure.waitForExistence(timeout: 5))
+        disclosure.click()
         XCTAssertTrue(app.buttons["Approve Move to Trash"].isHittable)
         XCTAssertTrue(app.buttons["Cancel"].isHittable)
         XCTAssertEqual(app.windows.firstMatch.frame, bounds)
@@ -390,6 +393,28 @@ final class WorkspaceUITests: XCTestCase {
             XCTAssertFalse(app.buttons["Review cleanup"].exists)
         }
         XCTAssertTrue(manager.fileExists(atPath: root.appendingPathComponent("batch-0/file-0").path))
+    }
+
+    @MainActor
+    func testInitialReviewWindowFitsConstrainedDisplayAndKeepsToolbarReachable() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        app.launchArguments = ["--fixture-workspace", "--design-initial-size", "--design-constrained-screen"]
+        app.launch()
+        XCTAssertTrue(app.buttons["Review Downloads"].waitForExistence(timeout: 10))
+        let bounds = app.windows.firstMatch.frame
+        XCTAssertLessThanOrEqual(bounds.width, 1024)
+        XCTAssertLessThanOrEqual(bounds.height, 720)
+        XCTAssertGreaterThanOrEqual(bounds.width, 900)
+        XCTAssertGreaterThanOrEqual(bounds.height, 640)
+        XCTAssertTrue(app.popUpButtons["Appearance"].isHittable)
+        app.typeKey("2", modifierFlags: .command)
+        XCTAssertEqual(app.windows.firstMatch.frame, bounds)
+        app.popUpButtons["Appearance"].click(); app.menuItems["Dark"].click()
+        XCTAssertEqual(app.windows.firstMatch.frame, bounds)
+        app.typeKey("1", modifierFlags: .command)
+        XCTAssertTrue(app.buttons["Review Downloads"].isHittable)
+        XCTAssertTrue(app.popUpButtons["Appearance"].isHittable)
     }
 
 }
