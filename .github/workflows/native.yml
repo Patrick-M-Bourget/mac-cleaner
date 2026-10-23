@@ -16,6 +16,7 @@ on:
           - selection-scroll
           - scope
           - repair
+          - handoff
 permissions:
   contents: read
 jobs:
@@ -27,13 +28,13 @@ jobs:
         with:
           xcode-version: '26.6'
       - name: Verify disposable scanner boundaries
-        if: github.event_name != 'workflow_dispatch' || (inputs.suite != 'selection' && inputs.suite != 'selection-scroll' && inputs.suite != 'scope' && inputs.suite != 'exclusions' && inputs.suite != 'repair')
+        if: github.event_name != 'workflow_dispatch' || (inputs.suite != 'selection' && inputs.suite != 'selection-scroll' && inputs.suite != 'scope' && inputs.suite != 'exclusions' && inputs.suite != 'repair' && inputs.suite != 'handoff')
         run: xcrun swift test --package-path Packages/StillCore
       - name: Verify alert policies and lifecycle without OS permission prompts
-        if: github.event_name != 'workflow_dispatch' || (inputs.suite != 'selection' && inputs.suite != 'selection-scroll' && inputs.suite != 'scope' && inputs.suite != 'exclusions' && inputs.suite != 'repair')
+        if: github.event_name != 'workflow_dispatch' || (inputs.suite != 'selection' && inputs.suite != 'selection-scroll' && inputs.suite != 'scope' && inputs.suite != 'exclusions' && inputs.suite != 'repair' && inputs.suite != 'handoff')
         run: xcrun swift test --package-path Still/Packages/StorageAlerts
       - name: Verify isolated disposable adapter investigations
-        if: github.event_name != 'workflow_dispatch' || (inputs.suite != 'selection' && inputs.suite != 'selection-scroll' && inputs.suite != 'scope' && inputs.suite != 'exclusions' && inputs.suite != 'repair')
+        if: github.event_name != 'workflow_dispatch' || (inputs.suite != 'selection' && inputs.suite != 'selection-scroll' && inputs.suite != 'scope' && inputs.suite != 'exclusions' && inputs.suite != 'repair' && inputs.suite != 'handoff')
         run: |
           xcrun swift test --package-path Validation/ICloudProbe
           xcrun swift test --package-path Validation/XcodeProbe
@@ -49,6 +50,8 @@ jobs:
           scope=()
           if [[ "$EVENT_NAME" == "workflow_dispatch" && "$REQUESTED_SUITE" == "exclusions" ]]; then
             scope=(-only-testing:StillUITests/ExclusionsUITests)
+          elif [[ "$EVENT_NAME" == "workflow_dispatch" && "$REQUESTED_SUITE" == "handoff" ]]; then
+            scope=(-only-testing:StillUITests/WorkspaceUITests/testNativeDesignReviewAndMinimumGalleryCaptures)
           elif [[ "$EVENT_NAME" == "workflow_dispatch" && "$REQUESTED_SUITE" == "repair" ]]; then
             scope=(
               -only-testing:StillUITests/ExclusionsUITests

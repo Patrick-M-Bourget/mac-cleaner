@@ -275,8 +275,12 @@ final class WorkspaceUITests: XCTestCase {
             app.popUpButtons.firstMatch.click(); app.menuItems[theme].click(); capture("native-inspection-" + theme)
         }
         let selected = app.checkBoxes["Select selected.pdf"]
-        for _ in 0..<5 { if selected.exists { break }; app.scrollViews.firstMatch.scroll(byDeltaX: 0, deltaY: -300) }
-        XCTAssertTrue(selected.waitForExistence(timeout: 5)); selected.click()
+        for _ in 0..<5 {
+            if selected.exists && app.scrollViews.firstMatch.frame.contains(selected.frame) { break }
+            app.scrollViews.firstMatch.scroll(byDeltaX: 0, deltaY: -200)
+        }
+        XCTAssertTrue(selected.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.scrollViews.firstMatch.frame.contains(selected.frame)); selected.click()
         XCTAssertEqual(selected.value as? Int, 1)
 
         app.buttons["View cleanup plan"].click()
