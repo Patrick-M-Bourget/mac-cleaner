@@ -197,3 +197,7 @@ With `--future-milestones`, Overview offers **Review diagnostics** then native *
 `--future-milestones` exposes **Locations & access → Manage exclusions**. The native picker previews an exact resolved path, volume and boundary; the fixed action strip requires explicit Save, or Cancel. Rules are stored locally under `LocalStateLocation.root/Exclusions` (100-rule/1 MB bound). Ordinary plan deselection creates no rule. Add/remove invalidates findings and approval, preserves prior choices as pending and requires an explicit complete recheck. Retry scans use the same saved policy. Fixed protections are immutable.
 
 [Exclusion semantics](EXCLUSIONS.md) defines rename/replacement, mounted-volume and included-versus-full coverage behavior. [Validation](validation/exclusions.md) records core/build evidence and the local native activation gate. Initial/minimum native journeys use disposable owned test-state roots and never inspect personal folders. This M6 checkpoint remains future-gated; its implementation does not waive personal M1 or release qualification gates.
+
+[Independent implementation review](validation/implementation-review.md) records
+the Standards and Spec review checkpoints, resolved findings and remaining
+qualification boundaries through `fec0455`.
