@@ -154,7 +154,7 @@ private struct WorkspaceView: View {
             if let result = folderInspection.result {
                 Text("Selected scope: \(result.scope.path)").textSelection(.enabled)
                 Text("\(result.observations.count) entries observed · \(result.isComplete ? "Completed" : "Partial coverage")")
-                Text("Logical file bytes: \(result.logicalBytes) · Allocated file bytes: \(result.allocatedBytes.map(String.init) ?? "Unknown")")
+                Text("Complete scope logical bytes: \(result.totalLogicalBytes.map(String.init) ?? "Unknown") · Complete scope allocated bytes: \(result.totalAllocatedBytes.map(String.init) ?? "Unknown")")
                     .foregroundStyle(.secondary)
                 Text("These file totals describe the selected scope, separately from whole-volume capacity. No cleanup is available in this inspection milestone.")
                     .font(.callout).foregroundStyle(.secondary)

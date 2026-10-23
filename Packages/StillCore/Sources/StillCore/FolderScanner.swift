@@ -25,12 +25,21 @@ public struct FoundationMetadataSupplement: MetadataSupplementReading {
     public func read(_ url: URL) throws -> MetadataSupplement {
         let values = try url.resourceValues(forKeys: [.totalFileAllocatedSizeKey, .isUbiquitousItemKey, .ubiquitousItemDownloadingStatusKey, .ubiquitousItemIsUploadedKey, .ubiquitousItemIsUploadingKey, .ubiquitousItemIsDownloadingKey, .ubiquitousItemHasUnresolvedConflictsKey])
         var information = stat()
-        let hasStat = lstat(url.path, &information) == 0
-        let dataless = hasStat && information.st_flags & UInt32(SF_DATALESS) != 0
+        guard lstat(url.path, &information) == 0 else { throw CocoaError(.fileReadNoSuchFile) }
+        // URL resource values can omit this optional key even for ordinary local files.
+        // Use the explicit native predicate, never coalesce a missing flag to false.
+        let membership = values.isUbiquitousItem ?? FileManager().isUbiquitousItem(at: url)
+        var verified = stat()
+        guard lstat(url.path, &verified) == 0,
+              verified.st_ino == information.st_ino, verified.st_dev == information.st_dev,
+              verified.st_mode & S_IFMT == information.st_mode & S_IFMT else {
+            throw CocoaError(.fileReadNoSuchFile)
+        }
+        let dataless = information.st_flags & UInt32(SF_DATALESS) != 0
         let locality: PreviewAvailability
         if dataless || values.ubiquitousItemDownloadingStatus == .notDownloaded { locality = .nonlocal }
-        else if values.isUbiquitousItem == false { locality = .local }
-        else if values.isUbiquitousItem == true,
+        else if membership == false { locality = .local }
+        else if membership == true,
                 values.ubiquitousItemDownloadingStatus == .current || values.ubiquitousItemDownloadingStatus == .downloaded { locality = .local }
         else { locality = .unknown }
         let downloadState: CloudDownloadState
@@ -41,7 +50,7 @@ public struct FoundationMetadataSupplement: MetadataSupplementReading {
         default: downloadState = .unknown
         }
         return MetadataSupplement(allocatedBytes: values.totalFileAllocatedSize.map(Int64.init), locality: locality,
-            cloud: .init(membership: values.isUbiquitousItem, downloadState: downloadState,
+            cloud: .init(membership: membership, downloadState: downloadState,
                 uploaded: values.ubiquitousItemIsUploaded, uploading: values.ubiquitousItemIsUploading,
                 downloading: values.ubiquitousItemIsDownloading, conflicts: values.ubiquitousItemHasUnresolvedConflicts))
     }
@@ -61,9 +70,18 @@ public struct FileObservation: Sendable, Identifiable {
 }
 
 public struct ScanIssue: Sendable {
-    public enum Reason: String, Sendable { case entryLimit, depthLimit, readFailed, metadataUnavailable, differentVolume }
+    public enum Reason: String, Sendable { case entryLimit, depthLimit, readFailed, metadataUnavailable, differentVolume, accessDenied, accessRevoked, locationUnavailable }
     public let url: URL
     public let reason: Reason
+    public var recovery: String {
+        switch reason {
+        case .accessDenied, .accessRevoked: "Choose this folder again, then recheck access."
+        case .locationUnavailable: "Reconnect the volume or choose the folder again, then recheck."
+        case .differentVolume: "Choose this volume explicitly to inspect it."
+        case .entryLimit, .depthLimit: "Choose a smaller folder and scan it explicitly."
+        case .readFailed, .metadataUnavailable: "Recheck this location; unreadable bytes remain unknown."
+        }
+    }
 }
 
 public struct ScanResult: Sendable {
@@ -78,15 +96,22 @@ public struct ScanResult: Sendable {
     public let volumeAvailableBytes: Int64?
     public let issues: [ScanIssue]
     public var isComplete: Bool { issues.isEmpty }
+    /// Known observed subtotal is not the complete scope size when coverage failed.
+    public var totalLogicalBytes: Int64? { isComplete && !hasUnmeasuredContents ? logicalBytes : nil }
+    public var totalAllocatedBytes: Int64? { isComplete && !hasUnmeasuredContents ? allocatedBytes : nil }
+    public var hasUnmeasuredContents: Bool { observations.contains { $0.kind == .package || $0.kind == .other } }
+    public let volumeAvailableMetric: String
 }
 
 /// Serial actor isolation keeps blocking enumeration off MainActor, without a task per entry.
 public actor FolderScanner {
     private let maximumEntries: Int
     private let supplement: any MetadataSupplementReading
-    public init(supplement: any MetadataSupplementReading = FoundationMetadataSupplement(), maximumEntries: Int = 100_000) {
+    private let access: any ScanAccessChecking
+    public init(supplement: any MetadataSupplementReading = FoundationMetadataSupplement(), maximumEntries: Int = 100_000, access: any ScanAccessChecking = FoundationScanAccess()) {
         self.maximumEntries = min(max(1, maximumEntries), 100_000)
         self.supplement = supplement
+        self.access = access
     }
 
     /// Explicit caller action only. Recheck locality and identity without reading content.
@@ -103,12 +128,15 @@ public actor FolderScanner {
     }
 
     public func scan(_ scope: URL) throws -> ScanResult {
+        guard scope.isFileURL else { throw CocoaError(.fileReadUnsupportedScheme) }
         var observations: [FileObservation] = []
         var issues: [ScanIssue] = []
         var logical: Int64 = 0
         var allocated: Int64 = 0
         var allocationUnknown = 0
         var counted = Set<String>()
+        do { try access.check(scope) }
+        catch { return ScanResult(scope: scope, observedAt: Date(), observations: [], logicalBytes: 0, allocatedBytes: nil, allocatedUnknownCount: 0, volumeCapacityBytes: nil, volumeAvailableBytes: nil, issues: [.init(url: scope, reason: ScanIssue.classify(error))], volumeAvailableMetric: "Unavailable") }
         var rootMetadata = stat()
         guard scope.isFileURL, lstat(scope.path, &rootMetadata) == 0,
               (rootMetadata.st_mode & S_IFMT) == S_IFDIR else {
@@ -119,8 +147,8 @@ public actor FolderScanner {
         }
         let manager = FileManager()
         let enumerationErrors = EnumerationErrors()
-        guard let entries = manager.enumerator(at: scope, includingPropertiesForKeys: [.isPackageKey], options: [.skipsPackageDescendants], errorHandler: { url, _ in
-            enumerationErrors.urls.append(url)
+        guard let entries = manager.enumerator(at: scope, includingPropertiesForKeys: [.isPackageKey], options: [.skipsPackageDescendants], errorHandler: { url, error in
+            enumerationErrors.issues.append(.init(url: url, reason: ScanIssue.classify(error)))
             return true
         }) else {
             throw CocoaError(.fileReadNoPermission)
@@ -133,6 +161,12 @@ public actor FolderScanner {
             }
             guard url.standardizedFileURL.pathComponents.starts(with: scope.standardizedFileURL.pathComponents) else {
                 entries.skipDescendants()
+                continue
+            }
+            do { try access.check(url) }
+            catch {
+                entries.skipDescendants()
+                issues.append(.init(url: url, reason: ScanIssue.classify(error)))
                 continue
             }
             var metadata = stat()
@@ -159,7 +193,7 @@ public actor FolderScanner {
             var extra: MetadataSupplement?
             if isFile && sameVolume {
                 do { extra = try supplement.read(url) }
-                catch { issues.append(.init(url: url, reason: .metadataUnavailable)) }
+                catch { issues.append(.init(url: url, reason: ScanIssue.classify(error, fallback: .metadataUnavailable))) }
             }
             if isFile && sameVolume && !duplicate {
                 logical += bytes ?? 0
@@ -170,16 +204,50 @@ public actor FolderScanner {
                 logicalBytes: bytes, allocatedBytes: extra?.allocatedBytes,
                 previewAvailability: extra?.locality ?? .unknown, isDuplicateResource: duplicate, cloud: extra?.cloud ?? .unknown))
         }
-        issues += enumerationErrors.urls.map { .init(url: $0, reason: .readFailed) }
-        let volume = try? scope.resourceValues(forKeys: [.volumeTotalCapacityKey, .volumeAvailableCapacityForImportantUsageKey])
+        issues += enumerationErrors.issues
+        do { try access.check(scope) }
+        catch { issues.append(.init(url: scope, reason: ScanIssue.classify(error))) }
+        var finalRoot = stat()
+        if lstat(scope.path, &finalRoot) != 0 || finalRoot.st_ino != rootMetadata.st_ino || finalRoot.st_dev != rootMetadata.st_dev {
+            issues.append(.init(url: scope, reason: .locationUnavailable))
+        }
+        let volume = try? scope.resourceValues(forKeys: [.volumeTotalCapacityKey, .volumeAvailableCapacityForImportantUsageKey, .volumeAvailableCapacityKey])
         return ScanResult(scope: scope, observedAt: Date(), observations: observations.sorted { $0.url.path < $1.url.path },
             logicalBytes: logical, allocatedBytes: allocationUnknown == 0 ? allocated : nil, allocatedUnknownCount: allocationUnknown,
-            volumeCapacityBytes: volume?.volumeTotalCapacity.map(Int64.init), volumeAvailableBytes: volume?.volumeAvailableCapacityForImportantUsage, issues: issues)
+            volumeCapacityBytes: volume?.volumeTotalCapacity.map(Int64.init), volumeAvailableBytes: volume?.volumeAvailableCapacityForImportantUsage ?? volume?.volumeAvailableCapacity.map(Int64.init), issues: issues, volumeAvailableMetric: volume?.volumeAvailableCapacityForImportantUsage != nil ? "Important usage" : volume?.volumeAvailableCapacity != nil ? "Available capacity fallback" : "Unavailable")
     }
 }
 
 /// FileManager invokes its enumeration error handler synchronously on this scanner actor.
 /// The collector never escapes the scan or crosses executors.
 private final class EnumerationErrors: @unchecked Sendable {
-    var urls: [URL] = []
+    var issues: [ScanIssue] = []
+}
+
+
+extension ScanIssue {
+    static func classify(_ error: any Error, fallback: Reason = .readFailed) -> Reason {
+        let value = error as NSError
+        if value.domain == NSCocoaErrorDomain && value.code == NSFileReadNoPermissionError { return .accessDenied }
+        if value.domain == NSPOSIXErrorDomain && [Int(EACCES), Int(EPERM)].contains(value.code) { return .accessDenied }
+        if value.domain == NSCocoaErrorDomain && value.code == NSFileReadNoSuchFileError { return .locationUnavailable }
+        if value.domain == NSPOSIXErrorDomain && [Int(ENOENT), Int(ENODEV), Int(ENXIO)].contains(value.code) { return .locationUnavailable }
+        if let access = error as? ScanAccessFailure {
+            switch access { case .denied: return .accessDenied; case .revoked: return .accessRevoked; case .unavailable: return .locationUnavailable }
+        }
+        return fallback
+    }
+}
+
+public enum ScanAccessFailure: Error, Sendable { case denied, revoked, unavailable }
+
+
+/// Permission/volume boundary. Returning success never grants broader scope or mutation authority.
+public protocol ScanAccessChecking: Sendable { func check(_ url: URL) throws }
+public struct FoundationScanAccess: ScanAccessChecking {
+    public init() {}
+    public func check(_ url: URL) throws {
+        var info = stat()
+        guard lstat(url.path, &info) == 0 else { throw NSError(domain: NSPOSIXErrorDomain, code: Int(errno)) }
+    }
 }

@@ -12,12 +12,16 @@ struct CloudInventoryView: View {
                 .font(.caption).foregroundStyle(.secondary)
             Text("Identified local downloaded allocation: \(bytes(report.localAllocatedBytes)) · \(report.localItemCount) files")
                 .monospacedDigit()
+            if !report.isComplete {
+                Text("Observed local allocated subtotal: \(bytes(report.observedLocalAllocatedBytes)) · Uninspected cloud allocation: Unknown")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
             Text("Cloud-only: \(report.cloudOnlyItemCount) files · \(bytes(report.cloudOnlyLogicalBytes)) logical size")
             Text("Cloud-only allocated bytes: \(bytes(report.cloudOnlyAllocatedBytes))")
                 .font(.caption).foregroundStyle(.secondary)
             if report.unknownStateCount > 0 { Text("\(report.unknownStateCount) identified iCloud files have unknown local/download state.") }
             if report.unknownMembershipCount > 0 { Text("iCloud membership unknown for \(report.unknownMembershipCount) file identities.") }
-            if report.items.isEmpty && report.unknownMembershipCount == 0 {
+            if report.isComplete && report.items.isEmpty && report.unknownMembershipCount == 0 {
                 Text("No iCloud files identified in this selected scope.").foregroundStyle(.secondary)
             }
             Text("Pinning: Unknown — not established by this scan").font(.caption).foregroundStyle(.secondary)

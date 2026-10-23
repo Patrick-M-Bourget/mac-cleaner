@@ -33,3 +33,28 @@ private struct CloudFixtureMetadata: MetadataSupplementReading {
     #expect(report.items.first { $0.url.lastPathComponent == "current.bin" }?.cloud.uploaded == nil)
     #expect(report.evictionAvailable == false)
 }
+
+private struct DeniedCloudScope: ScanAccessChecking {
+    func check(_ url: URL) throws { throw ScanAccessFailure.denied }
+}
+
+@Test func unreadableCloudScopeDoesNotClaimZeroCloudAllocation() async throws {
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent("StillCloudDenied-\(UUID().uuidString)", isDirectory: true)
+    try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: root) }
+    let result = try await FolderScanner(access: DeniedCloudScope()).scan(root)
+    #expect(!result.cloudInventory.isComplete)
+    #expect(result.cloudInventory.localAllocatedBytes == nil)
+    #expect(result.cloudInventory.cloudOnlyLogicalBytes == nil)
+}
+
+@Test func nativeExistingOrdinaryFileGetsExplicitNonCloudMembership() async throws {
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent("StillOrdinaryMetadata-\(UUID().uuidString)", isDirectory: true)
+    try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: root) }
+    try Data([65]).write(to: root.appendingPathComponent("ordinary.txt"))
+    let result = try await FolderScanner().scan(root)
+    let item = try #require(result.observations.first)
+    #expect(item.cloud.membership == false)
+    #expect(item.previewAvailability == .local)
+}
