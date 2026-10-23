@@ -21,10 +21,14 @@ assert(!browser.startsWith('/Applications/'));
 const disk = await statfs(tmpdir());
 assert(disk.bavail * disk.bsize > 1024 ** 3, 'At least 1 GiB free required');
 const expectedVersion = '156.0.8078.47';
-const version = execFileSync(browser, ['--version'], { encoding: 'utf8', timeout: 10000 }).trim();
-assert(version.includes(expectedVersion), `Unexpected browser version: ${version}`);
 const bundle = browser.slice(0, browser.indexOf('.app/') + 4);
-execFileSync('/usr/bin/codesign', ['--verify', '--deep', '--strict', bundle], { timeout: 30000 });
+const provisioning = JSON.parse(await readFile(join(dirname(dirname(bundle)), 'evidence', 'provision.json'), 'utf8'));
+assert.equal(provisioning.archiveSHA256, 'ad7f2b49a4dc679af286b1b1b386670d93ca7868079f69012d21ba0ac8293df3');
+assert.equal(provisioning.archiveBytes, 194932023);
+assert.equal(provisioning.provisioningComplete, true);
+assert.equal(provisioning.executableSHA256, createHash('sha256').update(await readFile(browser)).digest('hex'));
+const version = execFileSync(browser, ['--version'], { encoding: 'utf8', timeout: 10000 }).trim();
+assert.equal(version.split(/\s+/).at(-1), expectedVersion, `Unexpected browser version: ${version}`);
 
 const root = await realpath(await mkdtemp(join(tmpdir(), 'StillChromeProbe-')));
 const userData = join(root, 'custom', 'configured-user-data');
@@ -46,7 +50,7 @@ const server = createServer((req, res) => {
 await new Promise(r => server.listen(0, '127.0.0.1', r));
 const origin = `http://127.0.0.1:${server.address().port}`;
 const sleep = ms => new Promise(r => setTimeout(r, ms));
-const report = { schema: 1, codeSignatureVerified: true, browserVersion: version, executableSHA256: digest(await readFile(browser)), os: release(), architecture: arch(), sourceURL: `https://storage.googleapis.com/chrome-for-testing-public/${expectedVersion}/mac-arm64/chrome-mac-arm64.zip`, profiles: [], productionMutationSupported: false, limitations: ['No production inactivity or reopen-race closure', 'No credentials/autofill/download/history/session-tab semantic qualification', 'No enterprise policy, shared cache, minimum OS or Intel qualification', 'Background-network flags are not a network trace; no network absence claim'] };
+const report = { schema: 1, sealedBundleVerified: provisioning.sealedBundleVerified, signatureVerification: provisioning.signatureVerification, nativeCodeSignatureObservations: provisioning.nativeCodeSignatureObservations, browserVersion: version, executableSHA256: digest(await readFile(browser)), node: process.version, githubSHA: process.env.GITHUB_SHA, githubRunID: process.env.GITHUB_RUN_ID, os: release(), architecture: arch(), sourceURL: `https://storage.googleapis.com/chrome-for-testing-public/${expectedVersion}/mac-arm64/chrome-mac-arm64.zip`, profiles: [], productionMutationSupported: false, limitations: ['No production inactivity or reopen-race closure', 'No credentials/autofill/download/history/session-tab semantic qualification', 'No enterprise policy, shared cache, minimum OS or Intel qualification', 'Background-network flags are not a network trace; no network absence claim'] };
 let owned;
 class CDP {
   constructor(ws) {
