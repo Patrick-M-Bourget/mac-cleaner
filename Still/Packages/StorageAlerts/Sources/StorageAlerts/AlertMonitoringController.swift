@@ -24,8 +24,8 @@ public struct AlertCapacityReading: Sendable {
     func reset() throws
     /// Returns cancellation for this one poller. Never wakes the machine.
     func startPolling(_ sample: @escaping @MainActor () -> Void) -> () -> Void
-    func removePendingNotification()
-    func submitLowSpaceNotification(observedAt: Date) async throws
+    func removePendingNotifications(identifiers: [String])
+    func submitLowSpaceNotification(identifier: String, observedAt: Date) async throws
 }
 
 @MainActor public class AlertMonitoringController: NSObject, ObservableObject {
@@ -40,6 +40,8 @@ public struct AlertCapacityReading: Sendable {
     private var monitoringGeneration = UUID()
     private let delivery = AlertDeliveryGate()
     private var persistenceHealthy = true
+    private var inFlightNotificationIDs = Set<String>()
+    private var acceptedNotificationID: String?
     private let system: any AlertMonitoringSystem
     public init(system: any AlertMonitoringSystem) {
         self.system = system
@@ -68,7 +70,7 @@ public struct AlertCapacityReading: Sendable {
         stopForTermination()
         requested = false; policy = AlertPolicy(); thresholdGB = "40"; persistenceHealthy = true
         try system.reset()
-        system.removePendingNotification()
+        removePendingNotifications()
         status = "Alerts are off."
     }
     public func stopForTermination() {
@@ -90,7 +92,7 @@ public struct AlertCapacityReading: Sendable {
         if !enabled {
             monitoringGeneration = UUID()
             stopForTermination()
-            system.removePendingNotification()
+            removePendingNotifications()
         }
         guard persist() else { return }
         if !enabled { status = "Alerts are off."; return }
@@ -137,6 +139,13 @@ public struct AlertCapacityReading: Sendable {
         guard persist() else { return }
         status = "Alerts snoozed for 24 hours. A valid low reading after resumption permits one reminder."
     }
+    private func removePendingNotifications() {
+        var identifiers = inFlightNotificationIDs
+        identifiers.insert("Still.lowSpace") // Previous versions used this fixed identifier.
+        if let acceptedNotificationID { identifiers.insert(acceptedNotificationID) }
+        system.removePendingNotifications(identifiers: Array(identifiers))
+        acceptedNotificationID = nil
+    }
     private func capacity() -> AlertCapacityReading { system.capacity() }
     private func sample() async {
         let generation = monitoringGeneration
@@ -170,17 +179,25 @@ public struct AlertCapacityReading: Sendable {
         guard persist() else { return }
         if let until = policy.snoozedUntil, until > system.now { status += " Snoozed until \(until.formatted())." }
         guard submit, let reservation = policy.pendingSubmission else { return }
+        let notificationID = "Still.lowSpace." + UUID().uuidString
+        inFlightNotificationIDs.insert(notificationID)
         let deliveryResult = await delivery.submit {
-            try await self.system.submitLowSpaceNotification(observedAt: self.system.now)
+            try await self.system.submitLowSpaceNotification(identifier: notificationID, observedAt: self.system.now)
         }
+        inFlightNotificationIDs.remove(notificationID)
         let changed = policy.reconcileSubmission(deliveryResult, reservation: reservation, at: system.now)
         if changed { _ = persist() }
         switch deliveryResult {
         case .failed where changed:
             status = "Notification could not be submitted. A later capacity check will retry."
         case .staleSuccess:
-            system.removePendingNotification()
-        case .accepted, .failed, .staleFailure:
+            system.removePendingNotifications(identifiers: [notificationID])
+        case .accepted:
+            if let previous = acceptedNotificationID {
+                system.removePendingNotifications(identifiers: [previous])
+            }
+            acceptedNotificationID = notificationID
+        case .failed, .staleFailure:
             break
         }
     }

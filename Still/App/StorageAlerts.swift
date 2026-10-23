@@ -30,16 +30,16 @@ extension Notification.Name {
         timer.tolerance = 60
         return { timer.invalidate() }
     }
-    func removePendingNotification() {
+    func removePendingNotifications(identifiers: [String]) {
         guard allowsNotificationChanges else { return }
-        center.removePendingNotificationRequests(withIdentifiers: ["Still.lowSpace"])
+        center.removePendingNotificationRequests(withIdentifiers: identifiers)
     }
-    func submitLowSpaceNotification(observedAt: Date) async throws {
+    func submitLowSpaceNotification(identifier: String, observedAt: Date) async throws {
         let content = UNMutableNotificationContent()
         content.title = "Your Mac is running low on space"
         content.body = "Capacity checked at \(observedAt.formatted(date: .omitted, time: .shortened)). Open Still to review storage and choose whether to scan."
         content.sound = .default; content.categoryIdentifier = "Still.capacity"
-        try await center.add(UNNotificationRequest(identifier: "Still.lowSpace", content: content, trigger: nil))
+        try await center.add(UNNotificationRequest(identifier: identifier, content: content, trigger: nil))
     }
 }
 

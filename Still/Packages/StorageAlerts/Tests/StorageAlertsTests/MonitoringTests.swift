@@ -13,7 +13,10 @@ import StorageAlerts
     let heldBegan = AsyncStream<Void>.makeStream()
     var pollers: [UUID: @MainActor () -> Void] = [:]
     var notifications = 0
-    var reads = 0
+    var holdNextSubmission = false
+    var heldSubmission: CheckedContinuation<Void, Never>?
+    let submissionBegan = AsyncStream<Void>.makeStream()
+    var pendingNotifications: [String: Date] = [:]
     func authorization() async -> AlertPolicy.Authorization {
         if holdNextAuthorization {
             holdNextAuthorization = false
@@ -24,7 +27,7 @@ import StorageAlerts
         return .allowed
     }
     func requestAuthorization() async throws -> Bool { true }
-    func capacity() -> AlertCapacityReading { reads += 1; return reading }
+    func capacity() -> AlertCapacityReading { reading }
     func load() throws -> AlertPolicy { saved }
     func save(_ policy: AlertPolicy) throws { saved = policy }
     func reset() throws { saved = AlertPolicy() }
@@ -32,8 +35,19 @@ import StorageAlerts
         let id = UUID(); pollers[id] = sample
         return { self.pollers[id] = nil }
     }
-    func removePendingNotification() {}
-    func submitLowSpaceNotification(observedAt: Date) async throws { notifications += 1 }
+    func removePendingNotifications(identifiers: [String]) {
+        for identifier in identifiers { pendingNotifications[identifier] = nil }
+    }
+    func submitLowSpaceNotification(identifier: String, observedAt: Date) async throws {
+        notifications += 1
+        if holdNextSubmission {
+            holdNextSubmission = false
+            await withCheckedContinuation { continuation in
+                heldSubmission = continuation; submissionBegan.continuation.yield(())
+            }
+        }
+        pendingNotifications[identifier] = observedAt
+    }
 }
 
 @Test @MainActor func reEnablingDuringHeldSampleResumesMonitoringWithoutAnotherActivation() async {
@@ -50,11 +64,12 @@ import StorageAlerts
     await alerts.setEnabled(false)
     #expect(!alerts.effectiveMonitoring)
     #expect(system.pollers.isEmpty)
+    system.reading = AlertCapacityReading(available: 20_000_000_000, total: 256_000_000_000, volumeID: "owned", metric: "important")
     await alerts.setEnabled(true)
     #expect(alerts.effectiveMonitoring)
+    #expect(alerts.total == 256_000_000_000)
     #expect(system.pollers.count == 1)
     #expect(system.notifications == 1) // Same low episode stays suppressed.
-    #expect(system.reads == 3) // Initial capacity, initial enable, renewed enable.
     system.held?.resume(returning: .denied); system.held = nil
     await oldActivation.value
     #expect(alerts.effectiveMonitoring)
@@ -95,4 +110,35 @@ import StorageAlerts
     #expect(alerts.requested) // Quit preserves saved preference and independent login intent.
     #expect(system.saved.enabled)
     #expect(system.notifications == 1)
+}
+
+@Test @MainActor func staleSubmissionCannotRemoveFreshRecoveredEpisodeNotification() async {
+    let system = ControlledAlertSystem()
+    let alerts = AlertMonitoringController(system: system)
+    alerts.configure()
+    system.holdNextSubmission = true
+    system.pendingNotifications["Still.lowSpace"] = system.now // Legacy fixed-ID request.
+    let oldEnable = Task { await alerts.setEnabled(true) }
+    var began = system.submissionBegan.stream.makeAsyncIterator(); _ = await began.next()
+    await alerts.setEnabled(false)
+    #expect(system.pendingNotifications.isEmpty)
+    await alerts.setEnabled(true)
+    system.now.addTimeInterval(900)
+    system.reading = AlertCapacityReading(available: 60_000_000_000, total: 512_000_000_000, volumeID: "owned", metric: "important")
+    await alerts.activated() // Genuine recovery rearms the episode.
+    system.now.addTimeInterval(900)
+    system.reading = AlertCapacityReading(available: 20_000_000_000, total: 512_000_000_000, volumeID: "owned", metric: "important")
+    await alerts.activated()
+    let freshObservation = system.now
+    #expect(Array(system.pendingNotifications.values) == [freshObservation])
+    system.heldSubmission?.resume(); system.heldSubmission = nil
+    await oldEnable.value
+    #expect(Array(system.pendingNotifications.values) == [freshObservation])
+    #expect(alerts.effectiveMonitoring)
+    #expect(system.pollers.count == 1)
+    system.now.addTimeInterval(900)
+    await alerts.activated()
+    #expect(system.notifications == 2) // Fresh episode remains accepted, not replayed.
+    await alerts.setEnabled(false)
+    #expect(system.pendingNotifications.isEmpty)
 }
