@@ -2,7 +2,7 @@
 
 Native UI implementation follows the mandatory [design system](DESIGN-SYSTEM.md).
 
-The native workspace starts with deterministic in-memory fixtures (issue #2). Issue #3 adds explicit native folder selection and read-only metadata inspection. Nothing scans until the user chooses a folder. Quick Look and Reveal in Finder run only from their explicit controls; preview requires fresh positive locality and matching resource identity. No cleanup target mutation is implemented. Fixture strings and sizes remain illustrative; selecting a real folder replaces fixture findings in that session.
+The current native app scans metadata only after explicit folder selection. Quick Look and Reveal in Finder run only from their controls; preview requires fresh positive locality and matching resource identity. Eligible local Downloads files can enter a shared session plan and move to Trash only after exact consequence confirmation. Progress, cancellation, per-file results, fresh explicitly approved retry and startup recovery are implemented; completed-history/reset and personal/release qualification retain their ticket gates. Historical slice notes below describe implementation stages, not the current feature ceiling. Start with the [personal-build walkthrough](validation/personal-build-walkthrough.md); it distinguishes read-only inspection from separately approved personal cleanup.
 
 ## Prerequisites and launch
 
@@ -167,3 +167,7 @@ The future-milestone launch flag exposes **What grew** (Command-6). It records o
 ## Directory stability
 
 The scanner permits at most one internal metadata recheck within shared entry and cooperative time budgets. See [current policy, fixtures and benchmark delta](validation/directory-stability.md). The focused native journey is `WorkspaceUITests/testChangingDirectoryRecheckKeepsStopReachableAndNeverEnablesCleanup`; its mutation/latency fixture is DEBUG-only and runs solely after its explicitly bound owned folder was picked.
+
+## Release preparation (#35)
+
+[Release evidence and remaining gates](validation/release-qualification.md) distinguish locally exercised configurations from support claims. `python3 tools/release/preflight.py /absolute/path/Still.app` inspects an existing artifact without signing, launching or changing trust; a passing artifact check still requires manual release qualification. Current development builds are not distributable releases.
