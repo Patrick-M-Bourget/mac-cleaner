@@ -12,7 +12,13 @@ The second pass starts fresh observations and accounting rather than combining i
 
 Eight new scanner/growth-boundary tests cover one stabilizing nested change; repeated changes with no growth baseline; root replacement; cancellation at the announced recheck boundary; shared entry-budget exhaustion; a returning metadata call past deadline; an ancestor replaced by a symlink to an owned outside fixture; and root replacement specifically between the retry gate and second enumeration. The last race failed three assertions before pinning original root evidence into both attempts, then passed. Tests observe results, public progress and baseline persistence, not private directory helpers.
 
-The merged StillCore suite passed **95/95** on local Xcode 27.1 after integration `5e849e8`. No personal directories were inspected. Native phase/Stop journey evidence is completed below after its focused run.
+The merged StillCore suite passed **95/95** on local Xcode 27.1 after integration `5e849e8`. Native build-for-testing succeeded with the bound owned-fixture helper and explicit accessible phase text. No personal directories were inspected.
+
+The focused native journey passed **1/1 in 75.5 seconds**, covering initial and 900×640 bounds, Light/Dark appearance, the visible recheck phase, fixed Stop reachability, actual Stop acknowledgement, disabled cleanup authority and unchanged owned sentinel contents. The DEBUG mutation boundary requires the explicitly selected UUID-namespaced temporary root, current-user ownership and exact device/inode environment binding; production contains no fixture mutation.
+
+The first native attempt failed an exact native ProgressView-label lookup while its recording showed the correct phase and fixed Stop. Replacing that label with explicit accessible Text plus a stable identifier made the public journey pass, without increasing waits or fixture size. Local result: `.build/directory-stability-final-ui.xcresult`; log: `/tmp/still-stability-final-ui.log`. Core log: `/tmp/still-stability-final-core.log`; benchmark output is linked below.
+
+**Unobscured native visual qualification remains pending.** Exported screenshots contain an unrelated stale Gatekeeper warning for an unsigned `StillUITests-Runner` from another local test attempt. The owned warning could not be safely dismissed through available UI surfaces; warning diagnosis was stopped. No OS security settings were changed. Occluded screenshots remain local inside the result bundle and are not committed or counted as visual signoff. Behavioral assertions passed despite that overlay; they do not substitute for unobscured visual review.
 
 ## Actual 50,000-file performance delta
 
