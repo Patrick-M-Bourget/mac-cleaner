@@ -97,6 +97,8 @@ Future routes retain their feature gates. Browser cleanup and additional roadmap
 
 ## Native behavior and accessibility
 
+For selection-only updates, check content anchoring as well as the outer window frame: the clicked visible control should retain its viewport position after selection settles. Use the actual scroll viewport to establish visibility; accessibility hit testing alone can include off-screen rows. The [checkbox movement investigation](validation/checkbox-content-anchor.md) records current coverage and the unresolved user report.
+
 Keep the shell geometry and scroll/action regions defined in the handoff. Expansion changes content, not window size or destination. Category refinement is inline; selecting and inspecting are separate actions. Shared components must preserve model-provided unknown/partial/blocked states and shared session selection.
 
 Use native buttons, toggles, disclosure and AppKit bridges for keyboard focus and mixed state. Name inspection separately from selection. Consequences wrap; long paths use accessible truncation/help or a bounded detail region. Keep confirmation actions visible while its exact-target list scrolls. Native macOS disclosure arrows extend before their labels: use the shared leading control gutter (`StillDesign.Space.xl`) inside bounded scrolling content so the actual arrow stays within the clip. Test visible native glyph activation and expanded contents, not label clicks or clipped coordinates. Restore focus on Cancel without clearing choices.
