@@ -16,6 +16,7 @@ extension Notification.Name {
     private var timer: Timer?
     private var sampling = false
     private var monitoringGeneration = UUID()
+    private let delivery = AlertDeliveryGate()
     private var persistenceHealthy = true
     private var store: AlertStateStore { get throws { AlertStateStore(url: try LocalStateLocation.root(create: true).appendingPathComponent("StorageAlerts/episode-state.json")) } }
     private let center = UNUserNotificationCenter.current()
@@ -48,6 +49,7 @@ extension Notification.Name {
 
     func resetPreferences() throws {
         monitoringGeneration = UUID()
+        delivery.invalidate()
         stopForTermination()
         requested = false; policy = AlertPolicy(); thresholdGB = "40"; persistenceHealthy = true
         try LocalStateLocation.removeKnownFile("StorageAlerts/episode-state.json")
@@ -152,15 +154,19 @@ extension Notification.Name {
         content.body = "Capacity checked at \(Date().formatted(date: .omitted, time: .shortened)). Open Still to review storage and choose whether to scan."
         content.sound = .default
         content.categoryIdentifier = "Still.capacity"
-        do {
-            try await center.add(UNNotificationRequest(identifier: "Still.lowSpace", content: content, trigger: nil))
-            guard generation == monitoringGeneration else {
-                center.removePendingNotificationRequests(withIdentifiers: ["Still.lowSpace"])
-                return
-            }
-            policy.submissionAccepted(at: Date()); _ = persist()
+        let deliveryResult = await delivery.submit {
+            try await self.center.add(UNNotificationRequest(identifier: "Still.lowSpace", content: content, trigger: nil))
         }
-        catch { policy.submissionFailed(); _ = persist(); status = "Notification could not be submitted. A later capacity check will retry." }
+        switch deliveryResult {
+        case .accepted:
+            policy.submissionAccepted(at: Date()); _ = persist()
+        case .failed:
+            policy.submissionFailed(); _ = persist(); status = "Notification could not be submitted. A later capacity check will retry."
+        case .staleSuccess:
+            center.removePendingNotificationRequests(withIdentifiers: ["Still.lowSpace"])
+        case .staleFailure:
+            break
+        }
     }
     nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse) async {
         let action = response.actionIdentifier

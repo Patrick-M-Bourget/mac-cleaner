@@ -183,3 +183,7 @@ The [bounded native experiment](../Validation/XcodeProbe/NativeExperiment/README
 ## pip mutation boundary (#25)
 
 The [owned21.2.4 experiment](../Validation/PipMutationExperiment/README.md) observes real `pip cache remove` deleting post-review pattern matches and a replaced entry. This is a negative capability result: retain read-only inventory/guidance, with production mutation disabled. No personal runtime/cache is probed and no network provisioning is required.
+
+## Redacted diagnostics (#32)
+
+With `--future-milestones`, Overview offers **Review diagnostics** then native **Save diagnostics…**. Review shows the exact frozen allowlisted JSON, included/excluded fields and cancellation/failure recovery. Nothing uploads or clears recovery records. See [payload and qualification evidence](validation/redacted-diagnostics.md).
