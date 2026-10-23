@@ -657,7 +657,12 @@ final class WorkspaceUITests: XCTestCase {
         app.typeKey(.return, modifierFlags: []); app.dialogs.buttons["Scan folder"].click()
         XCTAssertTrue(app.staticTexts["Observed"].waitForExistence(timeout: 10))
         let checkbox = app.checkBoxes["Select selected.pdf"]
-        XCTAssertTrue(checkbox.waitForExistence(timeout: 5)); checkbox.click()
+        for _ in 0..<5 {
+            if checkbox.exists && app.scrollViews.firstMatch.frame.contains(checkbox.frame) { break }
+            app.scrollViews.firstMatch.scroll(byDeltaX: 0, deltaY: -200)
+        }
+        XCTAssertTrue(checkbox.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.scrollViews.firstMatch.frame.contains(checkbox.frame)); checkbox.click()
         XCTAssertEqual(checkbox.value as? Int, 1)
         app.buttons["View cleanup plan"].click()
         let search = app.textFields["Search Downloads items"]

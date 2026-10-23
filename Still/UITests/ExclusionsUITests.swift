@@ -35,13 +35,20 @@ final class ExclusionsUITests: XCTestCase {
         XCTAssertTrue(app.buttons["chooseExclusion"].isEnabled && app.buttons["chooseExclusion"].isHittable)
         app.buttons["chooseExclusion"].click()
         app.typeKey("g", modifierFlags: [.command, .shift])
-        let path = app.textFields.firstMatch
-        XCTAssertTrue(path.waitForExistence(timeout: 3)); path.typeKey("a", modifierFlags: .command); path.typeText(scope.path)
+        // Send the path to the focused Go to Folder field; firstMatch can resolve
+        // an existing browser filename field before the Go to Folder sheet opens.
+        app.typeKey("a", modifierFlags: .command); app.typeText(scope.path)
         app.typeKey(.return, modifierFlags: [])
-        // Go to Folder leaves the parent selected in column view. Enter its file column
-        // and use native type selection instead of clicking an offscreen column label.
-        app.typeKey(.rightArrow, modifierFlags: [])
-        app.typeText(hidden.lastPathComponent)
+        let atScope = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+            app.dialogs.popUpButtons["where popup"].value as? String == scope.lastPathComponent
+        }, object: nil)
+        XCTAssertEqual(XCTWaiter.wait(for: [atScope], timeout: 5), .completed)
+        app.dialogs.menuButtons["View Options"].click()
+        print("[DEBUG-scope-picker] " + app.debugDescription)
+        let listView = app.menuItems.matching(NSPredicate(format: "label CONTAINS[c] %@", "list")).firstMatch
+        XCTAssertTrue(listView.waitForExistence(timeout: 5)); listView.click()
+        let excludedFile = app.dialogs.descendants(matching: .any).matching(NSPredicate(format: "value == %@", hidden.lastPathComponent)).firstMatch
+        XCTAssertTrue(excludedFile.waitForExistence(timeout: 5)); excludedFile.click()
         app.dialogs.buttons["Preview exclusion"].click()
         XCTAssertTrue(app.staticTexts["Preview exclusion"].waitForExistence(timeout: 3))
         XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "value == %@", hidden.path)).firstMatch.waitForExistence(timeout: 5))
