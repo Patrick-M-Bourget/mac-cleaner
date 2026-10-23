@@ -80,7 +80,7 @@ This inventory identifies migration ownership, not feature completion. See [DEVE
 
 | Surface / source | Shared presentation and states to maintain |
 |---|---|
-| Workspace / `StillApp.swift` | Persistent sidebar/toolbar, Overview header, capacity and findings; unknown capacity, no selected scope, fixture-only examples; opened-alert historical timestamp/unavailable context uses existing SummarySurface and StatusRow with explicit folder choice/dismissal ([validated states](validation/alert-open-context.md)) |
+| Workspace / `StillApp.swift` | Persistent sidebar/toolbar, Overview header, capacity and grouped real findings; unknown capacity, no selected scope, partial/unavailable/rechecking and fixture-only examples ([Overview restoration evidence](validation/overview-restoration.md)); opened-alert historical timestamp/unavailable context uses existing SummarySurface and StatusRow with explicit folder choice/dismissal ([validated states](validation/alert-open-context.md)) |
 | Folder inspection / `FolderInspection.swift` | Header, summary/status, inspectable rows and inspector; loading, partial/denied, empty, unknown sizes, selected/mixed controls |
 | Cloud inventory / `CloudInventoryView.swift` | Category badge, summary and status; metadata evidence and unsupported guidance, no invented eviction eligibility |
 | Live plan and confirmation / `SessionPlan.swift` | Selection summary, category checkbox, inline item refinement, stable action strip, bounded exact-target confirmation; zero/mixed selections, pending/unavailable targets, disabled review, Cancel/focus return |
