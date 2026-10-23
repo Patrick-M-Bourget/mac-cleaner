@@ -17,7 +17,7 @@ M2–M6 remain conditional development routes behind `--future-milestones`; thei
 | Intel/universal | No Intel runtime exercised; no Intel/universal support claim |
 | CI | native.yml requests macos-26/Xcode26.6; attach candidate's actual successful run/artifact rather than treating configuration as execution evidence |
 | #11 integration |87 core tests, native build-for-testing, focused initial/minimum cancellation/retry journeys passed; [qualification](cancel-retry.md) |
-| #34 | Owned50k/100k measurements/progress evidence in [scanner performance](scanner-performance.md); million-entry/reference-host and remaining fixture gates are incomplete |
+| #34 | Owned50k/100k measurements/progress evidence in [scanner performance](scanner-performance.md); hosted million-entry bounded-workload evidence is now recorded; reference-host and remaining fixture gates are incomplete |
 | Appearance/geometry | Existing [design-system](../DESIGN-SYSTEM.md), [visual evidence](../visual/README.md), and per-ticket captures; screenshot review does not certify VoiceOver or every preference/display |
 | Signing availability | `security find-identity -v -p codesigning` returned0 valid identities; no credentials requested/imported |
 | Current artifact | Development/ad-hoc or signing-disabled builds are explicitly rejected by preflight; neither is a Developer ID release |
@@ -54,7 +54,7 @@ The current signing-disabled Debug artifact was rejected (exit1) for missing rel
 Record candidate commit, exported archive hash, hardware/OS/build/toolchain, tester, date and linked evidence for every row. Use an isolated account or clean disposable Mac/VM for installation lifecycle; do not erase the user's records or real Trash.
 
 - #13 and #14: finish completed-history/reset and explicitly reviewed personal usefulness walkthrough. Personal mutation requires the user's separate concrete approval. Record actual Trash-held bytes versus independently observed capacity; later recurrence is a manual session.
-- #34: finish million-entry and declared reference-host performance/memory/cancellation budgets; use owned fixtures. Record storage/provider/mount boundaries exercised and exclusions.
+- #34: hosted million-entry bounded-workload budgets passed as documented in [scanner performance](scanner-performance.md); finish declared reference-host performance/memory/cancellation budgets using owned fixtures. Record storage/provider/mount boundaries exercised and exclusions.
 - Native accessibility: keyboard-only picker→inspect→select→confirmation Cancel/approve→Stop→result→fresh retry; verify focus, Space/Return/Escape, menu shortcuts and recoverable window closure. VoiceOver must announce row selection, mixed category state, consequences, progress and every outcome/recovery action. No screenshot substitutes for this pass.
 - Preferences/layout: light/dark, increased contrast, reduced motion/transparency, long filenames and localized/pseudolocalized strings at initial/minimum windows; multi-display restoration and disconnected display. Record actual configurations, not blanket claims from one test.
 - Platform matrix: runtime-test each advertised OS/CPU. macOS14 deployment compilation alone does not qualify14, and an arm64 binary alone does not qualify Intel. Start with only actually tested configurations after all remaining gates pass.

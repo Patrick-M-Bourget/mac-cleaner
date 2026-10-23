@@ -59,3 +59,12 @@ Additional transport evidence: the **genuine official pinned arm64 CLI** was run
 ### Endpoint edit invalidation
 
 Changing the socket field clears prior daemon evidence and its synthetic/live provenance, then requests a fresh explicit inspection. Reassigning the identical path does not discard a report. Independently selected disk-image metadata is retained, since it is a separate observation and never claimed to belong to the daemon. The existing native public journey now shows a report, changes the endpoint, and asserts prior volume/report evidence disappears, guidance resets, host/VM unknown states remain and window bounds stay fixed in both appearances/sizes. The regression was written before the model change; the old implementation has no socket-change handler and cannot satisfy its new guidance/evidence assertions. No native red execution was performed locally; hosted execution is pending root integration. No real daemon is contacted by this regression.
+
+
+## Integration review and native evidence
+
+Independent Standards review of `4443ee2...8c6f137` found no actionable issues. Spec review found that editing the socket retained the previous daemon report; `521c246` clears daemon evidence and requests explicit reinspection, preserving independently chosen image metadata. A narrow independent rereview confirmed this resolves the finding.
+
+At final Docker application source `fa17dd4`, [hosted run 39997810637](https://github.com/Patrick-M-Bourget/mac-cleaner/actions/runs/39997810637) passed all **125 core tests** (15.609 seconds) and the Docker native journey (136.051 seconds), including endpoint edits, persistent-data labels, no cleanup action and exact unchanged window bounds. The old pip reference journey also passed; the overall run was **2/3**, because the new live pip test failed to preload its disposable paths. It is not a green full workflow.
+
+All eight [original captures](../visual/docker-inventory/manifest.json) were individually reviewed: initial 1024×640 and minimum 900×640, Light/Dark, explicit endpoint and synthetic report. The shared white/near-black reading planes, white Light sidebar, section rhythm, readable unknown measurements, separate persistent-data labels and reachable controls remain consistent. Report content scrolls without changing outer bounds. These are synthetic UI states, not a captured genuine Engine inventory. Later DEBUG-only pip fixture and benchmark changes do not change this Docker feature.
