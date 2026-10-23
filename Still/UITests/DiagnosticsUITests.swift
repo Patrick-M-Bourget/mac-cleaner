@@ -51,6 +51,8 @@ final class DiagnosticsUITests: XCTestCase {
             app.scrollViews.firstMatch.scroll(byDeltaX: 0, deltaY: -450)
             let preview = XCTAttachment(screenshot: app.windows.firstMatch.screenshot()); preview.name = "diagnostics-payload-" + (minimum ? "minimum-" : "initial-") + appearance; preview.lifetime = .keepAlways; add(preview)
             XCTAssertTrue(bounds.contains(app.buttons["Save diagnostics…"].frame))
+            XCTAssertTrue(app.buttons["Save diagnostics…"].isEnabled && app.buttons["Save diagnostics…"].isHittable)
+            XCTAssertTrue(app.buttons["Back to Overview"].isEnabled && app.buttons["Back to Overview"].isHittable)
             XCTAssertEqual(bounds, app.windows.firstMatch.frame)
             app.scrollViews.firstMatch.scroll(byDeltaX: 0, deltaY: 600)
         }

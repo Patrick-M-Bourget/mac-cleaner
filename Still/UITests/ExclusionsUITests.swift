@@ -18,14 +18,15 @@ final class ExclusionsUITests: XCTestCase {
         var info = stat(); XCTAssertEqual(lstat(root.path, &info), 0)
         let app = XCUIApplication()
         app.launchArguments = ["--future-milestones", minimum ? "--design-minimum" : "--design-initial-size"]
-        app.launchEnvironment = ["STILL_TEST_STATE_ROOT": root.path, "STILL_TEST_STATE_ID": "\(info.st_dev):\(info.st_ino)", "STILL_EXCLUSIONS_DIAGNOSTICS": "1"]
+        app.launchEnvironment = ["STILL_TEST_STATE_ROOT": root.path, "STILL_TEST_STATE_ID": "\(info.st_dev):\(info.st_ino)"]
         app.launch(); defer { app.terminate() }
         XCTAssertTrue(app.buttons["Choose folder…"].waitForExistence(timeout: 5))
         let bounds = app.windows.firstMatch.frame
         app.typeKey("4", modifierFlags: .command)
         app.buttons["manageExclusions"].click()
         XCTAssertTrue(app.staticTexts["No custom exclusions"].waitForExistence(timeout: 3))
-        print("[DEBUG-exclusions-modal-31] baseline appState=\(app.state.rawValue) appEnabled=\(app.isEnabled) windowEnabled=\(app.windows.firstMatch.isEnabled) chooseEnabled=\(app.buttons["chooseExclusion"].isEnabled) chooseHittable=\(app.buttons["chooseExclusion"].isHittable)")
+        captureThemes(app, state: "empty", minimum: minimum, bounds: bounds)
+        XCTAssertTrue(app.buttons["chooseExclusion"].isEnabled && app.buttons["chooseExclusion"].isHittable)
         app.buttons["chooseExclusion"].click()
         app.typeKey("g", modifierFlags: [.command, .shift])
         let path = app.textFields.firstMatch
@@ -35,12 +36,8 @@ final class ExclusionsUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Preview exclusion"].waitForExistence(timeout: 3))
         let save = app.buttons["Save exclusion"]
         if !save.isHittable { app.scrollViews.firstMatch.scroll(byDeltaX: 0, deltaY: -300) }
-        let probe = app.staticTexts["exclusionModalProbe"]
-        let state = "[DEBUG-exclusions-modal-31] appState=\(app.state.rawValue) backHittable=\(app.buttons["Back to Locations & access"].isHittable) cancelHittable=\(app.buttons["Cancel"].isHittable) sidebarHittable=\(app.buttons["Locations & access"].isHittable) appEnabled=\(app.isEnabled) windowEnabled=\(app.windows.firstMatch.isEnabled) saveEnabled=\(save.isEnabled) saveHittable=\(save.isHittable) saveFrame=\(save.frame) windowFrame=\(app.windows.firstMatch.frame) dialogs=\(app.dialogs.count) model=\(probe.exists ? (probe.value as? String ?? probe.label) : "missing")"
-        let stateAttachment = XCTAttachment(string: state + "\n" + app.debugDescription); stateAttachment.name = "DEBUG-exclusions-modal-31-state"; stateAttachment.lifetime = .keepAlways; add(stateAttachment)
-        let screenshot = XCTAttachment(screenshot: app.windows.firstMatch.screenshot()); screenshot.name = "DEBUG-exclusions-modal-31-preview"; screenshot.lifetime = .keepAlways; add(screenshot)
-        print(state)
-        XCTAssertTrue(save.isHittable); save.click()
+        captureThemes(app, state: "preview", minimum: minimum, bounds: bounds)
+        XCTAssertTrue(save.isEnabled && save.isHittable); save.click()
         XCTAssertTrue(save.waitForNonExistence(timeout: 5))
         app.terminate()
         let store = ExclusionStore(directory: root.appendingPathComponent("Exclusions"))
@@ -60,7 +57,10 @@ final class ExclusionsUITests: XCTestCase {
         for appearance in ["Light", "Dark"] {
             app.popUpButtons["Appearance"].click(); app.menuItems[appearance].click()
             XCTAssertEqual(app.windows.firstMatch.frame, bounds)
-            XCTAssertTrue(app.buttons["Back to Locations & access"].isHittable)
+            XCTAssertTrue(app.buttons["Back to Locations & access"].isEnabled && app.buttons["Back to Locations & access"].isHittable)
+            let capture = XCTAttachment(screenshot: app.windows.firstMatch.screenshot())
+            capture.name = "exclusions-saved-" + (minimum ? "minimum-" : "initial-") + appearance
+            capture.lifetime = .keepAlways; add(capture)
         }
         let remove = app.buttons.matching(NSPredicate(format: "label == %@", "Remove exclusion for " + hidden.resolvingSymlinksInPath().path)).firstMatch
         if !remove.isHittable { app.scrollViews.firstMatch.scroll(byDeltaX: 0, deltaY: -300) }
@@ -72,4 +72,14 @@ final class ExclusionsUITests: XCTestCase {
         XCTAssertEqual(try Data(contentsOf: hidden), Data([1, 2]))
         XCTAssertEqual(try Data(contentsOf: kept), Data([3]))
     }
+    @MainActor private func captureThemes(_ app: XCUIApplication, state: String, minimum: Bool, bounds: CGRect) {
+        for appearance in ["Light", "Dark"] {
+            app.popUpButtons["Appearance"].click(); app.menuItems[appearance].click()
+            XCTAssertEqual(app.windows.firstMatch.frame, bounds)
+            let capture = XCTAttachment(screenshot: app.windows.firstMatch.screenshot())
+            capture.name = "exclusions-" + state + "-" + (minimum ? "minimum-" : "initial-") + appearance
+            capture.lifetime = .keepAlways; add(capture)
+        }
+    }
+
 }

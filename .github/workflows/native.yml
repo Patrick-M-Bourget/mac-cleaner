@@ -40,7 +40,7 @@ jobs:
         run: |
           scope=()
           if [[ "$EVENT_NAME" == "workflow_dispatch" && "$REQUESTED_SUITE" == "exclusions" ]]; then
-            scope=(-only-testing:StillUITests/ExclusionsUITests/testExplicitExclusionPreviewSaveReopenScanAndRemove)
+            scope=(-only-testing:StillUITests/ExclusionsUITests)
           fi
           xcodebuild test-without-building -project Still/Still.xcodeproj -scheme Still -destination 'platform=macOS' -derivedDataPath .build/xcode -resultBundlePath .build/Workspace.xcresult "${scope[@]}"
       - uses: actions/upload-artifact@v4

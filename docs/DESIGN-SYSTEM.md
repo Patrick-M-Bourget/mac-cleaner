@@ -118,3 +118,18 @@ For repeatable native review captures, Debug `--design-initial-size` requests up
 Checkpoint rhythm migration: screen sections use `Space.xl`, compact confirmation grouping uses `Space.lg`, label/target-list groups use `Space.md`, row inset uses `Space.sm`, and tightly related metadata uses `Space.xs`. Legacy 20/18/10/5-point rhythm literals are normalized to those existing semantic roles (24/16/12/4); no new token or screen redesign is introduced. Zero spacing at adjoining reading/chrome/action regions is intentional structural abutment. Native control frames, the fixed bounded confirmation size, badge dimensions, line widths and zero action-strip inset are geometry rather than repeated spacing tokens; preserve those local native/layout contracts.
 
 M6 custom exclusions compose existing settings/summary/status surfaces under Locations & access. The fixed action strip owns Choose or explicit preview Save/Cancel; rule removal stays beside its rule. Empty, preview, saved, unreadable-settings and changed-coverage states are documented in [exclusion validation](validation/exclusions.md); local activation failure leaves native workflow/visual qualification pending.
+
+### Fixed action composition
+
+Place an interactive `ActionStrip` as a **sibling after `ScrollView` in a zero-spacing `VStack`**, as `LiveCleanupPlanView`, the developer gallery and the secondary workspace routes do. The scroll region shrinks above the strip; the strip remains visible and reachable at initial/minimum bounds. Do not mount these actions with `ScrollView.safeAreaInset`: on the supported hosted macOS 26.6 runner that composition rendered enabled buttons inside the window while accessibility hit-testing rejected the entire strip. A sibling strip fixed the same public journey without changing control labels, actions or geometry. See [native footer reachability evidence](validation/footer-reachability.md).
+
+```swift
+VStack(spacing: 0) {
+    ScrollView { destinationContent }
+    ActionStrip(message: consequenceText) {
+        Button("Continue", action: continueReview)
+    }
+}
+```
+
+Check actual enabled/hittable controls and successful actions, including after content/appearance changes; frame containment and screenshots alone do not establish reachability.
