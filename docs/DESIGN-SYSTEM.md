@@ -79,6 +79,7 @@ This inventory identifies migration ownership, not feature completion. See [DEVE
 | Cloud inventory / `CloudInventoryView.swift` | Category badge, summary and status; metadata evidence and unsupported guidance, no invented eviction eligibility |
 | Live plan and confirmation / `SessionPlan.swift` | Selection summary, category checkbox, inline item refinement, stable action strip, bounded exact-target confirmation; zero/mixed selections, pending/unavailable targets, disabled review, Cancel/focus return |
 | Cleanup execution / `CleanupExecutionView.swift` | Shared page/summary/settings/status composition; running/cancel request, per-target outcomes, planned versus observed bytes and actual returned Reveal locations |
+| Interrupted cleanup / `CleanupRecoveryView.swift` | Read-only startup evidence, known/pending/unresolved states, blocked journal, fixed return action; no restored plan or retry control |
 | Locations & access and History shell / `StillApp.swift` | Settings/empty-state vocabulary; current limitations explicit |
 | Alerts / `StorageAlerts.swift`; login / `AppLifecycle.swift` | Page/settings/status rows; off, blocked permission, unavailable capacity, snoozed and independent login status |
 | Homebrew / `HomebrewInspection.swift`; pip / `PipInspection.swift`; Docker / `DockerInspection.swift` | Secondary future-scope pages, shared headers/status/summaries; explicit inspection, unavailable/unsupported/timeouts and read-only opportunity reports |

@@ -81,6 +81,8 @@ private struct WorkspaceView: View {
     @State private var expanded = false
     @State private var folderInspection = AppLifecycleController.shared.inspection
     @State private var selection = AppLifecycleController.shared.selection
+    @State private var recovery = AppLifecycleController.shared.recovery
+    @State private var recoveryVisible = false
     @State private var nativeInspectionVisible = false
     @State private var homebrewVisible = false
     @State private var managedStorageVisible = false
@@ -95,10 +97,10 @@ private struct WorkspaceView: View {
         false
         #endif
     }
-    private var showsPlan: Bool { destination == .plan && !inspecting && !nativeInspectionVisible && !homebrewVisible && !pipVisible && !dockerVisible && !managedStorageVisible }
+    private var showsPlan: Bool { destination == .plan && !recoveryVisible && !inspecting && !nativeInspectionVisible && !homebrewVisible && !pipVisible && !dockerVisible && !managedStorageVisible }
     private var inspectionVisible: Bool { inspecting || nativeInspectionVisible }
     private var contextLabel: String {
-        selection.execution.isRunning ? "Moving approved files to Trash" : selection.execution.result != nil ? "Cleanup results · individual outcomes" : managedStorageVisible ? "App-managed inventory · selected objects only" : folderInspection.scope != nil ? "Read-only metadata · explicitly selected folder" : fixtureMode ? "Synthetic data — no personal files accessed" : "On-demand storage review"
+        recoveryVisible ? "Recovery review · Recorded facts only" : selection.execution.isRunning ? "Moving approved files to Trash" : selection.execution.result != nil ? "Cleanup results · individual outcomes" : managedStorageVisible ? "App-managed inventory · selected objects only" : folderInspection.scope != nil ? "Read-only metadata · explicitly selected folder" : fixtureMode ? "Synthetic data — no personal files accessed" : "On-demand storage review"
     }
 
     var body: some View {
@@ -137,7 +139,9 @@ private struct WorkspaceView: View {
                 } else {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 24) {
-                        if managedStorageVisible {
+                        if recoveryVisible {
+                            CleanupRecoveryView(model: recovery)
+                        } else if managedStorageVisible {
                             ManagedStorageView(model: managedStorage) { managedStorageVisible = false; destination = .overview }
                         } else if dockerVisible {
                             DockerInspectionView { dockerVisible = false; destination = .overview }
@@ -161,7 +165,11 @@ private struct WorkspaceView: View {
                     }.padding(StillDesign.Space.page).frame(maxWidth: .infinity, alignment: .leading)
                 }
                 .safeAreaInset(edge: .bottom, spacing: 0) {
-                    if nativeInspectionVisible && folderInspection.isScanning {
+                    if recoveryVisible {
+                        ActionStrip(message: "Recovery records are retained. Nothing resumes automatically.") {
+                            Button("Return to Overview") { recoveryVisible = false; destination = .overview }.buttonStyle(.borderedProminent)
+                        }
+                    } else if nativeInspectionVisible && folderInspection.isScanning {
                         ActionStrip(message: "Preliminary observations · No cleanup is running") {
                             Button("Stop scan") { folderInspection.cancel() }.buttonStyle(.borderedProminent)
                         }
@@ -177,9 +185,10 @@ private struct WorkspaceView: View {
             }.frame(maxWidth: .infinity, maxHeight: .infinity)
                 .background(StillDesign.reading)
         }
+        .task { if await recovery.loadOnce() { recoveryVisible = true } }
         .task { startupCapacity = await Task.detached(priority: .utility) { StartupVolumeCapacity.read() }.value }
         .onAppear { AppLifecycleController.shared.openWorkspace = { openWindow(id: "workspace") } }
-        .onReceive(NotificationCenter.default.publisher(for: .stillAlertOpened)) { _ in destination = .overview; inspecting = false; nativeInspectionVisible = false; homebrewVisible = false; pipVisible = false; dockerVisible = false; managedStorageVisible = false }
+        .onReceive(NotificationCenter.default.publisher(for: .stillAlertOpened)) { _ in destination = .overview; recoveryVisible = false; inspecting = false; nativeInspectionVisible = false; homebrewVisible = false; pipVisible = false; dockerVisible = false; managedStorageVisible = false }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in Task { await alerts.activated() } }
         .onReceive(NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.didWakeNotification)) { _ in Task { await alerts.activated() } }
         .toolbar {
@@ -200,7 +209,7 @@ private struct WorkspaceView: View {
     private func navigation(_ value: Destination) -> some View {
         StillSidebarRow(title: value.rawValue, symbol: value.symbol, selected: destination == value) {
             destination = value
-            inspecting = false; nativeInspectionVisible = false; homebrewVisible = false
+            recoveryVisible = false; inspecting = false; nativeInspectionVisible = false; homebrewVisible = false
             pipVisible = false; dockerVisible = false; managedStorageVisible = false
         }.keyboardShortcut(value.shortcut, modifiers: .command)
     }
@@ -208,6 +217,14 @@ private struct WorkspaceView: View {
     private var overview: some View {
         VStack(alignment: .leading, spacing: 24) {
             heading("Your storage", "Understand what is stored locally before choosing what to clean.")
+            if recovery.requiresReview {
+                SummarySurface {
+                    HStack {
+                        StatusRow(text: "Interrupted cleanup needs review", symbol: "exclamationmark.circle", role: .caution)
+                        Button("Review interrupted cleanup") { recoveryVisible = true }
+                    }
+                }
+            }
             if !fixtureMode {
                 SummarySurface {
                     VStack(alignment: .leading, spacing: StillDesign.Space.md) {
