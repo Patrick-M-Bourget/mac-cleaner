@@ -1,0 +1,61 @@
+{
+  "provenance": "Unaltered original hosted native PNG attachments; synthetic disposable fixtures only. User recording and private filenames excluded.",
+  "captures": [
+    {
+      "file": "baseline-after-select-all.png",
+      "sourceCommit": "a94b0110ed5a486767464d13eb75e3bb33f0545f",
+      "runURL": "https://github.com/Patrick-M-Bourget/mac-cleaner/actions/runs/39976582488",
+      "artifactName": "native-test-results",
+      "artifactId": 12510344825,
+      "artifactSizeInBytes": 100821582,
+      "testIdentifier": "WorkspaceUITests/testScrolledCategorySelectionKeepsContentAnchored()",
+      "attachmentName": "scrolled-category-after-1_0_9D9CE0BE-F649-499E-8F62-E4897178E3F7.png",
+      "exportedFileName": "49DA4AF7-A00A-43E6-854C-C5A9089DDFA7.png",
+      "width": 900,
+      "height": 640,
+      "sha256": "2459b150dd19b5a300f5b1595e0876f345d99fbb3b3634b43bf7d20a73527f0d"
+    },
+    {
+      "file": "baseline-before-select-all.png",
+      "sourceCommit": "a94b0110ed5a486767464d13eb75e3bb33f0545f",
+      "runURL": "https://github.com/Patrick-M-Bourget/mac-cleaner/actions/runs/39976582488",
+      "artifactName": "native-test-results",
+      "artifactId": 12510344825,
+      "artifactSizeInBytes": 100821582,
+      "testIdentifier": "WorkspaceUITests/testScrolledCategorySelectionKeepsContentAnchored()",
+      "attachmentName": "scrolled-category-before-1_0_1B9F7C4C-A157-4550-9567-23B097BC2D94.png",
+      "exportedFileName": "92F381D3-6814-4C4F-A4EA-D3E403D4F40B.png",
+      "width": 900,
+      "height": 640,
+      "sha256": "56e42020a95340de66c360ed378f674609648ea297e0450b1bcd0b20d56f6780"
+    },
+    {
+      "file": "fixed-after-select-all.png",
+      "sourceCommit": "f3abbda84f5f6feb327e07cd84ccbb220fcc9e44",
+      "runURL": "https://github.com/Patrick-M-Bourget/mac-cleaner/actions/runs/39977256055",
+      "artifactName": "native-test-results",
+      "artifactId": 12512490669,
+      "artifactSizeInBytes": 321333,
+      "testIdentifier": "WorkspaceUITests/testScrolledCategorySelectionKeepsContentAnchored()",
+      "attachmentName": "scrolled-category-after-1_0_F7393405-286A-44FF-8086-63159D4A9830.png",
+      "exportedFileName": "269FC8A0-B598-42D0-ABAA-631B72DDCBAE.png",
+      "width": 900,
+      "height": 640,
+      "sha256": "d116dc06daf801415a044fd759c6070830cc3ab0a4a5d017b593871ccf26ecf6"
+    },
+    {
+      "file": "fixed-before-select-all.png",
+      "sourceCommit": "f3abbda84f5f6feb327e07cd84ccbb220fcc9e44",
+      "runURL": "https://github.com/Patrick-M-Bourget/mac-cleaner/actions/runs/39977256055",
+      "artifactName": "native-test-results",
+      "artifactId": 12512490669,
+      "artifactSizeInBytes": 321333,
+      "testIdentifier": "WorkspaceUITests/testScrolledCategorySelectionKeepsContentAnchored()",
+      "attachmentName": "scrolled-category-before-1_0_5A9EA0B4-0250-434D-96CE-7C4FFE9BCAB7.png",
+      "exportedFileName": "C3036610-7EF1-4FE5-8CE9-D14B4B9A4F20.png",
+      "width": 900,
+      "height": 640,
+      "sha256": "2d41ccf8b5878f648f2b6c4d04fb3f761f97f9883be6ef74029d25b2d93d65ae"
+    }
+  ]
+}

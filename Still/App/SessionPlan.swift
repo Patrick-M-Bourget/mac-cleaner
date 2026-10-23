@@ -227,6 +227,7 @@ struct LiveCleanupPlanView: View {
     @Bindable var selection: SessionPlan
     let recheck: (URL) -> Void
     let stopRefresh: () -> Void
+    let chooseDownloads: () -> Void
     @State private var search = ""
     @State private var review: CleanupReview?
     @State private var approvalError: String?
@@ -242,6 +243,7 @@ struct LiveCleanupPlanView: View {
         VStack(alignment: .leading, spacing: StillDesign.Space.lg) {
             PageHeader(title: "Cleanup plan", subtitle: selection.retryTargetIDs == nil ? "Choose categories, adjust items if needed, then review the changes." : "Only rechecked unfinished files are included. Completed successes and new discoveries stay excluded.")
                 .padding(.bottom, StillDesign.Space.sm)
+            CleanupScopeNotice(enabled: !selection.isRefreshing && !selection.isPreparing, chooseDownloads: chooseDownloads)
             SelectionSummary(value: ByteCountFormatter.string(fromByteCount: selection.draft.logicalBytes, countStyle: .decimal), detail: "\(StillDesign.files(selection.draft.selectedCount)) selected", identifier: "liveSelectionSummary", consequence: "Space stays occupied until Finder empties Trash. Nothing changes before final confirmation.")
             if selection.isRefreshing || selection.pendingCount > 0 || !selection.refreshScopes.isEmpty {
             VStack(alignment: .leading, spacing: StillDesign.Space.sm) {

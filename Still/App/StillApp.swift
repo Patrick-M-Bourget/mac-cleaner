@@ -153,7 +153,7 @@ private struct WorkspaceView: View {
             Divider()
             VStack(alignment: .leading, spacing: 0) {
                 if showsPlan && (!selection.scans.isEmpty || selection.draft.selectedCount > 0 || selection.execution.isRunning || selection.execution.result != nil || selection.execution.error != nil) {
-                    LiveCleanupPlanView(selection: selection, recheck: { folderInspection.scan($0) }, stopRefresh: { folderInspection.cancel() })
+                    LiveCleanupPlanView(selection: selection, recheck: { folderInspection.scan($0) }, stopRefresh: { folderInspection.cancel() }, chooseDownloads: chooseDownloads)
                 } else {
                 ScrollView {
                     VStack(alignment: .leading, spacing: StillDesign.Space.xl) {
@@ -180,7 +180,7 @@ private struct WorkspaceView: View {
                             case .alerts: StorageAlertsView(controller: alerts)
                             case .growth: GrowthHistoryView(model: GrowthHistoryModel.shared)
                             case .overview: overview
-                            case .plan: if selection.scans.isEmpty && selection.draft.selectedCount == 0 { plan } else { LiveCleanupPlanView(selection: selection, recheck: { folderInspection.scan($0) }, stopRefresh: { folderInspection.cancel() }) }
+                            case .plan: if selection.scans.isEmpty && selection.draft.selectedCount == 0 { plan } else { LiveCleanupPlanView(selection: selection, recheck: { folderInspection.scan($0) }, stopRefresh: { folderInspection.cancel() }, chooseDownloads: chooseDownloads) }
                             case .history: history
                             case .locations: locations
                             }
@@ -302,6 +302,7 @@ private struct WorkspaceView: View {
                     Button("Review pip cache opportunities") { pipVisible = true; homebrewVisible = false; dockerVisible = false; managedStorageVisible = false; nativeInspectionVisible = false; inspecting = false }
                 }
             }
+            CleanupScopeNotice(enabled: !folderInspection.isScanning && !selection.execution.isRunning, chooseDownloads: chooseDownloads)
             HStack {
                 Button("Choose folder…", systemImage: "folder.badge.plus") {
                     if let url = FolderInspection.chooseFolder() {
@@ -367,9 +368,20 @@ private struct WorkspaceView: View {
         }
     }
 
+    private func chooseDownloads() {
+        guard !folderInspection.isScanning, !selection.execution.isRunning else { return }
+        if let url = FolderInspection.chooseFolder(downloads: true) {
+            selection.leaveRetryMode()
+            folderInspection.scan(url)
+            nativeInspectionVisible = true
+            destination = .overview
+        }
+    }
+
     private var plan: some View {
         VStack(alignment: .leading, spacing: StillDesign.Space.xl) {
             heading("Cleanup plan", "Review categories and their consequences before any action.")
+            CleanupScopeNotice(enabled: !folderInspection.isScanning, chooseDownloads: chooseDownloads)
             SelectionSummary(value: "Nothing selected", detail: "Choose exact files")
             Text("Space remains occupied until Finder empties Trash.").foregroundStyle(.secondary)
             Divider()

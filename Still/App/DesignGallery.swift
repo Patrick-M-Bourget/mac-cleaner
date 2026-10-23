@@ -18,6 +18,8 @@ struct DesignGallery: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: StillDesign.Space.xl) {
                     PageHeader(title: "Native design system", subtitle: "Developer examples only · No personal storage measurements")
+                    CleanupScopeNotice(chooseDownloads: {})
+                    CleanupScopeNotice(enabled: false, chooseDownloads: {})
                     SelectionSummary(value: "3 files", detail: "Example selection · No action will run", consequence: "Space stays occupied until Finder empties Trash.")
                     HStack(spacing: StillDesign.Space.lg) {
                         ForEach(0..<5) { index in CategoryBadge(category: [StorageCategory.cloud, .developer, .downloads, .browser, .managed][index]) }

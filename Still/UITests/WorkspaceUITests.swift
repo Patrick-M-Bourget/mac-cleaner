@@ -327,6 +327,57 @@ final class WorkspaceUITests: XCTestCase {
     }
 
     @MainActor
+    func testDownloadsScopeGuidanceAndShortcutPreserveInspection() throws {
+        continueAfterFailure = false
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("StillBrowseUI-" + UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        let file = root.appendingPathComponent("Inspection-only document.txt")
+        try Data([1, 2, 3]).write(to: file)
+        defer { try? FileManager.default.removeItem(at: root) }
+        for size in ["--design-initial-size", "--design-minimum"] {
+            let app = XCUIApplication()
+            app.launchArguments = [size, "--design-opaque-chrome"]
+            app.launch()
+            defer { app.terminate() }
+            XCTAssertTrue(app.buttons["Choose Downloads…"].waitForExistence(timeout: 10))
+            let bounds = app.windows.firstMatch.frame
+            func check(_ state: String) {
+                for theme in ["Light", "Dark"] {
+                    app.popUpButtons["Appearance"].click(); app.menuItems[theme].click()
+                    XCTAssertTrue(app.staticTexts["Cleanup currently supports files in Downloads only. Other folders are inspection only."].exists)
+                    XCTAssertTrue(app.buttons["Choose Downloads…"].isHittable)
+                    let capture = XCTAttachment(screenshot: app.windows.firstMatch.screenshot())
+                    capture.name = "scope-" + state + "-" + theme + size; capture.lifetime = .keepAlways; add(capture)
+                    app.buttons["Choose Downloads…"].click()
+                    XCTAssertTrue(app.dialogs.buttons["Scan folder"].waitForExistence(timeout: 5))
+                    app.dialogs.buttons["Cancel"].click()
+                    XCTAssertTrue(app.buttons["Choose Downloads…"].waitForExistence(timeout: 5))
+                    XCTAssertEqual(app.windows.firstMatch.frame, bounds)
+                }
+            }
+            check("overview")
+            XCTAssertFalse(app.staticTexts["Observed"].exists)
+            app.typeKey("2", modifierFlags: .command)
+            check("empty-plan")
+            app.typeKey("1", modifierFlags: .command)
+            app.buttons["Choose folder…"].click(); app.typeKey("g", modifierFlags: [.command, .shift])
+            let path = app.textFields.firstMatch
+            XCTAssertTrue(path.waitForExistence(timeout: 5)); path.typeText(root.path)
+            app.typeKey(.return, modifierFlags: []); app.dialogs.buttons["Scan folder"].click()
+            XCTAssertTrue(app.staticTexts["Observed"].waitForExistence(timeout: 10))
+            check("inspection")
+            XCTAssertTrue(app.staticTexts[root.path].exists)
+            XCTAssertFalse(app.checkBoxes.matching(NSPredicate(format: "label CONTAINS %@", file.lastPathComponent)).firstMatch.exists)
+            app.typeKey("2", modifierFlags: .command)
+            check("browse-only-plan")
+            XCTAssertEqual(app.checkBoxes["downloadsCategorySelection"].value as? Int, 0)
+            XCTAssertFalse(app.buttons["Review cleanup"].isEnabled)
+            XCTAssertEqual(try Data(contentsOf: file), Data([1, 2, 3]))
+            app.terminate()
+        }
+    }
+
+    @MainActor
     func testScrolledCategorySelectionKeepsContentAnchored() throws {
         continueAfterFailure = false
         let root = FileManager.default.temporaryDirectory.appendingPathComponent("StillSelectionUI-" + UUID().uuidString, isDirectory: true)

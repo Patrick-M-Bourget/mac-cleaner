@@ -1,17 +1,23 @@
-# Checkbox content movement — reported, not reproduced
+# Checkbox content movement — reproduced and focused fix verified
 
-The user reports intermittent content shifting/scrolling inside the window after checkbox clicks, on folder inspection or Cleanup plan (exact screen uncertain). This report remains open. No application layout or selection code was changed, and these passing checks do not establish a fix.
+The first user recording exposed the missing sequence: toggle the category checkbox after scrolling Cleanup plan so its summary is above the viewport. Private recordings and filenames are not published here.
 
-## Checks performed
+## Reproduction and correction
 
-The focused native journeys select and deselect category/file checkboxes using owned disposable files. They assert the original outer window frame and the clicked control’s viewport frame, then verify the public selection state. File controls must be fully inside the visible scroll viewport; accessibility `isHittable` alone proved insufficient for off-screen rows. Selection completion uses a bounded public-state expectation.
+A native disposable 120-file fixture reproduced a 206-point displacement after category selection settled, while the outer window frame remained unchanged. The minimized baseline is `a94b0110ed5a486767464d13eb75e3bb33f0545f`, [run 39976582488](https://github.com/Patrick-M-Bourget/mac-cleaner/actions/runs/39976582488). A nine-file fixture passed on the hosted OS, so reproduction depends on layout; that does not exclude the user's smaller real case.
 
-- Small 12-file, long-path fixtures passed in both screens at `a8b06d2`, [run 39971673559](https://github.com/Patrick-M-Bourget/mac-cleaner/actions/runs/39971673559).
-- Larger 120-file fixtures, including the lowest fully visible checkbox after scrolling, passed both journeys at `ef89db63c9b169027e8f8ea1e109baf3002ead63`, [run 39972806712](https://github.com/Patrick-M-Bourget/mac-cleaner/actions/runs/39972806712): **2/2**, zero failures, 97.870 seconds. Category selection cycles are also covered. The hosted run passed existing core/alert/adapter checks and built the native UI runner.
-- The earlier inspection failure at `223b256` clicked an off-screen control, so it is a harness error rather than evidence of the reported content jump. The visible-viewport guard corrected that precondition.
+Application commit `f3abbda84f5f6feb327e07cd84ccbb220fcc9e44` removes row-ID scroll-position tracking and its nested lazy-list target layout from the mixed summary/list scroll pane. Native scrolling now retains the viewport through selection updates. Selection policy, exact-target approval and execution are unchanged.
 
-Manual invocation: `gh workflow run native.yml --ref fix/checkbox-content-anchor -f suite=selection`. Push/PR workflows still run the full native suite. Application source remains identical to the accepted `524f878`; the two additional journeys are regression coverage, not a new tested application build. Hosted checks use macOS 26.6.2/arm64 and a minimum-sized window. No personal folder scan or cleanup was performed.
+- Scrolled category regression: **1/1 passed**, 36.546 seconds, [run 39977256055](https://github.com/Patrick-M-Bourget/mac-cleaner/actions/runs/39977256055).
+- All focused checkbox journeys: **3/3 passed**, 113.879 seconds, [run 39977692198](https://github.com/Patrick-M-Bourget/mac-cleaner/actions/runs/39977692198). Includes plan category/item selection, inspection item selection and scrolled category selection.
+- Full package/native verification is still running in [run 39977247187](https://github.com/Patrick-M-Bourget/mac-cleaner/actions/runs/39977247187). Do not treat focused results as full-suite qualification.
 
-## Still needed
+The native checks establish full visibility using the actual scroll viewport, await public selection state and enabled controls, and compare both outer window and clicked-control frames. Accessibility hit testing alone previously admitted offscreen controls and caused an invalid harness failure; it was corrected before the minimized reproduction.
 
-A short recording of the actual occurrence, or exact steps including the screen, checkbox, window size, search/filter state and whether the item inspector is open. Current checks compare settled control positions; they cannot exclude a brief movement that returns before the assertion, or a data-specific case absent from these fixtures. Capture the reproduction before changing production layout. The current Release artifact remains `Still-524f878.app`.
+Original synthetic before/after captures and exact source/run/hash provenance are retained in [the capture manifest](../visual/checkbox-content-anchor/manifest.json). Hosted tests use macOS 26.6.2/arm64. Local Xcode 27.1 Debug and Release builds pass; the preserved candidate is `Still-f3abbda.app`. The user reports it is better; this is not yet an exhaustive manual confirmation that every jump is gone.
+
+## Separate scope confusion from the second recording
+
+The second recording shows successful inspection of non-Downloads locations, followed by an empty Downloads cleanup category. This follows M1's Downloads-only mutation boundary, but the explanation is insufficiently prominent. Inspection of an explicitly selected folder does not make its files eligible for cleanup. Files selected within Downloads do carry into the plan in the recording.
+
+UI follow-up: explain the Downloads-only cleanup boundary before and after scanning other locations, with a direct route to choose Downloads. Do not rely on per-row lock tooltips or an empty plan to communicate it. Keep broader ordinary-file cleanup and whole-folder cleanup separate product decisions; neither is enabled by this fix. No personal files were mutated during this investigation.

@@ -36,13 +36,14 @@ final class FolderInspection {
     var message: String?
     var previewURL: URL?
 
-    static func chooseFolder() -> URL? {
+    static func chooseFolder(downloads: Bool = false) -> URL? {
         let picker = NSOpenPanel()
         picker.canChooseFiles = false
         picker.canChooseDirectories = true
         picker.allowsMultipleSelection = false
         picker.treatsFilePackagesAsDirectories = false
-        picker.message = "Inspect metadata in the folder you choose. No cleanup will run."
+        picker.message = "Scans inspect metadata only. Cleanup currently supports files in Downloads; other folders are inspection only."
+        if downloads { picker.directoryURL = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask).first }
         picker.prompt = "Scan folder"
         return picker.runModal() == .OK ? picker.url : nil
     }
@@ -179,6 +180,9 @@ struct FolderInspectionView: View {
         VStack(alignment: .leading, spacing: StillDesign.Space.xl) {
             Button("Back to Overview", systemImage: "chevron.left", action: back)
             PageHeader(title: "Folder inspection", subtitle: "Inspect names and evidence. Checkboxes update your live cleanup plan.")
+            CleanupScopeNotice(enabled: !model.isScanning && !selection.execution.isRunning) {
+                if let url = FolderInspection.chooseFolder(downloads: true) { selection.leaveRetryMode(); model.scan(url) }
+            }
             if let scope = model.scope { Text(scope.path).foregroundStyle(.secondary).textSelection(.enabled) }
             HStack {
                 Button("Recheck folder") { if let scope = model.scope { model.scan(scope) } }.disabled(model.isScanning)

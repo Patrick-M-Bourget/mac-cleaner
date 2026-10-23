@@ -35,6 +35,7 @@ The app target owns these internal SwiftUI components; they are presentation pri
 | `InspectableItemRow` | Separate selection control from filename inspection; size aligned at trailing edge |
 | `MacroCategoryCheckbox`, `CategorySelectionHeader` | Native AppKit unchecked/mixed/checked selection; checkbox → badge → category evidence → trailing size composition |
 | `ScanProgressSummary` | Bounded preliminary metadata evidence, explicit enumeration/recheck/stability phase, unknown remaining coverage; native spinner plus accessible phase text, no cleanup controls |
+| `CleanupScopeNotice` | Shared Downloads-only explanation and native choose-folder shortcut; enabled and disabled gallery examples |
 | `StatusRow`, `EmptyState` | Honest status, blocked/error explanation, or no findings yet |
 | `SettingsRow` | Setting title, explanation and native controls |
 | `AppBrand`, `StillSidebarRow`, `ChromeSurface` | Shared brand, persistent native navigation, destination accents and adaptive chrome |
@@ -97,7 +98,7 @@ Future routes retain their feature gates. Browser cleanup and additional roadmap
 
 ## Native behavior and accessibility
 
-For selection-only updates, check content anchoring as well as the outer window frame: the clicked visible control should retain its viewport position after selection settles. Use the actual scroll viewport to establish visibility; accessibility hit testing alone can include off-screen rows. The [checkbox movement investigation](validation/checkbox-content-anchor.md) records current coverage and the unresolved user report.
+For selection-only updates, check content anchoring as well as the outer window frame: the clicked visible control should retain its viewport position after selection settles. Use the actual scroll viewport to establish visibility; accessibility hit testing alone can include off-screen rows. The [checkbox movement investigation](validation/checkbox-content-anchor.md) records the scrolled-category reproduction and focused fix. Do not bind a mixed summary/list scroll pane to item-ID scroll targets solely to preserve selection scrolling; selection updates must preserve the native viewport. Explicit navigation restoration is a separate concern.
 
 Keep the shell geometry and scroll/action regions defined in the handoff. Expansion changes content, not window size or destination. Category refinement is inline; selecting and inspecting are separate actions. Shared components must preserve model-provided unknown/partial/blocked states and shared session selection.
 

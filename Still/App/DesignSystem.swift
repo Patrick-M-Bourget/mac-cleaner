@@ -505,3 +505,15 @@ struct ScanProgressSummary: View {
         }
     }
 }
+
+/// Shared current-build scope guidance; the shortcut still requires native folder approval.
+struct CleanupScopeNotice: View {
+    var enabled = true
+    let chooseDownloads: () -> Void
+    var body: some View {
+        VStack(alignment: .leading, spacing: StillDesign.Space.sm) {
+            StatusRow(text: "Cleanup currently supports files in Downloads only. Other folders are inspection only.", symbol: "info.circle", identifier: "cleanupScopeNotice")
+            Button("Choose Downloads…", action: chooseDownloads).disabled(!enabled)
+        }
+    }
+}
