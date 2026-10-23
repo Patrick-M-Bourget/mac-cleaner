@@ -1,5 +1,7 @@
 # Still — design and interaction handoff
 
+Native UI implementation follows the mandatory [design system](DESIGN-SYSTEM.md).
+
 Revision 0.9 · October 22, 2026 · Companion to [SPEC.md](SPEC.md).
 
 ## Design intent

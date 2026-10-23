@@ -15,3 +15,5 @@ Revision 0.9. Supporting research, detailed specifications and UI contracts are 
 ## Native development
 
 The M0 fixture workspace is runnable in Xcode. See [build and test instructions](docs/DEVELOPMENT.md).
+
+Native UI contributors: follow the [mandatory design system](docs/DESIGN-SYSTEM.md) before changing screens or resuming checkpointed UI.

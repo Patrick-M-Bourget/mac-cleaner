@@ -1,5 +1,7 @@
 # Native development
 
+Native UI implementation follows the mandatory [design system](DESIGN-SYSTEM.md).
+
 The native workspace starts with deterministic in-memory fixtures (issue #2). Issue #3 adds explicit native folder selection and read-only metadata inspection. Nothing scans until the user chooses a folder. Quick Look and Reveal in Finder run only from their explicit controls; preview requires fresh positive locality and matching resource identity. No cleanup target mutation is implemented. Fixture strings and sizes remain illustrative; selecting a real folder replaces fixture findings in that session.
 
 ## Prerequisites and launch
