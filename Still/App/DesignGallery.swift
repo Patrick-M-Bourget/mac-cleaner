@@ -52,11 +52,9 @@ struct DesignGallery: View {
 
 /// Explicit debug-only review settings do not alter macOS accessibility preferences.
 struct DesignAccessibilityPreview: ViewModifier {
-    @Environment(\.colorSchemeContrast) private var contrast
     func body(content: Content) -> some View {
         #if DEBUG
         content.environment(\.stillOpaqueChrome, ProcessInfo.processInfo.arguments.contains("--design-opaque-chrome"))
-            .environment(\.colorSchemeContrast, ProcessInfo.processInfo.arguments.contains("--design-increased-contrast") ? .increased : contrast)
         #else
         content
         #endif

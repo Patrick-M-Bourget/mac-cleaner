@@ -188,7 +188,7 @@ struct FolderInspectionView: View {
                     }
                     }
                 }
-                Text("\(selection.draft.selectedCount) files selected").accessibilityIdentifier("inspectionSelectionSummary")
+                Text("\(StillDesign.files(selection.draft.selectedCount)) selected").accessibilityIdentifier("inspectionSelectionSummary")
 
             }
         }.quickLookPreview($model.previewURL)

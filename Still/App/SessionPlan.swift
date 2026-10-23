@@ -38,6 +38,10 @@ import SwiftUI
         let scan: ScanResult
         var id: String { item.url.path + "|" + item.resourceID }
     }
+    var unavailableSelected: [PlannedTarget] {
+        let ids = Set(rows.map { $0.item.url.path + "|" + $0.item.resourceID + "|moveToTrash" })
+        return draft.selected.filter { !ids.contains($0.id) }
+    }
     var rows: [Row] {
         var seen = Set<String>()
         return scans.values.sorted { $0.observedAt > $1.observedAt }.flatMap { scan in
@@ -127,12 +131,12 @@ struct LiveCleanupPlanView: View {
         ScrollView {
         VStack(alignment: .leading, spacing: StillDesign.Space.xl) {
             PageHeader(title: "Cleanup plan", subtitle: "Choose categories, adjust items if needed, then review the changes.")
-            SelectionSummary(value: ByteCountFormatter.string(fromByteCount: selection.draft.logicalBytes, countStyle: .decimal), detail: "\(selection.draft.selectedCount) files selected · unique storage identities", identifier: "liveSelectionSummary")
+            SelectionSummary(value: ByteCountFormatter.string(fromByteCount: selection.draft.logicalBytes, countStyle: .decimal), detail: "\(StillDesign.files(selection.draft.selectedCount)) selected", identifier: "liveSelectionSummary")
             StatusRow(text: "Space stays occupied until Finder empties Trash. No files are moved in this build.", symbol: "trash")
             HStack(alignment: .top, spacing: StillDesign.Space.md) {
                 CategoryBadge(category: .downloads)
                 VStack(alignment: .leading, spacing: StillDesign.Space.sm) {
-                    MacroCategoryCheckbox(state: selection.categoryState, label: "Select all \(selection.rows.count) eligible Downloads files", enabled: !selection.isPreparing && !selection.rows.isEmpty) { Task { await selection.toggleAll() } }
+                    MacroCategoryCheckbox(state: selection.categoryState, label: "Downloads · \(StillDesign.files(selection.rows.count)) eligible", enabled: !selection.isPreparing && !selection.rows.isEmpty) { Task { await selection.toggleAll() } }
                         .fixedSize(horizontal: true, vertical: false).frame(height: 26)
                     Text("Move exact files to Trash. Personal files and installers are included only when selected.").font(.caption).foregroundStyle(.secondary)
                 }
@@ -149,8 +153,8 @@ struct LiveCleanupPlanView: View {
                     LazyVStack(alignment: .leading, spacing: 0) {
                         ForEach(selection.rows.filter { search.isEmpty || $0.item.url.path.localizedCaseInsensitiveContains(search) }) { row in
                             InspectableItemRow(name: row.item.url.lastPathComponent, detail: row.item.url.pathComponents.dropFirst(row.scan.scope.pathComponents.count).joined(separator: "/"), size: ByteCountFormatter.string(fromByteCount: row.item.logicalBytes ?? 0, countStyle: .decimal), symbol: "doc", inspected: inspected?.id == row.item.id, inspect: { inspected = row.item }) {
-                                Toggle("Select \(row.item.url.lastPathComponent)", isOn: Binding(get: { selection.draft.contains(row.item) }, set: { selection.set(row.item, in: row.scan, selected: $0) }))
-                                    .labelsHidden().accessibilityLabel("\(selection.draft.contains(row.item) ? "Selected" : "Select") \(row.item.url.lastPathComponent)").disabled(selection.isPreparing)
+                                Toggle("\(selection.draft.contains(row.item) ? "Selected" : "Select") \(row.item.url.lastPathComponent)", isOn: Binding(get: { selection.draft.contains(row.item) }, set: { selection.set(row.item, in: row.scan, selected: $0) }))
+                                    .labelsHidden().disabled(selection.isPreparing)
                             }
                             Divider()
                         }
@@ -166,13 +170,15 @@ struct LiveCleanupPlanView: View {
                     }
                 }.padding(.top, StillDesign.Space.md)
             }
-            ForEach(selection.draft.selected.filter { target in !selection.rows.contains { $0.item.url.path + "|" + $0.item.resourceID + "|moveToTrash" == target.id } }) { target in
+            ForEach(selection.unavailableSelected) { target in
                 SettingsRow(title: target.url.lastPathComponent, detail: "Selection retained · Recheck this location before review") {
                     Toggle("Selected \(target.url.lastPathComponent)", isOn: Binding(get: { true }, set: { if !$0 { selection.remove(target) } })).disabled(selection.isPreparing)
                 }
             }
             if let message = selection.message { Text(message).foregroundStyle(.secondary) }
-            Text("Hidden search results keep their selections. Hardlink aliases are separate exact paths; their storage bytes count once.").font(.caption).foregroundStyle(.secondary)
+            DisclosureGroup("Size and selection details") {
+                Text("Logical size describes the selected files, not guaranteed space freed. Linked files count once in the size total; each selected path is a separate target. Hidden search results keep their selections.").font(.caption).foregroundStyle(.secondary)
+            }
 
         }.padding(StillDesign.Space.page).frame(maxWidth: .infinity, alignment: .leading)
         }.background(StillDesign.reading)
@@ -204,7 +210,7 @@ private struct CleanupConfirmationView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
             PageHeader(title: "Review Move to Trash")
-            SummarySurface { Label("\(review.targets.count) exact files · \(ByteCountFormatter.string(fromByteCount: logicalBytes, countStyle: .decimal)) logical bytes", systemImage: "trash") }
+            SummarySurface { Label("\(StillDesign.files(review.targets.count)) · \(ByteCountFormatter.string(fromByteCount: logicalBytes, countStyle: .decimal)) logical size", systemImage: "trash") }
             Text("Space remains occupied until Finder empties Trash. Files may have separate Trash locations; folder structure and automatic restoration are not guaranteed.").foregroundStyle(.secondary)
             Text("Downloads scope · No folders or new discoveries will be included.").font(.callout)
             Text("Approval records this exact batch. No files will be moved in this build.").font(.caption).foregroundStyle(.secondary)

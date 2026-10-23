@@ -9,6 +9,9 @@ enum StillDesign {
     enum TypeStyle { static let page = Font.system(size: 26, weight: .medium); static let value = Font.system(size: 24, weight: .medium); static let section = Font.headline.weight(.medium) }
     static var reading: Color { Color(nsColor: NSColor(name: nil) { $0.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua ? NSColor(srgbRed: 0.09, green: 0.09, blue: 0.10, alpha: 1) : .white }) }
     static var summary: Color { Color(nsColor: NSColor(name: nil) { $0.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua ? NSColor(srgbRed: 0.135, green: 0.135, blue: 0.15, alpha: 1) : NSColor(srgbRed: 0.965, green: 0.968, blue: 0.976, alpha: 1) }) }
+    static func files(_ count: Int) -> String { "\(count) \(count == 1 ? "file" : "files")" }
+    static var capacityFill: Color { Color(nsColor: .secondaryLabelColor) }
+    static var capacityTrack: Color { Color(nsColor: .quaternaryLabelColor) }
     static var separator: Color { Color(nsColor: .separatorColor) }
 }
 enum StorageCategory {
@@ -45,11 +48,12 @@ struct PageHeader: View {
     }
 }
 struct SummarySurface<Content: View>: View {
+    @Environment(\.colorSchemeContrast) private var contrast
     @ViewBuilder var content: () -> Content
     var body: some View {
         content().padding(StillDesign.Space.lg).frame(maxWidth: .infinity, alignment: .leading)
             .background(StillDesign.summary, in: RoundedRectangle(cornerRadius: StillDesign.Radius.surface))
-            .overlay { RoundedRectangle(cornerRadius: StillDesign.Radius.surface).strokeBorder(StillDesign.separator, lineWidth: 0.5) }
+            .overlay { RoundedRectangle(cornerRadius: StillDesign.Radius.surface).strokeBorder(StillDesign.separator, lineWidth: contrast == .increased ? 1 : 0.5) }
     }
 }
 struct SelectionSummary: View {
@@ -156,7 +160,12 @@ struct CapacityMeter: View {
                         Text("available of \(bytes(total))").foregroundStyle(.secondary)
                     }
                 }
-                ProgressView(value: Double(total - available), total: Double(total)).tint(Color(nsColor: .secondaryLabelColor))
+                GeometryReader { geometry in
+                    ZStack(alignment: .leading) {
+                        Capsule().fill(StillDesign.capacityTrack)
+                        Capsule().fill(StillDesign.capacityFill).frame(width: geometry.size.width * CGFloat(Double(total - available) / Double(total)))
+                    }
+                }.frame(height: 4).accessibilityElement(children: .ignore)
                     .accessibilityLabel("\(bytes(available)) available of \(bytes(total))")
             } else { Text("Capacity not observed").font(compact ? .caption : .callout).foregroundStyle(.secondary) }
         }
@@ -269,5 +278,27 @@ struct InspectableItemRow<Selection: View>: View {
             }.buttonStyle(.plain).accessibilityLabel("Inspect " + name)
         }.padding(StillDesign.Space.md)
             .background(inspected ? Color.accentColor.opacity(0.06) : .clear, in: RoundedRectangle(cornerRadius: StillDesign.Radius.row))
+    }
+}
+
+/// Enforce the outer-window minimum independently of a destination's intrinsic content size.
+struct NativeWindowContract: NSViewRepresentable {
+    func makeNSView(context: Context) -> ContractView { ContractView() }
+    func updateNSView(_ nsView: ContractView, context: Context) {}
+    @MainActor final class ContractView: NSView {
+        private var applied = false
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            guard let window, !applied else { return }
+            applied = true
+            DispatchQueue.main.async {
+                window.minSize = NSSize(width: 900, height: 640)
+                #if DEBUG
+                if ProcessInfo.processInfo.arguments.contains("--design-minimum") {
+                    window.setFrame(NSRect(origin: window.frame.origin, size: NSSize(width: 900, height: 640)), display: true)
+                }
+                #endif
+            }
+        }
     }
 }

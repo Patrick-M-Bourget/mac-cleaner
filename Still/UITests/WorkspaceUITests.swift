@@ -135,7 +135,7 @@ final class WorkspaceUITests: XCTestCase {
         checkbox.click()
         let search = app.textFields["Search inspected files"]
         search.click(); search.typeText("does-not-match")
-        XCTAssertTrue(app.staticTexts["1 files selected"].exists)
+        XCTAssertTrue(app.staticTexts["1 file selected"].exists)
         app.buttons["View cleanup plan"].click()
         XCTAssertTrue(app.staticTexts["liveSelectionSummary"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.checkBoxes["Selected selected.pdf"].exists)
@@ -187,9 +187,9 @@ final class WorkspaceUITests: XCTestCase {
         category.click()
         let allSelected = NSPredicate(format: "label BEGINSWITH %@ OR value BEGINSWITH %@", "20 files selected", "20 files selected")
         XCTAssertTrue(app.staticTexts.matching(allSelected).firstMatch.waitForExistence(timeout: 10), app.debugDescription)
-        let item = app.checkBoxes["Selected file0.pdf"]
+        let item = app.checkBoxes.matching(NSPredicate(format: "label BEGINSWITH %@", "Selected ")).firstMatch
         for _ in 0..<4 { if item.exists { break }; app.scrollViews.firstMatch.scroll(byDeltaX: 0, deltaY: -250) }
-        XCTAssertTrue(item.exists); item.click()
+        XCTAssertTrue(item.exists, app.debugDescription); item.click()
         app.scrollViews.firstMatch.scroll(byDeltaX: 0, deltaY: 2000)
         XCTAssertEqual(category.value as? Int, 2)
         app.buttons["Review cleanup"].click()
@@ -235,7 +235,7 @@ final class WorkspaceUITests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: root) }
         try Data([1, 2, 3]).write(to: root.appendingPathComponent("selected.pdf"))
         let app = XCUIApplication()
-        app.launchArguments = ["--ui-test-downloads-root", "--future-milestones"]
+        app.launchArguments = ["--ui-test-downloads-root"]
         app.launchEnvironment["STILL_TEST_DOWNLOADS_ROOT"] = root.path
         app.launch()
         func capture(_ name: String) {
@@ -268,11 +268,16 @@ final class WorkspaceUITests: XCTestCase {
             app.buttons["Cancel"].click()
             XCTAssertEqual(app.windows.firstMatch.frame, bounds)
             app.typeKey("4", modifierFlags: .command); capture("native-locations-" + theme)
-            app.typeKey("5", modifierFlags: .command); capture("native-alert-settings-" + theme)
             app.typeKey("2", modifierFlags: .command)
         }
         app.terminate()
-        app.launchArguments = ["--design-gallery", "--design-minimum", "--design-increased-contrast"]
+        app.launchArguments = ["--future-milestones"]
+        app.launch(); app.typeKey("5", modifierFlags: .command)
+        for theme in ["Light", "Dark"] {
+            app.popUpButtons.firstMatch.click(); app.menuItems[theme].click(); capture("native-alert-settings-" + theme)
+        }
+        app.terminate()
+        app.launchArguments = ["--design-gallery", "--design-minimum"]
         app.launch()
         XCTAssertTrue(app.staticTexts["Native design system"].waitForExistence(timeout: 10))
         let minimum = app.windows.firstMatch.frame
@@ -280,11 +285,54 @@ final class WorkspaceUITests: XCTestCase {
         XCTAssertEqual(minimum.height, 640, accuracy: 1)
         for theme in ["Light", "Dark"] {
             app.popUpButtons.firstMatch.click(); app.menuItems[theme].click()
-            capture("gallery-minimum-contrast-" + theme)
+            capture("gallery-minimum-" + theme)
+            app.scrollViews.firstMatch.scroll(byDeltaX: 0, deltaY: -1200)
+            capture("gallery-states-minimum-" + theme)
+            app.scrollViews.firstMatch.scroll(byDeltaX: 0, deltaY: 2000)
         }
         app.checkBoxes["Opaque chrome"].click()
         capture("gallery-minimum-opaque-Dark")
         XCTAssertEqual(app.windows.firstMatch.frame, minimum)
+    }
+
+    @MainActor
+    func testMinimumPopulatedPlanAndConfirmationRemainReachable() throws {
+        continueAfterFailure = false
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("StillSelectionUI-" + UUID().uuidString, isDirectory: true)
+        let nested = root.appendingPathComponent("Long project folder name for layout and keyboard review")
+        try FileManager.default.createDirectory(at: nested, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        for i in 0..<12 { try Data([1]).write(to: nested.appendingPathComponent("A long descriptive document name with several words - \(i).pdf")) }
+        let app = XCUIApplication()
+        app.launchArguments = ["--ui-test-downloads-root", "--design-minimum", "--design-opaque-chrome"]
+        app.launchEnvironment["STILL_TEST_DOWNLOADS_ROOT"] = root.path
+        app.launch()
+        XCTAssertTrue(app.buttons["Choose folder…"].waitForExistence(timeout: 10))
+        app.buttons["Choose folder…"].click(); app.typeKey("g", modifierFlags: [.command, .shift])
+        let path = app.textFields.firstMatch
+        XCTAssertTrue(path.waitForExistence(timeout: 5)); path.typeText(root.path)
+        app.typeKey(.return, modifierFlags: []); app.dialogs.buttons["Scan folder"].click()
+        XCTAssertTrue(app.staticTexts["Observed"].waitForExistence(timeout: 10))
+        app.typeKey("2", modifierFlags: .command)
+        app.checkBoxes["downloadsCategorySelection"].click()
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "value BEGINSWITH %@", "12 files selected")).firstMatch.waitForExistence(timeout: 10))
+        let bounds = app.windows.firstMatch.frame
+        XCTAssertEqual(bounds.width, 900, accuracy: 1); XCTAssertEqual(bounds.height, 640, accuracy: 1)
+        func capture(_ name: String) { let shot = XCTAttachment(screenshot: app.windows.firstMatch.screenshot()); shot.name = name; shot.lifetime = .keepAlways; add(shot) }
+        for theme in ["Light", "Dark"] {
+            app.popUpButtons.firstMatch.click(); app.menuItems[theme].click()
+            capture("native-plan-minimum-opaque-" + theme)
+            app.scrollViews.firstMatch.scroll(byDeltaX: 0, deltaY: -1500)
+            XCTAssertTrue(app.buttons["Review cleanup"].isHittable)
+            app.buttons["Review cleanup"].click()
+            XCTAssertTrue(app.staticTexts["Review Move to Trash"].waitForExistence(timeout: 5))
+            capture("native-confirmation-minimum-" + theme)
+            XCTAssertTrue(app.buttons["Cancel"].isHittable && app.buttons["Approve Move to Trash"].isHittable)
+            app.typeKey(.escape, modifierFlags: [])
+            XCTAssertFalse(app.staticTexts["Review Move to Trash"].exists)
+            XCTAssertEqual(app.windows.firstMatch.frame, bounds)
+            app.scrollViews.firstMatch.scroll(byDeltaX: 0, deltaY: 2000)
+        }
     }
 
 }

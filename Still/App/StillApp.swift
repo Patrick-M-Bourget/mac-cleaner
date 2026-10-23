@@ -21,7 +21,7 @@ struct StillApp: App {
                 #else
                 WorkspaceView(alerts: lifecycle.alerts)
                 #endif
-            }.frame(minWidth: 900, minHeight: 640).modifier(DesignAccessibilityPreview())
+            }.frame(minWidth: 900).background { NativeWindowContract() }.modifier(DesignAccessibilityPreview())
         }
         .defaultSize(width: initialSize.width, height: initialSize.height)
         .commands {
@@ -162,7 +162,7 @@ private struct WorkspaceView: View {
                 }
                 .safeAreaInset(edge: .bottom, spacing: 0) {
                     if inspectionVisible {
-                        ActionStrip(message: nativeInspectionVisible ? "\(selection.draft.selectedCount) files selected" : "Nothing selected") {
+                        ActionStrip(message: nativeInspectionVisible ? "\(StillDesign.files(selection.draft.selectedCount)) selected" : "Nothing selected") {
                             Button("View cleanup plan") { nativeInspectionVisible = false; inspecting = false; destination = .plan }.buttonStyle(.borderedProminent)
                         }
                     } else if showsPlan {
