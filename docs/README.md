@@ -1,6 +1,6 @@
 # Still — repository handoff
 
-Revision 0.9 · October 22, 2026 · Ready for repository setup and native-shell development.
+Approved product contract revision 0.9 · October 22, 2026. Prototype parity checkpoint · October 23, 2026.
 
 Still is a working name. Native implementation is underway; see [development and validation instructions](DEVELOPMENT.md) for current capabilities and remaining gates. This bundle records the accepted product direction; it does not certify every native filesystem integration.
 
@@ -15,6 +15,8 @@ Still is a working name. Native implementation is underway; see [development and
 Supporting context: [PRD](reference/macos-cleaner-prd.md), [flow audit](reference/macos-cleaner-flow-audit.md), [design contract](reference/macos-cleaner-design-contract.md), [research](reference/macos-cleaner-research.md), [competitors](reference/macos-cleaner-competitors.md).
 
 ## Authority and change policy
+
+**Current checkpoint:** [prototype-to-implementation parity audit](PROTOTYPE-PARITY.md), October 23. The audit is complete; product-flow lock is pending under #45. Feature implementation is paused for the recorded decisions. Review the parity ledger before further building; existing validation reports certify their stated boundaries, not the entire prototype experience.
 
 SPEC.md and DESIGN-HANDOFF.md are the consolidated entry points. Detailed reference documents supply requirements where these are abbreviated. Revision 0.9 shared live-selection rules and milestone scope supersede earlier flows. Reference documents are historical detailed feature records; do not implement their conflicting draft, rescan or plan-persistence behavior. Historical research and prototype behavior are not requirements when they contradict these contracts. Resolve any remaining conflict explicitly before implementation rather than copying inconsistent behavior.
 

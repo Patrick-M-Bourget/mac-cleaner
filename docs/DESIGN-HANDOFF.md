@@ -4,6 +4,16 @@ Native UI implementation follows the mandatory [design system](DESIGN-SYSTEM.md)
 
 Revision 0.9 · October 22, 2026 · Companion to [SPEC.md](SPEC.md).
 
+## Prototype parity checkpoint — October 23, 2026
+
+[Prototype parity audit](PROTOTYPE-PARITY.md) is the shared feature/flow/state trace for this specification and the design handoff. Audit baseline `f9e854f` is **not product-parity lock**. [#45](https://github.com/Patrick-M-Bourget/mac-cleaner/issues/45) tracks reconciliation; every current gap and preserved future capability has an owning GitHub issue. Completed mechanisms and green fixture tests do not establish a complete user flow.
+
+Feature implementation is paused before more building. Grill and record the plan prerequisite/category workflow (#44), multi-location/access management (#46), explorer/inspector (#47) and origin/scroll/local-data navigation (#48) together. Review capacity/results (#49/#50), History and appearance decisions (#51/#53), and gated growth/archive guidance (#52/#54). Issue proposals are not approved requirements. Do not silently resolve these decisions by copying current code or synthetic prototype behavior.
+
+The intended product still includes configurable explicit scopes, category-based selection, meaningful folder exploration/inspection, caller-aware return routes, fresh capacity evidence, actionable results and all retained future milestones. Current limitations are recorded in the audit, not removed from scope. No change to Downloads-only mutation, exact-target approval, session-only choices or adapter safety gates is implied. All M2–M8 features need not ship before M1; M8 signing remains deferred.
+
+Before an affected implementation resumes, record agreed transitions, scope, evidence and unresolved limitations in **both SPEC and DESIGN-HANDOFF**. Every subsequent ticket must name parity IDs and validate its complete entry → evidence → selection/review → result/recovery/return flow where applicable, including empty/unknown/blocked states, shared components and source-pinned native Light/Dark initial/minimum review. Update the audit and issue with actual proof; a helper, probe, inaccessible development route or successful build alone is not feature completion.
+
 ## Design intent
 
 A quiet native Mac utility: light and dark appearance, white/near-black content surfaces, subtle material in native window chrome and dark sidebar, restrained category colour. The light sidebar is explicitly white, per the user’s October 22 clarification; wallpaper/material bleed must not turn it beige. Prioritize readable consequences, predictable navigation and deliberate selection. Glass must not reduce text contrast. Avoid oversized dashboard cards, alarming storage scores, generic “Optimize” actions and promises of exact savings.
@@ -127,7 +137,7 @@ At a fixed window size, outer bounds must remain stable within 1 pt rounding acr
 
 Run the journeys in [SPEC.md](SPEC.md) and all branches in the [state matrix](reference/macos-cleaner-ui-state-matrix.md). Test shared membership, category Select all, Back preserving choices, rescan suspension and explicit Quit clearing the unexecuted plan. Review-only persistence of appearance is not permission to persist a native cleanup plan.
 
-This handoff is ready for native-shell implementation. Native layout, accessibility, persistence and adapter feasibility remain gates before release. The repository [visual reference](visual/README.md) includes the current preview and representative captures. The full-product preview preserves future feature designs and is explicitly labelled; its simulated OS behavior is not proof of platform support. Keep prototype-only scenario controls and synthetic data out of production.
+The approved product direction is retained, but the October 23 parity checkpoint is not product-flow lock. Resolve the recorded decisions before further feature implementation. Native layout, accessibility, persistence and adapter feasibility remain gates before release. The repository [visual reference](visual/README.md) includes the current preview and representative captures. The full-product preview preserves future feature designs and is explicitly labelled; its simulated OS behavior is not proof of platform support. Keep prototype-only scenario controls and synthetic data out of production.
 
 ## Refresh, launch and recovery behavior
 
@@ -153,6 +163,8 @@ Cleanup plan provides direct Recheck location actions. Refresh preserves selecte
 
 ## Native startup recovery (#12)
 
+The following records implemented behavior. Caller-aware recovery return from History remains an open parity gap (#48), rather than an approved exception to the navigation contract.
+
 Interrupted durable batches open a read-only secondary review on launch. Show unresolved outcomes separately from not-started targets and recorded terminal facts; a missing original never implies Trash success. Keep a fixed Return to Overview action and an Overview route back to unresolved evidence. A new manual scan/selection/approval is the only path to another cleanup. Current locations are unverified; only an explicitly persisted resulting location may be revealed on user action. See [validation and remaining gates](validation/startup-recovery.md).
 
 The native active-operation footer keeps **Stop after current file** reachable. Partial results offer **Recheck unfinished files**, which performs read-only checks and forms a new restricted plan; it never executes. Completed successes and new discoveries are excluded, and changed/unavailable paths receive a new-scan recovery explanation. The same bounded confirmation requires a new final approval. Native disclosure controls inside its ScrollView retain a shared leading gutter so the arrow stays visible and clickable; label selection does not substitute for glyph activation. See `validation/cancel-retry.md`.
@@ -171,6 +183,8 @@ History presents completed runs using shared summaries with expandable per-file 
 
 ### M6 diagnostics review and local Save
 
+The Overview-only entry/Back path below is the implemented baseline; multi-origin local-data management remains tracked by #48. It does not replace the intended Settings/History access.
+
 A secondary future Overview action opens Review diagnostics, listing Included and Excluded fields before a selectable exact JSON preview. The preview is a frozen snapshot, not a live log. Reuse PageHeader, SettingsRow, SummarySurface and StatusRow; the reading region scrolls inside the fixed shell while Back to Overview and Save diagnostics remain in ActionStrip. Native Save chooses a destination only after review. Cancel and write failure preserve the identical payload and offer another Save, with no fallback location or upload. Saving refuses the known local app-state subtree and its symlink aliases; if that protection root cannot be verified, Save fails without changing the preview or choosing a fallback. No diagnostics action clears history, resolves recovery or authorizes cleanup. A new explicit review creates a new snapshot; allowed Reset discards the old preview. [Hosted diagnostics evidence](validation/redacted-diagnostics.md) qualifies the review/header and scrolled-payload layouts at 0e8a143 in both themes and sizes. Native Cancel is behaviorally asserted; uncaptured Save-panel/saved/failure visual states and manual OS/accessibility gates remain.
 
 ### Custom exclusions (M6)
@@ -178,6 +192,8 @@ A secondary future Overview action opens Review diagnostics, listing Included an
 A future-gated secondary **Custom exclusions** route under Locations & access uses shared settings/status surfaces. Choose a file or folder, review the resolved path, volume-bound matching and file/subtree boundary, then Save exclusion explicitly. Existing rules have explicit Remove controls; cancellation and ordinary plan deselection never save rules. A persistent status explains that changed rules require a manual recheck and excluded bytes are unknown. Fixed safety protections remain read-only. [Rule, rename/replacement and coverage semantics](EXCLUSIONS.md) are authoritative.
 
 ## Current-build cleanup scope guidance
+
+> Current implementation record, under review in #44. The global plan banner/chooser and its routing are not design lock. Preserve existing safety behavior until the grilled replacement is agreed; revise this section in both entry documents together.
 
 Overview before scanning, folder inspection and Cleanup plan display: “Cleanup currently supports files in Downloads only. Other folders are inspection only.” A shared “Choose Downloads…” button opens the native folder chooser at the user's Downloads directory. Scanning begins only after the user confirms a folder; Cancel preserves the current view, observations and choices. The chooser permits another location for inspection and repeats the restriction. The shortcut does not grant eligibility, select files or approve cleanup. It is disabled during scanning/selection preparation where applicable; execution retains its dedicated progress flow. Files inside Downloads remain subject to all existing completeness, identity and protection checks. Broader ordinary-file cleanup and whole-folder cleanup require separate product/safety design; this guidance does not expand M1 mutation scope.
 

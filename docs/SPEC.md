@@ -4,6 +4,16 @@ Native UI implementation follows the mandatory [design system](DESIGN-SYSTEM.md)
 
 Revision 0.9 · October 22, 2026 · Native implementation handoff.
 
+## Prototype parity checkpoint — October 23, 2026
+
+[Prototype parity audit](PROTOTYPE-PARITY.md) is the shared feature/flow/state trace for this specification and the design handoff. Audit baseline `f9e854f` is **not product-parity lock**. [#45](https://github.com/Patrick-M-Bourget/mac-cleaner/issues/45) tracks reconciliation; every current gap and preserved future capability has an owning GitHub issue. Completed mechanisms and green fixture tests do not establish a complete user flow.
+
+Feature implementation is paused before more building. Grill and record the plan prerequisite/category workflow (#44), multi-location/access management (#46), explorer/inspector (#47) and origin/scroll/local-data navigation (#48) together. Review capacity/results (#49/#50), History and appearance decisions (#51/#53), and gated growth/archive guidance (#52/#54). Issue proposals are not approved requirements. Do not silently resolve these decisions by copying current code or synthetic prototype behavior.
+
+The intended product still includes configurable explicit scopes, category-based selection, meaningful folder exploration/inspection, caller-aware return routes, fresh capacity evidence, actionable results and all retained future milestones. Current limitations are recorded in the audit, not removed from scope. No change to Downloads-only mutation, exact-target approval, session-only choices or adapter safety gates is implied. All M2–M8 features need not ship before M1; M8 signing remains deferred.
+
+Before an affected implementation resumes, record agreed transitions, scope, evidence and unresolved limitations in **both SPEC and DESIGN-HANDOFF**. Every subsequent ticket must name parity IDs and validate its complete entry → evidence → selection/review → result/recovery/return flow where applicable, including empty/unknown/blocked states, shared components and source-pinned native Light/Dark initial/minimum review. Update the audit and issue with actual proof; a helper, probe, inaccessible development route or successful build alone is not feature completion.
+
 ## Product outcome
 
 Help people understand local storage, see what grew, choose specific cleanup actions and understand the result. Primary use case: a 256–512 GB Mac with iCloud and recurring storage pressure. All processing is local. No account or service is required.
@@ -116,6 +126,8 @@ M6 diagnostics implementation accepts only allowlisted versions, aggregate sessi
 M6 explicit custom exclusion semantics are defined in [EXCLUSIONS.md](EXCLUSIONS.md): volume-bound canonical path rules reduce included scan/candidate coverage, never arise from deselection, preserve immutable safety protections and require fresh findings after changes. This contract precedes implementation.
 
 ## Current-build cleanup scope guidance
+
+> Current implementation record, under review in #44. The global plan banner/chooser and its routing are not design lock. Preserve existing safety behavior until the grilled replacement is agreed; revise this section in both entry documents together.
 
 Overview before scanning, folder inspection and Cleanup plan display: “Cleanup currently supports files in Downloads only. Other folders are inspection only.” A shared “Choose Downloads…” button opens the native folder chooser at the user's Downloads directory. Scanning begins only after the user confirms a folder; Cancel preserves the current view, observations and choices. The chooser permits another location for inspection and repeats the restriction. The shortcut does not grant eligibility, select files or approve cleanup. It is disabled during scanning/selection preparation where applicable; execution retains its dedicated progress flow. Files inside Downloads remain subject to all existing completeness, identity and protection checks. Broader ordinary-file cleanup and whole-folder cleanup require separate product/safety design; this guidance does not expand M1 mutation scope.
 

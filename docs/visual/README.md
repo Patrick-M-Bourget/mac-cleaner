@@ -11,6 +11,10 @@ The Scope selector outside the app switches between **M1 · Personal build** and
 
 Selections update a single live plan; Back preserves them. Preview reload starts a new unexecuted session (native explicit Quit has that role). Appearance may persist in the wrapper. Switching to Personal mode removes non-M1 selections deliberately as a review-only scope change.
 
+## Parity audit
+
+[October 23 audit](../PROTOTYPE-PARITY.md) pins this source to SHA-256 `3990218fb4ebf5e7edad4e8d0ac55e1d7f136159cd98deeecdc1bf019f82d88c`, identical to the approved original. Both final Personal/Future modes and all secondary/exceptional states are traced. Native captures below prove only their named states; they do not imply that missing routes or gated features have been built. Current product-flow reconciliation is #45.
+
 ## Checks performed
 
 - Selected one PDF in item review; Back → Cleanup plan retained exactly that target and showed mixed Downloads selection.
