@@ -46,6 +46,10 @@ public struct PlanDraft: Sendable {
     public func contains(_ item: FileObservation) -> Bool { chosen[item.url.path + "|" + item.resourceID + "|moveToTrash"] != nil }
     public mutating func remove(_ id: String) { chosen[id] = nil }
     public mutating func clear() { chosen.removeAll() }
+    mutating func replaceAfterRefresh(_ original: PlannedTarget, with fresh: PlannedTarget) {
+        guard chosen[original.id]?.observedAt == original.observedAt, original.id == fresh.id else { return }
+        chosen[original.id] = fresh
+    }
     public mutating func select(_ item: FileObservation, in scan: ScanResult, downloadsRoot: URL) throws {
         try select(item, in: scan, downloads: DownloadsRoot(url: downloadsRoot))
     }
