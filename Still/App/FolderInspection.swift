@@ -8,7 +8,8 @@ import QuickLook
 final class FolderInspection {
     private let scanner = FolderScanner()
     private let session: InspectionSession
-    init() { session = InspectionSession(scanner: scanner) }
+    private let selection: SessionPlan
+    init(selection: SessionPlan) { self.selection = selection; session = InspectionSession(scanner: scanner) }
     private var task: Task<Void, Never>?
     private var generation = UUID()
     private var previewAccessScope: URL?
@@ -50,6 +51,7 @@ final class FolderInspection {
                 let reports = await session.reports()
                 guard !Task.isCancelled, token == generation else { return }
                 result = observed
+                selection.observe(observed)
                 lastComplete = report.lastComplete
                 scopeReports = reports
                 selected = observed.observations.first
@@ -94,6 +96,9 @@ final class FolderInspection {
 
 struct FolderInspectionView: View {
     @Bindable var model: FolderInspection
+    @Bindable var selection: SessionPlan
+    let viewPlan: () -> Void
+    @State private var search = ""
     let back: () -> Void
 
     var body: some View {
@@ -149,8 +154,9 @@ struct FolderInspectionView: View {
                     }
                 }
                 if result.observations.isEmpty { Text(result.isComplete ? "No entries observed in this folder." : "No readable entries observed; this is not an empty-folder result.").foregroundStyle(.secondary) }
+                TextField("Search inspected files", text: $search)
                 LazyVStack(spacing: 0) {
-                    ForEach(result.observations) { item in
+                    ForEach(result.observations.filter { search.isEmpty || $0.url.path.localizedCaseInsensitiveContains(search) }) { item in
                         Button { model.selected = item } label: {
                             HStack(alignment: .top) {
                                 Image(systemName: item.kind == .file ? "doc" : "folder")
@@ -162,6 +168,9 @@ struct FolderInspectionView: View {
                                 Text(item.kind == .file ? bytes(item.logicalBytes) : item.kind.rawValue).foregroundStyle(.secondary)
                             }.frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, 9).contentShape(Rectangle())
                         }.buttonStyle(.plain).accessibilityLabel("Inspect \(item.url.lastPathComponent)")
+                        if selection.eligible(item, in: result) {
+                            Toggle("Select \(item.url.lastPathComponent)", isOn: Binding(get: { selection.draft.contains(item) }, set: { selection.set(item, in: result, selected: $0) }))
+                        } else { Text("Browse only · outside eligible Downloads or protected/unknown target").font(.caption).foregroundStyle(.secondary) }
                         Divider()
                     }
                 }
@@ -186,6 +195,8 @@ struct FolderInspectionView: View {
                     }.padding(16).frame(maxWidth: .infinity, alignment: .leading)
                         .background(.quaternary.opacity(0.4), in: RoundedRectangle(cornerRadius: 12))
                 }
+                Text("\(selection.draft.selectedCount) files selected").accessibilityIdentifier("inspectionSelectionSummary")
+                Button("View cleanup plan", action: viewPlan).buttonStyle(.borderedProminent)
             }
         }.quickLookPreview($model.previewURL)
             .onChange(of: model.previewURL) { _, url in if url == nil { model.closePreviewAccess() } }

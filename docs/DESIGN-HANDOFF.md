@@ -128,3 +128,7 @@ Keep selected identities visible as pending during refresh; disable execution. A
 Initial success means useful understanding, confident approval and observed capacity after real personal sessions. Evaluate recurrence in a later manual session; no background metric collection is implied.
 
 In M1, the summary headline is “Selected for Trash”, with an explicit statement that space remains occupied until Finder empties Trash. Later milestones separate potentially released bytes from Trash-held bytes.
+
+## Implemented session lifecycle — #7
+
+A live unexecuted selection belongs to the app process. Closing the workspace with a pending plan preserves both the inspection observations and selection in memory. With alerts off, the pending plan still keeps Still running. Dock reopening or **Window > Show Still** opens the workspace; Cleanup plan shows the same selected exact paths. Reopening a window does not approve or execute a plan. Explicit **Quit Still** ends the unexecuted selection, and the next launch requires a fresh user-requested scan. Item names continue to inspect independently of checkboxes; search and Back never apply or discard a separate draft.

@@ -12,6 +12,11 @@ struct StillApp: App {
                 .frame(minWidth: 900, minHeight: 640)
         }
         .defaultSize(width: 1120, height: 760)
+        .commands {
+            CommandGroup(after: .windowArrangement) {
+                Button("Show Still") { lifecycle.openWorkspace?() }
+            }
+        }
         MenuBarExtra("Still storage alerts", systemImage: "internaldrive", isInserted: Binding(get: { StorageAlertsController.futureEnabled && alerts.effectiveMonitoring }, set: { inserted in if !inserted { Task { await alerts.setEnabled(false) } } })) {
             StillStatusMenu(alerts: lifecycle.alerts)
         }
@@ -62,7 +67,8 @@ private struct WorkspaceView: View {
     @State private var inspected = FixtureItem.downloads[0]
     @State private var appearance = "Automatic"
     @State private var expanded = false
-    @State private var folderInspection = FolderInspection()
+    @State private var folderInspection = AppLifecycleController.shared.inspection
+    @State private var selection = AppLifecycleController.shared.selection
     @State private var nativeInspectionVisible = false
     @State private var homebrewVisible = false
     @State private var pipVisible = false
@@ -98,14 +104,14 @@ private struct WorkspaceView: View {
                         } else if homebrewVisible {
                             HomebrewInspectionView { homebrewVisible = false; destination = .overview }
                         } else if nativeInspectionVisible {
-                            FolderInspectionView(model: folderInspection) { nativeInspectionVisible = false; destination = .overview }
+                            FolderInspectionView(model: folderInspection, selection: selection, viewPlan: { nativeInspectionVisible = false; destination = .plan }) { nativeInspectionVisible = false; destination = .overview }
                         }
                         else if inspecting { inspection }
                         else {
                             switch destination {
                             case .alerts: StorageAlertsView(controller: alerts)
                             case .overview: overview
-                            case .plan: plan
+                            case .plan: if selection.scans.isEmpty { plan } else { LiveCleanupPlanView(selection: selection) }
                             case .history: history
                             case .locations: locations
                             }
