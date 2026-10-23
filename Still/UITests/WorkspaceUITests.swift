@@ -361,7 +361,7 @@ final class WorkspaceUITests: XCTestCase {
         }
         app.scrollViews.firstMatch.scroll(byDeltaX: 0, deltaY: -300)
         let rows = app.checkBoxes.allElementsBoundByIndex.filter {
-            ($0.label.hasPrefix("Select ") || $0.label.hasPrefix("Selected ")) && $0.isHittable
+            $0.label.hasSuffix(".pdf") && $0.isHittable && app.scrollViews.firstMatch.frame.contains($0.frame)
         }
         let row = try XCTUnwrap(rows.dropFirst(rows.count / 2).first)
         let filename = row.label.replacingOccurrences(of: "Selected ", with: "").replacingOccurrences(of: "Select ", with: "")
@@ -370,7 +370,11 @@ final class WorkspaceUITests: XCTestCase {
             let frame = control.frame
             XCTAssertTrue(control.isHittable)
             control.click()
-            XCTAssertEqual(control.value as? Int, index.isMultiple(of: 2) ? 1 : 0)
+            let expected = index.isMultiple(of: 2) ? 1 : 0
+            let selected = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+                control.value as? Int == expected
+            }, object: nil)
+            XCTAssertEqual(XCTWaiter.wait(for: [selected], timeout: 5), .completed)
             XCTAssertEqual(app.windows.firstMatch.frame, bounds)
             XCTAssertEqual(control.frame, frame, "Selection must keep the clicked item anchored in the viewport")
         }
@@ -396,10 +400,10 @@ final class WorkspaceUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Observed"].waitForExistence(timeout: 10))
         let bounds = app.windows.firstMatch.frame
         for _ in 0..<4 {
-            if app.checkBoxes.allElementsBoundByIndex.contains(where: { $0.label.hasSuffix(".pdf") && $0.isHittable }) { break }
+            if app.checkBoxes.allElementsBoundByIndex.contains(where: { $0.label.hasSuffix(".pdf") && $0.isHittable && app.scrollViews.firstMatch.frame.contains($0.frame) }) { break }
             app.scrollViews.firstMatch.scroll(byDeltaX: 0, deltaY: -200)
         }
-        let rows = app.checkBoxes.allElementsBoundByIndex.filter { $0.label.hasSuffix(".pdf") && $0.isHittable }
+        let rows = app.checkBoxes.allElementsBoundByIndex.filter { $0.label.hasSuffix(".pdf") && $0.isHittable && app.scrollViews.firstMatch.frame.contains($0.frame) }
         let row = try XCTUnwrap(rows.dropFirst(rows.count / 2).first)
         let filename = row.label.replacingOccurrences(of: "Selected ", with: "").replacingOccurrences(of: "Select ", with: "")
         let control = app.checkBoxes.matching(NSPredicate(format: "label ENDSWITH %@", filename)).firstMatch
@@ -408,7 +412,11 @@ final class WorkspaceUITests: XCTestCase {
             let before = XCTAttachment(screenshot: app.windows.firstMatch.screenshot())
             before.name = "checkbox-inspection-before-" + String(index); before.lifetime = .keepAlways; add(before)
             control.click()
-            XCTAssertEqual(control.value as? Int, index.isMultiple(of: 2) ? 1 : 0)
+            let expected = index.isMultiple(of: 2) ? 1 : 0
+            let selected = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+                control.value as? Int == expected
+            }, object: nil)
+            XCTAssertEqual(XCTWaiter.wait(for: [selected], timeout: 5), .completed)
             XCTAssertEqual(app.windows.firstMatch.frame, bounds)
             XCTAssertEqual(control.frame, frame, "Selection must keep the inspected item anchored in the viewport")
             let after = XCTAttachment(screenshot: app.windows.firstMatch.screenshot())
