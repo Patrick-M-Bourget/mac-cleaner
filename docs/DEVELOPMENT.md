@@ -130,7 +130,7 @@ The executor consumes approval and revalidates target evidence. `SessionPlan.can
 
 ## Future Docker storage (#33)
 
-`--future-milestones` exposes a secondary **Review Docker storage** route from Overview. Explicit selected-file metadata distinguishes logical image-file length, optional host allocation and unknown VM capacity/ownership. CLI/runtime inspection remains unsupported and unexecuted pending genuine disposable qualification. The synthetic report marks persistent volumes and offers no mutation. See [evidence and gates](validation/docker-inventory.md). No default Docker path/socket/context is searched.
+`--future-milestones` exposes a secondary **Review Docker storage** route from Overview. Explicit selected-file metadata distinguishes logical image-file length, optional host allocation and unknown VM capacity/ownership. Explicit CLI/runtime inspection now accepts only the official static macOS Docker 28.5.1 binary and Engine 28.5.1 through an explicitly entered canonical local Unix socket, with pinned hashes, isolated config and bounded read-only version/usage commands. Genuine disposable runtime qualification remains pending; other CLI releases are rejected without execution. The synthetic report marks persistent volumes and offers no mutation. See [evidence and gates](validation/docker-inventory.md). No default Docker path/socket/context is searched.
 
 ### #8 checkpoint validation status
 
