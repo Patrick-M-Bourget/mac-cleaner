@@ -1,5 +1,5 @@
 private struct LocalPlanFixture: MetadataSupplementReading {
-    func read(_ url: URL) throws -> MetadataSupplement { MetadataSupplement(allocatedBytes: 3, locality: .local) }
+    func read(_ url: URL) throws -> MetadataSupplement { MetadataSupplement(allocatedBytes: 3, locality: .local, cloud: CloudMetadata(membership: false)) }
 }
 import Foundation
 import Testing

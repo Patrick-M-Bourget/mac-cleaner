@@ -7,9 +7,11 @@ public enum ObservationKind: String, Sendable { case file, folder, package, symb
 public struct MetadataSupplement: Sendable {
     public let allocatedBytes: Int64?
     public let locality: PreviewAvailability
-    public init(allocatedBytes: Int64?, locality: PreviewAvailability) {
+    public let cloud: CloudMetadata
+    public init(allocatedBytes: Int64?, locality: PreviewAvailability, cloud: CloudMetadata = .unknown) {
         self.allocatedBytes = allocatedBytes
         self.locality = locality
+        self.cloud = cloud
     }
 }
 
@@ -21,17 +23,36 @@ public protocol MetadataSupplementReading: Sendable {
 public struct FoundationMetadataSupplement: MetadataSupplementReading {
     public init() {}
     public func read(_ url: URL) throws -> MetadataSupplement {
-        let values = try url.resourceValues(forKeys: [.totalFileAllocatedSizeKey, .isUbiquitousItemKey, .ubiquitousItemDownloadingStatusKey])
+        let values = try url.resourceValues(forKeys: [.totalFileAllocatedSizeKey, .isUbiquitousItemKey, .ubiquitousItemDownloadingStatusKey, .ubiquitousItemIsUploadedKey, .ubiquitousItemIsUploadingKey, .ubiquitousItemIsDownloadingKey, .ubiquitousItemHasUnresolvedConflictsKey])
         var information = stat()
-        let hasStat = lstat(url.path, &information) == 0
-        let dataless = hasStat && information.st_flags & UInt32(SF_DATALESS) != 0
+        guard lstat(url.path, &information) == 0 else { throw CocoaError(.fileReadNoSuchFile) }
+        // URL resource values can omit this optional key even for ordinary local files.
+        // Use the explicit native predicate, never coalesce a missing flag to false.
+        let membership = values.isUbiquitousItem ?? FileManager().isUbiquitousItem(at: url)
+        var verified = stat()
+        guard lstat(url.path, &verified) == 0,
+              verified.st_ino == information.st_ino, verified.st_dev == information.st_dev,
+              verified.st_mode & S_IFMT == information.st_mode & S_IFMT else {
+            throw CocoaError(.fileReadNoSuchFile)
+        }
+        let dataless = information.st_flags & UInt32(SF_DATALESS) != 0
         let locality: PreviewAvailability
         if dataless || values.ubiquitousItemDownloadingStatus == .notDownloaded { locality = .nonlocal }
-        else if values.isUbiquitousItem == false { locality = .local }
-        else if values.isUbiquitousItem == true,
+        else if membership == false { locality = .local }
+        else if membership == true,
                 values.ubiquitousItemDownloadingStatus == .current || values.ubiquitousItemDownloadingStatus == .downloaded { locality = .local }
         else { locality = .unknown }
-        return MetadataSupplement(allocatedBytes: values.totalFileAllocatedSize.map(Int64.init), locality: locality)
+        let downloadState: CloudDownloadState
+        switch values.ubiquitousItemDownloadingStatus {
+        case .current: downloadState = .current
+        case .downloaded: downloadState = .downloaded
+        case .notDownloaded: downloadState = .notDownloaded
+        default: downloadState = .unknown
+        }
+        return MetadataSupplement(allocatedBytes: values.totalFileAllocatedSize.map(Int64.init), locality: locality,
+            cloud: .init(membership: membership, downloadState: downloadState,
+                uploaded: values.ubiquitousItemIsUploaded, uploading: values.ubiquitousItemIsUploading,
+                downloading: values.ubiquitousItemIsDownloading, conflicts: values.ubiquitousItemHasUnresolvedConflicts))
     }
 }
 
@@ -45,6 +66,7 @@ public struct FileObservation: Sendable, Identifiable {
     public let allocatedBytes: Int64?
     public let previewAvailability: PreviewAvailability
     public let isDuplicateResource: Bool
+    public let cloud: CloudMetadata
 }
 
 public struct ScanIssue: Sendable {
@@ -180,7 +202,7 @@ public actor FolderScanner {
             }
             observations.append(.init(id: url.path, resourceID: identity, url: url, kind: kind,
                 logicalBytes: bytes, allocatedBytes: extra?.allocatedBytes,
-                previewAvailability: extra?.locality ?? .unknown, isDuplicateResource: duplicate))
+                previewAvailability: extra?.locality ?? .unknown, isDuplicateResource: duplicate, cloud: extra?.cloud ?? .unknown))
         }
         issues += enumerationErrors.issues
         do { try access.check(scope) }

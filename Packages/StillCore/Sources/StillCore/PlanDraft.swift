@@ -59,7 +59,7 @@ public struct PlanDraft: Sendable {
         let parts = item.url.standardizedFileURL.pathComponents
         let scope = scan.scope.standardizedFileURL.pathComponents
         let protectedExtensions = Set(["app", "bundle", "framework", "xcarchive", "dsym", "photoslibrary", "photolibrary", "musiclibrary", "library", "backupbundle", "sparsebundle", "band", "logicx", "db", "sqlite", "sqlite3"])
-        return scan.isComplete && item.kind == .file && item.previewAvailability == .local && scope.starts(with: root)
+        return scan.isComplete && item.kind == .file && item.previewAvailability == .local && item.cloud.membership == false && scope.starts(with: root)
             && parts.starts(with: root) && parts.count > root.count
             && !parts.dropFirst(root.count).contains { protectedExtensions.contains(URL(fileURLWithPath: $0).pathExtension.lowercased()) || [".git", ".Trash", "Backups.backupdb", ".."].contains($0) }
     }
