@@ -1,5 +1,6 @@
 import SwiftUI
 import AppKit
+import Darwin
 import StillCore
 
 @MainActor final class PipInspection: ObservableObject {
@@ -14,11 +15,21 @@ import StillCore
 #if DEBUG
         if ProcessInfo.processInfo.arguments.contains("--pip-inventory-fixture"),
            let path = ProcessInfo.processInfo.environment["STILL_TEST_PIP_CACHE"],
-           path.hasPrefix(FileManager.default.temporaryDirectory.path),
-           path.contains("StillPipUI-") {
-            python = URL(fileURLWithPath: "/Library/Developer/CommandLineTools/usr/bin/python3")
-            cache = URL(fileURLWithPath: path)
-            status = "Disposable test cache selected. Inspect explicitly to run the verified bundled tool."
+           let expectedID = ProcessInfo.processInfo.environment["STILL_TEST_PIP_CACHE_ID"] {
+            let selected = URL(fileURLWithPath: path).standardizedFileURL.resolvingSymlinksInPath()
+            let temporary = FileManager.default.temporaryDirectory.standardizedFileURL.resolvingSymlinksInPath()
+            var information = stat()
+            if selected.deletingLastPathComponent() == temporary,
+               selected.lastPathComponent.hasPrefix("StillPipUI-"),
+               UUID(uuidString: String(selected.lastPathComponent.dropFirst("StillPipUI-".count))) != nil,
+               lstat(selected.path, &information) == 0, information.st_mode & S_IFMT == S_IFDIR,
+               "\(information.st_dev):\(information.st_ino)" == expectedID {
+                python = URL(fileURLWithPath: "/Library/Developer/CommandLineTools/usr/bin/python3")
+                cache = selected
+                status = "Disposable test cache selected. Inspect explicitly to run the verified bundled tool."
+            } else {
+                status = "Disposable fixture rejected: canonical temporary scope or resource identity did not match."
+            }
         }
 #endif
     }

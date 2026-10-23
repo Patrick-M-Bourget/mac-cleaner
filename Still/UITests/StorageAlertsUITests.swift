@@ -1,4 +1,5 @@
 import XCTest
+import Darwin
 final class StorageAlertsUITests: XCTestCase {
     @MainActor func testAlertsAreHiddenByDefaultAndFutureSettingsDoNotRequestPermission() {
         let app = XCUIApplication()
@@ -77,12 +78,16 @@ final class StorageAlertsUITests: XCTestCase {
         for minimum in [false, true] {
             let app = XCUIApplication()
             app.launchArguments = ["--future-milestones", "--pip-inventory-fixture", minimum ? "--design-minimum" : "--design-initial-size"]
+            var information = stat()
+            XCTAssertEqual(lstat(root.path, &information), 0)
             app.launchEnvironment["STILL_TEST_PIP_CACHE"] = root.path
+            app.launchEnvironment["STILL_TEST_PIP_CACHE_ID"] = "\(information.st_dev):\(information.st_ino)"
             app.launch()
             XCTAssertTrue(app.buttons["Review pip cache opportunities"].waitForExistence(timeout: 10))
             let bounds = app.windows.firstMatch.frame
             app.buttons["Review pip cache opportunities"].click()
-            XCTAssertTrue(app.buttons["Inspect selected pip cache"].isEnabled)
+            XCTAssertTrue(app.buttons["Inspect selected pip cache"].isEnabled,
+                          "Fixture preload failed; canonical root: \(root.resolvingSymlinksInPath().path); UI: \(app.debugDescription)")
             for theme in ["Light", "Dark"] {
                 app.popUpButtons["Appearance"].click(); app.menuItems[theme].click()
                 let selection = XCTAttachment(screenshot: app.windows.firstMatch.screenshot())
