@@ -1,0 +1,112 @@
+{
+  "boundaryScan" : {
+    "allocatedBytes" : 68157440,
+    "isComplete" : false,
+    "issues" : [
+      {
+        "path" : "\/private\/var\/folders\/n6\/hn37q6pj7sj_9dmqqc2113800000gn\/T\/StillFilesystemFixtures-4hkv23uv\/mount",
+        "reason" : "differentVolume"
+      }
+    ],
+    "logicalBytes" : 68157440,
+    "observations" : [
+      {
+        "allocatedBytes" : null,
+        "kind" : "folder",
+        "locality" : "unknown",
+        "logicalBytes" : null,
+        "path" : "\/private\/var\/folders\/n6\/hn37q6pj7sj_9dmqqc2113800000gn\/T\/StillFilesystemFixtures-4hkv23uv\/mount",
+        "resourceID" : "16777292:2",
+        "url" : "file:\/\/\/private\/var\/folders\/n6\/hn37q6pj7sj_9dmqqc2113800000gn\/T\/StillFilesystemFixtures-4hkv23uv\/mount\/"
+      },
+      {
+        "allocatedBytes" : 67108864,
+        "kind" : "file",
+        "locality" : "local",
+        "logicalBytes" : 67108864,
+        "path" : "\/private\/var\/folders\/n6\/hn37q6pj7sj_9dmqqc2113800000gn\/T\/StillFilesystemFixtures-4hkv23uv\/owned.dmg",
+        "resourceID" : "16777229:2982150",
+        "url" : "file:\/\/\/private\/var\/folders\/n6\/hn37q6pj7sj_9dmqqc2113800000gn\/T\/StillFilesystemFixtures-4hkv23uv\/owned.dmg"
+      },
+      {
+        "allocatedBytes" : 1048576,
+        "kind" : "file",
+        "locality" : "local",
+        "logicalBytes" : 1048576,
+        "path" : "\/private\/var\/folders\/n6\/hn37q6pj7sj_9dmqqc2113800000gn\/T\/StillFilesystemFixtures-4hkv23uv\/plain.txt",
+        "resourceID" : "16777229:2982154",
+        "url" : "file:\/\/\/private\/var\/folders\/n6\/hn37q6pj7sj_9dmqqc2113800000gn\/T\/StillFilesystemFixtures-4hkv23uv\/plain.txt"
+      }
+    ],
+    "scopePath" : "\/var\/folders\/n6\/hn37q6pj7sj_9dmqqc2113800000gn\/T\/StillFilesystemFixtures-4hkv23uv",
+    "scopeURL" : "file:\/\/\/var\/folders\/n6\/hn37q6pj7sj_9dmqqc2113800000gn\/T\/StillFilesystemFixtures-4hkv23uv\/",
+    "totalLogicalBytes" : null
+  },
+  "checks" : {
+    "boundaryReported" : true,
+    "boundaryTotalsUnknown" : true,
+    "explicitScopeComplete" : true,
+    "knownCompressedLogicalLength" : false,
+    "knownSentinelObserved" : false,
+    "knownSmallerCompressedAllocation" : false,
+    "mountedIdentityRetained" : true,
+    "noMountedDescendants" : true,
+    "positiveCompression" : true
+  },
+  "compressedNative" : {
+    "allocatedBlocksBytes" : 8192,
+    "device" : 16777292,
+    "flags" : 32,
+    "inode" : 20,
+    "logicalBytes" : 1048576
+  },
+  "expectedCompressedURL" : "file:\/\/\/var\/folders\/n6\/hn37q6pj7sj_9dmqqc2113800000gn\/T\/StillFilesystemFixtures-4hkv23uv\/mount\/scope\/compressed.txt",
+  "expectedSentinelPath" : "\/var\/folders\/n6\/hn37q6pj7sj_9dmqqc2113800000gn\/T\/StillFilesystemFixtures-4hkv23uv\/mount\/scope\/sentinel.txt",
+  "expectedSentinelURL" : "file:\/\/\/var\/folders\/n6\/hn37q6pj7sj_9dmqqc2113800000gn\/T\/StillFilesystemFixtures-4hkv23uv\/mount\/scope\/sentinel.txt",
+  "explicitScan" : {
+    "allocatedBytes" : 12288,
+    "isComplete" : true,
+    "issues" : [
+
+    ],
+    "logicalBytes" : 1048593,
+    "observations" : [
+      {
+        "allocatedBytes" : 8192,
+        "kind" : "file",
+        "locality" : "local",
+        "logicalBytes" : 1048576,
+        "path" : "\/private\/var\/folders\/n6\/hn37q6pj7sj_9dmqqc2113800000gn\/T\/StillFilesystemFixtures-4hkv23uv\/mount\/scope\/compressed.txt",
+        "resourceID" : "16777292:20",
+        "url" : "file:\/\/\/private\/var\/folders\/n6\/hn37q6pj7sj_9dmqqc2113800000gn\/T\/StillFilesystemFixtures-4hkv23uv\/mount\/scope\/compressed.txt"
+      },
+      {
+        "allocatedBytes" : 4096,
+        "kind" : "file",
+        "locality" : "local",
+        "logicalBytes" : 17,
+        "path" : "\/private\/var\/folders\/n6\/hn37q6pj7sj_9dmqqc2113800000gn\/T\/StillFilesystemFixtures-4hkv23uv\/mount\/scope\/sentinel.txt",
+        "resourceID" : "16777292:19",
+        "url" : "file:\/\/\/private\/var\/folders\/n6\/hn37q6pj7sj_9dmqqc2113800000gn\/T\/StillFilesystemFixtures-4hkv23uv\/mount\/scope\/sentinel.txt"
+      }
+    ],
+    "scopePath" : "\/var\/folders\/n6\/hn37q6pj7sj_9dmqqc2113800000gn\/T\/StillFilesystemFixtures-4hkv23uv\/mount\/scope",
+    "scopeURL" : "file:\/\/\/var\/folders\/n6\/hn37q6pj7sj_9dmqqc2113800000gn\/T\/StillFilesystemFixtures-4hkv23uv\/mount\/scope\/",
+    "totalLogicalBytes" : 1048593
+  },
+  "hostOS" : "Version 26.6.2 (Build 25G83)",
+  "mountedDevice" : 16777292,
+  "parentDevice" : 16777229,
+  "phase" : "mounted",
+  "sentinelNative" : {
+    "allocatedBlocksBytes" : 4096,
+    "device" : 16777292,
+    "flags" : 0,
+    "inode" : 19,
+    "logicalBytes" : 17
+  },
+  "sentinelURLMatches" : [
+    false,
+    false
+  ]
+}

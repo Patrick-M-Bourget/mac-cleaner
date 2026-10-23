@@ -1,0 +1,10 @@
+{
+  "imageBytes": 67108864,
+  "filesystem": "HFS+",
+  "source": "c522750b66e548611ceb5a84be35e98ef6a047fd",
+  "status": "failed",
+  "detached": false,
+  "ownedRootRemoved": true,
+  "ownedRoot": "/private/var/folders/n6/hn37q6pj7sj_9dmqqc2113800000gn/T/StillFilesystemFixtures-1e_vh7ta",
+  "error": "hdiutil failed (1): hdiutil: create: -format requires -srcfolder or -srcdevice\nUsage:\thdiutil create <sizespec> [options] <imagepath>\n\thdiutil create -help\n"
+}
