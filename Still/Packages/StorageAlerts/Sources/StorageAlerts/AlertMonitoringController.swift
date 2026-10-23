@@ -80,6 +80,10 @@ public struct AlertCapacityReading: Sendable {
     public func stopForTermination() {
         terminating = true
         pauseMonitoring()
+        delivery.invalidate()
+        let ownedRequests = !inFlightNotificationIDs.isEmpty || !(policy.notificationRequestIdentifiers ?? []).isEmpty
+        if requested || ownedRequests { removePendingNotifications() }
+        if ownedRequests { _ = persist() } // Preserve enabled intent and uncertain episode suppression.
     }
     private func pauseMonitoring() {
         monitoringGeneration = UUID()

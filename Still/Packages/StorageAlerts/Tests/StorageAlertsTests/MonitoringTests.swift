@@ -149,8 +149,10 @@ import StorageAlerts
     original.configure()
     await original.setEnabled(true)
     #expect(system.pendingNotifications.count == 1)
-    original.stopForTermination()
-    // The OS retains pending state while a new process reloads the saved preferences.
+    // Simulate abrupt process exit: the OS stops its timers but retains accepted pending work.
+    // Calling graceful stopForTermination here would itself cancel the pending request.
+    system.pollers.removeAll()
+    #expect(system.pendingNotifications.count == 1)
     let restarted = AlertMonitoringController(system: system)
     if reset { try restarted.resetPreferences() }
     else { await restarted.setEnabled(false) }
@@ -211,4 +213,26 @@ import StorageAlerts
     #expect(system.pollers.count == 1)
     #expect(system.notifications == 1) // Applying an edit cannot bypass ongoing-episode suppression.
     await alerts.setEnabled(false)
+}
+
+@Test @MainActor func acceptedQuitCancelsUnfinishedNotificationWithoutReplayingEpisode() async {
+    let system = ControlledAlertSystem()
+    let alerts = AlertMonitoringController(system: system)
+    alerts.configure()
+    system.holdNextSubmission = true
+    let enabling = Task { await alerts.setEnabled(true) }
+    var began = system.submissionBegan.stream.makeAsyncIterator(); _ = await began.next()
+    alerts.stopForTermination()
+    system.heldSubmission?.resume(); system.heldSubmission = nil
+    await enabling.value
+    #expect(system.pendingNotifications.isEmpty)
+    #expect(!alerts.effectiveMonitoring)
+    #expect(system.pollers.isEmpty)
+    #expect(system.saved.enabled)
+    let restarted = AlertMonitoringController(system: system)
+    restarted.configure()
+    system.now.addTimeInterval(900)
+    await restarted.activated()
+    #expect(system.notifications == 1) // Uncertain/accepted old submission does not replay.
+    await restarted.setEnabled(false)
 }
