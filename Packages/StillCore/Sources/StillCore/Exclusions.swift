@@ -82,6 +82,10 @@ public actor ExclusionStore {
         let data = try JSONEncoder().encode(Archive(version: 1, rules: rules))
         guard data.count <= 1_000_000 else { throw CocoaError(.fileWriteOutOfSpace) }
         let file = directory.appendingPathComponent("rules-v1.json")
+        var previous = stat()
+        if lstat(file.path, &previous) == 0 {
+            guard previous.st_mode & S_IFMT == S_IFREG, previous.st_uid == geteuid() else { throw CocoaError(.fileWriteNoPermission) }
+        } else if errno != ENOENT { throw CocoaError(.fileWriteNoPermission) }
         try data.write(to: file, options: .atomic)
         try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: file.path)
     }

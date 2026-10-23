@@ -177,7 +177,13 @@ private struct WorkspaceView: View {
                 .safeAreaInset(edge: .bottom, spacing: 0) {
                     if exclusionsVisible {
                         ActionStrip(message: "Custom rules change scan coverage; original files stay unchanged.") {
-                            Button("Back to Locations & access") { exclusionsVisible = false; destination = .locations }
+                            Button("Back to Locations & access") { exclusionsVisible = false; destination = .locations }.disabled(ExclusionsModel.shared.editingBlocked)
+                            if ExclusionsModel.shared.preview != nil {
+                                Button("Cancel") { ExclusionsModel.shared.preview = nil }.disabled(ExclusionsModel.shared.editingBlocked)
+                                Button("Save exclusion") { Task { await ExclusionsModel.shared.save() } }.buttonStyle(.borderedProminent).disabled(ExclusionsModel.shared.editingBlocked)
+                            } else {
+                                Button("Choose file or folder…") { Task { await ExclusionsModel.shared.choose() } }.buttonStyle(.borderedProminent).disabled(ExclusionsModel.shared.editingBlocked).accessibilityIdentifier("chooseExclusion")
+                            }
                         }
                     } else if diagnosticsVisible {
                         ActionStrip(message: "The reviewed payload stays on this Mac unless you explicitly save it.") {

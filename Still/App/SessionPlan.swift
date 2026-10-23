@@ -55,6 +55,7 @@ import SwiftUI
         invalidateReview()
     }
     func finishRefresh(_ request: RefreshRequest, scan: ScanResult) async {
+        guard scan.exclusionFingerprint == expectedExclusionFingerprint else { cancelRefresh(request); return }
         let outcome = await refreshValidator.validate(request, against: scan)
         guard refreshRequests[request.scope]?.id == request.id else { return }
         refresh.finish(outcome, draft: &draft)

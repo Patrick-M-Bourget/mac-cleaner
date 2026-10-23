@@ -97,7 +97,6 @@ struct ExclusionsView: View {
                         Text(preview.boundary == .folder ? "This folder and its descendants" : "This exact file path")
                         Text("Volume: " + preview.volumeID).font(.caption).textSelection(.enabled)
                         Text("Saving invalidates current findings and approval. Selected choices remain pending until a complete recheck. Excluded bytes stay unknown.").font(.callout)
-                        HStack { Button("Cancel") { model.preview = nil }; Button("Save exclusion") { Task { await model.save() } }.buttonStyle(.borderedProminent) }
                     }
                 }
             }
@@ -110,7 +109,6 @@ struct ExclusionsView: View {
                     }
                 }
             }
-            Button("Choose file or folder…") { Task { await model.choose() } }.accessibilityIdentifier("chooseExclusion")
             StatusRow(text: "Removing a rule requires a new scan. Newly visible files start unchecked. These rules do not control independent developer-tool inventories.", symbol: "arrow.clockwise")
         }.disabled(model.editingBlocked).task { await model.load() }
     }
