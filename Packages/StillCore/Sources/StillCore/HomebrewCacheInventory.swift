@@ -88,6 +88,14 @@ extension HomebrewInspector {
     private static func measureHomebrewCache(_ cache: URL, prefix: String) throws -> HomebrewCacheInventory {
         var initial = stat()
         guard lstat(cache.path, &initial) == 0, initial.st_mode & S_IFMT == S_IFDIR else { throw ToolPreviewError.unavailable }
+        // Reject a cloud-only root before obtaining an enumerator: entering it can
+        // cause provider work even when individual file contents are never opened.
+        if initial.st_flags & UInt32(SF_DATALESS) != 0 {
+            return .init(version: "Homebrew shell source 4.6.17", prefix: prefix, cache: cache.path,
+                         supported: true, complete: false, regularFileCount: 0, logicalBytes: nil, allocatedBytes: nil,
+                         downloadFileCount: 0, incompleteDownloads: [], incompleteDownloadCount: 0, observedAt: Date(),
+                         guidance: "Selected cache folder is not fully local; contents were not enumerated. Totals and reclaimable space are unknown. No cleanup is available.")
+        }
         guard let physicalPointer = realpath(cache.path, nil) else { throw ToolPreviewError.unavailable }
         let physicalComponents = URL(fileURLWithPath: String(cString: physicalPointer)).pathComponents
         free(physicalPointer)
@@ -103,12 +111,12 @@ extension HomebrewInspector {
             guard entries <= 100_000, ProcessInfo.processInfo.systemUptime < deadline else { complete = false; break }
             guard url.pathComponents.count - physicalComponents.count <= 64 else { enumerator.skipDescendants(); complete = false; continue }
             var metadata = stat()
-            guard lstat(url.path, &metadata) == 0, metadata.st_dev == initial.st_dev else { enumerator.skipDescendants(); complete = false; continue }
+            guard lstat(url.path, &metadata) == 0, metadata.st_dev == initial.st_dev,
+                  metadata.st_flags & UInt32(SF_DATALESS) == 0 else { enumerator.skipDescendants(); complete = false; continue }
             let kind = metadata.st_mode & S_IFMT
             if kind == S_IFLNK { enumerator.skipDescendants(); complete = false; continue }
             if kind == S_IFDIR { continue }
-            guard kind == S_IFREG, metadata.st_size >= 0, metadata.st_blocks >= 0, metadata.st_blocks <= Int64.max / 512,
-                  metadata.st_flags & UInt32(SF_DATALESS) == 0 else { complete = false; continue }
+            guard kind == S_IFREG, metadata.st_size >= 0, metadata.st_blocks >= 0, metadata.st_blocks <= Int64.max / 512 else { complete = false; continue }
             let relative = url.pathComponents.dropFirst(physicalComponents.count).joined(separator: "/")
             count += 1
             if relative.hasPrefix("downloads/") { downloads += 1 }
@@ -127,7 +135,7 @@ extension HomebrewInspector {
             }
         }
         var final = stat()
-        if lstat(cache.path, &final) != 0 || initial.st_dev != final.st_dev || initial.st_ino != final.st_ino || initial.st_mtimespec.tv_sec != final.st_mtimespec.tv_sec || initial.st_mtimespec.tv_nsec != final.st_mtimespec.tv_nsec { complete = false }
+        if lstat(cache.path, &final) != 0 || initial.st_dev != final.st_dev || initial.st_ino != final.st_ino || initial.st_mtimespec.tv_sec != final.st_mtimespec.tv_sec || initial.st_mtimespec.tv_nsec != final.st_mtimespec.tv_nsec || final.st_flags & UInt32(SF_DATALESS) != 0 { complete = false }
         return .init(version: "Homebrew shell source 4.6.17", prefix: prefix, cache: cache.path, supported: true, complete: complete,
                      regularFileCount: count, logicalBytes: complete ? logical : nil, allocatedBytes: complete ? allocated : nil,
                      downloadFileCount: downloads, incompleteDownloads: incomplete.sorted { $0.relativePath < $1.relativePath }, incompleteDownloadCount: incompleteCount,
