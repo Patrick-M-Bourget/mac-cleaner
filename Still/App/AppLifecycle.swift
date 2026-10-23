@@ -27,6 +27,7 @@ import Combine
     @Published var operationInProgress = false {
         didSet { if !operationInProgress, quitPending { NSApp.terminate(nil) } }
     }
+    @Published var hasPendingPlan = false
     var quitPending = false
     var isTerminating = false
     private var monitoringSubscription: AnyCancellable?
@@ -56,7 +57,7 @@ import Combine
         // Finish the current preference/journal update before an off transition terminates.
         DispatchQueue.main.async { [weak self] in
             guard let self, !self.quitPending, !self.isTerminating,
-                  !self.alerts.effectiveMonitoring, !self.operationInProgress,
+                  !self.alerts.effectiveMonitoring, !self.operationInProgress, !self.hasPendingPlan,
                   !NSApp.windows.contains(where: { $0.isVisible && $0.canBecomeMain }) else { return }
             NSApp.terminate(nil)
         }
@@ -66,7 +67,7 @@ import Combine
 @MainActor final class StillApplicationDelegate: NSObject, NSApplicationDelegate {
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
         let lifecycle = AppLifecycleController.shared
-        return !AppLifecyclePolicy.shouldKeepRunning(effectiveAlerts: lifecycle.alerts.effectiveMonitoring, operationInProgress: lifecycle.operationInProgress)
+        return !AppLifecyclePolicy.shouldKeepRunning(effectiveAlerts: lifecycle.alerts.effectiveMonitoring, operationInProgress: lifecycle.operationInProgress, hasPendingPlan: lifecycle.hasPendingPlan)
     }
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         // Future executor must report its safe-operation boundary before requesting termination again.

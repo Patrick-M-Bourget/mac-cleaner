@@ -1,8 +1,8 @@
 import Foundation
 
 public enum AppLifecyclePolicy {
-    public static func shouldKeepRunning(effectiveAlerts: Bool, operationInProgress: Bool) -> Bool {
-        effectiveAlerts || operationInProgress
+    public static func shouldKeepRunning(effectiveAlerts: Bool, operationInProgress: Bool, hasPendingPlan: Bool = false) -> Bool {
+        effectiveAlerts || operationInProgress || hasPendingPlan
     }
     public static func mayQuit(operationInProgress: Bool) -> Bool { !operationInProgress }
 }

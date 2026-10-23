@@ -9,7 +9,6 @@ extension Notification.Name {
 @MainActor final class StorageAlertsController: NSObject, ObservableObject, UNUserNotificationCenterDelegate {
     @Published private(set) var effectiveMonitoring = false
     @Published private(set) var requested = false
-    @Published private(set) var effectiveMonitoring = false
     @Published private(set) var status = "Alerts are off."
     @Published private(set) var total: Int64?
     @Published var thresholdGB = "40"

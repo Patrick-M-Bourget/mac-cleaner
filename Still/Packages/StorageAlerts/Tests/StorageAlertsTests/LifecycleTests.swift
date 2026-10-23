@@ -47,3 +47,7 @@ import Testing
     #expect(!AppLifecyclePolicy.shouldKeepRunning(effectiveAlerts: false, operationInProgress: false))
     #expect(service.registrations == 0)
 }
+
+@Test func pendingPlanSurvivesWindowCloseWithoutAlertPolling() {
+    #expect(AppLifecyclePolicy.shouldKeepRunning(effectiveAlerts: false, operationInProgress: false, hasPendingPlan: true))
+}
