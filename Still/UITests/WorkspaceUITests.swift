@@ -171,7 +171,8 @@ final class WorkspaceUITests: XCTestCase {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent("StillSelectionUI-" + UUID().uuidString, isDirectory: true)
         try FileManager.default.createDirectory(at: root.appendingPathComponent("Nested"), withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: root) }
-        for index in 0..<20 {
+        let count = minimum ? 3 : 20
+        for index in 0..<count {
             let path = index % 2 == 0 ? "file\(index).pdf" : "Nested/file\(index).pdf"
             try Data([1]).write(to: root.appendingPathComponent(path))
         }
@@ -191,7 +192,7 @@ final class WorkspaceUITests: XCTestCase {
         XCTAssertEqual(category.value as? Int, 0)
         let bounds = app.windows.firstMatch.frame
         category.click()
-        let allSelected = NSPredicate(format: "label BEGINSWITH %@ OR value BEGINSWITH %@", "20 files selected", "20 files selected")
+        let allSelected = NSPredicate(format: "label BEGINSWITH %@ OR value BEGINSWITH %@", "\(count) files selected", "\(count) files selected")
         XCTAssertTrue(app.staticTexts.matching(allSelected).firstMatch.waitForExistence(timeout: 10), app.debugDescription)
         let item = app.checkBoxes.matching(NSPredicate(format: "label BEGINSWITH %@", "Selected ")).firstMatch
         for _ in 0..<4 { if item.exists { break }; app.scrollViews.firstMatch.scroll(byDeltaX: 0, deltaY: -250) }
@@ -200,18 +201,21 @@ final class WorkspaceUITests: XCTestCase {
         XCTAssertEqual(category.value as? Int, 2)
         app.buttons["Review cleanup"].click()
         XCTAssertTrue(app.staticTexts["Review Move to Trash"].waitForExistence(timeout: 5))
-        let disclosure = app.disclosureTriangles.firstMatch
-        if disclosure.exists { disclosure.click() }
-        XCTAssertTrue(app.buttons["Move to Trash"].isHittable)
+        let confirmation = app.sheets.containing(.staticText, identifier: "Review Move to Trash").firstMatch
+        XCTAssertTrue(confirmation.waitForExistence(timeout: 5))
+        let disclosure = confirmation.disclosureTriangles.firstMatch
+        XCTAssertTrue(disclosure.waitForExistence(timeout: 5))
+        disclosure.click()
+        XCTAssertTrue(confirmation.buttons["Move to Trash"].isHittable)
         XCTAssertTrue(app.buttons["Cancel"].isHittable)
         XCTAssertEqual(app.windows.firstMatch.frame, bounds)
         app.buttons["Cancel"].click()
-        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@ OR value BEGINSWITH %@", "19 files selected", "19 files selected")).firstMatch.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@ OR value BEGINSWITH %@", "\(count-1) files selected", "\(count-1) files selected")).firstMatch.waitForExistence(timeout: 5))
         app.typeKey(" ", modifierFlags: [])
         XCTAssertTrue(app.staticTexts["Review Move to Trash"].waitForExistence(timeout: 5), "Cancel must restore focus to Review cleanup")
         app.buttons["Move to Trash"].click()
         XCTAssertTrue(app.staticTexts["Cleanup results"].waitForExistence(timeout: 15))
-        XCTAssertTrue(app.staticTexts["Succeeded: 19"].exists)
+        XCTAssertTrue(app.staticTexts["Succeeded: \(count-1)"].exists)
         for theme in ["Light", "Dark"] {
             app.popUpButtons.firstMatch.click(); app.menuItems[theme].click()
             let capture = XCTAttachment(screenshot: app.windows.firstMatch.screenshot())
@@ -357,6 +361,28 @@ final class WorkspaceUITests: XCTestCase {
             XCTAssertEqual(app.windows.firstMatch.frame, bounds)
             app.scrollViews.firstMatch.scroll(byDeltaX: 0, deltaY: 2000)
         }
+    }
+
+    @MainActor
+    func testInitialReviewWindowFitsConstrainedDisplayAndKeepsToolbarReachable() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        app.launchArguments = ["--fixture-workspace", "--design-initial-size", "--design-constrained-screen"]
+        app.launch()
+        XCTAssertTrue(app.buttons["Review Downloads"].waitForExistence(timeout: 10))
+        let bounds = app.windows.firstMatch.frame
+        XCTAssertLessThanOrEqual(bounds.width, 1024)
+        XCTAssertLessThanOrEqual(bounds.height, 720)
+        XCTAssertGreaterThanOrEqual(bounds.width, 900)
+        XCTAssertGreaterThanOrEqual(bounds.height, 640)
+        XCTAssertTrue(app.popUpButtons["Appearance"].isHittable)
+        app.typeKey("2", modifierFlags: .command)
+        XCTAssertEqual(app.windows.firstMatch.frame, bounds)
+        app.popUpButtons["Appearance"].click(); app.menuItems["Dark"].click()
+        XCTAssertEqual(app.windows.firstMatch.frame, bounds)
+        app.typeKey("1", modifierFlags: .command)
+        XCTAssertTrue(app.buttons["Review Downloads"].isHittable)
+        XCTAssertTrue(app.popUpButtons["Appearance"].isHittable)
     }
 
 }
