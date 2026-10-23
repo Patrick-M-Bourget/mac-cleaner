@@ -64,3 +64,19 @@ private func downloadsFixture() throws -> URL {
     #expect(PlanDraft().selectedCount == 0)
     draft.clear(); #expect(draft.selectedCount == 0)
 }
+private struct MembershipFixture: MetadataSupplementReading {
+    let membership: Bool?
+    func read(_ url: URL) throws -> MetadataSupplement { MetadataSupplement(allocatedBytes: 3, locality: .local, cloud: CloudMetadata(membership: membership)) }
+}
+@Test func localCloudOriginalsAndUnknownMembershipNeverBecomeOrdinaryTrashTargets() async throws {
+    let root = try downloadsFixture()
+    defer { try? FileManager.default.removeItem(at: root) }
+    try Data([1]).write(to: root.appendingPathComponent("cloud.pdf"))
+    for membership in [true, nil] as [Bool?] {
+        let scan = try await FolderScanner(supplement: MembershipFixture(membership: membership)).scan(root)
+        let item = try #require(scan.observations.first)
+        var draft = PlanDraft()
+        #expect(throws: PlanSelectionError.self) { try draft.select(item, in: scan, downloadsRoot: root) }
+        #expect(draft.selectedCount == 0)
+    }
+}
