@@ -41,7 +41,6 @@ public struct AlertCapacityReading: Sendable {
     private let delivery = AlertDeliveryGate()
     private var persistenceHealthy = true
     private var inFlightNotificationIDs = Set<String>()
-    private var acceptedNotificationID: String?
     private let system: any AlertMonitoringSystem
     public init(system: any AlertMonitoringSystem) {
         self.system = system
@@ -68,9 +67,9 @@ public struct AlertCapacityReading: Sendable {
         monitoringGeneration = UUID()
         delivery.invalidate()
         stopForTermination()
+        removePendingNotifications()
         requested = false; policy = AlertPolicy(); thresholdGB = "40"; persistenceHealthy = true
         try system.reset()
-        removePendingNotifications()
         status = "Alerts are off."
     }
     public func stopForTermination() {
@@ -140,11 +139,10 @@ public struct AlertCapacityReading: Sendable {
         status = "Alerts snoozed for 24 hours. A valid low reading after resumption permits one reminder."
     }
     private func removePendingNotifications() {
-        var identifiers = inFlightNotificationIDs
+        var identifiers = inFlightNotificationIDs.union(policy.notificationRequestIdentifiers ?? [])
         identifiers.insert("Still.lowSpace") // Previous versions used this fixed identifier.
-        if let acceptedNotificationID { identifiers.insert(acceptedNotificationID) }
         system.removePendingNotifications(identifiers: Array(identifiers))
-        acceptedNotificationID = nil
+        policy.notificationRequestIdentifiers = nil
     }
     private func capacity() -> AlertCapacityReading { system.capacity() }
     private func sample() async {
@@ -176,29 +174,38 @@ public struct AlertCapacityReading: Sendable {
         effectiveMonitoring = true
         status = "Monitoring startup-volume capacity while Still runs. Last available: \(String(format: "%.1f", Double(available) / 1_000_000_000)) GB."
         let submit = policy.observe(available: available, total: total, at: system.now, volumeID: volumeID, metric: reading.metric)
+        let notificationID = submit ? "Still.lowSpace." + UUID().uuidString : nil
+        if let notificationID {
+            var identifiers = policy.notificationRequestIdentifiers ?? []
+            identifiers.insert(notificationID)
+            policy.notificationRequestIdentifiers = identifiers
+        }
+        // Persist the exact cancellation identity with intent before handing the request to the OS.
         guard persist() else { return }
         if let until = policy.snoozedUntil, until > system.now { status += " Snoozed until \(until.formatted())." }
-        guard submit, let reservation = policy.pendingSubmission else { return }
-        let notificationID = "Still.lowSpace." + UUID().uuidString
+        guard submit, let reservation = policy.pendingSubmission, let notificationID else { return }
         inFlightNotificationIDs.insert(notificationID)
         let deliveryResult = await delivery.submit {
             try await self.system.submitLowSpaceNotification(identifier: notificationID, observedAt: self.system.now)
         }
         inFlightNotificationIDs.remove(notificationID)
         let changed = policy.reconcileSubmission(deliveryResult, reservation: reservation, at: system.now)
-        if changed { _ = persist() }
+        let previouslyOwned = policy.notificationRequestIdentifiers
         switch deliveryResult {
-        case .failed where changed:
-            status = "Notification could not be submitted. A later capacity check will retry."
         case .staleSuccess:
             system.removePendingNotifications(identifiers: [notificationID])
+            policy.notificationRequestIdentifiers?.remove(notificationID)
         case .accepted:
-            if let previous = acceptedNotificationID {
-                system.removePendingNotifications(identifiers: [previous])
-            }
-            acceptedNotificationID = notificationID
+            let retained = inFlightNotificationIDs.union([notificationID])
+            let retired = (policy.notificationRequestIdentifiers ?? []).subtracting(retained)
+            if !retired.isEmpty { system.removePendingNotifications(identifiers: Array(retired)) }
+            policy.notificationRequestIdentifiers = retained
         case .failed, .staleFailure:
-            break
+            policy.notificationRequestIdentifiers?.remove(notificationID)
+        }
+        if changed || previouslyOwned != policy.notificationRequestIdentifiers { _ = persist() }
+        if deliveryResult == .failed && changed {
+            status = "Notification could not be submitted. A later capacity check will retry."
         }
     }
 }

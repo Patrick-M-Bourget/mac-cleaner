@@ -28,7 +28,7 @@ import StorageAlerts
     }
     func requestAuthorization() async throws -> Bool { true }
     func capacity() -> AlertCapacityReading { reading }
-    func load() throws -> AlertPolicy { saved }
+    func load() throws -> AlertPolicy { try JSONDecoder().decode(AlertPolicy.self, from: JSONEncoder().encode(saved)) }
     func save(_ policy: AlertPolicy) throws { saved = policy }
     func reset() throws { saved = AlertPolicy() }
     func startPolling(_ sample: @escaping @MainActor () -> Void) -> () -> Void {
@@ -141,4 +141,30 @@ import StorageAlerts
     #expect(system.notifications == 2) // Fresh episode remains accepted, not replayed.
     await alerts.setEnabled(false)
     #expect(system.pendingNotifications.isEmpty)
+}
+
+@Test(arguments: [false, true]) @MainActor func restartRetainsOwnershipForOptOutAndReset(reset: Bool) async throws {
+    let system = ControlledAlertSystem()
+    let original = AlertMonitoringController(system: system)
+    original.configure()
+    await original.setEnabled(true)
+    #expect(system.pendingNotifications.count == 1)
+    original.stopForTermination()
+    // The OS retains pending state while a new process reloads the saved preferences.
+    let restarted = AlertMonitoringController(system: system)
+    if reset { try restarted.resetPreferences() }
+    else { await restarted.setEnabled(false) }
+    #expect(system.pendingNotifications.isEmpty)
+    #expect(!restarted.requested)
+    #expect(!restarted.effectiveMonitoring)
+    #expect(system.pollers.isEmpty)
+}
+
+@Test func legacyAlertRecordRetainsSuppressionWithoutNotificationIdentityField() throws {
+    // Recorded pre-ownership schema: an accepted, still-low episode must not become a new alert.
+    let record = Data(#"{"enabled":true,"thresholdBytes":40000000000,"episodes":{"owned":{"suppressed":true,"reserved":false,"recoveryBytes":45000000000,"reminderPending":false}},"currentVolume":"owned","currentMetric":"important"}"#.utf8)
+    var restored = try JSONDecoder().decode(AlertPolicy.self, from: record)
+    #expect(restored.enabled)
+    let submits = restored.observe(available: 20_000_000_000, total: 512_000_000_000, at: Date(timeIntervalSince1970: 1_000_000), volumeID: "owned", metric: "important")
+    #expect(!submits)
 }

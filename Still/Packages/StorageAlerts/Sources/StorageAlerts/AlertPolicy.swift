@@ -14,6 +14,8 @@ public struct AlertPolicy: Sendable, Codable {
             }
         }
     }
+    /// Optional so records from before per-submission ownership decode without resetting suppression.
+    public var notificationRequestIdentifiers: Set<String>?
     public var thresholdBytes: Int64 = 40_000_000_000
     private struct Episode: Sendable, Codable {
         var suppressed = false
