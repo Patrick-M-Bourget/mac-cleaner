@@ -42,6 +42,9 @@ private struct PartialTrash: TrashOperating {
     let newApproval = try retry.draft.approve(retry.draft.review())
     #expect(newApproval.id != approved.id)
     #expect(newApproval.targets.map { $0.url.lastPathComponent } == ["c.pdf"])
+    var refined = retry.draft; refined.clear()
+    _ = refined.selectAll(in: [fresh], downloads: downloads, restrictingTo: Set(retry.draft.selected.map(\.id)))
+    #expect(refined.selected.map { $0.url.lastPathComponent } == ["c.pdf"])
 }
 
 private struct CancelAfterIntent: CleanupJournaling {

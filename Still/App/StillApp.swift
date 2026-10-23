@@ -234,6 +234,7 @@ private struct WorkspaceView: View {
             HStack {
                 Button("Choose folder…", systemImage: "folder.badge.plus") {
                     if let url = FolderInspection.chooseFolder() {
+                    selection.leaveRetryMode()
                         folderInspection.scan(url)
                         nativeInspectionVisible = true
                     }

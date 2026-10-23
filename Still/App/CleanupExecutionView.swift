@@ -9,13 +9,17 @@ import SwiftUI
     private(set) var before: StartupVolumeCapacity?
     private(set) var after: StartupVolumeCapacity?
     private(set) var error: String?
+    private(set) var progress: CleanupExecutionProgress?
+    private(set) var stopRequested = false
+    private(set) var retryScopes: [URL] = []
+    var canRetry: Bool { !isRunning && result?.targets.contains(where: { $0.state != .succeeded }) == true }
     private var executor: TrashExecutor?
     private var cancellation = CleanupCancellation()
     func clear() { guard !isRunning else { return }; result = nil; error = nil; before = nil; after = nil }
-    func cancel() { cancellation.cancel() }
+    func cancel() { stopRequested = true; cancellation.cancel() }
     func run(_ batch: CleanupApproval) async {
         guard !isRunning else { return }
-        isRunning = true; cancellation = CleanupCancellation(); result = nil; error = nil
+        isRunning = true; cancellation = CleanupCancellation(); result = nil; error = nil; progress = nil; stopRequested = false; retryScopes = []
         defer { isRunning = false; executor = nil }
         do {
             let journal = try await Task.detached(priority: .userInitiated) {
@@ -27,11 +31,24 @@ import SwiftUI
                 return try SQLiteCleanupJournal(url: parent.appendingPathComponent("cleanup.sqlite"))
             }.value
             before = await Task.detached { StartupVolumeCapacity.read() }.value
-            let worker = TrashExecutor(journal: journal, cancellation: cancellation)
+            let worker = TrashExecutor(journal: journal, operation: executionOperation(batch), cancellation: cancellation)
             executor = worker
-            result = await worker.execute(batch)
+            result = await worker.execute(batch) { update in await MainActor.run { self.progress = update } }
+            let unfinished = Set(result?.targets.filter { $0.state != .succeeded }.map(\.originalURL) ?? [])
+            retryScopes = Array(Set(batch.targets.filter { unfinished.contains($0.url) }.map(\.scope)))
             after = await Task.detached { StartupVolumeCapacity.read() }.value
         } catch { self.error = "The local operation journal is unavailable. No files were moved. Recheck and create a new plan." }
+    }
+    private func executionOperation(_ batch: CleanupApproval) -> any TrashOperating {
+        #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("--ui-test-slow-trash"),
+           let requested = ProcessInfo.processInfo.environment["STILL_TEST_DOWNLOADS_ROOT"],
+           let root = try? DownloadsRoot(url: URL(fileURLWithPath: requested)), root.url.lastPathComponent.hasPrefix("StillSelectionUI-"),
+           batch.targets.allSatisfy({ $0.downloadsRoot.url == root.url && $0.downloadsRoot.resourceID == root.resourceID }) {
+            return SlowFixtureTrash(root: root.url)
+        }
+        #endif
+        return NativeTrashOperation()
     }
     var observedChange: Int64? {
         guard let before, let after, let volume = before.volumeID, volume == after.volumeID,
@@ -43,13 +60,15 @@ import SwiftUI
 
 struct CleanupExecutionView: View {
     @Bindable var model: CleanupExecutionModel
+    var retryMessage: String? = nil
     var body: some View {
         VStack(alignment: .leading, spacing: StillDesign.Space.xl) {
             PageHeader(title: model.isRunning ? "Moving selected files to Trash" : "Cleanup results", subtitle: "Each exact file has its own result. Moving to Trash does not empty Trash.")
             if model.isRunning {
-                ProgressView("Finishing the current native operation…")
-                Button("Stop after current file") { model.cancel() }
+                ProgressView(value: Double(model.progress?.resolved ?? 0), total: Double(max(1, model.progress?.total ?? 1)))
+                StatusRow(text: model.stopRequested ? "Stopping after the current file reaches a recorded outcome…" : "\(model.progress?.resolved ?? 0) of \(model.progress?.total ?? 0) targets reported", symbol: "clock")
             }
+            if let retryMessage { StatusRow(text: retryMessage, symbol: "arrow.clockwise", role: .caution) }
             if let error = model.error { StatusRow(text: error, symbol: "exclamationmark.circle", role: .failure) }
             if let result = model.result {
                 SummarySurface {
@@ -81,3 +100,15 @@ struct CleanupExecutionView: View {
         switch state { case .pending: "Not started"; case .intent, .unknown: "Unknown"; case .succeeded: "Succeeded"; case .failed: "Failed"; case .skipped: "Skipped"; case .cancelled: "Cancelled" }
     }
 }
+
+#if DEBUG
+/// Delays only an explicitly configured, chooser-bound owned fixture. Still calls the real native adapter.
+private struct SlowFixtureTrash: TrashOperating {
+    let root: URL
+    func trash(_ target: PlannedTarget) throws -> URL? {
+        guard target.downloadsRoot.url == root, root.lastPathComponent.hasPrefix("StillSelectionUI-") else { throw CleanupValidationError.changedOrProtected }
+        Thread.sleep(forTimeInterval: 5)
+        return try NativeTrashOperation().trash(target)
+    }
+}
+#endif

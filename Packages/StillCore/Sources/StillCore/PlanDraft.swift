@@ -56,21 +56,22 @@ public struct PlanDraft: Sendable {
         guard !chosen.isEmpty else { throw PlanSelectionError.ineligible }
         return CleanupReview(targets: selected, mutationVersion: mutationVersion, sessionID: sessionID)
     }
-    public mutating func selectAll(in scans: [ScanResult], downloads: DownloadsRoot) -> Int {
+    public mutating func selectAll(in scans: [ScanResult], downloads: DownloadsRoot, restrictingTo allowed: Set<String>? = nil) -> Int {
         var visited = Set<String>(), skipped = 0
         for scan in scans {
             for item in scan.observations where Self.canConsider(item, in: scan, downloads: downloads) {
                 let id = item.url.path + "|" + item.resourceID
-                guard visited.insert(id).inserted else { continue }
+                guard allowed?.contains(id + "|moveToTrash") != false, visited.insert(id).inserted else { continue }
                 do { let target = try Self.freshCandidate(item, in: scan, downloads: downloads); chosen[target.id] = target; invalidateReview() } catch { skipped += 1 }
             }
         }
         return skipped
     }
-    public func categoryState(in scans: [ScanResult], downloads: DownloadsRoot) -> CategorySelectionState {
+    public func categoryState(in scans: [ScanResult], downloads: DownloadsRoot, restrictingTo allowed: Set<String>? = nil) -> CategorySelectionState {
         let eligible = Set(scans.flatMap { scan in scan.observations.filter { Self.canConsider($0, in: scan, downloads: downloads) }.map { $0.url.path + "|" + $0.resourceID + "|moveToTrash" } })
-        let count = eligible.filter { chosen[$0] != nil }.count
-        return count == 0 ? .unchecked : count == eligible.count ? .checked : .mixed
+        let eligibleIDs = eligible.filter { allowed?.contains($0) != false }
+        let count = eligibleIDs.filter { chosen[$0] != nil }.count
+        return count == 0 ? .unchecked : count == eligibleIDs.count ? .checked : .mixed
     }
     public mutating func invalidateReview() { mutationVersion &+= 1 }
     public func approve(_ review: CleanupReview, at date: Date = Date()) throws -> CleanupApproval {
