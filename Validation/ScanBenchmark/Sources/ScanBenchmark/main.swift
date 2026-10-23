@@ -57,15 +57,17 @@ private func write(_ report: [String: Any]) throws {
         defer { try? manager.removeItem(at: root) }
         let createdAt = ProcessInfo.processInfo.systemUptime
         for index in 0..<entries {
-            if index % 1_000 == 0 {
-                let headroom = try temporary.resourceValues(forKeys: [.volumeAvailableCapacityKey]).volumeAvailableCapacity ?? 0
-                guard headroom > 1_073_741_824 else { throw CocoaError(.fileWriteOutOfSpace) }
-                try manager.createDirectory(at: root.appendingPathComponent("batch-\(index / 1_000)"), withIntermediateDirectories: false)
+            try autoreleasepool {
+                if index % 1_000 == 0 {
+                    let headroom = try temporary.resourceValues(forKeys: [.volumeAvailableCapacityKey]).volumeAvailableCapacity ?? 0
+                    guard headroom > 1_073_741_824 else { throw CocoaError(.fileWriteOutOfSpace) }
+                    try manager.createDirectory(at: root.appendingPathComponent("batch-\(index / 1_000)"), withIntermediateDirectories: false)
+                }
+                let path = root.appendingPathComponent("batch-\(index / 1_000)/file-\(index)").path
+                let descriptor = open(path, O_CREAT | O_EXCL | O_WRONLY, 0o600)
+                guard descriptor >= 0 else { throw NSError(domain: NSPOSIXErrorDomain, code: Int(errno)) }
+                close(descriptor)
             }
-            let path = root.appendingPathComponent("batch-\(index / 1_000)/file-\(index)").path
-            let descriptor = open(path, O_CREAT | O_EXCL | O_WRONLY, 0o600)
-            guard descriptor >= 0 else { throw NSError(domain: NSPOSIXErrorDomain, code: Int(errno)) }
-            close(descriptor)
         }
         report["fixtureCreated"] = true
         report["fixtureCreationSeconds"] = ProcessInfo.processInfo.systemUptime - createdAt
