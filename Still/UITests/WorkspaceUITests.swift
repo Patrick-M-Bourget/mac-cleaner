@@ -47,6 +47,59 @@ final class WorkspaceUITests: XCTestCase {
     }
 
     @MainActor
+    func testKeyboardCancelRestoresReviewFocusWithoutChangingSelection() throws {
+        continueAfterFailure = false
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("StillSelectionUI-" + UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let file = root.appendingPathComponent("keyboard-review.pdf")
+        let original = Data(repeating: 65, count: 137)
+        try original.write(to: file)
+        let app = XCUIApplication()
+        app.launchArguments = ["--ui-test-downloads-root", "--design-minimum"]
+        app.launchEnvironment["STILL_TEST_DOWNLOADS_ROOT"] = root.path
+        app.launch()
+        defer { app.terminate() }
+        XCTAssertTrue(app.buttons["Choose folder…"].waitForExistence(timeout: 10))
+        app.buttons["Choose folder…"].click()
+        app.typeKey("g", modifierFlags: [.command, .shift])
+        let path = app.textFields.firstMatch
+        XCTAssertTrue(path.waitForExistence(timeout: 5))
+        path.typeKey("a", modifierFlags: .command); path.typeText(root.path)
+        app.typeKey(.return, modifierFlags: []); app.dialogs.buttons["Scan folder"].click()
+        XCTAssertTrue(app.staticTexts["Observed"].waitForExistence(timeout: 10))
+        app.typeKey("2", modifierFlags: .command)
+        let category = app.checkBoxes["downloadsCategorySelection"]
+        XCTAssertTrue(category.waitForExistence(timeout: 5)); category.click()
+        let selected = app.staticTexts.matching(NSPredicate(format: "label == %@ OR value == %@", "1 file selected", "1 file selected")).firstMatch
+        XCTAssertTrue(selected.waitForExistence(timeout: 10))
+        let bounds = app.windows.firstMatch.frame
+        app.typeKey("1", modifierFlags: .command)
+        XCTAssertTrue(app.buttons["Choose folder…"].waitForExistence(timeout: 5))
+        app.typeKey("2", modifierFlags: .command)
+        XCTAssertTrue(selected.waitForExistence(timeout: 5))
+        app.buttons["Review cleanup"].click()
+        for key: XCUIKeyboardKey in [.return, .space] {
+            let confirmation = app.sheets.containing(.staticText, identifier: "Review Move to Trash").firstMatch
+            XCTAssertTrue(confirmation.waitForExistence(timeout: 5))
+            XCTAssertTrue(confirmation.buttons["Move to Trash"].isHittable)
+            app.typeKey(.escape, modifierFlags: [])
+            let dismissed = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"), object: confirmation)
+            XCTAssertEqual(XCTWaiter.wait(for: [dismissed], timeout: 5), .completed)
+            XCTAssertTrue(selected.waitForExistence(timeout: 5))
+            XCTAssertEqual(category.value as? Int, 1)
+            XCTAssertEqual(app.windows.firstMatch.frame, bounds)
+            XCTAssertEqual(try Data(contentsOf: file), original)
+            // No click or tab-count workaround: dismissal must restore the opener's native focus.
+            app.typeKey(key, modifierFlags: [])
+            XCTAssertTrue(confirmation.waitForExistence(timeout: 5), "Escape must return keyboard focus to Review cleanup")
+        }
+        app.typeKey(.escape, modifierFlags: [])
+        XCTAssertTrue(selected.waitForExistence(timeout: 5))
+        XCTAssertEqual(try Data(contentsOf: file), original)
+    }
+
+    @MainActor
     func testChooseDisposableFolderAndInspectWithoutMutation() throws {
         continueAfterFailure = false
         let root = FileManager.default.temporaryDirectory.appendingPathComponent("StillUI-\(UUID().uuidString)", isDirectory: true)
