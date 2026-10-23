@@ -76,6 +76,7 @@ final class FolderInspection {
             }
             defer { continuation.finish(); receiver.cancel() }
             do {
+                let growthToken = await GrowthHistoryModel.shared.begin(url)
                 let report = try await session.inspect(url, cancellation: scanCancellation, onProgress: { continuation.yield($0) })
                 let observed = report.current
                 let reports = await session.reports()
@@ -90,6 +91,7 @@ final class FolderInspection {
                 selected = previousSelection.flatMap { old in observed.observations.first { $0.id == old.id && $0.resourceID == old.resourceID } } ?? observed.observations.first
                 progress = nil
                 isScanning = false
+                await GrowthHistoryModel.shared.complete(observed, token: growthToken)
             } catch {
                 guard token == generation else { return }
                 selection.cancelRefresh(request)
@@ -108,6 +110,7 @@ final class FolderInspection {
     }
 
     func cancel() {
+        if isScanning { GrowthHistoryModel.shared.cancelled() }
         cancellation?.cancel()
         task?.cancel()
         generation = UUID()

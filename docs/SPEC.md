@@ -100,3 +100,5 @@ The historical [state matrix](reference/macos-cleaner-ui-state-matrix.md), [layo
 ## Native recovery evidence boundary (#12)
 
 Startup recovery reads existing local durable records without mutating cleanup state or inspecting target paths. Pending remains not started; intent/unknown remains unresolved, including when an original is missing. Recorded terminal outcomes remain historical facts. Reading recovery restores no session choices, file permission or approval, and never executes/retries. See [actual crash-boundary evidence](validation/startup-recovery.md).
+
+M4 implementation evidence: [compatible aggregate comparisons](validation/growth-comparisons.md). This remains future-gated, uses explicit manual scope observations and bounded aggregate-only history, and keeps unresolved cleanup journals outside retention/clearing authority.

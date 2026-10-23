@@ -84,6 +84,7 @@ This inventory identifies migration ownership, not feature completion. See [DEVE
 | Alerts / `StorageAlerts.swift`; login / `AppLifecycle.swift` | Page/settings/status rows; off, blocked permission, unavailable capacity, snoozed and independent login status |
 | Homebrew / `HomebrewInspection.swift`; pip / `PipInspection.swift`; Docker / `DockerInspection.swift` | Secondary future-scope pages, shared headers/status/summaries; explicit inspection, unavailable/unsupported/timeouts and read-only opportunity reports |
 | Managed storage / `ManagedStorageView.swift` | Secondary read-only guidance, shared headers/status; selected metadata and ownership uncertainty |
+| What grew / `GrowthHistoryView.swift` | Future-gated completed comparison evidence, shared summary/status/settings rows, fixed explicit-scan action; first/cleared/missing/incompatible/unknown states |
 | Component gallery / `DesignGallery.swift` | Developer-only representative components, light/dark, opaque chrome and native selection states |
 
 Future routes retain their feature gates. Browser cleanup, startup recovery, full history, growth and additional roadmap screens must use these primitives when implemented; their presence in the handoff is not evidence they ship today. No scenario picker, sample measurements or gallery toggle belongs in production navigation.
