@@ -9,6 +9,7 @@ import UniformTypeIdentifiers
     private(set) var export: DiagnosticsExport?
     private(set) var isSaving = false
     private(set) var unavailable = false
+    private var stateProtectionAvailable = false
     func review(selection: SessionPlan, inspection: FolderInspection, recovery: CleanupRecoveryModel) {
         guard !isSaving else { return }
         var codes = Set<DiagnosticsCode>()
@@ -33,17 +34,19 @@ import UniformTypeIdentifiers
                                                  system: ProcessInfo.processInfo.operatingSystemVersion, architecture: architecture,
                                                  scopeCount: selection.scans.count, observedCount: inspection.result?.observations.count ?? 0,
                                                  selectedCount: selection.draft.selectedCount, scan: scan, cleanup: cleanup, recovery: recoveryStatus, errors: codes)
-            export = DiagnosticsExport(review: snapshot); unavailable = false
+            let protectedRoot = try? LocalStateLocation.root(create: false)
+            stateProtectionAvailable = protectedRoot != nil
+            export = DiagnosticsExport(review: snapshot, protectedDirectory: protectedRoot); unavailable = false
         } catch { unavailable = true }
     }
     func save() async {
         guard !isSaving, let reviewed = export else { return }
+        isSaving = true
         let panel = NSSavePanel()
         panel.allowedContentTypes = [.json]
         panel.nameFieldStringValue = "Still-diagnostics.json"
         panel.message = "Save exactly the redacted payload you reviewed. Nothing is uploaded."
         let destination = panel.runModal() == .OK ? panel.url : nil
-        isSaving = true
         let saved = await Task.detached(priority: .utility) { var copy = reviewed; copy.save(to: destination); return copy }.value
         export = saved; isSaving = false
     }
@@ -53,6 +56,7 @@ import UniformTypeIdentifiers
         switch export?.outcome {
         case .saved: return "Saved the exact reviewed payload locally. Nothing was uploaded."
         case .cancelled: return "Save cancelled. The reviewed payload is unchanged."
+        case .failed where !stateProtectionAvailable: return "Could not verify local state protection. The reviewed payload is unchanged; reopen Still before saving."
         case .failed: return "Could not save there. The reviewed payload is unchanged; choose a destination again."
         case .notSaved, nil: return "Review the exact payload before choosing Save. Nothing is uploaded."
         }

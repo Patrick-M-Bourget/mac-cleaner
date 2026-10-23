@@ -39,10 +39,14 @@ public enum DiagnosticsSaveOutcome: Sendable { case notSaved, cancelled, failed,
 public struct DiagnosticsExport: Sendable {
     public let review: DiagnosticsReview
     public private(set) var outcome: DiagnosticsSaveOutcome = .notSaved
-    public init(review: DiagnosticsReview) { self.review = review }
+    private let protectedDirectory: URL?
+    public init(review: DiagnosticsReview, protectedDirectory: URL?) { self.review = review; self.protectedDirectory = protectedDirectory }
     @discardableResult public mutating func save(to destination: URL?) -> DiagnosticsSaveOutcome {
         guard let destination else { outcome = .cancelled; return outcome }
-        guard destination.isFileURL else { outcome = .failed; return outcome }
+        guard destination.isFileURL, let protectedDirectory, protectedDirectory.isFileURL else { outcome = .failed; return outcome }
+        let roots = [protectedDirectory.standardizedFileURL, protectedDirectory.resolvingSymlinksInPath().standardizedFileURL]
+        let destinations = [destination.standardizedFileURL, destination.resolvingSymlinksInPath().standardizedFileURL]
+        guard !destinations.contains(where: { candidate in roots.contains { candidate.pathComponents.starts(with: $0.pathComponents) } }) else { outcome = .failed; return outcome }
         do { try review.payload.write(to: destination, options: .atomic); outcome = .saved }
         catch { outcome = .failed }
         return outcome

@@ -84,6 +84,7 @@ This inventory identifies migration ownership, not feature completion. See [DEVE
 | Completed History / `CleanupHistoryView.swift` | Shared headers, summaries, settings/status rows; native Clear/Reset confirmations and protected recovery route. Final native behavior/unobscured light-dark review remains pending in `validation/history-reset.md`. |
 | Alerts / `StorageAlerts.swift`; login / `AppLifecycle.swift` | Page/settings/status rows; off, blocked permission, unavailable capacity, snoozed and independent login status |
 | Homebrew / `HomebrewInspection.swift`; pip / `PipInspection.swift`; Docker / `DockerInspection.swift` | Secondary future-scope pages, shared headers/status/summaries; explicit inspection, unavailable/unsupported/timeouts and read-only opportunity reports |
+| Diagnostics / `DiagnosticsView.swift` | Secondary future-gated exact payload preview, included/excluded fields and frozen cancelled/failed/saved states; shared fixed Back/Save ActionStrip |
 | Managed storage / `ManagedStorageView.swift` | Secondary read-only guidance, shared headers/status; selected metadata and ownership uncertainty |
 | What grew / `GrowthHistoryView.swift` | Future-gated completed comparison evidence, shared summary/status/settings rows, fixed explicit-scan action; first/cleared/missing/incompatible/unknown states |
 | Component gallery / `DesignGallery.swift` | Developer-only representative components, light/dark, opaque chrome and native selection states |

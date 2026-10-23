@@ -55,9 +55,12 @@ final class DiagnosticsUITests: XCTestCase {
             app.scrollViews.firstMatch.scroll(byDeltaX: 0, deltaY: 600)
         }
         app.buttons["Save diagnostics…"].click()
-        let cancel = app.buttons["Cancel"]
+        let cancel = app.dialogs.buttons["Cancel"]
         XCTAssertTrue(cancel.waitForExistence(timeout: 3)); cancel.click()
-        XCTAssertTrue(app.staticTexts["diagnosticsStatus"].waitForExistence(timeout: 3))
+        let status = app.staticTexts["diagnosticsStatus"]
+        XCTAssertTrue(status.waitForExistence(timeout: 3))
+        XCTAssertTrue((status.value as? String ?? status.label).contains("Save cancelled"))
+        XCTAssertFalse(cancel.exists)
         XCTAssertEqual(payload.value as? String ?? payload.label, text)
         XCTAssertTrue(app.buttons["Save diagnostics…"].isEnabled)
         XCTAssertEqual(bounds, app.windows.firstMatch.frame)
