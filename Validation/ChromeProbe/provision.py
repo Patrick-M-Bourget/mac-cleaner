@@ -5,7 +5,7 @@ VERSION = '156.0.8078.47'
 URL = f'https://storage.googleapis.com/chrome-for-testing-public/{VERSION}/mac-arm64/chrome-mac-arm64.zip'
 
 def main():
-    if os.environ.get('GITHUB_ACTIONS') != 'true' or platform.system() != 'Darwin' or platform.machine() != 'arm64':
+    if os.environ.get('GITHUB_ACTIONS') != 'true' or os.environ.get('RUNNER_ENVIRONMENT') != 'github-hosted' or platform.system() != 'Darwin' or platform.machine() != 'arm64':
         raise ValueError('ephemeral GitHub-hosted macOS arm64 runner required')
     runner = pathlib.Path(os.environ['RUNNER_TEMP']).resolve(strict=True)
     destination = pathlib.Path(sys.argv[1])
