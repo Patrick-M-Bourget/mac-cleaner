@@ -169,32 +169,6 @@ struct LiveCleanupPlanView: View {
     }
 }
 
-private struct MacroCategoryCheckbox: NSViewRepresentable {
-    let state: CategorySelectionState
-    let label: String
-    let enabled: Bool
-    let action: () -> Void
-    func makeCoordinator() -> Coordinator { Coordinator(action) }
-    func makeNSView(context: Context) -> NSButton {
-        let button = NSButton(checkboxWithTitle: label, target: context.coordinator, action: #selector(Coordinator.clicked))
-        button.allowsMixedState = true
-        return button
-    }
-    func sizeThatFits(_ proposal: ProposedViewSize, nsView: NSButton, context: Context) -> CGSize? { nsView.intrinsicContentSize }
-    func updateNSView(_ view: NSButton, context: Context) {
-        context.coordinator.action = action
-        view.title = label; view.isEnabled = enabled
-        view.setAccessibilityIdentifier("downloadsCategorySelection")
-        view.setAccessibilityLabel(label)
-        view.state = state == .checked ? .on : state == .mixed ? .mixed : .off
-    }
-    @MainActor final class Coordinator: NSObject {
-        var action: () -> Void
-        init(_ action: @escaping () -> Void) { self.action = action }
-        @objc func clicked() { action() }
-    }
-}
-
 private struct CleanupConfirmationView: View {
     let review: CleanupReview
     let cancel: () -> Void
@@ -232,42 +206,3 @@ private struct CleanupConfirmationView: View {
 }
 
 
-/// Native first-responder restoration is explicit and one-shot after a sheet closes.
-private struct ReviewCleanupButton: NSViewRepresentable {
-    let enabled: Bool
-    let focusRequest: Int
-    let action: () -> Void
-    func makeCoordinator() -> Coordinator { Coordinator(action) }
-    func makeNSView(context: Context) -> FocusButton {
-        let view = FocusButton(title: "Review cleanup", target: context.coordinator, action: #selector(Coordinator.clicked))
-        view.bezelStyle = .rounded
-        view.setAccessibilityLabel("Review cleanup")
-        return view
-    }
-    func sizeThatFits(_ proposal: ProposedViewSize, nsView: FocusButton, context: Context) -> CGSize? { nsView.intrinsicContentSize }
-    func updateNSView(_ view: FocusButton, context: Context) {
-        view.isEnabled = enabled
-        context.coordinator.action = action
-        if context.coordinator.appliedFocusRequest != focusRequest {
-            context.coordinator.appliedFocusRequest = focusRequest
-            DispatchQueue.main.async { [weak view] in
-                guard let view, view.window?.attachedSheet == nil else { return }
-                view.window?.makeFirstResponder(view)
-            }
-        }
-    }
-    @MainActor final class Coordinator: NSObject {
-        var action: () -> Void
-        var appliedFocusRequest = 0
-        init(_ action: @escaping () -> Void) { self.action = action }
-        @objc func clicked() { action() }
-    }
-    @MainActor final class FocusButton: NSButton {
-        override var acceptsFirstResponder: Bool { true }
-        override func keyDown(with event: NSEvent) {
-            if [" ", "\r"].contains(event.charactersIgnoringModifiers ?? ""), event.modifierFlags.intersection([.command, .control, .option]).isEmpty {
-                performClick(nil)
-            } else { super.keyDown(with: event) }
-        }
-    }
-}

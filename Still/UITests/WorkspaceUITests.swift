@@ -207,4 +207,22 @@ final class WorkspaceUITests: XCTestCase {
         XCTAssertEqual(try Data(contentsOf: root.appendingPathComponent("file0.pdf")), Data([1]))
     }
 
+    @MainActor
+    func testDesignReviewCaptures() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication(); app.launch()
+        XCTAssertTrue(app.buttons["Review Downloads"].waitForExistence(timeout: 10))
+        func capture(_ name: String) {
+            let shot = XCTAttachment(screenshot: app.windows.firstMatch.screenshot())
+            shot.name = name; shot.lifetime = .keepAlways; add(shot)
+        }
+        for theme in ["Light", "Dark"] {
+            app.popUpButtons.firstMatch.click(); app.menuItems[theme].click()
+            app.typeKey("1", modifierFlags: .command); capture("overview-" + theme)
+            app.buttons["Review Downloads"].click(); capture("inspection-" + theme)
+            app.buttons["View cleanup plan"].click(); capture("plan-" + theme)
+            app.typeKey("4", modifierFlags: .command); capture("settings-" + theme)
+        }
+    }
+
 }

@@ -8,8 +8,14 @@ struct StillApp: App {
     @StateObject private var alerts = AppLifecycleController.shared.alerts
     var body: some Scene {
         Window("Still", id: "workspace") {
-            WorkspaceView(alerts: lifecycle.alerts)
-                .frame(minWidth: 900, minHeight: 640)
+            Group {
+                #if DEBUG
+                if ProcessInfo.processInfo.arguments.contains("--design-gallery") { DesignGallery() }
+                else { WorkspaceView(alerts: lifecycle.alerts) }
+                #else
+                WorkspaceView(alerts: lifecycle.alerts)
+                #endif
+            }.frame(minWidth: 900, minHeight: 640)
         }
         .defaultSize(width: 1120, height: 760)
         .commands {
