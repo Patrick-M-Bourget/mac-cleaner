@@ -25,12 +25,12 @@ M2–M6 remain conditional development routes behind `--future-milestones`; thei
 
 ## Required-reason API audit
 
-Primary authority: [Apple API categories/reasons](https://developer.apple.com/documentation/bundleresources/app-privacy-configuration/nsprivacyaccessedapitypes/nsprivacyaccessedapitype), checked October23,2026. This is a source-purpose audit, not an Apple approval statement. Final archive must contain the bundled manifest and undergo Xcode's archive privacy report/dependency audit.
+Primary authority: [Apple API categories/reasons](https://developer.apple.com/documentation/bundleresources/app-privacy-configuration/nsprivacyaccessedapitypes/nsprivacyaccessedapitype), checked October23,2026. This is a source-purpose audit, not an Apple approval statement. Final archive must contain the bundled manifest and undergo Xcode's archive privacy report/dependency audit. [Platform applicability research](privacy-required-reason-research.md) supersedes the earlier blanket C617.1 release blocker: current Apple documentation does not establish required-reason declarations as a native macOS Developer ID/notarization prerequisite. The preflight's purpose checks enforce the repository's chosen inventory, rather than proving Apple's distribution requirements.
 
 | Actual use | Declaration |
 |---|---|
 | Selected-folder timestamps/stat metadata for inventory, fresh identity checks and exact mutation | FileTimestamp3B52.1; access originates in explicit selection |
-| App-owned local journal/baseline/state metadata validation | **Unresolved release gate:** Apple limits C617.1 to app/app-group/CloudKit containers; this unsandboxed app uses Application Support. Do not declare that reason solely from app ownership. Confirm a valid purpose/location before release or adjust state storage architecture; no eligibility claim made here. |
+| App-owned local journal/baseline/state metadata validation | C617.1 eligibility is not established for unsandboxed Application Support, and no such declaration was added. This is not an established macOS distribution blocker; see the platform applicability research. Recheck channel, data practices and dependencies for the final candidate. |
 | Display startup/selected-volume capacities and observed changes locally | DiskSpace85F4.1 |
 | Scanner progress cadence / tool timeout elapsed intervals via systemUptime | SystemBootTime35F9.1 |
 | App-only login preference via UserDefaults.standard | UserDefaultsCA92.1 |
