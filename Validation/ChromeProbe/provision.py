@@ -77,7 +77,7 @@ def main():
     binary = bundle / 'Contents' / 'MacOS' / 'Google Chrome for Testing'
     preliminary['executableSHA256'] = hashlib.sha256(binary.read_bytes()).hexdigest()
     native_signatures = {}
-    framework = bundle / 'Contents' / 'Frameworks' / 'Google Chrome Framework.framework' / 'Google Chrome Framework'
+    framework = bundle / 'Contents' / 'Frameworks' / 'Google Chrome for Testing Framework.framework' / 'Google Chrome for Testing Framework'
     for label, path in [('executable', binary), ('framework', framework)]:
         result = subprocess.run(['/usr/bin/codesign', '--verify', '--strict', str(path)], capture_output=True, text=True, timeout=30)
         native_signatures[label] = dict(status=result.returncode, stdout=result.stdout, stderr=result.stderr)
