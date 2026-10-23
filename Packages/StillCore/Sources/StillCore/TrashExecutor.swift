@@ -22,6 +22,7 @@ public struct CleanupRecord: Codable, Sendable, Identifiable {
     public let modifiedNanoseconds: Int64
     public let action: String
     public let policyVersion: Int
+    public var outcomeRecordedAt: Date?
     public let approvedAt: Date
     public init(batch: CleanupApproval, target: PlannedTarget) {
         id = batch.id.uuidString + "|" + target.id; batchID = batch.id; originalURL = target.url
