@@ -1,5 +1,7 @@
 # Still — implementation specification
 
+Native UI implementation follows the mandatory [design system](DESIGN-SYSTEM.md).
+
 Revision 0.9 · October 22, 2026 · Native implementation handoff.
 
 ## Product outcome
