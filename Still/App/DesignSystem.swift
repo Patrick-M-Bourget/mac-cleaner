@@ -333,10 +333,14 @@ struct ScanProgressSummary: View {
     let inspectedEntries: Int
     let logicalSubtotal: String
     let recentNames: [String]
+    var phaseMessage = "Reading file metadata…"
     var body: some View {
         SummarySurface {
             VStack(alignment: .leading, spacing: StillDesign.Space.md) {
-                ProgressView("Reading file metadata…")
+                HStack(spacing: StillDesign.Space.sm) {
+                    ProgressView().controlSize(.small).accessibilityHidden(true)
+                    Text(phaseMessage).accessibilityIdentifier("scanPhase")
+                }
                 StatusRow(text: "\(inspectedEntries) entries inspected so far · Preliminary observations", identifier: "scanProgressSummary")
                 Text("Known logical subtotal: \(logicalSubtotal) · Coverage incomplete")
                     .font(.caption).foregroundStyle(.secondary)

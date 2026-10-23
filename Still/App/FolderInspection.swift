@@ -1,3 +1,4 @@
+import Darwin
 import AppKit
 import Observation
 import StillCore
@@ -177,7 +178,8 @@ struct FolderInspectionView: View {
                 if let progress = model.progress {
                     ScanProgressSummary(inspectedEntries: progress.visitedEntries,
                         logicalSubtotal: bytes(progress.knownLogicalSubtotal),
-                        recentNames: progress.recentObservations.prefix(5).map { $0.url.lastPathComponent })
+                        recentNames: progress.recentObservations.prefix(5).map { $0.url.lastPathComponent },
+                        phaseMessage: progress.phase == .rechecking ? "Rechecking changed coverage (one attempt)…" : progress.phase == .checkingDirectories ? "Checking directory stability…" : "Reading file metadata…")
                 } else { ProgressView("Reading file metadata…") }
                 if model.result != nil { StatusRow(text: "Previous observations remain visible while this location is rechecked.", symbol: "clock") }
             }
@@ -203,7 +205,7 @@ struct FolderInspectionView: View {
                     ForEach(Array(result.issues.prefix(20).enumerated()), id: \.offset) { _, issue in
                         VStack(alignment: .leading, spacing: 4) {
                             Text(issue.url.path).textSelection(.enabled)
-                            Text(issue.reason.rawValue + " · " + issue.recovery).font(.caption).foregroundStyle(.secondary)
+                            Text((issue.reason == .directoryChanged ? "Directory changed during scanning" : issue.reason == .timeLimit ? "Scan time budget reached" : issue.reason.rawValue) + " · " + issue.recovery).font(.caption).foregroundStyle(.secondary)
                         }
                     }
                 }
@@ -278,9 +280,23 @@ private struct RefreshFixtureMetadata: MetadataSupplementReading {
             let root = URL(fileURLWithPath: path).standardizedFileURL
             if root.lastPathComponent.hasPrefix("StillSelectionUI-"), url.standardizedFileURL.pathComponents.starts(with: root.pathComponents) {
                 Thread.sleep(forTimeInterval: 0.02)
+                if ProcessInfo.processInfo.arguments.contains("--ui-test-directory-instability"), url.lastPathComponent == "trigger.txt", Self.isBoundOwnedTemporaryRoot(root) {
+                    try FileManager.default.setAttributes([.modificationDate: Date()], ofItemAtPath: root.path)
+                }
             }
         }
         return try FoundationMetadataSupplement().read(url)
+    }
+    private static func isBoundOwnedTemporaryRoot(_ root: URL) -> Bool {
+        let prefix = "StillSelectionUI-"
+        guard root.lastPathComponent.hasPrefix(prefix), UUID(uuidString: String(root.lastPathComponent.dropFirst(prefix.count))) != nil,
+              root.path == root.resolvingSymlinksInPath().path,
+              let expected = ProcessInfo.processInfo.environment["STILL_TEST_DOWNLOADS_ID"] else { return false }
+        let runner = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Containers/com.patrickbourget.StillUITests.xctrunner/Data/tmp")
+        let parents = [runner, FileManager.default.temporaryDirectory, URL(fileURLWithPath: "/private/tmp")].map { $0.resolvingSymlinksInPath().path }
+        var info = stat()
+        return parents.contains(root.deletingLastPathComponent().path) && lstat(root.path, &info) == 0
+            && info.st_mode & S_IFMT == S_IFDIR && info.st_uid == geteuid() && "\(info.st_dev):\(info.st_ino)" == expected
     }
 }
 #endif

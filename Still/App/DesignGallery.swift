@@ -39,6 +39,7 @@ struct DesignGallery: View {
                         }
                     }
                     ScanProgressSummary(inspectedEntries: 1240, logicalSubtotal: "16 MB", recentNames: ["Example document.pdf", "Example archive.zip"])
+                    ScanProgressSummary(inspectedEntries: 2480, logicalSubtotal: "16 MB", recentNames: ["Example document.pdf"], phaseMessage: "Rechecking changed coverage (one attempt)…")
                     EmptyState(title: "No findings yet", detail: "Choose a folder to begin. Unknown measurements stay distinct from zero.", symbol: "folder")
                     CapacityMeter(available: nil, total: nil)
                 }.padding(StillDesign.Space.page).frame(maxWidth: .infinity, alignment: .leading)

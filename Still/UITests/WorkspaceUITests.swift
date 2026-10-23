@@ -564,4 +564,51 @@ final class WorkspaceUITests: XCTestCase {
         }
     }
 
+    @MainActor
+    func testChangingDirectoryRecheckKeepsStopReachableAndNeverEnablesCleanup() throws {
+        continueAfterFailure = false
+        for minimum in [false, true] {
+            let suffix = UUID().uuidString
+            let scope = FileManager.default.temporaryDirectory.appendingPathComponent("StillSelectionUI-" + suffix).resolvingSymlinksInPath()
+            let state = FileManager.default.temporaryDirectory.appendingPathComponent("StillTestState-" + suffix).resolvingSymlinksInPath()
+            try FileManager.default.createDirectory(at: scope, withIntermediateDirectories: true)
+            try FileManager.default.createDirectory(at: state, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+            defer { try? FileManager.default.removeItem(at: scope); try? FileManager.default.removeItem(at: state) }
+            let marker = state.appendingPathComponent(".still-owned-test-state")
+            try Data(suffix.utf8).write(to: marker)
+            try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: marker.path)
+            var information = stat(); XCTAssertEqual(lstat(state.path, &information), 0)
+            try Data([1]).write(to: scope.appendingPathComponent("trigger.txt"))
+            for index in 0..<500 { try Data().write(to: scope.appendingPathComponent("entry-\(index).txt")) }
+            let app = XCUIApplication()
+            app.launchArguments = ["--ui-test-downloads-root", "--ui-test-slow-refresh", "--ui-test-directory-instability", minimum ? "--design-minimum" : "--design-initial-size"]
+            app.launchEnvironment["STILL_TEST_DOWNLOADS_ROOT"] = scope.path
+            var scopeInformation = stat(); XCTAssertEqual(lstat(scope.path, &scopeInformation), 0)
+            app.launchEnvironment["STILL_TEST_DOWNLOADS_ID"] = "\(scopeInformation.st_dev):\(scopeInformation.st_ino)"
+            app.launchEnvironment["STILL_TEST_STATE_ROOT"] = state.path
+            app.launchEnvironment["STILL_TEST_STATE_ID"] = "\(information.st_dev):\(information.st_ino)"
+            app.launch()
+            let bounds = app.windows.firstMatch.frame
+            app.buttons["Choose folder…"].click(); app.typeKey("g", modifierFlags: [.command, .shift])
+            let path = app.textFields.firstMatch
+            XCTAssertTrue(path.waitForExistence(timeout: 5)); path.typeText(scope.path)
+            app.typeKey(.return, modifierFlags: []); app.dialogs.buttons["Scan folder"].click()
+            XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "identifier == %@ AND value BEGINSWITH %@", "scanPhase", "Rechecking changed coverage")).firstMatch.waitForExistence(timeout: 25))
+            let stop = app.buttons["Stop scan"]
+            for theme in ["Light", "Dark"] {
+                app.popUpButtons["Appearance"].click(); app.menuItems[theme].click()
+                XCTAssertTrue(bounds.contains(stop.frame))
+                let shot = XCTAttachment(screenshot: app.windows.firstMatch.screenshot())
+                shot.name = "directory-recheck-" + (minimum ? "minimum-" : "initial-") + theme
+                shot.lifetime = .keepAlways; add(shot)
+            }
+            stop.click()
+            XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "value BEGINSWITH %@", "Stop requested.")).firstMatch.waitForExistence(timeout: 5))
+            XCTAssertFalse(app.buttons["Review cleanup"].exists)
+            XCTAssertEqual(app.windows.firstMatch.frame, bounds)
+            XCTAssertEqual(try Data(contentsOf: scope.appendingPathComponent("trigger.txt")), Data([1]))
+            app.terminate()
+        }
+    }
+
 }
