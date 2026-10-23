@@ -16,4 +16,17 @@ The final product fix is the fixed sibling footer. The original picker and Save 
 
 ## Final qualification
 
-Clean initial/minimum exclusions journeys, unobscured Light/Dark empty/preview/saved captures and the full native regression suite are being qualified on the final probe-free source. Results and capture provenance will be recorded here when complete. Local Xcode 27.1 core tests passed **117/117** and Debug build-for-testing passed during diagnosis; final source build checks follow probe removal.
+The probe-free [focused run 39912298566](https://github.com/Patrick-M-Bourget/mac-cleaner/actions/runs/39912298566) at `d230958d3a7a5562f17a2c60047a27ea7dd803cc` passed **2/2 in 187.915 seconds** (initial 96.098 s, minimum 91.817 s). Both original flows retain native picker → preview → enabled/hittable Save, persistence across relaunch, included-only scan, theme/bounds checks, exact-label native removal, persisted empty rules and unchanged fixture contents. No temporary probe or picker-lifetime change remains.
+
+All **12 unaltered** empty/preview/saved PNGs were individually viewed: no overlay, essential-text clipping or hidden fixed action was observed. The light sidebar is white, dark surfaces remain near-black, long paths/consequences wrap, and both sizes keep Back/Choose or Back/Cancel/Save readable and reachable. [Capture manifest](../visual/exclusions/manifest.json) records source/run/artifact/attachment provenance, dimensions and SHA-256 hashes.
+
+| State and bounds | Light | Dark |
+|---|---|---|
+| Empty · initial 1024×677 | [capture](../visual/exclusions/exclusions-empty-initial-Light.png) | [capture](../visual/exclusions/exclusions-empty-initial-Dark.png) |
+| Empty · minimum 900×640 | [capture](../visual/exclusions/exclusions-empty-minimum-Light.png) | [capture](../visual/exclusions/exclusions-empty-minimum-Dark.png) |
+| Preview · initial | [capture](../visual/exclusions/exclusions-preview-initial-Light.png) | [capture](../visual/exclusions/exclusions-preview-initial-Dark.png) |
+| Preview · minimum | [capture](../visual/exclusions/exclusions-preview-minimum-Light.png) | [capture](../visual/exclusions/exclusions-preview-minimum-Dark.png) |
+| Saved rule · initial | [capture](../visual/exclusions/exclusions-saved-initial-Light.png) | [capture](../visual/exclusions/exclusions-saved-initial-Dark.png) |
+| Saved rule · minimum | [capture](../visual/exclusions/exclusions-saved-minimum-Light.png) | [capture](../visual/exclusions/exclusions-saved-minimum-Dark.png) |
+
+The normal push [full run 39912299004](https://github.com/Patrick-M-Bourget/mac-cleaner/actions/runs/39912299004) at the same source passed **34/34 native journeys with 0 failures in 1235.246 seconds**, including both diagnostics journeys with enabled/hittable Back/Save assertions and both exclusions journeys. All workflow stages passed: 117 core tests, 20 alert-policy tests, isolated adapter investigations and native build-for-testing. Local Xcode 27.1 clean core tests passed **117/117**; Debug build-for-testing and Release build passed. The preserved Release candidate is documented in the [personal-build walkthrough](personal-build-walkthrough.md). Native sources have not changed in subsequent review/evidence-only commits. Minimum-OS, Intel execution, manual OS/accessibility and personal-launch gates remain separate; these captures do not qualify uncaptured error/recovery states.
