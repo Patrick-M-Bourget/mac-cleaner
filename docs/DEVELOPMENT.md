@@ -200,4 +200,4 @@ With `--future-milestones`, Overview offers **Review diagnostics** then native *
 
 [Independent implementation review](validation/implementation-review.md) records
 the Standards and Spec review checkpoints, resolved findings and remaining
-qualification boundaries through `fec0455`.
+qualification boundaries through `d230958`.

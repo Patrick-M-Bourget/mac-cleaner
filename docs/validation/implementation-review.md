@@ -1,16 +1,17 @@
 # Implementation review checkpoint
 
-Reviewed implementation through `fec0455`, against main base
+Reviewed implementation through `d230958`, against main base
 `454d4d36cb02e01415f1fac423b530107474a925`.
 Independent Standards and Spec reviews covered the full implementation at
-`e5bf9d6`, then the exclusion and corrective deltas through `fec0455`.
+`e5bf9d6`, then the exclusion and corrective deltas through `fec0455` and the bounded
+footer/workflow/privacy-documentation delta through `d230958`.
 Reviewers inspected source and evidence; they did not run personal scans or
 generate OS notifications.
 
 ## Standards
 
-The documented spacing-token breach was corrected in `24c80f4`. The exclusion
-delta and final corrective delta introduced no actionable standards findings.
+The documented spacing-token breach was corrected in `24c80f4`. The exclusion, corrective and final footer/workflow deltas introduced no
+actionable standards findings.
 The suggested secondary-route enum remains a judgment call, rather than a
 documented requirement; no concrete route inconsistency was established.
 
@@ -19,7 +20,10 @@ documented requirement; no concrete route inconsistency was established.
 The alert-disable submission race, subsequent reserved-episode failure, and
 misleading exclusion refresh notice were corrected and independently verified
 by source review through `fec0455`. No actionable finding remained in those
-reviewed deltas. Conditional adapter capabilities remain disabled.
+reviewed deltas. The final footer delta preserves picker semantics and actual native interaction;
+the full-label test predicate selects the same public Remove control. No
+actionable findings remained in that delta. Conditional adapter capabilities
+remain disabled.
 
 Focused earlier reviews also corrected four growth-history defects
 (clear/reset resurrection, stale failures, expired presentation and group-name
