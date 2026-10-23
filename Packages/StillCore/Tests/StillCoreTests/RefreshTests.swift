@@ -143,3 +143,18 @@ private struct RefreshDeniedAccess: ScanAccessChecking {
     #expect(refresh.canReview(draft))
     #expect(draft.selected.first?.observedAt == initialB.observedAt)
 }
+
+@Test func startingRefreshInvalidatesAnAlreadyReviewedExactBatch() async throws {
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent("StillRefresh-" + UUID().uuidString)
+    try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: root) }
+    try Data([1]).write(to: root.appendingPathComponent("chosen.pdf"))
+    let scan = try await FolderScanner(supplement: RefreshLocalMetadata()).scan(root)
+    var draft = PlanDraft()
+    try draft.select(try #require(scan.observations.first), in: scan, downloadsRoot: root)
+    let reviewed = try draft.review()
+    var refresh = RefreshChoices()
+    _ = refresh.begin(scope: root, draft: &draft)
+    #expect(throws: PlanSelectionError.self) { try draft.approve(reviewed) }
+    #expect(!refresh.canReview(draft))
+}

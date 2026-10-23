@@ -33,6 +33,7 @@ public struct RefreshChoices: Sendable {
         !draft.selected.isEmpty && !draft.selected.contains { requiresRefresh($0.id) }
     }
     public mutating func begin(scope: URL, draft: inout PlanDraft) -> RefreshRequest {
+        draft.invalidateReview()
         let scope = scope.standardizedFileURL
         let targets = draft.selected.filter { $0.url.standardizedFileURL.pathComponents.starts(with: scope.pathComponents) }
         let request = RefreshRequest(id: UUID(), scope: scope, targets: targets, startedAt: Date())
@@ -77,7 +78,7 @@ public actor RefreshValidator {
         for original in request.targets {
             guard !Task.isCancelled else { return RefreshOutcome(request: request, replacements: [:], complete: false) }
             guard let item = observations[original.id],
-                  let fresh = try? PlanDraft.candidate(item, in: scan, downloads: original.downloadsRoot),
+                  let fresh = try? PlanDraft.freshCandidate(item, in: scan, downloads: original.downloadsRoot),
                   fresh.logicalBytes == original.logicalBytes,
                   fresh.modifiedSeconds == original.modifiedSeconds,
                   fresh.modifiedNanoseconds == original.modifiedNanoseconds else { continue }

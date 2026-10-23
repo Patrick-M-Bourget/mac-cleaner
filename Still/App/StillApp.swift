@@ -133,7 +133,7 @@ private struct WorkspaceView: View {
             Divider()
             VStack(alignment: .leading, spacing: 0) {
                 if showsPlan && !selection.scans.isEmpty {
-                    LiveCleanupPlanView(selection: selection)
+                    LiveCleanupPlanView(selection: selection, recheck: { folderInspection.scan($0) }, stopRefresh: { folderInspection.cancel() })
                 } else {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 24) {
