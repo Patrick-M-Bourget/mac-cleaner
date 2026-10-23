@@ -19,12 +19,7 @@ import SwiftUI
         defer { isRunning = false; executor = nil }
         do {
             let journal = try await Task.detached(priority: .userInitiated) {
-                let manager = FileManager.default
-                let parent = try manager.url(for: .applicationSupportDirectory, in: .userDomainMask, appropriateFor: nil, create: true).appendingPathComponent("Still", isDirectory: true)
-                try manager.createDirectory(at: parent, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
-                let values = try parent.resourceValues(forKeys: [.isSymbolicLinkKey, .isUbiquitousItemKey])
-                guard values.isSymbolicLink != true, values.isUbiquitousItem != true else { throw CleanupJournalError.unavailable }
-                return try SQLiteCleanupJournal(url: parent.appendingPathComponent("cleanup.sqlite"))
+                try CleanupJournalLocation.writer()
             }.value
             before = await Task.detached { StartupVolumeCapacity.read() }.value
             let worker = TrashExecutor(journal: journal, cancellation: cancellation)

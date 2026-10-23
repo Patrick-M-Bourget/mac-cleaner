@@ -7,13 +7,22 @@ public enum CleanupJournalError: Error { case unavailable }
 public final class SQLiteCleanupJournal: CleanupJournaling, @unchecked Sendable {
     private let lock = NSLock()
     private var database: OpaquePointer?
-    public init(url: URL) throws {
+    private let isReadOnly: Bool
+    public init(url: URL, readOnly: Bool = false) throws {
+        isReadOnly = readOnly
         guard url.isFileURL, url.path != ":memory:" else { throw CleanupJournalError.unavailable }
         let url = try DownloadsRoot(url: url.deletingLastPathComponent()).url.appendingPathComponent(url.lastPathComponent)
         var info = stat()
         if lstat(url.path, &info) == 0, info.st_mode & S_IFMT != S_IFREG { throw CleanupJournalError.unavailable }
-        guard sqlite3_open_v2(url.path, &database, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_FULLMUTEX | SQLITE_OPEN_NOFOLLOW, nil) == SQLITE_OK else { throw CleanupJournalError.unavailable }
+        let flags = (readOnly ? SQLITE_OPEN_READONLY : SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE) | SQLITE_OPEN_FULLMUTEX | SQLITE_OPEN_NOFOLLOW
+        guard sqlite3_open_v2(url.path, &database, flags, nil) == SQLITE_OK else {
+            sqlite3_close(database); database = nil; throw CleanupJournalError.unavailable
+        }
         do {
+            if readOnly {
+                guard try scalar("PRAGMA user_version") == "1" else { throw CleanupJournalError.unavailable }
+                return
+            }
             guard chmod(url.path, 0o600) == 0 else { throw CleanupJournalError.unavailable }
             try run("PRAGMA journal_mode=WAL")
             try run("PRAGMA synchronous=FULL")
@@ -28,6 +37,7 @@ public final class SQLiteCleanupJournal: CleanupJournaling, @unchecked Sendable 
     }
     deinit { sqlite3_close(database) }
     public func claim(_ batch: CleanupApproval) throws -> Bool {
+        guard !isReadOnly else { throw CleanupJournalError.unavailable }
         lock.lock(); defer { lock.unlock() }
         try run("BEGIN IMMEDIATE")
         do {
@@ -46,6 +56,7 @@ public final class SQLiteCleanupJournal: CleanupJournaling, @unchecked Sendable 
     public func intent(_ record: CleanupRecord) throws { try write(record, replace: true) }
     public func outcome(_ record: CleanupRecord) throws { try write(record, replace: true) }
     private func write(_ record: CleanupRecord, replace: Bool) throws {
+        guard !isReadOnly else { throw CleanupJournalError.unavailable }
         lock.lock(); defer { lock.unlock() }
         let data = try JSONEncoder().encode(record)
         try run(replace ? "UPDATE records SET payload=? WHERE id=?" : "INSERT INTO records(payload,id) VALUES(?,?)", values: [data, Data(record.id.utf8)])
