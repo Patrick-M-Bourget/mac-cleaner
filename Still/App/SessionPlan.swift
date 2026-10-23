@@ -233,7 +233,6 @@ struct LiveCleanupPlanView: View {
     @State private var reviewFocusRequest = 0
     @State private var choosingItems = true
     @State private var inspected: FileObservation?
-    @State private var visibleRow: String?
     var body: some View {
         VStack(spacing: 0) {
         ScrollView {
@@ -283,7 +282,7 @@ struct LiveCleanupPlanView: View {
                             }
                             Divider()
                         }
-                    }.scrollTargetLayout()
+                    }
                     if let item = inspected {
                         SummarySurface {
                             VStack(alignment: .leading, spacing: StillDesign.Space.sm) {
@@ -310,7 +309,7 @@ struct LiveCleanupPlanView: View {
 
         }.padding(StillDesign.Space.page).frame(maxWidth: .infinity, alignment: .leading)
         }
-        }.scrollPosition(id: $visibleRow).background(StillDesign.reading)
+        }.background(StillDesign.reading)
         if selection.isRetryRechecking {
             ActionStrip(message: "Rechecking unfinished identities. No files are moved.") {
                 ProgressView().controlSize(.small)
