@@ -1,0 +1,173 @@
+{
+  "schemaVersion": 1,
+  "repository": "Patrick-M-Bourget/mac-cleaner",
+  "sourceCommit": "38a593e5c7eadae32b99e1538fafc87e18ac766d",
+  "workflow": "Native Mac workspace",
+  "artifactRun": {
+    "id": 39901477511,
+    "url": "https://github.com/Patrick-M-Bourget/mac-cleaner/actions/runs/39901477511",
+    "conclusion": "success",
+    "nativeTestsPassed": 30,
+    "nativeTestsFailed": 0
+  },
+  "confirmingRun": {
+    "id": 39901474557,
+    "url": "https://github.com/Patrick-M-Bourget/mac-cleaner/actions/runs/39901474557",
+    "conclusion": "success"
+  },
+  "host": {
+    "model": "Apple Virtual Machine 1",
+    "architecture": "arm64",
+    "macOS": "26.6.2",
+    "osBuild": "25G83"
+  },
+  "review": {
+    "unalteredXCTestWindowAttachments": true,
+    "reviewedStates": "All listed captures were visually inspected unobscured. Initial viewport is display-clamped 1024\u00d7677; minimum 900\u00d7640.",
+    "notQualified": [
+      "dedicated empty history visual state",
+      "expanded per-file results",
+      "VoiceOver",
+      "real login or notification preferences",
+      "later source revisions"
+    ],
+    "reviewers": "Root reviewed all 10 History captures; evidence agent independently viewed 3 representative History captures and all 4 scanner captures."
+  },
+  "captures": [
+    {
+      "file": "history-clear-confirmation-initial-Dark.png",
+      "state": "clear-confirmation",
+      "appearance": "Dark",
+      "sizeMode": "initial",
+      "imageWidthPixels": 1024,
+      "imageHeightPixels": 677,
+      "sha256": "f6fdf5afe5a8554c18ebcc9d47acaea3788e09ae51c264ba235bc6e024bdc507",
+      "sourceAttachment": "564E7441-A99A-47DB-AC51-E3B856D17B75.png",
+      "sourceSuggestedName": "history-clear-confirmation-initial_0_F0EDBFE8-71E4-4FDF-A840-CE491DDF5014.png",
+      "testIdentifier": "HistoryUITests/testCompletedHistoryClearAndFreshResetGuard()",
+      "attachmentTimestamp": 1792730825.373
+    },
+    {
+      "file": "history-clear-confirmation-minimum-Dark.png",
+      "state": "clear-confirmation",
+      "appearance": "Dark",
+      "sizeMode": "minimum",
+      "imageWidthPixels": 900,
+      "imageHeightPixels": 640,
+      "sha256": "a82be554c39973c0ef315c90e1212ce4a5a22399eb5a329f0a5907e45eca8184",
+      "sourceAttachment": "F9F3EA9B-C027-43D8-BF19-33095D49CB1F.png",
+      "sourceSuggestedName": "history-clear-confirmation-minimum_0_2137F2E4-DB2D-4BC3-B1AD-0EA5702887A5.png",
+      "testIdentifier": "HistoryUITests/testHistoryAtMinimumWindow()",
+      "attachmentTimestamp": 1792730855.974
+    },
+    {
+      "file": "history-populated-initial-Dark.png",
+      "state": "populated",
+      "appearance": "Dark",
+      "sizeMode": "initial",
+      "imageWidthPixels": 1024,
+      "imageHeightPixels": 677,
+      "sha256": "971f07058036708b3646718ed88a97feb2c9d04f287c2536b38a1c88c065fbaa",
+      "sourceAttachment": "3A1A6190-7A57-416C-9A3D-1E0AD88D92B6.png",
+      "sourceSuggestedName": "history-populated-Dark-initial_0_B4ABC75E-6727-4008-870E-60B5CF2FD3F9.png",
+      "testIdentifier": "HistoryUITests/testCompletedHistoryClearAndFreshResetGuard()",
+      "attachmentTimestamp": 1792730823.164
+    },
+    {
+      "file": "history-populated-initial-Light.png",
+      "state": "populated",
+      "appearance": "Light",
+      "sizeMode": "initial",
+      "imageWidthPixels": 1024,
+      "imageHeightPixels": 677,
+      "sha256": "33365594abd95fb7eb04a39965823f4054b5983c7dba885b910403f34fc35763",
+      "sourceAttachment": "208290DA-F869-4EEA-907E-84F76706E7D8.png",
+      "sourceSuggestedName": "history-populated-Light-initial_0_F46FC477-1A97-4B03-940C-B01CA4D03628.png",
+      "testIdentifier": "HistoryUITests/testCompletedHistoryClearAndFreshResetGuard()",
+      "attachmentTimestamp": 1792730821.448
+    },
+    {
+      "file": "history-populated-minimum-Dark.png",
+      "state": "populated",
+      "appearance": "Dark",
+      "sizeMode": "minimum",
+      "imageWidthPixels": 900,
+      "imageHeightPixels": 640,
+      "sha256": "e0b5d3c7ef0b355b85f37cae00ffbaea0021971c00cdc1735d2d1d1906c58b10",
+      "sourceAttachment": "5B6B26C5-5471-472F-863D-68E31B6EBF8D.png",
+      "sourceSuggestedName": "history-populated-Dark-minimum_0_0E999E2E-81F3-4143-8A2A-90E93997937F.png",
+      "testIdentifier": "HistoryUITests/testHistoryAtMinimumWindow()",
+      "attachmentTimestamp": 1792730854.057
+    },
+    {
+      "file": "history-populated-minimum-Light.png",
+      "state": "populated",
+      "appearance": "Light",
+      "sizeMode": "minimum",
+      "imageWidthPixels": 900,
+      "imageHeightPixels": 640,
+      "sha256": "5cd18f8c0ed5a36b1f4b72c9e17005eb04206224b1728d5b28e08b477e03c5ed",
+      "sourceAttachment": "BDC6197C-5077-4A08-B7F4-5E9A8A8DFC66.png",
+      "sourceSuggestedName": "history-populated-Light-minimum_0_7FB7C601-23D1-4351-B1C7-EBD4A2F60186.png",
+      "testIdentifier": "HistoryUITests/testHistoryAtMinimumWindow()",
+      "attachmentTimestamp": 1792730852.376
+    },
+    {
+      "file": "history-reset-blocked-initial-Dark.png",
+      "state": "reset-blocked",
+      "appearance": "Dark",
+      "sizeMode": "initial",
+      "imageWidthPixels": 1024,
+      "imageHeightPixels": 677,
+      "sha256": "0967e8f2178422963db8ae77bc48a10e34269b42528a2bd36b963b110ec90724",
+      "sourceAttachment": "A9159603-B95D-491A-B441-443FDC3394CF.png",
+      "sourceSuggestedName": "history-reset-blocked-Dark-initial_0_080B9A4D-0C76-4DEE-AD10-1AF95E1FADC0.png",
+      "testIdentifier": "HistoryUITests/testCompletedHistoryClearAndFreshResetGuard()",
+      "attachmentTimestamp": 1792730833.845
+    },
+    {
+      "file": "history-reset-blocked-initial-Light.png",
+      "state": "reset-blocked",
+      "appearance": "Light",
+      "sizeMode": "initial",
+      "imageWidthPixels": 1024,
+      "imageHeightPixels": 677,
+      "sha256": "d46ca2dff0ce1a72d6367c22e8d090ac1d7d9452393f48a3935d071b8806e07f",
+      "sourceAttachment": "31AE6AD8-47DB-4911-8446-7DE4CC3F09EF.png",
+      "sourceSuggestedName": "history-reset-blocked-Light-initial_0_7D7AC6D5-B542-43E4-AA98-984BB3EA8BE1.png",
+      "testIdentifier": "HistoryUITests/testCompletedHistoryClearAndFreshResetGuard()",
+      "attachmentTimestamp": 1792730832.115
+    },
+    {
+      "file": "history-reset-blocked-minimum-Dark.png",
+      "state": "reset-blocked",
+      "appearance": "Dark",
+      "sizeMode": "minimum",
+      "imageWidthPixels": 900,
+      "imageHeightPixels": 640,
+      "sha256": "654843b6859a0574d8aeb1cc465ac9c93f59cec469cf0afc5cb4f8e71429d424",
+      "sourceAttachment": "EBDFB4AF-1C36-4B7D-8EC9-9A39BCF7B738.png",
+      "sourceSuggestedName": "history-reset-blocked-Dark-minimum_0_77E4F021-91B0-4CBE-8B16-6D6F3710621D.png",
+      "testIdentifier": "HistoryUITests/testHistoryAtMinimumWindow()",
+      "attachmentTimestamp": 1792730863.958
+    },
+    {
+      "file": "history-reset-blocked-minimum-Light.png",
+      "state": "reset-blocked",
+      "appearance": "Light",
+      "sizeMode": "minimum",
+      "imageWidthPixels": 900,
+      "imageHeightPixels": 640,
+      "sha256": "8f576b08edb3998e746d6b9205adb5d6a0956108432d4d8c7e5da70fa28f4396",
+      "sourceAttachment": "E780889F-82BA-42DA-8120-BE79F45E3577.png",
+      "sourceSuggestedName": "history-reset-blocked-Light-minimum_0_A683FD33-A60A-4CCB-B802-5EA9A76B1722.png",
+      "testIdentifier": "HistoryUITests/testHistoryAtMinimumWindow()",
+      "attachmentTimestamp": 1792730862.304
+    }
+  ],
+  "sourceArtifact": {
+    "id": 12479936949,
+    "name": "native-test-results",
+    "sizeBytes": 11776158
+  }
+}

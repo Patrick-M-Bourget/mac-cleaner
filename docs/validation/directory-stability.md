@@ -18,7 +18,14 @@ The focused native journey passed **1/1 in 75.5 seconds**, covering initial and 
 
 The first native attempt failed an exact native ProgressView-label lookup while its recording showed the correct phase and fixed Stop. Replacing that label with explicit accessible Text plus a stable identifier made the public journey pass, without increasing waits or fixture size. Local result: `.build/directory-stability-final-ui.xcresult`; log: `/tmp/still-stability-final-ui.log`. Core log: `/tmp/still-stability-final-core.log`; benchmark output is linked below.
 
-**Unobscured native visual qualification remains pending.** Exported screenshots contain an unrelated stale Gatekeeper warning for an unsigned `StillUITests-Runner` from another local test attempt. The owned warning could not be safely dismissed through available UI surfaces; warning diagnosis was stopped. No OS security settings were changed. Occluded screenshots remain local inside the result bundle and are not committed or counted as visual signoff. Behavioral assertions passed despite that overlay; they do not substitute for unobscured visual review.
+The earlier local screenshots were obstructed and never qualified visually; no OS security or permission settings were changed. Clean hosted evidence now resolves the recheck-frame visual gate for commit `38a593e5c7eadae32b99e1538fafc87e18ac766d`: [run 39901477511](https://github.com/Patrick-M-Bourget/mac-cleaner/actions/runs/39901477511) passed all 30 native tests, including the focused recheck journey. Four unaltered attachments show the explicit one-attempt recheck phase, preliminary/incomplete coverage, disabled refresh controls and fixed visible Stop at display-clamped 1024×677 and minimum 900×640, both Light/Dark. All four were independently viewed and are unobscured, readable and unclipped. [Manifest](../visual/directory-stability/manifest.json) records artifact provenance, original attachment names, dimensions and hashes.
+
+| Recheck state | Light | Dark |
+|---|---|---|
+| Initial 1024×677 | [capture](../visual/directory-stability/directory-recheck-initial-Light.png) | [capture](../visual/directory-stability/directory-recheck-initial-Dark.png) |
+| Minimum 900×640 | [capture](../visual/directory-stability/directory-recheck-minimum-Light.png) | [capture](../visual/directory-stability/directory-recheck-minimum-Dark.png) |
+
+These images qualify the displayed recheck/Stop layout at that source revision; actual Stop acknowledgement remains an assertion in the passing public journey. They do not qualify real provider blocking, cloud non-hydration, volume loss, VoiceOver, reference 512 GB hardware or later source revisions.
 
 ## Actual 50,000-file performance delta
 
