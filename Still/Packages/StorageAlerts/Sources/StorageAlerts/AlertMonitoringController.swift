@@ -71,6 +71,12 @@ public struct AlertCapacityReading: Sendable {
         monitoringGeneration = UUID()
         delivery.invalidate()
         pauseMonitoring()
+        // Explicit global Reset must recover cancellation ownership even when monitoring is gated off.
+        // Read before deleting state; an unreadable ownership record must not be silently discarded.
+        if system.allowsNotificationChanges {
+            let savedIdentifiers = try system.load().notificationRequestIdentifiers ?? []
+            policy.notificationRequestIdentifiers = (policy.notificationRequestIdentifiers ?? []).union(savedIdentifiers)
+        }
         removePendingNotifications()
         requested = false; policy = AlertPolicy(); thresholdGB = "40"; persistenceHealthy = true
         try system.reset()
