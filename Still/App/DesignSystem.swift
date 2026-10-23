@@ -407,6 +407,7 @@ struct NativeWindowContract: NSViewRepresentable {
                   let root = try? LocalStateLocation.root(create: false) else { return }
             let fields: [String: String] = [
                 "outer": NSStringFromRect(window.frame),
+                "visibleScreen": NSStringFromRect((window.screen ?? NSScreen.main)?.visibleFrame ?? .zero),
                 "contentRect": NSStringFromRect(window.contentRect(forFrameRect: window.frame)),
                 "contentLayout": NSStringFromRect(window.contentLayoutRect),
                 "contentView": NSStringFromRect(window.contentView?.frame ?? .zero),

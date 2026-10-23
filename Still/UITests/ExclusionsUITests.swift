@@ -23,6 +23,14 @@ final class ExclusionsUITests: XCTestCase {
         XCTAssertTrue(app.buttons["Choose folder…"].waitForExistence(timeout: 5))
         let bounds = app.windows.firstMatch.frame
         geometryProbe(app, root: root, phase: "first-launch")
+        if !minimum {
+            for iteration in 1...6 {
+                app.terminate(); app.launch()
+                XCTAssertTrue(app.buttons["Choose folder…"].waitForExistence(timeout: 5))
+                geometryProbe(app, root: root, phase: "repeat-" + String(iteration))
+                XCTAssertEqual(app.windows.firstMatch.frame, bounds)
+            }
+        }
         app.typeKey("4", modifierFlags: .command)
         app.buttons["manageExclusions"].click()
         XCTAssertTrue(app.staticTexts["No custom exclusions"].waitForExistence(timeout: 3))
