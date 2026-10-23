@@ -96,3 +96,7 @@ See [MILESTONES.md](MILESTONES.md) for the complete scope allocation and gates. 
 - Fixed window bounds, bounded sheets, scroll/focus restoration, keyboard operation and both appearances.
 
 The historical [state matrix](reference/macos-cleaner-ui-state-matrix.md), [layout contract](reference/macos-cleaner-layout-contract.md) and [detailed technical spec](reference/macos-cleaner-technical-spec.md) provide the remaining acceptance branches. Before release, validate iCloud pin/sync detection, browser mappings, filesystem accounting, minimum OS and privacy-manifest requirements against current Apple documentation and real disposable fixtures.
+
+## Native recovery evidence boundary (#12)
+
+Startup recovery reads existing local durable records without mutating cleanup state or inspecting target paths. Pending remains not started; intent/unknown remains unresolved, including when an original is missing. Recorded terminal outcomes remain historical facts. Reading recovery restores no session choices, file permission or approval, and never executes/retries. See [actual crash-boundary evidence](validation/startup-recovery.md).
