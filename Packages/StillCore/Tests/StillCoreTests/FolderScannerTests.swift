@@ -36,6 +36,7 @@ private func disposableTree() throws -> URL {
     try Data(repeating: 3, count: 700).write(to: package.appendingPathComponent("private.bin"))
     let result = try await FolderScanner().scan(root)
     #expect(result.logicalBytes == 100)
+    #expect(result.totalLogicalBytes == nil)
     #expect(result.observations.contains { $0.url.lastPathComponent == "Protected.app" })
     #expect(result.observations.contains { $0.url.lastPathComponent == "same-file.bin" })
     #expect(!result.observations.contains { $0.url.lastPathComponent == "private.bin" || $0.url.lastPathComponent == "outside-secret.bin" })
@@ -90,4 +91,79 @@ private struct MissingSupplement: MetadataSupplementReading {
     try FileManager.default.createDirectory(at: package, withIntermediateDirectories: true)
     try Data([65]).write(to: package.appendingPathComponent("private.bin"))
     await #expect(throws: (any Error).self) { try await FolderScanner().scan(package) }
+}
+
+private struct DeniedMetadata: MetadataSupplementReading {
+    func read(_ url: URL) throws -> MetadataSupplement { throw CocoaError(.fileReadNoPermission) }
+}
+@Test func deniedSubtreeKeepsKnownRowsButNeverClaimsCompleteSize() async throws {
+    let root = try disposableTree()
+    defer { try? FileManager.default.removeItem(at: root) }
+    try Data([1, 2, 3]).write(to: root.appendingPathComponent("available-name.bin"))
+    let result = try await FolderScanner(supplement: DeniedMetadata()).scan(root)
+    #expect(result.observations.count == 1)
+    #expect(result.issues.contains { $0.reason.rawValue == "accessDenied" })
+    #expect(!result.isComplete)
+}
+private final class ControlledAccess: ScanAccessChecking, @unchecked Sendable {
+    private let lock = NSLock()
+    private var failures: [String: ScanAccessFailure] = [:]
+    func fail(_ url: URL, _ failure: ScanAccessFailure?) { lock.withLock { failures[url.path] = failure } }
+    func check(_ url: URL) throws {
+        if let failure = lock.withLock({ failures[url.path] }) { throw failure }
+    }
+}
+@Test func freshDenialHasUnknownTotalsAndContextualRecovery() async throws {
+    let root = try disposableTree()
+    defer { try? FileManager.default.removeItem(at: root) }
+    let access = ControlledAccess(); access.fail(root, .denied)
+    let result = try await FolderScanner(access: access).scan(root)
+    #expect(!result.isComplete)
+    #expect(result.totalLogicalBytes == nil)
+    #expect(result.totalAllocatedBytes == nil)
+    #expect(result.issues.first?.url == root)
+    #expect(result.issues.first?.reason == .accessDenied)
+    #expect(result.issues.first?.recovery.contains("Choose this folder again") == true)
+}
+@Test func revocationAndVolumeLossKeepUnrelatedScopeUsefulUntilExplicitRecheck() async throws {
+    let root = try disposableTree(), other = try disposableTree()
+    defer { try? FileManager.default.removeItem(at: root); try? FileManager.default.removeItem(at: other) }
+    try Data([1, 2, 3]).write(to: root.appendingPathComponent("a.bin"))
+    try Data([4, 5]).write(to: other.appendingPathComponent("b.bin"))
+    let access = ControlledAccess()
+    let session = InspectionSession(scanner: FolderScanner(access: access))
+    let original = try await session.inspect(root)
+    _ = try await session.inspect(other)
+    access.fail(root, .revoked)
+    let revoked = try await session.inspect(root)
+    #expect(revoked.requiresRecheck)
+    #expect(revoked.lastComplete?.observedAt == original.current.observedAt)
+    #expect(revoked.current.totalLogicalBytes == nil)
+    access.fail(root, .unavailable)
+    let absent = try await session.inspect(root)
+    #expect(absent.current.issues.first?.reason == .locationUnavailable)
+    let retained = await session.reports()
+    #expect(retained.first(where: { $0.current.scope == other })?.current.totalLogicalBytes == 2)
+    access.fail(root, nil)
+    let stillStale = await session.reports()
+    #expect(stillStale.first(where: { $0.current.scope == root })?.requiresRecheck == true)
+    let recovered = try await session.inspect(root)
+    #expect(!recovered.requiresRecheck)
+    #expect(recovered.current.totalLogicalBytes == 3)
+}
+private struct RevokedEntry: MetadataSupplementReading {
+    func read(_ url: URL) throws -> MetadataSupplement {
+        if url.lastPathComponent == "revoked.bin" { throw ScanAccessFailure.revoked }
+        return MetadataSupplement(allocatedBytes: 4, locality: .local)
+    }
+}
+@Test func accessRevokedDuringScanLeavesAvailableSiblingInspectable() async throws {
+    let root = try disposableTree()
+    defer { try? FileManager.default.removeItem(at: root) }
+    try Data([1]).write(to: root.appendingPathComponent("good.bin"))
+    try Data([2]).write(to: root.appendingPathComponent("revoked.bin"))
+    let result = try await FolderScanner(supplement: RevokedEntry()).scan(root)
+    #expect(result.observations.contains { $0.url.lastPathComponent == "good.bin" && $0.allocatedBytes == 4 })
+    #expect(result.issues.contains { $0.reason == .accessRevoked })
+    #expect(result.totalLogicalBytes == nil)
 }

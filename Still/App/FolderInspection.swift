@@ -7,11 +7,15 @@ import QuickLook
 @MainActor @Observable
 final class FolderInspection {
     private let scanner = FolderScanner()
+    private let session: InspectionSession
+    init() { session = InspectionSession(scanner: scanner) }
     private var task: Task<Void, Never>?
     private var generation = UUID()
     private var previewAccessScope: URL?
     var scope: URL?
     var result: ScanResult?
+    var lastComplete: ScanResult?
+    var scopeReports: [ScopeReport] = []
     var selected: FileObservation?
     var isScanning = false
     var message: String?
@@ -41,9 +45,13 @@ final class FolderInspection {
             let hasAccess = url.startAccessingSecurityScopedResource()
             defer { if hasAccess { url.stopAccessingSecurityScopedResource() } }
             do {
-                let observed = try await scanner.scan(url)
+                let report = try await session.inspect(url)
+                let observed = report.current
+                let reports = await session.reports()
                 guard !Task.isCancelled, token == generation else { return }
                 result = observed
+                lastComplete = report.lastComplete
+                scopeReports = reports
                 selected = observed.observations.first
                 isScanning = false
             } catch {
@@ -52,6 +60,12 @@ final class FolderInspection {
                 message = error is CancellationError ? "Scan stopped. Choose a folder to try again." : "This folder could not be inspected. Choose the folder again or check access in System Settings."
             }
         }
+    }
+
+    func show(_ report: ScopeReport) {
+        guard !isScanning else { return }
+        scope = report.current.scope; result = report.current; lastComplete = report.lastComplete
+        selected = report.current.observations.first; message = nil
     }
 
     func cancel() { task?.cancel() }
@@ -87,6 +101,17 @@ struct FolderInspectionView: View {
             Button("Back to Overview", systemImage: "chevron.left", action: back)
             Text("Folder inspection").font(.largeTitle.weight(.semibold))
             if let scope = model.scope { Text(scope.path).foregroundStyle(.secondary).textSelection(.enabled) }
+            HStack {
+                Button("Recheck folder") { if let scope = model.scope { model.scan(scope) } }.disabled(model.isScanning)
+                Button("Choose folder again…") { if let url = FolderInspection.chooseFolder() { model.scan(url) } }.disabled(model.isScanning)
+            }
+            if model.scopeReports.count > 1 {
+                Text("Selected locations").font(.headline)
+                ForEach(model.scopeReports, id: \.current.scope) { report in
+                    Button(report.current.scope.lastPathComponent + (report.requiresRecheck ? " · Recheck required" : " · Observed")) { model.show(report) }
+                        .disabled(model.isScanning)
+                }
+            }
             if model.isScanning {
                 ProgressView("Reading file metadata…")
                 Button("Stop scan") { model.cancel() }
@@ -100,16 +125,29 @@ struct FolderInspectionView: View {
                 Text(result.isComplete ? "Scan completed within the selected scope" : "Partial coverage · \(result.issues.count) unreadable or bounded locations")
                     .font(.callout).foregroundStyle(.secondary)
                 VStack(alignment: .leading, spacing: 5) {
-                    Text("Logical file bytes: \(bytes(result.logicalBytes))")
-                    Text("Allocated file bytes: \(bytes(result.allocatedBytes))")
+                    Text("Complete scope logical bytes: \(bytes(result.totalLogicalBytes))")
+                    if (!result.isComplete || result.hasUnmeasuredContents) && !result.observations.isEmpty { Text("Known observed logical subtotal: \(bytes(result.logicalBytes)) · Remaining bytes unknown") }
+                    Text("Complete scope allocated bytes: \(bytes(result.totalAllocatedBytes))")
                     if result.allocatedUnknownCount > 0 { Text("\(result.allocatedUnknownCount) file allocation measurements unknown") }
                     Text("Selected volume capacity: \(bytes(result.volumeCapacityBytes))")
-                    Text("Selected volume available (important usage): \(bytes(result.volumeAvailableBytes))")
+                    Text("Selected volume available (\(result.volumeAvailableMetric)): \(bytes(result.volumeAvailableBytes))")
                 }.font(.callout).monospacedDigit()
                 Text("File totals count hardlinked identities once. Package contents and linked folders are not scanned. Allocations are not exclusive reclaimable space.")
                     .font(.caption).foregroundStyle(.secondary)
                 Divider()
-                if result.observations.isEmpty { Text("No entries observed in this folder.").foregroundStyle(.secondary) }
+                if !result.isComplete {
+                    Text("Uninspected bytes: Unknown · Recheck required before cleanup can be considered.").foregroundStyle(.secondary)
+                    if let previous = model.lastComplete {
+                        Text("Last complete observation: \(previous.observedAt.formatted()) · Historical, not current coverage.").font(.caption).foregroundStyle(.secondary)
+                    } else { Text("No previous complete observation for this location.").font(.caption).foregroundStyle(.secondary) }
+                    ForEach(Array(result.issues.enumerated()), id: \.offset) { _, issue in
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(issue.url.path).textSelection(.enabled)
+                            Text(issue.reason.rawValue + " · " + issue.recovery).font(.caption).foregroundStyle(.secondary)
+                        }
+                    }
+                }
+                if result.observations.isEmpty { Text(result.isComplete ? "No entries observed in this folder." : "No readable entries observed; this is not an empty-folder result.").foregroundStyle(.secondary) }
                 LazyVStack(spacing: 0) {
                     ForEach(result.observations) { item in
                         Button { model.selected = item } label: {
