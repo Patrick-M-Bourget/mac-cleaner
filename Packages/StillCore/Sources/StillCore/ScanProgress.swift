@@ -1,6 +1,7 @@
 import Foundation
 
 /// Preliminary observations never authorize cleanup or represent complete coverage.
+public enum ScanPhase: String, Sendable { case enumerating, rechecking, checkingDirectories }
 public struct ScanProgress: Sendable {
     public let scope: URL
     public let visitedEntries: Int
@@ -8,6 +9,7 @@ public struct ScanProgress: Sendable {
     public let knownLogicalSubtotal: Int64
     public let recentObservations: [FileObservation]
     public let elapsed: TimeInterval
+    public let phase: ScanPhase
     public var isComplete: Bool { false }
 }
 
