@@ -174,7 +174,7 @@ private struct WorkspaceView: View {
                         }
                     }.padding(StillDesign.Space.page).frame(maxWidth: .infinity, alignment: .leading)
                 }
-                .safeAreaInset(edge: .bottom, spacing: 0) {
+                Group {
                     if exclusionsVisible {
                         ActionStrip(message: "Custom rules change scan coverage; original files stay unchanged.") {
                             Button("Back to Locations & access") { exclusionsVisible = false; destination = .locations }.disabled(ExclusionsModel.shared.editingBlocked)
