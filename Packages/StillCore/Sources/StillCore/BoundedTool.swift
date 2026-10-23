@@ -4,7 +4,7 @@ import Darwin
 public enum ToolPreviewError: Error { case unavailable, timeout, outputLimit, failed, invalidOutput }
 /// Synchronous blocking system boundary. Call from a bounded background worker, never MainActor.
 public enum BoundedTool {
-    public static func run(executable: URL, arguments: [String], timeout: TimeInterval = 5, outputLimit: Int = 65_536) throws -> String {
+    public static func run(executable: URL, arguments: [String], timeout: TimeInterval = 5, outputLimit: Int = 65_536, environment: [String: String]? = nil) throws -> String {
         guard executable.isFileURL, executable.path.hasPrefix("/"), timeout > 0, outputLimit > 0,
               FileManager.default.isExecutableFile(atPath: executable.path) else { throw ToolPreviewError.unavailable }
         let process = Process()
@@ -13,7 +13,7 @@ public enum BoundedTool {
         process.arguments = arguments
         process.standardInput = FileHandle.nullDevice
         process.standardOutput = pipe; process.standardError = pipe
-        process.environment = ["PATH": "/usr/bin:/bin:/usr/sbin:/sbin", "HOME": NSHomeDirectory(), "LANG": "C", "LC_ALL": "C", "HOMEBREW_NO_AUTO_UPDATE": "1", "HOMEBREW_NO_ANALYTICS": "1", "HOMEBREW_NO_BOOTSNAP": "1", "HOMEBREW_NO_INSTALL_CLEANUP": "1", "HOMEBREW_NO_AUTOREMOVE": "1", "HOMEBREW_NO_SUDO": "1"]
+        process.environment = environment ?? ["PATH": "/usr/bin:/bin:/usr/sbin:/sbin", "HOME": NSHomeDirectory(), "LANG": "C", "LC_ALL": "C", "HOMEBREW_NO_AUTO_UPDATE": "1", "HOMEBREW_NO_ANALYTICS": "1", "HOMEBREW_NO_BOOTSNAP": "1", "HOMEBREW_NO_INSTALL_CLEANUP": "1", "HOMEBREW_NO_AUTOREMOVE": "1", "HOMEBREW_NO_SUDO": "1"]
         try process.run()
         try? pipe.fileHandleForWriting.close()
         defer {

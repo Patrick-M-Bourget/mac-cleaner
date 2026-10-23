@@ -20,6 +20,8 @@ import Combine
 @MainActor final class AppLifecycleController: ObservableObject {
     static let shared = AppLifecycleController()
     let alerts = StorageAlertsController()
+    let selection = SessionPlan()
+    lazy var inspection = FolderInspection(selection: selection)
     var openWorkspace: (() -> Void)?
     @Published private(set) var loginIntent: Bool
     @Published private(set) var loginStatus: LoginStatus
@@ -76,9 +78,14 @@ import Combine
             AppLifecycleController.shared.alerts.stopForTermination()
             return .terminateCancel
         }
+        AppLifecycleController.shared.selection.endSession()
         AppLifecycleController.shared.isTerminating = true
         AppLifecycleController.shared.alerts.stopForTermination()
         return .terminateNow
+    }
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        if !flag { AppLifecycleController.shared.openWorkspace?() }
+        return true
     }
     func applicationDidBecomeActive(_ notification: Notification) { AppLifecycleController.shared.refreshLogin() }
 }
