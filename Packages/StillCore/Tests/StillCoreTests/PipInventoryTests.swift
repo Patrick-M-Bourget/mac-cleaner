@@ -61,3 +61,9 @@ private func ownedSnapshot(_ root: URL) throws -> [String: Data] {
     }
     return snapshot
 }
+
+@Test func unavailableSelectedInterpreterHasGuidanceBoundaryWithoutExecution() {
+    #expect(throws: (any Error).self) {
+        try PipInventoryInspector.inspectSelected(python: URL(fileURLWithPath: "/missing/python"), cache: URL(fileURLWithPath: "/missing/cache"))
+    }
+}

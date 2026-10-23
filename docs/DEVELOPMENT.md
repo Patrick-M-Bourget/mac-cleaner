@@ -98,3 +98,7 @@ The session retains independently selected locations and their last completed ob
 Selected-volume availability records Important usage versus Available capacity fallback versus Unavailable, matching the alert adapter's metric distinction. It does not silently label a fallback reading as important-use capacity. The selected scope's volume can differ from the startup volume monitored by alerts; these are not interchangeable readings.
 
 The native UI regression selects a newly created temporary folder, removes only that owned fixture, and explicitly rechecks to verify unknown coverage, retained observation time, recovery controls and fixed window bounds. It does not revoke any actual OS grants or unmount volumes. CI also runs existing alert/lifecycle policy tests and isolated iCloud/Xcode/Chrome/Safari fixture packages without enabling real notifications or mutating personal application data.
+
+## Future pip inventory (#24)
+
+With `--future-milestones`, Overview offers **Review pip cache opportunities**. Interpreter/cache selection is explicit, with useful unsupported guidance and no tool invocation for unqualified installations. A recorded reference demonstrates the genuine disposable pip 21.2.4 inventory evidence without probing the user's cache. See [qualification and reproduction](validation/pip-inventory.md); actual tests provision only an owned temporary venv through bundled ensurepip without network/global installation. Ordinary inventory never provisions packages or enables cleanup.

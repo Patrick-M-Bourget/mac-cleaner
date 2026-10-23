@@ -16,6 +16,7 @@ public struct PipInventory: Sendable {
         let lines = cacheInfo.split(separator: "\n").map(String.init)
         guard lines.count == 6, lines[0] == "Package index page cache location: " + configuredCache + "/http",
               lines[1].hasPrefix("Package index page cache size: "), lines[2].hasPrefix("Number of HTTP files: "),
+              let httpCount = Int(lines[2].dropFirst("Number of HTTP files: ".count)), httpCount >= 0,
               lines[3] == "Wheels location: " + configuredCache + "/wheels", lines[4].hasPrefix("Wheels size: "),
               lines[5].hasPrefix("Number of wheels: "), let count = Int(lines[5].dropFirst("Number of wheels: ".count)), count >= 0 else { return unavailable() }
         let wheels = wheelList.split(separator: "\n").map(String.init)
