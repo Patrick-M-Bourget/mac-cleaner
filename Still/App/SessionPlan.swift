@@ -119,7 +119,7 @@ struct LiveCleanupPlanView: View {
     @State private var search = ""
     @State private var review: CleanupReview?
     @State private var approvalError: String?
-    @FocusState private var reviewFocused: Bool
+    @State private var reviewFocusRequest = 0
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
             Text("Cleanup plan").font(.largeTitle.weight(.semibold))
@@ -131,9 +131,9 @@ struct LiveCleanupPlanView: View {
                 .fixedSize(horizontal: true, vertical: false).frame(height: 26)
             if selection.isPreparing { ProgressView("Checking exact Downloads targets…") }
             if let approved = selection.approvedBatch { Text("Approved batch: \(approved.targets.count) files · No files moved.").foregroundStyle(.secondary) }
-            Button("Review cleanup") {
+            ReviewCleanupButton(enabled: selection.canReview, focusRequest: reviewFocusRequest) {
                 do { review = try selection.review(); approvalError = nil } catch { approvalError = "Recheck the selected targets before reviewing." }
-            }.disabled(!selection.canReview).focused($reviewFocused)
+            }.fixedSize()
             if let approvalError { Text(approvalError).foregroundStyle(.secondary) }
             TextField("Search Downloads items", text: $search)
             LazyVStack(alignment: .leading, spacing: 12) {
@@ -159,7 +159,7 @@ struct LiveCleanupPlanView: View {
             Text("Hidden search results keep their selections. Hardlink aliases are separate exact paths; their storage bytes count once.").font(.caption).foregroundStyle(.secondary)
 
         }
-        .sheet(item: $review, onDismiss: { reviewFocused = true }) { snapshot in
+        .sheet(item: $review, onDismiss: { reviewFocusRequest += 1 }) { snapshot in
             CleanupConfirmationView(review: snapshot, cancel: { review = nil }) {
                 do { try selection.approve(snapshot); review = nil }
                 catch { approvalError = "The plan changed. Review the latest exact targets before approving."; review = nil }
@@ -228,5 +228,46 @@ private struct CleanupConfirmationView: View {
             Divider()
             HStack { Button("Cancel", action: cancel).keyboardShortcut(.cancelAction); Spacer(); Button("Approve Move to Trash", action: approve).buttonStyle(.borderedProminent) }
         }.padding(24).frame(width: 640, height: 520)
+    }
+}
+
+
+/// Native first-responder restoration is explicit and one-shot after a sheet closes.
+private struct ReviewCleanupButton: NSViewRepresentable {
+    let enabled: Bool
+    let focusRequest: Int
+    let action: () -> Void
+    func makeCoordinator() -> Coordinator { Coordinator(action) }
+    func makeNSView(context: Context) -> FocusButton {
+        let view = FocusButton(title: "Review cleanup", target: context.coordinator, action: #selector(Coordinator.clicked))
+        view.bezelStyle = .rounded
+        view.setAccessibilityLabel("Review cleanup")
+        return view
+    }
+    func sizeThatFits(_ proposal: ProposedViewSize, nsView: FocusButton, context: Context) -> CGSize? { nsView.intrinsicContentSize }
+    func updateNSView(_ view: FocusButton, context: Context) {
+        view.isEnabled = enabled
+        context.coordinator.action = action
+        if context.coordinator.appliedFocusRequest != focusRequest {
+            context.coordinator.appliedFocusRequest = focusRequest
+            DispatchQueue.main.async { [weak view] in
+                guard let view, view.window?.attachedSheet == nil else { return }
+                view.window?.makeFirstResponder(view)
+            }
+        }
+    }
+    @MainActor final class Coordinator: NSObject {
+        var action: () -> Void
+        var appliedFocusRequest = 0
+        init(_ action: @escaping () -> Void) { self.action = action }
+        @objc func clicked() { action() }
+    }
+    @MainActor final class FocusButton: NSButton {
+        override var acceptsFirstResponder: Bool { true }
+        override func keyDown(with event: NSEvent) {
+            if [" ", "\r"].contains(event.charactersIgnoringModifiers ?? ""), event.modifierFlags.intersection([.command, .control, .option]).isEmpty {
+                performClick(nil)
+            } else { super.keyDown(with: event) }
+        }
     }
 }

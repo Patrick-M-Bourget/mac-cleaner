@@ -129,3 +129,7 @@ The execution ticket must consume approval and revalidate target evidence. `Sess
 ## Future Docker storage (#33)
 
 `--future-milestones` exposes a secondary **Review Docker storage** route from Overview. Explicit selected-file metadata distinguishes logical image-file length, optional host allocation and unknown VM capacity/ownership. CLI/runtime inspection remains unsupported and unexecuted pending genuine disposable qualification. The synthetic report marks persistent volumes and offers no mutation. See [evidence and gates](validation/docker-inventory.md). No default Docker path/socket/context is searched.
+
+### #8 checkpoint validation status
+
+The focused native journey verified category bulk selection, mixed refinement, bounded confirmation geometry and Cancel preserving choices. It exposed unreliable keyboard focus restoration. A one-shot AppKit first-responder bridge now compiles, but its verification attempt ended with the UI runner killed during launch before reaching the control. Final approval/focus assertions are not yet qualified. Feature work is checkpointed for the design-system-first migration; do not treat this branch as completed #8 or enable execution from it.
