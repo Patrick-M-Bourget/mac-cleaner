@@ -46,7 +46,13 @@ struct StillApp: App {
                 Button("Show Still") { lifecycle.openWorkspace?() }
             }
         }
-        MenuBarExtra("Still storage alerts", systemImage: "internaldrive", isInserted: Binding(get: { StorageAlertsController.futureEnabled && alerts.effectiveMonitoring }, set: { inserted in if !inserted { Task { await alerts.setEnabled(false) } } })) {
+        MenuBarExtra("Still storage alerts", systemImage: "internaldrive", isInserted: Binding(get: { StorageAlertsController.futureEnabled && alerts.effectiveMonitoring }, set: { inserted in
+            // SwiftUI can echo false while the extra is initially hidden or authorization is pending.
+            // Only removal of effective monitoring is a user opt-out.
+            if !inserted && alerts.requested && alerts.effectiveMonitoring {
+                Task { await alerts.setEnabled(false) }
+            }
+        })) {
             StillStatusMenu(alerts: lifecycle.alerts)
         }
     }

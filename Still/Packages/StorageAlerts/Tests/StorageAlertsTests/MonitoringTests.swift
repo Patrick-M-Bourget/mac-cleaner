@@ -28,6 +28,13 @@ import StorageAlerts
         }
         return .allowed
     }
+    func afterAbruptProcessExit() -> ControlledAlertSystem {
+        pollers.removeAll()
+        let restarted = ControlledAlertSystem()
+        restarted.saved = saved; restarted.pendingNotifications = pendingNotifications
+        restarted.now = now; restarted.reading = reading; restarted.notifications = notifications
+        return restarted
+    }
     func requestAuthorization() async throws -> Bool { permissionRequests += 1; return true }
     func capacity() -> AlertCapacityReading { reading }
     func load() throws -> AlertPolicy {
@@ -149,13 +156,15 @@ import StorageAlerts
 }
 
 @Test(arguments: [false, true]) @MainActor func restartRetainsOwnershipForOptOutAndReset(reset: Bool) async throws {
-    let system = ControlledAlertSystem()
+    var system = ControlledAlertSystem()
     let original = AlertMonitoringController(system: system)
     original.configure()
     await original.setEnabled(true)
     #expect(system.pendingNotifications.count == 1)
-    original.stopForTermination()
-    // The OS retains pending state while a new process reloads the saved preferences.
+    // Simulate abrupt process exit: the OS stops its timers but retains accepted pending work.
+    // Calling graceful stopForTermination here would itself cancel the pending request.
+    system = system.afterAbruptProcessExit()
+    #expect(system.pendingNotifications.count == 1)
     let restarted = AlertMonitoringController(system: system)
     if reset { try restarted.resetPreferences() }
     else { await restarted.setEnabled(false) }
@@ -218,13 +227,35 @@ import StorageAlerts
     await alerts.setEnabled(false)
 }
 
-@Test @MainActor func resetWhileFeatureHiddenRemovesPriorProcessOwnedRequestWithoutStartingMonitoring() async throws {
+@Test @MainActor func acceptedQuitCancelsUnfinishedNotificationWithoutReplayingEpisode() async {
     let system = ControlledAlertSystem()
+    let alerts = AlertMonitoringController(system: system)
+    alerts.configure()
+    system.holdNextSubmission = true
+    let enabling = Task { await alerts.setEnabled(true) }
+    var began = system.submissionBegan.stream.makeAsyncIterator(); _ = await began.next()
+    alerts.stopForTermination()
+    system.heldSubmission?.resume(); system.heldSubmission = nil
+    await enabling.value
+    #expect(system.pendingNotifications.isEmpty)
+    #expect(!alerts.effectiveMonitoring)
+    #expect(system.pollers.isEmpty)
+    #expect(system.saved.enabled)
+    let restarted = AlertMonitoringController(system: system)
+    restarted.configure()
+    system.now.addTimeInterval(900)
+    await restarted.activated()
+    #expect(system.notifications == 1) // Uncertain/accepted old submission does not replay.
+    await restarted.setEnabled(false)
+}
+
+@Test @MainActor func resetWhileFeatureHiddenRemovesPriorProcessOwnedRequestWithoutStartingMonitoring() async throws {
+    var system = ControlledAlertSystem()
     let original = AlertMonitoringController(system: system)
     original.configure()
     await original.setEnabled(true)
     #expect(system.pendingNotifications.count == 1)
-    original.stopForTermination()
+    system = system.afterAbruptProcessExit() // Abrupt exit retains prior-process pending requests.
     system.pendingNotifications["unrelated"] = system.now
     system.available = false
     let restarted = AlertMonitoringController(system: system)
@@ -239,12 +270,12 @@ import StorageAlerts
 }
 
 @Test @MainActor func hiddenFeatureResetWithUnreadableOwnershipPreservesAuthorityForRetry() async throws {
-    let system = ControlledAlertSystem()
+    var system = ControlledAlertSystem()
     let original = AlertMonitoringController(system: system)
     original.configure()
     await original.setEnabled(true)
     let ownedIdentifiers = system.saved.notificationRequestIdentifiers
-    original.stopForTermination()
+    system = system.afterAbruptProcessExit() // Abrupt exit retains prior-process pending requests.
     system.available = false
     system.stateUnreadable = true
     let restarted = AlertMonitoringController(system: system)
