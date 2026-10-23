@@ -139,7 +139,7 @@ A live unexecuted selection belongs to the app process. Closing the workspace wi
 
 Cleanup plan exposes the Downloads category as a native unchecked/mixed/checked checkbox with the current eligible file count and logical bytes. Mixed → Select all materializes exact current entries; later discoveries remain unchecked. Selected for Trash and its retained-space consequence precede review. The fixed confirmation sheet scrolls its expandable exact relative-path list while Cancel and final approval remain visible. Cancel restores the existing choices and focus to Review cleanup. Changes to selection or scan generation invalidate the old review. Final approval freezes a separate exact batch; it does not imply that a filesystem operation succeeded.
 
-The native Downloads confirmation's final **Move to Trash** action now starts the approved exact batch. Results use shared presentation primitives, distinguish planned logical/Trash-held allocated estimates from independently observed capacity change, and offer Reveal in Trash only for known successes with actual returned locations. Starting consumes choices; another plan requires a fresh scan. Unknown outcomes never auto-repeat. #9 qualification is recorded in `validation/downloads-executor.md`; completed history remains separately gated; startup recovery is described below.
+The native Downloads confirmation's final **Move to Trash** action now starts the approved exact batch. Results use shared presentation primitives, distinguish planned logical/Trash-held allocated estimates from independently observed capacity change, and offer Reveal in Trash only for known successes with actual returned locations. Starting consumes choices; another plan requires a fresh scan. Unknown outcomes never auto-repeat. #9 qualification is recorded in `validation/downloads-executor.md`; completed history uses fresh-read maintenance (#13), with final native clear/reset and unobscured visual qualification still pending; startup recovery is described below.
 
 ### Implemented refresh states
 
@@ -158,3 +158,7 @@ Future-gated What grew preserves existing shortcuts and adds Command-6. The fixe
 ### Directory instability during scanning
 
 Existing scan progress names the single bounded recheck when directory evidence changes. Its subtotal may restart because inconsistent attempts are not combined; cumulative inspected-work count and elapsed time remain meaningful. Stop stays in the shared fixed action strip. Repeated instability or budget exhaustion shows partial/unknown coverage with the existing explicit Recheck folder route. Pending plan choices remain Refresh required until a complete compatible recheck. See [validation](validation/directory-stability.md).
+
+### Completed-history implementation (#13)
+
+History presents completed runs using shared summaries with expandable per-file results. Planned logical/Trash-held allocation estimates and independently saved capacity change stay distinct; legacy missing measurements remain Unknown. Local-data controls use native consequence-specific confirmations. Unfinished runs remain outside completed history, survive Clear/retention, block Reset and link to fresh read-only recovery. Reset does not restore or retry a plan. See [history/reset evidence and remaining native gates](validation/history-reset.md).

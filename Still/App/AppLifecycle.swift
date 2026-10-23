@@ -32,7 +32,9 @@ import StillCore
         didSet { if !operationInProgress, quitPending { NSApp.terminate(nil) } }
     }
     @Published var hasPendingPlan = false
-    @Published var maintenanceInProgress = false
+    @Published var maintenanceInProgress = false {
+        didSet { if !maintenanceInProgress, quitPending, !operationInProgress { NSApp.terminate(nil) } }
+    }
     var quitPending = false
     var isTerminating = false
     private var monitoringSubscription: AnyCancellable?
@@ -73,7 +75,7 @@ import StillCore
         // Finish the current preference/journal update before an off transition terminates.
         DispatchQueue.main.async { [weak self] in
             guard let self, !self.quitPending, !self.isTerminating,
-                  !self.alerts.effectiveMonitoring, !self.operationInProgress, !self.hasPendingPlan,
+                  !self.alerts.effectiveMonitoring, !self.operationInProgress, !self.maintenanceInProgress, !self.hasPendingPlan,
                   !NSApp.windows.contains(where: { $0.isVisible && $0.canBecomeMain }) else { return }
             NSApp.terminate(nil)
         }
@@ -83,9 +85,13 @@ import StillCore
 @MainActor final class StillApplicationDelegate: NSObject, NSApplicationDelegate {
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
         let lifecycle = AppLifecycleController.shared
-        return !AppLifecyclePolicy.shouldKeepRunning(effectiveAlerts: lifecycle.alerts.effectiveMonitoring, operationInProgress: lifecycle.operationInProgress, hasPendingPlan: lifecycle.hasPendingPlan)
+        return !AppLifecyclePolicy.shouldKeepRunning(effectiveAlerts: lifecycle.alerts.effectiveMonitoring, operationInProgress: lifecycle.operationInProgress || lifecycle.maintenanceInProgress, hasPendingPlan: lifecycle.hasPendingPlan)
     }
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        if AppLifecycleController.shared.maintenanceInProgress {
+            AppLifecycleController.shared.quitPending = true
+            return .terminateCancel
+        }
         // Future executor must report its safe-operation boundary before requesting termination again.
         guard AppLifecyclePolicy.mayQuit(operationInProgress: AppLifecycleController.shared.operationInProgress) else {
             AppLifecycleController.shared.quitPending = true
