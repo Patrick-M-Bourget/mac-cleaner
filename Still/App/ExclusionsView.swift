@@ -11,9 +11,9 @@ import StillCore
     var preview: ExclusionRule?
     #if DEBUG
     private(set) var diagnostic = ""
-    private func probe(_ phase: String, panel: NSOpenPanel) {
+    private func probe(_ phase: String, panel: NSOpenPanel? = nil) {
         guard ProcessInfo.processInfo.environment["STILL_EXCLUSIONS_DIAGNOSTICS"] == "1" else { return }
-        diagnostic = "[DEBUG-exclusions-modal-31] phase=\(phase) panelVisible=\(panel.isVisible) modalIsPicker=\(NSApp.modalWindow === panel) modalPresent=\(NSApp.modalWindow != nil) busy=\(busy) maintenance=\(AppLifecycleController.shared.maintenanceInProgress) executing=\(AppLifecycleController.shared.selection.execution.isRunning) editingBlocked=\(editingBlocked)"
+        diagnostic = "[DEBUG-exclusions-modal-31] phase=\(phase) panelVisible=\(panel?.isVisible == true) modalIsPicker=\(panel != nil && NSApp.modalWindow === panel) modalPresent=\(NSApp.modalWindow != nil) busy=\(busy) maintenance=\(AppLifecycleController.shared.maintenanceInProgress) executing=\(AppLifecycleController.shared.selection.execution.isRunning) editingBlocked=\(editingBlocked)"
     }
     #endif
     private func open() throws -> ExclusionStore {
@@ -39,22 +39,25 @@ import StillCore
     var editingBlocked: Bool {
         busy || AppLifecycleController.shared.maintenanceInProgress || AppLifecycleController.shared.selection.execution.isRunning
     }
-    func choose() async {
-        guard !editingBlocked else { return }
+    private func chooseLocation() -> URL? {
         let panel = NSOpenPanel()
         panel.canChooseFiles = true; panel.canChooseDirectories = true; panel.allowsMultipleSelection = false
         panel.prompt = "Preview exclusion"
         panel.message = "Choose an exact file or folder. Review the rule before saving; no file will be changed."
-        guard panel.runModal() == .OK, let url = panel.url else { return }
+        guard panel.runModal() == .OK, let url = panel.url else { return nil }
         #if DEBUG
         probe("picker-returned", panel: panel)
         #endif
+        return url
+    }
+    func choose() async {
+        guard !editingBlocked, let url = chooseLocation() else { return }
         let access = url.startAccessingSecurityScopedResource()
         defer { if access { url.stopAccessingSecurityScopedResource() } }
         do {
             let captured = try await Task.detached { try ExclusionRule.capture(url) }.value
             #if DEBUG
-            probe("metadata-returned", panel: panel)
+            probe("metadata-returned")
             #endif
             preview = captured; error = nil
         }
