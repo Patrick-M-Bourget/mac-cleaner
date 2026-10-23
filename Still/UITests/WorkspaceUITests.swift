@@ -166,12 +166,14 @@ final class WorkspaceUITests: XCTestCase {
             let search = app.textFields["Search inspected files"]
             revealScrollElement(app, control: search, label: "Search inspected files")
             search.click(); search.typeKey("a", modifierFlags: .command); search.typeText("new-download.txt")
-            XCTAssertTrue(app.staticTexts["new-download.txt"].waitForExistence(timeout: 5))
+            let discoveredDownload = app.checkBoxes["Select new-download.txt"]
+            XCTAssertTrue(discoveredDownload.waitForExistence(timeout: 5))
+            XCTAssertEqual(discoveredDownload.value as? String, "0")
             search.typeKey("a", modifierFlags: .command); search.typeKey(.delete, modifierFlags: [])
             XCTAssertTrue(selectedOne().exists)
             revealOverviewControl(app, label: other.lastPathComponent + " · Observed")
             app.buttons[other.lastPathComponent + " · Observed"].click()
-            XCTAssertTrue(app.staticTexts["new-browse.txt"].waitForExistence(timeout: 5))
+            XCTAssertTrue(app.buttons["Inspect new-browse.txt"].waitForExistence(timeout: 5))
             XCTAssertFalse(app.checkBoxes.matching(NSPredicate(format: "label CONTAINS %@", "new-browse.txt")).firstMatch.exists)
             try manager.createDirectory(at: denied, withIntermediateDirectories: false)
             try Data([9]).write(to: denied.appendingPathComponent("not-readable.txt"))
