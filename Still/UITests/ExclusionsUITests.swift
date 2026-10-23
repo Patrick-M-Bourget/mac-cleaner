@@ -25,6 +25,7 @@ final class ExclusionsUITests: XCTestCase {
         app.typeKey("4", modifierFlags: .command)
         app.buttons["manageExclusions"].click()
         XCTAssertTrue(app.staticTexts["No custom exclusions"].waitForExistence(timeout: 3))
+        print("[DEBUG-exclusions-modal-31] baseline appState=\(app.state.rawValue) appEnabled=\(app.isEnabled) windowEnabled=\(app.windows.firstMatch.isEnabled) chooseEnabled=\(app.buttons["chooseExclusion"].isEnabled) chooseHittable=\(app.buttons["chooseExclusion"].isHittable)")
         app.buttons["chooseExclusion"].click()
         app.typeKey("g", modifierFlags: [.command, .shift])
         let path = app.textFields.firstMatch
@@ -35,7 +36,7 @@ final class ExclusionsUITests: XCTestCase {
         let save = app.buttons["Save exclusion"]
         if !save.isHittable { app.scrollViews.firstMatch.scroll(byDeltaX: 0, deltaY: -300) }
         let probe = app.staticTexts["exclusionModalProbe"]
-        let state = "[DEBUG-exclusions-modal-31] appEnabled=\(app.isEnabled) windowEnabled=\(app.windows.firstMatch.isEnabled) saveEnabled=\(save.isEnabled) saveHittable=\(save.isHittable) saveFrame=\(save.frame) windowFrame=\(app.windows.firstMatch.frame) dialogs=\(app.dialogs.count) model=\(probe.exists ? (probe.value as? String ?? probe.label) : "missing")"
+        let state = "[DEBUG-exclusions-modal-31] appState=\(app.state.rawValue) backHittable=\(app.buttons["Back to Locations & access"].isHittable) cancelHittable=\(app.buttons["Cancel"].isHittable) sidebarHittable=\(app.buttons["Locations & access"].isHittable) appEnabled=\(app.isEnabled) windowEnabled=\(app.windows.firstMatch.isEnabled) saveEnabled=\(save.isEnabled) saveHittable=\(save.isHittable) saveFrame=\(save.frame) windowFrame=\(app.windows.firstMatch.frame) dialogs=\(app.dialogs.count) model=\(probe.exists ? (probe.value as? String ?? probe.label) : "missing")"
         let stateAttachment = XCTAttachment(string: state + "\n" + app.debugDescription); stateAttachment.name = "DEBUG-exclusions-modal-31-state"; stateAttachment.lifetime = .keepAlways; add(stateAttachment)
         let screenshot = XCTAttachment(screenshot: app.windows.firstMatch.screenshot()); screenshot.name = "DEBUG-exclusions-modal-31-preview"; screenshot.lifetime = .keepAlways; add(screenshot)
         print(state)
