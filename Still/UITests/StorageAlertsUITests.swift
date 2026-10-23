@@ -64,4 +64,22 @@ final class StorageAlertsUITests: XCTestCase {
         app.buttons["Back to Overview"].click()
         XCTAssertTrue(app.buttons["Choose folder…"].exists)
     }
+
+    @MainActor func testFutureDockerReportKeepsHostCapacityAndPersistentDataDistinct() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--future-milestones"]
+        app.launch()
+        XCTAssertTrue(app.buttons["Review Docker storage"].waitForExistence(timeout: 10))
+        let bounds = app.windows.firstMatch.frame
+        app.buttons["Review Docker storage"].click()
+        XCTAssertTrue(app.staticTexts["VM virtual capacity: Unknown"].exists)
+        XCTAssertTrue(app.staticTexts["Host allocated bytes: Unknown"].exists)
+        XCTAssertFalse(app.buttons["Inspect selected Docker"].isEnabled)
+        app.buttons["Show synthetic Docker report"].click()
+        XCTAssertTrue(app.staticTexts["Synthetic daemon report"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Local Volumes · Persistent application data"].exists)
+        XCTAssertEqual(app.windows.firstMatch.frame, bounds)
+        app.buttons["Back to Overview"].click()
+        XCTAssertTrue(app.buttons["Choose folder…"].exists)
+    }
 }

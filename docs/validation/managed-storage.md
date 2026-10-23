@@ -1,0 +1,23 @@
+# App-managed storage inventory and guidance
+
+Issue #31 · M6 development capability · October 22, 2026.
+
+Launch with `--future-milestones`, then choose **Review app-managed storage** from Overview. The feature is a secondary view with one Back route. It adds no sidebar destination and is hidden in the personal-build navigation.
+
+Nothing inspects personal managed storage automatically. Each row starts Not inspected; System-managed storage starts Not independently estimated. A native picker is the only measurement entry point. A positively regular selected file may report measured allocated bytes, including measured zero; a missing measurement stays Unknown. An inaccessible/missing location stays Access unavailable. Managed directories, library packages and symlinks remain uninspected and are never traversed, so their recursive size is unknown. A selected file's allocation is explicitly a selected-object subtotal, not complete app/server usage or exclusive reclaimable space. These inventory observations are separate from cleanup observations and never enter PlanDraft or release estimates.
+
+Owner applications are launched only after an explicit button through documented [NSWorkspace app lookup](https://developer.apple.com/documentation/appkit/nsworkspace/urlforapplication(withbundleidentifier:)) and [app launch](https://developer.apple.com/documentation/appkit/nsworkspace/openapplication(at:configuration:completionhandler:)). Missing/failed apps retain readable instructions and an Apple Support link. No private preference-pane URL, Automation, Accessibility access or scripted menu action is used. Installed system-app bundle identifiers were inspected on the local test host; Messages uses `com.apple.MobileSMS` there, with a legacy `com.apple.iChat` lookup fallback. This is not supported-OS qualification.
+
+## Native management routes
+
+- **Device backups:** Finder → select a connected device → General → Manage Backups. Finder offers Delete, Archive and Show in Finder. Delete cannot be recovered there; Archive preserves a backup against replacement by later backups. Still does not edit/delete backup internals. [Apple backup management](https://support.apple.com/en-ca/108809).
+- **Photos:** Photos → Settings → iCloud → Optimize Mac Storage is the owner-app optimization route. With iCloud Photos, deleting/editing library content propagates across devices; local optimization must not be represented as original deletion. Still does not traverse a library package. [Apple iCloud Photos](https://support.apple.com/en-ca/guide/photos/phtf5e48489c/mac).
+- **Mail:** View → Sort By → Size helps review large messages. Mailbox → Erase Deleted Items permanently removes discarded mail. Message → Remove Attachments can delete IMAP attachments from the server; it is not local-cache cleanup. [Apple Mail storage guidance](https://support.apple.com/guide/mail/delete-emails-and-manage-storage-mlhlp1001/mac).
+- **Messages:** Select a conversation and open contact/group information to review attachments; View → Recently Deleted manages removed items. With Messages in iCloud, deletion affects other enabled devices, not recipients' copies. Retention settings can remove old conversations automatically. [Apple Messages deletion/recovery](https://support.apple.com/guide/messages/delete-messages-and-conversations-icht1035/mac).
+- **System-managed storage:** System Settings → General → Storage. Apple manages System Data as a variable category, so Still does not reconstruct it by subtracting known files from capacity. Time Machine local snapshots are managed automatically and counted as available space; their size is not additional guaranteed savings. [Apple Storage settings](https://support.apple.com/guide/mac-help/mchl3d437fbc/mac), [local snapshots](https://support.apple.com/en-ca/102154).
+
+## Validation boundary
+
+Public-boundary tests cover measured/zero/uninspected/not-estimated states, failed access without invented zero, unchanged disposable Photos-library/backup-directory sentinels, and unavailable owner-app launch through an external fake. The native UI journey exercises gated Overview → Photos guidance → system-managed state → Back, with unchanged outer bounds. It opens no real owner app, picker or personal library. No OS grants are changed.
+
+Runtime package/container enumeration is intentionally unsupported. Full category measurement requires an independently validated non-invasive metadata contract; current unknown states are deliberate. Native owner-app launching and exact menu paths require signed/manual validation on the supported OS matrix before M6 ships. This view does not qualify cloud deletion, server-side deletion or backup recovery.

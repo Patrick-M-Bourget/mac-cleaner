@@ -71,7 +71,10 @@ private struct WorkspaceView: View {
     @State private var selection = AppLifecycleController.shared.selection
     @State private var nativeInspectionVisible = false
     @State private var homebrewVisible = false
+    @State private var managedStorageVisible = false
+    @State private var managedStorage = ManagedStorageModel()
     @State private var pipVisible = false
+    @State private var dockerVisible = false
 
     var body: some View {
         HStack(spacing: 0) {
@@ -92,14 +95,18 @@ private struct WorkspaceView: View {
             Divider()
             VStack(alignment: .leading, spacing: 0) {
                 HStack {
-                    Label(folderInspection.scope == nil ? "Synthetic data — no personal files accessed" : "Read-only metadata · explicitly selected folder", systemImage: folderInspection.scope == nil ? "testtube.2" : "folder")
+                    Label(managedStorageVisible ? "App-managed inventory · selected objects only" : folderInspection.scope == nil ? "Synthetic data — no personal files accessed" : "Read-only metadata · explicitly selected folder", systemImage: folderInspection.scope == nil ? "testtube.2" : "folder")
                         .font(.caption).foregroundStyle(.secondary)
                     Spacer()
                 }.padding(16)
                 Divider()
                 ScrollView {
                     VStack(alignment: .leading, spacing: 24) {
-                        if pipVisible {
+                        if managedStorageVisible {
+                            ManagedStorageView(model: managedStorage) { managedStorageVisible = false; destination = .overview }
+                        } else if dockerVisible {
+                            DockerInspectionView { dockerVisible = false; destination = .overview }
+                        } else if pipVisible {
                             PipInspectionView { pipVisible = false; destination = .overview }
                         } else if homebrewVisible {
                             HomebrewInspectionView { homebrewVisible = false; destination = .overview }
@@ -122,7 +129,7 @@ private struct WorkspaceView: View {
                 .background(Color(nsColor: .windowBackgroundColor))
         }
         .onAppear { AppLifecycleController.shared.openWorkspace = { openWindow(id: "workspace") } }
-        .onReceive(NotificationCenter.default.publisher(for: .stillAlertOpened)) { _ in destination = .overview; inspecting = false; nativeInspectionVisible = false; homebrewVisible = false; pipVisible = false }
+        .onReceive(NotificationCenter.default.publisher(for: .stillAlertOpened)) { _ in destination = .overview; inspecting = false; nativeInspectionVisible = false; homebrewVisible = false; pipVisible = false; dockerVisible = false; managedStorageVisible = false }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in Task { await alerts.activated() } }
         .onReceive(NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.didWakeNotification)) { _ in Task { await alerts.activated() } }
         .toolbar {
@@ -142,6 +149,8 @@ private struct WorkspaceView: View {
             nativeInspectionVisible = false
             homebrewVisible = false
             pipVisible = false
+            dockerVisible = false
+            managedStorageVisible = false
         } label: {
             Label(value.rawValue, systemImage: value.symbol)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -155,8 +164,10 @@ private struct WorkspaceView: View {
         VStack(alignment: .leading, spacing: 24) {
             heading("Your storage", "Understand what is stored locally before choosing what to clean.")
             if StorageAlertsController.futureEnabled {
-                Button("Review Homebrew opportunities") { homebrewVisible = true; pipVisible = false; nativeInspectionVisible = false; inspecting = false }
-                Button("Review pip cache opportunities") { pipVisible = true; homebrewVisible = false; nativeInspectionVisible = false; inspecting = false }
+                Button("Review app-managed storage") { managedStorageVisible = true; homebrewVisible = false; pipVisible = false; dockerVisible = false; nativeInspectionVisible = false; inspecting = false }
+                Button("Review Docker storage") { dockerVisible = true; pipVisible = false; homebrewVisible = false; managedStorageVisible = false; nativeInspectionVisible = false; inspecting = false }
+                Button("Review Homebrew opportunities") { homebrewVisible = true; pipVisible = false; dockerVisible = false; managedStorageVisible = false; nativeInspectionVisible = false; inspecting = false }
+                Button("Review pip cache opportunities") { pipVisible = true; homebrewVisible = false; dockerVisible = false; managedStorageVisible = false; nativeInspectionVisible = false; inspecting = false }
             }
             HStack {
                 Button("Choose folder…", systemImage: "folder.badge.plus") {
