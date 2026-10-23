@@ -1,10 +1,12 @@
 # Still — design and interaction handoff
 
+Native UI implementation follows the mandatory [design system](DESIGN-SYSTEM.md).
+
 Revision 0.9 · October 22, 2026 · Companion to [SPEC.md](SPEC.md).
 
 ## Design intent
 
-A quiet native Mac utility: light and dark appearance, white/near-black content surfaces, subtle material in window chrome and sidebar, restrained category colour. Prioritize readable consequences, predictable navigation and deliberate selection. Glass must not reduce text contrast. Avoid oversized dashboard cards, alarming storage scores, generic “Optimize” actions and promises of exact savings.
+A quiet native Mac utility: light and dark appearance, white/near-black content surfaces, subtle material in native window chrome and dark sidebar, restrained category colour. The light sidebar is explicitly white, per the user’s October 22 clarification; wallpaper/material bleed must not turn it beige. Prioritize readable consequences, predictable navigation and deliberate selection. Glass must not reduce text contrast. Avoid oversized dashboard cards, alarming storage scores, generic “Optimize” actions and promises of exact savings.
 
 Use SwiftUI native controls, system typography and SF Symbols. The browser prototype illustrates visual hierarchy and interaction intent, not production CSS or native component metrics. Its custom symbols should be mapped to suitable SF Symbols during implementation.
 
@@ -22,7 +24,7 @@ Proposed native spacing tokens: 4/8/12/16/24/32 pt; 24–32 pt content insets; 8
 |---|---|
 | Surface/window | Native window background |
 | Surface/content | Stable opaque reading surface |
-| Surface/chrome | Native material, with opaque reduced-transparency fallback |
+| Surface/chrome | Native material for window chrome/sheets and dark sidebar, with opaque reduced-transparency fallback; light sidebar stays explicitly white |
 | Surface/elevated | Native sheet/popover material with reliable contrast |
 | Text/primary, secondary, disabled | System semantic label colours |
 | Separator | Native subtle separator, no heavy card outlines |
@@ -132,3 +134,7 @@ In M1, the summary headline is “Selected for Trash”, with an explicit statem
 ## Implemented session lifecycle — #7
 
 A live unexecuted selection belongs to the app process. Closing the workspace with a pending plan preserves both the inspection observations and selection in memory. With alerts off, the pending plan still keeps Still running. Dock reopening or **Window > Show Still** opens the workspace; Cleanup plan shows the same selected exact paths. Reopening a window does not approve or execute a plan. Explicit **Quit Still** ends the unexecuted selection, and the next launch requires a fresh user-requested scan. Item names continue to inspect independently of checkboxes; search and Back never apply or discard a separate draft.
+
+## Implemented bulk review boundary — #8
+
+Cleanup plan exposes the Downloads category as a native unchecked/mixed/checked checkbox with the current eligible file count and logical bytes. Mixed → Select all materializes exact current entries; later discoveries remain unchecked. Selected for Trash and its retained-space consequence precede review. The fixed confirmation sheet scrolls its expandable exact relative-path list while Cancel and final approval remain visible. Cancel restores the existing choices and focus to Review cleanup. Changes to selection or scan generation invalidate the old review. Final approval freezes a separate exact batch; it does not imply that a filesystem operation succeeded.

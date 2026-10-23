@@ -93,9 +93,9 @@ import Combine
 struct LoginSettingsView: View {
     @ObservedObject var lifecycle = AppLifecycleController.shared
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        SettingsRow(title: "Start at Login", detail: "Separate from storage alerts") {
             Toggle("Start Still at Login", isOn: Binding(get: { lifecycle.loginIntent }, set: { lifecycle.chooseLogin($0) }))
-            Text(statusText).accessibilityIdentifier("loginRegistrationStatus")
+            StatusRow(text: statusText, symbol: "power", identifier: "loginRegistrationStatus")
             if let error = lifecycle.loginError { Text(error).foregroundStyle(.secondary) }
             if lifecycle.loginStatus == .requiresApproval {
                 Button("Review Login Items") { SMAppService.openSystemSettingsLoginItems() }

@@ -55,25 +55,29 @@ struct DockerInspectionView: View {
     @StateObject private var model = DockerInspection()
     let back: () -> Void
     var body: some View {
-        VStack(alignment: .leading, spacing: 18) {
+        VStack(alignment: .leading, spacing: StillDesign.Space.xl) {
             Button("Back to Overview", systemImage: "chevron.left", action: back)
-            Text("Docker storage").font(.largeTitle.weight(.semibold))
-            Text("Read-only reporting and guidance · Future milestone").foregroundStyle(.secondary)
+            PageHeader(title: "Docker storage")
+            Text("Read-only reporting and guidance").foregroundStyle(.secondary)
             Text("No real Docker runtime is qualified yet. Daemon usage and estimates do not establish host disk-image allocation or safe deletion.")
+            SettingsRow(title: "Selected installation") {
             HStack {
                 Button("Choose Docker CLI…") { model.chooseCLI() }
                 Button("Inspect selected Docker") { Task { await model.inspectCLI() } }.disabled(model.executable == nil)
                 Button("Choose disk image…") { Task { await model.chooseImage() } }
             }.disabled(model.busy)
+            }
             if let executable = model.executable { Text(executable.path).font(.caption).textSelection(.enabled) }
-            Text(model.status).accessibilityIdentifier("dockerInventoryStatus")
-            VStack(alignment: .leading, spacing: 7) {
+            StatusRow(text: model.status, symbol: "info.circle", identifier: "dockerInventoryStatus")
+            SummarySurface {
+            VStack(alignment: .leading, spacing: StillDesign.Space.sm) {
                 Text("Host disk-image measurements").font(.headline)
                 if let image = model.image { Text(image.url.path).font(.caption).textSelection(.enabled) }
                 Text("Logical image-file length: \(bytes(model.image?.logicalBytes))")
                 Text("Host allocated bytes: \(bytes(model.image?.allocatedBytes))")
                 Text("VM virtual capacity: Unknown")
                 Text("Logical length can differ from allocated bytes for sparse files. File length alone does not establish VM capacity. Docker ownership is unverified.").font(.caption).foregroundStyle(.secondary)
+            }
             }
             if let inventory = model.inventory {
                 Text(model.example ? "Synthetic daemon report" : "Daemon report").font(.headline)

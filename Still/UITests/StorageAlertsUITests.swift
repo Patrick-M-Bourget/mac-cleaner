@@ -3,7 +3,7 @@ final class StorageAlertsUITests: XCTestCase {
     @MainActor func testAlertsAreHiddenByDefaultAndFutureSettingsDoNotRequestPermission() {
         let app = XCUIApplication()
         app.launch()
-        XCTAssertTrue(app.buttons["Review Downloads"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["Choose folder…"].waitForExistence(timeout: 10))
         XCTAssertFalse(app.buttons["Storage alerts"].exists)
         app.terminate()
         app.launchArguments = ["--future-milestones"]
@@ -15,7 +15,7 @@ final class StorageAlertsUITests: XCTestCase {
         XCTAssertEqual(app.textFields["Minimum available space (GB)"].value as? String, "40")
         XCTAssertEqual(app.windows.firstMatch.frame, bounds)
         app.typeKey("1", modifierFlags: .command)
-        XCTAssertTrue(app.buttons["Review Downloads"].exists)
+        XCTAssertTrue(app.buttons["Choose folder…"].exists)
         XCTAssertEqual(app.windows.firstMatch.frame, bounds)
     }
 

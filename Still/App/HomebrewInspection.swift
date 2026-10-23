@@ -42,17 +42,19 @@ struct HomebrewInspectionView: View {
     @StateObject private var model = HomebrewInspection()
     let back: () -> Void
     var body: some View {
-        VStack(alignment: .leading, spacing: 20) {
+        VStack(alignment: .leading, spacing: StillDesign.Space.xl) {
             Button("Back to Overview", systemImage: "chevron.left", action: back)
-            Text("Homebrew opportunities").font(.largeTitle.weight(.semibold))
-            Text("Read-only qualification preview · Future milestone").foregroundStyle(.secondary)
+            PageHeader(title: "Homebrew opportunities")
+            Text("Read-only qualification preview").foregroundStyle(.secondary)
             Text("No released Homebrew version is qualified yet. Unknown tool behavior produces guidance; no cleanup or automatic tool invocation is enabled.")
+            SettingsRow(title: "Selected installation") {
             HStack {
                 Button("Choose Homebrew executable…") { model.chooseExecutable() }.disabled(model.inspecting)
                 Button("Inspect selected Homebrew") { Task { await model.inspect() } }.disabled(model.executable == nil || model.inspecting)
             }
+            }
             if let executable = model.executable { Text(executable.path).textSelection(.enabled).font(.caption) }
-            Text(model.status).accessibilityIdentifier("homebrewPreviewStatus")
+            StatusRow(text: model.status, symbol: "info.circle", identifier: "homebrewPreviewStatus")
             if let report = model.report {
                 Text(model.isExample ? "Synthetic preview evidence" : "Tool evidence").font(.headline)
                 Text("Version: \(report.version)")

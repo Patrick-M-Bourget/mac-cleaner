@@ -105,9 +105,8 @@ extension Notification.Name {
         status = "Alerts snoozed for 24 hours. A valid low reading after resumption permits one reminder."
     }
     private func capacity() -> (available: Int64?, total: Int64?, volumeID: String?, metric: String) {
-        let values = try? URL(fileURLWithPath: "/").resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey, .volumeAvailableCapacityKey, .volumeTotalCapacityKey, .volumeUUIDStringKey])
-        let important = values?.volumeAvailableCapacityForImportantUsage
-        return (important ?? values?.volumeAvailableCapacity.map(Int64.init), values?.volumeTotalCapacity.map(Int64.init), values?.volumeUUIDString, important == nil ? "available" : "important")
+        let reading = StartupVolumeCapacity.read()
+        return (reading.available, reading.total, reading.volumeID, reading.metric)
     }
     private func sample() async {
         guard Self.futureEnabled, persistenceHealthy, requested, !sampling else { return }
@@ -164,18 +163,22 @@ extension Notification.Name {
 struct StorageAlertsView: View {
     @ObservedObject var controller: StorageAlertsController
     var body: some View {
-        VStack(alignment: .leading, spacing: 20) {
-            Text("Storage alerts").font(.largeTitle.weight(.semibold))
+        VStack(alignment: .leading, spacing: StillDesign.Space.xl) {
+            PageHeader(title: "Storage alerts")
             Text("Choose a minimum available-space threshold. Alerts check capacity only, about every 15 minutes while awake. Opening an alert offers a scan; it never starts one.").foregroundStyle(.secondary)
+            SettingsRow(title: "Minimum available space", detail: "Capacity checks run while Still is open. Alerts are off by default.") {
             HStack {
                 TextField("Minimum available space (GB)", text: $controller.thresholdGB).frame(width: 180)
                 Text("GB · decimal units").foregroundStyle(.secondary)
                 Button("Apply threshold") { Task { await controller.applyThreshold() } }.disabled(!controller.thresholdValid)
             }
             Text("Valid range: at least 1 GB and below startup-volume capacity. Suggested: 40 GB.").font(.caption).foregroundStyle(.secondary)
+            }
+            Divider()
             Toggle("Notify me when space is low", isOn: Binding(get: { controller.requested }, set: { enabled in Task { await controller.setEnabled(enabled) } }))
                 .disabled(!controller.requested && !controller.thresholdValid)
-            Text(controller.status).accessibilityIdentifier("storageAlertStatus")
+            StatusRow(text: controller.status, symbol: controller.effectiveMonitoring ? "bell.badge" : "bell.slash", identifier: "storageAlertStatus")
+            Divider()
             LoginSettingsView()
             Button("Remind me later · 24 hours") { controller.remindLater() }.disabled(!controller.requested)
             Button("Open System Settings") { NSWorkspace.shared.open(URL(fileURLWithPath: "/System/Applications/System Settings.app")) }

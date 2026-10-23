@@ -19,3 +19,9 @@ or publishing tickets.
 
 Single-context layout. Before exploring domain behavior, follow
 docs/agents/domain.md.
+
+## Native UI
+
+Before adding, changing or resuming checkpointed native UI, follow
+[docs/DESIGN-SYSTEM.md](docs/DESIGN-SYSTEM.md), including shared-component
+reuse, gallery states and light/dark review before integration.

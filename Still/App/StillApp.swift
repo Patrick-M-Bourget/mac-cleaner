@@ -6,12 +6,24 @@ struct StillApp: App {
     @NSApplicationDelegateAdaptor(StillApplicationDelegate.self) private var delegate
     @StateObject private var lifecycle = AppLifecycleController.shared
     @StateObject private var alerts = AppLifecycleController.shared.alerts
+    private var initialSize: CGSize {
+        #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("--design-minimum") { return CGSize(width: 900, height: 640) }
+        #endif
+        return CGSize(width: 1120, height: 760)
+    }
     var body: some Scene {
         Window("Still", id: "workspace") {
-            WorkspaceView(alerts: lifecycle.alerts)
-                .frame(minWidth: 900, minHeight: 640)
+            Group {
+                #if DEBUG
+                if ProcessInfo.processInfo.arguments.contains("--design-gallery") { DesignGallery() }
+                else { WorkspaceView(alerts: lifecycle.alerts) }
+                #else
+                WorkspaceView(alerts: lifecycle.alerts)
+                #endif
+            }.frame(minWidth: 900).background { NativeWindowContract() }.modifier(DesignAccessibilityPreview())
         }
-        .defaultSize(width: 1120, height: 760)
+        .defaultSize(width: initialSize.width, height: initialSize.height)
         .commands {
             CommandGroup(after: .windowArrangement) {
                 Button("Show Still") { lifecycle.openWorkspace?() }
@@ -75,31 +87,54 @@ private struct WorkspaceView: View {
     @State private var managedStorage = ManagedStorageModel()
     @State private var pipVisible = false
     @State private var dockerVisible = false
+    @State private var startupCapacity: StartupVolumeCapacity?
+    private var fixtureMode: Bool {
+        #if DEBUG
+        ProcessInfo.processInfo.arguments.contains("--fixture-workspace")
+        #else
+        false
+        #endif
+    }
+    private var showsPlan: Bool { destination == .plan && !inspecting && !nativeInspectionVisible && !homebrewVisible && !pipVisible && !dockerVisible && !managedStorageVisible }
+    private var inspectionVisible: Bool { inspecting || nativeInspectionVisible }
+    private var contextLabel: String {
+        managedStorageVisible ? "App-managed inventory · selected objects only" : folderInspection.scope != nil ? "Read-only metadata · explicitly selected folder" : fixtureMode ? "Synthetic data — no personal files accessed" : "On-demand storage review"
+    }
 
     var body: some View {
         HStack(spacing: 0) {
             VStack(alignment: .leading, spacing: 8) {
-                Label("Still", systemImage: "sparkle").font(.title2.weight(.semibold)).padding(.bottom, 24)
+                HStack(spacing: StillDesign.Space.sm) {
+                    Image(systemName: "square.3.layers.3d").foregroundStyle(.white).font(.system(size: 17))
+                        .frame(width: 30, height: 30).background(LinearGradient(colors: [.blue, .indigo], startPoint: .topLeading, endPoint: .bottomTrailing), in: RoundedRectangle(cornerRadius: 8))
+                    Text("Still").font(.system(size: 17, weight: .medium))
+                }.padding(.bottom, StillDesign.Space.xl)
                 Text("Storage").font(.caption).foregroundStyle(.secondary)
                 ForEach(Destination.allCases.filter { $0 != .locations && $0 != .alerts }) { navigation($0) }
                 Text("Settings").font(.caption).foregroundStyle(.secondary).padding(.top, 20)
                 navigation(.locations)
                 if StorageAlertsController.futureEnabled { navigation(.alerts) }
                 Spacer()
-                Text(folderInspection.scope == nil ? "M0 · Fixture workspace" : "M1 · Read-only inspection").font(.caption).foregroundStyle(.secondary)
+                VStack(alignment: .leading, spacing: StillDesign.Space.md) {
+                    Label("This Mac", systemImage: "laptopcomputer").font(.callout)
+                    CapacityMeter(available: startupCapacity?.available, total: startupCapacity?.total, compact: true)
+                    if let reading = startupCapacity {
+                        Text("Observed " + reading.observedAt.formatted(date: .omitted, time: .shortened)).font(.caption2).foregroundStyle(.secondary)
+                    }
+                    Divider()
+                    Label("On-demand scanning", systemImage: "lock").font(.caption).foregroundStyle(.secondary)
+                }
+
             }
-            .padding(20)
-            .frame(width: 200)
+            .padding(StillDesign.Space.lg)
+            .frame(width: 190)
             .frame(maxHeight: .infinity)
-            .background(.regularMaterial)
+            .background { ChromeSurface(role: .sidebar) }
             Divider()
             VStack(alignment: .leading, spacing: 0) {
-                HStack {
-                    Label(managedStorageVisible ? "App-managed inventory · selected objects only" : folderInspection.scope == nil ? "Synthetic data — no personal files accessed" : "Read-only metadata · explicitly selected folder", systemImage: folderInspection.scope == nil ? "testtube.2" : "folder")
-                        .font(.caption).foregroundStyle(.secondary)
-                    Spacer()
-                }.padding(16)
-                Divider()
+                if showsPlan && !selection.scans.isEmpty {
+                    LiveCleanupPlanView(selection: selection)
+                } else {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 24) {
                         if managedStorageVisible {
@@ -123,51 +158,74 @@ private struct WorkspaceView: View {
                             case .locations: locations
                             }
                         }
-                    }.padding(28).frame(maxWidth: .infinity, alignment: .leading)
+                    }.padding(StillDesign.Space.page).frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .safeAreaInset(edge: .bottom, spacing: 0) {
+                    if inspectionVisible {
+                        ActionStrip(message: nativeInspectionVisible ? "\(StillDesign.files(selection.draft.selectedCount)) selected" : "Nothing selected") {
+                            Button("View cleanup plan") { nativeInspectionVisible = false; inspecting = false; destination = .plan }.buttonStyle(.borderedProminent)
+                        }
+                    } else if showsPlan {
+                        ActionStrip(message: "Nothing changes until you confirm the next step.") { Button("Review cleanup") {}.disabled(true) }
+                    }
+                }
                 }
             }.frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(Color(nsColor: .windowBackgroundColor))
+                .background(StillDesign.reading)
         }
+        .task { startupCapacity = await Task.detached(priority: .utility) { StartupVolumeCapacity.read() }.value }
         .onAppear { AppLifecycleController.shared.openWorkspace = { openWindow(id: "workspace") } }
         .onReceive(NotificationCenter.default.publisher(for: .stillAlertOpened)) { _ in destination = .overview; inspecting = false; nativeInspectionVisible = false; homebrewVisible = false; pipVisible = false; dockerVisible = false; managedStorageVisible = false }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in Task { await alerts.activated() } }
         .onReceive(NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.didWakeNotification)) { _ in Task { await alerts.activated() } }
         .toolbar {
+            ToolbarItem(placement: .principal) {
+                Text(contextLabel).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+            }
+            ToolbarItem(placement: .automatic) {
             Picker("Appearance", selection: $appearance) {
                 Text("Automatic").tag("Automatic")
                 Text("Light").tag("Light")
                 Text("Dark").tag("Dark")
-            }.frame(width: 140).accessibilityLabel("Appearance")
+            }.frame(width: 120).accessibilityLabel("Appearance")
+            }
         }
         .preferredColorScheme(appearance == "Automatic" ? nil : appearance == "Dark" ? .dark : .light)
     }
 
     private func navigation(_ value: Destination) -> some View {
-        Button {
+        StillSidebarRow(title: value.rawValue, symbol: value.symbol, selected: destination == value) {
             destination = value
-            inspecting = false
-            nativeInspectionVisible = false
-            homebrewVisible = false
-            pipVisible = false
-            dockerVisible = false
-            managedStorageVisible = false
-        } label: {
-            Label(value.rawValue, systemImage: value.symbol)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.vertical, 7).padding(.horizontal, 8)
-                .background(destination == value ? Color.accentColor.opacity(0.14) : .clear, in: RoundedRectangle(cornerRadius: 7))
-        }.buttonStyle(.plain).accessibilityLabel(value.rawValue)
-            .keyboardShortcut(value.shortcut, modifiers: .command)
+            inspecting = false; nativeInspectionVisible = false; homebrewVisible = false
+            pipVisible = false; dockerVisible = false; managedStorageVisible = false
+        }.keyboardShortcut(value.shortcut, modifiers: .command)
     }
 
     private var overview: some View {
         VStack(alignment: .leading, spacing: 24) {
             heading("Your storage", "Understand what is stored locally before choosing what to clean.")
+            if !fixtureMode {
+                SummarySurface {
+                    VStack(alignment: .leading, spacing: StillDesign.Space.md) {
+                        Text("This Mac · Startup volume").font(StillDesign.TypeStyle.section)
+                        CapacityMeter(available: startupCapacity?.available, total: startupCapacity?.total)
+                        if let reading = startupCapacity { Text("Observed \(reading.observedAt.formatted()) · \(reading.metric == "important" ? "Available for important usage" : "Available capacity fallback")").font(.caption).foregroundStyle(.secondary) }
+                    }
+                }
+            }
             if StorageAlertsController.futureEnabled {
-                Button("Review app-managed storage") { managedStorageVisible = true; homebrewVisible = false; pipVisible = false; dockerVisible = false; nativeInspectionVisible = false; inspecting = false }
-                Button("Review Docker storage") { dockerVisible = true; pipVisible = false; homebrewVisible = false; managedStorageVisible = false; nativeInspectionVisible = false; inspecting = false }
-                Button("Review Homebrew opportunities") { homebrewVisible = true; pipVisible = false; dockerVisible = false; managedStorageVisible = false; nativeInspectionVisible = false; inspecting = false }
-                Button("Review pip cache opportunities") { pipVisible = true; homebrewVisible = false; dockerVisible = false; managedStorageVisible = false; nativeInspectionVisible = false; inspecting = false }
+                FindingRow(category: .managed, title: "App-managed storage", detail: "Libraries, backups and system storage guidance") {
+                    Button("Review app-managed storage") { managedStorageVisible = true; homebrewVisible = false; pipVisible = false; dockerVisible = false; nativeInspectionVisible = false; inspecting = false }
+                }
+                FindingRow(category: .developer, title: "Docker storage", detail: "Review runtime and disk-image measurements") {
+                    Button("Review Docker storage") { dockerVisible = true; pipVisible = false; homebrewVisible = false; managedStorageVisible = false; nativeInspectionVisible = false; inspecting = false }
+                }
+                FindingRow(category: .developer, title: "Homebrew opportunities", detail: "Qualification and supported management guidance") {
+                    Button("Review Homebrew opportunities") { homebrewVisible = true; pipVisible = false; dockerVisible = false; managedStorageVisible = false; nativeInspectionVisible = false; inspecting = false }
+                }
+                FindingRow(category: .developer, title: "Pip cache opportunities", detail: "Review selected cache provenance") {
+                    Button("Review pip cache opportunities") { pipVisible = true; homebrewVisible = false; dockerVisible = false; managedStorageVisible = false; nativeInspectionVisible = false; inspecting = false }
+                }
             }
             HStack {
                 Button("Choose folder…", systemImage: "folder.badge.plus") {
@@ -185,32 +243,25 @@ private struct WorkspaceView: View {
                 Text("\(result.observations.count) entries observed · \(result.isComplete ? "Completed" : "Partial coverage")")
                 Text("Complete scope logical bytes: \(result.totalLogicalBytes.map(String.init) ?? "Unknown") · Complete scope allocated bytes: \(result.totalAllocatedBytes.map(String.init) ?? "Unknown")")
                     .foregroundStyle(.secondary)
-                Text("These file totals describe the selected scope, separately from whole-volume capacity. No cleanup is available in this inspection milestone.")
+                Text("These totals describe the selected scope, separately from startup-volume capacity. Eligible Downloads files can be selected for review; no files are moved in this build.")
                     .font(.callout).foregroundStyle(.secondary)
             }
-            else if folderInspection.scope == nil {
-            VStack(alignment: .leading, spacing: 12) {
-                HStack(alignment: .firstTextBaseline) {
-                    Text("42.8 GB").font(.system(size: 36, weight: .semibold, design: .rounded)).monospacedDigit()
-                    Text("available of 512 GB").foregroundStyle(.secondary)
+            else if folderInspection.scope == nil && fixtureMode {
+            SummarySurface {
+                VStack(alignment: .leading, spacing: StillDesign.Space.md) {
+                    CapacityMeter(available: 42_800_000_000, total: 512_000_000_000)
+                    Text("Synthetic startup volume · Fixture observation").font(.caption).foregroundStyle(.secondary)
                 }
-                ProgressView(value: 469.2, total: 512).tint(.blue)
-                Text("Synthetic startup volume · Fixture observation").font(.caption).foregroundStyle(.secondary)
             }
             Divider()
-            Text("Storage findings").font(.title3.weight(.semibold))
-            HStack(spacing: 16) {
-                Image(systemName: "arrow.down.circle.fill").font(.title).foregroundStyle(.orange)
-                VStack(alignment: .leading, spacing: 5) {
-                    Text("Downloads").font(.headline)
-                    Text("3 example files · 2.028 GB logical size").foregroundStyle(.secondary)
-                    Text("Moving files to Trash keeps their space occupied until Trash is emptied.").font(.caption).foregroundStyle(.secondary)
-                }
-                Spacer()
+            Text("Storage findings").font(StillDesign.TypeStyle.section)
+            FindingRow(category: .downloads, title: "Downloads", detail: "3 example files · 2.028 GB logical size", consequence: "Moving files to Trash keeps their space occupied until Trash is emptied.") {
                 Button("Review Downloads") { inspecting = true }
             }
             Text("Other storage categories are introduced as their adapters are validated. This build displays fixtures only.")
                 .font(.callout).foregroundStyle(.secondary)
+            } else {
+                EmptyState(title: "Start with a folder", detail: "Choose Downloads or another folder to review what is stored locally. Nothing is selected automatically.", symbol: "folder")
             }
         }
     }
@@ -218,7 +269,7 @@ private struct WorkspaceView: View {
     private var inspection: some View {
         VStack(alignment: .leading, spacing: 20) {
             Button("Back to Overview", systemImage: "chevron.left") { inspecting = false; destination = .overview }
-            heading("Downloads inspection", "Names inspect files. Selection arrives in the next milestone.")
+            heading("Downloads inspection", "Synthetic files · Names inspect without selecting.")
             ForEach(FixtureItem.downloads) { item in
                 HStack {
                     Button { inspected = item } label: {
@@ -234,25 +285,20 @@ private struct WorkspaceView: View {
                 Text("Logical size: \(inspected.size)")
                 Text("Example ordinary file · Proposed action: Move to Trash. No action is enabled in this fixture workspace.")
                     .foregroundStyle(.secondary)
-            }.padding(16).frame(maxWidth: .infinity, alignment: .leading)
-                .background(.quaternary.opacity(0.4), in: RoundedRectangle(cornerRadius: 12))
-            HStack {
-                Text("Nothing selected").foregroundStyle(.secondary)
-                Spacer()
-                Button("View cleanup plan") { destination = .plan; inspecting = false }.buttonStyle(.borderedProminent)
-            }
+            }.padding(StillDesign.Space.lg).frame(maxWidth: .infinity, alignment: .leading)
+                .background(StillDesign.summary, in: RoundedRectangle(cornerRadius: StillDesign.Radius.surface))
+
         }
     }
 
     private var plan: some View {
         VStack(alignment: .leading, spacing: 24) {
             heading("Cleanup plan", "Review categories and their consequences before any action.")
-            Text("Selected for Trash").font(.headline)
-            Text("Nothing selected").font(.title2).foregroundStyle(.secondary)
+            SelectionSummary(value: "Nothing selected", detail: "Choose exact files")
             Text("Space remains occupied until Finder empties Trash.").foregroundStyle(.secondary)
             Divider()
-            if folderInspection.scope == nil {
-            Label("Downloads · 3 eligible fixture files · 2.028 GB", systemImage: "arrow.down.circle").font(.headline)
+            if folderInspection.scope == nil && fixtureMode {
+            FindingRow(category: .downloads, title: "Downloads", detail: "3 eligible fixture files · 2.028 GB", consequence: "Move selected files to Trash; space remains occupied until emptied.") { EmptyView() }
             Button {
                 expanded.toggle()
             } label: {
@@ -270,15 +316,13 @@ private struct WorkspaceView: View {
             }
             }
             Text("Selection and cleanup are unavailable in this inspection milestone.").font(.callout).foregroundStyle(.secondary)
-            Button("Review cleanup") {}.disabled(true)
         }
     }
 
     private var history: some View {
         VStack(alignment: .leading, spacing: 20) {
             heading("History", "Completed cleanup results will appear here.")
-            Label("No cleanup has run", systemImage: "clock").font(.title3)
-            Text("No cleanup actions are enabled in this inspection milestone.").foregroundStyle(.secondary)
+            EmptyState(title: "No cleanup has run", detail: "Completed results will appear here after cleanup is available. No files have been moved.", symbol: "clock")
         }
     }
 
@@ -286,19 +330,18 @@ private struct WorkspaceView: View {
         VStack(alignment: .leading, spacing: 20) {
             heading("Locations & access", "Review scan coverage and access in one place.")
             if let scope = folderInspection.scope {
-                Label(scope.path, systemImage: "folder").textSelection(.enabled)
-                Text("Explicitly selected this session. Scope access is balanced around the scan; no background scan or cleanup runs.").foregroundStyle(.secondary)
+                SettingsRow(title: "Selected location", detail: "Explicitly chosen this session") {
+                    Label(scope.path, systemImage: "folder").textSelection(.enabled)
+                    StatusRow(text: "Scope access is balanced around each scan. No background scan runs.", symbol: "lock")
+                }
             } else {
-                Text("No real folder selected. Choose a folder from Overview to inspect metadata.").foregroundStyle(.secondary)
+                EmptyState(title: "No folder selected", detail: "Choose a folder from Overview to inspect metadata. Access is requested in context.", symbol: "folder.badge.gearshape")
             }
         }
     }
 
     private func heading(_ title: String, _ subtitle: String) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(title).font(.largeTitle.weight(.semibold))
-            Text(subtitle).foregroundStyle(.secondary)
-        }
+        PageHeader(title: title, subtitle: subtitle)
     }
 }
 
