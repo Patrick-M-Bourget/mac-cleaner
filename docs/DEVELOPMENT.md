@@ -81,6 +81,11 @@ The capacity adapter records important-use versus fallback available capacity an
 
 The native manifest declares file-metadata reason `3B52.1` for selected-folder metadata, alongside the existing capacity declaration. The [Apple reason definition](https://developer.apple.com/documentation/bundleresources/app-privacy-configuration/nsprivacyaccessedapitypes/nsprivacyaccessedapitype) covers sizes and other metadata of user-granted files/directories. Full release API audit remains M7.
 
+## Future Homebrew review (#22)
+
+With `--future-milestones`, Overview offers a secondary **Review Homebrew opportunities** route. Explicitly choose an executable, then Inspect. No real build is qualified, so the native path currently returns guidance without executing it; a clearly marked disposable example demonstrates target/estimate presentation. There is no automatic tool/cache discovery and no cleanup action. See [qualification evidence](validation/homebrew-preview.md) for bounded command tests, the disposable helper demonstration, primary sources and missing real-Homebrew validation gates.
+
+
 ## Read-only iCloud breakdown (#5)
 
 Each explicit selected-scope result includes iCloud local allocation, cloud-only logical/allocation totals, unknown membership/locality and provider sync evidence. No cloud action is enabled. See [recorded opportunity and validation boundaries](validation/cloud-inventory.md); a consented bounded personal assessment is recorded, with remaining unobserved coverage explicitly unknown. Core tests inject provider metadata only over disposable files; the native UI journey keeps using its own ordinary temporary folder. No personal paths or contents are committed.
