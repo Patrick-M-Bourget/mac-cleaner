@@ -66,20 +66,38 @@ final class StorageAlertsUITests: XCTestCase {
     }
 
     @MainActor func testFutureDockerReportKeepsHostCapacityAndPersistentDataDistinct() {
-        let app = XCUIApplication()
-        app.launchArguments = ["--future-milestones"]
-        app.launch()
-        XCTAssertTrue(app.buttons["Review Docker storage"].waitForExistence(timeout: 10))
-        let bounds = app.windows.firstMatch.frame
-        app.buttons["Review Docker storage"].click()
-        XCTAssertTrue(app.staticTexts["VM virtual capacity: Unknown"].exists)
-        XCTAssertTrue(app.staticTexts["Host allocated bytes: Unknown"].exists)
-        XCTAssertFalse(app.buttons["Inspect selected Docker"].isEnabled)
-        app.buttons["Show synthetic Docker report"].click()
-        XCTAssertTrue(app.staticTexts["Synthetic daemon report"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.staticTexts["Local Volumes · Persistent application data"].exists)
-        XCTAssertEqual(app.windows.firstMatch.frame, bounds)
-        app.buttons["Back to Overview"].click()
-        XCTAssertTrue(app.buttons["Choose folder…"].exists)
+        for size in ["--design-initial-size", "--design-minimum"] {
+            let app = XCUIApplication()
+            app.launchArguments = ["--future-milestones", size]
+            app.launch()
+            XCTAssertTrue(app.buttons["Review Docker storage"].waitForExistence(timeout: 10))
+            let bounds = app.windows.firstMatch.frame
+            app.buttons["Review Docker storage"].click()
+            for theme in ["Light", "Dark"] {
+                app.popUpButtons["Appearance"].click(); app.menuItems[theme].click()
+                XCTAssertTrue(app.textFields["Local Unix socket path"].exists)
+                XCTAssertFalse(app.buttons["Inspect selected Docker"].isEnabled)
+                let empty = XCTAttachment(screenshot: app.windows.firstMatch.screenshot())
+                empty.name = "docker-explicit-endpoint-" + size + "-" + theme
+                empty.lifetime = .keepAlways; add(empty)
+                app.scrollViews.firstMatch.scroll(byDeltaX: 0, deltaY: -700)
+                XCTAssertTrue(app.staticTexts["VM virtual capacity: Unknown"].exists)
+                XCTAssertTrue(app.staticTexts["Host allocated bytes: Unknown"].exists)
+                let example = app.buttons["Show synthetic Docker report"]
+                XCTAssertTrue(example.waitForExistence(timeout: 5)); example.click()
+                XCTAssertTrue(app.staticTexts["Synthetic daemon report"].waitForExistence(timeout: 5))
+                XCTAssertTrue(app.staticTexts["Local Volumes · Persistent application data"].exists)
+                app.scrollViews.firstMatch.scroll(byDeltaX: 0, deltaY: -700)
+                let report = XCTAttachment(screenshot: app.windows.firstMatch.screenshot())
+                report.name = "docker-persistent-data-" + size + "-" + theme
+                report.lifetime = .keepAlways; add(report)
+                XCTAssertEqual(app.windows.firstMatch.frame, bounds)
+                app.scrollViews.firstMatch.scroll(byDeltaX: 0, deltaY: 1400)
+            }
+            app.buttons["Back to Overview"].click()
+            XCTAssertTrue(app.buttons["Choose folder…"].exists)
+            XCTAssertEqual(app.windows.firstMatch.frame, bounds)
+            app.terminate()
+        }
     }
 }
