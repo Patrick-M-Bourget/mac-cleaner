@@ -7,6 +7,7 @@ extension Notification.Name {
 }
 
 @MainActor final class StorageAlertsController: NSObject, ObservableObject, UNUserNotificationCenterDelegate {
+    @Published private(set) var effectiveMonitoring = false
     @Published private(set) var requested = false
     @Published private(set) var status = "Alerts are off."
     @Published private(set) var total: Int64?
@@ -27,6 +28,9 @@ extension Notification.Name {
     }
     var thresholdValid: Bool { threshold.map { AlertPolicy.validThreshold($0, total: total) } ?? false }
 
+    func stopForTermination() {
+        timer?.invalidate(); timer = nil; effectiveMonitoring = false
+    }
     func configure() {
         guard Self.futureEnabled else { return }
         total = capacity().total
@@ -36,6 +40,7 @@ extension Notification.Name {
         requested = enabled
         policy.enabled = enabled
         if !enabled {
+            effectiveMonitoring = false
             timer?.invalidate(); timer = nil
             center.removePendingNotificationRequests(withIdentifiers: ["Still.lowSpace"])
             status = "Alerts are off."; return
@@ -71,10 +76,12 @@ extension Notification.Name {
         let settings = await center.notificationSettings()
         guard requested else { return }
         guard settings.authorizationStatus == .authorized, settings.alertSetting == .enabled else {
+            effectiveMonitoring = false
             timer?.invalidate(); timer = nil
             status = "Notifications are unavailable. Enable Still alerts in System Settings > Notifications. Capacity polling is stopped."
             return
         }
+        effectiveMonitoring = true
         if timer == nil {
             timer = Timer.scheduledTimer(withTimeInterval: 900, repeats: true) { [weak self] _ in
                 Task { @MainActor [weak self] in await self?.sample() }
@@ -84,7 +91,7 @@ extension Notification.Name {
         guard policy.shouldSample(at: Date(), authorization: .allowed) else { return }
         let reading = capacity(); total = reading.total
         guard let available = reading.available, let total = reading.total else { status = "Capacity unavailable. Alert decisions are paused."; return }
-        guard thresholdValid else { status = "Threshold no longer fits this volume. Update it to resume alerts."; return }
+        guard thresholdValid else { effectiveMonitoring = false; status = "Threshold no longer fits this volume. Update it to resume alerts."; return }
         status = "Monitoring startup-volume capacity while Still runs. Last available: \(String(format: "%.1f", Double(available) / 1_000_000_000)) GB."
         guard policy.observe(available: available, total: total) else { return }
         let content = UNMutableNotificationContent()
@@ -96,6 +103,7 @@ extension Notification.Name {
     }
     nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse) async {
         await MainActor.run {
+            AppLifecycleController.shared.openWorkspace?()
             NSApp.activate(ignoringOtherApps: true)
             NSApp.windows.first(where: { $0.canBecomeMain })?.makeKeyAndOrderFront(nil)
             NotificationCenter.default.post(name: .stillAlertOpened, object: nil)
@@ -119,8 +127,9 @@ struct StorageAlertsView: View {
             Toggle("Notify me when space is low", isOn: Binding(get: { controller.requested }, set: { enabled in Task { await controller.setEnabled(enabled) } }))
                 .disabled(!controller.requested && !controller.thresholdValid)
             Text(controller.status).accessibilityIdentifier("storageAlertStatus")
+            LoginSettingsView()
             Button("Open System Settings") { NSWorkspace.shared.open(URL(fileURLWithPath: "/System/Applications/System Settings.app")) }
-            Text("Closing the window and login behavior will be qualified separately. Explicit Quit stops checks. This development capability does not scan folders or clean files.").font(.caption).foregroundStyle(.secondary)
+            Text("This development capability checks capacity only; it does not scan folders or clean files.").font(.caption).foregroundStyle(.secondary)
         }.task { controller.configure() }
     }
 }

@@ -18,4 +18,17 @@ final class StorageAlertsUITests: XCTestCase {
         XCTAssertTrue(app.buttons["Review Downloads"].exists)
         XCTAssertEqual(app.windows.firstMatch.frame, bounds)
     }
+
+    @MainActor func testOnDemandWindowCloseTerminatesAndLoginControlsAreReadOnlyUntilChoice() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--future-milestones"]
+        app.launch()
+        XCTAssertTrue(app.buttons["Storage alerts"].waitForExistence(timeout: 10))
+        app.buttons["Storage alerts"].click()
+        XCTAssertTrue(app.checkBoxes["Start Still at Login"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["loginRegistrationStatus"].exists)
+        XCTAssertTrue(app.staticTexts["Alerts are off."].exists)
+        app.typeKey("w", modifierFlags: .command)
+        XCTAssertTrue(app.wait(for: .notRunning, timeout: 10))
+    }
 }
