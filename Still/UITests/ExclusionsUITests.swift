@@ -17,15 +17,17 @@ final class ExclusionsUITests: XCTestCase {
         try Data([1, 2]).write(to: hidden); try Data([3]).write(to: kept)
         var info = stat(); XCTAssertEqual(lstat(root.path, &info), 0)
         let app = XCUIApplication()
-        app.launchArguments = ["--future-milestones", minimum ? "--design-minimum" : "--design-initial-size"]
+        app.launchArguments = ["--geometry-probe", "--future-milestones", minimum ? "--design-minimum" : "--design-initial-size"]
         app.launchEnvironment = ["STILL_TEST_STATE_ROOT": root.path, "STILL_TEST_STATE_ID": "\(info.st_dev):\(info.st_ino)"]
         app.launch(); defer { app.terminate() }
         XCTAssertTrue(app.buttons["Choose folder…"].waitForExistence(timeout: 5))
         let bounds = app.windows.firstMatch.frame
+        geometryProbe(app, root: root, phase: "first-baseline")
         // Exercise repeated explicit-capture launches through normal public readiness.
         for _ in 0..<2 {
             app.terminate(); app.launch()
             XCTAssertTrue(app.buttons["Choose folder…"].waitForExistence(timeout: 5))
+            geometryProbe(app, root: root, phase: "repeated-launch")
             XCTAssertEqual(app.windows.firstMatch.frame, bounds)
         }
         app.typeKey("4", modifierFlags: .command)
@@ -62,6 +64,7 @@ final class ExclusionsUITests: XCTestCase {
         app.typeKey("4", modifierFlags: .command); app.buttons["manageExclusions"].click()
         for appearance in ["Light", "Dark"] {
             app.popUpButtons["Appearance"].click(); app.menuItems[appearance].click()
+            geometryProbe(app, root: root, phase: "saved-relaunch-" + appearance)
             XCTAssertEqual(app.windows.firstMatch.frame, bounds)
             XCTAssertTrue(app.buttons["Back to Locations & access"].isEnabled && app.buttons["Back to Locations & access"].isHittable)
             let capture = XCTAttachment(screenshot: app.windows.firstMatch.screenshot())
@@ -77,6 +80,11 @@ final class ExclusionsUITests: XCTestCase {
         XCTAssertTrue(remainingRules.isEmpty)
         XCTAssertEqual(try Data(contentsOf: hidden), Data([1, 2]))
         XCTAssertEqual(try Data(contentsOf: kept), Data([3]))
+    }
+    @MainActor private func geometryProbe(_ app: XCUIApplication, root: URL, phase: String) {
+        let native = (try? String(contentsOf: root.appendingPathComponent("geometry-probe.jsonl"), encoding: .utf8)) ?? "No native records"
+        let text = "[DEBUG-geometry-7a] " + phase + " time=" + String(ProcessInfo.processInfo.systemUptime) + " AX=" + String(describing: app.windows.firstMatch.frame) + " chooseHittable=" + String(app.buttons["Choose folder…"].isHittable) + "\n" + native
+        let attachment = XCTAttachment(string: text); attachment.name = "geometry-" + phase; attachment.lifetime = .keepAlways; add(attachment); print(text)
     }
     @MainActor private func captureThemes(_ app: XCUIApplication, state: String, minimum: Bool, bounds: CGRect) {
         for appearance in ["Light", "Dark"] {

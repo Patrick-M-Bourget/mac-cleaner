@@ -405,12 +405,64 @@ struct NativeWindowContract: NSViewRepresentable {
         private var applied = false
         #if DEBUG
         var onCaptureFit: (() -> Void)?
+        private var geometryProbeLast = ""
+        private var geometryProbeCount = 0
+        @objc private func geometryProbeNotification(_ notification: Notification) {
+            geometryProbe(notification.name.rawValue)
+        }
+        private func geometryProbe(_ event: String) {
+            guard ProcessInfo.processInfo.arguments.contains("--geometry-probe"),
+                  let window, geometryProbeCount < 80,
+                  ProcessInfo.processInfo.environment["STILL_TEST_STATE_ROOT"] != nil,
+                  let root = try? LocalStateLocation.root(create: false) else { return }
+            let fields: [String: String] = [
+                "outer": NSStringFromRect(window.frame),
+                "windowNumber": String(window.windowNumber),
+                "process": String(ProcessInfo.processInfo.processIdentifier),
+                "screenNumber": String(describing: (window.screen ?? NSScreen.main)?.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")]),
+                "visibleScreen": NSStringFromRect((window.screen ?? NSScreen.main)?.visibleFrame ?? .zero),
+                "contentRect": NSStringFromRect(window.contentRect(forFrameRect: window.frame)),
+                "contentLayout": NSStringFromRect(window.contentLayoutRect),
+                "contentView": NSStringFromRect(window.contentView?.frame ?? .zero),
+                "toolbarVisible": String(window.toolbar?.isVisible ?? false),
+                "toolbarStyle": String(window.toolbarStyle.rawValue),
+                "applicationActive": String(NSApp.isActive),
+                "windowKey": String(window.isKeyWindow),
+                "windowVisible": String(window.isVisible),
+                "appearance": window.effectiveAppearance.name.rawValue
+            ]
+            let signature = fields.sorted { $0.key < $1.key }.map { $0.key + "=" + $0.value }.joined(separator: ";")
+            guard signature != geometryProbeLast || event.contains("Contract") else { return }
+            geometryProbeLast = signature; geometryProbeCount += 1
+            var record = fields
+            record["event"] = "[DEBUG-geometry-7a] " + event
+            record["time"] = String(ProcessInfo.processInfo.systemUptime)
+            guard var data = try? JSONSerialization.data(withJSONObject: record, options: [.sortedKeys]) else { return }
+            data.append(10)
+            let path = root.appendingPathComponent("geometry-probe.jsonl")
+            if !FileManager.default.fileExists(atPath: path.path) { FileManager.default.createFile(atPath: path.path, contents: nil) }
+            guard let handle = try? FileHandle(forWritingTo: path) else { return }
+            defer { try? handle.close() }
+            _ = try? handle.seekToEnd(); try? handle.write(contentsOf: data)
+        }
         #endif
         override func viewDidMoveToWindow() {
             super.viewDidMoveToWindow()
             guard let window, !applied else { return }
             applied = true
+            #if DEBUG
+            if ProcessInfo.processInfo.arguments.contains("--geometry-probe") {
+                for name in [NSWindow.didResizeNotification, NSWindow.didUpdateNotification, NSWindow.didBecomeKeyNotification] {
+                    NotificationCenter.default.addObserver(self, selector: #selector(geometryProbeNotification(_:)), name: name, object: window)
+                }
+                NotificationCenter.default.addObserver(self, selector: #selector(geometryProbeNotification(_:)), name: NSApplication.didBecomeActiveNotification, object: nil)
+                geometryProbe("attached")
+            }
+            #endif
             DispatchQueue.main.async {
+                #if DEBUG
+                self.geometryProbe("beforeContract")
+                #endif
                 guard let screen = window.screen ?? NSScreen.main else { return }
                 var visible = screen.visibleFrame
                 var requested = window.frame
@@ -439,6 +491,9 @@ struct NativeWindowContract: NSViewRepresentable {
                 #endif
                 let fitted = NSRect(origin: origin, size: size)
                 if window.frame != fitted { window.setFrame(fitted, display: true) }
+                #if DEBUG
+                self.geometryProbe("afterContract")
+                #endif
                 #if DEBUG
                 // Capture controls become visible only after this launch's explicit fit.
                 // Their layout was retained while hidden; ordinary launches are unaffected.
