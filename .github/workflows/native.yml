@@ -55,6 +55,7 @@ jobs:
             scope=(
               -only-testing:StillUITests/StorageAlertsUITests/testFutureDockerReportKeepsHostCapacityAndPersistentDataDistinct
               -only-testing:StillUITests/StorageAlertsUITests/testFuturePipInventoryShowsRecordedQualificationWithoutRunningPersonalTools
+              -only-testing:StillUITests/StorageAlertsUITests/testSelectedPipCacheInventoryIsReadOnlyAcrossThemesAndSizes
             )
           elif [[ "$EVENT_NAME" == "workflow_dispatch" && "$REQUESTED_SUITE" == "handoff" ]]; then
             scope=(-only-testing:StillUITests/WorkspaceUITests/testNativeDesignReviewAndMinimumGalleryCaptures)
