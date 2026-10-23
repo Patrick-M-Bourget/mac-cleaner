@@ -175,3 +175,7 @@ The scanner permits at most one internal metadata recheck within shared entry an
 ## Genuine owned Xcode evidence (#16)
 
 The [bounded native experiment](../Validation/XcodeProbe/NativeExperiment/README.md) builds/archives a minimal owned27.1 project and verifies exact-object removal/regeneration with source/archive/dSYM preservation. This advances layout evidence beyond synthetic policy; production Xcode mutation remains unsupported because general project/helper ownership and the full action/recovery contract are not qualified.
+
+## pip mutation boundary (#25)
+
+The [owned21.2.4 experiment](../Validation/PipMutationExperiment/README.md) observes real `pip cache remove` deleting post-review pattern matches and a replaced entry. This is a negative capability result: retain read-only inventory/guidance, with production mutation disabled. No personal runtime/cache is probed and no network provisioning is required.
