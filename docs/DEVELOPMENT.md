@@ -205,3 +205,7 @@ qualification boundaries through `524f878`.
 ## Approved-reference visual refinement
 
 The shared system's [October 23 fidelity pass](validation/visual-fidelity.md) aligns the palette, navigation, brand, hierarchy, grouped capacity/selection evidence and native action sizing with the approved references. Source `7a7199f` preserves the native recheck button after a focused public journey caught a link-style regression. Final source `524f878` qualifies the capture presets and all 34 native journeys. New native captures have their own source/run/hash manifest; original reference and earlier checkpoint evidence remain intact.
+
+## Downloads scope and checkbox follow-up
+
+The [scrolled-category anchor correction](validation/checkbox-content-anchor.md) and [shared Downloads-only guidance/shortcut](validation/downloads-scope-guidance.md) follow the original fidelity checkpoint. Final application source is `7d12f12`; later test/workflow corrections retain identical application sources. The shortcut opens the native picker at Downloads and requires explicit confirmation to scan; Cancel preserves observations and choices. Other folders remain inspectable but ineligible for M1 cleanup. The shared review control preserves its disabled state across native picker dismissal. Source-pinned captures/results distinguish focused verification from the final full workflow.

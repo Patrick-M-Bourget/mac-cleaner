@@ -89,3 +89,7 @@ evidence, captures and intentional native differences.
 This checkpoint is implementation evidence, not completion of every milestone
 or authorization to mutate personal files. The integration pull request
 remains a draft while required qualification is outstanding.
+
+## Subsequent checkbox and scope-guidance delta
+
+Root-agent source review covers the narrow `f3abbda` viewport correction, `0728b2d` shared scope guidance/native picker shortcut and `7d12f12` disabled-review bridge correction. Shared presentation and enabled/disabled gallery examples are used; SPEC, design handoff and milestone boundaries remain synchronized. Eligibility, approval and executor policy are unchanged. See [checkbox evidence](checkbox-content-anchor.md) and [scope evidence](downloads-scope-guidance.md) for failures, source-pinned native results and capture provenance. Prior independent Standards/Spec review evidence through `524f878` is historical and is not presented as an independent review of these later deltas.

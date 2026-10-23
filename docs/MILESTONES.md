@@ -17,7 +17,7 @@ M2/M3 feasibility work may run before M1 finishes, but M1 must not depend on an 
 
 ## Preserved later exploration (not committed delivery)
 
-App uninstall, duplicate detection, broader browser support, whole-folder cleanup, direct backup deletion, Docker mutation, FSEvents/incremental background scanning, automatic cleanup, treemap enhancements, account/cloud services and automatic updates remain explicit backlog ideas. They require their own product/safety design; preserving them does not authorize their implementation. No “desired cleanup GB” field is planned: the accepted replacement is M5's low-space alert threshold.
+App uninstall, duplicate detection, broader browser support, ordinary-file cleanup outside Downloads, whole-folder cleanup, direct backup deletion, Docker mutation, FSEvents/incremental background scanning, automatic cleanup, treemap enhancements, account/cloud services and automatic updates remain explicit backlog ideas. They require their own product/safety design; preserving them does not authorize their implementation. No “desired cleanup GB” field is planned: the accepted replacement is M5's low-space alert threshold.
 
 ## Feature-to-design trace
 

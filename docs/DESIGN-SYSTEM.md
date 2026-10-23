@@ -154,3 +154,5 @@ The revision 0.9 personal Light/Dark references remain the comparison authority,
 - On macOS 26+, the informational toolbar context has no shared button background. It remains text, while Appearance remains a native labelled picker. Earlier supported configurations use the standard toolbar fallback.
 
 See [fidelity validation](validation/visual-fidelity.md) for exact source, captures, public regression results and remaining manual limits. A build alone is not visual acceptance.
+
+`ReviewCleanupButton` propagates its model-provided enabled state through SwiftUI `.disabled` as well as the native AppKit property. Keep both: native picker dismissal can otherwise expose an enabled-looking review control for an empty plan. The scope-guidance native journey exercises repeated picker cancellation and appearance changes; the gallery uses the actual disabled shared button.
