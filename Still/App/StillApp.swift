@@ -129,7 +129,7 @@ private struct WorkspaceView: View {
             .padding(StillDesign.Space.lg)
             .frame(width: 190)
             .frame(maxHeight: .infinity)
-            .background { ChromeSurface() }
+            .background { ChromeSurface(role: .sidebar) }
             Divider()
             VStack(alignment: .leading, spacing: 0) {
                 if showsPlan && !selection.scans.isEmpty {

@@ -23,10 +23,19 @@ private struct OpaqueChromeKey: EnvironmentKey { static let defaultValue = false
 extension EnvironmentValues {
     var stillOpaqueChrome: Bool { get { self[OpaqueChromeKey.self] } set { self[OpaqueChromeKey.self] = newValue } }
 }
+enum ChromeRole { case chrome, sidebar }
 struct ChromeSurface: View {
+    var role: ChromeRole = .chrome
+    @Environment(\.colorScheme) private var appearance
     @Environment(\.accessibilityReduceTransparency) private var reduced
     @Environment(\.stillOpaqueChrome) private var forcedOpaque
-    var body: some View { Group { if reduced || forcedOpaque { Color(nsColor: .windowBackgroundColor) } else { Rectangle().fill(.regularMaterial) } } }
+    var body: some View {
+        Group {
+            if role == .sidebar && appearance == .light { Color.white }
+            else if reduced || forcedOpaque { Color(nsColor: .windowBackgroundColor) }
+            else { Rectangle().fill(.regularMaterial) }
+        }
+    }
 }
 struct CategoryBadge: View {
     let category: StorageCategory
@@ -297,6 +306,8 @@ struct NativeWindowContract: NSViewRepresentable {
                 #if DEBUG
                 if ProcessInfo.processInfo.arguments.contains("--design-minimum") {
                     window.setFrame(NSRect(origin: window.frame.origin, size: NSSize(width: 900, height: 640)), display: true)
+                } else if ProcessInfo.processInfo.arguments.contains("--design-initial-size") {
+                    window.setFrame(NSRect(origin: window.frame.origin, size: NSSize(width: 1120, height: 760)), display: true)
                 }
                 #endif
             }

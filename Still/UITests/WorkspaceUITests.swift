@@ -212,7 +212,7 @@ final class WorkspaceUITests: XCTestCase {
     @MainActor
     func testDesignReviewCaptures() throws {
         continueAfterFailure = false
-        let app = XCUIApplication(); app.launchArguments = ["--fixture-workspace"]; app.launch()
+        let app = XCUIApplication(); app.launchArguments = ["--fixture-workspace", "--design-initial-size"]; app.launch()
         XCTAssertTrue(app.buttons["Review Downloads"].waitForExistence(timeout: 10))
         func capture(_ name: String) {
             let shot = XCTAttachment(screenshot: app.windows.firstMatch.screenshot())
@@ -235,7 +235,7 @@ final class WorkspaceUITests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: root) }
         try Data([1, 2, 3]).write(to: root.appendingPathComponent("selected.pdf"))
         let app = XCUIApplication()
-        app.launchArguments = ["--ui-test-downloads-root"]
+        app.launchArguments = ["--ui-test-downloads-root", "--design-initial-size"]
         app.launchEnvironment["STILL_TEST_DOWNLOADS_ROOT"] = root.path
         app.launch()
         func capture(_ name: String) {
@@ -275,7 +275,7 @@ final class WorkspaceUITests: XCTestCase {
             app.typeKey("2", modifierFlags: .command)
         }
         app.terminate()
-        app.launchArguments = ["--future-milestones"]
+        app.launchArguments = ["--future-milestones", "--design-initial-size"]
         app.launch(); app.typeKey("5", modifierFlags: .command)
         for theme in ["Light", "Dark"] {
             app.popUpButtons.firstMatch.click(); app.menuItems[theme].click(); capture("native-alert-settings-" + theme)
