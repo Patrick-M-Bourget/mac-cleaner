@@ -22,6 +22,7 @@ private struct RefreshLocalMetadata: MetadataSupplementReading {
     #expect(refresh.requiresRefresh(original.id))
     #expect(draft.selected.first?.observedAt == original.observedAt)
     try Data([4]).write(to: root.appendingPathComponent("new.pdf"))
+    try FileManager.default.linkItem(at: root.appendingPathComponent("chosen.pdf"), to: root.appendingPathComponent("new-alias.pdf"))
     let scan = try await scanner.scan(root)
     let outcome = await RefreshValidator().validate(request, against: scan)
     refresh.finish(outcome, draft: &draft)
@@ -157,4 +158,61 @@ private struct RefreshDeniedAccess: ScanAccessChecking {
     _ = refresh.begin(scope: root, draft: &draft)
     #expect(throws: PlanSelectionError.self) { try draft.approve(reviewed) }
     #expect(!refresh.canReview(draft))
+}
+
+@Test func completingScopeRefreshLetsPreviouslyDeselectedPendingFileBeChosenAgain() async throws {
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent("StillRefresh-" + UUID().uuidString)
+    try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: root) }
+    try Data([1]).write(to: root.appendingPathComponent("chosen.pdf"))
+    let scanner = FolderScanner(supplement: RefreshLocalMetadata())
+    let initial = try await scanner.scan(root)
+    var draft = PlanDraft()
+    try draft.select(try #require(initial.observations.first), in: initial, downloadsRoot: root)
+    let id = try #require(draft.selected.first?.id)
+    var refresh = RefreshChoices()
+    let cancelled = refresh.begin(scope: root, draft: &draft)
+    refresh.cancel(cancelled); draft.remove(id)
+    let complete = refresh.begin(scope: root, draft: &draft)
+    let fresh = try await scanner.scan(root)
+    refresh.finish(await RefreshValidator().validate(complete, against: fresh), draft: &draft)
+    try draft.select(try #require(fresh.observations.first), in: fresh, downloadsRoot: root)
+    #expect(refresh.canReview(draft))
+}
+
+@Test func activeRefreshSuspendsReviewEvenWhenOtherScopesHaveNoPendingTargets() async throws {
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent("StillRefresh-" + UUID().uuidString)
+    try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: root) }
+    try Data([1]).write(to: root.appendingPathComponent("chosen.pdf"))
+    let scan = try await FolderScanner(supplement: RefreshLocalMetadata()).scan(root)
+    var draft = PlanDraft()
+    try draft.select(try #require(scan.observations.first), in: scan, downloadsRoot: root)
+    var refresh = RefreshChoices()
+    let request = refresh.begin(scope: root.appendingPathComponent("unselected"), draft: &draft)
+    #expect(!refresh.canReview(draft))
+    refresh.cancel(request)
+    #expect(refresh.canReview(draft))
+}
+
+@Test func replacingDownloadsDirectoryCannotRevalidateEvenAnUnchangedHardlinkedFile() async throws {
+    let base = FileManager.default.temporaryDirectory.appendingPathComponent("StillRefresh-" + UUID().uuidString)
+    let root = base.appendingPathComponent("Downloads"), previous = base.appendingPathComponent("Previous")
+    try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: base) }
+    let file = root.appendingPathComponent("chosen.pdf")
+    try Data([1]).write(to: file)
+    let scanner = FolderScanner(supplement: RefreshLocalMetadata())
+    let initial = try await scanner.scan(root)
+    var draft = PlanDraft()
+    try draft.select(try #require(initial.observations.first), in: initial, downloadsRoot: root)
+    var refresh = RefreshChoices()
+    let request = refresh.begin(scope: root, draft: &draft)
+    try FileManager.default.moveItem(at: root, to: previous)
+    try FileManager.default.createDirectory(at: root, withIntermediateDirectories: false)
+    try FileManager.default.linkItem(at: previous.appendingPathComponent("chosen.pdf"), to: file)
+    let fresh = try await scanner.scan(root)
+    refresh.finish(await RefreshValidator().validate(request, against: fresh), draft: &draft)
+    #expect(draft.selectedCount == 0)
+    #expect(refresh.notices.count == 1)
 }

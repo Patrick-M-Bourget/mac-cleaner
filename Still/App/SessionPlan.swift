@@ -23,6 +23,8 @@ import SwiftUI
     private var refreshRequests: [URL: RefreshRequest] = [:]
     private let refreshValidator = RefreshValidator()
     var isRefreshing: Bool { !refreshRequests.isEmpty }
+    var pendingCount: Int { draft.selected.filter { refresh.requiresRefresh($0.id) }.count }
+    var refreshScopes: [URL] { Array(Set(scans.keys).union(draft.selected.map(\.scope))).sorted { $0.path < $1.path } }
     func beginRefresh(_ scope: URL) -> RefreshRequest {
         invalidateReview()
         let request = refresh.begin(scope: scope, draft: &draft)
@@ -76,6 +78,7 @@ import SwiftUI
         }.sorted { $0.item.url.path < $1.item.url.path }
     }
     func observe(_ scan: ScanResult) {
+        if let newer = scans[scan.scope], newer.observedAt > scan.observedAt { return }
         #if DEBUG
         // Bind only after NSOpenPanel selected the exact fixture; never probe runner data at launch.
         if let requestedFixture, requestedFixture.standardizedFileURL.path == scan.scope.standardizedFileURL.path,
@@ -152,6 +155,7 @@ struct LiveCleanupPlanView: View {
     @State private var reviewFocusRequest = 0
     @State private var choosingItems = true
     @State private var inspected: FileObservation?
+    @State private var visibleRow: String?
     var body: some View {
         VStack(spacing: 0) {
         ScrollView {
@@ -159,10 +163,22 @@ struct LiveCleanupPlanView: View {
             PageHeader(title: "Cleanup plan", subtitle: "Choose categories, adjust items if needed, then review the changes.")
             SelectionSummary(value: ByteCountFormatter.string(fromByteCount: selection.draft.logicalBytes, countStyle: .decimal), detail: "\(StillDesign.files(selection.draft.selectedCount)) selected", identifier: "liveSelectionSummary")
             StatusRow(text: "Space stays occupied until Finder empties Trash. No files are moved in this build.", symbol: "trash")
+            VStack(alignment: .leading, spacing: StillDesign.Space.sm) {
+                HStack {
+                    if selection.isRefreshing { ProgressView("Rechecking selected locations…") }
+                    else if selection.pendingCount > 0 { StatusRow(text: "Refresh required · \(StillDesign.files(selection.pendingCount)) retain their previous observations.", symbol: "arrow.clockwise", role: .caution) }
+                }
+                ForEach(selection.refreshScopes, id: \.self) { scope in
+                    Button("Recheck location: " + scope.lastPathComponent) { recheck(scope) }.disabled(selection.isRefreshing || selection.isPreparing)
+                }
+            }
+            ForEach(selection.refresh.notices) { notice in
+                StatusRow(text: notice.target.url.lastPathComponent + " · " + notice.message, symbol: "info.circle", role: .caution)
+            }
             HStack(alignment: .top, spacing: StillDesign.Space.md) {
                 CategoryBadge(category: .downloads)
                 VStack(alignment: .leading, spacing: StillDesign.Space.sm) {
-                    MacroCategoryCheckbox(state: selection.categoryState, label: "Downloads · \(StillDesign.files(selection.rows.count)) eligible", enabled: !selection.isPreparing && !selection.rows.isEmpty) { Task { await selection.toggleAll() } }
+                    MacroCategoryCheckbox(state: selection.categoryState, label: "Downloads · \(StillDesign.files(selection.rows.count)) eligible", enabled: !selection.isPreparing && !selection.isRefreshing && !selection.rows.isEmpty) { Task { await selection.toggleAll() } }
                         .fixedSize(horizontal: true, vertical: false).frame(height: 26)
                     Text("Move exact files to Trash. Personal files and installers are included only when selected.").font(.caption).foregroundStyle(.secondary)
                 }
@@ -180,11 +196,14 @@ struct LiveCleanupPlanView: View {
                         ForEach(selection.rows.filter { search.isEmpty || $0.item.url.path.localizedCaseInsensitiveContains(search) }) { row in
                             InspectableItemRow(name: row.item.url.lastPathComponent, detail: row.item.url.pathComponents.dropFirst(row.scan.scope.pathComponents.count).joined(separator: "/"), size: ByteCountFormatter.string(fromByteCount: row.item.logicalBytes ?? 0, countStyle: .decimal), symbol: "doc", inspected: inspected?.id == row.item.id, inspect: { inspected = row.item }) {
                                 Toggle("\(selection.draft.contains(row.item) ? "Selected" : "Select") \(row.item.url.lastPathComponent)", isOn: Binding(get: { selection.draft.contains(row.item) }, set: { selection.set(row.item, in: row.scan, selected: $0) }))
-                                    .labelsHidden().disabled(selection.isPreparing)
+                                    .labelsHidden().disabled(selection.isPreparing || (selection.isRefreshing && !selection.draft.contains(row.item)))
+                            }
+                            if selection.refresh.requiresRefresh(row.item.url.path + "|" + row.item.resourceID + "|moveToTrash") {
+                                StatusRow(text: selection.isRefreshing ? "Rechecking…" : "Refresh required", symbol: "arrow.clockwise", role: .caution).padding(.horizontal, StillDesign.Space.md)
                             }
                             Divider()
                         }
-                    }
+                    }.scrollTargetLayout()
                     if let item = inspected {
                         SummarySurface {
                             VStack(alignment: .leading, spacing: StillDesign.Space.sm) {
@@ -207,8 +226,9 @@ struct LiveCleanupPlanView: View {
             }
 
         }.padding(StillDesign.Space.page).frame(maxWidth: .infinity, alignment: .leading)
-        }.background(StillDesign.reading)
-        ActionStrip(message: "Nothing changes until you confirm the next step.") {
+        }.scrollPosition(id: $visibleRow).background(StillDesign.reading)
+        ActionStrip(message: selection.isRefreshing ? "Review is paused while findings are rechecked." : selection.pendingCount > 0 ? "Refresh required before reviewing the selected files." : "Nothing changes until you confirm the next step.") {
+            if selection.isRefreshing { Button("Stop refresh", action: stopRefresh) }
 ReviewCleanupButton(enabled: selection.canReview, focusRequest: reviewFocusRequest) {
                 do { review = try selection.review(); approvalError = nil } catch { approvalError = "Recheck the selected targets before reviewing." }
             }.fixedSize()

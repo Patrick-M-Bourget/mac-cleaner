@@ -6,11 +6,21 @@ import QuickLook
 
 @MainActor @Observable
 final class FolderInspection {
-    private let scanner = FolderScanner()
+    private let scanner: FolderScanner
     private let session: InspectionSession
     private let selection: SessionPlan
-    init(selection: SessionPlan) { self.selection = selection; session = InspectionSession(scanner: scanner) }
+    init(selection: SessionPlan) {
+        self.selection = selection
+        #if DEBUG
+        scanner = FolderScanner(supplement: RefreshFixtureMetadata())
+        #else
+        scanner = FolderScanner()
+        #endif
+        session = InspectionSession(scanner: scanner)
+    }
     private var task: Task<Void, Never>?
+    private var previewTask: Task<Void, Never>?
+    private var previewGeneration = UUID()
     private var generation = UUID()
     private var previewAccessScope: URL?
     private var refreshRequest: RefreshRequest?
@@ -36,6 +46,8 @@ final class FolderInspection {
 
     func scan(_ url: URL) {
         cancel()
+        previewURL = nil
+        closePreviewAccess()
         let previousSelection = scope?.standardizedFileURL == url.standardizedFileURL ? selected : nil
         let sameScope = scope?.standardizedFileURL == url.standardizedFileURL
         let request = selection.beginRefresh(url)
@@ -90,9 +102,15 @@ final class FolderInspection {
     func preview(_ item: FileObservation) {
         closePreviewAccess()
         if let scope, scope.startAccessingSecurityScopedResource() { previewAccessScope = scope }
-        task = Task {
-            do { previewURL = try await scanner.previewURL(for: item) }
+        let token = UUID(); previewGeneration = token
+        previewTask = Task {
+            do {
+                let local = try await scanner.previewURL(for: item)
+                guard !Task.isCancelled, previewGeneration == token else { return }
+                previewURL = local
+            }
             catch {
+                guard previewGeneration == token else { return }
                 closePreviewAccess()
                 message = "Preview unavailable: local contents or resource identity could not be confirmed. No download was requested."
             }
@@ -100,6 +118,8 @@ final class FolderInspection {
     }
 
     func closePreviewAccess() {
+        previewTask?.cancel()
+        previewGeneration = UUID()
         previewAccessScope?.stopAccessingSecurityScopedResource()
         previewAccessScope = nil
     }
@@ -168,7 +188,7 @@ struct FolderInspectionView: View {
                     ForEach(result.observations.filter { search.isEmpty || $0.url.path.localizedCaseInsensitiveContains(search) }) { item in
                         InspectableItemRow(name: item.url.lastPathComponent, detail: relative(item.url, to: result.scope), size: item.kind == .file ? bytes(item.logicalBytes) : item.kind.rawValue, symbol: item.kind == .file ? "doc" : "folder", inspected: model.selected?.id == item.id, inspect: { model.selected = item }) {
                             if selection.eligible(item, in: result) {
-                                Toggle("Select \(item.url.lastPathComponent)", isOn: Binding(get: { selection.draft.contains(item) }, set: { selection.set(item, in: result, selected: $0) })).labelsHidden().disabled(selection.isPreparing)
+                                Toggle("Select \(item.url.lastPathComponent)", isOn: Binding(get: { selection.draft.contains(item) }, set: { selection.set(item, in: result, selected: $0) })).labelsHidden().disabled(selection.isPreparing || (model.isScanning && !selection.draft.contains(item)))
                             } else {
                                 Image(systemName: "lock").foregroundStyle(.secondary).help("Browse only · outside eligible Downloads or protected/unknown target").accessibilityLabel("Browse only · protected or ineligible target")
                             }
@@ -222,3 +242,19 @@ struct FolderInspectionView: View {
         url.pathComponents.dropFirst(root.pathComponents.count).joined(separator: "/")
     }
 }
+
+#if DEBUG
+/// Controlled latency at the public metadata boundary, only for explicitly picked disposable UI fixtures.
+private struct RefreshFixtureMetadata: MetadataSupplementReading {
+    func read(_ url: URL) throws -> MetadataSupplement {
+        if ProcessInfo.processInfo.arguments.contains("--ui-test-slow-refresh"),
+           let path = ProcessInfo.processInfo.environment["STILL_TEST_DOWNLOADS_ROOT"] {
+            let root = URL(fileURLWithPath: path).standardizedFileURL
+            if root.lastPathComponent.hasPrefix("StillSelectionUI-"), url.standardizedFileURL.pathComponents.starts(with: root.pathComponents) {
+                Thread.sleep(forTimeInterval: 0.02)
+            }
+        }
+        return try FoundationMetadataSupplement().read(url)
+    }
+}
+#endif

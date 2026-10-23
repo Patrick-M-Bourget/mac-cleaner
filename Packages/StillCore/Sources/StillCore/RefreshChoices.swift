@@ -21,16 +21,17 @@ public struct RefreshNotice: Sendable, Identifiable {
 public enum RefreshStatus: Sendable { case ready, refreshing, required }
 public struct RefreshChoices: Sendable {
     private var active: [URL: UUID] = [:]
-    private var pending: [String: UUID] = [:]
+    private struct Pending: Sendable { let token: UUID; let url: URL; let startedAt: Date }
+    private var pending: [String: Pending] = [:]
     public private(set) var notices: [RefreshNotice] = []
     public init() {}
     public func status(_ id: String) -> RefreshStatus {
-        guard let token = pending[id] else { return .ready }
-        return active.values.contains(token) ? .refreshing : .required
+        guard let pending = pending[id] else { return .ready }
+        return active.values.contains(pending.token) ? .refreshing : .required
     }
     public func requiresRefresh(_ id: String) -> Bool { pending[id] != nil }
     public func canReview(_ draft: PlanDraft) -> Bool {
-        !draft.selected.isEmpty && !draft.selected.contains { requiresRefresh($0.id) }
+        active.isEmpty && !draft.selected.isEmpty && !draft.selected.contains { requiresRefresh($0.id) }
     }
     public mutating func begin(scope: URL, draft: inout PlanDraft) -> RefreshRequest {
         draft.invalidateReview()
@@ -38,7 +39,7 @@ public struct RefreshChoices: Sendable {
         let targets = draft.selected.filter { $0.url.standardizedFileURL.pathComponents.starts(with: scope.pathComponents) }
         let request = RefreshRequest(id: UUID(), scope: scope, targets: targets, startedAt: Date())
         active[scope] = request.id
-        for target in targets { pending[target.id] = request.id }
+        for target in targets { pending[target.id] = Pending(token: request.id, url: target.url, startedAt: request.startedAt) }
         notices.removeAll { $0.target.url.standardizedFileURL.pathComponents.starts(with: scope.pathComponents) }
         return request
     }
@@ -53,16 +54,21 @@ public struct RefreshChoices: Sendable {
         active[request.scope] = nil
         guard outcome.complete else { return }
         let currentTargets = Dictionary(draft.selected.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
-        for original in request.targets where pending[original.id] == request.id {
+        for original in request.targets where pending[original.id]?.token == request.id {
+            guard let current = currentTargets[original.id] else { pending[original.id] = nil; continue }
+            guard current.observedAt == original.observedAt else { continue }
             pending[original.id] = nil
-            guard let current = currentTargets[original.id],
-                  current.observedAt == original.observedAt else { continue }
             if let replacement = outcome.replacements[original.id] {
                 draft.replaceAfterRefresh(original, with: replacement)
             } else {
                 draft.remove(original.id)
                 notices.append(RefreshNotice(target: original, message: outcome.missing.contains(original.id) ? "File was removed or replaced. Its previous selection was cleared." : "File changed or is no longer eligible. Review it again before selecting it."))
             }
+        }
+        // A later complete scope observation also retires pending evidence for deselected files.
+        for (id, entry) in pending where currentTargets[id] == nil && entry.startedAt <= request.startedAt
+            && entry.url.standardizedFileURL.pathComponents.starts(with: request.scope.pathComponents) {
+            pending[id] = nil
         }
     }
 }
