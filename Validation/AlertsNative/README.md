@@ -14,7 +14,7 @@ Local verification is limited to build-for-testing compilation, plist/workflow s
 
 ## First bounded hosted result
 
-Run [40014599790](https://github.com/Patrick-M-Bourget/mac-cleaner/actions/runs/40014599790), source `80f9f111cd01f9e3b3d5c2bc258966d5de1ecb95`, reached the explicit opt-in action on macOS 26.6.2 arm64/Xcode 26.6. Preparation and injected guards passed. The test reported unsupported after 49.516 seconds; summary recorded zero passed, zero failed and one skipped, and the qualification checker correctly failed the job. Native monitoring/window lifecycle is **not qualified** by this run.
+Run [40014599790](https://github.com/Patrick-M-Bourget/mac-cleaner/actions/runs/40014599790), source `80f9f111cd01f9e3b3d5c2bc258966d5de1ecb95`, reached the explicit opt-in action on macOS 26.6.2 arm64/Xcode 26.6. Preparation and injected guards passed. The attempt is inconclusive because opt-in activation was not observed. The harness labeled it unsupported after 49.516 seconds; summary recorded zero passed, zero failed and one skipped, and the qualification checker correctly failed the job. Native monitoring/window lifecycle is **not qualified** by this run.
 
 The retained Still screenshot/tree after the click showed unchecked opt-in and “Alerts are off.” No expected Still permission UI was observed; the only other discovered notification-related application was SoftwareUpdateNotificationManager, with no relevant prompt. This does not establish OS denial or a permission lookup bug. Further investigation must distinguish public toggle/controller response from OS authorization before proposing another native attempt. No Settings, permissions reset, signing change or retry was performed.
 
