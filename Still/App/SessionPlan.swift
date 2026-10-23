@@ -9,12 +9,17 @@ import SwiftUI
     private(set) var scans: [URL: ScanResult] = [:]
     private(set) var message: String?
     private(set) var isPreparing = false
+    private(set) var isRetryRechecking = false
+    private(set) var retryTargetIDs: Set<String>?
+    private(set) var retryExcludedURLs: [URL] = []
+    private var retryCancellation: ScanCancellation?
+    private var retryGeneration = UUID()
     private(set) var approvedBatch: CleanupApproval?
     var mutationVersion: UInt64 { draft.mutationVersion }
     var canReview: Bool { !isPreparing && !execution.isRunning && !isRefreshing && refresh.canReview(draft) }
     var categoryState: CategorySelectionState {
         guard let downloads else { return .unchecked }
-        return draft.categoryState(in: Array(scans.values), downloads: downloads)
+        return draft.categoryState(in: Array(scans.values), downloads: downloads, restrictingTo: retryTargetIDs)
     }
     var eligibleLogicalBytes: Int64 {
         var seen = Set<String>()
@@ -27,6 +32,7 @@ import SwiftUI
     var pendingCount: Int { draft.selected.filter { refresh.requiresRefresh($0.id) }.count }
     var refreshScopes: [URL] { Array(Set(scans.keys).union(draft.selected.map(\.scope))).sorted { $0.path < $1.path } }
     func beginRefresh(_ scope: URL) -> RefreshRequest {
+        if isRetryRechecking { stopRetryRecheck(); retryGeneration = UUID(); isPreparing = false; isRetryRechecking = false }
         invalidateReview()
         let request = refresh.begin(scope: scope, draft: &draft)
         refreshRequests[request.scope] = request
@@ -74,12 +80,13 @@ import SwiftUI
         return scans.values.sorted { $0.observedAt > $1.observedAt }.flatMap { scan in
             scan.observations.compactMap { item in
                 let row = Row(item: item, scan: scan)
-                return eligible(item, in: scan) && seen.insert(row.id).inserted ? row : nil
+                return eligible(item, in: scan) && retryTargetIDs?.contains(row.id + "|moveToTrash") != false && seen.insert(row.id).inserted ? row : nil
             }
         }.sorted { $0.item.url.path < $1.item.url.path }
     }
     func observe(_ scan: ScanResult) {
         guard !execution.isRunning else { return }
+        if isRetryRechecking { stopRetryRecheck(); retryGeneration = UUID(); isPreparing = false; isRetryRechecking = false }
         execution.clear()
         if let newer = scans[scan.scope], newer.observedAt > scan.observedAt { return }
         #if DEBUG
@@ -124,11 +131,11 @@ import SwiftUI
         if categoryState == .checked { draft.clear(); approvedBatch = nil; AppLifecycleController.shared.hasPendingPlan = false; return }
         guard let downloads else { return }
         invalidateReview()
-        let version = mutationVersion, scans = Array(scans.values), current = draft
+        let version = mutationVersion, scans = Array(scans.values), current = draft, allowed = retryTargetIDs
         isPreparing = true
         let result = await Task.detached(priority: .userInitiated) {
             var updated = current
-            let skipped = updated.selectAll(in: scans, downloads: downloads)
+            let skipped = updated.selectAll(in: scans, downloads: downloads, restrictingTo: allowed)
             return (updated, skipped)
         }.value
         isPreparing = false
@@ -142,7 +149,7 @@ import SwiftUI
         approvedBatch = nil
         if !selected { draft.remove(item.url.path + "|" + item.resourceID + "|moveToTrash") }
         else {
-            guard !isRefreshing, let downloads else { return }
+            guard !isRefreshing, let downloads, retryTargetIDs?.contains(item.url.path + "|" + item.resourceID + "|moveToTrash") != false else { return }
             do { try draft.select(item, in: scan, downloads: downloads); message = nil }
             catch { message = "This target is no longer eligible. Recheck its selected Downloads scope." }
         }
@@ -154,7 +161,51 @@ import SwiftUI
         draft.remove(target.id)
         AppLifecycleController.shared.hasPendingPlan = draft.selectedCount > 0
     }
-    func endSession() { draft.clear(); scans.removeAll(); refresh = RefreshChoices(); refreshRequests.removeAll(); approvedBatch = nil; AppLifecycleController.shared.hasPendingPlan = false }
+    func leaveRetryMode() {
+        guard !isRetryRechecking && !execution.isRunning else { return }
+        retryTargetIDs = nil; retryExcludedURLs = []; message = nil; invalidateReview()
+    }
+    func stopRetryRecheck() {
+        retryCancellation?.cancel()
+        message = "Recheck stopped. No retry plan was created; no files were moved."
+    }
+    func prepareRetry() async {
+        guard !isPreparing, !isRefreshing, execution.canRetry, let result = execution.result, let downloads else { return }
+        let records = result.targets, scopes = execution.retryScopes
+        let cancellation = ScanCancellation(), token = UUID()
+        retryCancellation = cancellation; retryGeneration = token
+        isPreparing = true; isRetryRechecking = true; message = nil; invalidateReview()
+        defer {
+            if retryGeneration == token { isPreparing = false; isRetryRechecking = false; retryCancellation = nil }
+        }
+        let reports = await Task.detached(priority: .userInitiated) {
+            let scanner = FolderScanner()
+            var reports: [ScanResult] = []
+            for scope in scopes {
+                if cancellation.isCancellationRequested { return reports }
+                let access = scope.startAccessingSecurityScopedResource()
+                do { reports.append(try await scanner.scan(scope, cancellation: cancellation)) } catch { }
+                if access { scope.stopAccessingSecurityScopedResource() }
+            }
+            return reports
+        }.value
+        guard retryGeneration == token, !cancellation.isCancellationRequested, execution.result?.batchID == result.batchID else { return }
+        let prepared = await Task.detached(priority: .userInitiated) { RetryPlan.prepare(records: records, scans: reports, downloads: downloads) }.value
+        guard retryGeneration == token, !cancellation.isCancellationRequested else { return }
+        retryExcludedURLs = prepared.unavailableURLs
+        guard prepared.draft.selectedCount > 0 else {
+            message = "No unfinished files passed the fresh identity and access checks. Start a new scan from Overview to review changed files."
+            return
+        }
+        draft = prepared.draft; approvedBatch = nil
+        scans = Dictionary(reports.map { ($0.scope, $0) }, uniquingKeysWith: { latest, _ in latest })
+        refresh = RefreshChoices(); refreshRequests.removeAll()
+        retryTargetIDs = Set(draft.selected.map(\.id))
+        execution.clear()
+        message = "Rechecked \(StillDesign.files(draft.selectedCount)) for a new approval. \(prepared.completedCount) completed and \(prepared.unavailableCount) changed or unavailable targets excluded."
+        AppLifecycleController.shared.hasPendingPlan = true
+    }
+    func endSession() { guard !execution.isRunning else { return }; retryCancellation?.cancel(); retryGeneration = UUID(); retryCancellation = nil; isRetryRechecking = false; isPreparing = false; retryTargetIDs = nil; retryExcludedURLs = []; draft.clear(); scans.removeAll(); refresh = RefreshChoices(); refreshRequests.removeAll(); approvedBatch = nil; AppLifecycleController.shared.hasPendingPlan = false }
 }
 
 struct LiveCleanupPlanView: View {
@@ -172,10 +223,10 @@ struct LiveCleanupPlanView: View {
         VStack(spacing: 0) {
         ScrollView {
         if selection.execution.isRunning || selection.execution.result != nil || selection.execution.error != nil {
-            CleanupExecutionView(model: selection.execution).padding(StillDesign.Space.page)
+            CleanupExecutionView(model: selection.execution, retryMessage: selection.message).padding(StillDesign.Space.page)
         } else {
         VStack(alignment: .leading, spacing: StillDesign.Space.xl) {
-            PageHeader(title: "Cleanup plan", subtitle: "Choose categories, adjust items if needed, then review the changes.")
+            PageHeader(title: "Cleanup plan", subtitle: selection.retryTargetIDs == nil ? "Choose categories, adjust items if needed, then review the changes." : "Only rechecked unfinished files are included. Completed successes and new discoveries stay excluded.")
             SelectionSummary(value: ByteCountFormatter.string(fromByteCount: selection.draft.logicalBytes, countStyle: .decimal), detail: "\(StillDesign.files(selection.draft.selectedCount)) selected", identifier: "liveSelectionSummary")
             StatusRow(text: "Space stays occupied until Finder empties Trash. Nothing changes before final confirmation.", symbol: "trash")
             VStack(alignment: .leading, spacing: StillDesign.Space.sm) {
@@ -236,6 +287,9 @@ struct LiveCleanupPlanView: View {
                 }
             }
             if let message = selection.message { Text(message).foregroundStyle(.secondary) }
+            ForEach(selection.retryExcludedURLs, id: \.path) { url in
+                StatusRow(text: "\(url.lastPathComponent): changed or unavailable. Review it through a new scan from Overview.", symbol: "exclamationmark.circle", role: .caution).help(url.path)
+            }
             DisclosureGroup("Size and selection details") {
                 Text("Logical size describes the selected files, not guaranteed space freed. Linked files count once in the size total; each selected path is a separate target. Hidden search results keep their selections.").font(.caption).foregroundStyle(.secondary)
             }
@@ -243,7 +297,20 @@ struct LiveCleanupPlanView: View {
         }.padding(StillDesign.Space.page).frame(maxWidth: .infinity, alignment: .leading)
         }
         }.scrollPosition(id: $visibleRow).background(StillDesign.reading)
-        if !selection.execution.isRunning && selection.execution.result == nil && selection.execution.error == nil {
+        if selection.isRetryRechecking {
+            ActionStrip(message: "Rechecking unfinished identities. No files are moved.") {
+                ProgressView().controlSize(.small)
+                Button("Stop recheck") { selection.stopRetryRecheck() }
+            }
+        } else if selection.execution.isRunning {
+            ActionStrip(message: "Stopping never rolls back files already moved to Trash.") {
+                Button(selection.execution.stopRequested ? "Stop requested" : "Stop after current file") { selection.execution.cancel() }.disabled(selection.execution.stopRequested)
+            }
+        } else if selection.execution.canRetry {
+            ActionStrip(message: "A retry needs a fresh check and new approval; completed successes stay excluded.") {
+                Button("Recheck unfinished files") { Task { await selection.prepareRetry() } }.buttonStyle(.borderedProminent).disabled(selection.isRefreshing || selection.isPreparing)
+            }
+        } else if selection.execution.result == nil && selection.execution.error == nil {
         ActionStrip(message: selection.isRefreshing ? "Review is paused while findings are rechecked." : selection.pendingCount > 0 ? "Refresh required before reviewing the selected files." : "Nothing changes until you confirm the next step.") {
             if selection.isRefreshing { Button("Stop refresh", action: stopRefresh) }
 ReviewCleanupButton(enabled: selection.canReview, focusRequest: reviewFocusRequest) {
@@ -290,7 +357,10 @@ private struct CleanupConfirmationView: View {
                             }
                         }.padding(.top, 8)
                     }
-                }.frame(maxWidth: .infinity, alignment: .leading)
+                }
+                // Native macOS disclosure arrows extend before their label; keep that control inside the scroll clip.
+                .padding(.leading, StillDesign.Space.xl)
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
             Divider()
             HStack { Button("Cancel", action: cancel).keyboardShortcut(.cancelAction); Spacer(); Button("Move to Trash", action: approve).buttonStyle(.borderedProminent) }
