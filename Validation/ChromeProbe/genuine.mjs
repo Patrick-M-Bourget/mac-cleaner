@@ -45,7 +45,7 @@ const server = createServer((req, res) => {
 await new Promise(r => server.listen(0, '127.0.0.1', r));
 const origin = `http://127.0.0.1:${server.address().port}`;
 const sleep = ms => new Promise(r => setTimeout(r, ms));
-const report = { schema: 1, codeSignatureVerified: true, browserVersion: version, executableSHA256: digest(await readFile(browser)), os: release(), architecture: arch(), sourceURL: `https://storage.googleapis.com/chrome-for-testing-public/${expectedVersion}/mac-arm64/chrome-mac-arm64.zip`, profiles: [], productionMutationSupported: false, limitations: ['No production inactivity or reopen-race closure', 'No credentials/autofill/download/session-tab semantic qualification', 'No enterprise policy, shared cache, minimum OS or Intel qualification', 'Background-network flags are not a network trace; no network absence claim'] };
+const report = { schema: 1, codeSignatureVerified: true, browserVersion: version, executableSHA256: digest(await readFile(browser)), os: release(), architecture: arch(), sourceURL: `https://storage.googleapis.com/chrome-for-testing-public/${expectedVersion}/mac-arm64/chrome-mac-arm64.zip`, profiles: [], productionMutationSupported: false, limitations: ['No production inactivity or reopen-race closure', 'No credentials/autofill/download/history/session-tab semantic qualification', 'No enterprise policy, shared cache, minimum OS or Intel qualification', 'Background-network flags are not a network trace; no network absence claim'] };
 let owned;
 class CDP {
   constructor(ws) {

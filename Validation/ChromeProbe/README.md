@@ -1,6 +1,6 @@
 # Chrome cache qualification probe
 
-**Decision: Chrome mutation unsupported; guidance only.** No browser/version is on the production positive allowlist. `qualifiedBrowserVersions` is intentionally empty. This harness has no deletion API and cannot qualify real Chrome cleanup by itself.
+**Decision: Chrome mutation unsupported; guidance only.** No browser/version is on the production positive allowlist. `qualifiedBrowserVersions` is intentionally empty. The Swift fixture library has no deletion API. The separate hosted-only experiment below can remove exact generated owned-profile asset leaves, without qualifying production Chrome cleanup.
 
 ## Reproduce
 
@@ -14,7 +14,7 @@ Tests create and remove their own temporary `StillChromeProbe-<UUID>` trees only
 
 Four public-seam tests passed on macOS 27.0.1 (26A434), Apple silicon, Swift 6.4. They include nine synthetic environment scenarios. Red/green cycles established missing capability API, missing environmental guidance and absent fixture inspection before implementations passed. The package compiles for minimum macOS 14; no macOS-14/Intel runtime qualification is claimed.
 
-## What is and is not proven
+## What the original Swift fixture suite proves
 
 | Boundary | Observed evidence | Production qualification |
 |---|---|---|
