@@ -35,3 +35,7 @@ To enable a selected real installation, separately establish trusted interpreter
 - [pip configuration](https://pip.pypa.io/en/stable/topics/configuration/): PIP_CONFIG_FILE=os.devnull disables config loading. [pip general options](https://pip.pypa.io/en/stable/cli/pip/): cache path and version-check suppression. Python -I differs from pip --isolated; the latter ignores environment variables, so it is not silently substituted. No undocumented analytics flag is invented.
 
 Recorded implementation validation: 29 merged StillCore tests passed, including the genuine disposable environment and complete owned snapshot comparison. Native build passed after shared session-selection integration. A native UI smoke passed the future Overview → pip reference → Back journey with stable bounds; it did not execute an interpreter or modify OS settings. These observations do not qualify arbitrary user installations.
+
+## Separate mutation-boundary evidence (#25)
+
+A [genuine owned vendor-command experiment](../../Validation/PipMutationExperiment/README.md) now demonstrates that21.2.4 pattern removal widens beyond the frozen reviewed manifest and does not bind resource identity. Actual commands run only in disposable owned venv/cache trees with seeded wheel-shaped fixtures. The app's ordinary installations remain unexecuted/guidance-only, and no production mutation is enabled. Inventory compatibility does not imply mutation compatibility.
