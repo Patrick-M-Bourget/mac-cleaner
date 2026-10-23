@@ -4,7 +4,7 @@ Issue #16 · 2026-10-22 · M3 investigation, independent of the M1 personal buil
 
 ## Result
 
-**Fixture policy established; production mutation remains guidance-only.** No real DerivedData, user source, archive, dSYM or project was scanned, modified or removed. The package has no public initializer accepting an external cleanup root: each probe owns a newly created temporary tree. It is a reproducible negative/positive policy experiment, not the app's cleanup adapter.
+**Fixture policy and one bounded genuine owned-project experiment established; production mutation remains guidance-only.** No personal/default DerivedData, user source, archive, dSYM or project was scanned, modified or removed. The later [genuine native experiment](NativeExperiment/README.md) builds its own minimal project and removes one exact owned generated object, separately from the synthetic suite below. The package has no public initializer accepting an external cleanup root: each probe owns a newly created temporary tree. It is a reproducible negative/positive policy experiment, not the app's cleanup adapter.
 
 Toolchain observed: Xcode 27.1 (27A9275), Apple silicon. Selection was process-local using `DEVELOPER_DIR`; the global developer-directory setting was unchanged. Only this toolchain ran these synthetic fixtures; this is not evidence that every Xcode 27.1 on-disk layout is validated. Other versions are guidance-only.
 
@@ -37,7 +37,7 @@ Production discovery may inspect the explicitly enabled default root `~/Library/
 
 ## Remaining gate
 
-Before #17 can enable direct cleanup: generate a disposable Xcode project with an isolated build output path, inspect actual metadata and source/debug-symbol placement for the claimed layout, test real running Xcode/build helpers, validate descriptor-relative mutation and adversarial swaps, hard links, permissions and volumes, and integrate durable recovery. A successful synthetic suite does not satisfy these live semantics. The supported user behavior today is inspection and guidance; uncertainty fails closed.
+The [genuine native experiment](NativeExperiment/README.md) now establishes one isolated minimal C-project layout, real archive/dSYM protection and exact descriptor-relative owned-object removal/regeneration. Before #17 can enable direct cleanup: extend genuine generated-project evidence to the claimed layouts and project types, establish real Xcode/build-helper ownership coordination, validate adversarial swaps, hard links, permissions and volumes, and integrate durable recovery. A successful synthetic suite does not satisfy these live semantics. The supported user behavior today is inspection and guidance; uncertainty fails closed.
 
 ## Primary sources
 
