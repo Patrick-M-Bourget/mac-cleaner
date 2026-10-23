@@ -69,6 +69,9 @@ final class WorkspaceUITests: XCTestCase {
         XCTAssertTrue(app.buttons["Quick Look"].exists)
         XCTAssertTrue(app.buttons["Reveal in Finder"].exists)
         XCTAssertTrue(app.staticTexts["Observed"].exists)
+        XCTAssertTrue(app.staticTexts["iCloud in this scan"].exists)
+        XCTAssertTrue(app.staticTexts["Pinning: Unknown — not established by this scan"].exists)
+        XCTAssertFalse(app.buttons["Remove local download"].exists)
         XCTAssertEqual(app.windows.firstMatch.frame, bounds)
         XCTAssertEqual(try Data(contentsOf: file), Data(repeating: 65, count: 137))
     }

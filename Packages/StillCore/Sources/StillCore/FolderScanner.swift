@@ -7,9 +7,11 @@ public enum ObservationKind: String, Sendable { case file, folder, package, symb
 public struct MetadataSupplement: Sendable {
     public let allocatedBytes: Int64?
     public let locality: PreviewAvailability
-    public init(allocatedBytes: Int64?, locality: PreviewAvailability) {
+    public let cloud: CloudMetadata
+    public init(allocatedBytes: Int64?, locality: PreviewAvailability, cloud: CloudMetadata = .unknown) {
         self.allocatedBytes = allocatedBytes
         self.locality = locality
+        self.cloud = cloud
     }
 }
 
@@ -21,7 +23,7 @@ public protocol MetadataSupplementReading: Sendable {
 public struct FoundationMetadataSupplement: MetadataSupplementReading {
     public init() {}
     public func read(_ url: URL) throws -> MetadataSupplement {
-        let values = try url.resourceValues(forKeys: [.totalFileAllocatedSizeKey, .isUbiquitousItemKey, .ubiquitousItemDownloadingStatusKey])
+        let values = try url.resourceValues(forKeys: [.totalFileAllocatedSizeKey, .isUbiquitousItemKey, .ubiquitousItemDownloadingStatusKey, .ubiquitousItemIsUploadedKey, .ubiquitousItemIsUploadingKey, .ubiquitousItemIsDownloadingKey, .ubiquitousItemHasUnresolvedConflictsKey])
         var information = stat()
         let hasStat = lstat(url.path, &information) == 0
         let dataless = hasStat && information.st_flags & UInt32(SF_DATALESS) != 0
@@ -31,7 +33,17 @@ public struct FoundationMetadataSupplement: MetadataSupplementReading {
         else if values.isUbiquitousItem == true,
                 values.ubiquitousItemDownloadingStatus == .current || values.ubiquitousItemDownloadingStatus == .downloaded { locality = .local }
         else { locality = .unknown }
-        return MetadataSupplement(allocatedBytes: values.totalFileAllocatedSize.map(Int64.init), locality: locality)
+        let downloadState: CloudDownloadState
+        switch values.ubiquitousItemDownloadingStatus {
+        case .current: downloadState = .current
+        case .downloaded: downloadState = .downloaded
+        case .notDownloaded: downloadState = .notDownloaded
+        default: downloadState = .unknown
+        }
+        return MetadataSupplement(allocatedBytes: values.totalFileAllocatedSize.map(Int64.init), locality: locality,
+            cloud: .init(membership: values.isUbiquitousItem, downloadState: downloadState,
+                uploaded: values.ubiquitousItemIsUploaded, uploading: values.ubiquitousItemIsUploading,
+                downloading: values.ubiquitousItemIsDownloading, conflicts: values.ubiquitousItemHasUnresolvedConflicts))
     }
 }
 
@@ -45,6 +57,7 @@ public struct FileObservation: Sendable, Identifiable {
     public let allocatedBytes: Int64?
     public let previewAvailability: PreviewAvailability
     public let isDuplicateResource: Bool
+    public let cloud: CloudMetadata
 }
 
 public struct ScanIssue: Sendable {
@@ -155,7 +168,7 @@ public actor FolderScanner {
             }
             observations.append(.init(id: url.path, resourceID: identity, url: url, kind: kind,
                 logicalBytes: bytes, allocatedBytes: extra?.allocatedBytes,
-                previewAvailability: extra?.locality ?? .unknown, isDuplicateResource: duplicate))
+                previewAvailability: extra?.locality ?? .unknown, isDuplicateResource: duplicate, cloud: extra?.cloud ?? .unknown))
         }
         issues += enumerationErrors.urls.map { .init(url: $0, reason: .readFailed) }
         let volume = try? scope.resourceValues(forKeys: [.volumeTotalCapacityKey, .volumeAvailableCapacityForImportantUsageKey])

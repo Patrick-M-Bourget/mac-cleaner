@@ -108,6 +108,7 @@ struct FolderInspectionView: View {
                 }.font(.callout).monospacedDigit()
                 Text("File totals count hardlinked identities once. Package contents and linked folders are not scanned. Allocations are not exclusive reclaimable space.")
                     .font(.caption).foregroundStyle(.secondary)
+                CloudInventoryView(report: result.cloudInventory)
                 Divider()
                 if result.observations.isEmpty { Text("No entries observed in this folder.").foregroundStyle(.secondary) }
                 LazyVStack(spacing: 0) {
