@@ -36,9 +36,8 @@ struct StillApp: App {
 }
 
 private enum Destination: String, CaseIterable, Identifiable {
-    case growth = "What grew"
     case alerts = "Storage alerts"
-    case overview = "Overview", plan = "Cleanup plan", history = "History", locations = "Locations & access"
+    case overview = "Overview", growth = "What grew", plan = "Cleanup plan", history = "History", locations = "Locations & access"
     var id: String { rawValue }
     var shortcut: KeyEquivalent {
         switch self {
@@ -155,7 +154,7 @@ private struct WorkspaceView: View {
                         else {
                             switch destination {
                             case .alerts: StorageAlertsView(controller: alerts)
-                            case .growth: GrowthHistoryView(model: GrowthHistoryModel.shared) { if let url = FolderInspection.chooseFolder() { nativeInspectionVisible = true; folderInspection.scan(url) } }
+                            case .growth: GrowthHistoryView(model: GrowthHistoryModel.shared)
                             case .overview: overview
                             case .plan: if selection.scans.isEmpty { plan } else { LiveCleanupPlanView(selection: selection, recheck: { folderInspection.scan($0) }, stopRefresh: { folderInspection.cancel() }) }
                             case .history: history
@@ -172,6 +171,10 @@ private struct WorkspaceView: View {
                     } else if inspectionVisible {
                         ActionStrip(message: nativeInspectionVisible ? "\(StillDesign.files(selection.draft.selectedCount)) selected" : "Nothing selected") {
                             Button("View cleanup plan") { nativeInspectionVisible = false; inspecting = false; destination = .plan }.buttonStyle(.borderedProminent)
+                        }
+                    } else if destination == .growth {
+                        ActionStrip(message: "Two compatible completed observations reveal net changes.") {
+                            Button("Inspect a folder") { if let url = FolderInspection.chooseFolder() { nativeInspectionVisible = true; folderInspection.scan(url) } }.buttonStyle(.borderedProminent)
                         }
                     } else if showsPlan {
                         ActionStrip(message: "Nothing changes until you confirm the next step.") { Button("Review cleanup") {}.disabled(true) }

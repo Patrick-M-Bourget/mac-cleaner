@@ -1,4 +1,5 @@
 import XCTest
+import Darwin
 
 final class WorkspaceUITests: XCTestCase {
     @MainActor
@@ -495,6 +496,70 @@ final class WorkspaceUITests: XCTestCase {
         for theme in ["Light", "Dark"] { app.popUpButtons["Appearance"].click(); app.menuItems[theme].click(); capture("refresh-changed-" + theme) }
         XCTAssertEqual(app.windows.firstMatch.frame, bounds)
         XCTAssertEqual(try Data(contentsOf: chosen), Data([1, 2, 3]))
+    }
+
+    @MainActor
+    func testCompletedGrowthUsesExplicitScopesAndShowsUnknownForUnmeasuredCoverage() throws {
+        continueAfterFailure = false
+        for minimum in [false, true] {
+            let suffix = UUID().uuidString
+            let state = FileManager.default.temporaryDirectory.appendingPathComponent("StillTestState-" + suffix).resolvingSymlinksInPath()
+            let scope = FileManager.default.temporaryDirectory.appendingPathComponent("StillGrowthUI-" + suffix).resolvingSymlinksInPath()
+            try FileManager.default.createDirectory(at: state, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+            try FileManager.default.createDirectory(at: scope, withIntermediateDirectories: true)
+            defer { try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: scope) }
+            let marker = state.appendingPathComponent(".still-owned-test-state")
+            try Data(suffix.utf8).write(to: marker)
+            try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: marker.path)
+            var info = stat(); XCTAssertEqual(lstat(state.path, &info), 0)
+            try Data([1, 2, 3]).write(to: scope.appendingPathComponent("private-fixture.pdf"))
+            let app = XCUIApplication()
+            app.launchEnvironment["STILL_TEST_STATE_ROOT"] = state.path
+            app.launchEnvironment["STILL_TEST_STATE_ID"] = "\(info.st_dev):\(info.st_ino)"
+            app.launchArguments = ["--future-milestones", minimum ? "--design-minimum" : "--design-initial-size"]
+            app.launch()
+            let bounds = app.windows.firstMatch.frame
+            func scan() {
+                app.buttons["What grew"].click()
+                XCTAssertTrue(app.buttons["Inspect a folder"].waitForExistence(timeout: 5))
+                app.buttons["Inspect a folder"].click()
+                app.typeKey("g", modifierFlags: [.command, .shift])
+                let path = app.textFields.firstMatch
+                XCTAssertTrue(path.waitForExistence(timeout: 5)); path.typeText(scope.path)
+                app.typeKey(.return, modifierFlags: []); app.dialogs.buttons["Scan folder"].click()
+                XCTAssertTrue(app.staticTexts["Observed"].waitForExistence(timeout: 10))
+                app.buttons["What grew"].click()
+            }
+            func captures(_ stateName: String) {
+                for theme in ["Light", "Dark"] {
+                    app.popUpButtons["Appearance"].click(); app.menuItems[theme].click()
+                    let attachment = XCTAttachment(screenshot: app.windows.firstMatch.screenshot())
+                    attachment.name = "growth-" + stateName + "-" + (minimum ? "minimum-" : "initial-") + theme
+                    attachment.lifetime = .keepAlways; add(attachment)
+                    XCTAssertEqual(app.windows.firstMatch.frame, bounds)
+                }
+            }
+            scan()
+            XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "value BEGINSWITH %@", "First observation")).firstMatch.waitForExistence(timeout: 5))
+            XCTAssertTrue(app.staticTexts["Scope: " + scope.lastPathComponent].waitForExistence(timeout: 5))
+            captures("first")
+            try Data([1, 2, 3, 4, 5]).write(to: scope.appendingPathComponent("new-fixture.pdf"))
+            scan()
+            XCTAssertTrue(app.staticTexts["growthNetChange"].waitForExistence(timeout: 5))
+            XCTAssertEqual(app.staticTexts["growthNetChange"].value as? String, "+5 bytes net logical change")
+            captures("compared")
+            app.scrollViews.firstMatch.swipeUp()
+            XCTAssertTrue(app.staticTexts["Documents"].isHittable)
+            captures("compared-details")
+            try FileManager.default.createDirectory(at: scope.appendingPathComponent("Unmeasured.photoslibrary"), withIntermediateDirectories: false)
+            scan()
+            XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "value BEGINSWITH %@", "Growth unknown")).firstMatch.waitForExistence(timeout: 5))
+            XCTAssertFalse(app.staticTexts["growthNetChange"].exists)
+            captures("unknown")
+            let history = try String(contentsOf: state.appendingPathComponent("Growth/aggregates-v1.json"), encoding: .utf8)
+            XCTAssertFalse(history.contains("private-fixture")); XCTAssertFalse(history.contains("new-fixture"))
+            app.terminate()
+        }
     }
 
 }
