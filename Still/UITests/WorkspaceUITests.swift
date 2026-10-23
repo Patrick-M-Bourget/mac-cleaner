@@ -333,7 +333,7 @@ final class WorkspaceUITests: XCTestCase {
         let nested = root.appendingPathComponent("Long project folder name for layout and keyboard review")
         try FileManager.default.createDirectory(at: nested, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: root) }
-        for i in 0..<9 { try Data(repeating: 1, count: 128 * 1024).write(to: nested.appendingPathComponent("A long descriptive document name with several words - \(i).pdf")) }
+        for i in 0..<120 { try Data(repeating: 1, count: 128 * 1024).write(to: nested.appendingPathComponent("A long descriptive document name with several words - \(i).pdf")) }
         let app = XCUIApplication()
         app.launchArguments = ["--ui-test-downloads-root", "--design-minimum", "--design-opaque-chrome"]
         app.launchEnvironment["STILL_TEST_DOWNLOADS_ROOT"] = root.path
