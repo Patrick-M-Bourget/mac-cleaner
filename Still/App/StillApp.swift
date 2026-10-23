@@ -91,6 +91,8 @@ private struct WorkspaceView: View {
     @State private var managedStorage = ManagedStorageModel()
     @State private var pipVisible = false
     @State private var dockerVisible = false
+    @State private var diagnosticsVisible = false
+    @State private var diagnostics = DiagnosticsModel()
     @State private var startupCapacity: StartupVolumeCapacity?
     private var fixtureMode: Bool {
         #if DEBUG
@@ -99,10 +101,10 @@ private struct WorkspaceView: View {
         false
         #endif
     }
-    private var showsPlan: Bool { destination == .plan && !recoveryVisible && !inspecting && !nativeInspectionVisible && !homebrewVisible && !pipVisible && !dockerVisible && !managedStorageVisible }
+    private var showsPlan: Bool { destination == .plan && !recoveryVisible && !inspecting && !nativeInspectionVisible && !homebrewVisible && !pipVisible && !dockerVisible && !managedStorageVisible && !diagnosticsVisible }
     private var inspectionVisible: Bool { inspecting || nativeInspectionVisible }
     private var contextLabel: String {
-        recoveryVisible ? "Recovery review · Recorded facts only" : selection.execution.isRunning ? "Moving approved files to Trash" : selection.execution.result != nil ? "Cleanup results · individual outcomes" : managedStorageVisible ? "App-managed inventory · selected objects only" : folderInspection.scope != nil ? "Read-only metadata · explicitly selected folder" : fixtureMode ? "Synthetic data — no personal files accessed" : "On-demand storage review"
+        diagnosticsVisible ? "Redacted diagnostics · Explicit local Save" : recoveryVisible ? "Recovery review · Recorded facts only" : selection.execution.isRunning ? "Moving approved files to Trash" : selection.execution.result != nil ? "Cleanup results · individual outcomes" : managedStorageVisible ? "App-managed inventory · selected objects only" : folderInspection.scope != nil ? "Read-only metadata · explicitly selected folder" : fixtureMode ? "Synthetic data — no personal files accessed" : "On-demand storage review"
     }
 
     var body: some View {
@@ -143,6 +145,8 @@ private struct WorkspaceView: View {
                     VStack(alignment: .leading, spacing: 24) {
                         if recoveryVisible {
                             CleanupRecoveryView(model: recovery)
+                        } else if diagnosticsVisible {
+                            DiagnosticsView(model: diagnostics)
                         } else if managedStorageVisible {
                             ManagedStorageView(model: managedStorage) { managedStorageVisible = false; destination = .overview }
                         } else if dockerVisible {
@@ -168,7 +172,12 @@ private struct WorkspaceView: View {
                     }.padding(StillDesign.Space.page).frame(maxWidth: .infinity, alignment: .leading)
                 }
                 .safeAreaInset(edge: .bottom, spacing: 0) {
-                    if recoveryVisible {
+                    if diagnosticsVisible {
+                        ActionStrip(message: "The reviewed payload stays on this Mac unless you explicitly save it.") {
+                            Button("Back to Overview") { diagnosticsVisible = false; destination = .overview }.disabled(diagnostics.isSaving)
+                            Button("Save diagnostics…") { Task { await diagnostics.save() } }.buttonStyle(.borderedProminent).disabled(diagnostics.export == nil || diagnostics.isSaving)
+                        }
+                    } else if recoveryVisible {
                         ActionStrip(message: "Recovery records are retained. Nothing resumes automatically.") {
                             Button("Return to Overview") { recoveryVisible = false; destination = .overview }.buttonStyle(.borderedProminent)
                         }
@@ -195,7 +204,7 @@ private struct WorkspaceView: View {
         .task { if await recovery.loadOnce() { recoveryVisible = true } }
         .task { startupCapacity = await Task.detached(priority: .utility) { StartupVolumeCapacity.read() }.value }
         .onAppear { AppLifecycleController.shared.openWorkspace = { openWindow(id: "workspace") } }
-        .onReceive(NotificationCenter.default.publisher(for: .stillAlertOpened)) { _ in destination = .overview; recoveryVisible = false; inspecting = false; nativeInspectionVisible = false; homebrewVisible = false; pipVisible = false; dockerVisible = false; managedStorageVisible = false }
+        .onReceive(NotificationCenter.default.publisher(for: .stillAlertOpened)) { _ in destination = .overview; diagnosticsVisible = false; recoveryVisible = false; inspecting = false; nativeInspectionVisible = false; homebrewVisible = false; pipVisible = false; dockerVisible = false; managedStorageVisible = false }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in Task { await alerts.activated() } }
         .onReceive(NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.didWakeNotification)) { _ in Task { await alerts.activated() } }
         .toolbar {
@@ -216,6 +225,7 @@ private struct WorkspaceView: View {
     private func navigation(_ value: Destination) -> some View {
         StillSidebarRow(title: value.rawValue, symbol: value.symbol, selected: destination == value) {
             destination = value
+            diagnosticsVisible = false
             recoveryVisible = false; inspecting = false; nativeInspectionVisible = false; homebrewVisible = false
             pipVisible = false; dockerVisible = false; managedStorageVisible = false
         }.keyboardShortcut(value.shortcut, modifiers: .command)
@@ -242,6 +252,12 @@ private struct WorkspaceView: View {
                 }
             }
             if StorageAlertsController.futureEnabled {
+                FindingRow(category: .managed, title: "Diagnostics", detail: "Review a redacted snapshot and save locally") {
+                    Button("Review diagnostics") {
+                        diagnostics.review(selection: selection, inspection: folderInspection, recovery: recovery)
+                        diagnosticsVisible = true; recoveryVisible = false; managedStorageVisible = false; dockerVisible = false; pipVisible = false; homebrewVisible = false; nativeInspectionVisible = false; inspecting = false
+                    }
+                }
                 FindingRow(category: .managed, title: "App-managed storage", detail: "Libraries, backups and system storage guidance") {
                     Button("Review app-managed storage") { managedStorageVisible = true; homebrewVisible = false; pipVisible = false; dockerVisible = false; nativeInspectionVisible = false; inspecting = false }
                 }
