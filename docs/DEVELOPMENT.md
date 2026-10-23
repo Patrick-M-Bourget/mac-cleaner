@@ -171,3 +171,7 @@ The scanner permits at most one internal metadata recheck within shared entry an
 ## Release preparation (#35)
 
 [Release evidence and remaining gates](validation/release-qualification.md) distinguish locally exercised configurations from support claims. `python3 tools/release/preflight.py /absolute/path/Still.app` inspects an existing artifact without signing, launching or changing trust; a passing artifact check still requires manual release qualification. Current development builds are not distributable releases.
+
+## Genuine owned Xcode evidence (#16)
+
+The [bounded native experiment](../Validation/XcodeProbe/NativeExperiment/README.md) builds/archives a minimal owned27.1 project and verifies exact-object removal/regeneration with source/archive/dSYM preservation. This advances layout evidence beyond synthetic policy; production Xcode mutation remains unsupported because general project/helper ownership and the full action/recovery contract are not qualified.

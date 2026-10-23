@@ -1,0 +1,35 @@
+{
+  "schema": 1,
+  "experiment": "genuine-owned-xcode-project",
+  "toolchain": "Xcode 27.1\nBuild version 27A9275",
+  "productionMutationQualified": false,
+  "buildExit": 0,
+  "archiveExit": 0,
+  "buildSeconds": 2.404,
+  "rootOwnership": "new-private0700-temporary-root",
+  "activeOwnedBuilderRejected": true,
+  "activeManifestTargetCount": 2,
+  "rebuildExit": 0,
+  "rebuildSeconds": 1.391,
+  "removedObjectRegenerated": true,
+  "objectsObserved": [
+    "DerivedData/Probe-native/Build/Intermediates.noindex/Probe.build/Debug/Probe.build/Objects-normal/arm64/helper.o",
+    "DerivedData/Probe-native/Build/Intermediates.noindex/Probe.build/Debug/Probe.build/Objects-normal/arm64/main.o"
+  ],
+  "removedExactUnchangedObjects": [
+    "DerivedData/Probe-native/Build/Intermediates.noindex/Probe.build/Debug/Probe.build/Objects-normal/arm64/helper.o"
+  ],
+  "skippedReplacedObjects": [
+    "DerivedData/Probe-native/Build/Intermediates.noindex/Probe.build/Debug/Probe.build/Objects-normal/arm64/main.o"
+  ],
+  "newDiscoveryPreserved": true,
+  "protectedSourceFiles": 4,
+  "protectedArchiveFiles": 6,
+  "protectedProductDSYMFiles": 3,
+  "allProtectedHashesUnchanged": true,
+  "generatedObjectBytes": 4120,
+  "ownerEvidenceLimit": "Only owned child xcodebuild completion is observed; no global Xcode/XCBBuildService/helper inactivity or exclusive ownership is proved",
+  "mutationLimit": "Descriptor-relative no-follow parent walk + fresh fingerprint before unlink; final name swap and new writer concurrency are not atomically excluded",
+  "durableRecoveryIntegrated": false,
+  "ownedRootRemoved": true
+}
