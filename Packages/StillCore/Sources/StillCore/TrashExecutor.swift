@@ -15,6 +15,7 @@ public struct CleanupRecord: Codable, Sendable, Identifiable {
     public let observedAt: Date
     public let scopeURL: URL
     public let scopeResourceID: String
+    public let volumeID: String?
     public let downloadsURL: URL
     public let downloadsResourceID: String
     public let modifiedSeconds: Int64
@@ -26,7 +27,7 @@ public struct CleanupRecord: Codable, Sendable, Identifiable {
         id = batch.id.uuidString + "|" + target.id; batchID = batch.id; originalURL = target.url
         resourceID = target.resourceID; logicalBytes = target.logicalBytes; allocatedBytes = target.allocatedBytes
         state = .pending; trashURL = nil; message = "Approved target; operation not started"; observedAt = target.observedAt
-        scopeURL = target.scopeCanonicalURL; scopeResourceID = target.scopeResourceID
+        scopeURL = target.scopeCanonicalURL; scopeResourceID = target.scopeResourceID; volumeID = target.volumeID
         downloadsURL = target.downloadsRoot.url; downloadsResourceID = target.downloadsRoot.resourceID
         modifiedSeconds = target.modifiedSeconds; modifiedNanoseconds = target.modifiedNanoseconds
         action = batch.action; policyVersion = 1; approvedAt = batch.approvedAt
@@ -109,7 +110,8 @@ public enum CleanupTargetValidation {
             }
         }
         // Metadata-only cloud predicate; identity checked again after the path-based metadata call.
-        guard !FileManager.default.isUbiquitousItem(at: target.url) else { throw invalid }
+        guard !FileManager.default.isUbiquitousItem(at: target.url),
+              try target.url.resourceValues(forKeys: [.volumeUUIDStringKey]).volumeUUIDString == target.volumeID else { throw invalid }
         var final = stat()
         guard lstat(target.url.path, &final) == 0, identity(final) == target.resourceID,
               final.st_mode & S_IFMT == S_IFREG, final.st_size == info.st_size,

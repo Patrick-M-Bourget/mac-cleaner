@@ -22,6 +22,7 @@ public struct PlannedTarget: Sendable, Identifiable {
     public let scope: URL
     public let scopeCanonicalURL: URL
     public let scopeResourceID: String
+    public let volumeID: String
     public let downloadsRoot: DownloadsRoot
     public let observedAt: Date
     public let modifiedSeconds: Int64
@@ -140,7 +141,8 @@ public struct PlanDraft: Sendable {
         var info = stat()
         guard lstat(item.url.path, &info) == 0, info.st_mode & S_IFMT == S_IFREG,
               "\(info.st_dev):\(info.st_ino)" == item.resourceID, Int64(info.st_size) == item.logicalBytes else { throw PlanSelectionError.ineligible }
-        return PlannedTarget(url: item.url, resourceID: item.resourceID, scope: scan.scope, scopeCanonicalURL: scopedRoot.url, scopeResourceID: scopedRoot.resourceID, downloadsRoot: downloads,
+        guard let volumeID = try item.url.resourceValues(forKeys: [.volumeUUIDStringKey]).volumeUUIDString else { throw PlanSelectionError.ineligible }
+        return PlannedTarget(url: item.url, resourceID: item.resourceID, scope: scan.scope, scopeCanonicalURL: scopedRoot.url, scopeResourceID: scopedRoot.resourceID, volumeID: volumeID, downloadsRoot: downloads,
             observedAt: scan.observedAt, modifiedSeconds: Int64(info.st_mtimespec.tv_sec), modifiedNanoseconds: Int64(info.st_mtimespec.tv_nsec),
             logicalBytes: Int64(info.st_size), allocatedBytes: item.allocatedBytes)
     }
