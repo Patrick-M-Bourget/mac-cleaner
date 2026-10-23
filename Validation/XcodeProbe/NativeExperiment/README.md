@@ -42,3 +42,7 @@ The descriptor walk is stronger than a path-only remove, but the final fresh-sta
 For immediate product implementation, #30 exclusions and #32 reviewed local diagnostics remain independent useful work after their documented dependencies; they do not require pretending an adapter is qualified.
 
 Primary sources checked October23,2026: [Apple build settings](https://developer.apple.com/documentation/xcode/build-settings-reference) describes configurable object/intermediate/product and dSYM locations; [build-setting precedence](https://developer.apple.com/documentation/xcode/configuring-the-build-settings-of-a-target) documents command-line overrides; [debugging information](https://developer.apple.com/documentation/xcode/building-your-app-to-include-debugging-information) explains dSYM generation/diagnostic importance. Local `xcodebuild -help` confirms explicit derivedDataPath/archivePath. These sources inform boundaries; the actual paths above come from the owned run.
+
+## Swift/package/custom-output follow-up
+
+The [genuine Swift session experiment](SWIFT-SESSION.md) now records custom build settings, local-package compilation, actual owned compiler/build-service descendants, protected native archives/symbols, tracked late-writer refusal and a signal-9 durable-event observation. Production owner coordination remains unsupported; this does not enable #17. Its first custom archive configuration failed and is preserved separately from the successful isolated default archive layout.

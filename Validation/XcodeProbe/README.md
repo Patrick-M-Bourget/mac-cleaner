@@ -45,3 +45,5 @@ The [genuine native experiment](NativeExperiment/README.md) now establishes one 
 - [Apple: build settings reference](https://developer.apple.com/documentation/xcode/build-settings-reference) documents configurable intermediate and product locations; a default directory is not a universal ownership guarantee.
 - [Apple: adding identifiable symbol names to a crash report](https://developer.apple.com/documentation/xcode/adding-identifiable-symbol-names-to-a-crash-report) explains the diagnostic role of symbol information. The product's stricter rule protects every dSYM regardless of perceived reproducibility.
 - [Apple: FileManager.removeItem(at:)](https://developer.apple.com/documentation/foundation/filemanager/removeitem(at:)) documents removal, not exclusive build ownership or transactional rollback. Those capabilities are not inferred from the API.
+
+Further #16 progress: [the actual Swift/package/custom-output session](NativeExperiment/SWIFT-SESSION.md) extends native coverage and records a real SIGKILL event boundary. It explicitly leaves general owner/isolation and production action eligibility unsupported; no app mutation authority is added.
