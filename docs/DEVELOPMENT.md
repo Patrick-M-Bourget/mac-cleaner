@@ -98,3 +98,7 @@ The session retains independently selected locations and their last completed ob
 Selected-volume availability records Important usage versus Available capacity fallback versus Unavailable, matching the alert adapter's metric distinction. It does not silently label a fallback reading as important-use capacity. The selected scope's volume can differ from the startup volume monitored by alerts; these are not interchangeable readings.
 
 The native UI regression selects a newly created temporary folder, removes only that owned fixture, and explicitly rechecks to verify unknown coverage, retained observation time, recovery controls and fixed window bounds. It does not revoke any actual OS grants or unmount volumes. CI also runs existing alert/lifecycle policy tests and isolated iCloud/Xcode/Chrome/Safari fixture packages without enabling real notifications or mutating personal application data.
+
+## Future app-managed storage guidance (#31)
+
+The future-milestone Overview entry opens a read-only management view for backups, Photos, Mail, Messages and system-managed data. No personal inventory runs automatically. Explicit selected-object metadata can establish a file allocation; protected folders/packages/links remain uninspected. All rows are management-only and contribute no cleanup targets or reclaimable estimates. See [scope, native instructions and validation](validation/managed-storage.md). Automated tests use fake launchers and disposable managed sentinels; no real owner apps or personal libraries are opened.
