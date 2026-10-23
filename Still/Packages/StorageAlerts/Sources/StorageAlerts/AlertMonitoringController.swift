@@ -87,9 +87,10 @@ public struct AlertCapacityReading: Sendable {
         terminating = true
         pauseMonitoring()
         delivery.invalidate()
-        let ownedRequests = !inFlightNotificationIDs.isEmpty || !(policy.notificationRequestIdentifiers ?? []).isEmpty
-        if requested || ownedRequests { removePendingNotifications() }
-        if ownedRequests { _ = persist() } // Preserve enabled intent and uncertain episode suppression.
+        let savedOwnership = !(policy.notificationRequestIdentifiers ?? []).isEmpty
+        if requested || savedOwnership || !inFlightNotificationIDs.isEmpty { removePendingNotifications() }
+        // Do not recreate state deleted by Reset merely because an obsolete attempt still awaits the OS.
+        if savedOwnership { _ = persist() } // Preserve enabled intent and uncertain episode suppression.
     }
     private func pauseMonitoring() {
         monitoringGeneration = UUID()
