@@ -20,6 +20,9 @@ final class FolderInspection {
         session = InspectionSession(scanner: scanner)
     }
     private var task: Task<Void, Never>?
+    private var scanAgainTask: Task<Void, Never>?
+    private var scanAgainGeneration = UUID()
+    private var batchRequests: [RefreshRequest] = []
     private var previewTask: Task<Void, Never>?
     private var previewGeneration = UUID()
     private var generation = UUID()
@@ -32,7 +35,8 @@ final class FolderInspection {
     var lastComplete: ScanResult?
     var scopeReports: [ScopeReport] = []
     var selected: FileObservation?
-    var isScanning = false
+    private var isScanningCurrent = false
+    var isScanning: Bool { isScanningCurrent || scanAgainTask != nil }
     var message: String?
     var previewURL: URL?
 
@@ -52,6 +56,42 @@ final class FolderInspection {
         guard !AppLifecycleController.shared.maintenanceInProgress else { return }
         guard !selection.execution.isRunning else { return }
         cancel()
+        startScan(url)
+    }
+
+    /// Refresh the existing explicit scopes without replacing live choices or choosing a new scope.
+    func scanAgain() {
+        guard !AppLifecycleController.shared.maintenanceInProgress, !selection.execution.isRunning, !isScanning else { return }
+        let focusedScope = scope?.standardizedFileURL
+        let roots = Set((scopeReports.map { $0.current.scope } + selection.refreshScopes + [scope].compactMap { $0 }).map(\.standardizedFileURL)).sorted { $0.path < $1.path }
+        guard !roots.isEmpty else { return }
+        cancel()
+        let token = UUID()
+        scanAgainGeneration = token
+        batchRequests = selection.beginRefreshBatch(roots)
+        scanAgainTask = Task {
+            for root in roots {
+                guard !Task.isCancelled, token == scanAgainGeneration else { return }
+                startScan(root)
+                await task?.value
+                guard !Task.isCancelled, token == scanAgainGeneration else { return }
+                if message != nil {
+                    selection.endRefreshBatch(batchRequests)
+                    batchRequests = []
+                    scanAgainTask = nil
+                    return
+                }
+                batchRequests.removeAll { $0.scope == root.standardizedFileURL }
+            }
+            selection.endRefreshBatch(batchRequests)
+            batchRequests = []
+            scanAgainTask = nil
+            if let focusedScope, let report = scopeReports.first(where: { $0.current.scope.standardizedFileURL == focusedScope }) { show(report) }
+        }
+    }
+
+    private func startScan(_ url: URL) {
+        cancelCurrentScan()
         previewURL = nil
         closePreviewAccess()
         let previousSelection = scope?.standardizedFileURL == url.standardizedFileURL ? selected : nil
@@ -66,7 +106,7 @@ final class FolderInspection {
         scope = url
         if !sameScope { result = nil; selected = nil; lastComplete = nil }
         message = nil
-        isScanning = true
+        isScanningCurrent = true
         task = Task {
             let hasAccess = url.startAccessingSecurityScopedResource()
             defer { if hasAccess { url.stopAccessingSecurityScopedResource() } }
@@ -98,23 +138,31 @@ final class FolderInspection {
                 scopeReports = reports
                 selected = previousSelection.flatMap { old in observed.observations.first { $0.id == old.id && $0.resourceID == old.resourceID } } ?? observed.observations.first
                 progress = nil
-                isScanning = false
+                isScanningCurrent = false
                 await GrowthHistoryModel.shared.complete(observed, token: growthToken)
             } catch {
                 guard token == generation else { return }
                 selection.cancelRefresh(request)
                 refreshRequest = nil
                 progress = nil
-                isScanning = false
+                isScanningCurrent = false
                 message = error is CancellationError ? "Scan stopped. Choose a folder to try again." : ExclusionsModel.shared.error ?? "This folder could not be inspected. Choose the folder again or check access in System Settings."
             }
         }
     }
 
     func show(_ report: ScopeReport) {
+        showObserved(report.current, lastComplete: report.lastComplete)
+    }
+    /// Focus the exact shared observation used by a recommendation, including a newer retry recheck.
+    func showObserved(_ scan: ScanResult) {
+        let historical = scopeReports.first { $0.current.scope.standardizedFileURL == scan.scope.standardizedFileURL }?.lastComplete
+        showObserved(scan, lastComplete: scan.isComplete ? scan : historical)
+    }
+    private func showObserved(_ scan: ScanResult, lastComplete historical: ScanResult?) {
         guard !isScanning else { return }
-        scope = report.current.scope; result = report.current; lastComplete = report.lastComplete
-        selected = report.current.observations.first; message = nil
+        scope = scan.scope; result = scan; lastComplete = historical
+        selected = scan.observations.first; message = nil
     }
 
     func invalidateCoverage() async {
@@ -129,14 +177,21 @@ final class FolderInspection {
         await session.clear()
     }
     func cancel() {
-        if isScanning { GrowthHistoryModel.shared.cancelled() }
+        scanAgainGeneration = UUID()
+        scanAgainTask?.cancel(); scanAgainTask = nil
+        selection.endRefreshBatch(batchRequests)
+        batchRequests = []
+        cancelCurrentScan()
+    }
+    private func cancelCurrentScan() {
+        if isScanningCurrent { GrowthHistoryModel.shared.cancelled() }
         cancellation?.cancel()
         task?.cancel()
         generation = UUID()
         if let refreshRequest { selection.cancelRefresh(refreshRequest); self.refreshRequest = nil }
-        if isScanning { message = "Stop requested. The current metadata operation may still return; selected choices need a complete refresh before review." }
+        if isScanningCurrent { message = "Stop requested. The current metadata operation may still return; selected choices need a complete refresh before review." }
         progress = nil
-        isScanning = false
+        isScanningCurrent = false
     }
 
     func preview(_ item: FileObservation) {
