@@ -163,3 +163,7 @@ Stop prevents new target operations, keeps individual outcomes and makes no roll
 ## Compatible aggregate comparisons (M4)
 
 The future-milestone launch flag exposes **What grew** (Command-6). It records only completed, measured explicit-folder observations in local bounded aggregate history. See [comparison policy and validation](validation/growth-comparisons.md). Tests use the shared identity-bound disposable app-state root; do not point them at personal baseline storage.
+
+## Release preparation (#35)
+
+[Release evidence and remaining gates](validation/release-qualification.md) distinguish locally exercised configurations from support claims. `python3 tools/release/preflight.py /absolute/path/Still.app` inspects an existing artifact without signing, launching or changing trust; a passing artifact check still requires manual release qualification. Current development builds are not distributable releases.

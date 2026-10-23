@@ -1,0 +1,81 @@
+{
+  "schema": 1,
+  "status": "preparation-only-not-qualified",
+  "candidateBase": "5e849e8",
+  "observedAt": "2026-10-23",
+  "host": {
+    "macOS": "27.0.1",
+    "build": "26A434",
+    "architecture": "arm64",
+    "Xcode": "27.1",
+    "XcodeBuild": "27A9275",
+    "validSigningIdentityCount": 0
+  },
+  "releaseBuild": {
+    "configuration": "Release",
+    "codeSigningAllowed": false,
+    "result": "passed",
+    "runtimeExecuted": false
+  },
+  "artifactPreflight": {
+    "result": "rejected-as-expected",
+    "checks": [
+      {
+        "name": "version-identifiers",
+        "passed": false
+      },
+      {
+        "name": "no-debug-artifacts",
+        "passed": true
+      },
+      {
+        "name": "bundle",
+        "passed": true
+      },
+      {
+        "name": "developer-id",
+        "passed": false
+      },
+      {
+        "name": "hardened-runtime",
+        "passed": false
+      },
+      {
+        "name": "signature-integrity",
+        "passed": false
+      },
+      {
+        "name": "no-debug-runtime-exceptions",
+        "passed": true
+      },
+      {
+        "name": "privacy-purpose-declarations",
+        "passed": true
+      },
+      {
+        "name": "architecture-readable",
+        "passed": true
+      },
+      {
+        "name": "stapled-notary-ticket",
+        "passed": false
+      },
+      {
+        "name": "gatekeeper-assessment",
+        "passed": false
+      }
+    ],
+    "releaseQualified": false
+  },
+  "supportClaims": [],
+  "blockingEvidence": [
+    "#14 personal usefulness and explicitly reviewed cleanup",
+    "#34 full performance qualification",
+    "#13 completed history/reset gate before inclusion",
+    "minimum OS and Intel runtime coverage absent",
+    "VoiceOver/localization/preferences/display manual qualification absent",
+    "valid Developer ID identity/notarization/clean-machine installation absent",
+    "release marketing/build versions unassigned",
+    "unsandboxed Application Support required-reason eligibility unresolved"
+  ]
+}
