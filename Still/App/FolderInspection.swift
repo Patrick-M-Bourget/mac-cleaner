@@ -22,6 +22,8 @@ final class FolderInspection {
     private var previewTask: Task<Void, Never>?
     private var previewGeneration = UUID()
     private var generation = UUID()
+    private var cancellation: ScanCancellation?
+    var progress: ScanProgress?
     private var previewAccessScope: URL?
     private var refreshRequest: RefreshRequest?
     var scope: URL?
@@ -52,6 +54,9 @@ final class FolderInspection {
         let sameScope = scope?.standardizedFileURL == url.standardizedFileURL
         let request = selection.beginRefresh(url)
         refreshRequest = request
+        let scanCancellation = ScanCancellation()
+        cancellation = scanCancellation
+        progress = nil
         let token = UUID()
         generation = token
         scope = url
@@ -61,8 +66,16 @@ final class FolderInspection {
         task = Task {
             let hasAccess = url.startAccessingSecurityScopedResource()
             defer { if hasAccess { url.stopAccessingSecurityScopedResource() } }
+            let (updates, continuation) = AsyncStream<ScanProgress>.makeStream(bufferingPolicy: .bufferingNewest(1))
+            let receiver = Task { [weak self] in
+                for await update in updates {
+                    guard let self, token == self.generation, !Task.isCancelled else { return }
+                    self.progress = update
+                }
+            }
+            defer { continuation.finish(); receiver.cancel() }
             do {
-                let report = try await session.inspect(url)
+                let report = try await session.inspect(url, cancellation: scanCancellation, onProgress: { continuation.yield($0) })
                 let observed = report.current
                 let reports = await session.reports()
                 guard !Task.isCancelled, token == generation else { return }
@@ -74,11 +87,13 @@ final class FolderInspection {
                 lastComplete = report.lastComplete
                 scopeReports = reports
                 selected = previousSelection.flatMap { old in observed.observations.first { $0.id == old.id && $0.resourceID == old.resourceID } } ?? observed.observations.first
+                progress = nil
                 isScanning = false
             } catch {
                 guard token == generation else { return }
                 selection.cancelRefresh(request)
                 refreshRequest = nil
+                progress = nil
                 isScanning = false
                 message = error is CancellationError ? "Scan stopped. Choose a folder to try again." : "This folder could not be inspected. Choose the folder again or check access in System Settings."
             }
@@ -92,10 +107,12 @@ final class FolderInspection {
     }
 
     func cancel() {
+        cancellation?.cancel()
         task?.cancel()
         generation = UUID()
         if let refreshRequest { selection.cancelRefresh(refreshRequest); self.refreshRequest = nil }
-        if isScanning { message = "Scan stopped. Selected choices need a complete refresh before review." }
+        if isScanning { message = "Stop requested. The current metadata operation may still return; selected choices need a complete refresh before review." }
+        progress = nil
         isScanning = false
     }
 
@@ -153,8 +170,12 @@ struct FolderInspectionView: View {
                 }
             }
             if model.isScanning {
-                ProgressView("Reading file metadata… Previous observations remain visible until this refresh completes.")
-                Button("Stop scan") { model.cancel() }
+                if let progress = model.progress {
+                    ScanProgressSummary(inspectedEntries: progress.visitedEntries,
+                        logicalSubtotal: bytes(progress.knownLogicalSubtotal),
+                        recentNames: progress.recentObservations.prefix(5).map { $0.url.lastPathComponent })
+                } else { ProgressView("Reading file metadata…") }
+                if model.result != nil { StatusRow(text: "Previous observations remain visible while this location is rechecked.", symbol: "clock") }
             }
             if let message = model.message { StatusRow(text: message, symbol: "info.circle") }
             if let result = model.result {
@@ -175,13 +196,14 @@ struct FolderInspectionView: View {
                     if let previous = model.lastComplete {
                         Text("Last complete observation: \(previous.observedAt.formatted()) · Historical, not current coverage.").font(.caption).foregroundStyle(.secondary)
                     } else { Text("No previous complete observation for this location.").font(.caption).foregroundStyle(.secondary) }
-                    ForEach(Array(result.issues.enumerated()), id: \.offset) { _, issue in
+                    ForEach(Array(result.issues.prefix(20).enumerated()), id: \.offset) { _, issue in
                         VStack(alignment: .leading, spacing: 4) {
                             Text(issue.url.path).textSelection(.enabled)
                             Text(issue.reason.rawValue + " · " + issue.recovery).font(.caption).foregroundStyle(.secondary)
                         }
                     }
                 }
+                if result.issues.count > 20 { Text("\(result.issues.count - 20) additional coverage issues. Choose a smaller scope to inspect affected areas.").font(.caption).foregroundStyle(.secondary) }
                 if result.observations.isEmpty { Text(result.isComplete ? "No entries observed in this folder." : "No readable entries observed; this is not an empty-folder result.").foregroundStyle(.secondary) }
                 TextField("Search inspected files", text: $search)
                 LazyVStack(spacing: 0) {

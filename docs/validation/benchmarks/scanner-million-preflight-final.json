@@ -1,0 +1,13 @@
+{
+  "availableBeforeBytes" : 6980366336,
+  "fixtureCreated" : false,
+  "hostOS" : "Version 27.0.1 (Build 26A434)",
+  "physicalMemoryBytes" : 17179869184,
+  "preflightReservationBytes" : 17457741824,
+  "processorCount" : 8,
+  "reference512GBHost" : false,
+  "requestedFiles" : 1000000,
+  "scannerRetainedEntryLimit" : 100000,
+  "status" : "declined-insufficient-owned-fixture-headroom",
+  "volumeCapacityBytes" : 245107195904
+}

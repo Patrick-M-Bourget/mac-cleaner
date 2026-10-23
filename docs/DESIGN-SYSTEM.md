@@ -30,6 +30,7 @@ The app target owns these internal SwiftUI components; they are presentation pri
 | `FindingRow`, `CategoryBadge` | Category hierarchy, consequence and explicit accessory action |
 | `InspectableItemRow` | Separate selection control from filename inspection; size aligned at trailing edge |
 | `MacroCategoryCheckbox` | Native AppKit unchecked/mixed/checked category selection |
+| `ScanProgressSummary` | Bounded preliminary metadata evidence, unknown remaining coverage; no cleanup controls |
 | `StatusRow`, `EmptyState` | Honest status, blocked/error explanation, or no findings yet |
 | `SettingsRow` | Setting title, explanation and native controls |
 | `StillSidebarRow`, `ChromeSurface` | Persistent native navigation and adaptive chrome |
