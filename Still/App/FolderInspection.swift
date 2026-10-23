@@ -6,15 +6,26 @@ import QuickLook
 
 @MainActor @Observable
 final class FolderInspection {
-    private let scanner = FolderScanner()
+    private let scanner: FolderScanner
     private let session: InspectionSession
     private let selection: SessionPlan
-    init(selection: SessionPlan) { self.selection = selection; session = InspectionSession(scanner: scanner) }
+    init(selection: SessionPlan) {
+        self.selection = selection
+        #if DEBUG
+        scanner = FolderScanner(supplement: RefreshFixtureMetadata())
+        #else
+        scanner = FolderScanner()
+        #endif
+        session = InspectionSession(scanner: scanner)
+    }
     private var task: Task<Void, Never>?
+    private var previewTask: Task<Void, Never>?
+    private var previewGeneration = UUID()
     private var generation = UUID()
     private var cancellation: ScanCancellation?
     var progress: ScanProgress?
     private var previewAccessScope: URL?
+    private var refreshRequest: RefreshRequest?
     var scope: URL?
     var result: ScanResult?
     var lastComplete: ScanResult?
@@ -36,16 +47,21 @@ final class FolderInspection {
     }
 
     func scan(_ url: URL) {
-        cancellation?.cancel()
-        task?.cancel()
+        guard !selection.execution.isRunning else { return }
+        cancel()
+        previewURL = nil
+        closePreviewAccess()
+        let previousSelection = scope?.standardizedFileURL == url.standardizedFileURL ? selected : nil
+        let sameScope = scope?.standardizedFileURL == url.standardizedFileURL
+        let request = selection.beginRefresh(url)
+        refreshRequest = request
         let scanCancellation = ScanCancellation()
         cancellation = scanCancellation
         progress = nil
         let token = UUID()
         generation = token
         scope = url
-        result = nil
-        selected = nil
+        if !sameScope { result = nil; selected = nil; lastComplete = nil }
         message = nil
         isScanning = true
         task = Task {
@@ -64,15 +80,20 @@ final class FolderInspection {
                 let observed = report.current
                 let reports = await session.reports()
                 guard !Task.isCancelled, token == generation else { return }
+                await selection.finishRefresh(request, scan: observed)
+                guard !Task.isCancelled, token == generation else { return }
+                refreshRequest = nil
                 result = observed
                 selection.observe(observed)
                 lastComplete = report.lastComplete
                 scopeReports = reports
-                selected = observed.observations.first
+                selected = previousSelection.flatMap { old in observed.observations.first { $0.id == old.id && $0.resourceID == old.resourceID } } ?? observed.observations.first
                 progress = nil
                 isScanning = false
             } catch {
                 guard token == generation else { return }
+                selection.cancelRefresh(request)
+                refreshRequest = nil
                 progress = nil
                 isScanning = false
                 message = error is CancellationError ? "Scan stopped. Choose a folder to try again." : "This folder could not be inspected. Choose the folder again or check access in System Settings."
@@ -89,15 +110,25 @@ final class FolderInspection {
     func cancel() {
         cancellation?.cancel()
         task?.cancel()
-        message = "Stop requested. Waiting for the current metadata operation to return; no cleanup is running."
+        generation = UUID()
+        if let refreshRequest { selection.cancelRefresh(refreshRequest); self.refreshRequest = nil }
+        if isScanning { message = "Stop requested. The current metadata operation may still return; selected choices need a complete refresh before review." }
+        progress = nil
+        isScanning = false
     }
 
     func preview(_ item: FileObservation) {
         closePreviewAccess()
         if let scope, scope.startAccessingSecurityScopedResource() { previewAccessScope = scope }
-        task = Task {
-            do { previewURL = try await scanner.previewURL(for: item) }
+        let token = UUID(); previewGeneration = token
+        previewTask = Task {
+            do {
+                let local = try await scanner.previewURL(for: item)
+                guard !Task.isCancelled, previewGeneration == token else { return }
+                previewURL = local
+            }
             catch {
+                guard previewGeneration == token else { return }
                 closePreviewAccess()
                 message = "Preview unavailable: local contents or resource identity could not be confirmed. No download was requested."
             }
@@ -105,6 +136,8 @@ final class FolderInspection {
     }
 
     func closePreviewAccess() {
+        previewTask?.cancel()
+        previewGeneration = UUID()
         previewAccessScope?.stopAccessingSecurityScopedResource()
         previewAccessScope = nil
     }
@@ -143,6 +176,7 @@ struct FolderInspectionView: View {
                         logicalSubtotal: bytes(progress.knownLogicalSubtotal),
                         recentNames: progress.recentObservations.prefix(5).map { $0.url.lastPathComponent })
                 } else { ProgressView("Reading file metadata…") }
+                if model.result != nil { StatusRow(text: "Previous observations remain visible while this location is rechecked.", symbol: "clock") }
             }
             if let message = model.message { StatusRow(text: message, symbol: "info.circle") }
             if let result = model.result {
@@ -177,7 +211,7 @@ struct FolderInspectionView: View {
                     ForEach(result.observations.filter { search.isEmpty || $0.url.path.localizedCaseInsensitiveContains(search) }) { item in
                         InspectableItemRow(name: item.url.lastPathComponent, detail: relative(item.url, to: result.scope), size: item.kind == .file ? bytes(item.logicalBytes) : item.kind.rawValue, symbol: item.kind == .file ? "doc" : "folder", inspected: model.selected?.id == item.id, inspect: { model.selected = item }) {
                             if selection.eligible(item, in: result) {
-                                Toggle("Select \(item.url.lastPathComponent)", isOn: Binding(get: { selection.draft.contains(item) }, set: { selection.set(item, in: result, selected: $0) })).labelsHidden().disabled(selection.isPreparing || selection.execution.isRunning)
+                                Toggle("Select \(item.url.lastPathComponent)", isOn: Binding(get: { selection.draft.contains(item) }, set: { selection.set(item, in: result, selected: $0) })).labelsHidden().disabled(selection.isPreparing || selection.execution.isRunning || (model.isScanning && !selection.draft.contains(item)))
                             } else {
                                 Image(systemName: "lock").foregroundStyle(.secondary).help("Browse only · outside eligible Downloads or protected/unknown target").accessibilityLabel("Browse only · protected or ineligible target")
                             }
@@ -231,3 +265,19 @@ struct FolderInspectionView: View {
         url.pathComponents.dropFirst(root.pathComponents.count).joined(separator: "/")
     }
 }
+
+#if DEBUG
+/// Controlled latency at the public metadata boundary, only for explicitly picked disposable UI fixtures.
+private struct RefreshFixtureMetadata: MetadataSupplementReading {
+    func read(_ url: URL) throws -> MetadataSupplement {
+        if ProcessInfo.processInfo.arguments.contains("--ui-test-slow-refresh"),
+           let path = ProcessInfo.processInfo.environment["STILL_TEST_DOWNLOADS_ROOT"] {
+            let root = URL(fileURLWithPath: path).standardizedFileURL
+            if root.lastPathComponent.hasPrefix("StillSelectionUI-"), url.standardizedFileURL.pathComponents.starts(with: root.pathComponents) {
+                Thread.sleep(forTimeInterval: 0.02)
+            }
+        }
+        return try FoundationMetadataSupplement().read(url)
+    }
+}
+#endif

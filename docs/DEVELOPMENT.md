@@ -145,3 +145,7 @@ Final **Move to Trash** now consumes the exact approved batch, journals native o
 ## Bounded progressive metadata scans (#34)
 
 The optional public progress/cancellation boundary, bounded native updates and per-entry memory handling are documented with owned-tree measurements in [scanner performance evidence](validation/scanner-performance.md). Million-entry/reference-host, compressed-file and real mount/provider qualification remain open. Progress is preliminary and never authorizes cleanup.
+
+## Refreshing selected findings
+
+See [refresh validation](validation/refresh.md) for the per-scope pending-choice contract and disposable test evidence. The focused native journey is `WorkspaceUITests/testRefreshPreservesChoicesAndSearchThenExplainsChangedTargets`. Its DEBUG-only slow metadata boundary activates solely after selecting its explicitly bound owned fixture.

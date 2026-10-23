@@ -441,4 +441,60 @@ final class WorkspaceUITests: XCTestCase {
         XCTAssertTrue(app.popUpButtons["Appearance"].isHittable)
     }
 
+    @MainActor
+    func testRefreshPreservesChoicesAndSearchThenExplainsChangedTargets() throws {
+        continueAfterFailure = false
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("StillSelectionUI-" + UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let chosen = root.appendingPathComponent("selected.pdf")
+        try Data([1, 2, 3]).write(to: chosen)
+        let app = XCUIApplication()
+        app.launchArguments = ["--ui-test-downloads-root", "--ui-test-slow-refresh", "--design-initial-size"]
+        app.launchEnvironment["STILL_TEST_DOWNLOADS_ROOT"] = root.path
+        app.launch()
+        XCTAssertTrue(app.buttons["Choose folder…"].waitForExistence(timeout: 10))
+        app.buttons["Choose folder…"].click(); app.typeKey("g", modifierFlags: [.command, .shift])
+        let path = app.textFields.firstMatch
+        XCTAssertTrue(path.waitForExistence(timeout: 5)); path.typeText(root.path)
+        app.typeKey(.return, modifierFlags: []); app.dialogs.buttons["Scan folder"].click()
+        XCTAssertTrue(app.staticTexts["Observed"].waitForExistence(timeout: 10))
+        let checkbox = app.checkBoxes["Select selected.pdf"]
+        XCTAssertTrue(checkbox.waitForExistence(timeout: 5)); checkbox.click()
+        XCTAssertEqual(checkbox.value as? Int, 1)
+        app.buttons["View cleanup plan"].click()
+        let search = app.textFields["Search Downloads items"]
+        search.click(); search.typeText("selected.pdf")
+        let bounds = app.windows.firstMatch.frame
+        func capture(_ name: String) { let shot = XCTAttachment(screenshot: app.windows.firstMatch.screenshot()); shot.name = name; shot.lifetime = .keepAlways; add(shot) }
+        for i in 0..<500 { try Data().write(to: root.appendingPathComponent("new-\(i).txt")) }
+        let recheck = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Recheck location:")).firstMatch
+        XCTAssertTrue(recheck.isHittable); recheck.click()
+        XCTAssertTrue(app.buttons["Stop refresh"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["Review cleanup"].isEnabled)
+        XCTAssertTrue(app.checkBoxes["Selected selected.pdf"].exists)
+        app.buttons["Stop refresh"].click()
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "value BEGINSWITH %@", "Refresh required ·")).firstMatch.waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["Review cleanup"].isEnabled)
+        for theme in ["Light", "Dark"] { app.popUpButtons["Appearance"].click(); app.menuItems[theme].click(); capture("refresh-required-" + theme) }
+        recheck.click()
+        XCTAssertTrue(app.buttons["Stop refresh"].waitForExistence(timeout: 5))
+        let ready = NSPredicate(format: "enabled == true")
+        expectation(for: ready, evaluatedWith: app.buttons["Review cleanup"])
+        waitForExpectations(timeout: 30)
+        XCTAssertEqual(search.value as? String, "selected.pdf")
+        XCTAssertTrue(app.checkBoxes["Selected selected.pdf"].exists)
+        XCTAssertTrue(app.staticTexts["1 file selected"].exists)
+        XCTAssertEqual(app.windows.firstMatch.frame, bounds)
+        // Same-size change: contents do not need to be read to invalidate the original observation.
+        try FileManager.default.setAttributes([.modificationDate: Date(timeIntervalSince1970: 1234)], ofItemAtPath: chosen.path)
+        recheck.click()
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "value CONTAINS %@", "File changed or is no longer eligible.")).firstMatch.waitForExistence(timeout: 30))
+        XCTAssertFalse(app.buttons["Review cleanup"].isEnabled)
+        XCTAssertTrue(app.checkBoxes["Select selected.pdf"].exists)
+        for theme in ["Light", "Dark"] { app.popUpButtons["Appearance"].click(); app.menuItems[theme].click(); capture("refresh-changed-" + theme) }
+        XCTAssertEqual(app.windows.firstMatch.frame, bounds)
+        XCTAssertEqual(try Data(contentsOf: chosen), Data([1, 2, 3]))
+    }
+
 }

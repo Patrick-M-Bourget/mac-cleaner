@@ -133,7 +133,7 @@ private struct WorkspaceView: View {
             Divider()
             VStack(alignment: .leading, spacing: 0) {
                 if showsPlan && (!selection.scans.isEmpty || selection.execution.isRunning || selection.execution.result != nil || selection.execution.error != nil) {
-                    LiveCleanupPlanView(selection: selection)
+                    LiveCleanupPlanView(selection: selection, recheck: { folderInspection.scan($0) }, stopRefresh: { folderInspection.cancel() })
                 } else {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 24) {
@@ -153,7 +153,7 @@ private struct WorkspaceView: View {
                             switch destination {
                             case .alerts: StorageAlertsView(controller: alerts)
                             case .overview: overview
-                            case .plan: if selection.scans.isEmpty { plan } else { LiveCleanupPlanView(selection: selection) }
+                            case .plan: if selection.scans.isEmpty { plan } else { LiveCleanupPlanView(selection: selection, recheck: { folderInspection.scan($0) }, stopRefresh: { folderInspection.cancel() }) }
                             case .history: history
                             case .locations: locations
                             }

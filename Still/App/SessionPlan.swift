@@ -11,7 +11,7 @@ import SwiftUI
     private(set) var isPreparing = false
     private(set) var approvedBatch: CleanupApproval?
     var mutationVersion: UInt64 { draft.mutationVersion }
-    var canReview: Bool { !isPreparing && !execution.isRunning && draft.selectedCount > 0 }
+    var canReview: Bool { !isPreparing && !execution.isRunning && !isRefreshing && refresh.canReview(draft) }
     var categoryState: CategorySelectionState {
         guard let downloads else { return .unchecked }
         return draft.categoryState(in: Array(scans.values), downloads: downloads)
@@ -19,6 +19,32 @@ import SwiftUI
     var eligibleLogicalBytes: Int64 {
         var seen = Set<String>()
         return rows.filter { seen.insert($0.item.resourceID).inserted }.reduce(0) { $0 + ($1.item.logicalBytes ?? 0) }
+    }
+    private(set) var refresh = RefreshChoices()
+    private var refreshRequests: [URL: RefreshRequest] = [:]
+    private let refreshValidator = RefreshValidator()
+    var isRefreshing: Bool { !refreshRequests.isEmpty }
+    var pendingCount: Int { draft.selected.filter { refresh.requiresRefresh($0.id) }.count }
+    var refreshScopes: [URL] { Array(Set(scans.keys).union(draft.selected.map(\.scope))).sorted { $0.path < $1.path } }
+    func beginRefresh(_ scope: URL) -> RefreshRequest {
+        invalidateReview()
+        let request = refresh.begin(scope: scope, draft: &draft)
+        refreshRequests[request.scope] = request
+        return request
+    }
+    func cancelRefresh(_ request: RefreshRequest) {
+        guard refreshRequests[request.scope]?.id == request.id else { return }
+        refresh.cancel(request)
+        refreshRequests[request.scope] = nil
+        invalidateReview()
+    }
+    func finishRefresh(_ request: RefreshRequest, scan: ScanResult) async {
+        let outcome = await refreshValidator.validate(request, against: scan)
+        guard refreshRequests[request.scope]?.id == request.id else { return }
+        refresh.finish(outcome, draft: &draft)
+        refreshRequests[request.scope] = nil
+        invalidateReview()
+        AppLifecycleController.shared.hasPendingPlan = draft.selectedCount > 0
     }
     private var downloads: DownloadsRoot?
     #if DEBUG
@@ -55,6 +81,7 @@ import SwiftUI
     func observe(_ scan: ScanResult) {
         guard !execution.isRunning else { return }
         execution.clear()
+        if let newer = scans[scan.scope], newer.observedAt > scan.observedAt { return }
         #if DEBUG
         // Bind only after NSOpenPanel selected the exact fixture; never probe runner data at launch.
         if let requestedFixture, requestedFixture.standardizedFileURL.path == scan.scope.standardizedFileURL.path,
@@ -93,7 +120,7 @@ import SwiftUI
         AppLifecycleController.shared.operationInProgress = false
     }
     func toggleAll() async {
-        guard !isPreparing && !execution.isRunning else { return }
+        guard !isPreparing && !isRefreshing && !execution.isRunning else { return }
         if categoryState == .checked { draft.clear(); approvedBatch = nil; AppLifecycleController.shared.hasPendingPlan = false; return }
         guard let downloads else { return }
         invalidateReview()
@@ -115,7 +142,7 @@ import SwiftUI
         approvedBatch = nil
         if !selected { draft.remove(item.url.path + "|" + item.resourceID + "|moveToTrash") }
         else {
-            guard let downloads else { return }
+            guard !isRefreshing, let downloads else { return }
             do { try draft.select(item, in: scan, downloads: downloads); message = nil }
             catch { message = "This target is no longer eligible. Recheck its selected Downloads scope." }
         }
@@ -127,17 +154,20 @@ import SwiftUI
         draft.remove(target.id)
         AppLifecycleController.shared.hasPendingPlan = draft.selectedCount > 0
     }
-    func endSession() { draft.clear(); scans.removeAll(); approvedBatch = nil; AppLifecycleController.shared.hasPendingPlan = false }
+    func endSession() { draft.clear(); scans.removeAll(); refresh = RefreshChoices(); refreshRequests.removeAll(); approvedBatch = nil; AppLifecycleController.shared.hasPendingPlan = false }
 }
 
 struct LiveCleanupPlanView: View {
     @Bindable var selection: SessionPlan
+    let recheck: (URL) -> Void
+    let stopRefresh: () -> Void
     @State private var search = ""
     @State private var review: CleanupReview?
     @State private var approvalError: String?
     @State private var reviewFocusRequest = 0
     @State private var choosingItems = true
     @State private var inspected: FileObservation?
+    @State private var visibleRow: String?
     var body: some View {
         VStack(spacing: 0) {
         ScrollView {
@@ -148,10 +178,22 @@ struct LiveCleanupPlanView: View {
             PageHeader(title: "Cleanup plan", subtitle: "Choose categories, adjust items if needed, then review the changes.")
             SelectionSummary(value: ByteCountFormatter.string(fromByteCount: selection.draft.logicalBytes, countStyle: .decimal), detail: "\(StillDesign.files(selection.draft.selectedCount)) selected", identifier: "liveSelectionSummary")
             StatusRow(text: "Space stays occupied until Finder empties Trash. Nothing changes before final confirmation.", symbol: "trash")
+            VStack(alignment: .leading, spacing: StillDesign.Space.sm) {
+                HStack {
+                    if selection.isRefreshing { ProgressView("Rechecking selected locations…") }
+                    else if selection.pendingCount > 0 { StatusRow(text: "Refresh required · Previous observations retained for \(StillDesign.files(selection.pendingCount)).", symbol: "arrow.clockwise", role: .caution) }
+                }
+                ForEach(selection.refreshScopes, id: \.self) { scope in
+                    Button("Recheck location: " + scope.lastPathComponent) { recheck(scope) }.disabled(selection.isRefreshing || selection.isPreparing)
+                }
+            }
+            ForEach(selection.refresh.notices) { notice in
+                StatusRow(text: notice.target.url.lastPathComponent + " · " + notice.message, symbol: "info.circle", role: .caution)
+            }
             HStack(alignment: .top, spacing: StillDesign.Space.md) {
                 CategoryBadge(category: .downloads)
                 VStack(alignment: .leading, spacing: StillDesign.Space.sm) {
-                    MacroCategoryCheckbox(state: selection.categoryState, label: "Downloads · \(StillDesign.files(selection.rows.count)) eligible", enabled: !selection.isPreparing && !selection.rows.isEmpty) { Task { await selection.toggleAll() } }
+                    MacroCategoryCheckbox(state: selection.categoryState, label: "Downloads · \(StillDesign.files(selection.rows.count)) eligible", enabled: !selection.isPreparing && !selection.isRefreshing && !selection.rows.isEmpty) { Task { await selection.toggleAll() } }
                         .fixedSize(horizontal: true, vertical: false).frame(height: 26)
                     Text("Move exact files to Trash. Personal files and installers are included only when selected.").font(.caption).foregroundStyle(.secondary)
                 }
@@ -169,11 +211,14 @@ struct LiveCleanupPlanView: View {
                         ForEach(selection.rows.filter { search.isEmpty || $0.item.url.path.localizedCaseInsensitiveContains(search) }) { row in
                             InspectableItemRow(name: row.item.url.lastPathComponent, detail: row.item.url.pathComponents.dropFirst(row.scan.scope.pathComponents.count).joined(separator: "/"), size: ByteCountFormatter.string(fromByteCount: row.item.logicalBytes ?? 0, countStyle: .decimal), symbol: "doc", inspected: inspected?.id == row.item.id, inspect: { inspected = row.item }) {
                                 Toggle("\(selection.draft.contains(row.item) ? "Selected" : "Select") \(row.item.url.lastPathComponent)", isOn: Binding(get: { selection.draft.contains(row.item) }, set: { selection.set(row.item, in: row.scan, selected: $0) }))
-                                    .labelsHidden().disabled(selection.isPreparing)
+                                    .labelsHidden().disabled(selection.isPreparing || (selection.isRefreshing && !selection.draft.contains(row.item)))
+                            }
+                            if selection.refresh.requiresRefresh(row.item.url.path + "|" + row.item.resourceID + "|moveToTrash") {
+                                StatusRow(text: selection.isRefreshing ? "Rechecking…" : "Refresh required", symbol: "arrow.clockwise", role: .caution).padding(.horizontal, StillDesign.Space.md)
                             }
                             Divider()
                         }
-                    }
+                    }.scrollTargetLayout()
                     if let item = inspected {
                         SummarySurface {
                             VStack(alignment: .leading, spacing: StillDesign.Space.sm) {
@@ -197,9 +242,10 @@ struct LiveCleanupPlanView: View {
 
         }.padding(StillDesign.Space.page).frame(maxWidth: .infinity, alignment: .leading)
         }
-        }.background(StillDesign.reading)
+        }.scrollPosition(id: $visibleRow).background(StillDesign.reading)
         if !selection.execution.isRunning && selection.execution.result == nil && selection.execution.error == nil {
-        ActionStrip(message: "Nothing changes until you confirm the next step.") {
+        ActionStrip(message: selection.isRefreshing ? "Review is paused while findings are rechecked." : selection.pendingCount > 0 ? "Refresh required before reviewing the selected files." : "Nothing changes until you confirm the next step.") {
+            if selection.isRefreshing { Button("Stop refresh", action: stopRefresh) }
 ReviewCleanupButton(enabled: selection.canReview, focusRequest: reviewFocusRequest) {
                 do { review = try selection.review(); approvalError = nil } catch { approvalError = "Recheck the selected targets before reviewing." }
             }.fixedSize()
