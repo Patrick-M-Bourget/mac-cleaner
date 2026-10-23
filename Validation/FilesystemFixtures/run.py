@@ -68,7 +68,7 @@ def interrupted(signum, frame):
 signal.signal(signal.SIGTERM, interrupted)
 signal.signal(signal.SIGINT, interrupted)
 try:
-    run(['/usr/bin/hdiutil', 'create', '-size', '64m', '-fs', 'HFS+', '-volname', 'StillOwnedFixture', '-format', 'UDRW', image])
+    run(['/usr/bin/hdiutil', 'create', '-size', '64m', '-fs', 'HFS+', '-volname', 'StillOwnedFixture', '-type', 'UDIF', image])
     # Even partial/invalid attach output must prevent recursive removal across a possible mount.
     attached = True
     attachment = run(['/usr/bin/hdiutil', 'attach', '-plist', '-nobrowse', '-noautoopen', '-mountpoint', mount, image])
