@@ -4,7 +4,12 @@ import Observation
 /// Metadata/persistence observation boundary; no content reads or scan initiation.
 public protocol GrowthObservationRecording: Sendable {
     func begin(scope: URL) async throws -> GrowthScanToken
+    func begin(scope: URL, exclusionFingerprint: String) async throws -> GrowthScanToken
     func complete(_ scan: ScanResult, token: GrowthScanToken) async throws -> GrowthComparison
+}
+
+public extension GrowthObservationRecording {
+    func begin(scope: URL, exclusionFingerprint: String) async throws -> GrowthScanToken { try await begin(scope: scope) }
 }
 
 /// The actual presentation policy shared by native UI and controlled public-journey tests.
@@ -37,10 +42,10 @@ public protocol GrowthObservationRecording: Sendable {
             comparison = .unknown; self.error = "Comparison history is unavailable. No growth can be inferred from missing observations."; presentationVersion += 1
         }
     }
-    public func begin(_ scope: URL) async -> GrowthScanToken? {
+    public func begin(_ scope: URL, exclusionFingerprint: String = "none") async -> GrowthScanToken? {
         let request = UUID(); attempt = request; active = nil
         do {
-            let token = try await recorder.begin(scope: scope)
+            let token = try await recorder.begin(scope: scope, exclusionFingerprint: exclusionFingerprint)
             guard attempt == request, !Task.isCancelled else { return nil }
             active = token.id; return token
         } catch {
@@ -61,6 +66,10 @@ public protocol GrowthObservationRecording: Sendable {
             guard active == token.id, !Task.isCancelled else { return }
             comparison = .unknown; self.error = "This observation could not be saved. The previous completed baseline is retained."; presentationVersion += 1
         }
+    }
+    public func invalidateCoverage() async throws {
+        cancelled()
+        try await store.invalidateCoverage()
     }
     public func clearCompletedHistory() async throws {
         let request = UUID(); attempt = request; active = nil

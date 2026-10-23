@@ -21,3 +21,5 @@ The normalized rule set is fingerprinted with its semantics version. Every add/r
 At most 100 explicit rules are stored in a bounded, versioned local app-state file. Rule paths and volume identities are sensitive metadata, not file contents. Failed or corrupt rule loading blocks a new scan rather than silently dropping saved rules. Creation has a separate preview/Save step; cancellation stores nothing. Removal is explicit and tells the user to recheck. The fixed-protections explanation is read-only.
 
 Clear completed history preserves custom rules. Guarded Reset removes custom rules only after the existing execution/unresolved-recovery maintenance guard succeeds. Reset also preserves diagnostics invalidation and existing growth/alert/login reset behavior. No rule-management operation deletes original files or revokes macOS access grants.
+
+If a file path is replaced by a directory, the excluded boundary remains unmeasured and its descendants are not enumerated. A different mounted volume never inherits the containing volume’s rule.

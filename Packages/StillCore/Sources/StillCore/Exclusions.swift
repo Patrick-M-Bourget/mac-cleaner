@@ -22,8 +22,10 @@ public struct ExclusionPolicy: Sendable {
     public init(rules: [ExclusionRule] = []) { self.rules = rules }
     public var fingerprint: String {
         guard !rules.isEmpty else { return "none" }
-        let normalized = Set(rules.map { $0.volumeID + "|" + $0.boundary.rawValue + "|" + $0.path }).sorted().joined(separator: "\n")
-        return "path-volume-v1:" + SHA256.hash(data: Data(normalized.utf8)).map { String(format: "%02x", $0) }.joined()
+        let normalized = Set(rules.map { [ $0.volumeID, $0.boundary.rawValue, $0.path ] }).sorted { $0.lexicographicallyPrecedes($1) }
+        // Length framing preserves arbitrary legal filename separators and newlines.
+        let encoded = Data(normalized.flatMap { $0 }.map { "\($0.utf8.count):" + $0 }.joined().utf8)
+        return "path-volume-v1:" + SHA256.hash(data: encoded).map { String(format: "%02x", $0) }.joined()
     }
     /// Lexical component match only; callers supply the canonical scoped path, never follow descendants.
     public func matches(_ url: URL, volumeID: String) -> Bool {

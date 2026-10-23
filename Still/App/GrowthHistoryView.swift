@@ -21,12 +21,16 @@ import StillCore
         do { await (try open()).load() }
         catch { openingError = "Comparison history is unavailable. No growth can be inferred from missing observations." }
     }
-    func begin(_ scope: URL) async -> GrowthScanToken? {
+    func begin(_ scope: URL, exclusionFingerprint: String = "none") async -> GrowthScanToken? {
         guard Self.enabled else { return nil }
-        do { return await (try open()).begin(scope) }
+        do { return await (try open()).begin(scope, exclusionFingerprint: exclusionFingerprint) }
         catch { openingError = "Scope or volume identity could not be verified. This scan cannot establish a comparison baseline."; return nil }
     }
     func complete(_ scan: ScanResult, token: GrowthScanToken?) async { await session?.complete(scan, token: token) }
+    func invalidateCoverage() async throws {
+        guard Self.enabled else { return }
+        try await open().invalidateCoverage()
+    }
     func clearCompletedHistory() async throws { try await open().clearCompletedHistory() }
     func resetHistory() async throws { try await open().resetHistory() }
     func cancelled() { session?.cancelled() }

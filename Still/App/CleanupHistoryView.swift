@@ -66,10 +66,11 @@ extension AppLifecycleController: HistoryMaintenanceLifecycle {
             }.value
             try lifecycle.resetPreferences()
             try await GrowthHistoryModel.shared.resetHistory()
+            try await ExclusionsModel.shared.reset()
             lifecycle.selection.endSession(); lifecycle.selection.execution.clear()
             await lifecycle.inspection.resetSession()
             snapshot = CleanupHistorySnapshot(records: [])
-            message = "Still’s preferences, selected locations and completed history were reset. Original files and macOS access grants are unchanged." + (result.1.completed ? "" : " Journal compaction did not finish; disk reclamation is not confirmed.")
+            message = "Still’s preferences, custom exclusions, selected locations and completed history were reset. Original files and macOS access grants are unchanged." + (result.1.completed ? "" : " Journal compaction did not finish; disk reclamation is not confirmed.")
             blocked = false
             return true
         } catch CleanupJournalError.recoveryRequired {
@@ -146,7 +147,7 @@ struct CleanupHistoryView: View {
         } message: { Text("Completed per-file history and growth baselines will be removed. Recovery facts, consumed approval IDs, original files and Trash contents remain.") }
         .confirmationDialog("Reset Still?", isPresented: $confirmingReset, titleVisibility: .visible) {
             Button("Reset Still", role: .destructive) { Task { if await model.reset() { didReset() } } }
-        } message: { Text("Forget Still’s preferences, selected locations and completed history; stop alerts and login launch. Original files, Trash and macOS access grants remain. Unfinished or unreadable journal records block reset.") }
+        } message: { Text("Forget Still’s preferences, custom exclusions, selected locations and completed history; stop alerts and login launch. Original files, Trash and macOS access grants remain. Unfinished or unreadable journal records block reset.") }
     }
     private func bytes(_ value: Int64) -> String { ByteCountFormatter.string(fromByteCount: value, countStyle: .decimal) }
 }

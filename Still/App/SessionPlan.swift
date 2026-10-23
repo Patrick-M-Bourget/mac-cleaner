@@ -25,6 +25,16 @@ import SwiftUI
         var seen = Set<String>()
         return rows.filter { seen.insert($0.item.resourceID).inserted }.reduce(0) { $0 + ($1.item.logicalBytes ?? 0) }
     }
+    private var expectedExclusionFingerprint = "none"
+    func invalidateCoverage() {
+        stopRetryRecheck(); retryGeneration = UUID(); isPreparing = false; isRetryRechecking = false
+        refresh.invalidateCoverage(draft: &draft); refreshRequests.removeAll(); approvedBatch = nil
+        scans.removeAll()
+        message = "Exclusion settings changed. Recheck selected locations before choosing files or reviewing cleanup."
+    }
+    func expectExclusions(_ fingerprint: String) {
+        if expectedExclusionFingerprint != fingerprint { invalidateCoverage(); expectedExclusionFingerprint = fingerprint }
+    }
     private(set) var refresh = RefreshChoices()
     private var refreshRequests: [URL: RefreshRequest] = [:]
     private let refreshValidator = RefreshValidator()
@@ -85,7 +95,7 @@ import SwiftUI
         }.sorted { $0.item.url.path < $1.item.url.path }
     }
     func observe(_ scan: ScanResult) {
-        guard !execution.isRunning else { return }
+        guard !execution.isRunning, scan.exclusionFingerprint == expectedExclusionFingerprint else { return }
         if isRetryRechecking { stopRetryRecheck(); retryGeneration = UUID(); isPreparing = false; isRetryRechecking = false }
         execution.clear()
         if let newer = scans[scan.scope], newer.observedAt > scan.observedAt { return }
@@ -105,7 +115,7 @@ import SwiftUI
         scans[scan.scope] = scan
     }
     func eligible(_ item: FileObservation, in scan: ScanResult) -> Bool {
-        guard let downloads else { return false }
+        guard scan.exclusionFingerprint == expectedExclusionFingerprint, let downloads else { return false }
         return PlanDraft.canConsider(item, in: scan, downloads: downloads)
     }
     func invalidateReview() { draft.invalidateReview(); approvedBatch = nil }
@@ -149,7 +159,7 @@ import SwiftUI
         approvedBatch = nil
         if !selected { draft.remove(item.url.path + "|" + item.resourceID + "|moveToTrash") }
         else {
-            guard !isRefreshing, let downloads, retryTargetIDs?.contains(item.url.path + "|" + item.resourceID + "|moveToTrash") != false else { return }
+            guard scan.exclusionFingerprint == expectedExclusionFingerprint, !isRefreshing, let downloads, retryTargetIDs?.contains(item.url.path + "|" + item.resourceID + "|moveToTrash") != false else { return }
             do { try draft.select(item, in: scan, downloads: downloads); message = nil }
             catch { message = "This target is no longer eligible. Recheck its selected Downloads scope." }
         }
@@ -171,6 +181,10 @@ import SwiftUI
     }
     func prepareRetry() async {
         guard !isPreparing, !isRefreshing, execution.canRetry, let result = execution.result, let downloads else { return }
+        let policy: ExclusionPolicy
+        do { policy = try await ExclusionsModel.shared.policyForScan(); expectExclusions(policy.fingerprint) }
+        catch { message = "Exclusion settings are unavailable. Recheck is blocked."; return }
+        guard !AppLifecycleController.shared.maintenanceInProgress, !execution.isRunning, execution.result?.batchID == result.batchID else { return }
         let records = result.targets, scopes = execution.retryScopes
         let cancellation = ScanCancellation(), token = UUID()
         retryCancellation = cancellation; retryGeneration = token
@@ -184,7 +198,7 @@ import SwiftUI
             for scope in scopes {
                 if cancellation.isCancellationRequested { return reports }
                 let access = scope.startAccessingSecurityScopedResource()
-                do { reports.append(try await scanner.scan(scope, cancellation: cancellation)) } catch { }
+                do { reports.append(try await scanner.scan(scope, cancellation: cancellation, exclusions: policy)) } catch { }
                 if access { scope.stopAccessingSecurityScopedResource() }
             }
             return reports

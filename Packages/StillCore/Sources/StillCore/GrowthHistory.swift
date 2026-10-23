@@ -82,6 +82,8 @@ public actor GrowthHistoryStore {
             return value.entries.contains(where: { $0.snapshot.id == snapshot.id }) ? comparison(in: value, id: snapshot.id) : GrowthComparison(state: .unknown, current: snapshot, from: nil, groups: [])
         }
     }
+    /// Reject observations started under previous settings while retaining compatible historical aggregates.
+    public func invalidateCoverage() throws { try withStoreLock { try writeEpoch(UUID()) } }
     public func clearCompletedHistory() throws {
         try withStoreLock {
             try writeEpoch(UUID())

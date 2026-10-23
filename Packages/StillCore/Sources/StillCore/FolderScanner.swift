@@ -264,7 +264,13 @@ public actor FolderScanner {
                 if let volume = exclusionVolume {
                     let parts = url.standardizedFileURL.pathComponents.dropFirst(scope.standardizedFileURL.pathComponents.count)
                     let canonical = parts.reduce(canonicalScope) { $0.appendingPathComponent($1) }
-                    if exclusions.matches(canonical, volumeID: volume) { excludedEntryCount += 1; entries.skipDescendants(); return true }
+                    if exclusions.matches(canonical, volumeID: volume) {
+                        var boundary = stat()
+                        // Mounted replacements must not inherit a rule from the containing volume.
+                        if lstat(url.path, &boundary) == 0, boundary.st_dev == rootMetadata.st_dev {
+                            excludedEntryCount += 1; entries.skipDescendants(); return true
+                        }
+                    }
                 }
                 let ancestorsValid = try identitiesStillValid(through: url.deletingLastPathComponent())
                 guard ancestorsValid else {

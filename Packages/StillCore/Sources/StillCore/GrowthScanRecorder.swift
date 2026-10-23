@@ -13,15 +13,16 @@ public struct GrowthScanToken: Sendable {
 public actor GrowthScanRecorder: GrowthObservationRecording {
     private let store: GrowthHistoryStore
     public init(store: GrowthHistoryStore) { self.store = store }
-    public func begin(scope: URL) async throws -> GrowthScanToken {
+    public func begin(scope: URL) async throws -> GrowthScanToken { try await begin(scope: scope, exclusionFingerprint: "none") }
+    public func begin(scope: URL, exclusionFingerprint: String) async throws -> GrowthScanToken {
         let epoch = try await store.recordingEpoch()
-        return GrowthScanToken(scope: scope.standardizedFileURL, epoch: epoch, fingerprint: try fingerprint(scope))
+        return GrowthScanToken(scope: scope.standardizedFileURL, epoch: epoch, fingerprint: try fingerprint(scope, exclusions: exclusionFingerprint))
     }
     public func complete(_ scan: ScanResult, token: GrowthScanToken) async throws -> GrowthComparison {
         try Task.checkCancellation()
         guard scan.scope.standardizedFileURL == token.scope, scan.observedAt >= token.startedAt,
-              try fingerprint(scan.scope) == token.fingerprint,
-              scan.isComplete, !scan.hasUnmeasuredContents, scan.totalLogicalBytes != nil else {
+              try fingerprint(scan.scope, exclusions: scan.exclusionFingerprint) == token.fingerprint,
+              scan.isComplete, !scan.hasUnmeasuredContents, scan.includedLogicalBytes != nil else {
             return GrowthComparison(state: .unknown, current: nil, from: nil, groups: [])
         }
         let rootLabel = "Files in selected folder"
@@ -61,13 +62,13 @@ public actor GrowthScanRecorder: GrowthObservationRecording {
         let snapshot = GrowthSnapshot(fingerprint: token.fingerprint, scopeLabel: scan.scope.lastPathComponent, observedAt: scan.observedAt, groups: groups.sorted { $0.id < $1.id })
         return try await store.record(snapshot, expectedEpoch: token.epoch)
     }
-    private func fingerprint(_ scope: URL) throws -> GrowthFingerprint {
+    private func fingerprint(_ scope: URL, exclusions: String) throws -> GrowthFingerprint {
         let canonical = scope.resolvingSymlinksInPath().standardizedFileURL
         var info = stat()
         guard lstat(canonical.path, &info) == 0, info.st_mode & S_IFMT == S_IFDIR,
               let volume = try canonical.resourceValues(forKeys: [.volumeUUIDStringKey]).volumeUUIDString else { throw CocoaError(.fileReadNoPermission) }
         return GrowthFingerprint(scopeID: Self.digest(canonical.path), rootID: "\(info.st_dev):\(info.st_ino)", volumeID: volume,
-            access: "complete-explicit-metadata-scope-v1-mode\(info.st_mode & 0o777)-uid\(info.st_uid)-gid\(info.st_gid)", rules: "scanner-v2-directory-stability-recheck1-deadline30-depth64-entry100000-packages-unmeasured", exclusions: "scanner-protected-boundaries-v1", classification: "logical-folder128-category-v2-semantic-buckets")
+            access: "complete-explicit-metadata-scope-v1-mode\(info.st_mode & 0o777)-uid\(info.st_uid)-gid\(info.st_gid)", rules: "scanner-v2-directory-stability-recheck1-deadline30-depth64-entry100000-packages-unmeasured", exclusions: "scanner-protected-boundaries-v1|" + exclusions, classification: "logical-folder128-category-v2-semantic-buckets")
     }
     private static func digest(_ text: String) -> String { SHA256.hash(data: Data(text.utf8)).map { String(format: "%02x", $0) }.joined() }
     private static func category(_ ext: String) -> String {

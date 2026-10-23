@@ -55,7 +55,7 @@ final class FolderInspection {
         closePreviewAccess()
         let previousSelection = scope?.standardizedFileURL == url.standardizedFileURL ? selected : nil
         let sameScope = scope?.standardizedFileURL == url.standardizedFileURL
-        let request = selection.beginRefresh(url)
+        var request = selection.beginRefresh(url)
         refreshRequest = request
         let scanCancellation = ScanCancellation()
         cancellation = scanCancellation
@@ -78,8 +78,13 @@ final class FolderInspection {
             }
             defer { continuation.finish(); receiver.cancel() }
             do {
-                let growthToken = await GrowthHistoryModel.shared.begin(url)
-                let report = try await session.inspect(url, cancellation: scanCancellation, onProgress: { continuation.yield($0) })
+                let policy = try await ExclusionsModel.shared.policyForScan()
+                guard !Task.isCancelled, token == generation else { return }
+                selection.expectExclusions(policy.fingerprint)
+                request = selection.beginRefresh(url)
+                refreshRequest = request
+                let growthToken = await GrowthHistoryModel.shared.begin(url, exclusionFingerprint: policy.fingerprint)
+                let report = try await session.inspect(url, cancellation: scanCancellation, onProgress: { continuation.yield($0) }, exclusions: policy)
                 let observed = report.current
                 let reports = await session.reports()
                 guard !Task.isCancelled, token == generation else { return }
@@ -100,7 +105,7 @@ final class FolderInspection {
                 refreshRequest = nil
                 progress = nil
                 isScanning = false
-                message = error is CancellationError ? "Scan stopped. Choose a folder to try again." : "This folder could not be inspected. Choose the folder again or check access in System Settings."
+                message = error is CancellationError ? "Scan stopped. Choose a folder to try again." : ExclusionsModel.shared.error ?? "This folder could not be inspected. Choose the folder again or check access in System Settings."
             }
         }
     }
@@ -111,6 +116,12 @@ final class FolderInspection {
         selected = report.current.observations.first; message = nil
     }
 
+    func invalidateCoverage() async {
+        cancel(); closePreviewAccess()
+        result = nil; lastComplete = nil; scopeReports = []; selected = nil; previewURL = nil
+        message = "Exclusion settings changed. Recheck this folder to observe the new coverage."
+        await session.clear()
+    }
     func resetSession() async {
         cancel(); closePreviewAccess()
         scope = nil; result = nil; lastComplete = nil; scopeReports = []; selected = nil; previewURL = nil; message = nil
@@ -195,10 +206,11 @@ struct FolderInspectionView: View {
                     Text("Observed").font(.caption).foregroundStyle(.secondary)
                     Text(result.observedAt, format: .dateTime.year().month().day().hour().minute().second()).font(.caption)
                 }
-                StatusRow(text: result.isComplete ? "Scan completed within the selected scope" : "Partial coverage · \(result.issues.count) unreadable or bounded locations", symbol: result.isComplete ? "checkmark.circle" : "exclamationmark.circle", role: result.isComplete ? .success : .caution)
+                StatusRow(text: result.isComplete ? (result.excludedEntryCount > 0 ? "Scan completed within included coverage" : "Scan completed within the selected scope") : "Partial coverage · \(result.issues.count) unreadable or bounded locations", symbol: result.isComplete ? "checkmark.circle" : "exclamationmark.circle", role: result.isComplete ? .success : .caution)
                 VStack(alignment: .leading, spacing: 5) {
+                    if result.excludedEntryCount > 0 { StatusRow(text: "\(result.excludedEntryCount) custom-excluded boundaries. Their contents and bytes remain unknown.", symbol: "folder.badge.minus") }
                     Text("Complete scope logical bytes: \(bytes(result.totalLogicalBytes))")
-                    if (!result.isComplete || result.hasUnmeasuredContents) && !result.observations.isEmpty { Text("Known observed logical subtotal: \(bytes(result.logicalBytes)) · Remaining bytes unknown") }
+                    if (!result.isComplete || result.hasUnmeasuredContents || result.excludedEntryCount > 0) && !result.observations.isEmpty { Text("Known observed logical subtotal: \(bytes(result.logicalBytes)) · Remaining bytes unknown") }
                     Text("Complete scope allocated bytes: \(bytes(result.totalAllocatedBytes))")
                     if result.allocatedUnknownCount > 0 { Text("\(result.allocatedUnknownCount) file allocation measurements unknown") }
                 }.font(.callout).monospacedDigit()

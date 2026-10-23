@@ -91,6 +91,7 @@ private struct WorkspaceView: View {
     @State private var managedStorage = ManagedStorageModel()
     @State private var pipVisible = false
     @State private var dockerVisible = false
+    @State private var exclusionsVisible = false
     @State private var diagnosticsVisible = false
     @State private var diagnostics = DiagnosticsModel()
     @State private var startupCapacity: StartupVolumeCapacity?
@@ -101,7 +102,7 @@ private struct WorkspaceView: View {
         false
         #endif
     }
-    private var showsPlan: Bool { destination == .plan && !recoveryVisible && !inspecting && !nativeInspectionVisible && !homebrewVisible && !pipVisible && !dockerVisible && !managedStorageVisible && !diagnosticsVisible }
+    private var showsPlan: Bool { destination == .plan && !recoveryVisible && !inspecting && !nativeInspectionVisible && !homebrewVisible && !pipVisible && !dockerVisible && !managedStorageVisible && !diagnosticsVisible && !exclusionsVisible }
     private var inspectionVisible: Bool { inspecting || nativeInspectionVisible }
     private var contextLabel: String {
         diagnosticsVisible ? "Redacted diagnostics · Explicit local Save" : recoveryVisible ? "Recovery review · Recorded facts only" : selection.execution.isRunning ? "Moving approved files to Trash" : selection.execution.result != nil ? "Cleanup results · individual outcomes" : managedStorageVisible ? "App-managed inventory · selected objects only" : folderInspection.scope != nil ? "Read-only metadata · explicitly selected folder" : fixtureMode ? "Synthetic data — no personal files accessed" : "On-demand storage review"
@@ -138,13 +139,15 @@ private struct WorkspaceView: View {
             .background { ChromeSurface(role: .sidebar) }
             Divider()
             VStack(alignment: .leading, spacing: 0) {
-                if showsPlan && (!selection.scans.isEmpty || selection.execution.isRunning || selection.execution.result != nil || selection.execution.error != nil) {
+                if showsPlan && (!selection.scans.isEmpty || selection.draft.selectedCount > 0 || selection.execution.isRunning || selection.execution.result != nil || selection.execution.error != nil) {
                     LiveCleanupPlanView(selection: selection, recheck: { folderInspection.scan($0) }, stopRefresh: { folderInspection.cancel() })
                 } else {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 24) {
                         if recoveryVisible {
                             CleanupRecoveryView(model: recovery)
+                        } else if exclusionsVisible {
+                            ExclusionsView(model: ExclusionsModel.shared)
                         } else if diagnosticsVisible {
                             DiagnosticsView(model: diagnostics)
                         } else if managedStorageVisible {
@@ -164,7 +167,7 @@ private struct WorkspaceView: View {
                             case .alerts: StorageAlertsView(controller: alerts)
                             case .growth: GrowthHistoryView(model: GrowthHistoryModel.shared)
                             case .overview: overview
-                            case .plan: if selection.scans.isEmpty { plan } else { LiveCleanupPlanView(selection: selection, recheck: { folderInspection.scan($0) }, stopRefresh: { folderInspection.cancel() }) }
+                            case .plan: if selection.scans.isEmpty && selection.draft.selectedCount == 0 { plan } else { LiveCleanupPlanView(selection: selection, recheck: { folderInspection.scan($0) }, stopRefresh: { folderInspection.cancel() }) }
                             case .history: history
                             case .locations: locations
                             }
@@ -172,7 +175,11 @@ private struct WorkspaceView: View {
                     }.padding(StillDesign.Space.page).frame(maxWidth: .infinity, alignment: .leading)
                 }
                 .safeAreaInset(edge: .bottom, spacing: 0) {
-                    if diagnosticsVisible {
+                    if exclusionsVisible {
+                        ActionStrip(message: "Custom rules change scan coverage; original files stay unchanged.") {
+                            Button("Back to Locations & access") { exclusionsVisible = false; destination = .locations }
+                        }
+                    } else if diagnosticsVisible {
                         ActionStrip(message: "The reviewed payload stays on this Mac unless you explicitly save it.") {
                             Button("Back to Overview") { diagnosticsVisible = false; destination = .overview }.disabled(diagnostics.isSaving)
                             Button("Save diagnostics…") { Task { await diagnostics.save() } }.buttonStyle(.borderedProminent).disabled(diagnostics.export == nil || diagnostics.isSaving)
@@ -204,7 +211,7 @@ private struct WorkspaceView: View {
         .task { if await recovery.loadOnce() { recoveryVisible = true } }
         .task { startupCapacity = await Task.detached(priority: .utility) { StartupVolumeCapacity.read() }.value }
         .onAppear { AppLifecycleController.shared.openWorkspace = { openWindow(id: "workspace") } }
-        .onReceive(NotificationCenter.default.publisher(for: .stillAlertOpened)) { _ in destination = .overview; diagnosticsVisible = false; recoveryVisible = false; inspecting = false; nativeInspectionVisible = false; homebrewVisible = false; pipVisible = false; dockerVisible = false; managedStorageVisible = false }
+        .onReceive(NotificationCenter.default.publisher(for: .stillAlertOpened)) { _ in destination = .overview; exclusionsVisible = false; diagnosticsVisible = false; recoveryVisible = false; inspecting = false; nativeInspectionVisible = false; homebrewVisible = false; pipVisible = false; dockerVisible = false; managedStorageVisible = false }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in Task { await alerts.activated() } }
         .onReceive(NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.didWakeNotification)) { _ in Task { await alerts.activated() } }
         .toolbar {
@@ -225,7 +232,7 @@ private struct WorkspaceView: View {
     private func navigation(_ value: Destination) -> some View {
         StillSidebarRow(title: value.rawValue, symbol: value.symbol, selected: destination == value) {
             destination = value
-            diagnosticsVisible = false
+            diagnosticsVisible = false; exclusionsVisible = false
             recoveryVisible = false; inspecting = false; nativeInspectionVisible = false; homebrewVisible = false
             pipVisible = false; dockerVisible = false; managedStorageVisible = false
         }.keyboardShortcut(value.shortcut, modifiers: .command)
@@ -367,13 +374,18 @@ private struct WorkspaceView: View {
     private var history: some View {
         CleanupHistoryView(showRecovery: { recoveryVisible = true; Task { await recovery.refresh() } }, didReset: {
             appearance = "Automatic"; nativeInspectionVisible = false; inspecting = false
-            diagnosticsVisible = false; diagnostics = DiagnosticsModel()
+            diagnosticsVisible = false; diagnostics = DiagnosticsModel(); exclusionsVisible = false
         })
     }
 
     private var locations: some View {
         VStack(alignment: .leading, spacing: 20) {
             heading("Locations & access", "Review scan coverage and access in one place.")
+            if GrowthHistoryModel.enabled {
+                SettingsRow(title: "Custom exclusions", detail: "Explicit path rules reduce scan coverage; fixed protections stay active.") {
+                    Button("Manage exclusions") { exclusionsVisible = true; nativeInspectionVisible = false; inspecting = false }.accessibilityIdentifier("manageExclusions")
+                }
+            }
             if let scope = folderInspection.scope {
                 SettingsRow(title: "Selected location", detail: "Explicitly chosen this session") {
                     Label(scope.path, systemImage: "folder").textSelection(.enabled)

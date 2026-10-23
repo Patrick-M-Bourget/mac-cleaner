@@ -33,6 +33,12 @@ public struct RefreshChoices: Sendable {
     public func canReview(_ draft: PlanDraft) -> Bool {
         active.isEmpty && !draft.selected.isEmpty && !draft.selected.contains { requiresRefresh($0.id) }
     }
+    /// Settings coverage changed. Preserve choices as pending, invalidate old active outcomes.
+    public mutating func invalidateCoverage(draft: inout PlanDraft) {
+        active.removeAll(); draft.invalidateReview()
+        let token = UUID(), now = Date()
+        for target in draft.selected { pending[target.id] = Pending(token: token, url: target.url, startedAt: now) }
+    }
     public mutating func begin(scope: URL, draft: inout PlanDraft) -> RefreshRequest {
         draft.invalidateReview()
         let scope = scope.standardizedFileURL
