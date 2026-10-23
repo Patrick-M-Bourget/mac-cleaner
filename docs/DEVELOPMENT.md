@@ -2,7 +2,7 @@
 
 Native UI implementation follows the mandatory [design system](DESIGN-SYSTEM.md).
 
-The native workspace starts with deterministic in-memory fixtures (issue #2). Issue #3 adds explicit native folder selection and read-only metadata inspection. Nothing scans until the user chooses a folder. Quick Look and Reveal in Finder run only from their explicit controls; preview requires fresh positive locality and matching resource identity. No cleanup target mutation is implemented. Fixture strings and sizes remain illustrative; selecting a real folder replaces fixture findings in that session.
+The current native app scans metadata only after explicit folder selection. Quick Look and Reveal in Finder run only from their controls; preview requires fresh positive locality and matching resource identity. Eligible local Downloads files can enter a shared session plan and move to Trash only after exact consequence confirmation. Progress, cancellation, per-file results, fresh explicitly approved retry and startup recovery are implemented; completed-history/reset and personal/release qualification retain their ticket gates. Historical slice notes below describe implementation stages, not the current feature ceiling. Start with the [personal-build walkthrough](validation/personal-build-walkthrough.md); it distinguishes read-only inspection from separately approved personal cleanup.
 
 ## Prerequisites and launch
 
