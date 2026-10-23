@@ -429,7 +429,14 @@ struct NativeWindowContract: NSViewRepresentable {
                 let minimum = NSSize(width: min(900, visible.width), height: min(640, visible.height))
                 window.minSize = minimum
                 let size = NSSize(width: max(minimum.width, min(requested.width, visible.width)), height: max(minimum.height, min(requested.height, visible.height)))
-                let origin = NSPoint(x: min(max(requested.minX, visible.minX), visible.maxX - size.width), y: min(max(requested.minY, visible.minY), visible.maxY - size.height))
+                var origin = NSPoint(x: min(max(requested.minX, visible.minX), visible.maxX - size.width), y: min(max(requested.minY, visible.minY), visible.maxY - size.height))
+                #if DEBUG
+                // Explicit captures use the visible top-left corner, independent of native
+                // restored/cascaded positions. Ordinary launches retain their fitted origin.
+                if ProcessInfo.processInfo.arguments.contains(where: {
+                    ["--design-minimum", "--design-initial-size"].contains($0)
+                }) { origin = NSPoint(x: visible.minX, y: visible.maxY - size.height) }
+                #endif
                 let fitted = NSRect(origin: origin, size: size)
                 if window.frame != fitted { window.setFrame(fitted, display: true) }
                 #if DEBUG
