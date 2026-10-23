@@ -15,14 +15,15 @@ extension Notification.Name {
     private var policy = AlertPolicy()
     private var timer: Timer?
     private var sampling = false
+    private var monitoringGeneration = UUID()
     private var persistenceHealthy = true
-    private let store = AlertStateStore(url: FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("Still/StorageAlerts/episode-state.json"))
+    private var store: AlertStateStore { get throws { AlertStateStore(url: try LocalStateLocation.root(create: true).appendingPathComponent("StorageAlerts/episode-state.json")) } }
     private let center = UNUserNotificationCenter.current()
     static var futureEnabled: Bool { ProcessInfo.processInfo.arguments.contains("--future-milestones") }
 
     override init() {
         super.init()
-        if Self.futureEnabled {
+        if Self.futureEnabled && !LocalStateLocation.isDisposableTest {
             center.delegate = self
             let open = UNNotificationAction(identifier: "Still.open", title: "Open Still", options: [.foreground])
             let later = UNNotificationAction(identifier: "Still.remindLater", title: "Remind me later", options: [])
@@ -45,6 +46,14 @@ extension Notification.Name {
     }
     var thresholdValid: Bool { threshold.map { AlertPolicy.validThreshold($0, total: total) } ?? false }
 
+    func resetPreferences() throws {
+        monitoringGeneration = UUID()
+        stopForTermination()
+        requested = false; policy = AlertPolicy(); thresholdGB = "40"; persistenceHealthy = true
+        try LocalStateLocation.removeKnownFile("StorageAlerts/episode-state.json")
+        if !LocalStateLocation.isDisposableTest { center.removePendingNotificationRequests(withIdentifiers: ["Still.lowSpace"]) }
+        status = "Alerts are off."
+    }
     func stopForTermination() {
         timer?.invalidate(); timer = nil; effectiveMonitoring = false
     }
@@ -55,6 +64,7 @@ extension Notification.Name {
     }
     func setEnabled(_ enabled: Bool) async {
         guard Self.futureEnabled else { return }
+        if LocalStateLocation.isDisposableTest { status = "Disposable tests do not change notification settings."; return }
         if enabled && !thresholdValid { status = "Enter at least 1 GB and less than startup-volume capacity."; return }
         requested = enabled
         policy.enabled = enabled
@@ -111,9 +121,10 @@ extension Notification.Name {
     private func sample() async {
         guard Self.futureEnabled, persistenceHealthy, requested, !sampling else { return }
         sampling = true
+        let generation = monitoringGeneration
         defer { sampling = false }
         let settings = await center.notificationSettings()
-        guard requested else { return }
+        guard requested, generation == monitoringGeneration else { return }
         guard settings.authorizationStatus == .authorized, settings.alertSetting == .enabled else {
             timer?.invalidate(); timer = nil; effectiveMonitoring = false
             status = "Notifications are unavailable. Enable Still alerts in System Settings > Notifications. Capacity polling is stopped."
@@ -143,6 +154,10 @@ extension Notification.Name {
         content.categoryIdentifier = "Still.capacity"
         do {
             try await center.add(UNNotificationRequest(identifier: "Still.lowSpace", content: content, trigger: nil))
+            guard generation == monitoringGeneration else {
+                center.removePendingNotificationRequests(withIdentifiers: ["Still.lowSpace"])
+                return
+            }
             policy.submissionAccepted(at: Date()); _ = persist()
         }
         catch { policy.submissionFailed(); _ = persist(); status = "Notification could not be submitted. A later capacity check will retry." }

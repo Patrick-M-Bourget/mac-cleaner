@@ -30,6 +30,6 @@ Local evidence: `.build/growth-ui.xcresult` and `/tmp/still-growth-ui.log` (full
 
 ## Remaining limits
 
-**M4 qualification is blocked on the separate directory-instability follow-up (#39).** The existing scanner does not yet report nested directories changed during enumeration or perform the detailed spec’s bounded recheck. This ticket verifies scope identity and completed reported coverage; it does not claim that missing instability detection has been solved.
+The separate [directory-instability follow-up (#39)](directory-stability.md) supplies root/directory identity and modification checks plus one budgeted recheck. Its scanner-rules fingerprint invalidates older baselines as changed coverage. This resolves the missing detector/recheck requirement; its documented non-atomicity, provider and reference-hardware limits remain part of M4 qualification.
 
 Real TCC grant changes and mounted-volume replacement remain manual native OS integration gates; controlled coverage/fingerprint tests establish policy. A completed enumeration is not an atomic APFS snapshot, and changes during enumeration can affect observations. Baselines make no exclusive-space promise. Native accessibility and restored-window behavior retain the design-system manual qualification boundaries. General completed-history/reset UI belongs to later tickets; this issue supplies its aggregate-store hook only.

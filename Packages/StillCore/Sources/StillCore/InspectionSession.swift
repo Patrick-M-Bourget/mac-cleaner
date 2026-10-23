@@ -19,5 +19,6 @@ public actor InspectionSession {
         saved[scope] = report
         return report
     }
+    public func clear() { saved.removeAll() }
     public func reports() -> [ScopeReport] { saved.values.sorted { $0.current.scope.path < $1.current.scope.path } }
 }

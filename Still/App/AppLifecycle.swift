@@ -2,6 +2,7 @@ import SwiftUI
 import AppKit
 import ServiceManagement
 import Combine
+import StillCore
 
 @MainActor private final class NativeLoginService: LoginService {
     var status: LoginStatus {
@@ -31,17 +32,31 @@ import Combine
         didSet { if !operationInProgress, quitPending { NSApp.terminate(nil) } }
     }
     @Published var hasPendingPlan = false
+    @Published var maintenanceInProgress = false {
+        didSet { if !maintenanceInProgress, quitPending, !operationInProgress { NSApp.terminate(nil) } }
+    }
     var quitPending = false
     var isTerminating = false
     private var monitoringSubscription: AnyCancellable?
     private let registration: LoginRegistration
     private init() {
-        let registration = LoginRegistration(service: NativeLoginService(), savedIntent: UserDefaults.standard.bool(forKey: "Still.startAtLogin"))
+        let registration = LoginRegistration(service: NativeLoginService(), savedIntent: LocalStateLocation.isDisposableTest ? false : UserDefaults.standard.bool(forKey: "Still.startAtLogin"))
         self.registration = registration
         loginIntent = registration.intent; loginStatus = registration.status
         monitoringSubscription = alerts.$effectiveMonitoring.dropFirst().sink { [weak self] effective in
             self?.monitoringChanged(effective)
         }
+    }
+    func resetPreferences() throws {
+        guard !operationInProgress, !selection.execution.isRunning else { throw CleanupJournalError.unavailable }
+        if !LocalStateLocation.isDisposableTest {
+            registration.refresh()
+            if registration.status == .enabled || registration.status == .requiresApproval { try registration.choose(false) }
+            else if registration.status == .unavailable && loginIntent { throw CleanupJournalError.unavailable }
+            UserDefaults.standard.removeObject(forKey: "Still.startAtLogin")
+        }
+        loginIntent = false; loginStatus = LocalStateLocation.isDisposableTest ? .disabled : registration.status
+        try alerts.resetPreferences()
     }
     func refreshLogin() {
         guard StorageAlertsController.futureEnabled else { return }
@@ -60,7 +75,7 @@ import Combine
         // Finish the current preference/journal update before an off transition terminates.
         DispatchQueue.main.async { [weak self] in
             guard let self, !self.quitPending, !self.isTerminating,
-                  !self.alerts.effectiveMonitoring, !self.operationInProgress, !self.hasPendingPlan,
+                  !self.alerts.effectiveMonitoring, !self.operationInProgress, !self.maintenanceInProgress, !self.hasPendingPlan,
                   !NSApp.windows.contains(where: { $0.isVisible && $0.canBecomeMain }) else { return }
             NSApp.terminate(nil)
         }
@@ -70,9 +85,13 @@ import Combine
 @MainActor final class StillApplicationDelegate: NSObject, NSApplicationDelegate {
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
         let lifecycle = AppLifecycleController.shared
-        return !AppLifecyclePolicy.shouldKeepRunning(effectiveAlerts: lifecycle.alerts.effectiveMonitoring, operationInProgress: lifecycle.operationInProgress, hasPendingPlan: lifecycle.hasPendingPlan)
+        return !AppLifecyclePolicy.shouldKeepRunning(effectiveAlerts: lifecycle.alerts.effectiveMonitoring, operationInProgress: lifecycle.operationInProgress || lifecycle.maintenanceInProgress, hasPendingPlan: lifecycle.hasPendingPlan)
     }
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        if AppLifecycleController.shared.maintenanceInProgress {
+            AppLifecycleController.shared.quitPending = true
+            return .terminateCancel
+        }
         // Future executor must report its safe-operation boundary before requesting termination again.
         guard AppLifecyclePolicy.mayQuit(operationInProgress: AppLifecycleController.shared.operationInProgress) else {
             AppLifecycleController.shared.quitPending = true
