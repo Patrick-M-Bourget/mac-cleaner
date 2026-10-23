@@ -1,0 +1,37 @@
+{
+  "version": "156.0.8078.47",
+  "sourceURL": "https://storage.googleapis.com/chrome-for-testing-public/156.0.8078.47/mac-arm64/chrome-mac-arm64.zip",
+  "archiveSHA256": "ad7f2b49a4dc679af286b1b1b386670d93ca7868079f69012d21ba0ac8293df3",
+  "archiveBytes": 194932023,
+  "unpackedBytes": 383539550,
+  "digestMeaning": "observed downloaded archive, not a publisher-published checksum",
+  "os": "macOS-26.6.2-arm64-arm-64bit-Mach-O",
+  "python": "3.15.0",
+  "githubSHA": "169a255e8b8c01738335e5b5d29c607cebfe53d8",
+  "githubRunID": "40004053915",
+  "stage": "signature-check",
+  "signatureVerification": {
+    "status": 1,
+    "stdout": "",
+    "stderr": "/Users/runner/work/_temp/chrome-probe/chrome-mac-arm64/Google Chrome for Testing.app: code has no resources but signature indicates they must be present\n"
+  },
+  "sealedBundleVerified": false,
+  "developmentOnly": true,
+  "executableSHA256": "34fbfdb52aacee492bbada9972bf323eba663f8d8a069f86e2652e5158d6c580",
+  "nativeCodeSignatureObservations": {
+    "executable": {
+      "status": 1,
+      "stdout": "",
+      "stderr": "/Users/runner/work/_temp/chrome-probe/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing: code has no resources but signature indicates they must be present\n"
+    },
+    "framework": {
+      "status": 1,
+      "stdout": "",
+      "stderr": "/Users/runner/work/_temp/chrome-probe/chrome-mac-arm64/Google Chrome for Testing.app/Contents/Frameworks/Google Chrome Framework.framework/Google Chrome Framework: No such file or directory\n"
+    }
+  },
+  "actualVersion": "Google Chrome for Testing 156.0.8078.47",
+  "versionManifestURL": "https://googlechromelabs.github.io/chrome-for-testing/156.0.8078.47.json",
+  "signature": "Executable=/Users/runner/work/_temp/chrome-probe/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing\nIdentifier=Google Chrome for Testing\nFormat=app bundle with Mach-O thin (arm64)\nCodeDirectory v=20400 size=536 flags=0x20002(adhoc,linker-signed) hashes=13+0 location=embedded\nSignature=adhoc\nInfo.plist=not bound\nTeamIdentifier=not set\nSealed Resources=none\nInternal requirements=none\n",
+  "provisioningComplete": true
+}

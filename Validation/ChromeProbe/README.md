@@ -101,9 +101,7 @@ sibling, symlink substitution, replaced identity and an escaping manifest. The
 first was red when the helper command was absent, then green with the guarded
 operation. These are helper safety checks, not Chrome qualification.
 
-**Evidence status:** the genuine experiment is implemented but awaits its first
-hosted execution. Do not interpret the fixture tests or a syntax check as a native
-browser pass. The report's `passed` field is set only after both profiles finish.
+**Evidence status:** [hosted run 40004053915](https://github.com/Patrick-M-Bourget/mac-cleaner/actions/runs/40004053915) passed the genuine experiment for both profiles at source `169a255`. [Native evidence and remaining gates](../../docs/validation/chrome-owned-profiles.md) separate those observations from production qualification. The report's `passed` field is set only after both profiles finish. The later diagnostic-only correction uses the actual CfT framework branding; the successful run's original failed framework lookup is retained unmodified and does not establish framework signature verification.
 
 This is deliberately **not** the production executor. Its owned process lifetime
 and fresh UUID root do not establish native inactivity for arbitrary installed
