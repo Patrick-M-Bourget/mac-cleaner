@@ -149,3 +149,9 @@ The optional public progress/cancellation boundary, bounded native updates and p
 ## Refreshing selected findings
 
 See [refresh validation](validation/refresh.md) for the per-scope pending-choice contract and disposable test evidence. The focused native journey is `WorkspaceUITests/testRefreshPreservesChoicesAndSearchThenExplainsChangedTargets`. Its DEBUG-only slow metadata boundary activates solely after selecting its explicitly bound owned fixture.
+
+## Isolated local state for native tests
+
+Execution, recovery and aggregate history use `LocalStateLocation.root(create:)`. Release builds always use local Application Support/Still. Debug native tests may supply `STILL_TEST_STATE_ROOT` and `STILL_TEST_STATE_ID` (`dev:ino`) for a canonical, owned 0700 `StillTestState-UUID` directory directly under the test process's temporary directory. Create an owned regular `.still-owned-test-state` marker containing the UUID suffix; bind the root's actual identity after creation. Invalid or incomplete bindings fail closed and never fall back to normal app state. This is a test boundary, not a product preference. Remove only the test's own root after the app stops.
+
+Startup interruption review and actual SIGKILL fixture evidence are documented in [recovery validation](validation/startup-recovery.md). No session plan is restored as approval authority.

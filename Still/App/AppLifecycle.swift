@@ -21,6 +21,7 @@ import Combine
     static let shared = AppLifecycleController()
     let alerts = StorageAlertsController()
     let selection = SessionPlan()
+    let recovery = CleanupRecoveryModel()
     lazy var inspection = FolderInspection(selection: selection)
     var openWorkspace: (() -> Void)?
     @Published private(set) var loginIntent: Bool
