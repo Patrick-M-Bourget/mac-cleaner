@@ -86,7 +86,7 @@ final class ExclusionsUITests: XCTestCase {
             app.windows.firstMatch.frame.size == expected
         }, object: nil)
         XCTAssertEqual(XCTWaiter.wait(for: [ready], timeout: 5), .completed,
-                       "Explicit capture window must reach its display-fitted requested size before recording bounds")
+                       "Explicit capture window must reach its display-fitted requested size before recording bounds; expected=\(expected), actual=\(app.windows.firstMatch.frame), runnerScreen=\(screen.frame), runnerVisible=\(screen.visibleFrame)")
     }
     @MainActor private func captureThemes(_ app: XCUIApplication, state: String, minimum: Bool, bounds: CGRect) {
         for appearance in ["Light", "Dark"] {
