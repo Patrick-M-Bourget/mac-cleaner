@@ -3,12 +3,18 @@ import StillCore
 
 @main
 struct StillApp: App {
+    @NSApplicationDelegateAdaptor(StillApplicationDelegate.self) private var delegate
+    @StateObject private var lifecycle = AppLifecycleController.shared
+    @StateObject private var alerts = AppLifecycleController.shared.alerts
     var body: some Scene {
-        WindowGroup("Still") {
-            WorkspaceView()
+        Window("Still", id: "workspace") {
+            WorkspaceView(alerts: lifecycle.alerts)
                 .frame(minWidth: 900, minHeight: 640)
         }
         .defaultSize(width: 1120, height: 760)
+        MenuBarExtra("Still storage alerts", systemImage: "internaldrive", isInserted: Binding(get: { StorageAlertsController.futureEnabled && alerts.effectiveMonitoring }, set: { inserted in if !inserted { Task { await alerts.setEnabled(false) } } })) {
+            StillStatusMenu(alerts: lifecycle.alerts)
+        }
     }
 }
 
@@ -49,7 +55,8 @@ private struct FixtureItem: Identifiable {
 }
 
 private struct WorkspaceView: View {
-    @StateObject private var alerts = StorageAlertsController()
+    @Environment(\.openWindow) private var openWindow
+    @ObservedObject var alerts: StorageAlertsController
     @State private var destination = Destination.overview
     @State private var inspecting = false
     @State private var inspected = FixtureItem.downloads[0]
@@ -102,7 +109,8 @@ private struct WorkspaceView: View {
             }.frame(maxWidth: .infinity, maxHeight: .infinity)
                 .background(Color(nsColor: .windowBackgroundColor))
         }
-        .onReceive(NotificationCenter.default.publisher(for: .stillAlertOpened)) { _ in destination = .overview; inspecting = false }
+        .onAppear { AppLifecycleController.shared.openWorkspace = { openWindow(id: "workspace") } }
+        .onReceive(NotificationCenter.default.publisher(for: .stillAlertOpened)) { _ in destination = .overview; inspecting = false; nativeInspectionVisible = false }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in Task { await alerts.activated() } }
         .onReceive(NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.didWakeNotification)) { _ in Task { await alerts.activated() } }
         .toolbar {
@@ -262,5 +270,21 @@ private struct WorkspaceView: View {
             Text(title).font(.largeTitle.weight(.semibold))
             Text(subtitle).foregroundStyle(.secondary)
         }
+    }
+}
+
+private struct StillStatusMenu: View {
+    @ObservedObject var alerts: StorageAlertsController
+    @Environment(\.openWindow) private var openWindow
+    var body: some View {
+        Text("Storage alerts active")
+        Text(alerts.status)
+        Button("Open Still") {
+            openWindow(id: "workspace")
+            NSApp.activate(ignoringOtherApps: true)
+            NotificationCenter.default.post(name: .stillAlertOpened, object: nil)
+        }
+        Divider()
+        Button("Quit Still") { NSApp.terminate(nil) }.keyboardShortcut("q")
     }
 }
