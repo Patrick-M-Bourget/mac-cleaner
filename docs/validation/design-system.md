@@ -1,6 +1,6 @@
 # Native design-system validation — #37
 
-October 22, 2026. Native SwiftUI/AppKit review on macOS 27 with Xcode 27.1; deployment target remains macOS 14. The local build does not establish runtime behavior on macOS 14 or distribution signing readiness.
+October 22, 2026. Native SwiftUI/AppKit review on macOS 27 with Xcode 27.1; deployment target remains macOS 14. The local build does not establish runtime behavior on macOS 14 or distribution signing readiness. Hosted CI subsequently exposed small-display reachability failures; see the separately qualified [#38 window follow-up](window-reachability.md).
 
 ## Authority and resulting presentation
 

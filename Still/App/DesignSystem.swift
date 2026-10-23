@@ -302,14 +302,27 @@ struct NativeWindowContract: NSViewRepresentable {
             guard let window, !applied else { return }
             applied = true
             DispatchQueue.main.async {
-                window.minSize = NSSize(width: 900, height: 640)
+                guard let screen = window.screen ?? NSScreen.main else { return }
+                var visible = screen.visibleFrame
+                var requested = window.frame
                 #if DEBUG
+                // Inject only an available-frame boundary; never change macOS display settings.
+                if ProcessInfo.processInfo.arguments.contains("--design-constrained-screen") {
+                    visible.size.width = min(visible.width, 1024)
+                    visible.size.height = min(visible.height, 720)
+                }
                 if ProcessInfo.processInfo.arguments.contains("--design-minimum") {
-                    window.setFrame(NSRect(origin: window.frame.origin, size: NSSize(width: 900, height: 640)), display: true)
+                    requested.size = NSSize(width: 900, height: 640)
                 } else if ProcessInfo.processInfo.arguments.contains("--design-initial-size") {
-                    window.setFrame(NSRect(origin: window.frame.origin, size: NSSize(width: 1120, height: 760)), display: true)
+                    requested.size = NSSize(width: 1120, height: 760)
                 }
                 #endif
+                let minimum = NSSize(width: min(900, visible.width), height: min(640, visible.height))
+                window.minSize = minimum
+                let size = NSSize(width: max(minimum.width, min(requested.width, visible.width)), height: max(minimum.height, min(requested.height, visible.height)))
+                let origin = NSPoint(x: min(max(requested.minX, visible.minX), visible.maxX - size.width), y: min(max(requested.minY, visible.minY), visible.maxY - size.height))
+                let fitted = NSRect(origin: origin, size: size)
+                if window.frame != fitted { window.setFrame(fitted, display: true) }
             }
         }
     }
