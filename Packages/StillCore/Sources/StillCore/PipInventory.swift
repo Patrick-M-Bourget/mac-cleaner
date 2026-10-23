@@ -1,4 +1,6 @@
 import Foundation
+import CryptoKit
+import Darwin
 
 public struct PipInventory: Sendable {
     public let version: String
@@ -37,13 +39,72 @@ public struct PipCacheReport: Sendable {
     public let inventory: PipInventory
     public let wheels: [PipWheelMeasurement]
     public let observedAt: Date
+    public var wheelLogicalBytes: Int64? { subtotal(wheels.map(\.logicalBytes)) }
+    public var wheelAllocatedBytes: Int64? { subtotal(wheels.map(\.allocatedBytes)) }
+    private func subtotal(_ values: [Int64?]) -> Int64? {
+        var result: Int64 = 0
+        for value in values {
+            guard let value, value >= 0 else { return nil }
+            let sum = result.addingReportingOverflow(value)
+            guard !sum.overflow else { return nil }
+            result = sum.partialValue
+        }
+        return result
+    }
 }
 public enum PipInventoryInspector {
     public static func inspectSelected(python: URL, cache: URL) throws -> PipCacheReport {
-        guard FileManager.default.isExecutableFile(atPath: python.path),
+        guard python.isFileURL, cache.isFileURL, FileManager.default.isExecutableFile(atPath: python.path),
               (try? cache.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true else { throw ToolPreviewError.unavailable }
-        // A selected Python path does not establish its site initialization or pip provenance.
-        return .init(inventory: PipInventory.parse(versionOutput: "Unqualified interpreter (not executed)", configuredCache: cache.path, cacheInfo: "", wheelList: ""), wheels: [], observedAt: Date())
+        let executable = URL(fileURLWithPath: "/Library/Developer/CommandLineTools/usr/bin/python3")
+        let framework = URL(fileURLWithPath: "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework")
+        let wheel = framework.appendingPathComponent("Versions/3.9/lib/python3.9/ensurepip/_bundled/pip-21.2.4-py3-none-any.whl")
+        // Never execute selected arbitrary code, even to ask its version. The trusted fixed
+        // runtime uses no site initialization; pip comes only from its sealed, pinned wheel.
+        guard python.standardizedFileURL.resolvingSymlinksInPath() == executable.resolvingSymlinksInPath() else {
+            return unqualified(cache: cache)
+        }
+        for target in [executable, framework] {
+            _ = try BoundedTool.run(executable: URL(fileURLWithPath: "/usr/bin/codesign"), arguments: ["--verify", "--deep", "--strict", "--test-requirement==anchor apple", target.path], timeout: 15)
+        }
+        let wheelData = try Data(contentsOf: wheel, options: .mappedIfSafe)
+        guard wheelData.count < 4_000_000,
+              SHA256.hash(data: wheelData).map({ String(format: "%02x", $0) }).joined() == "fa9ebb85d3fd607617c0c44aca302b1b45d87f9c2a1649b46c26167ca4296323" else {
+            return unqualified(cache: cache)
+        }
+        let selectedCache = cache.standardizedFileURL.resolvingSymlinksInPath()
+        guard selectedCache.path != "/" else { throw ToolPreviewError.unavailable }
+        try preflightCache(selectedCache)
+        let environment = ["PATH": "/usr/bin:/bin:/usr/sbin:/sbin", "HOME": "/var/empty", "TMPDIR": "/var/empty", "LANG": "C", "LC_ALL": "C", "PIP_CONFIG_FILE": "/dev/null", "PIP_DISABLE_PIP_VERSION_CHECK": "1", "PIP_NO_INDEX": "1", "PYTHONDONTWRITEBYTECODE": "1"]
+        let launcher = "import sys,runpy; wheel=sys.argv.pop(1); sys.path.insert(0,wheel); sys.argv[0]='pip'; runpy.run_module('pip',run_name='__main__')"
+        func command(_ args: [String]) throws -> String {
+            try BoundedTool.run(executable: executable, arguments: ["-I", "-S", "-B", "-c", launcher, wheel.path, "--disable-pip-version-check", "--cache-dir", selectedCache.path] + args, environment: environment).trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        return try collect(cache: selectedCache, command: command)
+    }
+    private static func preflightCache(_ cache: URL) throws {
+        let deadline = ProcessInfo.processInfo.systemUptime + 5
+        var before = stat()
+        guard lstat(cache.path, &before) == 0, before.st_mode & S_IFMT == S_IFDIR else { throw ToolPreviewError.unavailable }
+        var failed = false
+        guard let entries = FileManager.default.enumerator(at: cache, includingPropertiesForKeys: [], options: [], errorHandler: { _, _ in failed = true; return false }) else { throw ToolPreviewError.unavailable }
+        var count = 0
+        for case let entry as URL in entries {
+            count += 1
+            guard count <= 100_000, entry.pathComponents.count - cache.pathComponents.count <= 64 else { throw ToolPreviewError.outputLimit }
+            guard ProcessInfo.processInfo.systemUptime < deadline else { throw ToolPreviewError.timeout }
+            var metadata = stat()
+            guard lstat(entry.path, &metadata) == 0, metadata.st_mode & S_IFMT != S_IFLNK else { throw ToolPreviewError.invalidOutput }
+            guard metadata.st_dev == before.st_dev else { entries.skipDescendants(); throw ToolPreviewError.invalidOutput }
+        }
+        var after = stat()
+        guard !failed, lstat(cache.path, &after) == 0,
+              before.st_dev == after.st_dev, before.st_ino == after.st_ino,
+              before.st_mtimespec.tv_sec == after.st_mtimespec.tv_sec,
+              before.st_mtimespec.tv_nsec == after.st_mtimespec.tv_nsec else { throw ToolPreviewError.invalidOutput }
+    }
+    private static func unqualified(cache: URL) -> PipCacheReport {
+        .init(inventory: PipInventory.parse(versionOutput: "Unqualified interpreter (not executed)", configuredCache: cache.path, cacheInfo: "", wheelList: ""), wheels: [], observedAt: Date())
     }
     static func inspectDisposable(python: URL, cache: URL, home: URL) throws -> PipCacheReport {
         let root = home.deletingLastPathComponent().standardizedFileURL
@@ -55,6 +116,9 @@ public enum PipInventoryInspector {
         func command(_ args: [String]) throws -> String {
             try BoundedTool.run(executable: python, arguments: ["-I", "-B", "-m", "pip", "--disable-pip-version-check", "--cache-dir", cache.path] + args, environment: environment).trimmingCharacters(in: .whitespacesAndNewlines)
         }
+        return try collect(cache: cache, command: command)
+    }
+    private static func collect(cache: URL, command: ([String]) throws -> String) throws -> PipCacheReport {
         let version = try command(["--version"])
         guard version.hasPrefix("pip 21.2.4 from "), version.hasSuffix("(python 3.9)") else {
             return .init(inventory: PipInventory.parse(versionOutput: version, configuredCache: cache.path, cacheInfo: "", wheelList: ""), wheels: [], observedAt: Date())

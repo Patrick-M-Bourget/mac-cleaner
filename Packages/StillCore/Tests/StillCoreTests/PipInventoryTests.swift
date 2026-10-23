@@ -67,3 +67,62 @@ private func ownedSnapshot(_ root: URL) throws -> [String: Data] {
         try PipInventoryInspector.inspectSelected(python: URL(fileURLWithPath: "/missing/python"), cache: URL(fileURLWithPath: "/missing/cache"))
     }
 }
+
+@Test func signedBundledPipInspectsExplicitCacheWithoutChangingOwnedFiles() throws {
+    let manager = FileManager.default
+    let root = manager.temporaryDirectory.appendingPathComponent("StillPipSelected-" + UUID().uuidString).resolvingSymlinksInPath()
+    try manager.createDirectory(at: root, withIntermediateDirectories: false)
+    defer { try? manager.removeItem(at: root) }
+    let cache = root.appendingPathComponent("alternate-cache")
+    let wheel = cache.appendingPathComponent("wheels/a/package-1.0-py3-none-any.whl")
+    try manager.createDirectory(at: wheel.deletingLastPathComponent(), withIntermediateDirectories: true)
+    try Data("disposable-inventory-sentinel".utf8).write(to: wheel)
+    let before = try ownedSnapshot(root)
+    let report = try PipInventoryInspector.inspectSelected(python: URL(fileURLWithPath: "/Library/Developer/CommandLineTools/usr/bin/python3"), cache: cache)
+    #expect(report.inventory.supported)
+    #expect(URL(fileURLWithPath: report.inventory.cache).resolvingSymlinksInPath() == cache.resolvingSymlinksInPath())
+    #expect(report.wheels.count == 1)
+    #expect(report.wheels.first?.logicalBytes == 29)
+    #expect(try ownedSnapshot(root) == before)
+}
+
+@Test func selectedPipRefusesCacheSubdirectoryLinkOutsideExplicitScope() throws {
+    let manager = FileManager.default
+    let root = manager.temporaryDirectory.appendingPathComponent("StillPipLinks-" + UUID().uuidString)
+    try manager.createDirectory(at: root, withIntermediateDirectories: false)
+    defer { try? manager.removeItem(at: root) }
+    let cache = root.appendingPathComponent("cache")
+    let protected = root.appendingPathComponent("protected")
+    try manager.createDirectory(at: cache, withIntermediateDirectories: false)
+    try manager.createDirectory(at: protected, withIntermediateDirectories: false)
+    try Data("protected".utf8).write(to: protected.appendingPathComponent("response"))
+    try manager.createSymbolicLink(at: cache.appendingPathComponent("http"), withDestinationURL: protected)
+    let before = try ownedSnapshot(root)
+    #expect(throws: ToolPreviewError.invalidOutput) {
+        try PipInventoryInspector.inspectSelected(python: URL(fileURLWithPath: "/Library/Developer/CommandLineTools/usr/bin/python3"), cache: cache)
+    }
+    #expect(try ownedSnapshot(root) == before)
+}
+
+@Test func selectedUntrustedExecutableIsNotInvokedEvenToAskVersion() throws {
+    let manager = FileManager.default
+    let root = manager.temporaryDirectory.appendingPathComponent("StillPipUntrusted-" + UUID().uuidString)
+    try manager.createDirectory(at: root, withIntermediateDirectories: false)
+    defer { try? manager.removeItem(at: root) }
+    let executable = root.appendingPathComponent("python3")
+    let marker = root.appendingPathComponent("executed")
+    try Data("#!/bin/sh\ntouch '\(marker.path)'\n".utf8).write(to: executable)
+    try manager.setAttributes([.posixPermissions: 0o700], ofItemAtPath: executable.path)
+    let before = try ownedSnapshot(root)
+    let report = try PipInventoryInspector.inspectSelected(python: executable, cache: root)
+    #expect(!report.inventory.supported)
+    #expect(!manager.fileExists(atPath: marker.path))
+    #expect(try ownedSnapshot(root) == before)
+}
+
+@Test func pipWheelSubtotalsStayUnknownWhenMeasurementsOverflow() {
+    let inventory = PipInventory.parse(versionOutput: "unsupported", configuredCache: "/cache", cacheInfo: "", wheelList: "")
+    let report = PipCacheReport(inventory: inventory, wheels: [.init(path: "/cache/a.whl", logicalBytes: Int64.max, allocatedBytes: 8), .init(path: "/cache/b.whl", logicalBytes: 1, allocatedBytes: nil)], observedAt: Date())
+    #expect(report.wheelLogicalBytes == nil)
+    #expect(report.wheelAllocatedBytes == nil)
+}

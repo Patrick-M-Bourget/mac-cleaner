@@ -1,6 +1,6 @@
 # pip inventory qualification — issue #24
 
-A **genuine disposable** Python 3.9 / pip 21.2.4 environment passed read-only cache inventory. This qualifies the tested disposable command/output context, not arbitrary installed interpreters or newer pip releases. Ordinary user-selected installations currently return qualification guidance before any tool invocation. No cache mutation, package install/download, credential request or elevation is offered by the app.
+Read-only selected-cache inventory now supports the narrowly verified Apple Command Line Tools Python 3.9 / bundled pip 21.2.4 runtime; see the October 23 capability section below. Arbitrary selected interpreters are never executed. Earlier genuine disposable venv qualification remains recorded as historical supporting evidence. No cache mutation, package install/download, credential request or elevation is offered by the app.
 
 ## Reproduce
 
@@ -22,7 +22,7 @@ The parser recognizes only the observed pip 21.2.4 / Python 3.9 output contract.
 
 The shared Process boundary uses executable/argument arrays, bounded output and time, null input and sanitized environment. Inventory passes Python `-I -B`, pip version-check suppression, PIP_CONFIG_FILE=/dev/null and explicit --cache-dir. There is no shell evaluation. Existing system-boundary tests cover timeout, output cap and literal metacharacters. Process launch itself and complete descendant-process termination remain qualification limits; the tested pip inventory commands did not spawn unbounded work. This is not a general arbitrary-interpreter sandbox.
 
-## Native interface and remaining gates
+## Historical native interface and remaining gates (before October 23 follow-up)
 
 The `--future-milestones` Overview offers secondary **Review pip cache opportunities**, explicit interpreter/cache pickers, Inspect and a labelled recorded disposable evidence reference. Selecting arbitrary paths does not establish interpreter startup/site-package provenance, so those remain unexecuted and unsupported. The recorded reference redacts paths and identifies its synthetic seed; it is not presented as the user's cache. No additional primary navigation item or mutation action is added.
 
@@ -39,3 +39,19 @@ Recorded implementation validation: 29 merged StillCore tests passed, including 
 ## Separate mutation-boundary evidence (#25)
 
 A [genuine owned vendor-command experiment](../../Validation/PipMutationExperiment/README.md) now demonstrates that21.2.4 pattern removal widens beyond the frozen reviewed manifest and does not bind resource identity. Actual commands run only in disposable owned venv/cache trees with seeded wheel-shaped fixtures. The app's ordinary installations remain unexecuted/guidance-only, and no production mutation is enabled. Inventory compatibility does not imply mutation compatibility.
+
+## Explicit selected-cache capability — October 23 follow-up (#24)
+
+The earlier guidance-only production boundary is superseded **only** for fixed Apple Command Line Tools Python 3.9 with bundled pip 21.2.4. This is not support for arbitrary user-installed pip. The user selects the interpreter and cache, then explicitly starts inspection. No personal cache is discovered or inspected by default.
+
+Before executing Python, the adapter checks that the selected executable resolves to `/Library/Developer/CommandLineTools/usr/bin/python3`, verifies that binary and the complete Python3.framework with `codesign --verify --deep --strict --test-requirement==anchor apple`, and checks the bundled `pip-21.2.4-py3-none-any.whl` SHA-256 `fa9ebb85d3fd607617c0c44aca302b1b45d87f9c2a1649b46c26167ca4296323`. The inspected host's signature resource envelope explicitly includes this wheel. Failure does not fall back to another interpreter or installed pip.
+
+The launcher uses `-I -S -B`; the app supplies a fixed script adding only that verified bundled wheel before `runpy.run_module`. Site initialization, `.pth` files, user/site packages and current-directory imports are bypassed. A sanitized environment sets HOME/TMPDIR to `/var/empty`, PIP_CONFIG_FILE=/dev/null, PIP_NO_INDEX=1 and version-check suppression. Commands are limited to version, cache dir, cache info and cache list --format=abspath; no shell, bootstrap or install is involved. `--cache-dir` explicitly overrides pip's normal configured root. This is a vendor cache observation under an explicit root, not discovery of the user's configured default.
+
+A bounded no-follow metadata preflight (100,000 entries, 64 levels, five seconds) refuses symlinks, volume crossings and unreadable/incomplete traversal before tool commands. This matters because pip's `os.walk` can follow a symlink when it is the initial `http` or `wheels` traversal root. Vendor command output/time limits remain. Observations are not atomic against a concurrently changing cache; no mutation authority follows from any result. An adversarial concurrent filesystem replacement is not certified by this evidence.
+
+The live UI exposes checked optional wheel logical/allocated subtotals and the observation time. Values may share allocations (for example hardlinks), so these are not exclusive reclaimable bytes. The pip 21.2.4 summary covers legacy `http` and `wheels`; HTTP-v2 and other contents remain unmeasured and total cache allocation remains Unknown. Unknown output/version still refuses support. Only the first 20 wheel paths are rendered; measurements cover all returned wheels.
+
+Local red → green evidence: the existing selected adapter initially returned unsupported and no wheels for the genuine signed runtime; the new owned-cache test now reports one 29-byte synthetic wheel and compares all owned bytes, names, links and modification dates unchanged. A second red test exposed out-of-scope metadata through an `http` root link and passed after preflight refusal. An executable script fixture proves untrusted selection is not executed even for a version request. Checked-subtotal tests preserve Unknown for Int64 overflow and missing allocation. Nine focused pip tests passed on local macOS 27.0.1 / Apple silicon, Xcode 27.1; genuine command provenance is broader than a canned fixture, while seeded cache contents are deliberately synthetic. Native Debug build-for-testing passed including the added native journey; hosted source-pinned native capture qualification is pending integration review and must be recorded separately before UI acceptance.
+
+Version-pinned primary implementation references: [pip 21.2.4 cache command](https://github.com/pypa/pip/blob/21.2.4/src/pip/_internal/commands/cache.py), [filesystem enumeration and size helpers](https://github.com/pypa/pip/blob/21.2.4/src/pip/_internal/utils/filesystem.py), and [Python 3.9 isolation/site/bytecode switches](https://docs.python.org/3.9/using/cmdline.html). [Current pip caching documentation](https://pip.pypa.io/en/stable/topics/caching/) explains that on-disk layout is an implementation detail and HTTP-v2 appeared in 23.3; it does not certify this adapter for current pip.
