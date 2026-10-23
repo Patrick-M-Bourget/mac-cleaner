@@ -7,7 +7,8 @@ extension Notification.Name {
 }
 
 @MainActor private final class NativeAlertMonitoringSystem: AlertMonitoringSystem {
-    var available: Bool { StorageAlertsController.futureEnabled && !LocalStateLocation.isDisposableTest }
+    var available: Bool { StorageAlertsController.futureEnabled }
+    var allowsNotificationChanges: Bool { !LocalStateLocation.isDisposableTest }
     var now: Date { Date() }
     private var store: AlertStateStore { get throws { AlertStateStore(url: try LocalStateLocation.root(create: true).appendingPathComponent("StorageAlerts/episode-state.json")) } }
     private let center = UNUserNotificationCenter.current()
@@ -29,7 +30,10 @@ extension Notification.Name {
         timer.tolerance = 60
         return { timer.invalidate() }
     }
-    func removePendingNotification() { center.removePendingNotificationRequests(withIdentifiers: ["Still.lowSpace"]) }
+    func removePendingNotification() {
+        guard allowsNotificationChanges else { return }
+        center.removePendingNotificationRequests(withIdentifiers: ["Still.lowSpace"])
+    }
     func submitLowSpaceNotification(observedAt: Date) async throws {
         let content = UNMutableNotificationContent()
         content.title = "Your Mac is running low on space"

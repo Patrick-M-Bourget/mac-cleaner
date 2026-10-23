@@ -4,6 +4,7 @@ import StorageAlerts
 
 @MainActor private final class ControlledAlertSystem: AlertMonitoringSystem {
     let available = true
+    let allowsNotificationChanges = true
     var now = Date(timeIntervalSince1970: 1_000_000)
     var saved = AlertPolicy()
     var reading = AlertCapacityReading(available: 20_000_000_000, total: 512_000_000_000, volumeID: "owned", metric: "important")

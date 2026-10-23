@@ -14,6 +14,7 @@ public struct AlertCapacityReading: Sendable {
 /// System operations only. Monitoring owns preference, suppression and lifecycle decisions.
 @MainActor public protocol AlertMonitoringSystem: AnyObject {
     var available: Bool { get }
+    var allowsNotificationChanges: Bool { get }
     var now: Date { get }
     func authorization() async -> AlertPolicy.Authorization
     func requestAuthorization() async throws -> Bool
@@ -43,7 +44,7 @@ public struct AlertCapacityReading: Sendable {
     public init(system: any AlertMonitoringSystem) {
         self.system = system
         super.init()
-        guard system.available else { return }
+        guard system.available, system.allowsNotificationChanges else { return }
         do {
             policy = try system.load()
             requested = policy.enabled
@@ -81,6 +82,7 @@ public struct AlertCapacityReading: Sendable {
     }
     public func setEnabled(_ enabled: Bool) async {
         guard system.available else { return }
+        guard system.allowsNotificationChanges else { status = "Disposable tests do not change notification settings."; return }
         if enabled && !thresholdValid { status = "Enter at least 1 GB and less than startup-volume capacity."; return }
         requested = enabled
         policy.enabled = enabled

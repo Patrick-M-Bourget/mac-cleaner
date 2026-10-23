@@ -2,7 +2,7 @@
 
 The production monitoring controller now lives in the StorageAlerts package. The native app supplies only OS operations through `AlertMonitoringSystem`: notification authorization/submission, startup capacity, time, persisted episode state and the 15-minute tolerant timer. `StorageAlertsController` retains native notification actions and delegate presentation. Views, labels, threshold semantics and future-milestone gating are unchanged.
 
-This implements the existing M5 contracts in SPEC.md §§9–10 and the Storage alerts handoff: re-enabling must resume authorized capacity monitoring, unavailable effective monitoring must not leave an alert-only poller, and explicit Quit stops monitoring while preserving preference/login intent.
+This implements the existing M5 contracts in SPEC.md and the Storage alerts handoff: re-enabling must resume authorized capacity monitoring, unavailable effective monitoring must not leave an alert-only poller, and explicit Quit stops monitoring while preserving preference/login intent.
 
 ## Reproduced failures and fixes
 
