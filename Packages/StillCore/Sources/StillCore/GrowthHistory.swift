@@ -50,47 +50,56 @@ public struct GrowthRetention: Sendable {
         self.days = min(90, max(1, days)); self.baselines = min(30, max(1, baselines)); self.bytes = min(250_000_000, max(256, bytes))
     }
 }
-/// Owns only its aggregate file. It never opens, enumerates or evicts operation journals.
+/// Owns aggregate and opaque epoch/lock files. It never opens, enumerates or evicts operation journals.
 public actor GrowthHistoryStore {
     private struct Entry: Codable { let snapshot: GrowthSnapshot; let origin: GrowthComparisonState }
     private struct Archive: Codable { var version = 1; var entries: [Entry] = []; var hadHistory = false; var cleared = false }
     private let directory: URL
     private let policy: GrowthRetention
-    private var archive: Archive?
     public init(directory: URL, policy: GrowthRetention = GrowthRetention()) { self.directory = directory; self.policy = policy }
-    public func snapshots(now: Date = Date()) throws -> [GrowthSnapshot] { try retained(now).entries.map(\.snapshot) }
-    public func latest(now: Date = Date()) throws -> GrowthComparison { let value = try retained(now); return comparison(in: value, id: value.entries.last?.snapshot.id) }
-    public func comparison(id: UUID, now: Date = Date()) throws -> GrowthComparison { comparison(in: try retained(now), id: id) }
-    public func record(_ snapshot: GrowthSnapshot, now: Date = Date()) throws -> GrowthComparison {
-        try Task.checkCancellation()
-        var value = try load()
-        guard snapshot.coverage == .complete, !snapshot.groups.isEmpty, snapshot.groups.count <= 512,
-              Set(snapshot.groups.map(\.id)).count == snapshot.groups.count,
-              snapshot.groups.allSatisfy({ $0.logicalBytes >= 0 && $0.logicalBytes <= Int64.max / 512 && $0.id.utf8.count <= 512 && $0.label.utf8.count <= 512 }),
-              snapshot.observedAt <= now, value.entries.last.map({ $0.snapshot.observedAt < snapshot.observedAt }) ?? true else {
-            return GrowthComparison(state: .unknown, current: snapshot, from: nil, groups: [])
+    public func snapshots(now: Date = Date()) throws -> [GrowthSnapshot] { try withStoreLock { try retained(now).entries.map(\.snapshot) } }
+    public func latest(now: Date = Date()) throws -> GrowthComparison { try withStoreLock { let value = try retained(now); return comparison(in: value, id: value.entries.last?.snapshot.id) } }
+    public func comparison(id: UUID, now: Date = Date()) throws -> GrowthComparison { try withStoreLock { comparison(in: try retained(now), id: id) } }
+    /// Capture before observation; retain across awaits. Never refresh an old capture at commit.
+    public func recordingEpoch() throws -> UUID { try withStoreLock { try currentEpoch() } }
+    public func record(_ snapshot: GrowthSnapshot, now: Date = Date(), expectedEpoch: UUID) throws -> GrowthComparison {
+        try withStoreLock {
+            try Task.checkCancellation()
+            if try currentEpoch() != expectedEpoch { return .unknown }
+            var value = try load()
+            guard snapshot.coverage == .complete, !snapshot.groups.isEmpty, snapshot.groups.count <= 512,
+                  Set(snapshot.groups.map(\.id)).count == snapshot.groups.count,
+                  snapshot.groups.allSatisfy({ $0.logicalBytes >= 0 && $0.logicalBytes <= Int64.max / 512 && $0.id.utf8.count <= 512 && $0.label.utf8.count <= 512 }),
+                  snapshot.observedAt <= now, value.entries.last.map({ $0.snapshot.observedAt < snapshot.observedAt }) ?? true else {
+                return GrowthComparison(state: .unknown, current: snapshot, from: nil, groups: [])
+            }
+            value.entries.removeAll { now.timeIntervalSince($0.snapshot.observedAt) > Double(policy.days) * 86400 }
+            let origin: GrowthComparisonState = value.cleared ? .clearedBaseline : value.hadHistory ? .missingBaseline : .firstBaseline
+            value.entries.append(Entry(snapshot: snapshot, origin: origin)); value.hadHistory = true; value.cleared = false
+            if value.entries.count > policy.baselines { value.entries.removeFirst(value.entries.count - policy.baselines) }
+            while try JSONEncoder().encode(value).count > policy.bytes && !value.entries.isEmpty { value.entries.removeFirst() }
+            try save(value)
+            return value.entries.contains(where: { $0.snapshot.id == snapshot.id }) ? comparison(in: value, id: snapshot.id) : GrowthComparison(state: .unknown, current: snapshot, from: nil, groups: [])
         }
-        value.entries.removeAll { now.timeIntervalSince($0.snapshot.observedAt) > Double(policy.days) * 86400 }
-        let origin: GrowthComparisonState = value.cleared ? .clearedBaseline : value.hadHistory ? .missingBaseline : .firstBaseline
-        value.entries.append(Entry(snapshot: snapshot, origin: origin)); value.hadHistory = true; value.cleared = false
-        if value.entries.count > policy.baselines { value.entries.removeFirst(value.entries.count - policy.baselines) }
-        while try JSONEncoder().encode(value).count > policy.bytes && !value.entries.isEmpty { value.entries.removeFirst() }
-        try save(value)
-        return value.entries.contains(where: { $0.snapshot.id == snapshot.id }) ? comparison(in: value, id: snapshot.id) : GrowthComparison(state: .unknown, current: snapshot, from: nil, groups: [])
     }
     public func clearCompletedHistory() throws {
-        var value = try load(); value.entries = []; value.cleared = true
-        try save(value)
+        try withStoreLock {
+            try writeEpoch(UUID())
+            var value = try load(); value.entries = []; value.cleared = true
+            try save(value)
+        }
     }
     public func resetHistory() throws {
-        try verifyDirectory(create: false)
-        let file = directory.appendingPathComponent("aggregates-v1.json")
-        var info = stat()
-        if lstat(file.path, &info) == 0 {
-            guard info.st_mode & S_IFMT == S_IFREG, info.st_uid == geteuid() else { throw CocoaError(.fileWriteNoPermission) }
-            try FileManager.default.removeItem(at: file)
-        } else if errno != ENOENT { throw CocoaError(.fileWriteNoPermission) }
-        archive = Archive()
+        try withStoreLock {
+            try writeEpoch(UUID())
+            try verifyDirectory(create: false)
+            let file = directory.appendingPathComponent("aggregates-v1.json")
+            var info = stat()
+            if lstat(file.path, &info) == 0 {
+                guard info.st_mode & S_IFMT == S_IFREG, info.st_uid == geteuid() else { throw CocoaError(.fileWriteNoPermission) }
+                try FileManager.default.removeItem(at: file)
+            } else if errno != ENOENT { throw CocoaError(.fileWriteNoPermission) }
+        }
     }
     private func comparison(in value: Archive, id: UUID?) -> GrowthComparison {
         guard let index = value.entries.firstIndex(where: { $0.snapshot.id == id }) else {
@@ -113,10 +122,9 @@ public actor GrowthHistoryStore {
         return value
     }
     private func load() throws -> Archive {
-        if let archive { return archive }
         try verifyDirectory(create: false)
         let file = directory.appendingPathComponent("aggregates-v1.json")
-        guard FileManager.default.fileExists(atPath: file.path) else { let empty = Archive(); archive = empty; return empty }
+        guard FileManager.default.fileExists(atPath: file.path) else { return Archive() }
         var info = stat()
         guard lstat(file.path, &info) == 0, info.st_mode & S_IFMT == S_IFREG, info.st_uid == geteuid() else { throw CocoaError(.fileReadNoPermission) }
         let size = try file.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? Int.max
@@ -127,7 +135,41 @@ public actor GrowthHistoryStore {
             return entry.snapshot.coverage == .complete && !groups.isEmpty && groups.count <= 512 && Set(groups.map(\.id)).count == groups.count
                 && groups.allSatisfy { $0.logicalBytes >= 0 && $0.logicalBytes <= Int64.max / 512 && $0.id.utf8.count <= 512 && $0.label.utf8.count <= 512 }
         }) else { throw CocoaError(.fileReadCorruptFile) }
-        archive = decoded; return decoded
+        return decoded
+    }
+    // This advisory lock serializes all cooperating instances on the same owned store.
+    // No MainActor work or awaits occur while held. The OS releases it on process exit.
+    private func withStoreLock<T>(_ operation: () throws -> T) throws -> T {
+        try verifyDirectory(create: true)
+        let file = directory.appendingPathComponent(".growth-lock")
+        let descriptor = open(file.path, O_CREAT | O_RDWR | O_NOFOLLOW | O_CLOEXEC, 0o600)
+        guard descriptor >= 0 else { throw CocoaError(.fileWriteNoPermission) }
+        defer { close(descriptor) }
+        var info = stat()
+        guard fstat(descriptor, &info) == 0, info.st_mode & S_IFMT == S_IFREG, info.st_uid == geteuid(),
+              flock(descriptor, LOCK_EX) == 0 else { throw CocoaError(.fileWriteNoPermission) }
+        defer { flock(descriptor, LOCK_UN) }
+        return try operation()
+    }
+    private func currentEpoch() throws -> UUID {
+        let file = directory.appendingPathComponent(".growth-epoch")
+        var info = stat()
+        if lstat(file.path, &info) != 0 {
+            guard errno == ENOENT else { throw CocoaError(.fileReadNoPermission) }
+            let epoch = UUID(); try writeEpoch(epoch); return epoch
+        }
+        guard info.st_mode & S_IFMT == S_IFREG, info.st_uid == geteuid(), info.st_size <= 128,
+              let epoch = UUID(uuidString: try String(contentsOf: file, encoding: .utf8)) else { throw CocoaError(.fileReadCorruptFile) }
+        return epoch
+    }
+    private func writeEpoch(_ epoch: UUID) throws {
+        let file = directory.appendingPathComponent(".growth-epoch")
+        var info = stat()
+        if lstat(file.path, &info) == 0 {
+            guard info.st_mode & S_IFMT == S_IFREG, info.st_uid == geteuid() else { throw CocoaError(.fileWriteNoPermission) }
+        } else if errno != ENOENT { throw CocoaError(.fileWriteNoPermission) }
+        try Data(epoch.uuidString.utf8).write(to: file, options: .atomic)
+        guard chmod(file.path, 0o600) == 0 else { throw CocoaError(.fileWriteNoPermission) }
     }
     private func verifyDirectory(create: Bool) throws {
         var info = stat()
@@ -141,6 +183,5 @@ public actor GrowthHistoryStore {
     private func save(_ value: Archive) throws {
         try verifyDirectory(create: true)
         try JSONEncoder().encode(value).write(to: directory.appendingPathComponent("aggregates-v1.json"), options: .atomic)
-        archive = value
     }
 }

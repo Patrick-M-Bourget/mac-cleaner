@@ -8,9 +8,9 @@ import StillCore
     let store = GrowthHistoryStore(directory: directory)
     let fingerprint = GrowthFingerprint(scopeID: "scope", rootID: "root", volumeID: "volume", access: "complete", rules: "rules1", exclusions: "none", classification: "folders-v1")
     let first = GrowthSnapshot(fingerprint: fingerprint, scopeLabel: "Selected folder", observedAt: Date(timeIntervalSince1970: 100), groups: [.init(id: "folder:one", label: "One", logicalBytes: 10), .init(id: "folder:two", label: "Two", logicalBytes: 5)])
-    #expect(try await store.record(first, now: first.observedAt).state == .firstBaseline)
+    #expect(try await store.record(first, now: first.observedAt, expectedEpoch: try await store.recordingEpoch()).state == .firstBaseline)
     let second = GrowthSnapshot(fingerprint: fingerprint, scopeLabel: "Selected folder", observedAt: Date(timeIntervalSince1970: 200), groups: [.init(id: "folder:one", label: "One", logicalBytes: 20)])
-    let result = try await store.record(second, now: second.observedAt)
+    let result = try await store.record(second, now: second.observedAt, expectedEpoch: try await store.recordingEpoch())
     #expect(result.state == .compared)
     #expect(result.logicalDelta == 5)
     #expect(result.groups.first { $0.id == "folder:one" }?.logicalDelta == 10)
@@ -28,9 +28,9 @@ import StillCore
     func snapshot(_ fingerprint: GrowthFingerprint, _ time: Double, _ coverage: GrowthCoverage = .complete) -> GrowthSnapshot {
         GrowthSnapshot(fingerprint: fingerprint, scopeLabel: "Folder", observedAt: Date(timeIntervalSince1970: time), groups: [.init(id: "category:files", label: "Files", logicalBytes: 10)], coverage: coverage)
     }
-    _ = try await store.record(snapshot(original, 100), now: Date(timeIntervalSince1970: 100))
+    _ = try await store.record(snapshot(original, 100), now: Date(timeIntervalSince1970: 100), expectedEpoch: try await store.recordingEpoch())
     for coverage in [GrowthCoverage.partial, .cancelled, .unmeasured] {
-        #expect(try await store.record(snapshot(original, 110, coverage), now: Date(timeIntervalSince1970: 110)).state == .unknown)
+        #expect(try await store.record(snapshot(original, 110, coverage), now: Date(timeIntervalSince1970: 110), expectedEpoch: try await store.recordingEpoch()).state == .unknown)
     }
     #expect(try await store.snapshots(now: Date(timeIntervalSince1970: 1000)).count == 1)
     for changed in [
@@ -38,7 +38,7 @@ import StillCore
         GrowthFingerprint(scopeID: "scope", rootID: "new-root", volumeID: "volume", access: "complete", rules: "one", exclusions: "none", classification: "one"),
         GrowthFingerprint(scopeID: "scope", rootID: "root", volumeID: "other", access: "complete", rules: "two", exclusions: "custom", classification: "two")
     ] {
-        let latest = try await store.record(snapshot(changed, Double(200 + (try await store.snapshots(now: Date(timeIntervalSince1970: 1000)).count))), now: Date(timeIntervalSince1970: 1000))
+        let latest = try await store.record(snapshot(changed, Double(200 + (try await store.snapshots(now: Date(timeIntervalSince1970: 1000)).count))), now: Date(timeIntervalSince1970: 1000), expectedEpoch: try await store.recordingEpoch())
         #expect(latest.state == .coverageChanged)
         #expect(latest.logicalDelta == nil)
     }
@@ -53,7 +53,7 @@ import StillCore
     let fingerprint = GrowthFingerprint(scopeID: "scope", rootID: "root", volumeID: "volume", access: "complete", rules: "one", exclusions: "none", classification: "one")
     let store = GrowthHistoryStore(directory: directory, policy: GrowthRetention(days: 1, baselines: 2))
     for time in [100.0, 200, 300] {
-        _ = try await store.record(GrowthSnapshot(fingerprint: fingerprint, scopeLabel: "Folder", observedAt: Date(timeIntervalSince1970: time), groups: [.init(id: "files", label: "Files", logicalBytes: 1)]), now: Date(timeIntervalSince1970: time))
+        _ = try await store.record(GrowthSnapshot(fingerprint: fingerprint, scopeLabel: "Folder", observedAt: Date(timeIntervalSince1970: time), groups: [.init(id: "files", label: "Files", logicalBytes: 1)]), now: Date(timeIntervalSince1970: time), expectedEpoch: try await store.recordingEpoch())
     }
     #expect(try await store.snapshots(now: Date(timeIntervalSince1970: 300)).count == 2)
     #expect(try await store.latest(now: Date(timeIntervalSince1970: 90000)).state == .missingBaseline)
@@ -96,7 +96,7 @@ import StillCore
     let fingerprint = GrowthFingerprint(scopeID: "scope", rootID: "root", volumeID: "volume", access: "complete", rules: "one", exclusions: "none", classification: "one")
     for i in 0..<10 {
         let date = Date(timeIntervalSince1970: Double(100 + i))
-        _ = try await store.record(GrowthSnapshot(fingerprint: fingerprint, scopeLabel: "Folder", observedAt: date, groups: [.init(id: "files", label: "Files", logicalBytes: Int64(i))]), now: date)
+        _ = try await store.record(GrowthSnapshot(fingerprint: fingerprint, scopeLabel: "Folder", observedAt: date, groups: [.init(id: "files", label: "Files", logicalBytes: Int64(i))]), now: date, expectedEpoch: try await store.recordingEpoch())
     }
     let file = directory.appendingPathComponent("aggregates-v1.json")
     #expect(try Data(contentsOf: file).count <= 1600)
@@ -145,9 +145,9 @@ import StillCore
     func snapshot(_ scope: String, _ time: Double, _ bytes: Int64) -> GrowthSnapshot {
         .init(fingerprint: .init(scopeID: scope, rootID: scope, volumeID: "volume", access: "complete", rules: "one", exclusions: "none", classification: "one"), scopeLabel: scope, observedAt: Date(timeIntervalSince1970: time), groups: [.init(id: "files", label: "Files", logicalBytes: bytes)])
     }
-    _ = try await store.record(snapshot("A", 100, 3), now: Date(timeIntervalSince1970: 100))
-    _ = try await store.record(snapshot("B", 200, 100), now: Date(timeIntervalSince1970: 200))
-    let result = try await store.record(snapshot("A", 300, 8), now: Date(timeIntervalSince1970: 300))
+    _ = try await store.record(snapshot("A", 100, 3), now: Date(timeIntervalSince1970: 100), expectedEpoch: try await store.recordingEpoch())
+    _ = try await store.record(snapshot("B", 200, 100), now: Date(timeIntervalSince1970: 200), expectedEpoch: try await store.recordingEpoch())
+    let result = try await store.record(snapshot("A", 300, 8), now: Date(timeIntervalSince1970: 300), expectedEpoch: try await store.recordingEpoch())
     #expect(result.state == .compared && result.logicalDelta == 5)
     #expect(result.from == Date(timeIntervalSince1970: 100))
 }
