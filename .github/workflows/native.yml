@@ -20,11 +20,13 @@ on:
           - tools
           - pip
           - benchmark
+          - homebrew
+          - filesystem
 permissions:
   contents: read
 jobs:
   native:
-    if: github.event_name != 'workflow_dispatch' || inputs.suite != 'benchmark'
+    if: github.event_name != 'workflow_dispatch' || (inputs.suite != 'benchmark' && inputs.suite != 'filesystem')
     runs-on: macos-26
     steps:
       - uses: actions/checkout@v4
@@ -35,10 +37,10 @@ jobs:
         if: github.event_name != 'workflow_dispatch' || (inputs.suite != 'selection' && inputs.suite != 'selection-scroll' && inputs.suite != 'scope' && inputs.suite != 'exclusions' && inputs.suite != 'repair' && inputs.suite != 'handoff' && inputs.suite != 'pip')
         run: xcrun swift test --package-path Packages/StillCore
       - name: Verify alert policies and lifecycle without OS permission prompts
-        if: github.event_name != 'workflow_dispatch' || (inputs.suite != 'selection' && inputs.suite != 'selection-scroll' && inputs.suite != 'scope' && inputs.suite != 'exclusions' && inputs.suite != 'repair' && inputs.suite != 'handoff' && inputs.suite != 'tools' && inputs.suite != 'pip')
+        if: github.event_name != 'workflow_dispatch' || (inputs.suite != 'selection' && inputs.suite != 'selection-scroll' && inputs.suite != 'scope' && inputs.suite != 'exclusions' && inputs.suite != 'repair' && inputs.suite != 'handoff' && inputs.suite != 'tools' && inputs.suite != 'pip' && inputs.suite != 'homebrew')
         run: xcrun swift test --package-path Still/Packages/StorageAlerts
       - name: Verify isolated disposable adapter investigations
-        if: github.event_name != 'workflow_dispatch' || (inputs.suite != 'selection' && inputs.suite != 'selection-scroll' && inputs.suite != 'scope' && inputs.suite != 'exclusions' && inputs.suite != 'repair' && inputs.suite != 'handoff' && inputs.suite != 'tools' && inputs.suite != 'pip')
+        if: github.event_name != 'workflow_dispatch' || (inputs.suite != 'selection' && inputs.suite != 'selection-scroll' && inputs.suite != 'scope' && inputs.suite != 'exclusions' && inputs.suite != 'repair' && inputs.suite != 'handoff' && inputs.suite != 'tools' && inputs.suite != 'pip' && inputs.suite != 'homebrew')
         run: |
           xcrun swift test --package-path Validation/ICloudProbe
           xcrun swift test --package-path Validation/XcodeProbe
@@ -54,6 +56,11 @@ jobs:
           scope=()
           if [[ "$EVENT_NAME" == "workflow_dispatch" && "$REQUESTED_SUITE" == "exclusions" ]]; then
             scope=(-only-testing:StillUITests/ExclusionsUITests)
+          elif [[ "$EVENT_NAME" == "workflow_dispatch" && "$REQUESTED_SUITE" == "homebrew" ]]; then
+            scope=(
+              -only-testing:StillUITests/StorageAlertsUITests/testFutureHomebrewPreviewIsSecondaryAndClearlySynthetic
+              -only-testing:StillUITests/StorageAlertsUITests/testSelectedHomebrewCacheInventoryIsReadOnlyAcrossThemesAndSizes
+            )
           elif [[ "$EVENT_NAME" == "workflow_dispatch" && "$REQUESTED_SUITE" == "pip" ]]; then
             scope=(-only-testing:StillUITests/StorageAlertsUITests/testSelectedPipCacheInventoryIsReadOnlyAcrossThemesAndSizes)
           elif [[ "$EVENT_NAME" == "workflow_dispatch" && "$REQUESTED_SUITE" == "tools" ]]; then
@@ -141,4 +148,23 @@ jobs:
         with:
           name: owned-scanner-benchmark
           path: .build/benchmark-evidence/
+          if-no-files-found: error
+  filesystem-fixtures:
+    if: github.event_name == 'workflow_dispatch' && inputs.suite == 'filesystem'
+    runs-on: macos-26
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: '26.6'
+      - name: Build public scanner filesystem fixture
+        run: xcrun swift build -c release --package-path Validation/FilesystemFixtures
+      - name: Exercise only an owned disposable image on the ephemeral runner
+        run: python3 Validation/FilesystemFixtures/run.py --ci-owned-images --executable Validation/FilesystemFixtures/.build/release/FilesystemFixtures --reports "$RUNNER_TEMP/filesystem-fixture-reports"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: filesystem-fixture-evidence
+          path: ${{ runner.temp }}/filesystem-fixture-reports/
           if-no-files-found: error
