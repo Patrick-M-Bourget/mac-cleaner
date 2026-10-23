@@ -34,7 +34,7 @@ Deferred: app uninstall, duplicate detection, direct backup deletion, Docker mut
 
 - Swift 6, SwiftUI with focused AppKit bridges, Xcode and Swift Package Manager.
 - Provisional macOS 14 minimum, Apple silicon first. Intel/universal distribution requires actual test coverage.
-- Direct Developer ID distribution, Hardened Runtime, notarization; initially unsandboxed, logged-in user privileges only. No root helper.
+- Eventual direct Developer ID distribution, Hardened Runtime and notarization belong to M8 — Commercialization (#40). Distribution signing and preflight do not gate ordinary feature implementation or local fixture testing. Development retains normal ad-hoc signing where required. Initially unsandboxed, logged-in user privileges only; no root helper.
 - Foundation metadata/file operations; bounded background I/O. Swift concurrency for orchestration; never block MainActor or create a task per file.
 - SQLite behind a repository with migrations, one writer and batched writes.
 - Swift Testing for policies/fixtures; XCTest UI tests for key journeys.

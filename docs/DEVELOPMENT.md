@@ -33,7 +33,7 @@ The focused UI suite observes native accessibility controls, fixture inspection,
 
 ## Structure
 
-`Still/App` owns the current SwiftUI composition; `Still/UITests` owns user-journey tests. Keep future filesystem/persistence adapters behind domain interfaces, outside view bodies. No empty packages or speculative mutation implementations are included in the shell slice. Distribution signing, Hardened Runtime validation and notarization remain M7 work; the locally runnable build is not a release artifact.
+`Still/App` owns the current SwiftUI composition; `Still/UITests` owns user-journey tests. Keep future filesystem/persistence adapters behind domain interfaces, outside view bodies. No empty packages or speculative mutation implementations are included in the shell slice. Distribution signing, final Hardened Runtime validation and notarization are deferred M8 commercialization work (#40); the locally runnable build is not a release artifact.
 
 ## Folder inspection validation
 
@@ -63,7 +63,7 @@ The native adapter reads `volumeAvailableCapacityForImportantUsage` and total ca
 
 The initial #27 slice was process-local; the #28/#29 sections below describe the integrated lifecycle and durable suppression. These capabilities remain development-only pending signed native qualification. Native notification delivery and denied/revoked OS behavior still require a disposable signed-app manual integration pass; pure policy tests inject authorization/capacity/time and do not certify OS UI.
 
-The app bundles a privacy manifest declaring disk-space reason `85F4.1` (displaying disk-space information). Disk values remain local and are shown to the user; no tracking/export occurs. Re-audit all actual APIs and purposes during M7 distribution qualification. Primary API references: [Apple capacity API](https://developer.apple.com/documentation/foundation/urlresourcekey/volumeavailablecapacityforimportantusagekey), [notification authorization](https://developer.apple.com/documentation/usernotifications/unusernotificationcenter/requestauthorization(options:completionhandler:)), [notification settings](https://developer.apple.com/documentation/usernotifications/unusernotificationcenter/getnotificationsettings(completionhandler:)), and [required-reason categories](https://developer.apple.com/documentation/bundleresources/app-privacy-configuration/nsprivacyaccessedapitypes/nsprivacyaccessedapitype).
+The app bundles a privacy manifest declaring disk-space reason `85F4.1` (displaying disk-space information). Disk values remain local and are shown to the user; no tracking/export occurs. Re-audit all actual APIs and purposes during M8 distribution qualification. Primary API references: [Apple capacity API](https://developer.apple.com/documentation/foundation/urlresourcekey/volumeavailablecapacityforimportantusagekey), [notification authorization](https://developer.apple.com/documentation/usernotifications/unusernotificationcenter/requestauthorization(options:completionhandler:)), [notification settings](https://developer.apple.com/documentation/usernotifications/unusernotificationcenter/getnotificationsettings(completionhandler:)), and [required-reason categories](https://developer.apple.com/documentation/bundleresources/app-privacy-configuration/nsprivacyaccessedapitypes/nsprivacyaccessedapitype).
 
 ## Future menu-bar and login lifecycle (#28)
 
@@ -81,7 +81,7 @@ Alert preferences and episodes now persist atomically in the app's separate `Sti
 
 The capacity adapter records important-use versus fallback available capacity and startup-volume UUID. Unknown identity/readings pause decisions. Tests use temporary store URLs, controlled dates and samples, never the application's persistent user record or actual notification authorization. Native signed-app delivery, privacy and lifecycle qualification remain required before M5 ships.
 
-The native manifest declares file-metadata reason `3B52.1` for selected-folder metadata, alongside the existing capacity declaration. The [Apple reason definition](https://developer.apple.com/documentation/bundleresources/app-privacy-configuration/nsprivacyaccessedapitypes/nsprivacyaccessedapitype) covers sizes and other metadata of user-granted files/directories. Full release API audit remains M7.
+The native manifest declares file-metadata reason `3B52.1` for selected-folder metadata, alongside the existing capacity declaration. The [Apple reason definition](https://developer.apple.com/documentation/bundleresources/app-privacy-configuration/nsprivacyaccessedapitypes/nsprivacyaccessedapitype) covers sizes and other metadata of user-granted files/directories. Final distribution API/dependency audit belongs to M8; feature API-purpose review continues during development.
 
 ## Future Homebrew review (#22)
 
@@ -217,3 +217,5 @@ The future-gated pip opportunity route now supports explicit read-only cache inv
 The [owned-profile experiment](validation/chrome-owned-profiles.md) now records actual Chrome for Testing156.0.8078.47 cache generation/removal/regrowth across two fresh profiles on ephemeral hosted CI, including protected file hashes and cookie/localStorage/IndexedDB/CacheStorage persistence. This is experimental evidence rather than a production cleanup capability: the application version allowlist remains empty. Native helper ownership, reopen/write races, authenticated data/session semantics and supported installed-channel layouts remain gates. No personal browser is launched or inspected by the experiment.
 
 The [focused native keyboard qualification](validation/native-keyboard.md) records Command navigation, Escape cancellation and restored Review focus with Return/Space on owned disposable data. It does not certify a full keyboard-only workflow or VoiceOver; #35 release gates remain open.
+
+Commercialization priority: [M8/#40](COMMERCIALIZATION.md) owns signing, notarization, release-preflight corrections and distribution lifecycle work. These do not block feature builds or fixture tests. The unapproved release-preflight test-boundary proposal is deferred with M8; no further answer is needed to continue feature development.

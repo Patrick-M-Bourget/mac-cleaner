@@ -8,7 +8,7 @@ Still is a working name. Native implementation is underway; see [development and
 
 1. [Implementation spec](SPEC.md): scope, architecture, safety boundaries and build sequence.
 2. [Design handoff](DESIGN-HANDOFF.md): screens, interactions, components and acceptance criteria; [native design system](DESIGN-SYSTEM.md): mandatory shared components and UI change process.
-3. [Milestones and full-feature preservation](MILESTONES.md).
+3. [Milestones and full-feature preservation](MILESTONES.md), including deferred [M8 commercialization](COMMERCIALIZATION.md).
 4. [Detailed technical specification](reference/macos-cleaner-technical-spec.md): execution, permissions, alerts and platform feasibility.
 5. [UI state matrix](reference/macos-cleaner-ui-state-matrix.md) and [layout contract](reference/macos-cleaner-layout-contract.md): required exceptional states and geometry checks.
 

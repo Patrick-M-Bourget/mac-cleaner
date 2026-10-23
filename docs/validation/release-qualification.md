@@ -1,6 +1,10 @@
-# Release qualification preparation — #35
+# Functional qualification (#35) and deferred commercialization (#40)
 
 Status: **not qualified; do not distribute this development artifact**. Updated October 23, 2026 from integration `61470ca`; historical preparation began at `5e849e8`. This document records evidence and actionable gates, not an OS support promise. #14 personal validation and outstanding #34 performance qualification remain blockers. Each subsequent integration changes the candidate and must be recorded before release.
+
+## Scheduling boundary
+
+Approved October 23, 2026: M7/#35 retains functional, platform and usability qualification. M8/#40 owns distribution signing, secure timestamps, release-preflight corrections/tests, final export/notarization and installation/update/uninstall. The distribution checklist below is retained for M8 and is not a feature-build dependency. The earlier request to approve a release-preflight test boundary is deferred; no answer is needed for feature work. See [commercialization](../COMMERCIALIZATION.md).
 
 ## Candidate feature boundary
 

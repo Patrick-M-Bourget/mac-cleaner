@@ -196,5 +196,24 @@
     "Approved release marketing/build versions",
     "Final archive privacy report, dependencies and distribution-channel data-practice review"
   ],
-  "releaseQualified": false
+  "releaseQualified": false,
+  "scheduling": {
+    "approvedAt": "2026-10-23",
+    "functionalMilestone": "M7 / #35",
+    "distributionMilestone": "M8 / #40",
+    "distributionBlocksFeatureDevelopment": false,
+    "preflightCorrections": "deferred to M8; test boundary not approved or required for ongoing features"
+  },
+  "functionalQualificationGates": [
+    "#14 personal usefulness and explicitly reviewed cleanup",
+    "Remaining #34 reference-host, provider/non-returning-I/O and platform qualification",
+    "Actual advertised minimum OS and CPU runtime coverage",
+    "VoiceOver/localization/preferences/display manual qualification"
+  ],
+  "commercializationGates": [
+    "Developer ID/notarization/clean-machine install, signed update and uninstall",
+    "Approved release marketing/build versions",
+    "Final archive privacy report, dependencies and distribution-channel data-practice review"
+  ],
+  "blockingEvidenceAppliesTo": "Final distribution only; feature work is governed by its own safety/platform gates."
 }
