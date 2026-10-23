@@ -169,7 +169,7 @@ struct FolderInspectionView: View {
                             }.frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, 9).contentShape(Rectangle())
                         }.buttonStyle(.plain).accessibilityLabel("Inspect \(item.url.lastPathComponent)")
                         if selection.eligible(item, in: result) {
-                            Toggle("Select \(item.url.lastPathComponent)", isOn: Binding(get: { selection.draft.contains(item) }, set: { selection.set(item, in: result, selected: $0) }))
+                            Toggle("Select \(item.url.lastPathComponent)", isOn: Binding(get: { selection.draft.contains(item) }, set: { selection.set(item, in: result, selected: $0) })).disabled(selection.isPreparing)
                         } else { Text("Browse only · outside eligible Downloads or protected/unknown target").font(.caption).foregroundStyle(.secondary) }
                         Divider()
                     }

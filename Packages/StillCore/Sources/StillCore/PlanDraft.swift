@@ -27,9 +27,52 @@ public struct PlannedTarget: Sendable, Identifiable {
     public let logicalBytes: Int64
     public let allocatedBytes: Int64?
 }
+public struct CleanupReview: Sendable, Identifiable {
+    public let id: UUID
+    public let targets: [PlannedTarget]
+    public let mutationVersion: UInt64
+    fileprivate init(targets: [PlannedTarget], mutationVersion: UInt64) {
+        id = UUID(); self.targets = targets; self.mutationVersion = mutationVersion
+    }
+}
+public struct CleanupApproval: Sendable, Identifiable {
+    public let id: UUID
+    public let targets: [PlannedTarget]
+    public let approvedAt: Date
+    public let action = "moveToTrash"
+    fileprivate init(review: CleanupReview, date: Date) { id = UUID(); targets = review.targets; approvedAt = date }
+}
+public enum CategorySelectionState: Sendable { case unchecked, mixed, checked }
 public struct PlanDraft: Sendable {
     private var chosen: [String: PlannedTarget] = [:]
+    public private(set) var mutationVersion: UInt64 = 0
     public init() {}
+    public func review() throws -> CleanupReview {
+        guard !chosen.isEmpty else { throw PlanSelectionError.ineligible }
+        return CleanupReview(targets: selected, mutationVersion: mutationVersion)
+    }
+    public mutating func selectAll(in scans: [ScanResult], downloads: DownloadsRoot) -> Int {
+        var visited = Set<String>(), skipped = 0
+        for scan in scans {
+            for item in scan.observations where Self.canConsider(item, in: scan, downloads: downloads) {
+                let id = item.url.path + "|" + item.resourceID
+                guard visited.insert(id).inserted else { continue }
+                do { try select(item, in: scan, downloads: downloads) } catch { skipped += 1 }
+            }
+        }
+        return skipped
+    }
+    public func categoryState(in scans: [ScanResult], downloads: DownloadsRoot) -> CategorySelectionState {
+        let eligible = Set(scans.flatMap { scan in scan.observations.filter { Self.canConsider($0, in: scan, downloads: downloads) }.map { $0.url.path + "|" + $0.resourceID + "|moveToTrash" } })
+        let count = eligible.filter { chosen[$0] != nil }.count
+        return count == 0 ? .unchecked : count == eligible.count ? .checked : .mixed
+    }
+    public mutating func invalidateReview() { mutationVersion &+= 1 }
+    public func approve(_ review: CleanupReview, at date: Date = Date()) throws -> CleanupApproval {
+        guard !chosen.isEmpty, review.mutationVersion == mutationVersion,
+              Set(review.targets.map(\.id)) == Set(chosen.keys) else { throw PlanSelectionError.ineligible }
+        return CleanupApproval(review: review, date: date)
+    }
     public var selected: [PlannedTarget] { chosen.values.sorted { $0.url.path < $1.url.path } }
     public var selectedCount: Int { chosen.count }
     /// Storage identities count once; selecting two hardlink entries still plans two exact paths.
@@ -44,14 +87,15 @@ public struct PlanDraft: Sendable {
         return selected.filter { counted.insert($0.resourceID).inserted }
     }
     public func contains(_ item: FileObservation) -> Bool { chosen[item.url.path + "|" + item.resourceID + "|moveToTrash"] != nil }
-    public mutating func remove(_ id: String) { chosen[id] = nil }
-    public mutating func clear() { chosen.removeAll() }
+    public mutating func remove(_ id: String) { chosen[id] = nil; invalidateReview() }
+    public mutating func clear() { chosen.removeAll(); invalidateReview() }
     public mutating func select(_ item: FileObservation, in scan: ScanResult, downloadsRoot: URL) throws {
         try select(item, in: scan, downloads: DownloadsRoot(url: downloadsRoot))
     }
     public mutating func select(_ item: FileObservation, in scan: ScanResult, downloads: DownloadsRoot) throws {
         let target = try Self.candidate(item, in: scan, downloads: downloads)
         chosen[target.id] = target
+        invalidateReview()
     }
     /// Presentation-only eligibility from scan evidence; selection still performs fresh checks.
     public static func canConsider(_ item: FileObservation, in scan: ScanResult, downloads: DownloadsRoot) -> Bool {
@@ -59,7 +103,10 @@ public struct PlanDraft: Sendable {
         let parts = item.url.standardizedFileURL.pathComponents
         let scope = scan.scope.standardizedFileURL.pathComponents
         let protectedExtensions = Set(["app", "bundle", "framework", "xcarchive", "dsym", "photoslibrary", "photolibrary", "musiclibrary", "library", "backupbundle", "sparsebundle", "band", "logicx", "db", "sqlite", "sqlite3"])
-        return scan.isComplete && item.kind == .file && item.previewAvailability == .local && item.cloud.membership == false && scope.starts(with: root)
+        let affected = scan.issues.contains { issue in
+            parts.starts(with: issue.url.standardizedFileURL.pathComponents)
+        }
+        return !affected && item.kind == .file && item.previewAvailability == .local && item.cloud.membership == false && scope.starts(with: root)
             && parts.starts(with: root) && parts.count > root.count
             && !parts.dropFirst(root.count).contains { protectedExtensions.contains(URL(fileURLWithPath: $0).pathExtension.lowercased()) || [".git", ".Trash", "Backups.backupdb", ".."].contains($0) }
     }
