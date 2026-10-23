@@ -1,3 +1,5 @@
+> Historical revision 0.8 reference. Preserve feature detail, but implementation scope and interaction rules are superseded by [SPEC](../SPEC.md), [design handoff](../DESIGN-HANDOFF.md), and [milestones](../MILESTONES.md), revision 0.9. In particular, staged item drafts, clearing selections on rescan, persistent plans and installer-only selection are obsolete.
+
 # macOS storage cleanup: research and product recommendations
 
 Research date: October 22, 2026. Scope: primary-source research for a personal macOS cleaner, with particular attention to a 512 GB Mac using iCloud. No inspection of this Mac or deletion of its files was performed. Priorities below are product judgments, not measurements of prevalence or promised savings. Actual reclaimable space requires a local scan.

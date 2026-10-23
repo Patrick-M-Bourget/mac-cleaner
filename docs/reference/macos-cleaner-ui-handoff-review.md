@@ -1,3 +1,5 @@
+> Historical revision 0.8 reference. Preserve feature detail, but implementation scope and interaction rules are superseded by [SPEC](../SPEC.md), [design handoff](../DESIGN-HANDOFF.md), and [milestones](../MILESTONES.md), revision 0.9. In particular, staged item drafts, clearing selections on rescan, persistent plans and installer-only selection are obsolete.
+
 # UI handoff readiness — revision 0.8
 
 Canonical preview: `storage-companion-direct.html`. The [flow audit](macos-cleaner-flow-audit.md) is the current interaction reference; older preview files are historical.

@@ -1,3 +1,5 @@
+> Historical revision 0.8 reference. Preserve feature detail, but implementation scope and interaction rules are superseded by [SPEC](../SPEC.md), [design handoff](../DESIGN-HANDOFF.md), and [milestones](../MILESTONES.md), revision 0.9. In particular, staged item drafts, clearing selections on rescan, persistent plans and installer-only selection are obsolete.
+
 # macOS cleaner competitors and a practical product strategy
 
 Researched October 22, 2026. Official product pages, documentation, repositories and release notes were reviewed. This is desk research, not a hands-on comparative benchmark. Features below are documented capabilities, not independently verified safety/performance claims. Prices are displayed US-facing prices unless stated otherwise; taxes, promotions, plan entitlements, renewal terms, geography and purchase channel can change them.

@@ -1,3 +1,5 @@
+> Historical revision 0.8 reference. Preserve feature detail, but implementation scope and interaction rules are superseded by [SPEC](../SPEC.md), [design handoff](../DESIGN-HANDOFF.md), and [milestones](../MILESTONES.md), revision 0.9. In particular, staged item drafts, clearing selections on rescan, persistent plans and installer-only selection are obsolete.
+
 # Flow audit and lock candidate — revision 0.8
 
 Canonical preview: `storage-companion-direct.html`. Requirements: [PRD](macos-cleaner-prd.md), [technical specification](macos-cleaner-technical-spec.md), [state matrix](macos-cleaner-ui-state-matrix.md), [layout contract](macos-cleaner-layout-contract.md).

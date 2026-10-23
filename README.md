@@ -6,4 +6,8 @@ A native, local-first macOS app for understanding storage, reviewing cleanup act
 - [Implementation specification](docs/SPEC.md)
 - [Design and interaction handoff](docs/DESIGN-HANDOFF.md)
 
-Revision 0.8. Supporting research, detailed specifications and UI contracts are in [docs/reference](docs/reference/). Native integrations remain subject to the documented validation gates.
+Revision 0.9. Supporting research, detailed specifications and UI contracts are in [docs/reference](docs/reference/). Native integrations remain subject to the documented validation gates.
+
+- [Full feature roadmap and milestones](docs/MILESTONES.md)
+- [Approved product decisions](docs/DECISIONS.md)
+- [Portable visual reference](docs/visual/README.md)

@@ -1,3 +1,5 @@
+> Historical revision 0.8 reference. Preserve feature detail, but implementation scope and interaction rules are superseded by [SPEC](../SPEC.md), [design handoff](../DESIGN-HANDOFF.md), and [milestones](../MILESTONES.md), revision 0.9. In particular, staged item drafts, clearing selections on rescan, persistent plans and installer-only selection are obsolete.
+
 # Design/spec contract — revision 0.8
 
 October 22, 2026. Authoritative requirements: [PRD](macos-cleaner-prd.md) and [technical specification](macos-cleaner-technical-spec.md), both revision 0.8. Canonical conversation preview: `storage-companion-direct.html`. Previous previews and research strategy suggestions are historical, not current requirements.
