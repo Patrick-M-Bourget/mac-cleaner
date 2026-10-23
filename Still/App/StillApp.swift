@@ -295,7 +295,7 @@ private struct WorkspaceView: View {
                 FindingRow(category: .developer, title: "Docker storage", detail: "Review runtime and disk-image measurements") {
                     Button("Review Docker storage") { dockerVisible = true; pipVisible = false; homebrewVisible = false; managedStorageVisible = false; nativeInspectionVisible = false; inspecting = false }
                 }
-                FindingRow(category: .developer, title: "Homebrew opportunities", detail: "Qualification and supported management guidance") {
+                FindingRow(category: .developer, title: "Homebrew opportunities", detail: "Explicit cache inventory; vendor cleanup remains unavailable") {
                     Button("Review Homebrew opportunities") { homebrewVisible = true; pipVisible = false; dockerVisible = false; managedStorageVisible = false; nativeInspectionVisible = false; inspecting = false }
                 }
                 FindingRow(category: .developer, title: "Pip cache opportunities", detail: "Review selected cache provenance") {

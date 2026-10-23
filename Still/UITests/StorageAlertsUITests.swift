@@ -50,6 +50,76 @@ final class StorageAlertsUITests: XCTestCase {
         XCTAssertTrue(app.buttons["Choose folder…"].exists)
     }
 
+    @MainActor func testSelectedHomebrewCacheInventoryIsReadOnlyAcrossThemesAndSizes() async throws {
+        continueAfterFailure = false
+        let manager = FileManager.default
+        let root = manager.temporaryDirectory.appendingPathComponent("StillHomebrewUI-" + UUID().uuidString)
+        let source = root.appendingPathComponent("source")
+        let cache = root.appendingPathComponent("cache")
+        try manager.createDirectory(at: cache.appendingPathComponent("downloads"), withIntermediateDirectories: true)
+        defer { try? manager.removeItem(at: root) }
+        // Provisioning belongs to the disposable test runner, never the app.
+        for path in ["bin/brew", "Library/Homebrew/brew.sh", "Library/Homebrew/help.sh", "Library/Homebrew/formula_path.sh"] {
+            let url = try XCTUnwrap(URL(string: "https://raw.githubusercontent.com/Homebrew/brew/aa278895809b4c079e560fb4fb9bf17e48cf65f1/" + path))
+            let (data, response) = try await URLSession.shared.data(for: URLRequest(url: url, timeoutInterval: 20))
+            XCTAssertEqual((response as? HTTPURLResponse)?.statusCode, 200)
+            XCTAssertLessThan(data.count, 256_000)
+            let target = source.appendingPathComponent(path)
+            try manager.createDirectory(at: target.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try data.write(to: target)
+        }
+        let sentinel = cache.appendingPathComponent("obsolete.incomplete")
+        let download = cache.appendingPathComponent("downloads/current.tar.gz")
+        try Data(repeating: 0x61, count: 27).write(to: sentinel)
+        try Data(repeating: 0x62, count: 101).write(to: download)
+        for minimum in [false, true] {
+            let app = XCUIApplication()
+            app.launchArguments = ["--future-milestones", "--homebrew-inventory-fixture", minimum ? "--design-minimum" : "--design-initial-size"]
+            var information = stat()
+            XCTAssertEqual(lstat(root.path, &information), 0)
+            app.launchEnvironment["STILL_TEST_HOMEBREW_ROOT"] = root.path
+            app.launchEnvironment["STILL_TEST_HOMEBREW_ROOT_ID"] = "\(information.st_dev):\(information.st_ino)"
+            app.launch()
+            XCTAssertTrue(app.buttons["Review Homebrew opportunities"].waitForExistence(timeout: 10))
+            let bounds = app.windows.firstMatch.frame
+            app.buttons["Review Homebrew opportunities"].click()
+            XCTAssertTrue(app.buttons["Inspect selected Homebrew"].isEnabled, app.debugDescription)
+            for theme in ["Light", "Dark"] {
+                app.popUpButtons["Appearance"].click(); app.menuItems[theme].click()
+                let attachment = XCTAttachment(screenshot: app.windows.firstMatch.screenshot())
+                attachment.name = "homebrew-selected-" + (minimum ? "minimum-" : "initial-") + theme
+                attachment.lifetime = .keepAlways; add(attachment)
+            }
+            app.buttons["Inspect selected Homebrew"].click()
+            let status = app.staticTexts["homebrewPreviewStatus"]
+            let completed = NSPredicate(format: "value CONTAINS %@ OR label CONTAINS %@", "Read-only cache inventory complete", "Read-only cache inventory complete")
+            let completion = XCTNSPredicateExpectation(predicate: completed, object: status)
+            let result = await XCTWaiter.fulfillment(of: [completion], timeout: 20)
+            XCTAssertEqual(result, .completed)
+            guard result == .completed else { return }
+            for _ in 0..<5 {
+                let evidence = app.staticTexts["Observed regular files: 2"]
+                if evidence.exists && app.scrollViews.firstMatch.frame.contains(evidence.frame) { break }
+                app.scrollViews.firstMatch.scroll(byDeltaX: 0, deltaY: -150)
+            }
+            XCTAssertTrue(app.staticTexts["Observed regular files: 2"].exists)
+            XCTAssertTrue(app.staticTexts["Logical bytes: 128"].exists)
+            XCTAssertTrue(app.staticTexts["Reclaimable space: Unknown"].exists)
+            XCTAssertFalse(app.buttons["Clean Homebrew cache"].exists)
+            for theme in ["Light", "Dark"] {
+                app.popUpButtons["Appearance"].click(); app.menuItems[theme].click()
+                let attachment = XCTAttachment(screenshot: app.windows.firstMatch.screenshot())
+                attachment.name = "homebrew-inventory-" + (minimum ? "minimum-" : "initial-") + theme
+                attachment.lifetime = .keepAlways; add(attachment)
+            }
+            XCTAssertEqual(app.windows.firstMatch.frame, bounds)
+            XCTAssertEqual(try Data(contentsOf: sentinel), Data(repeating: 0x61, count: 27))
+            XCTAssertEqual(try Data(contentsOf: download), Data(repeating: 0x62, count: 101))
+            XCTAssertEqual(Set(try manager.contentsOfDirectory(atPath: cache.path)), Set(["obsolete.incomplete", "downloads"]))
+            app.terminate()
+        }
+    }
+
     @MainActor func testFuturePipInventoryShowsRecordedQualificationWithoutRunningPersonalTools() {
         let app = XCUIApplication()
         app.launchArguments = ["--future-milestones"]
