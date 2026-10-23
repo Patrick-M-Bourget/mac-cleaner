@@ -41,7 +41,7 @@ jobs:
         run: |
           scope=()
           if [[ "$EVENT_NAME" == "workflow_dispatch" && "$REQUESTED_SUITE" == "exclusions" ]]; then
-            scope=(-only-testing:StillUITests/ExclusionsUITests)
+            scope=(-only-testing:StillUITests/CleanupRetryUITests -only-testing:StillUITests/DiagnosticsUITests -only-testing:StillUITests/ExclusionsUITests)
           elif [[ "$EVENT_NAME" == "workflow_dispatch" && "$REQUESTED_SUITE" == "design" ]]; then
             scope=(
               -only-testing:StillUITests/WorkspaceUITests/testDesignReviewCaptures
