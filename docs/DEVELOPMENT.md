@@ -156,6 +156,10 @@ Execution, recovery and aggregate history use `LocalStateLocation.root(create:)`
 
 Startup interruption review and actual SIGKILL fixture evidence are documented in [recovery validation](validation/startup-recovery.md). No session plan is restored as approval authority.
 
+## Cancellation and explicit retry (#11)
+
+Stop prevents new target operations, keeps individual outcomes and makes no rollback promise. Recheck unfinished files forms a fresh, restricted draft; completed successes and discoveries stay excluded until a new general scan. Review and final approval are required again. See [cancel/retry qualification](validation/cancel-retry.md). Native tests use shared isolated test-state roots; no personal cleanup or new permission prompts are involved.
+
 ## Compatible aggregate comparisons (M4)
 
 The future-milestone launch flag exposes **What grew** (Command-6). It records only completed, measured explicit-folder observations in local bounded aggregate history. See [comparison policy and validation](validation/growth-comparisons.md). Tests use the shared identity-bound disposable app-state root; do not point them at personal baseline storage.
