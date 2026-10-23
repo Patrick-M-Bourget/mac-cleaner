@@ -65,8 +65,7 @@ node Validation/ChromeProbe/genuine.mjs \
   "$RUNNER_TEMP/chrome-probe/evidence/report.json"
 ```
 
-The script verifies the downloaded bundle's native code signature, exact version
-and executable hash. A fresh UUID tree contains an explicit custom user-data
+The script verifies the exact independently observed official archive byte/hash pin, version and executable hash, and records native signature verification results. This exact vendor archive omits CodeResources: strict bundle verification fails; no sealed Developer ID bundle claim is made. This hosted-only development experiment may directly spawn those untouched official bytes if the OS accepts them. It never re-signs, changes quarantine/xattrs, bypasses Gatekeeper or changes OS policy. A fresh UUID tree contains an explicit custom user-data
 root and two sequential native profiles, `Default` and `Profile 1`. A server bound
 only to `127.0.0.1` generates a 512 KiB asset and disposable persistent cookie,
 local storage, IndexedDB and CacheStorage values. CDP observes the owned browser
@@ -118,3 +117,5 @@ Intel remain separate gates. The production version allowlist stays empty and
 Provisioning is hosted-only and refuses an existing output directory. Download time/size, archive entries and unpacked size are bounded; member traversal, escaping symlinks, duplicate paths and files beneath archive symlinks are rejected before `ditto` extraction. A 3 GiB initial budget and unpacked-size-plus-1-GiB check guard storage. `provision.json` distinguishes the observed archive digest from a publisher checksum and includes signature, OS, Python and CI provenance. No downloaded archive is added to Git.
 
 Flags follow [Google’s Chrome launcher reference](https://github.com/GoogleChrome/chrome-launcher/blob/main/docs/chrome-flags-for-tools.md) and [Chromium’s macOS development instructions](https://chromium.googlesource.com/chromium/src/+/HEAD/docs/mac_build_instructions.md); these describe test switches rather than a production cleanup contract.
+
+The official 156.0.8078.47 mac-arm64 archive was independently downloaded over HTTPS and observed as **194,932,023 bytes**, SHA-256 **`ad7f2b49a4dc679af286b1b1b386670d93ca7868079f69012d21ba0ac8293df3`**. Both are required before extraction/execution. This is a reproducibility pin derived from our download, not a Google-published checksum. The ZIP has 673 members and no CodeResources. First hosted attempt [40003124836](https://github.com/Patrick-M-Bourget/mac-cleaner/actions/runs/40003124836) stopped before browser launch at strict bundle verification; the refined experiment preserves that failure prominently while permitting only this exact unchanged vendor artifact on ephemeral GitHub-hosted runners. Both provisioning and runtime require `RUNNER_ENVIRONMENT=github-hosted`; self-hosted runners are refused. Production vendor trust and distribution qualification remain separate gates.

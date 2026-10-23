@@ -10,7 +10,7 @@ import assert from 'node:assert/strict';
 
 // Hosted-only: no installed browser, personal profile, OS settings or permissions.
 assert.equal(process.env.GITHUB_ACTIONS, 'true', 'Run on an ephemeral GitHub-hosted macOS runner only');
-assert.equal(process.env.RUNNER_ENVIRONMENT, 'github-hosted', 'Self-hosted runners are not supported');
+assert.equal(process.env.RUNNER_ENVIRONMENT, 'github-hosted', 'Persistent/self-hosted runners are not supported');
 assert.equal(process.platform, 'darwin');
 assert.equal(arch(), 'arm64');
 const [browserArg, outputArg] = process.argv.slice(2);

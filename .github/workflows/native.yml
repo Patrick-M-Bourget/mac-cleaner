@@ -22,11 +22,12 @@ on:
           - benchmark
           - homebrew
           - filesystem
+          - chrome-probe
 permissions:
   contents: read
 jobs:
   native:
-    if: github.event_name != 'workflow_dispatch' || (inputs.suite != 'benchmark' && inputs.suite != 'filesystem')
+    if: github.event_name != 'workflow_dispatch' || (inputs.suite != 'benchmark' && inputs.suite != 'filesystem' && inputs.suite != 'chrome-probe')
     runs-on: macos-26
     steps:
       - uses: actions/checkout@v4
@@ -167,4 +168,31 @@ jobs:
         with:
           name: filesystem-fixture-evidence
           path: ${{ runner.temp }}/filesystem-fixture-reports/
+          if-no-files-found: error
+  genuine-chrome-fixtures:
+    if: github.event_name == 'workflow_dispatch' && inputs.suite == 'chrome-probe'
+    runs-on: macos-26
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: '26.6'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify fixture policy boundaries
+        run: |
+          xcrun swift test --package-path Validation/ChromeProbe
+          python3 -m unittest discover -s Validation/ChromeProbe -p 'test_owned_cache.py'
+          node --check Validation/ChromeProbe/genuine.mjs
+      - name: Provision the pinned browser only in the ephemeral runner cache
+        run: python3 Validation/ChromeProbe/provision.py "$RUNNER_TEMP/chrome-probe"
+      - name: Exercise genuine owned profiles and exact asset-cache boundaries
+        run: node Validation/ChromeProbe/genuine.mjs "$RUNNER_TEMP/chrome-probe/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing" "$RUNNER_TEMP/chrome-probe/evidence/report.json"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: genuine-chrome-fixture-evidence
+          path: ${{ runner.temp }}/chrome-probe/evidence/
           if-no-files-found: error
