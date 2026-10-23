@@ -68,7 +68,11 @@ final class NativeAlertsQualificationUITests: XCTestCase {
                                        "effectiveMonitoringObserved": effectiveMonitoringObserved,
                                        "notificationDeliveryQualified": false, "loginRegistrationQualified": false]
             if let data = try? JSONSerialization.data(withJSONObject: report, options: [.prettyPrinted, .sortedKeys]) {
-                try? data.write(to: directory.appendingPathComponent("journey.json"), options: .atomic)
+                // XCTest owns attachment export; a sandboxed runner may not write RUNNER_TEMP.
+                let attachment = XCTAttachment(data: data, uniformTypeIdentifier: "public.json")
+                attachment.name = "Native alert journey JSON"
+                attachment.lifetime = .keepAlways
+                add(attachment)
             }
             if app.state != .notRunning { app.terminate() } // Only this freshly launched owned app.
         }
@@ -125,6 +129,8 @@ final class NativeAlertsQualificationUITests: XCTestCase {
             let result = XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: ready, object: nil)], timeout: 10)
             guard result == .completed else {
                 for (index, candidate) in candidates.enumerated() { capture("Unsupported native authorization surface \(index)", application: candidate) }
+                record("observed opt-in checkbox value: " + String(describing: toggle.value))
+                record("observed alert status: " + String(describing: app.staticTexts["storageAlertStatus"].value))
                 record("no supported actionable Still prompt/authorized monitoring outcome; stopped without settings changes or retry")
                 outcome = "unsupported-native-authorization"
                 throw XCTSkip("Hosted notification prompt unavailable, denied, or API did not produce effective monitoring; see evidence.")

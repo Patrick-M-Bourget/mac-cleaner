@@ -76,6 +76,38 @@ final class StorageAlertsUITests: XCTestCase {
         XCTAssertTrue(app.wait(for: .notRunning, timeout: 10))
     }
 
+    @MainActor func testDisposableAlertOptInExplainsRefusalWithoutChangingOSAuthorization() throws {
+        continueAfterFailure = false
+        let root = FileManager.default.temporaryDirectory.resolvingSymlinksInPath().appendingPathComponent("StillTestState-" + UUID().uuidString)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: false, attributes: [.posixPermissions: 0o700])
+        try String(root.lastPathComponent.dropFirst("StillTestState-".count)).write(to: root.appendingPathComponent(".still-owned-test-state"), atomically: false, encoding: .utf8)
+        var identity = stat()
+        guard lstat(root.path, &identity) == 0 else { throw CocoaError(.fileReadUnknown) }
+        let app = XCUIApplication()
+        defer { app.terminate(); try? FileManager.default.removeItem(at: root) }
+        app.launchArguments = ["--future-milestones"]
+        app.launchEnvironment = ["STILL_TEST_STATE_ROOT": root.path, "STILL_TEST_STATE_ID": "\(identity.st_dev):\(identity.st_ino)"]
+        app.launch()
+        XCTAssertTrue(app.buttons["Storage alerts"].waitForExistence(timeout: 10))
+        app.buttons["Storage alerts"].click()
+        XCTAssertTrue(app.staticTexts["Alerts are off."].waitForExistence(timeout: 5))
+        let threshold = app.textFields["Minimum available space (GB)"]
+        threshold.click(); app.typeKey("a", modifierFlags: .command); threshold.typeText("1")
+        app.buttons["Apply threshold"].click()
+        let toggle = app.checkBoxes["Notify me when space is low"]
+        XCTAssertTrue(toggle.isEnabled && toggle.isHittable)
+        toggle.click()
+        let refusal = app.staticTexts["Disposable tests do not change notification settings."]
+        let responded = refusal.waitForExistence(timeout: 5)
+        let tree = XCTAttachment(string: app.debugDescription)
+        tree.name = "Disposable alert opt-in response accessibility"; tree.lifetime = .keepAlways; add(tree)
+        let screen = XCTAttachment(screenshot: app.screenshot())
+        screen.name = "Disposable alert opt-in response"; screen.lifetime = .keepAlways; add(screen)
+        XCTAssertTrue(responded, "Opt-in action must reach the controller and update public status before any native permission operation is possible.")
+        XCTAssertEqual(toggle.value as? Int, 0)
+        XCTAssertTrue(app.checkBoxes["Start Still at Login"].exists)
+    }
+
     @MainActor func testFutureHomebrewPreviewIsSecondaryAndClearlySynthetic() {
         let app = XCUIApplication()
         app.launchArguments = ["--future-milestones"]
