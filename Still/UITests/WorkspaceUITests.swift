@@ -359,6 +359,23 @@ final class WorkspaceUITests: XCTestCase {
             let after = XCTAttachment(screenshot: app.windows.firstMatch.screenshot())
             after.name = "checkbox-category-after-" + String(index); after.lifetime = .keepAlways; add(after)
         }
+        // Match the reported sequence: summary above the viewport, category still visible.
+        category.click()
+        XCTAssertEqual(category.value as? Int, 1)
+        app.scrollViews.firstMatch.scroll(byDeltaX: 0, deltaY: -140)
+        XCTAssertTrue(app.scrollViews.firstMatch.frame.contains(category.frame))
+        let scrolledCategoryFrame = category.frame
+        for index in 0..<4 {
+            category.click()
+            let expected = index.isMultiple(of: 2) ? 0 : 1
+            let settled = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+                category.value as? Int == expected
+            }, object: nil)
+            XCTAssertEqual(XCTWaiter.wait(for: [settled], timeout: 5), .completed)
+            XCTAssertEqual(category.frame, scrolledCategoryFrame,
+                           "Bulk selection must not reset a scrolled plan to its top")
+        }
+        category.click()
         app.scrollViews.firstMatch.scroll(byDeltaX: 0, deltaY: -300)
         let rows = app.checkBoxes.allElementsBoundByIndex.filter {
             $0.label.hasSuffix(".pdf") && $0.isHittable && app.scrollViews.firstMatch.frame.contains($0.frame)
