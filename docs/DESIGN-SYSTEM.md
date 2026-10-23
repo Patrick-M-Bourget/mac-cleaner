@@ -33,7 +33,8 @@ The app target owns these internal SwiftUI components; they are presentation pri
 | `StatusRow`, `EmptyState` | Honest status, blocked/error explanation, or no findings yet |
 | `SettingsRow` | Setting title, explanation and native controls |
 | `StillSidebarRow`, `ChromeSurface` | Persistent native navigation and adaptive chrome |
-| `CapacityMeter` | Optional observed capacity; unknown stays distinct from zero |
+| `CapacityMeter` | Optional observed capacity and adaptive capsule meter; unknown stays distinct from zero |
+| `NativeWindowContract` | Outer minimum sizing and explicit Debug capture-size modes; never destination-driven resizing |
 | `ActionStrip`, `ReviewCleanupButton` | Stable primary-action region and explicit native focus restoration |
 
 Examples inside an app-target `View` body (closures refer to the screen's existing model/actions):
