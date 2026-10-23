@@ -168,7 +168,7 @@ final class WorkspaceUITests: XCTestCase {
             search.click(); search.typeKey("a", modifierFlags: .command); search.typeText("new-download.txt")
             let discoveredDownload = app.checkBoxes["Select new-download.txt"]
             XCTAssertTrue(discoveredDownload.waitForExistence(timeout: 5))
-            XCTAssertEqual(discoveredDownload.value as? String, "0")
+            XCTAssertEqual(discoveredDownload.value as? Int, 0)
             search.typeKey("a", modifierFlags: .command); search.typeKey(.delete, modifierFlags: [])
             XCTAssertTrue(selectedOne().exists)
             revealOverviewControl(app, label: other.lastPathComponent + " · Observed")
