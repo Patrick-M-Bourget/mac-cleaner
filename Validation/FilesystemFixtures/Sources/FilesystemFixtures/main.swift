@@ -94,6 +94,8 @@ private func nativeEvidence(_ info: stat) -> [String: Any] {
             report["sentinelCanonicalIdentityMatches"] = explicit.observations.map { matchesOwnedFixture($0, sentinel, sentinelInfo) }
             let compressedRow = explicit.observations.first { matchesOwnedFixture($0, compressed, info) }
             report["checks"] = [
+                "mountedDescendantPositiveControl": explicit.observations.contains { matchesOwnedFixture($0, sentinel, sentinelInfo) && isMountedDescendant($0.url, mount: mount) },
+                "mountRowNotDescendant": !isMountedDescendant(mount, mount: mount),
                 "boundaryReported": boundary.issues.contains { $0.reason == .differentVolume && canonicalParts($0.url) == canonicalParts(mount) },
                 "noMountedDescendants": !boundary.observations.contains { isMountedDescendant($0.url, mount: mount) },
                 "boundaryTotalsUnknown": !boundary.isComplete && boundary.totalLogicalBytes == nil,
@@ -105,6 +107,8 @@ private func nativeEvidence(_ info: stat) -> [String: Any] {
                 "mountedIdentityRetained": try metadata(scope).st_dev == mountedDevice
             ]
             try persist()
+            try require(explicit.observations.contains { matchesOwnedFixture($0, sentinel, sentinelInfo) && isMountedDescendant($0.url, mount: mount) }
+                && !isMountedDescendant(mount, mount: mount), "Canonical containment must recognize the actual sentinel descendant and permit only the mount row")
             try require(boundary.issues.contains { $0.reason == .differentVolume && canonicalParts($0.url) == canonicalParts(mount) },
                         "Parent scan must report the genuine mounted-volume boundary")
             try require(!boundary.observations.contains { isMountedDescendant($0.url, mount: mount) },
