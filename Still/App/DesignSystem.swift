@@ -450,7 +450,9 @@ struct NativeWindowContract: NSViewRepresentable {
             if ProcessInfo.processInfo.arguments.contains("--design-minimum") {
                 requested.size = NSSize(width: 900, height: 640)
             } else if ProcessInfo.processInfo.arguments.contains("--design-initial-size") {
-                requested.size = NSSize(width: 1120, height: 760)
+                // Use approved capture presets rather than a fluctuating maximum height.
+                // The normal production fit below continues to use the actual window frame.
+                requested.size = NSSize(width: 1120, height: visible.height >= 760 ? 760 : 640)
             }
             #endif
             let minimum = NSSize(width: min(900, visible.width), height: min(640, visible.height))
