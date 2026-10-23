@@ -215,3 +215,5 @@ The future-gated pip opportunity route now supports explicit read-only cache inv
 ## Genuine Chrome qualification progress
 
 The [owned-profile experiment](validation/chrome-owned-profiles.md) now records actual Chrome for Testing156.0.8078.47 cache generation/removal/regrowth across two fresh profiles on ephemeral hosted CI, including protected file hashes and cookie/localStorage/IndexedDB/CacheStorage persistence. This is experimental evidence rather than a production cleanup capability: the application version allowlist remains empty. Native helper ownership, reopen/write races, authenticated data/session semantics and supported installed-channel layouts remain gates. No personal browser is launched or inspected by the experiment.
+
+The [focused native keyboard qualification](validation/native-keyboard.md) records Command navigation, Escape cancellation and restored Review focus with Return/Space on owned disposable data. It does not certify a full keyboard-only workflow or VoiceOver; #35 release gates remain open.
