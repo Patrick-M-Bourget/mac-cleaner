@@ -148,3 +148,7 @@ Cleanup plan provides direct Recheck location actions. Refresh preserves selecte
 ## Native startup recovery (#12)
 
 Interrupted durable batches open a read-only secondary review on launch. Show unresolved outcomes separately from not-started targets and recorded terminal facts; a missing original never implies Trash success. Keep a fixed Return to Overview action and an Overview route back to unresolved evidence. A new manual scan/selection/approval is the only path to another cleanup. Current locations are unverified; only an explicitly persisted resulting location may be revealed on user action. See [validation and remaining gates](validation/startup-recovery.md).
+
+### M4 What grew native comparison states
+
+Future-gated What grew preserves existing shortcuts and adds Command-6. The fixed action strip opens an explicit folder picker. A selected completed observation shows scope, completeness and both interval endpoints; compatible comparisons show folder/category logical deltas. First, cleared, expired/missing, changed-coverage and unknown observations have distinct explanations. Partial/cancelled/unmeasured observations never masquerade as completed growth. Completed-observation selection is secondary disclosure content; no writer attribution or cleanup selection is inferred. See [implementation evidence](validation/growth-comparisons.md).

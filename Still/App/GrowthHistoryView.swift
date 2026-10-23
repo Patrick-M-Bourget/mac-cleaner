@@ -39,6 +39,12 @@ import StillCore
         try await value.clearCompletedHistory()
         snapshots = []; comparison = try await value.latest(); active = nil
     }
+    func resetHistory() async throws {
+        attempt = UUID(); active = nil
+        let value = try open()
+        try await value.resetHistory()
+        snapshots = []; comparison = try await value.latest(); error = nil
+    }
     func cancelled() {
         attempt = UUID(); active = nil; comparison = .unknown
     }

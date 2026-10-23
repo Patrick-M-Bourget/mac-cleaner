@@ -60,6 +60,10 @@ import StillCore
     try await store.clearCompletedHistory()
     #expect(try await store.latest(now: Date(timeIntervalSince1970: 90000)).state == .clearedBaseline)
     #expect(try Data(contentsOf: journal) == Data("unresolved".utf8))
+    try await store.resetHistory()
+    #expect(try await store.latest(now: Date(timeIntervalSince1970: 90000)).state == .firstBaseline)
+    #expect(!FileManager.default.fileExists(atPath: directory.appendingPathComponent("aggregates-v1.json").path))
+    #expect(try Data(contentsOf: journal) == Data("unresolved".utf8))
 }
 
 @Test func scanCapturePersistsFolderAndCategoryAggregatesButNeverRawFilenamesOrUnmeasuredPackages() async throws {

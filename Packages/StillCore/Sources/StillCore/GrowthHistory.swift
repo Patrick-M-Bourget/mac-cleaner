@@ -82,6 +82,16 @@ public actor GrowthHistoryStore {
         var value = try load(); value.entries = []; value.cleared = true
         try save(value)
     }
+    public func resetHistory() throws {
+        try verifyDirectory(create: false)
+        let file = directory.appendingPathComponent("aggregates-v1.json")
+        var info = stat()
+        if lstat(file.path, &info) == 0 {
+            guard info.st_mode & S_IFMT == S_IFREG, info.st_uid == geteuid() else { throw CocoaError(.fileWriteNoPermission) }
+            try FileManager.default.removeItem(at: file)
+        } else if errno != ENOENT { throw CocoaError(.fileWriteNoPermission) }
+        archive = Archive()
+    }
     private func comparison(in value: Archive, id: UUID?) -> GrowthComparison {
         guard let index = value.entries.firstIndex(where: { $0.snapshot.id == id }) else {
             return GrowthComparison(state: value.cleared ? .clearedBaseline : value.hadHistory ? .missingBaseline : .firstBaseline, current: nil, from: nil, groups: [])
