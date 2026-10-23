@@ -26,3 +26,7 @@ These are representative browser checks, not a complete automated state sweep or
 The example data uses an internal `installers` fixture key for the broader Downloads action; production domain naming should use Downloads/trash-file. Do not copy those fixture identifiers into the native domain model. Individual Trash operations do not promise original directory hierarchy or automatic restoration.
 
 The M1 summary prioritizes “Selected for Trash” and explicitly says space stays occupied until Finder empties Trash. Future actions retain separate potentially released and Trash-held estimates. Native material, SF Symbols, accessibility and system text styles replace the web rendering.
+
+## Native implementation evidence
+
+The reference PNGs above remain the approved design comparison, with the later explicitly white Light sidebar clarification. Current native [fidelity captures](fidelity/) and their [main manifest](fidelity/manifest.json) / [exclusions manifest](fidelity/exclusions/manifest.json) record source `524f878`, actual rendered dimensions, test identifiers and hashes. See [fidelity validation](../validation/visual-fidelity.md) for observed differences, the native recheck exception and exact public regression results. Earlier `native-design-system` captures preserve the first implementation checkpoint rather than replacing the approved reference or representing every subsequent source revision.

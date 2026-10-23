@@ -1,10 +1,13 @@
 # Implementation review checkpoint
 
-Reviewed implementation through `d230958`, against main base
+Reviewed implementation through `524f878`, against main base
 `454d4d36cb02e01415f1fac423b530107474a925`.
 Independent Standards and Spec reviews covered the full implementation at
 `e5bf9d6`, then the exclusion and corrective deltas through `fec0455` and the bounded
-footer/workflow/privacy-documentation delta through `d230958`.
+footer/workflow/privacy-documentation delta through `d230958`. The visual
+fidelity delta from `93fc16d` through `7a7199f`, followed by the
+capture-only corrections through `524f878`, received separate independent
+Standards and Spec reviews with no actionable source findings.
 Reviewers inspected source and evidence; they did not run personal scans or
 generate OS notifications.
 
@@ -32,15 +35,42 @@ collision), automatic history-maintenance coordination, and late alert failures
 after reset. Public regressions exercise suspended operations, separate stores,
 restart, matching reservations and protected state.
 
+## Visual fidelity follow-up
+
+The user reported solid functionality and requested closer reference fidelity.
+Shared palette/components and their gallery now provide that presentation,
+without scanner/selection/approval/executor/persistence model changes. The first
+capture review corrected an overly bevelled selected-navigation gradient. An
+existing refresh journey then caught a caption-link recheck lookup/reachability
+regression; the native button was restored without changing its action or
+weakening the test.
+
+Final application source `524f878` passed the full 34-journey native suite, both
+focused exclusions journeys and the six-journey predecessor sequence. The latter
+uses an equivalent application/test source with only a workflow-selector delta.
+Native available-screen boundaries varied across activation; explicit Debug
+captures now choose approved height presets rather than treating that dynamic
+maximum as a cross-launch invariant. Ordinary Debug/Release fitting is unchanged.
+Original exact frame/action assertions remain, with additional repeated launches.
+See [visual fidelity validation](visual-fidelity.md) for source-pinned red/green
+evidence, captures and intentional native differences.
+
 ## Verification and limits
 
-- Final source `d230958`: 117 core tests, 20 alert/lifecycle tests, native Debug
-  build-for-testing and local Release build passed. A verified ad-hoc Release
-  artifact is preserved outside disposable worktrees. This does not establish
-  distribution signing, notarization, Intel runtime or minimum-OS support.
-- [Final full hosted workflow](https://github.com/Patrick-M-Bourget/mac-cleaner/actions/runs/39912299004)
-  passed all 34 native journeys on macOS 26.6.2/arm64 with Xcode 26.6, including
-  strengthened diagnostics and exclusion footer reachability checks.
+- Final application source `524f878`: 117 core tests, 20 alert/lifecycle tests,
+  disposable adapter investigations, hosted native build and local Debug
+  build-for-testing/Release build passed. The preserved ad-hoc Release artifact
+  has matching copied-file hashes and a verified deep strict signature. This
+  does not establish distribution signing, notarization, Intel runtime or
+  minimum-OS support.
+- [Final full hosted workflow](https://github.com/Patrick-M-Bourget/mac-cleaner/actions/runs/39963991881)
+  passed **34/34 native journeys**, zero failures, 1253.366 seconds, on macOS
+  26.6.2/arm64 with Xcode 26.6.
+- [Focused exclusions](https://github.com/Patrick-M-Bourget/mac-cleaner/actions/runs/39963988565)
+  passed **2/2** (234.556 seconds); the [source-equivalent predecessor sequence](https://github.com/Patrick-M-Bourget/mac-cleaner/actions/runs/39964019612)
+  passed **6/6** (368.168 seconds). These retain real public controls and exact
+  full-frame assertions. Capture presets are 1024 × 640 and 900 × 640 on this
+  constrained host; native 1120 × 760 desktop runtime remains unqualified.
 - Clean hosted history/scanner captures and completed journeys are recorded
   in [history validation](history-reset.md) and
   [directory validation](directory-stability.md). Clean diagnostics evidence

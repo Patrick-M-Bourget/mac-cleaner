@@ -200,4 +200,8 @@ With `--future-milestones`, Overview offers **Review diagnostics** then native *
 
 [Independent implementation review](validation/implementation-review.md) records
 the Standards and Spec review checkpoints, resolved findings and remaining
-qualification boundaries through `d230958`.
+qualification boundaries through `524f878`.
+
+## Approved-reference visual refinement
+
+The shared system's [October 23 fidelity pass](validation/visual-fidelity.md) aligns the palette, navigation, brand, hierarchy, grouped capacity/selection evidence and native action sizing with the approved references. Source `7a7199f` preserves the native recheck button after a focused public journey caught a link-style regression. Final source `524f878` qualifies the capture presets and all 34 native journeys. New native captures have their own source/run/hash manifest; original reference and earlier checkpoint evidence remain intact.
