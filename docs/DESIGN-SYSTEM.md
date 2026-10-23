@@ -78,13 +78,14 @@ This inventory identifies migration ownership, not feature completion. See [DEVE
 | Folder inspection / `FolderInspection.swift` | Header, summary/status, inspectable rows and inspector; loading, partial/denied, empty, unknown sizes, selected/mixed controls |
 | Cloud inventory / `CloudInventoryView.swift` | Category badge, summary and status; metadata evidence and unsupported guidance, no invented eviction eligibility |
 | Live plan and confirmation / `SessionPlan.swift` | Selection summary, category checkbox, inline item refinement, stable action strip, bounded exact-target confirmation; zero/mixed selections, pending/unavailable targets, disabled review, Cancel/focus return |
+| Cleanup execution / `CleanupExecutionView.swift` | Shared page/summary/settings/status composition; running/cancel request, per-target outcomes, planned versus observed bytes and actual returned Reveal locations |
 | Locations & access and History shell / `StillApp.swift` | Settings/empty-state vocabulary; current limitations explicit |
 | Alerts / `StorageAlerts.swift`; login / `AppLifecycle.swift` | Page/settings/status rows; off, blocked permission, unavailable capacity, snoozed and independent login status |
 | Homebrew / `HomebrewInspection.swift`; pip / `PipInspection.swift`; Docker / `DockerInspection.swift` | Secondary future-scope pages, shared headers/status/summaries; explicit inspection, unavailable/unsupported/timeouts and read-only opportunity reports |
 | Managed storage / `ManagedStorageView.swift` | Secondary read-only guidance, shared headers/status; selected metadata and ownership uncertainty |
 | Component gallery / `DesignGallery.swift` | Developer-only representative components, light/dark, opaque chrome and native selection states |
 
-Future routes retain their feature gates. Browser cleanup, executor results/recovery, full history, growth and additional roadmap screens must use these primitives when implemented; their presence in the handoff is not evidence they ship today. No scenario picker, sample measurements or gallery toggle belongs in production navigation.
+Future routes retain their feature gates. Browser cleanup, startup recovery, full history, growth and additional roadmap screens must use these primitives when implemented; their presence in the handoff is not evidence they ship today. No scenario picker, sample measurements or gallery toggle belongs in production navigation.
 
 ## Native behavior and accessibility
 

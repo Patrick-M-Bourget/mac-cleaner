@@ -85,6 +85,9 @@ public actor RefreshValidator {
             guard !Task.isCancelled else { return RefreshOutcome(request: request, replacements: [:], complete: false) }
             guard let item = observations[original.id],
                   let fresh = try? PlanDraft.freshCandidate(item, in: scan, downloads: original.downloadsRoot, preservingScope: original.scope),
+                  fresh.scopeCanonicalURL == original.scopeCanonicalURL,
+                  fresh.scopeResourceID == original.scopeResourceID,
+                  fresh.volumeID == original.volumeID,
                   fresh.logicalBytes == original.logicalBytes,
                   fresh.modifiedSeconds == original.modifiedSeconds,
                   fresh.modifiedNanoseconds == original.modifiedNanoseconds else { continue }

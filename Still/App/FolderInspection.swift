@@ -47,6 +47,7 @@ final class FolderInspection {
     }
 
     func scan(_ url: URL) {
+        guard !selection.execution.isRunning else { return }
         cancel()
         previewURL = nil
         closePreviewAccess()
@@ -210,7 +211,7 @@ struct FolderInspectionView: View {
                     ForEach(result.observations.filter { search.isEmpty || $0.url.path.localizedCaseInsensitiveContains(search) }) { item in
                         InspectableItemRow(name: item.url.lastPathComponent, detail: relative(item.url, to: result.scope), size: item.kind == .file ? bytes(item.logicalBytes) : item.kind.rawValue, symbol: item.kind == .file ? "doc" : "folder", inspected: model.selected?.id == item.id, inspect: { model.selected = item }) {
                             if selection.eligible(item, in: result) {
-                                Toggle("Select \(item.url.lastPathComponent)", isOn: Binding(get: { selection.draft.contains(item) }, set: { selection.set(item, in: result, selected: $0) })).labelsHidden().disabled(selection.isPreparing || (model.isScanning && !selection.draft.contains(item)))
+                                Toggle("Select \(item.url.lastPathComponent)", isOn: Binding(get: { selection.draft.contains(item) }, set: { selection.set(item, in: result, selected: $0) })).labelsHidden().disabled(selection.isPreparing || selection.execution.isRunning || (model.isScanning && !selection.draft.contains(item)))
                             } else {
                                 Image(systemName: "lock").foregroundStyle(.secondary).help("Browse only · outside eligible Downloads or protected/unknown target").accessibilityLabel("Browse only · protected or ineligible target")
                             }

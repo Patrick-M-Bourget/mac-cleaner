@@ -98,7 +98,7 @@ private struct WorkspaceView: View {
     private var showsPlan: Bool { destination == .plan && !inspecting && !nativeInspectionVisible && !homebrewVisible && !pipVisible && !dockerVisible && !managedStorageVisible }
     private var inspectionVisible: Bool { inspecting || nativeInspectionVisible }
     private var contextLabel: String {
-        managedStorageVisible ? "App-managed inventory · selected objects only" : folderInspection.scope != nil ? "Read-only metadata · explicitly selected folder" : fixtureMode ? "Synthetic data — no personal files accessed" : "On-demand storage review"
+        selection.execution.isRunning ? "Moving approved files to Trash" : selection.execution.result != nil ? "Cleanup results · individual outcomes" : managedStorageVisible ? "App-managed inventory · selected objects only" : folderInspection.scope != nil ? "Read-only metadata · explicitly selected folder" : fixtureMode ? "Synthetic data — no personal files accessed" : "On-demand storage review"
     }
 
     var body: some View {
@@ -132,7 +132,7 @@ private struct WorkspaceView: View {
             .background { ChromeSurface(role: .sidebar) }
             Divider()
             VStack(alignment: .leading, spacing: 0) {
-                if showsPlan && !selection.scans.isEmpty {
+                if showsPlan && (!selection.scans.isEmpty || selection.execution.isRunning || selection.execution.result != nil || selection.execution.error != nil) {
                     LiveCleanupPlanView(selection: selection, recheck: { folderInspection.scan($0) }, stopRefresh: { folderInspection.cancel() })
                 } else {
                 ScrollView {
@@ -247,7 +247,7 @@ private struct WorkspaceView: View {
                 Text("\(result.observations.count) entries observed · \(result.isComplete ? "Completed" : "Partial coverage")")
                 Text("Complete scope logical bytes: \(result.totalLogicalBytes.map(String.init) ?? "Unknown") · Complete scope allocated bytes: \(result.totalAllocatedBytes.map(String.init) ?? "Unknown")")
                     .foregroundStyle(.secondary)
-                Text("These totals describe the selected scope, separately from startup-volume capacity. Eligible Downloads files can be selected for review; no files are moved in this build.")
+                Text("These totals describe the selected scope, separately from startup-volume capacity. Scan inventory is read-only. Moving selected Downloads files requires final confirmation.")
                     .font(.callout).foregroundStyle(.secondary)
             }
             else if folderInspection.scope == nil && fixtureMode {
@@ -319,14 +319,14 @@ private struct WorkspaceView: View {
                 }
             }
             }
-            Text("Selection and cleanup are unavailable in this inspection milestone.").font(.callout).foregroundStyle(.secondary)
+            Text("Choose and scan Downloads to build a plan. Nothing is selected automatically.").font(.callout).foregroundStyle(.secondary)
         }
     }
 
     private var history: some View {
         VStack(alignment: .leading, spacing: 20) {
-            heading("History", "Completed cleanup results will appear here.")
-            EmptyState(title: "No cleanup has run", detail: "Completed results will appear here after cleanup is available. No files have been moved.", symbol: "clock")
+            heading("History", "Local cleanup records")
+            EmptyState(title: "Saved history is not displayed yet", detail: "Open Cleanup plan for the current session’s results. Durable operation records are retained separately.", symbol: "clock")
         }
     }
 

@@ -20,6 +20,9 @@ public struct PlannedTarget: Sendable, Identifiable {
     public let url: URL
     public let resourceID: String
     public let scope: URL
+    public let scopeCanonicalURL: URL
+    public let scopeResourceID: String
+    public let volumeID: String
     public let downloadsRoot: DownloadsRoot
     public let observedAt: Date
     public let modifiedSeconds: Int64
@@ -129,7 +132,8 @@ public struct PlanDraft: Sendable {
         let rootParts = downloads.url.pathComponents
         let pathParts = item.url.pathComponents
         let targetScope = preservingScope ?? scan.scope
-        let scopeParts = try DownloadsRoot(url: targetScope).url.pathComponents
+        let scopedRoot = try DownloadsRoot(url: targetScope)
+        let scopeParts = scopedRoot.url.pathComponents
         guard scopeParts.starts(with: rootParts), pathParts.starts(with: rootParts), pathParts.count > rootParts.count else { throw PlanSelectionError.ineligible }
         var ancestor = downloads.url
         let protectedExtensions = Set(["app", "bundle", "framework", "xcarchive", "dsym", "photoslibrary", "photolibrary", "musiclibrary", "library", "backupbundle", "sparsebundle", "band", "logicx", "db", "sqlite", "sqlite3"])
@@ -143,7 +147,8 @@ public struct PlanDraft: Sendable {
         var info = stat()
         guard lstat(item.url.path, &info) == 0, info.st_mode & S_IFMT == S_IFREG,
               "\(info.st_dev):\(info.st_ino)" == item.resourceID, Int64(info.st_size) == item.logicalBytes else { throw PlanSelectionError.ineligible }
-        return PlannedTarget(url: item.url, resourceID: item.resourceID, scope: targetScope, downloadsRoot: downloads,
+        guard let volumeID = try item.url.resourceValues(forKeys: [.volumeUUIDStringKey]).volumeUUIDString else { throw PlanSelectionError.ineligible }
+        return PlannedTarget(url: item.url, resourceID: item.resourceID, scope: targetScope, scopeCanonicalURL: scopedRoot.url, scopeResourceID: scopedRoot.resourceID, volumeID: volumeID, downloadsRoot: downloads,
             observedAt: scan.observedAt, modifiedSeconds: Int64(info.st_mtimespec.tv_sec), modifiedNanoseconds: Int64(info.st_mtimespec.tv_nsec),
             logicalBytes: Int64(info.st_size), allocatedBytes: item.allocatedBytes)
     }

@@ -234,3 +234,25 @@ private struct RefreshDeniedAccess: ScanAccessChecking {
     #expect(refresh.canReview(draft))
     #expect(draft.selected.first?.scope == authority)
 }
+
+@Test func replacingSelectedChildScopeCannotRebaseItsAuthorityDuringAncestorRefresh() async throws {
+    let base = FileManager.default.temporaryDirectory.appendingPathComponent("StillRefresh-" + UUID().uuidString)
+    let root = base.appendingPathComponent("Project"), previous = base.appendingPathComponent("Previous")
+    try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: base) }
+    let file = root.appendingPathComponent("chosen.pdf")
+    try Data([1]).write(to: file)
+    let scanner = FolderScanner(supplement: RefreshLocalMetadata())
+    let initial = try await scanner.scan(root)
+    var draft = PlanDraft()
+    try draft.select(try #require(initial.observations.first), in: initial, downloadsRoot: base)
+    var refresh = RefreshChoices()
+    let request = refresh.begin(scope: base, draft: &draft)
+    try FileManager.default.moveItem(at: root, to: previous)
+    try FileManager.default.createDirectory(at: root, withIntermediateDirectories: false)
+    try FileManager.default.linkItem(at: previous.appendingPathComponent("chosen.pdf"), to: file)
+    let fresh = try await scanner.scan(base)
+    refresh.finish(await RefreshValidator().validate(request, against: fresh), draft: &draft)
+    #expect(draft.selectedCount == 0)
+    #expect(refresh.notices.count == 1)
+}

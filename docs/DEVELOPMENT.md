@@ -136,6 +136,16 @@ The execution ticket must consume approval and revalidate target evidence. `Sess
 
 The focused native journey verified category bulk selection, mixed refinement, bounded confirmation geometry and Cancel preserving choices. It exposed unreliable keyboard focus restoration. A one-shot AppKit first-responder bridge now compiles, but its verification attempt ended with the UI runner killed during launch before reaching the control. Final approval/focus assertions are not yet qualified. Feature work is checkpointed for the design-system-first migration; do not treat this branch as completed #8 or enable execution from it.
 
+The preceding #8 checkpoint status is historical. Native design-system qualification subsequently verified Cancel focus and final approval; #9 below connects that approved batch to execution.
+
+## Downloads execution (#9)
+
+Final **Move to Trash** now consumes the exact approved batch, journals native operations and shows per-file results with applicable Reveal in Trash actions. No permanent fallback exists. See [executor qualification and concurrency limits](validation/downloads-executor.md). Tests mutate only owned disposable fixtures. Launch recovery and completed-history management remain subsequent tickets; journal evidence persists independently of the session plan.
+
 ## Bounded progressive metadata scans (#34)
 
 The optional public progress/cancellation boundary, bounded native updates and per-entry memory handling are documented with owned-tree measurements in [scanner performance evidence](validation/scanner-performance.md). Million-entry/reference-host, compressed-file and real mount/provider qualification remain open. Progress is preliminary and never authorizes cleanup.
+
+## Refreshing selected findings
+
+See [refresh validation](validation/refresh.md) for the per-scope pending-choice contract and disposable test evidence. The focused native journey is `WorkspaceUITests/testRefreshPreservesChoicesAndSearchThenExplainsChangedTargets`. Its DEBUG-only slow metadata boundary activates solely after selecting its explicitly bound owned fixture.

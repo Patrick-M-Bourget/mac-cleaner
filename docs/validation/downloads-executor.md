@@ -1,0 +1,34 @@
+# Downloads native Trash executor — #9
+
+Implementation begins at integration72be4a2. This ticket connects final immutable approval to exact-file native Trash and a local SQLite journal. No personal cleanup was performed by development tools; test mutations used explicitly owned disposable trees only.
+
+## Boundary
+
+Selection freezes original scope URL, canonical scope identity, configured Downloads identity, volume UUID, exact file URL/device/inode, mtime, logical/allocated observations and action. The executor consumes one approval ID durably, validates file type, same-volume descriptor-relative ancestors, protection rules, scope/root identity, access, size/mtime and local non-cloud metadata. Native coordination repeats validation immediately before FileManager Trash. No permanent-delete fallback, folder cleanup, cloud eviction, filename search, renamed-target substitution or automatic retry exists.
+
+Apple's [native Trash API](https://developer.apple.com/documentation/foundation/filemanager/trashitem(at:resultingitemurl:)) supplies the resulting URL and may rename the file. We retain only that actual returned URL, check its identity when available, and reveal it using Finder. [NSFileCoordinator](https://developer.apple.com/documentation/foundation/nsfilecoordinator) coordinates participating presenters. Neither API supplies an atomic expected-inode compare-and-trash operation. Descriptor checks and cooperating coordination reduce concurrent-change exposure, but an uncoordinated rename can still race the final pathname operation. This is a documented native API limit, not an atomic-batch guarantee or a new approval flow. Deterministic pre-operation swaps are rejected.
+
+A thrown operation with a still-matching original is failed. Missing/changed original after an operation throws is unknown, never inferred success. Unknown outcomes stop later targets. Cancellation stops new targets; current native call finishes before a safe Quit boundary. Unexecuted plans remain session-only.
+
+## Persistence and results
+
+`SQLiteCleanupJournal` uses a private local Application Support/Still database, mode0600, schema version1, serialized writer, WAL, synchronous FULL and fullfsync ON (queried back). See [SQLite synchronous/fullfsync](https://sqlite.org/pragma.html). These are platform durability measures, not a power-loss certification. The batch and frozen target evidence commit before work; each target's intent commits before the operation and outcome afterward. SQLite and Trash are separate transactions. Intent-write failure prevents that operation. Outcome-write failure leaves durable unresolved intent, reports unknown and halts later targets. Batch uniqueness rejects replay after reopening.
+
+Public `records()` exposes pending, intent and terminal evidence for subsequent recovery/history tickets. Pending means no operation started; intent without terminal outcome is unresolved. No launch reconciliation, retry, completed-history retention or Reset feature is claimed here (#11/#12 remain separate).
+
+Results distinguish planned logical size, the planned allocated estimate associated with known Trash successes, per-target states, and independently sampled startup-capacity change. Unknown outcomes make the held-byte estimate unknown. APFS sharing, regrowth and other processes prevent exact reclaimed-space attribution. A source's absence alone is never success evidence.
+
+## Validation checkpoint
+
+- Red: missing executor/journal API. First real checks also exposed canonical `/var` versus `/private/var` scope handling; original access URL and canonical scope evidence now remain distinct.
+- Red: generic operation moved source then threw; result incorrectly said failed and zero held bytes. Green: unknown, later target cancelled, held bytes unknown, durable unknown evidence.
+- Disposable public tests cover changed size, scope replacement, access loss, deterministic symlink replacement before native validation, native Trash failure, actual native Trash returned identity/location, failed outcome persistence/reopen, batch replay and boundary cancellation.
+- 51 merged core tests passed on local Xcode27.1. Actual native core fixture removes only its own immediately returned Trash URL after identity/content checks.
+- Native 20-file bulk → mixed19 → bounded review → Cancel → Space focus → explicit final Trash →19 successes/results passed31.1seconds, with unchanged window bounds and Light/Dark captures. Minimum-window follow-up initially caught a test targeting an underlying disclosure instead of the sheet. Merging the existing #38 scoped-sheet fix and reducing that fixture to3files gave a passing33.3-second 900×640 journey (2 exact successes), with both appearances and unchanged bounds.
+- The UI run left21 owned one-byte files across the initial and minimum runs in Trash. A later serialized-path cleanup attempt encountered macOS access denial; no broad permission, bypass or Trash-emptying was attempted. Native core tests clean their own returned URLs. Future UI qualification uses the smallest useful fixture count.
+
+Visual evidence uses shared PageHeader, SummarySurface, SettingsRow and StatusRow with existing shell/theme. Captures: [initial light](../visual/downloads-executor/initial-light.png), [initial dark](../visual/downloads-executor/initial-dark.png), [minimum light](../visual/downloads-executor/minimum-light.png), [minimum dark](../visual/downloads-executor/minimum-dark.png). Initial captures precede a correction of the toolbar caption from read-only inspection to results; minimum captures include that correction and the final volume UUID checks. I inspected both initial themes and minimum light: hierarchy matches the shared white/near-black surfaces, wrapped paths remain inside the viewport and applicable Reveal actions remain reachable by scrolling. Keyboard Cancel/Space and geometry assertions are independent of screenshots. VoiceOver, power loss, forced process kill, launch reconciliation and full OS-permission revocation are not claimed by these tests.
+
+Local Xcode27.1 commands: `swift test --package-path Packages/StillCore` (51passed); native tests `WorkspaceUITests/testBulkMixedReviewCancelAndImmutableApprovalKeepWindowStable` and `WorkspaceUITests/testCleanupResultsAtMinimumWindow` via the documented Xcode scheme. Result bundles: `Test-Still-2026.10.22_23-14-10--0400.xcresult` and `Test-Still-2026.10.22_23-23-26--0400.xcresult`.
+
+After merging integrationd6c5b07 (#34 bounded scanning), 58 merged core tests and the native Xcode build passed. Only additive scan-progress and existing #38 sheet-query changes were merged; no new mutation scope was enabled. Overview/empty-plan/History copy now distinguishes scan read-only behavior from the enabled final Trash action and avoids falsely claiming no cleanup has ever run.
