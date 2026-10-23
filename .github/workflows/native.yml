@@ -63,7 +63,15 @@ jobs:
           if [[ "$EVENT_NAME" == "workflow_dispatch" && "$REQUESTED_SUITE" == "exclusions" ]]; then
             scope=(-only-testing:StillUITests/ExclusionsUITests)
           elif [[ "$EVENT_NAME" == "workflow_dispatch" && "$REQUESTED_SUITE" == "overview" ]]; then
-            scope=(-only-testing:StillUITests/WorkspaceUITests/testOverviewFindingsRestoreHierarchyAndPreserveReviewChoices)
+            scope=(
+              -only-testing:StillUITests/WorkspaceUITests/testOverviewFindingsRestoreHierarchyAndPreserveReviewChoices
+              -only-testing:StillUITests/WorkspaceUITests/testOverviewSecondaryToolsRemainReachable
+              -only-testing:StillUITests/CleanupRetryUITests
+              -only-testing:StillUITests/WorkspaceUITests/testInspectingFixturesPreservesWindowAndNeverSelects
+              -only-testing:StillUITests/WorkspaceUITests/testDownloadsScopeGuidanceAndShortcutPreserveInspection
+              -only-testing:StillUITests/WorkspaceUITests/testRefreshPreservesChoicesAndSearchThenExplainsChangedTargets
+              -only-testing:StillUITests/StorageAlertsUITests/testOpenedAlertPreservesContextAndOffersOnlyExplicitScanAcrossThemesAndSizes
+            )
           elif [[ "$EVENT_NAME" == "workflow_dispatch" && "$REQUESTED_SUITE" == "alert-open" ]]; then
             scope=(-only-testing:StillUITests/StorageAlertsUITests/testOpenedAlertPreservesContextAndOffersOnlyExplicitScanAcrossThemesAndSizes)
           elif [[ "$EVENT_NAME" == "workflow_dispatch" && "$REQUESTED_SUITE" == "alerts" ]]; then

@@ -1,14 +1,210 @@
 import XCTest
 import Darwin
 
+@MainActor func revealScrollElement(_ app: XCUIApplication, control: XCUIElement, label: String) {
+    XCTAssertTrue(control.waitForExistence(timeout: 10))
+    for _ in 0..<12 {
+        let viewport = app.scrollViews.firstMatch.frame
+        if viewport.contains(control.frame) { return }
+        app.scrollViews.firstMatch.scroll(byDeltaX: 0, deltaY: control.frame.minY < viewport.minY ? 220 : -220)
+    }
+    XCTAssertTrue(app.scrollViews.firstMatch.frame.contains(control.frame), label)
+}
+@MainActor func revealOverviewControl(_ app: XCUIApplication, label: String) {
+    revealScrollElement(app, control: app.buttons[label], label: label)
+}
+@MainActor func revealOverviewTool(_ app: XCUIApplication, label: String) {
+    revealOverviewControl(app, label: "More tools")
+    let more = app.buttons["More tools"]
+    if more.value as? String != "Expanded" { more.click() }
+    revealOverviewControl(app, label: label)
+}
+
 final class WorkspaceUITests: XCTestCase {
     @MainActor func testOverviewFindingsRestoreHierarchyAndPreserveReviewChoices() throws {
         continueAfterFailure = false
+        let manager = FileManager.default
+        for minimum in [false, true] {
+            let root = manager.temporaryDirectory.resolvingSymlinksInPath().appendingPathComponent("StillSelectionUI-" + UUID().uuidString)
+            let other = manager.temporaryDirectory.resolvingSymlinksInPath().appendingPathComponent("StillBrowseUI-" + UUID().uuidString)
+            let token = UUID().uuidString
+            let state = manager.temporaryDirectory.resolvingSymlinksInPath().appendingPathComponent("StillTestState-" + token)
+            let child = root.appendingPathComponent("Child")
+            let denied = other.appendingPathComponent("Unreadable")
+            for url in [root, other, state, child] { try manager.createDirectory(at: url, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700]) }
+            try Data(token.utf8).write(to: state.appendingPathComponent(".still-owned-test-state"))
+            defer {
+                try? manager.setAttributes([.posixPermissions: 0o700], ofItemAtPath: denied.path)
+                for url in [root, other, state] { try? manager.removeItem(at: url) }
+            }
+            let target = root.appendingPathComponent("A-review-target.pdf")
+            let original = Data(repeating: 65, count: 4 * 1024 * 1024)
+            try Data([1, 2, 3]).write(to: other.appendingPathComponent("browse-only.txt"))
+            var rootID = stat(); XCTAssertEqual(lstat(root.path, &rootID), 0)
+            var stateID = stat(); XCTAssertEqual(lstat(state.path, &stateID), 0)
+            let app = XCUIApplication()
+            app.launchArguments = ["--ui-test-downloads-root", "--ui-test-slow-refresh", minimum ? "--design-minimum" : "--design-initial-size"]
+            app.launchEnvironment["STILL_TEST_DOWNLOADS_ROOT"] = root.path
+            app.launchEnvironment["STILL_TEST_DOWNLOADS_ID"] = "\(rootID.st_dev):\(rootID.st_ino)"
+            app.launchEnvironment["STILL_TEST_STATE_ROOT"] = state.path
+            app.launchEnvironment["STILL_TEST_STATE_ID"] = "\(stateID.st_dev):\(stateID.st_ino)"
+            app.launch()
+            defer { app.terminate() }
+            XCTAssertTrue(app.staticTexts["Recommended for review"].waitForExistence(timeout: 10))
+            XCTAssertTrue(app.staticTexts["Scanned locations"].exists)
+            let bounds = app.windows.firstMatch.frame
+            func capture(_ name: String, bothPages: Bool = true, findingsOnly: Bool = false) {
+                for theme in ["Light", "Dark"] {
+                    app.popUpButtons["Appearance"].click(); app.menuItems[theme].click()
+                    app.scrollViews.firstMatch.scroll(byDeltaX: 0, deltaY: findingsOnly ? -3000 : 3000)
+                    let top = XCTAttachment(screenshot: app.windows.firstMatch.screenshot())
+                    top.name = "overview-" + name + (findingsOnly ? "-findings-" : "-top-") + (minimum ? "minimum-" : "initial-") + theme
+                    top.lifetime = .keepAlways; add(top)
+                    if bothPages && !findingsOnly {
+                        app.scrollViews.firstMatch.scroll(byDeltaX: 0, deltaY: -3000)
+                        let findings = XCTAttachment(screenshot: app.windows.firstMatch.screenshot())
+                        findings.name = "overview-" + name + "-findings-" + (minimum ? "minimum-" : "initial-") + theme
+                        findings.lifetime = .keepAlways; add(findings)
+                    }
+                    XCTAssertEqual(app.windows.firstMatch.frame, bounds)
+                }
+                app.scrollViews.firstMatch.scroll(byDeltaX: 0, deltaY: 3000)
+            }
+            func captureRefresh(_ theme: String) {
+                app.popUpButtons["Appearance"].click(); app.menuItems[theme].click()
+                app.scrollViews.firstMatch.scroll(byDeltaX: 0, deltaY: 3000)
+                let image = XCTAttachment(screenshot: app.windows.firstMatch.screenshot())
+                image.name = "overview-refreshing-top-" + (minimum ? "minimum-" : "initial-") + theme
+                image.lifetime = .keepAlways; add(image)
+                XCTAssertTrue(app.buttons["Stop scan"].exists)
+                XCTAssertEqual(app.windows.firstMatch.frame, bounds)
+            }
+            func scan(_ url: URL) {
+                app.typeKey("1", modifierFlags: .command)
+                app.scrollViews.firstMatch.scroll(byDeltaX: 0, deltaY: 3000)
+                app.buttons["Choose folder…"].click()
+                app.typeKey("g", modifierFlags: [.command, .shift])
+                let field = app.textFields.firstMatch
+                XCTAssertTrue(field.waitForExistence(timeout: 5)); field.typeKey("a", modifierFlags: .command); field.typeText(url.path)
+                app.typeKey(.return, modifierFlags: [])
+                app.dialogs.buttons["Scan folder"].click()
+                XCTAssertTrue(app.staticTexts["Observed"].waitForExistence(timeout: 90))
+            }
+            func selectedOne() -> XCUIElement { app.staticTexts.matching(NSPredicate(format: "value == %@ OR label == %@", "1 file selected", "1 file selected")).firstMatch }
+            capture("unscanned")
+            scan(root)
+            app.typeKey("1", modifierFlags: .command)
+            let emptyFinding = app.descendants(matching: .any)["overviewDownloadsFinding"].firstMatch
+            XCTAssertTrue(emptyFinding.waitForExistence(timeout: 5))
+            XCTAssertTrue((emptyFinding.value as? String ?? "").contains("No eligible files"))
+            try original.write(to: target)
+            try manager.linkItem(at: target, to: child.appendingPathComponent("hard-link.pdf"))
+            for index in 0..<600 { try Data(repeating: 1, count: 16).write(to: root.appendingPathComponent("batch-\(index).txt")) }
+            app.buttons["Scan again"].click()
+            XCTAssertTrue(app.buttons["Stop scan"].waitForExistence(timeout: 5))
+            XCTAssertTrue(app.buttons["Scan again"].waitForExistence(timeout: 90))
+            scan(child) // Overlap/hard links must not inflate the Overview review amount.
+            app.typeKey("1", modifierFlags: .command)
+            let reviewFiles = app.buttons["Review files"]
+            XCTAssertTrue(reviewFiles.waitForExistence(timeout: 5))
+            XCTAssertTrue((reviewFiles.value as? String ?? "").contains("4.2 MB"))
+            XCTAssertTrue((reviewFiles.value as? String ?? "").contains("Logical file size"))
+            capture("findings")
+            revealOverviewControl(app, label: "Review iCloud inventory")
+            app.buttons["Review iCloud inventory"].click()
+            XCTAssertTrue(app.staticTexts["iCloud in this scan"].waitForExistence(timeout: 5))
+            capture("cloud-evidence", bothPages: false, findingsOnly: true)
+            revealOverviewControl(app, label: "Hide iCloud inventory")
+            app.buttons["Hide iCloud inventory"].click()
+            revealOverviewControl(app, label: "Review files")
+            app.buttons["Review files"].click()
+            XCTAssertTrue(app.staticTexts["Folder inspection"].waitForExistence(timeout: 5))
+            XCTAssertTrue(app.staticTexts["0 files selected"].exists)
+            let initialSearch = app.textFields["Search inspected files"]
+            revealScrollElement(app, control: initialSearch, label: "Search inspected files")
+            initialSearch.click(); initialSearch.typeKey("a", modifierFlags: .command); initialSearch.typeText(target.lastPathComponent)
+            let checkbox = app.checkBoxes.matching(NSPredicate(format: "label CONTAINS %@", target.lastPathComponent)).firstMatch
+            revealScrollElement(app, control: checkbox, label: target.lastPathComponent)
+            checkbox.click()
+            XCTAssertTrue(selectedOne().waitForExistence(timeout: 5))
+            app.buttons["View cleanup plan"].click()
+            app.buttons["Review cleanup"].click()
+            XCTAssertTrue(app.sheets.buttons["Move to Trash"].waitForExistence(timeout: 5))
+            app.sheets.buttons["Cancel"].click()
+            XCTAssertTrue(selectedOne().waitForExistence(timeout: 5))
+            scan(other) // Focus moves outside Downloads; review must still open its actual Downloads report.
+            app.typeKey("1", modifierFlags: .command)
+            revealOverviewControl(app, label: "Review files")
+            app.buttons["Review files"].click()
+            let returnedSearch = app.textFields["Search inspected files"]
+            revealScrollElement(app, control: returnedSearch, label: "Search inspected files")
+            returnedSearch.click(); returnedSearch.typeKey("a", modifierFlags: .command); returnedSearch.typeText(target.lastPathComponent)
+            XCTAssertTrue(app.checkBoxes.matching(NSPredicate(format: "label CONTAINS %@", target.lastPathComponent)).firstMatch.waitForExistence(timeout: 5))
+            XCTAssertTrue(selectedOne().exists)
+            try Data([7]).write(to: root.appendingPathComponent("new-download.txt"))
+            try Data([8]).write(to: other.appendingPathComponent("new-browse.txt"))
+            app.typeKey("1", modifierFlags: .command)
+            app.scrollViews.firstMatch.scroll(byDeltaX: 0, deltaY: 3000)
+            app.buttons["Scan again"].click()
+            XCTAssertTrue(app.buttons["Stop scan"].waitForExistence(timeout: 5))
+            captureRefresh("Light")
+            app.buttons["Stop scan"].click()
+            XCTAssertTrue(app.buttons["Scan again"].waitForExistence(timeout: 5))
+            app.buttons["Scan again"].click() // A cancelled generation must not stop this new queue.
+            XCTAssertTrue(app.buttons["Stop scan"].waitForExistence(timeout: 5))
+            captureRefresh("Dark")
+            XCTAssertTrue(app.buttons["Scan again"].waitForExistence(timeout: 90))
+            app.buttons["Explore storage"].click()
+            let search = app.textFields["Search inspected files"]
+            revealScrollElement(app, control: search, label: "Search inspected files")
+            search.click(); search.typeKey("a", modifierFlags: .command); search.typeText("new-download.txt")
+            XCTAssertTrue(app.staticTexts["new-download.txt"].waitForExistence(timeout: 5))
+            search.typeKey("a", modifierFlags: .command); search.typeKey(.delete, modifierFlags: [])
+            XCTAssertTrue(selectedOne().exists)
+            revealOverviewControl(app, label: other.lastPathComponent + " · Observed")
+            app.buttons[other.lastPathComponent + " · Observed"].click()
+            XCTAssertTrue(app.staticTexts["new-browse.txt"].waitForExistence(timeout: 5))
+            XCTAssertFalse(app.checkBoxes.matching(NSPredicate(format: "label CONTAINS %@", "new-browse.txt")).firstMatch.exists)
+            try manager.createDirectory(at: denied, withIntermediateDirectories: false)
+            try Data([9]).write(to: denied.appendingPathComponent("not-readable.txt"))
+            try manager.setAttributes([.posixPermissions: 0o000], ofItemAtPath: denied.path)
+            scan(other)
+            XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "value CONTAINS %@ OR label CONTAINS %@", "Partial coverage", "Partial coverage")).firstMatch.waitForExistence(timeout: 10))
+            app.typeKey("1", modifierFlags: .command)
+            let coverage = app.staticTexts["overviewScopeCoverage"]
+            XCTAssertTrue(coverage.waitForExistence(timeout: 5))
+            XCTAssertTrue((coverage.value as? String ?? coverage.label).contains("Remaining bytes unknown"))
+            capture("partial-browse-only")
+            XCTAssertEqual(try Data(contentsOf: target), original)
+            try manager.removeItem(at: root) // Only this test's owned scope; failed coverage is not an empty Downloads finding.
+            app.scrollViews.firstMatch.scroll(byDeltaX: 0, deltaY: 3000)
+            app.buttons["Scan again"].click()
+            XCTAssertTrue(app.buttons["Scan again"].waitForExistence(timeout: 90))
+            let unavailable = app.descendants(matching: .any)["overviewDownloadsFinding"].firstMatch
+            XCTAssertTrue(unavailable.waitForExistence(timeout: 5))
+            let unknownState = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+                (unavailable.value as? String ?? "").contains("Unknown")
+            }, object: unavailable)
+            XCTAssertEqual(XCTWaiter.wait(for: [unknownState], timeout: 30), .completed)
+            XCTAssertTrue(app.buttons["Scan again"].waitForExistence(timeout: 10))
+            XCTAssertFalse((unavailable.value as? String ?? "").contains("No eligible files"))
+            capture("unavailable-downloads", bothPages: false, findingsOnly: true)
+            app.terminate()
+        }
+    }
+
+    @MainActor func testOverviewSecondaryToolsRemainReachable() {
+        continueAfterFailure = false
         let app = XCUIApplication()
-        app.launch()
-        defer { app.terminate() }
-        XCTAssertTrue(app.staticTexts["Recommended for review"].waitForExistence(timeout: 10))
-        XCTAssertTrue(app.staticTexts["Scanned locations"].exists)
+        app.launchArguments = ["--future-milestones", "--design-minimum"]
+        app.launch(); defer { app.terminate() }
+        for (label, page) in [("Review Docker storage", "Docker storage"), ("Review Homebrew opportunities", "Homebrew opportunities"), ("Review pip cache opportunities", "Pip cache opportunities"), ("Review app-managed storage", "App-managed storage"), ("Review diagnostics", "Diagnostics")] {
+            revealOverviewTool(app, label: label)
+            app.buttons[label].click()
+            XCTAssertTrue(app.buttons["Back to Overview"].waitForExistence(timeout: 5), page)
+            app.buttons["Back to Overview"].click()
+            XCTAssertTrue(app.staticTexts["Recommended for review"].waitForExistence(timeout: 5))
+        }
     }
 
     @MainActor
@@ -20,6 +216,7 @@ final class WorkspaceUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Synthetic data — no personal files accessed"].waitForExistence(timeout: 10))
         let window = app.windows.firstMatch
         let bounds = window.frame
+        revealOverviewControl(app, label: "Review Downloads")
         app.buttons["Review Downloads"].click()
         XCTAssertTrue(app.staticTexts["Downloads inspection"].exists)
         app.buttons["Inspect Summer trip.mov"].click()
@@ -303,7 +500,8 @@ final class WorkspaceUITests: XCTestCase {
         for theme in ["Light", "Dark"] {
             app.popUpButtons.firstMatch.click(); app.menuItems[theme].click()
             app.typeKey("1", modifierFlags: .command); capture("overview-" + theme)
-            app.buttons["Review Downloads"].click(); capture("inspection-" + theme)
+            revealOverviewControl(app, label: "Review Downloads")
+        app.buttons["Review Downloads"].click(); capture("inspection-" + theme)
             app.buttons["View cleanup plan"].click(); capture("plan-" + theme)
             app.typeKey("4", modifierFlags: .command); capture("settings-" + theme)
         }
@@ -432,6 +630,11 @@ final class WorkspaceUITests: XCTestCase {
             app.typeKey(.return, modifierFlags: []); app.dialogs.buttons["Scan folder"].click()
             XCTAssertTrue(app.staticTexts["Observed"].waitForExistence(timeout: 10))
             check("inspection")
+            app.typeKey("1", modifierFlags: .command)
+            let uninspectedDownloads = app.descendants(matching: .any)["overviewDownloadsFinding"].firstMatch
+            XCTAssertTrue(uninspectedDownloads.waitForExistence(timeout: 5))
+            XCTAssertTrue((uninspectedDownloads.value as? String ?? "").contains("Not inspected"))
+            app.buttons["Explore storage"].click()
             XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "value == %@", root.path)).firstMatch.exists)
             XCTAssertFalse(app.checkBoxes.matching(NSPredicate(format: "label CONTAINS %@", file.lastPathComponent)).firstMatch.exists)
             app.typeKey("2", modifierFlags: .command)

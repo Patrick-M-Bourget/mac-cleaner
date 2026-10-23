@@ -7,6 +7,7 @@ final class ManagedStorageUITests: XCTestCase {
         let app = XCUIApplication()
         app.launchArguments = ["--future-milestones"]
         app.launch()
+        revealOverviewTool(app, label: "Review app-managed storage")
         XCTAssertTrue(app.buttons["Review app-managed storage"].waitForExistence(timeout: 5))
         let frame = app.windows.firstMatch.frame
         app.buttons["Review app-managed storage"].click()

@@ -31,11 +31,12 @@ The app target owns these internal SwiftUI components; they are presentation pri
 |---|---|
 | `PageHeader` | Quiet page title and optional single explanatory subtitle |
 | `SummarySurface`, `SelectionSummary`, `VolumeSummary` | Subdued grouped evidence, selected-for-Trash value/detail/consequence and observed startup-volume capacity |
+| `RecommendationGroup`, `StorageReviewRow` | Bordered reading-plane category group with shared dividers; badge/title/consequence and trailing amount/meaning; active rows expose action, category, consequence and amount through accessibility, unavailable rows have no dead affordance |
 | `FindingRow`, `CategoryBadge` | Category hierarchy, consequence and explicit accessory action |
 | `InspectableItemRow` | Separate selection control from filename inspection; size aligned at trailing edge |
 | `MacroCategoryCheckbox`, `CategorySelectionHeader` | Native AppKit unchecked/mixed/checked selection; checkbox → badge → category evidence → trailing size composition |
 | `ScanProgressSummary` | Bounded preliminary metadata evidence, explicit enumeration/recheck/stability phase, unknown remaining coverage; native spinner plus accessible phase text, no cleanup controls |
-| `CleanupScopeNotice` | Shared Downloads-only explanation and native choose-folder shortcut; enabled and disabled gallery examples |
+| `CleanupScopeNotice` | Default stacked or compact Overview Downloads-only explanation and native choose-folder shortcut; enabled and disabled gallery examples |
 | `StatusRow`, `EmptyState` | Honest status, blocked/error explanation, or no findings yet |
 | `SettingsRow` | Setting title, explanation and native controls |
 | `AppBrand`, `StillSidebarRow`, `ChromeSurface` | Shared brand, persistent native navigation, destination accents and adaptive chrome |

@@ -148,6 +148,53 @@ struct FindingRow<Accessory: View>: View {
         }.padding(.vertical, StillDesign.Space.md)
     }
 }
+/// One quiet review group: category colors identify storage, never cleanup safety.
+struct RecommendationGroup<Content: View>: View {
+    @ViewBuilder let content: () -> Content
+    var body: some View {
+        VStack(spacing: 0, content: content)
+            .background(StillDesign.reading, in: RoundedRectangle(cornerRadius: StillDesign.Radius.surface))
+            .overlay { RoundedRectangle(cornerRadius: StillDesign.Radius.surface).strokeBorder(StillDesign.separator, lineWidth: 0.5) }
+    }
+}
+struct StorageReviewRow: View {
+    let category: StorageCategory
+    let title: String
+    let detail: String
+    let value: String
+    let meaning: String
+    var actionTitle: String? = nil
+    var action: (() -> Void)? = nil
+    var identifier = ""
+    var body: some View {
+        Group {
+        if let action {
+            Button(action: action) { contents }.buttonStyle(.plain)
+                .accessibilityLabel(actionTitle ?? title)
+                .accessibilityValue("\(title) · \(detail) · \(value) · \(meaning)")
+        }
+        else {
+            contents.accessibilityElement(children: .combine).accessibilityLabel(title)
+                .accessibilityValue("\(detail) · \(value) · \(meaning)")
+        }
+        }.accessibilityIdentifier(identifier)
+    }
+    private var contents: some View {
+        HStack(spacing: StillDesign.Space.lg) {
+            CategoryBadge(category: category)
+            VStack(alignment: .leading, spacing: StillDesign.Space.xs) {
+                Text(title).font(StillDesign.TypeStyle.section)
+                Text(detail).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            }.frame(maxWidth: .infinity, alignment: .leading)
+            VStack(alignment: .trailing, spacing: StillDesign.Space.xs) {
+                Text(value).font(StillDesign.TypeStyle.section).monospacedDigit()
+                Text(meaning).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            }.multilineTextAlignment(.trailing)
+            if action != nil { Image(systemName: "chevron.right").font(.caption).foregroundStyle(.secondary) }
+        }.padding(StillDesign.Space.lg).frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
+    }
+}
+
 struct EmptyState: View {
     let title: String
     let detail: String
@@ -519,11 +566,21 @@ struct ScanProgressSummary: View {
 /// Shared current-build scope guidance; the shortcut still requires native folder approval.
 struct CleanupScopeNotice: View {
     var enabled = true
+    var compact = false
     let chooseDownloads: () -> Void
     var body: some View {
-        VStack(alignment: .leading, spacing: StillDesign.Space.sm) {
-            StatusRow(text: "Cleanup currently supports files in Downloads only. Other folders are inspection only.", symbol: "info.circle", identifier: "cleanupScopeNotice")
-            Button("Choose Downloads…", action: chooseDownloads).disabled(!enabled)
+        if compact {
+            HStack(spacing: StillDesign.Space.md) {
+                Text("Cleanup currently supports files in Downloads only. Other folders are inspection only.")
+                    .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading).accessibilityIdentifier("cleanupScopeNotice")
+                Button("Choose Downloads…", action: chooseDownloads).disabled(!enabled)
+            }
+        } else {
+            VStack(alignment: .leading, spacing: StillDesign.Space.sm) {
+                StatusRow(text: "Cleanup currently supports files in Downloads only. Other folders are inspection only.", symbol: "info.circle", identifier: "cleanupScopeNotice")
+                Button("Choose Downloads…", action: chooseDownloads).disabled(!enabled)
+            }
         }
     }
 }

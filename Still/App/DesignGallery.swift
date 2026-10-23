@@ -20,6 +20,15 @@ struct DesignGallery: View {
                     PageHeader(title: "Native design system", subtitle: "Developer examples only · No personal storage measurements")
                     CleanupScopeNotice(chooseDownloads: {})
                     CleanupScopeNotice(enabled: false, chooseDownloads: {})
+                    CleanupScopeNotice(compact: true, chooseDownloads: {})
+                    RecommendationGroup {
+                        StorageReviewRow(category: .downloads, title: "Downloads", detail: "Example only · Review exact files before moving to Trash.", value: "128 MB", meaning: "Logical files", actionTitle: "Review files", action: {})
+                        Divider()
+                        StorageReviewRow(category: .cloud, title: "Downloaded iCloud files", detail: "Example unknown measurement · Eviction unavailable.", value: "Unknown", meaning: "Local allocation", actionTitle: "Review iCloud inventory", action: {})
+                        Divider()
+                        StorageReviewRow(category: .browser, title: "Browser caches", detail: "No qualified profile inspection.", value: "Not inspected", meaning: "Unavailable")
+                    }
+
                     SelectionSummary(value: "3 files", detail: "Example selection · No action will run", consequence: "Space stays occupied until Finder empties Trash.")
                     HStack(spacing: StillDesign.Space.lg) {
                         ForEach(0..<5) { index in CategoryBadge(category: [StorageCategory.cloud, .developer, .downloads, .browser, .managed][index]) }

@@ -77,6 +77,21 @@ final class CleanupRetryUITests: XCTestCase {
         capture("retry-confirmation-" + (minimum ? "minimum-Dark" : "initial-Light"))
         XCTAssertTrue(retry.buttons["Cancel"].isHittable)
         retry.buttons["Cancel"].click()
+        app.typeKey("1", modifierFlags: .command)
+        revealOverviewControl(app, label: "Scan again to review all files")
+        app.buttons["Scan again to review all files"].click()
+        XCTAssertTrue(app.buttons["Review files"].waitForExistence(timeout: 15))
+        revealOverviewControl(app, label: "Review files")
+        app.buttons["Review files"].click()
+        let search = app.textFields["Search inspected files"]
+        revealScrollElement(app, control: search, label: "Search inspected files")
+        search.click(); search.typeText("new.pdf")
+        let newFile = app.checkBoxes.matching(NSPredicate(format: "label CONTAINS %@", "new.pdf")).firstMatch
+        revealScrollElement(app, control: newFile, label: "new.pdf")
+        XCTAssertEqual(newFile.value as? Int, 0)
+        search.click(); search.typeKey("a", modifierFlags: .command); search.typeText("b.pdf")
+        let retained = app.checkBoxes.matching(NSPredicate(format: "label CONTAINS %@", "b.pdf")).firstMatch
+        XCTAssertTrue(retained.waitForExistence(timeout: 5)); XCTAssertEqual(retained.value as? Int, 1)
         XCTAssertEqual(try Data(contentsOf: root.appendingPathComponent("b.pdf")), Data([1]))
         XCTAssertEqual(try Data(contentsOf: root.appendingPathComponent("new.pdf")), Data([9]))
         XCTAssertEqual(app.windows.firstMatch.frame, bounds)

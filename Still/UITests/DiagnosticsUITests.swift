@@ -33,6 +33,7 @@ final class DiagnosticsUITests: XCTestCase {
         defer { app.terminate() }
         XCTAssertTrue(app.buttons["Return to Overview"].waitForExistence(timeout: 5))
         app.buttons["Return to Overview"].click()
+        revealOverviewTool(app, label: "Review diagnostics")
         let open = app.buttons["Review diagnostics"]
         if !open.isHittable { app.scrollViews.firstMatch.scroll(byDeltaX: 0, deltaY: -250) }
         open.click()

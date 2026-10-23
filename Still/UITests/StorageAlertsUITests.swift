@@ -24,7 +24,7 @@ final class StorageAlertsUITests: XCTestCase {
                 if fixture == "dated" { XCTAssertTrue(displayedTime.contains("1970")) }
                 else { XCTAssertEqual(displayedTime, "Alert check time unavailable") }
                 XCTAssertFalse(app.buttons["Stop scan"].exists)
-                XCTAssertFalse(app.buttons["Review scanned folder"].exists)
+                XCTAssertFalse(app.buttons["Explore storage"].exists)
                 let bounds = app.windows.firstMatch.frame
                 for theme in ["Light", "Dark"] {
                     app.popUpButtons["Appearance"].click(); app.menuItems[theme].click()
@@ -37,7 +37,7 @@ final class StorageAlertsUITests: XCTestCase {
                 XCTAssertTrue(app.dialogs.buttons["Scan folder"].waitForExistence(timeout: 5))
                 app.typeKey(.escape, modifierFlags: [])
                 XCTAssertTrue(status.exists)
-                XCTAssertFalse(app.buttons["Review scanned folder"].exists)
+                XCTAssertFalse(app.buttons["Explore storage"].exists)
                 app.buttons["Dismiss alert"].click()
                 XCTAssertFalse(status.exists)
                 XCTAssertTrue(app.buttons["Choose folder…"].exists)
@@ -114,6 +114,7 @@ final class StorageAlertsUITests: XCTestCase {
         let app = XCUIApplication()
         app.launchArguments = ["--future-milestones"]
         app.launch()
+        revealOverviewTool(app, label: "Review Homebrew opportunities")
         XCTAssertTrue(app.buttons["Review Homebrew opportunities"].waitForExistence(timeout: 10))
         let bounds = app.windows.firstMatch.frame
         app.buttons["Review Homebrew opportunities"].click()
@@ -157,6 +158,7 @@ final class StorageAlertsUITests: XCTestCase {
             app.launchEnvironment["STILL_TEST_HOMEBREW_ROOT"] = root.path
             app.launchEnvironment["STILL_TEST_HOMEBREW_ROOT_ID"] = "\(information.st_dev):\(information.st_ino)"
             app.launch()
+            revealOverviewTool(app, label: "Review Homebrew opportunities")
             XCTAssertTrue(app.buttons["Review Homebrew opportunities"].waitForExistence(timeout: 10))
             let bounds = app.windows.firstMatch.frame
             app.buttons["Review Homebrew opportunities"].click()
@@ -201,6 +203,7 @@ final class StorageAlertsUITests: XCTestCase {
         let app = XCUIApplication()
         app.launchArguments = ["--future-milestones"]
         app.launch()
+        revealOverviewTool(app, label: "Review pip cache opportunities")
         XCTAssertTrue(app.buttons["Review pip cache opportunities"].waitForExistence(timeout: 10))
         let bounds = app.windows.firstMatch.frame
         app.buttons["Review pip cache opportunities"].click()
@@ -230,6 +233,7 @@ final class StorageAlertsUITests: XCTestCase {
             app.launchEnvironment["STILL_TEST_PIP_CACHE"] = root.path
             app.launchEnvironment["STILL_TEST_PIP_CACHE_ID"] = "\(information.st_dev):\(information.st_ino)"
             app.launch()
+            revealOverviewTool(app, label: "Review pip cache opportunities")
             XCTAssertTrue(app.buttons["Review pip cache opportunities"].waitForExistence(timeout: 10))
             let bounds = app.windows.firstMatch.frame
             app.buttons["Review pip cache opportunities"].click()
@@ -272,6 +276,7 @@ final class StorageAlertsUITests: XCTestCase {
             let app = XCUIApplication()
             app.launchArguments = ["--future-milestones", size]
             app.launch()
+            revealOverviewTool(app, label: "Review Docker storage")
             XCTAssertTrue(app.buttons["Review Docker storage"].waitForExistence(timeout: 10))
             let bounds = app.windows.firstMatch.frame
             app.buttons["Review Docker storage"].click()

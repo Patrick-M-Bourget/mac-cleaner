@@ -116,6 +116,8 @@ private struct WorkspaceView: View {
     @State private var dockerVisible = false
     @State private var exclusionsVisible = false
     @State private var diagnosticsVisible = false
+    @State private var overviewCloudExpanded = false
+    @State private var moreToolsExpanded = false
     @State private var diagnostics = DiagnosticsModel()
     @State private var startupCapacity: StartupVolumeCapacity?
     #if DEBUG
@@ -228,6 +230,10 @@ private struct WorkspaceView: View {
                         ActionStrip(message: "Two compatible completed observations reveal net changes.") {
                             Button("Inspect a folder") { if let url = FolderInspection.chooseFolder() { nativeInspectionVisible = true; folderInspection.scan(url) } }.buttonStyle(.borderedProminent)
                         }
+                    } else if destination == .overview && !managedStorageVisible && !dockerVisible && !pipVisible && !homebrewVisible {
+                        ActionStrip(message: "\(StillDesign.files(selection.draft.selectedCount)) selected · Nothing changes before confirmation.") {
+                            Button("Review cleanup plan") { destination = .plan }.buttonStyle(.borderedProminent).disabled(selection.scans.isEmpty && selection.draft.selectedCount == 0)
+                        }
                     } else if showsPlan {
                         ActionStrip(message: "Nothing changes until you confirm the next step.") { Button("Review cleanup") {}.disabled(true) }
                     }
@@ -298,7 +304,12 @@ private struct WorkspaceView: View {
 
     private var overview: some View {
         VStack(alignment: .leading, spacing: StillDesign.Space.xl) {
-            heading("Your storage", "Understand what is stored locally before choosing what to clean.")
+            HStack(alignment: .top) {
+                PageHeader(title: "Storage overview", subtitle: "A clearer picture of what’s on your Mac.")
+                Spacer(minLength: StillDesign.Space.md)
+                if folderInspection.isScanning { Button("Stop scan") { folderInspection.cancel() } }
+                else { Button("Scan again", action: scanKnownLocations).disabled(folderInspection.scope == nil || selection.execution.isRunning) }
+            }
             if let context = alerts.openedAlertContext {
                 SummarySurface {
                     VStack(alignment: .leading, spacing: StillDesign.Space.md) {
@@ -323,8 +334,22 @@ private struct WorkspaceView: View {
             if !fixtureMode {
                 VolumeSummary(available: startupCapacity?.available, total: startupCapacity?.total,
                               observation: startupCapacity.map { "Observed \($0.observedAt.formatted()) · \($0.metric == "important" ? "Available for important usage" : "Available capacity fallback")" } ?? "Capacity not observed")
+            } else if folderInspection.scope == nil {
+                SummarySurface {
+                    VStack(alignment: .leading, spacing: StillDesign.Space.md) {
+                        CapacityMeter(available: 42_800_000_000, total: 512_000_000_000)
+                        Text("Synthetic startup volume · Fixture observation").font(.caption).foregroundStyle(.secondary)
+                    }
+                }
             }
+            scannedLocations
+            overviewRecommendations
             if StorageAlertsController.futureEnabled {
+                Button { moreToolsExpanded.toggle() } label: {
+                    Label("More tools", systemImage: moreToolsExpanded ? "chevron.down" : "chevron.right")
+                        .frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
+                }.buttonStyle(.plain).accessibilityValue(moreToolsExpanded ? "Expanded" : "Collapsed")
+                if moreToolsExpanded {
                 FindingRow(category: .managed, title: "Diagnostics", detail: "Review a redacted snapshot and save locally") {
                     Button("Review diagnostics") {
                         diagnostics.review(selection: selection, inspection: folderInspection, recovery: recovery)
@@ -343,41 +368,100 @@ private struct WorkspaceView: View {
                 FindingRow(category: .developer, title: "Pip cache opportunities", detail: "Review selected cache provenance") {
                     Button("Review pip cache opportunities") { pipVisible = true; homebrewVisible = false; dockerVisible = false; managedStorageVisible = false; nativeInspectionVisible = false; inspecting = false }
                 }
-            }
-            CleanupScopeNotice(enabled: !folderInspection.isScanning && !selection.execution.isRunning, chooseDownloads: chooseDownloads)
-            HStack {
-                Button("Choose folder…", systemImage: "folder.badge.plus") {
-                    chooseFolderForScan()
                 }
-                if folderInspection.scope != nil {
-                    Button("Review scanned folder") { nativeInspectionVisible = true }
+            }
+        }
+    }
+
+    private var overviewRecommendations: some View {
+        VStack(alignment: .leading, spacing: StillDesign.Space.md) {
+                Text("Recommended for review").font(StillDesign.TypeStyle.section)
+                RecommendationGroup {
+                    overviewCloudRow
+                    if overviewCloudExpanded, let report = folderInspection.result?.cloudInventory { CloudInventoryView(report: report).padding(StillDesign.Space.md) }
+                    Divider().padding(.horizontal, StillDesign.Space.lg)
+                    StorageReviewRow(category: .developer, title: "Xcode build files", detail: "Build-file cleanup isn’t available yet.", value: "Not inspected", meaning: "Unavailable")
+                    Divider().padding(.horizontal, StillDesign.Space.lg)
+                    overviewDownloadsRow
+                    Divider().padding(.horizontal, StillDesign.Space.lg)
+                    StorageReviewRow(category: .browser, title: "Browser caches", detail: "Browser cleanup isn’t available yet; manage caches in your browser.", value: "Not inspected", meaning: "Unavailable")
+                }
+                Text("Moving files to Trash won’t free space until you empty it.").font(.caption).foregroundStyle(.secondary)
+            }
+    }
+
+    private var overviewCloudRow: some View {
+        let action: (() -> Void)? = folderInspection.result == nil ? nil : { overviewCloudExpanded.toggle() }
+        return StorageReviewRow(category: .cloud, title: "Downloaded iCloud files", detail: "Local copies in this location · Cleanup unavailable.", value: folderInspection.result.map { overviewBytes($0.cloudInventory.localAllocatedBytes) } ?? "Not inspected", meaning: "Local allocation", actionTitle: overviewCloudExpanded ? "Hide iCloud inventory" : "Review iCloud inventory", action: action)
+    }
+    private var overviewDownloadsRow: some View {
+        if selection.retryTargetIDs != nil {
+            return StorageReviewRow(category: .downloads, title: "Downloads to review", detail: "A retry includes only unfinished files. Scan again to choose from all observed Downloads files.", value: overviewBytes(selection.overviewDownloadsLogicalBytes), meaning: "Observed logical size", actionTitle: "Scan again to review all files", action: folderInspection.isScanning || selection.execution.isRunning ? nil : { scanKnownLocations() }, identifier: "overviewDownloadsFinding")
+        }
+        if fixtureMode && folderInspection.scope == nil {
+            return StorageReviewRow(category: .downloads, title: "Downloads to review", detail: "Synthetic example · 3 files · Nothing selected automatically.", value: "2.028 GB", meaning: "Synthetic logical size", actionTitle: "Review Downloads", action: { inspecting = true }, identifier: "overviewDownloadsFinding")
+        }
+        let rows = selection.overviewDownloadRows
+        let action: (() -> Void)? = rows.isEmpty || folderInspection.isScanning || selection.execution.isRunning ? nil : { reviewDownloads() }
+        let detail: String
+        let value: String
+        if !rows.isEmpty {
+            detail = selection.overviewDownloadsCoverage == .incomplete ? "\(StillDesign.files(rows.count)) eligible observed · Other contents remain uninspected." : "\(StillDesign.files(rows.count)) eligible across scanned Downloads locations · Move to Trash after review."
+            value = overviewBytes(selection.overviewDownloadsLogicalBytes)
+        } else {
+            switch selection.overviewDownloadsCoverage {
+            case .notInspected:
+                detail = "Choose Downloads to inspect its files. Other folders are inspection only."
+                value = "Not inspected"
+            case .incomplete:
+                detail = "Downloads coverage is incomplete. Recheck before choosing files."
+                value = "Unknown"
+            case .complete:
+                detail = "No eligible files in the scanned Downloads locations."
+                value = "No eligible files"
+            }
+        }
+        return StorageReviewRow(category: .downloads, title: "Downloads to review", detail: detail, value: value, meaning: "Logical file size · Not freed space", actionTitle: "Review files", action: action, identifier: "overviewDownloadsFinding")
+    }
+
+    private func overviewBytes(_ bytes: Int64?) -> String {
+        bytes.map { ByteCountFormatter.string(fromByteCount: $0, countStyle: .decimal) } ?? "Unknown"
+    }
+    private func scanKnownLocations() {
+        selection.leaveRetryMode()
+        folderInspection.scanAgain()
+    }
+    private func reviewDownloads() {
+        guard let row = selection.overviewDownloadRows.first else { return }
+        folderInspection.showObserved(row.scan)
+        nativeInspectionVisible = true
+    }
+    private var scannedLocations: some View {
+        VStack(alignment: .leading, spacing: StillDesign.Space.sm) {
+            HStack(alignment: .top) {
+                VStack(alignment: .leading, spacing: StillDesign.Space.xs) {
+                    Text("Scanned locations").font(StillDesign.TypeStyle.section)
+                    if let result = folderInspection.result {
+                        Text("\(folderInspection.scopeReports.count) locations · Current: \(result.scope.lastPathComponent)").font(.caption).foregroundStyle(.secondary).help(result.scope.path)
+                        Text("Observed \(result.observedAt.formatted(date: .abbreviated, time: .shortened))").font(.caption).foregroundStyle(.secondary)
+                    } else { Text("Choose a folder to understand its local storage.").font(.caption).foregroundStyle(.secondary) }
+                }.frame(maxWidth: .infinity, alignment: .leading)
+                VStack(alignment: .trailing, spacing: StillDesign.Space.sm) {
+                    Button("Choose folder…", systemImage: "folder.badge.plus", action: chooseFolderForScan).disabled(folderInspection.isScanning || selection.execution.isRunning)
+                    if folderInspection.result != nil { Button("Explore storage") { nativeInspectionVisible = true }.disabled(selection.execution.isRunning) }
                 }
             }
             if let result = folderInspection.result {
-                Text("Selected scope: \(result.scope.path)").textSelection(.enabled)
-                Text("\(result.observations.count) entries observed · \(result.isComplete ? "Completed" : "Partial coverage")")
-                Text("Complete scope logical bytes: \(result.totalLogicalBytes.map(String.init) ?? "Unknown") · Complete scope allocated bytes: \(result.totalAllocatedBytes.map(String.init) ?? "Unknown")")
-                    .foregroundStyle(.secondary)
-                Text("These totals describe the selected scope, separately from startup-volume capacity. Scan inventory is read-only. Moving selected Downloads files requires final confirmation.")
-                    .font(.callout).foregroundStyle(.secondary)
+                Text(result.isComplete ? "Current location · \(overviewBytes(result.totalLogicalBytes)) logical · \(overviewBytes(result.totalAllocatedBytes)) allocated" : "Partial coverage · Observed logical subtotal \(overviewBytes(result.logicalBytes)) · Remaining bytes unknown")
+                    .font(.caption).foregroundStyle(.secondary).accessibilityIdentifier("overviewScopeCoverage")
+                if result.excludedEntryCount > 0 || result.hasUnmeasuredContents { Text("Unmeasured or excluded contents remain unknown.").font(.caption).foregroundStyle(.secondary) }
             }
-            else if folderInspection.scope == nil && fixtureMode {
-            SummarySurface {
-                VStack(alignment: .leading, spacing: StillDesign.Space.md) {
-                    CapacityMeter(available: 42_800_000_000, total: 512_000_000_000)
-                    Text("Synthetic startup volume · Fixture observation").font(.caption).foregroundStyle(.secondary)
-                }
+            if folderInspection.scopeReports.contains(where: { $0.requiresRecheck }) {
+                StatusRow(text: "Some locations have partial coverage. Uninspected bytes remain unknown.", symbol: "exclamationmark.circle", role: .caution)
             }
-            Divider()
-            Text("Storage findings").font(StillDesign.TypeStyle.section)
-            FindingRow(category: .downloads, title: "Downloads", detail: "3 example files · 2.028 GB logical size", consequence: "Moving files to Trash keeps their space occupied until Trash is emptied.") {
-                Button("Review Downloads") { inspecting = true }
-            }
-            Text("Other storage categories are introduced as their adapters are validated. This build displays fixtures only.")
-                .font(.callout).foregroundStyle(.secondary)
-            } else {
-                EmptyState(title: "Start with a folder", detail: "Choose Downloads or another folder to review what is stored locally. Nothing is selected automatically.", symbol: "folder")
-            }
+            if folderInspection.isScanning { ProgressView("Rechecking selected locations…").font(.caption) }
+            if let message = folderInspection.message { StatusRow(text: message, symbol: "info.circle") }
+            CleanupScopeNotice(enabled: !folderInspection.isScanning && !selection.execution.isRunning, compact: true, chooseDownloads: chooseDownloads)
         }
     }
 
