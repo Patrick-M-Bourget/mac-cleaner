@@ -48,6 +48,7 @@ import StillCore
     func resetPreferences() throws {
         guard !operationInProgress, !selection.execution.isRunning else { throw CleanupJournalError.unavailable }
         if !LocalStateLocation.isDisposableTest {
+            registration.refresh()
             if registration.status == .enabled || registration.status == .requiresApproval { try registration.choose(false) }
             else if registration.status == .unavailable && loginIntent { throw CleanupJournalError.unavailable }
             UserDefaults.standard.removeObject(forKey: "Still.startAtLogin")

@@ -15,6 +15,7 @@ extension Notification.Name {
     private var policy = AlertPolicy()
     private var timer: Timer?
     private var sampling = false
+    private var monitoringGeneration = UUID()
     private var persistenceHealthy = true
     private var store: AlertStateStore { get throws { AlertStateStore(url: try LocalStateLocation.root(create: true).appendingPathComponent("StorageAlerts/episode-state.json")) } }
     private let center = UNUserNotificationCenter.current()
@@ -46,6 +47,7 @@ extension Notification.Name {
     var thresholdValid: Bool { threshold.map { AlertPolicy.validThreshold($0, total: total) } ?? false }
 
     func resetPreferences() throws {
+        monitoringGeneration = UUID()
         stopForTermination()
         requested = false; policy = AlertPolicy(); thresholdGB = "40"; persistenceHealthy = true
         try LocalStateLocation.removeKnownFile("StorageAlerts/episode-state.json")
@@ -119,9 +121,10 @@ extension Notification.Name {
     private func sample() async {
         guard Self.futureEnabled, persistenceHealthy, requested, !sampling else { return }
         sampling = true
+        let generation = monitoringGeneration
         defer { sampling = false }
         let settings = await center.notificationSettings()
-        guard requested else { return }
+        guard requested, generation == monitoringGeneration else { return }
         guard settings.authorizationStatus == .authorized, settings.alertSetting == .enabled else {
             timer?.invalidate(); timer = nil; effectiveMonitoring = false
             status = "Notifications are unavailable. Enable Still alerts in System Settings > Notifications. Capacity polling is stopped."
@@ -151,6 +154,10 @@ extension Notification.Name {
         content.categoryIdentifier = "Still.capacity"
         do {
             try await center.add(UNNotificationRequest(identifier: "Still.lowSpace", content: content, trigger: nil))
+            guard generation == monitoringGeneration else {
+                center.removePendingNotificationRequests(withIdentifiers: ["Still.lowSpace"])
+                return
+            }
             policy.submissionAccepted(at: Date()); _ = persist()
         }
         catch { policy.submissionFailed(); _ = persist(); status = "Notification could not be submitted. A later capacity check will retry." }

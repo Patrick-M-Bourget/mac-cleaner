@@ -93,6 +93,12 @@ struct CleanupHistoryView: View {
                     Button("Open recovery review", action: showRecovery).accessibilityIdentifier("historyRecovery")
                 }
             }
+            SettingsRow(title: "Manage Still’s local data", detail: "Clearing completed runs also clears aggregate growth baselines. Reset additionally forgets preferences and selected locations, and stops alerts and login launch.") {
+                HStack {
+                    Button("Clear completed runs…") { confirmingClear = true }.accessibilityIdentifier("clearHistory")
+                    Button("Reset Still…") { confirmingReset = true }.accessibilityIdentifier("resetStill")
+                }.disabled(model.busy || lifecycle.operationInProgress)
+            }
             if let snapshot = model.snapshot {
                 if snapshot.completedRuns.isEmpty {
                     EmptyState(title: "No completed runs", detail: "Completed per-file results appear here after a cleanup. Nothing is selected or retried from history.", symbol: "clock")
@@ -102,7 +108,7 @@ struct CleanupHistoryView: View {
                         VStack(alignment: .leading, spacing: StillDesign.Space.md) {
                             Text(run.date.formatted(date: .abbreviated, time: .shortened)).font(StillDesign.TypeStyle.section)
                             if run.usesApprovalDate { Text("Approval date shown; outcome time was not recorded by this version.").font(.caption).foregroundStyle(.secondary) }
-                            Text("\(run.records.count) recorded file results").font(.callout)
+                            Text("Recorded file results: \(run.records.count)").font(.callout)
                             Text("Planned logical size: " + bytes(run.plannedLogicalBytes)).font(.callout)
                             Text("Planned allocation retained in Trash: " + (run.trashHeldAllocatedBytes.map(bytes) ?? "Unknown"))
                             Text("Observed startup-volume capacity change: " + (run.capacity?.observedChange.map { ($0 >= 0 ? "+" : "−") + bytes(abs($0)) } ?? "Unknown"))
@@ -126,12 +132,7 @@ struct CleanupHistoryView: View {
                 }
             } else if model.busy { ProgressView("Reading local history…") }
             Text("Completed records are retained for 90 days within a 250 MB payload budget. Interrupted runs are exempt. Trash contents remain until you empty Trash in Finder.").font(.caption).foregroundStyle(.secondary)
-            SettingsRow(title: "Manage Still’s local data", detail: "Clearing completed runs also clears aggregate growth baselines. Reset additionally forgets preferences and selected locations, and stops alerts and login launch.") {
-                HStack {
-                    Button("Clear completed runs…") { confirmingClear = true }.accessibilityIdentifier("clearHistory")
-                    Button("Reset Still…") { confirmingReset = true }.accessibilityIdentifier("resetStill")
-                }.disabled(model.busy || lifecycle.operationInProgress)
-            }
+
         }
         .task { await model.load() }
         .confirmationDialog("Clear completed runs?", isPresented: $confirmingClear, titleVisibility: .visible) {

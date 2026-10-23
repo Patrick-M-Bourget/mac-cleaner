@@ -35,7 +35,7 @@ import SwiftUI
             if let before, let after {
                 let observation = CleanupCapacityObservation(beforeAvailable: before.available, afterAvailable: after.available, beforeTotal: before.total, afterTotal: after.total, beforeVolumeID: before.volumeID, afterVolumeID: after.volumeID, beforeMetric: before.metric, afterMetric: after.metric, beforeDate: before.observedAt, afterDate: after.observedAt)
                 do { try await Task.detached { try journal.recordCapacity(observation, batchID: batch.id) }.value }
-                catch { self.error = "File outcomes remain recorded, but capacity observations could not be saved to history." }
+                catch { self.error = "Cleanup recovery records remain protected; capacity observations could not be saved to history." }
             }
         } catch { self.error = "The local operation journal is unavailable. No files were moved. Recheck and create a new plan." }
     }

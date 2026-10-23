@@ -151,7 +151,7 @@ public final class SQLiteCleanupJournal: CleanupJournaling, @unchecked Sendable 
         lock.lock(); defer { lock.unlock() }
         let before = try measuredStorageBytes()
         let available = try location.deletingLastPathComponent().resourceValues(forKeys: [.volumeAvailableCapacityKey]).volumeAvailableCapacity ?? 0
-        guard timeout > 0, before <= 250_000_000, Int64(available) > before * 2 + 64_000_000 else {
+        guard timeout > 0, before <= 1_000_000_000, Int64(available) > before * 2 + 64_000_000 else {
             return CleanupHistoryCompaction(beforeBytes: before, afterBytes: before, completed: false)
         }
         let deadline = UnsafeMutablePointer<Double>.allocate(capacity: 1)

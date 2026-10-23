@@ -35,7 +35,7 @@ final class HistoryUITests: XCTestCase {
         record.state = .succeeded; record.message = "Disposable history fixture; no filesystem operation performed"
         try journal.outcome(record)
         app.launch(); app.typeKey("3", modifierFlags: .command)
-        XCTAssertTrue(app.staticTexts["1 recorded file results"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Recorded file results: 1"].waitForExistence(timeout: 5))
         let bounds = app.windows.firstMatch.frame
         func capture(_ name: String) {
             let attachment = XCTAttachment(screenshot: app.windows.firstMatch.screenshot())
@@ -50,17 +50,17 @@ final class HistoryUITests: XCTestCase {
         }
         let clear = app.buttons["clearHistory"]
         reveal(clear); XCTAssertTrue(clear.exists); clear.click()
-        XCTAssertTrue(app.buttons["Cancel"].waitForExistence(timeout: 2)); capture("history-clear-confirmation")
-        app.buttons["Cancel"].click()
+        XCTAssertTrue(app.sheets.firstMatch.buttons["Cancel"].waitForExistence(timeout: 2)); capture("history-clear-confirmation")
+        app.sheets.firstMatch.buttons["Cancel"].click()
         XCTAssertEqual(try journal.completedHistory().completedRuns.count, 1)
-        clear.click(); app.buttons["Clear completed runs"].click()
+        clear.click(); app.sheets.firstMatch.buttons["Clear completed runs"].click()
         XCTAssertTrue(app.staticTexts["No completed runs"].waitForExistence(timeout: 5))
         XCTAssertTrue(try journal.records().isEmpty)
         // Insert new unfinished evidence AFTER History loaded. Reset must read it afresh.
         let another = try draft.approve(draft.review())
         XCTAssertTrue(try journal.claim(another))
         let reset = app.buttons["resetStill"]
-        reveal(reset); reset.click(); app.buttons["Reset Still"].click()
+        reveal(reset); reset.click(); app.sheets.firstMatch.buttons["Reset Still"].click()
         let blocked = app.staticTexts["Reset is blocked by unfinished cleanup records. Open recovery review; no operations will resume automatically."]
         XCTAssertTrue(blocked.waitForExistence(timeout: 5))
         for theme in ["Light", "Dark"] {
@@ -73,7 +73,7 @@ final class HistoryUITests: XCTestCase {
         // Public journal fixture now supplies a known not-moved outcome, never a retry.
         var known = CleanupRecord(batch: another, target: try XCTUnwrap(another.targets.first)); known.state = .cancelled
         try journal.outcome(known)
-        reveal(reset); reset.click(); app.buttons["Reset Still"].click()
+        reveal(reset); reset.click(); app.sheets.firstMatch.buttons["Reset Still"].click()
         XCTAssertTrue(app.staticTexts["No completed runs"].waitForExistence(timeout: 5))
         XCTAssertTrue(try journal.records().isEmpty)
         XCTAssertFalse(try journal.claim(approval))

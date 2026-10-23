@@ -47,6 +47,7 @@ final class FolderInspection {
     }
 
     func scan(_ url: URL) {
+        guard !AppLifecycleController.shared.maintenanceInProgress else { return }
         guard !selection.execution.isRunning else { return }
         cancel()
         previewURL = nil

@@ -62,6 +62,7 @@ private func historyApproval(_ root: URL, names: [String]) async throws -> Clean
     let compacted = try first.compact()
     #expect(compacted.completed)
     #expect(compacted.afterBytes < before)
+    print("Owned history compaction: before-clear=\(before), before-vacuum=\(compacted.beforeBytes), after=\(compacted.afterBytes) bytes")
     #expect(try SQLiteCleanupJournal(url: url).records().isEmpty)
     #expect(try first.claim(approved) == false)
     #expect(try Data(contentsOf: files.appendingPathComponent("original.pdf")) == Data([7]))
