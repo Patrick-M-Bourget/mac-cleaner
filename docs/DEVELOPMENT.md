@@ -32,3 +32,20 @@ The focused UI suite observes native accessibility controls, fixture inspection,
 ## Structure
 
 `Still/App` owns the current SwiftUI composition; `Still/UITests` owns user-journey tests. Keep future filesystem/persistence adapters behind domain interfaces, outside view bodies. No empty packages or speculative mutation implementations are included in the shell slice. Distribution signing, Hardened Runtime validation and notarization remain M7 work; the locally runnable build is not a release artifact.
+
+## Future storage-alert development slice (#27)
+
+Storage Alerts is hidden in the M1 navigation. To inspect this M5 development capability, launch the built app with an explicit argument:
+
+```sh
+open .build/xcode/Build/Products/Debug/Still.app --args --future-milestones
+DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer swift test --package-path Still/Packages/StorageAlerts
+```
+
+There is no product milestone picker. The flag exposes Storage Alerts only; it does not qualify the milestone or enable notifications automatically. Alerts begin off, with a suggested 40 decimal GB threshold. Visiting settings reads startup-volume capacity to establish the valid range; enabling is a separate user action and is the only path to requesting OS notification permission. Automated tests never enable native notifications or request that permission.
+
+The native adapter reads `volumeAvailableCapacityForImportantUsage` and total capacity on `/`, never enumerates files or invokes scanning/execution. A repeating 900-second Timer with tolerance runs only while alert intent and effective notification authorization permit it; wake/activation coalesce within 60 seconds, recheck authorization, and resume denied polling only after authorization becomes effective. Missing readings pause decisions. A low episode submits once; recovery is threshold + 5 GB capped at total capacity. Submission failure permits a later retry; a successful submission does not assert that Focus or Notification Center displayed it. Notification opening activates Overview without scanning.
+
+This slice is process-local. Restart/snooze persistence and robust preference-change episode handling belong to #29. Menu-bar/window-close/Start at Login behavior belongs to #28. No login registration or launch agent is created here. Those missing lifecycle/persistence gates keep M5 development-only. Native notification delivery and denied/revoked OS behavior still require a disposable signed-app manual integration pass; pure policy tests inject authorization/capacity/time and do not certify OS UI.
+
+The app bundles a privacy manifest declaring disk-space reason `85F4.1` (displaying disk-space information). Disk values remain local and are shown to the user; no tracking/export occurs. Re-audit all actual APIs and purposes during M7 distribution qualification. Primary API references: [Apple capacity API](https://developer.apple.com/documentation/foundation/urlresourcekey/volumeavailablecapacityforimportantusagekey), [notification authorization](https://developer.apple.com/documentation/usernotifications/unusernotificationcenter/requestauthorization(options:completionhandler:)), [notification settings](https://developer.apple.com/documentation/usernotifications/unusernotificationcenter/getnotificationsettings(completionhandler:)), and [required-reason categories](https://developer.apple.com/documentation/bundleresources/app-privacy-configuration/nsprivacyaccessedapitypes/nsprivacyaccessedapitype).

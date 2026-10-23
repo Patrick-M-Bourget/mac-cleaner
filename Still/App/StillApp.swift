@@ -12,10 +12,12 @@ struct StillApp: App {
 }
 
 private enum Destination: String, CaseIterable, Identifiable {
+    case alerts = "Storage alerts"
     case overview = "Overview", plan = "Cleanup plan", history = "History", locations = "Locations & access"
     var id: String { rawValue }
     var shortcut: KeyEquivalent {
         switch self {
+        case .alerts: "5"
         case .overview: "1"
         case .plan: "2"
         case .history: "3"
@@ -24,6 +26,7 @@ private enum Destination: String, CaseIterable, Identifiable {
     }
     var symbol: String {
         switch self {
+        case .alerts: "bell"
         case .overview: "internaldrive"
         case .plan: "checklist"
         case .history: "clock"
@@ -45,6 +48,7 @@ private struct FixtureItem: Identifiable {
 }
 
 private struct WorkspaceView: View {
+    @StateObject private var alerts = StorageAlertsController()
     @State private var destination = Destination.overview
     @State private var inspecting = false
     @State private var inspected = FixtureItem.downloads[0]
@@ -56,9 +60,10 @@ private struct WorkspaceView: View {
             VStack(alignment: .leading, spacing: 8) {
                 Label("Still", systemImage: "sparkle").font(.title2.weight(.semibold)).padding(.bottom, 24)
                 Text("Storage").font(.caption).foregroundStyle(.secondary)
-                ForEach(Destination.allCases.filter { $0 != .locations }) { navigation($0) }
+                ForEach(Destination.allCases.filter { $0 != .locations && $0 != .alerts }) { navigation($0) }
                 Text("Settings").font(.caption).foregroundStyle(.secondary).padding(.top, 20)
                 navigation(.locations)
+                if StorageAlertsController.futureEnabled { navigation(.alerts) }
                 Spacer()
                 Text("M0 · Fixture workspace").font(.caption).foregroundStyle(.secondary)
             }
@@ -79,6 +84,7 @@ private struct WorkspaceView: View {
                         if inspecting { inspection }
                         else {
                             switch destination {
+                            case .alerts: StorageAlertsView(controller: alerts)
                             case .overview: overview
                             case .plan: plan
                             case .history: history
@@ -90,6 +96,9 @@ private struct WorkspaceView: View {
             }.frame(maxWidth: .infinity, maxHeight: .infinity)
                 .background(Color(nsColor: .windowBackgroundColor))
         }
+        .onReceive(NotificationCenter.default.publisher(for: .stillAlertOpened)) { _ in destination = .overview; inspecting = false }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in Task { await alerts.activated() } }
+        .onReceive(NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.didWakeNotification)) { _ in Task { await alerts.activated() } }
         .toolbar {
             Picker("Appearance", selection: $appearance) {
                 Text("Automatic").tag("Automatic")
