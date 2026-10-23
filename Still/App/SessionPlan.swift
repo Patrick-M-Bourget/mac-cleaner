@@ -128,7 +128,7 @@ struct LiveCleanupPlanView: View {
                 .accessibilityIdentifier("liveSelectionSummary")
             Text("Move to Trash · Space stays occupied until Finder empties Trash. Selection changes the plan only. Final approval is separate. No files are moved in this build.").foregroundStyle(.secondary)
             MacroCategoryCheckbox(state: selection.categoryState, label: "Select all \(selection.rows.count) eligible Downloads files · \(ByteCountFormatter.string(fromByteCount: selection.eligibleLogicalBytes, countStyle: .decimal)) logical", enabled: !selection.isPreparing && !selection.rows.isEmpty) { Task { await selection.toggleAll() } }
-                .frame(height: 26)
+                .fixedSize(horizontal: true, vertical: false).frame(height: 26)
             if selection.isPreparing { ProgressView("Checking exact Downloads targets…") }
             if let approved = selection.approvedBatch { Text("Approved batch: \(approved.targets.count) files · No files moved.").foregroundStyle(.secondary) }
             Button("Review cleanup") {
@@ -180,9 +180,12 @@ private struct MacroCategoryCheckbox: NSViewRepresentable {
         button.allowsMixedState = true
         return button
     }
+    func sizeThatFits(_ proposal: ProposedViewSize, nsView: NSButton, context: Context) -> CGSize? { nsView.intrinsicContentSize }
     func updateNSView(_ view: NSButton, context: Context) {
         context.coordinator.action = action
         view.title = label; view.isEnabled = enabled
+        view.setAccessibilityIdentifier("downloadsCategorySelection")
+        view.setAccessibilityLabel(label)
         view.state = state == .checked ? .on : state == .mixed ? .mixed : .off
     }
     @MainActor final class Coordinator: NSObject {

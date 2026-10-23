@@ -31,8 +31,9 @@ public struct CleanupReview: Sendable, Identifiable {
     public let id: UUID
     public let targets: [PlannedTarget]
     public let mutationVersion: UInt64
-    fileprivate init(targets: [PlannedTarget], mutationVersion: UInt64) {
-        id = UUID(); self.targets = targets; self.mutationVersion = mutationVersion
+    fileprivate let sessionID: UUID
+    fileprivate init(targets: [PlannedTarget], mutationVersion: UInt64, sessionID: UUID) {
+        id = UUID(); self.targets = targets; self.mutationVersion = mutationVersion; self.sessionID = sessionID
     }
 }
 public struct CleanupApproval: Sendable, Identifiable {
@@ -44,12 +45,13 @@ public struct CleanupApproval: Sendable, Identifiable {
 }
 public enum CategorySelectionState: Sendable { case unchecked, mixed, checked }
 public struct PlanDraft: Sendable {
+    private let sessionID = UUID()
     private var chosen: [String: PlannedTarget] = [:]
     public private(set) var mutationVersion: UInt64 = 0
     public init() {}
     public func review() throws -> CleanupReview {
         guard !chosen.isEmpty else { throw PlanSelectionError.ineligible }
-        return CleanupReview(targets: selected, mutationVersion: mutationVersion)
+        return CleanupReview(targets: selected, mutationVersion: mutationVersion, sessionID: sessionID)
     }
     public mutating func selectAll(in scans: [ScanResult], downloads: DownloadsRoot) -> Int {
         var visited = Set<String>(), skipped = 0
@@ -57,7 +59,7 @@ public struct PlanDraft: Sendable {
             for item in scan.observations where Self.canConsider(item, in: scan, downloads: downloads) {
                 let id = item.url.path + "|" + item.resourceID
                 guard visited.insert(id).inserted else { continue }
-                do { try select(item, in: scan, downloads: downloads) } catch { skipped += 1 }
+                do { let target = try Self.freshCandidate(item, in: scan, downloads: downloads); chosen[target.id] = target; invalidateReview() } catch { skipped += 1 }
             }
         }
         return skipped
@@ -69,7 +71,7 @@ public struct PlanDraft: Sendable {
     }
     public mutating func invalidateReview() { mutationVersion &+= 1 }
     public func approve(_ review: CleanupReview, at date: Date = Date()) throws -> CleanupApproval {
-        guard !chosen.isEmpty, review.mutationVersion == mutationVersion,
+        guard !chosen.isEmpty, review.sessionID == sessionID, review.mutationVersion == mutationVersion,
               Set(review.targets.map(\.id)) == Set(chosen.keys) else { throw PlanSelectionError.ineligible }
         return CleanupApproval(review: review, date: date)
     }
@@ -111,8 +113,11 @@ public struct PlanDraft: Sendable {
             && !parts.dropFirst(root.count).contains { protectedExtensions.contains(URL(fileURLWithPath: $0).pathExtension.lowercased()) || [".git", ".Trash", "Backups.backupdb", ".."].contains($0) }
     }
     public static func candidate(_ item: FileObservation, in scan: ScanResult, downloads: DownloadsRoot) throws -> PlannedTarget {
-        guard canConsider(item, in: scan, downloads: downloads),
-              scan.observations.contains(where: { $0.id == item.id && $0.resourceID == item.resourceID }) else { throw PlanSelectionError.ineligible }
+        guard scan.observations.contains(where: { $0.id == item.id && $0.resourceID == item.resourceID }) else { throw PlanSelectionError.ineligible }
+        return try freshCandidate(item, in: scan, downloads: downloads)
+    }
+    private static func freshCandidate(_ item: FileObservation, in scan: ScanResult, downloads: DownloadsRoot) throws -> PlannedTarget {
+        guard canConsider(item, in: scan, downloads: downloads) else { throw PlanSelectionError.ineligible }
         var rootInfo = stat()
         guard lstat(downloads.url.path, &rootInfo) == 0, rootInfo.st_mode & S_IFMT == S_IFDIR,
               "\(rootInfo.st_dev):\(rootInfo.st_ino)" == downloads.resourceID else { throw PlanSelectionError.ineligible }

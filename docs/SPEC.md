@@ -43,7 +43,7 @@ Core types: ScanScope, ScanSession, FileObservation, StorageSnapshot, Finding, P
 
 ## Selection and navigation contract
 
-There is one live, session-only PlanDraft keyed by resource/action identity. Every checkbox in every view updates it immediately. Duplicate appearances share membership and count once. Inspecting a name changes only the inspector. Back and Cancel preserve selections. The item-review CTA is “View cleanup plan”; there is no staged apply step or inspector exclusion control.
+There is one live, session-only PlanDraft keyed by the exact observed directory-entry path, resource identity and action. Every checkbox in every view updates it immediately. Repeated appearances of the same entry share membership and count once. Distinct hardlink directory entries remain distinct exact targets; choosing one never silently substitutes its alias. Storage-byte totals deduplicate shared resource identities, separately from the selected path count. Inspecting a name changes only the inspector. Back and Cancel preserve selections. The item-review CTA is “View cleanup plan”; there is no staged apply step or inspector exclusion control.
 
 Category selection materializes exact eligible IDs from the current scan. Downloads has the same unchecked/mixed/checked control, labelled with eligible count and bytes. It selects ordinary files, including ZIPs, PDFs, videos and installers within the scanned Downloads tree. It never targets the Downloads folder or other directories. Protected packages, managed libraries and unavailable files remain excluded. Show relative paths for nested files; record original and resulting Trash locations, without promising preserved directory structure or automatic restoration.
 

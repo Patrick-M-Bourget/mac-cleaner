@@ -157,4 +157,54 @@ final class WorkspaceUITests: XCTestCase {
         XCTAssertFalse(app.checkBoxes["Selected selected.pdf"].exists)
     }
 
+    @MainActor
+    func testBulkMixedReviewCancelAndImmutableApprovalKeepWindowStable() throws {
+        continueAfterFailure = false
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("StillSelectionUI-" + UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: root.appendingPathComponent("Nested"), withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        for index in 0..<20 {
+            let path = index % 2 == 0 ? "file\(index).pdf" : "Nested/file\(index).pdf"
+            try Data([1]).write(to: root.appendingPathComponent(path))
+        }
+        let app = XCUIApplication()
+        app.launchArguments = ["--ui-test-downloads-root"]
+        app.launchEnvironment["STILL_TEST_DOWNLOADS_ROOT"] = root.path
+        app.launch()
+        XCTAssertTrue(app.buttons["Choose folder…"].waitForExistence(timeout: 5))
+        app.buttons["Choose folder…"].click(); app.typeKey("g", modifierFlags: [.command, .shift])
+        let path = app.textFields.firstMatch
+        XCTAssertTrue(path.waitForExistence(timeout: 5)); path.typeText(root.path)
+        app.typeKey(.return, modifierFlags: []); app.dialogs.buttons["Scan folder"].click()
+        XCTAssertTrue(app.staticTexts["Observed"].waitForExistence(timeout: 10))
+        app.typeKey("2", modifierFlags: .command)
+        let category = app.checkBoxes["downloadsCategorySelection"]
+        XCTAssertTrue(category.waitForExistence(timeout: 5), app.debugDescription)
+        XCTAssertEqual(category.value as? Int, 0)
+        let bounds = app.windows.firstMatch.frame
+        category.click()
+        let allSelected = NSPredicate(format: "label BEGINSWITH %@ OR value BEGINSWITH %@", "20 files selected", "20 files selected")
+        XCTAssertTrue(app.staticTexts.matching(allSelected).firstMatch.waitForExistence(timeout: 10), app.debugDescription)
+        let item = app.checkBoxes["Selected file0.pdf"]
+        for _ in 0..<4 { if item.exists { break }; app.scrollViews.firstMatch.scroll(byDeltaX: 0, deltaY: -250) }
+        XCTAssertTrue(item.exists); item.click()
+        app.scrollViews.firstMatch.scroll(byDeltaX: 0, deltaY: 2000)
+        XCTAssertEqual(category.value as? Int, 2)
+        app.buttons["Review cleanup"].click()
+        XCTAssertTrue(app.staticTexts["Review Move to Trash"].waitForExistence(timeout: 5))
+        let disclosure = app.disclosureTriangles.firstMatch
+        if disclosure.exists { disclosure.click() }
+        XCTAssertTrue(app.buttons["Approve Move to Trash"].isHittable)
+        XCTAssertTrue(app.buttons["Cancel"].isHittable)
+        XCTAssertEqual(app.windows.firstMatch.frame, bounds)
+        app.buttons["Cancel"].click()
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@ OR value BEGINSWITH %@", "19 files selected", "19 files selected")).firstMatch.waitForExistence(timeout: 5))
+        app.typeKey(" ", modifierFlags: [])
+        XCTAssertTrue(app.staticTexts["Review Move to Trash"].waitForExistence(timeout: 5), "Cancel must restore focus to Review cleanup")
+        app.buttons["Approve Move to Trash"].click()
+        XCTAssertTrue(app.staticTexts["Approved batch: 19 files · No files moved."].waitForExistence(timeout: 5))
+        XCTAssertEqual(app.windows.firstMatch.frame, bounds)
+        XCTAssertEqual(try Data(contentsOf: root.appendingPathComponent("file0.pdf")), Data([1]))
+    }
+
 }

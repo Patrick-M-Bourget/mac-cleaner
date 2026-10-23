@@ -132,3 +132,7 @@ In M1, the summary headline is “Selected for Trash”, with an explicit statem
 ## Implemented session lifecycle — #7
 
 A live unexecuted selection belongs to the app process. Closing the workspace with a pending plan preserves both the inspection observations and selection in memory. With alerts off, the pending plan still keeps Still running. Dock reopening or **Window > Show Still** opens the workspace; Cleanup plan shows the same selected exact paths. Reopening a window does not approve or execute a plan. Explicit **Quit Still** ends the unexecuted selection, and the next launch requires a fresh user-requested scan. Item names continue to inspect independently of checkboxes; search and Back never apply or discard a separate draft.
+
+## Implemented bulk review boundary — #8
+
+Cleanup plan exposes the Downloads category as a native unchecked/mixed/checked checkbox with the current eligible file count and logical bytes. Mixed → Select all materializes exact current entries; later discoveries remain unchecked. Selected for Trash and its retained-space consequence precede review. The fixed confirmation sheet scrolls its expandable exact relative-path list while Cancel and final approval remain visible. Cancel restores the existing choices and focus to Review cleanup. Changes to selection or scan generation invalidate the old review. Final approval freezes a separate exact batch; it does not imply that a filesystem operation succeeded.

@@ -67,3 +67,16 @@ private struct OneDeniedMetadata: MetadataSupplementReading {
     #expect(!scan.isComplete)
     #expect(draft.selected.map { $0.url.lastPathComponent } == ["good.pdf"])
 }
+@Test func aReviewFromAnotherSessionCannotApproveMatchingPaths() async throws {
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: root) }
+    try Data([1]).write(to: root.appendingPathComponent("one.pdf"))
+    let scan = try await FolderScanner(supplement: ReviewLocalMetadata()).scan(root)
+    let item = try #require(scan.observations.first)
+    var original = PlanDraft(), fresh = PlanDraft()
+    try original.select(item, in: scan, downloadsRoot: root)
+    try fresh.select(item, in: scan, downloadsRoot: root)
+    let review = try original.review()
+    #expect(throws: PlanSelectionError.self) { try fresh.approve(review) }
+}
