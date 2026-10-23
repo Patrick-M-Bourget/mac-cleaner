@@ -109,6 +109,11 @@ final class FolderInspection {
         selected = report.current.observations.first; message = nil
     }
 
+    func resetSession() async {
+        cancel(); closePreviewAccess()
+        scope = nil; result = nil; lastComplete = nil; scopeReports = []; selected = nil; previewURL = nil; message = nil
+        await session.clear()
+    }
     func cancel() {
         if isScanning { GrowthHistoryModel.shared.cancelled() }
         cancellation?.cancel()

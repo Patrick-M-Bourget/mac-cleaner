@@ -4,6 +4,23 @@ import StillCore
 
 /// Shared app-owned local state. Debug tests bind an existing disposable root by identity.
 enum LocalStateLocation {
+    static var isDisposableTest: Bool {
+        #if DEBUG
+        let env = ProcessInfo.processInfo.environment
+        return env["STILL_TEST_STATE_ROOT"] != nil || env["STILL_TEST_STATE_ID"] != nil
+        #else
+        return false
+        #endif
+    }
+    static func removeKnownFile(_ relative: String) throws {
+        let root = try root(create: false)
+        let file = root.appendingPathComponent(relative)
+        guard file.standardizedFileURL.path.hasPrefix(root.path + "/"), !relative.contains("..") else { throw CocoaError(.fileWriteNoPermission) }
+        var info = stat()
+        if lstat(file.path, &info) != 0 { if errno == ENOENT { return }; throw CocoaError(.fileWriteUnknown) }
+        guard info.st_mode & S_IFMT == S_IFREG, file.path == file.resolvingSymlinksInPath().path, info.st_uid == geteuid() else { throw CocoaError(.fileWriteNoPermission) }
+        try FileManager.default.removeItem(at: file)
+    }
     static func root(create: Bool) throws -> URL {
         #if DEBUG
         let environment = ProcessInfo.processInfo.environment

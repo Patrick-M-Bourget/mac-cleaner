@@ -18,7 +18,7 @@ import SwiftUI
     func clear() { guard !isRunning else { return }; result = nil; error = nil; before = nil; after = nil }
     func cancel() { stopRequested = true; cancellation.cancel() }
     func run(_ batch: CleanupApproval) async {
-        guard !isRunning else { return }
+        guard !isRunning, !AppLifecycleController.shared.maintenanceInProgress else { return }
         isRunning = true; cancellation = CleanupCancellation(); result = nil; error = nil; progress = nil; stopRequested = false; retryScopes = []
         defer { isRunning = false; executor = nil }
         do {
@@ -32,6 +32,11 @@ import SwiftUI
             let unfinished = Set(result?.targets.filter { $0.state != .succeeded }.map(\.originalURL) ?? [])
             retryScopes = Array(Set(batch.targets.filter { unfinished.contains($0.url) }.map(\.scope)))
             after = await Task.detached { StartupVolumeCapacity.read() }.value
+            if let before, let after {
+                let observation = CleanupCapacityObservation(beforeAvailable: before.available, afterAvailable: after.available, beforeTotal: before.total, afterTotal: after.total, beforeVolumeID: before.volumeID, afterVolumeID: after.volumeID, beforeMetric: before.metric, afterMetric: after.metric, beforeDate: before.observedAt, afterDate: after.observedAt)
+                do { try await Task.detached { try journal.recordCapacity(observation, batchID: batch.id) }.value }
+                catch { self.error = "File outcomes remain recorded, but capacity observations could not be saved to history." }
+            }
         } catch { self.error = "The local operation journal is unavailable. No files were moved. Recheck and create a new plan." }
     }
     private func executionOperation(_ batch: CleanupApproval) -> any TrashOperating {

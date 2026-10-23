@@ -9,6 +9,7 @@ import SwiftUI
     private(set) var error: String?
     private(set) var loaded = false
     var requiresReview: Bool { error != nil || snapshot?.interruptedBatches.isEmpty == false }
+    func refresh() async { loaded = false; error = nil; _ = await loadOnce() }
     /// Runs once per process; opening another window is not a second recovery session.
     func loadOnce() async -> Bool {
         guard !loaded else { return false }

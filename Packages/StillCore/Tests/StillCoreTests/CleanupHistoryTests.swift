@@ -55,6 +55,8 @@ private func historyApproval(_ root: URL, names: [String]) async throws -> Clean
     outcome.message = String(repeating: "owned fixture ", count: 80_000)
     try second.outcome(outcome)
     #expect(try first.completedHistory().completedRuns.first?.usesApprovalDate == false)
+    #expect(throws: CleanupJournalError.self) { try first.clearCompletedRuns(requireNoRecovery: true, operationInProgress: true) }
+    #expect(try first.records().count == 1)
     let before = try first.storageBytes()
     _ = try first.clearCompletedRuns(requireNoRecovery: true)
     let compacted = try first.compact()
@@ -76,4 +78,37 @@ private func historyApproval(_ root: URL, names: [String]) async throws -> Clean
     try journal.outcome(record)
     #expect(try journal.retainCompletedRuns(now: Date(timeIntervalSince1970: 100 * 86400)).removedRuns == 1)
     #expect(try journal.claim(approved) == false)
+}
+@Test func completedHistorySeparatesPersistedCapacityFromPlannedSizes() async throws {
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent("StillHistory-" + UUID().uuidString)
+    try FileManager.default.createDirectory(at: root, withIntermediateDirectories: false)
+    defer { try? FileManager.default.removeItem(at: root) }
+    let approval = try await historyApproval(root, names: ["local.pdf"])
+    let url = root.appendingPathComponent("cleanup.sqlite")
+    let journal = try SQLiteCleanupJournal(url: url)
+    #expect(try journal.claim(approval))
+    var record = CleanupRecord(batch: approval, target: try #require(approval.targets.first)); record.state = .succeeded
+    try journal.outcome(record)
+    let observation = CleanupCapacityObservation(beforeAvailable: 20, afterAvailable: 14, beforeTotal: 100, afterTotal: 100, beforeVolumeID: "owned-volume", afterVolumeID: "owned-volume", beforeMetric: "available", afterMetric: "available", beforeDate: Date(timeIntervalSince1970: 1), afterDate: Date(timeIntervalSince1970: 2))
+    try journal.recordCapacity(observation, batchID: approval.id)
+    let run = try #require(SQLiteCleanupJournal(url: url, readOnly: true).completedHistory().completedRuns.first)
+    #expect(run.capacity?.observedChange == -6)
+    #expect(run.plannedLogicalBytes == 1)
+}
+@Test func deferredCompactionAndByteRetentionPreserveJournalAuthority() async throws {
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent("StillHistory-" + UUID().uuidString)
+    try FileManager.default.createDirectory(at: root, withIntermediateDirectories: false)
+    defer { try? FileManager.default.removeItem(at: root) }
+    let approval = try await historyApproval(root, names: ["kept.pdf"])
+    let journal = try SQLiteCleanupJournal(url: root.appendingPathComponent("cleanup.sqlite"))
+    #expect(try journal.claim(approval))
+    #expect(try journal.retainCompletedRuns(maximumBytes: 0).protectedRecords == 1)
+    #expect(try journal.records().count == 1)
+    let compacted = try journal.compact(timeout: 0)
+    #expect(compacted.completed == false)
+    #expect(compacted.beforeBytes == compacted.afterBytes)
+    var record = CleanupRecord(batch: approval, target: try #require(approval.targets.first))
+    record.state = .failed; try journal.outcome(record)
+    #expect(try journal.retainCompletedRuns(maximumBytes: 0).removedRecords == 1)
+    #expect(try journal.claim(approval) == false)
 }

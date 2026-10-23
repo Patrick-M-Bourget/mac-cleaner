@@ -2,6 +2,7 @@ import SwiftUI
 import AppKit
 import ServiceManagement
 import Combine
+import StillCore
 
 @MainActor private final class NativeLoginService: LoginService {
     var status: LoginStatus {
@@ -31,17 +32,28 @@ import Combine
         didSet { if !operationInProgress, quitPending { NSApp.terminate(nil) } }
     }
     @Published var hasPendingPlan = false
+    @Published var maintenanceInProgress = false
     var quitPending = false
     var isTerminating = false
     private var monitoringSubscription: AnyCancellable?
     private let registration: LoginRegistration
     private init() {
-        let registration = LoginRegistration(service: NativeLoginService(), savedIntent: UserDefaults.standard.bool(forKey: "Still.startAtLogin"))
+        let registration = LoginRegistration(service: NativeLoginService(), savedIntent: LocalStateLocation.isDisposableTest ? false : UserDefaults.standard.bool(forKey: "Still.startAtLogin"))
         self.registration = registration
         loginIntent = registration.intent; loginStatus = registration.status
         monitoringSubscription = alerts.$effectiveMonitoring.dropFirst().sink { [weak self] effective in
             self?.monitoringChanged(effective)
         }
+    }
+    func resetPreferences() throws {
+        guard !operationInProgress, !selection.execution.isRunning else { throw CleanupJournalError.unavailable }
+        if !LocalStateLocation.isDisposableTest {
+            if registration.status == .enabled || registration.status == .requiresApproval { try registration.choose(false) }
+            else if registration.status == .unavailable && loginIntent { throw CleanupJournalError.unavailable }
+            UserDefaults.standard.removeObject(forKey: "Still.startAtLogin")
+        }
+        loginIntent = false; loginStatus = LocalStateLocation.isDisposableTest ? .disabled : registration.status
+        try alerts.resetPreferences()
     }
     func refreshLogin() {
         guard StorageAlertsController.futureEnabled else { return }

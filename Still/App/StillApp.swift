@@ -349,10 +349,9 @@ private struct WorkspaceView: View {
     }
 
     private var history: some View {
-        VStack(alignment: .leading, spacing: 20) {
-            heading("History", "Local cleanup records")
-            EmptyState(title: "Saved history is not displayed yet", detail: "Open Cleanup plan for the current session’s results. Durable operation records are retained separately.", symbol: "clock")
-        }
+        CleanupHistoryView(showRecovery: { recoveryVisible = true; Task { await recovery.refresh() } }, didReset: {
+            appearance = "Automatic"; nativeInspectionVisible = false; inspecting = false
+        })
     }
 
     private var locations: some View {

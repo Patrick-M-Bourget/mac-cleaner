@@ -116,7 +116,7 @@ Only the configured user Downloads directory, verified by its directory resource
 
 A hardlink's two directory entries remain two exact possible mutation targets; selecting one never silently substitutes its alias. Count selected paths separately and storage bytes once per resource identity. Repeated appearances of the same path/resource count once; overlapping scans are deduplicated in plan presentation. Existing selections remain visible separately from search results.
 
-DEBUG UI tests may nominate a disposable root with `--ui-test-downloads-root` and `STILL_TEST_DOWNLOADS_ROOT`. Binding occurs only after that exact root is explicitly selected through NSOpenPanel. Its canonical final name must start with `StillSelectionUI-`, and its canonical parent must be the app temporary directory, `/private/tmp`, or the exact known UI runner container’s `Data/tmp` directory. Symlink roots or mappings outside those canonical parents fail closed. Debug compilation explicitly defines `DEBUG`; release builds contain no override. This supplies the configured root identity for tests without scanning real Downloads; it is not a release product setting or automatic scan. The selected root still goes through the folder picker and ordinary metadata scanner. No mutation is enabled in this slice.
+DEBUG UI tests may nominate a disposable root with `--ui-test-downloads-root` and `STILL_TEST_DOWNLOADS_ROOT`. Binding occurs only after that exact root is explicitly selected through NSOpenPanel. Its canonical final name must start with `StillSelectionUI-`, and its canonical parent must be the app temporary directory, `/private/tmp`, or the exact known UI runner container’s `Data/tmp` directory. Symlink roots or mappings outside those canonical parents fail closed. Debug compilation explicitly defines `DEBUG`; release builds contain no override. This supplies the configured root identity for tests without scanning real Downloads; it is not a release product setting or automatic scan. The selected root still goes through the folder picker and ordinary metadata scanner. The selected root can reach the separately reviewed native Trash executor after explicit final approval.
 
 Window > Show Still provides an explicit native route back to a closed pending-plan workspace, alongside Dock reopening. The app-owned inspection/selection objects survive window reconstruction; navigation state may return to Overview, and Cleanup plan retains membership. The focused native UI test verifies checkbox synchronization, filename inspection, hidden search selections, window close/reopen without alerts, and normal Quit/relaunch clearing the unexecuted plan.
 
@@ -126,7 +126,7 @@ The native Downloads category uses an AppKit mixed-state checkbox with current e
 
 Review cleanup captures an immutable target list and draft generation. The fixed-size confirmation has bounded scrolling, exact relative paths, scope/count/size, Trash-held-space consequences and persistent Cancel/Approve controls. Cancel preserves selection and restores focus to Review cleanup. Any selection/scan generation change invalidates an open review. One final approval produces a separate immutable `CleanupApproval` value; no mutation API is invoked in #8. Updating the live plan cannot change an already produced value, and stale reviews cannot approve the new plan.
 
-The execution ticket must consume approval and revalidate target evidence. `SessionPlan.canReview` is the shared readiness gate to extend for refresh/pending choices; `invalidateReview()` changes the generation without clearing membership. A preflight path check does not certify race-safe Trash execution. This build accurately states that approval moves no files until the executor is connected.
+The executor consumes approval and revalidates target evidence. `SessionPlan.canReview` is the shared readiness gate to extend for refresh/pending choices; `invalidateReview()` changes the generation without clearing membership. A preflight path check does not certify race-safe Trash execution. Final Move to Trash invokes the executor; cancelling the review moves nothing.
 
 ## Future Docker storage (#33)
 
@@ -140,7 +140,7 @@ The preceding #8 checkpoint status is historical. Native design-system qualifica
 
 ## Downloads execution (#9)
 
-Final **Move to Trash** now consumes the exact approved batch, journals native operations and shows per-file results with applicable Reveal in Trash actions. No permanent fallback exists. See [executor qualification and concurrency limits](validation/downloads-executor.md). Tests mutate only owned disposable fixtures. Launch recovery and completed-history management remain subsequent tickets; journal evidence persists independently of the session plan.
+Final **Move to Trash** now consumes the exact approved batch, journals native operations and shows per-file results with applicable Reveal in Trash actions. No permanent fallback exists. See [executor qualification and concurrency limits](validation/downloads-executor.md). Tests mutate only owned disposable fixtures. Launch recovery (#12) reads durable interrupted evidence without resuming operations. Completed-history management (#13) uses separate fresh-read maintenance; journal evidence persists independently of the session plan.
 
 ## Bounded progressive metadata scans (#34)
 
@@ -163,3 +163,7 @@ Stop prevents new target operations, keeps individual outcomes and makes no roll
 ## Compatible aggregate comparisons (M4)
 
 The future-milestone launch flag exposes **What grew** (Command-6). It records only completed, measured explicit-folder observations in local bounded aggregate history. See [comparison policy and validation](validation/growth-comparisons.md). Tests use the shared identity-bound disposable app-state root; do not point them at personal baseline storage.
+
+## Completed history and reset (#13)
+
+History reads local per-file outcomes, approval/outcome times, planned logical and Trash-held allocation estimates, and independently persisted capacity observations. Legacy missing observations remain Unknown. See [history and reset validation](validation/history-reset.md) for ownership, interrupted-run retention, bounded SQLite compaction, test isolation and manual service gates. Clear completed runs also clears aggregate growth baselines; reset uses the separate first-baseline Growth hook. No historical result restores a plan or authorizes retry.

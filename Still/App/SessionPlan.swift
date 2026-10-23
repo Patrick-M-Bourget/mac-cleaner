@@ -16,7 +16,7 @@ import SwiftUI
     private var retryGeneration = UUID()
     private(set) var approvedBatch: CleanupApproval?
     var mutationVersion: UInt64 { draft.mutationVersion }
-    var canReview: Bool { !isPreparing && !execution.isRunning && !isRefreshing && refresh.canReview(draft) }
+    var canReview: Bool { !AppLifecycleController.shared.maintenanceInProgress && !isPreparing && !execution.isRunning && !isRefreshing && refresh.canReview(draft) }
     var categoryState: CategorySelectionState {
         guard let downloads else { return .unchecked }
         return draft.categoryState(in: Array(scans.values), downloads: downloads, restrictingTo: retryTargetIDs)

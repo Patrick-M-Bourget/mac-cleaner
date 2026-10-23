@@ -2,7 +2,7 @@ import Foundation
 import SQLite3
 import Darwin
 
-public enum CleanupJournalError: Error { case unavailable, recoveryRequired }
+public enum CleanupJournalError: Error { case unavailable, recoveryRequired, operationInProgress }
 /// One locked connection; durable JSON records are an implementation detail behind records().
 public final class SQLiteCleanupJournal: CleanupJournaling, @unchecked Sendable {
     private let lock = NSLock()
@@ -84,12 +84,25 @@ public final class SQLiteCleanupJournal: CleanupJournaling, @unchecked Sendable 
             results.append(try JSONDecoder().decode(CleanupRecord.self, from: Data(bytes: bytes, count: Int(sqlite3_column_bytes(statement, 0)))))
         }
     }
+    public func recordCapacity(_ observation: CleanupCapacityObservation, batchID: UUID) throws {
+        guard !isReadOnly else { throw CleanupJournalError.unavailable }
+        lock.lock(); defer { lock.unlock() }
+        try run("BEGIN IMMEDIATE")
+        do {
+            for var record in try readRecords() where record.batchID == batchID {
+                record.capacityObservation = observation
+                try run("UPDATE records SET payload=? WHERE id=?", values: [try JSONEncoder().encode(record), Data(record.id.utf8)])
+            }
+            try run("COMMIT")
+        } catch { try? run("ROLLBACK"); throw error }
+    }
     public func completedHistory() throws -> CleanupHistorySnapshot {
         CleanupHistorySnapshot(records: try records())
     }
     /// Reads under the same write transaction as deletion. Interrupted batches are never split.
-    public func clearCompletedRuns(requireNoRecovery: Bool = false) throws -> CleanupHistoryMaintenance {
-        try maintain(requireNoRecovery: requireNoRecovery) { _ in true }
+    public func clearCompletedRuns(requireNoRecovery: Bool = false, operationInProgress: Bool = false) throws -> CleanupHistoryMaintenance {
+        guard !operationInProgress else { throw CleanupJournalError.operationInProgress }
+        return try maintain(requireNoRecovery: requireNoRecovery) { _ in true }
     }
     public func retainCompletedRuns(now: Date = Date(), days: Int = 90, maximumBytes: Int = 250_000_000) throws -> CleanupHistoryMaintenance {
         var retainedBytes = 0
@@ -138,7 +151,7 @@ public final class SQLiteCleanupJournal: CleanupJournaling, @unchecked Sendable 
         lock.lock(); defer { lock.unlock() }
         let before = try measuredStorageBytes()
         let available = try location.deletingLastPathComponent().resourceValues(forKeys: [.volumeAvailableCapacityKey]).volumeAvailableCapacity ?? 0
-        guard before <= 250_000_000, Int64(available) > before * 2 + 64_000_000 else {
+        guard timeout > 0, before <= 250_000_000, Int64(available) > before * 2 + 64_000_000 else {
             return CleanupHistoryCompaction(beforeBytes: before, afterBytes: before, completed: false)
         }
         let deadline = UnsafeMutablePointer<Double>.allocate(capacity: 1)
@@ -150,9 +163,9 @@ public final class SQLiteCleanupJournal: CleanupJournaling, @unchecked Sendable 
         }, deadline)
         sqlite3_busy_timeout(database, 100)
         do {
-            try run("PRAGMA wal_checkpoint(TRUNCATE)")
+            guard try scalar("PRAGMA wal_checkpoint(TRUNCATE)") == "0" else { throw CleanupJournalError.unavailable }
             try run("VACUUM")
-            try run("PRAGMA wal_checkpoint(TRUNCATE)")
+            guard try scalar("PRAGMA wal_checkpoint(TRUNCATE)") == "0" else { throw CleanupJournalError.unavailable }
             return CleanupHistoryCompaction(beforeBytes: before, afterBytes: try measuredStorageBytes(), completed: true)
         } catch {
             return CleanupHistoryCompaction(beforeBytes: before, afterBytes: (try? measuredStorageBytes()) ?? before, completed: false)
