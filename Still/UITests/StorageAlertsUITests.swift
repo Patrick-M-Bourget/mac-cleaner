@@ -31,4 +31,21 @@ final class StorageAlertsUITests: XCTestCase {
         app.typeKey("w", modifierFlags: .command)
         XCTAssertTrue(app.wait(for: .notRunning, timeout: 10))
     }
+
+    @MainActor func testFutureHomebrewPreviewIsSecondaryAndClearlySynthetic() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--future-milestones"]
+        app.launch()
+        XCTAssertTrue(app.buttons["Review Homebrew opportunities"].waitForExistence(timeout: 10))
+        let bounds = app.windows.firstMatch.frame
+        app.buttons["Review Homebrew opportunities"].click()
+        XCTAssertTrue(app.buttons["Choose Homebrew executable…"].exists)
+        XCTAssertFalse(app.buttons["Inspect selected Homebrew"].isEnabled)
+        app.buttons["Show disposable preview example"].click()
+        XCTAssertTrue(app.staticTexts["Synthetic preview evidence"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["/disposable/cache/archive (12.3MB)"].exists)
+        XCTAssertEqual(app.windows.firstMatch.frame, bounds)
+        app.buttons["Back to Overview"].click()
+        XCTAssertTrue(app.buttons["Choose folder…"].exists)
+    }
 }

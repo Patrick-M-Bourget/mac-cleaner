@@ -80,3 +80,7 @@ Alert preferences and episodes now persist atomically in the app's separate `Sti
 The capacity adapter records important-use versus fallback available capacity and startup-volume UUID. Unknown identity/readings pause decisions. Tests use temporary store URLs, controlled dates and samples, never the application's persistent user record or actual notification authorization. Native signed-app delivery, privacy and lifecycle qualification remain required before M5 ships.
 
 The native manifest declares file-metadata reason `3B52.1` for selected-folder metadata, alongside the existing capacity declaration. The [Apple reason definition](https://developer.apple.com/documentation/bundleresources/app-privacy-configuration/nsprivacyaccessedapitypes/nsprivacyaccessedapitype) covers sizes and other metadata of user-granted files/directories. Full release API audit remains M7.
+
+## Future Homebrew review (#22)
+
+With `--future-milestones`, Overview offers a secondary **Review Homebrew opportunities** route. Explicitly choose an executable, then Inspect. No real build is qualified, so the native path currently returns guidance without executing it; a clearly marked disposable example demonstrates target/estimate presentation. There is no automatic tool/cache discovery and no cleanup action. See [qualification evidence](validation/homebrew-preview.md) for bounded command tests, the disposable helper demonstration, primary sources and missing real-Homebrew validation gates.
