@@ -351,6 +351,14 @@ final class WorkspaceUITests: XCTestCase {
 
     @MainActor
     func testOwnedLargeScanShowsBoundedProgressAndAcknowledgesStop() throws {
+        try assertOwnedProgress(minimum: false)
+    }
+    @MainActor
+    func testMinimumOwnedLargeScanKeepsProgressAndStopReachable() throws {
+        try assertOwnedProgress(minimum: true)
+    }
+    @MainActor
+    private func assertOwnedProgress(minimum: Bool) throws {
         continueAfterFailure = false
         let manager = FileManager.default
         let temporary = manager.temporaryDirectory
@@ -366,7 +374,7 @@ final class WorkspaceUITests: XCTestCase {
             }
         }
         let app = XCUIApplication()
-        app.launchArguments = ["--design-initial-size"]
+        app.launchArguments = [minimum ? "--design-minimum" : "--design-initial-size"]
         app.launch()
         XCTAssertTrue(app.buttons["Choose folder…"].waitForExistence(timeout: 5))
         let bounds = app.windows.firstMatch.frame
@@ -382,8 +390,10 @@ final class WorkspaceUITests: XCTestCase {
                 app.dialogs.buttons["Scan folder"].click()
             } else { app.buttons["Recheck folder"].click() }
             XCTAssertTrue(app.staticTexts["scanProgressSummary"].waitForExistence(timeout: 3))
+            XCTAssertTrue(app.buttons["Stop scan"].waitForExistence(timeout: 1))
+            XCTAssertTrue(bounds.contains(app.buttons["Stop scan"].frame))
             let shot = XCTAttachment(screenshot: app.windows.firstMatch.screenshot())
-            shot.name = "bounded-scan-progress-" + appearance; shot.lifetime = .keepAlways; add(shot)
+            shot.name = "bounded-scan-progress-" + (minimum ? "minimum-" : "") + appearance; shot.lifetime = .keepAlways; add(shot)
             app.scrollViews.firstMatch.scroll(byDeltaX: 0, deltaY: -40)
             app.buttons["Stop scan"].click()
             let stopped = app.staticTexts.matching(NSPredicate(format: "value CONTAINS[c] 'Stop requested' OR value CONTAINS[c] 'Scan stopped'"))

@@ -143,7 +143,6 @@ struct FolderInspectionView: View {
                         logicalSubtotal: bytes(progress.knownLogicalSubtotal),
                         recentNames: progress.recentObservations.prefix(5).map { $0.url.lastPathComponent })
                 } else { ProgressView("Reading file metadata…") }
-                Button("Stop scan") { model.cancel() }
             }
             if let message = model.message { StatusRow(text: message, symbol: "info.circle") }
             if let result = model.result {
