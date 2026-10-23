@@ -12,7 +12,7 @@ Use SwiftUI native controls, system typography and SF Symbols. The browser proto
 
 ## Window and layout
 
-Initial target 1120 × 760 points; minimum target 900 × 640, pending native accessibility/localization validation. Persist user-resized bounds within the current display. Never resize/recenter on destination changes, selections, disclosures, errors or results. Use a persistent shell, stable toolbar/sidebar, and a shrinkable main content region.
+Initial target 1120 × 760 points; minimum target 900 × 640, pending native accessibility/localization validation. Persist user-resized bounds within the current display. At window attachment, fit initial/restored bounds to that display’s visible frame while preserving feasible minimum dimensions. Never resize/recenter on destination changes, selections, disclosures, errors or results. Use a persistent shell, stable toolbar/sidebar, and a shrinkable main content region.
 
 Prototype references: 190 px sidebar, 63 px toolbar; translate to native metrics rather than copying CSS pixels. Keep one main vertical scroll region per destination. Preserve its offset on return; new destinations start at the top. Keep the primary plan action reachable in a stable bottom region. Long confirmation item lists scroll inside bounded sheets with visible action controls. No horizontal overflow for ordinary content. Use wrapping for consequences and accessible truncation for long paths.
 
