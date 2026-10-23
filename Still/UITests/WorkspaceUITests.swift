@@ -99,4 +99,51 @@ final class WorkspaceUITests: XCTestCase {
         XCTAssertEqual(app.windows.firstMatch.frame, bounds)
     }
 
+    @MainActor
+    func testLiveSelectionSurvivesSearchNavigationAndWindowClosure() throws {
+        continueAfterFailure = false
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("StillSelectionUI-" + UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        try Data([1, 2, 3]).write(to: root.appendingPathComponent("selected.pdf"))
+        let app = XCUIApplication()
+        app.launchArguments = ["--ui-test-downloads-root"]
+        app.launchEnvironment["STILL_TEST_DOWNLOADS_ROOT"] = root.path
+        app.launch()
+        XCTAssertTrue(app.buttons["Choose folder…"].waitForExistence(timeout: 5))
+        app.buttons["Choose folder…"].click()
+        app.typeKey("g", modifierFlags: [.command, .shift])
+        let path = app.textFields.firstMatch
+        XCTAssertTrue(path.waitForExistence(timeout: 5)); path.typeText(root.path)
+        app.typeKey(.return, modifierFlags: [])
+        app.dialogs.buttons["Scan folder"].click()
+        let checkbox = app.checkBoxes["Select selected.pdf"]
+        XCTAssertTrue(checkbox.waitForExistence(timeout: 10), app.debugDescription)
+        XCTAssertEqual(checkbox.value as? Int, 0)
+        app.buttons["Inspect selected.pdf"].click()
+        XCTAssertEqual(checkbox.value as? Int, 0)
+        checkbox.click()
+        let search = app.textFields["Search inspected files"]
+        search.click(); search.typeText("does-not-match")
+        XCTAssertTrue(app.staticTexts["1 files selected"].exists)
+        app.buttons["View cleanup plan"].click()
+        XCTAssertTrue(app.staticTexts["liveSelectionSummary"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.checkBoxes["Selected selected.pdf"].exists)
+        let bounds = app.windows.firstMatch.frame
+        app.typeKey("w", modifierFlags: .command)
+        XCTAssertNotEqual(app.state, .notRunning)
+        app.activate()
+        app.menuBars.menuBarItems["Window"].click()
+        app.menuItems["Still"].firstMatch.click()
+        XCTAssertTrue(app.windows.firstMatch.waitForExistence(timeout: 5))
+        app.typeKey("2", modifierFlags: .command)
+        XCTAssertTrue(app.checkBoxes["Selected selected.pdf"].waitForExistence(timeout: 5))
+        XCTAssertEqual(app.windows.firstMatch.frame, bounds)
+        app.checkBoxes["Select selected.pdf"].click()
+        XCTAssertFalse(app.checkBoxes["Selected selected.pdf"].exists)
+        app.terminate(); app.launch()
+        app.typeKey("2", modifierFlags: .command)
+        XCTAssertFalse(app.checkBoxes["Selected selected.pdf"].exists)
+    }
+
 }

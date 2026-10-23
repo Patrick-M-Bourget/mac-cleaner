@@ -62,7 +62,8 @@ private struct WorkspaceView: View {
     @State private var inspected = FixtureItem.downloads[0]
     @State private var appearance = "Automatic"
     @State private var expanded = false
-    @State private var folderInspection = FolderInspection()
+    @State private var folderInspection = AppLifecycleController.shared.inspection
+    @State private var selection = AppLifecycleController.shared.selection
     @State private var nativeInspectionVisible = false
 
     var body: some View {
@@ -92,14 +93,14 @@ private struct WorkspaceView: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 24) {
                         if nativeInspectionVisible {
-                            FolderInspectionView(model: folderInspection) { nativeInspectionVisible = false; destination = .overview }
+                            FolderInspectionView(model: folderInspection, selection: selection, viewPlan: { nativeInspectionVisible = false; destination = .plan }) { nativeInspectionVisible = false; destination = .overview }
                         }
                         else if inspecting { inspection }
                         else {
                             switch destination {
                             case .alerts: StorageAlertsView(controller: alerts)
                             case .overview: overview
-                            case .plan: plan
+                            case .plan: if selection.scans.isEmpty { plan } else { LiveCleanupPlanView(selection: selection) }
                             case .history: history
                             case .locations: locations
                             }
