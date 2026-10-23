@@ -233,6 +233,7 @@ private struct WorkspaceView: View {
         .task {
             #if DEBUG
             if !injectedAlertOpen, LocalStateLocation.isDisposableTest, StorageAlertsController.futureEnabled,
+               let _ = try? LocalStateLocation.root(create: false),
                let fixture = ProcessInfo.processInfo.environment["STILL_TEST_ALERT_OPEN"] {
                 injectedAlertOpen = true
                 let payload: [AnyHashable: Any] = fixture == "dated" ? ["Still.observedAt": 1_000_000.0] : fixture == "malformed" ? ["Still.observedAt": "invalid"] : [:]
