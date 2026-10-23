@@ -125,6 +125,7 @@ final class WorkspaceUITests: XCTestCase {
         app.typeKey(.return, modifierFlags: [])
         app.dialogs.buttons["Scan folder"].click()
         let checkbox = app.checkBoxes["Select selected.pdf"]
+        for _ in 0..<5 { if checkbox.exists { break }; app.scrollViews.firstMatch.scroll(byDeltaX: 0, deltaY: -350) }
         XCTAssertTrue(checkbox.waitForExistence(timeout: 10), app.debugDescription)
         XCTAssertEqual(checkbox.value as? Int, 0)
         app.buttons["Inspect selected.pdf"].click()
@@ -141,14 +142,17 @@ final class WorkspaceUITests: XCTestCase {
         XCTAssertNotEqual(app.state, .notRunning)
         app.activate()
         app.menuBars.menuBarItems["Window"].click()
-        app.menuItems["Still"].firstMatch.click()
+        app.menuItems["Show Still"].firstMatch.click()
         XCTAssertTrue(app.windows.firstMatch.waitForExistence(timeout: 5))
         app.typeKey("2", modifierFlags: .command)
         XCTAssertTrue(app.checkBoxes["Selected selected.pdf"].waitForExistence(timeout: 5))
         XCTAssertEqual(app.windows.firstMatch.frame, bounds)
         app.checkBoxes["Select selected.pdf"].click()
         XCTAssertFalse(app.checkBoxes["Selected selected.pdf"].exists)
-        app.terminate(); app.launch()
+        app.checkBoxes["Select selected.pdf"].click()
+        app.typeKey("q", modifierFlags: .command)
+        XCTAssertTrue(app.wait(for: .notRunning, timeout: 5))
+        app.launch()
         app.typeKey("2", modifierFlags: .command)
         XCTAssertFalse(app.checkBoxes["Selected selected.pdf"].exists)
     }

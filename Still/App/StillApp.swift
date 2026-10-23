@@ -12,6 +12,11 @@ struct StillApp: App {
                 .frame(minWidth: 900, minHeight: 640)
         }
         .defaultSize(width: 1120, height: 760)
+        .commands {
+            CommandGroup(after: .windowArrangement) {
+                Button("Show Still") { lifecycle.openWorkspace?() }
+            }
+        }
         MenuBarExtra("Still storage alerts", systemImage: "internaldrive", isInserted: Binding(get: { StorageAlertsController.futureEnabled && alerts.effectiveMonitoring }, set: { inserted in if !inserted { Task { await alerts.setEnabled(false) } } })) {
             StillStatusMenu(alerts: lifecycle.alerts)
         }
