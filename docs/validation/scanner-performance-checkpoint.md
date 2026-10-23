@@ -1,6 +1,6 @@
 # Scanner performance checkpoint — paused for design-system priority
 
-Issue #34 is **incomplete and must not be marked resolved**. Work stopped on October 22, 2026 when product priority changed to establishing the design system and migrating existing screens. This branch is not approved for integration yet.
+Historical checkpoint: implementation resumed after the design-system migration; see [current evidence and remaining qualification gates](scanner-performance.md). The measurements below describe the paused revision. Work stopped on October 22, 2026 when product priority changed to establishing the design system and migrating existing screens. This branch is not approved for integration yet.
 
 ## Implemented checkpoint
 

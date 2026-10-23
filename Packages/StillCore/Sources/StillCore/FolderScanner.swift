@@ -130,6 +130,15 @@ public actor FolderScanner {
     }
 
     public func scan(_ scope: URL, cancellation: ScanCancellation? = nil, onProgress: (@Sendable (ScanProgress) -> Void)? = nil) throws -> ScanResult {
+        try Self.enumerate(scope, maximumEntries: maximumEntries, maximumIssues: maximumIssues,
+            supplement: supplement, access: access, cancellation: cancellation, onProgress: onProgress)
+    }
+
+    // Synchronous call from the scanner actor: remains on its executor, while the local
+    // Foundation objects are confined to this nonisolated stack and autorelease pool.
+    private nonisolated static func enumerate(_ scope: URL, maximumEntries: Int, maximumIssues: Int,
+        supplement: any MetadataSupplementReading, access: any ScanAccessChecking,
+        cancellation: ScanCancellation?, onProgress: (@Sendable (ScanProgress) -> Void)?) throws -> ScanResult {
         guard scope.isFileURL else { throw CocoaError(.fileReadUnsupportedScheme) }
         func checkCancellation() throws {
             try Task.checkCancellation()
@@ -173,63 +182,79 @@ public actor FolderScanner {
         }) else {
             throw CocoaError(.fileReadNoPermission)
         }
-        for case let url as URL in entries {
-            try checkCancellation()
-            guard visited < maximumEntries else {
-                issues.append(.init(url: scope, reason: .entryLimit))
-                break
+        while true {
+            // Drain Foundation enumeration/resource metadata per entry. Retain a clean URL,
+            // not the enumerator's prefetched NSURL and its cached metadata graph.
+            let keepGoing = try autoreleasepool {
+                try checkCancellation()
+                guard let enumerated = entries.nextObject() as? URL else { return false }
+                let url = URL(fileURLWithPath: enumerated.path)
+                try checkCancellation()
+                guard visited < maximumEntries else {
+                    issues.append(.init(url: scope, reason: .entryLimit))
+                    return false
+                }
+                guard issues.count < maximumIssues else {
+                    issues.append(.init(url: scope, reason: .issueLimit))
+                    return false
+                }
+                visited += 1
+                guard url.standardizedFileURL.pathComponents.starts(with: scope.standardizedFileURL.pathComponents) else {
+                    entries.skipDescendants()
+                    return true
+                }
+                do { try access.check(url) }
+                catch {
+                    entries.skipDescendants()
+                    issues.append(.init(url: url, reason: ScanIssue.classify(error)))
+                    return true
+                }
+                var metadata = stat()
+                guard lstat(url.path, &metadata) == 0 else {
+                    issues.append(.init(url: url, reason: .readFailed))
+                    return true
+                }
+                let type = metadata.st_mode & S_IFMT
+                let isDirectory = type == S_IFDIR
+                let isFile = type == S_IFREG
+                let isPackage = isDirectory && (try? url.resourceValues(forKeys: [.isPackageKey]).isPackage) == true
+                let sameVolume = metadata.st_dev == rootMetadata.st_dev
+                if isPackage || !sameVolume { entries.skipDescendants() }
+                if !sameVolume { issues.append(.init(url: url, reason: .differentVolume)) }
+                if entries.level > 64 {
+                    entries.skipDescendants()
+                    issues.append(.init(url: url, reason: .depthLimit))
+                    return true
+                }
+                let kind: ObservationKind = isPackage ? .package : isDirectory ? .folder : isFile ? .file : type == S_IFLNK ? .symbolicLink : .other
+                let bytes = isFile && sameVolume ? Int64(metadata.st_size) : nil
+                let identity = "\(metadata.st_dev):\(metadata.st_ino)"
+                var extra: MetadataSupplement?
+                if isFile && sameVolume {
+                    do { extra = try supplement.read(url) }
+                    catch { issues.append(.init(url: url, reason: ScanIssue.classify(error, fallback: .metadataUnavailable))) }
+                }
+                var afterMetadata = stat()
+                guard lstat(url.path, &afterMetadata) == 0,
+                      afterMetadata.st_dev == metadata.st_dev, afterMetadata.st_ino == metadata.st_ino,
+                      afterMetadata.st_mode & S_IFMT == type else {
+                    issues.append(.init(url: url, reason: .locationUnavailable))
+                    return true
+                }
+                let duplicate = !counted.insert(identity).inserted
+                if isFile && sameVolume && !duplicate {
+                    logical += bytes ?? 0
+                    if let amount = extra?.allocatedBytes { allocated += amount }
+                    else { allocationUnknown += 1 }
+                }
+                try checkCancellation()
+                observations.append(.init(id: url.path, resourceID: identity, url: url, kind: kind,
+                    logicalBytes: bytes, allocatedBytes: extra?.allocatedBytes,
+                    previewAvailability: extra?.locality ?? .unknown, isDuplicateResource: duplicate, cloud: extra?.cloud ?? .unknown))
+                emitProgress()
+                return true
             }
-            guard issues.count < maximumIssues else {
-                issues.append(.init(url: scope, reason: .issueLimit))
-                break
-            }
-            visited += 1
-            guard url.standardizedFileURL.pathComponents.starts(with: scope.standardizedFileURL.pathComponents) else {
-                entries.skipDescendants()
-                continue
-            }
-            do { try access.check(url) }
-            catch {
-                entries.skipDescendants()
-                issues.append(.init(url: url, reason: ScanIssue.classify(error)))
-                continue
-            }
-            var metadata = stat()
-            guard lstat(url.path, &metadata) == 0 else {
-                issues.append(.init(url: url, reason: .readFailed))
-                continue
-            }
-            let type = metadata.st_mode & S_IFMT
-            let isDirectory = type == S_IFDIR
-            let isFile = type == S_IFREG
-            let isPackage = isDirectory && (try? url.resourceValues(forKeys: [.isPackageKey]).isPackage) == true
-            let sameVolume = metadata.st_dev == rootMetadata.st_dev
-            if isPackage || !sameVolume { entries.skipDescendants() }
-            if !sameVolume { issues.append(.init(url: url, reason: .differentVolume)) }
-            if entries.level > 64 {
-                entries.skipDescendants()
-                issues.append(.init(url: url, reason: .depthLimit))
-                continue
-            }
-            let kind: ObservationKind = isPackage ? .package : isDirectory ? .folder : isFile ? .file : type == S_IFLNK ? .symbolicLink : .other
-            let bytes = isFile && sameVolume ? Int64(metadata.st_size) : nil
-            let identity = "\(metadata.st_dev):\(metadata.st_ino)"
-            let duplicate = !counted.insert(identity).inserted
-            var extra: MetadataSupplement?
-            if isFile && sameVolume {
-                do { extra = try supplement.read(url) }
-                catch { issues.append(.init(url: url, reason: ScanIssue.classify(error, fallback: .metadataUnavailable))) }
-            }
-            if isFile && sameVolume && !duplicate {
-                logical += bytes ?? 0
-                if let amount = extra?.allocatedBytes { allocated += amount }
-                else { allocationUnknown += 1 }
-            }
-            try checkCancellation()
-            observations.append(.init(id: url.path, resourceID: identity, url: url, kind: kind,
-                logicalBytes: bytes, allocatedBytes: extra?.allocatedBytes,
-                previewAvailability: extra?.locality ?? .unknown, isDuplicateResource: duplicate, cloud: extra?.cloud ?? .unknown))
-            emitProgress()
+            if !keepGoing { break }
         }
         try checkCancellation()
         emitProgress(force: true)

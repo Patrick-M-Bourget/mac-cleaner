@@ -138,14 +138,11 @@ struct FolderInspectionView: View {
                 }
             }
             if model.isScanning {
-                ProgressView("Reading file metadata…")
                 if let progress = model.progress {
-                    Text("\(progress.visitedEntries) entries inspected so far · Preliminary observations").accessibilityIdentifier("scanProgressSummary")
-                    Text("Known logical subtotal: \(bytes(progress.knownLogicalSubtotal)) · Coverage incomplete").font(.caption).foregroundStyle(.secondary)
-                    ForEach(Array(progress.recentObservations.prefix(5))) { item in
-                        Text(item.url.lastPathComponent).font(.caption).foregroundStyle(.secondary)
-                    }
-                }
+                    ScanProgressSummary(inspectedEntries: progress.visitedEntries,
+                        logicalSubtotal: bytes(progress.knownLogicalSubtotal),
+                        recentNames: progress.recentObservations.prefix(5).map { $0.url.lastPathComponent })
+                } else { ProgressView("Reading file metadata…") }
                 Button("Stop scan") { model.cancel() }
             }
             if let message = model.message { StatusRow(text: message, symbol: "info.circle") }

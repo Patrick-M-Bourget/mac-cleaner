@@ -135,3 +135,7 @@ The execution ticket must consume approval and revalidate target evidence. `Sess
 ### #8 checkpoint validation status
 
 The focused native journey verified category bulk selection, mixed refinement, bounded confirmation geometry and Cancel preserving choices. It exposed unreliable keyboard focus restoration. A one-shot AppKit first-responder bridge now compiles, but its verification attempt ended with the UI runner killed during launch before reaching the control. Final approval/focus assertions are not yet qualified. Feature work is checkpointed for the design-system-first migration; do not treat this branch as completed #8 or enable execution from it.
+
+## Bounded progressive metadata scans (#34)
+
+The optional public progress/cancellation boundary, bounded native updates and per-entry memory handling are documented with owned-tree measurements in [scanner performance evidence](validation/scanner-performance.md). Million-entry/reference-host, compressed-file and real mount/provider qualification remain open. Progress is preliminary and never authorizes cleanup.
