@@ -10,8 +10,9 @@ generate OS notifications.
 
 ## Standards
 
-The documented spacing-token breach was corrected in `24c80f4`. The exclusion, corrective and final footer/workflow deltas introduced no
-actionable standards findings.
+The documented spacing-token breach was corrected in `24c80f4`. The exclusion,
+corrective and final footer/workflow deltas introduced no actionable standards
+findings.
 The suggested secondary-route enum remains a judgment call, rather than a
 documented requirement; no concrete route inconsistency was established.
 
@@ -20,7 +21,7 @@ documented requirement; no concrete route inconsistency was established.
 The alert-disable submission race, subsequent reserved-episode failure, and
 misleading exclusion refresh notice were corrected and independently verified
 by source review through `fec0455`. No actionable finding remained in those
-reviewed deltas. The final footer delta preserves picker semantics and actual native interaction;
+reviewed deltas. The final footer delta preserves picker semantics and native interaction;
 the full-label test predicate selects the same public Remove control. No
 actionable findings remained in that delta. Conditional adapter capabilities
 remain disabled.
@@ -33,16 +34,23 @@ restart, matching reservations and protected state.
 
 ## Verification and limits
 
-- Final local evidence: 117 core tests, 20 alert/lifecycle tests and native
-  Debug build passed. Release builds passed at the preceding feature/review
-  checkpoints; this does not establish distribution signing or notarization.
+- Final source `d230958`: 117 core tests, 20 alert/lifecycle tests, native Debug
+  build-for-testing and local Release build passed. A verified ad-hoc Release
+  artifact is preserved outside disposable worktrees. This does not establish
+  distribution signing, notarization, Intel runtime or minimum-OS support.
+- [Final full hosted workflow](https://github.com/Patrick-M-Bourget/mac-cleaner/actions/runs/39912299004)
+  passed all 34 native journeys on macOS 26.6.2/arm64 with Xcode 26.6, including
+  strengthened diagnostics and exclusion footer reachability checks.
 - Clean hosted history/scanner captures and completed journeys are recorded
   in [history validation](history-reset.md) and
   [directory validation](directory-stability.md). Clean diagnostics evidence
   is recorded in [diagnostics validation](redacted-diagnostics.md).
-- [Exclusion native qualification](exclusions.md) remains pending a clean
-  initial/minimum journey and visual review. Source review and compilation
-  do not substitute for those checks.
+- [Exclusion native qualification](exclusions.md) passed both initial/minimum
+  journeys in [focused run 39912298566](https://github.com/Patrick-M-Bourget/mac-cleaner/actions/runs/39912298566).
+  All 12 unaltered empty/preview/saved Light/Dark captures were reviewed, with
+  source, dimensions, test identifiers and hashes recorded in their manifest.
+  [Footer diagnosis](footer-reachability.md) preserves the original failure and
+  bounded red/green evidence; no picker workaround or assertion bypass remains.
 - Personal cleanup approval, provider/mount behavior, million-entry/reference
   hardware, signed notifications/login, hands-on accessibility and release
   installation/signing remain explicit gates. See [milestones](../MILESTONES.md)
