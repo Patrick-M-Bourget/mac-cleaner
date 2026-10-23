@@ -171,6 +171,11 @@ public final class CleanupCancellation: @unchecked Sendable {
     public func cancel() { lock.lock(); stopped = true; lock.unlock() }
     public var isCancelled: Bool { lock.lock(); defer { lock.unlock() }; return stopped }
 }
+public struct CleanupExecutionProgress: Sendable {
+    public let resolved: Int
+    public let total: Int
+    public let last: CleanupRecord?
+}
 public actor TrashExecutor {
     private let journal: any CleanupJournaling
     private let operation: any TrashOperating
@@ -178,11 +183,12 @@ public actor TrashExecutor {
     private var running = false
     public init(journal: any CleanupJournaling, operation: any TrashOperating = NativeTrashOperation(), cancellation: CleanupCancellation = CleanupCancellation()) { self.journal = journal; self.operation = operation; self.cancellation = cancellation }
     public nonisolated func cancel() { cancellation.cancel() }
-    public func execute(_ batch: CleanupApproval) async -> CleanupExecutionResult {
+    public func execute(_ batch: CleanupApproval, progress: @Sendable (CleanupExecutionProgress) async -> Void = { _ in }) async -> CleanupExecutionResult {
         guard !running else { return .init(batch: batch, targets: [], rejectedReplay: true, journalFailure: nil) }
         running = true
         defer { running = false }
         var records: [CleanupRecord] = [], failure: String?
+        await progress(.init(resolved: 0, total: batch.targets.count, last: nil))
         do {
             guard try journal.claim(batch) else { return .init(batch: batch, targets: [], rejectedReplay: true, journalFailure: nil) }
         } catch { return .init(batch: batch, targets: [], rejectedReplay: false, journalFailure: "Could not commit batch. No files were moved.") }
@@ -194,11 +200,16 @@ public actor TrashExecutor {
                 if failure == nil {
                     do { try journal.outcome(record) } catch { failure = "Cancellation outcome could not be committed" }
                 }
-                records.append(record); continue
+                records.append(record); await progress(.init(resolved: records.count, total: batch.targets.count, last: record)); continue
             }
             record.state = .intent; record.message = "Operation intent recorded; outcome unresolved"
             do { try journal.intent(record) }
-            catch { record.state = .cancelled; record.message = "Intent could not be committed; no operation started"; failure = record.message; records.append(record); continue }
+            catch { record.state = .cancelled; record.message = "Intent could not be committed; no operation started"; failure = record.message; records.append(record); await progress(.init(resolved: records.count, total: batch.targets.count, last: record)); continue }
+            if cancellation.isCancelled {
+                record.state = .cancelled; record.message = "Stopped before native operation"
+                do { try journal.outcome(record) } catch { failure = "Cancellation outcome could not be committed" }
+                records.append(record); await progress(.init(resolved: records.count, total: batch.targets.count, last: record)); continue
+            }
             let access = target.scope.startAccessingSecurityScopedResource()
             do {
                 try CleanupTargetValidation.check(target)
@@ -223,6 +234,7 @@ public actor TrashExecutor {
             }
             if record.state == .unknown { failure = record.message }
             records.append(record)
+            await progress(.init(resolved: records.count, total: batch.targets.count, last: record))
         }
         return .init(batch: batch, targets: records, rejectedReplay: false, journalFailure: failure)
     }
