@@ -1,6 +1,6 @@
 # Still — design and interaction handoff
 
-Revision 0.8 · October 22, 2026 · Companion to [SPEC.md](SPEC.md).
+Revision 0.9 · October 22, 2026 · Companion to [SPEC.md](SPEC.md).
 
 ## Design intent
 
@@ -35,6 +35,8 @@ Use native title/headline/body/caption text styles and regular/medium emphasis. 
 
 ## Navigation and screen contracts
 
+Full-product navigation is retained below. M1 exposes Overview, Cleanup plan, History and Locations & access. What grew and Storage alerts arrive in M4/M5. Direct cloud/developer/browser action controls appear only when the corresponding adapter ships; inventory and management guidance may appear earlier. [Milestones](MILESTONES.md) is the scope authority.
+
 Sidebar groups use the same row height, icon alignment and selected styling.
 
 | Group | Destination | Primary task |
@@ -58,17 +60,15 @@ Recommendation activation opens its relevant item/profile review without selecti
 
 Names inspect; checkboxes select. Inspector shows location, size meaning, evidence, intended action/consequence and protected-item reasons. Quick Look and Reveal in Finder are explicit controls. No “Exclude from cleanup” button: it duplicates plan selection and introduces ambiguous persistence. Protected items stay visible with disabled selection and a reason.
 
-Load a scoped draft of committed plan membership when opening review. Present “Add selected items to cleanup plan” for a nonempty selection; “Update cleanup plan” when clearing an existing selection. Disable the CTA when no changeable targets or existing membership exist. Applying replaces only the reviewed scope and opens Cleanup plan. Back leaves the committed plan unchanged. A short hint should explain that selections apply when the CTA is used.
-
-Keep selection independent of the inspector and search filtering. Changing a query must not silently deselect targets. The selection summary counts the reviewed scope, including selected items temporarily hidden by search. Switching reviewed scopes deliberately reloads the corresponding committed draft; do not silently carry a hidden cross-folder batch.
+Every checkbox immediately updates the same live plan. “View cleanup plan” navigates without applying or replacing a scoped draft. Back preserves selections. Item names inspect without selecting. Search never changes membership; show selected counts even when some selected items are hidden by the query. Selecting a file in one view updates every other representation of that resource/action.
 
 ### Cleanup plan
 
-Always show available macro categories after a useful scan, even with no selections:
+Show available macro categories after a useful scan even with no selections. M1 has Downloads; add the other categories as their milestones pass validation:
 
 - iCloud downloads: remove local copies; originals remain online; internet needed to download again.
 - Developer build data: permanently clear generated artifacts; rebuild cost; release archives remain.
-- Installers: move to Trash; recoverable in Finder; space stays occupied until emptied.
+- Downloads: eligible ordinary files, including installers and personal files; move to Trash; space stays occupied until emptied. Category Select all targets exact scanned files, never whole folders. Show eligible count/bytes and nested relative paths.
 - Browser caches: permanently clear verified assets; preserve logins/site data/history; caches may refill.
 
 Category checkbox selects exact eligible IDs at that moment. Mixed state indicates a subset. “Choose items” or “Choose browsers & profiles” expands inline refinement. Summary shows potentially released bytes, separate Trash-held bytes and selected category count. No “I need X GB” control. “Review cleanup” stays disabled with zero selections.
@@ -91,7 +91,7 @@ Growth compares compatible completed snapshots with interval, scope and complete
 
 ### Settings and secondary management
 
-Locations show explicit scopes and actual permission state. Denial offers limited operation and contextual recovery. Local history clearing/reset require consequence-specific confirmation. Persistent scan exclusions are a settings-level policy; do not infer an exclusion from unchecking a cleanup item.
+Locations show explicit scopes and actual permission state. Denial offers limited operation and contextual recovery. Local history clearing/reset require consequence-specific confirmation. Clear only completed history; retain unresolved journals. Block Reset during execution or pending recovery and offer a recovery review route. Persistent scan exclusions are deferred to M6; do not show their controls in M1 or infer an exclusion from an unchecked item.
 
 Storage alerts are off by default. Threshold, notification state, effective monitoring and separate Start at Login state are visible. Explain close-window versus Quit. Show stopped/blocked/unavailable states without alarming zero-space values. No permission requests during ordinary browsing.
 
@@ -117,6 +117,14 @@ Each interactive component needs default, hover where applicable, keyboard focus
 
 At a fixed window size, outer bounds must remain stable within 1 pt rounding across all six destinations, all blocked/empty states, expanded disclosures, selection changes, light/dark appearance and sheets. Primary actions remain reachable. Check scroll and focus restoration separately from screenshots.
 
-Run the journeys in [SPEC.md](SPEC.md) and all branches in the [state matrix](reference/macos-cleaner-ui-state-matrix.md). Add explicit regressions for initial hidden selections, scoped apply/removal, saved-state restoration ordering and Back abandoning drafts. The latest prototype restoration fix has not yet received a dedicated browser regression; do not claim complete verification.
+Run the journeys in [SPEC.md](SPEC.md) and all branches in the [state matrix](reference/macos-cleaner-ui-state-matrix.md). Test shared membership, category Select all, Back preserving choices, rescan suspension and explicit Quit clearing the unexecuted plan. Review-only persistence of appearance is not permission to persist a native cleanup plan.
 
-This handoff is ready for native-shell implementation. Native layout, accessibility, persistence and adapter feasibility remain gates before release. The conversation prototype (`storage-companion-direct.html`) is the visual reference; historical previews are superseded. Keep prototype-only scenario controls and synthetic data out of production.
+This handoff is ready for native-shell implementation. Native layout, accessibility, persistence and adapter feasibility remain gates before release. The repository [visual reference](visual/README.md) includes the current preview and representative captures. The full-product preview preserves future feature designs and is explicitly labelled; its simulated OS behavior is not proof of platform support. Keep prototype-only scenario controls and synthetic data out of production.
+
+## Refresh, launch and recovery behavior
+
+Keep selected identities visible as pending during refresh; disable execution. A successful refresh validates survivors and explains changes, without selecting new discoveries. Cancel leaves “Refresh required”. Execution can skip changed targets but cannot substitute targets or change actions. Closing a window retains in-process choices; explicit Quit ends an unexecuted plan. Interrupted execution instead opens recovery review on launch and never resumes automatically.
+
+Initial success means useful understanding, confident approval and observed capacity after real personal sessions. Evaluate recurrence in a later manual session; no background metric collection is implied.
+
+In M1, the summary headline is “Selected for Trash”, with an explicit statement that space remains occupied until Finder empties Trash. Later milestones separate potentially released bytes from Trash-held bytes.

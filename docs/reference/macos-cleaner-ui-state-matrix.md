@@ -1,3 +1,5 @@
+> Historical revision 0.8 reference. Preserve feature detail, but implementation scope and interaction rules are superseded by [SPEC](../SPEC.md), [design handoff](../DESIGN-HANDOFF.md), and [milestones](../MILESTONES.md), revision 0.9. In particular, staged item drafts, clearing selections on rescan, persistent plans and installer-only selection are obsolete.
+
 # UI state contract — revision 0.8
 
 October 22, 2026. Canonical interactive preview: `storage-companion-direct.html`. Read with the [PRD](macos-cleaner-prd.md), [technical specification](macos-cleaner-technical-spec.md) and [design contract](macos-cleaner-design-contract.md).
