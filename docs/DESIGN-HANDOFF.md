@@ -196,3 +196,7 @@ Show complete/partial/unsupported/unavailable/timed-out status without navigatio
 ## Commercialization boundary — M8
 
 Distribution signing, secure timestamps, notarization, release-preflight corrections and commercial packaging belong to M8/#40. They add no onboarding, sidebar or cleanup-flow steps, and do not gate feature implementation or local builds. Keep native ad-hoc test signing and each feature’s actual permission, identity and safety checks. Functional/accessibility acceptance remains M7; see [milestones](MILESTONES.md) and [commercialization](COMMERCIALIZATION.md).
+
+### Storage alerts lifecycle evidence
+
+The existing settings/status composition is unchanged. Re-enabling after a delayed check must resume monitoring; obsolete work must not overwrite the current status or cancel a newer episode’s request. An observed threshold invalidation stops polling and keeps the existing actionable status. Quit cannot restart checks through wake/activation while awaiting a safe cleanup boundary; saved intent survives for a new launch. Disable/reset remain resumable and remove known pending request identities across restart, without claiming recall of delivered banners. See [monitoring implementation and controlled evidence](validation/alert-monitoring-orchestration.md). No new permission, toggle, navigation or visual state is introduced by these corrections.
