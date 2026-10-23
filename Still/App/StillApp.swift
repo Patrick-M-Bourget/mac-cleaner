@@ -1,4 +1,5 @@
 import SwiftUI
+import StillCore
 
 @main
 struct StillApp: App {
@@ -61,6 +62,8 @@ private struct WorkspaceView: View {
     @State private var inspected = FixtureItem.downloads[0]
     @State private var appearance = "Automatic"
     @State private var expanded = false
+    @State private var folderInspection = FolderInspection()
+    @State private var nativeInspectionVisible = false
 
     var body: some View {
         HStack(spacing: 0) {
@@ -72,7 +75,7 @@ private struct WorkspaceView: View {
                 navigation(.locations)
                 if StorageAlertsController.futureEnabled { navigation(.alerts) }
                 Spacer()
-                Text("M0 · Fixture workspace").font(.caption).foregroundStyle(.secondary)
+                Text(folderInspection.scope == nil ? "M0 · Fixture workspace" : "M1 · Read-only inspection").font(.caption).foregroundStyle(.secondary)
             }
             .padding(20)
             .frame(width: 200)
@@ -81,14 +84,17 @@ private struct WorkspaceView: View {
             Divider()
             VStack(alignment: .leading, spacing: 0) {
                 HStack {
-                    Label("Synthetic data — no personal files accessed", systemImage: "testtube.2")
+                    Label(folderInspection.scope == nil ? "Synthetic data — no personal files accessed" : "Read-only metadata · explicitly selected folder", systemImage: folderInspection.scope == nil ? "testtube.2" : "folder")
                         .font(.caption).foregroundStyle(.secondary)
                     Spacer()
                 }.padding(16)
                 Divider()
                 ScrollView {
                     VStack(alignment: .leading, spacing: 24) {
-                        if inspecting { inspection }
+                        if nativeInspectionVisible {
+                            FolderInspectionView(model: folderInspection) { nativeInspectionVisible = false; destination = .overview }
+                        }
+                        else if inspecting { inspection }
                         else {
                             switch destination {
                             case .alerts: StorageAlertsView(controller: alerts)
@@ -104,7 +110,7 @@ private struct WorkspaceView: View {
                 .background(Color(nsColor: .windowBackgroundColor))
         }
         .onAppear { AppLifecycleController.shared.openWorkspace = { openWindow(id: "workspace") } }
-        .onReceive(NotificationCenter.default.publisher(for: .stillAlertOpened)) { _ in destination = .overview; inspecting = false }
+        .onReceive(NotificationCenter.default.publisher(for: .stillAlertOpened)) { _ in destination = .overview; inspecting = false; nativeInspectionVisible = false }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in Task { await alerts.activated() } }
         .onReceive(NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.didWakeNotification)) { _ in Task { await alerts.activated() } }
         .toolbar {
@@ -121,6 +127,7 @@ private struct WorkspaceView: View {
         Button {
             destination = value
             inspecting = false
+            nativeInspectionVisible = false
         } label: {
             Label(value.rawValue, systemImage: value.symbol)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -133,6 +140,26 @@ private struct WorkspaceView: View {
     private var overview: some View {
         VStack(alignment: .leading, spacing: 24) {
             heading("Your storage", "Understand what is stored locally before choosing what to clean.")
+            HStack {
+                Button("Choose folder…", systemImage: "folder.badge.plus") {
+                    if let url = FolderInspection.chooseFolder() {
+                        folderInspection.scan(url)
+                        nativeInspectionVisible = true
+                    }
+                }
+                if folderInspection.scope != nil {
+                    Button("Review scanned folder") { nativeInspectionVisible = true }
+                }
+            }
+            if let result = folderInspection.result {
+                Text("Selected scope: \(result.scope.path)").textSelection(.enabled)
+                Text("\(result.observations.count) entries observed · \(result.isComplete ? "Completed" : "Partial coverage")")
+                Text("Logical file bytes: \(result.logicalBytes) · Allocated file bytes: \(result.allocatedBytes.map(String.init) ?? "Unknown")")
+                    .foregroundStyle(.secondary)
+                Text("These file totals describe the selected scope, separately from whole-volume capacity. No cleanup is available in this inspection milestone.")
+                    .font(.callout).foregroundStyle(.secondary)
+            }
+            else if folderInspection.scope == nil {
             VStack(alignment: .leading, spacing: 12) {
                 HStack(alignment: .firstTextBaseline) {
                     Text("42.8 GB").font(.system(size: 36, weight: .semibold, design: .rounded)).monospacedDigit()
@@ -155,6 +182,7 @@ private struct WorkspaceView: View {
             }
             Text("Other storage categories are introduced as their adapters are validated. This build displays fixtures only.")
                 .font(.callout).foregroundStyle(.secondary)
+            }
         }
     }
 
@@ -194,6 +222,7 @@ private struct WorkspaceView: View {
             Text("Nothing selected").font(.title2).foregroundStyle(.secondary)
             Text("Space remains occupied until Finder empties Trash.").foregroundStyle(.secondary)
             Divider()
+            if folderInspection.scope == nil {
             Label("Downloads · 3 eligible fixture files · 2.028 GB", systemImage: "arrow.down.circle").font(.headline)
             Button {
                 expanded.toggle()
@@ -210,7 +239,8 @@ private struct WorkspaceView: View {
                     }
                 }
             }
-            Text("Selection and cleanup are unavailable in this native-shell milestone.").font(.callout).foregroundStyle(.secondary)
+            }
+            Text("Selection and cleanup are unavailable in this inspection milestone.").font(.callout).foregroundStyle(.secondary)
             Button("Review cleanup") {}.disabled(true)
         }
     }
@@ -219,15 +249,19 @@ private struct WorkspaceView: View {
         VStack(alignment: .leading, spacing: 20) {
             heading("History", "Completed cleanup results will appear here.")
             Label("No cleanup has run", systemImage: "clock").font(.title3)
-            Text("This fixture workspace cannot modify files.").foregroundStyle(.secondary)
+            Text("No cleanup actions are enabled in this inspection milestone.").foregroundStyle(.secondary)
         }
     }
 
     private var locations: some View {
         VStack(alignment: .leading, spacing: 20) {
             heading("Locations & access", "Review scan coverage and access in one place.")
-            Label("Downloads · Synthetic fixture", systemImage: "folder")
-            Text("No folders have been opened and no permissions are requested. User-selected folder scanning is a later ticket.").foregroundStyle(.secondary)
+            if let scope = folderInspection.scope {
+                Label(scope.path, systemImage: "folder").textSelection(.enabled)
+                Text("Explicitly selected this session. Scope access is balanced around the scan; no background scan or cleanup runs.").foregroundStyle(.secondary)
+            } else {
+                Text("No real folder selected. Choose a folder from Overview to inspect metadata.").foregroundStyle(.secondary)
+            }
         }
     }
 
