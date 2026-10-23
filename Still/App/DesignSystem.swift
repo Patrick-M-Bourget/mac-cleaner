@@ -6,17 +6,31 @@ import StillCore
 enum StillDesign {
     enum Space { static let xs: CGFloat = 4; static let sm: CGFloat = 8; static let md: CGFloat = 12; static let lg: CGFloat = 16; static let xl: CGFloat = 24; static let page: CGFloat = 32 }
     enum Radius { static let row: CGFloat = 8; static let surface: CGFloat = 12 }
-    enum TypeStyle { static let page = Font.system(size: 26, weight: .medium); static let value = Font.system(size: 24, weight: .medium); static let section = Font.headline.weight(.medium) }
-    static var reading: Color { Color(nsColor: NSColor(name: nil) { $0.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua ? NSColor(srgbRed: 0.09, green: 0.09, blue: 0.10, alpha: 1) : .white }) }
-    static var summary: Color { Color(nsColor: NSColor(name: nil) { $0.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua ? NSColor(srgbRed: 0.135, green: 0.135, blue: 0.15, alpha: 1) : NSColor(srgbRed: 0.965, green: 0.968, blue: 0.976, alpha: 1) }) }
+    enum TypeStyle { static let page = Font.system(size: 26, weight: .medium); static let value = Font.system(size: 22, weight: .medium); static let section = Font.system(size: 13, weight: .medium) }
+    /// Reference colours belong here, never in individual screens. Keep system text/focus colours.
+    static func adaptive(light: UInt32, dark: UInt32) -> Color {
+        Color(nsColor: NSColor(name: nil) { appearance in
+            let hex = appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua ? dark : light
+            return NSColor(srgbRed: CGFloat((hex >> 16) & 255) / 255, green: CGFloat((hex >> 8) & 255) / 255, blue: CGFloat(hex & 255) / 255, alpha: 1)
+        })
+    }
+    static var reading: Color { adaptive(light: 0xFFFFFF, dark: 0x171719) }
+    static var summary: Color { adaptive(light: 0xF7F8FA, dark: 0x232328) }
+    static var sidebar: Color { adaptive(light: 0xFFFFFF, dark: 0x242428) }
+    static var selection: Color { adaptive(light: 0xE5EDFA, dark: 0x353E51) }
+    static var highlight: Color { adaptive(light: 0xFFFFFF, dark: 0xFFFFFF).opacity(0.08) }
+    static var blue: Color { adaptive(light: 0x0877ED, dark: 0x60A9FF) }
+    static var purple: Color { adaptive(light: 0x9360D8, dark: 0xB290ED) }
+    static var teal: Color { adaptive(light: 0x349A9B, dark: 0x61C3C2) }
+    static var orange: Color { adaptive(light: 0xBD7527, dark: 0xE2A35E) }
     static func files(_ count: Int) -> String { "\(count) \(count == 1 ? "file" : "files")" }
-    static var capacityFill: Color { Color(nsColor: .secondaryLabelColor) }
-    static var capacityTrack: Color { Color(nsColor: .quaternaryLabelColor) }
+    static var capacityFill: Color { adaptive(light: 0x969BA7, dark: 0x858997) }
+    static var capacityTrack: Color { adaptive(light: 0xECEEF2, dark: 0x33343D) }
     static var separator: Color { Color(nsColor: .separatorColor) }
 }
 enum StorageCategory {
     case cloud, developer, downloads, browser, managed
-    var color: Color { switch self { case .cloud: .blue; case .developer: .purple; case .downloads: .orange; case .browser: .teal; case .managed: .indigo } }
+    var color: Color { switch self { case .cloud: StillDesign.blue; case .developer: StillDesign.purple; case .downloads: StillDesign.orange; case .browser: StillDesign.teal; case .managed: .indigo } }
     var symbol: String { switch self { case .cloud: "icloud"; case .developer: "hammer"; case .downloads: "shippingbox"; case .browser: "globe"; case .managed: "square.stack.3d.up" } }
 }
 private struct OpaqueChromeKey: EnvironmentKey { static let defaultValue = false }
@@ -32,8 +46,12 @@ struct ChromeSurface: View {
     var body: some View {
         Group {
             if role == .sidebar && appearance == .light { Color.white }
-            else if reduced || forcedOpaque { Color(nsColor: .windowBackgroundColor) }
-            else { Rectangle().fill(.regularMaterial) }
+            else if reduced || forcedOpaque { role == .sidebar ? StillDesign.sidebar : StillDesign.summary }
+            else {
+                Rectangle().fill(.regularMaterial)
+                    .overlay { if role == .sidebar { StillDesign.sidebar.opacity(0.65) } }
+                    .overlay { LinearGradient(colors: [StillDesign.highlight, .clear], startPoint: .topLeading, endPoint: .bottomTrailing) }
+            }
         }
     }
 }
@@ -51,7 +69,7 @@ struct PageHeader: View {
     var subtitle: String? = nil
     var body: some View {
         VStack(alignment: .leading, spacing: StillDesign.Space.sm) {
-            Text(title).font(StillDesign.TypeStyle.page)
+            Text(title).font(StillDesign.TypeStyle.page).tracking(-0.6)
             if let subtitle { Text(subtitle).font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true) }
         }.frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -69,7 +87,9 @@ struct SelectionSummary: View {
     let value: String
     let detail: String
     var identifier = ""
+    var consequence: String? = nil
     var body: some View {
+        VStack(alignment: .leading, spacing: StillDesign.Space.md) {
         SummarySurface {
             HStack(alignment: .center) {
                 VStack(alignment: .leading, spacing: StillDesign.Space.sm) {
@@ -79,6 +99,8 @@ struct SelectionSummary: View {
                 Spacer(minLength: StillDesign.Space.lg)
                 Text(detail).font(.caption).foregroundStyle(.secondary).multilineTextAlignment(.trailing).accessibilityIdentifier(identifier)
             }
+        }
+        if let consequence { Text(consequence).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true) }
         }
     }
 }
@@ -151,19 +173,20 @@ struct ActionStrip<Actions: View>: View {
                 Spacer(minLength: StillDesign.Space.sm)
                 actions()
             }.padding(.horizontal, StillDesign.Space.page).padding(.vertical, StillDesign.Space.lg)
-        }.background(StillDesign.reading)
+        }.background(StillDesign.reading).controlSize(.large).buttonBorderShape(.capsule)
     }
 }
 struct CapacityMeter: View {
     let available: Int64?
     let total: Int64?
     var compact = false
+    var showsValue = true
     private func bytes(_ value: Int64) -> String { ByteCountFormatter.string(fromByteCount: value, countStyle: .decimal) }
     var body: some View {
         VStack(alignment: .leading, spacing: StillDesign.Space.sm) {
             if let available, let total, total > 0, available >= 0, available <= total {
                 if compact { Text("\(bytes(available)) available of \(bytes(total))").font(.caption).foregroundStyle(.secondary) }
-                else {
+                else if showsValue {
                     HStack(alignment: .firstTextBaseline, spacing: StillDesign.Space.sm) {
                         Text(bytes(available)).font(.system(size: 34, weight: .medium)).monospacedDigit()
                         Text("available of \(bytes(total))").foregroundStyle(.secondary)
@@ -174,9 +197,37 @@ struct CapacityMeter: View {
                         Capsule().fill(StillDesign.capacityTrack)
                         Capsule().fill(StillDesign.capacityFill).frame(width: geometry.size.width * CGFloat(Double(total - available) / Double(total)))
                     }
-                }.frame(height: 4).accessibilityElement(children: .ignore)
+                }.frame(height: compact ? 4 : 8).accessibilityElement(children: .ignore)
                     .accessibilityLabel("\(bytes(available)) available of \(bytes(total))")
             } else { Text("Capacity not observed").font(compact ? .caption : .callout).foregroundStyle(.secondary) }
+        }
+    }
+}
+
+struct VolumeSummary: View {
+    let available: Int64?
+    let total: Int64?
+    let observation: String
+    var body: some View {
+        SummarySurface {
+            VStack(alignment: .leading, spacing: StillDesign.Space.lg) {
+                HStack(spacing: StillDesign.Space.md) {
+                    Image(systemName: "internaldrive").font(.system(size: 24, weight: .light)).foregroundStyle(.secondary)
+                        .frame(width: 44, height: 44).background(StillDesign.reading.gradient, in: RoundedRectangle(cornerRadius: StillDesign.Radius.row))
+                        .overlay { RoundedRectangle(cornerRadius: StillDesign.Radius.row).strokeBorder(StillDesign.separator, lineWidth: 0.5) }
+                        .accessibilityHidden(true)
+                    Text("This Mac · Startup volume").font(StillDesign.TypeStyle.section)
+                    Spacer(minLength: StillDesign.Space.sm)
+                    if let available, let total, total > 0, available >= 0, available <= total {
+                        VStack(alignment: .trailing, spacing: StillDesign.Space.xs) {
+                            Text(ByteCountFormatter.string(fromByteCount: available, countStyle: .decimal)).font(StillDesign.TypeStyle.value).monospacedDigit()
+                            Text("available of " + ByteCountFormatter.string(fromByteCount: total, countStyle: .decimal)).font(.caption).foregroundStyle(.secondary)
+                        }
+                    }
+                }
+                CapacityMeter(available: available, total: total, showsValue: false)
+                Text(observation).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            }
         }
     }
 }
@@ -184,12 +235,19 @@ struct StillSidebarRow: View {
     let title: String
     let symbol: String
     let selected: Bool
+    var accent: Color = StillDesign.blue
     let action: () -> Void
     var body: some View {
         Button(action: action) {
-            Label(title, systemImage: symbol).font(.callout)
+            Label { Text(title).foregroundStyle(selected ? .primary : .secondary) } icon: { Image(systemName: symbol).foregroundStyle(accent) }
+                .font(.callout)
                 .frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, StillDesign.Space.sm).padding(.horizontal, StillDesign.Space.sm)
-                .background(selected ? Color.accentColor.opacity(0.12) : .clear, in: RoundedRectangle(cornerRadius: StillDesign.Radius.row))
+                .background {
+                    if selected {
+                        RoundedRectangle(cornerRadius: StillDesign.Radius.row).fill(StillDesign.selection.gradient)
+                            .overlay { RoundedRectangle(cornerRadius: StillDesign.Radius.row).strokeBorder(StillDesign.highlight, lineWidth: 1) }
+                    }
+                }
                 .contentShape(Rectangle())
         }.buttonStyle(.plain).accessibilityLabel(title).accessibilityAddTraits(selected ? .isSelected : [])
     }
@@ -201,6 +259,7 @@ struct MacroCategoryCheckbox: NSViewRepresentable {
     let enabled: Bool
     let action: () -> Void
     var identifier = "downloadsCategorySelection"
+    var showsTitle = true
     func makeCoordinator() -> Coordinator { Coordinator(action) }
     func makeNSView(context: Context) -> NSButton {
         let button = NSButton(checkboxWithTitle: label, target: context.coordinator, action: #selector(Coordinator.clicked))
@@ -210,7 +269,7 @@ struct MacroCategoryCheckbox: NSViewRepresentable {
     func sizeThatFits(_ proposal: ProposedViewSize, nsView: NSButton, context: Context) -> CGSize? { nsView.intrinsicContentSize }
     func updateNSView(_ view: NSButton, context: Context) {
         context.coordinator.action = action
-        view.title = label; view.isEnabled = enabled
+        view.title = showsTitle ? label : ""; view.isEnabled = enabled
         view.setAccessibilityIdentifier(identifier)
         view.setAccessibilityLabel(label)
         view.state = state == .checked ? .on : state == .mixed ? .mixed : .off
@@ -219,6 +278,42 @@ struct MacroCategoryCheckbox: NSViewRepresentable {
         var action: () -> Void
         init(_ action: @escaping () -> Void) { self.action = action }
         @objc func clicked() { action() }
+    }
+}
+
+/// Selection stays on the native checkbox; the badge/title never become extra toggles.
+struct CategorySelectionHeader: View {
+    let category: StorageCategory
+    let state: CategorySelectionState
+    let title: String
+    let detail: String
+    let size: String
+    let enabled: Bool
+    let action: () -> Void
+    var body: some View {
+        HStack(alignment: .top, spacing: StillDesign.Space.md) {
+            MacroCategoryCheckbox(state: state, label: title, enabled: enabled, action: action, showsTitle: false)
+                .fixedSize().padding(.top, StillDesign.Space.sm)
+            CategoryBadge(category: category)
+            VStack(alignment: .leading, spacing: StillDesign.Space.xs) {
+                Text(title).font(StillDesign.TypeStyle.section)
+                Text(detail).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            }.frame(maxWidth: .infinity, alignment: .leading)
+            Text(size).font(.callout).monospacedDigit().fixedSize()
+        }
+    }
+}
+
+struct AppBrand: View {
+    var body: some View {
+        HStack(spacing: StillDesign.Space.md) {
+            Image(systemName: "square.3.layers.3d").foregroundStyle(.white).font(.system(size: 17))
+                .frame(width: 30, height: 30)
+                .background(LinearGradient(colors: [Color(red: 0.565, green: 0.741, blue: 1), Color(red: 0.329, green: 0.518, blue: 0.910), Color(red: 0.455, green: 0.427, blue: 0.882)], startPoint: .topLeading, endPoint: .bottomTrailing), in: RoundedRectangle(cornerRadius: StillDesign.Radius.row))
+                .overlay { RoundedRectangle(cornerRadius: StillDesign.Radius.row).strokeBorder(.white.opacity(0.3), lineWidth: 0.5) }
+                .accessibilityHidden(true)
+            Text("Still").font(.system(size: 17, weight: .medium)).tracking(-0.4)
+        }
     }
 }
 
@@ -232,6 +327,7 @@ struct ReviewCleanupButton: NSViewRepresentable {
     func makeNSView(context: Context) -> FocusButton {
         let view = FocusButton(title: "Review cleanup", target: context.coordinator, action: #selector(Coordinator.clicked))
         view.bezelStyle = .rounded
+        view.controlSize = .large
         view.bezelColor = .controlAccentColor
         view.setAccessibilityLabel("Review cleanup")
         return view

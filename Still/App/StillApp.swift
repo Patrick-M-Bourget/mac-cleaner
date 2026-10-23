@@ -111,14 +111,10 @@ private struct WorkspaceView: View {
     var body: some View {
         HStack(spacing: 0) {
             VStack(alignment: .leading, spacing: StillDesign.Space.sm) {
-                HStack(spacing: StillDesign.Space.sm) {
-                    Image(systemName: "square.3.layers.3d").foregroundStyle(.white).font(.system(size: 17))
-                        .frame(width: 30, height: 30).background(LinearGradient(colors: [.blue, .indigo], startPoint: .topLeading, endPoint: .bottomTrailing), in: RoundedRectangle(cornerRadius: 8))
-                    Text("Still").font(.system(size: 17, weight: .medium))
-                }.padding(.bottom, StillDesign.Space.xl)
-                Text("Storage").font(.caption).foregroundStyle(.secondary)
+                AppBrand().padding(.horizontal, StillDesign.Space.sm).padding(.bottom, StillDesign.Space.xl)
+                Text("Storage").font(.caption).foregroundStyle(.secondary).padding(.horizontal, StillDesign.Space.sm)
                 ForEach(Destination.allCases.filter { $0 != .locations && $0 != .alerts && ($0 != .growth || GrowthHistoryModel.enabled) }) { navigation($0) }
-                Text("Settings").font(.caption).foregroundStyle(.secondary).padding(.top, StillDesign.Space.xl)
+                Text("Settings").font(.caption).foregroundStyle(.secondary).padding(.horizontal, StillDesign.Space.sm).padding(.top, StillDesign.Space.xl)
                 navigation(.locations)
                 if StorageAlertsController.futureEnabled { navigation(.alerts) }
                 Spacer()
@@ -130,10 +126,10 @@ private struct WorkspaceView: View {
                     }
                     Divider()
                     Label("On-demand scanning", systemImage: "lock").font(.caption).foregroundStyle(.secondary)
-                }
+                }.padding(.horizontal, StillDesign.Space.sm)
 
             }
-            .padding(StillDesign.Space.lg)
+            .padding(.horizontal, StillDesign.Space.md).padding(.vertical, StillDesign.Space.lg)
             .frame(width: 190)
             .frame(maxHeight: .infinity)
             .background { ChromeSurface(role: .sidebar) }
@@ -221,22 +217,32 @@ private struct WorkspaceView: View {
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in Task { await alerts.activated() } }
         .onReceive(NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.didWakeNotification)) { _ in Task { await alerts.activated() } }
         .toolbar {
-            ToolbarItem(placement: .principal) {
-                Text(contextLabel).font(.caption).foregroundStyle(.secondary).lineLimit(1)
-            }
+            contextToolbar
             ToolbarItem(placement: .automatic) {
             Picker("Appearance", selection: $appearance) {
                 Text("Automatic").tag("Automatic")
                 Text("Light").tag("Light")
                 Text("Dark").tag("Dark")
-            }.frame(width: 120).accessibilityLabel("Appearance")
+            }.controlSize(.small).frame(width: 110).accessibilityLabel("Appearance")
             }
         }
         .preferredColorScheme(appearance == "Automatic" ? nil : appearance == "Dark" ? .dark : .light)
     }
 
+    @ToolbarContentBuilder private var contextToolbar: some ToolbarContent {
+        if #available(macOS 26, *) {
+            ToolbarItem(placement: .principal) { contextToolbarLabel }.sharedBackgroundVisibility(.hidden)
+        } else {
+            ToolbarItem(placement: .principal) { contextToolbarLabel }
+        }
+    }
+    private var contextToolbarLabel: some View {
+        Text(contextLabel).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+    }
+
     private func navigation(_ value: Destination) -> some View {
-        StillSidebarRow(title: value.rawValue, symbol: value.symbol, selected: destination == value) {
+        StillSidebarRow(title: value.rawValue, symbol: value.symbol, selected: destination == value,
+                        accent: value == .growth ? StillDesign.purple : value == .plan ? StillDesign.teal : value == .history ? .secondary : StillDesign.blue) {
             destination = value
             diagnosticsVisible = false; exclusionsVisible = false
             recoveryVisible = false; inspecting = false; nativeInspectionVisible = false; homebrewVisible = false
@@ -256,13 +262,8 @@ private struct WorkspaceView: View {
                 }
             }
             if !fixtureMode {
-                SummarySurface {
-                    VStack(alignment: .leading, spacing: StillDesign.Space.md) {
-                        Text("This Mac · Startup volume").font(StillDesign.TypeStyle.section)
-                        CapacityMeter(available: startupCapacity?.available, total: startupCapacity?.total)
-                        if let reading = startupCapacity { Text("Observed \(reading.observedAt.formatted()) · \(reading.metric == "important" ? "Available for important usage" : "Available capacity fallback")").font(.caption).foregroundStyle(.secondary) }
-                    }
-                }
+                VolumeSummary(available: startupCapacity?.available, total: startupCapacity?.total,
+                              observation: startupCapacity.map { "Observed \($0.observedAt.formatted()) · \($0.metric == "important" ? "Available for important usage" : "Available capacity fallback")" } ?? "Capacity not observed")
             }
             if StorageAlertsController.futureEnabled {
                 FindingRow(category: .managed, title: "Diagnostics", detail: "Review a redacted snapshot and save locally") {

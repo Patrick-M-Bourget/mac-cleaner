@@ -240,10 +240,11 @@ struct LiveCleanupPlanView: View {
         if selection.execution.isRunning || selection.execution.result != nil || selection.execution.error != nil {
             CleanupExecutionView(model: selection.execution, retryMessage: selection.message).padding(StillDesign.Space.page)
         } else {
-        VStack(alignment: .leading, spacing: StillDesign.Space.xl) {
+        VStack(alignment: .leading, spacing: StillDesign.Space.lg) {
             PageHeader(title: "Cleanup plan", subtitle: selection.retryTargetIDs == nil ? "Choose categories, adjust items if needed, then review the changes." : "Only rechecked unfinished files are included. Completed successes and new discoveries stay excluded.")
-            SelectionSummary(value: ByteCountFormatter.string(fromByteCount: selection.draft.logicalBytes, countStyle: .decimal), detail: "\(StillDesign.files(selection.draft.selectedCount)) selected", identifier: "liveSelectionSummary")
-            StatusRow(text: "Space stays occupied until Finder empties Trash. Nothing changes before final confirmation.", symbol: "trash")
+                .padding(.bottom, StillDesign.Space.sm)
+            SelectionSummary(value: ByteCountFormatter.string(fromByteCount: selection.draft.logicalBytes, countStyle: .decimal), detail: "\(StillDesign.files(selection.draft.selectedCount)) selected", identifier: "liveSelectionSummary", consequence: "Space stays occupied until Finder empties Trash. Nothing changes before final confirmation.")
+            if selection.isRefreshing || selection.pendingCount > 0 || !selection.refreshScopes.isEmpty {
             VStack(alignment: .leading, spacing: StillDesign.Space.sm) {
                 HStack {
                     if selection.isRefreshing { ProgressView("Rechecking selected locations…") }
@@ -253,18 +254,16 @@ struct LiveCleanupPlanView: View {
                     Button("Recheck location: " + scope.lastPathComponent) { recheck(scope) }.disabled(selection.isRefreshing || selection.isPreparing)
                 }
             }
+            }
             ForEach(selection.refresh.notices) { notice in
                 StatusRow(text: notice.target.url.lastPathComponent + " · " + notice.message, symbol: "info.circle", role: .caution)
             }
-            HStack(alignment: .top, spacing: StillDesign.Space.md) {
-                CategoryBadge(category: .downloads)
-                VStack(alignment: .leading, spacing: StillDesign.Space.sm) {
-                    MacroCategoryCheckbox(state: selection.categoryState, label: "Downloads · \(StillDesign.files(selection.rows.count)) eligible", enabled: !selection.isPreparing && !selection.isRefreshing && !selection.rows.isEmpty) { Task { await selection.toggleAll() } }
-                        .fixedSize(horizontal: true, vertical: false).frame(height: 26)
-                    Text("Move exact files to Trash. Personal files and installers are included only when selected.").font(.caption).foregroundStyle(.secondary)
-                }
-                Spacer(minLength: StillDesign.Space.sm)
-                Text(ByteCountFormatter.string(fromByteCount: selection.eligibleLogicalBytes, countStyle: .decimal)).monospacedDigit().font(.callout)
+            CategorySelectionHeader(category: .downloads, state: selection.categoryState,
+                                    title: "Downloads · \(StillDesign.files(selection.rows.count)) eligible",
+                                    detail: "Move exact files to Trash. Personal files and installers are included only when selected.",
+                                    size: ByteCountFormatter.string(fromByteCount: selection.eligibleLogicalBytes, countStyle: .decimal),
+                                    enabled: !selection.isPreparing && !selection.isRefreshing && !selection.rows.isEmpty) {
+                Task { await selection.toggleAll() }
             }
             if selection.isPreparing { ProgressView("Checking exact Downloads targets…") }
             if let approved = selection.approvedBatch { Text("Approved batch: \(approved.targets.count) files · No files moved.").foregroundStyle(.secondary) }
@@ -295,7 +294,7 @@ struct LiveCleanupPlanView: View {
                         }
                     }
                 }.padding(.top, StillDesign.Space.md)
-            }
+            }.padding(.leading, StillDesign.Space.xl)
             ForEach(selection.unavailableSelected) { target in
                 SettingsRow(title: target.url.lastPathComponent, detail: "Selection retained · Recheck this location before review") {
                     Toggle("Selected \(target.url.lastPathComponent)", isOn: Binding(get: { true }, set: { if !$0 { selection.remove(target) } })).disabled(selection.isPreparing)

@@ -11,6 +11,7 @@ on:
         options:
           - all
           - exclusions
+          - design
 permissions:
   contents: read
 jobs:
@@ -41,6 +42,15 @@ jobs:
           scope=()
           if [[ "$EVENT_NAME" == "workflow_dispatch" && "$REQUESTED_SUITE" == "exclusions" ]]; then
             scope=(-only-testing:StillUITests/ExclusionsUITests)
+          elif [[ "$EVENT_NAME" == "workflow_dispatch" && "$REQUESTED_SUITE" == "design" ]]; then
+            scope=(
+              -only-testing:StillUITests/WorkspaceUITests/testDesignReviewCaptures
+              -only-testing:StillUITests/WorkspaceUITests/testNativeDesignReviewAndMinimumGalleryCaptures
+              -only-testing:StillUITests/WorkspaceUITests/testMinimumGalleryStatesAndOpaqueChromeCaptures
+              -only-testing:StillUITests/WorkspaceUITests/testMinimumPopulatedPlanAndConfirmationRemainReachable
+              -only-testing:StillUITests/WorkspaceUITests/testKeyboardNavigationAndAppearanceKeepWindowBounds
+              -only-testing:StillUITests/WorkspaceUITests/testInitialReviewWindowFitsConstrainedDisplayAndKeepsToolbarReachable
+            )
           fi
           xcodebuild test-without-building -project Still/Still.xcodeproj -scheme Still -destination 'platform=macOS' -derivedDataPath .build/xcode -resultBundlePath .build/Workspace.xcresult "${scope[@]}"
       - uses: actions/upload-artifact@v4

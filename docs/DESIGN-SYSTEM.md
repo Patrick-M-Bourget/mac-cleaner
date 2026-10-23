@@ -17,6 +17,10 @@ Use `StillDesign.Space` (`xs`, `sm`, `md`, `lg`, `xl`, `page`) for the 4/8/12/16
 
 `StillDesign.reading` is the opaque white/near-black reading plane. `SummarySurface` creates the subdued elevated selection/summary region. `ChromeSurface(role: .sidebar)` is explicitly white in Light appearance, following the user’s October 22 clarification. It preserves native material in Dark appearance. `ChromeSurface()` supplies material for other chrome; both roles use an opaque system-background fallback where applicable for Reduce Transparency. A light sidebar always stays white, including fallback mode. Native semantic foreground and separator colors carry ordinary text and boundaries. A glass effect must leave reading content legible.
 
+`StillDesign.adaptive` centralizes the approved reference palette as sRGB light/dark pairs. Reading planes are white / `#171719`, summary surfaces `#F7F8FA` / `#232328`, and the dark sidebar `#242428`. Sidebar selection uses a quiet `#E5EDFA` / `#353E51` gradient, rather than a saturated flat accent wash. Keep system text, disabled, focus and separator semantics. The light sidebar stays white. `AppBrand` owns the restrained blue-to-lilac mark; do not recreate it in screens.
+
+Page titles retain the 26-point medium hierarchy with restrained tracking; summary values use 22-point medium and section labels explicit 13-point medium. `SelectionSummary.consequence` groups a wrapped caption with its value rather than adding another full-height page section.
+
 `StorageCategory` supplies a local badge accent and SF Symbol: cloud blue, developer purple, Downloads orange, browser teal, managed indigo. These identify categories; they do not indicate risk, selection or eligibility. `StatusRole` supplies neutral/success/caution/failure icon treatment with an explicit text explanation. Never make meaning depend on color alone.
 
 ## Component API and composition
@@ -26,14 +30,14 @@ The app target owns these internal SwiftUI components; they are presentation pri
 | Component | Role |
 |---|---|
 | `PageHeader` | Quiet page title and optional single explanatory subtitle |
-| `SummarySurface`, `SelectionSummary` | Subdued grouped evidence and selected-for-Trash value/detail |
+| `SummarySurface`, `SelectionSummary`, `VolumeSummary` | Subdued grouped evidence, selected-for-Trash value/detail/consequence and observed startup-volume capacity |
 | `FindingRow`, `CategoryBadge` | Category hierarchy, consequence and explicit accessory action |
 | `InspectableItemRow` | Separate selection control from filename inspection; size aligned at trailing edge |
-| `MacroCategoryCheckbox` | Native AppKit unchecked/mixed/checked category selection |
+| `MacroCategoryCheckbox`, `CategorySelectionHeader` | Native AppKit unchecked/mixed/checked selection; checkbox → badge → category evidence → trailing size composition |
 | `ScanProgressSummary` | Bounded preliminary metadata evidence, explicit enumeration/recheck/stability phase, unknown remaining coverage; native spinner plus accessible phase text, no cleanup controls |
 | `StatusRow`, `EmptyState` | Honest status, blocked/error explanation, or no findings yet |
 | `SettingsRow` | Setting title, explanation and native controls |
-| `StillSidebarRow`, `ChromeSurface` | Persistent native navigation and adaptive chrome |
+| `AppBrand`, `StillSidebarRow`, `ChromeSurface` | Shared brand, persistent native navigation, destination accents and adaptive chrome |
 | `CapacityMeter` | Optional observed capacity and adaptive capsule meter; unknown stays distinct from zero |
 | `NativeWindowContract` | Outer minimum sizing and explicit Debug capture-size modes; never destination-driven resizing |
 | `ActionStrip`, `ReviewCleanupButton` | Stable primary-action region and explicit native focus restoration |
@@ -117,7 +121,7 @@ For repeatable native review captures, Debug `--design-initial-size` requests up
 
 Checkpoint rhythm migration: screen sections use `Space.xl`, compact confirmation grouping uses `Space.lg`, label/target-list groups use `Space.md`, row inset uses `Space.sm`, and tightly related metadata uses `Space.xs`. Legacy 20/18/10/5-point rhythm literals are normalized to those existing semantic roles (24/16/12/4); no new token or screen redesign is introduced. Zero spacing at adjoining reading/chrome/action regions is intentional structural abutment. Native control frames, the fixed bounded confirmation size, badge dimensions, line widths and zero action-strip inset are geometry rather than repeated spacing tokens; preserve those local native/layout contracts.
 
-M6 custom exclusions compose existing settings/summary/status surfaces under Locations & access. The fixed action strip owns Choose or explicit preview Save/Cancel; rule removal stays beside its rule. Empty, preview, saved, unreadable-settings and changed-coverage states are documented in [exclusion validation](validation/exclusions.md); local activation failure leaves native workflow/visual qualification pending.
+M6 custom exclusions compose existing settings/summary/status surfaces under Locations & access. The fixed action strip owns Choose or explicit preview Save/Cancel; rule removal stays beside its rule. Empty, preview, saved, unreadable-settings and changed-coverage states are documented in [exclusion validation](validation/exclusions.md); clean hosted qualification at `d230958` covers the initial/minimum native journeys and twelve Light/Dark captures; later visual revisions require their own source-pinned review.
 
 ### Fixed action composition
 
@@ -133,3 +137,16 @@ VStack(spacing: 0) {
 ```
 
 Check actual enabled/hittable controls and successful actions, including after content/appearance changes; frame containment and screenshots alone do not establish reachability.
+
+## Reference fidelity pass — October 23, 2026
+
+The revision 0.9 personal Light/Dark references remain the comparison authority, with the subsequent explicitly white Light sidebar clarification. Match their grouping, muted accents and hierarchy, while preserving real native controls and tested window/interaction contracts.
+
+- Sidebar labels are secondary until selected; destination symbols use blue, purple, teal or neutral accents. Selection has a subtle surface gradient. Storage and Settings remain labelled groups.
+- `CategorySelectionHeader` keeps the native checkbox before the category badge, with a separately readable title/consequence and trailing amount. Only the checkbox changes selection; badges/titles do not duplicate that action. Hiding the visual native title preserves its full accessibility label, mixed state, identifier and target/action.
+- `VolumeSummary` puts the device identity and available capacity on one balanced header above a neutral used-capacity meter and observation metadata. Never copy the reference's synthetic category segments into real capacity evidence. Unknown remains unknown.
+- Related plan evidence uses the 16-point grouping rhythm; the summary/consequence is one unit. Empty refresh containers consume no inter-section space. Inline refinement retains its native disclosure gutter and separate inspect/select controls.
+- `ActionStrip` uses large native capsule-style actions; the AppKit review button uses the corresponding large control size and retains its one-shot focus bridge. It stays a sibling below scrolling content. No custom button event handling, layout animation, destination-driven sizing or floating footer is introduced.
+- On macOS 26+, the informational toolbar context has no shared button background. It remains text, while Appearance remains a native labelled picker. Earlier supported configurations use the standard toolbar fallback.
+
+See [fidelity validation](validation/visual-fidelity.md) for exact source, captures, public regression results and remaining manual limits. A build alone is not visual acceptance.

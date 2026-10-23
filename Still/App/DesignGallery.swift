@@ -18,7 +18,7 @@ struct DesignGallery: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: StillDesign.Space.xl) {
                     PageHeader(title: "Native design system", subtitle: "Developer examples only · No personal storage measurements")
-                    SelectionSummary(value: "3 files", detail: "Example selection · No action will run")
+                    SelectionSummary(value: "3 files", detail: "Example selection · No action will run", consequence: "Space stays occupied until Finder empties Trash.")
                     HStack(spacing: StillDesign.Space.lg) {
                         ForEach(0..<5) { index in CategoryBadge(category: [StorageCategory.cloud, .developer, .downloads, .browser, .managed][index]) }
                     }
@@ -42,6 +42,14 @@ struct DesignGallery: View {
                     ScanProgressSummary(inspectedEntries: 2480, logicalSubtotal: "16 MB", recentNames: ["Example document.pdf"], phaseMessage: "Rechecking changed coverage (one attempt)…")
                     EmptyState(title: "No findings yet", detail: "Choose a folder to begin. Unknown measurements stay distinct from zero.", symbol: "folder")
                     CapacityMeter(available: nil, total: nil)
+                    SettingsRow(title: "Shared navigation and brand", detail: "Reference accents identify destinations; labels and selected traits carry meaning.") {
+                        AppBrand()
+                        StillSidebarRow(title: "Overview", symbol: "internaldrive", selected: false) {}
+                        StillSidebarRow(title: "Cleanup plan", symbol: "checklist", selected: true, accent: StillDesign.teal) {}
+                    }
+                    CategorySelectionHeader(category: .downloads, state: .mixed, title: "Downloads · Example mixed selection", detail: "The checkbox alone changes selection; filenames remain inspection controls.", size: "16 MB", enabled: true, action: {})
+                    VolumeSummary(available: 40_000_000_000, total: 512_000_000_000, observation: "Synthetic gallery capacity · No category attribution")
+                    VolumeSummary(available: nil, total: nil, observation: "No capacity observation · Unknown stays distinct from zero")
                 }.padding(StillDesign.Space.page).frame(maxWidth: .infinity, alignment: .leading)
             }.background(StillDesign.reading)
             ActionStrip(message: "Developer gallery · Actions are inert examples") { Button("Review cleanup") {}.disabled(true) }
