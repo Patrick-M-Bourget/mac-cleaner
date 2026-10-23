@@ -133,12 +133,7 @@ struct FolderInspectionView: View {
                     if (!result.isComplete || result.hasUnmeasuredContents) && !result.observations.isEmpty { Text("Known observed logical subtotal: \(bytes(result.logicalBytes)) · Remaining bytes unknown") }
                     Text("Complete scope allocated bytes: \(bytes(result.totalAllocatedBytes))")
                     if result.allocatedUnknownCount > 0 { Text("\(result.allocatedUnknownCount) file allocation measurements unknown") }
-                    Text("Selected volume capacity: \(bytes(result.volumeCapacityBytes))")
-                    Text("Selected volume available (\(result.volumeAvailableMetric)): \(bytes(result.volumeAvailableBytes))")
                 }.font(.callout).monospacedDigit()
-                Text("File totals count hardlinked identities once. Package contents and linked folders are not scanned. Allocations are not exclusive reclaimable space.")
-                    .font(.caption).foregroundStyle(.secondary)
-                CloudInventoryView(report: result.cloudInventory)
                 Divider()
                 if !result.isComplete {
                     Text("Uninspected bytes: Unknown · Recheck required before cleanup can be considered.").foregroundStyle(.secondary)
@@ -188,6 +183,14 @@ struct FolderInspectionView: View {
                     }
                     }
                 }
+                DisclosureGroup("Volume and size details") {
+                    VStack(alignment: .leading, spacing: StillDesign.Space.sm) {
+                        Text("Selected volume capacity: \(bytes(result.volumeCapacityBytes))")
+                        Text("Selected volume available (\(result.volumeAvailableMetric)): \(bytes(result.volumeAvailableBytes))")
+                        Text("File totals count hardlinked identities once. Package contents and linked folders are not scanned. Allocations are not exclusive reclaimable space.").font(.caption).foregroundStyle(.secondary)
+                    }
+                }
+                CloudInventoryView(report: result.cloudInventory)
                 Text("\(StillDesign.files(selection.draft.selectedCount)) selected").accessibilityIdentifier("inspectionSelectionSummary")
 
             }

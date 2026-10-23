@@ -251,16 +251,20 @@ final class WorkspaceUITests: XCTestCase {
         XCTAssertTrue(path.waitForExistence(timeout: 5)); path.typeText(root.path)
         app.typeKey(.return, modifierFlags: []); app.dialogs.buttons["Scan folder"].click()
         XCTAssertTrue(app.staticTexts["Observed"].waitForExistence(timeout: 10))
-        capture("native-inspection-Dark")
+        for theme in ["Light", "Dark"] {
+            app.popUpButtons.firstMatch.click(); app.menuItems[theme].click(); capture("native-inspection-" + theme)
+        }
         let selected = app.checkBoxes["Select selected.pdf"]
         for _ in 0..<5 { if selected.exists { break }; app.scrollViews.firstMatch.scroll(byDeltaX: 0, deltaY: -300) }
         XCTAssertTrue(selected.waitForExistence(timeout: 5)); selected.click()
+        XCTAssertEqual(selected.value as? Int, 1)
+
         app.buttons["View cleanup plan"].click()
         let bounds = app.windows.firstMatch.frame
         for theme in ["Light", "Dark"] {
             app.popUpButtons.firstMatch.click(); app.menuItems[theme].click()
             capture("native-plan-" + theme)
-            XCTAssertTrue(app.buttons["Review cleanup"].isHittable)
+            XCTAssertTrue(app.buttons["Review cleanup"].isEnabled && app.buttons["Review cleanup"].isHittable)
             app.buttons["Review cleanup"].click()
             XCTAssertTrue(app.staticTexts["Review Move to Trash"].waitForExistence(timeout: 5))
             capture("native-confirmation-" + theme)
@@ -276,7 +280,14 @@ final class WorkspaceUITests: XCTestCase {
         for theme in ["Light", "Dark"] {
             app.popUpButtons.firstMatch.click(); app.menuItems[theme].click(); capture("native-alert-settings-" + theme)
         }
-        app.terminate()
+
+    }
+
+    @MainActor
+    func testMinimumGalleryStatesAndOpaqueChromeCaptures() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        func capture(_ name: String) { let shot = XCTAttachment(screenshot: app.windows.firstMatch.screenshot()); shot.name = name; shot.lifetime = .keepAlways; add(shot) }
         app.launchArguments = ["--design-gallery", "--design-minimum"]
         app.launch()
         XCTAssertTrue(app.staticTexts["Native design system"].waitForExistence(timeout: 10))
@@ -323,7 +334,7 @@ final class WorkspaceUITests: XCTestCase {
             app.popUpButtons.firstMatch.click(); app.menuItems[theme].click()
             capture("native-plan-minimum-opaque-" + theme)
             app.scrollViews.firstMatch.scroll(byDeltaX: 0, deltaY: -1500)
-            XCTAssertTrue(app.buttons["Review cleanup"].isHittable)
+            XCTAssertTrue(app.buttons["Review cleanup"].isEnabled && app.buttons["Review cleanup"].isHittable)
             app.buttons["Review cleanup"].click()
             XCTAssertTrue(app.staticTexts["Review Move to Trash"].waitForExistence(timeout: 5))
             capture("native-confirmation-minimum-" + theme)

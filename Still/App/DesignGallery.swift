@@ -13,7 +13,7 @@ struct DesignGallery: View {
                 Text("Still · Component gallery").font(.headline)
                 Spacer()
                 Toggle("Opaque chrome", isOn: $opaque)
-                Picker("Appearance", selection: $appearance) { Text("Light").tag("Light"); Text("Dark").tag("Dark") }.frame(width: 120)
+                Picker("Appearance", selection: $appearance) { Text("Light").tag("Light"); Text("Dark").tag("Dark") }.labelsHidden().frame(width: 100).accessibilityLabel("Appearance")
             }.padding(StillDesign.Space.lg).background { ChromeSurface() }
             ScrollView {
                 VStack(alignment: .leading, spacing: StillDesign.Space.xl) {

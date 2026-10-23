@@ -230,6 +230,7 @@ struct ReviewCleanupButton: NSViewRepresentable {
     func sizeThatFits(_ proposal: ProposedViewSize, nsView: FocusButton, context: Context) -> CGSize? { nsView.intrinsicContentSize }
     func updateNSView(_ view: FocusButton, context: Context) {
         view.isEnabled = enabled
+        view.bezelColor = enabled ? .controlAccentColor : nil
         context.coordinator.action = action
         if context.coordinator.appliedFocusRequest != focusRequest {
             context.coordinator.appliedFocusRequest = focusRequest
