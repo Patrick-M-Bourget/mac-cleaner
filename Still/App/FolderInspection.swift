@@ -362,7 +362,17 @@ private struct RefreshFixtureMetadata: MetadataSupplementReading {
                 }
             }
         }
-        return try FoundationMetadataSupplement().read(url)
+        let metadata = try FoundationMetadataSupplement().read(url)
+        if ProcessInfo.processInfo.arguments.contains("--ui-test-cloud-unknown"),
+           url.lastPathComponent == "unknown-cloud-metadata.txt",
+           let path = ProcessInfo.processInfo.environment["STILL_TEST_DOWNLOADS_ROOT"] {
+            let root = URL(fileURLWithPath: path).standardizedFileURL
+            if Self.isBoundOwnedTemporaryRoot(root), url.standardizedFileURL.pathComponents.starts(with: root.pathComponents),
+               try url.resourceValues(forKeys: [.fileSizeKey]).fileSize == 0 {
+                return MetadataSupplement(allocatedBytes: metadata.allocatedBytes, locality: metadata.locality, cloud: .unknown)
+            }
+        }
+        return metadata
     }
     private static func isBoundOwnedTemporaryRoot(_ root: URL) -> Bool {
         let prefix = "StillSelectionUI-"

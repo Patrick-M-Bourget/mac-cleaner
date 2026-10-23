@@ -54,6 +54,8 @@ Secondary destinations: item review, browser/profile review, app-managed storage
 
 ### Overview
 
+During a recheck, the fixed ActionStrip contains the unique Stop scan action; the scrolled header shows progress. The iCloud row displays Unknown whenever membership or cloud state is unknown, retaining identified subtotals and counts only in expanded evidence.
+
 Show startup-volume capacity and observation time separately from inventory in scanned scopes. Show incomplete/denied coverage honestly. Recommendations have category, estimate and a short consequence. Trash-held bytes are separate from potentially released bytes. App-managed storage opens a read-only inventory/guidance page.
 
 Use the approved reading order: Storage overview header / Scan again, subdued startup-volume capacity, compact Scanned locations / Explore storage, then one bordered four-row Recommended for review group (downloaded iCloud files, developer build files, Downloads to review, browser caches). Recommendation rows carry category badge, short plain-language consequence, trailing amount and its meaning, and an affordance only when actionable. The group uses the reading-plane fill; uninspected and unavailable states are explicit, never sample amounts. The direct Choose folder / Choose Downloads shortcuts and Downloads-only explanation remain near scanned coverage. Future tools expand in a secondary More tools group below findings.

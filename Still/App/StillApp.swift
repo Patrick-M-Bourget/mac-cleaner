@@ -231,8 +231,14 @@ private struct WorkspaceView: View {
                             Button("Inspect a folder") { if let url = FolderInspection.chooseFolder() { nativeInspectionVisible = true; folderInspection.scan(url) } }.buttonStyle(.borderedProminent)
                         }
                     } else if destination == .overview && !managedStorageVisible && !dockerVisible && !pipVisible && !homebrewVisible {
+                        if folderInspection.isScanning {
+                            ActionStrip(message: "Rechecking selected locations · No cleanup is running") {
+                                Button("Stop scan") { folderInspection.cancel() }.buttonStyle(.borderedProminent)
+                            }
+                        } else {
                         ActionStrip(message: "\(StillDesign.files(selection.draft.selectedCount)) selected · Nothing changes before confirmation.") {
                             Button("Review cleanup plan") { destination = .plan }.buttonStyle(.borderedProminent).disabled(selection.scans.isEmpty && selection.draft.selectedCount == 0)
+                        }
                         }
                     } else if showsPlan {
                         ActionStrip(message: "Nothing changes until you confirm the next step.") { Button("Review cleanup") {}.disabled(true) }
@@ -307,7 +313,7 @@ private struct WorkspaceView: View {
             HStack(alignment: .top) {
                 PageHeader(title: "Storage overview", subtitle: "A clearer picture of what’s on your Mac.")
                 Spacer(minLength: StillDesign.Space.md)
-                if folderInspection.isScanning { Button("Stop scan") { folderInspection.cancel() } }
+                if folderInspection.isScanning { ProgressView("Scanning…").controlSize(.small) }
                 else { Button("Scan again", action: scanKnownLocations).disabled(folderInspection.scope == nil || selection.execution.isRunning) }
             }
             if let context = alerts.openedAlertContext {
@@ -392,7 +398,11 @@ private struct WorkspaceView: View {
 
     private var overviewCloudRow: some View {
         let action: (() -> Void)? = folderInspection.result == nil ? nil : { overviewCloudExpanded.toggle() }
-        return StorageReviewRow(category: .cloud, title: "Downloaded iCloud files", detail: "Local copies in this location · Cleanup unavailable.", value: folderInspection.result.map { overviewBytes($0.cloudInventory.localAllocatedBytes) } ?? "Not inspected", meaning: "Local allocation", actionTitle: overviewCloudExpanded ? "Hide iCloud inventory" : "Review iCloud inventory", action: action)
+        let value = folderInspection.result.map { result in
+            let report = result.cloudInventory
+            return report.unknownMembershipCount > 0 || report.unknownStateCount > 0 ? "Unknown" : overviewBytes(report.localAllocatedBytes)
+        } ?? "Not inspected"
+        return StorageReviewRow(category: .cloud, title: "Downloaded iCloud files", detail: "Local copies in this location · Cleanup unavailable.", value: value, meaning: "Local allocation · Unknown metadata stays unknown", actionTitle: overviewCloudExpanded ? "Hide iCloud inventory" : "Review iCloud inventory", action: action, identifier: "overviewCloudFinding")
     }
     private var overviewDownloadsRow: some View {
         if selection.retryTargetIDs != nil {

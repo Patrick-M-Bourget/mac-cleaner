@@ -43,7 +43,7 @@ final class WorkspaceUITests: XCTestCase {
             var rootID = stat(); XCTAssertEqual(lstat(root.path, &rootID), 0)
             var stateID = stat(); XCTAssertEqual(lstat(state.path, &stateID), 0)
             let app = XCUIApplication()
-            app.launchArguments = ["--ui-test-downloads-root", "--ui-test-slow-refresh", minimum ? "--design-minimum" : "--design-initial-size"]
+            app.launchArguments = ["--ui-test-downloads-root", "--ui-test-slow-refresh", "--ui-test-cloud-unknown", minimum ? "--design-minimum" : "--design-initial-size"]
             app.launchEnvironment["STILL_TEST_DOWNLOADS_ROOT"] = root.path
             app.launchEnvironment["STILL_TEST_DOWNLOADS_ID"] = "\(rootID.st_dev):\(rootID.st_ino)"
             app.launchEnvironment["STILL_TEST_STATE_ROOT"] = state.path
@@ -103,16 +103,20 @@ final class WorkspaceUITests: XCTestCase {
             app.buttons["Scan again"].click()
             XCTAssertTrue(app.buttons["Stop scan"].waitForExistence(timeout: 5))
             XCTAssertTrue(app.buttons["Scan again"].waitForExistence(timeout: 90))
+            try Data().write(to: child.appendingPathComponent("unknown-cloud-metadata.txt"))
             scan(child) // Overlap/hard links must not inflate the Overview review amount.
             app.typeKey("1", modifierFlags: .command)
             let reviewFiles = app.buttons["Review files"]
             XCTAssertTrue(reviewFiles.waitForExistence(timeout: 5))
             XCTAssertTrue((reviewFiles.value as? String ?? "").contains("4.2 MB"))
             XCTAssertTrue((reviewFiles.value as? String ?? "").contains("Logical file size"))
+            let cloudFinding = app.descendants(matching: .any)["overviewCloudFinding"].firstMatch
+            XCTAssertTrue((cloudFinding.value as? String ?? "").contains("Unknown"))
             capture("findings")
             revealOverviewControl(app, label: "Review iCloud inventory")
             app.buttons["Review iCloud inventory"].click()
             XCTAssertTrue(app.staticTexts["iCloud in this scan"].waitForExistence(timeout: 5))
+            XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "value CONTAINS %@ OR label CONTAINS %@", "iCloud membership unknown", "iCloud membership unknown")).firstMatch.exists)
             capture("cloud-evidence", bothPages: false, findingsOnly: true)
             revealOverviewControl(app, label: "Hide iCloud inventory")
             app.buttons["Hide iCloud inventory"].click()
@@ -148,7 +152,11 @@ final class WorkspaceUITests: XCTestCase {
             app.buttons["Scan again"].click()
             XCTAssertTrue(app.buttons["Stop scan"].waitForExistence(timeout: 5))
             captureRefresh("Light")
+            app.scrollViews.firstMatch.scroll(byDeltaX: 0, deltaY: -3000)
+            XCTAssertTrue(app.buttons["Stop scan"].isHittable)
+            XCTAssertTrue(bounds.contains(app.buttons["Stop scan"].frame))
             app.buttons["Stop scan"].click()
+            app.scrollViews.firstMatch.scroll(byDeltaX: 0, deltaY: 3000)
             XCTAssertTrue(app.buttons["Scan again"].waitForExistence(timeout: 5))
             app.buttons["Scan again"].click() // A cancelled generation must not stop this new queue.
             XCTAssertTrue(app.buttons["Stop scan"].waitForExistence(timeout: 5))

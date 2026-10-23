@@ -150,11 +150,12 @@ struct FindingRow<Accessory: View>: View {
 }
 /// One quiet review group: category colors identify storage, never cleanup safety.
 struct RecommendationGroup<Content: View>: View {
+    @Environment(\.colorSchemeContrast) private var contrast
     @ViewBuilder let content: () -> Content
     var body: some View {
         VStack(spacing: 0, content: content)
             .background(StillDesign.reading, in: RoundedRectangle(cornerRadius: StillDesign.Radius.surface))
-            .overlay { RoundedRectangle(cornerRadius: StillDesign.Radius.surface).strokeBorder(StillDesign.separator, lineWidth: 0.5) }
+            .overlay { RoundedRectangle(cornerRadius: StillDesign.Radius.surface).strokeBorder(StillDesign.separator, lineWidth: contrast == .increased ? 1 : 0.5) }
     }
 }
 struct StorageReviewRow: View {
