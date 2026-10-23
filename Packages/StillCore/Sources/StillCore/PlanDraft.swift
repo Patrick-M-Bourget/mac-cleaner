@@ -121,14 +121,15 @@ public struct PlanDraft: Sendable {
         guard scan.observations.contains(where: { $0.id == item.id && $0.resourceID == item.resourceID }) else { throw PlanSelectionError.ineligible }
         return try freshCandidate(item, in: scan, downloads: downloads)
     }
-    static func freshCandidate(_ item: FileObservation, in scan: ScanResult, downloads: DownloadsRoot) throws -> PlannedTarget {
+    static func freshCandidate(_ item: FileObservation, in scan: ScanResult, downloads: DownloadsRoot, preservingScope: URL? = nil) throws -> PlannedTarget {
         guard canConsider(item, in: scan, downloads: downloads) else { throw PlanSelectionError.ineligible }
         var rootInfo = stat()
         guard lstat(downloads.url.path, &rootInfo) == 0, rootInfo.st_mode & S_IFMT == S_IFDIR,
               "\(rootInfo.st_dev):\(rootInfo.st_ino)" == downloads.resourceID else { throw PlanSelectionError.ineligible }
         let rootParts = downloads.url.pathComponents
         let pathParts = item.url.pathComponents
-        let scopeParts = try DownloadsRoot(url: scan.scope).url.pathComponents
+        let targetScope = preservingScope ?? scan.scope
+        let scopeParts = try DownloadsRoot(url: targetScope).url.pathComponents
         guard scopeParts.starts(with: rootParts), pathParts.starts(with: rootParts), pathParts.count > rootParts.count else { throw PlanSelectionError.ineligible }
         var ancestor = downloads.url
         let protectedExtensions = Set(["app", "bundle", "framework", "xcarchive", "dsym", "photoslibrary", "photolibrary", "musiclibrary", "library", "backupbundle", "sparsebundle", "band", "logicx", "db", "sqlite", "sqlite3"])
@@ -142,7 +143,7 @@ public struct PlanDraft: Sendable {
         var info = stat()
         guard lstat(item.url.path, &info) == 0, info.st_mode & S_IFMT == S_IFREG,
               "\(info.st_dev):\(info.st_ino)" == item.resourceID, Int64(info.st_size) == item.logicalBytes else { throw PlanSelectionError.ineligible }
-        return PlannedTarget(url: item.url, resourceID: item.resourceID, scope: scan.scope, downloadsRoot: downloads,
+        return PlannedTarget(url: item.url, resourceID: item.resourceID, scope: targetScope, downloadsRoot: downloads,
             observedAt: scan.observedAt, modifiedSeconds: Int64(info.st_mtimespec.tv_sec), modifiedNanoseconds: Int64(info.st_mtimespec.tv_nsec),
             logicalBytes: Int64(info.st_size), allocatedBytes: item.allocatedBytes)
     }

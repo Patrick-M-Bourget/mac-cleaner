@@ -216,3 +216,21 @@ private struct RefreshDeniedAccess: ScanAccessChecking {
     #expect(draft.selectedCount == 0)
     #expect(refresh.notices.count == 1)
 }
+
+@Test func recheckingAnAncestorPreservesTheSelectedTargetsOriginalScopeAuthority() async throws {
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent("StillRefresh-" + UUID().uuidString)
+    let child = root.appendingPathComponent("Project")
+    try FileManager.default.createDirectory(at: child, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: root) }
+    try Data([1]).write(to: child.appendingPathComponent("chosen.pdf"))
+    let scanner = FolderScanner(supplement: RefreshLocalMetadata())
+    let initial = try await scanner.scan(child)
+    var draft = PlanDraft()
+    try draft.select(try #require(initial.observations.first), in: initial, downloadsRoot: root)
+    let authority = try #require(draft.selected.first?.scope)
+    var refresh = RefreshChoices()
+    let request = refresh.begin(scope: root, draft: &draft)
+    refresh.finish(await RefreshValidator().validate(request, against: try await scanner.scan(root)), draft: &draft)
+    #expect(refresh.canReview(draft))
+    #expect(draft.selected.first?.scope == authority)
+}
