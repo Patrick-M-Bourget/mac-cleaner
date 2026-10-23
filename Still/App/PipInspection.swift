@@ -18,11 +18,16 @@ import StillCore
            let expectedID = ProcessInfo.processInfo.environment["STILL_TEST_PIP_CACHE_ID"] {
             let selected = URL(fileURLWithPath: path).standardizedFileURL.resolvingSymlinksInPath()
             let temporary = FileManager.default.temporaryDirectory.standardizedFileURL.resolvingSymlinksInPath()
+            // XCTest's runner is sandboxed separately from this app. Accept only
+            // its observed exact container tmp parent, never arbitrary containers.
+            let runnerTemporary = FileManager.default.homeDirectoryForCurrentUser
+                .appendingPathComponent("Library/Containers/com.patrickbourget.StillUITests.xctrunner/Data/tmp")
+                .standardizedFileURL.resolvingSymlinksInPath()
             var information = stat()
-            if selected.deletingLastPathComponent() == temporary,
+            if [temporary, runnerTemporary].contains(selected.deletingLastPathComponent()),
                selected.lastPathComponent.hasPrefix("StillPipUI-"),
                UUID(uuidString: String(selected.lastPathComponent.dropFirst("StillPipUI-".count))) != nil,
-               lstat(selected.path, &information) == 0, information.st_mode & S_IFMT == S_IFDIR,
+               lstat(selected.path, &information) == 0, information.st_mode & S_IFMT == S_IFDIR, information.st_uid == geteuid(),
                "\(information.st_dev):\(information.st_ino)" == expectedID {
                 python = URL(fileURLWithPath: "/Library/Developer/CommandLineTools/usr/bin/python3")
                 cache = selected
