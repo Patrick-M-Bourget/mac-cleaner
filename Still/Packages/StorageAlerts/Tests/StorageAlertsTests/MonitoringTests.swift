@@ -186,3 +186,29 @@ import StorageAlerts
     #expect(system.saved.enabled)
     #expect(system.notifications == 1)
 }
+
+@Test @MainActor func unappliedThresholdEditingDoesNotChangeEffectiveMonitoring() async {
+    let system = ControlledAlertSystem()
+    let alerts = AlertMonitoringController(system: system)
+    alerts.configure()
+    await alerts.setEnabled(true)
+    alerts.thresholdGB = ""
+    system.now.addTimeInterval(900)
+    await alerts.activated()
+    #expect(alerts.effectiveMonitoring)
+    #expect(system.pollers.count == 1)
+    #expect(system.saved.thresholdBytes == 40_000_000_000)
+    #expect(system.notifications == 1)
+    alerts.thresholdGB = "80"
+    system.now.addTimeInterval(900)
+    await alerts.activated()
+    #expect(alerts.effectiveMonitoring)
+    #expect(system.saved.thresholdBytes == 40_000_000_000)
+    #expect(system.notifications == 1)
+    await alerts.applyThreshold()
+    #expect(system.saved.thresholdBytes == 80_000_000_000)
+    #expect(alerts.effectiveMonitoring)
+    #expect(system.pollers.count == 1)
+    #expect(system.notifications == 1) // Applying an edit cannot bypass ongoing-episode suppression.
+    await alerts.setEnabled(false)
+}

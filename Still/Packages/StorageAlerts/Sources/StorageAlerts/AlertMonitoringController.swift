@@ -62,7 +62,9 @@ public struct AlertCapacityReading: Sendable {
         guard let gb = Double(thresholdGB), gb.isFinite, gb >= 1, gb < Double(Int64.max) / 1_000_000_000 else { return nil }
         return Int64(gb * 1_000_000_000)
     }
+    /// Editor validity controls Apply/opt-in; polling continues to use the last applied preference.
     public var thresholdValid: Bool { threshold.map { AlertPolicy.validThreshold($0, total: total) } ?? false }
+    private var appliedThresholdValid: Bool { AlertPolicy.validThreshold(policy.thresholdBytes, total: total) }
 
     public func resetPreferences() throws {
         guard !terminating else { throw CocoaError(.userCancelled) }
@@ -166,7 +168,7 @@ public struct AlertCapacityReading: Sendable {
             status = "Notifications are unavailable. Enable Still alerts in System Settings > Notifications. Capacity polling is stopped."
             return
         }
-        effectiveMonitoring = thresholdValid
+        effectiveMonitoring = appliedThresholdValid
         if cancelPolling == nil {
             cancelPolling = system.startPolling { [weak self] in
                 Task { @MainActor [weak self] in await self?.sample() }
@@ -175,7 +177,7 @@ public struct AlertCapacityReading: Sendable {
         guard policy.shouldSample(at: system.now, authorization: .allowed) else { return }
         let reading = capacity(); total = reading.total
         guard let available = reading.available, let total = reading.total, let volumeID = reading.volumeID else { status = "Capacity unavailable. Alert decisions are paused."; return }
-        guard thresholdValid else {
+        guard appliedThresholdValid else {
             cancelPolling?(); cancelPolling = nil; effectiveMonitoring = false
             status = "Threshold no longer fits this volume. Update it to resume alerts."
             return
