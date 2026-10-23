@@ -111,7 +111,7 @@ final class WorkspaceUITests: XCTestCase {
             XCTAssertTrue((reviewFiles.value as? String ?? "").contains("4.2 MB"))
             XCTAssertTrue((reviewFiles.value as? String ?? "").contains("Logical file size"))
             let cloudFinding = app.descendants(matching: .any)["overviewCloudFinding"].firstMatch
-            XCTAssertTrue((cloudFinding.value as? String ?? "").contains("Unknown"))
+            XCTAssertTrue((cloudFinding.value as? String ?? "").contains(" · Unknown · Local allocation"))
             capture("findings")
             revealOverviewControl(app, label: "Review iCloud inventory")
             app.buttons["Review iCloud inventory"].click()
