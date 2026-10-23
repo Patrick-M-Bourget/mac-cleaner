@@ -1,4 +1,5 @@
 import XCTest
+import AppKit
 import Darwin
 import StillCore
 
@@ -21,6 +22,7 @@ final class ExclusionsUITests: XCTestCase {
         app.launchEnvironment = ["STILL_TEST_STATE_ROOT": root.path, "STILL_TEST_STATE_ID": "\(info.st_dev):\(info.st_ino)"]
         app.launch(); defer { app.terminate() }
         XCTAssertTrue(app.buttons["Choose folder…"].waitForExistence(timeout: 5))
+        waitForCaptureSize(app, minimum: minimum)
         let bounds = app.windows.firstMatch.frame
         app.typeKey("4", modifierFlags: .command)
         app.buttons["manageExclusions"].click()
@@ -45,6 +47,7 @@ final class ExclusionsUITests: XCTestCase {
         XCTAssertEqual(savedRules.count, 1)
         app.launch()
         XCTAssertTrue(app.buttons["Choose folder…"].waitForExistence(timeout: 5))
+        waitForCaptureSize(app, minimum: minimum)
         app.buttons["Choose folder…"].click(); app.typeKey("g", modifierFlags: [.command, .shift])
         let folderPath = app.textFields.firstMatch
         XCTAssertTrue(folderPath.waitForExistence(timeout: 3)); folderPath.typeKey("a", modifierFlags: .command); folderPath.typeText(scope.path)
@@ -71,6 +74,19 @@ final class ExclusionsUITests: XCTestCase {
         XCTAssertTrue(remainingRules.isEmpty)
         XCTAssertEqual(try Data(contentsOf: hidden), Data([1, 2]))
         XCTAssertEqual(try Data(contentsOf: kept), Data([3]))
+    }
+    /// Explicit capture mode fits its requested outer size once after native attachment.
+    /// A visible content control alone does not establish that launch sizing has completed.
+    @MainActor private func waitForCaptureSize(_ app: XCUIApplication, minimum: Bool) {
+        guard let screen = NSScreen.main else { XCTFail("Capture display unavailable"); return }
+        let requested = minimum ? CGSize(width: 900, height: 640) : CGSize(width: 1120, height: 760)
+        let expected = CGSize(width: min(requested.width, screen.visibleFrame.width),
+                              height: min(requested.height, screen.visibleFrame.height))
+        let ready = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+            app.windows.firstMatch.frame.size == expected
+        }, object: nil)
+        XCTAssertEqual(XCTWaiter.wait(for: [ready], timeout: 5), .completed,
+                       "Explicit capture window must reach its display-fitted requested size before recording bounds")
     }
     @MainActor private func captureThemes(_ app: XCUIApplication, state: String, minimum: Bool, bounds: CGRect) {
         for appearance in ["Light", "Dark"] {
