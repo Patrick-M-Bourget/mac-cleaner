@@ -109,7 +109,7 @@ private struct WorkspaceView: View {
 
     var body: some View {
         HStack(spacing: 0) {
-            VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: StillDesign.Space.sm) {
                 HStack(spacing: StillDesign.Space.sm) {
                     Image(systemName: "square.3.layers.3d").foregroundStyle(.white).font(.system(size: 17))
                         .frame(width: 30, height: 30).background(LinearGradient(colors: [.blue, .indigo], startPoint: .topLeading, endPoint: .bottomTrailing), in: RoundedRectangle(cornerRadius: 8))
@@ -117,7 +117,7 @@ private struct WorkspaceView: View {
                 }.padding(.bottom, StillDesign.Space.xl)
                 Text("Storage").font(.caption).foregroundStyle(.secondary)
                 ForEach(Destination.allCases.filter { $0 != .locations && $0 != .alerts && ($0 != .growth || GrowthHistoryModel.enabled) }) { navigation($0) }
-                Text("Settings").font(.caption).foregroundStyle(.secondary).padding(.top, 20)
+                Text("Settings").font(.caption).foregroundStyle(.secondary).padding(.top, StillDesign.Space.xl)
                 navigation(.locations)
                 if StorageAlertsController.futureEnabled { navigation(.alerts) }
                 Spacer()
@@ -142,7 +142,7 @@ private struct WorkspaceView: View {
                     LiveCleanupPlanView(selection: selection, recheck: { folderInspection.scan($0) }, stopRefresh: { folderInspection.cancel() })
                 } else {
                 ScrollView {
-                    VStack(alignment: .leading, spacing: 24) {
+                    VStack(alignment: .leading, spacing: StillDesign.Space.xl) {
                         if recoveryVisible {
                             CleanupRecoveryView(model: recovery)
                         } else if diagnosticsVisible {
@@ -232,7 +232,7 @@ private struct WorkspaceView: View {
     }
 
     private var overview: some View {
-        VStack(alignment: .leading, spacing: 24) {
+        VStack(alignment: .leading, spacing: StillDesign.Space.xl) {
             heading("Your storage", "Understand what is stored locally before choosing what to clean.")
             if recovery.requiresReview {
                 SummarySurface {
@@ -312,7 +312,7 @@ private struct WorkspaceView: View {
     }
 
     private var inspection: some View {
-        VStack(alignment: .leading, spacing: 20) {
+        VStack(alignment: .leading, spacing: StillDesign.Space.xl) {
             Button("Back to Overview", systemImage: "chevron.left") { inspecting = false; destination = .overview }
             heading("Downloads inspection", "Synthetic files · Names inspect without selecting.")
             ForEach(FixtureItem.downloads) { item in
@@ -321,10 +321,10 @@ private struct WorkspaceView: View {
                         Label(item.name, systemImage: "doc").frame(maxWidth: .infinity, alignment: .leading)
                     }.buttonStyle(.plain).accessibilityLabel("Inspect \(item.name)")
                     Text(item.size).monospacedDigit().foregroundStyle(.secondary)
-                }.padding(.vertical, 8)
+                }.padding(.vertical, StillDesign.Space.sm)
                 Divider()
             }
-            VStack(alignment: .leading, spacing: 10) {
+            VStack(alignment: .leading, spacing: StillDesign.Space.md) {
                 Text(inspected.name).font(.headline)
                 Text(inspected.path).textSelection(.enabled)
                 Text("Logical size: \(inspected.size)")
@@ -337,7 +337,7 @@ private struct WorkspaceView: View {
     }
 
     private var plan: some View {
-        VStack(alignment: .leading, spacing: 24) {
+        VStack(alignment: .leading, spacing: StillDesign.Space.xl) {
             heading("Cleanup plan", "Review categories and their consequences before any action.")
             SelectionSummary(value: "Nothing selected", detail: "Choose exact files")
             Text("Space remains occupied until Finder empties Trash.").foregroundStyle(.secondary)
@@ -353,7 +353,7 @@ private struct WorkspaceView: View {
             }.buttonStyle(.plain)
                 .accessibilityValue(expanded ? "Expanded" : "Collapsed")
             if expanded {
-                VStack(spacing: 12) {
+                VStack(spacing: StillDesign.Space.md) {
                     ForEach(FixtureItem.downloads) { item in
                         HStack { Text(item.name); Spacer(); Text(item.size).foregroundStyle(.secondary) }
                     }
@@ -372,7 +372,7 @@ private struct WorkspaceView: View {
     }
 
     private var locations: some View {
-        VStack(alignment: .leading, spacing: 20) {
+        VStack(alignment: .leading, spacing: StillDesign.Space.xl) {
             heading("Locations & access", "Review scan coverage and access in one place.")
             if let scope = folderInspection.scope {
                 SettingsRow(title: "Selected location", detail: "Explicitly chosen this session") {

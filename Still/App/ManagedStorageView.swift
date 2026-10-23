@@ -82,7 +82,7 @@ struct ManagedStorageView: View {
                         }
                         Spacer()
                         Image(systemName: model.category == row.category ? "chevron.down" : "chevron.right").foregroundStyle(.secondary)
-                    }.frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, 8).contentShape(Rectangle())
+                    }.frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, StillDesign.Space.sm).contentShape(Rectangle())
                 }.buttonStyle(.plain).accessibilityLabel("Review \(row.category.title)")
                     .accessibilityValue(allocation(row.allocation))
                     .disabled(model.inspecting || model.opening)

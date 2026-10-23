@@ -32,3 +32,34 @@ import StorageAlerts
     #expect(await gate.submit { throw CocoaError(.fileWriteUnknown) } == .failed)
     #expect(await gate.submit { gate.invalidate() } == .staleSuccess)
 }
+
+@Test @MainActor func disablingDuringPendingSuccessOrFailureKeepsOffAndDiscardsLateRequest() async {
+    for accepted in [true, false] {
+        let gate = AlertDeliveryGate()
+        let began = AsyncStream<Void>.makeStream(), completed = AsyncStream<Bool>.makeStream()
+        var status = "Monitoring", savedOutcomes = 0, pendingRequest = false
+        let pending = Task {
+            let result = await gate.submit {
+                began.continuation.yield(())
+                for await succeeds in completed.stream {
+                    if !succeeds { throw CocoaError(.fileWriteUnknown) }
+                    pendingRequest = true
+                    break
+                }
+            }
+            switch result {
+            case .accepted, .failed: savedOutcomes += 1; status = "Submission updated"
+            case .staleSuccess: pendingRequest = false
+            case .staleFailure: break
+            }
+            return result
+        }
+        var iterator = began.stream.makeAsyncIterator(); _ = await iterator.next()
+        gate.setEnabled(false); status = "Alerts are off."; pendingRequest = false
+        completed.continuation.yield(accepted)
+        #expect(await pending.value == (accepted ? .staleSuccess : .staleFailure))
+        #expect(savedOutcomes == 0)
+        #expect(!pendingRequest)
+        #expect(status == "Alerts are off.")
+    }
+}

@@ -70,24 +70,29 @@ extension Notification.Name {
         if enabled && !thresholdValid { status = "Enter at least 1 GB and less than startup-volume capacity."; return }
         requested = enabled
         policy.enabled = enabled
-        if !enabled { effectiveMonitoring = false }
-        guard persist() else { return }
+        delivery.setEnabled(enabled)
         if !enabled {
-            effectiveMonitoring = false
-            timer?.invalidate(); timer = nil
+            monitoringGeneration = UUID()
+            stopForTermination()
             center.removePendingNotificationRequests(withIdentifiers: ["Still.lowSpace"])
-            status = "Alerts are off."; return
         }
+        guard persist() else { return }
+        if !enabled { status = "Alerts are off."; return }
         guard thresholdValid, let threshold else { requested = false; policy.enabled = false; status = "Enter at least 1 GB and less than startup-volume capacity."; return }
         policy.thresholdBytes = threshold
         guard persist() else { return }
+        let enablingGeneration = monitoringGeneration
         let settings = await center.notificationSettings()
+        guard requested, enablingGeneration == monitoringGeneration else { return }
         if settings.authorizationStatus == .notDetermined {
             status = "Allow notifications to receive low-space alerts."
             do { _ = try await center.requestAuthorization(options: [.alert, .sound]) }
-            catch { status = "Notification permission could not be requested." }
+            catch {
+                guard requested, enablingGeneration == monitoringGeneration else { return }
+                status = "Notification permission could not be requested."
+            }
         }
-        guard requested else { return }
+        guard requested, enablingGeneration == monitoringGeneration else { return }
         await sample()
     }
     func applyThreshold() async {

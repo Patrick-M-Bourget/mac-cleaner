@@ -82,7 +82,7 @@ struct DockerInspectionView: View {
             if let inventory = model.inventory {
                 Text(model.example ? "Synthetic daemon report" : "Daemon report").font(.headline)
                 ForEach(inventory.categories, id: \.name) { category in
-                    VStack(alignment: .leading, spacing: 5) {
+                    VStack(alignment: .leading, spacing: StillDesign.Space.xs) {
                         Text(category.persistentData ? "Local Volumes · Persistent application data" : category.name).font(.headline)
                         Text("\(category.total) total · \(category.active) active · Daemon-reported size: \(category.daemonSize ?? "Unknown")")
                         Text("Daemon estimate labelled reclaimable: \(category.daemonReclaimable ?? "Unknown") · No cleanup offered").font(.caption).foregroundStyle(.secondary)

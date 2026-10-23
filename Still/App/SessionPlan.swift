@@ -339,23 +339,23 @@ private struct CleanupConfirmationView: View {
         return review.targets.filter { seen.insert($0.resourceID).inserted }.reduce(0) { $0 + $1.logicalBytes }
     }
     var body: some View {
-        VStack(alignment: .leading, spacing: 18) {
+        VStack(alignment: .leading, spacing: StillDesign.Space.lg) {
             PageHeader(title: "Review Move to Trash")
             SummarySurface { Label("\(StillDesign.files(review.targets.count)) · \(ByteCountFormatter.string(fromByteCount: logicalBytes, countStyle: .decimal)) logical size", systemImage: "trash") }
             Text("Space remains occupied until Finder empties Trash. Files may have separate Trash locations; folder structure and automatic restoration are not guaranteed.").foregroundStyle(.secondary)
             Text("Downloads scope · No folders or new discoveries will be included.").font(.callout)
             Text("Confirming moves only this exact batch to Trash. There is no permanent-delete fallback.").font(.caption).foregroundStyle(.secondary)
             ScrollView {
-                VStack(alignment: .leading, spacing: 10) {
+                VStack(alignment: .leading, spacing: StillDesign.Space.md) {
                     Text("Selected scan locations").font(.headline)
                     ForEach(Array(Set(review.targets.map { $0.scope.path })).sorted(), id: \.self) { Text($0).font(.caption).textSelection(.enabled) }
                     DisclosureGroup("Exact files (\(review.targets.count))", isExpanded: $expanded) {
-                        LazyVStack(alignment: .leading, spacing: 10) {
+                        LazyVStack(alignment: .leading, spacing: StillDesign.Space.md) {
                             ForEach(review.targets) { target in
                                 Text(target.url.pathComponents.dropFirst(target.downloadsRoot.url.pathComponents.count).joined(separator: "/"))
                                     .font(.callout).textSelection(.enabled)
                             }
-                        }.padding(.top, 8)
+                        }.padding(.top, StillDesign.Space.sm)
                     }
                 }
                 // Native macOS disclosure arrows extend before their label; keep that control inside the scroll clip.
