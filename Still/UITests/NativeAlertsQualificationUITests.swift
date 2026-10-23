@@ -29,7 +29,14 @@ final class NativeAlertsQualificationUITests: XCTestCase {
             throw XCTSkip("Hosted evidence directory identity was not established; no app launch.")
         }
         // Check normal app-owned storage before launch. Never delete/reset existing OS or app state.
-        let home = FileManager.default.homeDirectoryForCurrentUser
+        guard let account = getpwuid(geteuid()) else {
+            throw XCTSkip("Hosted account home could not be established; no app launch.")
+        }
+        // XCTest can supply a container/fixed home; fresh normal app state belongs to the account home.
+        let home = URL(fileURLWithPath: String(cString: account.pointee.pw_dir), isDirectory: true)
+        guard home.path == "/Users/runner" else {
+            throw XCTSkip("Unexpected hosted account home; no app launch.")
+        }
         let manager = FileManager.default
         guard !manager.fileExists(atPath: home.appendingPathComponent("Library/Application Support/Still").path),
               !manager.fileExists(atPath: home.appendingPathComponent("Library/Preferences/com.patrickbourget.Still.plist").path),
@@ -38,6 +45,8 @@ final class NativeAlertsQualificationUITests: XCTestCase {
         }
         var events: [String] = []
         var outcome = "started"
+        var authorizationAttempted = false
+        var effectiveMonitoringObserved = false
         let app = XCUIApplication()
         func record(_ event: String) { events.append(event) }
         func require(_ condition: Bool, _ message: String) throws {
@@ -54,7 +63,9 @@ final class NativeAlertsQualificationUITests: XCTestCase {
         }
         defer {
             let report: [String: Any] = ["probeID": probe, "sourceCommit": commit, "outcome": outcome,
-                                       "events": events, "nativeOSAuthorization": true,
+                                       "events": events, "surfaceKind": "native-OS",
+                                       "authorizationAttempted": authorizationAttempted,
+                                       "effectiveMonitoringObserved": effectiveMonitoringObserved,
                                        "notificationDeliveryQualified": false, "loginRegistrationQualified": false]
             if let data = try? JSONSerialization.data(withJSONObject: report, options: [.prettyPrinted, .sortedKeys]) {
                 try? data.write(to: directory.appendingPathComponent("journey.json"), options: .atomic)
@@ -79,6 +90,7 @@ final class NativeAlertsQualificationUITests: XCTestCase {
             record("explicit 1 decimal GB threshold; real capacity only, no artificial storage writes")
             capture("Before native opt-in", application: app)
             toggle.click()
+            authorizationAttempted = true
             record("explicit user opt-in")
 
             // Discover the actual running notification UI by its observed display name; no guessed bundle ID.
@@ -117,6 +129,7 @@ final class NativeAlertsQualificationUITests: XCTestCase {
                 outcome = "unsupported-native-authorization"
                 throw XCTSkip("Hosted notification prompt unavailable, denied, or API did not produce effective monitoring; see evidence.")
             }
+            effectiveMonitoringObserved = true
             record(approved ? "real authorization produced valid monitoring capacity" : "native authorized state confirmed by effective monitoring")
             try require(app.menuBars.menuBarItems["Still storage alerts"].exists, "Effective monitoring has no accessible Still menu-bar presence")
             capture("Native monitoring active", application: app)

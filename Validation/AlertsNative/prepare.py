@@ -22,7 +22,9 @@ def main():
         raise SystemExit('Refused: native authorization requires the explicit fresh hosted workflow.')
     if any(name in env for name in ('STILL_TEST_STATE_ROOT', 'STILL_TEST_STATE_ID')):
         raise SystemExit('Refused: ordinary disposable-test overrides are not native qualification.')
-    home = Path.home()
+    home = Path.home().resolve()
+    if home != Path("/Users/runner"):
+        raise SystemExit("Refused: unexpected hosted account home.")
     for path in (home / 'Library/Application Support/Still',
                  home / 'Library/Preferences/com.patrickbourget.Still.plist'):
         if path.exists() or path.is_symlink():
