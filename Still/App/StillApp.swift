@@ -118,7 +118,7 @@ private struct WorkspaceView: View {
                             switch destination {
                             case .alerts: StorageAlertsView(controller: alerts)
                             case .overview: overview
-                            case .plan: if selection.scans.isEmpty { plan } else { LiveCleanupPlanView(selection: selection) }
+                            case .plan: if selection.scans.isEmpty { plan } else { LiveCleanupPlanView(selection: selection, recheck: { folderInspection.scan($0) }, stopRefresh: { folderInspection.cancel() }) }
                             case .history: history
                             case .locations: locations
                             }

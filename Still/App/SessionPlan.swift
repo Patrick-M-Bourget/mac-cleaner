@@ -7,6 +7,26 @@ import SwiftUI
     private(set) var draft = PlanDraft()
     private(set) var scans: [URL: ScanResult] = [:]
     private(set) var message: String?
+    private(set) var refresh = RefreshChoices()
+    private var refreshRequests: [URL: RefreshRequest] = [:]
+    private let refreshValidator = RefreshValidator()
+    var isRefreshing: Bool { !refreshRequests.isEmpty }
+    func beginRefresh(_ scope: URL) -> RefreshRequest {
+        let request = refresh.begin(scope: scope, draft: &draft)
+        refreshRequests[request.scope] = request
+        return request
+    }
+    func cancelRefresh(_ request: RefreshRequest) {
+        refresh.cancel(request)
+        if refreshRequests[request.scope]?.id == request.id { refreshRequests[request.scope] = nil }
+    }
+    func finishRefresh(_ request: RefreshRequest, scan: ScanResult) async {
+        let outcome = await refreshValidator.validate(request, against: scan)
+        guard refreshRequests[request.scope]?.id == request.id else { return }
+        refresh.finish(outcome, draft: &draft)
+        refreshRequests[request.scope] = nil
+        AppLifecycleController.shared.hasPendingPlan = draft.selectedCount > 0
+    }
     private var downloads: DownloadsRoot?
     #if DEBUG
     private var requestedFixture: URL?
@@ -57,7 +77,7 @@ import SwiftUI
     func set(_ item: FileObservation, in scan: ScanResult, selected: Bool) {
         if !selected { draft.remove(item.url.path + "|" + item.resourceID + "|moveToTrash") }
         else {
-            guard let downloads else { return }
+            guard !isRefreshing, let downloads else { return }
             do { try draft.select(item, in: scan, downloads: downloads); message = nil }
             catch { message = "This target is no longer eligible. Recheck its selected Downloads scope." }
         }
@@ -67,11 +87,13 @@ import SwiftUI
         draft.remove(target.id)
         AppLifecycleController.shared.hasPendingPlan = draft.selectedCount > 0
     }
-    func endSession() { draft.clear(); scans.removeAll(); AppLifecycleController.shared.hasPendingPlan = false }
+    func endSession() { draft.clear(); scans.removeAll(); refresh = RefreshChoices(); refreshRequests.removeAll(); AppLifecycleController.shared.hasPendingPlan = false }
 }
 
 struct LiveCleanupPlanView: View {
     @Bindable var selection: SessionPlan
+    let recheck: (URL) -> Void
+    let stopRefresh: () -> Void
     @State private var search = ""
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
@@ -79,12 +101,26 @@ struct LiveCleanupPlanView: View {
             Text("\(selection.draft.selectedCount) files selected · \(ByteCountFormatter.string(fromByteCount: selection.draft.logicalBytes, countStyle: .decimal)) logical bytes across unique storage identities")
                 .accessibilityIdentifier("liveSelectionSummary")
             Text("Move to Trash · Space stays occupied until Finder empties Trash. Selection changes the plan only; no cleanup is available in this slice.").foregroundStyle(.secondary)
+            if selection.isRefreshing {
+                HStack { ProgressView("Rechecking selected locations…"); Button("Stop refresh", action: stopRefresh) }
+            }
+            ForEach(Array(Set(selection.draft.selected.map(\.scope))).sorted { $0.path < $1.path }, id: \.self) { scope in
+                Button("Recheck location: " + scope.lastPathComponent) { recheck(scope) }.disabled(selection.isRefreshing)
+            }
+            ForEach(selection.refresh.notices) { notice in
+                Text(notice.target.url.lastPathComponent + " · " + notice.message).font(.callout).foregroundStyle(.secondary)
+            }
             TextField("Search Downloads items", text: $search)
             ForEach(selection.draft.selected) { target in
                 HStack {
                     Toggle(isOn: Binding(get: { true }, set: { if !$0 { selection.remove(target) } })) { Text(target.url.lastPathComponent) }
                         .accessibilityLabel("Selected \(target.url.lastPathComponent)")
-                    Text(target.url.path).font(.caption).foregroundStyle(.secondary)
+                    VStack(alignment: .leading) {
+                        Text(target.url.path).font(.caption).foregroundStyle(.secondary)
+                        if selection.refresh.requiresRefresh(target.id) {
+                            Text(selection.refresh.status(target.id) == .refreshing ? "Rechecking…" : "Refresh required").font(.caption).foregroundStyle(.orange)
+                        }
+                    }
                 }
             }
             Divider()

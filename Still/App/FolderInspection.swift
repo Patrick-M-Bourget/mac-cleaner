@@ -13,6 +13,7 @@ final class FolderInspection {
     private var task: Task<Void, Never>?
     private var generation = UUID()
     private var previewAccessScope: URL?
+    private var refreshRequest: RefreshRequest?
     var scope: URL?
     var result: ScanResult?
     var lastComplete: ScanResult?
@@ -34,12 +35,15 @@ final class FolderInspection {
     }
 
     func scan(_ url: URL) {
-        task?.cancel()
+        cancel()
+        let previousSelection = scope?.standardizedFileURL == url.standardizedFileURL ? selected : nil
+        let sameScope = scope?.standardizedFileURL == url.standardizedFileURL
+        let request = selection.beginRefresh(url)
+        refreshRequest = request
         let token = UUID()
         generation = token
         scope = url
-        result = nil
-        selected = nil
+        if !sameScope { result = nil; selected = nil; lastComplete = nil }
         message = nil
         isScanning = true
         task = Task {
@@ -50,14 +54,19 @@ final class FolderInspection {
                 let observed = report.current
                 let reports = await session.reports()
                 guard !Task.isCancelled, token == generation else { return }
+                await selection.finishRefresh(request, scan: observed)
+                guard !Task.isCancelled, token == generation else { return }
+                refreshRequest = nil
                 result = observed
                 selection.observe(observed)
                 lastComplete = report.lastComplete
                 scopeReports = reports
-                selected = observed.observations.first
+                selected = previousSelection.flatMap { old in observed.observations.first { $0.id == old.id && $0.resourceID == old.resourceID } } ?? observed.observations.first
                 isScanning = false
             } catch {
                 guard token == generation else { return }
+                selection.cancelRefresh(request)
+                refreshRequest = nil
                 isScanning = false
                 message = error is CancellationError ? "Scan stopped. Choose a folder to try again." : "This folder could not be inspected. Choose the folder again or check access in System Settings."
             }
@@ -70,7 +79,13 @@ final class FolderInspection {
         selected = report.current.observations.first; message = nil
     }
 
-    func cancel() { task?.cancel() }
+    func cancel() {
+        task?.cancel()
+        generation = UUID()
+        if let refreshRequest { selection.cancelRefresh(refreshRequest); self.refreshRequest = nil }
+        if isScanning { message = "Scan stopped. Selected choices need a complete refresh before review." }
+        isScanning = false
+    }
 
     func preview(_ item: FileObservation) {
         closePreviewAccess()
@@ -118,7 +133,7 @@ struct FolderInspectionView: View {
                 }
             }
             if model.isScanning {
-                ProgressView("Reading file metadata…")
+                ProgressView("Reading file metadata… Previous observations remain visible until this refresh completes.")
                 Button("Stop scan") { model.cancel() }
             }
             if let message = model.message { Text(message).foregroundStyle(.secondary) }
