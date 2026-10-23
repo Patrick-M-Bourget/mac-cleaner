@@ -244,7 +244,8 @@ struct StillSidebarRow: View {
                 .frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, StillDesign.Space.sm).padding(.horizontal, StillDesign.Space.sm)
                 .background {
                     if selected {
-                        RoundedRectangle(cornerRadius: StillDesign.Radius.row).fill(StillDesign.selection.gradient)
+                        RoundedRectangle(cornerRadius: StillDesign.Radius.row).fill(StillDesign.selection)
+                            .overlay { RoundedRectangle(cornerRadius: StillDesign.Radius.row).fill(LinearGradient(colors: [StillDesign.highlight, .clear], startPoint: .top, endPoint: .bottom)) }
                             .overlay { RoundedRectangle(cornerRadius: StillDesign.Radius.row).strokeBorder(StillDesign.highlight, lineWidth: 1) }
                     }
                 }

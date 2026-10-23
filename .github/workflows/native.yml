@@ -50,6 +50,7 @@ jobs:
               -only-testing:StillUITests/WorkspaceUITests/testMinimumPopulatedPlanAndConfirmationRemainReachable
               -only-testing:StillUITests/WorkspaceUITests/testKeyboardNavigationAndAppearanceKeepWindowBounds
               -only-testing:StillUITests/WorkspaceUITests/testInitialReviewWindowFitsConstrainedDisplayAndKeepsToolbarReachable
+              -only-testing:StillUITests/WorkspaceUITests/testRefreshPreservesChoicesAndSearchThenExplainsChangedTargets
             )
           fi
           xcodebuild test-without-building -project Still/Still.xcodeproj -scheme Still -destination 'platform=macOS' -derivedDataPath .build/xcode -resultBundlePath .build/Workspace.xcresult "${scope[@]}"

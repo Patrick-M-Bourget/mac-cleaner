@@ -251,7 +251,8 @@ struct LiveCleanupPlanView: View {
                     else if selection.pendingCount > 0 { StatusRow(text: "Refresh required · Previous observations retained for \(StillDesign.files(selection.pendingCount)).", symbol: "arrow.clockwise", role: .caution) }
                 }
                 ForEach(selection.refreshScopes, id: \.self) { scope in
-                    Button("Recheck location: " + scope.lastPathComponent) { recheck(scope) }.disabled(selection.isRefreshing || selection.isPreparing)
+                    Button("Recheck location: " + scope.lastPathComponent) { recheck(scope) }
+                        .buttonStyle(.link).font(.caption).disabled(selection.isRefreshing || selection.isPreparing)
                 }
             }
             }
