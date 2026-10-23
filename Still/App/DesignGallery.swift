@@ -54,7 +54,7 @@ struct DesignGallery: View {
                     VolumeSummary(available: nil, total: nil, observation: "No capacity observation · Unknown stays distinct from zero")
                 }.padding(StillDesign.Space.page).frame(maxWidth: .infinity, alignment: .leading)
             }.background(StillDesign.reading)
-            ActionStrip(message: "Developer gallery · Actions are inert examples") { Button("Review cleanup") {}.disabled(true) }
+            ActionStrip(message: "Developer gallery · Actions are inert examples") { ReviewCleanupButton(enabled: false, focusRequest: 0, action: {}) }
         }
         .environment(\.stillOpaqueChrome, opaque)
         .preferredColorScheme(appearance == "Dark" ? .dark : .light)

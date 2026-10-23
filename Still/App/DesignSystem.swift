@@ -320,7 +320,17 @@ struct AppBrand: View {
 
 
 /// Native first-responder restoration is explicit and one-shot after a sheet closes.
-struct ReviewCleanupButton: NSViewRepresentable {
+struct ReviewCleanupButton: View {
+    let enabled: Bool
+    let focusRequest: Int
+    let action: () -> Void
+    var body: some View {
+        NativeReviewCleanupButton(enabled: enabled, focusRequest: focusRequest, action: action)
+            .disabled(!enabled)
+    }
+}
+
+private struct NativeReviewCleanupButton: NSViewRepresentable {
     let enabled: Bool
     let focusRequest: Int
     let action: () -> Void
