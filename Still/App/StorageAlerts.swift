@@ -39,11 +39,13 @@ extension Notification.Name {
         content.title = "Your Mac is running low on space"
         content.body = "Capacity checked at \(observedAt.formatted(date: .omitted, time: .shortened)). Open Still to review storage and choose whether to scan."
         content.sound = .default; content.categoryIdentifier = "Still.capacity"
+        content.userInfo = AlertOpenContext(observedAt: observedAt).notificationUserInfo
         try await center.add(UNNotificationRequest(identifier: identifier, content: content, trigger: nil))
     }
 }
 
 @MainActor final class StorageAlertsController: AlertMonitoringController, UNUserNotificationCenterDelegate {
+    @Published private(set) var openedAlertContext: AlertOpenContext?
     static var futureEnabled: Bool { ProcessInfo.processInfo.arguments.contains("--future-milestones") }
     init() {
         super.init(system: NativeAlertMonitoringSystem())
@@ -57,13 +59,19 @@ extension Notification.Name {
     }
     nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse) async {
         let action = response.actionIdentifier
+        let context = AlertOpenContext(notificationUserInfo: response.notification.request.content.userInfo)
         await MainActor.run {
             if action == "Still.remindLater" { remindLater(); return }
+            openAlert(context: context)
+        }
+    }
+    func dismissOpenedAlert() { openedAlertContext = nil }
+    func openAlert(context: AlertOpenContext) {
+            openedAlertContext = context
             AppLifecycleController.shared.openWorkspace?()
             NSApp.activate(ignoringOtherApps: true)
             NSApp.windows.first(where: { $0.canBecomeMain })?.makeKeyAndOrderFront(nil)
             NotificationCenter.default.post(name: .stillAlertOpened, object: nil)
-        }
     }
     nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification) async -> UNNotificationPresentationOptions { [.banner, .sound] }
 }

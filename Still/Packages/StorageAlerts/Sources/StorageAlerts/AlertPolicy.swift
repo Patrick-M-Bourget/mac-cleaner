@@ -124,3 +124,16 @@ public struct AlertStateStore: Sendable {
         try JSONEncoder().encode(state).write(to: url, options: .atomic)
     }
 }
+
+/// The observation attached to an opened alert, independent of current capacity.
+public struct AlertOpenContext: Sendable, Equatable {
+    public let observedAt: Date?
+    public init(observedAt: Date) { self.init(notificationUserInfo: ["Still.observedAt": observedAt.timeIntervalSince1970]) }
+    public init(notificationUserInfo: [AnyHashable: Any]) {
+        guard let seconds = notificationUserInfo["Still.observedAt"] as? Double, seconds.isFinite, seconds >= 0, seconds < 253_402_300_800 else { observedAt = nil; return }
+        observedAt = Date(timeIntervalSince1970: seconds)
+    }
+    public var notificationUserInfo: [AnyHashable: Any] {
+        observedAt.map { ["Still.observedAt": $0.timeIntervalSince1970] } ?? [:]
+    }
+}

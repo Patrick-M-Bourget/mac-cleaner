@@ -112,6 +112,9 @@ private struct WorkspaceView: View {
     @State private var diagnosticsVisible = false
     @State private var diagnostics = DiagnosticsModel()
     @State private var startupCapacity: StartupVolumeCapacity?
+    #if DEBUG
+    @State private var injectedAlertOpen = false
+    #endif
     private var fixtureMode: Bool {
         #if DEBUG
         ProcessInfo.processInfo.arguments.contains("--fixture-workspace")
@@ -227,6 +230,16 @@ private struct WorkspaceView: View {
             }.frame(maxWidth: .infinity, maxHeight: .infinity)
                 .background(StillDesign.reading)
         }
+        .task {
+            #if DEBUG
+            if !injectedAlertOpen, LocalStateLocation.isDisposableTest, StorageAlertsController.futureEnabled,
+               let fixture = ProcessInfo.processInfo.environment["STILL_TEST_ALERT_OPEN"] {
+                injectedAlertOpen = true
+                let payload: [AnyHashable: Any] = fixture == "dated" ? ["Still.observedAt": 1_000_000.0] : fixture == "malformed" ? ["Still.observedAt": "invalid"] : [:]
+                alerts.openAlert(context: AlertOpenContext(notificationUserInfo: payload))
+            }
+            #endif
+        }
         .task { if await recovery.loadOnce() { recoveryVisible = true } }
         .task { startupCapacity = await Task.detached(priority: .utility) { StartupVolumeCapacity.read() }.value }
         .onAppear { AppLifecycleController.shared.openWorkspace = { openWindow(id: "workspace") } }
@@ -267,9 +280,31 @@ private struct WorkspaceView: View {
         }.keyboardShortcut(value.shortcut, modifiers: .command)
     }
 
+    private func chooseFolderForScan() {
+        if let url = FolderInspection.chooseFolder() {
+            alerts.dismissOpenedAlert()
+            selection.leaveRetryMode()
+            folderInspection.scan(url)
+            nativeInspectionVisible = true
+        }
+    }
+
     private var overview: some View {
         VStack(alignment: .leading, spacing: StillDesign.Space.xl) {
             heading("Your storage", "Understand what is stored locally before choosing what to clean.")
+            if let context = alerts.openedAlertContext {
+                SummarySurface {
+                    VStack(alignment: .leading, spacing: StillDesign.Space.md) {
+                        StatusRow(text: context.observedAt.map { "Alert checked \($0.formatted(date: .abbreviated, time: .shortened))" } ?? "Alert check time unavailable", symbol: "bell", identifier: "openedStorageAlert")
+                        Text("This alert is an earlier observation. Choose a folder for a fresh scan; nothing runs automatically.").font(.callout).foregroundStyle(.secondary)
+                        HStack {
+                            Button("Choose a folder to scan…", action: chooseFolderForScan)
+                                .disabled(folderInspection.isScanning || selection.execution.isRunning)
+                            Button("Dismiss alert", action: alerts.dismissOpenedAlert)
+                        }
+                    }
+                }
+            }
             if recovery.requiresReview {
                 SummarySurface {
                     HStack {
@@ -305,11 +340,7 @@ private struct WorkspaceView: View {
             CleanupScopeNotice(enabled: !folderInspection.isScanning && !selection.execution.isRunning, chooseDownloads: chooseDownloads)
             HStack {
                 Button("Choose folder…", systemImage: "folder.badge.plus") {
-                    if let url = FolderInspection.chooseFolder() {
-                    selection.leaveRetryMode()
-                        folderInspection.scan(url)
-                        nativeInspectionVisible = true
-                    }
+                    chooseFolderForScan()
                 }
                 if folderInspection.scope != nil {
                     Button("Review scanned folder") { nativeInspectionVisible = true }

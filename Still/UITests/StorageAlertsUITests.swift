@@ -1,6 +1,49 @@
 import XCTest
 import Darwin
 final class StorageAlertsUITests: XCTestCase {
+    @MainActor func testOpenedAlertPreservesContextAndOffersOnlyExplicitScanAcrossThemesAndSizes() throws {
+        let manager = FileManager.default
+        let token = UUID().uuidString
+        let root = manager.temporaryDirectory.resolvingSymlinksInPath().appendingPathComponent("StillTestState-" + token)
+        try manager.createDirectory(at: root, withIntermediateDirectories: false, attributes: [.posixPermissions: 0o700])
+        try Data(token.utf8).write(to: root.appendingPathComponent(".still-owned-test-state"))
+        defer { try? manager.removeItem(at: root) }
+        var identity = stat(); XCTAssertEqual(lstat(root.path, &identity), 0)
+        for minimum in [false, true] {
+            for fixture in ["dated", "legacy", "malformed"] {
+                let app = XCUIApplication()
+                app.launchEnvironment["STILL_TEST_STATE_ROOT"] = root.path
+                app.launchEnvironment["STILL_TEST_STATE_ID"] = "\(identity.st_dev):\(identity.st_ino)"
+                app.launchEnvironment["STILL_TEST_ALERT_OPEN"] = fixture
+                app.launchArguments = ["--future-milestones", minimum ? "--design-minimum" : "--design-initial-size"]
+                app.launch()
+                let status = app.staticTexts["openedStorageAlert"]
+                XCTAssertTrue(status.waitForExistence(timeout: 10))
+                if fixture == "dated" { XCTAssertTrue(status.label.contains("1970")) }
+                else { XCTAssertEqual(status.label, "Alert check time unavailable") }
+                XCTAssertFalse(app.buttons["Stop scan"].exists)
+                XCTAssertFalse(app.buttons["Review scanned folder"].exists)
+                let bounds = app.windows.firstMatch.frame
+                for theme in ["Light", "Dark"] {
+                    app.popUpButtons["Appearance"].click(); app.menuItems[theme].click()
+                    let capture = XCTAttachment(screenshot: app.windows.firstMatch.screenshot())
+                    capture.name = "alert-open-" + fixture + "-" + (minimum ? "minimum-" : "initial-") + theme
+                    capture.lifetime = .keepAlways; add(capture)
+                    XCTAssertEqual(app.windows.firstMatch.frame, bounds)
+                }
+                app.buttons["Choose a folder to scan…"].click()
+                XCTAssertTrue(app.dialogs.buttons["Scan folder"].waitForExistence(timeout: 5))
+                app.typeKey(.escape, modifierFlags: [])
+                XCTAssertTrue(status.exists)
+                XCTAssertFalse(app.buttons["Review scanned folder"].exists)
+                app.buttons["Dismiss alert"].click()
+                XCTAssertFalse(status.exists)
+                XCTAssertTrue(app.buttons["Choose folder…"].exists)
+                app.terminate()
+            }
+        }
+    }
+
     @MainActor func testAlertsAreHiddenByDefaultAndFutureSettingsDoNotRequestPermission() {
         let app = XCUIApplication()
         app.launch()
