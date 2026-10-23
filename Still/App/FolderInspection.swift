@@ -152,9 +152,17 @@ final class FolderInspection {
     }
 
     func show(_ report: ScopeReport) {
+        showObserved(report.current, lastComplete: report.lastComplete)
+    }
+    /// Focus the exact shared observation used by a recommendation, including a newer retry recheck.
+    func showObserved(_ scan: ScanResult) {
+        let historical = scopeReports.first { $0.current.scope.standardizedFileURL == scan.scope.standardizedFileURL }?.lastComplete
+        showObserved(scan, lastComplete: scan.isComplete ? scan : historical)
+    }
+    private func showObserved(_ scan: ScanResult, lastComplete historical: ScanResult?) {
         guard !isScanning else { return }
-        scope = report.current.scope; result = report.current; lastComplete = report.lastComplete
-        selected = report.current.observations.first; message = nil
+        scope = scan.scope; result = scan; lastComplete = historical
+        selected = scan.observations.first; message = nil
     }
 
     func invalidateCoverage() async {
