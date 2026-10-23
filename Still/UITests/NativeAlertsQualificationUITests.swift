@@ -59,7 +59,11 @@ final class NativeAlertsQualificationUITests: XCTestCase {
             screen.name = title; screen.lifetime = .keepAlways; add(screen)
         }
         func monitoring() -> Bool {
-            app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "Monitoring startup-volume capacity while Still runs.")).firstMatch.exists
+            let status = app.staticTexts["storageAlertStatus"]
+            guard status.exists else { return false }
+            // Native SwiftUI StatusRow exposes the text as AX value; its label can be empty.
+            let text = status.value as? String ?? status.label
+            return text.hasPrefix("Monitoring startup-volume capacity while Still runs.")
         }
         defer {
             let report: [String: Any] = ["probeID": probe, "sourceCommit": commit, "outcome": outcome,
@@ -111,7 +115,7 @@ final class NativeAlertsQualificationUITests: XCTestCase {
                 }
                 for candidate in candidates {
                     for window in candidate.windows.allElementsBoundByIndex {
-                        let identifiesStill = window.staticTexts.matching(NSPredicate(format: "label CONTAINS[c] %@", "Still")).firstMatch.exists
+                        let identifiesStill = window.staticTexts.matching(NSPredicate(format: "label CONTAINS[c] %@ OR value CONTAINS[c] %@", "Still", "Still")).firstMatch.exists
                         let allow = window.buttons.matching(identifier: "Allow")
                         let refuse = window.buttons.matching(identifier: "Don’t Allow").count + window.buttons.matching(identifier: "Don't Allow").count
                         if identifiesStill && allow.count == 1 && refuse == 1 && allow.firstMatch.isHittable {
