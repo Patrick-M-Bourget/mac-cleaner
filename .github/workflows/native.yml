@@ -64,6 +64,7 @@ jobs:
             scope=(
               -only-testing:StillUITests/StorageAlertsUITests/testAlertsAreHiddenByDefaultAndFutureSettingsDoNotRequestPermission
               -only-testing:StillUITests/StorageAlertsUITests/testOnDemandWindowCloseTerminatesAndLoginControlsAreReadOnlyUntilChoice
+              -only-testing:StillUITests/StorageAlertsUITests/testDisposableAlertOptInExplainsRefusalWithoutChangingOSAuthorization
             )
           elif [[ "$EVENT_NAME" == "workflow_dispatch" && "$REQUESTED_SUITE" == "keyboard" ]]; then
             scope=(-only-testing:StillUITests/WorkspaceUITests/testKeyboardCancelRestoresReviewFocusWithoutChangingSelection)
@@ -136,14 +137,26 @@ jobs:
         if: always()
         run: |
           xcrun xcresulttool get test-results summary --path .build/AlertsNative.xcresult --format json > .build/alerts-native-summary.json
+          xcrun xcresulttool export attachments --path .build/AlertsNative.xcresult --output-path .build/alerts-native-attachments
           python3 - <<'PYTHON'
           import json, os
           from pathlib import Path
           summary = json.loads(Path('.build/alerts-native-summary.json').read_text())
-          reports = list(Path(os.environ['RUNNER_TEMP']).glob('still-alerts-native-*/journey.json'))
-          if len(reports) != 1:
-              raise SystemExit('Native qualification unavailable: expected one guarded journey report.')
-          journey = json.loads(reports[0].read_text())
+          directory = Path('.build/alerts-native-attachments')
+          attachments = json.loads((directory / 'manifest.json').read_text())
+          reports = [item for test in attachments for item in test.get('attachments', [])
+                     if item.get('suggestedHumanReadableName', '').startswith('Native alert journey JSON')]
+          environments = list(Path(os.environ['RUNNER_TEMP']).glob('still-alerts-native-*/environment.json'))
+          if len(reports) != 1 or len(environments) != 1:
+              raise SystemExit('Native qualification unavailable: expected one guarded journey attachment and manifest.')
+          name = reports[0]['exportedFileName']
+          if Path(name).name != name:
+              raise SystemExit('Unexpected exported attachment filename.')
+          journey = json.loads((directory / name).read_text())
+          environment = json.loads(environments[0].read_text())
+          if any(journey.get(key) != environment.get(key) for key in ('probeID', 'sourceCommit')):
+              raise SystemExit('Journey identity does not match prepared source/probe manifest.')
+          Path('.build/alerts-native-journey.json').write_text(json.dumps(journey, indent=2) + '\n')
           print(json.dumps({'summary': summary, 'journey': journey}, indent=2))
           if not (summary.get('passedTests') == 1 and summary.get('failedTests') == 0 and summary.get('skippedTests') == 0
                   and journey.get('outcome') == 'native-opt-in-and-window-lifecycle-passed'):
@@ -156,6 +169,8 @@ jobs:
           path: |
             .build/AlertsNative.xcresult
             .build/alerts-native-summary.json
+            .build/alerts-native-journey.json
+            .build/alerts-native-attachments/
             ${{ runner.temp }}/still-alerts-native-*/
           if-no-files-found: error
   million-entry:
