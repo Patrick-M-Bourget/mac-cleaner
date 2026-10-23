@@ -62,7 +62,7 @@ final class ExclusionsUITests: XCTestCase {
             XCTAssertEqual(app.windows.firstMatch.frame, bounds)
             XCTAssertTrue(app.buttons["Back to Locations & access"].isHittable)
         }
-        let remove = app.buttons["Remove exclusion for " + hidden.resolvingSymlinksInPath().path]
+        let remove = app.buttons.matching(NSPredicate(format: "label == %@", "Remove exclusion for " + hidden.resolvingSymlinksInPath().path)).firstMatch
         if !remove.isHittable { app.scrollViews.firstMatch.scroll(byDeltaX: 0, deltaY: -300) }
         XCTAssertTrue(remove.isHittable); remove.click()
         XCTAssertTrue(app.staticTexts["No custom exclusions"].waitForExistence(timeout: 5))
