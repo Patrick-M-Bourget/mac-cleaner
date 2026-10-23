@@ -73,4 +73,30 @@ final class WorkspaceUITests: XCTestCase {
         XCTAssertEqual(try Data(contentsOf: file), Data(repeating: 65, count: 137))
     }
 
+    @MainActor
+    func testUnavailableSelectedFolderShowsUnknownCoverageAndRecovery() throws {
+        continueAfterFailure = false
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("StillCoverageUI-" + UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        try Data([1]).write(to: root.appendingPathComponent("temporary.txt"))
+        let app = XCUIApplication(); app.launch()
+        XCTAssertTrue(app.buttons["Choose folder…"].waitForExistence(timeout: 5))
+        let bounds = app.windows.firstMatch.frame
+        app.buttons["Choose folder…"].click()
+        app.typeKey("g", modifierFlags: [.command, .shift])
+        let path = app.textFields.firstMatch
+        XCTAssertTrue(path.waitForExistence(timeout: 5)); path.typeText(root.path)
+        app.typeKey(.return, modifierFlags: [])
+        app.dialogs.buttons["Scan folder"].click()
+        XCTAssertTrue(app.buttons["Inspect temporary.txt"].waitForExistence(timeout: 10))
+        try FileManager.default.removeItem(at: root)
+        app.buttons["Recheck folder"].click()
+        XCTAssertTrue(app.staticTexts["Complete scope logical bytes: Unknown"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["No readable entries observed; this is not an empty-folder result."].exists)
+        XCTAssertTrue(app.buttons["Choose folder again…"].exists)
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "value CONTAINS %@", "Last complete observation:")).firstMatch.exists)
+        XCTAssertEqual(app.windows.firstMatch.frame, bounds)
+    }
+
 }

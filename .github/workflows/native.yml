@@ -14,6 +14,14 @@ jobs:
           xcode-version: '26.6'
       - name: Verify disposable scanner boundaries
         run: xcrun swift test --package-path Packages/StillCore
+      - name: Verify alert policies and lifecycle without OS permission prompts
+        run: xcrun swift test --package-path Still/Packages/StorageAlerts
+      - name: Verify isolated disposable adapter investigations
+        run: |
+          xcrun swift test --package-path Validation/ICloudProbe
+          xcrun swift test --package-path Validation/XcodeProbe
+          xcrun swift test --package-path Validation/ChromeProbe
+          xcrun swift test --package-path Validation/SafariProbe
       - name: Build runnable Mac application and UI runner
         run: xcodebuild build-for-testing -project Still/Still.xcodeproj -scheme Still -destination 'platform=macOS' -derivedDataPath .build/xcode
       - name: Exercise fixture navigation and geometry

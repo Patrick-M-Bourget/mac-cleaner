@@ -84,3 +84,13 @@ The native manifest declares file-metadata reason `3B52.1` for selected-folder m
 ## Future Homebrew review (#22)
 
 With `--future-milestones`, Overview offers a secondary **Review Homebrew opportunities** route. Explicitly choose an executable, then Inspect. No real build is qualified, so the native path currently returns guidance without executing it; a clearly marked disposable example demonstrates target/estimate presentation. There is no automatic tool/cache discovery and no cleanup action. See [qualification evidence](validation/homebrew-preview.md) for bounded command tests, the disposable helper demonstration, primary sources and missing real-Homebrew validation gates.
+
+## Partial inspection and selected-scope recovery (#4)
+
+Folder scans now carry affected paths and access-denied, revoked, unavailable-location and bounded/read-error recovery reasons. A failed root returns unavailable coverage with unknown totals, distinct from a successful empty folder. Known observed subtotals remain separate from complete-scope totals; uninspected packages and partial coverage prevent complete-size claims. No result represents whole-disk coverage. Access callbacks are injected only in disposable tests; real TCC revocation, volume unmount and signed-app permission behavior remain native integration gates.
+
+The session retains independently selected locations and their last completed observations. Rechecking a failed location cannot erase other locations' useful results. Inspection displays historical observation times explicitly, lists each affected location and nearest recovery, and provides Recheck folder and Choose folder again actions. Removing a simulated denial does not make a saved partial report fresh: another explicit scan must complete first. No action eligibility is granted by cached observations or security-scope bookmark possession. Full Disk Access is not requested.
+
+Selected-volume availability records Important usage versus Available capacity fallback versus Unavailable, matching the alert adapter's metric distinction. It does not silently label a fallback reading as important-use capacity. The selected scope's volume can differ from the startup volume monitored by alerts; these are not interchangeable readings.
+
+The native UI regression selects a newly created temporary folder, removes only that owned fixture, and explicitly rechecks to verify unknown coverage, retained observation time, recovery controls and fixed window bounds. It does not revoke any actual OS grants or unmount volumes. CI also runs existing alert/lifecycle policy tests and isolated iCloud/Xcode/Chrome/Safari fixture packages without enabling real notifications or mutating personal application data.
