@@ -149,3 +149,22 @@ private final class SymlinkReplacingDirectoryMetadata: MetadataSupplementReading
     #expect(!result.observations.contains { $0.kind == .file })
     #expect(try Data(contentsOf: sentinel) == Data([9, 9, 9]))
 }
+
+@Test func rootReplacementAfterRecheckAnnouncementCannotRebaseTheSecondPass() async throws {
+    let scope = FileManager.default.temporaryDirectory.appendingPathComponent("StillStability-" + UUID().uuidString)
+    try FileManager.default.createDirectory(at: scope, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: scope); try? FileManager.default.removeItem(at: scope.appendingPathExtension("previous")) }
+    try Data([1]).write(to: scope.appendingPathComponent("trigger.txt"))
+    let result = try await FolderScanner(supplement: MutatingDirectoryMetadata(scope)).scan(scope, onProgress: { progress in
+        if progress.phase == .rechecking && progress.retainedObservations == 0 {
+            do {
+                try FileManager.default.moveItem(at: scope, to: scope.appendingPathExtension("previous"))
+                try FileManager.default.createDirectory(at: scope, withIntermediateDirectories: false)
+                try Data([9]).write(to: scope.appendingPathComponent("substitute.txt"))
+            } catch { Issue.record("Owned replacement fixture failed: \(error)") }
+        }
+    })
+    #expect(!result.isComplete)
+    #expect(result.issues.contains { $0.reason == .locationUnavailable })
+    #expect(!result.observations.contains { $0.url.lastPathComponent == "substitute.txt" })
+}

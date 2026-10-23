@@ -78,7 +78,7 @@ public struct ScanIssue: Sendable {
         case .accessDenied, .accessRevoked: "Choose this folder again, then recheck access."
         case .locationUnavailable: "Reconnect the volume or choose the folder again, then recheck."
         case .differentVolume: "Choose this volume explicitly to inspect it."
-        case .directoryChanged: "This directory kept changing. Wait for other activity to finish, then recheck this folder."
+        case .directoryChanged: "This directory changed during scanning. Wait for other activity to finish, then recheck this folder."
         case .timeLimit: "The metadata time budget was reached. Choose a smaller folder and recheck."
         case .entryLimit, .issueLimit, .depthLimit: "Choose a smaller folder and scan it explicitly."
         case .readFailed, .metadataUnavailable: "Recheck this location; unreadable bytes remain unknown."
@@ -139,7 +139,7 @@ public actor FolderScanner {
         let budget = ScanWorkBudget(duration: maximumDuration)
         let original = DirectoryEvidence.read(scope)
         var result = try Self.enumerate(scope, maximumEntries: maximumEntries, maximumIssues: maximumIssues,
-            supplement: supplement, access: access, cancellation: cancellation, onProgress: onProgress, budget: budget, phase: .enumerating)
+            supplement: supplement, access: access, cancellation: cancellation, onProgress: onProgress, budget: budget, phase: .enumerating, expectedRoot: original)
         if result.issues.contains(where: { $0.reason == .directoryChanged }),
            !result.issues.contains(where: { $0.reason == .entryLimit || $0.reason == .issueLimit || $0.reason == .timeLimit }),
            !budget.expired, budget.visited < maximumEntries,
@@ -149,7 +149,7 @@ public actor FolderScanner {
             onProgress?(.init(scope: scope, visitedEntries: budget.visited, retainedObservations: 0,
                 knownLogicalSubtotal: 0, recentObservations: [], elapsed: budget.elapsed, phase: .rechecking))
             result = try Self.enumerate(scope, maximumEntries: maximumEntries, maximumIssues: maximumIssues,
-                supplement: supplement, access: access, cancellation: cancellation, onProgress: onProgress, budget: budget, phase: .rechecking)
+                supplement: supplement, access: access, cancellation: cancellation, onProgress: onProgress, budget: budget, phase: .rechecking, expectedRoot: original)
         }
         return result
     }
@@ -158,7 +158,7 @@ public actor FolderScanner {
     // Foundation objects are confined to this nonisolated stack and autorelease pool.
     private nonisolated static func enumerate(_ scope: URL, maximumEntries: Int, maximumIssues: Int,
         supplement: any MetadataSupplementReading, access: any ScanAccessChecking,
-        cancellation: ScanCancellation?, onProgress: (@Sendable (ScanProgress) -> Void)?, budget: ScanWorkBudget, phase: ScanPhase) throws -> ScanResult {
+        cancellation: ScanCancellation?, onProgress: (@Sendable (ScanProgress) -> Void)?, budget: ScanWorkBudget, phase: ScanPhase, expectedRoot: DirectoryEvidence?) throws -> ScanResult {
         guard scope.isFileURL else { throw CocoaError(.fileReadUnsupportedScheme) }
         func checkCancellation() throws {
             try Task.checkCancellation()
@@ -190,6 +190,9 @@ public actor FolderScanner {
         guard scope.isFileURL, lstat(scope.path, &rootMetadata) == 0,
               (rootMetadata.st_mode & S_IFMT) == S_IFDIR else {
             throw CocoaError(.fileReadUnsupportedScheme)
+        }
+        guard let expectedRoot, DirectoryEvidence(rootMetadata).sameIdentity(as: expectedRoot) else {
+            return ScanResult(scope: scope, observedAt: Date(), observations: [], logicalBytes: 0, allocatedBytes: nil, allocatedUnknownCount: 0, volumeCapacityBytes: nil, volumeAvailableBytes: nil, issues: [.init(url: scope, reason: .locationUnavailable)], volumeAvailableMetric: "Unavailable")
         }
         guard (try? scope.resourceValues(forKeys: [.isPackageKey]).isPackage) != true else {
             throw CocoaError(.fileReadNoPermission)
