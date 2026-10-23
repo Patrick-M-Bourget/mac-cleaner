@@ -23,13 +23,14 @@ on:
           - homebrew
           - keyboard
           - alerts
+          - alerts-native
           - filesystem
           - chrome-probe
 permissions:
   contents: read
 jobs:
   native:
-    if: github.event_name != 'workflow_dispatch' || (inputs.suite != 'benchmark' && inputs.suite != 'filesystem' && inputs.suite != 'chrome-probe')
+    if: github.event_name != 'workflow_dispatch' || (inputs.suite != 'benchmark' && inputs.suite != 'filesystem' && inputs.suite != 'chrome-probe' && inputs.suite != 'alerts-native')
     runs-on: macos-26
     steps:
       - uses: actions/checkout@v4
@@ -114,6 +115,49 @@ jobs:
           name: native-test-results
           path: .build/Workspace.xcresult
           if-no-files-found: ignore
+  native-alert-qualification:
+    if: github.event_name == 'workflow_dispatch' && inputs.suite == 'alerts-native'
+    runs-on: macos-26
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: '26.6'
+      - name: Build actual application and guarded native journey without launching
+        run: xcodebuild build-for-testing -project Still/Still.xcodeproj -scheme Still -destination 'platform=macOS' -derivedDataPath .build/alerts-native
+      - name: Verify fresh hosted identity and inject the observed UI runner environment
+        env:
+          REQUESTED_SUITE: ${{ inputs.suite }}
+        run: python3 Validation/AlertsNative/prepare.py
+      - name: Attempt one visible native opt-in and window lifecycle journey
+        run: xcodebuild test-without-building -xctestrun .build/alerts-native/Build/Products/Still-alerts-native.xctestrun -destination 'platform=macOS' -resultBundlePath .build/AlertsNative.xcresult -only-testing:StillUITests/NativeAlertsQualificationUITests/testRealOptInMonitoringAndWindowLifecycleOnFreshHostedRunner
+      - name: Require an executed native journey rather than a skipped guard
+        if: always()
+        run: |
+          xcrun xcresulttool get test-results summary --path .build/AlertsNative.xcresult --format json > .build/alerts-native-summary.json
+          python3 - <<'PYTHON'
+          import json, os
+          from pathlib import Path
+          summary = json.loads(Path('.build/alerts-native-summary.json').read_text())
+          reports = list(Path(os.environ['RUNNER_TEMP']).glob('still-alerts-native-*/journey.json'))
+          if len(reports) != 1:
+              raise SystemExit('Native qualification unavailable: expected one guarded journey report.')
+          journey = json.loads(reports[0].read_text())
+          print(json.dumps({'summary': summary, 'journey': journey}, indent=2))
+          if not (summary.get('passedTests') == 1 and summary.get('failedTests') == 0 and summary.get('skippedTests') == 0
+                  and journey.get('outcome') == 'native-opt-in-and-window-lifecycle-passed'):
+              raise SystemExit('Native journey unsupported or failed; this run does not qualify the feature.')
+          PYTHON
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: native-alert-qualification
+          path: |
+            .build/AlertsNative.xcresult
+            .build/alerts-native-summary.json
+            ${{ runner.temp }}/still-alerts-native-*/
+          if-no-files-found: error
   million-entry:
     if: github.event_name == 'workflow_dispatch' && inputs.suite == 'benchmark'
     runs-on: macos-26
