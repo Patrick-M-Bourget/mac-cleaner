@@ -206,7 +206,7 @@ final class WorkspaceUITests: XCTestCase {
         let disclosure = confirmation.disclosureTriangles.firstMatch
         XCTAssertTrue(disclosure.waitForExistence(timeout: 5))
         XCTAssertTrue(confirmation.scrollViews.firstMatch.frame.contains(disclosure.frame))
-        disclosure.coordinate(withNormalizedOffset: CGVector(dx: 0.05, dy: 0.5)).click()
+        disclosure.coordinate(withNormalizedOffset: CGVector(dx: 0, dy: 0.5)).withOffset(CGVector(dx: 26, dy: 0)).click()
         XCTAssertEqual(disclosure.value as? Int, 1)
         XCTAssertTrue(confirmation.buttons["Move to Trash"].isHittable)
         XCTAssertTrue(app.buttons["Cancel"].isHittable)

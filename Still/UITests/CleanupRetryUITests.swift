@@ -69,7 +69,8 @@ final class CleanupRetryUITests: XCTestCase {
         XCTAssertTrue(retry.waitForExistence(timeout: 5))
         let disclosure = retry.disclosureTriangles.firstMatch
         XCTAssertTrue(retry.scrollViews.firstMatch.frame.contains(disclosure.frame))
-        disclosure.coordinate(withNormalizedOffset: CGVector(dx: 0.05, dy: 0.5)).click()
+        capture("retry-disclosure-before-click-" + (minimum ? "minimum-Dark" : "initial-Light"))
+        disclosure.coordinate(withNormalizedOffset: CGVector(dx: 0, dy: 0.5)).withOffset(CGVector(dx: 26, dy: 0)).click()
         XCTAssertEqual(disclosure.value as? Int, 1)
         XCTAssertTrue(retry.descendants(matching: .any).matching(NSPredicate(format: "value == %@ OR label == %@", "b.pdf", "b.pdf")).firstMatch.waitForExistence(timeout: 5), retry.debugDescription)
         XCTAssertFalse(retry.descendants(matching: .any).matching(NSPredicate(format: "value == %@ OR label == %@", "new.pdf", "new.pdf")).firstMatch.exists)

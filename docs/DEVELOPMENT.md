@@ -155,3 +155,7 @@ See [refresh validation](validation/refresh.md) for the per-scope pending-choice
 Execution, recovery and aggregate history use `LocalStateLocation.root(create:)`. Release builds always use local Application Support/Still. Debug native tests may supply `STILL_TEST_STATE_ROOT` and `STILL_TEST_STATE_ID` (`dev:ino`) for a canonical, owned 0700 `StillTestState-UUID` directory directly under the test process's temporary directory. Create an owned regular `.still-owned-test-state` marker containing the UUID suffix; bind the root's actual identity after creation. Invalid or incomplete bindings fail closed and never fall back to normal app state. This is a test boundary, not a product preference. Remove only the test's own root after the app stops.
 
 Startup interruption review and actual SIGKILL fixture evidence are documented in [recovery validation](validation/startup-recovery.md). No session plan is restored as approval authority.
+
+## Cancellation and explicit retry (#11)
+
+Stop prevents new target operations, keeps individual outcomes and makes no rollback promise. Recheck unfinished files forms a fresh, restricted draft; completed successes and discoveries stay excluded until a new general scan. Review and final approval are required again. See [cancel/retry qualification](validation/cancel-retry.md). Native tests use shared isolated test-state roots; no personal cleanup or new permission prompts are involved.
