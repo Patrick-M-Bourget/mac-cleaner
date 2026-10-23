@@ -1,0 +1,120 @@
+{
+  "provenance": "Twelve unaltered hosted native screenshots, individually visually reviewed by the implementing agent. Owned identity-checked DEBUG alert-open fixture exercises the same typed open route as the native delegate; no actual permission or notification delivery is claimed.",
+  "sourceCommit": "c2e9a320ac2631eedb708dcf28171c7d8383d650",
+  "appPresentationTree": "96613ecf0b2da8bf8f64cab45e4ca6312d226f82",
+  "runURL": "https://github.com/Patrick-M-Bourget/mac-cleaner/actions/runs/40017317357",
+  "testIdentifier": "StorageAlertsUITests/testOpenedAlertPreservesContextAndOffersOnlyExplicitScanAcrossThemesAndSizes()",
+  "artifactName": "native-test-results",
+  "artifactId": 12528219358,
+  "artifactSizeInBytes": 1542795,
+  "captures": [
+    {
+      "file": "alert-open-dated-initial-Dark.png",
+      "attachmentName": "alert-open-dated-initial-Dark_0_496CFD5E-FB91-46DF-B874-D84095F65851.png",
+      "exportedFileName": "1DB0D999-0763-472C-A8ED-02E30F63750D.png",
+      "timestamp": 1792786445.345,
+      "width": 1024,
+      "height": 640,
+      "sha256": "6ed151849f7913cef288545c0246bc8bbaf6e2797f54d1c958b280258bc3067b"
+    },
+    {
+      "file": "alert-open-dated-initial-Light.png",
+      "attachmentName": "alert-open-dated-initial-Light_0_95B7E39D-4ADA-4EDE-8A7D-78E94E600883.png",
+      "exportedFileName": "03259D58-9D0E-493E-8BDB-2A4E3A474C84.png",
+      "timestamp": 1792786443.179,
+      "width": 1024,
+      "height": 640,
+      "sha256": "4d4f079fb8da016a3ca57eeb24a05d7cd6c737ff9bcb9dd588fc0a4629e2ad4a"
+    },
+    {
+      "file": "alert-open-dated-minimum-Dark.png",
+      "attachmentName": "alert-open-dated-minimum-Dark_0_CEF6A0BC-5003-401A-AF4B-82FF37F3F57B.png",
+      "exportedFileName": "3AA22AC1-4CDC-49AE-A996-5ED0B664B1E4.png",
+      "timestamp": 1792786483.644,
+      "width": 900,
+      "height": 640,
+      "sha256": "ab3ad6d0c6371dd0f06981984ebaab25eb050d5b9bc3fa682f372961f34f2cff"
+    },
+    {
+      "file": "alert-open-dated-minimum-Light.png",
+      "attachmentName": "alert-open-dated-minimum-Light_0_1434F520-4C5D-457F-99A6-3B18188562D1.png",
+      "exportedFileName": "F16B6ABB-2BC8-43E0-BF69-9DA89E79C80E.png",
+      "timestamp": 1792786481.742,
+      "width": 900,
+      "height": 640,
+      "sha256": "b13cad8402e9dd191e03cc046650bcf09f4103fd9fb31d18d6251c81d980c2f5"
+    },
+    {
+      "file": "alert-open-legacy-initial-Dark.png",
+      "attachmentName": "alert-open-legacy-initial-Dark_0_C994CF1C-569D-4346-A5B1-7224C5825FEC.png",
+      "exportedFileName": "1D5D48F7-9C19-477D-AB88-8870A5C29132.png",
+      "timestamp": 1792786458.903,
+      "width": 1024,
+      "height": 640,
+      "sha256": "e85bc1f82fe1265d457cc89c3a9ccf711d5c4b51fe28a00d246b148e1272e1ba"
+    },
+    {
+      "file": "alert-open-legacy-initial-Light.png",
+      "attachmentName": "alert-open-legacy-initial-Light_0_A28EC7F3-9006-4398-A89A-A511AF10E695.png",
+      "exportedFileName": "D4C9A0CA-D0BE-4073-BCA1-80E291769D9D.png",
+      "timestamp": 1792786456.911,
+      "width": 1024,
+      "height": 640,
+      "sha256": "99cea53a7eda6ac3c1a9fe79bb95925abf9a66427fcd0d868abe4bb23bbb4088"
+    },
+    {
+      "file": "alert-open-legacy-minimum-Dark.png",
+      "attachmentName": "alert-open-legacy-minimum-Dark_0_806994D3-B781-4D5B-AE95-946F0B64937B.png",
+      "exportedFileName": "6A3BDF9F-2E89-4604-97AD-DFDCD62A7D09.png",
+      "timestamp": 1792786495.328,
+      "width": 900,
+      "height": 640,
+      "sha256": "cd5a95d6f033baa386b5af066dd1da2db9ec615019278c024bf0d1d272a2f939"
+    },
+    {
+      "file": "alert-open-legacy-minimum-Light.png",
+      "attachmentName": "alert-open-legacy-minimum-Light_0_7282C6D2-7490-492C-A318-8812EFC39B11.png",
+      "exportedFileName": "43C8E008-0789-4835-9636-7343ACA048BA.png",
+      "timestamp": 1792786493.318,
+      "width": 900,
+      "height": 640,
+      "sha256": "6dc6c5b1ffaca6dffdf7216be0e4cbcbba7d97c67b1634a552ad70a3834d61a3"
+    },
+    {
+      "file": "alert-open-malformed-initial-Dark.png",
+      "attachmentName": "alert-open-malformed-initial-Dark_0_0AD9FCB9-3B62-4340-A05C-FAE52D600A46.png",
+      "exportedFileName": "B57A3546-0D1D-4F47-87F2-FADD949F620B.png",
+      "timestamp": 1792786471.569,
+      "width": 1024,
+      "height": 640,
+      "sha256": "bc6097c9b90db261c163a5cf94f6a9e4d65002aa1b8ea888edd5780a6f43694f"
+    },
+    {
+      "file": "alert-open-malformed-initial-Light.png",
+      "attachmentName": "alert-open-malformed-initial-Light_0_68EB391D-F133-403A-8263-EB9BB49ADA56.png",
+      "exportedFileName": "C9845472-8C50-4CB4-B3F4-139FA52ED5E0.png",
+      "timestamp": 1792786469.477,
+      "width": 1024,
+      "height": 640,
+      "sha256": "4c8ee7104c6573112dd58d6233cbe5cbc253bff90ad5a0f0df55597e2ddd082c"
+    },
+    {
+      "file": "alert-open-malformed-minimum-Dark.png",
+      "attachmentName": "alert-open-malformed-minimum-Dark_0_A8CFB36A-FCA4-4F3E-A1D3-746B3E6A74B6.png",
+      "exportedFileName": "AD1A817C-BDF3-4D4C-9830-E39C9BF9003E.png",
+      "timestamp": 1792786507.145,
+      "width": 900,
+      "height": 640,
+      "sha256": "ffc0360e13df6d8fe13305ad7e6e40159e17d78fbee03e8b157882f2436e6d93"
+    },
+    {
+      "file": "alert-open-malformed-minimum-Light.png",
+      "attachmentName": "alert-open-malformed-minimum-Light_0_E684C6C6-3120-457E-8A53-6C833AD35541.png",
+      "exportedFileName": "C98D43D6-61B3-4C1C-BF8A-7F188D05744E.png",
+      "timestamp": 1792786505.432,
+      "width": 900,
+      "height": 640,
+      "sha256": "23a321fe614e37d528a6139eaa8dabfc65fa9ecbc0ffa11b326d7a1ccb1cce0b"
+    }
+  ]
+}
