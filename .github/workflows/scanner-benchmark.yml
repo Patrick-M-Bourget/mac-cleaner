@@ -1,0 +1,50 @@
+name: Owned scanner benchmark
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  million-entry:
+    runs-on: macos-26
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: '26.6'
+      - name: Record reference environment
+        run: |
+          mkdir -p .build/benchmark-evidence
+          python3 - <<'PY'
+          import json, os, platform, subprocess
+          from pathlib import Path
+          report = {
+              'sourceCommit': os.environ['GITHUB_SHA'],
+              'runURL': f"https://github.com/{os.environ['GITHUB_REPOSITORY']}/actions/runs/{os.environ['GITHUB_RUN_ID']}",
+              'architecture': platform.machine(),
+              'os': subprocess.check_output(['sw_vers'], text=True),
+              'xcode': subprocess.check_output(['xcodebuild', '-version'], text=True),
+              'hardware': subprocess.check_output(['sysctl', 'hw.model', 'hw.memsize', 'hw.ncpu'], text=True),
+              'reference512GBHost': False,
+          }
+          Path('.build/benchmark-evidence/environment.json').write_text(json.dumps(report, indent=2) + '\n')
+          PY
+      - name: Build bounded benchmark
+        run: xcrun swift build -c release --package-path Validation/ScanBenchmark
+      - name: Run owned million-entry fixture with existing headroom safeguards
+        run: |
+          Validation/ScanBenchmark/.build/release/ScanBenchmark --entries 1000000 > .build/benchmark-evidence/million.json
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          report = json.loads(Path('.build/benchmark-evidence/million.json').read_text())
+          print(json.dumps(report, indent=2))
+          if report.get('status') != 'completed-owned-fixture-benchmark':
+              raise SystemExit('Benchmark declined or incomplete; do not claim million-entry qualification.')
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: owned-scanner-benchmark
+          path: .build/benchmark-evidence/
+          if-no-files-found: error
