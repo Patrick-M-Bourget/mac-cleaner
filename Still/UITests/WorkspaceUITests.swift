@@ -333,7 +333,7 @@ final class WorkspaceUITests: XCTestCase {
         let nested = root.appendingPathComponent("Long project folder name for layout and keyboard review")
         try FileManager.default.createDirectory(at: nested, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: root) }
-        for i in 0..<12 { try Data([1]).write(to: nested.appendingPathComponent("A long descriptive document name with several words - \(i).pdf")) }
+        for i in 0..<120 { try Data([1]).write(to: nested.appendingPathComponent("A long descriptive document name with several words - \(i).pdf")) }
         let app = XCUIApplication()
         app.launchArguments = ["--ui-test-downloads-root", "--design-minimum", "--design-opaque-chrome"]
         app.launchEnvironment["STILL_TEST_DOWNLOADS_ROOT"] = root.path
@@ -363,7 +363,7 @@ final class WorkspaceUITests: XCTestCase {
         let rows = app.checkBoxes.allElementsBoundByIndex.filter {
             $0.label.hasSuffix(".pdf") && $0.isHittable && app.scrollViews.firstMatch.frame.contains($0.frame)
         }
-        let row = try XCTUnwrap(rows.dropFirst(rows.count / 2).first)
+        let row = try XCTUnwrap(rows.last)
         let filename = row.label.replacingOccurrences(of: "Selected ", with: "").replacingOccurrences(of: "Select ", with: "")
         let control = app.checkBoxes.matching(NSPredicate(format: "label ENDSWITH %@", filename)).firstMatch
         for index in 0..<4 {
@@ -387,7 +387,7 @@ final class WorkspaceUITests: XCTestCase {
         let nested = root.appendingPathComponent("Long project folder name for layout and keyboard review")
         try FileManager.default.createDirectory(at: nested, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: root) }
-        for i in 0..<12 { try Data([1]).write(to: nested.appendingPathComponent("A long descriptive document name with several words - \(i).pdf")) }
+        for i in 0..<120 { try Data([1]).write(to: nested.appendingPathComponent("A long descriptive document name with several words - \(i).pdf")) }
         let app = XCUIApplication()
         app.launchArguments = ["--ui-test-downloads-root", "--design-minimum", "--design-opaque-chrome"]
         app.launchEnvironment["STILL_TEST_DOWNLOADS_ROOT"] = root.path
@@ -404,7 +404,7 @@ final class WorkspaceUITests: XCTestCase {
             app.scrollViews.firstMatch.scroll(byDeltaX: 0, deltaY: -200)
         }
         let rows = app.checkBoxes.allElementsBoundByIndex.filter { $0.label.hasSuffix(".pdf") && $0.isHittable && app.scrollViews.firstMatch.frame.contains($0.frame) }
-        let row = try XCTUnwrap(rows.dropFirst(rows.count / 2).first)
+        let row = try XCTUnwrap(rows.last)
         let filename = row.label.replacingOccurrences(of: "Selected ", with: "").replacingOccurrences(of: "Select ", with: "")
         let control = app.checkBoxes.matching(NSPredicate(format: "label ENDSWITH %@", filename)).firstMatch
         for index in 0..<4 {
