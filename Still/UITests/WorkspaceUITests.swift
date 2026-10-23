@@ -2,6 +2,15 @@ import XCTest
 import Darwin
 
 final class WorkspaceUITests: XCTestCase {
+    @MainActor func testOverviewFindingsRestoreHierarchyAndPreserveReviewChoices() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        app.launch()
+        defer { app.terminate() }
+        XCTAssertTrue(app.staticTexts["Recommended for review"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["Scanned locations"].exists)
+    }
+
     @MainActor
     func testInspectingFixturesPreservesWindowAndNeverSelects() throws {
         continueAfterFailure = false

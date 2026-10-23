@@ -24,6 +24,7 @@ on:
           - keyboard
           - alerts
           - alert-open
+          - overview
           - alerts-native
           - filesystem
           - chrome-probe
@@ -39,13 +40,13 @@ jobs:
         with:
           xcode-version: '26.6'
       - name: Verify disposable scanner boundaries
-        if: github.event_name != 'workflow_dispatch' || (inputs.suite != 'selection' && inputs.suite != 'selection-scroll' && inputs.suite != 'scope' && inputs.suite != 'exclusions' && inputs.suite != 'repair' && inputs.suite != 'handoff' && inputs.suite != 'pip' && inputs.suite != 'keyboard' && inputs.suite != 'alerts' && inputs.suite != 'alert-open')
+        if: github.event_name != 'workflow_dispatch' || (inputs.suite != 'selection' && inputs.suite != 'selection-scroll' && inputs.suite != 'scope' && inputs.suite != 'exclusions' && inputs.suite != 'repair' && inputs.suite != 'handoff' && inputs.suite != 'pip' && inputs.suite != 'keyboard' && inputs.suite != 'alerts' && inputs.suite != 'alert-open' && inputs.suite != 'overview')
         run: xcrun swift test --package-path Packages/StillCore
       - name: Verify alert policies and lifecycle without OS permission prompts
-        if: github.event_name != 'workflow_dispatch' || (inputs.suite != 'selection' && inputs.suite != 'selection-scroll' && inputs.suite != 'scope' && inputs.suite != 'exclusions' && inputs.suite != 'repair' && inputs.suite != 'handoff' && inputs.suite != 'tools' && inputs.suite != 'pip' && inputs.suite != 'homebrew' && inputs.suite != 'keyboard')
+        if: github.event_name != 'workflow_dispatch' || (inputs.suite != 'selection' && inputs.suite != 'selection-scroll' && inputs.suite != 'scope' && inputs.suite != 'exclusions' && inputs.suite != 'repair' && inputs.suite != 'handoff' && inputs.suite != 'tools' && inputs.suite != 'pip' && inputs.suite != 'homebrew' && inputs.suite != 'keyboard' && inputs.suite != 'overview')
         run: xcrun swift test --package-path Still/Packages/StorageAlerts
       - name: Verify isolated disposable adapter investigations
-        if: github.event_name != 'workflow_dispatch' || (inputs.suite != 'selection' && inputs.suite != 'selection-scroll' && inputs.suite != 'scope' && inputs.suite != 'exclusions' && inputs.suite != 'repair' && inputs.suite != 'handoff' && inputs.suite != 'tools' && inputs.suite != 'pip' && inputs.suite != 'homebrew' && inputs.suite != 'keyboard' && inputs.suite != 'alerts' && inputs.suite != 'alert-open')
+        if: github.event_name != 'workflow_dispatch' || (inputs.suite != 'selection' && inputs.suite != 'selection-scroll' && inputs.suite != 'scope' && inputs.suite != 'exclusions' && inputs.suite != 'repair' && inputs.suite != 'handoff' && inputs.suite != 'tools' && inputs.suite != 'pip' && inputs.suite != 'homebrew' && inputs.suite != 'keyboard' && inputs.suite != 'alerts' && inputs.suite != 'alert-open' && inputs.suite != 'overview')
         run: |
           xcrun swift test --package-path Validation/ICloudProbe
           xcrun swift test --package-path Validation/XcodeProbe
@@ -61,6 +62,8 @@ jobs:
           scope=()
           if [[ "$EVENT_NAME" == "workflow_dispatch" && "$REQUESTED_SUITE" == "exclusions" ]]; then
             scope=(-only-testing:StillUITests/ExclusionsUITests)
+          elif [[ "$EVENT_NAME" == "workflow_dispatch" && "$REQUESTED_SUITE" == "overview" ]]; then
+            scope=(-only-testing:StillUITests/WorkspaceUITests/testOverviewFindingsRestoreHierarchyAndPreserveReviewChoices)
           elif [[ "$EVENT_NAME" == "workflow_dispatch" && "$REQUESTED_SUITE" == "alert-open" ]]; then
             scope=(-only-testing:StillUITests/StorageAlertsUITests/testOpenedAlertPreservesContextAndOffersOnlyExplicitScanAcrossThemesAndSizes)
           elif [[ "$EVENT_NAME" == "workflow_dispatch" && "$REQUESTED_SUITE" == "alerts" ]]; then
