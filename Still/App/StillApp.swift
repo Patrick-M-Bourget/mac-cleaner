@@ -74,6 +74,7 @@ private struct WorkspaceView: View {
     @State private var managedStorageVisible = false
     @State private var managedStorage = ManagedStorageModel()
     @State private var pipVisible = false
+    @State private var dockerVisible = false
 
     var body: some View {
         HStack(spacing: 0) {
@@ -103,6 +104,8 @@ private struct WorkspaceView: View {
                     VStack(alignment: .leading, spacing: 24) {
                         if managedStorageVisible {
                             ManagedStorageView(model: managedStorage) { managedStorageVisible = false; destination = .overview }
+                        } else if dockerVisible {
+                            DockerInspectionView { dockerVisible = false; destination = .overview }
                         } else if pipVisible {
                             PipInspectionView { pipVisible = false; destination = .overview }
                         } else if homebrewVisible {
@@ -126,7 +129,7 @@ private struct WorkspaceView: View {
                 .background(Color(nsColor: .windowBackgroundColor))
         }
         .onAppear { AppLifecycleController.shared.openWorkspace = { openWindow(id: "workspace") } }
-        .onReceive(NotificationCenter.default.publisher(for: .stillAlertOpened)) { _ in destination = .overview; inspecting = false; nativeInspectionVisible = false; homebrewVisible = false; pipVisible = false; managedStorageVisible = false }
+        .onReceive(NotificationCenter.default.publisher(for: .stillAlertOpened)) { _ in destination = .overview; inspecting = false; nativeInspectionVisible = false; homebrewVisible = false; pipVisible = false; dockerVisible = false; managedStorageVisible = false }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in Task { await alerts.activated() } }
         .onReceive(NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.didWakeNotification)) { _ in Task { await alerts.activated() } }
         .toolbar {
@@ -146,6 +149,7 @@ private struct WorkspaceView: View {
             nativeInspectionVisible = false
             homebrewVisible = false
             pipVisible = false
+            dockerVisible = false
             managedStorageVisible = false
         } label: {
             Label(value.rawValue, systemImage: value.symbol)
@@ -160,9 +164,10 @@ private struct WorkspaceView: View {
         VStack(alignment: .leading, spacing: 24) {
             heading("Your storage", "Understand what is stored locally before choosing what to clean.")
             if StorageAlertsController.futureEnabled {
-                Button("Review app-managed storage") { managedStorageVisible = true; homebrewVisible = false; pipVisible = false; nativeInspectionVisible = false; inspecting = false }
-                Button("Review Homebrew opportunities") { homebrewVisible = true; pipVisible = false; managedStorageVisible = false; nativeInspectionVisible = false; inspecting = false }
-                Button("Review pip cache opportunities") { pipVisible = true; homebrewVisible = false; managedStorageVisible = false; nativeInspectionVisible = false; inspecting = false }
+                Button("Review app-managed storage") { managedStorageVisible = true; homebrewVisible = false; pipVisible = false; dockerVisible = false; nativeInspectionVisible = false; inspecting = false }
+                Button("Review Docker storage") { dockerVisible = true; pipVisible = false; homebrewVisible = false; managedStorageVisible = false; nativeInspectionVisible = false; inspecting = false }
+                Button("Review Homebrew opportunities") { homebrewVisible = true; pipVisible = false; dockerVisible = false; managedStorageVisible = false; nativeInspectionVisible = false; inspecting = false }
+                Button("Review pip cache opportunities") { pipVisible = true; homebrewVisible = false; dockerVisible = false; managedStorageVisible = false; nativeInspectionVisible = false; inspecting = false }
             }
             HStack {
                 Button("Choose folder…", systemImage: "folder.badge.plus") {
