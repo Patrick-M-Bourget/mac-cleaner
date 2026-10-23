@@ -1,0 +1,32 @@
+{
+  "sourceCommit": "b0546d2ffc6064ba68db35026ba70763519556c7",
+  "runURL": "https://github.com/Patrick-M-Bourget/mac-cleaner/actions/runs/40016782147",
+  "corePackage": "StorageAlerts",
+  "coreTestsPassed": 31,
+  "nativeTestsPassed": 3,
+  "nativeTestsFailed": 0,
+  "nativeTestsSkipped": 0,
+  "nativeSuiteSeconds": 23.357,
+  "nativeCaseSeconds": {
+    "offByDefault": 8.975,
+    "disposableOptInResponse": 9.472,
+    "onDemandWindowClose": 4.909
+  },
+  "os": "macOS 26.6.2",
+  "architecture": "arm64",
+  "xcode": "26.6",
+  "capture": {
+    "file": "safe-opt-in-response.png",
+    "originalExportedFileName": "1C411A01-6EA3-4454-8683-A55D26807C12.png",
+    "sha256": "9675abfefd698d0799cc8a47cb73916ed57901849c9b431189c67b3b1a148332",
+    "pixelWidth": 1024,
+    "pixelHeight": 768,
+    "appearance": "Light",
+    "fixture": "Identity-checked owned disposable local state; real authorization forbidden by existing guard"
+  },
+  "limits": [
+    "No native authorization attempted",
+    "No real notification delivery or login qualification",
+    "Functional response capture, not new visual-system acceptance"
+  ]
+}
