@@ -366,7 +366,7 @@ final class WorkspaceUITests: XCTestCase {
             app.typeKey(.return, modifierFlags: []); app.dialogs.buttons["Scan folder"].click()
             XCTAssertTrue(app.staticTexts["Observed"].waitForExistence(timeout: 10))
             check("inspection")
-            XCTAssertTrue(app.staticTexts[root.path].exists)
+            XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "value == %@", root.path)).firstMatch.exists)
             XCTAssertFalse(app.checkBoxes.matching(NSPredicate(format: "label CONTAINS %@", file.lastPathComponent)).firstMatch.exists)
             app.typeKey("2", modifierFlags: .command)
             check("browse-only-plan")
