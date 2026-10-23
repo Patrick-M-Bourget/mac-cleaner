@@ -35,3 +35,6 @@ The subsequent [Downloads scope guidance captures](downloads-scope-guidance/mani
 
 
 Read-only tool follow-up: [Docker captures](docker-inventory/manifest.json) at `fa17dd4` and [pip captures](pip-inventory/manifest.json) at `174c96a` record eight original images each, both appearances and initial/minimum dimensions. All sixteen were individually viewed. Docker UI uses a synthetic report; pip UI runs the real verified bundled runtime against an owned synthetic cache. These supplement the historical design references; qualification details and exact run outcomes are in the corresponding adapter validation reports.
+
+
+Homebrew follow-up: [eight Homebrew captures](homebrew-inventory/manifest.json) preserve source `2ad2110` selected/cache-inventory states in Light/Dark at hosted initial 1024 × 640 and minimum 900 × 640. The app runs actual pinned staged shell fast paths against an owned synthetic cache. Root individually viewed all eight originals. `Still/App` presentation is unchanged through 169a255; the later 799110d core dataless-directory correction has separate test/review evidence and is not retroactively assigned to these captures. See [Homebrew qualification](../validation/homebrew-preview.md) for exact 2/2 native, default-core skip, separate genuine-source 127/127 pass and remaining gates.
