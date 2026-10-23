@@ -2,6 +2,8 @@
 
 October 22, 2026. This implementation makes scanning progressive and bounded; **million-entry and reference-host release qualification remain open**. The earlier [failed checkpoint](scanner-performance-checkpoint.md) is retained as evidence, not erased by the improvement.
 
+**Later implementation:** [directory-stability evidence](directory-stability.md) records the current #39 policy and a new actual 50k benchmark. The measurements below describe #34 before directory ancestry/evidence checks; they are historical evidence, not qualification of the newer scanner.
+
 ## Public behavior and limits
 
 `FolderScanner.scan(_:cancellation:onProgress:)` preserves existing callers through optional default arguments. A serial scanner actor executes synchronous blocking metadata work off MainActor, without creating a task per file. Cancellation checks surround metadata boundaries; requesting `ScanCancellation.cancel()` is synchronous and independent of the busy actor. An already blocked filesystem/provider call must return before worker termination. No sub-second stop guarantee is claimed for an unresponsive OS provider.

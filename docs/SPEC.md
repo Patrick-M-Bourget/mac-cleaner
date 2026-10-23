@@ -57,6 +57,8 @@ A rescan retains selected identities as pending choices and suspends execution. 
 
 ## Filesystem correctness
 
+Directory identity/modification evidence is checked around enumeration. One changed pass may receive one whole-scope recheck within the same 100,000-entry budget and cooperative 30-second deadline. Repeated instability or exhausted bounds is partial coverage, never a growth baseline. Root identity remains pinned across both attempts. Blocked OS calls still need to return; this is not an atomic snapshot. See [directory-stability validation](validation/directory-stability.md).
+
 - Stay within explicit scopes; do not follow descendant symlinks or silently cross volumes.
 - Do not read content or hydrate cloud placeholders during ordinary scans.
 - Keep logical bytes, allocated bytes, estimated release, Trash-held bytes and observed volume change distinct. Unknown is never zero. APFS sharing/snapshots prevent exact exclusive-space promises.

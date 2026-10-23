@@ -163,3 +163,7 @@ Stop prevents new target operations, keeps individual outcomes and makes no roll
 ## Compatible aggregate comparisons (M4)
 
 The future-milestone launch flag exposes **What grew** (Command-6). It records only completed, measured explicit-folder observations in local bounded aggregate history. See [comparison policy and validation](validation/growth-comparisons.md). Tests use the shared identity-bound disposable app-state root; do not point them at personal baseline storage.
+
+## Directory stability
+
+The scanner permits at most one internal metadata recheck within shared entry and cooperative time budgets. See [current policy, fixtures and benchmark delta](validation/directory-stability.md). The focused native journey is `WorkspaceUITests/testChangingDirectoryRecheckKeepsStopReachableAndNeverEnablesCleanup`; its mutation/latency fixture is DEBUG-only and runs solely after its explicitly bound owned folder was picked.

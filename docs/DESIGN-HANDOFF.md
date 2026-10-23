@@ -154,3 +154,7 @@ The native active-operation footer keeps **Stop after current file** reachable. 
 ### M4 What grew native comparison states
 
 Future-gated What grew preserves existing shortcuts and adds Command-6. The fixed action strip opens an explicit folder picker. A selected completed observation shows scope, completeness and both interval endpoints; compatible comparisons show folder/category logical deltas. First, cleared, expired/missing, changed-coverage and unknown observations have distinct explanations. Partial/cancelled/unmeasured observations never masquerade as completed growth. Completed-observation selection is secondary disclosure content; no writer attribution or cleanup selection is inferred. See [implementation evidence](validation/growth-comparisons.md).
+
+### Directory instability during scanning
+
+Existing scan progress names the single bounded recheck when directory evidence changes. Its subtotal may restart because inconsistent attempts are not combined; cumulative inspected-work count and elapsed time remain meaningful. Stop stays in the shared fixed action strip. Repeated instability or budget exhaustion shows partial/unknown coverage with the existing explicit Recheck folder route. Pending plan choices remain Refresh required until a complete compatible recheck. See [validation](validation/directory-stability.md).
