@@ -134,6 +134,7 @@ struct FolderInspectionView: View {
                 }.font(.callout).monospacedDigit()
                 Text("File totals count hardlinked identities once. Package contents and linked folders are not scanned. Allocations are not exclusive reclaimable space.")
                     .font(.caption).foregroundStyle(.secondary)
+                CloudInventoryView(report: result.cloudInventory)
                 Divider()
                 if !result.isComplete {
                     Text("Uninspected bytes: Unknown · Recheck required before cleanup can be considered.").foregroundStyle(.secondary)
