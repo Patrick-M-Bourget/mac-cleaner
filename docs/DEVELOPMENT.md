@@ -99,6 +99,10 @@ Selected-volume availability records Important usage versus Available capacity f
 
 The native UI regression selects a newly created temporary folder, removes only that owned fixture, and explicitly rechecks to verify unknown coverage, retained observation time, recovery controls and fixed window bounds. It does not revoke any actual OS grants or unmount volumes. CI also runs existing alert/lifecycle policy tests and isolated iCloud/Xcode/Chrome/Safari fixture packages without enabling real notifications or mutating personal application data.
 
+## Future pip inventory (#24)
+
+With `--future-milestones`, Overview offers **Review pip cache opportunities**. Interpreter/cache selection is explicit, with useful unsupported guidance and no tool invocation for unqualified installations. A recorded reference demonstrates the genuine disposable pip 21.2.4 inventory evidence without probing the user's cache. See [qualification and reproduction](validation/pip-inventory.md); actual tests provision only an owned temporary venv through bundled ensurepip without network/global installation. Ordinary inventory never provisions packages or enables cleanup.
+
 ## Shared session selection (#7)
 
 The application lifecycle singleton owns one live PlanDraft and inspection model. Item checkboxes, search results and Cleanup plan share exact directory-entry/action membership; filenames inspect only and View cleanup plan navigates without applying a staged draft. Filtering or Back never clears choices. A pending plan keeps the process alive when its window closes; reopening uses that same store. Explicit Quit clears the unexecuted draft; no plan or raw scan is serialized for restoration.

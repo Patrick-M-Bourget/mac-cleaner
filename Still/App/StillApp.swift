@@ -71,6 +71,7 @@ private struct WorkspaceView: View {
     @State private var selection = AppLifecycleController.shared.selection
     @State private var nativeInspectionVisible = false
     @State private var homebrewVisible = false
+    @State private var pipVisible = false
 
     var body: some View {
         HStack(spacing: 0) {
@@ -98,7 +99,9 @@ private struct WorkspaceView: View {
                 Divider()
                 ScrollView {
                     VStack(alignment: .leading, spacing: 24) {
-                        if homebrewVisible {
+                        if pipVisible {
+                            PipInspectionView { pipVisible = false; destination = .overview }
+                        } else if homebrewVisible {
                             HomebrewInspectionView { homebrewVisible = false; destination = .overview }
                         } else if nativeInspectionVisible {
                             FolderInspectionView(model: folderInspection, selection: selection, viewPlan: { nativeInspectionVisible = false; destination = .plan }) { nativeInspectionVisible = false; destination = .overview }
@@ -119,7 +122,7 @@ private struct WorkspaceView: View {
                 .background(Color(nsColor: .windowBackgroundColor))
         }
         .onAppear { AppLifecycleController.shared.openWorkspace = { openWindow(id: "workspace") } }
-        .onReceive(NotificationCenter.default.publisher(for: .stillAlertOpened)) { _ in destination = .overview; inspecting = false; nativeInspectionVisible = false; homebrewVisible = false }
+        .onReceive(NotificationCenter.default.publisher(for: .stillAlertOpened)) { _ in destination = .overview; inspecting = false; nativeInspectionVisible = false; homebrewVisible = false; pipVisible = false }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in Task { await alerts.activated() } }
         .onReceive(NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.didWakeNotification)) { _ in Task { await alerts.activated() } }
         .toolbar {
@@ -138,6 +141,7 @@ private struct WorkspaceView: View {
             inspecting = false
             nativeInspectionVisible = false
             homebrewVisible = false
+            pipVisible = false
         } label: {
             Label(value.rawValue, systemImage: value.symbol)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -151,7 +155,8 @@ private struct WorkspaceView: View {
         VStack(alignment: .leading, spacing: 24) {
             heading("Your storage", "Understand what is stored locally before choosing what to clean.")
             if StorageAlertsController.futureEnabled {
-                Button("Review Homebrew opportunities") { homebrewVisible = true; nativeInspectionVisible = false; inspecting = false }
+                Button("Review Homebrew opportunities") { homebrewVisible = true; pipVisible = false; nativeInspectionVisible = false; inspecting = false }
+                Button("Review pip cache opportunities") { pipVisible = true; homebrewVisible = false; nativeInspectionVisible = false; inspecting = false }
             }
             HStack {
                 Button("Choose folder…", systemImage: "folder.badge.plus") {

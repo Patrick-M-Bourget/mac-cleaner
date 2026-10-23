@@ -48,4 +48,20 @@ final class StorageAlertsUITests: XCTestCase {
         app.buttons["Back to Overview"].click()
         XCTAssertTrue(app.buttons["Choose folder…"].exists)
     }
+
+    @MainActor func testFuturePipInventoryShowsRecordedQualificationWithoutRunningPersonalTools() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--future-milestones"]
+        app.launch()
+        XCTAssertTrue(app.buttons["Review pip cache opportunities"].waitForExistence(timeout: 10))
+        let bounds = app.windows.firstMatch.frame
+        app.buttons["Review pip cache opportunities"].click()
+        XCTAssertTrue(app.buttons["Choose Python interpreter…"].exists)
+        XCTAssertFalse(app.buttons["Inspect selected pip cache"].isEnabled)
+        app.buttons["Show recorded disposable qualification"].click()
+        XCTAssertTrue(app.staticTexts["Recorded disposable evidence"].waitForExistence(timeout: 5))
+        XCTAssertEqual(app.windows.firstMatch.frame, bounds)
+        app.buttons["Back to Overview"].click()
+        XCTAssertTrue(app.buttons["Choose folder…"].exists)
+    }
 }
