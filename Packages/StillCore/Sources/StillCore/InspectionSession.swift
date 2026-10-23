@@ -11,8 +11,8 @@ public actor InspectionSession {
     private let scanner: FolderScanner
     private var saved: [URL: ScopeReport] = [:]
     public init(scanner: FolderScanner = FolderScanner()) { self.scanner = scanner }
-    public func inspect(_ scope: URL, cancellation: ScanCancellation? = nil, onProgress: (@Sendable (ScanProgress) -> Void)? = nil) async throws -> ScopeReport {
-        let current = try await scanner.scan(scope, cancellation: cancellation, onProgress: onProgress)
+    public func inspect(_ scope: URL, cancellation: ScanCancellation? = nil, onProgress: (@Sendable (ScanProgress) -> Void)? = nil, exclusions: ExclusionPolicy = ExclusionPolicy()) async throws -> ScopeReport {
+        let current = try await scanner.scan(scope, cancellation: cancellation, onProgress: onProgress, exclusions: exclusions)
         try Task.checkCancellation()
         if cancellation?.isCancellationRequested == true { throw CancellationError() }
         let report = ScopeReport(current: current, lastComplete: current.isComplete ? current : saved[scope]?.lastComplete)

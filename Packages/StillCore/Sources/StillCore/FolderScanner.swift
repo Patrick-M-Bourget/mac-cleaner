@@ -70,7 +70,7 @@ public struct FileObservation: Sendable, Identifiable {
 }
 
 public struct ScanIssue: Sendable {
-    public enum Reason: String, Sendable { case directoryChanged, timeLimit, entryLimit, issueLimit, depthLimit, readFailed, metadataUnavailable, differentVolume, accessDenied, accessRevoked, locationUnavailable }
+    public enum Reason: String, Sendable { case excludedScope, exclusionUnavailable, directoryChanged, timeLimit, entryLimit, issueLimit, depthLimit, readFailed, metadataUnavailable, differentVolume, accessDenied, accessRevoked, locationUnavailable }
     public let url: URL
     public let reason: Reason
     public var recovery: String {
@@ -78,6 +78,8 @@ public struct ScanIssue: Sendable {
         case .accessDenied, .accessRevoked: "Choose this folder again, then recheck access."
         case .locationUnavailable: "Reconnect the volume or choose the folder again, then recheck."
         case .differentVolume: "Choose this volume explicitly to inspect it."
+        case .excludedScope: "This location is excluded. Manage custom exclusions, then explicitly recheck if you remove its rule."
+        case .exclusionUnavailable: "Volume identity could not be verified. Exclusion rules were not bypassed; reconnect or recheck this location."
         case .directoryChanged: "This directory changed during scanning. Wait for other activity to finish, then recheck this folder."
         case .timeLimit: "The metadata time budget was reached. Choose a smaller folder and recheck."
         case .entryLimit, .issueLimit, .depthLimit: "Choose a smaller folder and scan it explicitly."
@@ -99,10 +101,13 @@ public struct ScanResult: Sendable {
     public let issues: [ScanIssue]
     public var isComplete: Bool { issues.isEmpty }
     /// Known observed subtotal is not the complete scope size when coverage failed.
-    public var totalLogicalBytes: Int64? { isComplete && !hasUnmeasuredContents ? logicalBytes : nil }
-    public var totalAllocatedBytes: Int64? { isComplete && !hasUnmeasuredContents ? allocatedBytes : nil }
+    public var includedLogicalBytes: Int64? { isComplete && !hasUnmeasuredContents ? logicalBytes : nil }
+    public var totalLogicalBytes: Int64? { excludedEntryCount == 0 ? includedLogicalBytes : nil }
+    public var totalAllocatedBytes: Int64? { isComplete && !hasUnmeasuredContents && excludedEntryCount == 0 ? allocatedBytes : nil }
     public var hasUnmeasuredContents: Bool { observations.contains { $0.kind == .package || $0.kind == .other } }
     public let volumeAvailableMetric: String
+    public let exclusionFingerprint: String
+    public let excludedEntryCount: Int
 }
 
 /// Serial actor isolation keeps blocking enumeration off MainActor, without a task per entry.
@@ -133,13 +138,13 @@ public actor FolderScanner {
         return observation.url
     }
 
-    public func scan(_ scope: URL, cancellation: ScanCancellation? = nil, onProgress: (@Sendable (ScanProgress) -> Void)? = nil) throws -> ScanResult {
+    public func scan(_ scope: URL, cancellation: ScanCancellation? = nil, onProgress: (@Sendable (ScanProgress) -> Void)? = nil, exclusions: ExclusionPolicy = ExclusionPolicy()) throws -> ScanResult {
         try Task.checkCancellation()
         if cancellation?.isCancellationRequested == true { throw CancellationError() }
         let budget = ScanWorkBudget(duration: maximumDuration)
         let original = DirectoryEvidence.read(scope)
         var result = try Self.enumerate(scope, maximumEntries: maximumEntries, maximumIssues: maximumIssues,
-            supplement: supplement, access: access, cancellation: cancellation, onProgress: onProgress, budget: budget, phase: .enumerating, expectedRoot: original)
+            supplement: supplement, access: access, cancellation: cancellation, onProgress: onProgress, budget: budget, phase: .enumerating, expectedRoot: original, exclusions: exclusions)
         if result.issues.contains(where: { $0.reason == .directoryChanged }),
            !result.issues.contains(where: { $0.reason == .entryLimit || $0.reason == .issueLimit || $0.reason == .timeLimit }),
            !budget.expired, budget.visited < maximumEntries,
@@ -149,7 +154,7 @@ public actor FolderScanner {
             onProgress?(.init(scope: scope, visitedEntries: budget.visited, retainedObservations: 0,
                 knownLogicalSubtotal: 0, recentObservations: [], elapsed: budget.elapsed, phase: .rechecking))
             result = try Self.enumerate(scope, maximumEntries: maximumEntries, maximumIssues: maximumIssues,
-                supplement: supplement, access: access, cancellation: cancellation, onProgress: onProgress, budget: budget, phase: .rechecking, expectedRoot: original)
+                supplement: supplement, access: access, cancellation: cancellation, onProgress: onProgress, budget: budget, phase: .rechecking, expectedRoot: original, exclusions: exclusions)
         }
         return result
     }
@@ -158,13 +163,15 @@ public actor FolderScanner {
     // Foundation objects are confined to this nonisolated stack and autorelease pool.
     private nonisolated static func enumerate(_ scope: URL, maximumEntries: Int, maximumIssues: Int,
         supplement: any MetadataSupplementReading, access: any ScanAccessChecking,
-        cancellation: ScanCancellation?, onProgress: (@Sendable (ScanProgress) -> Void)?, budget: ScanWorkBudget, phase: ScanPhase, expectedRoot: DirectoryEvidence?) throws -> ScanResult {
+        cancellation: ScanCancellation?, onProgress: (@Sendable (ScanProgress) -> Void)?, budget: ScanWorkBudget, phase: ScanPhase, expectedRoot: DirectoryEvidence?, exclusions: ExclusionPolicy) throws -> ScanResult {
         guard scope.isFileURL else { throw CocoaError(.fileReadUnsupportedScheme) }
         func checkCancellation() throws {
             try Task.checkCancellation()
             if cancellation?.isCancellationRequested == true { throw CancellationError() }
         }
         try checkCancellation()
+        let policyFingerprint = exclusions.fingerprint
+        var excludedEntryCount = 0
         var observations: [FileObservation] = []
         var issues: [ScanIssue] = []
         var logical: Int64 = 0
@@ -185,17 +192,25 @@ public actor FolderScanner {
             lastProgressCount = observations.count; lastProgressTime = now
         }
         do { try access.check(scope) }
-        catch { try checkCancellation(); return ScanResult(scope: scope, observedAt: Date(), observations: [], logicalBytes: 0, allocatedBytes: nil, allocatedUnknownCount: 0, volumeCapacityBytes: nil, volumeAvailableBytes: nil, issues: [.init(url: scope, reason: ScanIssue.classify(error))], volumeAvailableMetric: "Unavailable") }
+        catch { try checkCancellation(); return ScanResult(scope: scope, observedAt: Date(), observations: [], logicalBytes: 0, allocatedBytes: nil, allocatedUnknownCount: 0, volumeCapacityBytes: nil, volumeAvailableBytes: nil, issues: [.init(url: scope, reason: ScanIssue.classify(error))], volumeAvailableMetric: "Unavailable", exclusionFingerprint: policyFingerprint, excludedEntryCount: 0) }
         var rootMetadata = stat()
         guard scope.isFileURL, lstat(scope.path, &rootMetadata) == 0,
               (rootMetadata.st_mode & S_IFMT) == S_IFDIR else {
             throw CocoaError(.fileReadUnsupportedScheme)
         }
         guard let expectedRoot, DirectoryEvidence(rootMetadata).sameIdentity(as: expectedRoot) else {
-            return ScanResult(scope: scope, observedAt: Date(), observations: [], logicalBytes: 0, allocatedBytes: nil, allocatedUnknownCount: 0, volumeCapacityBytes: nil, volumeAvailableBytes: nil, issues: [.init(url: scope, reason: .locationUnavailable)], volumeAvailableMetric: "Unavailable")
+            return ScanResult(scope: scope, observedAt: Date(), observations: [], logicalBytes: 0, allocatedBytes: nil, allocatedUnknownCount: 0, volumeCapacityBytes: nil, volumeAvailableBytes: nil, issues: [.init(url: scope, reason: .locationUnavailable)], volumeAvailableMetric: "Unavailable", exclusionFingerprint: policyFingerprint, excludedEntryCount: 0)
         }
         guard (try? scope.resourceValues(forKeys: [.isPackageKey]).isPackage) != true else {
             throw CocoaError(.fileReadNoPermission)
+        }
+        let canonicalScope = scope.resolvingSymlinksInPath().standardizedFileURL
+        let exclusionVolume = exclusions.rules.isEmpty ? nil : try? scope.resourceValues(forKeys: [.volumeUUIDStringKey]).volumeUUIDString
+        if !exclusions.rules.isEmpty && exclusionVolume == nil {
+            return ScanResult(scope: scope, observedAt: Date(), observations: [], logicalBytes: 0, allocatedBytes: nil, allocatedUnknownCount: 0, volumeCapacityBytes: nil, volumeAvailableBytes: nil, issues: [.init(url: scope, reason: .exclusionUnavailable)], volumeAvailableMetric: "Unavailable", exclusionFingerprint: policyFingerprint, excludedEntryCount: 0)
+        }
+        if let volume = exclusionVolume, exclusions.matches(canonicalScope, volumeID: volume) {
+            return ScanResult(scope: scope, observedAt: Date(), observations: [], logicalBytes: 0, allocatedBytes: nil, allocatedUnknownCount: 0, volumeCapacityBytes: nil, volumeAvailableBytes: nil, issues: [.init(url: scope, reason: .excludedScope)], volumeAvailableMetric: "Unavailable", exclusionFingerprint: policyFingerprint, excludedEntryCount: 1)
         }
         var directories: [URL: DirectoryEvidence] = [scope.standardizedFileURL: DirectoryEvidence(rootMetadata)]
         func identitiesStillValid(through parent: URL) throws -> Bool {
@@ -245,6 +260,11 @@ public actor FolderScanner {
                 guard url.standardizedFileURL.pathComponents.starts(with: scope.standardizedFileURL.pathComponents) else {
                     entries.skipDescendants()
                     return true
+                }
+                if let volume = exclusionVolume {
+                    let parts = url.standardizedFileURL.pathComponents.dropFirst(scope.standardizedFileURL.pathComponents.count)
+                    let canonical = parts.reduce(canonicalScope) { $0.appendingPathComponent($1) }
+                    if exclusions.matches(canonical, volumeID: volume) { excludedEntryCount += 1; entries.skipDescendants(); return true }
                 }
                 let ancestorsValid = try identitiesStillValid(through: url.deletingLastPathComponent())
                 guard ancestorsValid else {
@@ -336,7 +356,7 @@ public actor FolderScanner {
         if budget.expired && !issues.contains(where: { $0.reason == .timeLimit }) { issues.append(.init(url: scope, reason: .timeLimit)) }
         return ScanResult(scope: scope, observedAt: Date(), observations: observations.sorted { $0.url.path < $1.url.path },
             logicalBytes: logical, allocatedBytes: allocationUnknown == 0 ? allocated : nil, allocatedUnknownCount: allocationUnknown,
-            volumeCapacityBytes: volume?.volumeTotalCapacity.map(Int64.init), volumeAvailableBytes: volume?.volumeAvailableCapacityForImportantUsage ?? volume?.volumeAvailableCapacity.map(Int64.init), issues: issues, volumeAvailableMetric: volume?.volumeAvailableCapacityForImportantUsage != nil ? "Important usage" : volume?.volumeAvailableCapacity != nil ? "Available capacity fallback" : "Unavailable")
+            volumeCapacityBytes: volume?.volumeTotalCapacity.map(Int64.init), volumeAvailableBytes: volume?.volumeAvailableCapacityForImportantUsage ?? volume?.volumeAvailableCapacity.map(Int64.init), issues: issues, volumeAvailableMetric: volume?.volumeAvailableCapacityForImportantUsage != nil ? "Important usage" : volume?.volumeAvailableCapacity != nil ? "Available capacity fallback" : "Unavailable", exclusionFingerprint: policyFingerprint, excludedEntryCount: excludedEntryCount)
     }
 }
 
