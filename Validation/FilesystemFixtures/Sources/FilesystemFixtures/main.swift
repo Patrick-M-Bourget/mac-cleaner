@@ -24,6 +24,16 @@ private func scanEvidence(_ result: ScanResult) -> [String: Any] {
      }]
 }
 
+private func canonicalParts(_ url: URL) -> [String] {
+    url.resolvingSymlinksInPath().standardizedFileURL.pathComponents
+}
+
+private func isMountedDescendant(_ url: URL, mount: URL) -> Bool {
+    let path = canonicalParts(url), boundary = canonicalParts(mount)
+    // The mount row is allowed; any additional path component crosses the boundary.
+    return path.count > boundary.count && path.starts(with: boundary)
+}
+
 private func matchesOwnedFixture(_ observation: FileObservation, _ expected: URL, _ native: stat) -> Bool {
     // Foundation can return /private/var observations for an explicit /var scope.
     // Compare both canonical paths and the exact native device/inode, never just a basename.
@@ -66,6 +76,8 @@ private func nativeEvidence(_ info: stat) -> [String: Any] {
                         "Volume identities changed before scan")
             let boundary = try await FolderScanner().scan(root)
             report["boundaryScan"] = scanEvidence(boundary)
+            report["canonicalMountComponents"] = canonicalParts(mount)
+            report["boundaryCanonicalDescendants"] = boundary.observations.filter { isMountedDescendant($0.url, mount: mount) }.map { $0.url.path }
             try persist()
             let explicit = try await FolderScanner().scan(scope)
             report["explicitScan"] = scanEvidence(explicit)
@@ -82,8 +94,8 @@ private func nativeEvidence(_ info: stat) -> [String: Any] {
             report["sentinelCanonicalIdentityMatches"] = explicit.observations.map { matchesOwnedFixture($0, sentinel, sentinelInfo) }
             let compressedRow = explicit.observations.first { matchesOwnedFixture($0, compressed, info) }
             report["checks"] = [
-                "boundaryReported": boundary.issues.contains { $0.reason == .differentVolume && $0.url.standardizedFileURL == mount },
-                "noMountedDescendants": !boundary.observations.contains { $0.url.path.hasPrefix(mount.path + "/") },
+                "boundaryReported": boundary.issues.contains { $0.reason == .differentVolume && canonicalParts($0.url) == canonicalParts(mount) },
+                "noMountedDescendants": !boundary.observations.contains { isMountedDescendant($0.url, mount: mount) },
                 "boundaryTotalsUnknown": !boundary.isComplete && boundary.totalLogicalBytes == nil,
                 "explicitScopeComplete": explicit.isComplete,
                 "knownSentinelObserved": explicit.observations.contains { matchesOwnedFixture($0, sentinel, sentinelInfo) && $0.logicalBytes == 17 },
@@ -93,9 +105,9 @@ private func nativeEvidence(_ info: stat) -> [String: Any] {
                 "mountedIdentityRetained": try metadata(scope).st_dev == mountedDevice
             ]
             try persist()
-            try require(boundary.issues.contains { $0.reason == .differentVolume && $0.url.standardizedFileURL == mount },
+            try require(boundary.issues.contains { $0.reason == .differentVolume && canonicalParts($0.url) == canonicalParts(mount) },
                         "Parent scan must report the genuine mounted-volume boundary")
-            try require(!boundary.observations.contains { $0.url.path.hasPrefix(mount.path + "/") },
+            try require(!boundary.observations.contains { isMountedDescendant($0.url, mount: mount) },
                         "Parent scan crossed the mounted volume")
             try require(!boundary.isComplete && boundary.totalLogicalBytes == nil, "Boundary must not produce complete totals")
             try require(explicit.isComplete && explicit.observations.contains { matchesOwnedFixture($0, sentinel, sentinelInfo) && $0.logicalBytes == 17 },
