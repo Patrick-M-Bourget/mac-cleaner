@@ -327,6 +327,51 @@ final class WorkspaceUITests: XCTestCase {
     }
 
     @MainActor
+    func testScrolledCategorySelectionKeepsContentAnchored() throws {
+        continueAfterFailure = false
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("StillSelectionUI-" + UUID().uuidString, isDirectory: true)
+        let nested = root.appendingPathComponent("Long project folder name for layout and keyboard review")
+        try FileManager.default.createDirectory(at: nested, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        for i in 0..<9 { try Data(repeating: 1, count: 128 * 1024).write(to: nested.appendingPathComponent("A long descriptive document name with several words - \(i).pdf")) }
+        let app = XCUIApplication()
+        app.launchArguments = ["--ui-test-downloads-root", "--design-minimum", "--design-opaque-chrome"]
+        app.launchEnvironment["STILL_TEST_DOWNLOADS_ROOT"] = root.path
+        app.launch(); defer { app.terminate() }
+        XCTAssertTrue(app.buttons["Choose folder…"].waitForExistence(timeout: 10))
+        app.buttons["Choose folder…"].click(); app.typeKey("g", modifierFlags: [.command, .shift])
+        let path = app.textFields.firstMatch
+        XCTAssertTrue(path.waitForExistence(timeout: 5)); path.typeText(root.path)
+        app.typeKey(.return, modifierFlags: []); app.dialogs.buttons["Scan folder"].click()
+        XCTAssertTrue(app.staticTexts["Observed"].waitForExistence(timeout: 10))
+        app.typeKey("2", modifierFlags: .command)
+        let bounds = app.windows.firstMatch.frame
+        let category = app.checkBoxes["downloadsCategorySelection"]
+        XCTAssertTrue(category.waitForExistence(timeout: 5))
+        func settle(_ expected: Int) {
+            let ready = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+                category.isEnabled && category.value as? Int == expected
+            }, object: nil)
+            XCTAssertEqual(XCTWaiter.wait(for: [ready], timeout: 5), .completed)
+        }
+        category.click(); settle(1)
+        let topFrame = category.frame
+        app.scrollViews.firstMatch.scroll(byDeltaX: 0, deltaY: -140)
+        XCTAssertTrue(app.scrollViews.firstMatch.frame.contains(category.frame))
+        let anchor = category.frame
+        XCTAssertLessThan(anchor.minY, topFrame.minY)
+        for expected in [0, 1] {
+            let before = XCTAttachment(screenshot: app.windows.firstMatch.screenshot())
+            before.name = "scrolled-category-before-" + String(expected); before.lifetime = .keepAlways; add(before)
+            category.click(); settle(expected)
+            let after = XCTAttachment(screenshot: app.windows.firstMatch.screenshot())
+            after.name = "scrolled-category-after-" + String(expected); after.lifetime = .keepAlways; add(after)
+            XCTAssertEqual(app.windows.firstMatch.frame, bounds)
+            XCTAssertEqual(category.frame, anchor, "Bulk selection must preserve the scrolled category anchor")
+        }
+    }
+
+    @MainActor
     func testCheckboxSelectionKeepsContentAnchored() throws {
         continueAfterFailure = false
         let root = FileManager.default.temporaryDirectory.appendingPathComponent("StillSelectionUI-" + UUID().uuidString, isDirectory: true)
@@ -359,23 +404,6 @@ final class WorkspaceUITests: XCTestCase {
             let after = XCTAttachment(screenshot: app.windows.firstMatch.screenshot())
             after.name = "checkbox-category-after-" + String(index); after.lifetime = .keepAlways; add(after)
         }
-        // Match the reported sequence: summary above the viewport, category still visible.
-        category.click()
-        XCTAssertEqual(category.value as? Int, 1)
-        app.scrollViews.firstMatch.scroll(byDeltaX: 0, deltaY: -140)
-        XCTAssertTrue(app.scrollViews.firstMatch.frame.contains(category.frame))
-        let scrolledCategoryFrame = category.frame
-        for index in 0..<4 {
-            category.click()
-            let expected = index.isMultiple(of: 2) ? 0 : 1
-            let settled = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
-                category.value as? Int == expected
-            }, object: nil)
-            XCTAssertEqual(XCTWaiter.wait(for: [settled], timeout: 5), .completed)
-            XCTAssertEqual(category.frame, scrolledCategoryFrame,
-                           "Bulk selection must not reset a scrolled plan to its top")
-        }
-        category.click()
         app.scrollViews.firstMatch.scroll(byDeltaX: 0, deltaY: -300)
         let rows = app.checkBoxes.allElementsBoundByIndex.filter {
             $0.label.hasSuffix(".pdf") && $0.isHittable && app.scrollViews.firstMatch.frame.contains($0.frame)

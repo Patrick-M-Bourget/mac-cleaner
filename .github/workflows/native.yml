@@ -13,6 +13,7 @@ on:
           - exclusions
           - design
           - selection
+          - selection-scroll
 permissions:
   contents: read
 jobs:
@@ -24,10 +25,13 @@ jobs:
         with:
           xcode-version: '26.6'
       - name: Verify disposable scanner boundaries
+        if: github.event_name != 'workflow_dispatch' || (inputs.suite != 'selection' && inputs.suite != 'selection-scroll')
         run: xcrun swift test --package-path Packages/StillCore
       - name: Verify alert policies and lifecycle without OS permission prompts
+        if: github.event_name != 'workflow_dispatch' || (inputs.suite != 'selection' && inputs.suite != 'selection-scroll')
         run: xcrun swift test --package-path Still/Packages/StorageAlerts
       - name: Verify isolated disposable adapter investigations
+        if: github.event_name != 'workflow_dispatch' || (inputs.suite != 'selection' && inputs.suite != 'selection-scroll')
         run: |
           xcrun swift test --package-path Validation/ICloudProbe
           xcrun swift test --package-path Validation/XcodeProbe
@@ -43,10 +47,13 @@ jobs:
           scope=()
           if [[ "$EVENT_NAME" == "workflow_dispatch" && "$REQUESTED_SUITE" == "exclusions" ]]; then
             scope=(-only-testing:StillUITests/ExclusionsUITests)
+          elif [[ "$EVENT_NAME" == "workflow_dispatch" && "$REQUESTED_SUITE" == "selection-scroll" ]]; then
+            scope=(-only-testing:StillUITests/WorkspaceUITests/testScrolledCategorySelectionKeepsContentAnchored)
           elif [[ "$EVENT_NAME" == "workflow_dispatch" && "$REQUESTED_SUITE" == "selection" ]]; then
             scope=(
               -only-testing:StillUITests/WorkspaceUITests/testCheckboxSelectionKeepsContentAnchored
               -only-testing:StillUITests/WorkspaceUITests/testInspectionCheckboxSelectionKeepsContentAnchored
+              -only-testing:StillUITests/WorkspaceUITests/testScrolledCategorySelectionKeepsContentAnchored
             )
           elif [[ "$EVENT_NAME" == "workflow_dispatch" && "$REQUESTED_SUITE" == "design" ]]; then
             scope=(
