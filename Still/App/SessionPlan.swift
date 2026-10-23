@@ -101,6 +101,17 @@ import SwiftUI
         let ids = Set(rows.map { $0.item.url.path + "|" + $0.item.resourceID + "|moveToTrash" })
         return draft.selected.filter { !ids.contains($0.id) }
     }
+    enum OverviewDownloadsCoverage { case notInspected, incomplete, complete }
+    /// Current included Downloads coverage, separate from eligibility and retry-plan membership.
+    var overviewDownloadsCoverage: OverviewDownloadsCoverage {
+        guard let downloads else { return .notInspected }
+        let root = downloads.url.standardizedFileURL.pathComponents
+        let reports = scans.values.filter {
+            $0.exclusionFingerprint == expectedExclusionFingerprint && $0.scope.standardizedFileURL.pathComponents.starts(with: root)
+        }
+        guard !reports.isEmpty else { return .notInspected }
+        return reports.allSatisfy { $0.totalLogicalBytes != nil } ? .complete : .incomplete
+    }
     /// Available observed Downloads findings, independent of any targeted retry subset.
     var overviewDownloadRows: [Row] { eligibleRows(restrictingTo: nil) }
     var overviewDownloadsLogicalBytes: Int64? {
