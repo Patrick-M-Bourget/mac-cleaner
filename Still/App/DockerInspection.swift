@@ -6,7 +6,13 @@ import StillCore
     @Published private(set) var executable: URL?
     @Published private(set) var inventory: DockerInventory?
     @Published private(set) var image: DockerDiskImage?
-    @Published var socketPath = ""
+    @Published var socketPath = "" {
+        didSet {
+            guard socketPath != oldValue else { return }
+            inventory = nil; example = false
+            status = "Socket changed. Inspect explicitly to read this endpoint. No command was run."
+        }
+    }
     @Published private(set) var status = "No Docker runtime has been inspected. Choose the supported CLI and enter a local Unix socket explicitly."
     @Published private(set) var busy = false
     @Published private(set) var example = false

@@ -143,6 +143,16 @@ final class StorageAlertsUITests: XCTestCase {
                 report.lifetime = .keepAlways; add(report)
                 XCTAssertEqual(app.windows.firstMatch.frame, bounds)
                 app.scrollViews.firstMatch.scroll(byDeltaX: 0, deltaY: 1400)
+                let endpoint = app.textFields["Local Unix socket path"]
+                endpoint.click(); endpoint.typeKey("a", modifierFlags: .command)
+                endpoint.typeText("/disposable/" + theme + "/daemon.sock")
+                XCTAssertTrue(app.staticTexts["Socket changed. Inspect explicitly to read this endpoint. No command was run."].waitForExistence(timeout: 5))
+                XCTAssertFalse(app.staticTexts["Synthetic daemon report"].exists)
+                XCTAssertFalse(app.staticTexts["Local Volumes · Persistent application data"].exists)
+                XCTAssertTrue(app.staticTexts["Host allocated bytes: Unknown"].exists)
+                XCTAssertTrue(app.staticTexts["VM virtual capacity: Unknown"].exists)
+                XCTAssertFalse(app.buttons["Inspect selected Docker"].isEnabled)
+                XCTAssertEqual(app.windows.firstMatch.frame, bounds)
             }
             app.buttons["Back to Overview"].click()
             XCTAssertTrue(app.buttons["Choose folder…"].exists)
