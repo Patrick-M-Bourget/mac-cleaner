@@ -1,6 +1,6 @@
 # Native development
 
-The native workspace currently implements issue #2 (M0 shell) using deterministic in-memory fixtures. It never scans a directory, reads personal file contents, requests folder permission, invokes Quick Look/Finder, or mutates cleanup targets. Fixture strings and sizes are illustrative. Selection, scan scopes and execution arrive in dependent tickets.
+The native workspace starts with deterministic in-memory fixtures (issue #2). Issue #3 adds explicit native folder selection and read-only metadata inspection. Nothing scans until the user chooses a folder. Quick Look and Reveal in Finder run only from their explicit controls; preview requires fresh positive locality and matching resource identity. No cleanup target mutation is implemented. Fixture strings and sizes remain illustrative; selecting a real folder replaces fixture findings in that session.
 
 ## Prerequisites and launch
 
@@ -32,3 +32,17 @@ The focused UI suite observes native accessibility controls, fixture inspection,
 ## Structure
 
 `Still/App` owns the current SwiftUI composition; `Still/UITests` owns user-journey tests. Keep future filesystem/persistence adapters behind domain interfaces, outside view bodies. No empty packages or speculative mutation implementations are included in the shell slice. Distribution signing, Hardened Runtime validation and notarization remain M7 work; the locally runnable build is not a release artifact.
+
+## Folder inspection validation
+
+Choose folder opens NSOpenPanel with directory-only single selection. Scan metadata runs serially in a non-MainActor scanner actor, checks cancellation between observations, and balances successful security-scoped access around the operation. No bookmark persists the scope yet. The scan never requests content, thumbnail generation, hashing or a cloud download.
+
+The scanner reports logical file bytes separately from allocated bytes, and selected-volume total/available capacity separately from scanned inventory. Available capacity uses Foundation's important-usage metric, matching the alert policy; missing values remain Unknown with no free-capacity fallback. The selected volume need not be the startup volume. Repeated hardlink identities count once; APFS clones/snapshots are not exclusive-space estimates. Package rows and symlink rows remain visible, with no recursive package or symlink-target inventory. Cross-volume descendants are skipped. Root symlinks are rejected. Enumeration is not a transactional filesystem snapshot.
+
+Bounds are 100,000 observations and depth 64. Reaching a bound or an access/read failure records incomplete coverage. A blocked metadata syscall may delay cancellation; no task is launched per file. The list uses lazy native rows.
+
+```sh
+DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcrun swift test --package-path Packages/StillCore
+```
+
+Disposable-tree tests exercise paths/times/logical bytes, package/symlink containment, hardlink accounting, unknown allocation/locality, bounded scans and rejection of unconfirmed previews. A native UI journey creates its own temporary text file, chooses its directory through NSOpenPanel and inspects its size/path without changing contents. Tests never choose personal folders or invoke preview/download on cloud files. Local cloud metadata support is not proof of File Provider/iCloud non-hydration; real disposable provider/OS tests remain a milestone gate. Native permission revocation, disconnected volumes and deeper partial-scan recovery are expanded in issue #4.

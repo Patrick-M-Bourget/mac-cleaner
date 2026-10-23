@@ -12,6 +12,8 @@ jobs:
       - uses: maxim-lobanov/setup-xcode@v1
         with:
           xcode-version: '26.6'
+      - name: Verify disposable scanner boundaries
+        run: xcrun swift test --package-path Packages/StillCore
       - name: Build runnable Mac application and UI runner
         run: xcodebuild build-for-testing -project Still/Still.xcodeproj -scheme Still -destination 'platform=macOS' -derivedDataPath .build/xcode
       - name: Exercise fixture navigation and geometry

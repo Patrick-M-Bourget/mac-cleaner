@@ -43,4 +43,34 @@ final class WorkspaceUITests: XCTestCase {
         XCTAssertEqual(app.windows.firstMatch.frame, bounds)
     }
 
+    @MainActor
+    func testChooseDisposableFolderAndInspectWithoutMutation() throws {
+        continueAfterFailure = false
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("StillUI-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let file = root.appendingPathComponent("camera.txt")
+        try Data(repeating: 65, count: 137).write(to: file)
+        let app = XCUIApplication()
+        app.launch()
+        XCTAssertTrue(app.buttons["Choose folder…"].waitForExistence(timeout: 5))
+        let bounds = app.windows.firstMatch.frame
+        app.buttons["Choose folder…"].click()
+        app.typeKey("g", modifierFlags: [.command, .shift])
+        let path = app.textFields.firstMatch
+        XCTAssertTrue(path.waitForExistence(timeout: 5))
+        path.typeText(root.path)
+        app.typeKey(.return, modifierFlags: [])
+        app.dialogs.buttons["Scan folder"].click()
+        XCTAssertTrue(app.buttons["Inspect camera.txt"].waitForExistence(timeout: 10))
+        app.buttons["Inspect camera.txt"].click()
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "value == %@", file.path)).firstMatch.exists)
+        XCTAssertTrue(app.staticTexts["Logical size: 137 bytes"].exists)
+        XCTAssertTrue(app.buttons["Quick Look"].exists)
+        XCTAssertTrue(app.buttons["Reveal in Finder"].exists)
+        XCTAssertTrue(app.staticTexts["Observed"].exists)
+        XCTAssertEqual(app.windows.firstMatch.frame, bounds)
+        XCTAssertEqual(try Data(contentsOf: file), Data(repeating: 65, count: 137))
+    }
+
 }

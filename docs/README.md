@@ -2,7 +2,7 @@
 
 Revision 0.9 · October 22, 2026 · Ready for repository setup and native-shell development.
 
-Still is a working name. No native implementation exists yet. This bundle records the accepted product direction; it does not certify native filesystem integrations.
+Still is a working name. Native implementation is underway; see [development and validation instructions](DEVELOPMENT.md) for current capabilities and remaining gates. This bundle records the accepted product direction; it does not certify every native filesystem integration.
 
 ## Read in this order
 
@@ -46,7 +46,7 @@ This is a starting structure, not a mandate to create a package for each type. K
 
 ## Validation boundary
 
-The native implementation has not started. Visual references and fixture interactions cannot certify native filesystem, persistence or permission behavior. [Visual review notes](visual/README.md) record exactly what has been exercised. Native implementation must pass SPEC.md and milestone-specific acceptance before capabilities ship.
+Native implementation and disposable-fixture validation are recorded in [DEVELOPMENT.md](DEVELOPMENT.md). Visual references and fixture interactions cannot certify native filesystem, persistence or permission behavior. [Visual review notes](visual/README.md) record exactly what has been exercised. Native implementation must pass SPEC.md and milestone-specific acceptance before capabilities ship.
 
 ## Approved decisions
 
