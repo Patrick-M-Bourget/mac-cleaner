@@ -37,8 +37,23 @@ import SwiftUI
     }
     private(set) var refresh = RefreshChoices()
     private var refreshRequests: [URL: RefreshRequest] = [:]
+    private var isRefreshingBatch = false
     private let refreshValidator = RefreshValidator()
-    var isRefreshing: Bool { !refreshRequests.isEmpty }
+    var isRefreshing: Bool { isRefreshingBatch || !refreshRequests.isEmpty }
+    func beginRefreshBatch(_ scopes: [URL]) -> [RefreshRequest] {
+        isRefreshingBatch = true
+        return scopes.map { beginRefresh($0) }
+    }
+    func endRefreshBatch(_ unfinished: [RefreshRequest]) {
+        for request in unfinished {
+            cancelRefresh(request)
+            // An overlapping completed scope may have retired this scope's pending targets.
+            // A requested but unstarted scope still needs its own complete refresh after Cancel.
+            let pending = beginRefresh(request.scope)
+            cancelRefresh(pending)
+        }
+        isRefreshingBatch = false
+    }
     var pendingCount: Int { draft.selected.filter { refresh.requiresRefresh($0.id) }.count }
     var refreshScopes: [URL] { Array(Set(scans.keys).union(draft.selected.map(\.scope))).sorted { $0.path < $1.path } }
     func beginRefresh(_ scope: URL) -> RefreshRequest {
@@ -86,12 +101,26 @@ import SwiftUI
         let ids = Set(rows.map { $0.item.url.path + "|" + $0.item.resourceID + "|moveToTrash" })
         return draft.selected.filter { !ids.contains($0.id) }
     }
-    var rows: [Row] {
+    /// Available observed Downloads findings, independent of any targeted retry subset.
+    var overviewDownloadRows: [Row] { eligibleRows(restrictingTo: nil) }
+    var overviewDownloadsLogicalBytes: Int64? {
+        var seen = Set<String>()
+        var total: Int64 = 0
+        for row in overviewDownloadRows.sorted(by: { $0.scan.observedAt > $1.scan.observedAt }) where seen.insert(row.item.resourceID).inserted {
+            guard let size = row.item.logicalBytes else { return nil }
+            let sum = total.addingReportingOverflow(size)
+            guard !sum.overflow else { return nil }
+            total = sum.partialValue
+        }
+        return total
+    }
+    var rows: [Row] { eligibleRows(restrictingTo: retryTargetIDs) }
+    private func eligibleRows(restrictingTo targetIDs: Set<String>?) -> [Row] {
         var seen = Set<String>()
         return scans.values.sorted { $0.observedAt > $1.observedAt }.flatMap { scan in
             scan.observations.compactMap { item in
                 let row = Row(item: item, scan: scan)
-                return eligible(item, in: scan) && retryTargetIDs?.contains(row.id + "|moveToTrash") != false && seen.insert(row.id).inserted ? row : nil
+                return eligible(item, in: scan) && targetIDs?.contains(row.id + "|moveToTrash") != false && seen.insert(row.id).inserted ? row : nil
             }
         }.sorted { $0.item.url.path < $1.item.url.path }
     }
