@@ -135,3 +135,7 @@ The execution ticket must consume approval and revalidate target evidence. `Sess
 ### #8 checkpoint validation status
 
 The focused native journey verified category bulk selection, mixed refinement, bounded confirmation geometry and Cancel preserving choices. It exposed unreliable keyboard focus restoration. A one-shot AppKit first-responder bridge now compiles, but its verification attempt ended with the UI runner killed during launch before reaching the control. Final approval/focus assertions are not yet qualified. Feature work is checkpointed for the design-system-first migration; do not treat this branch as completed #8 or enable execution from it.
+
+## Downloads execution (#9)
+
+Final **Move to Trash** now consumes the exact approved batch, journals native operations and shows per-file results with applicable Reveal in Trash actions. No permanent fallback exists. See [executor qualification and concurrency limits](validation/downloads-executor.md). Tests mutate only owned disposable fixtures. Launch recovery and completed-history management remain subsequent tickets; journal evidence persists independently of the session plan.

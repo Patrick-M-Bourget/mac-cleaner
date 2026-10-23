@@ -98,7 +98,7 @@ private struct WorkspaceView: View {
     private var showsPlan: Bool { destination == .plan && !inspecting && !nativeInspectionVisible && !homebrewVisible && !pipVisible && !dockerVisible && !managedStorageVisible }
     private var inspectionVisible: Bool { inspecting || nativeInspectionVisible }
     private var contextLabel: String {
-        managedStorageVisible ? "App-managed inventory · selected objects only" : folderInspection.scope != nil ? "Read-only metadata · explicitly selected folder" : fixtureMode ? "Synthetic data — no personal files accessed" : "On-demand storage review"
+        selection.execution.isRunning ? "Moving approved files to Trash" : selection.execution.result != nil ? "Cleanup results · individual outcomes" : managedStorageVisible ? "App-managed inventory · selected objects only" : folderInspection.scope != nil ? "Read-only metadata · explicitly selected folder" : fixtureMode ? "Synthetic data — no personal files accessed" : "On-demand storage review"
     }
 
     var body: some View {
@@ -132,7 +132,7 @@ private struct WorkspaceView: View {
             .background { ChromeSurface(role: .sidebar) }
             Divider()
             VStack(alignment: .leading, spacing: 0) {
-                if showsPlan && !selection.scans.isEmpty {
+                if showsPlan && (!selection.scans.isEmpty || selection.execution.isRunning || selection.execution.result != nil || selection.execution.error != nil) {
                     LiveCleanupPlanView(selection: selection)
                 } else {
                 ScrollView {

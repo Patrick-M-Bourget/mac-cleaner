@@ -4,13 +4,14 @@ import StillCore
 import SwiftUI
 
 @MainActor @Observable final class SessionPlan {
+    let execution = CleanupExecutionModel()
     private(set) var draft = PlanDraft()
     private(set) var scans: [URL: ScanResult] = [:]
     private(set) var message: String?
     private(set) var isPreparing = false
     private(set) var approvedBatch: CleanupApproval?
     var mutationVersion: UInt64 { draft.mutationVersion }
-    var canReview: Bool { !isPreparing && draft.selectedCount > 0 }
+    var canReview: Bool { !isPreparing && !execution.isRunning && draft.selectedCount > 0 }
     var categoryState: CategorySelectionState {
         guard let downloads else { return .unchecked }
         return draft.categoryState(in: Array(scans.values), downloads: downloads)
@@ -52,6 +53,8 @@ import SwiftUI
         }.sorted { $0.item.url.path < $1.item.url.path }
     }
     func observe(_ scan: ScanResult) {
+        guard !execution.isRunning else { return }
+        execution.clear()
         #if DEBUG
         // Bind only after NSOpenPanel selected the exact fixture; never probe runner data at launch.
         if let requestedFixture, requestedFixture.standardizedFileURL.path == scan.scope.standardizedFileURL.path,
@@ -80,8 +83,17 @@ import SwiftUI
         guard canReview else { throw PlanSelectionError.ineligible }
         approvedBatch = try draft.approve(review)
     }
+    func executeApproved() async {
+        guard canReview, let batch = approvedBatch else { return }
+        approvedBatch = nil
+        draft.clear(); scans.removeAll()
+        AppLifecycleController.shared.hasPendingPlan = false
+        AppLifecycleController.shared.operationInProgress = true
+        await execution.run(batch)
+        AppLifecycleController.shared.operationInProgress = false
+    }
     func toggleAll() async {
-        guard !isPreparing else { return }
+        guard !isPreparing && !execution.isRunning else { return }
         if categoryState == .checked { draft.clear(); approvedBatch = nil; AppLifecycleController.shared.hasPendingPlan = false; return }
         guard let downloads else { return }
         invalidateReview()
@@ -99,7 +111,7 @@ import SwiftUI
         AppLifecycleController.shared.hasPendingPlan = draft.selectedCount > 0
     }
     func set(_ item: FileObservation, in scan: ScanResult, selected: Bool) {
-        guard !isPreparing else { return }
+        guard !isPreparing && !execution.isRunning else { return }
         approvedBatch = nil
         if !selected { draft.remove(item.url.path + "|" + item.resourceID + "|moveToTrash") }
         else {
@@ -110,7 +122,7 @@ import SwiftUI
         AppLifecycleController.shared.hasPendingPlan = draft.selectedCount > 0
     }
     func remove(_ target: PlannedTarget) {
-        guard !isPreparing else { return }
+        guard !isPreparing && !execution.isRunning else { return }
         approvedBatch = nil
         draft.remove(target.id)
         AppLifecycleController.shared.hasPendingPlan = draft.selectedCount > 0
@@ -129,10 +141,13 @@ struct LiveCleanupPlanView: View {
     var body: some View {
         VStack(spacing: 0) {
         ScrollView {
+        if selection.execution.isRunning || selection.execution.result != nil || selection.execution.error != nil {
+            CleanupExecutionView(model: selection.execution).padding(StillDesign.Space.page)
+        } else {
         VStack(alignment: .leading, spacing: StillDesign.Space.xl) {
             PageHeader(title: "Cleanup plan", subtitle: "Choose categories, adjust items if needed, then review the changes.")
             SelectionSummary(value: ByteCountFormatter.string(fromByteCount: selection.draft.logicalBytes, countStyle: .decimal), detail: "\(StillDesign.files(selection.draft.selectedCount)) selected", identifier: "liveSelectionSummary")
-            StatusRow(text: "Space stays occupied until Finder empties Trash. No files are moved in this build.", symbol: "trash")
+            StatusRow(text: "Space stays occupied until Finder empties Trash. Nothing changes before final confirmation.", symbol: "trash")
             HStack(alignment: .top, spacing: StillDesign.Space.md) {
                 CategoryBadge(category: .downloads)
                 VStack(alignment: .leading, spacing: StillDesign.Space.sm) {
@@ -181,16 +196,19 @@ struct LiveCleanupPlanView: View {
             }
 
         }.padding(StillDesign.Space.page).frame(maxWidth: .infinity, alignment: .leading)
+        }
         }.background(StillDesign.reading)
+        if !selection.execution.isRunning && selection.execution.result == nil && selection.execution.error == nil {
         ActionStrip(message: "Nothing changes until you confirm the next step.") {
 ReviewCleanupButton(enabled: selection.canReview, focusRequest: reviewFocusRequest) {
                 do { review = try selection.review(); approvalError = nil } catch { approvalError = "Recheck the selected targets before reviewing." }
             }.fixedSize()
         }
         }
+        }
         .sheet(item: $review, onDismiss: { reviewFocusRequest += 1 }) { snapshot in
             CleanupConfirmationView(review: snapshot, cancel: { review = nil }) {
-                do { try selection.approve(snapshot); review = nil }
+                do { try selection.approve(snapshot); review = nil; Task { await selection.executeApproved() } }
                 catch { approvalError = "The plan changed. Review the latest exact targets before approving."; review = nil }
             }
         }
@@ -213,7 +231,7 @@ private struct CleanupConfirmationView: View {
             SummarySurface { Label("\(StillDesign.files(review.targets.count)) · \(ByteCountFormatter.string(fromByteCount: logicalBytes, countStyle: .decimal)) logical size", systemImage: "trash") }
             Text("Space remains occupied until Finder empties Trash. Files may have separate Trash locations; folder structure and automatic restoration are not guaranteed.").foregroundStyle(.secondary)
             Text("Downloads scope · No folders or new discoveries will be included.").font(.callout)
-            Text("Approval records this exact batch. No files will be moved in this build.").font(.caption).foregroundStyle(.secondary)
+            Text("Confirming moves only this exact batch to Trash. There is no permanent-delete fallback.").font(.caption).foregroundStyle(.secondary)
             ScrollView {
                 VStack(alignment: .leading, spacing: 10) {
                     Text("Selected scan locations").font(.headline)
@@ -229,7 +247,7 @@ private struct CleanupConfirmationView: View {
                 }.frame(maxWidth: .infinity, alignment: .leading)
             }
             Divider()
-            HStack { Button("Cancel", action: cancel).keyboardShortcut(.cancelAction); Spacer(); Button("Approve Move to Trash", action: approve).buttonStyle(.borderedProminent) }
+            HStack { Button("Cancel", action: cancel).keyboardShortcut(.cancelAction); Spacer(); Button("Move to Trash", action: approve).buttonStyle(.borderedProminent) }
         }.padding(StillDesign.Space.xl).frame(width: 640, height: 520).background(StillDesign.reading)
     }
 }

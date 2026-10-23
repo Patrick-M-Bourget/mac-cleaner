@@ -160,7 +160,13 @@ final class WorkspaceUITests: XCTestCase {
     }
 
     @MainActor
-    func testBulkMixedReviewCancelAndImmutableApprovalKeepWindowStable() throws {
+    func testBulkMixedReviewCancelAndImmutableApprovalKeepWindowStable() throws { try exerciseBulk(minimum: false) }
+
+    @MainActor
+    func testCleanupResultsAtMinimumWindow() throws { try exerciseBulk(minimum: true) }
+
+    @MainActor
+    private func exerciseBulk(minimum: Bool) throws {
         continueAfterFailure = false
         let root = FileManager.default.temporaryDirectory.appendingPathComponent("StillSelectionUI-" + UUID().uuidString, isDirectory: true)
         try FileManager.default.createDirectory(at: root.appendingPathComponent("Nested"), withIntermediateDirectories: true)
@@ -170,7 +176,7 @@ final class WorkspaceUITests: XCTestCase {
             try Data([1]).write(to: root.appendingPathComponent(path))
         }
         let app = XCUIApplication()
-        app.launchArguments = ["--ui-test-downloads-root"]
+        app.launchArguments = ["--ui-test-downloads-root", minimum ? "--design-minimum" : "--design-initial-size"]
         app.launchEnvironment["STILL_TEST_DOWNLOADS_ROOT"] = root.path
         app.launch()
         XCTAssertTrue(app.buttons["Choose folder…"].waitForExistence(timeout: 5))
@@ -196,17 +202,24 @@ final class WorkspaceUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Review Move to Trash"].waitForExistence(timeout: 5))
         let disclosure = app.disclosureTriangles.firstMatch
         if disclosure.exists { disclosure.click() }
-        XCTAssertTrue(app.buttons["Approve Move to Trash"].isHittable)
+        XCTAssertTrue(app.buttons["Move to Trash"].isHittable)
         XCTAssertTrue(app.buttons["Cancel"].isHittable)
         XCTAssertEqual(app.windows.firstMatch.frame, bounds)
         app.buttons["Cancel"].click()
         XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@ OR value BEGINSWITH %@", "19 files selected", "19 files selected")).firstMatch.waitForExistence(timeout: 5))
         app.typeKey(" ", modifierFlags: [])
         XCTAssertTrue(app.staticTexts["Review Move to Trash"].waitForExistence(timeout: 5), "Cancel must restore focus to Review cleanup")
-        app.buttons["Approve Move to Trash"].click()
-        XCTAssertTrue(app.staticTexts["Approved batch: 19 files · No files moved."].waitForExistence(timeout: 5))
+        app.buttons["Move to Trash"].click()
+        XCTAssertTrue(app.staticTexts["Cleanup results"].waitForExistence(timeout: 15))
+        XCTAssertTrue(app.staticTexts["Succeeded: 19"].exists)
+        for theme in ["Light", "Dark"] {
+            app.popUpButtons.firstMatch.click(); app.menuItems[theme].click()
+            let capture = XCTAttachment(screenshot: app.windows.firstMatch.screenshot())
+            capture.name = "cleanup-results-" + (minimum ? "minimum-" : "initial-") + theme; capture.lifetime = .keepAlways; add(capture)
+        }
         XCTAssertEqual(app.windows.firstMatch.frame, bounds)
-        XCTAssertEqual(try Data(contentsOf: root.appendingPathComponent("file0.pdf")), Data([1]))
+        let remaining = try FileManager.default.subpathsOfDirectory(atPath: root.path).filter { $0.hasSuffix(".pdf") }
+        XCTAssertEqual(remaining.count, 1)
     }
 
     @MainActor
@@ -268,7 +281,7 @@ final class WorkspaceUITests: XCTestCase {
             app.buttons["Review cleanup"].click()
             XCTAssertTrue(app.staticTexts["Review Move to Trash"].waitForExistence(timeout: 5))
             capture("native-confirmation-" + theme)
-            XCTAssertTrue(app.buttons["Cancel"].isHittable && app.buttons["Approve Move to Trash"].isHittable)
+            XCTAssertTrue(app.buttons["Cancel"].isHittable && app.buttons["Move to Trash"].isHittable)
             app.buttons["Cancel"].click()
             XCTAssertEqual(app.windows.firstMatch.frame, bounds)
             app.typeKey("4", modifierFlags: .command); capture("native-locations-" + theme)
@@ -338,7 +351,7 @@ final class WorkspaceUITests: XCTestCase {
             app.buttons["Review cleanup"].click()
             XCTAssertTrue(app.staticTexts["Review Move to Trash"].waitForExistence(timeout: 5))
             capture("native-confirmation-minimum-" + theme)
-            XCTAssertTrue(app.buttons["Cancel"].isHittable && app.buttons["Approve Move to Trash"].isHittable)
+            XCTAssertTrue(app.buttons["Cancel"].isHittable && app.buttons["Move to Trash"].isHittable)
             app.typeKey(.escape, modifierFlags: [])
             XCTAssertFalse(app.staticTexts["Review Move to Trash"].exists)
             XCTAssertEqual(app.windows.firstMatch.frame, bounds)

@@ -75,6 +75,7 @@ import Combine
         // Future executor must report its safe-operation boundary before requesting termination again.
         guard AppLifecyclePolicy.mayQuit(operationInProgress: AppLifecycleController.shared.operationInProgress) else {
             AppLifecycleController.shared.quitPending = true
+            AppLifecycleController.shared.selection.execution.cancel()
             AppLifecycleController.shared.alerts.stopForTermination()
             return .terminateCancel
         }
