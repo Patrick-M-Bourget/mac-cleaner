@@ -93,6 +93,10 @@ public struct PlanDraft: Sendable {
         return selected.filter { counted.insert($0.resourceID).inserted }
     }
     public func contains(_ item: FileObservation) -> Bool { chosen[item.url.path + "|" + item.resourceID + "|moveToTrash"] != nil }
+    /// Module-only insertion after indexed scan membership and freshCandidate/Trash validation.
+    mutating func includeRevalidatedRetry(_ target: PlannedTarget) {
+        chosen[target.id] = target; invalidateReview()
+    }
     mutating func replaceAfterRefresh(_ original: PlannedTarget, with fresh: PlannedTarget) {
         guard chosen[original.id]?.observedAt == original.observedAt, original.id == fresh.id else { return }
         chosen[original.id] = fresh

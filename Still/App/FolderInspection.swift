@@ -161,7 +161,7 @@ struct FolderInspectionView: View {
             if let scope = model.scope { Text(scope.path).foregroundStyle(.secondary).textSelection(.enabled) }
             HStack {
                 Button("Recheck folder") { if let scope = model.scope { model.scan(scope) } }.disabled(model.isScanning)
-                Button("Choose folder again…") { if let url = FolderInspection.chooseFolder() { model.scan(url) } }.disabled(model.isScanning)
+                Button("Choose folder again…") { if let url = FolderInspection.chooseFolder() { selection.leaveRetryMode(); model.scan(url) } }.disabled(model.isScanning)
             }
             if model.scopeReports.count > 1 {
                 Text("Selected locations").font(.headline)

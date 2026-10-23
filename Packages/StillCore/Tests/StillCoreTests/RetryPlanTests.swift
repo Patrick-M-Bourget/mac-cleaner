@@ -31,6 +31,8 @@ private struct PartialTrash: TrashOperating {
     let journal = try SQLiteCleanupJournal(url: root.appendingPathComponent("journal.sqlite"))
     let result = await TrashExecutor(journal: journal, operation: PartialTrash(cancellation: cancellation, holding: holding), cancellation: cancellation).execute(approved)
     #expect(result.targets.map(\.state) == [.failed, .succeeded, .cancelled])
+    let stale = RetryPlan.prepare(records: result.targets, scans: [original], downloads: downloads)
+    #expect(stale.draft.selectedCount == 0)
     try Data([1, 2]).write(to: root.appendingPathComponent("a.pdf"))
     try Data([9]).write(to: root.appendingPathComponent("new.pdf"))
     let fresh = try await scanner.scan(root)
@@ -38,6 +40,7 @@ private struct PartialTrash: TrashOperating {
     #expect(retry.draft.selected.map { $0.url.lastPathComponent } == ["c.pdf"])
     #expect(retry.completedCount == 1)
     #expect(retry.unavailableCount == 1)
+    #expect(retry.unavailableURLs.map(\.lastPathComponent) == ["a.pdf"])
     #expect(FileManager.default.fileExists(atPath: root.appendingPathComponent("c.pdf").path))
     let newApproval = try retry.draft.approve(retry.draft.review())
     #expect(newApproval.id != approved.id)
@@ -90,4 +93,21 @@ private actor ProgressRecorder {
     #expect(await observer.counts == [0, 1, 2])
     #expect(result.targets.map(\.state) == [.failed, .failed])
     #expect(try journal.records().map(\.state) == [.failed, .failed])
+}
+
+@Test func retryDoesNotSelectAReadableFileWhenFreshTrashAccessIsUnavailable() async throws {
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent("StillRetry-\(UUID())")
+    try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+    defer { try? FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: root.path); try? FileManager.default.removeItem(at: root) }
+    try Data([1]).write(to: root.appendingPathComponent("one.pdf"))
+    let scanner = FolderScanner(supplement: RetryLocalMetadata()), downloads = try DownloadsRoot(url: root)
+    let original = try await scanner.scan(root)
+    var draft = PlanDraft(); _ = draft.selectAll(in: [original], downloads: downloads)
+    let journal = try SQLiteCleanupJournal(url: root.appendingPathComponent("journal.sqlite"))
+    let result = await TrashExecutor(journal: journal, operation: NoTrash()).execute(try draft.approve(draft.review()))
+    try FileManager.default.setAttributes([.posixPermissions: 0o500], ofItemAtPath: root.path)
+    let fresh = try await scanner.scan(root)
+    let retry = RetryPlan.prepare(records: result.targets, scans: [fresh], downloads: downloads)
+    #expect(retry.draft.selectedCount == 0)
+    #expect(retry.unavailableCount == 1)
 }

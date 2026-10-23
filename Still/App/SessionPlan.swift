@@ -11,6 +11,7 @@ import SwiftUI
     private(set) var isPreparing = false
     private(set) var isRetryRechecking = false
     private(set) var retryTargetIDs: Set<String>?
+    private(set) var retryExcludedURLs: [URL] = []
     private var retryCancellation: ScanCancellation?
     private var retryGeneration = UUID()
     private(set) var approvedBatch: CleanupApproval?
@@ -31,6 +32,7 @@ import SwiftUI
     var pendingCount: Int { draft.selected.filter { refresh.requiresRefresh($0.id) }.count }
     var refreshScopes: [URL] { Array(Set(scans.keys).union(draft.selected.map(\.scope))).sorted { $0.path < $1.path } }
     func beginRefresh(_ scope: URL) -> RefreshRequest {
+        if isRetryRechecking { stopRetryRecheck(); retryGeneration = UUID(); isPreparing = false; isRetryRechecking = false }
         invalidateReview()
         let request = refresh.begin(scope: scope, draft: &draft)
         refreshRequests[request.scope] = request
@@ -161,7 +163,7 @@ import SwiftUI
     }
     func leaveRetryMode() {
         guard !isRetryRechecking && !execution.isRunning else { return }
-        retryTargetIDs = nil; message = nil; invalidateReview()
+        retryTargetIDs = nil; retryExcludedURLs = []; message = nil; invalidateReview()
     }
     func stopRetryRecheck() {
         retryCancellation?.cancel()
@@ -190,8 +192,9 @@ import SwiftUI
         guard retryGeneration == token, !cancellation.isCancellationRequested, execution.result?.batchID == result.batchID else { return }
         let prepared = await Task.detached(priority: .userInitiated) { RetryPlan.prepare(records: records, scans: reports, downloads: downloads) }.value
         guard retryGeneration == token, !cancellation.isCancellationRequested else { return }
+        retryExcludedURLs = prepared.unavailableURLs
         guard prepared.draft.selectedCount > 0 else {
-            message = "No unfinished files passed the fresh identity and access checks. Completed successes and new discoveries were excluded."
+            message = "No unfinished files passed the fresh identity and access checks. Start a new scan from Overview to review changed files."
             return
         }
         draft = prepared.draft; approvedBatch = nil
@@ -202,7 +205,7 @@ import SwiftUI
         message = "Rechecked \(StillDesign.files(draft.selectedCount)) for a new approval. \(prepared.completedCount) completed and \(prepared.unavailableCount) changed or unavailable targets excluded."
         AppLifecycleController.shared.hasPendingPlan = true
     }
-    func endSession() { retryCancellation?.cancel(); retryGeneration = UUID(); retryTargetIDs = nil; draft.clear(); scans.removeAll(); refresh = RefreshChoices(); refreshRequests.removeAll(); approvedBatch = nil; AppLifecycleController.shared.hasPendingPlan = false }
+    func endSession() { guard !execution.isRunning else { return }; retryCancellation?.cancel(); retryGeneration = UUID(); retryCancellation = nil; isRetryRechecking = false; isPreparing = false; retryTargetIDs = nil; retryExcludedURLs = []; draft.clear(); scans.removeAll(); refresh = RefreshChoices(); refreshRequests.removeAll(); approvedBatch = nil; AppLifecycleController.shared.hasPendingPlan = false }
 }
 
 struct LiveCleanupPlanView: View {
@@ -284,6 +287,9 @@ struct LiveCleanupPlanView: View {
                 }
             }
             if let message = selection.message { Text(message).foregroundStyle(.secondary) }
+            ForEach(selection.retryExcludedURLs, id: \.path) { url in
+                StatusRow(text: "\(url.lastPathComponent): changed or unavailable. Review it through a new scan from Overview.", symbol: "exclamationmark.circle", role: .caution).help(url.path)
+            }
             DisclosureGroup("Size and selection details") {
                 Text("Logical size describes the selected files, not guaranteed space freed. Linked files count once in the size total; each selected path is a separate target. Hidden search results keep their selections.").font(.caption).foregroundStyle(.secondary)
             }
@@ -302,7 +308,7 @@ struct LiveCleanupPlanView: View {
             }
         } else if selection.execution.canRetry {
             ActionStrip(message: "A retry needs a fresh check and new approval; completed successes stay excluded.") {
-                Button("Recheck unfinished files") { Task { await selection.prepareRetry() } }.buttonStyle(.borderedProminent)
+                Button("Recheck unfinished files") { Task { await selection.prepareRetry() } }.buttonStyle(.borderedProminent).disabled(selection.isRefreshing || selection.isPreparing)
             }
         } else if selection.execution.result == nil && selection.execution.error == nil {
         ActionStrip(message: selection.isRefreshing ? "Review is paused while findings are rechecked." : selection.pendingCount > 0 ? "Refresh required before reviewing the selected files." : "Nothing changes until you confirm the next step.") {
@@ -351,7 +357,10 @@ private struct CleanupConfirmationView: View {
                             }
                         }.padding(.top, 8)
                     }
-                }.frame(maxWidth: .infinity, alignment: .leading)
+                }
+                // Native macOS disclosure arrows extend before their label; keep that control inside the scroll clip.
+                .padding(.leading, StillDesign.Space.xl)
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
             Divider()
             HStack { Button("Cancel", action: cancel).keyboardShortcut(.cancelAction); Spacer(); Button("Move to Trash", action: approve).buttonStyle(.borderedProminent) }

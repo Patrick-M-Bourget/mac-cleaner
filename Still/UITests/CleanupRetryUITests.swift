@@ -63,11 +63,18 @@ final class CleanupRetryUITests: XCTestCase {
             app.popUpButtons.firstMatch.click(); app.menuItems[theme].click()
             capture("retry-plan-" + (minimum ? "minimum-" : "initial-") + theme)
         }
+        app.popUpButtons.firstMatch.click(); app.menuItems[minimum ? "Dark" : "Light"].click()
         app.buttons["Review cleanup"].click()
         let retry = app.sheets.containing(.staticText, identifier: "Review Move to Trash").firstMatch
-        XCTAssertTrue(retry.waitForExistence(timeout: 5)); retry.disclosureTriangles.firstMatch.click()
-        XCTAssertTrue(retry.staticTexts["b.pdf"].exists)
-        XCTAssertFalse(retry.staticTexts["new.pdf"].exists)
+        XCTAssertTrue(retry.waitForExistence(timeout: 5))
+        let disclosure = retry.disclosureTriangles.firstMatch
+        XCTAssertTrue(retry.scrollViews.firstMatch.frame.contains(disclosure.frame))
+        disclosure.coordinate(withNormalizedOffset: CGVector(dx: 0.05, dy: 0.5)).click()
+        XCTAssertEqual(disclosure.value as? Int, 1)
+        XCTAssertTrue(retry.descendants(matching: .any).matching(NSPredicate(format: "value == %@ OR label == %@", "b.pdf", "b.pdf")).firstMatch.waitForExistence(timeout: 5), retry.debugDescription)
+        XCTAssertFalse(retry.descendants(matching: .any).matching(NSPredicate(format: "value == %@ OR label == %@", "new.pdf", "new.pdf")).firstMatch.exists)
+        capture("retry-confirmation-" + (minimum ? "minimum-Dark" : "initial-Light"))
+        XCTAssertTrue(retry.buttons["Cancel"].isHittable)
         retry.buttons["Cancel"].click()
         XCTAssertEqual(try Data(contentsOf: root.appendingPathComponent("b.pdf")), Data([1]))
         XCTAssertEqual(try Data(contentsOf: root.appendingPathComponent("new.pdf")), Data([9]))
