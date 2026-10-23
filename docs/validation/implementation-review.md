@@ -93,3 +93,8 @@ remains a draft while required qualification is outstanding.
 ## Subsequent checkbox and scope-guidance delta
 
 Root-agent source review covers the narrow `f3abbda` viewport correction, `0728b2d` shared scope guidance/native picker shortcut and `7d12f12` disabled-review bridge correction. Shared presentation and enabled/disabled gallery examples are used; SPEC, design handoff and milestone boundaries remain synchronized. Eligibility, approval and executor policy are unchanged. See [checkbox evidence](checkbox-content-anchor.md) and [scope evidence](downloads-scope-guidance.md) for failures, source-pinned native results and capture provenance. Prior independent Standards/Spec review evidence through `524f878` is historical and is not presented as an independent review of these later deltas.
+
+
+## Read-only tool feature follow-up (#24, #33)
+
+Independent parallel Standards/Spec review covers `4443ee2...8c6f137`. Standards: zero actionable findings. Spec: one endpoint/report association finding; `521c246` clears prior daemon evidence on socket edits, and independent narrow rereview confirmed it resolved. Public native journeys and root visual review qualify the changed tool presentation; see [Docker](docker-inventory.md) and [pip](pip-inventory.md). Their exact source-pinned captures and per-run failures/passes are preserved. Later DEBUG fixture corrections received root review; benchmark-generator autorelease handling received root review and before/after hosted workload measurement. Those later changes are not presented as independently reviewed feature deltas. Genuine Engine/Desktop, broader pip, personal/provider and release gates remain open.

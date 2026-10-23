@@ -1,6 +1,6 @@
 # Docker read-only inventory — issue #33
 
-Decision: **no real Docker runtime/version is qualified yet**. The app never probes an installed CLI, daemon, context, socket or Docker home directory automatically. Selecting a CLI and Inspect currently checks availability and returns runtime/provenance guidance without executing it. No Docker installation, daemon startup, container launch, prune, delete, disk shrink/move or elevation is offered.
+Current capability: explicit read-only inspection using a hash-pinned Docker 28.5.1 static macOS CLI and chosen local Unix socket; see the October 23 implementation and native evidence below. **Genuine Docker Engine/Desktop qualification remains open.** The app never discovers or probes a personal installation, daemon, context, socket or Docker home directory automatically. The earlier no-op selected-CLI scaffold has been superseded. No Docker installation, daemon startup, container launch, prune, delete, disk shrink/move or elevation is offered.
 
 ## What can be inspected
 
