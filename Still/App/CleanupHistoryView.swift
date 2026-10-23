@@ -3,6 +3,11 @@ import Observation
 import StillCore
 import SwiftUI
 
+extension AppLifecycleController: HistoryMaintenanceLifecycle {
+    var operationActive: Bool { operationInProgress || selection.execution.isRunning }
+    var maintenanceActive: Bool { get { maintenanceInProgress } set { maintenanceInProgress = newValue } }
+}
+
 @MainActor @Observable final class CleanupHistoryModel {
     var snapshot: CleanupHistorySnapshot?
     var message: String?
@@ -12,17 +17,18 @@ import SwiftUI
         guard !busy else { return }
         busy = true; defer { busy = false }
         do {
-            let mayMaintain = !AppLifecycleController.shared.maintenanceInProgress && !AppLifecycleController.shared.operationInProgress && !AppLifecycleController.shared.selection.execution.isRunning
-            let loaded = try await Task.detached {
-                guard let reader = try CleanupJournalLocation.existingReader() else { return (CleanupHistorySnapshot(records: []), false) }
-                if mayMaintain {
-                    let journal = try CleanupJournalLocation.writer()
-                    let maintenance = try journal.retainCompletedRuns()
-                    let compacted = maintenance.removedRecords == 0 ? true : try journal.compact().completed
-                    return (try journal.completedHistory(), !compacted)
-                }
-                return (try reader.completedHistory(), false)
-            }.value
+            let loaded = try await HistoryLoadCoordinator.load(lifecycle: AppLifecycleController.shared) { mayMaintain in
+                try await Task.detached {
+                    guard let reader = try CleanupJournalLocation.existingReader() else { return (CleanupHistorySnapshot(records: []), false) }
+                    if mayMaintain {
+                        let journal = try CleanupJournalLocation.writer()
+                        let maintenance = try journal.retainCompletedRuns()
+                        let compacted = maintenance.removedRecords == 0 ? true : try journal.compact().completed
+                        return (try journal.completedHistory(), !compacted)
+                    }
+                    return (try reader.completedHistory(), false)
+                }.value
+            }
             snapshot = loaded.0
             if loaded.1 { message = "Expired completed history was removed, but journal compaction did not finish. Disk reclamation is not confirmed." }
             blocked = false
