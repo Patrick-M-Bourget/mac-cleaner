@@ -2,6 +2,7 @@ import XCTest
 import Darwin
 final class StorageAlertsUITests: XCTestCase {
     @MainActor func testOpenedAlertPreservesContextAndOffersOnlyExplicitScanAcrossThemesAndSizes() throws {
+        continueAfterFailure = false
         let manager = FileManager.default
         let token = UUID().uuidString
         let root = manager.temporaryDirectory.resolvingSymlinksInPath().appendingPathComponent("StillTestState-" + token)
@@ -19,8 +20,9 @@ final class StorageAlertsUITests: XCTestCase {
                 app.launch()
                 let status = app.staticTexts["openedStorageAlert"]
                 XCTAssertTrue(status.waitForExistence(timeout: 10))
-                if fixture == "dated" { XCTAssertTrue(status.label.contains("1970")) }
-                else { XCTAssertEqual(status.label, "Alert check time unavailable") }
+                let displayedTime = status.value as? String ?? status.label
+                if fixture == "dated" { XCTAssertTrue(displayedTime.contains("1970")) }
+                else { XCTAssertEqual(displayedTime, "Alert check time unavailable") }
                 XCTAssertFalse(app.buttons["Stop scan"].exists)
                 XCTAssertFalse(app.buttons["Review scanned folder"].exists)
                 let bounds = app.windows.firstMatch.frame
