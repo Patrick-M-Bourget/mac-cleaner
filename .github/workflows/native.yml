@@ -12,6 +12,8 @@ on:
         options:
           - all
           - capacity
+          - capacity-regressions
+          - capacity-overview
           - capacity-manual
           - capacity-states
           - downloads
@@ -72,13 +74,13 @@ jobs:
         with:
           xcode-version: '26.6'
       - name: Verify disposable scanner boundaries
-        if: github.event_name != 'workflow_dispatch' || (inputs.suite != 'capacity-manual' && inputs.suite != 'capacity-states' && inputs.suite != 'selection' && inputs.suite != 'selection-scroll' && inputs.suite != 'scope' && inputs.suite != 'exclusions' && inputs.suite != 'repair' && inputs.suite != 'handoff' && inputs.suite != 'history' && inputs.suite != 'local-records' && inputs.suite != 'local-records-context' && inputs.suite != 'local-records-context-initial' && inputs.suite != 'local-records-diagnostics' && inputs.suite != 'local-records-diagnostics-initial' && inputs.suite != 'local-records-gallery' && inputs.suite != 'local-records-diagnostics-regressions' && inputs.suite != 'local-records-regressions' && inputs.suite != 'pip' && inputs.suite != 'keyboard' && inputs.suite != 'alerts' && inputs.suite != 'alert-open' && inputs.suite != 'overview' && inputs.suite != 'overview-main')
+        if: github.event_name != 'workflow_dispatch' || (inputs.suite != 'capacity-regressions' && inputs.suite != 'capacity-overview' && inputs.suite != 'capacity-manual' && inputs.suite != 'capacity-states' && inputs.suite != 'selection' && inputs.suite != 'selection-scroll' && inputs.suite != 'scope' && inputs.suite != 'exclusions' && inputs.suite != 'repair' && inputs.suite != 'handoff' && inputs.suite != 'history' && inputs.suite != 'local-records' && inputs.suite != 'local-records-context' && inputs.suite != 'local-records-context-initial' && inputs.suite != 'local-records-diagnostics' && inputs.suite != 'local-records-diagnostics-initial' && inputs.suite != 'local-records-gallery' && inputs.suite != 'local-records-diagnostics-regressions' && inputs.suite != 'local-records-regressions' && inputs.suite != 'pip' && inputs.suite != 'keyboard' && inputs.suite != 'alerts' && inputs.suite != 'alert-open' && inputs.suite != 'overview' && inputs.suite != 'overview-main')
         run: xcrun swift test --package-path Packages/StillCore
       - name: Verify alert policies and lifecycle without OS permission prompts
-        if: github.event_name != 'workflow_dispatch' || (inputs.suite != 'capacity-manual' && inputs.suite != 'capacity-states' && inputs.suite != 'capacity' && inputs.suite != 'selection' && inputs.suite != 'selection-scroll' && inputs.suite != 'scope' && inputs.suite != 'exclusions' && inputs.suite != 'repair' && inputs.suite != 'handoff' && inputs.suite != 'history' && inputs.suite != 'local-records' && inputs.suite != 'local-records-context' && inputs.suite != 'local-records-context-initial' && inputs.suite != 'local-records-diagnostics' && inputs.suite != 'local-records-diagnostics-initial' && inputs.suite != 'local-records-gallery' && inputs.suite != 'local-records-diagnostics-regressions' && inputs.suite != 'local-records-regressions' && inputs.suite != 'tools' && inputs.suite != 'pip' && inputs.suite != 'homebrew' && inputs.suite != 'keyboard' && inputs.suite != 'overview' && inputs.suite != 'overview-main' && inputs.suite != 'downloads' && inputs.suite != 'downloads-journey')
+        if: github.event_name != 'workflow_dispatch' || (inputs.suite != 'capacity-regressions' && inputs.suite != 'capacity-overview' && inputs.suite != 'capacity-manual' && inputs.suite != 'capacity-states' && inputs.suite != 'capacity' && inputs.suite != 'selection' && inputs.suite != 'selection-scroll' && inputs.suite != 'scope' && inputs.suite != 'exclusions' && inputs.suite != 'repair' && inputs.suite != 'handoff' && inputs.suite != 'history' && inputs.suite != 'local-records' && inputs.suite != 'local-records-context' && inputs.suite != 'local-records-context-initial' && inputs.suite != 'local-records-diagnostics' && inputs.suite != 'local-records-diagnostics-initial' && inputs.suite != 'local-records-gallery' && inputs.suite != 'local-records-diagnostics-regressions' && inputs.suite != 'local-records-regressions' && inputs.suite != 'tools' && inputs.suite != 'pip' && inputs.suite != 'homebrew' && inputs.suite != 'keyboard' && inputs.suite != 'overview' && inputs.suite != 'overview-main' && inputs.suite != 'downloads' && inputs.suite != 'downloads-journey')
         run: xcrun swift test --package-path Still/Packages/StorageAlerts
       - name: Verify isolated disposable adapter investigations
-        if: github.event_name != 'workflow_dispatch' || (inputs.suite != 'capacity-manual' && inputs.suite != 'capacity-states' && inputs.suite != 'capacity' && inputs.suite != 'selection' && inputs.suite != 'selection-scroll' && inputs.suite != 'scope' && inputs.suite != 'exclusions' && inputs.suite != 'repair' && inputs.suite != 'handoff' && inputs.suite != 'history' && inputs.suite != 'local-records' && inputs.suite != 'local-records-context' && inputs.suite != 'local-records-context-initial' && inputs.suite != 'local-records-diagnostics' && inputs.suite != 'local-records-diagnostics-initial' && inputs.suite != 'local-records-gallery' && inputs.suite != 'local-records-diagnostics-regressions' && inputs.suite != 'local-records-regressions' && inputs.suite != 'tools' && inputs.suite != 'pip' && inputs.suite != 'homebrew' && inputs.suite != 'keyboard' && inputs.suite != 'alerts' && inputs.suite != 'alert-open' && inputs.suite != 'overview' && inputs.suite != 'overview-main' && inputs.suite != 'downloads' && inputs.suite != 'downloads-journey')
+        if: github.event_name != 'workflow_dispatch' || (inputs.suite != 'capacity-regressions' && inputs.suite != 'capacity-overview' && inputs.suite != 'capacity-manual' && inputs.suite != 'capacity-states' && inputs.suite != 'capacity' && inputs.suite != 'selection' && inputs.suite != 'selection-scroll' && inputs.suite != 'scope' && inputs.suite != 'exclusions' && inputs.suite != 'repair' && inputs.suite != 'handoff' && inputs.suite != 'history' && inputs.suite != 'local-records' && inputs.suite != 'local-records-context' && inputs.suite != 'local-records-context-initial' && inputs.suite != 'local-records-diagnostics' && inputs.suite != 'local-records-diagnostics-initial' && inputs.suite != 'local-records-gallery' && inputs.suite != 'local-records-diagnostics-regressions' && inputs.suite != 'local-records-regressions' && inputs.suite != 'tools' && inputs.suite != 'pip' && inputs.suite != 'homebrew' && inputs.suite != 'keyboard' && inputs.suite != 'alerts' && inputs.suite != 'alert-open' && inputs.suite != 'overview' && inputs.suite != 'overview-main' && inputs.suite != 'downloads' && inputs.suite != 'downloads-journey')
         run: |
           xcrun swift test --package-path Validation/ICloudProbe
           xcrun swift test --package-path Validation/XcodeProbe
@@ -95,7 +97,19 @@ jobs:
           EVENT_NAME: ${{ github.event_name }}
         run: |
           scope=()
-          if [[ "$EVENT_NAME" == "workflow_dispatch" && "$REQUESTED_SUITE" == "capacity-manual" ]]; then
+          if [[ "$EVENT_NAME" == "workflow_dispatch" && "$REQUESTED_SUITE" == "capacity-regressions" ]]; then
+            scope=(
+              -only-testing:StillUITests/WorkspaceUITests/testConnectedDownloadsJourneyPreservesContextAndConsumesPlan
+              -only-testing:StillUITests/WorkspaceUITests/testMinimumConnectedDownloadsJourneyPreservesContextAndConsumesPlan
+              -only-testing:StillUITests/RecoveryUITests/testManualHistoryRecoveryReturnsToHistoryWithoutChangingFacts
+              -only-testing:StillUITests/RecoveryUITests/testStartupRecoveryRetainsUnknownFactsAndNeverRestoresPlan
+              -only-testing:StillUITests/LocalRecordsUITests/testManagementPreservesContextAndFreshRecoveryGuard
+              -only-testing:StillUITests/StorageAlertsUITests
+              -only-testing:StillUITests/CleanupRetryUITests/testCancelledBatchRequiresFreshRetryApproval
+            )
+          elif [[ "$EVENT_NAME" == "workflow_dispatch" && "$REQUESTED_SUITE" == "capacity-overview" ]]; then
+            scope=(-only-testing:StillUITests/WorkspaceUITests/testOverviewFindingsRestoreHierarchyAndPreserveReviewChoices -only-testing:StillUITests/WorkspaceUITests/testOverviewSecondaryToolsRemainReachable)
+          elif [[ "$EVENT_NAME" == "workflow_dispatch" && "$REQUESTED_SUITE" == "capacity-manual" ]]; then
             scope=(-only-testing:StillUITests/CapacityRefreshUITests/testCapacityRefreshIsSeparateFromScanAndKeepsOverviewContext)
           elif [[ "$EVENT_NAME" == "workflow_dispatch" && "$REQUESTED_SUITE" == "capacity-states" ]]; then
             scope=(-only-testing:StillUITests/CapacityRefreshUITests/testCapacityStatesStayStableAtMinimumSize -only-testing:StillUITests/CapacityRefreshUITests/testCapacityStatesStayStableAtInitialSize)
