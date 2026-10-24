@@ -23,3 +23,10 @@ Test-only agent `ab42ba9`, root `8941c41`: explicit capacity refresh exists sepa
 Real native capacity metadata is separate from deterministic fixtures. Inert Gallery examples certify presentation only. Record actual hosted capture dimensions; the initial preset may be display-clamped. Do not label unrelated suites rerun unless run; no new platform/signing certification is implied.
 
 The original missing-action red PNG/manifest is preserved at `docs/visual/capacity-refresh/8941c41-red/`. Reviewed900×640 Automatic resolving Light: startup amount/time/important metric and ordinary findings are present, capacity card has no refresh affordance. This is before-state evidence only.
+
+
+## Public service policy verticals
+
+Agent checkpoint `caaef4f` adds five public capacity-service journeys, each after an observed failing policy cycle: launch publication; failure retaining prior evidence plus zero/partial metadata recovery; foreground30seconds/launch-idempotence/explicit triggers; overlapping requests with post-action trailing demand;10second expiry and late-reply rejection. Focused policy suite passes5/5 locally. Red/green logs are retained outside repo as `/tmp/capacity49-cycle1-red.log` through `cycle5-green.log`. Timeout red first reported public assertion failures then cascaded into fixture index failure; a test guard prevents that cascade. Do not describe the fixture crash as a production failure.
+
+This is policy-seam evidence, not proof of app-level terminal-trigger wiring, native API behavior or UI state presentation. Root/native qualification remains pending.
