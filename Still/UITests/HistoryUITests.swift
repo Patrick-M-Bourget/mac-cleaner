@@ -50,12 +50,12 @@ final class HistoryUITests: XCTestCase {
         XCTAssertTrue(app.buttons["Back to Locations & access"].waitForExistence(timeout: 5))
         XCTAssertFalse(app.buttons["Back to History"].exists)
         app.buttons["clearHistory"].click()
-        app.sheets.buttons["Clear completed runs"].click()
+        app.sheets.buttons["Clear completed history"].click()
         let cleared = XCTAttachment(screenshot: app.windows.firstMatch.screenshot())
         cleared.name = "local-records-clear-status-minimum"; cleared.lifetime = .keepAlways; add(cleared)
         let status = app.staticTexts["historyStatus"]
         XCTAssertTrue(status.waitForExistence(timeout: 5))
-        XCTAssertTrue((status.value as? String ?? status.label).hasPrefix("Cleared 1 completed runs."), "Actual maintenance status: " + (status.value as? String ?? status.label))
+        XCTAssertTrue((status.value as? String ?? status.label).hasPrefix("Cleared 1 completed cleanup run, scan activity and growth baselines."), "Actual maintenance status: " + (status.value as? String ?? status.label))
         XCTAssertTrue(try journal.records().isEmpty)
         app.buttons["Back to Locations & access"].click()
         XCTAssertTrue(manage.waitForExistence(timeout: 5))
@@ -103,7 +103,7 @@ final class HistoryUITests: XCTestCase {
             return
         }
         app.typeKey("3", modifierFlags: .command)
-        let emptyHistory = app.staticTexts["No completed runs"].waitForExistence(timeout: 5)
+        let emptyHistory = app.staticTexts["No retained history."].waitForExistence(timeout: 5)
         if !emptyHistory { captureLaunchDiagnostic("missing-history-after-command") }
         XCTAssertTrue(emptyHistory)
         guard emptyHistory else { return }
@@ -143,11 +143,11 @@ final class HistoryUITests: XCTestCase {
         XCTAssertTrue(app.sheets.firstMatch.buttons["Cancel"].waitForExistence(timeout: 2)); capture("local-records-clear-confirmation")
         app.sheets.firstMatch.buttons["Cancel"].click()
         XCTAssertEqual(try journal.completedHistory().completedRuns.count, 1)
-        clear.click(); app.sheets.firstMatch.buttons["Clear completed runs"].click()
+        clear.click(); app.sheets.firstMatch.buttons["Clear completed history"].click()
         XCTAssertTrue(app.staticTexts["historyStatus"].waitForExistence(timeout: 5))
         XCTAssertTrue(try journal.records().isEmpty)
         app.buttons["Back to History"].click()
-        XCTAssertTrue(app.staticTexts["No completed runs"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["No retained history."].waitForExistence(timeout: 5))
         reveal(manage); manage.click()
         let reset = app.buttons["resetStill"]
         XCTAssertTrue(reset.waitForExistence(timeout: 5))
@@ -173,12 +173,12 @@ final class HistoryUITests: XCTestCase {
         reveal(reset); reset.click(); app.sheets.firstMatch.buttons["Reset Still"].click()
         XCTAssertTrue(app.staticTexts["historyStatus"].waitForExistence(timeout: 5))
         app.buttons["Back to History"].click()
-        XCTAssertTrue(app.staticTexts["No completed runs"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["No retained history."].waitForExistence(timeout: 5))
         XCTAssertTrue(try journal.records().isEmpty)
         XCTAssertFalse(try journal.claim(approval))
         XCTAssertFalse(try journal.claim(another))
         app.terminate(); app.launch(); app.typeKey("3", modifierFlags: .command)
-        XCTAssertTrue(app.staticTexts["No completed runs"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["No retained history."].waitForExistence(timeout: 5))
         XCTAssertEqual(try Data(contentsOf: original), Data([7]))
         XCTAssertEqual(try Data(contentsOf: sentinel), Data([9]))
     }

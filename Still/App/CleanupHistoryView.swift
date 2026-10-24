@@ -46,21 +46,39 @@ private enum HistoryActivityItem: Identifiable {
         } catch { snapshot = nil; blocked = true; loadError = "Cleanup history is unavailable. The local journal cannot be read. Clear and reset are unavailable; keep its recovery records." }
     }
     func clear() async {
-        guard !busy, !AppLifecycleController.shared.maintenanceInProgress, !AppLifecycleController.shared.operationInProgress else { message = "Wait for the current cleanup to finish."; return }
-        busy = true; defer { busy = false }
         let lifecycle = AppLifecycleController.shared
+        guard !busy, !lifecycle.maintenanceInProgress, !lifecycle.operationInProgress, !lifecycle.selection.execution.isRunning else { message = "Wait for the current cleanup to finish."; return }
+        busy = true; defer { busy = false }
         lifecycle.maintenanceInProgress = true; defer { lifecycle.maintenanceInProgress = false }
+        var clearedRuns: Int?
+        var compactionCompleted = false
         do {
             let result = try await Task.detached {
                 let journal = try CleanupJournalLocation.writer()
                 let removed = try journal.clearCompletedRuns()
-                let compacted = try journal.compact()
-                return (removed, compacted, try journal.completedHistory())
+                // Compaction/readback cannot turn an already committed clear into an unknown count.
+                let compacted = try? journal.compact()
+                return (removed, compacted?.completed ?? false, try? journal.completedHistory())
             }.value
+            clearedRuns = result.0.removedRuns; compactionCompleted = result.1
             snapshot = result.2
+            if snapshot == nil { blocked = true; loadError = "Cleanup history is unavailable. The local journal cannot be read. Clear and reset are unavailable; keep its recovery records." }
+            else { blocked = false; loadError = nil }
             try await GrowthHistoryModel.shared.clearCompletedHistory()
-            message = "Cleared \(result.0.removedRuns) completed runs. Recovery facts retained." + (result.1.completed ? " Local journal compacted." : " Journal compaction was deferred or failed; disk reclamation is not confirmed.")
-        } catch { message = "History maintenance did not finish. Some completed records may already be cleared; recovery facts remain protected." }
+            await ScanActivityHistory.shared.load(maintain: false)
+            let noun = result.0.removedRuns == 1 ? "run" : "runs"
+            message = "Cleared \(result.0.removedRuns) completed cleanup \(noun), scan activity and growth baselines. Recovery facts retained." + compactionMessage(compactionCompleted)
+        } catch {
+            if let clearedRuns {
+                let noun = clearedRuns == 1 ? "run" : "runs"
+                message = "Cleared \(clearedRuns) completed cleanup \(noun). Scan activity and growth baseline clearing could not be confirmed. Recovery facts remain protected." + compactionMessage(compactionCompleted)
+            } else {
+                message = "Cleanup history clearing could not be confirmed. Scan activity and growth baselines were not cleared. Recovery facts remain protected."
+            }
+        }
+    }
+    private func compactionMessage(_ completed: Bool) -> String {
+        completed ? " Local journal compacted." : " Journal compaction was deferred or failed; disk reclamation is not confirmed."
     }
     func reset() async -> Bool {
         let lifecycle = AppLifecycleController.shared

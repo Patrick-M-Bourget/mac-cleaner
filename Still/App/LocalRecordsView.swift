@@ -35,9 +35,9 @@ struct LocalRecordsView: View {
             if let reviewDiagnostics { LocalRecordsDiagnosticsEntry(action: reviewDiagnostics) }
         }
         .task { await model.load(maintainCompleted: false) }
-        .confirmationDialog("Clear completed runs?", isPresented: $confirmingClear, titleVisibility: .visible) {
-            Button("Clear completed runs", role: .destructive) { Task { await model.clear() } }
-        } message: { Text("Completed per-file history and growth baselines will be removed. Recovery facts, consumed approval IDs, original files and Trash contents remain.") }
+        .confirmationDialog("Clear completed history?", isPresented: $confirmingClear, titleVisibility: .visible) {
+            Button("Clear completed history", role: .destructive) { Task { await model.clear() } }
+        } message: { Text("Scan activity, completed cleanup records and retained growth baselines will be removed, regardless of the History filter. Recovery facts, consumed approval IDs, current selections, appearance, original files and Trash contents remain.") }
         .confirmationDialog("Reset Still?", isPresented: $confirmingReset, titleVisibility: .visible) {
             Button("Reset Still", role: .destructive) { Task { if await model.reset() { didReset() } } }
         } message: { Text("Forget Still’s preferences, custom exclusions, selected locations and completed history; stop alerts and login launch. Original files, Trash and macOS access grants remain. Unfinished or unreadable journal records block reset.") }
@@ -51,8 +51,8 @@ struct LocalRecordsMaintenanceControls: View {
     var reset: () -> Void
     var body: some View {
         VStack(alignment: .leading, spacing: StillDesign.Space.xl) {
-            SettingsRow(title: "Completed history", detail: "Remove completed per-file results and aggregate growth baselines. Recovery facts, consumed approvals, original files and Trash remain.") {
-                Button("Clear completed runs…", action: clear).accessibilityIdentifier("clearHistory")
+            SettingsRow(title: "Completed history", detail: "Remove scan activity, completed cleanup results and retained growth baselines together. Recovery facts, consumed approvals, current selections, appearance, original files and Trash remain.") {
+                Button("Clear completed history…", action: clear).accessibilityIdentifier("clearHistory")
             }
             SettingsRow(title: "Reset Still", detail: "Forget preferences and selected locations, and stop alerts and login launch. Unfinished or unreadable recovery records block Reset.") {
                 Button("Reset Still…", action: reset).accessibilityIdentifier("resetStill")

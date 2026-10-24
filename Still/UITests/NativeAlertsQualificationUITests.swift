@@ -172,7 +172,10 @@ final class NativeAlertsQualificationUITests: XCTestCase {
             app.buttons["Overview"].click()
             try require(app.buttons["Choose folder…"].exists, "Capacity-only monitoring changed scope selection")
             app.buttons["History"].click()
-            try require(app.staticTexts["No completed runs"].waitForExistence(timeout: 5), "Capacity-only journey created cleanup history")
+            let activityFilter = app.popUpButtons["History activity filter"]
+            try require(activityFilter.waitForExistence(timeout: 5), "History activity filter unavailable")
+            activityFilter.click(); app.menuItems["Cleanups"].click()
+            try require(app.staticTexts["No recorded cleanup runs."].waitForExistence(timeout: 5), "Capacity-only journey created cleanup history")
             app.typeKey("w", modifierFlags: .command)
             try require(app.wait(for: .notRunning, timeout: 10), "Disabled alerts left idle app alive after close")
             record("disable then workspace close exits on-demand app; no folder scan or cleanup requested")

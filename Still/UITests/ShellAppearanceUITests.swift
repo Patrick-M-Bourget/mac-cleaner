@@ -258,8 +258,8 @@ final class ShellAppearanceUITests: XCTestCase {
         let manage = app.buttons["manageLocalRecords"]
         XCTAssertTrue(manage.waitForExistence(timeout: 5)); manage.click()
         let clear = app.buttons["clearHistory"]
-        revealScrollElement(app, control: clear, label: "Clear completed runs")
-        clear.click(); XCTAssertTrue(app.sheets.buttons["Clear completed runs"].waitForExistence(timeout: 5)); app.sheets.buttons["Clear completed runs"].click()
+        revealScrollElement(app, control: clear, label: "Clear completed history")
+        clear.click(); XCTAssertTrue(app.sheets.buttons["Clear completed history"].waitForExistence(timeout: 5)); app.sheets.buttons["Clear completed history"].click()
         let status = app.staticTexts["historyStatus"]
         func waitStatus(_ prefix: String) -> Bool {
             XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate(format: "value BEGINSWITH %@ OR label BEGINSWITH %@", prefix, prefix), object: status)], timeout: 10) == .completed
