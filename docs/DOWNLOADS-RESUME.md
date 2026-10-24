@@ -4,6 +4,8 @@ October24,2026. Repo `/Users/bender/Library/Caches/Codex/mac-cleaner-implementat
 
 ## Latest qualification
 
+#53 is integrated into `integration/still-spec` at `15719ce`, final app `c5886e8`. Core146/alerts43,11 distinct new native journeys and18 existing checks pass across recorded scopes. Final normal Retry clicks at both sizes and badge3/3 pass; the same affected ordering16/16 passes. All ten final live originals are accepted. [Qualification](validation/shell-appearance.md) owns exact source/run/capture limits and failed-candidate history.
+
 #49 is implemented at final presentation source `8869b38`; the final three scoped native state/Gallery/first-use runs pass. Combined proof is six public controller tests within Core142, 10 distinct new UI journeys, and 17 existing checks (11 earlier passes, four corrected future-window replays, Overview2), not one full-suite run. All 71 final originals are individually reviewed and accepted. [Validation report](validation/capacity-refresh.md) records final evidence. Integrated into integration/still-spec; #49 is complete. Review build: artifacts/capacity-8869b38/Still.app in the implementation cache. The process-owned current reading never rewrites operation/alert history or adds polling, permissions or keepalive.
 
 [Local records](validation/local-records.md): final context2, diagnostics2, History3 and affected regressions7 atf8a0c86; Gallery2 at test-onlyf754b83:16/16 scoped UI checks, not one full-suite run. Existing Overview diagnostics2/2 atff51967. All67 final original PNGs individually reviewed; minimum900×640, initial display-clamped1024×640. Parallel Standards/Spec reviews found no actionable source findings. Local build-for-testing and ad-hoc app signature pass. No Core source changed; earlier136Core/33alerts evidence remains at its recorded sources.
@@ -20,7 +22,7 @@ October24,2026. Repo `/Users/bender/Library/Caches/Codex/mac-cleaner-implementat
 
 Read AGENTS, docs/README/SPEC/DESIGN-HANDOFF/DESIGN-SYSTEM/FLOW-LOCK. Reuse shared native controls/Gallery and existing approved public test seams. Keep spec, design, parity, issue evidence synchronized. Native UI runs on hosted macOS26/Xcode26.6; local UI automation startup is unavailable. Local commands use `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer`. Commits use `[skip ci]`; dispatch focused suites after local compile. Do not claim permission/provider/OS/CPU/VoiceOver/localization certification from fixture tests.
 
-Review build: `/Users/bender/Library/Caches/Codex/mac-cleaner-implementation/artifacts/local-records-dadc0c1/Still.app` (BUILD.md alongside). No personal cleanup or OS permission changes performed. Root integration owns all qualified changes; issue62 worktree is removed cleanly after integration; its branch and commits remain. External notes/artifacts remain under the implementation cache; preserve originals/manifests before deleting redundant owned result caches.
+Current review build: `/Users/bender/Library/Caches/Codex/mac-cleaner-implementation/artifacts/shell-c5886e8/Still.app` (BUILD.md alongside). No personal cleanup or OS permission changes performed. Root integration owns all qualified changes; issue62 worktree is removed cleanly after integration; its branch and commits remain. External notes/artifacts remain under the implementation cache; preserve originals/manifests before deleting redundant owned result caches.
 
 
 ## Shell and appearance lock — October 24
