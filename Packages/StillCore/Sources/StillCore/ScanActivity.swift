@@ -30,12 +30,13 @@ public struct ScanActivity: Codable, Sendable, Identifiable {
     public init(id: UUID = UUID(), startedAt: Date, completedAt: Date, outcome: ScanActivityOutcome, locations: [ScanActivityLocation]) {
         self.id = id; self.startedAt = startedAt; self.completedAt = completedAt; self.outcome = outcome; self.locations = locations
     }
+    private static let reasonCategories: Set<String> = ["excludedScope", "exclusionUnavailable", "directoryChanged", "timeLimit", "entryLimit", "issueLimit", "depthLimit", "readFailed", "metadataUnavailable", "differentVolume", "accessDenied", "accessRevoked", "locationUnavailable", "customExcludedBoundary", "unmeasuredContents"]
     var valid: Bool {
         startedAt <= completedAt && !locations.isEmpty && locations.count <= 128 && Set(locations.map(\.path)).count == locations.count && locations.allSatisfy {
             $0.path.hasPrefix("/") && $0.path.utf8.count <= 4096 && !$0.path.contains("\0") && ($0.observedAt.map { $0 >= startedAt && $0 <= completedAt } ?? true)
             && [$0.entryCount].compactMap { $0 }.allSatisfy { $0 >= 0 }
             && [$0.logicalBytes, $0.allocatedBytes, $0.knownLogicalBytes].compactMap { $0 }.allSatisfy { $0 >= 0 }
-            && $0.reasons.count <= 32 && $0.reasons.allSatisfy { $0.key.utf8.count <= 64 && $0.value > 0 }
+            && $0.reasons.count <= 32 && $0.reasons.allSatisfy { Self.reasonCategories.contains($0.key) && $0.value > 0 }
         }
     }
 }
