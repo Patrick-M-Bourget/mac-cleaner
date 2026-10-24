@@ -423,4 +423,45 @@ final class HistoryActivityUITests: XCTestCase {
         XCTAssertFalse(app.buttons["Stop scan"].exists); XCTAssertFalse(manager.fileExists(atPath: root.path), "History viewing cannot recreate or enumerate the missing location")
     }
 
+    @MainActor func testHistoryGalleryAtInitialSize() throws { try exerciseHistoryGallery(minimum: false) }
+    @MainActor func testHistoryGalleryAtMinimumSize() throws { try exerciseHistoryGallery(minimum: true) }
+    @MainActor private func exerciseHistoryGallery(minimum: Bool) throws {
+        continueAfterFailure = false
+        let app = XCUIApplication(), manager = FileManager.default
+        let state = try configureIsolatedJourneyState(app)
+        defer { app.terminate(); try? manager.removeItem(at: state) }
+        app.launchArguments = ["--design-gallery", minimum ? "--design-minimum" : "--design-initial-size"]
+        app.launch(); XCTAssertTrue(app.staticTexts["Native design system"].waitForExistence(timeout: 10))
+        let disclosure = app.disclosureTriangles["Synthetic History activity examples"]
+        revealScrollElement(app, control: disclosure, label: "Synthetic History examples")
+        disclosure.coordinate(withNormalizedOffset: CGVector(dx: 0, dy: 0.5)).withOffset(CGVector(dx: 26, dy: 0)).click(); XCTAssertEqual(disclosure.value as? Int, 1)
+        guard app.staticTexts["historyGalleryCase-partial"].waitForExistence(timeout: 5) else {
+            let image = XCTAttachment(screenshot: app.windows.firstMatch.screenshot()); image.name = "history-gallery-missing-exceptional-states"; image.lifetime = .keepAlways; add(image)
+            XCTFail("The shared History Gallery must include terminal coverage, unknown, unavailable and empty states"); return
+        }
+        let bounds = app.windows.firstMatch.frame
+        func capture(_ name: String) {
+            let image = XCTAttachment(screenshot: app.windows.firstMatch.screenshot()); image.name = "history-gallery-" + (minimum ? "minimum-" : "initial-") + name; image.lifetime = .keepAlways; add(image); XCTAssertEqual(app.windows.firstMatch.frame, bounds)
+        }
+        for theme in ["Light", "Dark"] {
+            app.popUpButtons["Appearance"].click(); app.menuItems[theme].click()
+            app.scrollViews.firstMatch.scroll(byDeltaX: 0, deltaY: 12000)
+            for name in ["complete", "partial", "stopped", "failed", "multi", "unknown", "unavailable", "empty-all", "empty-scans", "empty-cleanups", "save-failed", "partial-clear"] {
+                let heading = app.staticTexts["historyGalleryCase-" + name], end = app.staticTexts["historyGalleryEnd-" + name]
+                revealScrollElement(app, control: heading, label: "Synthetic " + name)
+                XCTAssertTrue(end.waitForExistence(timeout: 5))
+                let viewport = app.scrollViews.firstMatch
+                let oversized = end.frame.maxY - heading.frame.minY > viewport.frame.height
+                if oversized { capture(name + "-top-" + theme) }
+                for _ in 0..<12 where !viewport.frame.contains(end.frame) { viewport.scroll(byDeltaX: 0, deltaY: -80) }
+                XCTAssertTrue(viewport.frame.contains(end.frame)); if !oversized { XCTAssertTrue(viewport.frame.contains(heading.frame)) }
+                capture(name + "-" + theme)
+            }
+        }
+        XCTAssertTrue(app.staticTexts["No retained history."].exists)
+        XCTAssertTrue(app.staticTexts["No recorded scans."].exists)
+        XCTAssertTrue(app.staticTexts["No recorded cleanup runs."].exists)
+        XCTAssertFalse(manager.fileExists(atPath: state.appendingPathComponent("Growth/aggregates-v1.json").path), "Gallery examples never write history")
+    }
+
 }
