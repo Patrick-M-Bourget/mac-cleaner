@@ -194,8 +194,14 @@ final class ShellAppearanceUITests: XCTestCase {
             shellCapture(app, "save-failed-" + theme, minimum: minimum)
         }
         try FileManager.default.removeItem(at: file)
-        app.buttons["Retry saving"].click()
-        XCTAssertFalse(app.buttons["Retry saving"].exists)
+        let retry = app.buttons["Retry saving"]
+        retry.click()
+        let dismissed = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"), object: retry)
+        guard XCTWaiter.wait(for: [dismissed], timeout: 5) == .completed else {
+            shellCapture(app, "retry-not-dismissed", minimum: minimum)
+            XCTFail("Successful saving must clear its notice. Owned stored value: " + ((try? String(contentsOf: file, encoding: .utf8)) ?? "Unavailable")); return
+        }
+        XCTAssertEqual(try String(contentsOf: file, encoding: .utf8), "Dark")
         XCTAssertEqual(picker.value as? String, "Dark")
         XCTAssertEqual(app.staticTexts["Storage overview"].frame, anchor)
         app.buttons["Choose folder…"].click()
