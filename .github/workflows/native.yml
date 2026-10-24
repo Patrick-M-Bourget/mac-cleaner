@@ -21,7 +21,9 @@ on:
           - inspector
           - connected-next
           - recovery-caller
+          - recovery-context
           - terminal-results
+          - terminal-skipped
           - selection-plan
           - exclusions
           - design
@@ -99,6 +101,10 @@ jobs:
               -only-testing:StillUITests/WorkspaceUITests/testKeyboardCancelRestoresReviewFocusWithoutChangingSelection
               -only-testing:StillUITests/CleanupRetryUITests
             )
+          elif [[ "$EVENT_NAME" == "workflow_dispatch" && "$REQUESTED_SUITE" == "recovery-context" ]]; then
+            scope=(-only-testing:StillUITests/RecoveryUITests/testHistoryRecoveryPreservesExpandedEvidenceAndObservedViewport)
+          elif [[ "$EVENT_NAME" == "workflow_dispatch" && "$REQUESTED_SUITE" == "terminal-skipped" ]]; then
+            scope=(-only-testing:StillUITests/CleanupRetryUITests/testChangedConfirmedFileReportsNoFilesMoved)
           elif [[ "$EVENT_NAME" == "workflow_dispatch" && "$REQUESTED_SUITE" == "recovery-caller" ]]; then
             scope=(-only-testing:StillUITests/RecoveryUITests/testManualHistoryRecoveryReturnsToHistoryWithoutChangingFacts)
           elif [[ "$EVENT_NAME" == "workflow_dispatch" && "$REQUESTED_SUITE" == "terminal-results" ]]; then
