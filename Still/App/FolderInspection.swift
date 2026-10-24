@@ -31,6 +31,7 @@ final class FolderInspection {
     private var previewAccessScope: URL?
     private var previewLease: ScopeAccessLease?
     private var refreshRequest: RefreshRequest?
+    private var activity: ActiveScanActivity?
     var scope: URL?
     var result: ScanResult?
     var lastComplete: ScanResult?
@@ -62,26 +63,32 @@ final class FolderInspection {
     }
 
     /// Refresh the existing explicit scopes without replacing live choices or choosing a new scope.
-    func scanAgain(scopes explicitScopes: [URL]? = nil, leases: [ScopeAccessLease] = []) {
+    func scanAgain(scopes explicitScopes: [URL]? = nil, leases: [ScopeAccessLease] = [], unavailable: [URL] = []) {
         guard !AppLifecycleController.shared.maintenanceInProgress, !selection.execution.isRunning, !isScanning else { return }
         let focusedScope = scope?.standardizedFileURL
         let roots = Set((explicitScopes ?? (scopeReports.map { $0.current.scope } + selection.refreshScopes + [scope].compactMap { $0 })).map(\.standardizedFileURL)).sorted { $0.path < $1.path }
-        guard !roots.isEmpty else { return }
+        guard !roots.isEmpty || !unavailable.isEmpty else { return }
         cancel()
         let token = UUID()
         scanAgainGeneration = token
         batchRequests = selection.beginRefreshBatch(roots)
         scanAgainTask = Task {
             defer { for lease in leases { lease.close() } }
+            let epoch = await ScanActivityHistory.shared.begin()
+            guard !Task.isCancelled, token == scanAgainGeneration else { return }
+            let operation = ActiveScanActivity(roots: Array(Set(roots + unavailable)).sorted { $0.path < $1.path }, epoch: epoch)
+            for root in unavailable { operation.failed(root) }
+            activity = operation
             for root in roots {
                 guard !Task.isCancelled, token == scanAgainGeneration else { return }
-                startScan(root)
+                startScan(root, grouped: true)
                 await task?.value
                 guard !Task.isCancelled, token == scanAgainGeneration else { return }
                 if message != nil {
                     selection.endRefreshBatch(batchRequests)
                     batchRequests = []
                     scanAgainTask = nil
+                    await finishActivity()
                     AppLifecycleController.shared.capacity.request(.scanEnded)
                     return
                 }
@@ -90,12 +97,13 @@ final class FolderInspection {
             selection.endRefreshBatch(batchRequests)
             batchRequests = []
             scanAgainTask = nil
+            await finishActivity()
             AppLifecycleController.shared.capacity.request(.scanEnded)
             if let focusedScope, !selection.unavailableScopes.contains(focusedScope), let report = scopeReports.first(where: { $0.current.scope.standardizedFileURL == focusedScope }) { show(report) }
         }
     }
 
-    private func startScan(_ url: URL) {
+    private func startScan(_ url: URL, grouped: Bool = false) {
         cancelCurrentScan()
         previewURL = nil
         closePreviewAccess()
@@ -113,8 +121,11 @@ final class FolderInspection {
         message = nil
         isScanningCurrent = true
         task = Task {
-            let activityStarted = Date()
-            let activityEpoch = await ScanActivityHistory.shared.begin()
+            if !grouped {
+                let epoch = await ScanActivityHistory.shared.begin()
+                guard !Task.isCancelled, token == generation else { return }
+                activity = ActiveScanActivity(roots: [url.standardizedFileURL], epoch: epoch)
+            }
             let hasAccess = url.startAccessingSecurityScopedResource()
             defer { if hasAccess { url.stopAccessingSecurityScopedResource() } }
             let (updates, continuation) = AsyncStream<ScanProgress>.makeStream(bufferingPolicy: .bufferingNewest(1))
@@ -148,8 +159,10 @@ final class FolderInspection {
                 isScanningCurrent = false
                 if scanAgainTask == nil { AppLifecycleController.shared.capacity.request(.scanEnded) }
                 await GrowthHistoryModel.shared.complete(observed, token: growthToken)
-                let activity = ScanActivity(startedAt: activityStarted, completedAt: Date(), outcome: observed.isComplete ? .complete : .partial, locations: [ScanActivityLocation(scan: observed)])
-                await ScanActivityHistory.shared.record(activity, epoch: activityEpoch)
+                guard token == generation else { return }
+                let baseline = GrowthHistoryModel.shared.comparison?.current
+                activity?.observe(observed, baselineID: baseline?.observedAt == observed.observedAt ? baseline?.id : nil)
+                if !grouped { await finishActivity() }
             } catch {
                 guard token == generation else { return }
                 selection.cancelRefresh(request)
@@ -157,9 +170,17 @@ final class FolderInspection {
                 progress = nil
                 isScanningCurrent = false
                 message = error is CancellationError ? "Scan stopped. Choose a folder to try again." : ExclusionsModel.shared.error ?? "This folder could not be inspected. Choose the folder again or check access in System Settings."
+                activity?.failed(url)
+                if !grouped { await finishActivity() }
                 if scanAgainTask == nil { AppLifecycleController.shared.capacity.request(.scanEnded) }
             }
         }
+    }
+
+    private func finishActivity() async {
+        guard let operation = activity else { return }
+        activity = nil
+        await ScanActivityHistory.shared.record(operation.summary(), epoch: operation.epoch)
     }
 
     /// Overview projects current included evidence; omitting a scope never keeps it as current.
@@ -208,6 +229,12 @@ final class FolderInspection {
     }
     func cancel() {
         let hadLogicalScan = isScanning
+        if let operation = activity {
+            if isScanningCurrent { operation.stopped(scope, progress: progress) }
+            let summary = operation.summary(stopped: true)
+            activity = nil
+            Task { await ScanActivityHistory.shared.record(summary, epoch: operation.epoch) }
+        }
         scanAgainGeneration = UUID()
         scanAgainTask?.cancel(); scanAgainTask = nil
         selection.endRefreshBatch(batchRequests)

@@ -675,9 +675,10 @@ private struct WorkspaceView: View {
             let url = URL(fileURLWithPath: scope.path)
             selection.suspendScope(url); folderInspection.markUnavailable(url)
         }
-        guard !leases.isEmpty else { return }
+        guard !scopes.isEmpty else { return }
         selection.leaveRetryMode(); scanOrigin = destination
-        folderInspection.scanAgain(scopes: leases.map(\.url), leases: leases)
+        let unavailable = scopes.filter { !resolved.contains($0.path) }.map { URL(fileURLWithPath: $0.path) }
+        folderInspection.scanAgain(scopes: leases.map(\.url), leases: leases, unavailable: unavailable)
     }
     private func openExplorer(downloads: Bool, caller: Destination) {
         navigationState.downloadsExplorerActive = downloads
