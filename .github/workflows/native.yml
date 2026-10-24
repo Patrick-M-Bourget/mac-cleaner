@@ -13,6 +13,8 @@ on:
           - downloads
           - downloads-journey
           - downloads-regressions
+          - downloads-refresh
+          - selection-plan
           - exclusions
           - design
           - selection
@@ -89,6 +91,10 @@ jobs:
               -only-testing:StillUITests/WorkspaceUITests/testKeyboardCancelRestoresReviewFocusWithoutChangingSelection
               -only-testing:StillUITests/CleanupRetryUITests
             )
+          elif [[ "$EVENT_NAME" == "workflow_dispatch" && "$REQUESTED_SUITE" == "downloads-refresh" ]]; then
+            scope=(-only-testing:StillUITests/WorkspaceUITests/testRefreshPreservesChoicesAndSearchThenExplainsChangedTargets)
+          elif [[ "$EVENT_NAME" == "workflow_dispatch" && "$REQUESTED_SUITE" == "selection-plan" ]]; then
+            scope=(-only-testing:StillUITests/WorkspaceUITests/testCheckboxSelectionKeepsContentAnchored)
           elif [[ "$EVENT_NAME" == "workflow_dispatch" && "$REQUESTED_SUITE" == "downloads-regressions" ]]; then
             scope=(
               -only-testing:StillUITests/RecoveryUITests
