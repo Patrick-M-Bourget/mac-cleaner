@@ -52,7 +52,7 @@ private enum MonitoringPresentation {
     static func detail(_ state: AlertShellState) -> String {
         switch state {
         case .off: "Storage alerts are off. Folder scans run only when you choose."
-        case .checking: "Verifying notification access and startup-volume capacity. No folder scan is running."
+        case .checking: "Verifying notification access and startup-volume capacity. These checks do not scan folders."
         case .on: "Startup-volume capacity checks are verified while Still runs. Quit stops checks; Start at Login is separate."
         case .snoozed(let until): "Alerts are snoozed until \(until.formatted()). Capacity checks continue while Still runs; Quit stops them."
         case .attention(let reason):
