@@ -45,3 +45,21 @@ Global Clear run `40134645601` at `761568d` passes21.686s: cancel preserves all 
 Explicit recheck candidate `e70ad55` passes native `40134923188`,42.822s: second terminal activity, no internal-check duplicates, changed original remains, no changed-file auto-selection or restored approval. This journey saves no explicit success screenshot and supplies behavior proof only.
 
 Exact Growth tests `9657704`, run `40134821470`, fail intended missing gated exact route at initial38.911s/minimum42.762s. Candidate `d26f47b` preserves a separate historical inspection and exact UUID, with retained-baseline identity qualification and one History return; replay pending. Real partial-coverage tests `b5e7153`, run `40135032676`, fail intended raw reason wording at initial30.068s/minimum39.431s. Originals/unchanged manifests are preserved in source-bound folders, with below-viewport limits stated explicitly.
+
+Exact comparison run `40135322412` at `d26f47b` passes initial52.717s/minimum55.251s. All12 original captures reviewed: exact +3-byte observation, one Back restores filter/disclosure/viewport, missing recorded UUID refuses a different available latest, live choices remain. Shared details indentation varies with intrinsic content width; sent for refinement before final presentation acceptance. Intermediate originals/manifest and limitation are preserved under `40135322412-growth-intermediate`.
+
+Real partial/failed scan run `40135471309` at `0433ff7` passes initial48.301s/minimum42.604s, including actual instability and removed-root scans. Original visual review of this intermediate source is not claimed; final shared-layout captures remain pending. Gallery test-only `9087f81`, run `40135634719`, fails intended missing shared-state family (line440, initial22.220s/minimum17.540s), enabling the final Gallery vertical.
+
+## Independent source review at0433ff7
+
+### Standards
+
+One P2: DESIGN-SYSTEM requires independent reload actions for unavailable stores; combined sequential Try again reloads both. One optional schema-vocabulary duplication smell, distinct from a hard rule. Gallery/evidence completion excluded while pending.
+
+### Spec
+
+One P2: shared recording-failure notice is absent at Locations and current Explorer scan callers, contrary to the nonblocking explanation requirement. No other concrete source mismatch or scope creep reported.
+
+Reports are preserved outsideGit in notes/history51-{standards,spec}-review.md. Both P2s require a public UI red→green correction and supplemental review before integration; optional reason strings remain an explicit bounded stored-schema judgement.
+
+Broader regression run `40134647627` at `761568d`:15/16 pass; LocalRecords context test fails81.985s at line244 because its generic first disclosure now opens the scan summary rather than Per-file results. Semantic selector correction is pending; no product-flow regression or blanket final16-pass claim is inferred from this attempt.
