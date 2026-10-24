@@ -18,6 +18,12 @@ struct DesignGallery: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: StillDesign.Space.xl) {
                     PageHeader(title: "Native design system", subtitle: "Developer examples only · No personal storage measurements")
+                    VStack(alignment: .leading, spacing: StillDesign.Space.sm) {
+                        Text("Synthetic category badge · Inert examples").font(.headline)
+                        StillSidebarRow(title: "Cleanup plan", symbol: "checklist", selected: false, selectedCategories: 0) {}
+                        StillSidebarRow(title: "Cleanup plan", symbol: "checklist", selected: true, selectedCategories: 1) {}
+                        StillSidebarRow(title: "Cleanup plan", symbol: "checklist", selected: false, selectedCategories: 2) {}
+                    }.frame(width: 166)
                     CapacityGalleryExamples()
                     Text("Synthetic cleanup outcome examples").font(.headline)
                     Text("Presentation fixtures only · These examples are not native executor or OS failure evidence.").foregroundStyle(.secondary)

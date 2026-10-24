@@ -18,6 +18,13 @@ import SwiftUI
     private(set) var unavailableScopes: Set<URL> = []
     var mutationVersion: UInt64 { draft.mutationVersion }
     var canReview: Bool { !AppLifecycleController.shared.maintenanceInProgress && !isPreparing && !execution.isRunning && !isRefreshing && refresh.canReview(draft) }
+    /// Downloads is the only currently actionable cleanup category. Count live
+    /// reviewable membership, never retained suspended choices or consumed results.
+    var actionableSelectedCategoryCount: Int {
+        guard canReview else { return 0 }
+        let selected = Set(draft.selected.map(\.id))
+        return rows.contains { selected.contains($0.id + "|moveToTrash") && !refresh.requiresRefresh($0.id + "|moveToTrash") } ? 1 : 0
+    }
     var categoryState: CategorySelectionState {
         guard let downloads else { return .unchecked }
         return draft.categoryState(in: Array(scans.values.filter { !unavailableScopes.contains($0.scope.standardizedFileURL) }), downloads: downloads, restrictingTo: retryTargetIDs)

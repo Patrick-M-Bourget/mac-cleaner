@@ -168,7 +168,26 @@ private struct WorkspaceView: View {
     private var showsPlan: Bool { destination == .plan && !navigationState.localRecordsVisible && !recoveryVisible && !inspecting && !nativeInspectionVisible && !homebrewVisible && !pipVisible && !dockerVisible && !managedStorageVisible && !diagnosticsVisible && !exclusionsVisible }
     private var inspectionVisible: Bool { inspecting || nativeInspectionVisible }
     private var contextLabel: String {
-        navigationState.localRecordsVisible && !recoveryVisible ? "Local records · Explicit maintenance only" : diagnosticsVisible ? "Redacted diagnostics · Explicit local Save" : recoveryVisible ? "Recovery review · Recorded facts only" : selection.execution.isRunning ? "Moving approved files to Trash" : selection.execution.result != nil && showsPlan ? "Cleanup results · individual outcomes" : managedStorageVisible ? "App-managed inventory · selected objects only" : folderInspection.scope != nil ? "Read-only metadata · explicitly selected folder" : fixtureMode ? "Synthetic data — no personal files accessed" : "On-demand storage review"
+        if selection.execution.isRunning { return "Moving approved files to Trash" }
+        if navigationState.localRecordsVisible && !recoveryVisible { return "Local records · Explicit maintenance only" }
+        if diagnosticsVisible { return "Redacted diagnostics · Explicit local Save" }
+        if recoveryVisible { return "Recovery review · Recorded facts only" }
+        if selection.execution.result != nil && showsPlan { return "Cleanup results · individual outcomes" }
+        if nativeInspectionVisible || inspecting { return "Read-only storage inspection" }
+        if managedStorageVisible { return "App-managed inventory · selected objects only" }
+        if homebrewVisible { return "Read-only Homebrew inventory" }
+        if pipVisible { return "Read-only pip inventory" }
+        if dockerVisible { return "Read-only Docker inventory" }
+        if exclusionsVisible { return "Custom scan exclusions" }
+        if fixtureMode { return "Synthetic data — no personal files accessed" }
+        switch destination {
+        case .overview: return "On-demand storage review"
+        case .plan: return "Choose files, then review"
+        case .history: return "Recorded cleanup activity"
+        case .locations: return "Scan locations and access"
+        case .alerts: return "Capacity checks only"
+        case .growth: return "Observed storage changes"
+        }
     }
 
     var body: some View {
@@ -372,7 +391,9 @@ private struct WorkspaceView: View {
         }
     }
     @ViewBuilder private var contextToolbarLabel: some View {
-        if folderInspection.isScanning {
+        if selection.execution.isRunning {
+            Text(contextLabel).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+        } else if folderInspection.isScanning {
             ToolbarScanStatus(location: folderInspection.scope?.lastPathComponent ?? "selected locations",
                 phase: folderInspection.progress.map { $0.phase == .rechecking ? "Rechecking changed coverage (one attempt)…" : $0.phase == .checkingDirectories ? "Checking directory stability…" : "Reading file metadata…" } ?? "Preparing metadata scan…",
                 inspectedEntries: folderInspection.progress?.visitedEntries,
@@ -398,7 +419,8 @@ private struct WorkspaceView: View {
 
     private func navigation(_ value: Destination) -> some View {
         StillSidebarRow(title: value.rawValue, symbol: value.symbol, selected: destination == value,
-                        accent: value == .growth ? StillDesign.purple : value == .plan ? StillDesign.teal : value == .history ? .secondary : StillDesign.blue) {
+                        accent: value == .growth ? StillDesign.purple : value == .plan ? StillDesign.teal : value == .history ? .secondary : StillDesign.blue,
+                        selectedCategories: value == .plan ? selection.actionableSelectedCategoryCount : nil) {
             destination = value
             planReturnsToExplorer = false
             if value == .plan && selection.execution.result != nil { startNewPlan() }

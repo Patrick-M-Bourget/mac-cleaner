@@ -317,11 +317,19 @@ struct StillSidebarRow: View {
     let symbol: String
     let selected: Bool
     var accent: Color = StillDesign.blue
+    var selectedCategories: Int? = nil
     let action: () -> Void
     var body: some View {
         Button(action: action) {
-            Label { Text(title).foregroundStyle(selected ? .primary : .secondary) } icon: { Image(systemName: symbol).foregroundStyle(accent) }
-                .font(.callout)
+            HStack(spacing: StillDesign.Space.sm) {
+                Label { Text(title).foregroundStyle(selected ? .primary : .secondary) } icon: { Image(systemName: symbol).foregroundStyle(accent) }
+                Spacer(minLength: 0)
+                if let count = selectedCategories {
+                    Text(String(max(0, count))).font(.caption2.weight(.medium)).monospacedDigit()
+                        .frame(width: 18, height: 18).background(StillDesign.summary, in: Capsule())
+                        .opacity(count > 0 ? 1 : 0).accessibilityHidden(true)
+                }
+            }.font(.callout)
                 .frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, StillDesign.Space.sm).padding(.horizontal, StillDesign.Space.sm)
                 .background {
                     if selected {
@@ -331,7 +339,11 @@ struct StillSidebarRow: View {
                     }
                 }
                 .contentShape(Rectangle())
-        }.buttonStyle(.plain).accessibilityLabel(title).accessibilityAddTraits(selected ? .isSelected : [])
+        }.buttonStyle(.plain).accessibilityLabel(accessibleTitle).accessibilityAddTraits(selected ? .isSelected : [])
+    }
+    private var accessibleTitle: String {
+        guard let count = selectedCategories, count > 0 else { return title }
+        return "\(title), \(count) \(count == 1 ? "category" : "categories") selected"
     }
 }
 
