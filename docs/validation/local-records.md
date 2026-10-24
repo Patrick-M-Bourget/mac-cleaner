@@ -16,7 +16,7 @@ Test-only `3bae223` checks History → Local records → Clear Cancel → Back, 
 
 Record actual red → green, then strengthen public context/selection and fresh Reset/recovery journeys one vertical slice at a time. Preserve existing startup recovery, terminal Results and Downloads behavior; review source-bound native Light/Dark initial/minimum originals and shared composition before integration. Test and synthetic presentation proof remain distinct from real OS permission/provider qualification. Full parent acceptance, unresolved product decisions and future milestones stay open; M8 remains deferred.
 
-Minimal candidate `ec75c43` composes the same LocalRecordsEntry/LocalRecordsView from both callers and moves existing maintenance confirmations out of History. The panel calls the existing history model with maintenance disabled for reading, leaving ordinary History retention behavior unchanged. Focused green run `40065094232` is pending; caller viewport, recovery/diagnostics and broader safety context are the next vertical after that pilot. This candidate is not integrated or declared complete.
+Minimal candidate `ec75c43` composes the same LocalRecordsEntry/LocalRecordsView from both callers and moves existing maintenance confirmations out of History. The panel calls the existing history model with maintenance disabled for reading, leaving ordinary History retention behavior unchanged. The first candidate run `40065094232` was dispatched; caller viewport, recovery/diagnostics and broader safety context are the next vertical after that pilot. This candidate is not integrated or declared complete.
 
 The first candidate run `40065094232` reaches both callers, Cancel and actual Clear, then fails its label-prefix status lookup (28.08 seconds). No failure image was attached by that test. Test-only `345e16d` uses the existing public `historyStatus` identifier and native value/label text, preserves the strict success-prefix and public journal assertions, reveals entries within the actual scroll viewport, and records a permanent status screenshot before asserting. The rerun uses identical production source; whether this is only a lookup mismatch remains subject to that result.
 
@@ -29,3 +29,18 @@ Actual context red `40065822914` at `4c117d1` reaches the read-only expired-reco
 Context green `40066234820` at `63361f9` passes (86.89 seconds), including the real nonzero management return frame, live choices and unchanged protected facts. Adapted History maintenance green `40066234839` passes 3/3 (100.48 seconds). Broader initial/minimum qualification adds both-origin Light/Dark panel captures, process window reopen and repeated new-entry top. A separate future-gated diagnostics tracer checks both actual root callers, native Save Cancel, frozen redacted preview and process context; it will supply behavioral red before diagnostics routing changes. All new test sources pass local build-for-testing.
 
 Diagnostics actual red `40066805589` at `6cd6f84` fails at missing Review diagnostics (line 63). Its async test continued absent-route queries after the first assertion, taking 469.57 seconds; the guard now records XCTFail and returns promptly without weakening the entry requirement. Source `37aeaf0` adds the unchanged future-gated entry, process-owned frozen diagnostics model/caller/viewport, fresh top identity and direct root Back. Local build-for-testing passes. New diagnostics route and existing Overview diagnostics regressions are in verification.
+
+
+## Final source and acceptance checks
+
+Final application changes are `dadc0c1`; `f26b413` adds test-only Gallery qualification and `f8a0c86` selects final scoped CI runs. Local build-for-testing passes. Shared `LocalRecordsMaintenanceControls` and `LocalRecordsDiagnosticsEntry` render live and inert labelled Gallery examples without duplicating maintenance policy. Both ordinary launches and diagnostics development-gated launches are tested separately.
+
+New diagnostics route green `40067584469` at `ff51967` passes (70.14 seconds). Existing Overview diagnostics regression `40067584423` passes 2/2 (40.29 seconds). Earlier expanded context initial/minimum runs `40066805453` / `40066805492` pass (80.10 / 74.21 seconds). Final shared-control composition is being requalified at `f8a0c86`, including diagnostics at both sizes, both context journeys, synthetic controls and affected native regressions. These results do not certify real permission changes, provider behavior, every OS/CPU or distribution readiness.
+
+### Standards review
+
+Whole-slice source review through `ff51967` and incremental review `ff51967..f26b413`: no actionable source findings. Shared pure controls preserve enabled predicates, confirmations and guarded actions; tests exercise public UI rather than execution bypasses.
+
+### Spec review
+
+The same two source-review ranges have no actionable implementation findings against #62/FLOW-LOCK. Both real callers, direct root diagnostics Back, gated availability and retained viewport context match the approved contract. Stale Overview-only diagnostics documentation is being reconciled before integration. Runtime and original-image review remain separate acceptance gates.
