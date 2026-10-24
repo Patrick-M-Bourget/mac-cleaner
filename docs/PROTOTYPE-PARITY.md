@@ -1,6 +1,6 @@
 # Prototype-to-implementation parity audit
 
-Audited October 23, 2026. Native baseline: `f9e854f57d14bfb40f304ca06024faa75afc25a9`. Tracking: [#45](https://github.com/Patrick-M-Bourget/mac-cleaner/issues/45). **Audit complete; product-flow reconciliation is not locked. Feature implementation is paused pending the decision checkpoint below.**
+Audited October 23, 2026. Native baseline: `f9e854f57d14bfb40f304ca06024faa75afc25a9`. Tracking: [#45](https://github.com/Patrick-M-Bourget/mac-cleaner/issues/45). **Audit complete; connected flow decisions Q1–Q26 are approved in [FLOW-LOCK](FLOW-LOCK.md). Repairs remain open; bounded design-state/delivery review precedes coding.**
 
 ## Baseline and evidence boundary
 
@@ -200,8 +200,9 @@ These source pointers make the classification reproducible at the pinned baselin
 
 ## Decision checkpoint and ongoing acceptance gate
 
-**Before more feature code**, grill and record the current product-flow decisions in #44, #46, #47 and #48: plan prerequisites, scope ownership, explorer depth/inspector and route context. Review the remaining current gaps #49–#54 for priority and any accepted explicit deviations. Do not infer approval from this audit or turn issue proposals into requirements. #51/#53 need explicit decisions; their alternatives are preserved, not silently selected.
+The user has confirmed the connected #44/#46/#47/#48 contract plus #50's terminal boundary in [FLOW-LOCK](FLOW-LOCK.md). Q1–Q26 and FL01–FL14 are the current intended behavior. The baseline table still describes f9e854f; no gap becomes Covered merely because its repair was approved.
 
+Before feature code resumes, finish the bounded scan-status/inspector/scope-row presentation and connected delivery review recorded in FLOW-LOCK. Do not reopen settled flow decisions or add unrelated hardening. #51/#53 retain their separate History/appearance decisions; #49/#52/#54 and future qualification remain tracked.
 The checkpoint is not a demand to build all M2–M8 features first. Future adapter/monitoring gates remain on their own issues; current M1 must present honest states and still form a coherent product. No general signing dependency is reintroduced.
 
 For every subsequent feature/repair ticket:
@@ -214,6 +215,6 @@ For every subsequent feature/repair ticket:
 
 ## Tracking and delivery order
 
-Parent #45 tracks this audit and current flow reconciliation. New focused findings: #46 Locations, #47 Explorer/inspector, #48 route/local-data integration, #49 capacity, #50 results, #51 History contract, #52 growth flows, #53 shell/preference contract, #54 release-archive guidance. Existing #44 owns Cleanup plan grilling. All are needs-triage; no implementation readiness is implied. Related future qualification/action tickets are retained and receive the corresponding parity references rather than duplicate “build browser cleanup” issues.
+Parent #45 tracks this audit and current flow reconciliation. New focused findings: #46 Locations, #47 Explorer/inspector, #48 route/local-data integration, #49 capacity, #50 results, #51 History contract, #52 growth flows, #53 shell/preference contract, #54 release-archive guidance. Existing #44 owns Cleanup plan grilling. Flow decisions for #44/#46/#47/#48 and the #50 boundary are approved; annotated visual/delivery readiness is still being reviewed. Other issues retain their triage/gates. Related future qualification/action tickets are retained and receive the corresponding parity references rather than duplicate “build browser cleanup” issues.
 
-Suggested discussion order: #44/#46/#48 together → #47 → #49/#50 → #51/#53 decisions → #52/#54 in their milestones. This is a proposed discussion sequence, not an approved task graph or authorization to skip any gap. Native blocking dependencies should be added when the resulting implementation slices are agreed; sub-issue containment alone is not a blocker.
+The connected flow discussion is complete and explicitly confirmed. The next round is the bounded design/delivery checkpoint in FLOW-LOCK. Add native implementation blockers when those slices are agreed; sub-issue containment alone is not a blocker.

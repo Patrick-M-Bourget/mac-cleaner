@@ -4,7 +4,7 @@ This is the mandatory presentation implementation contract for native UI. [DESIG
 
 ## Implementing or changing UI
 
-The [parity checkpoint](PROTOTYPE-PARITY.md) is required in addition to component reuse. A coherent palette cannot compensate for a missing feature or changed workflow. Name affected parity IDs, entry/return routes, category/refinement behavior and exceptional states before implementation; update SPEC and DESIGN-HANDOFF together. Current product-flow decisions are paused for reconciliation under #45. Shared examples and screenshots must be reviewed in the complete user journey, not only the gallery.
+The [parity checkpoint](PROTOTYPE-PARITY.md) is required in addition to component reuse. A coherent palette cannot compensate for a missing feature or changed workflow. Name affected parity IDs, entry/return routes, category/refinement behavior and exceptional states before implementation; update SPEC and DESIGN-HANDOFF together. The connected [flow lock](FLOW-LOCK.md) is approved; maintain its FL01–FL14 states while completing bounded presentation/delivery review under #45. Shared examples and screenshots must be reviewed in the complete user journey, not only the gallery.
 
 1. Read the relevant screen/state requirements in the handoff and milestone scope. Locate the existing component in [DesignSystem.swift](../Still/App/DesignSystem.swift) and examples in [DesignGallery.swift](../Still/App/DesignGallery.swift).
 2. Reuse the component and semantic tokens. When a required pattern is missing, add a shared component and a gallery example for its meaningful states before composing the screen. Keep domain decisions and filesystem work in their existing models/adapters.
