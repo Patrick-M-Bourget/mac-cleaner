@@ -4,6 +4,64 @@ import Darwin
 final class CleanupRetryUITests: XCTestCase {
     @MainActor func testCancelledBatchRequiresFreshRetryApproval() throws { try exercise(minimum: false) }
     @MainActor func testCancelledBatchRetryAtMinimumWindow() throws { try exercise(minimum: true) }
+    @MainActor func testChangedConfirmedFileReportsNoFilesMoved() throws {
+        continueAfterFailure = false
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("StillSelectionUI-" + UUID().uuidString)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: false)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let file = root.appendingPathComponent("changed.pdf")
+        try Data([1]).write(to: file)
+        let stateID = UUID().uuidString
+        let state = FileManager.default.temporaryDirectory.appendingPathComponent("StillTestState-" + stateID).resolvingSymlinksInPath()
+        try FileManager.default.createDirectory(at: state, withIntermediateDirectories: false, attributes: [.posixPermissions: 0o700])
+        let marker = state.appendingPathComponent(".still-owned-test-state")
+        try Data(stateID.utf8).write(to: marker)
+        try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: marker.path)
+        var info = stat(); XCTAssertEqual(lstat(state.path, &info), 0)
+        let app = XCUIApplication()
+        app.launchArguments = ["--ui-test-downloads-root", "--design-minimum"]
+        app.launchEnvironment["STILL_TEST_DOWNLOADS_ROOT"] = root.path
+        app.launchEnvironment["STILL_TEST_STATE_ROOT"] = state.path
+        app.launchEnvironment["STILL_TEST_STATE_ID"] = "\(info.st_dev):\(info.st_ino)"
+        defer { app.terminate(); try? FileManager.default.removeItem(at: state) }
+        app.launch()
+        XCTAssertTrue(app.buttons["Choose folder…"].waitForExistence(timeout: 10))
+        let bounds = app.windows.firstMatch.frame
+        app.buttons["Choose folder…"].click(); app.typeKey("g", modifierFlags: [.command, .shift])
+        let path = app.textFields.firstMatch
+        XCTAssertTrue(path.waitForExistence(timeout: 5)); path.typeText(root.path)
+        app.typeKey(.return, modifierFlags: []); app.dialogs.buttons["Scan folder"].click()
+        waitForOverviewScan(app, timeout: 10); app.typeKey("2", modifierFlags: .command)
+        let category = app.checkBoxes["downloadsCategorySelection"]
+        XCTAssertTrue(category.waitForExistence(timeout: 5)); category.click()
+        app.buttons["Review cleanup"].click()
+        let confirmation = app.sheets.containing(.staticText, identifier: "Review Move to Trash").firstMatch
+        XCTAssertTrue(confirmation.waitForExistence(timeout: 5))
+        // The approval identifies the original observation, not these changed bytes.
+        try Data([9, 8, 7]).write(to: file)
+        confirmation.buttons["Move to Trash"].click()
+        XCTAssertTrue(app.staticTexts["Cleanup results"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["No files were moved"].exists)
+        XCTAssertTrue(app.staticTexts["Every selected file was skipped after rechecking."].exists)
+        XCTAssertTrue(app.staticTexts["Skipped: 1"].exists)
+        XCTAssertFalse(app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Reveal ")).firstMatch.exists)
+        for theme in ["Light", "Dark"] {
+            app.popUpButtons.firstMatch.click(); app.menuItems[theme].click()
+            XCTAssertTrue(app.buttons["View history"].isHittable)
+            XCTAssertTrue(app.buttons["Start a new plan"].isHittable)
+            XCTAssertEqual(app.windows.firstMatch.frame, bounds)
+            let shot = XCTAttachment(screenshot: app.windows.firstMatch.screenshot())
+            shot.name = "all-skipped-minimum-" + theme; shot.lifetime = .keepAlways; add(shot)
+        }
+        XCTAssertEqual(try Data(contentsOf: file), Data([9, 8, 7]))
+        app.buttons["Start a new plan"].click()
+        let summary = app.staticTexts["liveSelectionSummary"]
+        XCTAssertTrue(summary.waitForExistence(timeout: 5))
+        XCTAssertEqual(summary.value as? String, "0 files selected")
+        XCTAssertFalse(app.buttons["Review cleanup"].isEnabled)
+        XCTAssertTrue(app.staticTexts["Not scanned"].exists)
+        XCTAssertEqual(try Data(contentsOf: file), Data([9, 8, 7]))
+    }
     @MainActor private func exercise(minimum: Bool) throws {
         continueAfterFailure = false
         let root = FileManager.default.temporaryDirectory.appendingPathComponent("StillSelectionUI-" + UUID().uuidString)
