@@ -383,6 +383,7 @@ import SwiftUI
         retryCancellation = cancellation; retryGeneration = token
         isPreparing = true; isRetryRechecking = true; message = nil; invalidateReview()
         defer {
+            AppLifecycleController.shared.capacity.request(.scanEnded)
             if retryGeneration == token { isPreparing = false; isRetryRechecking = false; retryCancellation = nil }
         }
         let reports = await Task.detached(priority: .userInitiated) {
