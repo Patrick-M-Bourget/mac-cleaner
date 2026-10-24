@@ -151,11 +151,13 @@ public actor GrowthHistoryStore {
     private func load() throws -> Archive {
         try verifyDirectory(create: false)
         let file = directory.appendingPathComponent("aggregates-v1.json")
-        guard FileManager.default.fileExists(atPath: file.path) else { return Archive() }
         var info = stat()
-        guard lstat(file.path, &info) == 0, info.st_mode & S_IFMT == S_IFREG, info.st_uid == geteuid() else { throw CocoaError(.fileReadNoPermission) }
-        let size = try file.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? Int.max
-        guard size <= policy.bytes else { throw CocoaError(.fileReadTooLarge) }
+        if lstat(file.path, &info) != 0 {
+            guard errno == ENOENT else { throw CocoaError(.fileReadNoPermission) }
+            return Archive()
+        }
+        guard info.st_mode & S_IFMT == S_IFREG, info.st_uid == geteuid() else { throw CocoaError(.fileReadNoPermission) }
+        guard info.st_size <= policy.bytes else { throw CocoaError(.fileReadTooLarge) }
         let decoded = try JSONDecoder().decode(Archive.self, from: Data(contentsOf: file))
         guard decoded.version == 1, (decoded.activities ?? []).allSatisfy(\.valid), Set((decoded.activities ?? []).map(\.id)).count == (decoded.activities?.count ?? 0), decoded.entries.count <= policy.baselines, decoded.entries.allSatisfy({ entry in
             let groups = entry.snapshot.groups

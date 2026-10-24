@@ -17,3 +17,16 @@ import StillCore
     let reopened = GrowthHistoryStore(directory: root)
     #expect(try await reopened.activities(now: now).map(\.id) == [valid.id])
 }
+
+@Test func unavailableScanArchiveDoesNotBecomeAnEmptyHistoryOrReplaceDanglingLink() async throws {
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent("StillActivity-" + UUID().uuidString)
+    try FileManager.default.createDirectory(at: root, withIntermediateDirectories: false)
+    defer { try? FileManager.default.removeItem(at: root) }
+    let archive = root.appendingPathComponent("aggregates-v1.json")
+    let missing = root.appendingPathComponent("Missing-records")
+    try FileManager.default.createSymbolicLink(at: archive, withDestinationURL: missing)
+    let store = GrowthHistoryStore(directory: root)
+    await #expect(throws: (any Error).self) { try await store.activities() }
+    #expect(try FileManager.default.destinationOfSymbolicLink(atPath: archive.path) == missing.path)
+    #expect(!FileManager.default.fileExists(atPath: missing.path))
+}
