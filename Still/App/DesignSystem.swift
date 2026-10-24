@@ -294,6 +294,7 @@ struct VolumeSummary: View {
                 HStack(alignment: .top, spacing: StillDesign.Space.md) {
                     VStack(alignment: .leading, spacing: StillDesign.Space.xs) {
                         Text(observation).font(.caption).foregroundStyle(.secondary).lineLimit(2)
+                            .frame(maxWidth: .infinity, alignment: .leading).frame(height: 28, alignment: .topLeading)
                             .accessibilityIdentifier("capacityObservation")
                         Text(status.isEmpty ? " " : status).font(.caption).foregroundStyle(.secondary)
                             .accessibilityIdentifier("capacityRefreshStatus")
@@ -301,6 +302,7 @@ struct VolumeSummary: View {
                     Spacer(minLength: StillDesign.Space.sm)
                     if let refresh {
                         Button(refreshTitle, action: refresh).disabled(refreshing)
+                            .frame(width: 110, alignment: .trailing)
                             .accessibilityIdentifier("refreshCapacity")
                     }
                 }
