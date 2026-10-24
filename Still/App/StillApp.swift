@@ -1,4 +1,5 @@
 import SwiftUI
+import Observation
 import StillCore
 
 @main
@@ -58,7 +59,7 @@ struct StillApp: App {
     }
 }
 
-private enum Destination: String, CaseIterable, Identifiable {
+enum Destination: String, CaseIterable, Identifiable {
     case alerts = "Storage alerts"
     case overview = "Overview", growth = "What grew", plan = "Cleanup plan", history = "History", locations = "Locations & access"
     var id: String { rawValue }
@@ -84,6 +85,16 @@ private enum Destination: String, CaseIterable, Identifiable {
     }
 }
 
+/// Window restoration within this process never restores cleanup authority after Quit.
+@MainActor @Observable final class WorkspaceNavigation {
+    var destination = Destination.overview
+    var explorerVisible = false
+    var explorerCaller = Destination.overview
+    var planReturnsToExplorer = false
+    var scanOrigin = Destination.overview
+    var downloadsExplorerActive = true
+}
+
 private struct FixtureItem: Identifiable {
     let id: String
     let name: String
@@ -99,7 +110,8 @@ private struct FixtureItem: Identifiable {
 private struct WorkspaceView: View {
     @Environment(\.openWindow) private var openWindow
     @ObservedObject var alerts: StorageAlertsController
-    @State private var destination = Destination.overview
+    @State private var navigationState = AppLifecycleController.shared.workspaceNavigation
+    private var destination: Destination { get { navigationState.destination } nonmutating set { navigationState.destination = newValue } }
     @State private var inspecting = false
     @State private var inspected = FixtureItem.downloads[0]
     @State private var appearance = "Automatic"
@@ -108,7 +120,7 @@ private struct WorkspaceView: View {
     @State private var selection = AppLifecycleController.shared.selection
     @State private var recovery = AppLifecycleController.shared.recovery
     @State private var recoveryVisible = false
-    @State private var nativeInspectionVisible = false
+    private var nativeInspectionVisible: Bool { get { navigationState.explorerVisible } nonmutating set { navigationState.explorerVisible = newValue } }
     @State private var homebrewVisible = false
     @State private var managedStorageVisible = false
     @State private var managedStorage = ManagedStorageModel()
@@ -120,11 +132,11 @@ private struct WorkspaceView: View {
     @State private var moreToolsExpanded = false
     @State private var diagnostics = DiagnosticsModel()
     @State private var locationsModel = AppLifecycleController.shared.locations
-    @State private var explorerContext = AppLifecycleController.shared.downloadsExplorer
+    private var explorerContext: StorageExplorerContext { navigationState.downloadsExplorerActive ? AppLifecycleController.shared.downloadsExplorer : AppLifecycleController.shared.locationsExplorer }
     @State private var planPresentation = AppLifecycleController.shared.planPresentation
-    @State private var explorerCaller = Destination.overview
-    @State private var planReturnsToExplorer = false
-    @State private var scanOrigin = Destination.overview
+    private var explorerCaller: Destination { get { navigationState.explorerCaller } nonmutating set { navigationState.explorerCaller = newValue } }
+    private var planReturnsToExplorer: Bool { get { navigationState.planReturnsToExplorer } nonmutating set { navigationState.planReturnsToExplorer = newValue } }
+    private var scanOrigin: Destination { get { navigationState.scanOrigin } nonmutating set { navigationState.scanOrigin = newValue } }
     @State private var locationToForget: RememberedScope?
     @State private var startupCapacity: StartupVolumeCapacity?
     #if DEBUG
@@ -570,7 +582,7 @@ private struct WorkspaceView: View {
         folderInspection.scanAgain(scopes: leases.map(\.url), leases: leases)
     }
     private func openExplorer(downloads: Bool, caller: Destination) {
-        explorerContext = downloads ? AppLifecycleController.shared.downloadsExplorer : AppLifecycleController.shared.locationsExplorer
+        navigationState.downloadsExplorerActive = downloads
         if explorerContext.downloadsOnly != downloads { if downloads { explorerContext.openDownloads() } else { explorerContext.openLocations() } }
         explorerContext.allowedScopes = Set(locationsModel.included.map { URL(fileURLWithPath: $0.path).standardizedFileURL })
         explorerContext.downloadsScopes = Set(locationsModel.includedDownloads.map { URL(fileURLWithPath: $0.path).standardizedFileURL })

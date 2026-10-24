@@ -23,6 +23,7 @@ import StillCore
     let alerts = StorageAlertsController()
     let selection = SessionPlan()
     let recovery = CleanupRecoveryModel()
+    let workspaceNavigation = WorkspaceNavigation()
     let locations = RememberedLocations()
     let planPresentation = CleanupPlanPresentation()
     let downloadsExplorer = StorageExplorerContext()

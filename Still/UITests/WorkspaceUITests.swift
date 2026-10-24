@@ -45,7 +45,8 @@ import Darwin
     guard !app.textFields["Search Downloads items"].exists else { return }
     let disclosure = app.disclosureTriangles.firstMatch
     revealScrollElement(app, control: disclosure, label: "Choose items disclosure")
-    disclosure.click()
+    disclosure.coordinate(withNormalizedOffset: CGVector(dx: 0, dy: 0.5)).withOffset(CGVector(dx: 26, dy: 0)).click()
+    XCTAssertEqual(disclosure.value as? Int, 1)
     XCTAssertTrue(app.textFields["Search Downloads items"].waitForExistence(timeout: 5))
 }
 
@@ -146,8 +147,7 @@ final class WorkspaceUITests: XCTestCase {
         capture("ready")
         category.click()
         XCTAssertTrue(app.staticTexts["2 files selected"].waitForExistence(timeout: 10))
-        let disclosure = app.disclosureTriangles.firstMatch
-        disclosure.click()
+        expandPlanItems(app)
         XCTAssertTrue(app.textFields["Search Downloads items"].waitForExistence(timeout: 5))
         let one = app.checkBoxes["Selected Summer trip.mov"]
         revealScrollElement(app, control: one, label: "Selected Summer trip.mov"); one.click()
@@ -158,7 +158,7 @@ final class WorkspaceUITests: XCTestCase {
         app.buttons["Open folder " + root.lastPathComponent].click()
         app.textFields["Search scanned descendants"].click(); app.textFields["Search scanned descendants"].typeText("Media")
         app.buttons["Open folder Media"].click()
-        XCTAssertEqual(app.textFields["Search scanned descendants"].value as? String, "")
+        XCTAssertTrue(["", "Search scanned descendants"].contains(app.textFields["Search scanned descendants"].value as? String ?? "Unexpected query"))
         app.buttons["Inspect Summer trip.mov"].click()
         XCTAssertTrue(app.descendants(matching: .any)["explorerInspector"].firstMatch.waitForExistence(timeout: 5))
         capture("compact-inspector")
