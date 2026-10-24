@@ -1824,4 +1824,65 @@ final class WorkspaceUITests: XCTestCase {
         XCTAssertEqual(app.windows.firstMatch.frame, bounds)
     }
 
+    // MARK: Optional folder access education (#63), public owned-state journey
+    @MainActor func testOptionalFolderAccessEducationPreservesScopeAndSelection() throws {
+        continueAfterFailure = false
+        for minimum in [false, true] {
+            let root = FileManager.default.temporaryDirectory.resolvingSymlinksInPath().appendingPathComponent("StillSelectionUI-" + UUID().uuidString)
+            try FileManager.default.createDirectory(at: root, withIntermediateDirectories: false)
+            let file = root.appendingPathComponent("education.pdf")
+            let original = Data([1, 2, 3])
+            try original.write(to: file)
+            defer { try? FileManager.default.removeItem(at: root) }
+            let app = XCUIApplication()
+            let state = try configureIsolatedJourneyState(app)
+            defer { app.terminate(); try? FileManager.default.removeItem(at: state) }
+            app.launchArguments = ["--ui-test-downloads-root", minimum ? "--design-minimum" : "--design-initial-size"]
+            app.launchEnvironment["STILL_TEST_DOWNLOADS_ROOT"] = root.path
+            var identity = stat(); XCTAssertEqual(lstat(root.path, &identity), 0)
+            app.launchEnvironment["STILL_TEST_DOWNLOADS_ID"] = "\(identity.st_dev):\(identity.st_ino)"
+            app.launch()
+            let bounds = app.windows.firstMatch.frame
+            app.buttons["Choose folder…"].click(); app.typeKey("g", modifierFlags: [.command, .shift])
+            XCTAssertTrue(app.textFields.firstMatch.waitForExistence(timeout: 5))
+            app.textFields.firstMatch.typeText(root.path); app.typeKey(.return, modifierFlags: [])
+            app.dialogs.buttons["Scan folder"].click(); waitForOverviewScan(app)
+            app.typeKey("2", modifierFlags: .command)
+            let category = app.checkBoxes["downloadsCategorySelection"]
+            XCTAssertTrue(category.waitForExistence(timeout: 5)); category.click()
+            XCTAssertEqual(app.staticTexts["liveSelectionSummary"].value as? String, "1 file selected")
+            app.typeKey("4", modifierFlags: .command)
+            for theme in ["Light", "Dark"] {
+                app.popUpButtons["Appearance"].click(); app.menuItems[theme].click()
+                let disclosure = app.disclosureTriangles.matching(NSPredicate(format: "label == %@", "About folder access")).firstMatch
+                revealScrollElement(app, control: disclosure, label: "About folder access")
+                disclosure.coordinate(withNormalizedOffset: CGVector(dx: 0, dy: 0.5)).withOffset(CGVector(dx: 8, dy: 0)).click()
+                let manual = app.staticTexts["Manage this manually in System Settings → Privacy & Security → Full Disk Access."]
+                revealScrollElement(app, control: manual, label: "Manual optional access guidance")
+                XCTAssertTrue(manual.isHittable)
+                XCTAssertTrue(app.staticTexts["Full Disk Access is optional. It broadly exposes protected data and is not a read-only grant."].exists)
+                XCTAssertTrue(app.staticTexts["It does not make protected files eligible for cleanup. Still’s cleanup rules stay the same."].exists)
+                XCTAssertFalse(app.dialogs.firstMatch.exists); XCTAssertFalse(app.sheets.firstMatch.exists)
+                XCTAssertEqual(app.windows.firstMatch.frame, bounds)
+                let capture = XCTAttachment(screenshot: app.windows.firstMatch.screenshot())
+                capture.name = "optional-folder-access-expanded-" + (minimum ? "minimum-" : "initial-") + theme
+                capture.lifetime = .keepAlways; add(capture)
+                revealScrollElement(app, control: disclosure, label: "Collapse folder access guidance")
+                disclosure.coordinate(withNormalizedOffset: CGVector(dx: 0, dy: 0.5)).withOffset(CGVector(dx: 8, dy: 0)).click()
+                XCTAssertFalse(manual.exists)
+                let included = app.checkBoxes["Include " + root.lastPathComponent]
+                revealScrollElement(app, control: included, label: "Unchanged included scope")
+                XCTAssertEqual(included.value as? Int, 1)
+                XCTAssertEqual(app.windows.firstMatch.frame, bounds)
+                let collapsed = XCTAttachment(screenshot: app.windows.firstMatch.screenshot())
+                collapsed.name = "optional-folder-access-collapsed-" + (minimum ? "minimum-" : "initial-") + theme
+                collapsed.lifetime = .keepAlways; add(collapsed)
+            }
+            app.typeKey("2", modifierFlags: .command)
+            XCTAssertEqual(app.staticTexts["liveSelectionSummary"].value as? String, "1 file selected")
+            XCTAssertTrue(app.buttons["Review cleanup"].isEnabled)
+            XCTAssertEqual(try Data(contentsOf: file), original)
+        }
+    }
+
 }
