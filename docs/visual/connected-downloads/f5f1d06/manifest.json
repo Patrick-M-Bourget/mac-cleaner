@@ -1,0 +1,37 @@
+{
+  "source": "f5f1d06",
+  "applicationSource": "824328f",
+  "run": "https://github.com/Patrick-M-Bourget/mac-cleaner/actions/runs/40052574336",
+  "captures": [
+    {
+      "file": "refresh-changed-Dark.png",
+      "width": 1024,
+      "height": 640,
+      "sha256": "a3e1239d404e1617330500d665c19666b9bcc5c46abe5755bb12cc6e0f8198c2"
+    },
+    {
+      "file": "refresh-changed-Light.png",
+      "width": 1024,
+      "height": 640,
+      "sha256": "690935dd2b96b03d34605d0486c5c0c7187a0ba28ea6131d8803685a27e65e6d"
+    },
+    {
+      "file": "refresh-required-Dark.png",
+      "width": 1024,
+      "height": 640,
+      "sha256": "4c64fdcd141e3fea71627fb6825d22e10fd0aa90f236547c8e07fd1e087f8182"
+    },
+    {
+      "file": "refresh-required-Light.png",
+      "width": 1024,
+      "height": 640,
+      "sha256": "79a559a36c8370043555625821312f4e9559f0d571e5b93d0d72234dd372b8ae"
+    },
+    {
+      "file": "refresh-retained-choice.png",
+      "width": 1024,
+      "height": 640,
+      "sha256": "321eeae9dd50c466e557b6a189a771f930381408c94003139e312d5277bf3c13"
+    }
+  ]
+}
