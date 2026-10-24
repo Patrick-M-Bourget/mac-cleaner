@@ -82,6 +82,7 @@ final class FolderInspection {
                     selection.endRefreshBatch(batchRequests)
                     batchRequests = []
                     scanAgainTask = nil
+                    AppLifecycleController.shared.capacity.request(.scanEnded)
                     return
                 }
                 batchRequests.removeAll { $0.scope == root.standardizedFileURL }
@@ -89,6 +90,7 @@ final class FolderInspection {
             selection.endRefreshBatch(batchRequests)
             batchRequests = []
             scanAgainTask = nil
+            AppLifecycleController.shared.capacity.request(.scanEnded)
             if let focusedScope, !selection.unavailableScopes.contains(focusedScope), let report = scopeReports.first(where: { $0.current.scope.standardizedFileURL == focusedScope }) { show(report) }
         }
     }
@@ -143,6 +145,7 @@ final class FolderInspection {
                 progress = nil
                 isScanningCurrent = false
                 await GrowthHistoryModel.shared.complete(observed, token: growthToken)
+                if scanAgainTask == nil { AppLifecycleController.shared.capacity.request(.scanEnded) }
             } catch {
                 guard token == generation else { return }
                 selection.cancelRefresh(request)
@@ -150,6 +153,7 @@ final class FolderInspection {
                 progress = nil
                 isScanningCurrent = false
                 message = error is CancellationError ? "Scan stopped. Choose a folder to try again." : ExclusionsModel.shared.error ?? "This folder could not be inspected. Choose the folder again or check access in System Settings."
+                if scanAgainTask == nil { AppLifecycleController.shared.capacity.request(.scanEnded) }
             }
         }
     }
@@ -199,11 +203,13 @@ final class FolderInspection {
         await session.clear()
     }
     func cancel() {
+        let hadLogicalScan = isScanning
         scanAgainGeneration = UUID()
         scanAgainTask?.cancel(); scanAgainTask = nil
         selection.endRefreshBatch(batchRequests)
         batchRequests = []
         cancelCurrentScan()
+        if hadLogicalScan { AppLifecycleController.shared.capacity.request(.scanEnded) }
     }
     private func cancelCurrentScan() {
         if isScanningCurrent { GrowthHistoryModel.shared.cancelled() }
