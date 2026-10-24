@@ -439,6 +439,7 @@ import StorageAlerts
     #expect(!alerts.requested)
     #expect(!alerts.effectiveMonitoring)
     #expect(alerts.shellState == .attention(.saveFailed))
+    #expect(alerts.status == "Alert preferences could not be reset. Monitoring is stopped; review local records before trying again.")
 }
 
 @Test(arguments: [-1 as Int64, 513_000_000_000]) @MainActor func shellRejectsInvalidCapacityEvidenceWithoutChangingPollerLifecycle(available: Int64) async {
@@ -450,6 +451,7 @@ import StorageAlerts
     system.reading = AlertCapacityReading(available: available, total: 512_000_000_000, volumeID: "owned", metric: "important")
     await alerts.activated()
     #expect(alerts.shellState == .attention(.capacityUnavailable))
+    #expect(alerts.status == "Capacity unavailable. Alert decisions are paused.")
     #expect(alerts.effectiveMonitoring)
     #expect(system.notifications == 1)
     system.now.addTimeInterval(900)
@@ -469,4 +471,5 @@ import StorageAlerts
     #expect(alerts.requested)
     #expect(!alerts.effectiveMonitoring)
     #expect(alerts.shellState == .attention(.savedStateUnavailable))
+    #expect(alerts.status == "Alert state could not be read. Monitoring is stopped to preserve suppression.")
 }

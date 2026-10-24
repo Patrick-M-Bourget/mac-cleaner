@@ -89,12 +89,20 @@ public enum AlertShellState: Equatable, Sendable {
             do {
                 let savedIdentifiers = try system.load().notificationRequestIdentifiers ?? []
                 policy.notificationRequestIdentifiers = (policy.notificationRequestIdentifiers ?? []).union(savedIdentifiers)
-            } catch { shellState = .attention(.savedStateUnavailable); throw error }
+            } catch {
+                shellState = .attention(.savedStateUnavailable)
+                status = "Alert state could not be read. Monitoring is stopped to preserve suppression."
+                throw error
+            }
         }
         removePendingNotifications()
         requested = false; policy = AlertPolicy(); thresholdGB = "40"; persistenceHealthy = true
         do { try system.reset() }
-        catch { shellState = .attention(.saveFailed); throw error }
+        catch {
+            shellState = .attention(.saveFailed)
+            status = "Alert preferences could not be reset. Monitoring is stopped; review local records before trying again."
+            throw error
+        }
         shellState = .off
         status = "Alerts are off."
     }
@@ -213,7 +221,7 @@ public enum AlertShellState: Equatable, Sendable {
         guard appliedThresholdValid else {
             cancelPolling?(); cancelPolling = nil; effectiveMonitoring = false
             shellState = .attention(validCapacity ? .invalidThreshold : .capacityUnavailable)
-            status = "Threshold no longer fits this volume. Update it to resume alerts."
+            status = validCapacity ? "Threshold no longer fits this volume. Update it to resume alerts." : "Capacity unavailable. Alert decisions are paused."
             return
         }
         effectiveMonitoring = true
@@ -221,7 +229,7 @@ public enum AlertShellState: Equatable, Sendable {
         else if shellState != .attention(.submissionFailed) || available >= policy.thresholdBytes {
             shellState = policy.snoozedUntil.flatMap { $0 > system.now ? .snoozed(until: $0) : nil } ?? .on
         }
-        status = "Monitoring startup-volume capacity while Still runs. Last available: \(String(format: "%.1f", Double(available) / 1_000_000_000)) GB."
+        status = validCapacity ? "Monitoring startup-volume capacity while Still runs. Last available: \(String(format: "%.1f", Double(available) / 1_000_000_000)) GB." : "Capacity unavailable. Alert decisions are paused."
         let submit = policy.observe(available: available, total: total, at: system.now, volumeID: volumeID, metric: reading.metric)
         let notificationID = submit ? "Still.lowSpace." + UUID().uuidString : nil
         if let notificationID {
