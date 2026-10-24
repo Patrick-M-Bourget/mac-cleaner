@@ -1856,7 +1856,7 @@ final class WorkspaceUITests: XCTestCase {
                 app.popUpButtons["Appearance"].click(); app.menuItems[theme].click()
                 let disclosure = app.disclosureTriangles.matching(NSPredicate(format: "label == %@", "About folder access")).firstMatch
                 revealScrollElement(app, control: disclosure, label: "About folder access")
-                disclosure.coordinate(withNormalizedOffset: CGVector(dx: 0, dy: 0.5)).withOffset(CGVector(dx: 8, dy: 0)).click()
+                disclosure.coordinate(withNormalizedOffset: CGVector(dx: 0, dy: 0.5)).withOffset(CGVector(dx: 26, dy: 0)).click()
                 let manual = app.staticTexts["Manage this manually in System Settings → Privacy & Security → Full Disk Access."]
                 revealScrollElement(app, control: manual, label: "Manual optional access guidance")
                 XCTAssertTrue(manual.isHittable)
@@ -1868,7 +1868,7 @@ final class WorkspaceUITests: XCTestCase {
                 capture.name = "optional-folder-access-expanded-" + (minimum ? "minimum-" : "initial-") + theme
                 capture.lifetime = .keepAlways; add(capture)
                 revealScrollElement(app, control: disclosure, label: "Collapse folder access guidance")
-                disclosure.coordinate(withNormalizedOffset: CGVector(dx: 0, dy: 0.5)).withOffset(CGVector(dx: 8, dy: 0)).click()
+                disclosure.coordinate(withNormalizedOffset: CGVector(dx: 0, dy: 0.5)).withOffset(CGVector(dx: 26, dy: 0)).click()
                 XCTAssertFalse(manual.exists)
                 let included = app.checkBoxes["Include " + root.lastPathComponent]
                 revealScrollElement(app, control: included, label: "Unchanged included scope")
