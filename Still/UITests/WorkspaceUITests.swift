@@ -21,6 +21,35 @@ import Darwin
 }
 
 final class WorkspaceUITests: XCTestCase {
+    @MainActor func testPlanStartsWithContextualDownloadsCategoryAndNoSetupDetour() throws {
+        continueAfterFailure = false
+        let token = UUID().uuidString
+        let state = FileManager.default.temporaryDirectory.resolvingSymlinksInPath().appendingPathComponent("StillTestState-" + token)
+        try FileManager.default.createDirectory(at: state, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+        try Data(token.utf8).write(to: state.appendingPathComponent(".still-owned-test-state"))
+        defer { try? FileManager.default.removeItem(at: state) }
+        var info = stat(); XCTAssertEqual(lstat(state.path, &info), 0)
+        let app = XCUIApplication()
+        app.launchArguments = ["--design-minimum"]
+        app.launchEnvironment["STILL_TEST_STATE_ROOT"] = state.path
+        app.launchEnvironment["STILL_TEST_STATE_ID"] = "\(info.st_dev):\(info.st_ino)"
+        app.launch(); defer { app.terminate() }
+        app.typeKey("2", modifierFlags: .command)
+        XCTAssertTrue(app.checkBoxes["downloadsCategorySelection"].waitForExistence(timeout: 10))
+        XCTAssertFalse(app.checkBoxes["downloadsCategorySelection"].isEnabled)
+        XCTAssertTrue(app.staticTexts["Not scanned"].exists)
+        XCTAssertTrue(app.buttons["Scan Downloads…"].isHittable)
+        XCTAssertFalse(app.buttons["Choose Downloads…"].exists)
+        let bounds = app.windows.firstMatch.frame
+        app.buttons["Scan Downloads…"].click()
+        XCTAssertTrue(app.dialogs.buttons["Scan folder"].waitForExistence(timeout: 5))
+        app.dialogs.buttons["Cancel"].click()
+        XCTAssertTrue(app.staticTexts["Cleanup plan"].exists)
+        XCTAssertTrue(app.buttons["Scan Downloads…"].isHittable)
+        XCTAssertFalse(app.buttons["Review cleanup"].isEnabled)
+        XCTAssertEqual(app.windows.firstMatch.frame, bounds)
+    }
+
     @MainActor func testOverviewFindingsRestoreHierarchyAndPreserveReviewChoices() throws {
         continueAfterFailure = false
         let manager = FileManager.default

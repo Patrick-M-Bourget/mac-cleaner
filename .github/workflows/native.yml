@@ -10,6 +10,7 @@ on:
         default: all
         options:
           - all
+          - downloads
           - exclusions
           - design
           - selection
@@ -61,7 +62,11 @@ jobs:
           EVENT_NAME: ${{ github.event_name }}
         run: |
           scope=()
-          if [[ "$EVENT_NAME" == "workflow_dispatch" && "$REQUESTED_SUITE" == "exclusions" ]]; then
+          if [[ "$EVENT_NAME" == "workflow_dispatch" && "$REQUESTED_SUITE" == "downloads" ]]; then
+            scope=(
+              -only-testing:StillUITests/WorkspaceUITests/testPlanStartsWithContextualDownloadsCategoryAndNoSetupDetour
+            )
+          elif [[ "$EVENT_NAME" == "workflow_dispatch" && "$REQUESTED_SUITE" == "exclusions" ]]; then
             scope=(-only-testing:StillUITests/ExclusionsUITests)
           elif [[ "$EVENT_NAME" == "workflow_dispatch" && "$REQUESTED_SUITE" == "overview-main" ]]; then
             scope=(-only-testing:StillUITests/WorkspaceUITests/testOverviewFindingsRestoreHierarchyAndPreserveReviewChoices)
