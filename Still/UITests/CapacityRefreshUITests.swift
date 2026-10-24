@@ -85,4 +85,63 @@ final class CapacityRefreshUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["1 file selected"].waitForExistence(timeout: 5))
         XCTAssertEqual(try Data(contentsOf: file), original)
     }
+
+    @MainActor func testCapacityStatesStayStableAtMinimumSize() throws { try capacityStates(minimum: true) }
+    @MainActor func testCapacityStatesStayStableAtInitialSize() throws { try capacityStates(minimum: false) }
+
+    @MainActor private func capacityStates(minimum: Bool) throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        let state = try configureIsolatedJourneyState(app)
+        defer { app.terminate(); try? FileManager.default.removeItem(at: state) }
+        func sample(available: Int64?, total: Int64?, metric: String = "important", delay: Int = 0) throws {
+            var values: [String: Any] = ["metric": metric, "delayMilliseconds": delay]
+            if let available { values["available"] = available }
+            if let total { values["total"] = total }
+            try JSONSerialization.data(withJSONObject: values).write(to: state.appendingPathComponent("capacity-reading.json"), options: .atomic)
+        }
+        try sample(available: 40_000_000_000, total: 512_000_000_000)
+        app.launchArguments = ["--ui-test-capacity-reading", minimum ? "--design-minimum" : "--design-initial-size"]
+        app.launch()
+        let amount = app.staticTexts["startupCapacityAmount"]
+        guard amount.waitForExistence(timeout: 10) else { XCTFail("Launch capacity missing"); return }
+        let bounds = app.windows.firstMatch.frame
+        let observation = app.staticTexts["capacityObservation"]
+        let anchor = observation.frame
+        func capture(_ name: String) {
+            for theme in ["Light", "Dark"] {
+                app.popUpButtons["Appearance"].click(); app.menuItems[theme].click()
+                let image = XCTAttachment(screenshot: app.windows.firstMatch.screenshot())
+                image.name = "capacity-" + name + (minimum ? "-minimum-" : "-initial-") + theme
+                image.lifetime = .keepAlways; add(image)
+                XCTAssertEqual(app.windows.firstMatch.frame, bounds)
+                XCTAssertEqual(observation.frame, anchor)
+                XCTAssertTrue(app.windows.firstMatch.frame.contains(app.buttons["refreshCapacity"].frame))
+            }
+        }
+        capture("observed-important")
+        try sample(available: 40_000_000_000, total: nil, metric: "available")
+        app.buttons["Refresh capacity"].click()
+        let partial = app.staticTexts["Total capacity unavailable"]
+        guard partial.waitForExistence(timeout: 5) else { XCTFail("Partial metadata must retain available space"); return }
+        XCTAssertTrue(app.staticTexts["sidebarCapacityObservation"].waitForExistence(timeout: 5))
+        let sidebar = app.staticTexts["sidebarCapacityAmount"]
+        guard sidebar.waitForExistence(timeout: 5) else {
+            let image = XCTAttachment(screenshot: app.windows.firstMatch.screenshot())
+            image.name = "capacity-partial-sidebar-missing"; image.lifetime = .keepAlways; add(image)
+            XCTFail("Sidebar must show valid available space without a total"); return
+        }
+        XCTAssertTrue((sidebar.value as? String ?? sidebar.label).contains("40 GB"))
+        capture("partial-fallback")
+        try sample(available: nil, total: nil)
+        app.buttons["Refresh capacity"].click()
+        guard app.buttons["Try again"].waitForExistence(timeout: 5) else { XCTFail("Failure needs retry"); return }
+        XCTAssertTrue((observation.value as? String ?? observation.label).hasPrefix("Last observed "))
+        XCTAssertEqual(amount.value as? String ?? amount.label, "40 GB")
+        capture("stale-failure")
+        try sample(available: 60_000_000_000, total: 512_000_000_000)
+        app.buttons["Try again"].click()
+        XCTAssertTrue(app.buttons["Refresh capacity"].waitForExistence(timeout: 5))
+        capture("recovered")
+    }
 }

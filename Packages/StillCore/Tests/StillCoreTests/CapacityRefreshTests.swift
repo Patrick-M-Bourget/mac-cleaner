@@ -143,3 +143,20 @@ import StillCore
     #expect(system.reads.count == 4)
     #expect(!capacity.failed)
 }
+
+@Test @MainActor func capacityExpiredPreActionDemandStillReceivesOneFreshRead() {
+    let system = ControlledCapacitySystem()
+    let capacity = CapacityRefreshController(system: system)
+    capacity.request(.launch)
+    capacity.request(.cleanupEnded); capacity.request(.scanEnded)
+    system.advance(10)
+    #expect(capacity.isRefreshing)
+    #expect(capacity.failed)
+    #expect(system.reads.count == 2)
+    system.finish(0, available: 90)
+    #expect(capacity.reading == nil)
+    system.finish(1, available: 20)
+    #expect(!capacity.isRefreshing)
+    #expect(!capacity.failed)
+    #expect(capacity.reading?.available == 20)
+}
