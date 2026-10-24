@@ -6,7 +6,10 @@ final class LocalRecordsUITests: XCTestCase {
     @MainActor func testManagementPreservesContextAndFreshRecoveryGuard() async throws { try await context(minimum: true) }
     @MainActor func testInitialManagementPreservesContextAndFreshRecoveryGuard() async throws { try await context(minimum: false) }
 
-    @MainActor func testGatedDiagnosticsReturnsToBothActualCallers() async throws {
+    @MainActor func testGatedDiagnosticsReturnsToBothActualCallers() async throws { try await diagnostics(minimum: true) }
+    @MainActor func testInitialGatedDiagnosticsReturnsToBothActualCallers() async throws { try await diagnostics(minimum: false) }
+
+    @MainActor private func diagnostics(minimum: Bool) async throws {
         continueAfterFailure = false
         let stateID = UUID().uuidString
         let state = FileManager.default.temporaryDirectory.resolvingSymlinksInPath().appendingPathComponent("StillTestState-" + stateID)
@@ -29,7 +32,7 @@ final class LocalRecordsUITests: XCTestCase {
         var stateInfo = stat(); XCTAssertEqual(lstat(state.path, &stateInfo), 0)
         var downloadsInfo = stat(); XCTAssertEqual(lstat(downloads.path, &downloadsInfo), 0)
         let app = XCUIApplication()
-        app.launchArguments = ["--design-minimum", "--ui-test-downloads-root", "--future-milestones"]
+        app.launchArguments = [minimum ? "--design-minimum" : "--design-initial-size", "--ui-test-downloads-root", "--future-milestones"]
         app.launchEnvironment = ["STILL_TEST_STATE_ROOT": state.path, "STILL_TEST_STATE_ID": "\(stateInfo.st_dev):\(stateInfo.st_ino)", "STILL_TEST_DOWNLOADS_ROOT": downloads.path, "STILL_TEST_DOWNLOADS_ID": "\(downloadsInfo.st_dev):\(downloadsInfo.st_ino)"]
         defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: downloads) }
         app.launch(); app.typeKey("2", modifierFlags: .command)
@@ -45,7 +48,7 @@ final class LocalRecordsUITests: XCTestCase {
         let bounds = app.windows.firstMatch.frame
         func capture(_ name: String) {
             let image = XCTAttachment(screenshot: app.windows.firstMatch.screenshot())
-            image.name = "local-records-diagnostics-minimum-" + name; image.lifetime = .keepAlways; add(image)
+            image.name = "local-records-diagnostics-" + (minimum ? "minimum-" : "initial-") + name; image.lifetime = .keepAlways; add(image)
             XCTAssertEqual(app.windows.firstMatch.frame, bounds)
         }
         for (shortcut, caller) in [("3", "History"), ("4", "Locations & access")] {
@@ -68,11 +71,16 @@ final class LocalRecordsUITests: XCTestCase {
             revealScrollElement(app, control: open, label: "Gated diagnostics")
             open.click()
             let payload = app.staticTexts["diagnosticsPayload"]
-            XCTAssertTrue(payload.waitForExistence(timeout: 5))
+            guard payload.waitForExistence(timeout: 5) else {
+                capture(caller + "-missing-payload"); XCTFail("Diagnostics payload must be reviewable"); return
+            }
             let frozen = payload.value as? String ?? payload.label
             XCTAssertFalse(frozen.contains(original.lastPathComponent)); XCTAssertFalse(frozen.contains(state.path))
             let back = app.buttons["Back to " + caller]
-            XCTAssertTrue(back.isHittable); XCTAssertFalse(app.buttons["Back to Local records"].exists)
+            guard back.waitForExistence(timeout: 5), back.isHittable else {
+                capture(caller + "-missing-caller-back"); XCTFail("Diagnostics must return directly to " + caller); return
+            }
+            XCTAssertFalse(app.buttons["Back to Local records"].exists)
             for theme in ["Light", "Dark"] {
                 app.popUpButtons["Appearance"].click(); app.menuItems[theme].click()
                 capture(caller + "-" + theme)
@@ -81,11 +89,20 @@ final class LocalRecordsUITests: XCTestCase {
                 XCTAssertEqual(payload.value as? String ?? payload.label, frozen)
                 XCTAssertTrue((app.staticTexts["diagnosticsStatus"].value as? String ?? app.staticTexts["diagnosticsStatus"].label).contains("Save cancelled"))
             }
+            let beforeScroll = payload.frame
+            app.scrollViews.firstMatch.scroll(byDeltaX: 0, deltaY: -200)
+            XCTAssertNotEqual(payload.frame, beforeScroll, "Exercise an observed nonzero diagnostics viewport")
+            XCTAssertTrue(app.scrollViews.firstMatch.frame.intersects(payload.frame))
+            let observedPayload = payload.frame
+            capture(caller + "-scrolled-payload")
             app.typeKey("w", modifierFlags: .command)
             XCTAssertNotEqual(app.state, .notRunning)
             app.activate(); app.menuBars.menuBarItems["Window"].click(); app.menuItems["Show Still"].firstMatch.click()
-            XCTAssertTrue(back.waitForExistence(timeout: 5)); XCTAssertTrue(back.isHittable)
+            guard back.waitForExistence(timeout: 5), back.isHittable, payload.exists else {
+                capture(caller + "-missing-reopened-context"); XCTFail("Reopening must retain diagnostics and its caller"); return
+            }
             XCTAssertEqual(payload.value as? String ?? payload.label, frozen)
+            XCTAssertEqual(payload.frame, observedPayload)
             capture(caller + "-reopened")
             back.click()
             XCTAssertTrue(manage.waitForExistence(timeout: 5)); XCTAssertEqual(manage.frame, callerFrame)
@@ -146,6 +163,7 @@ final class LocalRecordsUITests: XCTestCase {
         let locationsFrame = manage.frame
         manage.click()
         XCTAssertTrue(app.buttons["Back to Locations & access"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["Review diagnostics"].exists, "Diagnostics remains behind its development milestone gate")
         for theme in ["Light", "Dark"] {
             app.popUpButtons["Appearance"].click(); app.menuItems[theme].click()
             XCTAssertTrue(app.buttons["Back to Locations & access"].isHittable)

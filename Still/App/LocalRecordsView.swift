@@ -29,17 +29,9 @@ struct LocalRecordsView: View {
                     Button("Open recovery review", action: showRecovery).accessibilityIdentifier("localRecordsRecovery")
                 }
             }
-            SettingsRow(title: "Completed history", detail: "Remove completed per-file results and aggregate growth baselines. Recovery facts, consumed approvals, original files and Trash remain.") {
-                Button("Clear completed runs…") { confirmingClear = true }.accessibilityIdentifier("clearHistory")
-            }.disabled(model.busy || lifecycle.operationInProgress)
-            SettingsRow(title: "Reset Still", detail: "Forget preferences and selected locations, and stop alerts and login launch. Unfinished or unreadable recovery records block Reset.") {
-                Button("Reset Still…") { confirmingReset = true }.accessibilityIdentifier("resetStill")
-            }.disabled(model.busy || lifecycle.operationInProgress)
-            if let reviewDiagnostics {
-                SettingsRow(title: "Diagnostics", detail: "Review a redacted snapshot before choosing whether to save it locally. Nothing is uploaded.") {
-                    Button("Review diagnostics", action: reviewDiagnostics)
-                }
-            }
+            LocalRecordsMaintenanceControls(enabled: !model.busy && !lifecycle.operationInProgress,
+                clear: { confirmingClear = true }, reset: { confirmingReset = true })
+            if let reviewDiagnostics { LocalRecordsDiagnosticsEntry(action: reviewDiagnostics) }
         }
         .task { await model.load(maintainCompleted: false) }
         .confirmationDialog("Clear completed runs?", isPresented: $confirmingClear, titleVisibility: .visible) {
@@ -48,5 +40,31 @@ struct LocalRecordsView: View {
         .confirmationDialog("Reset Still?", isPresented: $confirmingReset, titleVisibility: .visible) {
             Button("Reset Still", role: .destructive) { Task { if await model.reset() { didReset() } } }
         } message: { Text("Forget Still’s preferences, custom exclusions, selected locations and completed history; stop alerts and login launch. Original files, Trash and macOS access grants remain. Unfinished or unreadable journal records block reset.") }
+    }
+}
+
+/// Pure presentation shared with inert Gallery examples. Maintenance stays in the model.
+struct LocalRecordsMaintenanceControls: View {
+    var enabled = true
+    var clear: () -> Void
+    var reset: () -> Void
+    var body: some View {
+        VStack(alignment: .leading, spacing: StillDesign.Space.xl) {
+            SettingsRow(title: "Completed history", detail: "Remove completed per-file results and aggregate growth baselines. Recovery facts, consumed approvals, original files and Trash remain.") {
+                Button("Clear completed runs…", action: clear).accessibilityIdentifier("clearHistory")
+            }
+            SettingsRow(title: "Reset Still", detail: "Forget preferences and selected locations, and stop alerts and login launch. Unfinished or unreadable recovery records block Reset.") {
+                Button("Reset Still…", action: reset).accessibilityIdentifier("resetStill")
+            }
+        }.disabled(!enabled)
+    }
+}
+
+struct LocalRecordsDiagnosticsEntry: View {
+    var action: () -> Void
+    var body: some View {
+        SettingsRow(title: "Diagnostics", detail: "Review a redacted snapshot before choosing whether to save it locally. Nothing is uploaded.") {
+            Button("Review diagnostics", action: action)
+        }
     }
 }
