@@ -65,4 +65,5 @@ After visual approval, turn this into dependent implementation slices with parit
 - [x] Annotated states and one interactive review proposal prepared in the approved visual language.
 - [x] Synthetic render/interaction observations preserved with source/hash boundaries.
 - [x] User visual approval of proposal b96bb97, October 23, 2026.
-- [ ] Dependent implementation slices ready, followed by production changes and native proof.
+- [x] Dependent implementation slices published as #55 → #56 → #57 under #45.
+- [ ] Complete native first-slice validation; see [connected evidence](validation/connected-downloads.md). Full connected parity remains on the original repair tickets.

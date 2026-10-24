@@ -10,6 +10,10 @@ This is a complete source/contract/evidence audit, not a new native test run or 
 
 Authority remains SPEC + DESIGN-HANDOFF + MILESTONES. The prototype establishes product intent and hierarchy, not fake data, literal web metrics or permission to bypass feasibility gates. Proposed fixes in issues are **not** newly approved product decisions. A contract can preserve an intended feature while acknowledging it is missing in the current app.
 
+## Connected Downloads implementation checkpoint
+
+The original tables below record the audit baseline. The user-approved b96bb97 proposal is now implemented on `implement/downloads-journey` under #55 → #56 → #57: remembered explicit scope configuration, contextual Downloads prerequisite, macro/inline membership, observed-only folder Explorer, exact confirmation/results and return routes. This advances S01–S05/S09, F01–F05 and the corresponding plan/navigation gaps; it does not certify every original repair criterion. See [source-bound native evidence and remaining failures](validation/connected-downloads.md). Original parent issues #44/#46/#47/#48/#50 and #45 remain open until their complete acceptance is proven. Future capabilities and platform gates below remain unchanged.
+
 ## Classification
 
 | Code | Meaning |

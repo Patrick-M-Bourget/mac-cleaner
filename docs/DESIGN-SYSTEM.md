@@ -74,19 +74,19 @@ ActionStrip(message: "Nothing changes until you confirm the next step.") {
 }
 ```
 
-`selectedSize`, `selectedCount`, `eligibilityText`, `trashConsequence`, `coverageText` are strings supplied by the screen; `expandItems` and `beginReview` are its actions. These snippets show composition, not a second source of selection policy. `MacroCategoryCheckbox` takes `CategorySelectionState` from StillCore; derive it from the session model. Increment the focus request once after sheet dismissal rather than repeatedly stealing focus.
+`selectedSize`, `selectedCount`, `eligibilityText`, `trashConsequence`, `coverageText` are strings supplied by the screen; `expandItems` and `beginReview` are its actions. These snippets show composition, not a second source of selection policy. `MacroCategoryCheckbox` propagates enabled state through both SwiftUI and its native bridge; never rely only on setting `NSButton.isEnabled`, which SwiftUI can override. It takes `CategorySelectionState` from StillCore; derive it from the session model. Increment the focus request once after sheet dismissal rather than repeatedly stealing focus.
 
-## Approved recurring patterns awaiting implementation
+## Connected recurring patterns
 
-The [visual review](CONNECTED-FLOW-DESIGN-REVIEW.md) illustrates these approved responsibilities. Names below describe patterns, not an implemented API or permission to bypass the public models. Add native shared components and meaningful Gallery states before composing the repaired screens.
+The [visual review](CONNECTED-FLOW-DESIGN-REVIEW.md) illustrates these approved responsibilities. The first Downloads slice implements the native APIs below, with meaningful Gallery examples. Their presence does not qualify every FL branch; see [connected validation](validation/connected-downloads.md). Keep domain policy in the observation/selection models.
 
 | Pattern | Responsibilities / states |
 |---|---|
-| Toolbar scan status | Shared progress, Stop and return-to-origin while away; no completion navigation or invented percentage; FL07/FL08 |
-| Location scope row | Inclusion, folder/path, current access/coverage, direct recovery and secondary Forget; editing paused during scan; Q29/FL09 |
-| Category prerequisite | Not scanned/empty/partial versus eligible count and logical size; contextual scan/recheck within the stable plan; no permanent setup banner; FL01–FL06 |
-| Explorer inspector | Separate folder navigation/info/file inspection/selection; right pane or compact bounded panel above footer, preserved context; FL10/FL11 |
-| Contextual return | Caller-labelled Back, viewport/query/inspector restoration and existing-ancestor reuse; no Plan/Explorer cycle; Q17/Q24 |
+| `ToolbarScanStatus` | Shared phase/entry evidence, Stop and return-to-origin while away; no completion navigation or invented percentage; FL07/FL08 |
+| `LocationScopeRow` | Inclusion, folder/path, current access/coverage, direct recovery and secondary Forget; editing paused during scan; Q29/FL09 |
+| `CategoryPrerequisite` | Not scanned/empty/partial versus eligible count and logical size; contextual scan/recheck within the stable plan; no permanent setup banner; FL01–FL06 |
+| `ExplorerInspector` | Separate folder navigation/info/file inspection/selection; right pane or compact bounded panel above footer, preserved context; FL10/FL11 |
+| Contextual return / `DestinationViewport` | Caller-labelled Back, viewport/query/inspector restoration and existing-ancestor reuse; no Plan/Explorer cycle; Q17/Q24 |
 
 ## Screen and state inventory
 
