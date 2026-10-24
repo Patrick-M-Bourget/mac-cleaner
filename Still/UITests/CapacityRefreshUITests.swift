@@ -18,13 +18,15 @@ final class CapacityRefreshUITests: XCTestCase {
             return
         }
         let window = app.windows.firstMatch.frame
-        let coverage = app.staticTexts["overviewScopeCoverage"]
-        let coverageValue = coverage.value as? String
+        let coverage = app.staticTexts["No included locations with current observations."]
+        XCTAssertTrue(coverage.waitForExistence(timeout: 5))
+        let coverageValue = coverage.value as? String ?? coverage.label
         XCTAssertTrue(app.buttons["Scan again"].exists)
         XCTAssertTrue(app.windows.firstMatch.frame.contains(refresh.frame))
         refresh.click()
         XCTAssertTrue(app.staticTexts["Storage overview"].exists)
-        XCTAssertEqual(coverage.value as? String, coverageValue)
+        XCTAssertTrue(coverage.exists)
+        XCTAssertEqual(coverage.value as? String ?? coverage.label, coverageValue)
         XCTAssertFalse(app.buttons["Stop scan"].exists)
         XCTAssertEqual(app.windows.firstMatch.frame, window)
         app.buttons["Cleanup plan"].click()
