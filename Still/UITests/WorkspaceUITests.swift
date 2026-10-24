@@ -1481,4 +1481,66 @@ final class WorkspaceUITests: XCTestCase {
         }
     }
 
+
+    // MARK: Mixed remembered locations (#58), public owned-fixture journey
+    @MainActor func testMixedLocationsKeepValidChoicesWithUnknownCoverage() throws {
+        continueAfterFailure = false
+        let manager = FileManager.default
+        let root = manager.temporaryDirectory.resolvingSymlinksInPath().appendingPathComponent("StillSelectionUI-" + UUID().uuidString)
+        let a = root.appendingPathComponent("Downloads A")
+        let b = root.appendingPathComponent("Downloads B")
+        let child = a.appendingPathComponent("Child")
+        for folder in [a, b, child] { try manager.createDirectory(at: folder, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700]) }
+        let original = Data([1, 2, 3, 4])
+        let file = child.appendingPathComponent("overlap-guide.pdf")
+        try original.write(to: file)
+        try Data([5, 6]).write(to: b.appendingPathComponent("second-guide.pdf"))
+        defer { try? manager.removeItem(at: root) }
+        let app = XCUIApplication()
+        let state = try configureIsolatedJourneyState(app)
+        defer { app.terminate(); try? manager.removeItem(at: state) }
+        app.launchArguments = ["--ui-test-downloads-root", "--design-minimum"]
+        app.launchEnvironment["STILL_TEST_DOWNLOADS_ROOT"] = root.path
+        var identity = stat(); XCTAssertEqual(lstat(root.path, &identity), 0)
+        app.launchEnvironment["STILL_TEST_DOWNLOADS_ID"] = "\(identity.st_dev):\(identity.st_ino)"
+        app.launch()
+        func choose(_ folder: URL, action: String, prompt: String) {
+            app.buttons[action].click(); app.typeKey("g", modifierFlags: [.command, .shift])
+            XCTAssertTrue(app.textFields.firstMatch.waitForExistence(timeout: 5))
+            app.textFields.firstMatch.typeText(folder.path); app.typeKey(.return, modifierFlags: [])
+            app.dialogs.buttons[prompt].click()
+        }
+        func waitForLocationsScan() {
+            let ready = XCTNSPredicateExpectation(predicate: NSPredicate(format: "enabled == true"), object: app.buttons["Scan selected locations"])
+            XCTAssertEqual(XCTWaiter.wait(for: [ready], timeout: 20), .completed)
+        }
+        // Explicitly bind the owned Downloads fixture through the real picker and scan.
+        choose(root, action: "Choose folder…", prompt: "Scan folder")
+        waitForOverviewScan(app)
+        app.typeKey("4", modifierFlags: .command)
+        choose(a, action: "Add folder…", prompt: "Remember folder")
+        XCTAssertFalse(app.buttons["Stop scan"].exists)
+        app.checkBoxes["Include " + root.lastPathComponent].click()
+        app.buttons["Scan selected locations"].click(); waitForLocationsScan()
+        choose(b, action: "Add folder…", prompt: "Remember folder")
+        XCTAssertTrue(app.staticTexts["Not scanned"].exists)
+        XCTAssertFalse(app.buttons["Stop scan"].exists)
+        app.typeKey("2", modifierFlags: .command)
+        let category = app.checkBoxes["downloadsCategorySelection"]
+        XCTAssertTrue(category.waitForExistence(timeout: 5)); XCTAssertTrue(category.isEnabled)
+        XCTAssertTrue(app.staticTexts["Limited coverage · Only current eligible files can be included. Uninspected contents remain unknown."].exists)
+        category.click()
+        XCTAssertTrue(app.staticTexts["1 file selected"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["Review cleanup"].isEnabled)
+        app.buttons["Review cleanup"].click()
+        XCTAssertTrue(app.sheets.staticTexts["overlap-guide.pdf"].waitForExistence(timeout: 5))
+        app.sheets.buttons["Cancel"].click()
+        XCTAssertTrue(app.staticTexts["1 file selected"].exists)
+        XCTAssertEqual(try Data(contentsOf: file), original)
+        app.typeKey("4", modifierFlags: .command)
+        choose(child, action: "Add folder…", prompt: "Remember folder")
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "value == %@", "Overlaps another remembered location · Shared contents are counted once.")).firstMatch.exists)
+        XCTAssertFalse(app.buttons["Stop scan"].exists)
+    }
+
 }
