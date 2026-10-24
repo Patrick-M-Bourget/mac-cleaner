@@ -25,3 +25,5 @@ Archive source `f2b326a` (root6dd400b) adds bounded coverage explanations after 
 Final Core rerun at `d786335` passes149 Swift Testing +5 XCTest, zero failures (`/tmp/history51-core-final.log`). This includes the final global-baseline/oversized-summary check; native/UI qualification still remains separate.
 
 Filter implementation `04624ef`, native run `40133178935`:3/3 passed (first37.799s, initial49.920s, minimum49.949s). All12 original filter captures individually reviewed in Light/Dark at1024×640 and900×640; bounded accepted presentation in `docs/visual/history-activity/40133178935-filters`. Remaining contract branches are not qualified by this pass.
+
+Grouped terminal tracer `facfc67` with focused workflow `c51d755`, run `40133285366`, fails at intended line137 after one explicit two-location scan creates separate activities (56.180s). Original minimum capture individually reviewed and preserved under `docs/visual/history-activity/40133285366-red`. Stop assertions remain unexercised at this red checkpoint.
