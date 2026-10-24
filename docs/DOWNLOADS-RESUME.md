@@ -1,66 +1,19 @@
-# Downloads implementation checkpoint
+# Connected Downloads checkpoint
 
-User requested a wrap-up before `/clear`. Resume this work before building further features. This is an unfinished verification checkpoint, not a delivery or merge approval.
+The first Downloads journey (#55–#57) is qualified and ready for integration. [Validation](validation/connected-downloads.md) owns exact source/test/capture boundaries. Application source824328f; later commits are tests/docs. Core136, local Xcode27.1 build and app signature verify. Native final regressions40051984202 pass5/5; strengthened refresh40052574336 and unavailable/recovery40052410048 pass. b1702ef expanded12/13 has its sole offscreen-row assertion superseded by the strengthened passing refresh case. This is combined focused evidence, not one full UI suite green run.
 
-## Repository and authority
+## Next frontier
 
-- Repo: `/Users/bender/Library/Caches/Codex/mac-cleaner-implementation/repo`
-- Working branch: `implement/downloads-journey`; latest implementation `b1702ef` (this checkpoint adds docs only).
-- Integration: `integration/still-spec`, still at `9eb94fa`. Draft PR36 remains open on integration; feature changes have not yet been integrated. Do not mark it ready or merge failed checks.
-- Approved proposal: `b96bb97`; FLOW-LOCK Q1–Q30. Read AGENTS, docs/README, SPEC, DESIGN-HANDOFF, DESIGN-SYSTEM and validation/connected-downloads.md.
-- GitHub tracking: #55 → #56 → #57 under #45. All remain open pending final qualification/integration. Full parent repairs #44/#46/#47/#48/#50 and future milestones remain open.
+- #58 child of#46: mixed included locations/access/overlap, conditional Forget, exact independently supported selections, readable compact recovery actions. Depends on#57. External planning: `/Users/bender/Library/Caches/Codex/mac-cleaner-implementation/notes/mixed-location-fixture-planning.md` and `connected-frontier-e620089.md`.
+- #59 child of#47: structured inspector evidence, why listed, candidate/action/consequence/protection explanations without expanding cleanup authority. Depends on#57. Scope/acceptance is in GitHub.
+- Parent#44/#46/#47/#48/#50/#45 remain open. History caller-aware recovery and results branches remain planned. Remaining#49/#51–#54 decisions are not implicitly authorized by these slices; all future milestones remain in MILESTONES. M8 stays deferred.
 
-## Implemented
+## Work conventions
 
-Remembered explicit scopes with guarded security-scoped bookmarks; no restored observations/authority. Contextual Downloads prerequisite in stable plan; scans stay on origin; shared toolbar Stop/return. Shared exact macro/inline selection, observed folder Explorer/search/inspector/Back, immutable confirmation, disposable native Trash results, History/new-plan/relaunch. Optional initial viewport offset fixes native52-point shift. Explorer highlight no longer rebuilds/sorts full observations for every row. Latest `b1702ef` retains observed refinement during refresh with disabled stale selection and names empty scanned coverage.
+Repo: `/Users/bender/Library/Caches/Codex/mac-cleaner-implementation/repo`. Existing integration branch `integration/still-spec`; draft PR36 remains draft for the broader specification. Read AGENTS and docs/README/SPEC/DESIGN-HANDOFF/DESIGN-SYSTEM/FLOW-LOCK. Do not re-grill the approved b96bb97/Q1–Q30 flows. Existing approved public app/scanner/executor/recovery test seams persist.
 
-Spec, design handoff/system, development and parity checkpoint are synchronized. Original native Light/Dark captures at intermediate `ffd11f7` are committed with manifest/hash/dimensions. Its initial unscanned capture shows the old inset bug, explicitly recorded; replace/add final-source captures rather than treating intermediate geometry as accepted.
+Start implementer worktrees from the current integration tip, keep ownership isolated, and record real native source-bound Light/Dark initial/minimum proof before UI integration. Local UI automation startup fails before assertions; hosted macOS26/Xcode26.6 runs the UI tests. Use `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer` for local tools (default command-line runtime lacks Testing/xcresulttool).
 
-## Proven results
+Local feature-review build: `/Users/bender/Library/Caches/Codex/mac-cleaner-implementation/artifacts/downloads-824328f/Still.app`; BUILD.md records source. No personal cleanup or OS permission changes were performed. Native permission/provider/supported OS/CPU/VoiceOver qualification remains separate.
 
-- Local Xcode27.1 build-for-testing passes latest implementation: `/tmp/still-downloads-build-b1702ef.log`.
-- Core131 Swift Testing +5 XCTest =136 pass: `/tmp/still-downloads-core-current.log` (use DEVELOPER_DIR below).
-- Native40049450365 (`ffd11f7`): four tests pass, both complete journeys, contextual prerequisites and Gallery. Includes native fixture Trash, empty state, omit/reinclude, relaunch and wide/compact inspector geometry.
-- Native40050359141 (`caf6375`): all3 exact-frame anchoring tests pass (plan category/individual, Explorer, scrolled category). The reproduced52pt displacement is resolved.
-- Native40050233027 (`9ce57e0`): repair suite passes (exclusions + existing refresh).
-- Standards/safety review: no remaining documented blocker in shared components, grant leases, exact overlap membership, omit/Forget or reset. External review notes: `../notes/downloads-journey-review.md`.
-
-## Check running jobs first
-
-At wrap-up these were still active/queued. Fetch actual results; do not assume success:
-
-| Run | Source | Purpose |
-|---|---|---|
-|40050266396|caf6375|Expanded13-case Downloads suite before final refresh-display fix|
-|40050412990|7a74e91|Recovery + Growth + Overview regressions; lacks later Explorer performance fix|
-|40050757234|39832ca|Intentional red: expanded refinement must remain during refresh|
-|40050922744|b1702ef|Final candidate expanded Downloads suite including new refresh/empty assertions|
-
-Run40050736278 was redundant and deliberately cancelled after all3 anchoring tests passed.
-
-**Open failure:** run40050435403 at `f5fe3ef` got through600-file browsing/search, selection and partial coverage without the previous event-loop hang, then failed WorkspaceUITests.swift:423 waiting for unavailable Downloads finding to contain Unknown after deleting the test-owned root and scanning remembered scopes. Diagnose actual rendered/accessibility state and coverage projection; do not assume it is only an assertion issue or weaken Unknown/no-false-empty requirements. Log `/tmp/still-overview-f5-failure.log`. Rerun unchanged public Overview journey after correction.
-
-Earlier broad run40047017039 exposed Recovery's old Nothing selected assertion, Growth's legacy auto-navigation/unremembered scan path, the52pt shift, Overview hang and unknown coverage identifier. Recovery assertions, Growth route, inset and identifier have candidate fixes; confirm pending targeted results. Unaffected broad classes passed (retry, diagnostics, exclusions, history, managed inventory, alerts). Do not claim full-suite success.
-
-## Next actions
-
-1. Read latest run results and exact failure output; fix remaining regressions under existing approved public test boundaries. `downloads-refresh` provides intentional red comparison; `downloads`, `downloads-regressions`, `overview-main`, `selection` are available workflow inputs.
-2. Check `b1702ef` refresh rows preserve names/query but never select stale evidence; source review plus current public assertions, no personal files.
-3. Preserve original final-source native captures and actual dimensions, visually review Light/Dark initial/minimum including unscanned/header, empty, results and inspector. Update validation with exact source/run boundaries.
-4. Finish review/evidence, package a source-named local app from successful build. Only then FF feature into integration, push/update draft PR36 and resolve child tickets whose acceptance is proven. Keep broader parent repairs open.
-5. Clean only owned worktrees once all changes committed and proof preserved; current worktrees listed by git worktree list. They are shell-created, not managed app attachments.
-
-## Commands and locations
-
-```sh
-cd /Users/bender/Library/Caches/Codex/mac-cleaner-implementation/repo
-gh run list --branch implement/downloads-journey --limit 12
-gh run view RUN_ID --log-failed
-gh workflow run native.yml --ref implement/downloads-journey -f suite=downloads
-DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcrun swift test --package-path Packages/StillCore
-DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild build-for-testing -project Still/Still.xcodeproj -scheme Still -destination 'platform=macOS' -derivedDataPath .build/xcode
-```
-
-Local UI automation startup times out before assertions; use hosted macOS26/Xcode26.6 for native UI proof. No repeated personal app launch/access changes needed. Download native-test-results to a new external notes directory; artifact contains xcresult contents directly. Export with Xcode xcresulttool using DEVELOPER_DIR. Existing results/captures in `/Users/bender/Library/Caches/Codex/mac-cleaner-implementation/notes/downloads-*`.
-
-All test filesystem actions use owned disposable fixtures. No personal cleanup, adapter promotion, signing/notarization or M8 work. Included-but-never-scanned multi-location aggregate coverage remains explicitly tracked on #46/#44, and History recovery's caller-aware return on #48. Existing skill/test-boundary approvals persist; do not re-grill approved flows.
+External native results/notes are under `/Users/bender/Library/Caches/Codex/mac-cleaner-implementation/notes`. Preserve needed originals/manifests and reviews before removing redundant owned worktrees/caches. GitHub57 records checkpoint and final status; check current branch/tickets before resuming rather than assuming old pending CI is still running.

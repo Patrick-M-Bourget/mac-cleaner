@@ -66,4 +66,4 @@ After visual approval, turn this into dependent implementation slices with parit
 - [x] Synthetic render/interaction observations preserved with source/hash boundaries.
 - [x] User visual approval of proposal b96bb97, October 23, 2026.
 - [x] Dependent implementation slices published as #55 → #56 → #57 under #45.
-- [ ] Complete native first-slice validation; see [connected evidence](validation/connected-downloads.md). Full connected parity remains on the original repair tickets.
+- [x] Complete native first-slice validation; see [connected evidence](validation/connected-downloads.md). Full connected parity remains on the original repair tickets.
