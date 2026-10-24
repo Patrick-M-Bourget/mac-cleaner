@@ -276,8 +276,10 @@ final class CapacityRefreshUITests: XCTestCase {
         app.launch()
         XCTAssertTrue(app.staticTexts["Native design system"].waitForExistence(timeout: 10))
         let bounds = app.windows.firstMatch.frame
+        XCTAssertEqual(app.popUpButtons.count, 1, "Gallery has one native appearance picker")
         for theme in ["Light", "Dark"] {
-            app.popUpButtons["Appearance"].click(); app.menuItems[theme].click()
+            app.popUpButtons.firstMatch.click(); app.menuItems[theme].click()
+            XCTAssertEqual(app.popUpButtons.firstMatch.value as? String, theme)
             for name in ["checking", "refreshing", "important", "fallback", "partial", "stale", "unavailable"] {
                 let heading = app.staticTexts["Synthetic capacity " + name + " · Inert example"]
                 revealScrollElement(app, control: heading, label: name)
