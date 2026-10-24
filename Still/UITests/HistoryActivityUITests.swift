@@ -464,4 +464,57 @@ final class HistoryActivityUITests: XCTestCase {
         XCTAssertFalse(manager.fileExists(atPath: state.appendingPathComponent("Growth/aggregates-v1.json").path), "Gallery examples never write history")
     }
 
+    @MainActor func testScanHistoryWarningsAndStoreSpecificReloadsAtInitialSize() throws { try exerciseReviewFix(minimum: false) }
+    @MainActor func testScanHistoryWarningsAndStoreSpecificReloadsAtMinimumSize() throws { try exerciseReviewFix(minimum: true) }
+    @MainActor private func exerciseReviewFix(minimum: Bool) throws {
+        continueAfterFailure = false
+        let manager = FileManager.default, app = XCUIApplication()
+        let state = try configureIsolatedJourneyState(app)
+        let root = manager.temporaryDirectory.resolvingSymlinksInPath().appendingPathComponent("StillSelectionUI-" + UUID().uuidString)
+        try manager.createDirectory(at: root, withIntermediateDirectories: false)
+        let original = root.appendingPathComponent("Visible.pdf"); try Data([4, 7]).write(to: original)
+        let archive = state.appendingPathComponent("Growth/aggregates-v1.json")
+        try manager.createDirectory(at: archive, withIntermediateDirectories: true)
+        var identity = stat(); XCTAssertEqual(lstat(root.path, &identity), 0)
+        app.launchArguments = ["--ui-test-downloads-root", minimum ? "--design-minimum" : "--design-initial-size"]
+        app.launchEnvironment["STILL_TEST_DOWNLOADS_ROOT"] = root.path; app.launchEnvironment["STILL_TEST_DOWNLOADS_ID"] = "\(identity.st_dev):\(identity.st_ino)"
+        defer { app.terminate(); try? manager.removeItem(at: state); try? manager.removeItem(at: root) }
+        app.launch(); XCTAssertTrue(app.buttons["Choose folder…"].waitForExistence(timeout: 10)); app.buttons["Choose folder…"].click()
+        app.typeKey("g", modifierFlags: [.command, .shift]); XCTAssertTrue(app.textFields.firstMatch.waitForExistence(timeout: 5)); app.textFields.firstMatch.typeText(root.path)
+        app.typeKey(.return, modifierFlags: []); app.dialogs.buttons["Scan folder"].click(); waitForOverviewScan(app)
+        app.typeKey("2", modifierFlags: .command); XCTAssertTrue(app.checkBoxes["downloadsCategorySelection"].waitForExistence(timeout: 5)); app.checkBoxes["downloadsCategorySelection"].click()
+        XCTAssertTrue(app.staticTexts["1 file selected"].waitForExistence(timeout: 5))
+        let warning = app.staticTexts["This scan could not be saved to History. Current results and choices remain available."]
+        app.typeKey("4", modifierFlags: .command)
+        guard warning.waitForExistence(timeout: 5) else {
+            let image = XCTAttachment(screenshot: app.windows.firstMatch.screenshot()); image.name = "history-review-missing-locations-feedback"; image.lifetime = .keepAlways; add(image)
+            XCTFail("Scan-history save failure must remain explained on Locations, the scan caller"); return
+        }
+        let bounds = app.windows.firstMatch.frame
+        func capture(_ name: String) {
+            let image = XCTAttachment(screenshot: app.windows.firstMatch.screenshot()); image.name = "history-review-" + (minimum ? "minimum-" : "initial-") + name; image.lifetime = .keepAlways; add(image); XCTAssertEqual(app.windows.firstMatch.frame, bounds)
+        }
+        for theme in ["Light", "Dark"] { app.popUpButtons["Appearance"].click(); app.menuItems[theme].click(); capture("locations-warning-" + theme) }
+        app.typeKey("1", modifierFlags: .command); openObservedExplorer(app, root: root)
+        XCTAssertTrue(warning.waitForExistence(timeout: 5))
+        for theme in ["Light", "Dark"] { app.popUpButtons["Appearance"].click(); app.menuItems[theme].click(); capture("explorer-warning-" + theme) }
+        let journal = state.appendingPathComponent("cleanup.sqlite")
+        XCTAssertFalse(manager.fileExists(atPath: journal.path)); try Data("owned unreadable journal".utf8).write(to: journal)
+        app.typeKey("3", modifierFlags: .command)
+        let scanRetry = app.buttons["Try scan history again"], cleanupRetry = app.buttons["Try cleanup history again"]
+        XCTAssertTrue(scanRetry.waitForExistence(timeout: 5)); XCTAssertTrue(cleanupRetry.exists)
+        for theme in ["Light", "Dark"] { app.popUpButtons["Appearance"].click(); app.menuItems[theme].click(); capture("independent-reloads-" + theme) }
+        // Both adapters become readable; reloading one must not silently reload the other.
+        try manager.removeItem(at: archive); try manager.removeItem(at: journal)
+        let filter = app.popUpButtons["History activity filter"]
+        filter.click(); app.menuItems["Scans"].click(); scanRetry.click()
+        XCTAssertTrue(app.staticTexts["No recorded scans."].waitForExistence(timeout: 5)); XCTAssertTrue(cleanupRetry.exists)
+        XCTAssertFalse(scanRetry.exists); XCTAssertFalse(app.buttons["Stop scan"].exists)
+        filter.click(); app.menuItems["Cleanups"].click(); XCTAssertTrue(app.staticTexts["History unavailable"].exists)
+        cleanupRetry.click(); XCTAssertTrue(app.staticTexts["No recorded cleanup runs."].waitForExistence(timeout: 5))
+        XCTAssertFalse(cleanupRetry.exists); XCTAssertFalse(app.staticTexts["Completed scan"].exists)
+        app.typeKey("2", modifierFlags: .command); XCTAssertTrue(app.staticTexts["1 file selected"].waitForExistence(timeout: 5))
+        XCTAssertEqual(try Data(contentsOf: original), Data([4, 7]))
+    }
+
 }

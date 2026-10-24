@@ -181,7 +181,7 @@ final class RecoveryUITests: XCTestCase {
         let recoveryButton = app.buttons["historyRecovery"]
         XCTAssertTrue(recoveryButton.waitForExistence(timeout: 5))
         let scroll = app.scrollViews.firstMatch
-        let disclosure = app.disclosureTriangles.firstMatch
+        let disclosure = app.disclosureTriangles["Per-file results"].firstMatch
         for _ in 0..<8 where !scroll.frame.contains(disclosure.frame) { scroll.scroll(byDeltaX: 0, deltaY: -100) }
         XCTAssertTrue(disclosure.isHittable)
         disclosure.coordinate(withNormalizedOffset: CGVector(dx: 0, dy: 0.5)).withOffset(CGVector(dx: 26, dy: 0)).click()
@@ -206,7 +206,7 @@ final class RecoveryUITests: XCTestCase {
             XCTAssertTrue(recoveryButton.waitForExistence(timeout: 5))
             XCTAssertEqual(recoveryButton.frame, observed)
             XCTAssertTrue(expanded.exists, "Expanded recorded evidence survives recovery return")
-            XCTAssertEqual(app.disclosureTriangles.firstMatch.value as? Int, 1)
+            XCTAssertEqual(app.disclosureTriangles["Per-file results"].firstMatch.value as? Int, 1)
             XCTAssertEqual(app.windows.firstMatch.frame, bounds)
             capture("history-return-" + theme)
         }
@@ -222,7 +222,7 @@ final class RecoveryUITests: XCTestCase {
         app.buttons["Back to History"].click()
         XCTAssertTrue(recoveryButton.waitForExistence(timeout: 5))
         XCTAssertEqual(recoveryButton.frame, observed)
-        XCTAssertEqual(app.disclosureTriangles.firstMatch.value as? Int, 1)
+        XCTAssertEqual(app.disclosureTriangles["Per-file results"].firstMatch.value as? Int, 1)
         capture("window-reopened-history")
         // Sidebar navigation clears contextual Back; new Overview entry owns its return.
         recoveryButton.click(); app.typeKey("1", modifierFlags: .command)

@@ -101,7 +101,7 @@ final class LocalRecordsUITests: XCTestCase {
         }
         for (shortcut, caller) in [("3", "History"), ("4", "Locations & access")] {
             app.typeKey(shortcut, modifierFlags: .command)
-            let disclosure = app.disclosureTriangles.firstMatch
+            let disclosure = caller == "History" ? app.disclosureTriangles["Per-file results"].firstMatch : app.disclosureTriangles.firstMatch
             revealScrollElement(app, control: disclosure, label: "Retain caller disclosure")
             if disclosure.value as? Int != 1 {
                 disclosure.coordinate(withNormalizedOffset: CGVector(dx: 0, dy: 0.5)).withOffset(CGVector(dx: 26, dy: 0)).click()
@@ -154,7 +154,7 @@ final class LocalRecordsUITests: XCTestCase {
             capture(caller + "-reopened")
             back.click()
             XCTAssertTrue(manage.waitForExistence(timeout: 5)); XCTAssertEqual(manage.frame, callerFrame)
-            XCTAssertEqual(app.disclosureTriangles.firstMatch.value as? Int, 1)
+            XCTAssertEqual(disclosure.value as? Int, 1)
             XCTAssertFalse(back.exists)
             XCTAssertFalse(app.buttons["Back to Local records"].exists)
         }
@@ -238,7 +238,7 @@ final class LocalRecordsUITests: XCTestCase {
         XCTAssertEqual(app.staticTexts["liveSelectionSummary"].value as? String, "1 file selected")
         app.typeKey("3", modifierFlags: .command)
         XCTAssertTrue(manage.waitForExistence(timeout: 5))
-        let disclosure = app.disclosureTriangles.firstMatch
+        let disclosure = app.disclosureTriangles["Per-file results"].firstMatch
         revealScrollElement(app, control: disclosure, label: "History per-file evidence")
         disclosure.coordinate(withNormalizedOffset: CGVector(dx: 0, dy: 0.5)).withOffset(CGVector(dx: 26, dy: 0)).click()
         XCTAssertTrue(app.staticTexts["owned-context.pdf"].firstMatch.waitForExistence(timeout: 5))
