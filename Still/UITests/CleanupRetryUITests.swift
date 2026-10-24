@@ -35,9 +35,10 @@ final class CleanupRetryUITests: XCTestCase {
         let path = app.textFields.firstMatch
         XCTAssertTrue(path.waitForExistence(timeout: 5)); path.typeText(root.path)
         app.typeKey(.return, modifierFlags: []); app.dialogs.buttons["Scan folder"].click()
-        XCTAssertTrue(app.staticTexts["Observed"].waitForExistence(timeout: 10)); app.typeKey("2", modifierFlags: .command)
+        waitForOverviewScan(app, timeout: 10); app.typeKey("2", modifierFlags: .command)
         let category = app.checkBoxes["downloadsCategorySelection"]
         XCTAssertTrue(category.waitForExistence(timeout: 5)); category.click()
+        expandPlanItems(app)
         XCTAssertTrue(app.checkBoxes["Selected b.pdf"].waitForExistence(timeout: 10))
         app.buttons["Review cleanup"].click()
         let confirmation = app.sheets.containing(.staticText, identifier: "Review Move to Trash").firstMatch
@@ -83,8 +84,9 @@ final class CleanupRetryUITests: XCTestCase {
         XCTAssertTrue(app.buttons["Review files"].waitForExistence(timeout: 15))
         revealOverviewControl(app, label: "Review files")
         app.buttons["Review files"].click()
-        let search = app.textFields["Search inspected files"]
-        revealScrollElement(app, control: search, label: "Search inspected files")
+        enterObservedExplorerRoot(app, root: root)
+        let search = app.textFields["Search scanned descendants"]
+        XCTAssertTrue(search.isHittable)
         search.click(); search.typeText("new.pdf")
         let newFile = app.checkBoxes.matching(NSPredicate(format: "label CONTAINS %@", "new.pdf")).firstMatch
         revealScrollElement(app, control: newFile, label: "new.pdf")

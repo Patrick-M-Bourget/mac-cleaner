@@ -73,7 +73,8 @@ final class ExclusionsUITests: XCTestCase {
         let folderPath = app.textFields.firstMatch
         XCTAssertTrue(folderPath.waitForExistence(timeout: 3)); folderPath.typeKey("a", modifierFlags: .command); folderPath.typeText(scope.path)
         app.typeKey(.return, modifierFlags: []); app.dialogs.buttons["Scan folder"].click()
-        XCTAssertTrue(app.staticTexts["Observed"].waitForExistence(timeout: 10))
+        waitForOverviewScan(app, timeout: 10)
+        openObservedExplorer(app, root: scope)
         app.scrollViews.firstMatch.scroll(byDeltaX: 0, deltaY: -250)
         XCTAssertTrue(app.buttons["Inspect included.txt"].waitForExistence(timeout: 3))
         XCTAssertFalse(app.buttons["Inspect excluded.txt"].exists)
