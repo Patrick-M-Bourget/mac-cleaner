@@ -30,10 +30,13 @@ public struct ScopeRegistry: Sendable {
     public func list() throws -> [RememberedScope] { try transaction { try read() } }
     @discardableResult public func remember(url: URL, kind: RememberedScope.Kind) throws -> RememberedScope {
         guard url.isFileURL else { throw ScopeRegistryError.unavailable }
+        let started = url.startAccessingSecurityScopedResource()
+        defer { if started { url.stopAccessingSecurityScopedResource() } }
+        // Check the selected entry before resolving ancestor aliases. A root symlink
+        // must not silently become a different remembered scan scope.
+        try checkDirectory(url)
         let canonical = url.standardizedFileURL.resolvingSymlinksInPath()
         try checkDirectory(canonical)
-        let started = canonical.startAccessingSecurityScopedResource()
-        defer { if started { canonical.stopAccessingSecurityScopedResource() } }
         let bookmark = try canonical.bookmarkData(options: [.withSecurityScope], includingResourceValuesForKeys: nil, relativeTo: nil)
         return try transaction {
             var scopes = try read()

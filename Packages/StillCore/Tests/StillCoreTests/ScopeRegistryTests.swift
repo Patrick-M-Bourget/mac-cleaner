@@ -64,4 +64,22 @@ final class ScopeRegistryTests: XCTestCase {
         XCTAssertEqual(try String(contentsOf: outside, encoding: .utf8), "preserve")
     }
 
+    func testRememberingRootSymlinkCannotSilentlyAddItsDestination() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let destination = root.appendingPathComponent("ActualDownloads")
+        let link = root.appendingPathComponent("ChosenDownloads")
+        try FileManager.default.createDirectory(at: destination, withIntermediateDirectories: true)
+        try FileManager.default.createSymbolicLink(at: link, withDestinationURL: destination)
+        let store = ScopeRegistry(directory: root.appendingPathComponent("State"))
+        XCTAssertThrowsError(try store.remember(url: link, kind: .downloads))
+        XCTAssertTrue(try store.list().isEmpty)
+        // Ordinary ancestor aliases such as /var -> /private/var remain valid.
+        let actual = try store.remember(url: destination, kind: .downloads)
+        XCTAssertEqual(try store.list().map(\.id), [actual.id])
+        let lease = try store.resolveForScan(id: actual.id)
+        lease.close()
+    }
+
 }
