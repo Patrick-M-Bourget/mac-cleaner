@@ -110,3 +110,12 @@ struct HistoryActivityFilterControl: View {
         return ScanActivity(id: id, startedAt: startedAt, completedAt: Date(), outcome: outcome, locations: values)
     }
 }
+
+struct ScanHistoryRecordingNotice: View {
+    @Bindable private var history = ScanActivityHistory.shared
+    var body: some View {
+        if let warning = history.recordingWarning {
+            StatusRow(text: warning, symbol: "exclamationmark.triangle", role: .caution)
+        }
+    }
+}

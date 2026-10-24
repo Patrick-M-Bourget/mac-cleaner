@@ -457,6 +457,7 @@ struct LiveCleanupPlanView: View {
             if let backToExplorer { Button("Back to Explorer", systemImage: "chevron.left", action: backToExplorer) }
             PageHeader(title: "Cleanup plan", subtitle: selection.retryTargetIDs == nil ? "Choose categories, adjust items if needed, then review the changes." : "Only rechecked unfinished files are included. Completed successes and new discoveries stay excluded.")
                 .padding(.bottom, StillDesign.Space.sm)
+            ScanHistoryRecordingNotice()
             SelectionSummary(value: selection.draft.selectedCount == 0 ? "—" : ByteCountFormatter.string(fromByteCount: selection.draft.logicalBytes, countStyle: .decimal), detail: "\(StillDesign.files(selection.draft.selectedCount)) selected", identifier: "liveSelectionSummary", consequence: "Space stays occupied until Finder empties Trash. Nothing changes before final confirmation.")
             if selection.pendingCount > 0 {
                 StatusRow(text: "Refresh required · Previous choices retained for \(StillDesign.files(selection.pendingCount)).", symbol: "arrow.clockwise", role: .caution)

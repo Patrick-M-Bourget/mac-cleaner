@@ -20,6 +20,7 @@ private enum HistoryActivityItem: Identifiable {
     var expandedScans: Set<UUID> = []
     var snapshot: CleanupHistorySnapshot?
     var message: String?
+    var loadError: String?
     var blocked = false
     var busy = false
     func load(maintainCompleted: Bool = true) async {
@@ -39,9 +40,10 @@ private enum HistoryActivityItem: Identifiable {
                 }.value
             }
             snapshot = loaded.0
+            loadError = nil
             if loaded.1 { message = "Expired completed history was removed, but journal compaction did not finish. Disk reclamation is not confirmed." }
             blocked = false
-        } catch { snapshot = nil; blocked = true; message = "Cleanup history is unavailable. The local journal cannot be read. Clear and reset are unavailable; keep its recovery records." }
+        } catch { snapshot = nil; blocked = true; loadError = "Cleanup history is unavailable. The local journal cannot be read. Clear and reset are unavailable; keep its recovery records." }
     }
     func clear() async {
         guard !busy, !AppLifecycleController.shared.maintenanceInProgress, !AppLifecycleController.shared.operationInProgress else { message = "Wait for the current cleanup to finish."; return }
@@ -132,9 +134,10 @@ struct CleanupHistoryView: View {
             if let message = model.message {
                 StatusRow(text: message, symbol: model.blocked ? "exclamationmark.triangle" : "info.circle", role: model.blocked ? .caution : .neutral, identifier: "historyStatus")
             }
-            if let warning = scans.recordingWarning { StatusRow(text: warning, symbol: "exclamationmark.triangle", role: .caution) }
+            ScanHistoryRecordingNotice()
+            if let error = model.loadError { StatusRow(text: error, symbol: "exclamationmark.triangle", role: .caution) }
             if let error = scans.loadError { StatusRow(text: error, symbol: "exclamationmark.triangle", role: .caution) }
-            if model.blocked || scans.loadError != nil {
+            if model.loadError != nil || scans.loadError != nil {
                 Button("Try again") { Task { await reload() } }.disabled(model.busy)
             }
             if model.blocked || (model.snapshot?.protectedRecordCount ?? 0) > 0 {

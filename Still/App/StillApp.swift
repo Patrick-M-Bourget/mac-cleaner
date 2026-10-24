@@ -458,6 +458,7 @@ private struct WorkspaceView: View {
                 Spacer(minLength: StillDesign.Space.md)
                 Button("Scan again", action: scanKnownLocations).disabled(locationsModel.included.isEmpty || folderInspection.isScanning || selection.execution.isRunning)
             }
+            ScanHistoryRecordingNotice()
             if let context = alerts.openedAlertContext {
                 SummarySurface {
                     VStack(alignment: .leading, spacing: StillDesign.Space.md) {

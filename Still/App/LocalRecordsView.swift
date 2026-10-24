@@ -21,6 +21,7 @@ struct LocalRecordsView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: StillDesign.Space.xl) {
             PageHeader(title: "Local records", subtitle: "Manage what Still stores on this Mac. Original files and macOS access grants stay unchanged.")
+            if let error = model.loadError { StatusRow(text: error, symbol: "exclamationmark.triangle", role: .caution) }
             if let message = model.message {
                 StatusRow(text: message, symbol: model.blocked ? "exclamationmark.triangle" : "info.circle", role: model.blocked ? .caution : .neutral, identifier: "historyStatus")
             }
