@@ -82,4 +82,20 @@ final class ScopeRegistryTests: XCTestCase {
         lease.close()
     }
 
+    func testMalformedConfigurationFailsClosedUntilExplicitReset() throws {
+        let root = FileManager.default.temporaryDirectory.resolvingSymlinksInPath().appendingPathComponent(UUID().uuidString)
+        let folder = root.appendingPathComponent("Downloads")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let state = root.appendingPathComponent("State")
+        let store = ScopeRegistry(directory: state)
+        _ = try store.remember(url: folder, kind: .downloads)
+        try Data("not a supported configuration archive".utf8).write(to: state.appendingPathComponent("scopes-v1.json"))
+        XCTAssertThrowsError(try store.list())
+        XCTAssertThrowsError(try store.remember(url: folder, kind: .downloads))
+        try store.reset()
+        XCTAssertTrue(try store.list().isEmpty)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: folder.path))
+    }
+
 }
