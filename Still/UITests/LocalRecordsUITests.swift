@@ -4,6 +4,98 @@ import StillCore
 
 final class LocalRecordsUITests: XCTestCase {
     @MainActor func testManagementPreservesContextAndFreshRecoveryGuard() async throws { try await context(minimum: true) }
+    @MainActor func testInitialManagementPreservesContextAndFreshRecoveryGuard() async throws { try await context(minimum: false) }
+
+    @MainActor func testGatedDiagnosticsReturnsToBothActualCallers() async throws {
+        continueAfterFailure = false
+        let stateID = UUID().uuidString
+        let state = FileManager.default.temporaryDirectory.resolvingSymlinksInPath().appendingPathComponent("StillTestState-" + stateID)
+        let downloads = FileManager.default.temporaryDirectory.resolvingSymlinksInPath().appendingPathComponent("StillSelectionUI-" + UUID().uuidString)
+        try FileManager.default.createDirectory(at: state, withIntermediateDirectories: false, attributes: [.posixPermissions: 0o700])
+        try Data(stateID.utf8).write(to: state.appendingPathComponent(".still-owned-test-state"))
+        try FileManager.default.createDirectory(at: downloads, withIntermediateDirectories: false)
+        let original = downloads.appendingPathComponent("owned-private-context.pdf")
+        try Data([47, 53]).write(to: original)
+        let scan = try await FolderScanner().scan(downloads)
+        var draft = PlanDraft(); _ = draft.selectAll(in: [scan], downloads: try DownloadsRoot(url: downloads))
+        let approval = try draft.approve(draft.review())
+        let journal = try SQLiteCleanupJournal(url: state.appendingPathComponent("cleanup.sqlite"))
+        XCTAssertTrue(try journal.claim(approval))
+        var record = CleanupRecord(batch: approval, target: try XCTUnwrap(approval.targets.first))
+        record.state = .cancelled; record.message = "Owned diagnostics fixture; no operation performed"
+        try journal.outcome(record)
+        let encoder = JSONEncoder(); encoder.outputFormatting = [.sortedKeys]
+        let before = try encoder.encode(journal.records())
+        var stateInfo = stat(); XCTAssertEqual(lstat(state.path, &stateInfo), 0)
+        var downloadsInfo = stat(); XCTAssertEqual(lstat(downloads.path, &downloadsInfo), 0)
+        let app = XCUIApplication()
+        app.launchArguments = ["--design-minimum", "--ui-test-downloads-root", "--future-milestones"]
+        app.launchEnvironment = ["STILL_TEST_STATE_ROOT": state.path, "STILL_TEST_STATE_ID": "\(stateInfo.st_dev):\(stateInfo.st_ino)", "STILL_TEST_DOWNLOADS_ROOT": downloads.path, "STILL_TEST_DOWNLOADS_ID": "\(downloadsInfo.st_dev):\(downloadsInfo.st_ino)"]
+        defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: downloads) }
+        app.launch(); app.typeKey("2", modifierFlags: .command)
+        app.buttons["Scan Downloads…"].click(); app.typeKey("g", modifierFlags: [.command, .shift])
+        XCTAssertTrue(app.textFields.firstMatch.waitForExistence(timeout: 5))
+        app.textFields.firstMatch.typeText(downloads.path)
+        app.typeKey(.return, modifierFlags: []); app.dialogs.buttons["Scan folder"].click()
+        let category = app.checkBoxes["downloadsCategorySelection"]
+        XCTAssertTrue(category.waitForExistence(timeout: 10))
+        let ready = expectation(for: NSPredicate(format: "enabled == true"), evaluatedWith: category)
+        await fulfillment(of: [ready], timeout: 20)
+        category.click()
+        let bounds = app.windows.firstMatch.frame
+        func capture(_ name: String) {
+            let image = XCTAttachment(screenshot: app.windows.firstMatch.screenshot())
+            image.name = "local-records-diagnostics-minimum-" + name; image.lifetime = .keepAlways; add(image)
+            XCTAssertEqual(app.windows.firstMatch.frame, bounds)
+        }
+        for (shortcut, caller) in [("3", "History"), ("4", "Locations & access")] {
+            app.typeKey(shortcut, modifierFlags: .command)
+            let disclosure = app.disclosureTriangles.firstMatch
+            revealScrollElement(app, control: disclosure, label: "Retain caller disclosure")
+            if disclosure.value as? Int != 1 {
+                disclosure.coordinate(withNormalizedOffset: CGVector(dx: 0, dy: 0.5)).withOffset(CGVector(dx: 26, dy: 0)).click()
+            }
+            let manage = app.buttons["manageLocalRecords"]
+            revealScrollElement(app, control: manage, label: "Caller local records")
+            let callerFrame = manage.frame
+            manage.click()
+            let open = app.buttons["Review diagnostics"]
+            XCTAssertTrue(open.waitForExistence(timeout: 5))
+            revealScrollElement(app, control: open, label: "Gated diagnostics")
+            open.click()
+            let payload = app.staticTexts["diagnosticsPayload"]
+            XCTAssertTrue(payload.waitForExistence(timeout: 5))
+            let frozen = payload.value as? String ?? payload.label
+            XCTAssertFalse(frozen.contains(original.lastPathComponent)); XCTAssertFalse(frozen.contains(state.path))
+            let back = app.buttons["Back to " + caller]
+            XCTAssertTrue(back.isHittable); XCTAssertFalse(app.buttons["Back to Local records"].exists)
+            for theme in ["Light", "Dark"] {
+                app.popUpButtons["Appearance"].click(); app.menuItems[theme].click()
+                capture(caller + "-" + theme)
+                app.buttons["Save diagnostics…"].click()
+                XCTAssertTrue(app.dialogs.buttons["Cancel"].waitForExistence(timeout: 5)); app.dialogs.buttons["Cancel"].click()
+                XCTAssertEqual(payload.value as? String ?? payload.label, frozen)
+                XCTAssertTrue((app.staticTexts["diagnosticsStatus"].value as? String ?? app.staticTexts["diagnosticsStatus"].label).contains("Save cancelled"))
+            }
+            app.typeKey("w", modifierFlags: .command)
+            XCTAssertNotEqual(app.state, .notRunning)
+            app.activate(); app.menuBars.menuBarItems["Window"].click(); app.menuItems["Show Still"].firstMatch.click()
+            XCTAssertTrue(back.waitForExistence(timeout: 5)); XCTAssertTrue(back.isHittable)
+            XCTAssertEqual(payload.value as? String ?? payload.label, frozen)
+            capture(caller + "-reopened")
+            back.click()
+            XCTAssertTrue(manage.waitForExistence(timeout: 5)); XCTAssertEqual(manage.frame, callerFrame)
+            XCTAssertEqual(app.disclosureTriangles.firstMatch.value as? Int, 1)
+            XCTAssertFalse(back.exists)
+            XCTAssertFalse(app.buttons["Back to Local records"].exists)
+        }
+        app.typeKey("2", modifierFlags: .command)
+        XCTAssertEqual(app.staticTexts["liveSelectionSummary"].value as? String, "1 file selected")
+        XCTAssertTrue(app.buttons["Review cleanup"].isEnabled)
+        XCTAssertEqual(try encoder.encode(journal.records()), before)
+        XCTAssertEqual(try Data(contentsOf: original), Data([47, 53]))
+        XCTAssertEqual(app.windows.firstMatch.frame, bounds)
+    }
 
     @MainActor private func context(minimum: Bool) async throws {
         continueAfterFailure = false
@@ -124,9 +216,22 @@ final class LocalRecordsUITests: XCTestCase {
             XCTAssertTrue(review.waitForExistence(timeout: 5)); XCTAssertEqual(review.frame, panelFrame)
             XCTAssertTrue(app.buttons["Back to History"].isHittable)
         }
+        app.typeKey("w", modifierFlags: .command)
+        XCTAssertNotEqual(app.state, .notRunning)
+        app.activate(); app.menuBars.menuBarItems["Window"].click()
+        app.menuItems["Show Still"].firstMatch.click()
+        XCTAssertTrue(review.waitForExistence(timeout: 5)); XCTAssertEqual(review.frame, panelFrame)
+        XCTAssertTrue(app.buttons["Back to History"].isHittable)
+        capture("window-reopened-management")
         review.click(); app.typeKey("3", modifierFlags: .command)
         XCTAssertTrue(manage.waitForExistence(timeout: 5)); XCTAssertFalse(app.buttons["Back to Local records"].exists)
         XCTAssertFalse(app.buttons["Back to History"].exists)
+        revealScrollElement(app, control: manage, label: "New management entry")
+        manage.click()
+        XCTAssertTrue(app.buttons["Back to History"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.scrollViews.firstMatch.frame.contains(app.staticTexts["Local records"].frame), "New entry starts at the top")
+        capture("new-entry-top")
+        app.buttons["Back to History"].click()
         app.typeKey("2", modifierFlags: .command)
         XCTAssertEqual(app.staticTexts["liveSelectionSummary"].value as? String, "1 file selected")
         XCTAssertTrue(app.buttons["Review cleanup"].isEnabled)
