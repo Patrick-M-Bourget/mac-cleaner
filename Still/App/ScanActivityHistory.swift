@@ -36,17 +36,19 @@ struct ScanActivitySummary: View {
     let activity: ScanActivity
     @Binding var expanded: Bool
     var showGrowth: ((UUID) -> Void)? = nil
+    var exampleIdentifier = ""
     var body: some View {
         SummarySurface {
             VStack(alignment: .leading, spacing: StillDesign.Space.md) {
                 Label(title, systemImage: "viewfinder").font(StillDesign.TypeStyle.section)
                 Text(activity.completedAt.formatted(date: .abbreviated, time: .shortened)).font(.caption).foregroundStyle(.secondary)
                 Text("Requested locations: \(activity.locations.count)").font(.caption).foregroundStyle(.secondary)
-                Text(activity.locations.map { URL(fileURLWithPath: $0.path).lastPathComponent }.joined(separator: ", "))
+                Text(locationSummary).lineLimit(2).truncationMode(.middle)
+                    .help(activity.locations.map { URL(fileURLWithPath: $0.path).lastPathComponent }.joined(separator: ", "))
                 DisclosureGroup("Scan details", isExpanded: $expanded) {
                     ForEach(activity.locations) { location in
                         VStack(alignment: .leading, spacing: StillDesign.Space.sm) {
-                            Text(location.path).textSelection(.enabled)
+                            Text(location.path).textSelection(.enabled).lineLimit(3).truncationMode(.middle).help(location.path)
                             Text(location.outcome.map { $0 == .complete ? "Observed included coverage" : $0.rawValue.capitalized + " · Coverage incomplete" } ?? "Not attempted").font(.callout)
                             if let time = location.observedAt { Text("Observed " + time.formatted(date: .abbreviated, time: .standard)).font(.caption).foregroundStyle(.secondary) }
                             if let count = location.entryCount { Text("Observed entries: \(count)").font(.caption) }
@@ -60,12 +62,16 @@ struct ScanActivitySummary: View {
                             if location.outcome == .complete, let baseline = location.baselineID, let showGrowth {
                                 Button("See what grew") { showGrowth(baseline) }
                             }
-                        }.padding(.leading, StillDesign.Space.xl)
+                        }.padding(.leading, StillDesign.Space.xl).frame(maxWidth: .infinity, alignment: .leading)
                     }
-                }.padding(.leading, StillDesign.Space.xl)
-                Text("Recorded observations, not reclaimable or released space.").font(.caption).foregroundStyle(.secondary)
+                }.frame(maxWidth: .infinity, alignment: .leading).padding(.leading, StillDesign.Space.xl)
+                Text("Recorded observations, not reclaimable or released space.").font(.caption).foregroundStyle(.secondary).accessibilityIdentifier(exampleIdentifier)
             }
         }
+    }
+    private var locationSummary: String {
+        let labels = activity.locations.prefix(2).map { URL(fileURLWithPath: $0.path).lastPathComponent }.joined(separator: ", ")
+        return activity.locations.count > 2 ? labels + " and \(activity.locations.count - 2) more" : labels
     }
     private var title: String {
         switch activity.outcome { case .complete: "Completed scan"; case .partial: "Partial scan"; case .stopped: "Stopped scan"; case .failed: "Failed scan" }
@@ -136,7 +142,111 @@ struct ScanHistoryRecordingNotice: View {
     @Bindable private var history = ScanActivityHistory.shared
     var body: some View {
         if let warning = history.recordingWarning {
-            StatusRow(text: warning, symbol: "exclamationmark.triangle", role: .caution)
+            ScanHistoryRecordingFeedback(message: warning)
         }
     }
 }
+
+struct ScanHistoryRecordingFeedback: View {
+    let message: String
+    var body: some View { StatusRow(text: message, symbol: "exclamationmark.triangle", role: .caution) }
+}
+struct HistoryStoreFailure: View {
+    let message, retryTitle: String
+    var enabled = true
+    var retry: () -> Void
+    var body: some View {
+        VStack(alignment: .leading, spacing: StillDesign.Space.sm) {
+            StatusRow(text: message, symbol: "exclamationmark.triangle", role: .caution)
+            Button(retryTitle, action: retry).disabled(!enabled)
+        }
+    }
+}
+struct HistoryActivityUnavailableState: View {
+    var body: some View {
+        EmptyState(title: "History unavailable", detail: "Some recorded activity could not be read. Trying again reloads records only; it does not scan or clean files.", symbol: "exclamationmark.triangle")
+    }
+}
+struct HistoryActivityEmptyState: View {
+    let filter: HistoryActivityFilter
+    var goOverview: () -> Void
+    var viewPlan: () -> Void
+    private var title: String {
+        switch filter { case .all: "No retained history."; case .scans: "No recorded scans."; case .cleanups: "No recorded cleanup runs." }
+    }
+    var body: some View {
+        VStack(alignment: .leading, spacing: StillDesign.Space.lg) {
+            EmptyState(title: title, detail: "History retains up to 90 days within its record budgets. Older or cleared records may no longer appear. Nothing is selected or retried here.", symbol: "clock")
+            HStack {
+                if filter != .cleanups { Button("Go to Overview", action: goOverview) }
+                if filter != .scans { Button("View cleanup plan", action: viewPlan) }
+            }
+        }
+    }
+}
+struct HistoryRetentionNote: View {
+    var body: some View {
+        Text("Scan activity and enabled growth aggregates share a 250 MB archive budget and 90-day retention; at most 30 growth baselines are retained, without a 30-scan limit. Completed cleanup records have a separate 250 MB payload budget and 90-day retention. Protected recovery facts are exempt. Trash contents remain until you empty Trash in Finder.").font(.caption).foregroundStyle(.secondary)
+    }
+}
+
+#if DEBUG
+private struct HistoryGalleryCase: Identifiable {
+    let id, title: String
+    let activity: ScanActivity
+}
+struct HistoryActivityGalleryExamples: View {
+    private let date = Date(timeIntervalSince1970: 1_792_000_000)
+    private func activity(_ outcome: ScanActivityOutcome, _ locations: [ScanActivityLocation]) -> ScanActivity {
+        ScanActivity(startedAt: date.addingTimeInterval(-12), completedAt: date, outcome: outcome, locations: locations)
+    }
+    private var cases: [HistoryGalleryCase] { [
+        .init(id: "complete", title: "Complete observation", activity: activity(.complete, [.init(path: "/Example/Complete Downloads", observedAt: date, outcome: .complete, entryCount: 6, logicalBytes: 4_100_000, allocatedBytes: 4_200_000, knownLogicalBytes: 4_100_000, baselineID: UUID())])),
+        .init(id: "partial", title: "Partial coverage", activity: activity(.partial, [.init(path: "/Example/Partial coverage", observedAt: date, outcome: .partial, entryCount: 9, knownLogicalBytes: 512, reasons: ["directoryChanged": 1, "metadataUnavailable": 2])])),
+        .init(id: "stopped", title: "Stopped with an unattempted location", activity: activity(.stopped, [.init(path: "/Example/Stopped location", observedAt: date, outcome: .stopped, entryCount: 3, knownLogicalBytes: 32), .init(path: "/Example/Not attempted")])),
+        .init(id: "failed", title: "Failed without measurements", activity: activity(.failed, [.init(path: "/Example/Unavailable", observedAt: date, outcome: .failed, reasons: ["accessDenied": 1])])),
+        .init(id: "multi", title: "Same-named recorded roots", activity: activity(.complete, [.init(path: "/Example/Work/Documents", observedAt: date, outcome: .complete, entryCount: 2, logicalBytes: 12, allocatedBytes: 4096, knownLogicalBytes: 12), .init(path: "/Example/Personal/Documents", observedAt: date, outcome: .complete, entryCount: 4, logicalBytes: 22, allocatedBytes: 4096, knownLogicalBytes: 22)])),
+        .init(id: "unknown", title: "Unmeasured and excluded contents", activity: activity(.complete, [.init(path: "/Example/Packages and excluded locations/A deliberately long recorded root name that remains readable without moving the window", observedAt: date, outcome: .complete, entryCount: 5, knownLogicalBytes: 32, reasons: ["unmeasuredContents": 1, "customExcludedBoundary": 2])]))
+    ] }
+    var body: some View {
+        VStack(alignment: .leading, spacing: StillDesign.Space.xl) {
+            Text("Synthetic presentation only · Actions are inert; no scan, comparison or record write occurs.").font(.caption).foregroundStyle(.secondary)
+            HistoryActivityFilterControl(selection: .constant(.all))
+            ForEach(cases) { item in
+                VStack(alignment: .leading, spacing: StillDesign.Space.md) {
+                    heading(item.id, item.title)
+                    ScanActivitySummary(activity: item.activity, expanded: .constant(true), showGrowth: { _ in }, exampleIdentifier: "historyGalleryEnd-" + item.id)
+                }
+            }
+            VStack(alignment: .leading, spacing: StillDesign.Space.md) {
+                heading("unavailable", "Independent unavailable stores")
+                HistoryStoreFailure(message: "Scan history is unavailable. Recorded scan activity could not be read.", retryTitle: "Try scan history again", retry: {})
+                HistoryStoreFailure(message: "Cleanup history is unavailable. The local journal cannot be read. Clear and reset are unavailable; keep its recovery records.", retryTitle: "Try cleanup history again", retry: {})
+                HistoryActivityUnavailableState()
+                end("unavailable", "Each action reloads its own records only.")
+            }
+            ForEach(HistoryActivityFilter.allCases, id: \.self) { filter in
+                let id = filter == .all ? "empty-all" : filter == .scans ? "empty-scans" : "empty-cleanups"
+                VStack(alignment: .leading, spacing: StillDesign.Space.md) {
+                    heading(id, filter.rawValue + " · No retained records")
+                    HistoryActivityEmptyState(filter: filter, goOverview: {}, viewPlan: {})
+                    if filter == .all { HistoryRetentionNote() }
+                    end(id, "Retained records, not a lifetime activity count.")
+                }
+            }
+            VStack(alignment: .leading, spacing: StillDesign.Space.md) {
+                heading("save-failed", "Unrecorded activity feedback")
+                ScanHistoryRecordingFeedback(message: "This scan could not be saved to History. Current results and choices remain available.")
+                end("save-failed", "Current findings remain usable.")
+            }
+            VStack(alignment: .leading, spacing: StillDesign.Space.md) {
+                heading("partial-clear", "Partial maintenance outcome")
+                StatusRow(text: "Cleared 1 completed cleanup run. Scan activity and growth baseline clearing could not be confirmed. Recovery facts remain protected.", symbol: "info.circle")
+                end("partial-clear", "Clear applies across all History filters.")
+            }
+        }
+    }
+    private func heading(_ id: String, _ title: String) -> some View { Text("Synthetic History · " + title).font(StillDesign.TypeStyle.section).accessibilityIdentifier("historyGalleryCase-" + id) }
+    private func end(_ id: String, _ text: String) -> some View { Text(text).font(.caption).foregroundStyle(.secondary).accessibilityIdentifier("historyGalleryEnd-" + id) }
+}
+#endif

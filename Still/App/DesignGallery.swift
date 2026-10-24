@@ -33,8 +33,7 @@ struct DesignGallery: View {
                         }.frame(width: 166)
                     }
                     DisclosureGroup("Synthetic History activity examples", isExpanded: $historyExamplesExpanded) {
-                        HistoryActivityFilterControl(selection: .constant(.all))
-                        ScanActivitySummary(activity: ScanActivity(startedAt: Date(timeIntervalSince1970: 100), completedAt: Date(timeIntervalSince1970: 110), outcome: .complete, locations: [ScanActivityLocation(path: "/Example/Downloads", observedAt: Date(timeIntervalSince1970: 110), outcome: .complete, entryCount: 6, logicalBytes: 4100000, allocatedBytes: 4200000, knownLogicalBytes: 4100000)]), expanded: .constant(true))
+                        HistoryActivityGalleryExamples()
                     }
                     CapacityGalleryExamples()
                     Text("Synthetic cleanup outcome examples").font(.headline)

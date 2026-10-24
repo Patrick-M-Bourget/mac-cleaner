@@ -175,20 +175,13 @@ struct CleanupHistoryView: View {
             if items.isEmpty {
                 if model.busy { ProgressView("Reading local history…") }
                 else if unavailable {
-                    EmptyState(title: "History unavailable", detail: "Some recorded activity could not be read. Try again reloads records only; it does not scan or clean files.", symbol: "exclamationmark.triangle")
+                    HistoryActivityUnavailableState()
                 } else {
-                    EmptyState(title: emptyTitle, detail: "History retains up to 90 days within its record budgets. Older or cleared records may no longer appear. Nothing is selected or retried here.", symbol: "clock")
-                    HStack {
-                        if model.filter != .cleanups { Button("Go to Overview", action: goOverview) }
-                        if model.filter != .scans { Button("View cleanup plan", action: viewPlan) }
-                    }
+                    HistoryActivityEmptyState(filter: model.filter, goOverview: goOverview, viewPlan: viewPlan)
                 }
             }
-            Text("Scan activity and enabled growth aggregates share a 250 MB archive budget and 90-day retention; at most 30 growth baselines are retained, without a 30-scan limit. Completed cleanup records have a separate 250 MB payload budget and 90-day retention. Protected recovery facts are exempt. Trash contents remain until you empty Trash in Finder.").font(.caption).foregroundStyle(.secondary)
+            HistoryRetentionNote()
         }.task { await reload() }
-    }
-    private var emptyTitle: String {
-        switch model.filter { case .all: "No retained history."; case .scans: "No recorded scans."; case .cleanups: "No recorded cleanup runs." }
     }
     private func reload() async { await model.load(); await scans.load() }
     private func cleanup(_ run: CleanupHistoryRun) -> some View {
