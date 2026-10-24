@@ -430,6 +430,7 @@ struct LiveCleanupPlanView: View {
     var exploreDownloads: (() -> Void)? = nil
     var viewHistory: (() -> Void)? = nil
     var newPlan: (() -> Void)? = nil
+    var reviewRecovery: (() -> Void)? = nil
     var backToExplorer: (() -> Void)? = nil
     var manageLocations: (() -> Void)? = nil
     var scopeMessage: String? = nil
@@ -541,8 +542,9 @@ struct LiveCleanupPlanView: View {
                 Button(selection.execution.stopRequested ? "Stop requested" : "Stop after current file") { selection.execution.cancel() }.disabled(selection.execution.stopRequested)
             }
         } else if selection.execution.result != nil || selection.execution.error != nil {
-            ActionStrip(message: "This run is complete. A new plan requires a fresh manual scan.") {
+            ActionStrip(message: selection.execution.requiresRecoveryReview ? "Review unresolved records before making another plan." : "This run has ended. A new plan requires a fresh manual scan.") {
                 if let viewHistory { Button("View history", action: viewHistory) }
+                if selection.execution.requiresRecoveryReview, let reviewRecovery { Button("Review recovery", action: reviewRecovery) }
                 if selection.execution.canRetry { Button("Recheck unfinished files") { Task { await selection.prepareRetry() } }.disabled(selection.isRefreshing || selection.isPreparing) }
                 if let newPlan { Button("Start a new plan", action: newPlan).buttonStyle(.borderedProminent) }
             }

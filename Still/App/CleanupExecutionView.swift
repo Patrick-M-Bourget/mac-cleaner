@@ -12,7 +12,11 @@ import SwiftUI
     private(set) var progress: CleanupExecutionProgress?
     private(set) var stopRequested = false
     private(set) var retryScopes: [URL] = []
-    var canRetry: Bool { !isRunning && result?.targets.contains(where: { $0.state != .succeeded }) == true }
+    var requiresRecoveryReview: Bool {
+        guard let result else { return false }
+        return result.rejectedReplay || result.journalFailure != nil || result.targets.contains { $0.state == .unknown || $0.state == .intent }
+    }
+    var canRetry: Bool { !isRunning && !requiresRecoveryReview && result?.targets.contains(where: { $0.state != .succeeded }) == true }
     private var executor: TrashExecutor?
     private var cancellation = CleanupCancellation()
     func clear() { guard !isRunning else { return }; result = nil; error = nil; before = nil; after = nil }
@@ -69,9 +73,12 @@ struct CleanupExecutionView: View {
                 StatusRow(text: model.stopRequested ? "Stopping after the current file reaches a recorded outcome…" : "\(model.progress?.resolved ?? 0) of \(model.progress?.total ?? 0) targets reported", symbol: "clock")
             }
             if let retryMessage { StatusRow(text: retryMessage, symbol: "arrow.clockwise", role: .caution) }
-            if let error = model.error { StatusRow(text: error, symbol: "exclamationmark.circle", role: .failure) }
+            if let error = model.error {
+                if model.result == nil { CleanupOutcomeSummary(states: [], journalFailure: error) }
+                else { StatusRow(text: error, symbol: "exclamationmark.circle", role: .failure) }
+            }
             if let result = model.result {
-                CleanupOutcomeSummary(states: result.targets.map(\.state))
+                CleanupOutcomeSummary(states: result.targets.map(\.state), rejectedReplay: result.rejectedReplay, journalFailure: result.journalFailure)
                 SummarySurface {
                     VStack(alignment: .leading, spacing: StillDesign.Space.md) {
                         Text("Planned logical size: \(bytes(result.plannedLogicalBytes))")
@@ -105,21 +112,46 @@ struct CleanupExecutionView: View {
 /// Presentation of recorded outcomes; never supplies execution or retry authority.
 struct CleanupOutcomeSummary: View {
     let states: [CleanupTargetState]
+    var rejectedReplay = false
+    var journalFailure: String? = nil
+    var detailIdentifier = "cleanupOutcomeDetail"
     private var moved: Int { states.filter { $0 == .succeeded }.count }
+    private var presentation: (heading: String, detail: String) {
+        if rejectedReplay {
+            return ("Cleanup was not repeated", "This approval was already claimed. No new cleanup was started; review the recorded results.")
+        }
+        if states.isEmpty && journalFailure != nil {
+            return ("Cleanup could not start", "The local operation journal could not accept this run. No files were moved.")
+        }
+        if journalFailure != nil || states.contains(where: { $0 == .unknown || $0 == .intent }) {
+            return ("Cleanup needs recovery review", "Some outcomes are unresolved. Review the durable records before making another plan; do not repeat these operations automatically.")
+        }
+        if states.isEmpty {
+            return ("No recorded outcomes", "No target results are available. This does not establish whether any file was moved.")
+        }
+        if moved == states.count {
+            return ("Selected files moved to Trash", "\(files(moved)) moved to Trash. Space stays occupied until Finder empties Trash.")
+        }
+        if moved > 0 {
+            let remaining = states.count - moved
+            return ("Cleanup partially completed", "\(files(moved)) moved to Trash. \(files(remaining)) \(remaining == 1 ? "was" : "were") not moved.")
+        }
+        if states.allSatisfy({ $0 == .skipped }) {
+            return ("No files were moved", "Every selected file was skipped after rechecking.")
+        }
+        if states.allSatisfy({ $0 == .failed }) {
+            return ("Cleanup could not move any files", "Trash failed for every selected file. Each original still matched after its failure.")
+        }
+        if states.allSatisfy({ $0 == .cancelled || $0 == .pending }) {
+            return ("Cleanup stopped", "No files were moved. The selected operations were not started or were cancelled before moving.")
+        }
+        return ("No files were moved", "Selected files were skipped, failed or stopped. Review the individual results before rechecking.")
+    }
     var body: some View {
-        if !states.isEmpty && states.allSatisfy({ $0 == .skipped }) {
-            SummarySurface {
-                VStack(alignment: .leading, spacing: StillDesign.Space.md) {
-                    Text("No files were moved").font(.headline)
-                    Text("Every selected file was skipped after rechecking.")
-                }
-            }
-        } else if moved > 0 && moved < states.count {
-            SummarySurface {
-                VStack(alignment: .leading, spacing: StillDesign.Space.md) {
-                    Text("Cleanup partially completed").font(.headline)
-                    Text("\(files(moved)) moved to Trash. \(files(states.count - moved)) \(states.count - moved == 1 ? "was" : "were") not moved.")
-                }
+        SummarySurface {
+            VStack(alignment: .leading, spacing: StillDesign.Space.md) {
+                Text(presentation.heading).font(.headline)
+                Text(presentation.detail).foregroundStyle(.secondary).accessibilityIdentifier(detailIdentifier)
             }
         }
     }

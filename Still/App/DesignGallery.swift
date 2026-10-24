@@ -18,6 +18,18 @@ struct DesignGallery: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: StillDesign.Space.xl) {
                     PageHeader(title: "Native design system", subtitle: "Developer examples only · No personal storage measurements")
+                    Text("Synthetic cleanup outcome examples").font(.headline)
+                    Text("Presentation fixtures only · These examples are not native executor or OS failure evidence.").foregroundStyle(.secondary)
+                    CleanupOutcomeSummary(states: [.succeeded], detailIdentifier: "outcomeDetail-0")
+                    CleanupOutcomeSummary(states: [.succeeded, .cancelled], detailIdentifier: "outcomeDetail-1")
+                    CleanupOutcomeSummary(states: [.skipped], detailIdentifier: "outcomeDetail-2")
+                    CleanupOutcomeSummary(states: [.failed], detailIdentifier: "outcomeDetail-3")
+                    CleanupOutcomeSummary(states: [.cancelled], detailIdentifier: "outcomeDetail-4")
+                    CleanupOutcomeSummary(states: [.unknown, .cancelled], journalFailure: "Synthetic unresolved record", detailIdentifier: "outcomeDetail-5")
+                    CleanupOutcomeSummary(states: [], journalFailure: "Synthetic claim failure", detailIdentifier: "outcomeDetail-6")
+                    CleanupOutcomeSummary(states: [], rejectedReplay: true, detailIdentifier: "outcomeDetail-7")
+                    Text("Synthetic optional folder access · Inert Gallery guidance").font(.headline)
+                    LocationAccessGuide(expanded: .constant(true))
                     CategoryPrerequisite(title: "Not scanned", detail: "Scan the included Downloads locations before choosing files.", actionTitle: "Scan Downloads…", enabled: true, action: {})
                     CategoryPrerequisite(title: "No eligible files", detail: "No eligible files in this inspected location.", actionTitle: "Scan Downloads again", enabled: true, action: {})
                     ExplorerInspector(name: "Camera guide.pdf", close: {}) {
