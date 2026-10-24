@@ -36,7 +36,7 @@ This table preserves the full product direction. It is not the first-build check
 | Developer data | Xcode DerivedData first; release archives protected. Homebrew/pip conditional on validated adapters and dedicated review UI |
 | Browser caches | Chrome/Safari candidates, independently gated by OS/browser fixtures; asset caches only |
 | App-managed storage | Read-only inventory and guidance for backups, Photos, Mail/Messages and system-managed data |
-| History | Local action records, aggregate snapshots, clear history and reset flows |
+| History | Recorded terminal scan activity and cleanup outcomes, filters, clear/reset; compatible aggregate comparisons remain M4 |
 | Alerts | Off by default; optional capacity polling, notification authorization and separate Start at Login |
 | Diagnostics | Redacted review followed by explicit local Save; no automatic upload |
 
@@ -96,7 +96,7 @@ Alert defaults: 40 GB suggested threshold, decimal units, valid range at least 1
 
 ## Data and privacy
 
-Retain local aggregate history under the detailed PRD policy (90 days, 30 completed baselines, 250 MB cap). Keep raw file observations transient where possible. Do not persist file contents, hashes, browsing contents or cloud credentials. Redact paths in diagnostics by default. Clear history removes completed records/baselines only. Unresolved intent/outcome journals are exempt from retention eviction and history clearing. Reset is blocked during execution or unresolved recovery, with a review route; when allowed it removes preferences/scopes and stops any alert/login registration. Future custom exclusions are also reset once that feature ships. Neither deletes original files or silently revokes OS grants.
+Follow [HISTORY-ACTIVITY](HISTORY-ACTIVITY.md): minimal scan activity and enabled growth aggregates share one 90-day,250 MB archive budget; at most30 qualifying growth baselines are retained globally, not30 activity entries. Completed cleanup retains its separate90-day,250 MB record-payload budget. These are retained-record bounds rather than a combined physical app-files cap. Normal mode retains scan summaries; detailed growth collection/comparisons stay M4-gated. Keep raw file observations transient. Do not persist file contents, hashes, browsing contents or cloud credentials. Redact paths in diagnostics by default. Clear history removes completed records/baselines only. Unresolved intent/outcome journals are exempt from retention eviction and history clearing. Reset is blocked during execution or unresolved recovery, with a review route; when allowed it removes preferences/scopes and stops any alert/login registration. Future custom exclusions are also reset once that feature ships. Neither deletes original files or silently revokes OS grants.
 
 ## Build sequence and exit criteria
 

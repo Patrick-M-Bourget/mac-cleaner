@@ -181,7 +181,7 @@ Existing scan progress names the single bounded recheck when directory evidence 
 
 ### Completed-history implementation (#13)
 
-History presents completed runs using shared summaries with expandable per-file results. Planned logical/Trash-held allocation estimates and independently saved capacity change stay distinct; legacy missing measurements remain Unknown. Local-data controls use native consequence-specific confirmations. Unfinished runs remain outside completed history, survive Clear/retention, block Reset and link to fresh read-only recovery. Reset does not restore or retry a plan. See [history/reset evidence and remaining native gates](validation/history-reset.md).
+Under the locked #51 [History activity contract](HISTORY-ACTIVITY.md), History presents terminal scan activity and completed cleanup runs with All activity/Scans/Cleanups filters. Shared scan summaries expand recorded root/coverage/outcome/aggregate details without scanned child-file catalogues. Cleanup summaries retain expandable per-file results. Source/native qualification of the combined feed is pending. Planned logical/Trash-held allocation estimates and independently saved capacity change stay distinct; legacy missing measurements remain Unknown. Local-data controls use native consequence-specific confirmations. Unfinished runs remain outside completed history, survive Clear/retention, block Reset and link to fresh read-only recovery. Reset does not restore or retry a plan. See [history/reset evidence and remaining native gates](validation/history-reset.md).
 
 ### M6 diagnostics review and local Save
 
