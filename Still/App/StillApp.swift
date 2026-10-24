@@ -102,6 +102,7 @@ enum Destination: String, CaseIterable, Identifiable {
     var locationsOffset: CGPoint?
     var localRecordsVisible = false
     var localRecordsCaller = Destination.history
+    var localRecordsOffset: CGPoint?
     var accessGuideExpanded = false
 }
 
@@ -162,7 +163,7 @@ private struct WorkspaceView: View {
     private var showsPlan: Bool { destination == .plan && !navigationState.localRecordsVisible && !recoveryVisible && !inspecting && !nativeInspectionVisible && !homebrewVisible && !pipVisible && !dockerVisible && !managedStorageVisible && !diagnosticsVisible && !exclusionsVisible }
     private var inspectionVisible: Bool { inspecting || nativeInspectionVisible }
     private var contextLabel: String {
-        diagnosticsVisible ? "Redacted diagnostics · Explicit local Save" : recoveryVisible ? "Recovery review · Recorded facts only" : selection.execution.isRunning ? "Moving approved files to Trash" : selection.execution.result != nil && showsPlan ? "Cleanup results · individual outcomes" : managedStorageVisible ? "App-managed inventory · selected objects only" : folderInspection.scope != nil ? "Read-only metadata · explicitly selected folder" : fixtureMode ? "Synthetic data — no personal files accessed" : "On-demand storage review"
+        navigationState.localRecordsVisible && !recoveryVisible ? "Local records · Explicit maintenance only" : diagnosticsVisible ? "Redacted diagnostics · Explicit local Save" : recoveryVisible ? "Recovery review · Recorded facts only" : selection.execution.isRunning ? "Moving approved files to Trash" : selection.execution.result != nil && showsPlan ? "Cleanup results · individual outcomes" : managedStorageVisible ? "App-managed inventory · selected objects only" : folderInspection.scope != nil ? "Read-only metadata · explicitly selected folder" : fixtureMode ? "Synthetic data — no personal files accessed" : "On-demand storage review"
     }
 
     var body: some View {
@@ -244,7 +245,9 @@ private struct WorkspaceView: View {
                         }
                     }.padding(StillDesign.Space.page).frame(maxWidth: .infinity, alignment: .leading)
                         .background(alignment: .topLeading) {
-                            if !recoveryVisible && !navigationState.localRecordsVisible && !diagnosticsVisible && !exclusionsVisible && !managedStorageVisible && !dockerVisible && !pipVisible && !homebrewVisible && !inspecting {
+                            if navigationState.localRecordsVisible && !recoveryVisible {
+                                DestinationViewport(offset: $navigationState.localRecordsOffset).frame(width: 0, height: 0)
+                            } else if !recoveryVisible && !diagnosticsVisible && !exclusionsVisible && !managedStorageVisible && !dockerVisible && !pipVisible && !homebrewVisible && !inspecting {
                                 if destination == .history {
                                     DestinationViewport(offset: $navigationState.historyOffset).frame(width: 0, height: 0)
                                 } else if destination == .overview {
@@ -274,7 +277,7 @@ private struct WorkspaceView: View {
                         }
                     } else if recoveryVisible {
                         ActionStrip(message: "Recovery records are retained. Nothing resumes automatically.") {
-                            Button(navigationState.recoveryCaller == .overview ? "Return to Overview" : "Back to " + navigationState.recoveryCaller.rawValue) {
+                            Button(navigationState.localRecordsVisible ? "Back to Local records" : navigationState.recoveryCaller == .overview ? "Return to Overview" : "Back to " + navigationState.recoveryCaller.rawValue) {
                                 recoveryVisible = false; destination = navigationState.recoveryCaller; navigationState.recoveryCaller = .overview
                             }.buttonStyle(.borderedProminent)
                         }
@@ -332,7 +335,7 @@ private struct WorkspaceView: View {
         }
         .task { startupCapacity = await Task.detached(priority: .utility) { StartupVolumeCapacity.read() }.value }
         .onAppear { AppLifecycleController.shared.openWorkspace = { openWindow(id: "workspace") } }
-        .onReceive(NotificationCenter.default.publisher(for: .stillAlertOpened)) { _ in destination = .overview; exclusionsVisible = false; diagnosticsVisible = false; recoveryVisible = false; inspecting = false; nativeInspectionVisible = false; homebrewVisible = false; pipVisible = false; dockerVisible = false; managedStorageVisible = false }
+        .onReceive(NotificationCenter.default.publisher(for: .stillAlertOpened)) { _ in destination = .overview; navigationState.localRecordsVisible = false; exclusionsVisible = false; diagnosticsVisible = false; recoveryVisible = false; inspecting = false; nativeInspectionVisible = false; homebrewVisible = false; pipVisible = false; dockerVisible = false; managedStorageVisible = false }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in Task { await alerts.activated() } }
         .onReceive(NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.didWakeNotification)) { _ in Task { await alerts.activated() } }
         .toolbar {
@@ -366,13 +369,14 @@ private struct WorkspaceView: View {
     }
 
     private var scanReturnAction: (() -> Void)? {
-        let atOrigin = destination == scanOrigin && !nativeInspectionVisible && !inspecting && !diagnosticsVisible && !exclusionsVisible && !recoveryVisible && !homebrewVisible && !pipVisible && !dockerVisible && !managedStorageVisible
+        let atOrigin = destination == scanOrigin && !navigationState.localRecordsVisible && !nativeInspectionVisible && !inspecting && !diagnosticsVisible && !exclusionsVisible && !recoveryVisible && !homebrewVisible && !pipVisible && !dockerVisible && !managedStorageVisible
         if atOrigin { return nil }
         return { returnToScanOrigin() }
     }
 
     private func returnToScanOrigin() {
         destination = scanOrigin
+        navigationState.localRecordsVisible = false
         nativeInspectionVisible = false; inspecting = false; diagnosticsVisible = false
         exclusionsVisible = false; recoveryVisible = false; homebrewVisible = false
         pipVisible = false; dockerVisible = false; managedStorageVisible = false
@@ -658,6 +662,7 @@ private struct WorkspaceView: View {
 
     private func openLocalRecords(caller: Destination) {
         navigationState.localRecordsCaller = caller
+        navigationState.localRecordsOffset = nil
         navigationState.localRecordsVisible = true
         recoveryVisible = false
         destination = caller
