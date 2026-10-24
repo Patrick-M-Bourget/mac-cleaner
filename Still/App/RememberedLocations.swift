@@ -11,7 +11,7 @@ import StillCore
             switch self {
             case .notScanned: "Not scanned"
             case .ready: "Ready for manual scan"
-            case .chooseAgain: "Access needs renewal · Choose again"
+            case .chooseAgain: "Access unavailable · Choose again to renew"
             case .unavailable: "Location unavailable · Reconnect and recheck"
             case .omitted: "Omitted from the next scan"
             case .recheck: "Not scanned · Recheck required"

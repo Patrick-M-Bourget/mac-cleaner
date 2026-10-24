@@ -518,7 +518,7 @@ private struct WorkspaceView: View {
                     } else if locationsModel.included.isEmpty {
                         Text("No included locations with current observations.").font(.caption).foregroundStyle(.secondary)
                     } else if folderInspection.scope != nil {
-                        Text("Current coverage: Unknown · Recheck required").font(.caption).foregroundStyle(.secondary)
+                        Text("Current coverage: Unknown · Recheck required").font(.caption).foregroundStyle(.secondary).accessibilityIdentifier("overviewScopeCoverage")
                         if let previous = folderInspection.lastComplete { Text("Last complete observation: " + previous.observedAt.formatted() + " · Historical").font(.caption).foregroundStyle(.secondary) }
                     } else { Text("Choose a folder to understand its local storage.").font(.caption).foregroundStyle(.secondary) }
                 }.frame(maxWidth: .infinity, alignment: .leading)
