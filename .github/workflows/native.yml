@@ -117,7 +117,12 @@ jobs:
           elif [[ "$EVENT_NAME" == "workflow_dispatch" && "$REQUESTED_SUITE" == "shell-appearance" ]]; then
             scope=(-only-testing:StillUITests/ShellAppearanceUITests/testAppearanceSurvivesRelaunchWithoutRestoringPlan)
           elif [[ "$EVENT_NAME" == "workflow_dispatch" && "$REQUESTED_SUITE" == "shell-gallery" ]]; then
-            scope=(-only-testing:StillUITests/ShellAppearanceUITests/testShellGalleryAtInitialSize -only-testing:StillUITests/ShellAppearanceUITests/testShellGalleryAtMinimumSize)
+            scope=(
+              -only-testing:StillUITests/ShellAppearanceUITests/testShellGalleryAtInitialSize
+              -only-testing:StillUITests/ShellAppearanceUITests/testShellGalleryAtMinimumSize
+              -only-testing:StillUITests/CapacityRefreshUITests/testCapacityGalleryAtInitialSize
+              -only-testing:StillUITests/LocalRecordsUITests/testSyntheticManagementGalleryAtMinimumSize
+            )
           elif [[ "$EVENT_NAME" == "workflow_dispatch" && "$REQUESTED_SUITE" == "shell-regressions" ]]; then
             scope=(
               -only-testing:StillUITests/WorkspaceUITests/testConnectedDownloadsJourneyPreservesContextAndConsumesPlan
