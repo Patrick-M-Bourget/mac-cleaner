@@ -53,6 +53,22 @@ import Darwin
     XCTAssertTrue(app.textFields["Search Downloads items"].waitForExistence(timeout: 5))
 }
 
+/// SwiftUI propagates the surface identifier onto its native scroll view.
+@MainActor func revealInspectorEvidence(_ app: XCUIApplication, text: String) {
+    let viewport = app.scrollViews["explorerInspector"]
+    let evidence = app.staticTexts[text]
+    XCTAssertTrue(viewport.waitForExistence(timeout: 5))
+    XCTAssertTrue(evidence.waitForExistence(timeout: 5))
+    for _ in 0..<12 {
+        if viewport.frame.contains(evidence.frame) { break }
+        let distance = evidence.frame.midY - viewport.frame.midY
+        viewport.scroll(byDeltaX: 0, deltaY: -distance)
+    }
+    XCTAssertTrue(viewport.frame.contains(evidence.frame), "Inspector evidence must be visible: " + text)
+    XCTAssertTrue(evidence.isHittable)
+    XCTAssertTrue(app.buttons["Close inspector"].isHittable)
+}
+
 /// Remembered scopes are persistent settings, so each independent journey owns a fresh store.
 @MainActor func configureIsolatedJourneyState(_ app: XCUIApplication) throws -> URL {
     let token = UUID().uuidString
@@ -95,7 +111,7 @@ final class WorkspaceUITests: XCTestCase {
         XCTAssertFalse(app.checkBoxes["Select protected.sqlite"].exists)
         for theme in ["Light", "Dark"] {
             app.popUpButtons["Appearance"].click(); app.menuItems[theme].click()
-            app.scrollViews["inspectorEvidenceScroll"].scroll(byDeltaX: 0, deltaY: -600)
+            revealInspectorEvidence(app, text: "Protected file type (.sqlite). This file or an ancestor is excluded from Downloads cleanup.")
             XCTAssertTrue(app.buttons["Close inspector"].isHittable)
             let shot = XCTAttachment(screenshot: app.windows.firstMatch.screenshot())
             shot.name = "inspector-protected-sqlite-minimum-" + theme; shot.lifetime = .keepAlways; add(shot)
@@ -117,11 +133,11 @@ final class WorkspaceUITests: XCTestCase {
             XCTAssertTrue(bounds.contains(app.buttons["View cleanup plan"].frame))
             let shot = XCTAttachment(screenshot: app.windows.firstMatch.screenshot())
             shot.name = "inspector-downloads-minimum-" + theme; shot.lifetime = .keepAlways; add(shot)
-            app.scrollViews["inspectorEvidenceScroll"].scroll(byDeltaX: 0, deltaY: -600)
+            revealInspectorEvidence(app, text: "Move this exact file to Trash after selection and confirmation.")
             XCTAssertTrue(app.buttons["Close inspector"].isHittable)
             let detail = XCTAttachment(screenshot: app.windows.firstMatch.screenshot())
             detail.name = "inspector-downloads-detail-minimum-" + theme; detail.lifetime = .keepAlways; add(detail)
-            app.scrollViews["inspectorEvidenceScroll"].scroll(byDeltaX: 0, deltaY: 600)
+            app.scrollViews["explorerInspector"].scroll(byDeltaX: 0, deltaY: 600)
         }
         app.buttons["Close inspector"].click()
         app.checkBoxes["Select evidence.txt"].click()
@@ -169,7 +185,7 @@ final class WorkspaceUITests: XCTestCase {
             XCTAssertTrue(app.buttons["Close inspector"].isHittable)
             for theme in ["Light", "Dark"] {
                 app.popUpButtons["Appearance"].click(); app.menuItems[theme].click()
-                app.scrollViews["inspectorEvidenceScroll"].scroll(byDeltaX: 0, deltaY: -600)
+                revealInspectorEvidence(app, text: reason)
                 XCTAssertTrue(app.buttons["Close inspector"].isHittable)
                 let shot = XCTAttachment(screenshot: app.windows.firstMatch.screenshot())
                 shot.name = "inspector-owned-" + name + "-initial-" + theme; shot.lifetime = .keepAlways; add(shot)
