@@ -58,7 +58,13 @@ public actor GrowthHistoryStore {
     private let policy: GrowthRetention
     public init(directory: URL, policy: GrowthRetention = GrowthRetention()) { self.directory = directory; self.policy = policy }
     public func activities(now: Date = Date(), maintain: Bool = true) throws -> [ScanActivity] {
-        try withStoreLock { let value = maintain ? try retained(now) : try load(); return (value.activities ?? []).sorted { $0.completedAt > $1.completedAt } }
+        try withStoreLock {
+            var value = try load()
+            let count = value.entries.count + (value.activities?.count ?? 0)
+            try trim(&value, now: now)
+            if maintain && value.entries.count + (value.activities?.count ?? 0) != count { try save(value) }
+            return (value.activities ?? []).sorted { $0.completedAt > $1.completedAt }
+        }
     }
     @discardableResult public func recordActivity(_ activity: ScanActivity, now: Date = Date(), expectedEpoch: UUID) throws -> Bool {
         try withStoreLock {
