@@ -105,6 +105,11 @@ final class WorkspaceUITests: XCTestCase {
             XCTAssertTrue(bounds.contains(app.buttons["View cleanup plan"].frame))
             let shot = XCTAttachment(screenshot: app.windows.firstMatch.screenshot())
             shot.name = "inspector-downloads-minimum-" + theme; shot.lifetime = .keepAlways; add(shot)
+            app.scrollViews["inspectorEvidenceScroll"].scroll(byDeltaX: 0, deltaY: -600)
+            XCTAssertTrue(app.buttons["Close inspector"].isHittable)
+            let detail = XCTAttachment(screenshot: app.windows.firstMatch.screenshot())
+            detail.name = "inspector-downloads-detail-minimum-" + theme; detail.lifetime = .keepAlways; add(detail)
+            app.scrollViews["inspectorEvidenceScroll"].scroll(byDeltaX: 0, deltaY: 600)
         }
         app.buttons["Close inspector"].click()
         app.checkBoxes["Select evidence.txt"].click()
@@ -152,6 +157,8 @@ final class WorkspaceUITests: XCTestCase {
             XCTAssertTrue(app.buttons["Close inspector"].isHittable)
             for theme in ["Light", "Dark"] {
                 app.popUpButtons["Appearance"].click(); app.menuItems[theme].click()
+                app.scrollViews["inspectorEvidenceScroll"].scroll(byDeltaX: 0, deltaY: -600)
+                XCTAssertTrue(app.buttons["Close inspector"].isHittable)
                 let shot = XCTAttachment(screenshot: app.windows.firstMatch.screenshot())
                 shot.name = "inspector-owned-" + name + "-initial-" + theme; shot.lifetime = .keepAlways; add(shot)
             }

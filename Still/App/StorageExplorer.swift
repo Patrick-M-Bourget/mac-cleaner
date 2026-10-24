@@ -296,7 +296,7 @@ struct ExplorerInspector<Content: View>: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: StillDesign.Space.sm) { content() }
                         .frame(maxWidth: .infinity, alignment: .leading)
-                }
+                }.accessibilityIdentifier("inspectorEvidenceScroll")
             }
         }.accessibilityIdentifier("explorerInspector")
     }
