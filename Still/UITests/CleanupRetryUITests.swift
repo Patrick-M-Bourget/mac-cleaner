@@ -1,7 +1,9 @@
 import XCTest
 import Darwin
+import StillCore
 
 final class CleanupRetryUITests: XCTestCase {
+    @MainActor func testRetryRecheckRefreshesCapacity() throws { try exercise(minimum: true, capacity: true) }
     @MainActor func testCancelledBatchRequiresFreshRetryApproval() throws { try exercise(minimum: false) }
     @MainActor func testCancelledBatchRetryAtMinimumWindow() throws { try exercise(minimum: true) }
     @MainActor func testChangedConfirmedFileReportsNoFilesMoved() throws {
@@ -91,7 +93,7 @@ final class CleanupRetryUITests: XCTestCase {
             }
         }
     }
-    @MainActor private func exercise(minimum: Bool) throws {
+    @MainActor private func exercise(minimum: Bool, capacity: Bool = false) throws {
         continueAfterFailure = false
         let root = FileManager.default.temporaryDirectory.appendingPathComponent("StillSelectionUI-" + UUID().uuidString)
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
@@ -106,10 +108,23 @@ final class CleanupRetryUITests: XCTestCase {
         var info = stat(); XCTAssertEqual(lstat(state.path, &info), 0)
         let app = XCUIApplication()
         app.launchArguments = ["--ui-test-downloads-root", "--ui-test-slow-trash", minimum ? "--design-minimum" : "--design-initial-size"]
+        if capacity {
+            app.launchArguments.append("--ui-test-capacity-reading")
+            try Data("{\"available\":40000000000,\"total\":512000000000}".utf8).write(to: state.appendingPathComponent("capacity-reading.json"))
+        }
         app.launchEnvironment["STILL_TEST_DOWNLOADS_ROOT"] = root.path
         app.launchEnvironment["STILL_TEST_STATE_ROOT"] = state.path
         app.launchEnvironment["STILL_TEST_STATE_ID"] = "\(info.st_dev):\(info.st_ino)"
         defer { app.terminate(); try? FileManager.default.removeItem(at: state) }
+        defer {
+            if capacity, let journal = try? SQLiteCleanupJournal(url: state.appendingPathComponent("cleanup.sqlite")), let records = try? journal.records() {
+                for record in records where record.state == .succeeded && record.originalURL.deletingLastPathComponent() == root {
+                    guard let returned = record.trashURL, returned.deletingLastPathComponent().path == NSHomeDirectory() + "/.Trash",
+                          (try? Data(contentsOf: returned)) == Data([1]) else { XCTFail("Owned retry fixture's recorded Trash location must remain verifiable"); continue }
+                    try? FileManager.default.removeItem(at: returned)
+                }
+            }
+        }
         app.launch()
         func capture(_ name: String) {
             let shot = XCTAttachment(screenshot: app.windows.firstMatch.screenshot())
@@ -147,8 +162,23 @@ final class CleanupRetryUITests: XCTestCase {
             app.popUpButtons.firstMatch.click(); app.menuItems[theme].click()
             capture("partial-" + (minimum ? "minimum-" : "initial-") + theme)
         }
+        if capacity {
+            try Data("{\"available\":60000000000,\"total\":512000000000}".utf8).write(to: state.appendingPathComponent("capacity-reading.json"), options: .atomic)
+        }
         app.buttons["Recheck unfinished files"].click()
         XCTAssertTrue(app.checkBoxes["Selected b.pdf"].waitForExistence(timeout: 15))
+        if capacity {
+            let current = app.staticTexts["sidebarCapacityAmount"]
+            let refreshed = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value CONTAINS %@ OR label CONTAINS %@", "60 GB", "60 GB"), object: current)
+            guard XCTWaiter.wait(for: [refreshed], timeout: 5) == .completed else {
+                capture("capacity-after-retry-recheck-missing")
+                XCTFail("A completed manual retry recheck must refresh startup capacity once"); return
+            }
+            XCTAssertEqual(try Data(contentsOf: root.appendingPathComponent("b.pdf")), Data([1]))
+            XCTAssertEqual(app.checkBoxes["Selected b.pdf"].value as? Int, 1)
+            capture("capacity-after-retry-recheck")
+            return
+        }
         XCTAssertFalse(app.checkBoxes["Selected a.pdf"].exists)
         XCTAssertFalse(app.buttons["Inspect new.pdf"].exists)
         for theme in ["Light", "Dark"] {
