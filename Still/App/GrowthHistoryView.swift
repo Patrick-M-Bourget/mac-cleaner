@@ -6,20 +6,54 @@ import StillCore
     static let shared = GrowthHistoryModel()
     static var enabled: Bool { ProcessInfo.processInfo.arguments.contains("--future-milestones") }
     private var session: GrowthHistorySession?
+    private var archive: GrowthHistoryStore?
     private var openingError: String?
-    var comparison: GrowthComparison? { session?.comparison }
+    private var requestedObservation: UUID?
+    private var historicalComparison: GrowthComparison?
+    private var historicalError: String?
+    var historicalBusy = false
+    var historicalUnavailable: Bool { requestedObservation != nil && !historicalBusy && historicalComparison?.current?.id != requestedObservation }
+    var isHistorical: Bool { requestedObservation != nil }
+    var comparison: GrowthComparison? { isHistorical ? historicalComparison : session?.comparison }
     var snapshots: [GrowthSnapshot] { session?.snapshots ?? [] }
-    var error: String? { openingError ?? session?.error }
+    var error: String? { isHistorical ? historicalError : openingError ?? session?.error }
+    private func store() throws -> GrowthHistoryStore {
+        if let archive { return archive }
+        let value = GrowthHistoryStore(directory: try LocalStateLocation.root(create: true).appendingPathComponent("Growth", isDirectory: true))
+        archive = value; return value
+    }
     private func open() throws -> GrowthHistorySession {
         if let session { return session }
-        let store = GrowthHistoryStore(directory: try LocalStateLocation.root(create: true).appendingPathComponent("Growth", isDirectory: true))
-        let value = GrowthHistorySession(store: store)
+        let value = GrowthHistorySession(store: try store())
         session = value; openingError = nil; return value
     }
     func load() async {
         guard Self.enabled else { return }
+        if let requestedObservation {
+            historicalBusy = true
+            defer { if self.requestedObservation == requestedObservation { historicalBusy = false } }
+            do {
+                let value = try await store().comparison(id: requestedObservation)
+                guard self.requestedObservation == requestedObservation, !Task.isCancelled else { return }
+                historicalComparison = value; historicalError = nil
+            } catch {
+                guard self.requestedObservation == requestedObservation, !Task.isCancelled else { return }
+                historicalComparison = nil; historicalError = "The recorded comparison could not be read. No other observation was selected."
+            }
+            return
+        }
         do { await (try open()).load() }
         catch { openingError = "Comparison history is unavailable. No growth can be inferred from missing observations." }
+    }
+    func requestHistorical(_ id: UUID) {
+        requestedObservation = id; historicalComparison = nil; historicalError = nil; historicalBusy = true
+    }
+    func endHistoricalRequest() { requestedObservation = nil; historicalComparison = nil; historicalError = nil; historicalBusy = false }
+    func retainedBaseline(for scan: ScanResult) -> UUID? {
+        guard let current = session?.comparison?.current, current.observedAt == scan.observedAt,
+              current.scopeLabel == scan.scope.lastPathComponent,
+              snapshots.contains(where: { $0.id == current.id }) else { return nil }
+        return current.id
     }
     func begin(_ scope: URL, exclusionFingerprint: String = "none") async -> GrowthScanToken? {
         guard Self.enabled else { return nil }
@@ -43,7 +77,11 @@ struct GrowthHistoryView: View {
         VStack(alignment: .leading, spacing: StillDesign.Space.xl) {
             PageHeader(title: "What grew", subtitle: "Compare completed observations of the same scope. Changes do not identify which app or person wrote files.")
             if let error = model.error { StatusRow(text: error, symbol: "exclamationmark.circle", role: .caution) }
-            if let comparison = model.comparison {
+            if model.historicalBusy { ProgressView("Reading recorded comparison…") }
+            if model.historicalUnavailable {
+                EmptyState(title: "Comparison unavailable for this recorded observation.", detail: "The exact linked baseline is missing, expired or unreadable. No other observation was substituted, and no scan was started.", symbol: "clock.badge.exclamationmark")
+            }
+            if let comparison = model.comparison, !model.historicalUnavailable {
                 StatusRow(text: message(comparison.state), symbol: comparison.state == .compared ? "chart.line.uptrend.xyaxis" : "info.circle", role: comparison.state == .coverageChanged || comparison.state == .unknown ? .caution : .neutral)
                 if let current = comparison.current {
                     SummarySurface {
@@ -68,7 +106,7 @@ struct GrowthHistoryView: View {
                     }
                 }
             }
-            if !model.snapshots.isEmpty {
+            if !model.isHistorical && !model.snapshots.isEmpty {
                 DisclosureGroup("Completed observations") {
                     ForEach(model.snapshots.reversed()) { snapshot in
                         Button(snapshot.scopeLabel + " · " + snapshot.observedAt.formatted(date: .abbreviated, time: .standard)) { Task { await model.select(snapshot.id) } }
@@ -78,7 +116,7 @@ struct GrowthHistoryView: View {
             DisclosureGroup("Measurement details") {
                 Text("Linked files count once, under their first observed path. Alias changes can shift folder or category totals without changing net size. Comparisons describe observed logical size, not exclusive disk allocation or writer activity.").font(.caption).foregroundStyle(.secondary)
             }
-            StatusRow(text: "History keeps at most 90 days, 30 completed baselines and 250 MB of aggregates. File contents and per-file records are not stored. Folder names remain sensitive local metadata. Logical change is not reclaimable space.", symbol: "lock")
+            StatusRow(text: "Scan activity and enabled growth aggregates share 90-day retention and a 250 MB archive budget, with at most 30 growth baselines. File contents and scanned child-file catalogues are not stored. Recorded root paths and folder names remain sensitive local metadata. Logical change is not reclaimable space.", symbol: "lock")
         }.task { await model.load() }
     }
     private func signed(_ bytes: Int64) -> String { (bytes > 0 ? "+" : bytes < 0 ? "−" : "") + ByteCountFormatter.string(fromByteCount: abs(bytes), countStyle: .decimal) }

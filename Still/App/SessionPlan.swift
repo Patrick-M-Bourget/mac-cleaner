@@ -409,8 +409,7 @@ import SwiftUI
                     let scan = try await scanner.scan(scope, cancellation: cancellation, exclusions: policy)
                     reports.append(scan)
                     await GrowthHistoryModel.shared.complete(scan, token: growth)
-                    let baseline = await MainActor.run { GrowthHistoryModel.shared.comparison?.current }
-                    if baseline?.observedAt == scan.observedAt { baselineIDs[scope.standardizedFileURL.path] = baseline?.id }
+                    baselineIDs[scope.standardizedFileURL.path] = await MainActor.run { GrowthHistoryModel.shared.retainedBaseline(for: scan) }
                 } catch {
                     if cancellation.isCancellationRequested { stoppedRoot = scope }
                     else { failed.append(scope) }

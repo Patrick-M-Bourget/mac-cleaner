@@ -137,6 +137,7 @@ struct CleanupHistoryView: View {
     var manageLocalRecords: () -> Void
     var goOverview: () -> Void
     var viewPlan: () -> Void
+    var showGrowth: ((UUID) -> Void)? = nil
     private var items: [HistoryActivityItem] {
         let scanItems: [HistoryActivityItem] = model.filter == .cleanups ? [] : (scans.records ?? []).map(HistoryActivityItem.scan)
         let cleanupItems: [HistoryActivityItem] = model.filter == .scans ? [] : (model.snapshot?.completedRuns ?? []).map(HistoryActivityItem.cleanup)
@@ -167,7 +168,7 @@ struct CleanupHistoryView: View {
             ForEach(items) { item in
                 switch item {
                 case .scan(let activity):
-                    ScanActivitySummary(activity: activity, expanded: Binding(get: { model.expandedScans.contains(activity.id) }, set: { if $0 { model.expandedScans.insert(activity.id) } else { model.expandedScans.remove(activity.id) } }))
+                    ScanActivitySummary(activity: activity, expanded: Binding(get: { model.expandedScans.contains(activity.id) }, set: { if $0 { model.expandedScans.insert(activity.id) } else { model.expandedScans.remove(activity.id) } }), showGrowth: showGrowth)
                 case .cleanup(let run): cleanup(run)
                 }
             }

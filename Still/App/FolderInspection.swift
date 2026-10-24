@@ -160,8 +160,7 @@ final class FolderInspection {
                 if scanAgainTask == nil { AppLifecycleController.shared.capacity.request(.scanEnded) }
                 await GrowthHistoryModel.shared.complete(observed, token: growthToken)
                 guard token == generation else { return }
-                let baseline = GrowthHistoryModel.shared.comparison?.current
-                activity?.observe(observed, baselineID: baseline?.observedAt == observed.observedAt ? baseline?.id : nil)
+                activity?.observe(observed, baselineID: GrowthHistoryModel.shared.retainedBaseline(for: observed))
                 if !grouped { await finishActivity() }
             } catch {
                 guard token == generation else { return }

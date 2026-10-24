@@ -99,6 +99,8 @@ enum Destination: String, CaseIterable, Identifiable {
     let historyModel = CleanupHistoryModel()
     var historyExpandedRuns: Set<UUID> = []
     var historyOffset: CGPoint?
+    var growthOffset: CGPoint?
+    var growthFromHistory = false
     var overviewOffset: CGPoint?
     var locationsOffset: CGPoint?
     var localRecordsVisible = false
@@ -284,6 +286,8 @@ private struct WorkspaceView: View {
                             } else if !recoveryVisible && !diagnosticsVisible && !exclusionsVisible && !managedStorageVisible && !dockerVisible && !pipVisible && !homebrewVisible && !inspecting {
                                 if destination == .history {
                                     DestinationViewport(offset: $navigationState.historyOffset).frame(width: 0, height: 0)
+                                } else if destination == .growth {
+                                    DestinationViewport(offset: $navigationState.growthOffset).frame(width: 0, height: 0)
                                 } else if destination == .overview {
                                     DestinationViewport(offset: $navigationState.overviewOffset).frame(width: 0, height: 0)
                                 } else if destination == .locations {
@@ -334,8 +338,14 @@ private struct WorkspaceView: View {
                             Button("View cleanup plan") { nativeInspectionVisible = false; inspecting = false; destination = .plan }.buttonStyle(.borderedProminent)
                         }
                     } else if destination == .growth {
-                        ActionStrip(message: "Two compatible completed observations reveal net changes.") {
-                            Button("Inspect a folder", action: chooseFolderForScan).buttonStyle(.borderedProminent)
+                        if navigationState.growthFromHistory {
+                            ActionStrip(message: "Recorded observation · Current files and cleanup choices stay unchanged.") {
+                                Button("Back to History") { navigate(.history) }.buttonStyle(.borderedProminent)
+                            }
+                        } else {
+                            ActionStrip(message: "Two compatible completed observations reveal net changes.") {
+                                Button("Inspect a folder", action: chooseFolderForScan).buttonStyle(.borderedProminent)
+                            }
                         }
                     } else if destination == .overview && !managedStorageVisible && !dockerVisible && !pipVisible && !homebrewVisible {
                         if folderInspection.isScanning {
@@ -417,6 +427,8 @@ private struct WorkspaceView: View {
     }
 
     private func navigate(_ value: Destination, configureAlerts: Bool = true) {
+        if navigationState.growthFromHistory { GrowthHistoryModel.shared.endHistoricalRequest() }
+        navigationState.growthFromHistory = false
         navigationState.configureAlertsOnEntry = configureAlerts
         destination = value
         planReturnsToExplorer = false
@@ -724,9 +736,20 @@ private struct WorkspaceView: View {
         diagnosticsVisible = false; diagnostics = DiagnosticsModel(); exclusionsVisible = false
     }
 
+    private func openHistoricalGrowth(_ id: UUID) {
+        guard GrowthHistoryModel.enabled else { return }
+        navigate(.growth)
+        navigationState.growthFromHistory = true; navigationState.growthOffset = nil
+        GrowthHistoryModel.shared.requestHistorical(id)
+    }
+
+    private var historicalGrowthAction: ((UUID) -> Void)? {
+        guard GrowthHistoryModel.enabled else { return nil }
+        return { id in openHistoricalGrowth(id) }
+    }
     private var history: some View {
         CleanupHistoryView(model: navigationState.historyModel, expandedRuns: $navigationState.historyExpandedRuns,
-            showRecovery: { openRecovery(caller: .history) }, manageLocalRecords: { openLocalRecords(caller: .history) }, goOverview: { navigate(.overview) }, viewPlan: { navigate(.plan) })
+            showRecovery: { openRecovery(caller: .history) }, manageLocalRecords: { openLocalRecords(caller: .history) }, goOverview: { navigate(.overview) }, viewPlan: { navigate(.plan) }, showGrowth: historicalGrowthAction)
     }
 
     private var locations: some View {

@@ -21,7 +21,7 @@ import StillCore
         guard let epoch else { return }
         do {
             let saved = try await store().recordActivity(activity, expectedEpoch: epoch)
-            if saved { recordingWarning = nil; records = try await store().activities() }
+            if saved { recordingWarning = nil; await load(maintain: false) }
         } catch { recordingWarning = "This scan could not be saved to History. Current results and choices remain available." }
     }
     func load(maintain: Bool = true) async {
@@ -35,6 +35,7 @@ import StillCore
 struct ScanActivitySummary: View {
     let activity: ScanActivity
     @Binding var expanded: Bool
+    var showGrowth: ((UUID) -> Void)? = nil
     var body: some View {
         SummarySurface {
             VStack(alignment: .leading, spacing: StillDesign.Space.md) {
@@ -56,9 +57,12 @@ struct ScanActivitySummary: View {
                             ForEach(location.reasons.keys.sorted(), id: \.self) { reason in
                                 Text(reasonLabel(reason) + ": " + String(location.reasons[reason] ?? 0)).font(.caption).foregroundStyle(.secondary)
                             }
+                            if location.outcome == .complete, let baseline = location.baselineID, let showGrowth {
+                                Button("See what grew") { showGrowth(baseline) }
+                            }
                         }.padding(.leading, StillDesign.Space.xl)
                     }
-                }
+                }.padding(.leading, StillDesign.Space.xl)
                 Text("Recorded observations, not reclaimable or released space.").font(.caption).foregroundStyle(.secondary)
             }
         }
