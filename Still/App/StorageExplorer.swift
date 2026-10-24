@@ -137,8 +137,9 @@ struct StorageExplorerView: View {
         return descendants.filter { relative($0.item.url, to: folder).localizedCaseInsensitiveContains(context.position.query) }
     }
     private var inspected: Entry? {
-        guard folderAvailable, context.position.query.isEmpty || !visible.isEmpty else { return nil }
-        return entries.first { $0.item.id == context.position.inspectedID && $0.item.resourceID == context.position.inspectedResource }
+        guard let id = context.position.inspectedID, let resource = context.position.inspectedResource,
+              folderAvailable, context.position.query.isEmpty || !visible.isEmpty else { return nil }
+        return entries.first { $0.item.id == id && $0.item.resourceID == resource }
     }
     var body: some View {
         GeometryReader { geometry in
@@ -237,7 +238,7 @@ struct StorageExplorerView: View {
                 Button { context.inspect(item) } label: { Image(systemName: "info.circle") }.buttonStyle(.plain).accessibilityLabel("Inspect " + item.url.lastPathComponent)
             }
         }.padding(StillDesign.Space.md)
-            .background(inspected?.id == entry.id ? Color.accentColor.opacity(0.06) : .clear, in: RoundedRectangle(cornerRadius: StillDesign.Radius.row))
+            .background(context.position.inspectedID == item.id && context.position.inspectedResource == item.resourceID ? Color.accentColor.opacity(0.06) : .clear, in: RoundedRectangle(cornerRadius: StillDesign.Radius.row))
     }
     private func inspector(_ entry: Entry) -> some View {
         ExplorerInspector(name: entry.item.url.lastPathComponent, close: { context.clearInspector() }) {
