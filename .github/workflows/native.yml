@@ -98,12 +98,16 @@ jobs:
           elif [[ "$EVENT_NAME" == "workflow_dispatch" && "$REQUESTED_SUITE" == "connected-next" ]]; then
             scope=(
               -only-testing:StillUITests/WorkspaceUITests/testMixedLocationsKeepValidChoicesWithUnknownCoverage
+              -only-testing:StillUITests/WorkspaceUITests/testMinimumMixedLocationsKeepValidChoicesWithUnknownCoverage
               -only-testing:StillUITests/WorkspaceUITests/testInspectorExplainsOwnedDownloadsCandidateWithoutSelectingIt
               -only-testing:StillUITests/WorkspaceUITests/testInspectorExplainsOwnedInspectionOnlyAndProtectedEntries
               -only-testing:StillUITests/WorkspaceUITests/testMinimumGalleryStatesAndOpaqueChromeCaptures
             )
           elif [[ "$EVENT_NAME" == "workflow_dispatch" && "$REQUESTED_SUITE" == "mixed-scopes" ]]; then
-            scope=(-only-testing:StillUITests/WorkspaceUITests/testMixedLocationsKeepValidChoicesWithUnknownCoverage)
+            scope=(
+              -only-testing:StillUITests/WorkspaceUITests/testMixedLocationsKeepValidChoicesWithUnknownCoverage
+              -only-testing:StillUITests/WorkspaceUITests/testMinimumMixedLocationsKeepValidChoicesWithUnknownCoverage
+            )
           elif [[ "$EVENT_NAME" == "workflow_dispatch" && "$REQUESTED_SUITE" == "inspector" ]]; then
             scope=(
               -only-testing:StillUITests/WorkspaceUITests/testInspectorExplainsOwnedDownloadsCandidateWithoutSelectingIt

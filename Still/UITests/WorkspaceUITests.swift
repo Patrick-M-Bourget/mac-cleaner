@@ -1010,6 +1010,10 @@ final class WorkspaceUITests: XCTestCase {
             capture("gallery-minimum-" + theme)
             app.scrollViews.firstMatch.scroll(byDeltaX: 0, deltaY: -1200)
             capture("gallery-states-minimum-" + theme)
+            let reconnect = app.buttons["Reconnect and recheck"]
+            revealScrollElement(app, control: reconnect, label: "Gallery recovery action")
+            XCTAssertTrue(reconnect.isHittable)
+            capture("gallery-location-recovery-minimum-" + theme)
             app.scrollViews.firstMatch.scroll(byDeltaX: 0, deltaY: 2000)
         }
         app.checkBoxes["Opaque chrome"].click()
