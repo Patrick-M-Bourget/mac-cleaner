@@ -82,7 +82,7 @@ struct CleanupExecutionView: View {
                 SummarySurface {
                     VStack(alignment: .leading, spacing: StillDesign.Space.md) {
                         Text("Planned logical size: \(bytes(result.plannedLogicalBytes))")
-                        Text("Planned allocated size held in Trash: \(result.trashHeldAllocatedBytes.map(bytes) ?? "Unknown")")
+                        Text("Planned allocated size held in Trash: \((result.rejectedReplay ? nil : result.trashHeldAllocatedBytes).map(bytes) ?? "Unknown")")
                         Text("Observed startup-volume available-capacity change: \(model.observedChange.map { ($0 >= 0 ? "+" : "−") + bytes(abs($0)) } ?? "Unknown")")
                         Text("Capacity is sampled independently and may change for other reasons. APFS sharing and snapshots prevent an exact exclusive-space promise.").font(.caption).foregroundStyle(.secondary)
                     }
