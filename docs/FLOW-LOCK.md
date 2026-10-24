@@ -82,3 +82,8 @@ These annotate approved behavior, not new visual mockups. All must use the exist
 Delivery is a connected user-visible slice: remembered Downloads → contextual plan scan → category/inline refinement → Explorer with return context → exact confirmation/Cancel → results → explicit new plan. Route/state and remembered-scope foundations may be implemented first as needed; do not call isolated helper work the completed feature. Subsequent immediate slices complete multi-location/overlap/access recovery and every FL branch. All acceptance remains on #44/#46/#47/#48/#50 until actually proven. Annotated visual approval is complete (b96bb97, October 23, 2026); proceed with the agreed connected slice without introducing further product questions.
 
 Do not resume unrelated isolated feature work. Every slice names parity IDs and FL states and preserves the approved responsibilities above. #49 capacity freshness, #51 scan-history product contract, #52 growth, #53 shell/appearance and #54 archive guidance remain visible in their milestones; this lock does not silently resolve or remove them. M8 signing stays deferred.
+
+
+## Capacity extension — #49
+
+October24 Q1–Q12 and consolidated contract explicitly confirmed. [Startup capacity refresh](CAPACITY-REFRESH.md) locks current reading ownership, triggers, failure/loading states and measurement boundaries. This resolves #49 decisions only; #51–#54 and all future gates remain preserved. Implementation/native evidence is not yet claimed.

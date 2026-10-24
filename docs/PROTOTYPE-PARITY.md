@@ -45,7 +45,7 @@ The tables below Classification retain the original audit baseline. This current
 | L02 | Partial / M6-gated | L qualifies frozen redacted preview, Save Cancel, caller return and process viewport/reopen; existing Save success/failure retains its earlier proof boundary. No ordinary-launch promotion |
 | R02,R05 | Qualified bounded presentation/normal terminal routes; partial native exceptional proof | D explicit History/new plan, R actual native partial/retry and all-skipped plus shared eight-branch synthetic Gallery and public Core failure/unknown/replay fixtures. Do not label native unknown/all-failed terminal flow qualified |
 | H04 | Partial; decision/future parts retained | R per-run expanded recorded facts; L shared local records. See what grew/History activity relationship remains #51/M4; never restore old approval for latest results |
-| O02,O06 | Decision pending #49 | Capacity refresh triggers, last-known/unavailable retry/concurrency not resolved by Q1–Q30 |
+| O02,O06,X02 | Locked #49 / implementation pending | October24 user-confirmed CAPACITY-REFRESH.md defines refresh, stale/unavailable/partial states, timeout and request ownership; no native proof yet |
 | H01,H03 | Decision pending #51 | Cleanup-only versus aggregate scan History and retention wording; existing protected history mechanisms retained |
 | N05–N07,A04 | Decision pending #53 | Badge semantics, effective alerts shell status, appearance persistence; existing theme controls do not settle persistence |
 | S07,P10,C01–C02 and other adapters | Future gated | Recognized discovery, cloud/developer/browser actions retain their original M2/M3 tickets; never required to close M1 feature implementation |
