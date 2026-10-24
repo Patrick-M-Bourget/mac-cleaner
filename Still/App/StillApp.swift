@@ -222,7 +222,11 @@ private struct WorkspaceView: View {
             .background { ChromeSurface(role: .sidebar) }
             Divider()
             VStack(alignment: .leading, spacing: 0) {
-                AppearancePreferenceNotice(notice: appearance.notice, retry: { appearance.retrySaving() })
+                AppearancePreferenceNotice(notice: appearance.notice, retry: {
+                    appearanceRetryProbe("retry.enter")
+                    appearance.retrySaving()
+                    appearanceRetryProbe("retry.complete notice=" + String(describing: appearance.notice))
+                })
                     .padding(.horizontal, StillDesign.Space.page)
                     .zIndex(1)
                 if nativeInspectionVisible {
