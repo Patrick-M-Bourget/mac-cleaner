@@ -393,17 +393,38 @@ import SwiftUI
             AppLifecycleController.shared.capacity.request(.scanEnded)
             if retryGeneration == token { isPreparing = false; isRetryRechecking = false; retryCancellation = nil }
         }
-        let reports = await Task.detached(priority: .userInitiated) {
+        let activityEpoch = await ScanActivityHistory.shared.begin()
+        guard retryGeneration == token, !cancellation.isCancellationRequested else { return }
+        let activity = ActiveScanActivity(roots: scopes, epoch: activityEpoch)
+        let observation = await Task.detached(priority: .userInitiated) {
             let scanner = FolderScanner()
-            var reports: [ScanResult] = []
+            var reports: [ScanResult] = [], failed: [URL] = []
+            var stoppedRoot: URL?
+            var baselineIDs: [String: UUID] = [:]
             for scope in scopes {
-                if cancellation.isCancellationRequested { return reports }
+                if cancellation.isCancellationRequested { break }
                 let access = scope.startAccessingSecurityScopedResource()
-                do { reports.append(try await scanner.scan(scope, cancellation: cancellation, exclusions: policy)) } catch { }
+                let growth = await GrowthHistoryModel.shared.begin(scope, exclusionFingerprint: policy.fingerprint)
+                do {
+                    let scan = try await scanner.scan(scope, cancellation: cancellation, exclusions: policy)
+                    reports.append(scan)
+                    await GrowthHistoryModel.shared.complete(scan, token: growth)
+                    let baseline = await MainActor.run { GrowthHistoryModel.shared.comparison?.current }
+                    if baseline?.observedAt == scan.observedAt { baselineIDs[scope.standardizedFileURL.path] = baseline?.id }
+                } catch {
+                    if cancellation.isCancellationRequested { stoppedRoot = scope }
+                    else { failed.append(scope) }
+                }
                 if access { scope.stopAccessingSecurityScopedResource() }
+                if cancellation.isCancellationRequested { break }
             }
-            return reports
+            return (reports, failed, stoppedRoot, baselineIDs)
         }.value
+        let reports = observation.0
+        for scan in reports { activity.observe(scan, baselineID: observation.3[scan.scope.standardizedFileURL.path]) }
+        for scope in observation.1 { activity.failed(scope) }
+        if cancellation.isCancellationRequested { activity.stopped(observation.2, progress: nil) }
+        await ScanActivityHistory.shared.record(activity.summary(stopped: cancellation.isCancellationRequested), epoch: activity.epoch)
         guard retryGeneration == token, !cancellation.isCancellationRequested, execution.result?.batchID == result.batchID else { return }
         let prepared = await Task.detached(priority: .userInitiated) { RetryPlan.prepare(records: records, scans: reports, downloads: downloads) }.value
         guard retryGeneration == token, !cancellation.isCancellationRequested else { return }
