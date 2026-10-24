@@ -188,9 +188,16 @@ final class RecoveryUITests: XCTestCase {
         let expanded = app.staticTexts["owned-history-evidence.pdf"].firstMatch
         XCTAssertTrue(expanded.waitForExistence(timeout: 5))
         for _ in 0..<12 where !scroll.frame.contains(recoveryButton.frame) { scroll.scroll(byDeltaX: 0, deltaY: 80) }
-        scroll.scroll(byDeltaX: 0, deltaY: -40)
+        // Align within the existing non-top viewport instead of overshooting
+        // an edge-visible control with a fixed extra scroll.
+        for _ in 0..<6 {
+            let adjustment = scroll.frame.minY + 24 - recoveryButton.frame.minY
+            if abs(adjustment) < 2 { break }
+            scroll.scroll(byDeltaX: 0, deltaY: max(-80, min(80, adjustment)))
+        }
         XCTAssertTrue(scroll.frame.contains(recoveryButton.frame))
         XCTAssertTrue(recoveryButton.isHittable)
+        XCTAssertLessThan(scroll.staticTexts["History"].firstMatch.frame.maxY, scroll.frame.minY, "Exercise an observed non-top History viewport")
         let observed = recoveryButton.frame
         let bounds = app.windows.firstMatch.frame
         for theme in ["Light", "Dark"] {

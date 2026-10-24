@@ -243,8 +243,16 @@ final class LocalRecordsUITests: XCTestCase {
         disclosure.coordinate(withNormalizedOffset: CGVector(dx: 0, dy: 0.5)).withOffset(CGVector(dx: 26, dy: 0)).click()
         XCTAssertTrue(app.staticTexts["owned-context.pdf"].firstMatch.waitForExistence(timeout: 5))
         revealScrollElement(app, control: manage, label: "History local records")
-        app.scrollViews.firstMatch.scroll(byDeltaX: 0, deltaY: -40)
+        let historyScroll = app.scrollViews.firstMatch
+        // Keep the observed scrolled viewport while placing this early-page
+        // control inside it; a fixed extra scroll can hide the control again.
+        for _ in 0..<6 {
+            let adjustment = historyScroll.frame.minY + 24 - manage.frame.minY
+            if abs(adjustment) < 2 { break }
+            historyScroll.scroll(byDeltaX: 0, deltaY: max(-80, min(80, adjustment)))
+        }
         XCTAssertTrue(app.scrollViews.firstMatch.frame.contains(manage.frame))
+        XCTAssertLessThan(historyScroll.staticTexts["History"].firstMatch.frame.maxY, historyScroll.frame.minY, "Exercise an observed non-top History viewport")
         let historyFrame = manage.frame
         for theme in ["Light", "Dark"] {
             app.popUpButtons["Appearance"].click(); app.menuItems[theme].click()
