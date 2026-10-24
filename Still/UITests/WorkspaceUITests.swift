@@ -1580,7 +1580,9 @@ final class WorkspaceUITests: XCTestCase {
 
 
     // MARK: Mixed remembered locations (#58), public owned-fixture journey
-    @MainActor func testMixedLocationsKeepValidChoicesWithUnknownCoverage() throws {
+    @MainActor func testMixedLocationsKeepValidChoicesWithUnknownCoverage() throws { try exerciseMixedLocations(minimum: false) }
+    @MainActor func testMinimumMixedLocationsKeepValidChoicesWithUnknownCoverage() throws { try exerciseMixedLocations(minimum: true) }
+    @MainActor private func exerciseMixedLocations(minimum: Bool) throws {
         continueAfterFailure = false
         let manager = FileManager.default
         let root = manager.temporaryDirectory.resolvingSymlinksInPath().appendingPathComponent("StillSelectionUI-" + UUID().uuidString)
@@ -1596,11 +1598,41 @@ final class WorkspaceUITests: XCTestCase {
         let app = XCUIApplication()
         let state = try configureIsolatedJourneyState(app)
         defer { app.terminate(); try? manager.removeItem(at: state) }
-        app.launchArguments = ["--ui-test-downloads-root", "--design-minimum"]
+        app.launchArguments = ["--ui-test-downloads-root", minimum ? "--design-minimum" : "--design-initial-size"]
         app.launchEnvironment["STILL_TEST_DOWNLOADS_ROOT"] = root.path
         var identity = stat(); XCTAssertEqual(lstat(root.path, &identity), 0)
         app.launchEnvironment["STILL_TEST_DOWNLOADS_ID"] = "\(identity.st_dev):\(identity.st_ino)"
         app.launch()
+        let bounds = app.windows.firstMatch.frame
+        func text(_ expected: String) -> XCUIElement {
+            app.staticTexts.matching(NSPredicate(format: "value == %@ OR label == %@", expected, expected)).firstMatch
+        }
+        func assertSelected(_ count: Int) {
+            let expected = "\(count) " + (count == 1 ? "file selected" : "files selected")
+            let summary = app.staticTexts["liveSelectionSummary"]
+            XCTAssertTrue(summary.waitForExistence(timeout: 5))
+            let updated = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@", expected), object: summary)
+            XCTAssertEqual(XCTWaiter.wait(for: [updated], timeout: 5), .completed)
+            XCTAssertEqual(summary.value as? String, expected)
+        }
+        func capture(_ name: String) {
+            for theme in ["Light", "Dark"] {
+                app.popUpButtons["Appearance"].click(); app.menuItems[theme].click()
+                XCTAssertEqual(app.windows.firstMatch.frame, bounds)
+                if app.buttons["Review cleanup"].exists {
+                    XCTAssertTrue(app.buttons["Review cleanup"].isHittable)
+                    XCTAssertTrue(bounds.contains(app.buttons["Review cleanup"].frame))
+                }
+                let attachment = XCTAttachment(screenshot: app.windows.firstMatch.screenshot())
+                attachment.name = "mixed-locations-" + name + (minimum ? "-minimum-" : "-initial-") + theme
+                attachment.lifetime = .keepAlways; add(attachment)
+            }
+        }
+        func forget(_ folder: URL) {
+            let menu = app.descendants(matching: .any)["locationActions:" + folder.path].firstMatch
+            revealScrollElement(app, control: menu, label: "More actions for " + folder.lastPathComponent)
+            menu.click(); app.menuItems["Forget location"].click()
+        }
         func choose(_ folder: URL, action: String, prompt: String) {
             app.buttons[action].click(); app.typeKey("g", modifierFlags: [.command, .shift])
             XCTAssertTrue(app.textFields.firstMatch.waitForExistence(timeout: 5))
@@ -1620,16 +1652,18 @@ final class WorkspaceUITests: XCTestCase {
         app.checkBoxes["Include " + root.lastPathComponent].click()
         app.buttons["Scan selected locations"].click(); waitForLocationsScan()
         choose(b, action: "Add folder…", prompt: "Remember folder")
-        XCTAssertTrue(app.staticTexts["Not scanned"].exists)
+        XCTAssertTrue(text("Not scanned").exists)
         XCTAssertFalse(app.buttons["Stop scan"].exists)
         app.typeKey("2", modifierFlags: .command)
         let category = app.checkBoxes["downloadsCategorySelection"]
         XCTAssertTrue(category.waitForExistence(timeout: 5)); XCTAssertTrue(category.isEnabled)
-        XCTAssertTrue(app.staticTexts["Limited coverage · Only current eligible files can be included. Uninspected contents remain unknown."].exists)
+        XCTAssertTrue(text("Limited coverage · Only current eligible files can be included. Uninspected contents remain unknown.").exists)
+        capture("mixed-unscanned")
+        let categoryPosition = category.frame
         category.click()
-        let selectionSummary = app.staticTexts["liveSelectionSummary"]
-        let oneSelected = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@", "1 file selected"), object: selectionSummary)
-        XCTAssertEqual(XCTWaiter.wait(for: [oneSelected], timeout: 5), .completed)
+        assertSelected(1)
+        XCTAssertEqual(category.frame.minY, categoryPosition.minY, accuracy: 1)
+        XCTAssertEqual(app.windows.firstMatch.frame, bounds)
         XCTAssertTrue(app.buttons["Review cleanup"].isEnabled)
         app.buttons["Review cleanup"].click()
         XCTAssertTrue(app.sheets.buttons["Move to Trash"].waitForExistence(timeout: 5))
@@ -1638,12 +1672,123 @@ final class WorkspaceUITests: XCTestCase {
         exactFiles.coordinate(withNormalizedOffset: CGVector(dx: 0, dy: 0.5)).withOffset(CGVector(dx: 26, dy: 0)).click()
         XCTAssertTrue(app.sheets.staticTexts["Downloads A/Child/overlap-guide.pdf"].waitForExistence(timeout: 5))
         app.sheets.buttons["Cancel"].click()
-        XCTAssertEqual(selectionSummary.value as? String, "1 file selected")
+        assertSelected(1)
         XCTAssertEqual(try Data(contentsOf: file), original)
         app.typeKey("4", modifierFlags: .command)
         choose(child, action: "Add folder…", prompt: "Remember folder")
-        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "value == %@ OR label == %@", "Overlaps another remembered location · Shared contents are counted once.", "Overlaps another remembered location · Shared contents are counted once.")).firstMatch.exists)
+        XCTAssertTrue(text("Overlaps another remembered location · Shared contents are counted once.").exists)
         XCTAssertFalse(app.buttons["Stop scan"].exists)
+        capture("overlap-configured")
+        let parked = root.appendingPathComponent("Parked B")
+        // An unavailable scope without selected targets leaves independent A choices usable.
+        try manager.moveItem(at: b, to: parked)
+        app.buttons["Scan selected locations"].click(); waitForLocationsScan()
+        app.typeKey("2", modifierFlags: .command)
+        assertSelected(1)
+        XCTAssertTrue(app.buttons["Review cleanup"].isEnabled)
+        XCTAssertTrue(text("Limited coverage · Only current eligible files can be included. Uninspected contents remain unknown.").exists)
+        capture("mixed-unavailable-unselected")
+        try manager.moveItem(at: parked, to: b)
+        app.typeKey("4", modifierFlags: .command)
+        let recoveryRow = app.descendants(matching: .any)["locationScope:" + b.path].firstMatch
+        let recoverB = recoveryRow.buttons["Reconnect and recheck"]
+        revealScrollElement(app, control: recoverB, label: "Reconnect restored Downloads B")
+        recoverB.click(); waitForLocationsScan()
+        app.typeKey("2", modifierFlags: .command)
+        assertSelected(1)
+        XCTAssertTrue(app.buttons["Review cleanup"].isEnabled)
+        app.typeKey("4", modifierFlags: .command)
+        // A new hardlink path is a new unchecked choice; its bytes are shared.
+        let alias = child.appendingPathComponent("hardlink-guide.pdf")
+        try manager.linkItem(at: file, to: alias)
+        app.buttons["Scan selected locations"].click(); waitForLocationsScan()
+        app.typeKey("2", modifierFlags: .command)
+        assertSelected(1)
+        expandPlanItems(app)
+        for name in ["second-guide.pdf", "hardlink-guide.pdf"] {
+            let checkbox = app.checkBoxes["Select " + name]
+            revealScrollElement(app, control: checkbox, label: name)
+            let position = checkbox.frame
+            checkbox.click()
+            let checked = app.checkBoxes["Selected " + name]
+            XCTAssertTrue(checked.waitForExistence(timeout: 5))
+            XCTAssertEqual(checked.value as? Int, 1)
+            XCTAssertEqual(checked.frame.minY, position.minY, accuracy: 1)
+        }
+        assertSelected(3)
+        app.scrollViews.firstMatch.scroll(byDeltaX: 0, deltaY: 3000)
+        XCTAssertTrue(text("6 bytes").exists, "Two hardlink paths remain exact choices but share their four bytes")
+        app.typeKey("4", modifierFlags: .command)
+        // The independently scanned child supports A's exact unchanged choices.
+        let includeA = app.checkBoxes["Include Downloads A"]
+        revealScrollElement(app, control: includeA, label: "Include Downloads A"); includeA.click()
+        forget(a)
+        XCTAssertFalse(app.buttons["Cancel"].exists, "No dependent choices means no Forget confirmation")
+        XCTAssertFalse(app.checkBoxes["Include Downloads A"].exists)
+        app.typeKey("2", modifierFlags: .command)
+        assertSelected(3)
+        XCTAssertTrue(app.checkBoxes["Selected overlap-guide.pdf"].exists)
+        XCTAssertTrue(app.checkBoxes["Selected hardlink-guide.pdf"].exists)
+        XCTAssertTrue(app.buttons["Review cleanup"].isEnabled)
+        // Move only the owned fixture away: missing-scope evidence, not OS revocation certification.
+        try manager.moveItem(at: b, to: parked)
+        app.typeKey("4", modifierFlags: .command)
+        app.buttons["Scan selected locations"].click(); waitForLocationsScan()
+        let row = app.descendants(matching: .any)["locationScope:" + b.path].firstMatch
+        let reconnect = row.buttons["Reconnect and recheck"]
+        revealScrollElement(app, control: reconnect, label: "Reconnect and recheck")
+        XCTAssertTrue(reconnect.isEnabled)
+        XCTAssertTrue(row.buttons["Choose again…"].isEnabled)
+        capture("missing-recovery")
+        app.typeKey("2", modifierFlags: .command)
+        assertSelected(3)
+        XCTAssertTrue(app.checkBoxes["Selected second-guide.pdf"].exists)
+        XCTAssertFalse(app.buttons["Review cleanup"].isEnabled)
+        XCTAssertTrue(app.buttons["Deselect unavailable files"].exists)
+        capture("pending-blocked")
+        app.typeKey("4", modifierFlags: .command)
+        revealScrollElement(app, control: row.buttons["Choose again…"], label: "Choose again")
+        row.buttons["Choose again…"].click()
+        XCTAssertTrue(app.dialogs.buttons["Cancel"].waitForExistence(timeout: 5)); app.dialogs.buttons["Cancel"].click()
+        XCTAssertTrue(app.checkBoxes["Include Downloads B"].exists)
+        // A different chosen directory does not replace the remembered identity.
+        row.buttons["Choose again…"].click(); app.typeKey("g", modifierFlags: [.command, .shift])
+        XCTAssertTrue(app.textFields.firstMatch.waitForExistence(timeout: 5))
+        app.textFields.firstMatch.typeText(child.path); app.typeKey(.return, modifierFlags: [])
+        app.dialogs.buttons["Remember folder"].click()
+        XCTAssertTrue(text("Choose the same location to renew access. Use Add folder for a different location.").exists)
+        let includeB = app.checkBoxes["Include Downloads B"]
+        revealScrollElement(app, control: includeB, label: "Include Downloads B")
+        includeB.click(); includeB.click()
+        XCTAssertFalse(app.buttons["Stop scan"].exists, "Re-inclusion needs a fresh manual scan")
+        app.typeKey("2", modifierFlags: .command)
+        assertSelected(3)
+        XCTAssertFalse(app.buttons["Review cleanup"].isEnabled)
+        app.typeKey("4", modifierFlags: .command)
+        forget(b)
+        XCTAssertTrue(text("Forget Downloads B and remove 1 dependent choice? No files will be deleted.").waitForExistence(timeout: 5))
+        app.buttons["Cancel"].click()
+        XCTAssertTrue(app.checkBoxes["Include Downloads B"].exists)
+        app.typeKey("2", modifierFlags: .command)
+        assertSelected(3)
+        XCTAssertFalse(app.buttons["Review cleanup"].isEnabled)
+        app.typeKey("4", modifierFlags: .command)
+        forget(b); app.buttons["Forget location"].click()
+        XCTAssertFalse(app.checkBoxes["Include Downloads B"].exists)
+        app.typeKey("2", modifierFlags: .command)
+        assertSelected(2)
+        XCTAssertTrue(app.buttons["Review cleanup"].isEnabled)
+        XCTAssertTrue(text("4 bytes").exists)
+        capture("independent-overlap-survives")
+        app.buttons["Review cleanup"].click()
+        XCTAssertTrue(app.sheets.buttons["Move to Trash"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.sheets.staticTexts["2 files · 4 bytes logical size"].exists)
+        app.sheets.buttons["Cancel"].click()
+        assertSelected(2)
+        XCTAssertEqual(try Data(contentsOf: file), original)
+        XCTAssertEqual(try Data(contentsOf: alias), original)
+        XCTAssertEqual(try Data(contentsOf: parked.appendingPathComponent("second-guide.pdf")), Data([5, 6]))
+        XCTAssertEqual(app.windows.firstMatch.frame, bounds)
     }
 
 }
