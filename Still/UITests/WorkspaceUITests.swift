@@ -1649,6 +1649,26 @@ final class WorkspaceUITests: XCTestCase {
             app.textFields.firstMatch.typeText(folder.path); app.typeKey(.return, modifierFlags: [])
             app.dialogs.buttons[prompt].click()
         }
+        func showPlanItem(_ name: String, selected: Bool) -> XCUIElement {
+            expandPlanItems(app)
+            let search = app.textFields["Search Downloads items"]
+            revealScrollElement(app, control: search, label: "Search Downloads items")
+            search.click(); search.typeKey("a", modifierFlags: .command); search.typeText(name)
+            let checkbox = app.checkBoxes[(selected ? "Selected " : "Select ") + name]
+            revealScrollElement(app, control: checkbox, label: name)
+            return checkbox
+        }
+        func clearPlanSearch() {
+            let search = app.textFields["Search Downloads items"]
+            revealScrollElement(app, control: search, label: "Search Downloads items")
+            search.click(); search.typeKey("a", modifierFlags: .command); search.typeKey(.delete, modifierFlags: [])
+            app.scrollViews.firstMatch.scroll(byDeltaX: 0, deltaY: 3000)
+        }
+        func assertCheckedPlanItem(_ name: String) {
+            let checkbox = showPlanItem(name, selected: true)
+            XCTAssertEqual(checkbox.value as? Int, 1)
+            clearPlanSearch()
+        }
         func waitForLocationsScan() {
             let ready = XCTNSPredicateExpectation(predicate: NSPredicate(format: "enabled == true"), object: app.buttons["Scan selected locations"])
             XCTAssertEqual(XCTWaiter.wait(for: [ready], timeout: 20), .completed)
@@ -1716,14 +1736,14 @@ final class WorkspaceUITests: XCTestCase {
         assertSelected(1)
         expandPlanItems(app)
         for name in ["second-guide.pdf", "hardlink-guide.pdf"] {
-            let checkbox = app.checkBoxes["Select " + name]
-            revealScrollElement(app, control: checkbox, label: name)
+            let checkbox = showPlanItem(name, selected: false)
             let position = checkbox.frame
             checkbox.click()
             let checked = app.checkBoxes["Selected " + name]
             XCTAssertTrue(checked.waitForExistence(timeout: 5))
             XCTAssertEqual(checked.value as? Int, 1)
             XCTAssertEqual(checked.frame.minY, position.minY, accuracy: 1)
+            clearPlanSearch()
         }
         assertSelected(3)
         app.scrollViews.firstMatch.scroll(byDeltaX: 0, deltaY: 3000)
@@ -1737,8 +1757,8 @@ final class WorkspaceUITests: XCTestCase {
         XCTAssertFalse(app.checkBoxes["Include Downloads A"].exists)
         app.typeKey("2", modifierFlags: .command)
         assertSelected(3)
-        XCTAssertTrue(app.checkBoxes["Selected overlap-guide.pdf"].exists)
-        XCTAssertTrue(app.checkBoxes["Selected hardlink-guide.pdf"].exists)
+        assertCheckedPlanItem("overlap-guide.pdf")
+        assertCheckedPlanItem("hardlink-guide.pdf")
         XCTAssertTrue(app.buttons["Review cleanup"].isEnabled)
         // Move only the owned fixture away: missing-scope evidence, not OS revocation certification.
         try manager.moveItem(at: b, to: parked)
@@ -1752,7 +1772,7 @@ final class WorkspaceUITests: XCTestCase {
         capture("missing-recovery")
         app.typeKey("2", modifierFlags: .command)
         assertSelected(3)
-        XCTAssertTrue(app.checkBoxes["Selected second-guide.pdf"].exists)
+        assertCheckedPlanItem("second-guide.pdf")
         XCTAssertFalse(app.buttons["Review cleanup"].isEnabled)
         XCTAssertTrue(app.buttons["Deselect unavailable files"].exists)
         capture("pending-blocked")
