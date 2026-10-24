@@ -1,6 +1,6 @@
 {
   "kind": "Synthetic browser-rendered design preview; not native app evidence",
-  "prototypeSHA256": "d1e7d35c7746ce6288c236ba644a08efa2cdb2c4995f95b127c8ae881e8f63b3",
+  "prototypeSHA256": "db3503e857fd4297a92ca6de8a916777a853602f54e86f904f93b1fe13d700e3",
   "renderedWith": "155.0.8059.85",
   "count": 60,
   "pageErrors": [],
@@ -339,7 +339,7 @@
       "screen": "plan",
       "selected": 2,
       "pending": 1,
-      "sha256": "1dae0069e7a019e5d552aa5f02edd16451ed795ea89ebd3d5444cad28850f8a5"
+      "sha256": "75aae453b74e54f6f7f6a1c82ad4f90062b18215f04db866d39773e13fda0cf9"
     },
     {
       "file": "FL06-initial-dark.png",
@@ -355,7 +355,7 @@
       "screen": "plan",
       "selected": 2,
       "pending": 1,
-      "sha256": "c13878f3e9ca336e29e7defeee378d95627b3536b5825a92fbbe1eafbc678d98"
+      "sha256": "bd8a69d0125e94f52f61e0fca014ef324c454b2b46efb9c57663d0b38911bd63"
     },
     {
       "file": "FL06-minimum-light.png",
@@ -371,7 +371,7 @@
       "screen": "plan",
       "selected": 2,
       "pending": 1,
-      "sha256": "71baa994b5a39646ba59d071c770901f66303145c8690414aede82d7aeeb48f1"
+      "sha256": "544fa05383e6c49e334825600969ead3a1b64d669fc55481c91c4e206822ab01"
     },
     {
       "file": "FL06-minimum-dark.png",
@@ -387,7 +387,7 @@
       "screen": "plan",
       "selected": 2,
       "pending": 1,
-      "sha256": "ad8df961b5c22ce470bd33ac94d028b2618e6762bddd5ea5406a1a90261a8d74"
+      "sha256": "75cafd48b7f69b95f8b8f71d4d77963e12e6b99eaf19a57194951c2d74b18967"
     },
     {
       "file": "FL07-initial-light.png",
@@ -403,7 +403,7 @@
       "screen": "locations",
       "selected": 1,
       "pending": 1,
-      "sha256": "8336a84f849683fbee83ac731264ab4404bb418d659f4dbe1caa2ac1aae3f067"
+      "sha256": "3da2ff3c049ed7e3a380213cabdd83b4bc43bb5b1b42e7e4886cbf1f9a51a807"
     },
     {
       "file": "FL07-initial-dark.png",
@@ -419,7 +419,7 @@
       "screen": "locations",
       "selected": 1,
       "pending": 1,
-      "sha256": "32d140b79cb947cb2221684c4de731f4111357f974fa38e39ce7237e2e586155"
+      "sha256": "82279d56c3bcf8cfdc985c942c4fb7d3bc7d09951cd4c36adffd29246c185f8a"
     },
     {
       "file": "FL07-minimum-light.png",
@@ -435,7 +435,7 @@
       "screen": "locations",
       "selected": 1,
       "pending": 1,
-      "sha256": "fb78648fbcbe17dcca04ebafbf6aaaebcb428211d5e0dafabe872fd27fc5e28c"
+      "sha256": "579097837b23b88c7db7571cecc9b87496c954baff72c313105a23ebda0146be"
     },
     {
       "file": "FL07-minimum-dark.png",
@@ -451,7 +451,7 @@
       "screen": "locations",
       "selected": 1,
       "pending": 1,
-      "sha256": "bf1119cd23ae08116a7d1522dc0efd5f2091108e6e7250679939d76819c14931"
+      "sha256": "403101ab7b037844c8a9c65626646c223b3d75c76224b85084b8512f9645781c"
     },
     {
       "file": "FL08-initial-light.png",
