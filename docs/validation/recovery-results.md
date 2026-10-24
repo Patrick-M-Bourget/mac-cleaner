@@ -1,6 +1,6 @@
 # Caller-aware recovery, terminal Results and optional access
 
-October 24, 2026. Tickets #60 (parent #48), #61 (parent #50) and #63 (parent #46). Integration base `48269e4` already includes the qualified Downloads, mixed-location and inspector slices. This work follows FLOW-LOCK Q15/Q17/Q20/Q25, FL12–FL14 and approved proposal `b96bb97`. The qualified candidate is ready for fast-forward integration from `verify/recovery-results-next`; final application changes end at `664f6ce`, with later test/CI/documentation revisions preserving that application source.
+October 24, 2026. Tickets #60 (parent #48), #61 (parent #50) and #63 (parent #46). Integration base `48269e4` already includes the qualified Downloads, mixed-location and inspector slices. This work follows FLOW-LOCK Q15/Q17/Q20/Q25, FL12–FL14 and approved proposal `b96bb97`. Qualified work was integrated at `03cbdfc` on `integration/still-spec`; final application changes end at `664f6ce`, with later test/CI/documentation revisions preserving that application source.
 
 ## Actual public red → green evidence
 

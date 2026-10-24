@@ -44,3 +44,15 @@ Whole-slice source review through `ff51967` and incremental review `ff51967..f26
 ### Spec review
 
 The same two source-review ranges have no actionable implementation findings against #62/FLOW-LOCK. Both real callers, direct root diagnostics Back, gated availability and retained viewport context match the approved contract. Stale Overview-only diagnostics documentation is being reconciled before integration. Runtime and original-image review remain separate acceptance gates.
+
+
+### Final native results available so far
+
+At `f8a0c86` (application source `dadc0c1`): context minimum `40068265478` passes 87.352 seconds; display-clamped initial `40068265529` passes 89.725 seconds. Gated diagnostics minimum `40068265439` passes 74.734 seconds; initial `40068265594` passes 63.684 seconds. History `40068265641` passes 3/3 (38.775, 35.325, 16.660 seconds), including actual Clear and the fresh Reset guard after relocating controls.
+
+Gallery attempt `40068265576` fails both tests at its theme-picker lookup: native AX exposes label `Appearance, Appearance`. Test-only `f754b83` uses the established unique Gallery picker, asserts its uniqueness and chosen Light/Dark value. No application source or control/frame assertion changes; local build-for-testing passes. Focused Gallery rerun `40068435072` at test-only `f754b83` passes 2/2 (51.382 / 49.623 seconds). Affected regressions `40068265638` remain pending.
+
+Originals from the four final context/diagnostics runs are retained under `docs/visual/local-records/f8a0c86-<run>/` with unmodified manifests. All 44 were inspected individually: no blocking readability, caller, footer or geometry issue. Initial preset captures are actually 1024×640 due to the hosted display; minimum captures are 900×640. Deliberately scrolled History/management/diagnostics content can be partially clipped at its viewport boundary; the fixed shell and footer remain visible, and exact public frame assertions verify restoration. Initial blocked status changes from caution to informational styling when the existing model reloads; protected-record text/actions and actual safeguards remain explicit. This is a minor presentation observation, not evidence of an authority change.
+
+
+Final History and Gallery add 11 and 12 individually reviewed originals: **67 final originals total**, plus the historical first-pilot Clear image. Six unmodified manifests preserve test names and original UUID filenames. All final images are checked individually, not inferred from a contact sheet. No blocking readability, theme, caller or fixed-layout issue was found. Gallery captures explicitly show inert shared enabled/disabled maintenance and optional diagnostics presentation; they do not certify operation execution. Final History fixtures separately prove actual Clear and protected Reset. Dedicated protected-state captures fully reveal caution text even when a neighboring enabled-state view is deliberately scrolled. Original initial images are display-clamped 1024×640, not claimed as full1120×760 runtime proof.
