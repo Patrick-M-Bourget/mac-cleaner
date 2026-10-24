@@ -71,6 +71,7 @@ struct CleanupExecutionView: View {
             if let retryMessage { StatusRow(text: retryMessage, symbol: "arrow.clockwise", role: .caution) }
             if let error = model.error { StatusRow(text: error, symbol: "exclamationmark.circle", role: .failure) }
             if let result = model.result {
+                CleanupOutcomeSummary(states: result.targets.map(\.state))
                 SummarySurface {
                     VStack(alignment: .leading, spacing: StillDesign.Space.md) {
                         Text("Planned logical size: \(bytes(result.plannedLogicalBytes))")
@@ -99,6 +100,23 @@ struct CleanupExecutionView: View {
     private func title(_ state: CleanupTargetState) -> String {
         switch state { case .pending: "Not started"; case .intent, .unknown: "Unknown"; case .succeeded: "Succeeded"; case .failed: "Failed"; case .skipped: "Skipped"; case .cancelled: "Cancelled" }
     }
+}
+
+/// Presentation of recorded outcomes; never supplies execution or retry authority.
+struct CleanupOutcomeSummary: View {
+    let states: [CleanupTargetState]
+    private var moved: Int { states.filter { $0 == .succeeded }.count }
+    var body: some View {
+        if moved > 0 && moved < states.count {
+            SummarySurface {
+                VStack(alignment: .leading, spacing: StillDesign.Space.md) {
+                    Text("Cleanup partially completed").font(.headline)
+                    Text("\(files(moved)) moved to Trash. \(files(states.count - moved)) \(states.count - moved == 1 ? "was" : "were") not moved.")
+                }
+            }
+        }
+    }
+    private func files(_ count: Int) -> String { "\(count) " + (count == 1 ? "file" : "files") }
 }
 
 #if DEBUG
