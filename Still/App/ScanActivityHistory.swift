@@ -71,7 +71,24 @@ struct ScanActivitySummary: View {
         switch activity.outcome { case .complete: "Completed scan"; case .partial: "Partial scan"; case .stopped: "Stopped scan"; case .failed: "Failed scan" }
     }
     private func reasonLabel(_ reason: String) -> String {
-        switch reason { case "customExcludedBoundary": "Custom-excluded boundaries"; case "unmeasuredContents": "Unmeasured package or other entries"; default: reason }
+        switch reason {
+        case "excludedScope": "Excluded scopes"
+        case "exclusionUnavailable": "Exclusion checks unavailable"
+        case "directoryChanged": "Directory changed during scanning"
+        case "timeLimit": "Scan time limit reached"
+        case "entryLimit": "Entry limit reached"
+        case "issueLimit": "Coverage issue limit reached"
+        case "depthLimit": "Folder depth limit reached"
+        case "readFailed": "Unreadable locations"
+        case "metadataUnavailable": "Metadata unavailable"
+        case "differentVolume": "Other volumes not inspected"
+        case "accessDenied": "Access denied"
+        case "accessRevoked": "Access changed during scanning"
+        case "locationUnavailable": "Location unavailable"
+        case "customExcludedBoundary": "Custom-excluded boundaries"
+        case "unmeasuredContents": "Unmeasured package or other entries"
+        default: "Coverage issues"
+        }
     }
     private func bytes(_ value: Int64?) -> String { value.map { ByteCountFormatter.string(fromByteCount: $0, countStyle: .decimal) } ?? "Unknown" }
 }
