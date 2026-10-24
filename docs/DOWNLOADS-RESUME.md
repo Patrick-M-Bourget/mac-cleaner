@@ -12,13 +12,9 @@ October24,2026. Repo `/Users/bender/Library/Caches/Codex/mac-cleaner-implementat
 
 ## Next frontier
 
-<<<<<<< HEAD
-#44/#46/#47/#48 bounded M1 repairs are accepted and closed using final D/M/R/L evidence; keep #45 open for row dispositions and unresolved#51–#54. #49 capacity freshness is now user-confirmed and authorized under CAPACITY-REFRESH.md (lock09e5c18). Active worktree issue49, branch implement/capacity-refresh-49; root qualification branch verify/capacity-refresh-49. Service test-boundary approval is now explicit; UI tracer red40083724345 precedes service-first TDD. Next unresolved decision is#53 shell/appearance semantics. Empty dependencies do not make needs-triage issues approved. All future milestones stay in MILESTONES; M8 remains deferred.
-=======
-#44/#46/#47/#48 bounded M1 repairs remain accepted and closed; #45 retains row dispositions. #49 Q1–Q12 is implemented and automated qualification passes, with final source and all 71 originals accepted; integrated into integration/still-spec with #49 closed. The clean issue49 implementation worktree is removed after preserving its source. Preserve actual red→green and the earlier corrected test assumptions in validation, without calling them product failures.
+#44/#46/#47/#48 bounded M1 repairs remain accepted and closed; #45 retains row dispositions. #49 Q1–Q12 is implemented and automated qualification passes, with final source and all 71 originals accepted; integrated into integration/still-spec with #49 complete. Its clean implementation worktree is removed after preserving source. Preserve actual red→green and the earlier corrected test assumptions in validation, without calling them product failures.
 
 Next unresolved decision is #53 shell/appearance; #51/#52/#54 also remain untriaged. Do not reopen Q1–Q30 or start those features without resolving their existing decisions. Empty dependency lists do not grant approval. All future milestones remain in MILESTONES; M8 stays deferred.
->>>>>>> 0dcbee2 (docs: synchronize qualified capacity refresh spec design and handoff [skip ci])
 
 ## Work conventions
 
