@@ -217,4 +217,42 @@ final class HistoryActivityUITests: XCTestCase {
         XCTAssertEqual(try Data(contentsOf: original), Data([6, 1]))
     }
 
+    @MainActor func testExplicitRetryRecheckRecordsAnotherScanWithoutMovingChangedFile() throws {
+        continueAfterFailure = false
+        let manager = FileManager.default, app = XCUIApplication()
+        let state = try configureIsolatedJourneyState(app)
+        let root = manager.temporaryDirectory.resolvingSymlinksInPath().appendingPathComponent("StillSelectionUI-" + UUID().uuidString)
+        try manager.createDirectory(at: root, withIntermediateDirectories: false)
+        let file = root.appendingPathComponent("Retry.pdf"); try Data([1, 2]).write(to: file)
+        var identity = stat(); XCTAssertEqual(lstat(root.path, &identity), 0)
+        app.launchArguments = ["--ui-test-downloads-root", "--design-minimum"]
+        app.launchEnvironment["STILL_TEST_DOWNLOADS_ROOT"] = root.path; app.launchEnvironment["STILL_TEST_DOWNLOADS_ID"] = "\(identity.st_dev):\(identity.st_ino)"
+        defer { app.terminate(); try? manager.removeItem(at: state); try? manager.removeItem(at: root) }
+        app.launch(); XCTAssertTrue(app.buttons["Choose folder…"].waitForExistence(timeout: 10))
+        app.buttons["Choose folder…"].click(); app.typeKey("g", modifierFlags: [.command, .shift]); XCTAssertTrue(app.textFields.firstMatch.waitForExistence(timeout: 5))
+        app.textFields.firstMatch.typeText(root.path); app.typeKey(.return, modifierFlags: []); app.dialogs.buttons["Scan folder"].click(); waitForOverviewScan(app)
+        app.typeKey("2", modifierFlags: .command); XCTAssertTrue(app.checkBoxes["downloadsCategorySelection"].waitForExistence(timeout: 5)); app.checkBoxes["downloadsCategorySelection"].click(); expandPlanItems(app)
+        XCTAssertTrue(app.checkBoxes["Selected Retry.pdf"].waitForExistence(timeout: 5))
+        app.buttons["Review cleanup"].click(); XCTAssertTrue(app.sheets.buttons["Move to Trash"].waitForExistence(timeout: 5))
+        let changed = Data([8, 7, 6, 5]); try changed.write(to: file)
+        app.sheets.buttons["Move to Trash"].click()
+        XCTAssertTrue(app.staticTexts["No files were moved"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["Skipped: 1"].exists)
+        app.buttons["Recheck unfinished files"].click()
+        XCTAssertTrue(app.checkBoxes["Selected Retry.pdf"].waitForExistence(timeout: 15))
+        XCTAssertEqual(app.checkBoxes["Selected Retry.pdf"].value as? Int, 1)
+        app.typeKey("3", modifierFlags: .command)
+        let filter = app.popUpButtons["History activity filter"]
+        XCTAssertTrue(filter.waitForExistence(timeout: 5)); filter.click(); app.menuItems["Scans"].click()
+        guard app.staticTexts.matching(identifier: "Completed scan").count == 2 else {
+            let image = XCTAttachment(screenshot: app.windows.firstMatch.screenshot()); image.name = "history-explicit-recheck-missing-activity"; image.lifetime = .keepAlways; add(image)
+            XCTFail("The explicit unfinished-file Recheck must create its own scan activity, without internal-check duplicates"); return
+        }
+        filter.click(); app.menuItems["Cleanups"].click(); XCTAssertTrue(app.staticTexts["Cleanup run"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Recorded file results: 1"].exists)
+        app.typeKey("2", modifierFlags: .command); XCTAssertTrue(app.staticTexts["1 file selected"].waitForExistence(timeout: 5))
+        XCTAssertEqual(try Data(contentsOf: file), changed)
+        XCTAssertFalse(app.sheets.buttons["Move to Trash"].exists, "Viewing History cannot restore cleanup authority")
+    }
+
 }
