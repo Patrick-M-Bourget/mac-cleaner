@@ -16,6 +16,7 @@ import StorageAlerts
     var permissionRequests = 0
     var stateUnreadable = false
     var saveFails = false
+    var resetFails = false
     var submissionFails = false
     var holdNextSubmission = false
     var heldSubmission: CheckedContinuation<Void, Never>?
@@ -44,7 +45,7 @@ import StorageAlerts
         return try JSONDecoder().decode(AlertPolicy.self, from: JSONEncoder().encode(saved))
     }
     func save(_ policy: AlertPolicy) throws { if saveFails { throw CocoaError(.fileWriteUnknown) }; saved = policy }
-    func reset() throws { saved = AlertPolicy() }
+    func reset() throws { if resetFails { throw CocoaError(.fileWriteUnknown) }; saved = AlertPolicy() }
     func startPolling(_ sample: @escaping @MainActor () -> Void) -> () -> Void {
         let id = UUID(); pollers[id] = sample
         return { self.pollers[id] = nil }
@@ -425,4 +426,47 @@ import StorageAlerts
     await enabling.value
     #expect(alerts.shellState == .attention(.saveFailed))
     #expect(!alerts.effectiveMonitoring)
+}
+
+@Test @MainActor func shellReportsFailedResetAfterMonitoringHasStopped() async {
+    let system = ControlledAlertSystem()
+    let alerts = AlertMonitoringController(system: system)
+    alerts.configure()
+    await alerts.setEnabled(true)
+    system.resetFails = true
+    do { try alerts.resetPreferences(); Issue.record("Reset should report the system failure") }
+    catch {}
+    #expect(!alerts.requested)
+    #expect(!alerts.effectiveMonitoring)
+    #expect(alerts.shellState == .attention(.saveFailed))
+}
+
+@Test(arguments: [-1 as Int64, 513_000_000_000]) @MainActor func shellRejectsInvalidCapacityEvidenceWithoutChangingPollerLifecycle(available: Int64) async {
+    let system = ControlledAlertSystem()
+    let alerts = AlertMonitoringController(system: system)
+    alerts.configure()
+    await alerts.setEnabled(true)
+    system.now.addTimeInterval(900)
+    system.reading = AlertCapacityReading(available: available, total: 512_000_000_000, volumeID: "owned", metric: "important")
+    await alerts.activated()
+    #expect(alerts.shellState == .attention(.capacityUnavailable))
+    #expect(alerts.effectiveMonitoring)
+    #expect(system.notifications == 1)
+    system.now.addTimeInterval(900)
+    system.reading = AlertCapacityReading(available: 60_000_000_000, total: 512_000_000_000, volumeID: "owned", metric: "important")
+    await alerts.activated()
+    #expect(alerts.shellState == .on)
+}
+
+@Test @MainActor func shellReportsUnreadableResetOwnershipAfterMonitoringHasStopped() async {
+    let system = ControlledAlertSystem()
+    let alerts = AlertMonitoringController(system: system)
+    alerts.configure()
+    await alerts.setEnabled(true)
+    system.stateUnreadable = true
+    do { try alerts.resetPreferences(); Issue.record("Reset should report unreadable ownership") }
+    catch {}
+    #expect(alerts.requested)
+    #expect(!alerts.effectiveMonitoring)
+    #expect(alerts.shellState == .attention(.savedStateUnavailable))
 }

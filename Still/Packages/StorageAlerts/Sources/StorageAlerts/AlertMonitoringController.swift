@@ -86,12 +86,15 @@ public enum AlertShellState: Equatable, Sendable {
         // Explicit global Reset must recover cancellation ownership even when monitoring is gated off.
         // Read before deleting state; an unreadable ownership record must not be silently discarded.
         if system.allowsNotificationChanges {
-            let savedIdentifiers = try system.load().notificationRequestIdentifiers ?? []
-            policy.notificationRequestIdentifiers = (policy.notificationRequestIdentifiers ?? []).union(savedIdentifiers)
+            do {
+                let savedIdentifiers = try system.load().notificationRequestIdentifiers ?? []
+                policy.notificationRequestIdentifiers = (policy.notificationRequestIdentifiers ?? []).union(savedIdentifiers)
+            } catch { shellState = .attention(.savedStateUnavailable); throw error }
         }
         removePendingNotifications()
         requested = false; policy = AlertPolicy(); thresholdGB = "40"; persistenceHealthy = true
-        try system.reset()
+        do { try system.reset() }
+        catch { shellState = .attention(.saveFailed); throw error }
         shellState = .off
         status = "Alerts are off."
     }
@@ -206,14 +209,16 @@ public enum AlertShellState: Equatable, Sendable {
         guard policy.shouldSample(at: system.now, authorization: .allowed) else { return }
         let reading = capacity(); total = reading.total
         guard let available = reading.available, let total = reading.total, let volumeID = reading.volumeID else { shellState = .attention(.capacityUnavailable); status = "Capacity unavailable. Alert decisions are paused."; return }
+        let validCapacity = available >= 0 && total > 0 && available <= total && !volumeID.isEmpty && !reading.metric.isEmpty
         guard appliedThresholdValid else {
             cancelPolling?(); cancelPolling = nil; effectiveMonitoring = false
-            shellState = .attention(.invalidThreshold)
+            shellState = .attention(validCapacity ? .invalidThreshold : .capacityUnavailable)
             status = "Threshold no longer fits this volume. Update it to resume alerts."
             return
         }
         effectiveMonitoring = true
-        if shellState != .attention(.submissionFailed) || available >= policy.thresholdBytes {
+        if !validCapacity { shellState = .attention(.capacityUnavailable) }
+        else if shellState != .attention(.submissionFailed) || available >= policy.thresholdBytes {
             shellState = policy.snoozedUntil.flatMap { $0 > system.now ? .snoozed(until: $0) : nil } ?? .on
         }
         status = "Monitoring startup-volume capacity while Still runs. Last available: \(String(format: "%.1f", Double(available) / 1_000_000_000)) GB."
