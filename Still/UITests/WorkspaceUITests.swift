@@ -601,7 +601,10 @@ final class WorkspaceUITests: XCTestCase {
         try Data([1]).write(to: root.appendingPathComponent("temporary.txt"))
         let app = XCUIApplication()
         let isolatedState = try configureIsolatedJourneyState(app)
-        defer { app.terminate(); try? FileManager.default.removeItem(at: isolatedState) }; app.launch()
+        defer { app.terminate(); try? FileManager.default.removeItem(at: isolatedState) }
+        app.launchArguments = ["--ui-test-downloads-root"]
+        app.launchEnvironment["STILL_TEST_DOWNLOADS_ROOT"] = root.path
+        app.launch()
         XCTAssertTrue(app.buttons["Choose folder…"].waitForExistence(timeout: 5))
         let bounds = app.windows.firstMatch.frame
         app.buttons["Choose folder…"].click()
@@ -620,6 +623,12 @@ final class WorkspaceUITests: XCTestCase {
         }, object: coverage)
         XCTAssertEqual(XCTWaiter.wait(for: [unavailable], timeout: 10), .completed)
         XCTAssertFalse((coverage.value as? String ?? coverage.label).contains("No eligible files"))
+        let downloadsFinding = app.descendants(matching: .any)["overviewDownloadsFinding"].firstMatch
+        let downloadsUnknown = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+            (downloadsFinding.value as? String ?? downloadsFinding.label).contains("Unknown")
+        }, object: downloadsFinding)
+        XCTAssertEqual(XCTWaiter.wait(for: [downloadsUnknown], timeout: 5), .completed)
+        XCTAssertFalse((downloadsFinding.value as? String ?? downloadsFinding.label).contains("No eligible files"))
         app.typeKey("4", modifierFlags: .command)
         XCTAssertTrue(app.buttons["Choose again…"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "value CONTAINS[c] %@ OR label CONTAINS[c] %@", "unavailable", "unavailable")).firstMatch.exists)
