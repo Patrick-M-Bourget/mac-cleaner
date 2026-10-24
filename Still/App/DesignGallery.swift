@@ -8,6 +8,7 @@ struct DesignGallery: View {
     @State private var opaque = false
     @State private var selected = true
     @State private var shellExamplesExpanded = false
+    @State private var historyExamplesExpanded = false
     var body: some View {
         VStack(spacing: 0) {
             HStack {
@@ -30,6 +31,9 @@ struct DesignGallery: View {
                             StillSidebarRow(title: "Cleanup plan", symbol: "checklist", selected: true, selectedCategories: 1) {}
                             StillSidebarRow(title: "Cleanup plan", symbol: "checklist", selected: false, selectedCategories: 2) {}
                         }.frame(width: 166)
+                    }
+                    DisclosureGroup("Synthetic History activity examples", isExpanded: $historyExamplesExpanded) {
+                        ScanActivitySummary(activity: ScanActivity(startedAt: Date(timeIntervalSince1970: 100), completedAt: Date(timeIntervalSince1970: 110), outcome: .complete, locations: [ScanActivityLocation(path: "/Example/Downloads", observedAt: Date(timeIntervalSince1970: 110), outcome: .complete, entryCount: 6, logicalBytes: 4100000, allocatedBytes: 4200000, knownLogicalBytes: 4100000)]), expanded: .constant(true))
                     }
                     CapacityGalleryExamples()
                     Text("Synthetic cleanup outcome examples").font(.headline)

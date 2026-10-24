@@ -103,6 +103,8 @@ extension AppLifecycleController: HistoryMaintenanceLifecycle {
 struct CleanupHistoryView: View {
     @Bindable var model: CleanupHistoryModel
     @Binding var expandedRuns: Set<UUID>
+    @State private var expandedScans: Set<UUID> = []
+    @Bindable private var scans = ScanActivityHistory.shared
     var showRecovery: () -> Void
     var manageLocalRecords: () -> Void
     var body: some View {
@@ -117,6 +119,11 @@ struct CleanupHistoryView: View {
                 }
             }
             LocalRecordsEntry(action: manageLocalRecords)
+            if let warning = scans.recordingWarning { StatusRow(text: warning, symbol: "exclamationmark.triangle", role: .caution) }
+            if let error = scans.loadError { StatusRow(text: error, symbol: "exclamationmark.triangle", role: .caution) }
+            ForEach(scans.records ?? []) { activity in
+                ScanActivitySummary(activity: activity, expanded: Binding(get: { expandedScans.contains(activity.id) }, set: { if $0 { expandedScans.insert(activity.id) } else { expandedScans.remove(activity.id) } }))
+            }
             if let snapshot = model.snapshot {
                 if snapshot.completedRuns.isEmpty {
                     EmptyState(title: "No completed runs", detail: "Completed per-file results appear here after a cleanup. Nothing is selected or retried from history.", symbol: "clock")
@@ -155,7 +162,7 @@ struct CleanupHistoryView: View {
             Text("Completed records are retained for 90 days within a 250 MB payload budget. Interrupted runs are exempt. Trash contents remain until you empty Trash in Finder.").font(.caption).foregroundStyle(.secondary)
 
         }
-        .task { await model.load() }
+        .task { await model.load(); await scans.load() }
     }
     private func bytes(_ value: Int64) -> String { ByteCountFormatter.string(fromByteCount: value, countStyle: .decimal) }
 }

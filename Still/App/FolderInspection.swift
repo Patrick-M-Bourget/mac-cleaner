@@ -113,6 +113,8 @@ final class FolderInspection {
         message = nil
         isScanningCurrent = true
         task = Task {
+            let activityStarted = Date()
+            let activityEpoch = await ScanActivityHistory.shared.begin()
             let hasAccess = url.startAccessingSecurityScopedResource()
             defer { if hasAccess { url.stopAccessingSecurityScopedResource() } }
             let (updates, continuation) = AsyncStream<ScanProgress>.makeStream(bufferingPolicy: .bufferingNewest(1))
@@ -146,6 +148,8 @@ final class FolderInspection {
                 isScanningCurrent = false
                 if scanAgainTask == nil { AppLifecycleController.shared.capacity.request(.scanEnded) }
                 await GrowthHistoryModel.shared.complete(observed, token: growthToken)
+                let activity = ScanActivity(startedAt: activityStarted, completedAt: Date(), outcome: observed.isComplete ? .complete : .partial, locations: [ScanActivityLocation(scan: observed)])
+                await ScanActivityHistory.shared.record(activity, epoch: activityEpoch)
             } catch {
                 guard token == generation else { return }
                 selection.cancelRefresh(request)
