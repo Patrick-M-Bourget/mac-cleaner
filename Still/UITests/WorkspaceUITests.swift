@@ -1268,6 +1268,18 @@ final class WorkspaceUITests: XCTestCase {
         search.click(); search.typeText("selected.pdf")
         let bounds = app.windows.firstMatch.frame
         func capture(_ name: String) { let shot = XCTAttachment(screenshot: app.windows.firstMatch.screenshot()); shot.name = name; shot.lifetime = .keepAlways; add(shot) }
+        func revealFileChoice(_ label: String) -> XCUIElement {
+            let control = app.checkBoxes[label]
+            for _ in 0..<5 {
+                let viewport = app.scrollViews.firstMatch.frame
+                if control.exists && viewport.contains(control.frame) { break }
+                let above = control.exists && control.frame.minY < viewport.minY
+                app.scrollViews.firstMatch.scroll(byDeltaX: 0, deltaY: above ? 180 : -180)
+            }
+            XCTAssertTrue(control.exists, "The retained inline file choice must remain available")
+            XCTAssertTrue(app.scrollViews.firstMatch.frame.contains(control.frame))
+            return control
+        }
         for i in 0..<500 { try Data().write(to: root.appendingPathComponent("new-\(i).txt")) }
         let recheck = app.buttons["Scan Downloads again"]
         XCTAssertTrue(recheck.isHittable); recheck.click()
@@ -1275,7 +1287,16 @@ final class WorkspaceUITests: XCTestCase {
         XCTAssertTrue(search.exists, "Expanded observations must remain visible while the manual refresh runs")
         XCTAssertEqual(search.value as? String, "selected.pdf", "Refreshing must retain the visible refinement query")
         XCTAssertFalse(app.buttons["Review cleanup"].isEnabled)
-        XCTAssertTrue(app.checkBoxes["Selected selected.pdf"].exists)
+        XCTAssertEqual(app.staticTexts["liveSelectionSummary"].value as? String, "1 file selected")
+        // Refresh status adds content above the inline LazyVStack. Materialize the
+        // retained row instead of treating an offscreen accessibility row as lost.
+        let refreshingChoice = revealFileChoice("Selected selected.pdf")
+        XCTAssertEqual(refreshingChoice.value as? Int, 1)
+        XCTAssertFalse(refreshingChoice.isEnabled, "Retained choices cannot grant stale selection authority")
+        XCTAssertTrue(app.buttons["Stop scan"].exists)
+        XCTAssertEqual(search.value as? String, "selected.pdf")
+        XCTAssertEqual(app.windows.firstMatch.frame, bounds)
+        capture("refresh-retained-choice")
         app.typeKey("4", modifierFlags: .command)
         XCTAssertTrue(app.buttons["Return to scan"].waitForExistence(timeout: 5))
         XCTAssertFalse(app.buttons["Add folder…"].isEnabled)
@@ -1286,21 +1307,23 @@ final class WorkspaceUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "value BEGINSWITH %@", "Refresh required ·")).firstMatch.waitForExistence(timeout: 5))
         XCTAssertFalse(app.buttons["Review cleanup"].isEnabled)
         for theme in ["Light", "Dark"] { app.popUpButtons["Appearance"].click(); app.menuItems[theme].click(); capture("refresh-required-" + theme) }
+        revealScrollElement(app, control: recheck, label: "Scan Downloads again")
         recheck.click()
         XCTAssertTrue(app.buttons["Stop scan"].waitForExistence(timeout: 5))
         let ready = NSPredicate(format: "enabled == true")
         expectation(for: ready, evaluatedWith: app.buttons["Review cleanup"])
         waitForExpectations(timeout: 30)
         XCTAssertEqual(search.value as? String, "selected.pdf")
-        XCTAssertTrue(app.checkBoxes["Selected selected.pdf"].exists)
+        XCTAssertEqual(revealFileChoice("Selected selected.pdf").value as? Int, 1)
         XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "value BEGINSWITH %@ OR label BEGINSWITH %@", "1 file selected", "1 file selected")).firstMatch.exists)
         XCTAssertEqual(app.windows.firstMatch.frame, bounds)
         // Same-size change: contents do not need to be read to invalidate the original observation.
         try FileManager.default.setAttributes([.modificationDate: Date(timeIntervalSince1970: 1234)], ofItemAtPath: chosen.path)
+        revealScrollElement(app, control: recheck, label: "Scan Downloads again")
         recheck.click()
         XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "value CONTAINS %@", "File changed or is no longer eligible.")).firstMatch.waitForExistence(timeout: 30))
         XCTAssertFalse(app.buttons["Review cleanup"].isEnabled)
-        XCTAssertTrue(app.checkBoxes["Select selected.pdf"].exists)
+        XCTAssertEqual(revealFileChoice("Select selected.pdf").value as? Int, 0)
         for theme in ["Light", "Dark"] { app.popUpButtons["Appearance"].click(); app.menuItems[theme].click(); capture("refresh-changed-" + theme) }
         XCTAssertEqual(app.windows.firstMatch.frame, bounds)
         XCTAssertEqual(try Data(contentsOf: chosen), Data([1, 2, 3]))
