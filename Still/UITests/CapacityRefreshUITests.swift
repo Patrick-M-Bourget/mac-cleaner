@@ -1,5 +1,6 @@
 import XCTest
 import Darwin
+import StillCore
 
 final class CapacityRefreshUITests: XCTestCase {
     @MainActor func testCapacityRefreshIsSeparateFromScanAndKeepsOverviewContext() throws {
@@ -38,14 +39,17 @@ final class CapacityRefreshUITests: XCTestCase {
         XCTAssertEqual(app.windows.firstMatch.frame, window)
     }
 
-    @MainActor func testCompletedScanRefreshesCapacityWithoutChangingChoices() throws {
+    @MainActor func testCompletedScanRefreshesCapacityWithoutChangingChoices() throws { try completedJourney(cleanup: false) }
+    @MainActor func testCompletedCleanupRefreshesCapacityWithoutRewritingResults() throws { try completedJourney(cleanup: true) }
+
+    @MainActor private func completedJourney(cleanup: Bool) throws {
         continueAfterFailure = false
         let app = XCUIApplication()
         let state = try configureIsolatedJourneyState(app)
         let manager = FileManager.default
         let root = manager.temporaryDirectory.resolvingSymlinksInPath().appendingPathComponent("StillSelectionUI-" + UUID().uuidString)
         try manager.createDirectory(at: root, withIntermediateDirectories: true)
-        let file = root.appendingPathComponent("Review-me.pdf")
+        let file = root.appendingPathComponent("Review-" + UUID().uuidString + ".pdf")
         let original = Data([1, 2, 3, 4]); try original.write(to: file)
         defer { app.terminate(); try? manager.removeItem(at: state); try? manager.removeItem(at: root) }
         func sample(_ available: Int64) throws {
@@ -87,6 +91,38 @@ final class CapacityRefreshUITests: XCTestCase {
         app.typeKey("2", modifierFlags: .command)
         XCTAssertTrue(app.staticTexts["1 file selected"].waitForExistence(timeout: 5))
         XCTAssertEqual(try Data(contentsOf: file), original)
+        guard cleanup else { return }
+        try sample(80_000_000_000)
+        app.buttons["Review cleanup"].click()
+        XCTAssertTrue(app.sheets.buttons["Move to Trash"].waitForExistence(timeout: 5))
+        app.sheets.buttons["Move to Trash"].click()
+        guard app.staticTexts["Succeeded: 1"].waitForExistence(timeout: 20) else { XCTFail("Owned cleanup must complete"); return }
+        let returned = app.staticTexts["trashLocation-" + file.lastPathComponent]
+        let returnedPath = returned.value as? String ?? returned.label
+        let returnedURL = URL(fileURLWithPath: returnedPath)
+        if returnedURL.deletingLastPathComponent().path == NSHomeDirectory() + "/.Trash", returnedURL.lastPathComponent == file.lastPathComponent {
+            defer { try? manager.removeItem(at: returnedURL) }
+            XCTAssertEqual(try Data(contentsOf: returnedURL), original)
+        }
+        let sidebar = app.staticTexts["sidebarCapacityAmount"]
+        let expected = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value CONTAINS %@ OR label CONTAINS %@", "80 GB", "80 GB"), object: sidebar)
+        guard XCTWaiter.wait(for: [expected], timeout: 5) == .completed else {
+            let image = XCTAttachment(screenshot: app.windows.firstMatch.screenshot())
+            image.name = "capacity-after-cleanup"; image.lifetime = .keepAlways; add(image)
+            XCTFail("Cleanup completion must refresh startup capacity independently of recorded observations"); return
+        }
+        let journal = try SQLiteCleanupJournal(url: state.appendingPathComponent("cleanup.sqlite"))
+        let encoder = JSONEncoder(); encoder.outputFormatting = [.sortedKeys]
+        let records = try encoder.encode(journal.records())
+        let resultEvidence = app.staticTexts.matching(NSPredicate(format: "value BEGINSWITH %@ OR label BEGINSWITH %@", "Observed startup-volume available-capacity change:", "Observed startup-volume available-capacity change:")).firstMatch
+        let historicalValue = resultEvidence.value as? String ?? resultEvidence.label
+        app.typeKey("1", modifierFlags: .command)
+        try sample(90_000_000_000); app.buttons["Refresh capacity"].click()
+        XCTAssertTrue(observes("90 GB"))
+        app.typeKey("2", modifierFlags: .command)
+        XCTAssertTrue(app.staticTexts["Cleanup results"].waitForExistence(timeout: 5))
+        XCTAssertEqual(resultEvidence.value as? String ?? resultEvidence.label, historicalValue)
+        XCTAssertEqual(try encoder.encode(journal.records()), records)
     }
 
     @MainActor func testCapacityStatesStayStableAtMinimumSize() throws { try capacityStates(minimum: true) }
