@@ -140,7 +140,8 @@ final class RecoveryUITests: XCTestCase {
         }
         let interrupted = try draft.approve(draft.review())
         XCTAssertTrue(try journal.claim(interrupted))
-        let before = try journal.records()
+        let encoder = JSONEncoder(); encoder.outputFormatting = [.sortedKeys]
+        let before = try encoder.encode(journal.records())
         app.launchArguments = [minimum ? "--design-minimum" : "--design-initial-size", "--ui-test-downloads-root"]
         app.launchEnvironment = environment
         app.launchEnvironment["STILL_TEST_DOWNLOADS_ROOT"] = downloads.path
@@ -243,8 +244,7 @@ final class RecoveryUITests: XCTestCase {
         XCTAssertEqual(app.staticTexts["liveSelectionSummary"].value as? String, "0 files selected")
         app.terminate()
         XCTAssertEqual(try Data(contentsOf: original), Data([31, 41]))
-        XCTAssertEqual(try journal.records().map(\.state), before.map(\.state))
-        XCTAssertEqual(try journal.records().map(\.originalURL), before.map(\.originalURL))
+        XCTAssertEqual(try encoder.encode(journal.records()), before)
     }
     @MainActor
     func testMissingAndCorruptOwnedJournalNeverFallsBackToNormalState() throws {
