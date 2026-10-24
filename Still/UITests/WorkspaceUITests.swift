@@ -1321,7 +1321,12 @@ final class WorkspaceUITests: XCTestCase {
                 let path = app.textFields.firstMatch
                 XCTAssertTrue(path.waitForExistence(timeout: 5)); path.typeText(scope.path)
                 app.typeKey(.return, modifierFlags: []); app.dialogs.buttons["Scan folder"].click()
-                waitForScanIdle(app, timeout: 10)
+                // Growth stays at its origin and has no Overview-only “Scan again” control.
+                // Wait for the shared running state to end; each caller below also requires
+                // the newly completed comparison result, so stale content cannot pass.
+                let stopped = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"), object: app.buttons["Stop scan"])
+                XCTAssertEqual(XCTWaiter.wait(for: [stopped], timeout: 10), .completed)
+                XCTAssertTrue(app.staticTexts["What grew"].exists)
                 XCTAssertFalse(app.buttons["Back to Overview"].exists)
                 XCTAssertTrue(app.buttons["Inspect a folder"].exists)
             }

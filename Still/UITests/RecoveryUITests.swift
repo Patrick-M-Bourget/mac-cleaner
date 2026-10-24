@@ -62,7 +62,10 @@ final class RecoveryUITests: XCTestCase {
         app.buttons["Return to Overview"].click()
         XCTAssertTrue(app.buttons["Review interrupted cleanup"].exists)
         app.typeKey("2", modifierFlags: .command)
-        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "0 files selected")).firstMatch.waitForExistence(timeout: 3))
+        let summary = app.staticTexts["liveSelectionSummary"]
+        XCTAssertTrue(summary.waitForExistence(timeout: 3))
+        XCTAssertEqual(summary.value as? String, "0 files selected")
+        XCTAssertTrue(app.staticTexts["Not scanned"].exists)
         XCTAssertFalse(app.buttons["Review cleanup"].isEnabled)
         XCTAssertFalse(app.buttons["Move to Trash"].exists)
         app.terminate(); app.launch()
