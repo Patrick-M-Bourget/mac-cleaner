@@ -129,6 +129,46 @@ import SwiftUI
         return total
     }
     var rows: [Row] { eligibleRows(restrictingTo: retryTargetIDs) }
+    /// Last observed names remain browsable while their current selection authority is suspended.
+    /// This is presentation evidence only; set/review still require current eligible scans.
+    var displayedRows: [Row] {
+        guard let downloads else { return [] }
+        let current = rows
+        var seen = Set(current.map(\.id))
+        let historical = scans.values.sorted { $0.observedAt > $1.observedAt }.flatMap { scan in
+            scan.observations.compactMap { item -> Row? in
+                let row = Row(item: item, scan: scan)
+                guard scan.exclusionFingerprint == expectedExclusionFingerprint,
+                      PlanDraft.canConsider(item, in: scan, downloads: downloads),
+                      retryTargetIDs?.contains(row.id + "|moveToTrash") != false,
+                      seen.insert(row.id).inserted else { return nil }
+                return row
+            }
+        }
+        return (current + historical).sorted { $0.item.url.path < $1.item.url.path }
+    }
+    var displayedLogicalBytes: Int64? {
+        var seen = Set<String>(), total: Int64 = 0
+        for row in displayedRows where seen.insert(row.item.resourceID).inserted {
+            guard let value = row.item.logicalBytes else { return nil }
+            let sum = total.addingReportingOverflow(value)
+            guard !sum.overflow else { return nil }
+            total = sum.partialValue
+        }
+        return total
+    }
+    var observedDownloadsScopes: [URL] {
+        guard let downloads else { return [] }
+        return scans.values.filter {
+            $0.exclusionFingerprint == expectedExclusionFingerprint
+                && $0.scope.standardizedFileURL.pathComponents.starts(with: downloads.url.standardizedFileURL.pathComponents)
+        }.map(\.scope).sorted { $0.path < $1.path }
+    }
+    var unavailableOutsideDisplay: [PlannedTarget] {
+        let displayed = Set(displayedRows.map { $0.id + "|moveToTrash" })
+        return unavailableSelected.filter { !displayed.contains($0.id) }
+    }
+
     private func eligibleRows(restrictingTo targetIDs: Set<String>?) -> [Row] {
         var seen = Set<String>()
         return scans.values.filter { !unavailableScopes.contains($0.scope.standardizedFileURL) }.sorted { $0.observedAt > $1.observedAt }.flatMap { scan in
@@ -371,22 +411,25 @@ struct LiveCleanupPlanView: View {
             ForEach(selection.refresh.notices) { notice in
                 StatusRow(text: notice.target.url.lastPathComponent + " · " + notice.message, symbol: "info.circle", role: .caution)
             }
-            if selection.rows.isEmpty {
+            if !selection.observedDownloadsScopes.isEmpty {
+                Text("Inspected coverage: " + selection.observedDownloadsScopes.map(\.lastPathComponent).joined(separator: ", "))
+                    .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                    .help(selection.observedDownloadsScopes.map(\.path).joined(separator: "\n"))
+            }
+            if selection.displayedRows.isEmpty {
                 CategoryPrerequisite(title: selection.isRefreshing ? "Refreshing…" : selection.overviewDownloadsCoverage == .complete ? "No eligible files" : selection.overviewDownloadsCoverage == .incomplete ? "Refresh required" : "Not scanned",
                     detail: selection.overviewDownloadsCoverage == .complete ? "No eligible files in the inspected Downloads locations." : "Scan included Downloads locations to choose exact files. Other folders are inspection only.",
                     actionTitle: selection.overviewDownloadsCoverage == .notInspected ? "Scan Downloads…" : "Scan Downloads again", enabled: !selection.isRefreshing && !selection.isPreparing, action: chooseDownloads)
             } else {
             CategorySelectionHeader(category: .downloads, state: selection.categoryState,
-                                    title: "Downloads · \(StillDesign.files(selection.rows.count)) eligible",
-                                    detail: "Move exact files to Trash. Personal files and installers are included only when selected.",
-                                    size: ByteCountFormatter.string(fromByteCount: selection.eligibleLogicalBytes, countStyle: .decimal),
+                                    title: selection.isRefreshing || selection.rows.count != selection.displayedRows.count ? "Downloads · \(StillDesign.files(selection.displayedRows.count)) previously observed" : "Downloads · \(StillDesign.files(selection.rows.count)) eligible",
+                                    detail: selection.isRefreshing ? "Refreshing previous observations. Files cannot be selected or approved until checked." : selection.rows.count != selection.displayedRows.count ? "Previous observations include files requiring recheck. Only current eligible files can be selected." : "Move exact files to Trash. Personal files and installers are included only when selected.",
+                                    size: selection.displayedLogicalBytes.map { ByteCountFormatter.string(fromByteCount: $0, countStyle: .decimal) } ?? "Unknown",
                                     enabled: !selection.isPreparing && !selection.isRefreshing && !selection.rows.isEmpty) {
                 Task { await selection.toggleAll() }
             }
-            Text("Inspected coverage: " + Set(selection.rows.map { $0.scan.scope.lastPathComponent }).sorted().joined(separator: ", "))
-                .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             if selection.overviewDownloadsCoverage == .incomplete {
-                StatusRow(text: "Limited coverage · Only the eligible observed files above are included. Uninspected contents remain unknown.", symbol: "exclamationmark.circle", role: .caution)
+                StatusRow(text: selection.rows.isEmpty ? "Previous observations require recheck. Current eligibility and uninspected contents remain unknown." : "Limited coverage · Only current eligible files can be included. Uninspected contents remain unknown.", symbol: "exclamationmark.circle", role: .caution)
             }
             if selection.isPreparing { ProgressView("Checking exact Downloads targets…") }
             if let approved = selection.approvedBatch { Text("Approved batch: \(approved.targets.count) files · No files moved.").foregroundStyle(.secondary) }
@@ -398,14 +441,13 @@ struct LiveCleanupPlanView: View {
             DisclosureGroup("Choose items", isExpanded: $presentation.choosingItems) {
                 VStack(alignment: .leading, spacing: StillDesign.Space.md) {
                     TextField("Search Downloads items", text: $presentation.search)
-                    if selection.rows.isEmpty { EmptyState(title: "No eligible files", detail: "Choose and scan Downloads or a folder inside it. Protected or unknown targets remain browse only.", symbol: "folder") }
                     LazyVStack(alignment: .leading, spacing: 0) {
-                        ForEach(selection.rows.filter { presentation.search.isEmpty || $0.item.url.path.localizedCaseInsensitiveContains(presentation.search) }) { row in
+                        ForEach(selection.displayedRows.filter { presentation.search.isEmpty || $0.item.url.path.localizedCaseInsensitiveContains(presentation.search) }) { row in
                             InspectableItemRow(name: row.item.url.lastPathComponent, detail: row.item.url.pathComponents.dropFirst(row.scan.scope.pathComponents.count).joined(separator: "/"), size: ByteCountFormatter.string(fromByteCount: row.item.logicalBytes ?? 0, countStyle: .decimal), symbol: "doc", inspected: presentation.inspected?.id == row.item.id, inspect: { presentation.inspected = row.item }) {
                                 Toggle("\(selection.draft.contains(row.item) ? "Selected" : "Select") \(row.item.url.lastPathComponent)", isOn: Binding(get: { selection.draft.contains(row.item) }, set: { selection.set(row.item, in: row.scan, selected: $0) }))
-                                    .labelsHidden().disabled(selection.isPreparing || (selection.isRefreshing && !selection.draft.contains(row.item)))
+                                    .labelsHidden().disabled(selection.isPreparing || selection.isRefreshing || (!selection.eligible(row.item, in: row.scan) && !selection.draft.contains(row.item)))
                             }
-                            if selection.refresh.requiresRefresh(row.item.url.path + "|" + row.item.resourceID + "|moveToTrash") {
+                            if !selection.eligible(row.item, in: row.scan) || selection.refresh.requiresRefresh(row.item.url.path + "|" + row.item.resourceID + "|moveToTrash") {
                                 StatusRow(text: selection.isRefreshing ? "Rechecking…" : "Refresh required", symbol: "arrow.clockwise", role: .caution).padding(.horizontal, StillDesign.Space.md)
                             }
                             Divider()
@@ -423,7 +465,7 @@ struct LiveCleanupPlanView: View {
                 }.padding(.top, StillDesign.Space.md)
             }.padding(.leading, StillDesign.Space.xl)
             }
-            ForEach(selection.unavailableSelected) { target in
+            ForEach(selection.unavailableOutsideDisplay) { target in
                 SettingsRow(title: target.url.lastPathComponent, detail: "Selection retained · Recheck this location before review") {
                     Toggle("Selected \(target.url.lastPathComponent)", isOn: Binding(get: { true }, set: { if !$0 { selection.remove(target) } })).disabled(selection.isPreparing)
                 }

@@ -222,6 +222,7 @@ final class WorkspaceUITests: XCTestCase {
         try manager.removeItem(at: trip) // Owned fixture: exercise a complete, genuinely empty eligible set.
         app.buttons["Scan Downloads again"].click()
         XCTAssertTrue(app.staticTexts["No eligible files"].waitForExistence(timeout: 15))
+        XCTAssertTrue(app.staticTexts["Inspected coverage: " + root.lastPathComponent].exists, "A complete-empty result must name its actual inspected location")
         XCTAssertFalse(app.checkBoxes["downloadsCategorySelection"].isEnabled)
         XCTAssertFalse(app.buttons["Review cleanup"].isEnabled)
         capture("complete-empty")
