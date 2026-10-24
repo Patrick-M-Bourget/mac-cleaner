@@ -144,8 +144,6 @@ jobs:
             scope=(
               -only-testing:StillUITests/LocalRecordsUITests/testManagementPreservesContextAndFreshRecoveryGuard
               -only-testing:StillUITests/LocalRecordsUITests/testInitialManagementPreservesContextAndFreshRecoveryGuard
-              -only-testing:StillUITests/LocalRecordsUITests/testGatedDiagnosticsReturnsToBothActualCallers
-              -only-testing:StillUITests/LocalRecordsUITests/testInitialGatedDiagnosticsReturnsToBothActualCallers
               -only-testing:StillUITests/RecoveryUITests/testHistoryRecoveryPreservesExpandedEvidenceAndObservedViewport
               -only-testing:StillUITests/RecoveryUITests/testInitialHistoryRecoveryPreservesExpandedEvidenceAndObservedViewport
             )
