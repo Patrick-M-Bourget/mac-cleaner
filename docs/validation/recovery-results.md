@@ -1,19 +1,32 @@
-# Caller-aware recovery and terminal Results
+# Caller-aware recovery, terminal Results and optional access
 
-October 24, 2026. Children #60 (parent#48) and #61 (parent#50). Baseintegration48269e4 includes qualified Downloads/mixed-location/inspector slices. Approved FLOW-LOCK Q15/Q17/Q20/Q25, FL12–FL14 and proposalb96bb97. Current candidates are isolated on `verify/recovery-results-next`; no feature is integrated by this initial record.
+October 24, 2026. Tickets #60 (parent #48), #61 (parent #50) and #63 (parent #46). Integration base `48269e4` already includes the qualified Downloads, mixed-location and inspector slices. This work follows FLOW-LOCK Q15/Q17/Q20/Q25, FL12–FL14 and approved proposal `b96bb97`. Candidates remain isolated on `verify/recovery-results-next` pending complete qualification.
 
-## Public red verification
+## Actual public red → green evidence
 
-Test-only revisiond17f3fe adds an owned-journal History→recovery→History public journey and strengthens the existing real delayed-native-Trash cancellation journey to require a truthful partial outcome summary and reachable terminal actions. Actual red caller40060845331 fails missing Back to History; terminal40060846712 fails missing partial outcome summary at both sizes. Minimal callerf2a7ab1 passes40061276492 (14.02s); minimal partialcfc4e1d passes40061178461 (2/2,123.93s). At70aa493, History context40061717062 reproduces an exact40-point return reset; all-skipped40061718362 reaches real no-op Results and fails missing No files were moved. The retained History model/disclosure/viewport candidate `965f25c` passes focused run `40062095494`; all-skipped summary `2f3fcf1` passes run `40062006563`. The #63 public education red run `40061806767` at `d49bf76` fails because the disclosure is absent. Candidate `a99d009` composes that shared disclosure with process-owned expansion and Locations viewport state. Broader recovery qualification, access education green verification, and explicitly synthetic Results Gallery red verification are running on that candidate. None of these pending runs is acceptance evidence yet. These use previously approved public app/executor/journal/disposable-filesystem seams; no new private seam or personal cleanup is introduced.
+| Boundary | Actual red | Minimal green | Scope |
+|---|---|---|---|
+| History recovery caller | `40060845331` at `d17f3fe`: missing Back to History | `40061276492` at `f2a7ab1`, 1 test | Owned interrupted journal; History → recovery → History; original bytes and recorded facts preserved |
+| Partial terminal outcome | `40060846712` at `d17f3fe`: missing partial summary at both sizes | `40061178461` at `cfc4e1d`, 2 tests | Real delayed native Trash, explicit cancellation, exact unfinished-file retry/new approval |
+| History context | `40061717062` at `70aa493`: exact 40-point return reset | `40062095494` at `965f25c`, focused pilot | Retained History model, expanded run and observed viewport |
+| All-skipped terminal outcome | `40061718362` at `70aa493`: missing No files were moved | `40062006563` at `2f3fcf1`, focused pilot | Owned file changed while immutable confirmation was open; executor skipped it and preserved the changed bytes |
+| Optional access education | `40061806767` at `d49bf76`: missing About folder access | Pending | Explicit disposable folder, live choice, disclosure and route return |
+
+Candidate `a99d009` adds broader History/Overview/startup/window-reopen qualification, process-owned access-disclosure expansion and Locations viewport state. Initial/minimum recovery, access education green, and explicitly synthetic Results Gallery red verification are running on that source. Pending runs are not acceptance evidence. Local build-for-testing passes; local UI automation is unavailable, so hosted native execution supplies public journey proof.
 
 ## Required boundaries
 
-- Recovery: caller-appropriate single return, History/Overview process viewport preservation, top for new recovery entry, direct sidebar navigation, startup recovery stillOverview, stablewindow/fixedfooter and unchanged durable facts/original bytes. Session context may survive window close only while normal app lifecycle keeps the process alive; no new always-on behavior is authorized.
-- Results: retain approved Cleanup results page header plus shared specific outcome summary. Distinguish success/partial/allskipped/allfailed/unresolved; unknown never ordinaryretry, explicit read-only recovery only. View history/newplan stay reachable. A new plan is unselected and requires manual scan; successfultargets are never silently reintroduced toretry.
-- Core public owned executor/journal fixtures already cover refused/changed targets, source-preserving failure, replayrejection and unknown outcomes. Native UI fixture and labelled synthetic Gallery proof remain distinct; neither is unsupported OS/provider certification. No hidden mutation bypass solely to produce screenshots.
-
-Production source, actual red→green, original native Light/Dark initial/minimum captures, regressions and reviews will be recorded before integration. Full parent scope and future milestones remain open; no M8 work.
+- Recovery has one caller-appropriate return. New recovery entries start at the top; returns restore the observed History/Overview viewport and expanded History evidence. Sidebar navigation stays direct. Startup recovery returns Overview. Session context survives window closure only while normal lifecycle keeps the process alive; no always-on behavior is introduced.
+- Results retain the approved Cleanup results page title and shared specific outcome summary. Success, partial, all-skipped, all-failed and unresolved outcomes must remain distinct. Unknown outcomes require read-only recovery review rather than ordinary retry. View history and a fresh unselected plan remain reachable. Eligible retry rechecks only unfinished exact identities and requires new approval.
+- Core public executor/journal fixtures cover changed targets, source-preserving failure, rejected replay and unknown outcomes. Native execution, labelled synthetic Gallery presentation and real OS/provider qualification are separate evidence. No hidden mutation bypass is added for screenshots.
+- Original bytes and complete durable records remain unchanged during read-only navigation. Stable window bounds and fixed reachable actions are required in Light/Dark at initial/minimum sizes.
 
 ## Optional folder-access education — #63
 
-The Locations disclosure reuses native DisclosureGroup, SettingsRow and StatusRow with the shared control gutter. Expansion and the Locations viewport belong to the process workspace context; visiting Cleanup plan and returning does not silently collapse it or change live choices. It supplies education, not a grant detector or permission request. Apple documents the manual Privacy & Security → Full Disk Access route and its broad access to protected app data ([Mac User Guide](https://support.apple.com/en-ca/guide/mac-help/mchl211c911f/mac)). Still’s unchanged eligibility rules are an application policy, not an Apple permission guarantee. Native test fixtures use explicitly chosen disposable folders and request no broader permission.
+The Locations disclosure reuses native DisclosureGroup, SettingsRow and StatusRow with the shared control gutter. Expansion and the Locations viewport belong to the process workspace context; visiting Cleanup plan and returning must preserve them and live choices. The disclosure supplies education, not a grant detector or permission request.
+
+Apple documents the manual Privacy & Security → Full Disk Access route and broad access to protected app data ([Mac User Guide](https://support.apple.com/en-ca/guide/mac-help/mchl211c911f/mac)). Still’s unchanged eligibility rules are application policy, not an Apple permission guarantee. Fixtures request no broader permission, launch no settings pane and perform no additional scan when reading the guidance.
+
+## Integration gate
+
+Record final production source, original native captures/manifests, affected regressions and standards/spec reviews before integration. Keep full parent scope, manual accessibility/provider/platform gates and all future milestones open where unproven. #62 Local records remains blocked until #60 is integrated. M8 commercialization is deferred.
