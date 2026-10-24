@@ -37,6 +37,9 @@ import SwiftUI
         guard position.folder != nil else { return }
         history.append(position); position = Position(); navigationID = UUID()
     }
+    func discardUnavailableFolder() {
+        position = Position(); history = []; navigationID = UUID()
+    }
     func inspect(_ item: FileObservation) {
         position.inspectedID = item.id; position.inspectedResource = item.resourceID
     }
@@ -69,25 +72,35 @@ struct StorageExplorerView: View {
         }.sorted { $0.scope.path < $1.scope.path }
     }
     private var entries: [Entry] {
-        var seen = Set<String>()
-        return scans.sorted { $0.observedAt > $1.observedAt }.flatMap { scan in
-            scan.observations.compactMap { item -> Entry? in
-                let key = item.id + "|" + item.resourceID
-                return seen.insert(key).inserted ? Entry(item: item, scan: scan) : nil
+        var representatives: [String: Entry] = [:]
+        for scan in scans.sorted(by: { $0.observedAt > $1.observedAt }) {
+            for item in scan.observations {
+                let entry = Entry(item: item, scan: scan)
+                let key = entry.id
+                if let existing = representatives[key] {
+                    // One failed overlapping location must not suppress independent valid evidence.
+                    if !selection.eligible(existing.item, in: existing.scan), selection.eligible(item, in: scan) { representatives[key] = entry }
+                } else { representatives[key] = entry }
             }
-        }.sorted { left, right in
+        }
+        return representatives.values.sorted { left, right in
             if (left.item.kind == .folder) != (right.item.kind == .folder) { return left.item.kind == .folder }
             return left.item.url.path.localizedStandardCompare(right.item.url.path) == .orderedAscending
         }
     }
+    private var folderAvailable: Bool {
+        guard let folder = context.position.folder else { return true }
+        return scans.contains { $0.scope.standardizedFileURL == folder }
+            || entries.contains { $0.item.url.standardizedFileURL == folder && $0.item.kind == .folder }
+    }
     private var visible: [Entry] {
-        guard let folder = context.position.folder else { return [] }
+        guard folderAvailable, let folder = context.position.folder else { return [] }
         let descendants = entries.filter { $0.item.url != folder && $0.item.url.pathComponents.starts(with: folder.pathComponents) }
         if context.position.query.isEmpty { return descendants.filter { $0.item.url.deletingLastPathComponent().standardizedFileURL == folder } }
         return descendants.filter { relative($0.item.url, to: folder).localizedCaseInsensitiveContains(context.position.query) }
     }
     private var inspected: Entry? {
-        guard context.position.query.isEmpty || !visible.isEmpty else { return nil }
+        guard folderAvailable, context.position.query.isEmpty || !visible.isEmpty else { return nil }
         return entries.first { $0.item.id == context.position.inspectedID && $0.item.resourceID == context.position.inspectedResource }
     }
     var body: some View {
@@ -119,7 +132,7 @@ struct StorageExplorerView: View {
         VStack(alignment: .leading, spacing: StillDesign.Space.sm) {
             HStack {
                 Button(context.downloadsOnly ? "Scanned Downloads locations" : "Selected locations") { context.returnToRoot() }
-                if let folder = context.position.folder {
+                if folderAvailable, let folder = context.position.folder {
                     Image(systemName: "chevron.right").font(.caption).foregroundStyle(.secondary)
                     ForEach(breadcrumbs(for: folder), id: \.self) { ancestor in
                         Button(ancestor.lastPathComponent) { if ancestor != folder { context.enter(ancestor) } }
@@ -128,7 +141,7 @@ struct StorageExplorerView: View {
                     }
                 }
             }
-            if let folder = context.position.folder {
+            if folderAvailable, let folder = context.position.folder {
                 Text(folder.path).font(.caption).foregroundStyle(.secondary).lineLimit(2).textSelection(.enabled)
                 TextField("Search scanned descendants", text: $context.position.query)
                     .accessibilityIdentifier("explorerSearch")
@@ -155,6 +168,9 @@ struct StorageExplorerView: View {
                         }.padding(StillDesign.Space.md)
                         Divider()
                     }
+                } else if !folderAvailable {
+                    EmptyState(title: "This folder is no longer available in the observations", detail: "Its location may have been omitted, forgotten or changed during a refresh. Browsing cannot scan or restore access.", symbol: "folder.badge.questionmark")
+                    Button("Return to selected locations") { context.discardUnavailableFolder() }
                 } else if visible.isEmpty {
                     EmptyState(title: context.position.query.isEmpty ? "No observed entries here" : "No matches", detail: context.position.query.isEmpty ? "This describes existing observations only. Unscanned or unavailable contents remain unknown." : "No observed descendants match this search. Your selected files are unchanged.", symbol: "magnifyingglass")
                     if !context.position.query.isEmpty { Button("Clear search") { context.position.query = "" } }
