@@ -20,7 +20,18 @@ import StillCore
         var needsRecovery: Bool { self == .chooseAgain || self == .unavailable }
     }
     private(set) var statuses: [UUID: AccessStatus] = [:]
-    var message: String?
+    private var notice: String?
+    var message: String? {
+        get {
+            if let notice { return notice }
+            // Recovery guidance comes from current per-location evidence. Resolving one
+            // scope must not leave its old failure visible or hide another failed scope.
+            return included.first(where: { statuses[$0.id]?.needsRecovery == true }).flatMap { scope in
+                statuses[scope.id].map { URL(fileURLWithPath: scope.path).lastPathComponent + " · " + $0.text }
+            }
+        }
+        set { notice = newValue }
+    }
     private func registry() throws -> ScopeRegistry {
         ScopeRegistry(directory: try LocalStateLocation.root(create: true).appendingPathComponent("Scopes", isDirectory: true))
     }
@@ -40,7 +51,6 @@ import StillCore
         do { let lease = try registry().resolveForScan(id: scope.id); statuses[scope.id] = .ready; return lease }
         catch ScopeRegistryError.chooseAgain { statuses[scope.id] = .chooseAgain }
         catch { statuses[scope.id] = .unavailable }
-        message = statuses[scope.id].map { URL(fileURLWithPath: scope.path).lastPathComponent + " · " + $0.text }
         return nil
     }
     @discardableResult func setIncluded(_ value: Bool, scope: RememberedScope) -> Bool {
