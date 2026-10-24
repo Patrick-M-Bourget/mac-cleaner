@@ -1,5 +1,30 @@
 # Startup capacity refresh — #49
 
+## Accepted bounded qualification — October 24, 2026
+
+Application source `8869b38`; final documentation records this source without claiming one combined full-suite run. Six new public capacity-policy journeys pass within Core142 (137 Swift Testing +5 XCTest). Ten distinct new native UI journeys and seventeen existing affected journeys pass across the focused source-bound runs below. Earlier candidate failures and corrections remain chronological evidence below; they are superseded by this summary.
+
+| Surface | Passing hosted run / source | Boundary |
+|---|---|---|
+| Manual action |40087688270 /04eda12|Capacity-only action preserves scan/navigation/selection|
+| Scan completion and reopen |40087926668 /96939a7|38.086s; latest logical-scan ordering fix|
+| Cleanup and historical independence |40088604768 /4cb9d57|47.906s; owned native Trash fixture, unchanged journal and History observations|
+| Retry recheck terminal refresh |40087926706 /96939a7|45.615s; no new cleanup authority|
+| Current states, initial/minimum |40088850738 /8869b38|2/2,71.096s; retained refresh, fallback/partial, stale failure, recovery|
+| First-use states, initial/minimum |40088850882 /8869b38|2/2,103.776s; checking/unavailable/recovery/expiry/foreground|
+| Shared Gallery, initial/minimum |40088850911 /8869b38|2/2,108.423s; inert seven-state examples in both themes|
+| Existing affected regressions |40087127762 /8ea8f2d, then40088292227 /c741014|11 original passes +4 repaired-case passes; compact sidebar fixes actual minimum-window expansion|
+| Overview findings and secondary tools |40087127755 /8ea8f2d|2/2; findings702.687s, tools37.097s|
+| Additional alert-open replay |40088289965 /c741014|77.587s; overlaps existing regression count|
+
+Final originals and unmodified export manifests: [current states](../visual/capacity-refresh/40088850738/manifest.json), [first use](../visual/capacity-refresh/40088850882/manifest.json), [Gallery](../visual/capacity-refresh/40088850911/manifest.json), [cleanup/History](../visual/capacity-refresh/40088604768/manifest.json). 71 originals:20+20+28+3. Final capacity captures use1024×640 initial (host display-clamped) and900×640 minimum; cleanup captures retain their original dimensions. No rescaling or contact-sheet substitution. The root individually reviewed all20 first-use originals: full labels, reserved card/status positions, honest absent/stale evidence, aligned sidebar, reachable action strip in Light/Dark; no remaining finding. All20 current-state and3 cleanup/History originals were individually reviewed in [final state review](capacity49-states-final-review.md); all28 Gallery originals in [final Gallery review](capacity49-gallery-final-review.md). No remaining changed-state visual blockers.
+
+Source review found one missing retry-terminal hook, fixed in `a2f9686`; follow-up source review found no remaining actionable issue. A single-scan cancellation ordering race was corrected in `87de710`. Visual review independently caught a clipped native Refresh capacity label despite passing accessibility tests; `8869b38` preserves intrinsic button width inside a minimum144pt slot. Final recaptures replace the blocked earlier images. Exact unchanged window/Scanned locations positions are tested; changing glyph-tight AX Text width is not treated as scroll movement.
+
+Controlled metadata and clocks qualify the refresh policy, not every macOS volume/API configuration. Hosted native proof uses macOS26/Xcode26.6; local build uses Xcode27.1. Gallery is synthetic. This does not certify actual iCloud/provider permissions, every browser, VoiceOver operation, signing/notarization, or clean installation. M8 commercialization remains deferred. No polling, background keepalive, alert-policy change, automatic file selection, or historical rewrite was added.
+
+## Chronological implementation evidence
+
 Contract locked October24,2026 in [CAPACITY-REFRESH](../CAPACITY-REFRESH.md). Implementation and public/native qualification pending. Existing approved UI journeys remain the UI test seam; controlled service boundary explicitly approved by user on October24. No tests or native evidence are claimed by this lock.
 
 
@@ -8,17 +33,17 @@ Contract locked October24,2026 in [CAPACITY-REFRESH](../CAPACITY-REFRESH.md). Im
 Test-only agent `ab42ba9`, root `8941c41`: explicit capacity refresh exists separately from Scan again and preserves Overview coverage/navigation/empty plan and fixed window. Guarded missing-action failure captures and returns promptly. Local build-for-testing passes. Production is unchanged. Hosted behavioral red `40083724345` at `8941c41` fails at line16 on the missing capacity-only refresh action (15.030seconds), as intended. Local/native app compilation and existing Core136 (131SwiftTesting+5XCTest) pass. The user subsequently approved the controlled-reading/clock service boundary; service-first TDD resumes from this observed UI red.
 
 
-## Required bounded proof
+## Initial proof checklist (historical)
 
 | Contract surface | Proof to record before acceptance | Status |
 |---|---|---|
 | Manual capacity action separate from scan | Public Overview action, unchanged coverage/selection/navigation/window | Actual missing-action red recorded |
-| Launch/foreground30seconds/manual/alert-open | Public controlled service clock/readings; native entry/manual trigger composition | Pending |
-| Logical scan finish/Stop/failure and cleanup terminal | App-level owned journey evidence plus service post-action freshness/trailing demand | Pending |
-| Refresh/checking/failed-stale/unavailable/partial totals | Same shared live/Gallery native presentation in both themes/sizes, public service transition evidence | Pending |
-|10second expiry/late responses/concurrent triggers | Controlled public service states without private-method or collaborator-order assertions | Pending |
-| Historical/alert independence, window reopen | Recorded operation observations unchanged, existing alert/context regressions, retained process state without new keepalive | Pending |
-| Source/metric/time and compatible comparisons | Explicit current evidence, no scope-volume substitution or history rewrite | Pending |
+| Launch/foreground30seconds/manual/alert-open | Public controlled service clock/readings; native entry/manual trigger composition | Subsequently qualified below |
+| Logical scan finish/Stop/failure and cleanup terminal | App-level owned journey evidence plus service post-action freshness/trailing demand | Subsequently qualified below |
+| Refresh/checking/failed-stale/unavailable/partial totals | Same shared live/Gallery native presentation in both themes/sizes, public service transition evidence | Subsequently qualified below |
+|10second expiry/late responses/concurrent triggers | Controlled public service states without private-method or collaborator-order assertions | Subsequently qualified below |
+| Historical/alert independence, window reopen | Recorded operation observations unchanged, existing alert/context regressions, retained process state without new keepalive | Subsequently qualified below |
+| Source/metric/time and compatible comparisons | Explicit current evidence, no scope-volume substitution or history rewrite | Subsequently qualified below |
 
 Real native capacity metadata is separate from deterministic fixtures. Inert Gallery examples certify presentation only. Record actual hosted capture dimensions; the initial preset may be display-clamped. Do not label unrelated suites rerun unless run; no new platform/signing certification is implied.
 
