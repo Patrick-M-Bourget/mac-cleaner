@@ -18,6 +18,7 @@ struct DesignGallery: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: StillDesign.Space.xl) {
                     PageHeader(title: "Native design system", subtitle: "Developer examples only · No personal storage measurements")
+                    CapacityGalleryExamples()
                     Text("Synthetic cleanup outcome examples").font(.headline)
                     Text("Presentation fixtures only · These examples are not native executor or OS failure evidence.").foregroundStyle(.secondary)
                     CleanupOutcomeSummary(states: [.succeeded], detailIdentifier: "outcomeDetail-0")
@@ -120,6 +121,27 @@ struct DesignGallery: View {
         }
         .environment(\.stillOpaqueChrome, opaque)
         .preferredColorScheme(appearance == "Dark" ? .dark : .light)
+    }
+}
+/// Inert presentation examples reuse the live capacity components; no reads or timers.
+private struct CapacityGalleryExamples: View {
+    var body: some View {
+        VStack(alignment: .leading, spacing: StillDesign.Space.xl) {
+            example("checking", available: nil, total: nil, observation: "Startup-volume capacity", status: "Checking capacity…", refreshing: true)
+            example("refreshing", observation: "Observed 10:00 AM · Available for important usage", status: "Refreshing…", refreshing: true)
+            example("important", observation: "Observed 10:00 AM · Available for important usage")
+            example("fallback", observation: "Observed 10:00 AM · Available capacity fallback")
+            example("partial", total: nil, observation: "Observed 10:00 AM · Available capacity fallback")
+            example("stale", observation: "Last observed 10:00 AM · Available for important usage", status: "Couldn’t refresh capacity", retry: true)
+            example("unavailable", available: nil, total: nil, observation: "Capacity unavailable", status: "Couldn’t refresh capacity", retry: true)
+        }
+    }
+    private func example(_ name: String, available: Int64? = 40_000_000_000, total: Int64? = 512_000_000_000, observation: String, status: String = "", refreshing: Bool = false, retry: Bool = false) -> some View {
+        VStack(alignment: .leading, spacing: StillDesign.Space.sm) {
+            Text("Synthetic capacity " + name + " · Inert example").font(.headline)
+            VolumeSummary(available: available, total: total, observation: observation, status: status,
+                          refreshTitle: retry ? "Try again" : "Refresh capacity", refreshing: refreshing, refresh: {})
+        }.accessibilityIdentifier("capacityGallery-" + name)
     }
 }
 #endif

@@ -65,7 +65,7 @@ struct StartupVolumeCapacity: Sendable {
 
 extension CapacityRefreshController {
     var observationText: String {
-        guard let reading else { return isRefreshing ? "Checking capacity…" : "Capacity unavailable" }
+        guard let reading else { return isRefreshing ? "Startup-volume capacity" : "Capacity unavailable" }
         let prefix = failed ? "Last observed " : "Observed "
         let metric = reading.metric == "important" ? "Available for important usage" : "Available capacity fallback"
         return prefix + reading.observedAt.formatted() + " · " + metric

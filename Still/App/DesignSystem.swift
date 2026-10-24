@@ -230,24 +230,32 @@ struct CapacityMeter: View {
     var compact = false
     var showsValue = true
     private func bytes(_ value: Int64) -> String { ByteCountFormatter.string(fromByteCount: value, countStyle: .decimal) }
+    private var validTotal: Int64? {
+        guard let available, let total, total > 0, available >= 0, available <= total else { return nil }
+        return total
+    }
+    private var amountText: String {
+        guard let available, available >= 0 else { return "Capacity unavailable" }
+        if let total = validTotal { return "\(bytes(available)) available of \(bytes(total))" }
+        return "\(bytes(available)) available · Total capacity unavailable"
+    }
     var body: some View {
         VStack(alignment: .leading, spacing: StillDesign.Space.sm) {
-            if let available, let total, total > 0, available >= 0, available <= total {
-                if compact { Text("\(bytes(available)) available of \(bytes(total))").font(.caption).foregroundStyle(.secondary) }
-                else if showsValue {
-                    HStack(alignment: .firstTextBaseline, spacing: StillDesign.Space.sm) {
-                        Text(bytes(available)).font(.system(size: 34, weight: .medium)).monospacedDigit()
-                        Text("available of \(bytes(total))").foregroundStyle(.secondary)
-                    }
-                }
-                GeometryReader { geometry in
+            if compact {
+                Text(amountText).font(.caption).foregroundStyle(.secondary).lineLimit(2)
+                    .frame(height: 30, alignment: .topLeading).accessibilityIdentifier("sidebarCapacityAmount")
+            } else if showsValue {
+                Text(amountText).font(.callout).foregroundStyle(.secondary)
+            }
+            GeometryReader { geometry in
+                if let available, let total = validTotal {
                     ZStack(alignment: .leading) {
                         Capsule().fill(StillDesign.capacityTrack)
                         Capsule().fill(StillDesign.capacityFill).frame(width: geometry.size.width * CGFloat(Double(total - available) / Double(total)))
                     }
-                }.frame(height: compact ? 4 : 8).accessibilityElement(children: .ignore)
-                    .accessibilityLabel("\(bytes(available)) available of \(bytes(total))")
-            } else { Text("Capacity not observed").font(compact ? .caption : .callout).foregroundStyle(.secondary) }
+                } else { Color.clear }
+            }.frame(height: compact ? 4 : 8).accessibilityElement(children: .ignore)
+                .accessibilityLabel(validTotal == nil ? "Capacity meter unavailable" : amountText)
         }
     }
 }
@@ -275,8 +283,13 @@ struct VolumeSummary: View {
                             Text(ByteCountFormatter.string(fromByteCount: available, countStyle: .decimal)).font(StillDesign.TypeStyle.value).monospacedDigit().accessibilityIdentifier("startupCapacityAmount")
                             Text(total.map { "available of " + ByteCountFormatter.string(fromByteCount: $0, countStyle: .decimal) } ?? "Total capacity unavailable").font(.caption).foregroundStyle(.secondary)
                         }
+                    } else {
+                        VStack(alignment: .trailing, spacing: StillDesign.Space.xs) {
+                            Text("—").font(StillDesign.TypeStyle.value)
+                            Text("Available space unavailable").font(.caption).foregroundStyle(.secondary)
+                        }
                     }
-                }
+                }.frame(height: 44)
                 CapacityMeter(available: available, total: total, showsValue: false)
                 HStack(alignment: .top, spacing: StillDesign.Space.md) {
                     VStack(alignment: .leading, spacing: StillDesign.Space.xs) {
