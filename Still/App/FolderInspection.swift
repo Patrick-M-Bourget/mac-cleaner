@@ -144,8 +144,8 @@ final class FolderInspection {
                 selected = previousSelection.flatMap { old in observed.observations.first { $0.id == old.id && $0.resourceID == old.resourceID } } ?? observed.observations.first
                 progress = nil
                 isScanningCurrent = false
-                await GrowthHistoryModel.shared.complete(observed, token: growthToken)
                 if scanAgainTask == nil { AppLifecycleController.shared.capacity.request(.scanEnded) }
+                await GrowthHistoryModel.shared.complete(observed, token: growthToken)
             } catch {
                 guard token == generation else { return }
                 selection.cancelRefresh(request)
