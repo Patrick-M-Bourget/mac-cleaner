@@ -224,6 +224,7 @@ private struct WorkspaceView: View {
             VStack(alignment: .leading, spacing: 0) {
                 AppearancePreferenceNotice(notice: appearance.notice, retry: { appearance.retrySaving() })
                     .padding(.horizontal, StillDesign.Space.page)
+                    .zIndex(1)
                 if nativeInspectionVisible {
                     StorageExplorerView(model: folderInspection, selection: selection, context: explorerContext,
                         backTitle: "Back to " + explorerCaller.rawValue, back: { nativeInspectionVisible = false; destination = explorerCaller })
