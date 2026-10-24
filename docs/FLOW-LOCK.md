@@ -1,6 +1,6 @@
 # Connected product flow lock
 
-Approved October 23, 2026: user accepted grilling Q1–Q25, explicitly confirmed the consolidated contract in Q26, and accepted presentation/delivery Q27–Q30. Applies to #44, #46, #47 and #48, plus the results boundary in #50. These are approved product requirements, **not implemented capability claims**. The [parity audit](PROTOTYPE-PARITY.md) retains the baseline and open gaps. Presentation and delivery decisions are locked below; the annotated visual state review is next. No repair is implemented or qualified by approving a flow.
+Approved October 23, 2026: user accepted grilling Q1–Q25, explicitly confirmed the consolidated contract in Q26, and accepted presentation/delivery Q27–Q30. Applies to #44, #46, #47 and #48, plus the results boundary in #50. These are approved product requirements, **not implemented capability claims**. The [parity audit](PROTOTYPE-PARITY.md) retains the baseline and open gaps. Presentation and delivery decisions are locked below; the annotated visual proposal b96bb97 was user-approved on October 23, 2026. No repair is implemented or qualified by approving a flow.
 
 SPEC and DESIGN-HANDOFF reference this same contract. It supersedes conflicting global plan-chooser, flat explorer and hard-coded return descriptions. Safety and M1 scope remain unchanged: exact eligible Downloads files only, no automatic scans/cleanup, no whole-folder targets, no broader adapter mutation. Future milestones and #49/#51–#54 remain preserved; appearance persistence and History scan-activity decisions are not decided here.
 
@@ -56,7 +56,7 @@ Route reuse must prevent Plan → Explorer → Plan → Explorer cycles. A sideb
 
 ## Annotated behavior states
 
-These annotate approved behavior, not new visual mockups. All must use the existing white/near-black palette, quiet category accents, shared components and stable native geometry. Presentation choices Q27–Q29 are confirmed. The [annotated visual review](CONNECTED-FLOW-DESIGN-REVIEW.md) renders this contract for approval before coding.
+These annotate approved behavior, not new visual mockups. All must use the existing white/near-black palette, quiet category accents, shared components and stable native geometry. Presentation choices Q27–Q29 are confirmed. The [annotated visual review](CONNECTED-FLOW-DESIGN-REVIEW.md) renders this contract; proposal b96bb97 is user-approved for implementation.
 
 | State ID | Evidence and category presentation | Available action / outcome |
 |---|---|---|
@@ -77,8 +77,8 @@ These annotate approved behavior, not new visual mockups. All must use the exist
 
 ## Design review and delivery checkpoint
 
-**Flow and presentation decisions Q1–Q30 are locked.** Review the [annotated visual states](CONNECTED-FLOW-DESIGN-REVIEW.md) next, using the existing approved palette/components rather than unrelated variants. The review prototype is synthetic, isolated from production code and preserved on a prototype branch. It illustrates intent, not native geometry, platform support or filesystem evidence. Approval of its visual states precedes coding; original source-pinned native Light/Dark initial/minimum proof follows implementation before UI merge.
+**Flow and presentation decisions Q1–Q30 are locked.** Implement the approved [annotated visual states](CONNECTED-FLOW-DESIGN-REVIEW.md), using the existing approved palette/components rather than unrelated variants. The review prototype is synthetic, isolated from production code and preserved on a prototype branch. It illustrates intent, not native geometry, platform support or filesystem evidence. User approval of its visual states is recorded; original source-pinned native Light/Dark initial/minimum proof follows implementation before UI merge.
 
-Delivery is a connected user-visible slice: remembered Downloads → contextual plan scan → category/inline refinement → Explorer with return context → exact confirmation/Cancel → results → explicit new plan. Route/state and remembered-scope foundations may be implemented first as needed; do not call isolated helper work the completed feature. Subsequent immediate slices complete multi-location/overlap/access recovery and every FL branch. All acceptance remains on #44/#46/#47/#48/#50 until actually proven. Annotated visual approval is the next checkpoint; no further product questions are silently introduced.
+Delivery is a connected user-visible slice: remembered Downloads → contextual plan scan → category/inline refinement → Explorer with return context → exact confirmation/Cancel → results → explicit new plan. Route/state and remembered-scope foundations may be implemented first as needed; do not call isolated helper work the completed feature. Subsequent immediate slices complete multi-location/overlap/access recovery and every FL branch. All acceptance remains on #44/#46/#47/#48/#50 until actually proven. Annotated visual approval is complete (b96bb97, October 23, 2026); proceed with the agreed connected slice without introducing further product questions.
 
 Do not resume unrelated isolated feature work. Every slice names parity IDs and FL states and preserves the approved responsibilities above. #49 capacity freshness, #51 scan-history product contract, #52 growth, #53 shell/appearance and #54 archive guidance remain visible in their milestones; this lock does not silently resolve or remove them. M8 signing stays deferred.

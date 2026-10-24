@@ -1,6 +1,6 @@
 # Connected flow visual review
 
-October 23, 2026. Flow and presentation choices Q1–Q30 are user-approved in [FLOW-LOCK](FLOW-LOCK.md). **The annotated visual proposal is ready for user review; it is not yet visually approved or natively implemented.** This is the remaining checkpoint before the first connected feature slice.
+October 23, 2026. Flow and presentation choices Q1–Q30 are user-approved in [FLOW-LOCK](FLOW-LOCK.md). **The user approved the annotated visual proposal on October 23, 2026 (“seems good”).** The visual checkpoint is complete; native implementation and proof remain outstanding.
 
 ## Review artifact
 
@@ -64,5 +64,5 @@ After visual approval, turn this into dependent implementation slices with parit
 - [x] User approved Q1–Q30 flow, presentation and delivery decisions.
 - [x] Annotated states and one interactive review proposal prepared in the approved visual language.
 - [x] Synthetic render/interaction observations preserved with source/hash boundaries.
-- [ ] User visual approval of the proposal and any requested refinements.
+- [x] User visual approval of proposal b96bb97, October 23, 2026.
 - [ ] Dependent implementation slices ready, followed by production changes and native proof.
