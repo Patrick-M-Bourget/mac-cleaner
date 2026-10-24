@@ -60,4 +60,34 @@ final class ShellAppearanceUITests: XCTestCase {
         XCTAssertEqual(try Data(contentsOf: first), bytes)
         XCTAssertEqual(try Data(contentsOf: second), bytes)
     }
+
+    @MainActor func testAppearanceSurvivesRelaunchWithoutRestoringPlan() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication(); let state = try configureIsolatedJourneyState(app)
+        defer { app.terminate(); try? FileManager.default.removeItem(at: state) }
+        app.launchArguments = ["--design-minimum"]
+        app.launch()
+        let picker = app.popUpButtons["Appearance"]
+        XCTAssertTrue(picker.waitForExistence(timeout: 10))
+        XCTAssertEqual(picker.value as? String, "Automatic")
+        let bounds = app.windows.firstMatch.frame
+        picker.click(); app.menuItems["Dark"].click()
+        XCTAssertEqual(picker.value as? String, "Dark")
+        XCTAssertEqual(app.windows.firstMatch.frame, bounds)
+        app.terminate(); app.launch()
+        guard picker.waitForExistence(timeout: 10), picker.value as? String == "Dark" else {
+            let image = XCTAttachment(screenshot: app.windows.firstMatch.screenshot())
+            image.name = "shell-appearance-not-restored"; image.lifetime = .keepAlways; add(image)
+            XCTFail("The app-wide Dark preference must survive Quit and relaunch independently of cleanup choices"); return
+        }
+        app.typeKey("2", modifierFlags: .command)
+        XCTAssertTrue(app.staticTexts["0 files selected"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["Review cleanup"].isEnabled)
+        picker.click(); app.menuItems["Automatic"].click()
+        XCTAssertEqual(picker.value as? String, "Automatic")
+        XCTAssertEqual(app.windows.firstMatch.frame, bounds)
+        app.terminate(); app.launch()
+        XCTAssertTrue(picker.waitForExistence(timeout: 10))
+        XCTAssertEqual(picker.value as? String, "Automatic")
+    }
 }
