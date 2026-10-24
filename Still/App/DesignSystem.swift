@@ -303,7 +303,8 @@ struct VolumeSummary: View {
                     Spacer(minLength: StillDesign.Space.sm)
                     if let refresh {
                         Button(refreshTitle, action: refresh).disabled(refreshing)
-                            .frame(width: 110, alignment: .trailing)
+                            .fixedSize(horizontal: true, vertical: true)
+                            .frame(minWidth: 144, alignment: .trailing)
                             .accessibilityIdentifier("refreshCapacity")
                     }
                 }
