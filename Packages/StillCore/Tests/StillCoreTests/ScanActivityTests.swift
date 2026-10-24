@@ -68,3 +68,70 @@ import StillCore
     #expect(try await reopened.activities(now: now).isEmpty)
     #expect(try await store.recordActivity(latest, now: now, expectedEpoch: reopened.recordingEpoch()))
 }
+
+@Test func activitySummaryRetainsUnmeasuredCoverageWithoutChildFileNames() async throws {
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent("StillActivity-" + UUID().uuidString)
+    let scope = root.appendingPathComponent("Selected")
+    try FileManager.default.createDirectory(at: scope.appendingPathComponent("private-library.photoslibrary"), withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: root) }
+    let scan = try await FolderScanner().scan(scope)
+    let store = GrowthHistoryStore(directory: root.appendingPathComponent("State"))
+    let now = Date()
+    let activity = ScanActivity(startedAt: scan.observedAt.addingTimeInterval(-1), completedAt: now, outcome: .complete, locations: [.init(scan: scan)])
+    #expect(try await store.recordActivity(activity, now: now, expectedEpoch: store.recordingEpoch()))
+    let location = try #require(try await store.activities(now: now).first?.locations.first)
+    #expect(location.reasons["unmeasuredContents"] == 1)
+    #expect(location.logicalBytes == nil)
+    #expect(location.allocatedBytes == nil)
+    let saved = try String(contentsOf: root.appendingPathComponent("State/aggregates-v1.json"), encoding: .utf8)
+    #expect(!saved.contains("private-library"))
+}
+
+@Test func scanAndGrowthRecordsShareEncodedBudgetAndPreserveLegacyBaseline() async throws {
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent("StillActivity-" + UUID().uuidString)
+    defer { try? FileManager.default.removeItem(at: root) }
+    let store = GrowthHistoryStore(directory: root, policy: .init(bytes: 1400))
+    let time = Date(timeIntervalSince1970: 1000)
+    let epoch = try await store.recordingEpoch()
+    let baseline = GrowthSnapshot(fingerprint: .init(scopeID: "scope", rootID: "root", volumeID: "volume", access: "complete", rules: "one", exclusions: "none", classification: "one"), scopeLabel: "Folder", observedAt: time, groups: [.init(id: "files", label: "Files", logicalBytes: 10)])
+    _ = try await store.record(baseline, now: time, expectedEpoch: epoch)
+    let file = root.appendingPathComponent("aggregates-v1.json")
+    // A genuine pre-activity v1 archive has no activities key.
+    var legacy = try #require(JSONSerialization.jsonObject(with: Data(contentsOf: file)) as? [String: Any])
+    legacy.removeValue(forKey: "activities")
+    try JSONSerialization.data(withJSONObject: legacy).write(to: file)
+    let first = ScanActivity(startedAt: time, completedAt: time, outcome: .partial, locations: [.init(path: "/Example/Downloads", observedAt: time, outcome: .partial, knownLogicalBytes: 4)])
+    #expect(try await store.recordActivity(first, now: time, expectedEpoch: epoch))
+    #expect(try await store.snapshots(now: time).map(\.id) == [baseline.id])
+    for index in 1...8 {
+        let now = time.addingTimeInterval(Double(index))
+        let activity = ScanActivity(startedAt: now, completedAt: now, outcome: .failed, locations: [.init(path: "/Example/Downloads", outcome: .failed)])
+        #expect(try await store.recordActivity(activity, now: now, expectedEpoch: epoch))
+    }
+    let later = time.addingTimeInterval(10)
+    #expect(try Data(contentsOf: file).count <= 1400)
+    #expect(try await store.snapshots(now: later).isEmpty)
+    let retained = try await GrowthHistoryStore(directory: root, policy: .init(bytes: 1400)).activities(now: later)
+    #expect(retained.count < 9)
+    #expect(retained.first?.completedAt == time.addingTimeInterval(8))
+}
+
+@Test func invalidOrUnwritableActivityArchiveNeverClaimsSavedOrOverwritesUnknownData() async throws {
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent("StillActivity-" + UUID().uuidString)
+    defer { try? FileManager.default.removeItem(at: root) }
+    let store = GrowthHistoryStore(directory: root)
+    let epoch = try await store.recordingEpoch()
+    let time = Date(timeIntervalSince1970: 1000)
+    let activity = ScanActivity(startedAt: time, completedAt: time, outcome: .failed, locations: [.init(path: "/Example/Downloads", outcome: .failed)])
+    let file = root.appendingPathComponent("aggregates-v1.json")
+    for bytes in [Data("not JSON".utf8), Data("{\"version\":99,\"entries\":[],\"hadHistory\":false,\"cleared\":false}".utf8)] {
+        try bytes.write(to: file)
+        await #expect(throws: (any Error).self) { try await store.activities(now: time) }
+        await #expect(throws: (any Error).self) { try await store.recordActivity(activity, now: time, expectedEpoch: epoch) }
+        #expect(try Data(contentsOf: file) == bytes)
+    }
+    try FileManager.default.removeItem(at: file)
+    try FileManager.default.createDirectory(at: file, withIntermediateDirectories: false)
+    await #expect(throws: (any Error).self) { try await store.recordActivity(activity, now: time, expectedEpoch: epoch) }
+    #expect(try FileManager.default.contentsOfDirectory(atPath: file.path).isEmpty)
+}

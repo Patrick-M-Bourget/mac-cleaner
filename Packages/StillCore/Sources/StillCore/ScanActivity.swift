@@ -17,9 +17,13 @@ public struct ScanActivityLocation: Codable, Sendable, Identifiable {
         self.logicalBytes = logicalBytes; self.allocatedBytes = allocatedBytes; self.knownLogicalBytes = knownLogicalBytes; self.reasons = reasons; self.baselineID = baselineID
     }
     public init(scan: ScanResult, baselineID: UUID? = nil) {
+        var reasons = Dictionary(scan.issues.map { ($0.reason.rawValue, 1) }, uniquingKeysWith: +)
+        if scan.excludedEntryCount > 0 { reasons["customExcludedBoundary"] = scan.excludedEntryCount }
+        let unmeasured = scan.observations.filter { $0.kind == .package || $0.kind == .other }.count
+        if unmeasured > 0 { reasons["unmeasuredContents"] = unmeasured }
         self.init(path: scan.scope.standardizedFileURL.path, observedAt: scan.observedAt, outcome: scan.isComplete ? .complete : .partial,
                   entryCount: scan.observations.count, logicalBytes: scan.totalLogicalBytes, allocatedBytes: scan.totalAllocatedBytes,
-                  knownLogicalBytes: scan.logicalBytes, reasons: Dictionary(scan.issues.map { ($0.reason.rawValue, 1) }, uniquingKeysWith: +), baselineID: baselineID)
+                  knownLogicalBytes: scan.logicalBytes, reasons: reasons, baselineID: baselineID)
     }
 }
 public struct ScanActivity: Codable, Sendable, Identifiable {
