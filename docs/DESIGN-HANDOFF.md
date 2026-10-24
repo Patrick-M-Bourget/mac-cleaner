@@ -240,3 +240,5 @@ Closing/reopening a retained process preserves current evidence and live choices
 ## Shell and appearance lock — October 24
 
 #53 is locked in [SHELL-APPEARANCE](SHELL-APPEARANCE.md). Use reserved compact sidebar badge/footer and appearance feedback space, actual-page context, native full-label actions and immediate shared appearance updates without navigation/focus/selection/scroll/window movement. All exceptional preference/monitoring states require shared Gallery and original native theme/size review; implementation proof pending.
+
+#53 implementation composition: reserve a24pt preference-feedback row at the top of the right content pane, near the toolbar appearance picker, in every state. Share it with Gallery. Keep messages and full native Retry saving action within that row; do not add a tall sidebar/toolbar stack, obscure content with an overlay, steal focus, or resize the window when feedback changes. Native visual qualification remains pending.

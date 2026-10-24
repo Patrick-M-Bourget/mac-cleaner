@@ -201,3 +201,5 @@ The Gallery's seven inert examples reuse the live controls: checking, retained r
 ## Shell and appearance lock — October 24
 
 For #53 follow [SHELL-APPEARANCE](SHELL-APPEARANCE.md). Share the actionable-category badge, monitoring status/action and appearance picker with persistent bounded save feedback/Retry saving across live/Gallery. No screen-local appearance state or parsed localized status strings as domain truth. Compact reserved geometry must preserve the #49 minimum-window fix. Source/native review pending.
+
+#53 implementation composition: reserve a24pt preference-feedback row at the top of the right content pane, near the toolbar appearance picker, in every state. Share it with Gallery. Keep messages and full native Retry saving action within that row; do not add a tall sidebar/toolbar stack, obscure content with an overlay, steal focus, or resize the window when feedback changes. Native visual qualification remains pending.
