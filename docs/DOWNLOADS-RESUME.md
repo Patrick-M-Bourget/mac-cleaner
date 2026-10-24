@@ -8,7 +8,7 @@ The first Downloads journey (#55–#57) is qualified and integrated on `integrat
 
 ## Remaining frontier
 
-Parents #44/#46/#47/#48/#50/#45 remain open for complete acceptance. History caller-aware recovery and remaining results branches remain planned. Remaining #49/#51–#54 decisions are not implicitly resolved; all future milestones remain in MILESTONES, M8 stays deferred. Do not reopen approved b96bb97/Q1–Q30 flows. October24 continuation is authorized for next unblocked feature tickets. Active children #60/#61 cover caller-aware recovery and truthful terminal Results, based on integration48269e4; [current qualification](validation/recovery-results.md) owns source/run status. Implementer worktrees issue60/issue61 and validationbranch `verify/recovery-results-next` are isolated until native gates pass.
+Parents #44/#46/#47/#48/#50/#45 remain open for complete acceptance. History caller-aware recovery and remaining results branches remain planned. Remaining #49/#51–#54 decisions are not implicitly resolved; all future milestones remain in MILESTONES, M8 stays deferred. Do not reopen approved b96bb97/Q1–Q30 flows. October24 continuation is authorized for next unblocked feature tickets. Active children #60/#61 cover caller-aware recovery and truthful terminal Results; #63 adds optional access education, while #62 Local records management is natively blocked by #60, based on integration48269e4; [current qualification](validation/recovery-results.md) owns source/run status. Implementer worktrees issue60/issue61 and validationbranch `verify/recovery-results-next` are isolated until native gates pass.
 
 ## Work conventions
 
