@@ -48,7 +48,7 @@ struct ScanActivitySummary: View {
                 DisclosureGroup("Scan details", isExpanded: $expanded) {
                     ForEach(activity.locations) { location in
                         VStack(alignment: .leading, spacing: StillDesign.Space.sm) {
-                            Text(location.path).textSelection(.enabled).lineLimit(3).truncationMode(.middle).help(location.path)
+                            Text(location.path).textSelection(.enabled).fixedSize(horizontal: false, vertical: true).help(location.path)
                             Text(location.outcome.map { $0 == .complete ? "Observed included coverage" : $0.rawValue.capitalized + " · Coverage incomplete" } ?? "Not attempted").font(.callout)
                             if let time = location.observedAt { Text("Observed " + time.formatted(date: .abbreviated, time: .standard)).font(.caption).foregroundStyle(.secondary) }
                             if let count = location.entryCount { Text("Observed entries: \(count)").font(.caption) }
@@ -206,7 +206,7 @@ struct HistoryActivityGalleryExamples: View {
         .init(id: "stopped", title: "Stopped with an unattempted location", activity: activity(.stopped, [.init(path: "/Example/Stopped location", observedAt: date, outcome: .stopped, entryCount: 3, knownLogicalBytes: 32), .init(path: "/Example/Not attempted")])),
         .init(id: "failed", title: "Failed without measurements", activity: activity(.failed, [.init(path: "/Example/Unavailable", observedAt: date, outcome: .failed, reasons: ["accessDenied": 1])])),
         .init(id: "multi", title: "Same-named recorded roots", activity: activity(.complete, [.init(path: "/Example/Work/Documents", observedAt: date, outcome: .complete, entryCount: 2, logicalBytes: 12, allocatedBytes: 4096, knownLogicalBytes: 12), .init(path: "/Example/Personal/Documents", observedAt: date, outcome: .complete, entryCount: 4, logicalBytes: 22, allocatedBytes: 4096, knownLogicalBytes: 22)])),
-        .init(id: "unknown", title: "Unmeasured and excluded contents", activity: activity(.complete, [.init(path: "/Example/Packages and excluded locations/A deliberately long recorded root name that remains readable without moving the window", observedAt: date, outcome: .complete, entryCount: 5, knownLogicalBytes: 32, reasons: ["unmeasuredContents": 1, "customExcludedBoundary": 2])]))
+        .init(id: "unknown", title: "Unmeasured and excluded contents", activity: activity(.complete, [.init(path: "/Example/Packages and excluded locations/" + (1...9).map { "Long recorded folder component " + String($0) + " with readable historical identity" }.joined(separator: "/"), observedAt: date, outcome: .complete, entryCount: 5, knownLogicalBytes: 32, reasons: ["unmeasuredContents": 1, "customExcludedBoundary": 2])]))
     ] }
     var body: some View {
         VStack(alignment: .leading, spacing: StillDesign.Space.xl) {
