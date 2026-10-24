@@ -20,6 +20,8 @@ on:
           - mixed-scopes-minimum
           - inspector
           - connected-next
+          - recovery-caller
+          - terminal-results
           - selection-plan
           - exclusions
           - design
@@ -97,6 +99,10 @@ jobs:
               -only-testing:StillUITests/WorkspaceUITests/testKeyboardCancelRestoresReviewFocusWithoutChangingSelection
               -only-testing:StillUITests/CleanupRetryUITests
             )
+          elif [[ "$EVENT_NAME" == "workflow_dispatch" && "$REQUESTED_SUITE" == "recovery-caller" ]]; then
+            scope=(-only-testing:StillUITests/RecoveryUITests/testManualHistoryRecoveryReturnsToHistoryWithoutChangingFacts)
+          elif [[ "$EVENT_NAME" == "workflow_dispatch" && "$REQUESTED_SUITE" == "terminal-results" ]]; then
+            scope=(-only-testing:StillUITests/CleanupRetryUITests)
           elif [[ "$EVENT_NAME" == "workflow_dispatch" && "$REQUESTED_SUITE" == "connected-next" ]]; then
             scope=(
               -only-testing:StillUITests/WorkspaceUITests/testMixedLocationsKeepValidChoicesWithUnknownCoverage
