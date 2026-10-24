@@ -77,6 +77,43 @@ final class RecoveryUITests: XCTestCase {
         XCTAssertEqual(try SQLiteCleanupJournal(url: root.appendingPathComponent("cleanup.sqlite"), readOnly: true).records().map(\.state), [.intent, .succeeded, .failed, .pending])
     }
     @MainActor
+    func testManualHistoryRecoveryReturnsToHistoryWithoutChangingFacts() async throws {
+        continueAfterFailure = false
+        let (root, environment) = try stateRoot()
+        let app = XCUIApplication()
+        defer { app.terminate(); try? FileManager.default.removeItem(at: root) }
+        let downloads = root.appendingPathComponent("Downloads")
+        try FileManager.default.createDirectory(at: downloads, withIntermediateDirectories: false)
+        let original = downloads.appendingPathComponent("owned-interrupted.pdf")
+        try Data([17, 23]).write(to: original)
+        let scan = try await FolderScanner().scan(downloads)
+        var draft = PlanDraft()
+        _ = draft.selectAll(in: [scan], downloads: try DownloadsRoot(url: downloads))
+        let approval = try draft.approve(draft.review())
+        let journal = try SQLiteCleanupJournal(url: root.appendingPathComponent("cleanup.sqlite"))
+        XCTAssertTrue(try journal.claim(approval))
+        let before = try journal.records()
+        app.launchArguments = ["--design-minimum"]
+        app.launchEnvironment = environment
+        app.launch()
+        XCTAssertTrue(app.buttons["Return to Overview"].waitForExistence(timeout: 5))
+        app.buttons["Return to Overview"].click()
+        app.typeKey("3", modifierFlags: .command)
+        XCTAssertTrue(app.buttons["historyRecovery"].waitForExistence(timeout: 5))
+        app.buttons["historyRecovery"].click()
+        let back = app.buttons["Back to History"]
+        XCTAssertTrue(back.waitForExistence(timeout: 5))
+        XCTAssertTrue(back.isHittable)
+        back.click()
+        XCTAssertTrue(app.buttons["historyRecovery"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["Back to History"].exists)
+        XCTAssertFalse(app.buttons["Move to Trash"].exists)
+        app.terminate()
+        XCTAssertEqual(try Data(contentsOf: original), Data([17, 23]))
+        XCTAssertEqual(try journal.records().map(\.state), before.map(\.state))
+        XCTAssertEqual(try journal.records().map(\.originalURL), before.map(\.originalURL))
+    }
+    @MainActor
     func testMissingAndCorruptOwnedJournalNeverFallsBackToNormalState() throws {
         continueAfterFailure = false
         let (root, environment) = try stateRoot()
