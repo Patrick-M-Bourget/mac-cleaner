@@ -153,7 +153,8 @@ private struct WorkspaceView: View {
     private var planReturnsToExplorer: Bool { get { navigationState.planReturnsToExplorer } nonmutating set { navigationState.planReturnsToExplorer = newValue } }
     private var scanOrigin: Destination { get { navigationState.scanOrigin } nonmutating set { navigationState.scanOrigin = newValue } }
     @State private var locationToForget: RememberedScope?
-    @State private var startupCapacity: StartupVolumeCapacity?
+    @State private var capacity = AppLifecycleController.shared.capacity
+    private var startupCapacity: StartupCapacityReading? { capacity.reading }
     #if DEBUG
     @State private var injectedAlertOpen = false
     #endif
@@ -183,9 +184,11 @@ private struct WorkspaceView: View {
                 VStack(alignment: .leading, spacing: StillDesign.Space.md) {
                     Label("This Mac", systemImage: "laptopcomputer").font(.callout)
                     CapacityMeter(available: startupCapacity?.available, total: startupCapacity?.total, compact: true)
-                    if let reading = startupCapacity {
-                        Text("Observed " + reading.observedAt.formatted(date: .omitted, time: .shortened)).font(.caption2).foregroundStyle(.secondary)
-                    }
+                    Text(capacity.observationText).font(.caption2).foregroundStyle(.secondary)
+                        .lineLimit(3).frame(height: 42, alignment: .topLeading)
+                        .accessibilityIdentifier("sidebarCapacityObservation")
+                    Text(capacity.statusText.isEmpty ? " " : capacity.statusText).font(.caption2).foregroundStyle(.secondary)
+                        .frame(height: 14, alignment: .leading)
                     Divider()
                     Label("On-demand scanning", systemImage: "lock").font(.caption).foregroundStyle(.secondary)
                 }.padding(.horizontal, StillDesign.Space.sm)
@@ -343,7 +346,6 @@ private struct WorkspaceView: View {
             explorerContext.allowedScopes = Set(locationsModel.included.map { URL(fileURLWithPath: $0.path).standardizedFileURL })
             explorerContext.downloadsScopes = Set(locationsModel.includedDownloads.map { URL(fileURLWithPath: $0.path).standardizedFileURL })
         }
-        .task { startupCapacity = await Task.detached(priority: .utility) { StartupVolumeCapacity.read() }.value }
         .onAppear { AppLifecycleController.shared.openWorkspace = { openWindow(id: "workspace") } }
         .onReceive(NotificationCenter.default.publisher(for: .stillAlertOpened)) { _ in destination = .overview; navigationState.localRecordsVisible = false; exclusionsVisible = false; diagnosticsVisible = false; recoveryVisible = false; inspecting = false; nativeInspectionVisible = false; homebrewVisible = false; pipVisible = false; dockerVisible = false; managedStorageVisible = false }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in Task { await alerts.activated() } }
@@ -452,7 +454,9 @@ private struct WorkspaceView: View {
             }
             if !fixtureMode {
                 VolumeSummary(available: startupCapacity?.available, total: startupCapacity?.total,
-                              observation: startupCapacity.map { "Observed \($0.observedAt.formatted()) · \($0.metric == "important" ? "Available for important usage" : "Available capacity fallback")" } ?? "Capacity not observed")
+                              observation: capacity.observationText, status: capacity.statusText,
+                              refreshTitle: capacity.failed ? "Try again" : "Refresh capacity", refreshing: capacity.isRefreshing,
+                              refresh: { capacity.request(.manual) })
             } else if folderInspection.scope == nil {
                 SummarySurface {
                     VStack(alignment: .leading, spacing: StillDesign.Space.md) {

@@ -256,6 +256,10 @@ struct VolumeSummary: View {
     let available: Int64?
     let total: Int64?
     let observation: String
+    var status = ""
+    var refreshTitle = "Refresh capacity"
+    var refreshing = false
+    var refresh: (() -> Void)? = nil
     var body: some View {
         SummarySurface {
             VStack(alignment: .leading, spacing: StillDesign.Space.lg) {
@@ -266,15 +270,27 @@ struct VolumeSummary: View {
                         .accessibilityHidden(true)
                     Text("This Mac · Startup volume").font(StillDesign.TypeStyle.section)
                     Spacer(minLength: StillDesign.Space.sm)
-                    if let available, let total, total > 0, available >= 0, available <= total {
+                    if let available, available >= 0 {
                         VStack(alignment: .trailing, spacing: StillDesign.Space.xs) {
                             Text(ByteCountFormatter.string(fromByteCount: available, countStyle: .decimal)).font(StillDesign.TypeStyle.value).monospacedDigit()
-                            Text("available of " + ByteCountFormatter.string(fromByteCount: total, countStyle: .decimal)).font(.caption).foregroundStyle(.secondary)
+                            Text(total.map { "available of " + ByteCountFormatter.string(fromByteCount: $0, countStyle: .decimal) } ?? "Total capacity unavailable").font(.caption).foregroundStyle(.secondary)
                         }
                     }
                 }
                 CapacityMeter(available: available, total: total, showsValue: false)
-                Text(observation).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                HStack(alignment: .top, spacing: StillDesign.Space.md) {
+                    VStack(alignment: .leading, spacing: StillDesign.Space.xs) {
+                        Text(observation).font(.caption).foregroundStyle(.secondary).lineLimit(2)
+                            .accessibilityIdentifier("capacityObservation")
+                        Text(status.isEmpty ? " " : status).font(.caption).foregroundStyle(.secondary)
+                            .accessibilityIdentifier("capacityRefreshStatus")
+                    }.frame(height: 48, alignment: .topLeading)
+                    Spacer(minLength: StillDesign.Space.sm)
+                    if let refresh {
+                        Button(refreshTitle, action: refresh).disabled(refreshing)
+                            .accessibilityIdentifier("refreshCapacity")
+                    }
+                }
             }
         }
     }

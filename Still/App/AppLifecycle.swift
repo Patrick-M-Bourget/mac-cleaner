@@ -21,6 +21,7 @@ import StillCore
 @MainActor final class AppLifecycleController: ObservableObject {
     static let shared = AppLifecycleController()
     let alerts = StorageAlertsController()
+    let capacity = CapacityRefreshController(system: NativeCapacityRefreshSystem())
     let selection = SessionPlan()
     let recovery = CleanupRecoveryModel()
     let workspaceNavigation = WorkspaceNavigation()
@@ -48,6 +49,7 @@ import StillCore
         let registration = LoginRegistration(service: NativeLoginService(), savedIntent: LocalStateLocation.isDisposableTest ? false : UserDefaults.standard.bool(forKey: "Still.startAtLogin"))
         self.registration = registration
         loginIntent = registration.intent; loginStatus = registration.status
+        capacity.request(.launch)
         monitoringSubscription = alerts.$effectiveMonitoring.dropFirst().sink { [weak self] effective in
             self?.monitoringChanged(effective)
         }
