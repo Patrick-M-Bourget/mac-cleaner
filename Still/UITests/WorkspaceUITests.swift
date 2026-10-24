@@ -1633,7 +1633,7 @@ final class WorkspaceUITests: XCTestCase {
             }
         }
         func forget(_ folder: URL) {
-            let menu = app.descendants(matching: .any)["locationActions:" + folder.path].firstMatch
+            let menu = app.descendants(matching: .any).matching(NSPredicate(format: "identifier == %@", "locationActions:" + folder.path)).firstMatch
             revealScrollElement(app, control: menu, label: "More actions for " + folder.lastPathComponent)
             menu.click(); app.menuItems["Forget location"].click()
         }
@@ -1694,7 +1694,7 @@ final class WorkspaceUITests: XCTestCase {
         capture("mixed-unavailable-unselected")
         try manager.moveItem(at: parked, to: b)
         app.typeKey("4", modifierFlags: .command)
-        let recoveryRow = app.descendants(matching: .any)["locationScope:" + b.path].firstMatch
+        let recoveryRow = app.descendants(matching: .any).matching(NSPredicate(format: "identifier == %@", "locationScope:" + b.path)).firstMatch
         let recoverB = recoveryRow.buttons["Reconnect and recheck"]
         revealScrollElement(app, control: recoverB, label: "Reconnect restored Downloads B")
         recoverB.click(); waitForLocationsScan()
@@ -1738,7 +1738,7 @@ final class WorkspaceUITests: XCTestCase {
         try manager.moveItem(at: b, to: parked)
         app.typeKey("4", modifierFlags: .command)
         app.buttons["Scan selected locations"].click(); waitForLocationsScan()
-        let row = app.descendants(matching: .any)["locationScope:" + b.path].firstMatch
+        let row = app.descendants(matching: .any).matching(NSPredicate(format: "identifier == %@", "locationScope:" + b.path)).firstMatch
         let reconnect = row.buttons["Reconnect and recheck"]
         revealScrollElement(app, control: reconnect, label: "Reconnect and recheck")
         XCTAssertTrue(reconnect.isEnabled)
