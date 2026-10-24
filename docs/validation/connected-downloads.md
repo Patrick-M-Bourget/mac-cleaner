@@ -31,6 +31,14 @@ Spec/safety review confirmed configuration-only persistence, explicit balanced a
 
 Final-source public journeys, regression results and original Light/Dark initial/minimum captures will be recorded here after completion. Native permission revocation, sandbox/provider behavior, VoiceOver and supported OS/CPU qualification remain separate gates. No personal files were cleaned, no adapter was enabled, and no M8 distribution work was required.
 
-Review also identified refreshing-content retention and named empty-coverage presentation gaps; fixes and public verification remain in progress. Included-but-never-scanned multi-location coverage aggregation remains on #46/#44, and caller-aware History recovery return remains on #48.
+Review also identified refreshing-content retention and named empty-coverage presentation gaps; fixes and public verification remain in progress. The included-but-never-scanned coverage correction is now in `824328f` and remains under qualification; full multi-location acceptance stays on #46/#44. Caller-aware History recovery return remains on #48.
 
 The full acceptance of #44/#46/#47/#48/#50 and every FL01–FL14/overlap branch remains open until proven; this first connected slice does not close #45 or remove future milestones.
+
+## Resumed verification
+
+Run40050266396 (`caf6375`) passed all13 expanded cases. Run40050757234 (`39832ca`) reproduced the missing expanded refinement during refresh at WorkspaceUITests.swift:1249; `b1702ef` addresses it and names empty coverage. Its expanded native run40050922744 remains running at this update.
+
+Run40050412990 failed Recovery's text-label query and Growth's Overview-only readiness query, as well as the known earlier large-list path. `d8481d6` uses Recovery's existing stable summary identifier and Growth's own completed-state evidence, preserving zero-selection/no-authority and complete growth assertions. Native regression40051984202 checks these with the current app.
+
+The later Overview failure exposed a coverage error: retiring an inaccessible scan could make failed Downloads coverage read Not inspected. `824328f` retains Unknown for explicit remembered access failures and compares current observations with included configuration. Omitted locations are excluded; fresh re-inclusion remains unscanned. A minimized public native regression uses a validated disposable Downloads root (`19fd3d1` red, `824328f` candidate). Runs40051942964 and40051982017 provide this comparison. Run40051875862 used an unrecognized fixture root name and was cancelled; it is not valid diagnostic evidence.
