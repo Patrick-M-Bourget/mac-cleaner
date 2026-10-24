@@ -41,8 +41,10 @@ final class LocalRecordsUITests: XCTestCase {
             image.lifetime = .keepAlways; add(image)
             XCTAssertEqual(app.windows.firstMatch.frame, bounds)
         }
+        XCTAssertEqual(app.popUpButtons.count, 1, "The Gallery exposes one appearance picker")
         for theme in ["Light", "Dark"] {
-            app.popUpButtons["Appearance"].click(); app.menuItems[theme].click()
+            app.popUpButtons.firstMatch.click(); app.menuItems[theme].click()
+            XCTAssertEqual(app.popUpButtons.firstMatch.value as? String, theme)
             show(enabledHeading, through: reset.element(boundBy: 0))
             XCTAssertTrue(clear.element(boundBy: 0).isEnabled); XCTAssertTrue(reset.element(boundBy: 0).isEnabled)
             capture("enabled-" + theme)
