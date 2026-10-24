@@ -10,7 +10,7 @@ October 24, 2026. Tickets #60 (parent #48), #61 (parent #50) and #63 (parent #46
 | Partial terminal outcome | `40060846712` at `d17f3fe`: missing partial summary at both sizes | `40061178461` at `cfc4e1d`, 2 tests | Real delayed native Trash, explicit cancellation, exact unfinished-file retry/new approval |
 | History context | `40061717062` at `70aa493`: exact 40-point return reset | `40062095494` at `965f25c`, focused pilot | Retained History model, expanded run and observed viewport |
 | All-skipped terminal outcome | `40061718362` at `70aa493`: missing No files were moved | `40062006563` at `2f3fcf1`, focused pilot | Owned file changed while immutable confirmation was open; executor skipped it and preserved the changed bytes |
-| Optional access education | `40061806767` at `d49bf76`: missing About folder access | Pending | Explicit disposable folder, live choice, disclosure and route return |
+| Optional access education | `40061806767` at `d49bf76`: missing About folder access | `40062699173` at `a99d009`, 1 test / 94.36 seconds | Explicit disposable folder, live choice, disclosure and route return |
 
 Candidate `a99d009` adds broader History/Overview/startup/window-reopen qualification, process-owned access-disclosure expansion and Locations viewport state. Initial/minimum recovery, access education green, and explicitly synthetic Results Gallery red verification are running on that source. Gallery red `40062699039` fails at both sizes on the absent synthetic section, before any production classifier changes. Candidate `9ab8aea` adds the complete shared classifier, an explicit Results → recovery → Results caller, and retry suppression for unknown/intent/journal-error/rejected approvals; full terminal scope `40063066782` is in verification. Pending runs are not acceptance evidence. Local build-for-testing passes; local UI automation is unavailable, so hosted native execution supplies public journey proof.
 
@@ -30,3 +30,11 @@ Apple documents the manual Privacy & Security → Full Disk Access route and bro
 ## Integration gate
 
 Record final production source, original native captures/manifests, affected regressions and standards/spec reviews before integration. Keep full parent scope, manual accessibility/provider/platform gates and all future milestones open where unproven. #62 Local records remains blocked until #60 is integrated. M8 commercialization is deferred.
+
+## Candidate refinements and review
+
+Broader initial recovery run `40062699077` at `a99d009` failed before viewport qualification: its test folder did not meet the existing guarded Downloads fixture contract, leaving zero eligible choices. Test-only `7c28b7f` uses a separate direct temporary `StillSelectionUI-*` folder and device/inode binding. Production safeguards and the expected one live choice are unchanged. Both sizes and affected Downloads regressions are rerunning on that revision.
+
+Independent spec review found stale baseline wording in the handoff and parity ledger; `9ab8aea` reconciles those descriptions without broadening parent acceptance. Standards review found no actionable violations. Results source review found rejected replay must not report zero Trash-held allocation from an empty new result; `664f6ce` displays Unknown. Local build-for-testing passes after that correction. Real native unknown/failure terminal reproduction remains unqualified; existing public Core fixtures and labelled synthetic presentation supply separate bounded evidence.
+
+All eight original #63 captures from `40062699173` are preserved in `docs/visual/recovery-results/a99d009-access/` with the unmodified export manifest. Reviewed expanded/collapsed Light/Dark at fitted initial and minimum bounds: guidance wraps, the native disclosure glyph stays in its gutter, and no modal or implied grant status appears. The test also verifies route-return expansion, unchanged scope/choice and original bytes.
