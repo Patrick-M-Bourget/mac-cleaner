@@ -32,7 +32,7 @@ struct AppearancePicker: View {
     var body: some View {
         Picker("Appearance", selection: $choice) {
             ForEach(AppearanceChoice.allCases, id: \.self) { Text($0.rawValue).tag($0) }
-        }.labelsHidden().controlSize(.small).frame(width: 110).accessibilityLabel("Appearance")
+        }.labelsHidden().controlSize(.small).frame(width: 110).accessibilityLabel("Appearance").accessibilityIdentifier("Appearance")
     }
 }
 
