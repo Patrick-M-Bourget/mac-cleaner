@@ -1,5 +1,6 @@
 import XCTest
 import Darwin
+import StillCore
 
 final class ShellAppearanceUITests: XCTestCase {
     @MainActor func testSelectedCategoryBadgeAndDestinationContextPreserveChoices() throws {
@@ -139,5 +140,133 @@ final class ShellAppearanceUITests: XCTestCase {
         XCTAssertTrue(app.buttons["Cleanup plan, 1 category selected"].exists)
         XCTAssertEqual(try Data(contentsOf: file), Data([4, 9]))
         XCTAssertEqual(try Data(contentsOf: badState), original)
+    }
+
+    @MainActor func testAppearanceSaveFailureAndRetryAtMinimumSize() throws { try saveFailure(minimum: true) }
+    @MainActor func testAppearanceSaveFailureAndRetryAtInitialSize() throws { try saveFailure(minimum: false) }
+    @MainActor private func saveFailure(minimum: Bool) throws {
+        continueAfterFailure = false
+        let app = XCUIApplication(); let state = try configureIsolatedJourneyState(app)
+        defer { app.terminate(); try? FileManager.default.removeItem(at: state) }
+        app.launchArguments = [minimum ? "--design-minimum" : "--design-initial-size"]
+        app.launch()
+        let picker = app.popUpButtons["Appearance"]
+        XCTAssertTrue(picker.waitForExistence(timeout: 10))
+        let bounds = app.windows.firstMatch.frame
+        let anchor = app.staticTexts["Storage overview"].frame
+        picker.click(); app.menuItems["Dark"].click()
+        let file = state.appendingPathComponent("appearance-preference.txt")
+        try FileManager.default.removeItem(at: file)
+        try FileManager.default.createDirectory(at: file, withIntermediateDirectories: false)
+        for theme in ["Light", "Dark"] {
+            picker.click(); app.menuItems[theme].click()
+            XCTAssertEqual(picker.value as? String, theme)
+            XCTAssertTrue(app.buttons["Retry saving"].waitForExistence(timeout: 5))
+            XCTAssertTrue(app.buttons["Retry saving"].isHittable)
+            XCTAssertEqual(app.staticTexts["Storage overview"].frame, anchor)
+            XCTAssertEqual(app.windows.firstMatch.frame, bounds)
+            shellCapture(app, "save-failed-" + theme, minimum: minimum)
+        }
+        try FileManager.default.removeItem(at: file)
+        app.buttons["Retry saving"].click()
+        XCTAssertFalse(app.buttons["Retry saving"].exists)
+        XCTAssertEqual(picker.value as? String, "Dark")
+        XCTAssertEqual(app.staticTexts["Storage overview"].frame, anchor)
+        app.buttons["Choose folder…"].click()
+        XCTAssertTrue(app.dialogs.buttons["Scan folder"].waitForExistence(timeout: 5))
+        let panel = XCTAttachment(screenshot: app.screenshot())
+        panel.name = "shell-shared-Dark-native-dialog-" + (minimum ? "minimum" : "initial")
+        panel.lifetime = .keepAlways; add(panel)
+        app.typeKey(.escape, modifierFlags: [])
+        app.terminate(); app.launch()
+        XCTAssertTrue(picker.waitForExistence(timeout: 10))
+        XCTAssertEqual(picker.value as? String, "Dark")
+        shellCapture(app, "retry-saved-relaunched-Dark", minimum: minimum)
+    }
+
+    @MainActor func testAppearanceReadFallbackNeverRepairsAtMinimumSize() throws { try readFallback(minimum: true) }
+    @MainActor func testAppearanceReadFallbackNeverRepairsAtInitialSize() throws { try readFallback(minimum: false) }
+    @MainActor private func readFallback(minimum: Bool) throws {
+        continueAfterFailure = false
+        for unreadable in [false, true] {
+            let app = XCUIApplication(); let state = try configureIsolatedJourneyState(app)
+            defer { app.terminate(); try? FileManager.default.removeItem(at: state) }
+            let file = state.appendingPathComponent("appearance-preference.txt")
+            if unreadable { try FileManager.default.createDirectory(at: file, withIntermediateDirectories: false) }
+            else { try Data("owned invalid appearance".utf8).write(to: file) }
+            app.launchArguments = [minimum ? "--design-minimum" : "--design-initial-size"]
+            app.launch()
+            let picker = app.popUpButtons["Appearance"]
+            XCTAssertTrue(picker.waitForExistence(timeout: 10))
+            XCTAssertEqual(picker.value as? String, "Automatic")
+            let message = unreadable ? "Couldn’t read saved appearance. Using Automatic." : "Saved appearance isn’t recognized. Using Automatic."
+            XCTAssertTrue(app.staticTexts[message].waitForExistence(timeout: 5))
+            XCTAssertFalse(app.buttons["Retry saving"].exists)
+            app.typeKey("3", modifierFlags: .command)
+            XCTAssertTrue(app.staticTexts[message].exists)
+            if unreadable {
+                var info = stat(); XCTAssertEqual(lstat(file.path, &info), 0); XCTAssertEqual(info.st_mode & S_IFMT, S_IFDIR)
+            } else { XCTAssertEqual(try String(contentsOf: file, encoding: .utf8), "owned invalid appearance") }
+            shellCapture(app, unreadable ? "unreadable-Automatic" : "invalid-Automatic", minimum: minimum)
+        }
+    }
+
+    @MainActor func testAppearanceResetStagesAndClearAtMinimumSize() throws { try resetStages(minimum: true) }
+    @MainActor func testAppearanceResetStagesAndClearAtInitialSize() throws { try resetStages(minimum: false) }
+    @MainActor private func resetStages(minimum: Bool) throws {
+        continueAfterFailure = false
+        let app = XCUIApplication(); let state = try configureIsolatedJourneyState(app)
+        defer { app.terminate(); try? FileManager.default.removeItem(at: state) }
+        app.launchArguments = [minimum ? "--design-minimum" : "--design-initial-size"]
+        app.launch()
+        let picker = app.popUpButtons["Appearance"]
+        XCTAssertTrue(picker.waitForExistence(timeout: 10))
+        picker.click(); app.menuItems["Dark"].click()
+        app.typeKey("3", modifierFlags: .command)
+        let manage = app.buttons["manageLocalRecords"]
+        XCTAssertTrue(manage.waitForExistence(timeout: 5)); manage.click()
+        let clear = app.buttons["clearHistory"]
+        revealScrollElement(app, control: clear, label: "Clear completed runs")
+        clear.click(); XCTAssertTrue(app.sheets.buttons["Clear completed runs"].waitForExistence(timeout: 5)); app.sheets.buttons["Clear completed runs"].click()
+        let status = app.staticTexts["historyStatus"]
+        func waitStatus(_ prefix: String) -> Bool {
+            XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate(format: "value BEGINSWITH %@ OR label BEGINSWITH %@", prefix, prefix), object: status)], timeout: 10) == .completed
+        }
+        XCTAssertTrue(waitStatus("Cleared "))
+        XCTAssertEqual(picker.value as? String, "Dark")
+        let file = state.appendingPathComponent("appearance-preference.txt")
+        XCTAssertEqual(try String(contentsOf: file, encoding: .utf8), "Dark")
+        try FileManager.default.removeItem(at: file)
+        try FileManager.default.createDirectory(at: file, withIntermediateDirectories: false)
+        func reset() {
+            let button = app.buttons["resetStill"]
+            revealScrollElement(app, control: button, label: "Reset Still")
+            button.click(); XCTAssertTrue(app.sheets.buttons["Reset Still"].waitForExistence(timeout: 5)); app.sheets.buttons["Reset Still"].click()
+        }
+        reset()
+        guard waitStatus("Reset could not clear the appearance preference.") else { XCTFail("Appearance clear failure must be reported truthfully"); return }
+        XCTAssertEqual(picker.value as? String, "Dark")
+        shellCapture(app, "reset-appearance-clear-failed-Dark", minimum: minimum)
+        try FileManager.default.removeItem(at: file)
+        try Data("Dark".utf8).write(to: file)
+        let alertFolder = state.appendingPathComponent("StorageAlerts")
+        try FileManager.default.createDirectory(at: alertFolder, withIntermediateDirectories: true)
+        let alertRecord = alertFolder.appendingPathComponent("episode-state.json")
+        try FileManager.default.createDirectory(at: alertRecord, withIntermediateDirectories: false)
+        reset()
+        guard waitStatus("Reset could not finish safely. Appearance was reset to Automatic,") else { XCTFail("Later Reset failure must preserve the independently cleared appearance and report partial completion"); return }
+        XCTAssertEqual(picker.value as? String, "Automatic")
+        XCTAssertFalse(FileManager.default.fileExists(atPath: file.path))
+        shellCapture(app, "reset-later-service-failed-Automatic", minimum: minimum)
+        try FileManager.default.removeItem(at: alertRecord)
+        reset()
+        XCTAssertTrue(waitStatus("Still’s preferences,"))
+        XCTAssertEqual(picker.value as? String, "Automatic")
+        shellCapture(app, "reset-complete-Automatic", minimum: minimum)
+    }
+
+    @MainActor private func shellCapture(_ app: XCUIApplication, _ name: String, minimum: Bool) {
+        let image = XCTAttachment(screenshot: app.windows.firstMatch.screenshot())
+        image.name = "shell-" + name + (minimum ? "-minimum" : "-initial"); image.lifetime = .keepAlways; add(image)
     }
 }

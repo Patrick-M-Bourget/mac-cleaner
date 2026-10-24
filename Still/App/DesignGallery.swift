@@ -4,7 +4,7 @@ import StillCore
 #if DEBUG
 /// Explicit development surface; never appears in product navigation or release builds.
 struct DesignGallery: View {
-    @State private var appearance = "Light"
+    @State private var appearance = AppearanceChoice.light
     @State private var opaque = false
     @State private var selected = true
     var body: some View {
@@ -13,7 +13,7 @@ struct DesignGallery: View {
                 Text("Still · Component gallery").font(.headline)
                 Spacer()
                 Toggle("Opaque chrome", isOn: $opaque)
-                Picker("Appearance", selection: $appearance) { Text("Light").tag("Light"); Text("Dark").tag("Dark") }.labelsHidden().frame(width: 100).accessibilityLabel("Appearance")
+                AppearancePicker(choice: $appearance)
             }.padding(StillDesign.Space.lg).background { ChromeSurface() }
             ScrollView {
                 VStack(alignment: .leading, spacing: StillDesign.Space.xl) {
@@ -127,7 +127,7 @@ struct DesignGallery: View {
             ActionStrip(message: "Developer gallery · Actions are inert examples") { ReviewCleanupButton(enabled: false, focusRequest: 0, action: {}) }
         }
         .environment(\.stillOpaqueChrome, opaque)
-        .preferredColorScheme(appearance == "Dark" ? .dark : .light)
+        .preferredColorScheme(appearance == .automatic ? nil : appearance == .dark ? .dark : .light)
     }
 }
 /// Inert presentation examples reuse the live capacity components; no reads or timers.
@@ -155,7 +155,6 @@ private struct ShellAppearanceGalleryExamples: View {
     var body: some View {
         VStack(alignment: .leading, spacing: StillDesign.Space.lg) {
             Text("Synthetic appearance controls · Inert examples").font(.headline)
-            AppearancePicker(choice: .constant(.dark))
             ForEach(Array([AppearancePreferenceController.Notice?.none, .invalidSavedValue, .unreadable, .saveFailed].enumerated()), id: \.offset) { index, notice in
                 VStack(alignment: .leading, spacing: StillDesign.Space.xs) {
                     Text("Appearance notice example " + String(index)).font(.caption)
