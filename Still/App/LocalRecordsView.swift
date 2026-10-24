@@ -17,6 +17,7 @@ struct LocalRecordsView: View {
     @State private var confirmingReset = false
     var showRecovery: () -> Void
     var didReset: () -> Void
+    var reviewDiagnostics: (() -> Void)? = nil
     var body: some View {
         VStack(alignment: .leading, spacing: StillDesign.Space.xl) {
             PageHeader(title: "Local records", subtitle: "Manage what Still stores on this Mac. Original files and macOS access grants stay unchanged.")
@@ -34,6 +35,11 @@ struct LocalRecordsView: View {
             SettingsRow(title: "Reset Still", detail: "Forget preferences and selected locations, and stop alerts and login launch. Unfinished or unreadable recovery records block Reset.") {
                 Button("Reset Still…") { confirmingReset = true }.accessibilityIdentifier("resetStill")
             }.disabled(model.busy || lifecycle.operationInProgress)
+            if let reviewDiagnostics {
+                SettingsRow(title: "Diagnostics", detail: "Review a redacted snapshot before choosing whether to save it locally. Nothing is uploaded.") {
+                    Button("Review diagnostics", action: reviewDiagnostics)
+                }
+            }
         }
         .task { await model.load(maintainCompleted: false) }
         .confirmationDialog("Clear completed runs?", isPresented: $confirmingClear, titleVisibility: .visible) {

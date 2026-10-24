@@ -60,7 +60,11 @@ final class LocalRecordsUITests: XCTestCase {
             let callerFrame = manage.frame
             manage.click()
             let open = app.buttons["Review diagnostics"]
-            XCTAssertTrue(open.waitForExistence(timeout: 5))
+            guard open.waitForExistence(timeout: 5) else {
+                capture(caller + "-missing-diagnostics-entry")
+                XCTFail("Local records must offer gated diagnostics from " + caller)
+                return
+            }
             revealScrollElement(app, control: open, label: "Gated diagnostics")
             open.click()
             let payload = app.staticTexts["diagnosticsPayload"]

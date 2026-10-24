@@ -103,6 +103,10 @@ enum Destination: String, CaseIterable, Identifiable {
     var localRecordsVisible = false
     var localRecordsCaller = Destination.history
     var localRecordsOffset: CGPoint?
+    var diagnosticsVisible = false
+    var diagnosticsCaller = Destination.overview
+    var diagnosticsOffset: CGPoint?
+    var diagnosticsModel = DiagnosticsModel()
     var accessGuideExpanded = false
 }
 
@@ -138,10 +142,10 @@ private struct WorkspaceView: View {
     @State private var pipVisible = false
     @State private var dockerVisible = false
     @State private var exclusionsVisible = false
-    @State private var diagnosticsVisible = false
+    private var diagnosticsVisible: Bool { get { navigationState.diagnosticsVisible } nonmutating set { navigationState.diagnosticsVisible = newValue } }
     @State private var overviewCloudExpanded = false
     @State private var moreToolsExpanded = false
-    @State private var diagnostics = DiagnosticsModel()
+    private var diagnostics: DiagnosticsModel { get { navigationState.diagnosticsModel } nonmutating set { navigationState.diagnosticsModel = newValue } }
     @State private var locationsModel = AppLifecycleController.shared.locations
     private var explorerContext: StorageExplorerContext { navigationState.downloadsExplorerActive ? AppLifecycleController.shared.downloadsExplorer : AppLifecycleController.shared.locationsExplorer }
     @State private var planPresentation = AppLifecycleController.shared.planPresentation
@@ -216,7 +220,8 @@ private struct WorkspaceView: View {
                         if recoveryVisible {
                             CleanupRecoveryView(model: recovery)
                         } else if navigationState.localRecordsVisible {
-                            LocalRecordsView(model: navigationState.historyModel, showRecovery: { openRecovery(caller: navigationState.localRecordsCaller) }, didReset: didResetLocalRecords)
+                            LocalRecordsView(model: navigationState.historyModel, showRecovery: { openRecovery(caller: navigationState.localRecordsCaller) }, didReset: didResetLocalRecords,
+                                reviewDiagnostics: StorageAlertsController.futureEnabled ? { openDiagnostics(caller: navigationState.localRecordsCaller) } : nil)
                         } else if exclusionsVisible {
                             ExclusionsView(model: ExclusionsModel.shared)
                         } else if diagnosticsVisible {
@@ -245,7 +250,9 @@ private struct WorkspaceView: View {
                         }
                     }.padding(StillDesign.Space.page).frame(maxWidth: .infinity, alignment: .leading)
                         .background(alignment: .topLeading) {
-                            if navigationState.localRecordsVisible && !recoveryVisible {
+                            if diagnosticsVisible && !recoveryVisible {
+                                DestinationViewport(offset: $navigationState.diagnosticsOffset).frame(width: 0, height: 0)
+                            } else if navigationState.localRecordsVisible && !recoveryVisible {
                                 DestinationViewport(offset: $navigationState.localRecordsOffset).frame(width: 0, height: 0)
                             } else if !recoveryVisible && !diagnosticsVisible && !exclusionsVisible && !managedStorageVisible && !dockerVisible && !pipVisible && !homebrewVisible && !inspecting {
                                 if destination == .history {
@@ -257,7 +264,7 @@ private struct WorkspaceView: View {
                                 }
                             }
                         }
-                }.id(recoveryVisible ? "recovery" : navigationState.localRecordsVisible ? "local-records" : destination.rawValue)
+                }.id(recoveryVisible ? "recovery" : diagnosticsVisible ? "diagnostics" : navigationState.localRecordsVisible ? "local-records" : destination.rawValue)
 
                 Group {
                     if exclusionsVisible {
@@ -272,7 +279,10 @@ private struct WorkspaceView: View {
                         }
                     } else if diagnosticsVisible {
                         ActionStrip(message: "The reviewed payload stays on this Mac unless you explicitly save it.") {
-                            Button("Back to Overview") { diagnosticsVisible = false; destination = .overview }.disabled(diagnostics.isSaving)
+                            Button("Back to " + navigationState.diagnosticsCaller.rawValue) {
+                                diagnosticsVisible = false; navigationState.localRecordsVisible = false
+                                destination = navigationState.diagnosticsCaller
+                            }.disabled(diagnostics.isSaving)
                             Button("Save diagnostics…") { Task { await diagnostics.save() } }.buttonStyle(.borderedProminent).disabled(diagnostics.export == nil || diagnostics.isSaving)
                         }
                     } else if recoveryVisible {
@@ -460,10 +470,7 @@ private struct WorkspaceView: View {
                 }.buttonStyle(.plain).accessibilityValue(moreToolsExpanded ? "Expanded" : "Collapsed")
                 if moreToolsExpanded {
                 FindingRow(category: .managed, title: "Diagnostics", detail: "Review a redacted snapshot and save locally") {
-                    Button("Review diagnostics") {
-                        diagnostics.review(selection: selection, inspection: folderInspection, recovery: recovery)
-                        diagnosticsVisible = true; recoveryVisible = false; managedStorageVisible = false; dockerVisible = false; pipVisible = false; homebrewVisible = false; nativeInspectionVisible = false; inspecting = false
-                    }
+                    Button("Review diagnostics") { openDiagnostics(caller: .overview) }
                 }
                 FindingRow(category: .managed, title: "App-managed storage", detail: "Libraries, backups and system storage guidance") {
                     Button("Review app-managed storage") { managedStorageVisible = true; homebrewVisible = false; pipVisible = false; dockerVisible = false; nativeInspectionVisible = false; inspecting = false }
@@ -658,6 +665,17 @@ private struct WorkspaceView: View {
         destination = caller
         recoveryVisible = true
         if refresh { Task { await recovery.refresh() } }
+    }
+
+    private func openDiagnostics(caller: Destination) {
+        guard StorageAlertsController.futureEnabled else { return }
+        diagnostics.review(selection: selection, inspection: folderInspection, recovery: recovery)
+        navigationState.diagnosticsCaller = caller
+        navigationState.diagnosticsOffset = nil
+        navigationState.localRecordsVisible = false
+        diagnosticsVisible = true; recoveryVisible = false; managedStorageVisible = false
+        dockerVisible = false; pipVisible = false; homebrewVisible = false
+        nativeInspectionVisible = false; inspecting = false; destination = caller
     }
 
     private func openLocalRecords(caller: Destination) {
