@@ -69,6 +69,37 @@ import Darwin
 }
 
 final class WorkspaceUITests: XCTestCase {
+    @MainActor func testInspectorExplainsOwnedDownloadsCandidateWithoutSelectingIt() throws {
+        continueAfterFailure = false
+        let root = FileManager.default.temporaryDirectory.resolvingSymlinksInPath().appendingPathComponent("StillSelectionUI-" + UUID().uuidString)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let file = root.appendingPathComponent("evidence.txt")
+        try Data("owned evidence".utf8).write(to: file)
+        let app = XCUIApplication()
+        let state = try configureIsolatedJourneyState(app)
+        defer { app.terminate(); try? FileManager.default.removeItem(at: state) }
+        app.launchArguments = ["--ui-test-downloads-root", "--design-minimum"]
+        app.launchEnvironment["STILL_TEST_DOWNLOADS_ROOT"] = root.path
+        app.launch()
+        XCTAssertTrue(app.buttons["Choose folder…"].waitForExistence(timeout: 10))
+        app.buttons["Choose folder…"].click(); app.typeKey("g", modifierFlags: [.command, .shift])
+        let path = app.textFields.firstMatch
+        XCTAssertTrue(path.waitForExistence(timeout: 5)); path.typeText(root.path)
+        app.typeKey(.return, modifierFlags: []); app.dialogs.buttons["Scan folder"].click()
+        waitForOverviewScan(app)
+        openObservedExplorer(app, root: root)
+        app.buttons["Inspect evidence.txt"].click()
+        XCTAssertTrue(app.staticTexts["Why listed"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Cleanup action"].exists)
+        XCTAssertTrue(app.staticTexts["Move this exact file to Trash after selection and confirmation."].exists)
+        XCTAssertEqual(app.checkBoxes["Select evidence.txt"].value as? Int, 0)
+        XCTAssertTrue(app.buttons["Close inspector"].isHittable)
+        XCTAssertTrue(app.buttons["View cleanup plan"].isHittable)
+        XCTAssertFalse(app.buttons["Exclude from cleanup"].exists)
+        XCTAssertEqual(try Data(contentsOf: file), Data("owned evidence".utf8))
+    }
+
     @MainActor func testPlanStartsWithContextualDownloadsCategoryAndNoSetupDetour() throws {
         continueAfterFailure = false
         let token = UUID().uuidString
