@@ -2,7 +2,7 @@ import SwiftUI
 
 /// Contextual education only; this view does not inspect or request permissions.
 struct LocationAccessGuide: View {
-    @State private var expanded = false
+    @Binding var expanded: Bool
 
     var body: some View {
         DisclosureGroup("About folder access", isExpanded: $expanded) {

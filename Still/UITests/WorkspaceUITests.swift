@@ -1867,6 +1867,12 @@ final class WorkspaceUITests: XCTestCase {
                 let capture = XCTAttachment(screenshot: app.windows.firstMatch.screenshot())
                 capture.name = "optional-folder-access-expanded-" + (minimum ? "minimum-" : "initial-") + theme
                 capture.lifetime = .keepAlways; add(capture)
+                app.typeKey("2", modifierFlags: .command)
+                XCTAssertEqual(app.staticTexts["liveSelectionSummary"].value as? String, "1 file selected")
+                app.typeKey("4", modifierFlags: .command)
+                XCTAssertTrue(manual.waitForExistence(timeout: 5), "Folder access disclosure stays expanded on return")
+                XCTAssertEqual(app.windows.firstMatch.frame, bounds)
+                XCTAssertFalse(app.dialogs.firstMatch.exists); XCTAssertFalse(app.sheets.firstMatch.exists)
                 revealScrollElement(app, control: disclosure, label: "Collapse folder access guidance")
                 disclosure.coordinate(withNormalizedOffset: CGVector(dx: 0, dy: 0.5)).withOffset(CGVector(dx: 26, dy: 0)).click()
                 XCTAssertFalse(manual.exists)
