@@ -239,8 +239,8 @@ final class HistoryActivityUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["No files were moved"].waitForExistence(timeout: 10))
         XCTAssertTrue(app.staticTexts["Skipped: 1"].exists)
         app.buttons["Recheck unfinished files"].click()
-        XCTAssertTrue(app.checkBoxes["Selected Retry.pdf"].waitForExistence(timeout: 15))
-        XCTAssertEqual(app.checkBoxes["Selected Retry.pdf"].value as? Int, 1)
+        XCTAssertTrue(app.staticTexts["No unfinished files passed the fresh identity and access checks. Start a new scan from Overview to review changed files."].waitForExistence(timeout: 15))
+        XCTAssertTrue(app.staticTexts["No files were moved"].exists)
         app.typeKey("3", modifierFlags: .command)
         let filter = app.popUpButtons["History activity filter"]
         XCTAssertTrue(filter.waitForExistence(timeout: 5)); filter.click(); app.menuItems["Scans"].click()
@@ -250,7 +250,8 @@ final class HistoryActivityUITests: XCTestCase {
         }
         filter.click(); app.menuItems["Cleanups"].click(); XCTAssertTrue(app.staticTexts["Cleanup run"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts["Recorded file results: 1"].exists)
-        app.typeKey("2", modifierFlags: .command); XCTAssertTrue(app.staticTexts["1 file selected"].waitForExistence(timeout: 5))
+        app.typeKey("2", modifierFlags: .command); XCTAssertFalse(app.buttons["Review cleanup"].isEnabled)
+        XCTAssertFalse(app.checkBoxes["Selected Retry.pdf"].exists)
         XCTAssertEqual(try Data(contentsOf: file), changed)
         XCTAssertFalse(app.sheets.buttons["Move to Trash"].exists, "Viewing History cannot restore cleanup authority")
     }
