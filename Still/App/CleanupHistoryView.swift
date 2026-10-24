@@ -13,14 +13,14 @@ extension AppLifecycleController: HistoryMaintenanceLifecycle {
     var message: String?
     var blocked = false
     var busy = false
-    func load() async {
+    func load(maintainCompleted: Bool = true) async {
         guard !busy else { return }
         busy = true; defer { busy = false }
         do {
             let loaded = try await HistoryLoadCoordinator.load(lifecycle: AppLifecycleController.shared) { mayMaintain in
                 try await Task.detached {
                     guard let reader = try CleanupJournalLocation.existingReader() else { return (CleanupHistorySnapshot(records: []), false) }
-                    if mayMaintain {
+                    if mayMaintain && maintainCompleted {
                         let journal = try CleanupJournalLocation.writer()
                         let maintenance = try journal.retainCompletedRuns()
                         let compacted = maintenance.removedRecords == 0 ? true : try journal.compact().completed
@@ -90,11 +90,8 @@ extension AppLifecycleController: HistoryMaintenanceLifecycle {
 struct CleanupHistoryView: View {
     @Bindable var model: CleanupHistoryModel
     @Binding var expandedRuns: Set<UUID>
-    @ObservedObject private var lifecycle = AppLifecycleController.shared
-    @State private var confirmingClear = false
-    @State private var confirmingReset = false
     var showRecovery: () -> Void
-    var didReset: () -> Void
+    var manageLocalRecords: () -> Void
     var body: some View {
         VStack(alignment: .leading, spacing: StillDesign.Space.xl) {
             PageHeader(title: "History", subtitle: "Completed cleanup runs stored locally. Recovery records are kept separately.")
@@ -106,12 +103,7 @@ struct CleanupHistoryView: View {
                     Button("Open recovery review", action: showRecovery).accessibilityIdentifier("historyRecovery")
                 }
             }
-            SettingsRow(title: "Manage Still’s local data", detail: "Clearing completed runs also clears aggregate growth baselines. Reset additionally forgets preferences and selected locations, and stops alerts and login launch.") {
-                HStack {
-                    Button("Clear completed runs…") { confirmingClear = true }.accessibilityIdentifier("clearHistory")
-                    Button("Reset Still…") { confirmingReset = true }.accessibilityIdentifier("resetStill")
-                }.disabled(model.busy || lifecycle.operationInProgress)
-            }
+            LocalRecordsEntry(action: manageLocalRecords)
             if let snapshot = model.snapshot {
                 if snapshot.completedRuns.isEmpty {
                     EmptyState(title: "No completed runs", detail: "Completed per-file results appear here after a cleanup. Nothing is selected or retried from history.", symbol: "clock")
@@ -151,12 +143,6 @@ struct CleanupHistoryView: View {
 
         }
         .task { await model.load() }
-        .confirmationDialog("Clear completed runs?", isPresented: $confirmingClear, titleVisibility: .visible) {
-            Button("Clear completed runs", role: .destructive) { Task { await model.clear() } }
-        } message: { Text("Completed per-file history and growth baselines will be removed. Recovery facts, consumed approval IDs, original files and Trash contents remain.") }
-        .confirmationDialog("Reset Still?", isPresented: $confirmingReset, titleVisibility: .visible) {
-            Button("Reset Still", role: .destructive) { Task { if await model.reset() { didReset() } } }
-        } message: { Text("Forget Still’s preferences, custom exclusions, selected locations and completed history; stop alerts and login launch. Original files, Trash and macOS access grants remain. Unfinished or unreadable journal records block reset.") }
     }
     private func bytes(_ value: Int64) -> String { ByteCountFormatter.string(fromByteCount: value, countStyle: .decimal) }
 }

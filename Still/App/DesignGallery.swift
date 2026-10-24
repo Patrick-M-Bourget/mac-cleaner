@@ -28,6 +28,8 @@ struct DesignGallery: View {
                     CleanupOutcomeSummary(states: [.unknown, .cancelled], journalFailure: "Synthetic unresolved record", detailIdentifier: "outcomeDetail-5")
                     CleanupOutcomeSummary(states: [], journalFailure: "Synthetic claim failure", detailIdentifier: "outcomeDetail-6")
                     CleanupOutcomeSummary(states: [], rejectedReplay: true, detailIdentifier: "outcomeDetail-7")
+                    Text("Synthetic Local records entry · Inert example").font(.headline)
+                    LocalRecordsEntry(action: {})
                     Text("Synthetic optional folder access · Inert Gallery guidance").font(.headline)
                     LocationAccessGuide(expanded: .constant(true))
                     CategoryPrerequisite(title: "Not scanned", detail: "Scan the included Downloads locations before choosing files.", actionTitle: "Scan Downloads…", enabled: true, action: {})

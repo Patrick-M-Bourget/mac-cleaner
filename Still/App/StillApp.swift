@@ -100,6 +100,8 @@ enum Destination: String, CaseIterable, Identifiable {
     var historyOffset: CGPoint?
     var overviewOffset: CGPoint?
     var locationsOffset: CGPoint?
+    var localRecordsVisible = false
+    var localRecordsCaller = Destination.history
     var accessGuideExpanded = false
 }
 
@@ -157,7 +159,7 @@ private struct WorkspaceView: View {
         false
         #endif
     }
-    private var showsPlan: Bool { destination == .plan && !recoveryVisible && !inspecting && !nativeInspectionVisible && !homebrewVisible && !pipVisible && !dockerVisible && !managedStorageVisible && !diagnosticsVisible && !exclusionsVisible }
+    private var showsPlan: Bool { destination == .plan && !navigationState.localRecordsVisible && !recoveryVisible && !inspecting && !nativeInspectionVisible && !homebrewVisible && !pipVisible && !dockerVisible && !managedStorageVisible && !diagnosticsVisible && !exclusionsVisible }
     private var inspectionVisible: Bool { inspecting || nativeInspectionVisible }
     private var contextLabel: String {
         diagnosticsVisible ? "Redacted diagnostics · Explicit local Save" : recoveryVisible ? "Recovery review · Recorded facts only" : selection.execution.isRunning ? "Moving approved files to Trash" : selection.execution.result != nil && showsPlan ? "Cleanup results · individual outcomes" : managedStorageVisible ? "App-managed inventory · selected objects only" : folderInspection.scope != nil ? "Read-only metadata · explicitly selected folder" : fixtureMode ? "Synthetic data — no personal files accessed" : "On-demand storage review"
@@ -212,6 +214,8 @@ private struct WorkspaceView: View {
                     VStack(alignment: .leading, spacing: StillDesign.Space.xl) {
                         if recoveryVisible {
                             CleanupRecoveryView(model: recovery)
+                        } else if navigationState.localRecordsVisible {
+                            LocalRecordsView(model: navigationState.historyModel, showRecovery: { openRecovery(caller: navigationState.localRecordsCaller) }, didReset: didResetLocalRecords)
                         } else if exclusionsVisible {
                             ExclusionsView(model: ExclusionsModel.shared)
                         } else if diagnosticsVisible {
@@ -240,7 +244,7 @@ private struct WorkspaceView: View {
                         }
                     }.padding(StillDesign.Space.page).frame(maxWidth: .infinity, alignment: .leading)
                         .background(alignment: .topLeading) {
-                            if !recoveryVisible && !diagnosticsVisible && !exclusionsVisible && !managedStorageVisible && !dockerVisible && !pipVisible && !homebrewVisible && !inspecting {
+                            if !recoveryVisible && !navigationState.localRecordsVisible && !diagnosticsVisible && !exclusionsVisible && !managedStorageVisible && !dockerVisible && !pipVisible && !homebrewVisible && !inspecting {
                                 if destination == .history {
                                     DestinationViewport(offset: $navigationState.historyOffset).frame(width: 0, height: 0)
                                 } else if destination == .overview {
@@ -250,7 +254,7 @@ private struct WorkspaceView: View {
                                 }
                             }
                         }
-                }.id(recoveryVisible ? "recovery" : destination.rawValue)
+                }.id(recoveryVisible ? "recovery" : navigationState.localRecordsVisible ? "local-records" : destination.rawValue)
 
                 Group {
                     if exclusionsVisible {
@@ -272,6 +276,13 @@ private struct WorkspaceView: View {
                         ActionStrip(message: "Recovery records are retained. Nothing resumes automatically.") {
                             Button(navigationState.recoveryCaller == .overview ? "Return to Overview" : "Back to " + navigationState.recoveryCaller.rawValue) {
                                 recoveryVisible = false; destination = navigationState.recoveryCaller; navigationState.recoveryCaller = .overview
+                            }.buttonStyle(.borderedProminent)
+                        }
+                    } else if navigationState.localRecordsVisible {
+                        ActionStrip(message: "These controls manage Still’s records, not your original files.") {
+                            Button("Back to " + navigationState.localRecordsCaller.rawValue) {
+                                navigationState.localRecordsVisible = false
+                                destination = navigationState.localRecordsCaller
                             }.buttonStyle(.borderedProminent)
                         }
                     } else if nativeInspectionVisible && folderInspection.isScanning {
@@ -374,6 +385,7 @@ private struct WorkspaceView: View {
             destination = value
             planReturnsToExplorer = false
             if value == .plan && selection.execution.result != nil { startNewPlan() }
+            navigationState.localRecordsVisible = false
             diagnosticsVisible = false; exclusionsVisible = false
             recoveryVisible = false; navigationState.recoveryCaller = .overview; inspecting = false; nativeInspectionVisible = false; homebrewVisible = false
             pipVisible = false; dockerVisible = false; managedStorageVisible = false
@@ -644,11 +656,21 @@ private struct WorkspaceView: View {
         if refresh { Task { await recovery.refresh() } }
     }
 
+    private func openLocalRecords(caller: Destination) {
+        navigationState.localRecordsCaller = caller
+        navigationState.localRecordsVisible = true
+        recoveryVisible = false
+        destination = caller
+    }
+
+    private func didResetLocalRecords() {
+        appearance = "Automatic"; nativeInspectionVisible = false; inspecting = false
+        diagnosticsVisible = false; diagnostics = DiagnosticsModel(); exclusionsVisible = false
+    }
+
     private var history: some View {
-        CleanupHistoryView(model: navigationState.historyModel, expandedRuns: $navigationState.historyExpandedRuns, showRecovery: { openRecovery(caller: .history) }, didReset: {
-            appearance = "Automatic"; nativeInspectionVisible = false; inspecting = false
-            diagnosticsVisible = false; diagnostics = DiagnosticsModel(); exclusionsVisible = false
-        })
+        CleanupHistoryView(model: navigationState.historyModel, expandedRuns: $navigationState.historyExpandedRuns,
+            showRecovery: { openRecovery(caller: .history) }, manageLocalRecords: { openLocalRecords(caller: .history) })
     }
 
     private var locations: some View {
@@ -694,6 +716,7 @@ private struct WorkspaceView: View {
             if let message = locationsModel.message { StatusRow(text: message, symbol: "info.circle") }
             Text("Downloads files support cleanup. Other folders are inspection only. Access is rechecked for each manual scan; no files are scanned at launch.").font(.caption).foregroundStyle(.secondary)
             LocationAccessGuide(expanded: $navigationState.accessGuideExpanded)
+            LocalRecordsEntry { openLocalRecords(caller: .locations) }
             if GrowthHistoryModel.enabled {
                 SettingsRow(title: "Custom exclusions", detail: "Explicit path rules reduce scan coverage; fixed protections stay active.") {
                     Button("Manage exclusions") { exclusionsVisible = true }.accessibilityIdentifier("manageExclusions")
