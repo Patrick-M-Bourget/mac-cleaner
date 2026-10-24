@@ -154,6 +154,14 @@ private struct CapacityGalleryExamples: View {
 private struct ShellAppearanceGalleryExamples: View {
     var body: some View {
         VStack(alignment: .leading, spacing: StillDesign.Space.lg) {
+            Text("Synthetic monitoring footer · Inert examples").font(.headline)
+            ForEach(Array([AlertShellState.off, .checking, .on, .snoozed(until: Date(timeIntervalSince1970: 2_000_000)), .attention(.capacityUnavailable), .attention(.savedStateUnavailable), .attention(.submissionFailed)].enumerated()), id: \.offset) { index, state in
+                VStack(alignment: .leading, spacing: StillDesign.Space.sm) {
+                    Text("Monitoring example " + String(index)).font(.caption)
+                    MonitoringFooter(state: state, openDetails: {}).frame(width: 142)
+                    MonitoringDetails(state: state, effective: [.on, .snoozed(until: Date(timeIntervalSince1970: 2_000_000)), .attention(.capacityUnavailable)].contains(state))
+                }.accessibilityElement(children: .contain).accessibilityIdentifier("monitoringGallery-" + String(index))
+            }
             Text("Synthetic appearance controls · Inert examples").font(.headline)
             ForEach(Array([AppearancePreferenceController.Notice?.none, .invalidSavedValue, .unreadable, .saveFailed].enumerated()), id: \.offset) { index, notice in
                 VStack(alignment: .leading, spacing: StillDesign.Space.xs) {

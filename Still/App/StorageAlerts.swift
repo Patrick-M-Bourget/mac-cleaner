@@ -124,9 +124,11 @@ extension Notification.Name {
 
 struct StorageAlertsView: View {
     @ObservedObject var controller: StorageAlertsController
+    var configureOnEntry = true
     var body: some View {
         VStack(alignment: .leading, spacing: StillDesign.Space.xl) {
             PageHeader(title: "Storage alerts")
+            MonitoringDetails(state: controller.shellState, effective: controller.effectiveMonitoring)
             Text("Choose a minimum available-space threshold. Alerts check capacity only, about every 15 minutes while awake. Opening an alert offers a scan; it never starts one.").foregroundStyle(.secondary)
             SettingsRow(title: "Minimum available space", detail: "Capacity checks run while Still is open. Alerts are off by default.") {
             HStack {
@@ -145,6 +147,6 @@ struct StorageAlertsView: View {
             Button("Remind me later · 24 hours") { controller.remindLater() }.disabled(!controller.requested)
             Button("Open System Settings") { NSWorkspace.shared.open(URL(fileURLWithPath: "/System/Applications/System Settings.app")) }
             Text("This development capability checks capacity only; it does not scan folders or clean files.").font(.caption).foregroundStyle(.secondary)
-        }.task { controller.configure() }
+        }.task { if configureOnEntry { controller.configure() } }
     }
 }

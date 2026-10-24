@@ -88,6 +88,7 @@ enum Destination: String, CaseIterable, Identifiable {
 /// Window restoration within this process never restores cleanup authority after Quit.
 @MainActor @Observable final class WorkspaceNavigation {
     var destination = Destination.overview
+    var configureAlertsOnEntry = true
     var explorerVisible = false
     var explorerCaller = Destination.overview
     var planReturnsToExplorer = false
@@ -210,7 +211,8 @@ private struct WorkspaceView: View {
                     Text(capacity.statusText.isEmpty ? " " : capacity.statusText).font(.caption2).foregroundStyle(.secondary)
                         .frame(height: 14, alignment: .leading)
                     Divider()
-                    Label("On-demand scanning", systemImage: "lock").font(.caption).foregroundStyle(.secondary)
+                    MonitoringFooter(state: StorageAlertsController.futureEnabled ? alerts.shellState : .off,
+                        openDetails: { navigate(.alerts, configureAlerts: false) })
                 }.padding(.horizontal, StillDesign.Space.sm)
 
             }
@@ -265,7 +267,7 @@ private struct WorkspaceView: View {
                         else if inspecting { inspection }
                         else {
                             switch destination {
-                            case .alerts: StorageAlertsView(controller: alerts)
+                            case .alerts: StorageAlertsView(controller: alerts, configureOnEntry: navigationState.configureAlertsOnEntry)
                             case .growth: GrowthHistoryView(model: GrowthHistoryModel.shared)
                             case .overview: overview
                             case .plan: EmptyView()
@@ -415,17 +417,22 @@ private struct WorkspaceView: View {
         planReturnsToExplorer = false
     }
 
+    private func navigate(_ value: Destination, configureAlerts: Bool = true) {
+        navigationState.configureAlertsOnEntry = configureAlerts
+        destination = value
+        planReturnsToExplorer = false
+        if value == .plan && selection.execution.result != nil { startNewPlan() }
+        navigationState.localRecordsVisible = false
+        diagnosticsVisible = false; exclusionsVisible = false
+        recoveryVisible = false; navigationState.recoveryCaller = .overview; inspecting = false; nativeInspectionVisible = false; homebrewVisible = false
+        pipVisible = false; dockerVisible = false; managedStorageVisible = false
+    }
+
     private func navigation(_ value: Destination) -> some View {
         StillSidebarRow(title: value.rawValue, symbol: value.symbol, selected: destination == value,
                         accent: value == .growth ? StillDesign.purple : value == .plan ? StillDesign.teal : value == .history ? .secondary : StillDesign.blue,
                         selectedCategories: value == .plan ? selection.actionableSelectedCategoryCount : nil) {
-            destination = value
-            planReturnsToExplorer = false
-            if value == .plan && selection.execution.result != nil { startNewPlan() }
-            navigationState.localRecordsVisible = false
-            diagnosticsVisible = false; exclusionsVisible = false
-            recoveryVisible = false; navigationState.recoveryCaller = .overview; inspecting = false; nativeInspectionVisible = false; homebrewVisible = false
-            pipVisible = false; dockerVisible = false; managedStorageVisible = false
+            navigate(value)
         }.keyboardShortcut(value.shortcut, modifiers: .command)
     }
 
