@@ -133,7 +133,7 @@ jobs:
           elif [[ "$EVENT_NAME" == "workflow_dispatch" && "$REQUESTED_SUITE" == "history-activity-recheck" ]]; then
             scope=(-only-testing:StillUITests/HistoryActivityUITests/testExplicitRetryRecheckRecordsAnotherScanWithoutMovingChangedFile)
           elif [[ "$EVENT_NAME" == "workflow_dispatch" && "$REQUESTED_SUITE" == "history-activity-clear" ]]; then
-            scope=(-only-testing:StillUITests/HistoryActivityUITests/testClearCompletedHistoryNamesAllRecordsAndReportsPartialSuccess)
+            scope=(-only-testing:StillUITests/HistoryActivityUITests/testClearCompletedHistoryNamesAllRecordsAndReportsPartialSuccess -only-testing:StillUITests/HistoryActivityUITests/testClearCompletedHistoryAtInitialSize)
           elif [[ "$EVENT_NAME" == "workflow_dispatch" && "$REQUESTED_SUITE" == "history-activity-growth" ]]; then
             scope=(-only-testing:StillUITests/HistoryActivityUITests/testHistoricalGrowthReturnAtInitialSize -only-testing:StillUITests/HistoryActivityUITests/testHistoricalGrowthReturnAtMinimumSize)
           elif [[ "$EVENT_NAME" == "workflow_dispatch" && "$REQUESTED_SUITE" == "history-activity-coverage" ]]; then
