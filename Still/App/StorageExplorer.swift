@@ -295,6 +295,9 @@ struct ExplorerInspector<Content: View>: View {
                 HStack { Text(name).font(StillDesign.TypeStyle.section).lineLimit(2); Spacer(); Button("Close inspector", systemImage: "xmark", action: close).labelStyle(.iconOnly) }
                 ScrollView {
                     VStack(alignment: .leading, spacing: StillDesign.Space.sm) { content() }
+                        // Selectable native text extends its accessibility frame beyond
+                        // its glyph origin; keep that frame inside the scroll viewport.
+                        .padding(.horizontal, StillDesign.Space.xs)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }.accessibilityIdentifier("inspectorEvidenceScroll")
             }

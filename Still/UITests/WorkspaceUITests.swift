@@ -64,6 +64,12 @@ import Darwin
         let distance = evidence.frame.midY - viewport.frame.midY
         viewport.scroll(byDeltaX: 0, deltaY: -distance)
     }
+    if !viewport.frame.contains(evidence.frame) {
+        let diagnostic = XCTAttachment(string: "Viewport: \(viewport.frame)\nEvidence: \(evidence.frame)\n" + app.debugDescription)
+        diagnostic.name = "inspector-evidence-geometry"; diagnostic.lifetime = .keepAlways; XCTContext.runActivity(named: "Inspector visibility geometry") { $0.add(diagnostic) }
+        let screenshot = XCTAttachment(screenshot: app.windows.firstMatch.screenshot())
+        screenshot.name = "inspector-evidence-visibility-failure"; screenshot.lifetime = .keepAlways; XCTContext.runActivity(named: "Inspector visibility screenshot") { $0.add(screenshot) }
+    }
     XCTAssertTrue(viewport.frame.contains(evidence.frame), "Inspector evidence must be visible: " + text)
     XCTAssertTrue(evidence.isHittable)
     XCTAssertTrue(app.buttons["Close inspector"].isHittable)
