@@ -11,6 +11,7 @@ on:
         default: all
         options:
           - all
+          - capacity
           - downloads
           - downloads-journey
           - downloads-regressions
@@ -72,10 +73,10 @@ jobs:
         if: github.event_name != 'workflow_dispatch' || (inputs.suite != 'selection' && inputs.suite != 'selection-scroll' && inputs.suite != 'scope' && inputs.suite != 'exclusions' && inputs.suite != 'repair' && inputs.suite != 'handoff' && inputs.suite != 'history' && inputs.suite != 'local-records' && inputs.suite != 'local-records-context' && inputs.suite != 'local-records-context-initial' && inputs.suite != 'local-records-diagnostics' && inputs.suite != 'local-records-diagnostics-initial' && inputs.suite != 'local-records-gallery' && inputs.suite != 'local-records-diagnostics-regressions' && inputs.suite != 'local-records-regressions' && inputs.suite != 'pip' && inputs.suite != 'keyboard' && inputs.suite != 'alerts' && inputs.suite != 'alert-open' && inputs.suite != 'overview' && inputs.suite != 'overview-main')
         run: xcrun swift test --package-path Packages/StillCore
       - name: Verify alert policies and lifecycle without OS permission prompts
-        if: github.event_name != 'workflow_dispatch' || (inputs.suite != 'selection' && inputs.suite != 'selection-scroll' && inputs.suite != 'scope' && inputs.suite != 'exclusions' && inputs.suite != 'repair' && inputs.suite != 'handoff' && inputs.suite != 'history' && inputs.suite != 'local-records' && inputs.suite != 'local-records-context' && inputs.suite != 'local-records-context-initial' && inputs.suite != 'local-records-diagnostics' && inputs.suite != 'local-records-diagnostics-initial' && inputs.suite != 'local-records-gallery' && inputs.suite != 'local-records-diagnostics-regressions' && inputs.suite != 'local-records-regressions' && inputs.suite != 'tools' && inputs.suite != 'pip' && inputs.suite != 'homebrew' && inputs.suite != 'keyboard' && inputs.suite != 'overview' && inputs.suite != 'overview-main' && inputs.suite != 'downloads' && inputs.suite != 'downloads-journey')
+        if: github.event_name != 'workflow_dispatch' || (inputs.suite != 'capacity' && inputs.suite != 'selection' && inputs.suite != 'selection-scroll' && inputs.suite != 'scope' && inputs.suite != 'exclusions' && inputs.suite != 'repair' && inputs.suite != 'handoff' && inputs.suite != 'history' && inputs.suite != 'local-records' && inputs.suite != 'local-records-context' && inputs.suite != 'local-records-context-initial' && inputs.suite != 'local-records-diagnostics' && inputs.suite != 'local-records-diagnostics-initial' && inputs.suite != 'local-records-gallery' && inputs.suite != 'local-records-diagnostics-regressions' && inputs.suite != 'local-records-regressions' && inputs.suite != 'tools' && inputs.suite != 'pip' && inputs.suite != 'homebrew' && inputs.suite != 'keyboard' && inputs.suite != 'overview' && inputs.suite != 'overview-main' && inputs.suite != 'downloads' && inputs.suite != 'downloads-journey')
         run: xcrun swift test --package-path Still/Packages/StorageAlerts
       - name: Verify isolated disposable adapter investigations
-        if: github.event_name != 'workflow_dispatch' || (inputs.suite != 'selection' && inputs.suite != 'selection-scroll' && inputs.suite != 'scope' && inputs.suite != 'exclusions' && inputs.suite != 'repair' && inputs.suite != 'handoff' && inputs.suite != 'history' && inputs.suite != 'local-records' && inputs.suite != 'local-records-context' && inputs.suite != 'local-records-context-initial' && inputs.suite != 'local-records-diagnostics' && inputs.suite != 'local-records-diagnostics-initial' && inputs.suite != 'local-records-gallery' && inputs.suite != 'local-records-diagnostics-regressions' && inputs.suite != 'local-records-regressions' && inputs.suite != 'tools' && inputs.suite != 'pip' && inputs.suite != 'homebrew' && inputs.suite != 'keyboard' && inputs.suite != 'alerts' && inputs.suite != 'alert-open' && inputs.suite != 'overview' && inputs.suite != 'overview-main' && inputs.suite != 'downloads' && inputs.suite != 'downloads-journey')
+        if: github.event_name != 'workflow_dispatch' || (inputs.suite != 'capacity' && inputs.suite != 'selection' && inputs.suite != 'selection-scroll' && inputs.suite != 'scope' && inputs.suite != 'exclusions' && inputs.suite != 'repair' && inputs.suite != 'handoff' && inputs.suite != 'history' && inputs.suite != 'local-records' && inputs.suite != 'local-records-context' && inputs.suite != 'local-records-context-initial' && inputs.suite != 'local-records-diagnostics' && inputs.suite != 'local-records-diagnostics-initial' && inputs.suite != 'local-records-gallery' && inputs.suite != 'local-records-diagnostics-regressions' && inputs.suite != 'local-records-regressions' && inputs.suite != 'tools' && inputs.suite != 'pip' && inputs.suite != 'homebrew' && inputs.suite != 'keyboard' && inputs.suite != 'alerts' && inputs.suite != 'alert-open' && inputs.suite != 'overview' && inputs.suite != 'overview-main' && inputs.suite != 'downloads' && inputs.suite != 'downloads-journey')
         run: |
           xcrun swift test --package-path Validation/ICloudProbe
           xcrun swift test --package-path Validation/XcodeProbe
@@ -92,7 +93,9 @@ jobs:
           EVENT_NAME: ${{ github.event_name }}
         run: |
           scope=()
-          if [[ "$EVENT_NAME" == "workflow_dispatch" && "$REQUESTED_SUITE" == "downloads-journey" ]]; then
+          if [[ "$EVENT_NAME" == "workflow_dispatch" && "$REQUESTED_SUITE" == "capacity" ]]; then
+            scope=(-only-testing:StillUITests/CapacityRefreshUITests)
+          elif [[ "$EVENT_NAME" == "workflow_dispatch" && "$REQUESTED_SUITE" == "downloads-journey" ]]; then
             scope=(
               -only-testing:StillUITests/WorkspaceUITests/testPlanStartsWithContextualDownloadsCategoryAndNoSetupDetour
               -only-testing:StillUITests/WorkspaceUITests/testConnectedDownloadsJourneyPreservesContextAndConsumesPlan
