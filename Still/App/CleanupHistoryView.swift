@@ -65,6 +65,7 @@ extension AppLifecycleController: HistoryMaintenanceLifecycle {
                 return (removed, compacted)
             }.value
             try lifecycle.resetPreferences()
+            try lifecycle.locations.reset()
             try await GrowthHistoryModel.shared.resetHistory()
             try await ExclusionsModel.shared.reset()
             lifecycle.selection.endSession(); lifecycle.selection.execution.clear()

@@ -50,6 +50,107 @@ final class WorkspaceUITests: XCTestCase {
         XCTAssertEqual(app.windows.firstMatch.frame, bounds)
     }
 
+    @MainActor func testConnectedDownloadsJourneyPreservesContextAndConsumesPlan() throws { try exerciseConnectedDownloads(minimum: false) }
+    @MainActor func testMinimumConnectedDownloadsJourneyPreservesContextAndConsumesPlan() throws { try exerciseConnectedDownloads(minimum: true) }
+    @MainActor private func exerciseConnectedDownloads(minimum: Bool) throws {
+        continueAfterFailure = false
+        let manager = FileManager.default
+        let root = manager.temporaryDirectory.resolvingSymlinksInPath().appendingPathComponent("StillSelectionUI-" + UUID().uuidString)
+        let child = root.appendingPathComponent("Media")
+        let token = UUID().uuidString
+        let state = manager.temporaryDirectory.resolvingSymlinksInPath().appendingPathComponent("StillTestState-" + token)
+        for url in [root, child, state] { try manager.createDirectory(at: url, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700]) }
+        try Data(token.utf8).write(to: state.appendingPathComponent(".still-owned-test-state"))
+        let guide = root.appendingPathComponent("Camera guide.pdf")
+        let trip = child.appendingPathComponent("Summer trip.mov")
+        try Data([1,2,3]).write(to: guide); try Data([4,5,6,7]).write(to: trip)
+        defer { try? manager.removeItem(at: root); try? manager.removeItem(at: state) }
+        var rootID = stat(); var stateID = stat()
+        XCTAssertEqual(lstat(root.path, &rootID), 0); XCTAssertEqual(lstat(state.path, &stateID), 0)
+        let app = XCUIApplication()
+        app.launchArguments = ["--ui-test-downloads-root", minimum ? "--design-minimum" : "--design-initial-size"]
+        app.launchEnvironment["STILL_TEST_DOWNLOADS_ROOT"] = root.path
+        app.launchEnvironment["STILL_TEST_DOWNLOADS_ID"] = "\(rootID.st_dev):\(rootID.st_ino)"
+        app.launchEnvironment["STILL_TEST_STATE_ROOT"] = state.path
+        app.launchEnvironment["STILL_TEST_STATE_ID"] = "\(stateID.st_dev):\(stateID.st_ino)"
+        app.launch(); defer { app.terminate() }
+        app.typeKey("2", modifierFlags: .command)
+        XCTAssertTrue(app.buttons["Scan Downloads…"].waitForExistence(timeout: 10))
+        let bounds = app.windows.firstMatch.frame
+        func capture(_ name: String) {
+            for theme in ["Light", "Dark"] {
+                app.popUpButtons["Appearance"].click(); app.menuItems[theme].click()
+                let attachment = XCTAttachment(screenshot: app.windows.firstMatch.screenshot())
+                attachment.name = "downloads-" + name + (minimum ? "-minimum-" : "-initial-") + theme
+                attachment.lifetime = .keepAlways; add(attachment)
+                XCTAssertEqual(app.windows.firstMatch.frame, bounds)
+            }
+        }
+        capture("unscanned")
+        app.buttons["Scan Downloads…"].click(); app.typeKey("g", modifierFlags: [.command, .shift])
+        let field = app.textFields.firstMatch
+        XCTAssertTrue(field.waitForExistence(timeout: 5)); field.typeText(root.path)
+        app.typeKey(.return, modifierFlags: []); app.dialogs.buttons["Scan folder"].click()
+        let category = app.checkBoxes["downloadsCategorySelection"]
+        XCTAssertTrue(category.waitForExistence(timeout: 10))
+        let enabled = expectation(for: NSPredicate(format: "enabled == true"), evaluatedWith: category)
+        wait(for: [enabled], timeout: 20)
+        XCTAssertTrue(app.staticTexts["Cleanup plan"].exists)
+        XCTAssertFalse(app.buttons["Choose Downloads…"].exists)
+        XCTAssertFalse(app.textFields["Search Downloads items"].exists)
+        XCTAssertFalse(app.buttons["Review cleanup"].isEnabled)
+        capture("ready")
+        category.click()
+        XCTAssertTrue(app.staticTexts["2 files selected"].waitForExistence(timeout: 10))
+        let disclosure = app.disclosureTriangles.firstMatch
+        disclosure.click()
+        XCTAssertTrue(app.textFields["Search Downloads items"].waitForExistence(timeout: 5))
+        let one = app.checkBoxes["Selected Summer trip.mov"]
+        revealScrollElement(app, control: one, label: "Selected Summer trip.mov"); one.click()
+        XCTAssertTrue(app.staticTexts["1 file selected"].waitForExistence(timeout: 5))
+        app.scrollViews.firstMatch.scroll(byDeltaX: 0, deltaY: 3000)
+        app.buttons["Explore Downloads"].click()
+        XCTAssertTrue(app.buttons["Open folder " + root.lastPathComponent].waitForExistence(timeout: 5))
+        app.buttons["Open folder " + root.lastPathComponent].click()
+        app.textFields["Search scanned descendants"].click(); app.textFields["Search scanned descendants"].typeText("Media")
+        app.buttons["Open folder Media"].click()
+        XCTAssertEqual(app.textFields["Search scanned descendants"].value as? String, "")
+        app.buttons["Inspect Summer trip.mov"].click()
+        XCTAssertTrue(app.descendants(matching: .any)["explorerInspector"].firstMatch.waitForExistence(timeout: 5))
+        capture("compact-inspector")
+        app.buttons["View cleanup plan"].click()
+        XCTAssertTrue(app.textFields["Search Downloads items"].waitForExistence(timeout: 5), "Plan disclosure must survive its Explorer round trip")
+        XCTAssertFalse(app.buttons["Back to Explorer"].exists, "Plan ancestor must be reused")
+        app.buttons["Review cleanup"].click()
+        XCTAssertTrue(app.sheets.buttons["Move to Trash"].waitForExistence(timeout: 5))
+        app.sheets.buttons["Cancel"].click()
+        XCTAssertTrue(app.staticTexts["1 file selected"].waitForExistence(timeout: 5))
+        XCTAssertEqual(try Data(contentsOf: guide), Data([1,2,3]))
+        app.buttons["Review cleanup"].click(); app.sheets.buttons["Move to Trash"].click()
+        XCTAssertTrue(app.staticTexts["Cleanup results"].waitForExistence(timeout: 20))
+        XCTAssertTrue(app.staticTexts["Succeeded: 1"].exists)
+        XCTAssertFalse(manager.fileExists(atPath: guide.path))
+        XCTAssertEqual(try Data(contentsOf: trip), Data([4,5,6,7]))
+        capture("results")
+        app.buttons["View history"].click()
+        XCTAssertTrue(app.staticTexts["History"].waitForExistence(timeout: 5))
+        app.typeKey("2", modifierFlags: .command)
+        XCTAssertTrue(app.buttons["Scan Downloads…"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["Review cleanup"].isEnabled)
+        app.terminate(); app.launch()
+        XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
+        app.typeKey("4", modifierFlags: .command)
+        XCTAssertTrue(app.staticTexts["Not scanned"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["Scan selected locations"].isEnabled)
+        app.typeKey("2", modifierFlags: .command)
+        XCTAssertFalse(app.buttons["Review cleanup"].isEnabled)
+        app.buttons["Scan Downloads…"].click() // remembered grant: no picker and no automatic selection
+        XCTAssertTrue(app.staticTexts["Downloads · 1 file eligible"].waitForExistence(timeout: 15))
+        XCTAssertFalse(app.dialogs.buttons["Scan folder"].exists)
+        XCTAssertFalse(app.buttons["Review cleanup"].isEnabled)
+        XCTAssertEqual(app.windows.firstMatch.frame, bounds)
+    }
+
     @MainActor func testOverviewFindingsRestoreHierarchyAndPreserveReviewChoices() throws {
         continueAfterFailure = false
         let manager = FileManager.default

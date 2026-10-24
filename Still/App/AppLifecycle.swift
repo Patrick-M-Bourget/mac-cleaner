@@ -23,6 +23,10 @@ import StillCore
     let alerts = StorageAlertsController()
     let selection = SessionPlan()
     let recovery = CleanupRecoveryModel()
+    let locations = RememberedLocations()
+    let planPresentation = CleanupPlanPresentation()
+    let downloadsExplorer = StorageExplorerContext()
+    let locationsExplorer = StorageExplorerContext()
     lazy var inspection = FolderInspection(selection: selection)
     var openWorkspace: (() -> Void)?
     @Published private(set) var loginIntent: Bool

@@ -18,6 +18,11 @@ struct DesignGallery: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: StillDesign.Space.xl) {
                     PageHeader(title: "Native design system", subtitle: "Developer examples only · No personal storage measurements")
+                    CategoryPrerequisite(title: "Not scanned", detail: "Scan the included Downloads locations before choosing files.", actionTitle: "Scan Downloads…", enabled: true, action: {})
+                    CategoryPrerequisite(title: "No eligible files", detail: "No eligible files in this inspected location.", actionTitle: "Scan Downloads again", enabled: true, action: {})
+                    ExplorerInspector(name: "Camera guide.pdf", close: {}) { Text("Example local metadata · 8 MB logical · 8 MB on disk") }.frame(height: 160)
+                    ToolbarScanStatus(location: "Downloads", returnToScan: {}, stop: {})
+                    LocationScopeRow(name: "Downloads", path: "/Example/Downloads", status: "Not scanned", included: $selected, enabled: true) { Menu("More") { Button("Forget location") {} } }
                     CleanupScopeNotice(chooseDownloads: {})
                     CleanupScopeNotice(enabled: false, chooseDownloads: {})
                     CleanupScopeNotice(compact: true, chooseDownloads: {})

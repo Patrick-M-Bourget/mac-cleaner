@@ -65,6 +65,9 @@ jobs:
           if [[ "$EVENT_NAME" == "workflow_dispatch" && "$REQUESTED_SUITE" == "downloads" ]]; then
             scope=(
               -only-testing:StillUITests/WorkspaceUITests/testPlanStartsWithContextualDownloadsCategoryAndNoSetupDetour
+              -only-testing:StillUITests/WorkspaceUITests/testConnectedDownloadsJourneyPreservesContextAndConsumesPlan
+              -only-testing:StillUITests/WorkspaceUITests/testMinimumConnectedDownloadsJourneyPreservesContextAndConsumesPlan
+              -only-testing:StillUITests/WorkspaceUITests/testMinimumGalleryStatesAndOpaqueChromeCaptures
             )
           elif [[ "$EVENT_NAME" == "workflow_dispatch" && "$REQUESTED_SUITE" == "exclusions" ]]; then
             scope=(-only-testing:StillUITests/ExclusionsUITests)

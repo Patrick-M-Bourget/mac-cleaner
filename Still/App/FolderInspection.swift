@@ -40,7 +40,7 @@ final class FolderInspection {
     var message: String?
     var previewURL: URL?
 
-    static func chooseFolder(downloads: Bool = false) -> URL? {
+    static func chooseFolder(downloads: Bool = false, remembering: Bool = false) -> URL? {
         let picker = NSOpenPanel()
         picker.canChooseFiles = false
         picker.canChooseDirectories = true
@@ -48,7 +48,8 @@ final class FolderInspection {
         picker.treatsFilePackagesAsDirectories = false
         picker.message = "Scans inspect metadata only. Cleanup currently supports files in Downloads; other folders are inspection only."
         if downloads { picker.directoryURL = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask).first }
-        picker.prompt = "Scan folder"
+        picker.prompt = remembering ? "Remember folder" : "Scan folder"
+        if remembering { picker.message = "Remember this location for future manual scans. Adding it does not start a scan." }
         return picker.runModal() == .OK ? picker.url : nil
     }
 
@@ -60,16 +61,17 @@ final class FolderInspection {
     }
 
     /// Refresh the existing explicit scopes without replacing live choices or choosing a new scope.
-    func scanAgain() {
+    func scanAgain(scopes explicitScopes: [URL]? = nil, leases: [ScopeAccessLease] = []) {
         guard !AppLifecycleController.shared.maintenanceInProgress, !selection.execution.isRunning, !isScanning else { return }
         let focusedScope = scope?.standardizedFileURL
-        let roots = Set((scopeReports.map { $0.current.scope } + selection.refreshScopes + [scope].compactMap { $0 }).map(\.standardizedFileURL)).sorted { $0.path < $1.path }
+        let roots = Set((explicitScopes ?? (scopeReports.map { $0.current.scope } + selection.refreshScopes + [scope].compactMap { $0 })).map(\.standardizedFileURL)).sorted { $0.path < $1.path }
         guard !roots.isEmpty else { return }
         cancel()
         let token = UUID()
         scanAgainGeneration = token
         batchRequests = selection.beginRefreshBatch(roots)
         scanAgainTask = Task {
+            defer { for lease in leases { lease.close() } }
             for root in roots {
                 guard !Task.isCancelled, token == scanAgainGeneration else { return }
                 startScan(root)

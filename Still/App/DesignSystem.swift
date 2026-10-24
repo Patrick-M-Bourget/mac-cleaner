@@ -585,3 +585,86 @@ struct CleanupScopeNotice: View {
         }
     }
 }
+
+/// A category remains recognizable before it has usable scan evidence.
+struct CategoryPrerequisite: View {
+    let title: String
+    let detail: String
+    let actionTitle: String
+    let enabled: Bool
+    let action: () -> Void
+    var body: some View {
+        VStack(alignment: .leading, spacing: StillDesign.Space.md) {
+            CategorySelectionHeader(category: .downloads, state: .unchecked, title: "Downloads", detail: detail,
+                                    size: title, enabled: false, action: {})
+            Button(actionTitle, action: action).disabled(!enabled)
+                .padding(.leading, StillDesign.Space.xl)
+        }
+    }
+}
+
+/// Shared across destinations; stopping or finishing a scan never changes the route.
+struct ToolbarScanStatus: View {
+    let location: String
+    var returnToScan: (() -> Void)?
+    let stop: () -> Void
+    var body: some View {
+        HStack(spacing: StillDesign.Space.sm) {
+            ProgressView().controlSize(.small)
+            Text("Scanning " + location).font(.caption).lineLimit(1)
+            Button("Stop scan", action: stop).controlSize(.small)
+            if let returnToScan { Button("Return to scan", action: returnToScan).controlSize(.small) }
+        }.accessibilityElement(children: .contain)
+    }
+}
+
+struct LocationScopeRow<Actions: View>: View {
+    let name: String
+    let path: String
+    let status: String
+    @Binding var included: Bool
+    let enabled: Bool
+    @ViewBuilder let actions: () -> Actions
+    var body: some View {
+        HStack(alignment: .top, spacing: StillDesign.Space.md) {
+            Toggle("Include " + name, isOn: $included).labelsHidden().disabled(!enabled)
+            VStack(alignment: .leading, spacing: StillDesign.Space.sm) {
+                Label(name, systemImage: "folder").font(StillDesign.TypeStyle.section)
+                Text(path).font(.caption).foregroundStyle(.secondary).lineLimit(2).textSelection(.enabled).help(path)
+                StatusRow(text: status, symbol: "info.circle")
+            }.frame(maxWidth: .infinity, alignment: .leading)
+            actions().disabled(!enabled)
+        }.padding(.vertical, StillDesign.Space.md)
+    }
+}
+
+/// Restores a destination on insertion only. Selection-only changes never request scrolling.
+struct DestinationViewport: NSViewRepresentable {
+    @Binding var offset: CGPoint
+    func makeNSView(context: Context) -> Viewport { Viewport() }
+    func updateNSView(_ view: Viewport, context: Context) {
+        view.onOffset = { offset = $0 }
+        let saved = offset
+        DispatchQueue.main.async { [weak view] in view?.attach(saved: saved) }
+    }
+    @MainActor final class Viewport: NSView {
+        var onOffset: ((CGPoint) -> Void)?
+        private weak var clip: NSClipView?
+        private var restored = false
+        func attach(saved: CGPoint) {
+            guard let scroll = enclosingScrollView else { return }
+            if clip !== scroll.contentView {
+                NotificationCenter.default.removeObserver(self)
+                clip = scroll.contentView; clip?.postsBoundsChangedNotifications = true
+                NotificationCenter.default.addObserver(self, selector: #selector(moved), name: NSView.boundsDidChangeNotification, object: clip)
+            }
+            if !restored {
+                restored = true
+                scroll.layoutSubtreeIfNeeded()
+                clip?.scroll(to: saved); scroll.reflectScrolledClipView(scroll.contentView)
+            }
+        }
+        @objc private func moved() { if restored, let clip { onOffset?(clip.bounds.origin) } }
+        deinit { NotificationCenter.default.removeObserver(self) }
+    }
+}

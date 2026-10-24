@@ -119,6 +119,13 @@ private struct WorkspaceView: View {
     @State private var overviewCloudExpanded = false
     @State private var moreToolsExpanded = false
     @State private var diagnostics = DiagnosticsModel()
+    @State private var locationsModel = AppLifecycleController.shared.locations
+    @State private var explorerContext = AppLifecycleController.shared.downloadsExplorer
+    @State private var planPresentation = AppLifecycleController.shared.planPresentation
+    @State private var explorerCaller = Destination.overview
+    @State private var planReturnsToExplorer = false
+    @State private var scanOrigin = Destination.overview
+    @State private var locationToForget: RememberedScope?
     @State private var startupCapacity: StartupVolumeCapacity?
     #if DEBUG
     @State private var injectedAlertOpen = false
@@ -163,8 +170,21 @@ private struct WorkspaceView: View {
             .background { ChromeSurface(role: .sidebar) }
             Divider()
             VStack(alignment: .leading, spacing: 0) {
-                if showsPlan && (!selection.scans.isEmpty || selection.draft.selectedCount > 0 || selection.execution.isRunning || selection.execution.result != nil || selection.execution.error != nil) {
-                    LiveCleanupPlanView(selection: selection, recheck: { folderInspection.scan($0) }, stopRefresh: { folderInspection.cancel() }, chooseDownloads: chooseDownloads)
+                if nativeInspectionVisible {
+                    StorageExplorerView(model: folderInspection, selection: selection, context: explorerContext,
+                        backTitle: "Back to " + explorerCaller.rawValue, back: { nativeInspectionVisible = false; destination = explorerCaller })
+                    ActionStrip(message: "\(StillDesign.files(selection.draft.selectedCount)) selected · Nothing changes before confirmation.") {
+                        Button("View cleanup plan") {
+                            nativeInspectionVisible = false
+                            planReturnsToExplorer = explorerCaller != .plan
+                            destination = .plan
+                        }.buttonStyle(.borderedProminent)
+                    }
+                } else if showsPlan {
+                    LiveCleanupPlanView(selection: selection, recheck: { scope in scanLocations(locationsModel.included.filter { $0.path == scope.path }) }, stopRefresh: { folderInspection.cancel() }, chooseDownloads: scanDownloads,
+                        exploreDownloads: { openExplorer(downloads: true, caller: .plan) },
+                        viewHistory: { destination = .history }, newPlan: startNewPlan,
+                        backToExplorer: planReturnsToExplorer ? { nativeInspectionVisible = true; planReturnsToExplorer = false } : nil, presentation: planPresentation)
                 } else {
                 ScrollView {
                     VStack(alignment: .leading, spacing: StillDesign.Space.xl) {
@@ -191,7 +211,7 @@ private struct WorkspaceView: View {
                             case .alerts: StorageAlertsView(controller: alerts)
                             case .growth: GrowthHistoryView(model: GrowthHistoryModel.shared)
                             case .overview: overview
-                            case .plan: if selection.scans.isEmpty && selection.draft.selectedCount == 0 { plan } else { LiveCleanupPlanView(selection: selection, recheck: { folderInspection.scan($0) }, stopRefresh: { folderInspection.cancel() }, chooseDownloads: chooseDownloads) }
+                            case .plan: EmptyView()
                             case .history: history
                             case .locations: locations
                             }
@@ -260,6 +280,11 @@ private struct WorkspaceView: View {
             #endif
         }
         .task { if await recovery.loadOnce() { recoveryVisible = true } }
+        .task { locationsModel.load() }
+        .onChange(of: locationsModel.scopes) { _, _ in
+            explorerContext.allowedScopes = Set(locationsModel.included.map { URL(fileURLWithPath: $0.path).standardizedFileURL })
+            explorerContext.downloadsScopes = Set(locationsModel.includedDownloads.map { URL(fileURLWithPath: $0.path).standardizedFileURL })
+        }
         .task { startupCapacity = await Task.detached(priority: .utility) { StartupVolumeCapacity.read() }.value }
         .onAppear { AppLifecycleController.shared.openWorkspace = { openWindow(id: "workspace") } }
         .onReceive(NotificationCenter.default.publisher(for: .stillAlertOpened)) { _ in destination = .overview; exclusionsVisible = false; diagnosticsVisible = false; recoveryVisible = false; inspecting = false; nativeInspectionVisible = false; homebrewVisible = false; pipVisible = false; dockerVisible = false; managedStorageVisible = false }
@@ -285,14 +310,20 @@ private struct WorkspaceView: View {
             ToolbarItem(placement: .principal) { contextToolbarLabel }
         }
     }
-    private var contextToolbarLabel: some View {
-        Text(contextLabel).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+    @ViewBuilder private var contextToolbarLabel: some View {
+        if folderInspection.isScanning {
+            ToolbarScanStatus(location: folderInspection.scope?.lastPathComponent ?? "selected locations",
+                returnToScan: destination == scanOrigin && !nativeInspectionVisible ? nil : { nativeInspectionVisible = false; destination = scanOrigin },
+                stop: { folderInspection.cancel() })
+        } else { Text(contextLabel).font(.caption).foregroundStyle(.secondary).lineLimit(1) }
     }
 
     private func navigation(_ value: Destination) -> some View {
         StillSidebarRow(title: value.rawValue, symbol: value.symbol, selected: destination == value,
                         accent: value == .growth ? StillDesign.purple : value == .plan ? StillDesign.teal : value == .history ? .secondary : StillDesign.blue) {
             destination = value
+            planReturnsToExplorer = false
+            if value == .plan && selection.execution.result != nil { startNewPlan() }
             diagnosticsVisible = false; exclusionsVisible = false
             recoveryVisible = false; inspecting = false; nativeInspectionVisible = false; homebrewVisible = false
             pipVisible = false; dockerVisible = false; managedStorageVisible = false
@@ -303,8 +334,11 @@ private struct WorkspaceView: View {
         if let url = FolderInspection.chooseFolder() {
             alerts.dismissOpenedAlert()
             selection.leaveRetryMode()
-            folderInspection.scan(url)
-            nativeInspectionVisible = true
+            let isDownloads = isDownloadsLocation(url)
+            if locationsModel.remember(url, downloads: isDownloads) {
+                scanOrigin = destination
+                folderInspection.scan(url)
+            }
         }
     }
 
@@ -313,8 +347,7 @@ private struct WorkspaceView: View {
             HStack(alignment: .top) {
                 PageHeader(title: "Storage overview", subtitle: "A clearer picture of what’s on your Mac.")
                 Spacer(minLength: StillDesign.Space.md)
-                if folderInspection.isScanning { ProgressView("Scanning…").controlSize(.small) }
-                else { Button("Scan again", action: scanKnownLocations).disabled(folderInspection.scope == nil || selection.execution.isRunning) }
+                Button("Scan again", action: scanKnownLocations).disabled(locationsModel.included.isEmpty || folderInspection.isScanning || selection.execution.isRunning)
             }
             if let context = alerts.openedAlertContext {
                 SummarySurface {
@@ -438,13 +471,10 @@ private struct WorkspaceView: View {
         bytes.map { ByteCountFormatter.string(fromByteCount: $0, countStyle: .decimal) } ?? "Unknown"
     }
     private func scanKnownLocations() {
-        selection.leaveRetryMode()
-        folderInspection.scanAgain()
+        scanLocations(locationsModel.included)
     }
     private func reviewDownloads() {
-        guard let row = selection.overviewDownloadRows.first else { return }
-        folderInspection.showObserved(row.scan)
-        nativeInspectionVisible = true
+        openExplorer(downloads: true, caller: .overview)
     }
     private var scannedLocations: some View {
         VStack(alignment: .leading, spacing: StillDesign.Space.sm) {
@@ -458,7 +488,7 @@ private struct WorkspaceView: View {
                 }.frame(maxWidth: .infinity, alignment: .leading)
                 VStack(alignment: .trailing, spacing: StillDesign.Space.sm) {
                     Button("Choose folder…", systemImage: "folder.badge.plus", action: chooseFolderForScan).disabled(folderInspection.isScanning || selection.execution.isRunning)
-                    if folderInspection.result != nil { Button("Explore storage") { nativeInspectionVisible = true }.disabled(selection.execution.isRunning) }
+                    if folderInspection.result != nil { Button("Explore storage") { openExplorer(downloads: false, caller: .overview) }.disabled(selection.execution.isRunning) }
                 }
             }
             if let result = folderInspection.result {
@@ -500,43 +530,47 @@ private struct WorkspaceView: View {
         }
     }
 
-    private func chooseDownloads() {
-        guard !folderInspection.isScanning, !selection.execution.isRunning else { return }
-        if let url = FolderInspection.chooseFolder(downloads: true) {
-            selection.leaveRetryMode()
-            folderInspection.scan(url)
-            nativeInspectionVisible = true
-            destination = .overview
-        }
+    private func isDownloadsLocation(_ url: URL) -> Bool {
+        #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("--ui-test-downloads-root"),
+           ProcessInfo.processInfo.environment["STILL_TEST_DOWNLOADS_ROOT"] == url.standardizedFileURL.path,
+           url.lastPathComponent.hasPrefix("StillSelectionUI-") { return true }
+        #endif
+        guard let root = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask).first else { return false }
+        return url.standardizedFileURL.pathComponents.starts(with: root.standardizedFileURL.pathComponents)
     }
-
-    private var plan: some View {
-        VStack(alignment: .leading, spacing: StillDesign.Space.xl) {
-            heading("Cleanup plan", "Review categories and their consequences before any action.")
-            CleanupScopeNotice(enabled: !folderInspection.isScanning, chooseDownloads: chooseDownloads)
-            SelectionSummary(value: "Nothing selected", detail: "Choose exact files")
-            Text("Space remains occupied until Finder empties Trash.").foregroundStyle(.secondary)
-            Divider()
-            if folderInspection.scope == nil && fixtureMode {
-            FindingRow(category: .downloads, title: "Downloads", detail: "3 eligible fixture files · 2.028 GB", consequence: "Move selected files to Trash; space remains occupied until emptied.") { EmptyView() }
-            Button {
-                expanded.toggle()
-            } label: {
-                Label("Choose items", systemImage: expanded ? "chevron.down" : "chevron.right")
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .contentShape(Rectangle())
-            }.buttonStyle(.plain)
-                .accessibilityValue(expanded ? "Expanded" : "Collapsed")
-            if expanded {
-                VStack(spacing: StillDesign.Space.md) {
-                    ForEach(FixtureItem.downloads) { item in
-                        HStack { Text(item.name); Spacer(); Text(item.size).foregroundStyle(.secondary) }
-                    }
-                }
-            }
-            }
-            Text("Choose and scan Downloads to build a plan. Nothing is selected automatically.").font(.callout).foregroundStyle(.secondary)
+    private func chooseDownloads() { scanDownloads() }
+    private func scanDownloads() {
+        guard !folderInspection.isScanning, !selection.execution.isRunning else { return }
+        if !locationsModel.includedDownloads.isEmpty { scanLocations(locationsModel.includedDownloads); return }
+        guard let url = FolderInspection.chooseFolder(downloads: true) else { return }
+        guard isDownloadsLocation(url) else {
+            locationsModel.message = "Choose Downloads or a folder inside it. Add other folders in Locations & access for inspection."
+            return
         }
+        guard locationsModel.remember(url, downloads: true) else { return }
+        selection.leaveRetryMode(); scanOrigin = destination
+        folderInspection.scan(url)
+    }
+    private func scanLocations(_ scopes: [RememberedScope]) {
+        guard !folderInspection.isScanning, !selection.execution.isRunning else { return }
+        let leases = scopes.compactMap { locationsModel.resolve($0) }
+        let resolved = Set(leases.map { $0.url.standardizedFileURL.path })
+        for scope in scopes where !resolved.contains(scope.path) { selection.suspendScope(URL(fileURLWithPath: scope.path)) }
+        guard !leases.isEmpty else { return }
+        selection.leaveRetryMode(); scanOrigin = destination
+        folderInspection.scanAgain(scopes: leases.map(\.url), leases: leases)
+    }
+    private func openExplorer(downloads: Bool, caller: Destination) {
+        explorerContext = downloads ? AppLifecycleController.shared.downloadsExplorer : AppLifecycleController.shared.locationsExplorer
+        if explorerContext.downloadsOnly != downloads { if downloads { explorerContext.openDownloads() } else { explorerContext.openLocations() } }
+        explorerContext.allowedScopes = Set(locationsModel.included.map { URL(fileURLWithPath: $0.path).standardizedFileURL })
+        explorerContext.downloadsScopes = Set(locationsModel.includedDownloads.map { URL(fileURLWithPath: $0.path).standardizedFileURL })
+        explorerCaller = caller; nativeInspectionVisible = true; planReturnsToExplorer = false
+    }
+    private func startNewPlan() {
+        planPresentation.reset(); selection.startNewPlan(); planReturnsToExplorer = false; nativeInspectionVisible = false; destination = .plan
+        Task { await folderInspection.resetSession() }
     }
 
     private var history: some View {
@@ -548,21 +582,64 @@ private struct WorkspaceView: View {
 
     private var locations: some View {
         VStack(alignment: .leading, spacing: StillDesign.Space.xl) {
-            heading("Locations & access", "Review scan coverage and access in one place.")
+            PageHeader(title: "Locations & access", subtitle: "Remember locations to include in your next manual scan.")
+            HStack {
+                Button("Add folder…") {
+                    if let url = FolderInspection.chooseFolder(remembering: true) { _ = locationsModel.remember(url, downloads: isDownloadsLocation(url)) }
+                }.disabled(folderInspection.isScanning || selection.execution.isRunning)
+                Button("Scan selected locations") { scanLocations(locationsModel.included) }
+                    .disabled(locationsModel.included.isEmpty || folderInspection.isScanning || selection.execution.isRunning)
+            }
+            if locationsModel.scopes.isEmpty { EmptyState(title: "No locations yet", detail: "Add a folder, then run a manual scan. Adding a location never starts scanning.", symbol: "folder.badge.plus") }
+            ForEach(locationsModel.scopes) { scope in
+                LocationScopeRow(name: URL(fileURLWithPath: scope.path).lastPathComponent, path: scope.path,
+                    status: locationStatus(scope), included: Binding(get: { scope.isIncluded }, set: { included in
+                        if locationsModel.setIncluded(included, scope: scope) { selection.suspendScope(URL(fileURLWithPath: scope.path)) }
+                    }), enabled: !folderInspection.isScanning && !selection.execution.isRunning) {
+                    HStack {
+                        if locationStatus(scope).contains("unavailable") || locationStatus(scope).contains("renewal") {
+                            Button("Choose again…") {
+                                if let url = FolderInspection.chooseFolder(remembering: true) {
+                                    if url.standardizedFileURL.path == scope.path { _ = locationsModel.remember(url, downloads: isDownloadsLocation(url)) }
+                                    else { locationsModel.message = "Choose the same location to renew access. Use Add folder for a different location." }
+                                }
+                            }
+                            Button("Reconnect and recheck") { scanLocations([scope]) }.disabled(!scope.isIncluded)
+                        }
+                        Menu("More") {
+                            Button("Forget location") {
+                                let count = selection.dependentSelectionCount(for: URL(fileURLWithPath: scope.path))
+                                if count > 0 { locationToForget = scope } else { if locationsModel.forget(scope) { selection.suspendScope(URL(fileURLWithPath: scope.path), forget: true) } }
+                            }
+                        }
+                    }
+                }
+                Divider()
+            }
+            if let message = locationsModel.message { StatusRow(text: message, symbol: "info.circle") }
+            Text("Downloads files support cleanup. Other folders are inspection only. Access is rechecked for each manual scan; no files are scanned at launch.").font(.caption).foregroundStyle(.secondary)
             if GrowthHistoryModel.enabled {
                 SettingsRow(title: "Custom exclusions", detail: "Explicit path rules reduce scan coverage; fixed protections stay active.") {
-                    Button("Manage exclusions") { exclusionsVisible = true; nativeInspectionVisible = false; inspecting = false }.accessibilityIdentifier("manageExclusions")
+                    Button("Manage exclusions") { exclusionsVisible = true }.accessibilityIdentifier("manageExclusions")
                 }
             }
-            if let scope = folderInspection.scope {
-                SettingsRow(title: "Selected location", detail: "Explicitly chosen this session") {
-                    Label(scope.path, systemImage: "folder").textSelection(.enabled)
-                    StatusRow(text: "Scope access is balanced around each scan. No background scan runs.", symbol: "lock")
-                }
-            } else {
-                EmptyState(title: "No folder selected", detail: "Choose a folder from Overview to inspect metadata. Access is requested in context.", symbol: "folder.badge.gearshape")
+        }.confirmationDialog("Forget location?", isPresented: Binding(get: { locationToForget != nil }, set: { if !$0 { locationToForget = nil } }), titleVisibility: .visible) {
+            if let scope = locationToForget {
+                Button("Forget location", role: .destructive) { if locationsModel.forget(scope) { selection.suspendScope(URL(fileURLWithPath: scope.path), forget: true) }; locationToForget = nil }
+                Button("Cancel", role: .cancel) { locationToForget = nil }
             }
+        } message: {
+            if let scope = locationToForget { Text("Forget " + URL(fileURLWithPath: scope.path).lastPathComponent + " and remove \(selection.dependentSelectionCount(for: URL(fileURLWithPath: scope.path))) dependent choices? No files will be deleted.") }
         }
+    }
+    private func locationStatus(_ scope: RememberedScope) -> String {
+        if !scope.isIncluded { return "Omitted from the next scan" }
+        if let status = locationsModel.statuses[scope.id], status.contains("unavailable") || status.contains("renewal") { return status }
+        if let scan = selection.scans[URL(fileURLWithPath: scope.path)] {
+            if selection.unavailableScopes.contains(scan.scope.standardizedFileURL) { return "Refresh required" }
+            return scan.isComplete ? "Observed · " + scan.observedAt.formatted(date: .omitted, time: .shortened) : "Partial coverage · Uninspected bytes unknown"
+        }
+        return "Not scanned"
     }
 
     private func heading(_ title: String, _ subtitle: String) -> some View {
