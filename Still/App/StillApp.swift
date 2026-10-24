@@ -204,6 +204,7 @@ private struct WorkspaceView: View {
                     LiveCleanupPlanView(selection: selection, recheck: { scope in scanLocations(locationsModel.included.filter { $0.path == scope.path }) }, stopRefresh: { folderInspection.cancel() }, chooseDownloads: scanDownloads,
                         exploreDownloads: { openExplorer(downloads: true, caller: .plan) },
                         viewHistory: { destination = .history }, newPlan: startNewPlan,
+                        reviewRecovery: { openRecovery(caller: .plan) },
                         backToExplorer: planReturnsToExplorer ? { nativeInspectionVisible = true; planReturnsToExplorer = false } : nil,
                         manageLocations: { destination = .locations }, scopeMessage: locationsModel.message ?? folderInspection.message, presentation: planPresentation)
                 } else {

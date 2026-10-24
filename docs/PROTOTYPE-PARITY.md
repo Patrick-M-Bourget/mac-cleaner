@@ -35,8 +35,8 @@ Mixed rows identify separately implemented mechanisms and missing product flows.
 
 | ID | Reference intent | Native baseline / difference | Status / owner |
 |---|---|---|---|
-| N01 | One labelled Back, correct caller and sidebar parent | Native secondary origins are hard-coded: recovery/inspection/diagnostics return Overview; History caller lost | G [#48](https://github.com/Patrick-M-Bourget/mac-cleaner/issues/48) |
-| N02 | New destinations top; return restores their scroll | Conditional views have no per-route viewport restoration model; checkbox anchoring fix is a separate proven behavior | G #48; [anchor evidence](validation/checkbox-content-anchor.md) retained |
+| N01 | One labelled Back, correct caller and sidebar parent | Recovery candidate #60 restores manual History/Overview caller; startup remains Overview. Other secondary origins and Local records remain separate | C/G [#48](https://github.com/Patrick-M-Bourget/mac-cleaner/issues/48) |
+| N02 | New destinations top; return restores their scroll | Existing explorer/plan context is extended by #60 retained History/Overview viewports and #63 Locations context; broader qualification pending in validation/recovery-results.md; checkbox anchoring is separate | C/G #48; [anchor evidence](validation/checkbox-content-anchor.md) retained |
 | N03 | Local data/exclusions/diagnostics reachable from Locations and History | Clear/Reset work in History; exclusions in future Locations; diagnostics in future Overview. Shared management entry/origin flow missing | G #48; mechanisms #13/#30/#32 preserved |
 | N04 | Folder/query/inspector context and selections survive review round trips | Shared selection survives; view-local query/inspector and originating route are not explicitly restored | C/G #7 and #48 |
 | N05 | Cleanup plan nav badge reflects live selected categories | No badge; count meaning must be specified before copying prototype | G [#53](https://github.com/Patrick-M-Bourget/mac-cleaner/issues/53) |
@@ -72,7 +72,7 @@ Mixed rows identify separately implemented mechanisms and missing product flows.
 | S03 | No-locations state and explicit Scan selected locations | Overview chooser works; Settings selection/scan workflow absent | G #46 |
 | S04 | Named revoked/denied scope and choose-again recovery | Scanner partial/unknown and native rechoose work; per-location status/recovery management missing | C/G #4/#46; real OS qualification #35 |
 | S05 | Disconnected location can reconnect/recheck or omit | Scanner missing-volume evidence exists; Settings reconnect/remove/omit workflow absent | C/G #4/#46; mounted fixture evidence #34 |
-| S06 | Full Disk Access optional, limited operation useful | No broad admission permission; Settings lacks prototype contextual broader-access explanation | C/G #46; do not claim a reliable global FDA status detector |
+| S06 | Full Disk Access optional, limited operation useful | No broad admission permission; #63 candidate adds optional contextual education without inferred status or automatic settings launch; native qualification pending | C/G #46; do not claim a reliable global FDA status detector |
 | S07 | Optional recognized developer/browser discovery scopes | Arbitrary explicit folder scanning exists; no validated recognized cache/build discovery integrated | F #16–#21, #46 scope design; adding scope never grants access |
 | S08 | Exclusions separate from plan deselection | Explicit preview/save/remove, path/volume semantics, invalidation and reset implemented, future gated | C/F #30; [exclusions](EXCLUSIONS.md); no inspector exclusion |
 | S09 | Progress describes current scan, not setup invitation | Fixed Stop exists; during queued new root, temporary Choose a folder guidance appears beside rechecking progress | G #46 (copy/state refinement, not new scanner) |

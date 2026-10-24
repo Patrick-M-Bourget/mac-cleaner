@@ -165,7 +165,7 @@ Cleanup plan provides contextual **Scan Downloads again**; location-specific rec
 
 ## Native startup recovery (#12)
 
-The following records implemented behavior. Caller-aware recovery return from History is approved in FLOW-LOCK and remains unimplemented (#48); the hard-coded behavior below is not an exception to the intended navigation contract.
+The following startup behavior retains an Overview return. Manual recovery from History returns to History under #60; manual Overview recovery returns Overview. The process-owned caller, observed viewport and expanded History evidence are separate from durable journal facts. Broader native qualification is tracked in [recovery/results validation](validation/recovery-results.md); the remaining #48 Local records and diagnostics routes stay separate.
 
 Interrupted durable batches open a read-only secondary review on launch. Show unresolved outcomes separately from not-started targets and recorded terminal facts; a missing original never implies Trash success. Keep a fixed Return to Overview action and an Overview route back to unresolved evidence. A new manual scan/selection/approval is the only path to another cleanup. Current locations are unverified; only an explicitly persisted resulting location may be revealed on user action. See [validation and remaining gates](validation/startup-recovery.md).
 
