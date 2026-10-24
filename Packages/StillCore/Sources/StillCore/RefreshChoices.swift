@@ -50,6 +50,12 @@ public struct RefreshChoices: Sendable {
         notices.removeAll { $0.target.url.standardizedFileURL.pathComponents.starts(with: scope.pathComponents) }
         return request
     }
+    /// Only verified unchanged existing choices may retire pending scope evidence.
+    /// A proof expires as soon as membership/evidence changes again.
+    public mutating func retirePending(after proof: ScopeSelectionRebinding, in draft: PlanDraft) {
+        guard draft.accepts(proof) else { return }
+        for id in proof.reboundIDs { pending[id] = nil }
+    }
     /// Cancellation leaves evidence visible and pending. A cancelled result can never restore readiness.
     public mutating func cancel(_ request: RefreshRequest) {
         guard active[request.scope] == request.id else { return }

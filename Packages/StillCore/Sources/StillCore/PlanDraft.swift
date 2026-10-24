@@ -47,6 +47,13 @@ public struct CleanupApproval: Sendable, Identifiable {
     fileprivate init(review: CleanupReview, date: Date) { id = UUID(); targets = review.targets; approvedAt = date }
 }
 public enum CategorySelectionState: Sendable { case unchecked, mixed, checked }
+/// Proof produced only by exact unchanged selection rebinding, bound to its resulting draft.
+public struct ScopeSelectionRebinding: Sendable {
+    public let reboundIDs: Set<String>
+    public let dependentIDs: Set<String>
+    let sessionID: UUID
+    let mutationVersion: UInt64
+}
 public struct PlanDraft: Sendable {
     private let sessionID = UUID()
     private var chosen: [String: PlannedTarget] = [:]
@@ -101,6 +108,30 @@ public struct PlanDraft: Sendable {
         guard chosen[original.id]?.observedAt == original.observedAt, original.id == fresh.id else { return }
         chosen[original.id] = fresh
         invalidateReview()
+    }
+    /// Preserves membership while replacing forgotten/omitted scope evidence with a complete,
+    /// independently included observation. Callers supply only remaining included scope scans.
+    public mutating func rebindUnchangedSelected(removingScope scope: URL, using scans: [ScanResult], exclusionFingerprint: String) -> ScopeSelectionRebinding {
+        let scope = scope.standardizedFileURL
+        let affected = selected.filter { $0.url.standardizedFileURL.pathComponents.starts(with: scope.pathComponents) }
+        var rebound = Set<String>(), dependent = Set<String>()
+        let alternatives = scans.filter { $0.isComplete && $0.exclusionFingerprint == exclusionFingerprint && $0.scope.standardizedFileURL != scope }.sorted { $0.observedAt > $1.observedAt }
+        for original in affected {
+            var replacement: PlannedTarget?
+            for scan in alternatives {
+                guard let item = scan.observations.first(where: { $0.url.path + "|" + $0.resourceID + "|moveToTrash" == original.id }),
+                      let fresh = try? Self.candidate(item, in: scan, downloads: original.downloadsRoot),
+                      fresh.volumeID == original.volumeID, fresh.logicalBytes == original.logicalBytes,
+                      fresh.modifiedSeconds == original.modifiedSeconds, fresh.modifiedNanoseconds == original.modifiedNanoseconds else { continue }
+                replacement = fresh; break
+            }
+            if let replacement { replaceAfterRefresh(original, with: replacement); rebound.insert(original.id) }
+            else { dependent.insert(original.id) }
+        }
+        return ScopeSelectionRebinding(reboundIDs: rebound, dependentIDs: dependent, sessionID: sessionID, mutationVersion: mutationVersion)
+    }
+    func accepts(_ proof: ScopeSelectionRebinding) -> Bool {
+        proof.sessionID == sessionID && proof.mutationVersion == mutationVersion
     }
     public mutating func remove(_ id: String) { chosen[id] = nil; invalidateReview() }
     public mutating func clear() { chosen.removeAll(); invalidateReview() }
