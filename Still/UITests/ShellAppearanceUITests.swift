@@ -174,7 +174,7 @@ final class ShellAppearanceUITests: XCTestCase {
         continueAfterFailure = false
         let app = XCUIApplication(); let state = try configureIsolatedJourneyState(app)
         defer { app.terminate(); try? FileManager.default.removeItem(at: state) }
-        app.launchArguments = ["--ui-test-appearance-probe", minimum ? "--design-minimum" : "--design-initial-size"]
+        app.launchArguments = [minimum ? "--design-minimum" : "--design-initial-size"]
         app.launch()
         let picker = app.popUpButtons["Appearance"]
         XCTAssertTrue(picker.waitForExistence(timeout: 10))
@@ -199,8 +199,6 @@ final class ShellAppearanceUITests: XCTestCase {
         let dismissed = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"), object: retry)
         guard XCTWaiter.wait(for: [dismissed], timeout: 5) == .completed else {
             shellCapture(app, "retry-not-dismissed", minimum: minimum)
-            let probe = (try? String(contentsOf: state.appendingPathComponent("appearance-retry-probe.txt"), encoding: .utf8)) ?? "Owned probe unavailable"
-            let trace = XCTAttachment(string: probe); trace.name = "appearance-retry-hit-probe"; trace.lifetime = .keepAlways; add(trace)
             XCTFail("Successful saving must clear its notice. Owned stored value: " + ((try? String(contentsOf: file, encoding: .utf8)) ?? "Unavailable")); return
         }
         XCTAssertEqual(try String(contentsOf: file, encoding: .utf8), "Dark")
