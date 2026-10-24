@@ -10,8 +10,14 @@ Recovery review entered from the page returns to Local records, whose Back retur
 
 ## First public tracer
 
-Test-only `3bae223` checks History → Local records → Clear Cancel → Back, then Locations → the same page → actual Clear → caller Back, preserving original bytes and consumed approval protection through public journal APIs. Focused hosted red `40064787450` runs at `2b76a22`; production changes must follow the observed failure. Existing approved public journey/journal/filesystem seams remain in force.
+Test-only `3bae223` checks History → Local records → Clear Cancel → Back, then Locations → the same page → actual Clear → caller Back, preserving original bytes and consumed approval protection through public journal APIs. Actual hosted red `40064787450` at `2b76a22` fails on missing `manageLocalRecords` at HistoryUITests line 31 (69.15 seconds including cleanup). Production composition follows this observed public failure. Existing approved public journey/journal/filesystem seams remain in force.
 
 ## Qualification gates
 
 Record actual red → green, then strengthen public context/selection and fresh Reset/recovery journeys one vertical slice at a time. Preserve existing startup recovery, terminal Results and Downloads behavior; review source-bound native Light/Dark initial/minimum originals and shared composition before integration. Test and synthetic presentation proof remain distinct from real OS permission/provider qualification. Full parent acceptance, unresolved product decisions and future milestones stay open; M8 remains deferred.
+
+Minimal candidate `ec75c43` composes the same LocalRecordsEntry/LocalRecordsView from both callers and moves existing maintenance confirmations out of History. The panel calls the existing history model with maintenance disabled for reading, leaving ordinary History retention behavior unchanged. Focused green run `40065094232` is pending; caller viewport, recovery/diagnostics and broader safety context are the next vertical after that pilot. This candidate is not integrated or declared complete.
+
+The first candidate run `40065094232` reaches both callers, Cancel and actual Clear, then fails its label-prefix status lookup (28.08 seconds). No failure image was attached by that test. Test-only `345e16d` uses the existing public `historyStatus` identifier and native value/label text, preserves the strict success-prefix and public journal assertions, reveals entries within the actual scroll viewport, and records a permanent status screenshot before asserting. The rerun uses identical production source; whether this is only a lookup mismatch remains subject to that result.
+
+Pilot `40065421756` at `345e16d` passes (20.31 seconds) with unchanged production source. The public identifier/value lookup resolves the status mismatch while still proving actual completed-record removal, consumed approval protection and unchanged original bytes. Both origins and the single caller Back pass. The next public context/recovery vertical remains pending; this pilot alone does not qualify the full ticket.
