@@ -115,7 +115,10 @@ import StillCore
         if !flag { AppLifecycleController.shared.openWorkspace?() }
         return true
     }
-    func applicationDidBecomeActive(_ notification: Notification) { AppLifecycleController.shared.refreshLogin() }
+    func applicationDidBecomeActive(_ notification: Notification) {
+        AppLifecycleController.shared.refreshLogin()
+        AppLifecycleController.shared.capacity.request(.foreground)
+    }
 }
 
 struct LoginSettingsView: View {

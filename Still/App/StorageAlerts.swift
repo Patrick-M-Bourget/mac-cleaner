@@ -68,6 +68,7 @@ extension Notification.Name {
     func dismissOpenedAlert() { openedAlertContext = nil }
     func openAlert(context: AlertOpenContext) {
             openedAlertContext = context
+            AppLifecycleController.shared.capacity.request(.alertOpened)
             AppLifecycleController.shared.openWorkspace?()
             NSApp.activate(ignoringOtherApps: true)
             NSApp.windows.first(where: { $0.canBecomeMain })?.makeKeyAndOrderFront(nil)

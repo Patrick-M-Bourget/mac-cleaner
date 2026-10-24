@@ -275,6 +275,7 @@ import SwiftUI
         AppLifecycleController.shared.hasPendingPlan = false
         AppLifecycleController.shared.operationInProgress = true
         await execution.run(batch)
+        AppLifecycleController.shared.capacity.request(.cleanupEnded)
         AppLifecycleController.shared.operationInProgress = false
     }
     func toggleAll() async {
