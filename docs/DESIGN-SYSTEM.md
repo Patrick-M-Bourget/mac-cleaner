@@ -41,7 +41,9 @@ The app target owns these internal SwiftUI components; they are presentation pri
 | `CleanupScopeNotice` | Existing inspection/Overview guidance; the approved plan replacement uses a contextual category prerequisite, never a permanent global chooser/banner (FLOW-LOCK Q4/Q5) |
 | `StatusRow`, `EmptyState` | Honest status, blocked/error explanation, or no findings yet |
 | `SettingsRow` | Setting title, explanation and native controls |
-| `AppBrand`, `StillSidebarRow`, `ChromeSurface` | Shared brand, persistent native navigation, destination accents and adaptive chrome |
+| `AppBrand`, `StillSidebarRow`, `ChromeSurface` | Shared brand, persistent native navigation, destination accents and adaptive chrome; reserve the actionable-category badge without moving its title |
+| `AppearancePicker`, `AppearancePreferenceNotice` | Shared full-value native choice and reserved 24-point persistent preference feedback; missing/invalid/unreadable/save-failed states, persistence-only Retry |
+| `MonitoringFooter`, `MonitoringDetails` | Shared 16-point typed monitoring evidence and direct read-only detail route; off/checking/on/snoozed/attention |
 | `CapacityMeter` | Optional observed capacity and adaptive capsule meter; unknown stays distinct from zero |
 | `NativeWindowContract` | Outer minimum sizing and explicit Debug capture-size modes; never destination-driven resizing |
 | `ActionStrip`, `ReviewCleanupButton` | Stable primary-action region and explicit native focus restoration |
