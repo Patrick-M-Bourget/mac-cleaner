@@ -1,0 +1,46 @@
+# Shell and appearance source reviews — #53
+
+Independent Standards and Spec reviews. Baseline `43668a8`, final app candidate `267cd7e`; native acceptance is recorded separately in [qualification](shell-appearance.md). Earlier Reset/invalid-capacity/detail findings were fixed before these final reviews. Source inspection does not substitute for native interaction or original-capture review.
+
+## Standards
+
+# #53 final incremental standards review
+
+Comparison `43668a8...2795902`, carrying prior service/app/footer standards reviews forward and inspecting the added hunks since `ba355dd` independently.
+
+No additional actionable documented-standard or Fowler heuristic findings. A single NSApplication appearance owner now governs live content and auxiliary panels; removing the competing live preferredColorScheme override keeps reset-to-Automatic consistent with the locked contract. The isolated developer Gallery retains its own explicit preview appearance. Shared picker labelsHidden and stable accessibility identifier preserve full selection-value space and public test identity. The notice keeps the approved bounded 24-point reserved region; native bordered styling and zIndex do not change persistence/navigation authority. Gallery's initially collapsed synthetic shell group bounds its addition without duplicating components or altering product gates.
+
+Public tests still observe actual preference evidence, frame/context anchors and native controls at approved seams. The known live Retry saving mouse-delivery failure is still under diagnosis; source review and inert Gallery captures do not establish that zIndex fixes it. No new unrelated refactor, internal test bypass, speculative abstraction or actionable Fowler smell found. Applied AGENTS, DESIGN-SYSTEM, SHELL-APPEARANCE, TDD and the full code-review baseline. No repository edits.
+
+## Retry activation and launch diagnostics increment
+
+Comparison `2795902...ba0ce9a`: no additional actionable standards findings. The net product delta sets Retry saving’s native accessibility activation point to its center, keeping the action inside the actual bordered button rather than changing its persistence semantics or adding an alternate test-only action. Temporary probes are absent from the final product diff. Public tests retain ordinary click, persisted-choice and relaunch assertions; this is not a keyboard or coordinate workaround in the test.
+
+History launch diagnostics preserve the original launch requirement: any optional Show Still attempt records diagnostic evidence and then unconditionally fails the missing-initial-window path. It cannot convert a failed launch into green. Screenshot/hierarchy attachments remain scoped to the existing disposable native test process. Native results remain pending at this review point, so no claim is made that the source correction has passed qualification. No repository edits.
+
+## Native recovery-control candidate
+
+Comparison `ba0ce9a...267cd7e`: no additional actionable standards findings. The shared notice now composes a private native NSButton bridge with ordinary target/action and intrinsic sizing. The coordinator updates its closure when SwiftUI updates the representable; the native button owns its accessible label and event region. It keeps the existing Retry saving title, bounded 24-point row and controller persistence callback. Removing ineffective zIndex/SwiftUI activation modifiers avoids layering redundant workarounds. The design system explicitly permits native AppKit bridges, and keeping this single-purpose bridge beside its owning shared notice does not warrant an additional abstraction.
+
+Strict public click/persist/relaunch tests are unchanged. Candidate native flows/regressions/Gallery are still running at this review point; neither actual mouse success nor final visual fit is inferred from the source. No repository edits.
+
+
+## Spec
+
+# #53 final Spec source review
+
+Reviewed43668a8...ba0ce9a (root current at review), carrying forward earlier service/app reviews against authoritative SHELL-APPEARANCE.md. Known native Retry activation correction remains pending runtime qualification and is excluded from a completion claim. No edits.
+
+**No new actionable source findings.** Prior false checking detail is corrected to “These checks do not scan folders,” without claiming a global scan state. Typed alert attention validates present metadata and preserves read/write/submission blockers; details distinguish paused decisions from polling and retain snooze/quit/login boundaries. Footer entry clears secondary navigation directly while suppressing configure/sample/request side effects. Gate-off builds remain informational on-demand.
+
+Process-owned appearance uses one NSApplication owner for native chrome and content; the competing workspace preferredColorScheme override is removed. The labelled native picker exposes its selected value, and source review matches the separately reviewed final Reset captures: appearance-clear failure retainsDark, later-service failure after successful clear appliesAutomatic, completeReset appliesAutomatic. Existing journal/execution guards remain before appearance clearing; Clear preserves appearance. Partial Reset copy stays stage-specific. Badge counts actionable eligible categories only, hides at zero with reserved geometry and accessibility wording; toolbar execution→scan→destination precedence remains intact. No filesystem authority, auto-selection/scan, notification cadence or background lifecycle change is introduced.
+
+## Focused missing-window diagnostic result
+
+Run40096673703 atba0ce9a passes both unchanged History journeys: initial47.335seconds and minimum41.672seconds. Full native log contains no history-launch missing-window, post-ShowStill or missing-history diagnostic attachment names. The optional recovery branch did not supply a passing path: missing launch still unconditionally fails, and the original No completed runs assertion remains. No product fix was made for the earlier missing-window regression.
+
+This rules out an invariably broken focused History launch at that source; it does NOT establish the cause of40094532205 or reproduce its capacity→History ordering. Keep the failed broader run disclosed and require final same-order regression after the Retry correction. Current pending native appearance/footer/regression work, real OS authorization/delivery, all-window/dialog behavior, VoiceOver/localization and supported OS/CPU/full-suite certification remain separate gates. Gallery presentation is inert, not service/OS proof; future milestones and M8 deferral remain preserved.
+
+## Native Retry final increment —267cd7e
+
+Reviewedba0ce9a..267cd7e. The final notice uses a shared live/Gallery NSButton target/action bridge with native intrinsic size and accessibility label; coordinator callback updates with SwiftUI changes. Its sole action remains retrySaving, so it cannot alter session choice, navigation, scans, recovery or other preferences. Prior experimental zIndex and accessibility activation-point override are removed. No actionable source finding in this bounded correction. The observed failure cause (ordinary click ignored; edge delivery to neighboring NSClipView) supports a native-control activation correction rather than changing persistence policy. Final flows40096952080, same-order16-regression40096954114 and Gallery verification remain pending; source review does not replace their actual click/keyboard/layout evidence. NSApplication appearance ownership is unchanged from the passing focused History source.
