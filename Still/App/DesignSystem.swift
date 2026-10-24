@@ -339,7 +339,7 @@ struct StillSidebarRow: View {
                     }
                 }
                 .contentShape(Rectangle())
-        }.buttonStyle(.plain).accessibilityLabel(accessibleTitle).accessibilityAddTraits(selected ? .isSelected : [])
+        }.buttonStyle(.plain).accessibilityLabel(accessibleTitle).accessibilityIdentifier(title).accessibilityAddTraits(selected ? .isSelected : [])
     }
     private var accessibleTitle: String {
         guard let count = selectedCategories, count > 0 else { return title }

@@ -56,6 +56,8 @@ extension AppLifecycleController: HistoryMaintenanceLifecycle {
         guard !busy, !lifecycle.maintenanceInProgress, !lifecycle.operationInProgress, !lifecycle.selection.execution.isRunning else { message = "Reset is blocked while cleanup is running. Stop and review its results first."; return false }
         busy = true; lifecycle.maintenanceInProgress = true
         defer { busy = false; lifecycle.maintenanceInProgress = false }
+        enum ResetStage { case journal, appearance, remainingPreferences }
+        var resetStage = ResetStage.journal
         do {
             // This check is deliberately inside the write transaction, never based on cached UI.
             let result = try await Task.detached {
@@ -64,6 +66,9 @@ extension AppLifecycleController: HistoryMaintenanceLifecycle {
                 let compacted = try journal.compact()
                 return (removed, compacted)
             }.value
+            resetStage = .appearance
+            try lifecycle.resetAppearancePreference()
+            resetStage = .remainingPreferences
             try lifecycle.resetPreferences()
             try lifecycle.locations.reset()
             try await GrowthHistoryModel.shared.resetHistory()
@@ -81,7 +86,15 @@ extension AppLifecycleController: HistoryMaintenanceLifecycle {
         } catch CleanupJournalError.recoveryRequired {
             blocked = true; message = "Reset is blocked by unfinished cleanup records. Open recovery review; no operations will resume automatically."
         } catch {
-            blocked = true; message = "Reset could not finish safely. The journal or a preference service is unavailable; some completed history may already be cleared. Review recovery before trying again."
+            blocked = true
+            switch resetStage {
+            case .journal:
+                message = "Reset could not finish safely. The journal is unavailable; preferences are unchanged and some completed history may already be cleared. Review recovery before trying again."
+            case .appearance:
+                message = "Reset could not clear the appearance preference. The current appearance is retained; some completed history may already be cleared. Review recovery before trying again."
+            case .remainingPreferences:
+                message = "Reset could not finish safely. Appearance was reset to Automatic, but another preference service is unavailable; some completed history may already be cleared. Review recovery before trying again."
+            }
         }
         return false
     }

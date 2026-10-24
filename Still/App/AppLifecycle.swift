@@ -22,6 +22,7 @@ import StillCore
     static let shared = AppLifecycleController()
     let alerts = StorageAlertsController()
     let capacity = CapacityRefreshController(system: NativeCapacityRefreshSystem())
+    let appearance = AppearancePreferenceController(store: NativeAppearancePreferenceStore())
     let selection = SessionPlan()
     let recovery = CleanupRecoveryModel()
     let workspaceNavigation = WorkspaceNavigation()
@@ -54,6 +55,15 @@ import StillCore
             self?.monitoringChanged(effective)
         }
     }
+    func applyAppearance() {
+        switch appearance.choice {
+        case .automatic: NSApplication.shared.appearance = nil
+        case .light: NSApplication.shared.appearance = NSAppearance(named: .aqua)
+        case .dark: NSApplication.shared.appearance = NSAppearance(named: .darkAqua)
+        }
+    }
+    func chooseAppearance(_ choice: AppearanceChoice) { appearance.choose(choice); applyAppearance() }
+    func resetAppearancePreference() throws { try appearance.reset(); applyAppearance() }
     func resetPreferences() throws {
         guard !operationInProgress, !selection.execution.isRunning else { throw CleanupJournalError.unavailable }
         if !LocalStateLocation.isDisposableTest {
@@ -115,6 +125,7 @@ import StillCore
         if !flag { AppLifecycleController.shared.openWorkspace?() }
         return true
     }
+    func applicationDidFinishLaunching(_ notification: Notification) { AppLifecycleController.shared.applyAppearance() }
     func applicationDidBecomeActive(_ notification: Notification) {
         AppLifecycleController.shared.refreshLogin()
         AppLifecycleController.shared.capacity.request(.foreground)

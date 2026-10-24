@@ -18,6 +18,7 @@ struct DesignGallery: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: StillDesign.Space.xl) {
                     PageHeader(title: "Native design system", subtitle: "Developer examples only · No personal storage measurements")
+                    ShellAppearanceGalleryExamples()
                     VStack(alignment: .leading, spacing: StillDesign.Space.sm) {
                         Text("Synthetic category badge · Inert examples").font(.headline)
                         StillSidebarRow(title: "Cleanup plan", symbol: "checklist", selected: false, selectedCategories: 0) {}
@@ -150,6 +151,21 @@ private struct CapacityGalleryExamples: View {
         }.accessibilityElement(children: .contain).accessibilityIdentifier("capacityGallery-" + name)
     }
 }
+private struct ShellAppearanceGalleryExamples: View {
+    var body: some View {
+        VStack(alignment: .leading, spacing: StillDesign.Space.lg) {
+            Text("Synthetic appearance controls · Inert examples").font(.headline)
+            AppearancePicker(choice: .constant(.dark))
+            ForEach(Array([AppearancePreferenceController.Notice?.none, .invalidSavedValue, .unreadable, .saveFailed].enumerated()), id: \.offset) { index, notice in
+                VStack(alignment: .leading, spacing: StillDesign.Space.xs) {
+                    Text("Appearance notice example " + String(index)).font(.caption)
+                    AppearancePreferenceNotice(notice: notice, retry: {})
+                }.accessibilityElement(children: .contain).accessibilityIdentifier("appearanceGallery-" + String(index))
+            }
+        }
+    }
+}
+
 #endif
 
 /// Explicit debug-only review settings do not alter macOS accessibility preferences.

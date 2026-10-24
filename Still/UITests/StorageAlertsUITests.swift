@@ -152,6 +152,8 @@ final class StorageAlertsUITests: XCTestCase {
         try Data(repeating: 0x62, count: 101).write(to: download)
         for minimum in [false, true] {
             let app = XCUIApplication()
+            let state = try configureIsolatedJourneyState(app)
+            defer { app.terminate(); try? FileManager.default.removeItem(at: state) }
             app.launchArguments = ["--future-milestones", "--homebrew-inventory-fixture", minimum ? "--design-minimum" : "--design-initial-size"]
             var information = stat()
             XCTAssertEqual(lstat(root.path, &information), 0)
@@ -227,6 +229,8 @@ final class StorageAlertsUITests: XCTestCase {
         try seed.write(to: wheel)
         for minimum in [false, true] {
             let app = XCUIApplication()
+            let state = try configureIsolatedJourneyState(app)
+            defer { app.terminate(); try? FileManager.default.removeItem(at: state) }
             app.launchArguments = ["--future-milestones", "--pip-inventory-fixture", minimum ? "--design-minimum" : "--design-initial-size"]
             var information = stat()
             XCTAssertEqual(lstat(root.path, &information), 0)
@@ -271,9 +275,11 @@ final class StorageAlertsUITests: XCTestCase {
         }
     }
 
-    @MainActor func testFutureDockerReportKeepsHostCapacityAndPersistentDataDistinct() {
+    @MainActor func testFutureDockerReportKeepsHostCapacityAndPersistentDataDistinct() throws {
         for size in ["--design-initial-size", "--design-minimum"] {
             let app = XCUIApplication()
+            let state = try configureIsolatedJourneyState(app)
+            defer { app.terminate(); try? FileManager.default.removeItem(at: state) }
             app.launchArguments = ["--future-milestones", size]
             app.launch()
             revealOverviewTool(app, label: "Review Docker storage")

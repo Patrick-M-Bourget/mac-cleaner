@@ -129,7 +129,7 @@ private struct WorkspaceView: View {
     private var destination: Destination { get { navigationState.destination } nonmutating set { navigationState.destination = newValue } }
     @State private var inspecting = false
     @State private var inspected = FixtureItem.downloads[0]
-    @State private var appearance = "Automatic"
+    @State private var appearance = AppLifecycleController.shared.appearance
     @State private var expanded = false
     @State private var folderInspection = AppLifecycleController.shared.inspection
     @State private var selection = AppLifecycleController.shared.selection
@@ -220,6 +220,8 @@ private struct WorkspaceView: View {
             .background { ChromeSurface(role: .sidebar) }
             Divider()
             VStack(alignment: .leading, spacing: 0) {
+                AppearancePreferenceNotice(notice: appearance.notice, retry: { appearance.retrySaving() })
+                    .padding(.horizontal, StillDesign.Space.page)
                 if nativeInspectionVisible {
                     StorageExplorerView(model: folderInspection, selection: selection, context: explorerContext,
                         backTitle: "Back to " + explorerCaller.rawValue, back: { nativeInspectionVisible = false; destination = explorerCaller })
@@ -373,14 +375,10 @@ private struct WorkspaceView: View {
         .toolbar {
             contextToolbar
             ToolbarItem(placement: .automatic) {
-            Picker("Appearance", selection: $appearance) {
-                Text("Automatic").tag("Automatic")
-                Text("Light").tag("Light")
-                Text("Dark").tag("Dark")
-            }.controlSize(.small).frame(width: 110).accessibilityLabel("Appearance")
+            AppearancePicker(choice: Binding(get: { appearance.choice }, set: { AppLifecycleController.shared.chooseAppearance($0) }))
             }
         }
-        .preferredColorScheme(appearance == "Automatic" ? nil : appearance == "Dark" ? .dark : .light)
+        .preferredColorScheme(appearance.choice == .automatic ? nil : appearance.choice == .dark ? .dark : .light)
     }
 
     @ToolbarContentBuilder private var contextToolbar: some ToolbarContent {
@@ -714,7 +712,7 @@ private struct WorkspaceView: View {
     }
 
     private func didResetLocalRecords() {
-        appearance = "Automatic"; nativeInspectionVisible = false; inspecting = false
+        nativeInspectionVisible = false; inspecting = false
         diagnosticsVisible = false; diagnostics = DiagnosticsModel(); exclusionsVisible = false
     }
 
