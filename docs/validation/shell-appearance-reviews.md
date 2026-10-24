@@ -1,6 +1,6 @@
 # Shell and appearance source reviews — #53
 
-Independent Standards and Spec reviews. Baseline `43668a8`, final app candidate `267cd7e`; native acceptance is recorded separately in [qualification](shell-appearance.md). Earlier Reset/invalid-capacity/detail findings were fixed before these final reviews. Source inspection does not substitute for native interaction or original-capture review.
+Independent Standards and Spec reviews. Baseline `43668a8`, final app candidate `2456cdd`; native acceptance is recorded separately in [qualification](shell-appearance.md). Earlier Reset/invalid-capacity/detail findings were fixed before these final reviews. Source inspection does not substitute for native interaction or original-capture review.
 
 ## Standards
 
@@ -24,6 +24,12 @@ Comparison `ba0ce9a...267cd7e`: no additional actionable standards findings. The
 
 Strict public click/persist/relaunch tests are unchanged. Candidate native flows/regressions/Gallery are still running at this review point; neither actual mouse success nor final visual fit is inferred from the source. No repository edits.
 
+## Native current-bounds accessibility activation
+
+Comparison `267cd7e...2456cdd`: no additional actionable standards findings. The native button subclass overrides only its accessibility activation point, deriving the current bounds midpoint and converting through its actual window into screen coordinates. It retains superclass behavior before window attachment and recomputes the point after moves rather than caching stale geometry. Ordinary NSButton target/action, title, intrinsic sizing and persistence callback remain unchanged. This narrow override does not constitute Refused Bequest: the button retains its native behavior and specializes the documented accessibility seam responsible for its observed bad hit point.
+
+The final net diff contains no diagnostic probes, launch flags, test coordinate workaround or weakened click assertion. Strict default-click qualification is restored. New final native flows remain pending at review time; causal probe evidence supports the correction but is not itself a passing final journey. No repository edits.
+
 
 ## Spec
 
@@ -44,3 +50,9 @@ This rules out an invariably broken focused History launch at that source; it do
 ## Native Retry final increment —267cd7e
 
 Reviewedba0ce9a..267cd7e. The final notice uses a shared live/Gallery NSButton target/action bridge with native intrinsic size and accessibility label; coordinator callback updates with SwiftUI changes. Its sole action remains retrySaving, so it cannot alter session choice, navigation, scans, recovery or other preferences. Prior experimental zIndex and accessibility activation-point override are removed. No actionable source finding in this bounded correction. The observed failure cause (ordinary click ignored; edge delivery to neighboring NSClipView) supports a native-control activation correction rather than changing persistence policy. Final flows40096952080, same-order16-regression40096954114 and Gallery verification remain pending; source review does not replace their actual click/keyboard/layout evidence. NSApplication appearance ownership is unchanged from the passing focused History source.
+
+## Native activation-point correction —2456cdd
+
+Reviewed267cd7e..2456cdd app increment: ActivationButton overrides the native accessibility activation point using current bounds center converted through the containing window into screen coordinates, with superclass fallback before window attachment. This follows control movement/resizing rather than storing stale coordinates. Native button target/action, intrinsic size, label and persistence-only callback are unchanged. No actionable Spec finding or authority expansion.
+
+Positive physical probe40097534795 established that the default edge activation missed while an actual center event reached mouseDown/action, dismissed the notice and storedDark; its original strict test remained failing and is diagnostic evidence only. Final probes/flags/custom test coordinates are removed; the unchanged strict public click/persist/dialog/Quit-relaunch journey must pass at the final source. That final native result remains pending, and earlier16-regression progress does not certify this later activation change. No all-platform/VoiceOver claim is inferred from the override.
