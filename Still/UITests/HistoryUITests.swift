@@ -69,7 +69,8 @@ final class HistoryUITests: XCTestCase {
         app.buttons["historyRecovery"].click()
         XCTAssertTrue(app.staticTexts["Review interrupted cleanup"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts["0 unresolved · 1 not started"].exists)
-        app.buttons["Return to Overview"].click(); app.typeKey("3", modifierFlags: .command)
+        app.buttons["Back to History"].click()
+        XCTAssertTrue(app.buttons["historyRecovery"].waitForExistence(timeout: 5))
         // Public journal fixture now supplies a known not-moved outcome, never a retry.
         var known = CleanupRecord(batch: another, target: try XCTUnwrap(another.targets.first)); known.state = .cancelled
         try journal.outcome(known)

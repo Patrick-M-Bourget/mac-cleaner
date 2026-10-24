@@ -93,6 +93,8 @@ enum Destination: String, CaseIterable, Identifiable {
     var planReturnsToExplorer = false
     var scanOrigin = Destination.overview
     var downloadsExplorerActive = true
+    var recoveryVisible = false
+    var recoveryCaller = Destination.overview
 }
 
 private struct FixtureItem: Identifiable {
@@ -119,7 +121,7 @@ private struct WorkspaceView: View {
     @State private var folderInspection = AppLifecycleController.shared.inspection
     @State private var selection = AppLifecycleController.shared.selection
     @State private var recovery = AppLifecycleController.shared.recovery
-    @State private var recoveryVisible = false
+    private var recoveryVisible: Bool { get { navigationState.recoveryVisible } nonmutating set { navigationState.recoveryVisible = newValue } }
     private var nativeInspectionVisible: Bool { get { navigationState.explorerVisible } nonmutating set { navigationState.explorerVisible = newValue } }
     @State private var homebrewVisible = false
     @State private var managedStorageVisible = false
@@ -249,7 +251,9 @@ private struct WorkspaceView: View {
                         }
                     } else if recoveryVisible {
                         ActionStrip(message: "Recovery records are retained. Nothing resumes automatically.") {
-                            Button("Return to Overview") { recoveryVisible = false; destination = .overview }.buttonStyle(.borderedProminent)
+                            Button(navigationState.recoveryCaller == .overview ? "Return to Overview" : "Back to " + navigationState.recoveryCaller.rawValue) {
+                                recoveryVisible = false; destination = navigationState.recoveryCaller; navigationState.recoveryCaller = .overview
+                            }.buttonStyle(.borderedProminent)
                         }
                     } else if nativeInspectionVisible && folderInspection.isScanning {
                         ActionStrip(message: "Preliminary observations · No cleanup is running") {
@@ -290,7 +294,7 @@ private struct WorkspaceView: View {
             }
             #endif
         }
-        .task { if await recovery.loadOnce() { recoveryVisible = true } }
+        .task { if await recovery.loadOnce() { openRecovery(caller: .overview, refresh: false) } }
         .task { locationsModel.load() }
         .onChange(of: locationsModel.scopes) { _, _ in
             explorerContext.allowedScopes = Set(locationsModel.included.map { URL(fileURLWithPath: $0.path).standardizedFileURL })
@@ -352,7 +356,7 @@ private struct WorkspaceView: View {
             planReturnsToExplorer = false
             if value == .plan && selection.execution.result != nil { startNewPlan() }
             diagnosticsVisible = false; exclusionsVisible = false
-            recoveryVisible = false; inspecting = false; nativeInspectionVisible = false; homebrewVisible = false
+            recoveryVisible = false; navigationState.recoveryCaller = .overview; inspecting = false; nativeInspectionVisible = false; homebrewVisible = false
             pipVisible = false; dockerVisible = false; managedStorageVisible = false
         }.keyboardShortcut(value.shortcut, modifiers: .command)
     }
@@ -397,7 +401,7 @@ private struct WorkspaceView: View {
                 SummarySurface {
                     HStack {
                         StatusRow(text: "Interrupted cleanup needs review", symbol: "exclamationmark.circle", role: .caution)
-                        Button("Review interrupted cleanup") { recoveryVisible = true }
+                        Button("Review interrupted cleanup") { openRecovery(caller: .overview) }
                     }
                 }
             }
@@ -614,8 +618,15 @@ private struct WorkspaceView: View {
         Task { await folderInspection.resetSession() }
     }
 
+    private func openRecovery(caller: Destination, refresh: Bool = true) {
+        navigationState.recoveryCaller = caller
+        destination = caller
+        recoveryVisible = true
+        if refresh { Task { await recovery.refresh() } }
+    }
+
     private var history: some View {
-        CleanupHistoryView(showRecovery: { recoveryVisible = true; Task { await recovery.refresh() } }, didReset: {
+        CleanupHistoryView(showRecovery: { openRecovery(caller: .history) }, didReset: {
             appearance = "Automatic"; nativeInspectionVisible = false; inspecting = false
             diagnosticsVisible = false; diagnostics = DiagnosticsModel(); exclusionsVisible = false
         })
