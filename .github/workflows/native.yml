@@ -119,6 +119,8 @@ jobs:
             scope=(
               -only-testing:StillUITests/WorkspaceUITests/testConnectedDownloadsJourneyPreservesContextAndConsumesPlan
               -only-testing:StillUITests/WorkspaceUITests/testMinimumConnectedDownloadsJourneyPreservesContextAndConsumesPlan
+              -only-testing:StillUITests/HistoryUITests/testCompletedHistoryClearAndFreshResetGuard
+              -only-testing:StillUITests/HistoryUITests/testHistoryAtMinimumWindow
               -only-testing:StillUITests/LocalRecordsUITests/testManagementPreservesContextAndFreshRecoveryGuard
               -only-testing:StillUITests/StorageAlertsUITests
               -only-testing:StillUITests/CapacityRefreshUITests/testCompletedScanRefreshesCapacityWithoutChangingChoices
