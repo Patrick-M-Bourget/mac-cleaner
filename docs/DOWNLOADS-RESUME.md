@@ -23,3 +23,5 @@ External native results/notes are under `/Users/bender/Library/Caches/Codex/mac-
 ## October 24 continuation checkpoint
 
 #60/#61/#63 are qualified for integration; see [source-bound evidence](validation/recovery-results.md). Final app changes end at `664f6ce`; broader regression source `7c28b7f`, History CI source `be4c3ab`. Next approved frontier is #62 after integration. It must compose existing Clear/Reset safeguards and gated diagnostics from both History and Locations, with actual caller context. Do not reopen approved flow decisions or promote unresolved #49/#51–#54/future capabilities.
+
+Integration is now `03cbdfc` (pushed), and #60/#61/#63 are closed with evidence. #62 is unblocked and in progress in `/Users/bender/Library/Caches/Codex/mac-cleaner-implementation/issue62`, branch `implement/local-records-62`. Root remains on `integration/still-spec`. Previous #60/#61/#63 worktrees are cleanly removed; their branches/commits and committed evidence remain. PR #36 remains draft for broader scope.
