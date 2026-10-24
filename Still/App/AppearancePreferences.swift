@@ -66,28 +66,28 @@ struct AppearancePreferenceNotice: View {
 private struct NativeAppearanceRetryButton: NSViewRepresentable {
     let action: () -> Void
     func makeCoordinator() -> Coordinator { Coordinator(action) }
-    func makeNSView(context: Context) -> ActivationButton {
-        let button = ActivationButton(title: "Retry saving", target: context.coordinator, action: #selector(Coordinator.clicked))
+    func makeNSView(context: Context) -> AccessibleButton {
+        let button = AccessibleButton(title: "Retry saving", target: context.coordinator, action: #selector(Coordinator.clicked))
         button.bezelStyle = .rounded
         button.controlSize = .small
         button.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
         button.setAccessibilityLabel("Retry saving")
         return button
     }
-    func sizeThatFits(_ proposal: ProposedViewSize, nsView: ActivationButton, context: Context) -> CGSize? { nsView.intrinsicContentSize }
-    func updateNSView(_ nsView: ActivationButton, context: Context) { context.coordinator.action = action }
+    func sizeThatFits(_ proposal: ProposedViewSize, nsView: AccessibleButton, context: Context) -> CGSize? { nsView.intrinsicContentSize }
+    func updateNSView(_ nsView: AccessibleButton, context: Context) { context.coordinator.action = action }
     @MainActor final class Coordinator: NSObject {
         var action: () -> Void
         init(_ action: @escaping () -> Void) { self.action = action }
         @objc func clicked() { action() }
     }
-    @MainActor final class ActivationButton: NSButton {
-        override func accessibilityActivationPoint() -> NSPoint {
-            // SwiftUI's wrapper can expose an activation point at the trailing
-            // boundary, outside the actual native hit region. Keep native AX
-            // activation at the current control center, including after a move.
-            guard let window else { return super.accessibilityActivationPoint() }
-            return window.convertPoint(toScreen: convert(NSPoint(x: bounds.midX, y: bounds.midY), to: nil))
+    @MainActor final class AccessibleButton: NSButton {
+        override func accessibilityFrame() -> NSRect {
+            // NSButton's expanded alignment/shadow AX frame can put a default
+            // click on the wrapper's excluded trailing boundary. Report the
+            // actual current native bounds in screen coordinates instead.
+            guard let window else { return super.accessibilityFrame() }
+            return window.convertToScreen(convert(bounds, to: nil))
         }
     }
 
