@@ -22,6 +22,10 @@ October 23 parity checkpoint: the [full audit](PROTOTYPE-PARITY.md) maps impleme
 
 Approved October 23, 2026: feature implementation and its necessary safety/platform tests take priority over M8. Developer ID credentials, signing/notarization, release-preflight work and commercial packaging do not block ordinary feature development, local builds or fixture tests. Keep ordinary ad-hoc signing required by native UI tests. If an individual OS integration needs a specific identity, record that narrow native qualification dependency rather than imposing distribution signing on all features. M8 work resumes when commercialization is explicitly prioritized; its requirements remain preserved.
 
+## Next connected feature slices
+
+After #55–#57 qualify the first Downloads journey, #58 (child of #46) covers mixed included-location/access/overlap behavior and readable compact recovery actions. #59 (child of #47) supplies the remaining structured inspector evidence and eligibility explanations. Both depend on #57 and reuse the approved FLOW-LOCK/prototype, rather than reopening product decisions. Original parent acceptance remains open beyond each bounded proof; no future milestone is removed or promoted by this sequence.
+
 ## Preserved later exploration (not committed delivery)
 
 App uninstall, duplicate detection, broader browser support, ordinary-file cleanup outside Downloads, whole-folder cleanup, direct backup deletion, Docker mutation, FSEvents/incremental background scanning, automatic cleanup, treemap enhancements, account/cloud services and automatic updates remain explicit backlog ideas. They require their own product/safety design; preserving them does not authorize their implementation. No “desired cleanup GB” field is planned: the accepted replacement is M5's low-space alert threshold.
