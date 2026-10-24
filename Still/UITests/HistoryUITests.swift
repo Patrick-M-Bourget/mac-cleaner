@@ -108,33 +108,44 @@ final class HistoryUITests: XCTestCase {
         func reveal(_ button: XCUIElement) {
             for _ in 0..<5 where !bounds.contains(button.frame) { app.scrollViews.firstMatch.scroll(byDeltaX: 0, deltaY: -250) }
         }
+        let manage = app.buttons["manageLocalRecords"]
+        reveal(manage); manage.click()
+        XCTAssertTrue(app.buttons["Back to History"].waitForExistence(timeout: 5))
         let clear = app.buttons["clearHistory"]
         reveal(clear); XCTAssertTrue(clear.exists); clear.click()
-        XCTAssertTrue(app.sheets.firstMatch.buttons["Cancel"].waitForExistence(timeout: 2)); capture("history-clear-confirmation")
+        XCTAssertTrue(app.sheets.firstMatch.buttons["Cancel"].waitForExistence(timeout: 2)); capture("local-records-clear-confirmation")
         app.sheets.firstMatch.buttons["Cancel"].click()
         XCTAssertEqual(try journal.completedHistory().completedRuns.count, 1)
         clear.click(); app.sheets.firstMatch.buttons["Clear completed runs"].click()
-        XCTAssertTrue(app.staticTexts["No completed runs"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["historyStatus"].waitForExistence(timeout: 5))
         XCTAssertTrue(try journal.records().isEmpty)
-        // Insert new unfinished evidence AFTER History loaded. Reset must read it afresh.
+        app.buttons["Back to History"].click()
+        XCTAssertTrue(app.staticTexts["No completed runs"].waitForExistence(timeout: 5))
+        reveal(manage); manage.click()
+        let reset = app.buttons["resetStill"]
+        XCTAssertTrue(reset.waitForExistence(timeout: 5))
+        let ready = expectation(for: NSPredicate(format: "enabled == true"), evaluatedWith: reset)
+        wait(for: [ready], timeout: 5)
+        // Insert new unfinished evidence AFTER Local records loaded. Reset must read it afresh.
         let another = try draft.approve(draft.review())
         XCTAssertTrue(try journal.claim(another))
-        let reset = app.buttons["resetStill"]
         reveal(reset); reset.click(); app.sheets.firstMatch.buttons["Reset Still"].click()
         let blocked = app.staticTexts["Reset is blocked by unfinished cleanup records. Open recovery review; no operations will resume automatically."]
         XCTAssertTrue(blocked.waitForExistence(timeout: 5))
         for theme in ["Light", "Dark"] {
-            app.popUpButtons["Appearance"].click(); app.menuItems[theme].click(); capture("history-reset-blocked-" + theme)
+            app.popUpButtons["Appearance"].click(); app.menuItems[theme].click(); capture("local-records-reset-blocked-" + theme)
         }
-        app.buttons["historyRecovery"].click()
+        reveal(app.buttons["localRecordsRecovery"]); app.buttons["localRecordsRecovery"].click()
         XCTAssertTrue(app.staticTexts["Review interrupted cleanup"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts["0 unresolved · 1 not started"].exists)
-        app.buttons["Back to History"].click()
-        XCTAssertTrue(app.buttons["historyRecovery"].waitForExistence(timeout: 5))
+        app.buttons["Back to Local records"].click()
+        XCTAssertTrue(app.buttons["localRecordsRecovery"].waitForExistence(timeout: 5))
         // Public journal fixture now supplies a known not-moved outcome, never a retry.
         var known = CleanupRecord(batch: another, target: try XCTUnwrap(another.targets.first)); known.state = .cancelled
         try journal.outcome(known)
         reveal(reset); reset.click(); app.sheets.firstMatch.buttons["Reset Still"].click()
+        XCTAssertTrue(app.staticTexts["historyStatus"].waitForExistence(timeout: 5))
+        app.buttons["Back to History"].click()
         XCTAssertTrue(app.staticTexts["No completed runs"].waitForExistence(timeout: 5))
         XCTAssertTrue(try journal.records().isEmpty)
         XCTAssertFalse(try journal.claim(approval))
