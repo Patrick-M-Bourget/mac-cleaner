@@ -12,6 +12,7 @@ on:
           - all
           - downloads
           - downloads-journey
+          - downloads-regressions
           - exclusions
           - design
           - selection
@@ -87,6 +88,12 @@ jobs:
               -only-testing:StillUITests/WorkspaceUITests/testInspectionCheckboxSelectionKeepsContentAnchored
               -only-testing:StillUITests/WorkspaceUITests/testKeyboardCancelRestoresReviewFocusWithoutChangingSelection
               -only-testing:StillUITests/CleanupRetryUITests
+            )
+          elif [[ "$EVENT_NAME" == "workflow_dispatch" && "$REQUESTED_SUITE" == "downloads-regressions" ]]; then
+            scope=(
+              -only-testing:StillUITests/RecoveryUITests
+              -only-testing:StillUITests/WorkspaceUITests/testCompletedGrowthUsesExplicitScopesAndShowsUnknownForUnmeasuredCoverage
+              -only-testing:StillUITests/WorkspaceUITests/testOverviewFindingsRestoreHierarchyAndPreserveReviewChoices
             )
           elif [[ "$EVENT_NAME" == "workflow_dispatch" && "$REQUESTED_SUITE" == "exclusions" ]]; then
             scope=(-only-testing:StillUITests/ExclusionsUITests)
