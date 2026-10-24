@@ -311,6 +311,11 @@ final class ShellAppearanceUITests: XCTestCase {
         app.launchArguments = ["--design-gallery", minimum ? "--design-minimum" : "--design-initial-size"]
         app.launch()
         XCTAssertTrue(app.staticTexts["Native design system"].waitForExistence(timeout: 10))
+        let examples = app.buttons["Synthetic shell and appearance examples"]
+        XCTAssertTrue(examples.waitForExistence(timeout: 5))
+        XCTAssertEqual(examples.value as? String, "Collapsed")
+        examples.click()
+        XCTAssertEqual(examples.value as? String, "Expanded")
         XCTAssertEqual(app.popUpButtons.count, 1)
         let bounds = app.windows.firstMatch.frame
         for theme in ["Light", "Dark"] {
