@@ -46,8 +46,7 @@ struct AppearancePreferenceNotice: View {
             Text(message).font(.caption).foregroundStyle(.secondary).lineLimit(1)
                 .accessibilityIdentifier("appearanceSaveNotice")
             if notice == .saveFailed {
-                Button("Retry saving", action: retry).buttonStyle(.bordered).controlSize(.small).fixedSize()
-                    .accessibilityActivationPoint(.center)
+                NativeAppearanceRetryButton(action: retry).fixedSize()
             }
         }.frame(height: 24).accessibilityHidden(notice == nil)
     }
@@ -61,3 +60,25 @@ struct AppearancePreferenceNotice: View {
     }
 }
 
+
+/// Native target/action keeps the recovery control's accessible activation region
+/// on the control itself, rather than the adjacent scrolling container's edge.
+private struct NativeAppearanceRetryButton: NSViewRepresentable {
+    let action: () -> Void
+    func makeCoordinator() -> Coordinator { Coordinator(action) }
+    func makeNSView(context: Context) -> NSButton {
+        let button = NSButton(title: "Retry saving", target: context.coordinator, action: #selector(Coordinator.clicked))
+        button.bezelStyle = .rounded
+        button.controlSize = .small
+        button.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
+        button.setAccessibilityLabel("Retry saving")
+        return button
+    }
+    func sizeThatFits(_ proposal: ProposedViewSize, nsView: NSButton, context: Context) -> CGSize? { nsView.intrinsicContentSize }
+    func updateNSView(_ nsView: NSButton, context: Context) { context.coordinator.action = action }
+    @MainActor final class Coordinator: NSObject {
+        var action: () -> Void
+        init(_ action: @escaping () -> Void) { self.action = action }
+        @objc func clicked() { action() }
+    }
+}
