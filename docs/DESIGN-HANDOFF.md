@@ -159,7 +159,7 @@ The native Downloads confirmation's final **Move to Trash** action now starts th
 
 ### Implemented refresh states
 
-Cleanup plan provides direct Recheck location actions. Refresh preserves selected rows and their last observations, suspends Review cleanup, and offers Stop refresh in the fixed action strip. Cancellation or incomplete scope coverage shows Refresh required. Successful recheck keeps unchanged selections, leaves discoveries unchecked and explains cleared changed/removed choices. Search and inspected context remain stable; no destination resize occurs. See [refresh evidence](validation/refresh.md).
+Cleanup plan provides contextual **Scan Downloads again**; location-specific rechecks live in Locations & access. Refresh retains previous observed content explicitly marked refreshing, suspends selection and Review cleanup, and offers **Stop scan** in the shared toolbar status. Cancellation or incomplete scope coverage shows Refresh required. Successful recheck keeps unchanged selections, leaves discoveries unchecked and explains cleared changed/removed choices. Search and inspected context remain stable; no destination resize occurs. The [historical refresh evidence](validation/refresh.md) and [connected journey qualification](validation/connected-downloads.md) record their exact source boundaries.
 
 ## Native startup recovery (#12)
 

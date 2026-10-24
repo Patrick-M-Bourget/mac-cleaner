@@ -25,4 +25,6 @@ Expanded run40048533746 passed 11 of13 cases, including retry, scan-away/cancell
 
 Final-source public journeys, regression results and original Light/Dark initial/minimum captures will be recorded here after completion. Native permission revocation, sandbox/provider behavior, VoiceOver and supported OS/CPU qualification remain separate gates. No personal files were cleaned, no adapter was enabled, and no M8 distribution work was required.
 
+Review also identified refreshing-content retention and named empty-coverage presentation gaps; fixes and public verification remain in progress. Included-but-never-scanned multi-location coverage aggregation remains on #46/#44, and caller-aware History recovery return remains on #48.
+
 The full acceptance of #44/#46/#47/#48/#50 and every FL01–FL14/overlap branch remains open until proven; this first connected slice does not close #45 or remove future milestones.
