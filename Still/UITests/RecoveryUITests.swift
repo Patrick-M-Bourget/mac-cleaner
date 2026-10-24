@@ -123,7 +123,11 @@ final class RecoveryUITests: XCTestCase {
         let (root, environment) = try stateRoot()
         let app = XCUIApplication()
         defer { app.terminate(); try? FileManager.default.removeItem(at: root) }
-        let downloads = root.appendingPathComponent("Downloads")
+        // Use the same guarded temporary-root contract as every native Downloads journey.
+        // A state-root child named Downloads is inspection-only in the Debug app.
+        let downloads = FileManager.default.temporaryDirectory.resolvingSymlinksInPath()
+            .appendingPathComponent("StillSelectionUI-" + UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: downloads) }
         try FileManager.default.createDirectory(at: downloads, withIntermediateDirectories: false)
         let original = downloads.appendingPathComponent("owned-history-evidence.pdf")
         try Data([31, 41]).write(to: original)
@@ -145,6 +149,8 @@ final class RecoveryUITests: XCTestCase {
         app.launchArguments = [minimum ? "--design-minimum" : "--design-initial-size", "--ui-test-downloads-root"]
         app.launchEnvironment = environment
         app.launchEnvironment["STILL_TEST_DOWNLOADS_ROOT"] = downloads.path
+        var downloadsIdentity = stat(); XCTAssertEqual(lstat(downloads.path, &downloadsIdentity), 0)
+        app.launchEnvironment["STILL_TEST_DOWNLOADS_ID"] = "\(downloadsIdentity.st_dev):\(downloadsIdentity.st_ino)"
         app.launch()
         XCTAssertTrue(app.buttons["Return to Overview"].waitForExistence(timeout: 5))
         let startupHeader = app.staticTexts["Review interrupted cleanup"].frame
