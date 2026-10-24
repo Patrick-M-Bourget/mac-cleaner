@@ -9,6 +9,52 @@ final class LocalRecordsUITests: XCTestCase {
     @MainActor func testGatedDiagnosticsReturnsToBothActualCallers() async throws { try await diagnostics(minimum: true) }
     @MainActor func testInitialGatedDiagnosticsReturnsToBothActualCallers() async throws { try await diagnostics(minimum: false) }
 
+    @MainActor func testSyntheticManagementGalleryAtMinimumSize() throws { try managementGallery(minimum: true) }
+    @MainActor func testSyntheticManagementGalleryAtInitialSize() throws { try managementGallery(minimum: false) }
+
+    @MainActor private func managementGallery(minimum: Bool) throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        let state = try configureIsolatedJourneyState(app)
+        defer { app.terminate(); try? FileManager.default.removeItem(at: state) }
+        app.launchArguments = ["--design-gallery", minimum ? "--design-minimum" : "--design-initial-size"]
+        app.launch()
+        XCTAssertTrue(app.staticTexts["Native design system"].waitForExistence(timeout: 5))
+        let bounds = app.windows.firstMatch.frame
+        // These are deliberately ordered inert public examples, not real journal models.
+        let clear = app.buttons.matching(identifier: "clearHistory")
+        let reset = app.buttons.matching(identifier: "resetStill")
+        let enabledHeading = app.staticTexts["Synthetic Local records controls · Inert enabled example"]
+        let protectedMessage = app.staticTexts["Reset is blocked by unfinished cleanup records. Open recovery review; no operations will resume automatically."]
+        let diagnosticsHeading = app.staticTexts["Synthetic future-gated diagnostics entry · Inert example"]
+        func show(_ start: XCUIElement, through end: XCUIElement) {
+            revealScrollElement(app, control: start, label: "Synthetic example heading")
+            for _ in 0..<10 where !app.scrollViews.firstMatch.frame.contains(end.frame) {
+                app.scrollViews.firstMatch.scroll(byDeltaX: 0, deltaY: -80)
+            }
+            XCTAssertTrue(app.scrollViews.firstMatch.frame.contains(start.frame))
+            XCTAssertTrue(app.scrollViews.firstMatch.frame.contains(end.frame))
+        }
+        func capture(_ name: String) {
+            let image = XCTAttachment(screenshot: app.windows.firstMatch.screenshot())
+            image.name = "local-records-gallery-" + (minimum ? "minimum-" : "initial-") + name
+            image.lifetime = .keepAlways; add(image)
+            XCTAssertEqual(app.windows.firstMatch.frame, bounds)
+        }
+        for theme in ["Light", "Dark"] {
+            app.popUpButtons["Appearance"].click(); app.menuItems[theme].click()
+            show(enabledHeading, through: reset.element(boundBy: 0))
+            XCTAssertTrue(clear.element(boundBy: 0).isEnabled); XCTAssertTrue(reset.element(boundBy: 0).isEnabled)
+            capture("enabled-" + theme)
+            show(protectedMessage, through: reset.element(boundBy: 1))
+            XCTAssertFalse(clear.element(boundBy: 1).isEnabled); XCTAssertFalse(reset.element(boundBy: 1).isEnabled)
+            capture("protected-and-disabled-" + theme)
+            show(diagnosticsHeading, through: app.buttons["Review diagnostics"])
+            XCTAssertTrue(app.buttons["Review diagnostics"].isEnabled)
+            capture("diagnostics-entry-" + theme)
+        }
+    }
+
     @MainActor private func diagnostics(minimum: Bool) async throws {
         continueAfterFailure = false
         let stateID = UUID().uuidString
