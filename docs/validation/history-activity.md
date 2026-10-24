@@ -11,3 +11,7 @@ First minimal implementation source `19329f6` extends the same bounded archive w
 ## First native green
 
 Run `40132234049` at `19329f6` passes the unchanged first public journey29.411s: completed scan retained across Quit, live selected file preserved through History navigation, no selection restored after relaunch, no Review authority invented and original bytes unchanged. This is one minimum-size behavioral pass, not theme/size presentation or complete #51 acceptance. Existing Core suite146/146 (141 Swift Testing +5 XCTest) passes after the additive archive change; no direct new archive-seam test had been written at that checkpoint. The user subsequently approved the boundary.
+
+## Approved archive boundary begins
+
+After explicit user approval, first direct archive vertical rejects raw per-file error strings as durable reason categories: actual failing-to-passing logs are /tmp/history51-reasons-{red,green}.log (implementer0ee521d/rootff0ffa3). The next actual red→green distinguishes a dangling archive link from missing data, preserving Unavailable instead of a false empty (de600f7/root2841dd8; /tmp/history51-unavailable-{red,green}.log). Read-only age qualification90e8a04 filters an expired activity without writing the stored archive (/tmp/history51-age-{red,green}.log). A public35-activity reload/newest/Clear/late-epoch check already passed against existing behavior; this is regression coverage, not an invented red. Complete archive and UI qualification remains pending.
