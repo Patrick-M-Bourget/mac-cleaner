@@ -97,7 +97,12 @@ private struct StorageExplorerObservations {
             let sum = total.addingReportingOverflow(size)
             if sum.overflow { unknown = true } else { total = sum.partialValue }
         }
-        let partial = scans.contains { scan in scan.issues.contains { $0.url.pathComponents.starts(with: folder.pathComponents) } }
+        let partial = scans.contains { scan in
+            let related = folder.pathComponents.starts(with: scan.scope.pathComponents) || scan.scope.pathComponents.starts(with: folder.pathComponents)
+            return (related && scan.excludedEntryCount > 0) || scan.issues.contains {
+                $0.url.pathComponents.starts(with: folder.pathComponents) || folder.pathComponents.starts(with: $0.url.pathComponents)
+            }
+        }
         return Subtotal(bytes: total, hasUnknownRemainder: unknown || partial)
     }
 }

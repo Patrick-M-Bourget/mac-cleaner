@@ -210,6 +210,12 @@ final class WorkspaceUITests: XCTestCase {
         XCTAssertFalse(app.dialogs.buttons["Scan folder"].exists)
         XCTAssertFalse(app.buttons["Review cleanup"].isEnabled)
         XCTAssertEqual(app.windows.firstMatch.frame, bounds)
+        try manager.removeItem(at: trip) // Owned fixture: exercise a complete, genuinely empty eligible set.
+        app.buttons["Scan Downloads again"].click()
+        XCTAssertTrue(app.staticTexts["No eligible files"].waitForExistence(timeout: 15))
+        XCTAssertFalse(app.checkBoxes["downloadsCategorySelection"].isEnabled)
+        XCTAssertFalse(app.buttons["Review cleanup"].isEnabled)
+        capture("complete-empty")
     }
 
     @MainActor func testOverviewFindingsRestoreHierarchyAndPreserveReviewChoices() throws {

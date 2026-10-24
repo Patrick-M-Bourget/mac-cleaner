@@ -54,6 +54,9 @@ jobs:
           xcrun swift test --package-path Validation/XcodeProbe
           xcrun swift test --package-path Validation/ChromeProbe
           xcrun swift test --package-path Validation/SafariProbe
+      - name: Fit review window on the ephemeral native display
+        if: github.event_name == 'workflow_dispatch' && inputs.suite == 'downloads'
+        run: xcrun swift Validation/NativeDisplay.swift
       - name: Build runnable Mac application and UI runner
         run: xcodebuild build-for-testing -project Still/Still.xcodeproj -scheme Still -destination 'platform=macOS' -derivedDataPath .build/xcode
       - name: Exercise fixture navigation and geometry
@@ -68,6 +71,14 @@ jobs:
               -only-testing:StillUITests/WorkspaceUITests/testConnectedDownloadsJourneyPreservesContextAndConsumesPlan
               -only-testing:StillUITests/WorkspaceUITests/testMinimumConnectedDownloadsJourneyPreservesContextAndConsumesPlan
               -only-testing:StillUITests/WorkspaceUITests/testMinimumGalleryStatesAndOpaqueChromeCaptures
+              -only-testing:StillUITests/WorkspaceUITests/testDownloadsScopeGuidanceAndShortcutPreserveInspection
+              -only-testing:StillUITests/WorkspaceUITests/testUnavailableSelectedFolderShowsUnknownCoverageAndRecovery
+              -only-testing:StillUITests/WorkspaceUITests/testRefreshPreservesChoicesAndSearchThenExplainsChangedTargets
+              -only-testing:StillUITests/WorkspaceUITests/testScrolledCategorySelectionKeepsContentAnchored
+              -only-testing:StillUITests/WorkspaceUITests/testCheckboxSelectionKeepsContentAnchored
+              -only-testing:StillUITests/WorkspaceUITests/testInspectionCheckboxSelectionKeepsContentAnchored
+              -only-testing:StillUITests/WorkspaceUITests/testKeyboardCancelRestoresReviewFocusWithoutChangingSelection
+              -only-testing:StillUITests/CleanupRetryUITests
             )
           elif [[ "$EVENT_NAME" == "workflow_dispatch" && "$REQUESTED_SUITE" == "exclusions" ]]; then
             scope=(-only-testing:StillUITests/ExclusionsUITests)
