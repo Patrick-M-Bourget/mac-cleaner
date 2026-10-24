@@ -23,7 +23,7 @@ Priority: active cleanup execution, then existing active scan status, then actua
 | Overview | On-demand storage review |
 | Cleanup plan | Choose files, then review |
 | Explorer | Read-only storage inspection |
-| History | Recorded cleanup activity |
+| History | Recorded scan and cleanup activity |
 | Locations & access | Scan locations and access |
 | Storage alerts | Capacity checks only |
 
@@ -44,3 +44,6 @@ User explicitly approved the additional public appearance-preference service sea
 ## Decision trace
 
 Q1 badge categories; Q2 saved app-wide appearance; Q3 destination context; Q4 truthful monitoring states; Q5 direct status route; Q6 Reset/Clear and session fallback; Q7 actionable badge authority; Q8 monitoring priority; Q9 invalid/unreadable fallback; Q10 toolbar precedence/copy; Q11 non-disruptive save retry; Q12 partial Reset truth; Q13 gating and background limits. All accepted; consolidated lock explicitly confirmed. The contract is implemented within the source-bound checks and limits in the qualification report.
+
+
+#51 copy extension: the History toolbar describes recorded scan and cleanup activity under [HISTORY-ACTIVITY](HISTORY-ACTIVITY.md). This changes the destination label to match its combined purpose; #53 appearance, badge and monitoring policies remain unchanged.
