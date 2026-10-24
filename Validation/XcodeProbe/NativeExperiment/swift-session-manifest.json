@@ -1,0 +1,11 @@
+{
+  "baseCommit": "9ef1f06",
+  "evidenceKind": "local actual native experiment; no hosted/minimum-OS/Intel qualification",
+  "files": {
+    "swift_session.py": "1b20760d0338d6a432b1782b22cb95feaa51102a439dfbfc5c8c387762ef8731",
+    "test_swift_contract.py": "dfeeb541dc5423357365c1f013a79f269772844502912cba13431c9abdff42b2",
+    "run.py": "cdcadda100aef36dc778e00a0fbe9dad28bac0e62584f4398ede3a37cc6d49f7",
+    "swift-session-evidence.json": "1f7c72b7748868c27330a0581f9e62373df2783fe557221bd42842e2c0f7ddef",
+    "swift-session-initial-failure.json": "3dedc640af59159710d5026c138c2c1e0c57806eb0df0408cae6a8e892b57e9a"
+  }
+}

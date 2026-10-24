@@ -1,0 +1,14 @@
+{
+  "experiment": "owned-swift-package-custom-output-session",
+  "attempt": "initial custom-archive layout",
+  "toolchain": "Xcode 27.1 / 27A9275",
+  "os": "macOS 27.0.1 arm64",
+  "phase": "archive with both custom OBJROOT and SYMROOT retained",
+  "precedingNativeSwiftPackageBuild": "succeeded",
+  "observedNativeError": "The file “BuildProductsPath” couldn’t be opened because there is no such file.: The operation couldn’t be completed. No such file or directory",
+  "outcome": "failed before any experiment cache removal",
+  "evidenceKind": "Exact native error transcribed from first public command stderr; full temporary build log was not retained by that initial harness",
+  "originalHarnessCleanup": "The initial harness removed its freshly owned tree after the failed build returned. The refined harness preserves the owned tree on failure or uncertain owned-process exit.",
+  "refinement": "Successful archive uses its own explicit owned DerivedData and normal archive layout. The custom OBJROOT/SYMROOT build remains independently validated. No missing build directory was fabricated.",
+  "productionMutationQualified": false
+}

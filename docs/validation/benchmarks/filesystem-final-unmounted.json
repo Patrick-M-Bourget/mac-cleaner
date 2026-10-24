@@ -1,0 +1,24 @@
+{
+  "disconnectedScan" : {
+    "allocatedBytes" : null,
+    "isComplete" : false,
+    "issues" : [
+      {
+        "path" : "\/var\/folders\/n6\/hn37q6pj7sj_9dmqqc2113800000gn\/T\/StillFilesystemFixtures-d2k3e4vl\/mount\/scope",
+        "reason" : "locationUnavailable"
+      }
+    ],
+    "logicalBytes" : 0,
+    "observations" : [
+
+    ],
+    "scopePath" : "\/var\/folders\/n6\/hn37q6pj7sj_9dmqqc2113800000gn\/T\/StillFilesystemFixtures-d2k3e4vl\/mount\/scope",
+    "scopeURL" : "file:\/\/\/var\/folders\/n6\/hn37q6pj7sj_9dmqqc2113800000gn\/T\/StillFilesystemFixtures-d2k3e4vl\/mount\/scope\/",
+    "totalLogicalBytes" : null
+  },
+  "disconnectedScope" : "passed",
+  "hostOS" : "Version 26.6.2 (Build 25G83)",
+  "mountedDevice" : 16777292,
+  "parentDevice" : 16777230,
+  "phase" : "unmounted"
+}

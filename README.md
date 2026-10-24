@@ -11,3 +11,9 @@ Revision 0.9. Supporting research, detailed specifications and UI contracts are 
 - [Full feature roadmap and milestones](docs/MILESTONES.md)
 - [Approved product decisions](docs/DECISIONS.md)
 - [Portable visual reference](docs/visual/README.md)
+
+## Native development
+
+The M0 fixture workspace is runnable in Xcode. See [build and test instructions](docs/DEVELOPMENT.md).
+
+Native UI contributors: follow the [mandatory design system](docs/DESIGN-SYSTEM.md) before changing screens or resuming checkpointed UI.

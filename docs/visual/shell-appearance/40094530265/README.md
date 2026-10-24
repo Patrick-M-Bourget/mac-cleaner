@@ -1,0 +1,1 @@
+Final staged Reset at sourceaadc664:2/2native journeys pass, all6originals individually accepted. Appearance clear failure retains uniformDark; appearance clear success restoresAutomatic throughout chrome/content even if later reset fails; fullReset succeeds. Does not qualify the separate Retry interaction.

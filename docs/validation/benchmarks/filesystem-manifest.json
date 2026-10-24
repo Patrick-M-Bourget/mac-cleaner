@@ -1,0 +1,92 @@
+{
+  "schema": 1,
+  "finalSourceCommit": "9ef1f06042b8ec4c771b7bde7b184846e3be5d9a",
+  "finalWorkflowRun": 40005065584,
+  "finalWorkflowURL": "https://github.com/Patrick-M-Bourget/mac-cleaner/actions/runs/40005065584",
+  "finalConclusion": "success",
+  "artifact": {
+    "id": 12524035988,
+    "name": "filesystem-fixture-evidence",
+    "sizeBytes": 2493,
+    "archiveDigest": "sha256:f585be260b8cc08d3776c1e444a23d9bfafe5b416d97f8eacc61b96e11fbf737"
+  },
+  "hostOS": "Version 26.6.2 (Build 25G83)",
+  "toolchain": "Xcode 26.6 (workflow pin)",
+  "fixture": "One 64 MiB HFS+ disk image on ephemeral GitHub-hosted macos-26 runner",
+  "files": [
+    {
+      "path": "filesystem-final-mounted.json",
+      "sha256": "42de5308517197166cc6f8d561fcf03bc50ef6b1a941bbdf8d08c76b398ce1c1",
+      "bytes": 5271,
+      "sourceCommit": "9ef1f06042b8ec4c771b7bde7b184846e3be5d9a",
+      "workflowRun": 40005065584,
+      "artifactID": 12524035988,
+      "originalName": "mounted.json"
+    },
+    {
+      "path": "filesystem-final-unmounted.json",
+      "sha256": "e7d92bdda4fd023b809d552557ceec6074b46a6d8548e72457359a0f3b23473e",
+      "bytes": 795,
+      "sourceCommit": "9ef1f06042b8ec4c771b7bde7b184846e3be5d9a",
+      "workflowRun": 40005065584,
+      "artifactID": 12524035988,
+      "originalName": "unmounted.json"
+    },
+    {
+      "path": "filesystem-final-lifecycle.json",
+      "sha256": "17098eef1a0af8c3e8cef35394e2d339843fad9f316a8930a01e82fd9fdbe94b",
+      "bytes": 320,
+      "sourceCommit": "9ef1f06042b8ec4c771b7bde7b184846e3be5d9a",
+      "workflowRun": 40005065584,
+      "artifactID": 12524035988,
+      "originalName": "lifecycle.json"
+    },
+    {
+      "path": "filesystem-final-attach.plist",
+      "sha256": "87e52b493b3c93abe85ce718e425220f890fbdb28ba50bf2c1af3af7f9ae91fa",
+      "bytes": 971,
+      "sourceCommit": "9ef1f06042b8ec4c771b7bde7b184846e3be5d9a",
+      "workflowRun": 40005065584,
+      "artifactID": 12524035988,
+      "originalName": "attach.plist"
+    },
+    {
+      "path": "filesystem-first-lifecycle.json",
+      "sha256": "ecbbd9c95f59b5e8d6f7eefff6e4da98f5858508237a4c2fbbd565a9a7770a07",
+      "bytes": 464,
+      "sourceCommit": "c522750b66e548611ceb5a84be35e98ef6a047fd",
+      "workflowRun": 40002281606,
+      "conclusion": "failure"
+    },
+    {
+      "path": "filesystem-second-lifecycle.json",
+      "sha256": "f37bc8697181ff535103db4ea4f4902fbcffbc8236f880e39d92e2ab652d2094",
+      "bytes": 605,
+      "sourceCommit": "8af9a58fb970bcdbaf8f763afb43420b36e397af",
+      "workflowRun": 40002795302,
+      "conclusion": "failure"
+    },
+    {
+      "path": "filesystem-diagnostic-lifecycle.json",
+      "sha256": "d531c032662984c4cfff3fb25dcba9cc3ff72371341c043ab50fe079d2c9f528",
+      "bytes": 605,
+      "sourceCommit": "169a255e8b8c01738335e5b5d29c607cebfe53d8",
+      "workflowRun": 40004053906,
+      "conclusion": "failure"
+    },
+    {
+      "path": "filesystem-diagnostic-mounted.json",
+      "sha256": "ee64a8aa1ae94693e947fee7b2b73b0b08c2d277c357dc2595ad04137ff65bc4",
+      "bytes": 4639,
+      "sourceCommit": "169a255e8b8c01738335e5b5d29c607cebfe53d8",
+      "workflowRun": 40004053906,
+      "conclusion": "failure"
+    }
+  ],
+  "limits": [
+    "HFS+ volume boundary; not every APFS/external/provider behavior",
+    "Disconnected recheck; not removal during blocked in-flight I/O",
+    "No personal/cloud scan or 512 GB reference-host qualification",
+    "Allocation observations are not exclusive reclaimable-byte estimates"
+  ]
+}

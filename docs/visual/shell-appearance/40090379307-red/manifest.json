@@ -1,0 +1,17 @@
+[
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "eb8064b20fd4735feb6e5766c0309d411b453bc9",
+        "deviceName" : "My Mac",
+        "exportedFileName" : "5307AC00-C1C2-406D-AC7F-E987DB2EF7BB.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "shell-missing-actionable-category-badge_0_C2F78F31-CF9A-4587-9985-E91A45088E34.png",
+        "timestamp" : 1792841750.672
+      }
+    ],
+    "testIdentifier" : "ShellAppearanceUITests/testSelectedCategoryBadgeAndDestinationContextPreserveChoices()",
+    "testIdentifierURL" : "test://com.apple.xcode/Still/StillUITests/ShellAppearanceUITests/testSelectedCategoryBadgeAndDestinationContextPreserveChoices"
+  }
+]

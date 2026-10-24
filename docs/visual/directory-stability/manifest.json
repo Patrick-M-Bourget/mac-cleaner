@@ -1,0 +1,95 @@
+{
+  "schemaVersion": 1,
+  "repository": "Patrick-M-Bourget/mac-cleaner",
+  "sourceCommit": "38a593e5c7eadae32b99e1538fafc87e18ac766d",
+  "workflow": "Native Mac workspace",
+  "artifactRun": {
+    "id": 39901477511,
+    "url": "https://github.com/Patrick-M-Bourget/mac-cleaner/actions/runs/39901477511",
+    "conclusion": "success",
+    "nativeTestsPassed": 30,
+    "nativeTestsFailed": 0
+  },
+  "confirmingRun": {
+    "id": 39901474557,
+    "url": "https://github.com/Patrick-M-Bourget/mac-cleaner/actions/runs/39901474557",
+    "conclusion": "success"
+  },
+  "host": {
+    "model": "Apple Virtual Machine 1",
+    "architecture": "arm64",
+    "macOS": "26.6.2",
+    "osBuild": "25G83"
+  },
+  "review": {
+    "unalteredXCTestWindowAttachments": true,
+    "reviewedStates": "All listed captures were visually inspected unobscured. Initial viewport is display-clamped 1024\u00d7677; minimum 900\u00d7640.",
+    "notQualified": [
+      "real mounted-volume loss",
+      "cloud non-hydration",
+      "blocked OS metadata cancellation",
+      "reference512GB hardware",
+      "later source revisions"
+    ],
+    "reviewers": "Root reviewed all 10 History captures; evidence agent independently viewed 3 representative History captures and all 4 scanner captures."
+  },
+  "captures": [
+    {
+      "file": "directory-recheck-initial-Dark.png",
+      "state": "rechecking",
+      "appearance": "Dark",
+      "sizeMode": "initial",
+      "imageWidthPixels": 1024,
+      "imageHeightPixels": 677,
+      "sha256": "2f7d3bb32aab31017dbf01e71f470dbf20c4c73f9f3a4cf882d1733efb0d558e",
+      "sourceAttachment": "2FBF0ADB-3018-49D3-B585-88569813D962.png",
+      "sourceSuggestedName": "directory-recheck-initial-Dark_0_1A6DAB92-7A5E-40EA-948C-1B09E3D6F330.png",
+      "testIdentifier": "WorkspaceUITests/testChangingDirectoryRecheckKeepsStopReachableAndNeverEnablesCleanup()",
+      "attachmentTimestamp": 1792731053.584
+    },
+    {
+      "file": "directory-recheck-initial-Light.png",
+      "state": "rechecking",
+      "appearance": "Light",
+      "sizeMode": "initial",
+      "imageWidthPixels": 1024,
+      "imageHeightPixels": 677,
+      "sha256": "e43f31862a0c6fdd9687d9955fdd14fafa994b6d2740ff8844090861299e507e",
+      "sourceAttachment": "2D533A30-AC93-441D-9D20-F4B51D14E9E8.png",
+      "sourceSuggestedName": "directory-recheck-initial-Light_0_52691935-8C5B-4902-BC32-335BF269D93D.png",
+      "testIdentifier": "WorkspaceUITests/testChangingDirectoryRecheckKeepsStopReachableAndNeverEnablesCleanup()",
+      "attachmentTimestamp": 1792731051.565
+    },
+    {
+      "file": "directory-recheck-minimum-Dark.png",
+      "state": "rechecking",
+      "appearance": "Dark",
+      "sizeMode": "minimum",
+      "imageWidthPixels": 900,
+      "imageHeightPixels": 640,
+      "sha256": "c22b7bac2e281efe23301d57c05fdef20b6c0dac94b087a38745874891160c32",
+      "sourceAttachment": "0BBF7DA0-6CF5-4E34-99E6-53AEA0C03EA2.png",
+      "sourceSuggestedName": "directory-recheck-minimum-Dark_0_CCAD4662-5035-4C8E-99E6-A4994BC4DD4F.png",
+      "testIdentifier": "WorkspaceUITests/testChangingDirectoryRecheckKeepsStopReachableAndNeverEnablesCleanup()",
+      "attachmentTimestamp": 1792731089.292
+    },
+    {
+      "file": "directory-recheck-minimum-Light.png",
+      "state": "rechecking",
+      "appearance": "Light",
+      "sizeMode": "minimum",
+      "imageWidthPixels": 900,
+      "imageHeightPixels": 640,
+      "sha256": "bb12836e84ecff9de55f6507b8b7c427b8b03e9fc8108965ab185daaf1439c4a",
+      "sourceAttachment": "1F3754A5-3D69-4AAF-8E69-AF54B0DC89F9.png",
+      "sourceSuggestedName": "directory-recheck-minimum-Light_0_D775AA2F-795F-4D52-B518-2B0AF9C60D75.png",
+      "testIdentifier": "WorkspaceUITests/testChangingDirectoryRecheckKeepsStopReachableAndNeverEnablesCleanup()",
+      "attachmentTimestamp": 1792731087.2
+    }
+  ],
+  "sourceArtifact": {
+    "id": 12479936949,
+    "name": "native-test-results",
+    "sizeBytes": 11776158
+  }
+}

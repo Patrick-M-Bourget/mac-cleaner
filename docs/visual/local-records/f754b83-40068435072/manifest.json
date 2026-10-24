@@ -1,0 +1,122 @@
+[
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "112ce6a9fbec05fc84e09506c5ffde28accb6667",
+        "deviceName" : "My Mac",
+        "exportedFileName" : "4BB7E1D6-F820-4370-845C-16AC0671DB9C.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "local-records-gallery-initial-diagnostics-entry-Dark_0_6223C1EF-DEC4-46E4-970A-77A5183F5538.png",
+        "timestamp" : 1792821773.563
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "112ce6a9fbec05fc84e09506c5ffde28accb6667",
+        "deviceName" : "My Mac",
+        "exportedFileName" : "9F408089-048D-42C1-81B7-7EACAFD85AAE.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "local-records-gallery-initial-protected-and-disabled-Dark_0_634F37D1-F3D5-46B3-8C4A-318585912809.png",
+        "timestamp" : 1792821768.645
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "112ce6a9fbec05fc84e09506c5ffde28accb6667",
+        "deviceName" : "My Mac",
+        "exportedFileName" : "5F8E4C5F-84F5-4047-9F71-5DE576DB2D70.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "local-records-gallery-initial-enabled-Dark_0_8002252E-AD27-431E-9FDB-5B249711AB68.png",
+        "timestamp" : 1792821762.69
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "112ce6a9fbec05fc84e09506c5ffde28accb6667",
+        "deviceName" : "My Mac",
+        "exportedFileName" : "169F4CB6-ABAC-4B38-BE62-E4EBC6516E2A.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "local-records-gallery-initial-diagnostics-entry-Light_0_F8ABB2EA-C0FE-4A5C-A06F-FEEEC69D5B76.png",
+        "timestamp" : 1792821752.01
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "112ce6a9fbec05fc84e09506c5ffde28accb6667",
+        "deviceName" : "My Mac",
+        "exportedFileName" : "7A3FDC9A-AE28-43ED-8A88-CAF0DA616CB5.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "local-records-gallery-initial-protected-and-disabled-Light_0_78ADE7FE-C453-4931-945E-41A0A9AD4284.png",
+        "timestamp" : 1792821747.601
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "112ce6a9fbec05fc84e09506c5ffde28accb6667",
+        "deviceName" : "My Mac",
+        "exportedFileName" : "4CE45244-FF40-4BAA-9F47-E3543B5AFE5B.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "local-records-gallery-initial-enabled-Light_0_30EF32B5-5392-42F0-9FEB-C39A6FB880F7.png",
+        "timestamp" : 1792821742.234
+      }
+    ],
+    "testIdentifier" : "LocalRecordsUITests/testSyntheticManagementGalleryAtInitialSize()",
+    "testIdentifierURL" : "test://com.apple.xcode/Still/StillUITests/LocalRecordsUITests/testSyntheticManagementGalleryAtInitialSize"
+  },
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "112ce6a9fbec05fc84e09506c5ffde28accb6667",
+        "deviceName" : "My Mac",
+        "exportedFileName" : "74031D69-7001-4171-94D0-75F9D6E042C6.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "local-records-gallery-minimum-diagnostics-entry-Dark_0_E4D5C912-69BB-48DC-9F12-4ABD14F6A32C.png",
+        "timestamp" : 1792821823.241
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "112ce6a9fbec05fc84e09506c5ffde28accb6667",
+        "deviceName" : "My Mac",
+        "exportedFileName" : "998D973D-855D-40F3-90A9-EB8E3764AD22.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "local-records-gallery-minimum-protected-and-disabled-Dark_0_018FACE8-D994-4940-9237-0B5E8FB60496.png",
+        "timestamp" : 1792821818.122
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "112ce6a9fbec05fc84e09506c5ffde28accb6667",
+        "deviceName" : "My Mac",
+        "exportedFileName" : "A5AC4FDB-85D8-4D58-8F5A-E4761173D2FA.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "local-records-gallery-minimum-enabled-Dark_0_B3492428-23BA-46DB-988C-C77FF036246E.png",
+        "timestamp" : 1792821811.877
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "112ce6a9fbec05fc84e09506c5ffde28accb6667",
+        "deviceName" : "My Mac",
+        "exportedFileName" : "1663F56B-4A1A-40CA-A3C9-F96DEDA89F2F.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "local-records-gallery-minimum-diagnostics-entry-Light_0_4CCAE8B6-0658-4C00-9729-CAA15E994FCB.png",
+        "timestamp" : 1792821802.083
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "112ce6a9fbec05fc84e09506c5ffde28accb6667",
+        "deviceName" : "My Mac",
+        "exportedFileName" : "87E17A58-8F07-4413-AF3A-56A4AE85F0EA.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "local-records-gallery-minimum-protected-and-disabled-Light_0_8FC73ACD-A14F-4AC0-A13E-8A46F19A0BB4.png",
+        "timestamp" : 1792821796.729
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "112ce6a9fbec05fc84e09506c5ffde28accb6667",
+        "deviceName" : "My Mac",
+        "exportedFileName" : "4BF3D298-877E-48C8-A95C-827F9B805DAE.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "local-records-gallery-minimum-enabled-Light_0_CBA8427F-1B51-4873-B6B2-6101E9260D5A.png",
+        "timestamp" : 1792821790.225
+      }
+    ],
+    "testIdentifier" : "LocalRecordsUITests/testSyntheticManagementGalleryAtMinimumSize()",
+    "testIdentifierURL" : "test://com.apple.xcode/Still/StillUITests/LocalRecordsUITests/testSyntheticManagementGalleryAtMinimumSize"
+  }
+]

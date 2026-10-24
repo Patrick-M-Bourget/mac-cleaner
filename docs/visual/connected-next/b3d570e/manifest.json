@@ -1,0 +1,79 @@
+[
+  {
+    "file": "gallery-minimum-opaque-Dark.png",
+    "source": "b3d570ee96a4ad9e3513261aa9ee8cbcf72f6fab",
+    "run": 40055727927,
+    "original": "8316C259-8D5E-4C8E-890C-6305FA22BD9C.png",
+    "sha256": "751bdf986e69d2b7a08e60853345a67ee34502d6d8e9d56ab6f90cea61f56d0a",
+    "size": [
+      900,
+      640
+    ]
+  },
+  {
+    "file": "gallery-location-recovery-minimum-Dark.png",
+    "source": "b3d570ee96a4ad9e3513261aa9ee8cbcf72f6fab",
+    "run": 40055727927,
+    "original": "9FCBA979-3C28-4B58-88FF-394209E57597.png",
+    "sha256": "468aacb8201b67ed2bcd6f9c0a6d6bb240733ac567c8b05024931dbfae72f6ba",
+    "size": [
+      900,
+      640
+    ]
+  },
+  {
+    "file": "gallery-states-minimum-Dark.png",
+    "source": "b3d570ee96a4ad9e3513261aa9ee8cbcf72f6fab",
+    "run": 40055727927,
+    "original": "12646F47-6F55-44B8-A6E2-689C78DCDB76.png",
+    "sha256": "5471545497278b6c42793b233aa7ce2c7639fef036d8aa4c88bd27e00eaf857d",
+    "size": [
+      900,
+      640
+    ]
+  },
+  {
+    "file": "gallery-minimum-Dark.png",
+    "source": "b3d570ee96a4ad9e3513261aa9ee8cbcf72f6fab",
+    "run": 40055727927,
+    "original": "B193445E-6A41-4FBB-97A3-7D6C8C217E9B.png",
+    "sha256": "6f1f095a589355d74718f094166b01445f0c8234cd80879e921fc5787c17ba28",
+    "size": [
+      900,
+      640
+    ]
+  },
+  {
+    "file": "gallery-location-recovery-minimum-Light.png",
+    "source": "b3d570ee96a4ad9e3513261aa9ee8cbcf72f6fab",
+    "run": 40055727927,
+    "original": "6893C955-8A47-4620-B23D-68507F908236.png",
+    "sha256": "fdd99e6b76d2be9642a859d8b99ad7412b0e97d33f728a2800406722aadc27a1",
+    "size": [
+      900,
+      640
+    ]
+  },
+  {
+    "file": "gallery-states-minimum-Light.png",
+    "source": "b3d570ee96a4ad9e3513261aa9ee8cbcf72f6fab",
+    "run": 40055727927,
+    "original": "E6C23ABA-7FB8-487F-B015-7F99344C840C.png",
+    "sha256": "6aa44f628bdefe5f559b073d16de6d766d8fa5406a0a4dd7a4e90478efc0c062",
+    "size": [
+      900,
+      640
+    ]
+  },
+  {
+    "file": "gallery-minimum-Light.png",
+    "source": "b3d570ee96a4ad9e3513261aa9ee8cbcf72f6fab",
+    "run": 40055727927,
+    "original": "8436E0C8-397A-4847-8ED1-C7618F7DE538.png",
+    "sha256": "d5359ee70547e55985ec8a21c6c7f6e0fae7cd0dcdc520d2a578b89e8c44716b",
+    "size": [
+      900,
+      640
+    ]
+  }
+]

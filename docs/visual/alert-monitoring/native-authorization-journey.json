@@ -1,0 +1,19 @@
+{
+  "authorizationAttempted" : true,
+  "effectiveMonitoringObserved" : false,
+  "events" : [
+    "fresh alerts off; route browsing made no authorization request",
+    "explicit 1 decimal GB threshold; real capacity only, no artificial storage writes",
+    "explicit user opt-in",
+    "observed notification UI: SoftwareUpdateNotificationManager · com.apple.SoftwareUpdateNotificationManager",
+    "observed opt-in checkbox value: Optional(1)",
+    "observed alert status: Optional(Allow notifications to receive low-space alerts.)",
+    "no supported actionable Still prompt\/authorized monitoring outcome; stopped without settings changes or retry"
+  ],
+  "loginRegistrationQualified" : false,
+  "notificationDeliveryQualified" : false,
+  "outcome" : "unsupported-native-authorization",
+  "probeID" : "964a2f18-4934-4407-a2b1-dd41607d29fb",
+  "sourceCommit" : "6ac661fa1b2d07fb5361be7284d2e7b5cd4f704d",
+  "surfaceKind" : "native-OS"
+}

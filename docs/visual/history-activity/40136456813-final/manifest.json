@@ -1,0 +1,86 @@
+[
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "ef5b25565965bcc92acc5fc92c15009636c18e89",
+        "deviceName" : "My Mac",
+        "exportedFileName" : "1E05E955-9D9E-40E7-A98E-C8781F3A1C3F.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "history-coverage-initial-failed-Dark_0_8926ABAF-16BD-4652-9A8B-B184F378487D.png",
+        "timestamp" : 1792879147.341
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "ef5b25565965bcc92acc5fc92c15009636c18e89",
+        "deviceName" : "My Mac",
+        "exportedFileName" : "3C00B7B7-2836-466A-AB4B-E34D3A986E4D.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "history-coverage-initial-failed-Light_0_225A076B-A924-4BD8-B47A-D5604B5C421B.png",
+        "timestamp" : 1792879145.419
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "ef5b25565965bcc92acc5fc92c15009636c18e89",
+        "deviceName" : "My Mac",
+        "exportedFileName" : "20842CAF-2D1E-48E4-8D46-85CF9A2DBBCB.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "history-coverage-initial-partial-Dark_0_434B5A62-92DE-478A-B10C-9918F69C6C52.png",
+        "timestamp" : 1792879137.423
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "ef5b25565965bcc92acc5fc92c15009636c18e89",
+        "deviceName" : "My Mac",
+        "exportedFileName" : "A059336B-9203-4486-BFD0-B403C49F3F1E.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "history-coverage-initial-partial-Light_0_B859F413-6427-4C08-8A06-AF35C621F89B.png",
+        "timestamp" : 1792879135.804
+      }
+    ],
+    "testIdentifier" : "HistoryActivityUITests/testPartialAndFailedScanActivityAtInitialSize()",
+    "testIdentifierURL" : "test://com.apple.xcode/Still/StillUITests/HistoryActivityUITests/testPartialAndFailedScanActivityAtInitialSize"
+  },
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "ef5b25565965bcc92acc5fc92c15009636c18e89",
+        "deviceName" : "My Mac",
+        "exportedFileName" : "35C7F0EA-F812-46FB-8F19-DD69A3B0F9F3.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "history-coverage-minimum-failed-Dark_0_34ABD4C0-1443-4AD9-A5DC-3206BC626BAE.png",
+        "timestamp" : 1792879187.373
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "ef5b25565965bcc92acc5fc92c15009636c18e89",
+        "deviceName" : "My Mac",
+        "exportedFileName" : "281B6F87-44E9-446C-9132-E00E647D7787.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "history-coverage-minimum-failed-Light_0_92E0A731-13BB-4EA3-BCE3-42CBE2EBF9ED.png",
+        "timestamp" : 1792879185.724
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "ef5b25565965bcc92acc5fc92c15009636c18e89",
+        "deviceName" : "My Mac",
+        "exportedFileName" : "59FBA9E8-3B8D-4674-BBDE-097CD69DD99B.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "history-coverage-minimum-partial-Dark_0_DAE65B7A-E6A0-424D-9160-83FCD435AB56.png",
+        "timestamp" : 1792879178.129
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "ef5b25565965bcc92acc5fc92c15009636c18e89",
+        "deviceName" : "My Mac",
+        "exportedFileName" : "1719ACDA-ACFA-4ED3-8740-6EB8142E40C4.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "history-coverage-minimum-partial-Light_0_17F22697-E07F-4D27-B3D9-6EEF7CA0FFFD.png",
+        "timestamp" : 1792879176.542
+      }
+    ],
+    "testIdentifier" : "HistoryActivityUITests/testPartialAndFailedScanActivityAtMinimumSize()",
+    "testIdentifierURL" : "test://com.apple.xcode/Still/StillUITests/HistoryActivityUITests/testPartialAndFailedScanActivityAtMinimumSize"
+  }
+]
