@@ -1604,7 +1604,9 @@ final class WorkspaceUITests: XCTestCase {
         XCTAssertTrue(category.waitForExistence(timeout: 5)); XCTAssertTrue(category.isEnabled)
         XCTAssertTrue(app.staticTexts["Limited coverage · Only current eligible files can be included. Uninspected contents remain unknown."].exists)
         category.click()
-        XCTAssertTrue(app.staticTexts["1 file selected"].waitForExistence(timeout: 5))
+        let selectionSummary = app.staticTexts["liveSelectionSummary"]
+        let oneSelected = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@", "1 file selected"), object: selectionSummary)
+        XCTAssertEqual(XCTWaiter.wait(for: [oneSelected], timeout: 5), .completed)
         XCTAssertTrue(app.buttons["Review cleanup"].isEnabled)
         app.buttons["Review cleanup"].click()
         XCTAssertTrue(app.sheets.buttons["Move to Trash"].waitForExistence(timeout: 5))
@@ -1613,11 +1615,11 @@ final class WorkspaceUITests: XCTestCase {
         exactFiles.coordinate(withNormalizedOffset: CGVector(dx: 0, dy: 0.5)).withOffset(CGVector(dx: 26, dy: 0)).click()
         XCTAssertTrue(app.sheets.staticTexts["Downloads A/Child/overlap-guide.pdf"].waitForExistence(timeout: 5))
         app.sheets.buttons["Cancel"].click()
-        XCTAssertTrue(app.staticTexts["1 file selected"].exists)
+        XCTAssertEqual(selectionSummary.value as? String, "1 file selected")
         XCTAssertEqual(try Data(contentsOf: file), original)
         app.typeKey("4", modifierFlags: .command)
         choose(child, action: "Add folder…", prompt: "Remember folder")
-        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "value == %@", "Overlaps another remembered location · Shared contents are counted once.")).firstMatch.exists)
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "value == %@ OR label == %@", "Overlaps another remembered location · Shared contents are counted once.", "Overlaps another remembered location · Shared contents are counted once.")).firstMatch.exists)
         XCTAssertFalse(app.buttons["Stop scan"].exists)
     }
 
