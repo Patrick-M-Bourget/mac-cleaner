@@ -19,3 +19,7 @@ Start implementer worktrees from the current integration tip, keep ownership iso
 Local feature-review build: `/Users/bender/Library/Caches/Codex/mac-cleaner-implementation/artifacts/connected-9264d7a/Still.app`; BUILD.md records source. No personal cleanup or OS permission changes were performed. Native permission/provider/supported OS/CPU/VoiceOver qualification remains separate.
 
 External native results/notes are under `/Users/bender/Library/Caches/Codex/mac-cleaner-implementation/notes`. Preserve needed originals/manifests and reviews before removing redundant owned worktrees/caches. GitHub57 records checkpoint and final status; check current branch/tickets before resuming rather than assuming old pending CI is still running.
+
+## October 24 continuation checkpoint
+
+#60/#61/#63 are qualified for integration; see [source-bound evidence](validation/recovery-results.md). Final app changes end at `664f6ce`; broader regression source `7c28b7f`, History CI source `be4c3ab`. Next approved frontier is #62 after integration. It must compose existing Clear/Reset safeguards and gated diagnostics from both History and Locations, with actual caller context. Do not reopen approved flow decisions or promote unresolved #49/#51–#54/future capabilities.

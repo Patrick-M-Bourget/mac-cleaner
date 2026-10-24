@@ -219,3 +219,7 @@ The [owned-profile experiment](validation/chrome-owned-profiles.md) now records 
 The [focused native keyboard qualification](validation/native-keyboard.md) records Command navigation, Escape cancellation and restored Review focus with Return/Space on owned disposable data. It does not certify a full keyboard-only workflow or VoiceOver; #35 release gates remain open.
 
 Commercialization priority: [M8/#40](COMMERCIALIZATION.md) owns signing, notarization, release-preflight corrections and distribution lifecycle work. These do not block feature builds or fixture tests. The unapproved release-preflight test-boundary proposal is deferred with M8; no further answer is needed to continue feature development.
+
+## Recovery, Results and access checkpoint — #60/#61/#63
+
+The approved connected journey now includes caller-aware manual recovery, retained History disclosure/viewport context, truthful terminal outcome summaries, safe unresolved recovery routing, and restrained optional folder-access education. Shared Light/Dark components and original initial/minimum captures remain aligned with the approved flow lock. [Qualification](validation/recovery-results.md) records actual red → green, 5/5 terminal tests, 2/2 History maintenance tests and 8/8 affected regressions. Synthetic outcome presentation remains separate from Core executor fixtures and real OS qualification. Full parent issues and all future milestones stay open; #62 Local records is the next dependent slice, and M8 remains deferred.

@@ -41,3 +41,7 @@ App uninstall, duplicate detection, broader browser support, ordinary-file clean
 - Light/dark glass-style native UI, stable window and keyboard/accessibility: begin in M0/M1, acceptance on every milestone.
 
 Detailed future behavior remains in [PRD](reference/macos-cleaner-prd.md), [technical spec](reference/macos-cleaner-technical-spec.md), [state matrix](reference/macos-cleaner-ui-state-matrix.md), and [layout contract](reference/macos-cleaner-layout-contract.md). Apply current SPEC/design rules whenever older text conflicts.
+
+## Recovery, Results and access checkpoint — #60/#61/#63
+
+The approved connected journey now includes caller-aware manual recovery, retained History disclosure/viewport context, truthful terminal outcome summaries, safe unresolved recovery routing, and restrained optional folder-access education. Shared Light/Dark components and original initial/minimum captures remain aligned with the approved flow lock. [Qualification](validation/recovery-results.md) records actual red → green, 5/5 terminal tests, 2/2 History maintenance tests and 8/8 affected regressions. Synthetic outcome presentation remains separate from Core executor fixtures and real OS qualification. Full parent issues and all future milestones stay open; #62 Local records is the next dependent slice, and M8 remains deferred.
