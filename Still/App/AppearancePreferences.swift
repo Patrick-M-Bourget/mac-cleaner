@@ -66,76 +66,29 @@ struct AppearancePreferenceNotice: View {
 private struct NativeAppearanceRetryButton: NSViewRepresentable {
     let action: () -> Void
     func makeCoordinator() -> Coordinator { Coordinator(action) }
-    func makeNSView(context: Context) -> ProbeButton {
-        let button = ProbeButton(title: "Retry saving", target: context.coordinator, action: #selector(Coordinator.clicked))
+    func makeNSView(context: Context) -> ActivationButton {
+        let button = ActivationButton(title: "Retry saving", target: context.coordinator, action: #selector(Coordinator.clicked))
         button.bezelStyle = .rounded
         button.controlSize = .small
         button.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
         button.setAccessibilityLabel("Retry saving")
         return button
     }
-    func sizeThatFits(_ proposal: ProposedViewSize, nsView: ProbeButton, context: Context) -> CGSize? { nsView.intrinsicContentSize }
-    func updateNSView(_ nsView: ProbeButton, context: Context) { context.coordinator.action = action }
+    func sizeThatFits(_ proposal: ProposedViewSize, nsView: ActivationButton, context: Context) -> CGSize? { nsView.intrinsicContentSize }
+    func updateNSView(_ nsView: ActivationButton, context: Context) { context.coordinator.action = action }
     @MainActor final class Coordinator: NSObject {
         var action: () -> Void
         init(_ action: @escaping () -> Void) { self.action = action }
-        @objc func clicked() { appearanceRetryProbe("retry.action.enter"); action(); appearanceRetryProbe("retry.action.return") }
+        @objc func clicked() { action() }
     }
-    @MainActor final class ProbeButton: NSButton {
-        #if DEBUG
-        private var monitor: Any?
-        override func viewDidMoveToWindow() {
-            super.viewDidMoveToWindow()
-            guard monitor == nil, window != nil, LocalStateLocation.isDisposableTest,
-                  ProcessInfo.processInfo.arguments.contains("--ui-test-appearance-probe") else { return }
-            appearanceRetryProbe("native-monitor.installed")
-            monitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .leftMouseUp]) { [weak self] event in
-                guard let self, let window = self.window, event.window === window else { return event }
-                let point = self.convert(event.locationInWindow, from: nil)
-                guard self.bounds.insetBy(dx: -4, dy: -4).contains(point) else { return event }
-                let hit = window.contentView.flatMap { content in
-                    // AppKit hitTest receives a point in the receiver's SUPERview.
-                    let parentPoint = content.superview?.convert(event.locationInWindow, from: nil) ?? event.locationInWindow
-                    return content.hitTest(parentPoint)
-                }
-                var views: [String] = []
-                var current: NSView? = self
-                while let view = current, views.count < 6 {
-                    views.append(NSStringFromClass(type(of: view)) + " frame=" + NSStringFromRect(view.frame) + " bounds=" + NSStringFromRect(view.bounds) + " visible=" + NSStringFromRect(view.visibleRect))
-                    current = view.superview
-                }
-                appearanceRetryProbe("event=" + String(event.type.rawValue) + " key=" + String(window.isKeyWindow) + " active=" + String(NSApp.isActive) + " modal=" + String(NSApp.modalWindow != nil) + " local=" + NSStringFromPoint(point) + " windowPoint=" + NSStringFromPoint(event.locationInWindow) + " hit=" + (hit.map { NSStringFromClass(type(of: $0)) } ?? "nil") + " selfHidden=" + String(self.isHiddenOrHasHiddenAncestor) + " selfEnabled=" + String(self.isEnabled) + " AXframe=" + NSStringFromRect(self.accessibilityFrame()) + " views=" + views.joined(separator: ">"))
-                return event
-            }
+    @MainActor final class ActivationButton: NSButton {
+        override func accessibilityActivationPoint() -> NSPoint {
+            // SwiftUI's wrapper can expose an activation point at the trailing
+            // boundary, outside the actual native hit region. Keep native AX
+            // activation at the current control center, including after a move.
+            guard let window else { return super.accessibilityActivationPoint() }
+            return window.convertPoint(toScreen: convert(NSPoint(x: bounds.midX, y: bounds.midY), to: nil))
         }
-        override func viewWillMove(toWindow newWindow: NSWindow?) {
-            if newWindow == nil, let monitor { NSEvent.removeMonitor(monitor); self.monitor = nil }
-            super.viewWillMove(toWindow: newWindow)
-        }
-        override func mouseDown(with event: NSEvent) {
-            appearanceRetryProbe("native.mouseDown.enter")
-            super.mouseDown(with: event)
-            appearanceRetryProbe("native.mouseDown.return")
-        }
-        #endif
     }
 
-}
-
-// Temporary bounded trace in explicitly owned state, removed after diagnosis.
-func appearanceRetryProbe(_ event: String) {
-    #if DEBUG
-    guard LocalStateLocation.isDisposableTest,
-          ProcessInfo.processInfo.arguments.contains("--ui-test-appearance-probe"),
-          let root = try? LocalStateLocation.root(create: false) else { return }
-    let target = root.appendingPathComponent("appearance-retry-probe.txt")
-    var info = stat()
-    if lstat(target.path, &info) == 0 {
-        guard info.st_mode & S_IFMT == S_IFREG, info.st_uid == geteuid(), info.st_size < 24_576,
-              target.path == target.resolvingSymlinksInPath().path else { return }
-    } else if errno != ENOENT { return }
-    var data = (try? Data(contentsOf: target)) ?? Data()
-    data.append(Data(("[DEBUG-shell53-center] " + event + "\n").utf8))
-    try? data.write(to: target, options: .atomic)
-    #endif
 }
