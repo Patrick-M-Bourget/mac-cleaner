@@ -1,6 +1,6 @@
 # Shared Local records — #62
 
-October 24, 2026. Approved FLOW-LOCK Q17/Q25, N03/H04/L01–L02 and child #62 under #48. Base integration `03cbdfc` contains qualified caller-aware recovery/Results/access guidance; `50d23db` advances the synchronized handoff. Final app source `dadc0c1` is qualified for integration on `integration/still-spec`; final verification is summarized below. Chronological candidate notes retain their original evidence limits.
+October 24, 2026. Approved FLOW-LOCK Q17/Q25, N03/H04/L01–L02 and child #62 under #48. Base integration `03cbdfc` contains qualified caller-aware recovery/Results/access guidance; `50d23db` advances the synchronized handoff. Final app source `dadc0c1` is integrated at `03779f5` on `integration/still-spec`; final verification is summarized below. Chronological candidate notes retain their original evidence limits.
 
 ## Existing contract
 

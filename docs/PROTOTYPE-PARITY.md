@@ -21,7 +21,7 @@ Qualified application source9264d7a extends the connected journey with mixed cur
 
 ## Current acceptance overlay — October 24
 
-The tables below Classification retain the original audit baseline. This current overlay prevents historical gaps from being mistaken for still-missing implementation. D/M/R are integrated; L is qualified for integration after native context/diagnostics/History, original-image review, source reviews and affected regressions. Existing decisions and all future gates remain preserved.
+The tables below Classification retain the original audit baseline. This current overlay prevents historical gaps from being mistaken for still-missing implementation. D/M/R are integrated; L is integrated at `03779f5` after native context/diagnostics/History, original-image review, source reviews and affected regressions. Existing decisions and all future gates remain preserved.
 
 ### Evidence keys
 
@@ -53,7 +53,7 @@ The tables below Classification retain the original audit baseline. This current
 | M01–M02 | Future M6 + unresolved #54 | Existing managed guidance retained; release-archive information architecture still outstanding, no deletion |
 | N08–N10 | Bounded qualified + M7 limits | Original native theme/size/fixed footer/keyboard/anchor evidence exists; no comprehensive VoiceOver/localization/OS/CPU certification |
 
-#44/#47 bounded feature repairs are accepted; #46/#48 can now be reconciled against final L evidence. #50 retains exceptional native proof and #45 retains unresolved decisions. Unaffected already-covered/departure/simulation rows retain their status; this overlay is not permission to erase any roadmap row or claim all 79 rows implemented.
+#44/#46/#47/#48 bounded M1 feature repairs are accepted and closed against D/M/R/L evidence. #50 retains exceptional native proof and #45 retains unresolved decisions. Unaffected already-covered/departure/simulation rows retain their status; this overlay is not permission to erase any roadmap row or claim all 79 rows implemented.
 
 
 ## Classification
