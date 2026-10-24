@@ -201,7 +201,14 @@ final class ShellAppearanceUITests: XCTestCase {
             shellCapture(app, "retry-not-dismissed", minimum: minimum)
             let probe = (try? String(contentsOf: state.appendingPathComponent("appearance-retry-probe.txt"), encoding: .utf8)) ?? "Owned native probe unavailable"
             let diagnostic = XCTAttachment(string: probe); diagnostic.name = "appearance-retry-native-probe"; diagnostic.lifetime = .keepAlways; add(diagnostic)
-            XCTFail("Successful saving must clear its notice. Owned stored value: " + ((try? String(contentsOf: file, encoding: .utf8)) ?? "Unavailable")); return
+            let mouseStoredValue = (try? String(contentsOf: file, encoding: .utf8)) ?? "Unavailable"
+            // Probe keyboard delivery only after preserving the failed mouse result.
+            // It never satisfies or replaces the required mouse-action assertion.
+            retry.typeKey(.space, modifierFlags: [])
+            let keyboardProbe = (try? String(contentsOf: state.appendingPathComponent("appearance-retry-probe.txt"), encoding: .utf8)) ?? "Owned native probe unavailable"
+            let keyboardDiagnostic = XCTAttachment(string: keyboardProbe + "\nStored value after keyboard probe: " + ((try? String(contentsOf: file, encoding: .utf8)) ?? "Unavailable"))
+            keyboardDiagnostic.name = "appearance-retry-keyboard-probe"; keyboardDiagnostic.lifetime = .keepAlways; add(keyboardDiagnostic)
+            XCTFail("Successful saving must clear its notice. Owned stored value after mouse: " + mouseStoredValue); return
         }
         XCTAssertEqual(try String(contentsOf: file, encoding: .utf8), "Dark")
         XCTAssertEqual(picker.value as? String, "Dark")
