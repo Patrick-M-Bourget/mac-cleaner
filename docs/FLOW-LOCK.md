@@ -1,6 +1,6 @@
 # Connected product flow lock
 
-Approved October 23, 2026: user accepted grilling Q1–Q25 and explicitly confirmed the consolidated contract in Q26. Applies to #44, #46, #47 and #48, plus the results boundary in #50. These are approved product requirements, **not implemented capability claims**. The [parity audit](PROTOTYPE-PARITY.md) retains the baseline and open gaps. Native design-state presentation and delivery sequencing are the next bounded review; no feature code is authorized by a green audit alone.
+Approved October 23, 2026: user accepted grilling Q1–Q25, explicitly confirmed the consolidated contract in Q26, and accepted presentation/delivery Q27–Q30. Applies to #44, #46, #47 and #48, plus the results boundary in #50. These are approved product requirements, **not implemented capability claims**. The [parity audit](PROTOTYPE-PARITY.md) retains the baseline and open gaps. Presentation and delivery decisions are locked below; the annotated visual state review is next. No repair is implemented or qualified by approving a flow.
 
 SPEC and DESIGN-HANDOFF reference this same contract. It supersedes conflicting global plan-chooser, flat explorer and hard-coded return descriptions. Safety and M1 scope remain unchanged: exact eligible Downloads files only, no automatic scans/cleanup, no whole-folder targets, no broader adapter mutation. Future milestones and #49/#51–#54 remain preserved; appearance persistence and History scan-activity decisions are not decided here.
 
@@ -34,6 +34,10 @@ SPEC and DESIGN-HANDOFF reference this same contract. It supersedes conflicting 
 | Q24 | Inline Choose items is primary plan refinement; Explore Downloads offers deeper review. If plan is already the Explorer's ancestor, View cleanup plan returns to it rather than pushing a duplicate route. |
 | Q25 | Navigation/query/disclosure/inspector/viewport state survives navigation/window closure while process lives, then clears on Quit. Remembered configuration and durable history/recovery are separate. Launch opens Overview unless recovery needs review. |
 | Q26 | User confirmed this consolidated flow contract; synchronize specs/tickets and prepare annotated states/implementation sequence before coding. |
+| Q27 | Compact shared toolbar scan progress, Stop and Return to scan while elsewhere; existing content stays visible with truthful refreshing state. No full-page spinner or completion navigation. |
+| Q28 | Explorer uses a right-hand inspector when room permits; at compact widths the same detail is a bounded panel. Opening it preserves list position and outer window geometry. |
+| Q29 | Location rows expose inclusion checkbox, folder/path and explicit status, with direct recovery only where needed. Forget is a secondary menu action and keeps Q19's conditional confirmation. |
+| Q30 | First visible milestone is the complete remembered Downloads → plan scan → category/inline selection → Explorer round trip → confirmation/Cancel → results → new-plan journey. Then finish multi-location/overlap/access branches; a first demo is not full ticket/parity completion. |
 
 ## Screen responsibilities and return behavior
 
@@ -52,7 +56,7 @@ Route reuse must prevent Plan → Explorer → Plan → Explorer cycles. A sideb
 
 ## Annotated behavior states
 
-These annotate approved behavior, not new visual mockups. All must use the existing white/near-black palette, quiet category accents, shared components and stable native geometry. Remaining presentation choices will be recorded after the next design round, rather than inferred here.
+These annotate approved behavior, not new visual mockups. All must use the existing white/near-black palette, quiet category accents, shared components and stable native geometry. Presentation choices Q27–Q29 are confirmed. The [annotated visual review](CONNECTED-FLOW-DESIGN-REVIEW.md) renders this contract for approval before coding.
 
 | State ID | Evidence and category presentation | Available action / outcome |
 |---|---|---|
@@ -71,8 +75,10 @@ These annotate approved behavior, not new visual mockups. All must use the exist
 | FL13 — completed run/new plan | Separate per-target results and recoverability, consumed authority | View history / Start a new plan; unselected category workspace needs manual fresh scan |
 | FL14 — quit/reopen | Persistent location configuration, durable records; no live findings/plan restored | Overview, or startup recovery if needed; manual scan required |
 
-## Design and delivery checkpoint
+## Design review and delivery checkpoint
 
-The **flow decisions are locked**; repairs are not implemented. Next grill the bounded presentation and delivery decisions: persistent scan-status placement, Explorer inspector behavior at both native sizes, scope-row action hierarchy and the first connected user-visible implementation slice. These are design/delivery refinements, not a reopening of M1 scope or permission to add unrelated features. Annotated visual states must be reviewed against the approved prototype before UI merge; changed states need original source-pinned native Light/Dark initial/minimum proof afterward.
+**Flow and presentation decisions Q1–Q30 are locked.** Review the [annotated visual states](CONNECTED-FLOW-DESIGN-REVIEW.md) next, using the existing approved palette/components rather than unrelated variants. The review prototype is synthetic, isolated from production code and preserved on a prototype branch. It illustrates intent, not native geometry, platform support or filesystem evidence. Approval of its visual states precedes coding; original source-pinned native Light/Dark initial/minimum proof follows implementation before UI merge.
 
-Do not resume old isolated feature work. Implementation slices must name both parity IDs and FL states and preserve the approved responsibilities above. #49 capacity freshness, #51 scan-history product contract, #52 growth, #53 shell/appearance and #54 archive guidance stay visible in their milestones; this lock does not silently resolve or remove them. M8 signing remains deferred.
+Delivery is a connected user-visible slice: remembered Downloads → contextual plan scan → category/inline refinement → Explorer with return context → exact confirmation/Cancel → results → explicit new plan. Route/state and remembered-scope foundations may be implemented first as needed; do not call isolated helper work the completed feature. Subsequent immediate slices complete multi-location/overlap/access recovery and every FL branch. All acceptance remains on #44/#46/#47/#48/#50 until actually proven. Annotated visual approval is the next checkpoint; no further product questions are silently introduced.
+
+Do not resume unrelated isolated feature work. Every slice names parity IDs and FL states and preserves the approved responsibilities above. #49 capacity freshness, #51 scan-history product contract, #52 growth, #53 shell/appearance and #54 archive guidance remain visible in their milestones; this lock does not silently resolve or remove them. M8 signing stays deferred.

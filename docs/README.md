@@ -16,7 +16,7 @@ Supporting context: [PRD](reference/macos-cleaner-prd.md), [flow audit](referenc
 
 ## Authority and change policy
 
-**Current checkpoint:** [prototype-to-implementation parity audit](PROTOTYPE-PARITY.md), October 23. The audit is complete; the connected [flow lock](FLOW-LOCK.md) is user-confirmed under #45. Design-state/delivery readiness is the remaining bounded review before connected feature implementation. Review the parity ledger before further building; existing validation reports certify their stated boundaries, not the entire prototype experience.
+**Current checkpoint:** [prototype-to-implementation parity audit](PROTOTYPE-PARITY.md), October 23. The audit is complete; the connected [flow lock](FLOW-LOCK.md) is user-confirmed under #45. Flow/presentation/delivery decisions Q1–Q30 are confirmed; [annotated visual-state approval](CONNECTED-FLOW-DESIGN-REVIEW.md) precedes connected feature implementation. Review the parity ledger before further building; existing validation reports certify their stated boundaries, not the entire prototype experience.
 
 SPEC.md and DESIGN-HANDOFF.md are the consolidated entry points. Detailed reference documents supply requirements where these are abbreviated. Revision 0.9 shared live-selection rules and milestone scope supersede earlier flows. Reference documents are historical detailed feature records; do not implement their conflicting draft, rescan or plan-persistence behavior. Historical research and prototype behavior are not requirements when they contradict these contracts. Resolve any remaining conflict explicitly before implementation rather than copying inconsistent behavior.
 

@@ -6,11 +6,11 @@ Revision 0.9 · October 22, 2026 · Native implementation handoff.
 
 ## Prototype parity checkpoint — October 23, 2026
 
-The [parity audit](PROTOTYPE-PARITY.md) traces current gaps and retained future capabilities. User-confirmed grilling Q1–Q26 now locks the connected [product flow contract](FLOW-LOCK.md) for #44/#46/#47/#48 and the results boundary in #50. These are approved requirements, **not implemented parity claims**.
+The [parity audit](PROTOTYPE-PARITY.md) traces current gaps and retained future capabilities. User-confirmed grilling Q1–Q30 now locks the connected [product flow contract](FLOW-LOCK.md) for #44/#46/#47/#48 and the results boundary in #50. These are approved requirements, **not implemented parity claims**.
 
 The plan retains a stable category workspace with contextual scan prerequisites; Locations manages remembered explicit inclusion; Explorer navigates existing observations and shares selection; contextual Back preserves caller state without cycles. Scans never navigate on completion. Selected pending files block approval until checked or deliberately deselected. Completed runs lead to separate results and a fresh unselected new-plan boundary. See FLOW-LOCK for every decision, return route and FL01–FL14 state.
 
-Feature code remains paused only for the bounded design-state/delivery review recorded there; do not re-grill settled flows or resume isolated screen work. Keep the approved white/near-black native design, existing shared components and all future milestones. Remaining #49/#51–#54 decisions/gates are preserved, not silently resolved or made blanket prerequisites for M1. M8 remains deferred.
+Presentation/delivery decisions are confirmed; feature code remains paused for [annotated visual-state approval](CONNECTED-FLOW-DESIGN-REVIEW.md); do not re-grill settled flows or resume isolated screen work. Keep the approved white/near-black native design, existing shared components and all future milestones. Remaining #49/#51–#54 decisions/gates are preserved, not silently resolved or made blanket prerequisites for M1. M8 remains deferred.
 
 Every implementation slice must name parity and FL IDs, synchronize **SPEC and DESIGN-HANDOFF**, cover the complete user journey and its exceptional states, and retain explicit proof limits. Design annotations precede implementation; original native Light/Dark initial/minimum capture and public-flow verification precede UI merge. A helper, probe, inaccessible development route or successful build alone is not feature completion.
 

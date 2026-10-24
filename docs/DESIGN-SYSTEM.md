@@ -4,7 +4,7 @@ This is the mandatory presentation implementation contract for native UI. [DESIG
 
 ## Implementing or changing UI
 
-The [parity checkpoint](PROTOTYPE-PARITY.md) is required in addition to component reuse. A coherent palette cannot compensate for a missing feature or changed workflow. Name affected parity IDs, entry/return routes, category/refinement behavior and exceptional states before implementation; update SPEC and DESIGN-HANDOFF together. The connected [flow lock](FLOW-LOCK.md) is approved; maintain its FL01–FL14 states while completing bounded presentation/delivery review under #45. Shared examples and screenshots must be reviewed in the complete user journey, not only the gallery.
+The [parity checkpoint](PROTOTYPE-PARITY.md) is required in addition to component reuse. A coherent palette cannot compensate for a missing feature or changed workflow. Name affected parity IDs, entry/return routes, category/refinement behavior and exceptional states before implementation; update SPEC and DESIGN-HANDOFF together. The connected [flow lock](FLOW-LOCK.md) is approved; maintain its FL01–FL14 states while reviewing the confirmed presentation in annotated visual states under #45. Toolbar scan status, responsive inspector and location-row hierarchy follow FLOW-LOCK Q27–Q29. Shared examples and screenshots must be reviewed in the complete user journey, not only the gallery.
 
 1. Read the relevant screen/state requirements in the handoff and milestone scope. Locate the existing component in [DesignSystem.swift](../Still/App/DesignSystem.swift) and examples in [DesignGallery.swift](../Still/App/DesignGallery.swift).
 2. Reuse the component and semantic tokens. When a required pattern is missing, add a shared component and a gallery example for its meaningful states before composing the screen. Keep domain decisions and filesystem work in their existing models/adapters.
@@ -38,7 +38,7 @@ The app target owns these internal SwiftUI components; they are presentation pri
 | `InspectableItemRow` | Separate selection control from filename inspection; size aligned at trailing edge |
 | `MacroCategoryCheckbox`, `CategorySelectionHeader` | Native AppKit unchecked/mixed/checked selection; checkbox → badge → category evidence → trailing size composition |
 | `ScanProgressSummary` | Bounded preliminary metadata evidence, explicit enumeration/recheck/stability phase, unknown remaining coverage; native spinner plus accessible phase text, no cleanup controls |
-| `CleanupScopeNotice` | Default stacked or compact Overview Downloads-only explanation and native choose-folder shortcut; enabled and disabled gallery examples |
+| `CleanupScopeNotice` | Existing inspection/Overview guidance; the approved plan replacement uses a contextual category prerequisite, never a permanent global chooser/banner (FLOW-LOCK Q4/Q5) |
 | `StatusRow`, `EmptyState` | Honest status, blocked/error explanation, or no findings yet |
 | `SettingsRow` | Setting title, explanation and native controls |
 | `AppBrand`, `StillSidebarRow`, `ChromeSurface` | Shared brand, persistent native navigation, destination accents and adaptive chrome |
@@ -75,6 +75,18 @@ ActionStrip(message: "Nothing changes until you confirm the next step.") {
 ```
 
 `selectedSize`, `selectedCount`, `eligibilityText`, `trashConsequence`, `coverageText` are strings supplied by the screen; `expandItems` and `beginReview` are its actions. These snippets show composition, not a second source of selection policy. `MacroCategoryCheckbox` takes `CategorySelectionState` from StillCore; derive it from the session model. Increment the focus request once after sheet dismissal rather than repeatedly stealing focus.
+
+## Approved recurring patterns awaiting implementation
+
+The [visual review](CONNECTED-FLOW-DESIGN-REVIEW.md) illustrates these approved responsibilities. Names below describe patterns, not an implemented API or permission to bypass the public models. Add native shared components and meaningful Gallery states before composing the repaired screens.
+
+| Pattern | Responsibilities / states |
+|---|---|
+| Toolbar scan status | Shared progress, Stop and return-to-origin while away; no completion navigation or invented percentage; FL07/FL08 |
+| Location scope row | Inclusion, folder/path, current access/coverage, direct recovery and secondary Forget; editing paused during scan; Q29/FL09 |
+| Category prerequisite | Not scanned/empty/partial versus eligible count and logical size; contextual scan/recheck within the stable plan; no permanent setup banner; FL01–FL06 |
+| Explorer inspector | Separate folder navigation/info/file inspection/selection; right pane or compact bounded panel above footer, preserved context; FL10/FL11 |
+| Contextual return | Caller-labelled Back, viewport/query/inspector restoration and existing-ancestor reuse; no Plan/Explorer cycle; Q17/Q24 |
 
 ## Screen and state inventory
 

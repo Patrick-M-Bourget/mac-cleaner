@@ -1,6 +1,6 @@
 # Prototype-to-implementation parity audit
 
-Audited October 23, 2026. Native baseline: `f9e854f57d14bfb40f304ca06024faa75afc25a9`. Tracking: [#45](https://github.com/Patrick-M-Bourget/mac-cleaner/issues/45). **Audit complete; connected flow decisions Q1–Q26 are approved in [FLOW-LOCK](FLOW-LOCK.md). Repairs remain open; bounded design-state/delivery review precedes coding.**
+Audited October 23, 2026. Native baseline: `f9e854f57d14bfb40f304ca06024faa75afc25a9`. Tracking: [#45](https://github.com/Patrick-M-Bourget/mac-cleaner/issues/45). **Audit complete; connected flow/presentation decisions Q1–Q30 are approved in [FLOW-LOCK](FLOW-LOCK.md). Repairs remain open; annotated visual-state approval precedes coding.**
 
 ## Baseline and evidence boundary
 
@@ -200,9 +200,9 @@ These source pointers make the classification reproducible at the pinned baselin
 
 ## Decision checkpoint and ongoing acceptance gate
 
-The user has confirmed the connected #44/#46/#47/#48 contract plus #50's terminal boundary in [FLOW-LOCK](FLOW-LOCK.md). Q1–Q26 and FL01–FL14 are the current intended behavior. The baseline table still describes f9e854f; no gap becomes Covered merely because its repair was approved.
+The user has confirmed the connected #44/#46/#47/#48 contract plus #50's terminal boundary in [FLOW-LOCK](FLOW-LOCK.md). Q1–Q30 and FL01–FL14 are the current intended behavior. The baseline table still describes f9e854f; no gap becomes Covered merely because its repair was approved.
 
-Before feature code resumes, finish the bounded scan-status/inspector/scope-row presentation and connected delivery review recorded in FLOW-LOCK. Do not reopen settled flow decisions or add unrelated hardening. #51/#53 retain their separate History/appearance decisions; #49/#52/#54 and future qualification remain tracked.
+The scan-status/inspector/scope-row presentation and connected delivery decisions are confirmed in FLOW-LOCK Q27–Q30. Before feature code resumes, review their annotated visual states. Do not reopen settled flow decisions or add unrelated hardening. #51/#53 retain their separate History/appearance decisions; #49/#52/#54 and future qualification remain tracked.
 The checkpoint is not a demand to build all M2–M8 features first. Future adapter/monitoring gates remain on their own issues; current M1 must present honest states and still form a coherent product. No general signing dependency is reintroduced.
 
 For every subsequent feature/repair ticket:
@@ -217,4 +217,4 @@ For every subsequent feature/repair ticket:
 
 Parent #45 tracks this audit and current flow reconciliation. New focused findings: #46 Locations, #47 Explorer/inspector, #48 route/local-data integration, #49 capacity, #50 results, #51 History contract, #52 growth flows, #53 shell/preference contract, #54 release-archive guidance. Existing #44 owns Cleanup plan grilling. Flow decisions for #44/#46/#47/#48 and the #50 boundary are approved; annotated visual/delivery readiness is still being reviewed. Other issues retain their triage/gates. Related future qualification/action tickets are retained and receive the corresponding parity references rather than duplicate “build browser cleanup” issues.
 
-The connected flow discussion is complete and explicitly confirmed. The next round is the bounded design/delivery checkpoint in FLOW-LOCK. Add native implementation blockers when those slices are agreed; sub-issue containment alone is not a blocker.
+The connected flow discussion is complete and explicitly confirmed. The next checkpoint is annotated visual-state approval under FLOW-LOCK; design/delivery Q27–Q30 are confirmed. Add native implementation blockers when those slices are agreed; sub-issue containment alone is not a blocker.
