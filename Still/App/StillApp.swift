@@ -261,7 +261,7 @@ private struct WorkspaceView: View {
                         }
                     } else if destination == .growth {
                         ActionStrip(message: "Two compatible completed observations reveal net changes.") {
-                            Button("Inspect a folder") { if let url = FolderInspection.chooseFolder() { nativeInspectionVisible = true; folderInspection.scan(url) } }.buttonStyle(.borderedProminent)
+                            Button("Inspect a folder", action: chooseFolderForScan).buttonStyle(.borderedProminent)
                         }
                     } else if destination == .overview && !managedStorageVisible && !dockerVisible && !pipVisible && !homebrewVisible {
                         if folderInspection.isScanning {

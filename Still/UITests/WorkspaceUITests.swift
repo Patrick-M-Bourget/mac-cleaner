@@ -1309,8 +1309,9 @@ final class WorkspaceUITests: XCTestCase {
                 let path = app.textFields.firstMatch
                 XCTAssertTrue(path.waitForExistence(timeout: 5)); path.typeText(scope.path)
                 app.typeKey(.return, modifierFlags: []); app.dialogs.buttons["Scan folder"].click()
-                waitForOverviewScan(app, timeout: 10)
-                app.buttons["What grew"].click()
+                waitForScanIdle(app, timeout: 10)
+                XCTAssertFalse(app.buttons["Back to Overview"].exists)
+                XCTAssertTrue(app.buttons["Inspect a folder"].exists)
             }
             func captures(_ stateName: String) {
                 for theme in ["Light", "Dark"] {
