@@ -149,6 +149,7 @@ struct StorageExplorerView: View {
                     if !context.backWithinExplorer() { back() }
                 }.accessibilityIdentifier("explorerBack")
                 PageHeader(title: context.downloadsOnly ? "Explore Downloads" : "Explore storage", subtitle: "Browse existing observations. On disk sizes are allocation evidence, not reclaimable space.")
+                ScanHistoryRecordingNotice()
                 breadcrumbs
                 HStack(alignment: .top, spacing: StillDesign.Space.lg) {
                     list.frame(maxWidth: .infinity, maxHeight: .infinity)

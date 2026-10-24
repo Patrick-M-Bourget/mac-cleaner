@@ -755,6 +755,7 @@ private struct WorkspaceView: View {
     private var locations: some View {
         VStack(alignment: .leading, spacing: StillDesign.Space.xl) {
             PageHeader(title: "Locations & access", subtitle: "Remember locations to include in your next manual scan.")
+            ScanHistoryRecordingNotice()
             HStack {
                 Button("Add folder…") {
                     if let url = FolderInspection.chooseFolder(remembering: true) { _ = locationsModel.remember(url, downloads: isDownloadsLocation(url)) }

@@ -154,11 +154,13 @@ struct CleanupHistoryView: View {
                 StatusRow(text: message, symbol: model.blocked ? "exclamationmark.triangle" : "info.circle", role: model.blocked ? .caution : .neutral, identifier: "historyStatus")
             }
             ScanHistoryRecordingNotice()
-            if let error = model.loadError { StatusRow(text: error, symbol: "exclamationmark.triangle", role: .caution) }
-            if let error = scans.loadError { StatusRow(text: error, symbol: "exclamationmark.triangle", role: .caution) }
-            if model.loadError != nil || scans.loadError != nil {
-                Button("Try again") { Task { await reload() } }.disabled(model.busy)
+            if let error = model.loadError {
+                HistoryStoreFailure(message: error, retryTitle: "Try cleanup history again", enabled: !model.busy) { Task { await model.load() } }
             }
+            if let error = scans.loadError {
+                HistoryStoreFailure(message: error, retryTitle: "Try scan history again", enabled: !scans.isLoading) { Task { await scans.load() } }
+            }
+            if readingHistory { ProgressView("Reading local history…") }
             if model.blocked || (model.snapshot?.protectedRecordCount ?? 0) > 0 {
                 SettingsRow(title: "Recovery facts are protected", detail: "Unfinished runs are excluded from Clear and retention. Reset requires them to be resolved.") {
                     Button("Open recovery review", action: showRecovery).accessibilityIdentifier("historyRecovery")
@@ -173,7 +175,7 @@ struct CleanupHistoryView: View {
                 }
             }
             if items.isEmpty {
-                if model.busy { ProgressView("Reading local history…") }
+                if readingHistory { EmptyView() }
                 else if unavailable {
                     HistoryActivityUnavailableState()
                 } else {
@@ -183,7 +185,14 @@ struct CleanupHistoryView: View {
             HistoryRetentionNote()
         }.task { await reload() }
     }
-    private func reload() async { await model.load(); await scans.load() }
+    private var readingHistory: Bool {
+        model.busy || scans.isLoading || (model.snapshot == nil && model.loadError == nil) || (scans.records == nil && scans.loadError == nil)
+    }
+    private func reload() async {
+        async let cleanup: Void = model.load()
+        async let scanRecords: Void = scans.load()
+        _ = await (cleanup, scanRecords)
+    }
     private func cleanup(_ run: CleanupHistoryRun) -> some View {
                     SummarySurface {
                         VStack(alignment: .leading, spacing: StillDesign.Space.md) {

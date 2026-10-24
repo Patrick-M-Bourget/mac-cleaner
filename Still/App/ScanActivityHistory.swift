@@ -7,6 +7,8 @@ import StillCore
     var records: [ScanActivity]?
     var loadError: String?
     var recordingWarning: String?
+    var isLoading = false
+    private var loadRequest = UUID()
     private var archive: GrowthHistoryStore?
     func store() throws -> GrowthHistoryStore {
         if let archive { return archive }
@@ -25,10 +27,18 @@ import StillCore
         } catch { recordingWarning = "This scan could not be saved to History. Current results and choices remain available." }
     }
     func load(maintain: Bool = true) async {
-        do { records = try await HistoryLoadCoordinator.load(lifecycle: AppLifecycleController.shared) { mayMaintain in
+        let request = UUID(); loadRequest = request; isLoading = true
+        defer { if loadRequest == request { isLoading = false } }
+        do {
+            let value = try await HistoryLoadCoordinator.load(lifecycle: AppLifecycleController.shared) { mayMaintain in
                 try await self.store().activities(maintain: maintain && mayMaintain)
-            }; loadError = nil }
-        catch { records = nil; loadError = "Scan history is unavailable. Recorded scan activity could not be read." }
+            }
+            guard loadRequest == request, !Task.isCancelled else { return }
+            records = value; loadError = nil
+        } catch {
+            guard loadRequest == request, !Task.isCancelled else { return }
+            records = nil; loadError = "Scan history is unavailable. Recorded scan activity could not be read."
+        }
     }
 }
 

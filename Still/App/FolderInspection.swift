@@ -298,6 +298,7 @@ struct FolderInspectionView: View {
         VStack(alignment: .leading, spacing: StillDesign.Space.xl) {
             Button("Back to Overview", systemImage: "chevron.left", action: back)
             PageHeader(title: "Folder inspection", subtitle: "Inspect names and evidence. Checkboxes update your live cleanup plan.")
+            ScanHistoryRecordingNotice()
             CleanupScopeNotice(enabled: !model.isScanning && !selection.execution.isRunning) {
                 if let url = FolderInspection.chooseFolder(downloads: true) { selection.leaveRetryMode(); model.scan(url) }
             }
