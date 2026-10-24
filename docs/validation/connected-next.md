@@ -1,6 +1,6 @@
 # Mixed scopes and inspector evidence
 
-October 23, 2026. Tracking #58 (parent #46) and #59 (parent #47); approved FLOW-LOCK/proposal b96bb97. Baseline integration `5a9d588` is the qualified first Downloads slice. Candidate work remains isolated on `verify/connected-parity-next` until the gates below pass.
+October 23, 2026. Tracking #58 (parent #46) and #59 (parent #47); approved FLOW-LOCK/proposal b96bb97. Baseline integration `5a9d588` is the qualified first Downloads slice. Both slices are qualified for integration on `integration/still-spec`; final application source9264d7a and test/CI-only revisionc640bb9. The source-bound results below define the bounded acceptance, not full parent/platform completion.
 
 ## Source and public checks
 
@@ -16,9 +16,11 @@ Latest application source `9264d7a66f641189294f8e0ef0b0b6b586c0dc98` adds the cu
 | 40055727927 | b3d570e | Gallery passes; both inspectors fail strict text containment; both full mixed journeys stop at XCTest shorthand identifier length limit |
 | 40056524171 | ef54d49 | FAIL: both advance through reconnect; below-viewport lazy B checkbox is not instantiated before the generic reveal helper checks existence |
 | 40057507530 | badca19 | RED reproduced both sizes: exact stale B access notice remains after independently observed three-file eligibility. Public search reveals exact checkbox rows without assuming offscreen lazy existence |
-| 40058146619 | 9264d7a | Final full mixed initial/minimum verification pending |
-| 40058178176 | 9264d7a | Existing scope-guidance regression pending |
-| 40058179409 | 9264d7a | Existing unavailable-location regression pending |
+| 40058146619 | 9264d7a | Both sizes pass recovered-notice, exact hardlink/overlap, pending blocker and picker/omit branches; stop at ambiguous app-wide Cancel matching sheet + Touch Bar. Test-only correction scopes Forget actions to sheet |
+| 40059063609 | c640bb9 | PASS1/1 (266.42s): complete initial-size mixed journey, including final Forget/Cancel and2paths/4bytes |
+| 40059065114 | c640bb9 | PASS1/1 (260.00s): complete minimum-size mixed journey, including final Forget/Cancel and2paths/4bytes |
+| 40058178176 | 9264d7a | PASS: existing scope-guidance/shortcut/picker-cancellation journey at both sizes/themes |
+| 40058179409 | 9264d7a | PASS: existing unknown coverage and explicit unavailable-location recovery journey (33.70s) |
 | 40056586166 | f233d10 | PASS: both owned inspector journeys (124.47s), including actual SQLite reason, strict visible restriction frame, reachable Close and explicit selection/confirmation Cancel |
 | 40056609812 | f233d10 | PASS13/13 (741.69s): initial/minimum connected execution/results/History/relaunch, contextual prerequisite, scope guidance/recovery, refresh, three checkbox anchors, keyboard Cancel/focus and retry |
 
@@ -38,8 +40,10 @@ The native scroll identifier is `explorerInspector`; native selectable text can 
 
 [Thirty-one original regression captures](../visual/connected-next/f233d10-regressions/manifest.json) from the13/13 passing run preserve initial/minimum Downloads prerequisites/populated plan/inspector/results/empty states, minimum access recovery and updated shared Gallery in both themes. Representative inspector/plan/recovery captures were reviewed: the real compact recovery row now shows its identity/status and full action labels without ellipsis; the original white sidebar and stable sibling action strip remain. Behavior proof is the passing native journey, not a claim of pixel identity with the web prototype.
 
-Mixed-location originals, remaining green runs and final integration status are pending. Native OS permission revocation, disconnected-volume/File Provider behavior, older OS/CPU and manual VoiceOver qualification are separate gates. No new adapter or M8 work; parent #44/#46/#47/#48/#50/#45 and all future milestones remain open.
+[Twenty-four original final mixed-location captures](../visual/connected-next/c640bb9/manifest.json) from the two passing jobs were individually reviewed across Light/Dark initial1024×640 and minimum900×640. The six states are unscanned mixed coverage, configured overlap, unselected unavailable scope, full missing-location recovery context, selected pending blocker and independent overlap survivors. Recovery labels stay fully readable (wide trailing / compact below identity); actual identity/status and historical-observation copy fit above the row boundary. Pending summary retains3choices/6bytes, identifies1refresh-required file and blocks Review while2eligible files/4bytes remain visible. After deliberate Forget, the2independent hardlink paths remain checked with4deduplicated bytes, enabled Review and reachable fixed footer. Limited coverage stays explicit and valid A choices remain usable when B has no selected targets. No window-driven resize, clipped action label or footer overlap was observed in these changed states.
+
+All required bounded source/visual/public-journey gates pass. Local Xcode27.1 build-for-testing and deep strict ad-hoc signature verification pass for preserved application source9264d7a. Native Core runs pass131 Swift Testing plus5 XCTest checks; full Downloads13/13, inspector2/2, final mixed1+1 and affected recovery1+1 are combined focused evidence, not a single full UI suite run. Native OS permission revocation, disconnected-volume/File Provider behavior, older OS/CPU and manual VoiceOver qualification are separate gates. No new adapter or M8 work; parent #44/#46/#47/#48/#50/#45 and all future milestones remain open.
 
 ## Source review
 
-Parallel standards/spec reviews against `5a9d588` found no source blocker. Spec reviewed through ef54d49; standards through f233d10. Nonblocking standards observations: repeated inspector restriction lookup and view-local lexical overlap classification; neither introduces new authority or a documented-standard breach. Both axes additionally reviewed the current-status access guidance fix and found no blocker: Observation tracks current scopes/statuses/notice, other failed included scopes remain represented, and no scan/selection authority changes. Final native evidence is still a merge gate.
+Parallel standards/spec reviews against `5a9d588` found no source blocker. Spec reviewed through ef54d49; standards through f233d10. Nonblocking standards observations: repeated inspector restriction lookup and view-local lexical overlap classification; neither introduces new authority or a documented-standard breach. Both axes additionally reviewed the current-status access guidance fix and found no blocker: Observation tracks current scopes/statuses/notice, other failed included scopes remain represented, and no scan/selection authority changes. Final native/visual gates above are satisfied for these two slices. Full parent acceptance and platform qualification remain separate.

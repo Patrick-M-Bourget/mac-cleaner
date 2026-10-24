@@ -12,7 +12,12 @@ Authority remains SPEC + DESIGN-HANDOFF + MILESTONES. The prototype establishes 
 
 ## Connected Downloads implementation checkpoint
 
-The original tables below record the audit baseline. The user-approved b96bb97 proposal is now implemented on `implement/downloads-journey` under #55 → #56 → #57: remembered explicit scope configuration, contextual Downloads prerequisite, macro/inline membership, observed-only folder Explorer, exact confirmation/results and return routes. This advances S01–S05/S09, F01–F05 and the corresponding plan/navigation gaps; it does not certify every original repair criterion. See [source-bound native evidence and remaining failures](validation/connected-downloads.md). Original parent issues #44/#46/#47/#48/#50 and #45 remain open until their complete acceptance is proven. Future capabilities and platform gates below remain unchanged.
+The original tables below record the audit baseline. The user-approved b96bb97 proposal is integrated at5a9d588 on `integration/still-spec` under #55 → #56 → #57: remembered explicit scope configuration, contextual Downloads prerequisite, macro/inline membership, observed-only folder Explorer, exact confirmation/results and return routes. This advances S01–S05/S09, F01–F05 and the corresponding plan/navigation gaps; it does not certify every original repair criterion. See [source-bound native qualification](validation/connected-downloads.md). Original parent issues #44/#46/#47/#48/#50 and #45 remain open until their complete acceptance is proven. Future capabilities and platform gates below remain unchanged.
+
+
+## Mixed-location and inspector checkpoint — #58/#59
+
+Qualified application source9264d7a extends the connected journey with mixed current/unscanned/unavailable scopes, explicit overlap, adaptive recovery labels, current access guidance, conditional Forget and independently supported exact hardlink choices. Structured inspector evidence now separates location/scope/time, sizes, why listed, action/consequence and existing protection reasons. [Final native qualification](validation/connected-next.md) advances S01–S05/N08/FL05/FL06/FL09 and F05/F06 without expanding cleanup authority. Initial/minimum mixed jobs pass1+1; inspector2/2 and existing Downloads13/13 pass, with final affected recovery1+1. All24 final mixed Light/Dark originals were reviewed; historical audit tables below remain the baseline, not a claim that these delivered child flows are still absent. #44/#46/#47/#48/#50/#45 stay open for their complete acceptance, and provider/OS/manual accessibility/future milestones retain their gates.
 
 ## Classification
 
