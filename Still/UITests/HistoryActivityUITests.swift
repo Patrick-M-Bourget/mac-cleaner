@@ -315,4 +315,68 @@ final class HistoryActivityUITests: XCTestCase {
         XCTAssertEqual(try Data(contentsOf: file), Data([3, 9])); XCTAssertFalse(try journal.claim(approval))
     }
 
+    @MainActor func testHistoricalGrowthReturnAtInitialSize() async throws { try await exerciseHistoricalGrowth(minimum: false) }
+    @MainActor func testHistoricalGrowthReturnAtMinimumSize() async throws { try await exerciseHistoricalGrowth(minimum: true) }
+    @MainActor private func exerciseHistoricalGrowth(minimum: Bool) async throws {
+        continueAfterFailure = false
+        let manager = FileManager.default, app = XCUIApplication()
+        let state = try configureIsolatedJourneyState(app)
+        let root = manager.temporaryDirectory.resolvingSymlinksInPath().appendingPathComponent("StillSelectionUI-" + UUID().uuidString)
+        try manager.createDirectory(at: root, withIntermediateDirectories: false)
+        let original = root.appendingPathComponent("Chosen.pdf"); try Data([5, 2]).write(to: original)
+        var identity = stat(); XCTAssertEqual(lstat(root.path, &identity), 0)
+        app.launchArguments = ["--ui-test-downloads-root", "--future-milestones", minimum ? "--design-minimum" : "--design-initial-size"]
+        app.launchEnvironment["STILL_TEST_DOWNLOADS_ROOT"] = root.path; app.launchEnvironment["STILL_TEST_DOWNLOADS_ID"] = "\(identity.st_dev):\(identity.st_ino)"
+        defer { app.terminate(); try? manager.removeItem(at: state); try? manager.removeItem(at: root) }
+        app.launch(); XCTAssertTrue(app.buttons["Choose folder…"].waitForExistence(timeout: 10))
+        app.buttons["Choose folder…"].click(); app.typeKey("g", modifierFlags: [.command, .shift]); XCTAssertTrue(app.textFields.firstMatch.waitForExistence(timeout: 5)); app.textFields.firstMatch.typeText(root.path)
+        app.typeKey(.return, modifierFlags: []); app.dialogs.buttons["Scan folder"].click(); waitForOverviewScan(app)
+        app.typeKey("2", modifierFlags: .command); XCTAssertTrue(app.checkBoxes["downloadsCategorySelection"].waitForExistence(timeout: 5)); app.checkBoxes["downloadsCategorySelection"].click()
+        XCTAssertTrue(app.staticTexts["1 file selected"].waitForExistence(timeout: 5))
+        let added = root.appendingPathComponent("Added.txt"); try Data([1, 3, 7]).write(to: added)
+        app.typeKey("1", modifierFlags: .command); app.buttons["Scan again"].click(); waitForOverviewScan(app)
+        app.typeKey("3", modifierFlags: .command)
+        let filter = app.popUpButtons["History activity filter"]
+        XCTAssertTrue(filter.waitForExistence(timeout: 5)); filter.click(); app.menuItems["Scans"].click()
+        let disclosure = app.disclosureTriangles.firstMatch
+        revealScrollElement(app, control: disclosure, label: "Recorded scan details")
+        disclosure.coordinate(withNormalizedOffset: CGVector(dx: 0, dy: 0.5)).withOffset(CGVector(dx: 26, dy: 0)).click(); XCTAssertEqual(disclosure.value as? Int, 1)
+        let link = app.buttons["See what grew"].firstMatch
+        guard link.waitForExistence(timeout: 5) else {
+            let image = XCTAttachment(screenshot: app.windows.firstMatch.screenshot()); image.name = "history-missing-contextual-growth-route"; image.lifetime = .keepAlways; add(image)
+            XCTFail("An eligible recorded location needs a gated route to its exact growth observation"); return
+        }
+        let bounds = app.windows.firstMatch.frame
+        func capture(_ name: String) {
+            let image = XCTAttachment(screenshot: app.windows.firstMatch.screenshot()); image.name = "history-growth-" + (minimum ? "minimum-" : "initial-") + name; image.lifetime = .keepAlways; add(image); XCTAssertEqual(app.windows.firstMatch.frame, bounds)
+        }
+        for theme in ["Light", "Dark"] {
+            app.popUpButtons["Appearance"].click(); app.menuItems[theme].click()
+            revealScrollElement(app, control: link, label: "See what grew"); let callerFrame = link.frame; link.click()
+            XCTAssertTrue(app.staticTexts["Scope: " + root.lastPathComponent].waitForExistence(timeout: 5))
+            XCTAssertTrue(app.staticTexts["growthNetChange"].exists)
+            XCTAssertTrue((app.staticTexts["growthNetChange"].value as? String ?? "").contains("+3"))
+            XCTAssertTrue(app.buttons["Back to History"].isHittable); XCTAssertFalse(app.buttons["Inspect a folder"].exists)
+            capture("exact-" + theme); app.buttons["Back to History"].click()
+            XCTAssertEqual(filter.value as? String, "Scans"); XCTAssertEqual(disclosure.value as? Int, 1)
+            XCTAssertTrue(link.exists); XCTAssertFalse(app.buttons["Stop scan"].exists)
+            let restored = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in link.frame == callerFrame }, object: link)
+            XCTAssertEqual(XCTWaiter.wait(for: [restored], timeout: 5), .completed)
+            capture("history-return-" + theme)
+        }
+        let store = GrowthHistoryStore(directory: state.appendingPathComponent("Growth"))
+        try await store.clearCompletedHistory()
+        let now = Date(), epoch = try await store.recordingEpoch()
+        let fingerprint = GrowthFingerprint(scopeID: "other", rootID: "other", volumeID: "other", access: "complete", rules: "other", exclusions: "none", classification: "other")
+        _ = try await store.record(GrowthSnapshot(fingerprint: fingerprint, scopeLabel: "Other recorded scope", observedAt: now, groups: [.init(id: "files", label: "Files", logicalBytes: 99)]), expectedEpoch: epoch)
+        revealScrollElement(app, control: link, label: "Expired exact observation"); link.click()
+        XCTAssertTrue(app.staticTexts["Comparison unavailable for this recorded observation."].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.staticTexts["Scope: Other recorded scope"].exists); XCTAssertFalse(app.staticTexts["growthNetChange"].exists)
+        for theme in ["Light", "Dark"] { app.popUpButtons["Appearance"].click(); app.menuItems[theme].click(); capture("expired-" + theme) }
+        app.buttons["Back to History"].click(); XCTAssertEqual(filter.value as? String, "Scans")
+        XCTAssertTrue(app.staticTexts["No recorded scans."].waitForExistence(timeout: 5))
+        app.typeKey("2", modifierFlags: .command); XCTAssertTrue(app.staticTexts["1 file selected"].waitForExistence(timeout: 5))
+        XCTAssertEqual(try Data(contentsOf: original), Data([5, 2])); XCTAssertEqual(try Data(contentsOf: added), Data([1, 3, 7]))
+    }
+
 }
