@@ -107,7 +107,14 @@ struct CleanupOutcomeSummary: View {
     let states: [CleanupTargetState]
     private var moved: Int { states.filter { $0 == .succeeded }.count }
     var body: some View {
-        if moved > 0 && moved < states.count {
+        if !states.isEmpty && states.allSatisfy({ $0 == .skipped }) {
+            SummarySurface {
+                VStack(alignment: .leading, spacing: StillDesign.Space.md) {
+                    Text("No files were moved").font(.headline)
+                    Text("Every selected file was skipped after rechecking.")
+                }
+            }
+        } else if moved > 0 && moved < states.count {
             SummarySurface {
                 VStack(alignment: .leading, spacing: StillDesign.Space.md) {
                     Text("Cleanup partially completed").font(.headline)
