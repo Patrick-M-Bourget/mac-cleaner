@@ -15,6 +15,9 @@ on:
           - downloads-regressions
           - downloads-refresh
           - downloads-unavailable
+          - mixed-scopes
+          - inspector
+          - connected-next
           - selection-plan
           - exclusions
           - design
@@ -92,6 +95,15 @@ jobs:
               -only-testing:StillUITests/WorkspaceUITests/testKeyboardCancelRestoresReviewFocusWithoutChangingSelection
               -only-testing:StillUITests/CleanupRetryUITests
             )
+          elif [[ "$EVENT_NAME" == "workflow_dispatch" && "$REQUESTED_SUITE" == "connected-next" ]]; then
+            scope=(
+              -only-testing:StillUITests/WorkspaceUITests/testMixedLocationsKeepValidChoicesWithUnknownCoverage
+              -only-testing:StillUITests/WorkspaceUITests/testInspectorExplainsOwnedDownloadsCandidateWithoutSelectingIt
+            )
+          elif [[ "$EVENT_NAME" == "workflow_dispatch" && "$REQUESTED_SUITE" == "mixed-scopes" ]]; then
+            scope=(-only-testing:StillUITests/WorkspaceUITests/testMixedLocationsKeepValidChoicesWithUnknownCoverage)
+          elif [[ "$EVENT_NAME" == "workflow_dispatch" && "$REQUESTED_SUITE" == "inspector" ]]; then
+            scope=(-only-testing:StillUITests/WorkspaceUITests/testInspectorExplainsOwnedDownloadsCandidateWithoutSelectingIt)
           elif [[ "$EVENT_NAME" == "workflow_dispatch" && "$REQUESTED_SUITE" == "downloads-unavailable" ]]; then
             scope=(-only-testing:StillUITests/WorkspaceUITests/testUnavailableSelectedFolderShowsUnknownCoverageAndRecovery)
           elif [[ "$EVENT_NAME" == "workflow_dispatch" && "$REQUESTED_SUITE" == "downloads-refresh" ]]; then
