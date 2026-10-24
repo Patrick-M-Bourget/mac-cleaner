@@ -108,10 +108,20 @@ final class CapacityRefreshUITests: XCTestCase {
         app.sheets.buttons["Move to Trash"].click()
         guard app.staticTexts["Succeeded: 1"].waitForExistence(timeout: 20) else { XCTFail("Owned cleanup must complete"); return }
         let returned = app.staticTexts["trashLocation-" + file.lastPathComponent]
-        let returnedPath = returned.value as? String ?? returned.label
-        let returnedURL = URL(fileURLWithPath: returnedPath)
-        guard returnedURL.deletingLastPathComponent().path == NSHomeDirectory() + "/.Trash", returnedURL.lastPathComponent == file.lastPathComponent else {
-            XCTFail("Cleanup must disclose the exact owned fixture's Trash location; an unknown location is never removed"); return
+        let journal = try SQLiteCleanupJournal(url: state.appendingPathComponent("cleanup.sqlite"))
+        let completed = try journal.records().first { $0.originalURL == file && $0.state == .succeeded }
+        let returnedURL = completed?.trashURL
+        let fixtureDetails = XCTAttachment(string: "Owned original: " + file.path + "\nPublic UI value: " + (returned.value as? String ?? returned.label) + "\nRecorded result: " + (returnedURL?.path ?? "No returned location"))
+        fixtureDetails.name = "owned-capacity-cleanup-location"; fixtureDetails.lifetime = .keepAlways; add(fixtureDetails)
+        let fixtureCapture = XCTAttachment(screenshot: app.windows.firstMatch.screenshot())
+        fixtureCapture.name = "owned-capacity-cleanup-result"; fixtureCapture.lifetime = .keepAlways; add(fixtureCapture)
+        guard let returnedURL else { XCTFail("Owned completed record must disclose its returned Trash location"); return }
+        let parent = returnedURL.deletingLastPathComponent()
+        let knownTrash = parent.lastPathComponent == ".Trash" || (parent.deletingLastPathComponent().lastPathComponent == ".Trashes" && parent.lastPathComponent == String(geteuid()))
+        var returnedInfo = stat()
+        guard knownTrash, returnedURL.lastPathComponent.contains(file.deletingPathExtension().lastPathComponent),
+              lstat(returnedURL.path, &returnedInfo) == 0, returnedInfo.st_mode & S_IFMT == S_IFREG else {
+            XCTFail("Only the exact journal-bound UUID fixture in native Trash can be removed"); return
         }
         XCTAssertEqual(try Data(contentsOf: returnedURL), original)
         try manager.removeItem(at: returnedURL)
@@ -122,7 +132,6 @@ final class CapacityRefreshUITests: XCTestCase {
             image.name = "capacity-after-cleanup"; image.lifetime = .keepAlways; add(image)
             XCTFail("Cleanup completion must refresh startup capacity independently of recorded observations"); return
         }
-        let journal = try SQLiteCleanupJournal(url: state.appendingPathComponent("cleanup.sqlite"))
         let encoder = JSONEncoder(); encoder.outputFormatting = [.sortedKeys]
         let records = try encoder.encode(journal.records())
         let resultEvidence = app.staticTexts.matching(NSPredicate(format: "value BEGINSWITH %@ OR label BEGINSWITH %@", "Observed startup-volume available-capacity change:", "Observed startup-volume available-capacity change:")).firstMatch
@@ -157,9 +166,9 @@ final class CapacityRefreshUITests: XCTestCase {
         guard amount.waitForExistence(timeout: 10) else { XCTFail("Launch capacity missing"); return }
         let bounds = app.windows.firstMatch.frame
         let observation = app.staticTexts["capacityObservation"]
-        let observationRegion = app.descendants(matching: .any)["capacityObservationRegion"].firstMatch
-        XCTAssertTrue(observationRegion.waitForExistence(timeout: 5))
-        let anchor = observationRegion.frame
+        let contentAnchor = app.staticTexts["Scanned locations"]
+        XCTAssertTrue(contentAnchor.waitForExistence(timeout: 5))
+        let anchor = contentAnchor.frame
         func capture(_ name: String) {
             for theme in ["Light", "Dark"] {
                 app.popUpButtons["Appearance"].click(); app.menuItems[theme].click()
@@ -167,7 +176,7 @@ final class CapacityRefreshUITests: XCTestCase {
                 image.name = "capacity-" + name + (minimum ? "-minimum-" : "-initial-") + theme
                 image.lifetime = .keepAlways; add(image)
                 XCTAssertEqual(app.windows.firstMatch.frame, bounds)
-                XCTAssertEqual(observationRegion.frame, anchor)
+                XCTAssertEqual(contentAnchor.frame, anchor)
                 XCTAssertTrue(app.windows.firstMatch.frame.contains(app.buttons["refreshCapacity"].frame))
             }
         }
@@ -215,8 +224,9 @@ final class CapacityRefreshUITests: XCTestCase {
         app.launch()
         guard app.buttons["Try again"].waitForExistence(timeout: 10) else { XCTFail("First-use failure needs retry"); return }
         let bounds = app.windows.firstMatch.frame
-        let region = app.descendants(matching: .any)["capacityObservationRegion"].firstMatch
-        let frame = region.frame
+        let contentAnchor = app.staticTexts["Scanned locations"]
+        XCTAssertTrue(contentAnchor.waitForExistence(timeout: 5))
+        let frame = contentAnchor.frame
         func capture(_ stateName: String) {
             for theme in ["Light", "Dark"] {
                 app.popUpButtons["Appearance"].click(); app.menuItems[theme].click()
@@ -224,7 +234,7 @@ final class CapacityRefreshUITests: XCTestCase {
                 image.name = "capacity-first-use-" + stateName + (minimum ? "-minimum-" : "-initial-") + theme
                 image.lifetime = .keepAlways; add(image)
                 XCTAssertEqual(app.windows.firstMatch.frame, bounds)
-                XCTAssertEqual(region.frame, frame)
+                XCTAssertEqual(contentAnchor.frame, frame)
                 XCTAssertTrue(bounds.contains(app.buttons["refreshCapacity"].frame))
             }
         }
