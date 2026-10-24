@@ -174,7 +174,7 @@ final class ShellAppearanceUITests: XCTestCase {
         continueAfterFailure = false
         let app = XCUIApplication(); let state = try configureIsolatedJourneyState(app)
         defer { app.terminate(); try? FileManager.default.removeItem(at: state) }
-        app.launchArguments = [minimum ? "--design-minimum" : "--design-initial-size"]
+        app.launchArguments = ["--ui-test-appearance-probe", minimum ? "--design-minimum" : "--design-initial-size"]
         app.launch()
         let picker = app.popUpButtons["Appearance"]
         XCTAssertTrue(picker.waitForExistence(timeout: 10))
@@ -199,7 +199,16 @@ final class ShellAppearanceUITests: XCTestCase {
         let dismissed = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"), object: retry)
         guard XCTWaiter.wait(for: [dismissed], timeout: 5) == .completed else {
             shellCapture(app, "retry-not-dismissed", minimum: minimum)
-            XCTFail("Successful saving must clear its notice. Owned stored value: " + ((try? String(contentsOf: file, encoding: .utf8)) ?? "Unavailable")); return
+            let originalValue = (try? String(contentsOf: file, encoding: .utf8)) ?? "Unavailable"
+            let before = (try? String(contentsOf: state.appendingPathComponent("appearance-retry-probe.txt"), encoding: .utf8)) ?? "No owned trace"
+            retry.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).click()
+            let centerDismissed = XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"), object: retry)], timeout: 5) == .completed
+            let after = (try? String(contentsOf: state.appendingPathComponent("appearance-retry-probe.txt"), encoding: .utf8)) ?? "No owned trace"
+            let centerValue = (try? String(contentsOf: file, encoding: .utf8)) ?? "Unavailable"
+            let trace = XCTAttachment(string: "BEFORE PHYSICAL CENTER:\n" + before + "\nAFTER PHYSICAL CENTER:\n" + after + "\nCenter dismissed=" + String(centerDismissed) + " stored=" + centerValue)
+            trace.name = "appearance-retry-physical-center-probe"; trace.lifetime = .keepAlways; add(trace)
+            shellCapture(app, "after-diagnostic-physical-center", minimum: minimum)
+            XCTFail("Original native click failed. Owned stored value before diagnostic center: " + originalValue); return
         }
         XCTAssertEqual(try String(contentsOf: file, encoding: .utf8), "Dark")
         XCTAssertEqual(picker.value as? String, "Dark")
