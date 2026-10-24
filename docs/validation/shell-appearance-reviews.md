@@ -1,6 +1,6 @@
 # Shell and appearance source reviews — #53
 
-Independent Standards and Spec reviews. Baseline `43668a8`, final app candidate `2456cdd`; native acceptance is recorded separately in [qualification](shell-appearance.md). Earlier Reset/invalid-capacity/detail findings were fixed before these final reviews. Source inspection does not substitute for native interaction or original-capture review.
+Independent Standards and Spec reviews. Baseline `43668a8`, final app candidate `a3b425d`; native acceptance is recorded separately in [qualification](shell-appearance.md). Earlier Reset/invalid-capacity/detail findings were fixed before these final reviews. Source inspection does not substitute for native interaction or original-capture review.
 
 ## Standards
 
@@ -30,6 +30,12 @@ Comparison `267cd7e...2456cdd`: no additional actionable standards findings. The
 
 The final net diff contains no diagnostic probes, launch flags, test coordinate workaround or weakened click assertion. Strict default-click qualification is restored. New final native flows remain pending at review time; causal probe evidence supports the correction but is not itself a passing final journey. No repository edits.
 
+## Truthful native accessibility frame candidate
+
+Comparison `2456cdd...a3b425d`: no additional actionable standards findings. The ineffective activation-point override is removed. AccessibleButton instead reports its actual current native bounds converted through the current window to screen coordinates, falling back to superclass behavior before attachment. This corrects the reported accessible region without widening physical hit targets, altering layout, caching coordinates, changing persistence or weakening the ordinary public click test. The specialized NSButton continues to retain its inherited native semantics; no actionable smell is introduced by this small accessibility correction.
+
+The prior activation candidate did not pass strict native qualification. The new strict run is pending at this review point; this review grants no acceptance or mouse-success claim. No repository edits.
+
 
 ## Spec
 
@@ -56,3 +62,9 @@ Reviewedba0ce9a..267cd7e. The final notice uses a shared live/Gallery NSButton t
 Reviewed267cd7e..2456cdd app increment: ActivationButton overrides the native accessibility activation point using current bounds center converted through the containing window into screen coordinates, with superclass fallback before window attachment. This follows control movement/resizing rather than storing stale coordinates. Native button target/action, intrinsic size, label and persistence-only callback are unchanged. No actionable Spec finding or authority expansion.
 
 Positive physical probe40097534795 established that the default edge activation missed while an actual center event reached mouseDown/action, dismissed the notice and storedDark; its original strict test remained failing and is diagnostic evidence only. Final probes/flags/custom test coordinates are removed; the unchanged strict public click/persist/dialog/Quit-relaunch journey must pass at the final source. That final native result remains pending, and earlier16-regression progress does not certify this later activation change. No all-platform/VoiceOver claim is inferred from the override.
+
+## Actual native accessibility frame —a3b425d
+
+Reviewed2456cdd..a3b425d. The ineffective activation-point override is removed and AccessibleButton instead reports its actual current bounds converted into window/screen coordinates, retaining superclass fallback before attachment. No source-level Spec issue found: this describes the native control's real hit region rather than inventing a hidden action target, changes no visual/layout/persistence logic and follows later movement. Source and public test callbacks remain unchanged.
+
+The prior center override did not satisfy strict run40097907948; it is not accepted evidence. Measured actual bounds x779/width89 versus expanded AX x778/width91 explain why a default max-minus-one event could fall on the excluded actual boundary. The new truthful frame predicts an interior event, but final strict40098317083 is pending and must demonstrate the unchanged click/persist/dialog/Quit-relaunch flow. No accessibility or platform universality is claimed from the geometry correction alone.
