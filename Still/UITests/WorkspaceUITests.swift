@@ -1602,7 +1602,11 @@ final class WorkspaceUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["1 file selected"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons["Review cleanup"].isEnabled)
         app.buttons["Review cleanup"].click()
-        XCTAssertTrue(app.sheets.staticTexts["overlap-guide.pdf"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.sheets.buttons["Move to Trash"].waitForExistence(timeout: 5))
+        let exactFiles = app.sheets.disclosureTriangles.firstMatch
+        XCTAssertTrue(exactFiles.waitForExistence(timeout: 5))
+        exactFiles.coordinate(withNormalizedOffset: CGVector(dx: 0, dy: 0.5)).withOffset(CGVector(dx: 26, dy: 0)).click()
+        XCTAssertTrue(app.sheets.staticTexts["Downloads A/Child/overlap-guide.pdf"].waitForExistence(timeout: 5))
         app.sheets.buttons["Cancel"].click()
         XCTAssertTrue(app.staticTexts["1 file selected"].exists)
         XCTAssertEqual(try Data(contentsOf: file), original)
