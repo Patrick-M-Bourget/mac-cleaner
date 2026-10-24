@@ -48,3 +48,8 @@ The same restricted Core review found no actionable findings against CAPACITY-RE
 
 
 At `f347206`, `40086277589` passes the real scan-completion journey (29.756s) and Core142 (137SwiftTesting+5XCTest). The old manual assertion fails as already noted. Both native state cases fail exact observation-frame equality because Text's intrinsic glyph width changes305→291points with its content (samex/y/height); this is not evidence of window resizing or a scroll jump. Sourcee5c60ab reserves the full observation and native action regions without loosening the exact frame assertion. All four journeys rerun at that source; completion is pending.
+
+
+Manual action finally passes12.337seconds and scan passes29.652seconds in `40086689374` at `e5c60ab`; Core142 also pass. That run still fails both state cases because native AX continues to expose tight Text glyph bounds despite the visual frame. Source0de4cae adds a meaningful containing observation group, preserves readable Text identifiers and measures the group's exact frame across states instead of glyph bounds; no tolerance/hittable-only substitute. Cleanup red `40086787640` at5ce83b9 fails the actual post-cleanup current reading (line112,42.663s). Source8ea8f2d requests a new current reading after execution.run and supplies actual app activation/alert-open triggers; recorded capacity pairs are untouched. Native5journeys, existing affected regressions9 and Overview2 are in qualification at8ea8f2d.
+
+Policy red/green logs are additionally preserved outside repo under `notes/capacity49-evidence/` in the implementation cache. Six focused public-policy journeys pass; the sixth is qualification of existing expiry/trailing behavior, not a new failing-cycle claim.
