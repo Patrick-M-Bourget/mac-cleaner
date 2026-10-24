@@ -29,7 +29,12 @@ final class HistoryUITests: XCTestCase {
         app.launch(); app.typeKey("3", modifierFlags: .command)
         let manage = app.buttons["manageLocalRecords"]
         XCTAssertTrue(manage.waitForExistence(timeout: 5))
-        manage.click()
+        func revealManagement() {
+            let scroll = app.scrollViews.firstMatch
+            for _ in 0..<8 where !scroll.frame.contains(manage.frame) { scroll.scroll(byDeltaX: 0, deltaY: -100) }
+            XCTAssertTrue(scroll.frame.contains(manage.frame)); XCTAssertTrue(manage.isHittable)
+        }
+        revealManagement(); manage.click()
         XCTAssertTrue(app.staticTexts["Local records"].waitForExistence(timeout: 5))
         let bounds = app.windows.firstMatch.frame
         XCTAssertTrue(app.buttons["Back to History"].isHittable)
@@ -41,7 +46,7 @@ final class HistoryUITests: XCTestCase {
         XCTAssertTrue(manage.waitForExistence(timeout: 5))
         app.typeKey("4", modifierFlags: .command)
         XCTAssertTrue(app.staticTexts["Locations & access"].waitForExistence(timeout: 5))
-        XCTAssertTrue(manage.waitForExistence(timeout: 5)); manage.click()
+        XCTAssertTrue(manage.waitForExistence(timeout: 5)); revealManagement(); manage.click()
         XCTAssertTrue(app.buttons["Back to Locations & access"].waitForExistence(timeout: 5))
         XCTAssertFalse(app.buttons["Back to History"].exists)
         app.buttons["clearHistory"].click()
