@@ -235,3 +235,8 @@ Overview retains capacity → coverage → findings. The implemented shared card
 The sidebar shares the same amount/status, with compact Observed/Last observed time and no duplicate action. Full observation time and metric remain in the card and sidebar help/accessibility label. This compact footer preserves the minimum window budget with future navigation visible. The native action keeps its intrinsic label and padding within a stable minimum-width slot. Exact window and the unchanged Scanned locations heading below the card anchor native geometry checks; varying text glyph widths are not layout movement.
 
 Closing/reopening a retained process preserves current evidence and live choices. A current refresh cannot rewrite Results/History measurements; after leaving Results, the approved History route inspects that recorded operation, while selecting Cleanup plan starts a new plan. [Canonical contract](CAPACITY-REFRESH.md) and [qualification](validation/capacity-refresh.md) record combined focused native passes at final presentation source `8869b38`; all 71 final original captures have been individually reviewed and accepted.
+
+
+## Shell and appearance lock — October 24
+
+#53 is locked in [SHELL-APPEARANCE](SHELL-APPEARANCE.md). Use reserved compact sidebar badge/footer and appearance feedback space, actual-page context, native full-label actions and immediate shared appearance updates without navigation/focus/selection/scroll/window movement. All exceptional preference/monitoring states require shared Gallery and original native theme/size review; implementation proof pending.

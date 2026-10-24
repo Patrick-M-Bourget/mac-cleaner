@@ -268,3 +268,8 @@ The connected flow discussion is complete and explicitly confirmed. The next che
 ## Recovery, Results and access checkpoint — #60/#61/#63
 
 The approved connected journey now includes caller-aware manual recovery, retained History disclosure/viewport context, truthful terminal outcome summaries, safe unresolved recovery routing, and restrained optional folder-access education. Shared Light/Dark components and original initial/minimum captures remain aligned with the approved flow lock. [Qualification](validation/recovery-results.md) records actual red → green, 5/5 terminal tests, 2/2 History maintenance tests and 8/8 affected regressions. Synthetic outcome presentation remains separate from Core executor fixtures and real OS qualification. Full parent issues and all future milestones stay open; #62 Local records is the next dependent slice, and M8 remains deferred.
+
+
+## Shell and appearance lock — October 24
+
+Current N05/N06/N07/A04 decision overlay: #53 Q1–Q13 and consolidated contract are user-confirmed in [SHELL-APPEARANCE](SHELL-APPEARANCE.md). Historical audit rows remain baseline findings; these rows are approved for repair, not Covered. Badge categories, accurate context/monitoring, saved shared appearance and partial failure behavior are explicit. Implementation and bounded native proof pending.

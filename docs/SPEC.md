@@ -167,3 +167,8 @@ The production monitoring controller and native system adapter share the [contro
 Current Overview/sidebar capacity is implemented as one process-owned reading. Launch, manual refresh, alert opening, logical scan/recheck completion or stop/failure, and cleanup completion request startup-volume metadata; foreground activation uses the 30-second freshness rule. Overlap coalesces while preserving a trailing post-action read, and a 10-second logical expiry ignores late replies. This adds no polling, keepalive, scan, permission request or alert-policy change. Current display, scan-scope inventory, alert context and immutable operation measurements remain distinct.
 
 Failure retains explicitly last-observed evidence or shows unavailable; it never fabricates zero. Valid available space without a usable total remains visible with no filled meter. The shared card offers Refresh capacity/Try again separately from Scan again. [Canonical contract](CAPACITY-REFRESH.md) and [bounded qualification](validation/capacity-refresh.md) record implementation and combined native proof at final presentation source `8869b38`; all 71 final original captures have been individually reviewed and accepted. This does not certify all OS/CPU/provider/accessibility behavior or advance M5/M8.
+
+
+## Shell and appearance lock — October 24
+
+#53 shell/appearance requirements are now user-confirmed in [SHELL-APPEARANCE](SHELL-APPEARANCE.md): actionable-category badge; destination-aware toolbar; truthful gated monitoring footer; app-wide saved Automatic/Light/Dark with explicit failure/retry/partial-Reset behavior. Implement that contract without changing scan/cleanup/alert policy. Source/native qualification pending.

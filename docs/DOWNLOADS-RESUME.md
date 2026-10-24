@@ -21,3 +21,8 @@ Next unresolved decision is #53 shell/appearance; #51/#52/#54 also remain untria
 Read AGENTS, docs/README/SPEC/DESIGN-HANDOFF/DESIGN-SYSTEM/FLOW-LOCK. Reuse shared native controls/Gallery and existing approved public test seams. Keep spec, design, parity, issue evidence synchronized. Native UI runs on hosted macOS26/Xcode26.6; local UI automation startup is unavailable. Local commands use `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer`. Commits use `[skip ci]`; dispatch focused suites after local compile. Do not claim permission/provider/OS/CPU/VoiceOver/localization certification from fixture tests.
 
 Review build: `/Users/bender/Library/Caches/Codex/mac-cleaner-implementation/artifacts/local-records-dadc0c1/Still.app` (BUILD.md alongside). No personal cleanup or OS permission changes performed. Root integration owns all qualified changes; issue62 worktree is removed cleanly after integration; its branch and commits remain. External notes/artifacts remain under the implementation cache; preserve originals/manifests before deleting redundant owned result caches.
+
+
+## Shell and appearance lock — October 24
+
+#53 shell/appearance is now grilled and locked in [SHELL-APPEARANCE](SHELL-APPEARANCE.md). User authorized implementation and explicitly approved the public appearance-preference service test seam. Start vertical implementation on integration baseline8b2f71b plus this lock; source/native proof pending. #51/#52/#54 remain separate unresolved decisions.

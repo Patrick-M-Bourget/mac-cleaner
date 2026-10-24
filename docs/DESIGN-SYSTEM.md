@@ -196,3 +196,8 @@ Caller-aware recovery retains the existing PageHeader, SummarySurface, evidence 
 The sidebar reserves two amount lines, one compact observation-time line and one status line. Full timestamp/metric stay in Overview and sidebar help/accessibility, rather than a tall footer that increases the future-navigation window minimum. Keep the approved 900 × 640 minimum contract; no destination/theme-driven sizing or geometry tolerance substitutes. Native checks compare exact window bounds and the unchanged Scanned locations heading below the card, separately from variable-width observation glyphs, and require full action containment.
 
 The Gallery's seven inert examples reuse the live controls: checking, retained refreshing, observed important/fallback, available/unknown total, stale failure and unavailable. Named accessibility groups scope examples; their controls perform no reads or maintenance. [Locked contract](CAPACITY-REFRESH.md) owns triggers and semantics. [Combined focused qualification](validation/capacity-refresh.md) passes at final presentation source `8869b38`; final Light/Dark initial/minimum original-capture review remains pending. Gallery presentation is separate from native OS metadata/permission certification.
+
+
+## Shell and appearance lock — October 24
+
+For #53 follow [SHELL-APPEARANCE](SHELL-APPEARANCE.md). Share the actionable-category badge, monitoring status/action and appearance picker with persistent bounded save feedback/Retry saving across live/Gallery. No screen-local appearance state or parsed localized status strings as domain truth. Compact reserved geometry must preserve the #49 minimum-window fix. Source/native review pending.
