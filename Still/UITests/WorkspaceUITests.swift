@@ -106,6 +106,15 @@ final class WorkspaceUITests: XCTestCase {
             let shot = XCTAttachment(screenshot: app.windows.firstMatch.screenshot())
             shot.name = "inspector-downloads-minimum-" + theme; shot.lifetime = .keepAlways; add(shot)
         }
+        app.buttons["Close inspector"].click()
+        app.checkBoxes["Select evidence.txt"].click()
+        XCTAssertEqual(app.checkBoxes["Select evidence.txt"].value as? Int, 1)
+        app.buttons["View cleanup plan"].click()
+        XCTAssertTrue(app.buttons["Review cleanup"].waitForExistence(timeout: 5))
+        app.buttons["Review cleanup"].click()
+        XCTAssertTrue(app.sheets.buttons["Move to Trash"].waitForExistence(timeout: 5))
+        app.sheets.buttons["Cancel"].click()
+        XCTAssertTrue(app.buttons["Review cleanup"].isEnabled)
         XCTAssertEqual(try Data(contentsOf: file), Data("owned evidence".utf8))
     }
 
