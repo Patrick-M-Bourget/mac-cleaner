@@ -25,7 +25,7 @@ Controlled metadata and clocks qualify the refresh policy, not every macOS volum
 
 ## Chronological implementation evidence
 
-Contract locked October24,2026 in [CAPACITY-REFRESH](../CAPACITY-REFRESH.md). Implementation and public/native qualification pending. Existing approved UI journeys remain the UI test seam; controlled service boundary explicitly approved by user on October24. No tests or native evidence are claimed by this lock.
+Historical lock checkpoint: contract locked October24,2026 in [CAPACITY-REFRESH](../CAPACITY-REFRESH.md). At that point implementation and public/native qualification were pending. Existing approved UI journeys remain the UI test seam; controlled service boundary explicitly approved by user on October24. No tests or native evidence are claimed by this lock.
 
 
 ## First public UI tracer
