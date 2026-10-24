@@ -1,0 +1,86 @@
+[
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "e1c91a9db78b69f022ff2265ca25d04572199dd0",
+        "deviceName" : "My Mac",
+        "exportedFileName" : "6501700E-1597-45AF-A194-1DE2339F2A15.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "history-clear-initial-partial-Dark_0_F35F1427-7651-4C06-85A7-21930FF9FF55.png",
+        "timestamp" : 1792879710.821
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "e1c91a9db78b69f022ff2265ca25d04572199dd0",
+        "deviceName" : "My Mac",
+        "exportedFileName" : "6F90991C-781D-4F47-A952-B58155792D9E.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "history-clear-initial-partial-Light_0_656D2AA4-E9E6-4FEC-812F-C639B40A7926.png",
+        "timestamp" : 1792879709.057
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "e1c91a9db78b69f022ff2265ca25d04572199dd0",
+        "deviceName" : "My Mac",
+        "exportedFileName" : "2F56ADD3-05F8-4A00-9AFF-8827286EA1AD.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "history-clear-initial-confirmation-Dark_0_9D3DDB15-AE1A-458C-AFB2-52365594AC51.png",
+        "timestamp" : 1792879704.883
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "e1c91a9db78b69f022ff2265ca25d04572199dd0",
+        "deviceName" : "My Mac",
+        "exportedFileName" : "01ACC7A9-A2D9-458E-B809-9292E784EDDE.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "history-clear-initial-confirmation-Light_0_412EE748-71CD-477D-BF33-13851D702F68.png",
+        "timestamp" : 1792879700.994
+      }
+    ],
+    "testIdentifier" : "HistoryActivityUITests/testClearCompletedHistoryAtInitialSize()",
+    "testIdentifierURL" : "test://com.apple.xcode/Still/StillUITests/HistoryActivityUITests/testClearCompletedHistoryAtInitialSize"
+  },
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "e1c91a9db78b69f022ff2265ca25d04572199dd0",
+        "deviceName" : "My Mac",
+        "exportedFileName" : "76DB4FA3-2E1A-49E1-B518-B3F4B7921B64.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "history-clear-minimum-partial-Dark_0_F5698054-7B8A-4CBC-9EB7-FBB44B052E5D.png",
+        "timestamp" : 1792879737.825
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "e1c91a9db78b69f022ff2265ca25d04572199dd0",
+        "deviceName" : "My Mac",
+        "exportedFileName" : "877D5C88-172A-467D-87FE-DE4D0BD0BB53.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "history-clear-minimum-partial-Light_0_D22584BB-5C80-4C75-966D-63B23A7D7EDD.png",
+        "timestamp" : 1792879736.19
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "e1c91a9db78b69f022ff2265ca25d04572199dd0",
+        "deviceName" : "My Mac",
+        "exportedFileName" : "2C2DE06C-E6F2-4F81-B18C-0B672EE9AECD.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "history-clear-minimum-confirmation-Dark_0_7843E610-4460-45DF-BAF3-5990B0B6B3F1.png",
+        "timestamp" : 1792879731.714
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "e1c91a9db78b69f022ff2265ca25d04572199dd0",
+        "deviceName" : "My Mac",
+        "exportedFileName" : "8F884E2D-0D6D-4408-BAE2-BC52177077EE.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "history-clear-minimum-confirmation-Light_0_3300BC40-BBE0-4B12-94A2-16DB70C402FE.png",
+        "timestamp" : 1792879727.899
+      }
+    ],
+    "testIdentifier" : "HistoryActivityUITests/testClearCompletedHistoryNamesAllRecordsAndReportsPartialSuccess()",
+    "testIdentifierURL" : "test://com.apple.xcode/Still/StillUITests/HistoryActivityUITests/testClearCompletedHistoryNamesAllRecordsAndReportsPartialSuccess"
+  }
+]
