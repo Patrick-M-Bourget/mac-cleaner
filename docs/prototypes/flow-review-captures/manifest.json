@@ -1,0 +1,969 @@
+{
+  "kind": "Synthetic browser-rendered design preview; not native app evidence",
+  "prototypeSHA256": "d1e7d35c7746ce6288c236ba644a08efa2cdb2c4995f95b127c8ae881e8f63b3",
+  "renderedWith": "155.0.8059.85",
+  "count": 60,
+  "pageErrors": [],
+  "captures": [
+    {
+      "file": "FL01-initial-light.png",
+      "code": "FL01",
+      "size": "initial",
+      "theme": "light",
+      "app": {
+        "width": 1120,
+        "height": 760
+      },
+      "horizontalOverflow": false,
+      "footerInside": true,
+      "screen": "plan",
+      "selected": 0,
+      "pending": 0,
+      "sha256": "b1256506f14a3c9dbe2f1b0d23952ce609844396fb2d369f8bef07f7d9a7d606"
+    },
+    {
+      "file": "FL01-initial-dark.png",
+      "code": "FL01",
+      "size": "initial",
+      "theme": "dark",
+      "app": {
+        "width": 1120,
+        "height": 760
+      },
+      "horizontalOverflow": false,
+      "footerInside": true,
+      "screen": "plan",
+      "selected": 0,
+      "pending": 0,
+      "sha256": "d67e610c9075df88057bd3cc0f298b60ebb0dee4b4bdfbd119a7b1dbedc07be6"
+    },
+    {
+      "file": "FL01-minimum-light.png",
+      "code": "FL01",
+      "size": "minimum",
+      "theme": "light",
+      "app": {
+        "width": 900,
+        "height": 640
+      },
+      "horizontalOverflow": false,
+      "footerInside": true,
+      "screen": "plan",
+      "selected": 0,
+      "pending": 0,
+      "sha256": "855fd265d79f69b4ad862d7d423b040e08ab0deb5a2278652d31b2a8a63009cc"
+    },
+    {
+      "file": "FL01-minimum-dark.png",
+      "code": "FL01",
+      "size": "minimum",
+      "theme": "dark",
+      "app": {
+        "width": 900,
+        "height": 640
+      },
+      "horizontalOverflow": false,
+      "footerInside": true,
+      "screen": "plan",
+      "selected": 0,
+      "pending": 0,
+      "sha256": "e140bd1b0bec140c168064301b21163c7dcd2c93664376b22e83bb80926b0971"
+    },
+    {
+      "file": "FL02-initial-light.png",
+      "code": "FL02",
+      "size": "initial",
+      "theme": "light",
+      "app": {
+        "width": 1120,
+        "height": 760
+      },
+      "horizontalOverflow": false,
+      "footerInside": true,
+      "screen": "plan",
+      "selected": 0,
+      "pending": 0,
+      "sha256": "57742c42d3a020d316982e3d94bca8021ad9d45dfcb59746c4050b333b37b545"
+    },
+    {
+      "file": "FL02-initial-dark.png",
+      "code": "FL02",
+      "size": "initial",
+      "theme": "dark",
+      "app": {
+        "width": 1120,
+        "height": 760
+      },
+      "horizontalOverflow": false,
+      "footerInside": true,
+      "screen": "plan",
+      "selected": 0,
+      "pending": 0,
+      "sha256": "f62a9a420b86b7e6825907d39952b150dae7008f07751b2fc272aa02002db4e2"
+    },
+    {
+      "file": "FL02-minimum-light.png",
+      "code": "FL02",
+      "size": "minimum",
+      "theme": "light",
+      "app": {
+        "width": 900,
+        "height": 640
+      },
+      "horizontalOverflow": false,
+      "footerInside": true,
+      "screen": "plan",
+      "selected": 0,
+      "pending": 0,
+      "sha256": "56730a6a931d8be2bbaa697e07984df6c1725becb58046e61c249084e2a01318"
+    },
+    {
+      "file": "FL02-minimum-dark.png",
+      "code": "FL02",
+      "size": "minimum",
+      "theme": "dark",
+      "app": {
+        "width": 900,
+        "height": 640
+      },
+      "horizontalOverflow": false,
+      "footerInside": true,
+      "screen": "plan",
+      "selected": 0,
+      "pending": 0,
+      "sha256": "0917fb19f8ee68641463c683728b3cfb6698c3e41e3e69a679b9c87b71b47ecc"
+    },
+    {
+      "file": "FL03-initial-light.png",
+      "code": "FL03",
+      "size": "initial",
+      "theme": "light",
+      "app": {
+        "width": 1120,
+        "height": 760
+      },
+      "horizontalOverflow": false,
+      "footerInside": true,
+      "screen": "plan",
+      "selected": 2,
+      "pending": 0,
+      "sha256": "48020430fc21a850c7e6f4b0b2c20188e171fb5bbd6923caca268138d057eb65"
+    },
+    {
+      "file": "FL03-initial-dark.png",
+      "code": "FL03",
+      "size": "initial",
+      "theme": "dark",
+      "app": {
+        "width": 1120,
+        "height": 760
+      },
+      "horizontalOverflow": false,
+      "footerInside": true,
+      "screen": "plan",
+      "selected": 2,
+      "pending": 0,
+      "sha256": "f167712f991209f2b48f504932dc17c7b98ff9087c6cf70cc095c2070b7e158c"
+    },
+    {
+      "file": "FL03-minimum-light.png",
+      "code": "FL03",
+      "size": "minimum",
+      "theme": "light",
+      "app": {
+        "width": 900,
+        "height": 640
+      },
+      "horizontalOverflow": false,
+      "footerInside": true,
+      "screen": "plan",
+      "selected": 2,
+      "pending": 0,
+      "sha256": "19c1a906aec70e1c6c12d6a29fed6cb467cd3d013ddd2b46de6fd3a48d2a2246"
+    },
+    {
+      "file": "FL03-minimum-dark.png",
+      "code": "FL03",
+      "size": "minimum",
+      "theme": "dark",
+      "app": {
+        "width": 900,
+        "height": 640
+      },
+      "horizontalOverflow": false,
+      "footerInside": true,
+      "screen": "plan",
+      "selected": 2,
+      "pending": 0,
+      "sha256": "a7774f8f289cbd680bb13395270b51fb32d37e65b93f568801d93803c46a6ba4"
+    },
+    {
+      "file": "FL04-initial-light.png",
+      "code": "FL04",
+      "size": "initial",
+      "theme": "light",
+      "app": {
+        "width": 1120,
+        "height": 760
+      },
+      "horizontalOverflow": false,
+      "footerInside": true,
+      "screen": "plan",
+      "selected": 0,
+      "pending": 0,
+      "sha256": "5f1c3dc6ea6ad960f23e83532e51c3a7a990b5de12565d5aa6d078e1db498883"
+    },
+    {
+      "file": "FL04-initial-dark.png",
+      "code": "FL04",
+      "size": "initial",
+      "theme": "dark",
+      "app": {
+        "width": 1120,
+        "height": 760
+      },
+      "horizontalOverflow": false,
+      "footerInside": true,
+      "screen": "plan",
+      "selected": 0,
+      "pending": 0,
+      "sha256": "f849e094d0170c5c08014be57cc1bb1f59b9f946b57069700559070bb5a40c29"
+    },
+    {
+      "file": "FL04-minimum-light.png",
+      "code": "FL04",
+      "size": "minimum",
+      "theme": "light",
+      "app": {
+        "width": 900,
+        "height": 640
+      },
+      "horizontalOverflow": false,
+      "footerInside": true,
+      "screen": "plan",
+      "selected": 0,
+      "pending": 0,
+      "sha256": "7b75fc7a8da57e2d9001d68c652477678184121d468c62203647d918b5eeaeb6"
+    },
+    {
+      "file": "FL04-minimum-dark.png",
+      "code": "FL04",
+      "size": "minimum",
+      "theme": "dark",
+      "app": {
+        "width": 900,
+        "height": 640
+      },
+      "horizontalOverflow": false,
+      "footerInside": true,
+      "screen": "plan",
+      "selected": 0,
+      "pending": 0,
+      "sha256": "57cbc0d494812b40f25db9381f7f76d2e05915b1ce64c8d90953375903045944"
+    },
+    {
+      "file": "FL05-initial-light.png",
+      "code": "FL05",
+      "size": "initial",
+      "theme": "light",
+      "app": {
+        "width": 1120,
+        "height": 760
+      },
+      "horizontalOverflow": false,
+      "footerInside": true,
+      "screen": "plan",
+      "selected": 1,
+      "pending": 0,
+      "sha256": "b0d7cc701cb8bad03ebd1db3c45d6f4b3bdbc605b29c58d2aa9ad1ffe187e412"
+    },
+    {
+      "file": "FL05-initial-dark.png",
+      "code": "FL05",
+      "size": "initial",
+      "theme": "dark",
+      "app": {
+        "width": 1120,
+        "height": 760
+      },
+      "horizontalOverflow": false,
+      "footerInside": true,
+      "screen": "plan",
+      "selected": 1,
+      "pending": 0,
+      "sha256": "498f087cc4f0e3da316aa99325df8db34c810d772d976732c644377cb0fc5428"
+    },
+    {
+      "file": "FL05-minimum-light.png",
+      "code": "FL05",
+      "size": "minimum",
+      "theme": "light",
+      "app": {
+        "width": 900,
+        "height": 640
+      },
+      "horizontalOverflow": false,
+      "footerInside": true,
+      "screen": "plan",
+      "selected": 1,
+      "pending": 0,
+      "sha256": "cff7dc2d27b20b93332a88ab54f97c72e09efa1c8c767aca2d50a2884321102e"
+    },
+    {
+      "file": "FL05-minimum-dark.png",
+      "code": "FL05",
+      "size": "minimum",
+      "theme": "dark",
+      "app": {
+        "width": 900,
+        "height": 640
+      },
+      "horizontalOverflow": false,
+      "footerInside": true,
+      "screen": "plan",
+      "selected": 1,
+      "pending": 0,
+      "sha256": "e82c94cb1489048686398ce5030df63f2c08ca51fd2a6a6a28c03740ec335b2c"
+    },
+    {
+      "file": "FL06-initial-light.png",
+      "code": "FL06",
+      "size": "initial",
+      "theme": "light",
+      "app": {
+        "width": 1120,
+        "height": 760
+      },
+      "horizontalOverflow": false,
+      "footerInside": true,
+      "screen": "plan",
+      "selected": 2,
+      "pending": 1,
+      "sha256": "1dae0069e7a019e5d552aa5f02edd16451ed795ea89ebd3d5444cad28850f8a5"
+    },
+    {
+      "file": "FL06-initial-dark.png",
+      "code": "FL06",
+      "size": "initial",
+      "theme": "dark",
+      "app": {
+        "width": 1120,
+        "height": 760
+      },
+      "horizontalOverflow": false,
+      "footerInside": true,
+      "screen": "plan",
+      "selected": 2,
+      "pending": 1,
+      "sha256": "c13878f3e9ca336e29e7defeee378d95627b3536b5825a92fbbe1eafbc678d98"
+    },
+    {
+      "file": "FL06-minimum-light.png",
+      "code": "FL06",
+      "size": "minimum",
+      "theme": "light",
+      "app": {
+        "width": 900,
+        "height": 640
+      },
+      "horizontalOverflow": false,
+      "footerInside": true,
+      "screen": "plan",
+      "selected": 2,
+      "pending": 1,
+      "sha256": "71baa994b5a39646ba59d071c770901f66303145c8690414aede82d7aeeb48f1"
+    },
+    {
+      "file": "FL06-minimum-dark.png",
+      "code": "FL06",
+      "size": "minimum",
+      "theme": "dark",
+      "app": {
+        "width": 900,
+        "height": 640
+      },
+      "horizontalOverflow": false,
+      "footerInside": true,
+      "screen": "plan",
+      "selected": 2,
+      "pending": 1,
+      "sha256": "ad8df961b5c22ce470bd33ac94d028b2618e6762bddd5ea5406a1a90261a8d74"
+    },
+    {
+      "file": "FL07-initial-light.png",
+      "code": "FL07",
+      "size": "initial",
+      "theme": "light",
+      "app": {
+        "width": 1120,
+        "height": 760
+      },
+      "horizontalOverflow": false,
+      "footerInside": true,
+      "screen": "locations",
+      "selected": 1,
+      "pending": 1,
+      "sha256": "8336a84f849683fbee83ac731264ab4404bb418d659f4dbe1caa2ac1aae3f067"
+    },
+    {
+      "file": "FL07-initial-dark.png",
+      "code": "FL07",
+      "size": "initial",
+      "theme": "dark",
+      "app": {
+        "width": 1120,
+        "height": 760
+      },
+      "horizontalOverflow": false,
+      "footerInside": true,
+      "screen": "locations",
+      "selected": 1,
+      "pending": 1,
+      "sha256": "32d140b79cb947cb2221684c4de731f4111357f974fa38e39ce7237e2e586155"
+    },
+    {
+      "file": "FL07-minimum-light.png",
+      "code": "FL07",
+      "size": "minimum",
+      "theme": "light",
+      "app": {
+        "width": 900,
+        "height": 640
+      },
+      "horizontalOverflow": false,
+      "footerInside": true,
+      "screen": "locations",
+      "selected": 1,
+      "pending": 1,
+      "sha256": "fb78648fbcbe17dcca04ebafbf6aaaebcb428211d5e0dafabe872fd27fc5e28c"
+    },
+    {
+      "file": "FL07-minimum-dark.png",
+      "code": "FL07",
+      "size": "minimum",
+      "theme": "dark",
+      "app": {
+        "width": 900,
+        "height": 640
+      },
+      "horizontalOverflow": false,
+      "footerInside": true,
+      "screen": "locations",
+      "selected": 1,
+      "pending": 1,
+      "sha256": "bf1119cd23ae08116a7d1522dc0efd5f2091108e6e7250679939d76819c14931"
+    },
+    {
+      "file": "FL08-initial-light.png",
+      "code": "FL08",
+      "size": "initial",
+      "theme": "light",
+      "app": {
+        "width": 1120,
+        "height": 760
+      },
+      "horizontalOverflow": false,
+      "footerInside": true,
+      "screen": "plan",
+      "selected": 2,
+      "pending": 2,
+      "sha256": "01e4b463fb7e478fe505d76bc53a292a08a902fe4a5a9ad04600dfc9b4f373b3"
+    },
+    {
+      "file": "FL08-initial-dark.png",
+      "code": "FL08",
+      "size": "initial",
+      "theme": "dark",
+      "app": {
+        "width": 1120,
+        "height": 760
+      },
+      "horizontalOverflow": false,
+      "footerInside": true,
+      "screen": "plan",
+      "selected": 2,
+      "pending": 2,
+      "sha256": "b1ef39505703d1858c6f06b3d4bdf1273a8f0e9c1dba12866a484eac7364f7a3"
+    },
+    {
+      "file": "FL08-minimum-light.png",
+      "code": "FL08",
+      "size": "minimum",
+      "theme": "light",
+      "app": {
+        "width": 900,
+        "height": 640
+      },
+      "horizontalOverflow": false,
+      "footerInside": true,
+      "screen": "plan",
+      "selected": 2,
+      "pending": 2,
+      "sha256": "610f781859a6d8f0e0eccb77f81e6d663c74ac6e39c7b7496fdb8aa7e2fd1022"
+    },
+    {
+      "file": "FL08-minimum-dark.png",
+      "code": "FL08",
+      "size": "minimum",
+      "theme": "dark",
+      "app": {
+        "width": 900,
+        "height": 640
+      },
+      "horizontalOverflow": false,
+      "footerInside": true,
+      "screen": "plan",
+      "selected": 2,
+      "pending": 2,
+      "sha256": "b8196f03f730b80e3c71ec279712c6a3c4c2dfcfd32dbd18b23be4f94e85db58"
+    },
+    {
+      "file": "FL09-initial-light.png",
+      "code": "FL09",
+      "size": "initial",
+      "theme": "light",
+      "app": {
+        "width": 1120,
+        "height": 760
+      },
+      "horizontalOverflow": false,
+      "footerInside": true,
+      "screen": "locations",
+      "selected": 0,
+      "pending": 0,
+      "sha256": "88da767f6c65232da3bb52ae08ed4b7e18422401e80f2f282f8f29204b59c5db"
+    },
+    {
+      "file": "FL09-initial-dark.png",
+      "code": "FL09",
+      "size": "initial",
+      "theme": "dark",
+      "app": {
+        "width": 1120,
+        "height": 760
+      },
+      "horizontalOverflow": false,
+      "footerInside": true,
+      "screen": "locations",
+      "selected": 0,
+      "pending": 0,
+      "sha256": "94fce7845c5339c46977884464cff1be267f15ac116441dfce2f2177958e7772"
+    },
+    {
+      "file": "FL09-minimum-light.png",
+      "code": "FL09",
+      "size": "minimum",
+      "theme": "light",
+      "app": {
+        "width": 900,
+        "height": 640
+      },
+      "horizontalOverflow": false,
+      "footerInside": true,
+      "screen": "locations",
+      "selected": 0,
+      "pending": 0,
+      "sha256": "91b18f07917a1e6adbe937411bbf4efc248719528b0c8edb79f5542ff12e8e5e"
+    },
+    {
+      "file": "FL09-minimum-dark.png",
+      "code": "FL09",
+      "size": "minimum",
+      "theme": "dark",
+      "app": {
+        "width": 900,
+        "height": 640
+      },
+      "horizontalOverflow": false,
+      "footerInside": true,
+      "screen": "locations",
+      "selected": 0,
+      "pending": 0,
+      "sha256": "4782a48b1e48025b074d9e6a2a5145015513b51f01dfb79603ba1e562f978736"
+    },
+    {
+      "file": "FL10-initial-light.png",
+      "code": "FL10",
+      "size": "initial",
+      "theme": "light",
+      "app": {
+        "width": 1120,
+        "height": 760
+      },
+      "horizontalOverflow": false,
+      "footerInside": true,
+      "screen": "explorer",
+      "selected": 0,
+      "pending": 0,
+      "sha256": "62f0fd1302044e668d0d0bdcd66515dbf35016e25cffd5a906cbb359f07a3a3d"
+    },
+    {
+      "file": "FL10-initial-dark.png",
+      "code": "FL10",
+      "size": "initial",
+      "theme": "dark",
+      "app": {
+        "width": 1120,
+        "height": 760
+      },
+      "horizontalOverflow": false,
+      "footerInside": true,
+      "screen": "explorer",
+      "selected": 0,
+      "pending": 0,
+      "sha256": "83dca0586ca7ebcfa7e82f2f4372c6890e32f0e7e00605e7ca48ebd55d77c91b"
+    },
+    {
+      "file": "FL10-minimum-light.png",
+      "code": "FL10",
+      "size": "minimum",
+      "theme": "light",
+      "app": {
+        "width": 900,
+        "height": 640
+      },
+      "horizontalOverflow": false,
+      "footerInside": true,
+      "screen": "explorer",
+      "selected": 0,
+      "pending": 0,
+      "sha256": "a70b9858087c3e4924775de6e8d55eedb69356c8a566405d9d24042771eca738"
+    },
+    {
+      "file": "FL10-minimum-dark.png",
+      "code": "FL10",
+      "size": "minimum",
+      "theme": "dark",
+      "app": {
+        "width": 900,
+        "height": 640
+      },
+      "horizontalOverflow": false,
+      "footerInside": true,
+      "screen": "explorer",
+      "selected": 0,
+      "pending": 0,
+      "sha256": "7d13b8b2b1ecb9a2c4c5b8a67deedf1a2eb449afdaa39619fd4f997426c251f8"
+    },
+    {
+      "file": "FL11-initial-light.png",
+      "code": "FL11",
+      "size": "initial",
+      "theme": "light",
+      "app": {
+        "width": 1120,
+        "height": 760
+      },
+      "horizontalOverflow": false,
+      "footerInside": true,
+      "screen": "explorer",
+      "selected": 1,
+      "pending": 0,
+      "sha256": "a22842533d7a7aa0d246d45aa57f38676f6dd20add92d10d73b80d3fe6b43041"
+    },
+    {
+      "file": "FL11-initial-dark.png",
+      "code": "FL11",
+      "size": "initial",
+      "theme": "dark",
+      "app": {
+        "width": 1120,
+        "height": 760
+      },
+      "horizontalOverflow": false,
+      "footerInside": true,
+      "screen": "explorer",
+      "selected": 1,
+      "pending": 0,
+      "sha256": "624a32bfe88006624c969ab281e2f6c3e178228bc9afb1deab36ec026db3e3df"
+    },
+    {
+      "file": "FL11-minimum-light.png",
+      "code": "FL11",
+      "size": "minimum",
+      "theme": "light",
+      "app": {
+        "width": 900,
+        "height": 640
+      },
+      "horizontalOverflow": false,
+      "footerInside": true,
+      "screen": "explorer",
+      "selected": 1,
+      "pending": 0,
+      "sha256": "14e55c30a9522d007d2af9a4ce6c238ccf3fe6e51928525926772f4895e6ded4"
+    },
+    {
+      "file": "FL11-minimum-dark.png",
+      "code": "FL11",
+      "size": "minimum",
+      "theme": "dark",
+      "app": {
+        "width": 900,
+        "height": 640
+      },
+      "horizontalOverflow": false,
+      "footerInside": true,
+      "screen": "explorer",
+      "selected": 1,
+      "pending": 0,
+      "sha256": "39e63fb54f1adaa154faec9fe38ca07b53b023ba6f150c183959a5d7029d42f3"
+    },
+    {
+      "file": "FL12-initial-light.png",
+      "code": "FL12",
+      "size": "initial",
+      "theme": "light",
+      "app": {
+        "width": 1120,
+        "height": 760
+      },
+      "horizontalOverflow": false,
+      "footerInside": true,
+      "screen": "plan",
+      "selected": 1,
+      "pending": 0,
+      "sha256": "2cf4937333c6c5a51e953b7d252a5c2ffbd61ff32a7b2620250b9c257f29f7e6"
+    },
+    {
+      "file": "FL12-initial-dark.png",
+      "code": "FL12",
+      "size": "initial",
+      "theme": "dark",
+      "app": {
+        "width": 1120,
+        "height": 760
+      },
+      "horizontalOverflow": false,
+      "footerInside": true,
+      "screen": "plan",
+      "selected": 1,
+      "pending": 0,
+      "sha256": "fc957170a6ed20c1812586ab61d6e419b5cbde1d134a491be6cd1c7cebe205f7"
+    },
+    {
+      "file": "FL12-minimum-light.png",
+      "code": "FL12",
+      "size": "minimum",
+      "theme": "light",
+      "app": {
+        "width": 900,
+        "height": 640
+      },
+      "horizontalOverflow": false,
+      "footerInside": true,
+      "screen": "plan",
+      "selected": 1,
+      "pending": 0,
+      "sha256": "ce7fe9edf28bf0d761b67e9eed0ed278dce2e45fd412423f42210f0a6f98a275"
+    },
+    {
+      "file": "FL12-minimum-dark.png",
+      "code": "FL12",
+      "size": "minimum",
+      "theme": "dark",
+      "app": {
+        "width": 900,
+        "height": 640
+      },
+      "horizontalOverflow": false,
+      "footerInside": true,
+      "screen": "plan",
+      "selected": 1,
+      "pending": 0,
+      "sha256": "73760697e6c4b3142b2ce67b96e6a22bf3004ec45ca873aae8af5765604679fb"
+    },
+    {
+      "file": "FL13-initial-light.png",
+      "code": "FL13",
+      "size": "initial",
+      "theme": "light",
+      "app": {
+        "width": 1120,
+        "height": 760
+      },
+      "horizontalOverflow": false,
+      "footerInside": true,
+      "screen": "results",
+      "selected": 0,
+      "pending": 0,
+      "sha256": "9a888892ac7cc91b47c25ad7f03ce2ea667bb230ff41fa79e4d31ec98d8b0b26"
+    },
+    {
+      "file": "FL13-initial-dark.png",
+      "code": "FL13",
+      "size": "initial",
+      "theme": "dark",
+      "app": {
+        "width": 1120,
+        "height": 760
+      },
+      "horizontalOverflow": false,
+      "footerInside": true,
+      "screen": "results",
+      "selected": 0,
+      "pending": 0,
+      "sha256": "2cfc1751c7fbbb530afa0e1388e743068ed8ccfd45eaac6142c06995583ef964"
+    },
+    {
+      "file": "FL13-minimum-light.png",
+      "code": "FL13",
+      "size": "minimum",
+      "theme": "light",
+      "app": {
+        "width": 900,
+        "height": 640
+      },
+      "horizontalOverflow": false,
+      "footerInside": true,
+      "screen": "results",
+      "selected": 0,
+      "pending": 0,
+      "sha256": "a9a8b22021cf56bcd4a1f7966697e4a9c515d3089fee826e0e5dec28e4de867f"
+    },
+    {
+      "file": "FL13-minimum-dark.png",
+      "code": "FL13",
+      "size": "minimum",
+      "theme": "dark",
+      "app": {
+        "width": 900,
+        "height": 640
+      },
+      "horizontalOverflow": false,
+      "footerInside": true,
+      "screen": "results",
+      "selected": 0,
+      "pending": 0,
+      "sha256": "0d8782b53d53c1ef72aef3fe9bbd6759e071a565e22cbeeabacceaaa1165876a"
+    },
+    {
+      "file": "FL14-initial-light.png",
+      "code": "FL14",
+      "size": "initial",
+      "theme": "light",
+      "app": {
+        "width": 1120,
+        "height": 760
+      },
+      "horizontalOverflow": false,
+      "footerInside": true,
+      "screen": "overview",
+      "selected": 0,
+      "pending": 0,
+      "sha256": "fa3ea58931b5174063306fda1505eebd7259858c4fac121138f136423e899574"
+    },
+    {
+      "file": "FL14-initial-dark.png",
+      "code": "FL14",
+      "size": "initial",
+      "theme": "dark",
+      "app": {
+        "width": 1120,
+        "height": 760
+      },
+      "horizontalOverflow": false,
+      "footerInside": true,
+      "screen": "overview",
+      "selected": 0,
+      "pending": 0,
+      "sha256": "b633c35212e2c5b658531db83e765741d3d895ae72790be85d37a61d536f2aef"
+    },
+    {
+      "file": "FL14-minimum-light.png",
+      "code": "FL14",
+      "size": "minimum",
+      "theme": "light",
+      "app": {
+        "width": 900,
+        "height": 640
+      },
+      "horizontalOverflow": false,
+      "footerInside": true,
+      "screen": "overview",
+      "selected": 0,
+      "pending": 0,
+      "sha256": "e262160d298482430e4db4d8cbd97285518b0a608dba20f7de8a722b83cef3b8"
+    },
+    {
+      "file": "FL14-minimum-dark.png",
+      "code": "FL14",
+      "size": "minimum",
+      "theme": "dark",
+      "app": {
+        "width": 900,
+        "height": 640
+      },
+      "horizontalOverflow": false,
+      "footerInside": true,
+      "screen": "overview",
+      "selected": 0,
+      "pending": 0,
+      "sha256": "7dc0a1db8f2970e99c45298b727c8a876f069a9c2eb6404e6202ac8ea2fd71e4"
+    },
+    {
+      "file": "OVL-initial-light.png",
+      "code": "OVL",
+      "size": "initial",
+      "theme": "light",
+      "app": {
+        "width": 1120,
+        "height": 760
+      },
+      "horizontalOverflow": false,
+      "footerInside": true,
+      "screen": "plan",
+      "selected": 2,
+      "pending": 0,
+      "sha256": "868ef57df5a4242089155ba2b4c29e91237ed47a02bcef601beba55bd0600f28"
+    },
+    {
+      "file": "OVL-initial-dark.png",
+      "code": "OVL",
+      "size": "initial",
+      "theme": "dark",
+      "app": {
+        "width": 1120,
+        "height": 760
+      },
+      "horizontalOverflow": false,
+      "footerInside": true,
+      "screen": "plan",
+      "selected": 2,
+      "pending": 0,
+      "sha256": "9e57d77177189c386718e7e138f95f0af5363b1f920cb59f70fcd59497cb0c47"
+    },
+    {
+      "file": "OVL-minimum-light.png",
+      "code": "OVL",
+      "size": "minimum",
+      "theme": "light",
+      "app": {
+        "width": 900,
+        "height": 640
+      },
+      "horizontalOverflow": false,
+      "footerInside": true,
+      "screen": "plan",
+      "selected": 2,
+      "pending": 0,
+      "sha256": "475974bedcba420063faad6757165c97eb4b3d29392fbd3afa729caab07bb5f6"
+    },
+    {
+      "file": "OVL-minimum-dark.png",
+      "code": "OVL",
+      "size": "minimum",
+      "theme": "dark",
+      "app": {
+        "width": 900,
+        "height": 640
+      },
+      "horizontalOverflow": false,
+      "footerInside": true,
+      "screen": "plan",
+      "selected": 2,
+      "pending": 0,
+      "sha256": "9e44577ee7d15639ffa1f265843780de4db2933fbc7055998439aa2f0c73ab0c"
+    }
+  ]
+}
