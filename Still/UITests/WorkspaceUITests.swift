@@ -1246,6 +1246,8 @@ final class WorkspaceUITests: XCTestCase {
         let recheck = app.buttons["Scan Downloads again"]
         XCTAssertTrue(recheck.isHittable); recheck.click()
         XCTAssertTrue(app.buttons["Stop scan"].waitForExistence(timeout: 5))
+        XCTAssertTrue(search.exists, "Expanded observations must remain visible while the manual refresh runs")
+        XCTAssertEqual(search.value as? String, "selected.pdf", "Refreshing must retain the visible refinement query")
         XCTAssertFalse(app.buttons["Review cleanup"].isEnabled)
         XCTAssertTrue(app.checkBoxes["Selected selected.pdf"].exists)
         app.typeKey("4", modifierFlags: .command)
