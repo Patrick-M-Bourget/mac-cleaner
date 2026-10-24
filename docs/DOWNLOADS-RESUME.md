@@ -1,6 +1,10 @@
 # Connected Downloads checkpoint
 
-The first Downloads journey (#55–#57) is qualified and ready for integration. [Validation](validation/connected-downloads.md) owns exact source/test/capture boundaries. Application source824328f; later commits are tests/docs. Core136, local Xcode27.1 build and app signature verify. Native final regressions40051984202 pass5/5; strengthened refresh40052574336 and unavailable/recovery40052410048 pass. b1702ef expanded12/13 has its sole offscreen-row assertion superseded by the strengthened passing refresh case. This is combined focused evidence, not one full UI suite green run.
+The first Downloads journey (#55–#57) is qualified and integrated on `integration/still-spec` at5a9d588. [Validation](validation/connected-downloads.md) owns exact source/test/capture boundaries. Application source824328f; later commits are tests/docs. Core136, local Xcode27.1 build and app signature verify. Native final regressions40051984202 pass5/5; strengthened refresh40052574336 and unavailable/recovery40052410048 pass. b1702ef expanded12/13 has its sole offscreen-row assertion superseded by the strengthened passing refresh case. This is combined focused evidence, not one full UI suite green run.
+
+## Active second slice
+
+#58/#59 candidates are isolated on `verify/connected-parity-next`; integration remains5a9d588 until full native qualification. [Connected next-slice evidence](validation/connected-next.md) records their source-bound outcomes. Both reuse the approved prototype and public test seams; do not reopen settled flow decisions. Full mixed initial/minimum journeys and structured inspector checks are under hosted verification. Local native automation is unavailable; do not repeat local UI startup attempts.
 
 ## Next frontier
 
