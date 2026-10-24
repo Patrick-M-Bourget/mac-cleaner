@@ -379,4 +379,48 @@ final class HistoryActivityUITests: XCTestCase {
         XCTAssertEqual(try Data(contentsOf: original), Data([5, 2])); XCTAssertEqual(try Data(contentsOf: added), Data([1, 3, 7]))
     }
 
+    @MainActor func testPartialAndFailedScanActivityAtInitialSize() throws { try exercisePartialAndFailed(minimum: false) }
+    @MainActor func testPartialAndFailedScanActivityAtMinimumSize() throws { try exercisePartialAndFailed(minimum: true) }
+    @MainActor private func exercisePartialAndFailed(minimum: Bool) throws {
+        continueAfterFailure = false
+        let manager = FileManager.default, app = XCUIApplication()
+        let state = try configureIsolatedJourneyState(app)
+        let root = manager.temporaryDirectory.resolvingSymlinksInPath().appendingPathComponent("StillSelectionUI-" + UUID().uuidString)
+        try manager.createDirectory(at: root, withIntermediateDirectories: false)
+        try Data([1]).write(to: root.appendingPathComponent("trigger.txt")); let file = root.appendingPathComponent("Kept.pdf"); try Data([7, 3]).write(to: file)
+        var identity = stat(); XCTAssertEqual(lstat(root.path, &identity), 0)
+        app.launchArguments = ["--ui-test-downloads-root", "--ui-test-slow-refresh", "--ui-test-directory-instability", minimum ? "--design-minimum" : "--design-initial-size"]
+        app.launchEnvironment["STILL_TEST_DOWNLOADS_ROOT"] = root.path; app.launchEnvironment["STILL_TEST_DOWNLOADS_ID"] = "\(identity.st_dev):\(identity.st_ino)"
+        defer { app.terminate(); try? manager.removeItem(at: state); try? manager.removeItem(at: root) }
+        app.launch(); XCTAssertTrue(app.buttons["Choose folder…"].waitForExistence(timeout: 10))
+        app.buttons["Choose folder…"].click(); app.typeKey("g", modifierFlags: [.command, .shift]); XCTAssertTrue(app.textFields.firstMatch.waitForExistence(timeout: 5)); app.textFields.firstMatch.typeText(root.path)
+        app.typeKey(.return, modifierFlags: []); app.dialogs.buttons["Scan folder"].click(); waitForOverviewScan(app, timeout: 30)
+        app.typeKey("3", modifierFlags: .command); XCTAssertTrue(app.staticTexts["Partial scan"].waitForExistence(timeout: 5))
+        let bounds = app.windows.firstMatch.frame
+        func capture(_ name: String) {
+            let image = XCTAttachment(screenshot: app.windows.firstMatch.screenshot()); image.name = "history-coverage-" + (minimum ? "minimum-" : "initial-") + name; image.lifetime = .keepAlways; add(image); XCTAssertEqual(app.windows.firstMatch.frame, bounds)
+        }
+        let partial = app.disclosureTriangles.firstMatch
+        revealScrollElement(app, control: partial, label: "Partial scan details"); partial.coordinate(withNormalizedOffset: CGVector(dx: 0, dy: 0.5)).withOffset(CGVector(dx: 26, dy: 0)).click(); XCTAssertEqual(partial.value as? Int, 1)
+        let reason = app.staticTexts["Directory changed during scanning: 1"]
+        guard reason.waitForExistence(timeout: 5) else {
+            let image = XCTAttachment(screenshot: app.windows.firstMatch.screenshot()); image.name = "history-coverage-raw-reason-copy"; image.lifetime = .keepAlways; add(image)
+            XCTFail("Partial coverage needs a plain-language recorded reason, not raw scanner identifiers"); return
+        }
+        revealScrollElement(app, control: reason, label: "Recorded partial coverage explanation")
+        for theme in ["Light", "Dark"] { app.popUpButtons["Appearance"].click(); app.menuItems[theme].click(); capture("partial-" + theme) }
+        XCTAssertFalse(app.buttons["See what grew"].exists)
+        XCTAssertEqual(try Data(contentsOf: file), Data([7, 3]))
+        try manager.removeItem(at: root) // Owned fixture makes the previously selected location unavailable.
+        app.typeKey("1", modifierFlags: .command); app.buttons["Scan again"].click()
+        app.typeKey("3", modifierFlags: .command); XCTAssertTrue(app.staticTexts["Failed scan"].waitForExistence(timeout: 5))
+        XCTAssertEqual(app.staticTexts.matching(identifier: "Partial scan").count, 1)
+        let failed = app.disclosureTriangles.firstMatch
+        revealScrollElement(app, control: failed, label: "Failed scan details"); failed.coordinate(withNormalizedOffset: CGVector(dx: 0, dy: 0.5)).withOffset(CGVector(dx: 26, dy: 0)).click(); XCTAssertEqual(failed.value as? Int, 1)
+        let noMeasurements = app.staticTexts["No measurements available"]
+        XCTAssertTrue(noMeasurements.waitForExistence(timeout: 5)); revealScrollElement(app, control: noMeasurements, label: "Unknown failed-scan measurements")
+        for theme in ["Light", "Dark"] { app.popUpButtons["Appearance"].click(); app.menuItems[theme].click(); capture("failed-" + theme) }
+        XCTAssertFalse(app.buttons["Stop scan"].exists); XCTAssertFalse(manager.fileExists(atPath: root.path), "History viewing cannot recreate or enumerate the missing location")
+    }
+
 }
