@@ -28,7 +28,18 @@ public struct AlertCapacityReading: Sendable {
     func submitLowSpaceNotification(identifier: String, observedAt: Date) async throws
 }
 
+/// Presentation evidence only; lifecycle polling remains represented by effectiveMonitoring.
+public enum AlertShellAttention: Equatable, Sendable {
+    case savedStateUnavailable, saveFailed, notificationsUnavailable, capacityUnavailable, invalidThreshold, submissionFailed
+}
+public enum AlertShellState: Equatable, Sendable {
+    case off, checking, on
+    case snoozed(until: Date)
+    case attention(AlertShellAttention)
+}
+
 @MainActor public class AlertMonitoringController: NSObject, ObservableObject {
+    @Published public private(set) var shellState: AlertShellState = .off
     @Published public private(set) var effectiveMonitoring = false
     @Published public private(set) var requested = false
     @Published public private(set) var status = "Alerts are off."
@@ -52,9 +63,10 @@ public struct AlertCapacityReading: Sendable {
             requested = policy.enabled
             thresholdGB = String(Double(policy.thresholdBytes) / 1_000_000_000)
             if !requested && policy.thresholdBytes == 40_000_000_000 { thresholdGB = "40" }
-            if requested { status = "Saved alert preference restored; checking authorization and capacity." }
+            if requested { shellState = .checking; status = "Saved alert preference restored; checking authorization and capacity." }
         } catch {
             persistenceHealthy = false
+            shellState = .attention(.savedStateUnavailable)
             status = "Alert state could not be read. Monitoring is stopped to preserve suppression."
         }
     }
@@ -80,6 +92,7 @@ public struct AlertCapacityReading: Sendable {
         removePendingNotifications()
         requested = false; policy = AlertPolicy(); thresholdGB = "40"; persistenceHealthy = true
         try system.reset()
+        shellState = .off
         status = "Alerts are off."
     }
     /// Terminal for this app session. A new controller may restore the saved preference.
@@ -106,6 +119,7 @@ public struct AlertCapacityReading: Sendable {
         guard system.allowsNotificationChanges else { status = "Disposable tests do not change notification settings."; return }
         if enabled && !thresholdValid { status = "Enter at least 1 GB and less than startup-volume capacity."; return }
         requested = enabled
+        if enabled, shellState == .off { shellState = .checking }
         policy.enabled = enabled
         delivery.setEnabled(enabled)
         if !enabled {
@@ -114,7 +128,7 @@ public struct AlertCapacityReading: Sendable {
             removePendingNotifications()
         }
         guard persist() else { return }
-        if !enabled { status = "Alerts are off."; return }
+        if !enabled { shellState = .off; status = "Alerts are off."; return }
         guard thresholdValid, let threshold else { requested = false; policy.enabled = false; status = "Enter at least 1 GB and less than startup-volume capacity."; return }
         policy.thresholdBytes = threshold
         guard persist() else { return }
@@ -149,6 +163,7 @@ public struct AlertCapacityReading: Sendable {
         catch {
             persistenceHealthy = false; effectiveMonitoring = false
             cancelPolling?(); cancelPolling = nil
+            shellState = .attention(.saveFailed)
             status = "Alert state could not be saved. Monitoring is stopped to prevent repeat notifications."
             return false
         }
@@ -158,6 +173,8 @@ public struct AlertCapacityReading: Sendable {
         guard requested, policy.canRemind else { status = "A valid capacity reading is required before snoozing."; return }
         policy.remindLater(at: system.now)
         guard persist() else { return }
+        if case .attention = shellState {}
+        else { shellState = .snoozed(until: system.now.addingTimeInterval(86_400)) }
         status = "Alerts snoozed for 24 hours. A valid low reading after resumption permits one reminder."
     }
     private func removePendingNotifications() {
@@ -176,6 +193,7 @@ public struct AlertCapacityReading: Sendable {
         guard requested, generation == monitoringGeneration else { return }
         guard settings == .allowed else {
             cancelPolling?(); cancelPolling = nil; effectiveMonitoring = false
+            shellState = .attention(.notificationsUnavailable)
             status = "Notifications are unavailable. Enable Still alerts in System Settings > Notifications. Capacity polling is stopped."
             return
         }
@@ -187,13 +205,17 @@ public struct AlertCapacityReading: Sendable {
         }
         guard policy.shouldSample(at: system.now, authorization: .allowed) else { return }
         let reading = capacity(); total = reading.total
-        guard let available = reading.available, let total = reading.total, let volumeID = reading.volumeID else { status = "Capacity unavailable. Alert decisions are paused."; return }
+        guard let available = reading.available, let total = reading.total, let volumeID = reading.volumeID else { shellState = .attention(.capacityUnavailable); status = "Capacity unavailable. Alert decisions are paused."; return }
         guard appliedThresholdValid else {
             cancelPolling?(); cancelPolling = nil; effectiveMonitoring = false
+            shellState = .attention(.invalidThreshold)
             status = "Threshold no longer fits this volume. Update it to resume alerts."
             return
         }
         effectiveMonitoring = true
+        if shellState != .attention(.submissionFailed) || available >= policy.thresholdBytes {
+            shellState = policy.snoozedUntil.flatMap { $0 > system.now ? .snoozed(until: $0) : nil } ?? .on
+        }
         status = "Monitoring startup-volume capacity while Still runs. Last available: \(String(format: "%.1f", Double(available) / 1_000_000_000)) GB."
         let submit = policy.observe(available: available, total: total, at: system.now, volumeID: volumeID, metric: reading.metric)
         let notificationID = submit ? "Still.lowSpace." + UUID().uuidString : nil
@@ -218,6 +240,9 @@ public struct AlertCapacityReading: Sendable {
             system.removePendingNotifications(identifiers: [notificationID])
             policy.notificationRequestIdentifiers?.remove(notificationID)
         case .accepted:
+            if generation == monitoringGeneration, requested {
+                shellState = policy.snoozedUntil.flatMap { $0 > system.now ? .snoozed(until: $0) : nil } ?? .on
+            }
             let retained = inFlightNotificationIDs.union([notificationID])
             let retired = (policy.notificationRequestIdentifiers ?? []).subtracting(retained)
             if !retired.isEmpty { system.removePendingNotifications(identifiers: Array(retired)) }
@@ -227,6 +252,7 @@ public struct AlertCapacityReading: Sendable {
         }
         if changed || previouslyOwned != policy.notificationRequestIdentifiers { _ = persist() }
         if deliveryResult == .failed && changed {
+            if persistenceHealthy { shellState = .attention(.submissionFailed) }
             status = "Notification could not be submitted. A later capacity check will retry."
         }
     }
