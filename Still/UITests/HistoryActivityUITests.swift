@@ -144,7 +144,9 @@ final class HistoryActivityUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Stopped scan"].waitForExistence(timeout: 5))
         XCTAssertEqual(app.staticTexts.matching(identifier: "Completed scan").count, 1)
         let details = app.disclosureTriangles.firstMatch
-        revealScrollElement(app, control: details, label: "Stopped scan details"); details.click()
+        revealScrollElement(app, control: details, label: "Stopped scan details")
+        details.coordinate(withNormalizedOffset: CGVector(dx: 0, dy: 0.5)).withOffset(CGVector(dx: 26, dy: 0)).click()
+        XCTAssertEqual(details.value as? Int, 1, "The native disclosure must actually expand before inspecting recorded coverage")
         XCTAssertTrue(app.staticTexts["Not attempted"].waitForExistence(timeout: 5))
         XCTAssertFalse(app.buttons["Stop scan"].exists)
         let bounds = app.windows.firstMatch.frame
