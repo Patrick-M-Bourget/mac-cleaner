@@ -255,4 +255,63 @@ final class HistoryActivityUITests: XCTestCase {
         XCTAssertFalse(app.sheets.buttons["Move to Trash"].exists, "Viewing History cannot restore cleanup authority")
     }
 
+    @MainActor func testClearCompletedHistoryNamesAllRecordsAndReportsPartialSuccess() async throws {
+        continueAfterFailure = false
+        let manager = FileManager.default, app = XCUIApplication()
+        let state = try configureIsolatedJourneyState(app)
+        let root = manager.temporaryDirectory.resolvingSymlinksInPath().appendingPathComponent("StillSelectionUI-" + UUID().uuidString)
+        try manager.createDirectory(at: root, withIntermediateDirectories: false)
+        let file = root.appendingPathComponent("Kept.pdf"); try Data([3, 9]).write(to: file)
+        defer { app.terminate(); try? manager.removeItem(at: state); try? manager.removeItem(at: root) }
+        let scan = try await FolderScanner().scan(root)
+        var draft = PlanDraft(); _ = draft.selectAll(in: [scan], downloads: try DownloadsRoot(url: root))
+        let approval = try draft.approve(draft.review()), journal = try SQLiteCleanupJournal(url: state.appendingPathComponent("cleanup.sqlite"))
+        XCTAssertTrue(try journal.claim(approval)); var outcome = CleanupRecord(batch: approval, target: try XCTUnwrap(approval.targets.first)); outcome.state = .cancelled; outcome.message = "Owned terminal fixture; no operation"; try journal.outcome(outcome)
+        let growthDirectory = state.appendingPathComponent("Growth"), store = GrowthHistoryStore(directory: growthDirectory)
+        let epoch = try await store.recordingEpoch(), now = Date()
+        _ = try await store.recordActivity(ScanActivity(startedAt: now.addingTimeInterval(-2), completedAt: now.addingTimeInterval(-1), outcome: .complete, locations: [ScanActivityLocation(path: root.path, observedAt: now.addingTimeInterval(-1), outcome: .complete, entryCount: 1, logicalBytes: 2, allocatedBytes: 4096, knownLogicalBytes: 2)]), expectedEpoch: epoch)
+        let fingerprint = GrowthFingerprint(scopeID: "owned-scope", rootID: "owned-root", volumeID: "owned-volume", access: "explicit", rules: "owned", exclusions: "none", classification: "owned")
+        _ = try await store.record(GrowthSnapshot(fingerprint: fingerprint, scopeLabel: "Owned folder", observedAt: now, groups: [.init(id: "root", label: "Files", logicalBytes: 2)]), expectedEpoch: epoch)
+        app.launchArguments = ["--design-minimum"]; app.launch(); app.typeKey("3", modifierFlags: .command)
+        let filter = app.popUpButtons["History activity filter"]
+        XCTAssertTrue(filter.waitForExistence(timeout: 10)); filter.click(); app.menuItems["Cleanups"].click()
+        app.popUpButtons["Appearance"].click(); app.menuItems["Dark"].click()
+        revealScrollElement(app, control: app.buttons["manageLocalRecords"], label: "Manage local records"); app.buttons["manageLocalRecords"].click()
+        XCTAssertTrue(app.buttons["clearHistory"].waitForExistence(timeout: 5)); app.buttons["clearHistory"].click()
+        let clear = app.sheets.buttons["Clear completed history"]
+        guard clear.waitForExistence(timeout: 5) else {
+            let image = XCTAttachment(screenshot: app.windows.firstMatch.screenshot()); image.name = "history-clear-ambiguous-confirmation"; image.lifetime = .keepAlways; add(image)
+            XCTFail("Clear completed history must explicitly cover scan activity, completed cleanups and growth baselines regardless of filter"); return
+        }
+        let consequence = app.sheets.staticTexts.matching(NSPredicate(format: "value CONTAINS[c] %@ OR label CONTAINS[c] %@", "scan activity", "scan activity")).firstMatch
+        XCTAssertTrue(consequence.exists)
+        app.sheets.buttons["Cancel"].click()
+        let beforeActivities = try await store.activities(), beforeBaselines = try await store.snapshots()
+        XCTAssertEqual(beforeActivities.count, 1); XCTAssertEqual(beforeBaselines.count, 1); XCTAssertEqual(try journal.completedHistory().completedRuns.count, 1)
+        let archive = growthDirectory.appendingPathComponent("aggregates-v1.json"), backup = growthDirectory.appendingPathComponent("owned-archive-backup.json")
+        try manager.moveItem(at: archive, to: backup); try manager.createDirectory(at: archive, withIntermediateDirectories: false)
+        app.buttons["clearHistory"].click(); clear.click()
+        let status = app.staticTexts["historyStatus"]
+        let partial = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+            let text = status.value as? String ?? status.label
+            return text.contains("Cleared 1 completed cleanup run.") && text.contains("Scan activity and growth baseline clearing could not be confirmed.")
+        }, object: status)
+        XCTAssertEqual(XCTWaiter.wait(for: [partial], timeout: 5), .completed)
+        XCTAssertTrue(try journal.completedHistory().completedRuns.isEmpty); XCTAssertFalse(try journal.claim(approval))
+        let image = XCTAttachment(screenshot: app.windows.firstMatch.screenshot()); image.name = "history-clear-partial-minimum-Dark"; image.lifetime = .keepAlways; add(image)
+        try manager.removeItem(at: archive); try manager.moveItem(at: backup, to: archive)
+        app.buttons["clearHistory"].click(); clear.click()
+        let cleared = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+            (status.value as? String ?? status.label).contains("scan activity and growth baselines")
+        }, object: status)
+        XCTAssertEqual(XCTWaiter.wait(for: [cleared], timeout: 5), .completed)
+        let afterActivities = try await store.activities(), afterBaselines = try await store.snapshots()
+        XCTAssertTrue(afterActivities.isEmpty); XCTAssertTrue(afterBaselines.isEmpty)
+        app.buttons["Back to History"].click(); XCTAssertEqual(filter.value as? String, "Cleanups")
+        XCTAssertTrue(app.staticTexts["No recorded cleanup runs."].waitForExistence(timeout: 5))
+        filter.click(); app.menuItems["All activity"].click(); XCTAssertTrue(app.staticTexts["No retained history."].exists)
+        XCTAssertEqual(app.popUpButtons["Appearance"].value as? String, "Dark")
+        XCTAssertEqual(try Data(contentsOf: file), Data([3, 9])); XCTAssertFalse(try journal.claim(approval))
+    }
+
 }
