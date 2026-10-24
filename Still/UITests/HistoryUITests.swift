@@ -3,6 +3,57 @@ import Darwin
 import StillCore
 
 final class HistoryUITests: XCTestCase {
+    @MainActor func testLocalRecordsUsesBothCallersAndClearPreservesOriginals() async throws {
+        continueAfterFailure = false
+        let stateID = UUID().uuidString
+        let root = FileManager.default.temporaryDirectory.resolvingSymlinksInPath().appendingPathComponent("StillTestState-" + stateID)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: false, attributes: [.posixPermissions: 0o700])
+        try Data(stateID.utf8).write(to: root.appendingPathComponent(".still-owned-test-state"))
+        var info = stat(); XCTAssertEqual(lstat(root.path, &info), 0)
+        let original = root.appendingPathComponent("owned-record.pdf")
+        try Data([19, 27]).write(to: original)
+        let scan = try await FolderScanner().scan(root)
+        var draft = PlanDraft(); _ = draft.selectAll(in: [scan], downloads: try DownloadsRoot(url: root))
+        let approval = try draft.approve(draft.review())
+        let journal = try SQLiteCleanupJournal(url: root.appendingPathComponent("cleanup.sqlite"))
+        XCTAssertTrue(try journal.claim(approval))
+        for target in approval.targets {
+            var record = CleanupRecord(batch: approval, target: target)
+            record.state = .cancelled; record.message = "Owned completed fixture; no file operation performed"
+            try journal.outcome(record)
+        }
+        let app = XCUIApplication()
+        app.launchArguments = ["--design-minimum"]
+        app.launchEnvironment = ["STILL_TEST_STATE_ROOT": root.path, "STILL_TEST_STATE_ID": "\(info.st_dev):\(info.st_ino)"]
+        defer { app.terminate(); try? FileManager.default.removeItem(at: root) }
+        app.launch(); app.typeKey("3", modifierFlags: .command)
+        let manage = app.buttons["manageLocalRecords"]
+        XCTAssertTrue(manage.waitForExistence(timeout: 5))
+        manage.click()
+        XCTAssertTrue(app.staticTexts["Local records"].waitForExistence(timeout: 5))
+        let bounds = app.windows.firstMatch.frame
+        XCTAssertTrue(app.buttons["Back to History"].isHittable)
+        app.buttons["clearHistory"].click()
+        XCTAssertTrue(app.sheets.buttons["Cancel"].waitForExistence(timeout: 3))
+        app.sheets.buttons["Cancel"].click()
+        XCTAssertEqual(try journal.completedHistory().completedRuns.count, 1)
+        app.buttons["Back to History"].click()
+        XCTAssertTrue(manage.waitForExistence(timeout: 5))
+        app.typeKey("4", modifierFlags: .command)
+        XCTAssertTrue(app.staticTexts["Locations & access"].waitForExistence(timeout: 5))
+        XCTAssertTrue(manage.waitForExistence(timeout: 5)); manage.click()
+        XCTAssertTrue(app.buttons["Back to Locations & access"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["Back to History"].exists)
+        app.buttons["clearHistory"].click()
+        app.sheets.buttons["Clear completed runs"].click()
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "Cleared 1 completed runs.")).firstMatch.waitForExistence(timeout: 5))
+        XCTAssertTrue(try journal.records().isEmpty)
+        app.buttons["Back to Locations & access"].click()
+        XCTAssertTrue(manage.waitForExistence(timeout: 5))
+        XCTAssertEqual(app.windows.firstMatch.frame, bounds)
+        XCTAssertEqual(try Data(contentsOf: original), Data([19, 27]))
+        XCTAssertFalse(try journal.claim(approval))
+    }
     @MainActor func testCompletedHistoryClearAndFreshResetGuard() async throws { try await exercise(minimum: false) }
     @MainActor func testHistoryAtMinimumWindow() async throws { try await exercise(minimum: true) }
     @MainActor private func exercise(minimum: Bool) async throws {
