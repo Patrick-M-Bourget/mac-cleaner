@@ -21,10 +21,13 @@ import Darwin
 }
 
 /// Public readiness stays on the scan's originating Overview; browsing is an explicit next action.
+@MainActor func waitForScanIdle(_ app: XCUIApplication, timeout: TimeInterval) {
+    let ready = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == true AND enabled == true"), object: app.buttons["Scan again"])
+    XCTAssertEqual(XCTWaiter.wait(for: [ready], timeout: timeout), .completed)
+}
 @MainActor func waitForOverviewScan(_ app: XCUIApplication, timeout: TimeInterval = 15) {
     XCTAssertTrue(app.staticTexts["overviewScopeCoverage"].waitForExistence(timeout: timeout))
-    let ready = XCTNSPredicateExpectation(predicate: NSPredicate(format: "enabled == true"), object: app.buttons["Scan again"])
-    XCTAssertEqual(XCTWaiter.wait(for: [ready], timeout: timeout), .completed)
+    waitForScanIdle(app, timeout: timeout)
     XCTAssertTrue(app.staticTexts["Storage overview"].exists)
 }
 @MainActor func enterObservedExplorerRoot(_ app: XCUIApplication, root: URL) {
@@ -165,8 +168,14 @@ final class WorkspaceUITests: XCTestCase {
         app.buttons["Open folder Media"].click()
         XCTAssertTrue(["", "Search scanned descendants"].contains(app.textFields["Search scanned descendants"].value as? String ?? "Unexpected query"))
         app.buttons["Inspect Summer trip.mov"].click()
-        XCTAssertTrue(app.descendants(matching: .any)["explorerInspector"].firstMatch.waitForExistence(timeout: 5))
-        capture("compact-inspector")
+        let inspector = app.descendants(matching: .any)["explorerInspector"].firstMatch
+        XCTAssertTrue(inspector.waitForExistence(timeout: 5))
+        let list = app.descendants(matching: .any)["explorerList"].firstMatch
+        if minimum { XCTAssertGreaterThanOrEqual(inspector.frame.minY, list.frame.maxY - 1) }
+        else if bounds.width >= 1000 { XCTAssertGreaterThanOrEqual(inspector.frame.minX, list.frame.maxX - 1) }
+        XCTAssertTrue(app.buttons["Close inspector"].isHittable)
+        XCTAssertTrue(app.buttons["View cleanup plan"].isHittable)
+        capture("inspector")
         let explorerSearch = app.textFields["Search scanned descendants"]
         explorerSearch.click(); explorerSearch.typeText("no-such-observed-file")
         XCTAssertTrue(app.staticTexts["No matches"].waitForExistence(timeout: 5))
@@ -301,7 +310,7 @@ final class WorkspaceUITests: XCTestCase {
             for index in 0..<600 { try Data(repeating: 1, count: 16).write(to: root.appendingPathComponent("batch-\(index).txt")) }
             app.buttons["Scan again"].click()
             XCTAssertTrue(app.buttons["Stop scan"].waitForExistence(timeout: 5))
-            XCTAssertTrue(app.buttons["Scan again"].waitForExistence(timeout: 90))
+            waitForScanIdle(app, timeout: 90)
             try Data().write(to: child.appendingPathComponent("unknown-cloud-metadata.txt"))
             scan(child) // Overlap/hard links must not inflate the Overview review amount.
             app.typeKey("1", modifierFlags: .command)
@@ -358,11 +367,11 @@ final class WorkspaceUITests: XCTestCase {
             XCTAssertTrue(bounds.contains(app.buttons["Stop scan"].frame))
             app.buttons["Stop scan"].click()
             app.scrollViews.firstMatch.scroll(byDeltaX: 0, deltaY: 3000)
-            XCTAssertTrue(app.buttons["Scan again"].waitForExistence(timeout: 5))
+            waitForScanIdle(app, timeout: 5)
             app.buttons["Scan again"].click() // A cancelled generation must not stop this new queue.
             XCTAssertTrue(app.buttons["Stop scan"].waitForExistence(timeout: 5))
             captureRefresh("Dark")
-            XCTAssertTrue(app.buttons["Scan again"].waitForExistence(timeout: 90))
+            waitForScanIdle(app, timeout: 90)
             app.buttons["Explore storage"].click()
             enterObservedExplorerRoot(app, root: root)
             let search = app.textFields["Search scanned descendants"]
@@ -396,14 +405,14 @@ final class WorkspaceUITests: XCTestCase {
             try manager.removeItem(at: root) // Only this test's owned scope; failed coverage is not an empty Downloads finding.
             app.scrollViews.firstMatch.scroll(byDeltaX: 0, deltaY: 3000)
             app.buttons["Scan again"].click()
-            XCTAssertTrue(app.buttons["Scan again"].waitForExistence(timeout: 90))
+            waitForScanIdle(app, timeout: 90)
             let unavailable = app.descendants(matching: .any)["overviewDownloadsFinding"].firstMatch
             XCTAssertTrue(unavailable.waitForExistence(timeout: 5))
             let unknownState = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
                 (unavailable.value as? String ?? "").contains("Unknown")
             }, object: unavailable)
             XCTAssertEqual(XCTWaiter.wait(for: [unknownState], timeout: 30), .completed)
-            XCTAssertTrue(app.buttons["Scan again"].waitForExistence(timeout: 10))
+            waitForScanIdle(app, timeout: 10)
             XCTAssertFalse((unavailable.value as? String ?? "").contains("No eligible files"))
             capture("unavailable-downloads", bothPages: false, findingsOnly: true)
             app.terminate()
@@ -1158,7 +1167,7 @@ final class WorkspaceUITests: XCTestCase {
             app.buttons["Stop scan"].click()
             let stopped = app.staticTexts.matching(NSPredicate(format: "value CONTAINS[c] 'Stop requested' OR value CONTAINS[c] 'Scan stopped'"))
             XCTAssertTrue(stopped.firstMatch.waitForExistence(timeout: 1))
-            XCTAssertTrue(app.buttons["Scan again"].waitForExistence(timeout: 3))
+            waitForScanIdle(app, timeout: 3)
             XCTAssertEqual(app.windows.firstMatch.frame, bounds)
             XCTAssertFalse(app.buttons["Review cleanup"].exists)
         }

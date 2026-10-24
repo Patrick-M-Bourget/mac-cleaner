@@ -142,7 +142,7 @@ struct StorageExplorerView: View {
     }
     var body: some View {
         GeometryReader { geometry in
-            let wide = geometry.size.width >= 880
+            let wide = geometry.size.width >= 800
             VStack(alignment: .leading, spacing: StillDesign.Space.lg) {
                 Button(context.canGoBack ? "Back to previous folder" : backTitle, systemImage: "chevron.left") {
                     if !context.backWithinExplorer() { back() }
