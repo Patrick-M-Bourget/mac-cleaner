@@ -139,9 +139,20 @@ final class CapacityRefreshUITests: XCTestCase {
         app.typeKey("1", modifierFlags: .command)
         try sample(90_000_000_000); app.buttons["Refresh capacity"].click()
         XCTAssertTrue(observes("90 GB"))
-        app.typeKey("2", modifierFlags: .command)
-        XCTAssertTrue(app.staticTexts["Cleanup results"].waitForExistence(timeout: 5))
-        XCTAssertEqual(resultEvidence.value as? String ?? resultEvidence.label, historicalValue)
+        XCTAssertEqual(try encoder.encode(journal.records()), records)
+        // Plan navigation intentionally starts a new plan after Results. History is the
+        // approved route for inspecting this operation after a current-capacity refresh.
+        app.typeKey("3", modifierFlags: .command)
+        let recordedValue = historicalValue.replacingOccurrences(of: "Observed startup-volume available-capacity change:", with: "Observed startup-volume capacity change:")
+        let historyEvidence = app.staticTexts.matching(NSPredicate(format: "value == %@ OR label == %@", recordedValue, recordedValue)).firstMatch
+        XCTAssertTrue(historyEvidence.waitForExistence(timeout: 5))
+        revealScrollElement(app, control: historyEvidence, label: "Preserved operation capacity observation")
+        for theme in ["Light", "Dark"] {
+            app.popUpButtons["Appearance"].click(); app.menuItems[theme].click()
+            XCTAssertEqual(historyEvidence.value as? String ?? historyEvidence.label, recordedValue)
+            let image = XCTAttachment(screenshot: app.windows.firstMatch.screenshot())
+            image.name = "capacity-current-refresh-preserves-history-" + theme; image.lifetime = .keepAlways; add(image)
+        }
         XCTAssertEqual(try encoder.encode(journal.records()), records)
     }
 
