@@ -190,7 +190,7 @@ struct StorageExplorerView: View {
         ExplorerInspector(name: entry.item.url.lastPathComponent, close: { context.clearInspector() }) {
             Text(entry.item.url.path).font(.caption).textSelection(.enabled)
             Text("On disk: " + (entry.item.kind == .folder ? folderAllocation(entry.item.url) : bytes(entry.item.allocatedBytes)))
-            Text("Logical size: " + (entry.item.kind == .folder ? "Unknown · folder contains observed descendants" : bytes(entry.item.logicalBytes)))
+            Text("Logical size: " + (entry.item.kind == .folder ? folderSubtotal(entry.item.url, logical: true) : bytes(entry.item.logicalBytes)))
             if entry.item.isDuplicateResource { Text("Shared resource · allocation counts once within a total.") }
             if entry.item.kind == .package || entry.item.kind == .symbolicLink { Text("Protected boundary · contents not inspected.") }
             if entry.item.previewAvailability != .local { Text("Local contents are " + entry.item.previewAvailability.rawValue + ". Preview will not request a download.") }
@@ -200,11 +200,12 @@ struct StorageExplorerView: View {
             }
         }
     }
-    private func folderAllocation(_ folder: URL) -> String {
+    private func folderAllocation(_ folder: URL) -> String { folderSubtotal(folder, logical: false) }
+    private func folderSubtotal(_ folder: URL, logical: Bool) -> String {
         let children = entries.filter { $0.item.url != folder && $0.item.url.pathComponents.starts(with: folder.pathComponents) }
         var seen = Set<String>(); var total: Int64 = 0; var unknown = false
         for entry in children where entry.item.kind != .folder && seen.insert(entry.item.resourceID).inserted {
-            guard entry.item.kind == .file, let size = entry.item.allocatedBytes else { unknown = true; continue }
+            guard entry.item.kind == .file, let size = (logical ? entry.item.logicalBytes : entry.item.allocatedBytes) else { unknown = true; continue }
             let sum = total.addingReportingOverflow(size)
             if sum.overflow { unknown = true } else { total = sum.partialValue }
         }
