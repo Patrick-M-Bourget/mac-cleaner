@@ -154,6 +154,17 @@ final class FolderInspection {
         }
     }
 
+    /// Overview projects current included evidence; omitting a scope never keeps it as current.
+    func overviewObservation(including scopes: [URL], observations: [URL: ScanResult], unavailable: Set<URL>) -> ScanResult? {
+        let included = Set(scopes.map { $0.standardizedFileURL.path })
+        let invalid = Set(unavailable.map { $0.standardizedFileURL.path })
+        if let scope, included.contains(scope.standardizedFileURL.path) {
+            return invalid.contains(scope.standardizedFileURL.path) ? nil : result
+        }
+        return observations.values.filter { included.contains($0.scope.standardizedFileURL.path) && !invalid.contains($0.scope.standardizedFileURL.path) }
+            .max { $0.observedAt < $1.observedAt }
+    }
+
     func markUnavailable(_ url: URL) {
         scope = url
         let previous = scopeReports.first { $0.current.scope.path == url.path }

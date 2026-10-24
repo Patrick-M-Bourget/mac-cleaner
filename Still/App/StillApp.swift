@@ -369,6 +369,10 @@ private struct WorkspaceView: View {
         }
     }
 
+    private var overviewObservation: ScanResult? {
+        folderInspection.overviewObservation(including: locationsModel.included.map { URL(fileURLWithPath: $0.path) }, observations: selection.scans, unavailable: selection.unavailableScopes)
+    }
+
     private var overview: some View {
         VStack(alignment: .leading, spacing: StillDesign.Space.xl) {
             HStack(alignment: .top) {
@@ -444,7 +448,7 @@ private struct WorkspaceView: View {
                 Text("Recommended for review").font(StillDesign.TypeStyle.section)
                 RecommendationGroup {
                     overviewCloudRow
-                    if overviewCloudExpanded, let report = folderInspection.result?.cloudInventory { CloudInventoryView(report: report).padding(StillDesign.Space.md) }
+                    if overviewCloudExpanded, let report = overviewObservation?.cloudInventory { CloudInventoryView(report: report).padding(StillDesign.Space.md) }
                     Divider().padding(.horizontal, StillDesign.Space.lg)
                     StorageReviewRow(category: .developer, title: "Xcode build files", detail: "Build-file cleanup isn’t available yet.", value: "Not inspected", meaning: "Unavailable")
                     Divider().padding(.horizontal, StillDesign.Space.lg)
@@ -457,8 +461,8 @@ private struct WorkspaceView: View {
     }
 
     private var overviewCloudRow: some View {
-        let action: (() -> Void)? = folderInspection.result == nil ? nil : { overviewCloudExpanded.toggle() }
-        let value = folderInspection.result.map { result in
+        let action: (() -> Void)? = overviewObservation == nil ? nil : { overviewCloudExpanded.toggle() }
+        let value = overviewObservation.map { result in
             let report = result.cloudInventory
             return report.unknownMembershipCount > 0 || report.unknownStateCount > 0 ? "Unknown" : overviewBytes(report.localAllocatedBytes)
         } ?? "Not inspected"
@@ -508,25 +512,27 @@ private struct WorkspaceView: View {
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: StillDesign.Space.xs) {
                     Text("Scanned locations").font(StillDesign.TypeStyle.section)
-                    if let result = folderInspection.result {
-                        Text("\(folderInspection.scopeReports.count) locations · Current: \(result.scope.lastPathComponent)").font(.caption).foregroundStyle(.secondary).help(result.scope.path)
+                    if let result = overviewObservation {
+                        Text("\(selection.scans.count) locations · Current: \(result.scope.lastPathComponent)").font(.caption).foregroundStyle(.secondary).help(result.scope.path)
                         Text("Observed \(result.observedAt.formatted(date: .abbreviated, time: .shortened))").font(.caption).foregroundStyle(.secondary)
-                    } else if let previous = folderInspection.lastComplete {
-                        Text("Current coverage: Unknown · Access unavailable").font(.caption).foregroundStyle(.secondary)
-                        Text("Last complete observation: " + previous.observedAt.formatted()).font(.caption).foregroundStyle(.secondary)
+                    } else if locationsModel.included.isEmpty {
+                        Text("No included locations with current observations.").font(.caption).foregroundStyle(.secondary)
+                    } else if folderInspection.scope != nil {
+                        Text("Current coverage: Unknown · Recheck required").font(.caption).foregroundStyle(.secondary)
+                        if let previous = folderInspection.lastComplete { Text("Last complete observation: " + previous.observedAt.formatted() + " · Historical").font(.caption).foregroundStyle(.secondary) }
                     } else { Text("Choose a folder to understand its local storage.").font(.caption).foregroundStyle(.secondary) }
                 }.frame(maxWidth: .infinity, alignment: .leading)
                 VStack(alignment: .trailing, spacing: StillDesign.Space.sm) {
                     Button("Choose folder…", systemImage: "folder.badge.plus", action: chooseFolderForScan).disabled(folderInspection.isScanning || selection.execution.isRunning)
-                    if folderInspection.result != nil { Button("Explore storage") { openExplorer(downloads: false, caller: .overview) }.disabled(selection.execution.isRunning) }
+                    if overviewObservation != nil { Button("Explore storage") { openExplorer(downloads: false, caller: .overview) }.disabled(selection.execution.isRunning) }
                 }
             }
-            if let result = folderInspection.result {
+            if let result = overviewObservation {
                 Text(result.isComplete ? "Current location · \(overviewBytes(result.totalLogicalBytes)) logical · \(overviewBytes(result.totalAllocatedBytes)) allocated" : "Partial coverage · Observed logical subtotal \(overviewBytes(result.logicalBytes)) · Remaining bytes unknown")
                     .font(.caption).foregroundStyle(.secondary).accessibilityIdentifier("overviewScopeCoverage")
                 if result.excludedEntryCount > 0 || result.hasUnmeasuredContents { Text("Unmeasured or excluded contents remain unknown.").font(.caption).foregroundStyle(.secondary) }
             }
-            if folderInspection.scopeReports.contains(where: { $0.requiresRecheck }) {
+            if selection.scans.values.contains(where: { !$0.isComplete }) {
                 StatusRow(text: "Some locations have partial coverage. Uninspected bytes remain unknown.", symbol: "exclamationmark.circle", role: .caution)
             }
             if folderInspection.isScanning { ProgressView("Rechecking selected locations…").font(.caption) }

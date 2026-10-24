@@ -225,6 +225,15 @@ final class WorkspaceUITests: XCTestCase {
         XCTAssertFalse(app.checkBoxes["downloadsCategorySelection"].isEnabled)
         XCTAssertFalse(app.buttons["Review cleanup"].isEnabled)
         capture("complete-empty")
+        app.typeKey("4", modifierFlags: .command)
+        app.checkBoxes["Include " + root.lastPathComponent].click()
+        app.typeKey("1", modifierFlags: .command)
+        XCTAssertTrue(app.staticTexts["No included locations with current observations."].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["Explore storage"].exists)
+        app.typeKey("4", modifierFlags: .command)
+        app.checkBoxes["Include " + root.lastPathComponent].click()
+        XCTAssertTrue(app.staticTexts["Not scanned"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["Stop scan"].exists, "Re-inclusion does not scan")
     }
 
     @MainActor func testOverviewFindingsRestoreHierarchyAndPreserveReviewChoices() throws {
