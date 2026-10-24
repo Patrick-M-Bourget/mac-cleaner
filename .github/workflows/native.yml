@@ -21,6 +21,7 @@ on:
           - inspector
           - connected-next
           - history
+          - local-records
           - recovery-caller
           - recovery-context
           - recovery-context-initial
@@ -60,13 +61,13 @@ jobs:
         with:
           xcode-version: '26.6'
       - name: Verify disposable scanner boundaries
-        if: github.event_name != 'workflow_dispatch' || (inputs.suite != 'selection' && inputs.suite != 'selection-scroll' && inputs.suite != 'scope' && inputs.suite != 'exclusions' && inputs.suite != 'repair' && inputs.suite != 'handoff' && inputs.suite != 'history' && inputs.suite != 'pip' && inputs.suite != 'keyboard' && inputs.suite != 'alerts' && inputs.suite != 'alert-open' && inputs.suite != 'overview' && inputs.suite != 'overview-main')
+        if: github.event_name != 'workflow_dispatch' || (inputs.suite != 'selection' && inputs.suite != 'selection-scroll' && inputs.suite != 'scope' && inputs.suite != 'exclusions' && inputs.suite != 'repair' && inputs.suite != 'handoff' && inputs.suite != 'history' && inputs.suite != 'local-records' && inputs.suite != 'pip' && inputs.suite != 'keyboard' && inputs.suite != 'alerts' && inputs.suite != 'alert-open' && inputs.suite != 'overview' && inputs.suite != 'overview-main')
         run: xcrun swift test --package-path Packages/StillCore
       - name: Verify alert policies and lifecycle without OS permission prompts
-        if: github.event_name != 'workflow_dispatch' || (inputs.suite != 'selection' && inputs.suite != 'selection-scroll' && inputs.suite != 'scope' && inputs.suite != 'exclusions' && inputs.suite != 'repair' && inputs.suite != 'handoff' && inputs.suite != 'history' && inputs.suite != 'tools' && inputs.suite != 'pip' && inputs.suite != 'homebrew' && inputs.suite != 'keyboard' && inputs.suite != 'overview' && inputs.suite != 'overview-main' && inputs.suite != 'downloads' && inputs.suite != 'downloads-journey')
+        if: github.event_name != 'workflow_dispatch' || (inputs.suite != 'selection' && inputs.suite != 'selection-scroll' && inputs.suite != 'scope' && inputs.suite != 'exclusions' && inputs.suite != 'repair' && inputs.suite != 'handoff' && inputs.suite != 'history' && inputs.suite != 'local-records' && inputs.suite != 'tools' && inputs.suite != 'pip' && inputs.suite != 'homebrew' && inputs.suite != 'keyboard' && inputs.suite != 'overview' && inputs.suite != 'overview-main' && inputs.suite != 'downloads' && inputs.suite != 'downloads-journey')
         run: xcrun swift test --package-path Still/Packages/StorageAlerts
       - name: Verify isolated disposable adapter investigations
-        if: github.event_name != 'workflow_dispatch' || (inputs.suite != 'selection' && inputs.suite != 'selection-scroll' && inputs.suite != 'scope' && inputs.suite != 'exclusions' && inputs.suite != 'repair' && inputs.suite != 'handoff' && inputs.suite != 'history' && inputs.suite != 'tools' && inputs.suite != 'pip' && inputs.suite != 'homebrew' && inputs.suite != 'keyboard' && inputs.suite != 'alerts' && inputs.suite != 'alert-open' && inputs.suite != 'overview' && inputs.suite != 'overview-main' && inputs.suite != 'downloads' && inputs.suite != 'downloads-journey')
+        if: github.event_name != 'workflow_dispatch' || (inputs.suite != 'selection' && inputs.suite != 'selection-scroll' && inputs.suite != 'scope' && inputs.suite != 'exclusions' && inputs.suite != 'repair' && inputs.suite != 'handoff' && inputs.suite != 'history' && inputs.suite != 'local-records' && inputs.suite != 'tools' && inputs.suite != 'pip' && inputs.suite != 'homebrew' && inputs.suite != 'keyboard' && inputs.suite != 'alerts' && inputs.suite != 'alert-open' && inputs.suite != 'overview' && inputs.suite != 'overview-main' && inputs.suite != 'downloads' && inputs.suite != 'downloads-journey')
         run: |
           xcrun swift test --package-path Validation/ICloudProbe
           xcrun swift test --package-path Validation/XcodeProbe
@@ -115,6 +116,8 @@ jobs:
             scope=(-only-testing:StillUITests/CleanupRetryUITests/testSyntheticOutcomeGalleryAtInitialSize -only-testing:StillUITests/CleanupRetryUITests/testSyntheticOutcomeGalleryAtMinimumSize)
           elif [[ "$EVENT_NAME" == "workflow_dispatch" && "$REQUESTED_SUITE" == "terminal-skipped" ]]; then
             scope=(-only-testing:StillUITests/CleanupRetryUITests/testChangedConfirmedFileReportsNoFilesMoved)
+          elif [[ "$EVENT_NAME" == "workflow_dispatch" && "$REQUESTED_SUITE" == "local-records" ]]; then
+            scope=(-only-testing:StillUITests/HistoryUITests/testLocalRecordsUsesBothCallersAndClearPreservesOriginals)
           elif [[ "$EVENT_NAME" == "workflow_dispatch" && "$REQUESTED_SUITE" == "history" ]]; then
             scope=(-only-testing:StillUITests/HistoryUITests)
           elif [[ "$EVENT_NAME" == "workflow_dispatch" && "$REQUESTED_SUITE" == "recovery-caller" ]]; then
