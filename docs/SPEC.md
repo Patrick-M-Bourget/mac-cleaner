@@ -171,4 +171,4 @@ Failure retains explicitly last-observed evidence or shows unavailable; it never
 
 ## Shell and appearance lock — October 24
 
-#53 shell/appearance requirements are now user-confirmed in [SHELL-APPEARANCE](SHELL-APPEARANCE.md): actionable-category badge; destination-aware toolbar; truthful gated monitoring footer; app-wide saved Automatic/Light/Dark with explicit failure/retry/partial-Reset behavior. Implement that contract without changing scan/cleanup/alert policy. Source/native qualification pending.
+#53 shell/appearance requirements are now user-confirmed in [SHELL-APPEARANCE](SHELL-APPEARANCE.md): actionable-category badge; destination-aware toolbar; truthful gated monitoring footer; app-wide saved Automatic/Light/Dark with explicit failure/retry/partial-Reset behavior. Implement that contract without changing scan/cleanup/alert policy. Implemented at `c5886e8` with [bounded shell qualification](validation/shell-appearance.md); no scan, cleanup or alert-policy expansion.

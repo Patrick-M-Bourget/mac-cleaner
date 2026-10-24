@@ -1,6 +1,6 @@
 # Shell and appearance source reviews — #53
 
-Independent Standards and Spec reviews. Baseline `43668a8`, final app candidate `a3b425d`; native acceptance is recorded separately in [qualification](shell-appearance.md). Earlier Reset/invalid-capacity/detail findings were fixed before these final reviews. Source inspection does not substitute for native interaction or original-capture review.
+Final source `c5886e8`, baseline `43668a8`. Independent Standards and Spec reviews have no remaining actionable findings. The chronological reports below preserve failed hypotheses; actual final normal-click3/3 and original-capture acceptance supersede pending wording. [Qualification](shell-appearance.md) records source/run boundaries.
 
 ## Standards
 
@@ -36,6 +36,12 @@ Comparison `2456cdd...a3b425d`: no additional actionable standards findings. The
 
 The prior activation candidate did not pass strict native qualification. The new strict run is pending at this review point; this review grants no acceptance or mouse-success claim. No repository edits.
 
+## Final hosted accessibility-structure correction
+
+Comparison `a3b425d...c5886e8`: no additional actionable standards findings. The parent HStack no longer receives accessibilityHidden(false); only the potentially blank message Text receives its own hidden state. Retry is already conditionally absent when no failure exists, so its native accessibility ownership no longer inherits the whole-row modifier. This narrows metadata ownership without changing layout, callback, store policy or public tests. The actual-bounds native frame getter remains accurate and had demonstrably applied in the earlier candidate; it must not be described as ignored.
+
+New evidence supersedes the provisional diagnosis: hosted run `40098938199` passed all three strict default-click flows at `c5886e8`, with no centered-coordinate test correction. The one-variable parent-to-message accessibility change resolves the previously failing hosted composition in that qualified scope. The local minimal harness did not reproduce that composition and is a bounded negative experiment, not evidence against the actual hosted red-to-green. Keep the now-qualified combination; no further speculative simplification is warranted before integration. No repository edits.
+
 
 ## Spec
 
@@ -68,3 +74,13 @@ Positive physical probe40097534795 established that the default edge activation 
 Reviewed2456cdd..a3b425d. The ineffective activation-point override is removed and AccessibleButton instead reports its actual current bounds converted into window/screen coordinates, retaining superclass fallback before attachment. No source-level Spec issue found: this describes the native control's real hit region rather than inventing a hidden action target, changes no visual/layout/persistence logic and follows later movement. Source and public test callbacks remain unchanged.
 
 The prior center override did not satisfy strict run40097907948; it is not accepted evidence. Measured actual bounds x779/width89 versus expanded AX x778/width91 explain why a default max-minus-one event could fall on the excluded actual boundary. The new truthful frame predicts an interior event, but final strict40098317083 is pending and must demonstrate the unchanged click/persist/dialog/Quit-relaunch flow. No accessibility or platform universality is claimed from the geometry correction alone.
+
+## Notice accessibility containment —c5886e8
+
+Revieweda3b425d..c5886e8: accessibilityHidden(notice == nil) moves from the whole reserved HStack onto its blank/message Text. Retry button is already structurally absent without saveFailed, so no unavailable action is newly exposed. With a failure, the real native button remains accessible without an enclosing visibility modifier; reserved24-point layout, status/message identity, persistence callback and native bounds reporting remain unchanged. No actionable Spec finding in this increment.
+
+Earlier frame correction alone did not resolve ordinary edge activation. This containment change is another bounded hypothesis; strict final native journeys are still running and no fix is proven by source review. Preserve all earlier failing evidence and unchanged strict public assertions until actual green.
+
+## Actual final strict qualification —c5886e8
+
+Native40098938199 passes unchanged ordinary default-click persistence/dialog/Quit-relaunch at both sizes (26.729/20.780seconds) and badge journey48.387seconds. No final custom coordinate assertion or probe path supplies acceptance. All10final originals were individually reviewed with no remaining blockers; see shell53-final-flows-visual-review.md. The parent-hidden-to-message-only change is the last causal variable in this bounded comparison, not a universal accessibility explanation. Earlier16-regression267cd7e669.742seconds and these later final flows are combined scoped evidence; broad OS/accessibility/full-suite limits remain preserved.

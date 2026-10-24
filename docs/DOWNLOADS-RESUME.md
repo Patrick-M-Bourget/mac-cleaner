@@ -14,7 +14,7 @@ October24,2026. Repo `/Users/bender/Library/Caches/Codex/mac-cleaner-implementat
 
 #44/#46/#47/#48 bounded M1 repairs remain accepted and closed; #45 retains row dispositions. #49 Q1–Q12 is implemented and automated qualification passes, with final source and all 71 originals accepted; integrated into integration/still-spec with #49 complete. Its clean implementation worktree is removed after preserving source. Preserve actual red→green and the earlier corrected test assumptions in validation, without calling them product failures.
 
-#53 shell/appearance is now locked and in implementation; #51/#52/#54 remain untriaged. Do not reopen Q1–Q30 or start those untriaged features without resolving their existing decisions. Empty dependency lists do not grant approval. All future milestones remain in MILESTONES; M8 stays deferred.
+#53 shell/appearance is implemented at `c5886e8` with [bounded qualification](validation/shell-appearance.md); #51/#52/#54 remain untriaged. Do not reopen Q1–Q30 or start those untriaged features without resolving their existing decisions. Empty dependency lists do not grant approval. All future milestones remain in MILESTONES; M8 stays deferred.
 
 ## Work conventions
 
@@ -25,4 +25,7 @@ Review build: `/Users/bender/Library/Caches/Codex/mac-cleaner-implementation/art
 
 ## Shell and appearance lock — October 24
 
-#53 shell/appearance is now grilled and locked in [SHELL-APPEARANCE](SHELL-APPEARANCE.md). User authorized implementation and explicitly approved the public appearance-preference service test seam. Start vertical implementation on integration baseline8b2f71b plus this lock; source/native proof pending. #51/#52/#54 remain separate unresolved decisions.
+#53 shell/appearance is now grilled and locked in [SHELL-APPEARANCE](SHELL-APPEARANCE.md). User authorized implementation and explicitly approved the public appearance-preference service test seam. Final app source is `c5886e8`: Core146, alerts43,11 distinct new native journeys and18 existing checks pass across recorded scopes. Normal Retry clicks at both sizes pass after the shared native/actual-bounds/message-only accessibility correction; do not restore whole-row hiding or weaken the public click/persistence test. [Qualification](validation/shell-appearance.md) owns source boundaries, original-capture reviews and earlier failed candidates. #51/#52/#54 remain separate unresolved decisions.
+
+
+Review build: `/Users/bender/Library/Caches/Codex/mac-cleaner-implementation/artifacts/shell-c5886e8/Still.app`. Next decisions are #51 completed-scan/cleanup History, #52 What grew first-use/review routes, and #54 protected release-archive guidance. They remain untriaged; keep all future milestones and M8 deferral.

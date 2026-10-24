@@ -1,14 +1,32 @@
 # Shell and appearance qualification — #53
 
-## Current verification checkpoint — October 24, 2026
+## Final qualification — October 24, 2026
 
-Integration is still blocked. Corrected Gallery run `40094091084` at `4665407` passes 4 tests with 68 original captures (48 new shell examples, 20 existing capacity/local-records examples). All 68 originals have been individually accepted, including the existing examples; exact per-image reviews are preserved beside the manifests. Staged Reset run `40094530265` at `aadc664` passes both sizes, with all 6 originals accepted: clear failure retains uniform Dark; successful appearance removal switches chrome and content to Automatic even when a later service fails. The competing live SwiftUI appearance override was removed; the native process now owns live appearance. Originals and unchanged export manifests are preserved under `docs/visual/shell-appearance/` by run ID.
+Final application source **`c5886e8`** implements the locked #53 contract. Independent [Standards and Spec reviews](shell-appearance-reviews.md) have no remaining actionable findings. The report combines focused, source-bound checks; it is not one full-suite run or universal platform/accessibility certification.
 
-The strict Retry journey still fails at `2795902` in run `40095078306`: after removing the owned write fault, clicking Retry does not save the preference. Explicit button style and increased z-order did not resolve it; neither is recorded as a successful fix. Earlier targeted instrumentation showed no action callback entry. Final affected-flow run `40094532205` passes the two capacity journeys but fails later History/window/navigation checks; diagnosis is pending. Earlier 16/16 regression evidence at `ba355dd` is historical and does not certify the changed live appearance composition. Do not close #53 or claim all journeys pass until these gates clear.
+| Boundary | Actual evidence |
+|---|---|
+| Public preference policy | Four actual red→green journeys within Core **146 passing tests** (141 Swift Testing + 5 XCTest), source `a21f1a0`; no later Core change |
+| Typed alert presentation | **43 passing package tests**, 33 existing + 10 new, including Reset failures and invalid capacity; no polling/notification policy expansion |
+| Final normal-click Retry + badge | Run **40098938199**, source `c5886e8`: **3/3 pass**, 95.897s. Retry initial26.729s / minimum20.780s; badge48.387s. Unchanged normal `.click()`, actual stored Dark, native dialog, Quit/relaunch, stable bounds/anchor and file bytes |
+| Read fallback | Run40091893260, source `b947c2a`: both sizes pass; invalid/unreadable owned preference stays untouched |
+| Staged Reset and Clear | Run40094530265, source `aadc664`: both sizes pass, all six originals accepted; appearance failure retains Dark, later-service failure after removal switches the whole app to Automatic |
+| Persistence and footer | Runs40091348457 / 40091995008: relaunch persistence and direct typed attention route pass; opening details preserves settings, original bytes and choices |
+| Shared Gallery | Run40094091084: four tests pass, all68 originals individually reviewed. Run40096988157: four pass; four changed native Retry states individually reviewed, remaining64 unchanged states carry earlier reviews |
+| Existing affected journeys | Run **40096954114**, source `267cd7e`: **16/16 pass**, 669.742s (capacity2, History2, Local records1, alerts9, Downloads2). The same capacity→History ordering passes without a product launch change |
+| Local build | Xcode27.1 build-for-testing succeeds from implementer27f71b9, application-source equivalent to `c5886e8`; copied ad-hoc app signature verifies |
 
-The sections below are chronological evidence, including failed/superseded candidates. Their pending wording describes those checkpoints rather than overriding this current status.
+Combined native coverage is **11 distinct new journeys plus 18 existing checks** across the recorded scopes (the existing Gallery pair plus16 regressions). The last changes after267cd7e affect only Retry accessibility reporting/ownership; final normal-click journeys exercise that later correction. The16-run does not itself certify the later Retry code. Minimum900×640 and host-clamped initial1024×640 are recorded; native dialogs use their actual screenshot bounds.
 
-Contract [SHELL-APPEARANCE](../SHELL-APPEARANCE.md) locked October 24,2026 at f5174a6. Public appearance-service boundary explicitly approved by user; existing public UI journeys remain approved. Implementation started in isolated issue53 worktree. No new test result, source acceptance or native capture is claimed yet. Record actual red→green cycles and source-bound original theme/size captures here before integration.
+The Retry investigation initially over-attributed a missed synthetic event to styling/native metadata. Corrected native hit-testing proved physical center dispatch worked while the default click hit an excluded boundary. Neither styling, z-order, activation point nor frame reporting alone fixed the strict test. The final one-variable change scopes accessibility hiding to the message instead of the whole HStack; **the unchanged normal-click journey then passes** in the real hosted composition. Retain that qualified shared native-control/actual-bounds/message-only combination. Successful runs did not retain event plists, so no successful pointer coordinate is invented. A local minimal harness did not reproduce the hosted ownership effect; do not generalize the cause to all SwiftUI/macOS controls.
+
+The earlier missing-window run remains disclosed below. A focused History2 replay and the full original16 ordering both pass without a product launch patch; no cause is asserted for that isolated runner observation. Temporary traces, event monitors, flags and center-coordinate test diagnostics are removed. No test bypass or weakened persistence assertion remains.
+
+Originals and unmodified manifests are under `docs/visual/shell-appearance/` by run ID. Final ten live originals are from40098938199; visual review is recorded alongside them. Historical failed/superseded states remain clearly separate. The chronology below records prior checkpoints; its pending wording does not override this final summary.
+
+Real OS permissions/delivery, iCloud providers, every OS/CPU/appearance configuration, VoiceOver/localization and release distribution remain their existing gates. No new timer, keepalive, automatic scan, cleanup authority or feature-gate promotion is added. All future milestones remain preserved; M8 stays deferred.
+
+Chronological record: [SHELL-APPEARANCE](../SHELL-APPEARANCE.md) was locked October 24, 2026 at `f5174a6`. The user explicitly approved the public appearance-service boundary; existing public UI journeys remained approved. Implementation began in the isolated issue53 worktree, before the results below were available.
 
 ## First public shell tracer
 

@@ -47,7 +47,7 @@ The tables below Classification retain the original audit baseline. This current
 | H04 | Partial; decision/future parts retained | R per-run expanded recorded facts; L shared local records. See what grew/History activity relationship remains #51/M4; never restore old approval for latest results |
 | O02,O06,X02 | Implemented bounded #49; final visual review accepted | User-locked CAPACITY-REFRESH.md now has process-owned lifecycle/manual/terminal refresh, 30-second foreground rule, coalesced trailing demand, 10-second expiry, stale/unavailable/partial states and shared native controls. Combined six policy tests/Core142, 10 new UI journeys and 17 existing checks pass; final presentation source8869b38, final 71-original capture review accepted. This overlay supersedes the historical once-at-window-creation/absent-retry findings below; no full-suite or universal platform claim |
 | H01,H03 | Decision pending #51 | Cleanup-only versus aggregate scan History and retention wording; existing protected history mechanisms retained |
-| N05–N07,A04 | Locked; implementation pending #53 | [SHELL-APPEARANCE](SHELL-APPEARANCE.md) Q1–Q13 settles badge, effective monitoring context, saved shared appearance and failure/Reset behavior; bounded native proof pending |
+| N05–N07,A04 | Covered within bounded #53 qualification | [SHELL-APPEARANCE](SHELL-APPEARANCE.md) Q1–Q13 is implemented at `c5886e8`; [native/source evidence](validation/shell-appearance.md) records normal-click, theme, size and affected-flow acceptance and limits |
 | S07,P10,C01–C02 and other adapters | Future gated | Recognized discovery, cloud/developer/browser actions retain their original M2/M3 tickets; never required to close M1 feature implementation |
 | G01–G04 | Future M4 + unresolved #52 | Existing comparison mechanisms do not complete first-use/review-options routing or approved visual hierarchy |
 | M01–M02 | Future M6 + unresolved #54 | Existing managed guidance retained; release-archive information architecture still outstanding, no deletion |
@@ -242,7 +242,7 @@ These source pointers make the classification reproducible at the pinned baselin
 - M1 lacks cloud/developer/browser mutation by approved design; those are retained future tickets, not removed features. Cloud metadata in Overview is explicitly scoped, not a made-up aggregate or eviction estimate.
 - App-managed directories/libraries may remain Unknown/Not inspected rather than recursively traversed for a sample-looking total. No direct backup/library/database deletion.
 - Review-only browser/cache/permission/alert simulations and milestone switcher do not ship. A development future flag does not promote M2–M6 to production.
-- History is currently cleanup-only; whether this is the intended permanent departure is **unresolved #51**, not silently accepted here. Appearance persistence was unresolved in this baseline; #53 is now locked under SHELL-APPEARANCE.md, with implementation/proof pending.
+- History is currently cleanup-only; whether this is the intended permanent departure is **unresolved #51**, not silently accepted here. Appearance persistence was unresolved in this baseline; #53 is now implemented under SHELL-APPEARANCE.md with [bounded qualification](validation/shell-appearance.md).
 
 ## Decision checkpoint and ongoing acceptance gate
 
@@ -272,4 +272,4 @@ The approved connected journey now includes caller-aware manual recovery, retain
 
 ## Shell and appearance lock — October 24
 
-Current N05/N06/N07/A04 decision overlay: #53 Q1–Q13 and consolidated contract are user-confirmed in [SHELL-APPEARANCE](SHELL-APPEARANCE.md). Historical audit rows remain baseline findings; these rows are approved for repair, not Covered. Badge categories, accurate context/monitoring, saved shared appearance and partial failure behavior are explicit. Implementation and bounded native proof pending.
+Current N05/N06/N07/A04 decision overlay: #53 Q1–Q13 and consolidated contract are user-confirmed in [SHELL-APPEARANCE](SHELL-APPEARANCE.md). Historical audit rows remain baseline findings. Current N05/N06/N07/A04 disposition is Covered within #53’s bounded implementation at `c5886e8`; [qualification](validation/shell-appearance.md) records actual normal-click/theme/size/flow proof and limits. Badge categories, accurate context/monitoring, saved shared appearance and partial failure behavior are explicit. The locked contract is implemented; broader OS/accessibility and future-feature gates remain unchanged.

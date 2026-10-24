@@ -1,6 +1,6 @@
 # Shell and appearance — #53 locked contract
 
-User-confirmed October 24, 2026, Q1–Q13 and consolidated confirmation. Parity N05–N07/A04. Approved for implementation; source/native qualification pending. This extends the existing connected flow and capacity contracts without reopening them.
+User-confirmed October 24, 2026, Q1–Q13 and consolidated confirmation. Parity N05–N07/A04. Implemented at application source `c5886e8`, with [bounded qualification](validation/shell-appearance.md) and independent source reviews. This extends the existing connected flow and capacity contracts without reopening them.
 
 ## Live selection badge
 
@@ -43,4 +43,4 @@ User explicitly approved the additional public appearance-preference service sea
 
 ## Decision trace
 
-Q1 badge categories; Q2 saved app-wide appearance; Q3 destination context; Q4 truthful monitoring states; Q5 direct status route; Q6 Reset/Clear and session fallback; Q7 actionable badge authority; Q8 monitoring priority; Q9 invalid/unreadable fallback; Q10 toolbar precedence/copy; Q11 non-disruptive save retry; Q12 partial Reset truth; Q13 gating and background limits. All accepted; consolidated lock explicitly confirmed. No feature implementation is claimed by this document.
+Q1 badge categories; Q2 saved app-wide appearance; Q3 destination context; Q4 truthful monitoring states; Q5 direct status route; Q6 Reset/Clear and session fallback; Q7 actionable badge authority; Q8 monitoring priority; Q9 invalid/unreadable fallback; Q10 toolbar precedence/copy; Q11 non-disruptive save retry; Q12 partial Reset truth; Q13 gating and background limits. All accepted; consolidated lock explicitly confirmed. The contract is implemented within the source-bound checks and limits in the qualification report.
