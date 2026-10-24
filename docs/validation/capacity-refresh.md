@@ -5,4 +5,4 @@ Contract locked October24,2026 in [CAPACITY-REFRESH](../CAPACITY-REFRESH.md). Im
 
 ## First public UI tracer
 
-Test-only agent `ab42ba9`, root `8941c41`: explicit capacity refresh exists separately from Scan again and preserves Overview coverage/navigation/empty plan and fixed window. Guarded missing-action failure captures and returns promptly. Local build-for-testing passes. Production is unchanged; hosted behavioral red is pending. No service tests are written before boundary approval.
+Test-only agent `ab42ba9`, root `8941c41`: explicit capacity refresh exists separately from Scan again and preserves Overview coverage/navigation/empty plan and fixed window. Guarded missing-action failure captures and returns promptly. Local build-for-testing passes. Production is unchanged. Hosted behavioral red `40083724345` at `8941c41` fails at line16 on the missing capacity-only refresh action (15.030seconds), as intended. Local/native app compilation and existing Core136 (131SwiftTesting+5XCTest) pass. No service tests are written before boundary approval.
