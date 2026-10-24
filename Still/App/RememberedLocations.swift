@@ -5,7 +5,21 @@ import StillCore
 /// Remembered configuration is separate from the process-only observations and live plan.
 @MainActor @Observable final class RememberedLocations {
     private(set) var scopes: [RememberedScope] = []
-    private(set) var statuses: [UUID: String] = [:]
+    enum AccessStatus {
+        case notScanned, ready, chooseAgain, unavailable, omitted, recheck
+        var text: String {
+            switch self {
+            case .notScanned: "Not scanned"
+            case .ready: "Ready for manual scan"
+            case .chooseAgain: "Access needs renewal · Choose again"
+            case .unavailable: "Location unavailable · Reconnect and recheck"
+            case .omitted: "Omitted from the next scan"
+            case .recheck: "Not scanned · Recheck required"
+            }
+        }
+        var needsRecovery: Bool { self == .chooseAgain || self == .unavailable }
+    }
+    private(set) var statuses: [UUID: AccessStatus] = [:]
     var message: String?
     private func registry() throws -> ScopeRegistry {
         ScopeRegistry(directory: try LocalStateLocation.root(create: true).appendingPathComponent("Scopes", isDirectory: true))
@@ -17,20 +31,20 @@ import StillCore
     @discardableResult func remember(_ url: URL, downloads: Bool) -> Bool {
         do {
             let scope = try registry().remember(url: url, kind: downloads ? .downloads : .inspection)
-            load(); statuses[scope.id] = "Not scanned"; return true
+            load(); statuses[scope.id] = .notScanned; return true
         } catch { message = "This location could not be remembered. Choose it again or check access."; return false }
     }
     var included: [RememberedScope] { scopes.filter(\.isIncluded) }
     var includedDownloads: [RememberedScope] { included.filter { $0.kind == .downloads } }
     func resolve(_ scope: RememberedScope) -> ScopeAccessLease? {
-        do { let lease = try registry().resolveForScan(id: scope.id); statuses[scope.id] = "Ready for manual scan"; return lease }
-        catch ScopeRegistryError.chooseAgain { statuses[scope.id] = "Access needs renewal · Choose again" }
-        catch { statuses[scope.id] = "Location unavailable · Reconnect and recheck" }
-        message = statuses[scope.id].map { URL(fileURLWithPath: scope.path).lastPathComponent + " · " + $0 }
+        do { let lease = try registry().resolveForScan(id: scope.id); statuses[scope.id] = .ready; return lease }
+        catch ScopeRegistryError.chooseAgain { statuses[scope.id] = .chooseAgain }
+        catch { statuses[scope.id] = .unavailable }
+        message = statuses[scope.id].map { URL(fileURLWithPath: scope.path).lastPathComponent + " · " + $0.text }
         return nil
     }
     @discardableResult func setIncluded(_ value: Bool, scope: RememberedScope) -> Bool {
-        do { try registry().setIncluded(value, id: scope.id); load(); statuses[scope.id] = value ? "Not scanned · Recheck required" : "Omitted from the next scan"; return true }
+        do { try registry().setIncluded(value, id: scope.id); load(); statuses[scope.id] = value ? .recheck : .omitted; return true }
         catch { message = "The location setting could not be saved."; return false }
     }
     @discardableResult func forget(_ scope: RememberedScope) -> Bool {

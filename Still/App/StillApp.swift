@@ -253,9 +253,7 @@ private struct WorkspaceView: View {
                         }
                     } else if destination == .overview && !managedStorageVisible && !dockerVisible && !pipVisible && !homebrewVisible {
                         if folderInspection.isScanning {
-                            ActionStrip(message: "Rechecking selected locations · No cleanup is running") {
-                                Button("Stop scan") { folderInspection.cancel() }.buttonStyle(.borderedProminent)
-                            }
+                            ActionStrip(message: "Manual scan running · No cleanup is running") { EmptyView() }
                         } else {
                         ActionStrip(message: "\(StillDesign.files(selection.draft.selectedCount)) selected · Nothing changes before confirmation.") {
                             Button("Review cleanup plan") { destination = .plan }.buttonStyle(.borderedProminent).disabled(selection.scans.isEmpty && selection.draft.selectedCount == 0)
@@ -487,6 +485,9 @@ private struct WorkspaceView: View {
                     if let result = folderInspection.result {
                         Text("\(folderInspection.scopeReports.count) locations · Current: \(result.scope.lastPathComponent)").font(.caption).foregroundStyle(.secondary).help(result.scope.path)
                         Text("Observed \(result.observedAt.formatted(date: .abbreviated, time: .shortened))").font(.caption).foregroundStyle(.secondary)
+                    } else if let previous = folderInspection.lastComplete {
+                        Text("Current coverage: Unknown · Access unavailable").font(.caption).foregroundStyle(.secondary)
+                        Text("Last complete observation: " + previous.observedAt.formatted()).font(.caption).foregroundStyle(.secondary)
                     } else { Text("Choose a folder to understand its local storage.").font(.caption).foregroundStyle(.secondary) }
                 }.frame(maxWidth: .infinity, alignment: .leading)
                 VStack(alignment: .trailing, spacing: StillDesign.Space.sm) {
@@ -503,6 +504,7 @@ private struct WorkspaceView: View {
                 StatusRow(text: "Some locations have partial coverage. Uninspected bytes remain unknown.", symbol: "exclamationmark.circle", role: .caution)
             }
             if folderInspection.isScanning { ProgressView("Rechecking selected locations…").font(.caption) }
+            if let message = locationsModel.message { StatusRow(text: message, symbol: "info.circle", role: .caution) }
             if let message = folderInspection.message { StatusRow(text: message, symbol: "info.circle") }
             CleanupScopeNotice(enabled: !folderInspection.isScanning && !selection.execution.isRunning, compact: true, chooseDownloads: chooseDownloads)
         }
@@ -559,7 +561,10 @@ private struct WorkspaceView: View {
         guard !folderInspection.isScanning, !selection.execution.isRunning else { return }
         let leases = scopes.compactMap { locationsModel.resolve($0) }
         let resolved = Set(leases.map { $0.url.standardizedFileURL.path })
-        for scope in scopes where !resolved.contains(scope.path) { selection.suspendScope(URL(fileURLWithPath: scope.path)) }
+        for scope in scopes where !resolved.contains(scope.path) {
+            let url = URL(fileURLWithPath: scope.path)
+            selection.suspendScope(url); folderInspection.markUnavailable(url)
+        }
         guard !leases.isEmpty else { return }
         selection.leaveRetryMode(); scanOrigin = destination
         folderInspection.scanAgain(scopes: leases.map(\.url), leases: leases)
@@ -600,7 +605,7 @@ private struct WorkspaceView: View {
                         if locationsModel.setIncluded(included, scope: scope) { selection.suspendScope(URL(fileURLWithPath: scope.path)) }
                     }), enabled: !folderInspection.isScanning && !selection.execution.isRunning) {
                     HStack {
-                        if locationStatus(scope).contains("unavailable") || locationStatus(scope).contains("renewal") {
+                        if locationsModel.statuses[scope.id]?.needsRecovery == true {
                             Button("Choose again…") {
                                 if let url = FolderInspection.chooseFolder(remembering: true) {
                                     if url.standardizedFileURL.path == scope.path { _ = locationsModel.remember(url, downloads: isDownloadsLocation(url)) }
@@ -616,6 +621,10 @@ private struct WorkspaceView: View {
                             }
                         }
                     }
+                }
+                if locationsModel.statuses[scope.id]?.needsRecovery == true,
+                   let previous = folderInspection.scopeReports.first(where: { $0.current.scope.path == scope.path })?.lastComplete {
+                    Text("Last complete observation: " + previous.observedAt.formatted() + " · Historical, not current coverage").font(.caption).foregroundStyle(.secondary)
                 }
                 Divider()
             }
@@ -637,7 +646,7 @@ private struct WorkspaceView: View {
     }
     private func locationStatus(_ scope: RememberedScope) -> String {
         if !scope.isIncluded { return "Omitted from the next scan" }
-        if let status = locationsModel.statuses[scope.id], status.contains("unavailable") || status.contains("renewal") { return status }
+        if let status = locationsModel.statuses[scope.id], status.needsRecovery { return status.text }
         if let scan = selection.scans[URL(fileURLWithPath: scope.path)] {
             if selection.unavailableScopes.contains(scan.scope.standardizedFileURL) { return "Refresh required" }
             return scan.isComplete ? "Observed · " + scan.observedAt.formatted(date: .omitted, time: .shortened) : "Partial coverage · Uninspected bytes unknown"

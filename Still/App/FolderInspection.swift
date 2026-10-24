@@ -89,7 +89,7 @@ final class FolderInspection {
             selection.endRefreshBatch(batchRequests)
             batchRequests = []
             scanAgainTask = nil
-            if let focusedScope, let report = scopeReports.first(where: { $0.current.scope.standardizedFileURL == focusedScope }) { show(report) }
+            if let focusedScope, !selection.unavailableScopes.contains(focusedScope), let report = scopeReports.first(where: { $0.current.scope.standardizedFileURL == focusedScope }) { show(report) }
         }
     }
 
@@ -152,6 +152,14 @@ final class FolderInspection {
                 message = error is CancellationError ? "Scan stopped. Choose a folder to try again." : ExclusionsModel.shared.error ?? "This folder could not be inspected. Choose the folder again or check access in System Settings."
             }
         }
+    }
+
+    func markUnavailable(_ url: URL) {
+        scope = url
+        let previous = scopeReports.first { $0.current.scope.path == url.path }
+        lastComplete = previous?.lastComplete ?? previous.flatMap { $0.current.isComplete ? $0.current : nil }
+        result = nil; selected = nil
+        message = "Current coverage: Unknown · This location is unavailable. Reconnect and recheck, or choose it again in Locations & access."
     }
 
     func show(_ report: ScopeReport) {

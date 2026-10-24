@@ -374,7 +374,7 @@ struct LiveCleanupPlanView: View {
             if selection.rows.isEmpty {
                 CategoryPrerequisite(title: selection.isRefreshing ? "Refreshing…" : selection.overviewDownloadsCoverage == .complete ? "No eligible files" : selection.overviewDownloadsCoverage == .incomplete ? "Refresh required" : "Not scanned",
                     detail: selection.overviewDownloadsCoverage == .complete ? "No eligible files in the inspected Downloads locations." : "Scan included Downloads locations to choose exact files. Other folders are inspection only.",
-                    actionTitle: selection.scans.isEmpty ? "Scan Downloads…" : "Scan Downloads again", enabled: !selection.isRefreshing && !selection.isPreparing, action: chooseDownloads)
+                    actionTitle: selection.overviewDownloadsCoverage == .notInspected ? "Scan Downloads…" : "Scan Downloads again", enabled: !selection.isRefreshing && !selection.isPreparing, action: chooseDownloads)
             } else {
             CategorySelectionHeader(category: .downloads, state: selection.categoryState,
                                     title: "Downloads · \(StillDesign.files(selection.rows.count)) eligible",
@@ -383,10 +383,18 @@ struct LiveCleanupPlanView: View {
                                     enabled: !selection.isPreparing && !selection.isRefreshing && !selection.rows.isEmpty) {
                 Task { await selection.toggleAll() }
             }
+            Text("Inspected coverage: " + Set(selection.rows.map { $0.scan.scope.lastPathComponent }).sorted().joined(separator: ", "))
+                .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            if selection.overviewDownloadsCoverage == .incomplete {
+                StatusRow(text: "Limited coverage · Only the eligible observed files above are included. Uninspected contents remain unknown.", symbol: "exclamationmark.circle", role: .caution)
+            }
             if selection.isPreparing { ProgressView("Checking exact Downloads targets…") }
             if let approved = selection.approvedBatch { Text("Approved batch: \(approved.targets.count) files · No files moved.").foregroundStyle(.secondary) }
             if let approvalError { Text(approvalError).foregroundStyle(.secondary) }
-            if let exploreDownloads { Button("Explore Downloads", action: exploreDownloads) }
+            HStack {
+                if let exploreDownloads { Button("Explore Downloads", action: exploreDownloads) }
+                Button("Scan Downloads again", action: chooseDownloads).disabled(selection.isRefreshing || selection.isPreparing)
+            }
             DisclosureGroup("Choose items", isExpanded: $presentation.choosingItems) {
                 VStack(alignment: .leading, spacing: StillDesign.Space.md) {
                     TextField("Search Downloads items", text: $presentation.search)
@@ -454,7 +462,6 @@ struct LiveCleanupPlanView: View {
             }
         } else if selection.execution.result == nil && selection.execution.error == nil {
         ActionStrip(message: selection.isRefreshing ? "Review is paused while findings are rechecked." : selection.pendingCount > 0 ? "Refresh required before reviewing the selected files." : "Nothing changes until you confirm the next step.") {
-            if selection.isRefreshing { Button("Stop refresh", action: stopRefresh) }
 ReviewCleanupButton(enabled: selection.canReview, focusRequest: reviewFocusRequest) {
                 do { review = try selection.review(); approvalError = nil } catch { approvalError = "Recheck the selected targets before reviewing." }
             }.fixedSize()
@@ -467,8 +474,16 @@ ReviewCleanupButton(enabled: selection.canReview, focusRequest: reviewFocusReque
                 catch { approvalError = "The plan changed. Review the latest exact targets before approving."; review = nil }
             }
         }
+        .onAppear { reconcileInspector() }
+        .onChange(of: selection.isRefreshing) { _, refreshing in if !refreshing { reconcileInspector() } }
+        .onChange(of: selection.scans.values.map(\.observedAt).sorted()) { _, _ in reconcileInspector() }
         .onChange(of: selection.mutationVersion) { _, _ in if review != nil { review = nil } }
     }
+    private func reconcileInspector() {
+        guard !selection.isRefreshing, let old = presentation.inspected else { return }
+        presentation.inspected = selection.rows.first { $0.item.id == old.id && $0.item.resourceID == old.resourceID }?.item
+    }
+
 }
 
 private struct CleanupConfirmationView: View {
