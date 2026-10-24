@@ -193,12 +193,15 @@ import SwiftUI
         guard !isPreparing && !isRefreshing && !execution.isRunning else { return }
         if categoryState == .checked { draft.clear(); approvedBatch = nil; AppLifecycleController.shared.hasPendingPlan = false; return }
         guard let downloads else { return }
-        let leases: [ScopeAccessLease]
-        do { leases = try AppLifecycleController.shared.locations.leases(for: rows.map { $0.scan.scope }) }
-        catch { message = "Access needs renewal. Recheck the included Downloads locations before selecting files."; return }
+        var leases: [ScopeAccessLease] = []
+        var availableScans: [ScanResult] = []
+        for scan in scans.values where !unavailableScopes.contains(scan.scope.standardizedFileURL) {
+            do { leases += try AppLifecycleController.shared.locations.leases(for: [scan.scope]); availableScans.append(scan) }
+            catch { let request = beginRefresh(scan.scope); cancelRefresh(request) }
+        }
         defer { for lease in leases { lease.close() } }
         invalidateReview()
-        let version = mutationVersion, scans = Array(scans.values.filter { !unavailableScopes.contains($0.scope.standardizedFileURL) }), current = draft, allowed = retryTargetIDs
+        let version = mutationVersion, scans = availableScans, current = draft, allowed = retryTargetIDs
         isPreparing = true
         let result = await Task.detached(priority: .userInitiated) {
             var updated = current
@@ -233,18 +236,30 @@ import SwiftUI
         draft.remove(target.id)
         AppLifecycleController.shared.hasPendingPlan = draft.selectedCount > 0
     }
+    private func supportedAlternatives(excluding scope: URL) -> ([ScanResult], [ScopeAccessLease]) {
+        var supported: [ScanResult] = [], leases: [ScopeAccessLease] = []
+        for scan in scans.values where scan.scope.standardizedFileURL.path != scope.standardizedFileURL.path && scan.isComplete && !unavailableScopes.contains(scan.scope.standardizedFileURL) {
+            guard let granted = try? AppLifecycleController.shared.locations.leases(for: [scan.scope]) else { continue }
+            leases += granted; supported.append(scan)
+        }
+        return (supported, leases)
+    }
     func dependentSelectionCount(for scope: URL) -> Int {
+        let (supported, leases) = supportedAlternatives(excluding: scope)
+        defer { for lease in leases { lease.close() } }
         var proposed = draft
         return proposed.rebindUnchangedSelected(removingScope: scope,
-            using: Array(scans.values.filter { !unavailableScopes.contains($0.scope.standardizedFileURL) }),
+            using: supported,
             exclusionFingerprint: expectedExclusionFingerprint).dependentIDs.count
     }
     func suspendScope(_ scope: URL, forget: Bool = false) {
         let request = beginRefresh(scope)
         cancelRefresh(request)
         scans = scans.filter { $0.key.standardizedFileURL.path != scope.standardizedFileURL.path }
+        let (supported, leases) = supportedAlternatives(excluding: scope)
+        defer { for lease in leases { lease.close() } }
         let proof = draft.rebindUnchangedSelected(removingScope: scope,
-            using: Array(scans.values.filter { !unavailableScopes.contains($0.scope.standardizedFileURL) }),
+            using: supported,
             exclusionFingerprint: expectedExclusionFingerprint)
         refresh.retirePending(after: proof, in: draft)
         if forget { for id in proof.dependentIDs { draft.remove(id) } }
@@ -328,6 +343,8 @@ struct LiveCleanupPlanView: View {
     var viewHistory: (() -> Void)? = nil
     var newPlan: (() -> Void)? = nil
     var backToExplorer: (() -> Void)? = nil
+    var manageLocations: (() -> Void)? = nil
+    var scopeMessage: String? = nil
     @Bindable var presentation: CleanupPlanPresentation
     @State private var review: CleanupReview?
     @State private var approvalError: String?
@@ -339,7 +356,6 @@ struct LiveCleanupPlanView: View {
             CleanupExecutionView(model: selection.execution, retryMessage: selection.message).padding(StillDesign.Space.page)
         } else {
         VStack(alignment: .leading, spacing: StillDesign.Space.lg) {
-            DestinationViewport(offset: $presentation.offset).frame(height: 0)
             if let backToExplorer { Button("Back to Explorer", systemImage: "chevron.left", action: backToExplorer) }
             PageHeader(title: "Cleanup plan", subtitle: selection.retryTargetIDs == nil ? "Choose categories, adjust items if needed, then review the changes." : "Only rechecked unfinished files are included. Completed successes and new discoveries stay excluded.")
                 .padding(.bottom, StillDesign.Space.sm)
@@ -347,6 +363,10 @@ struct LiveCleanupPlanView: View {
             if selection.pendingCount > 0 {
                 StatusRow(text: "Refresh required · Previous choices retained for \(StillDesign.files(selection.pendingCount)).", symbol: "arrow.clockwise", role: .caution)
                 Button("Deselect unavailable files") { selection.deselectUnavailable() }
+            }
+            if let scopeMessage {
+                StatusRow(text: scopeMessage, symbol: "info.circle", role: .caution)
+                if let manageLocations { Button("Manage locations", action: manageLocations) }
             }
             ForEach(selection.refresh.notices) { notice in
                 StatusRow(text: notice.target.url.lastPathComponent + " · " + notice.message, symbol: "info.circle", role: .caution)
@@ -410,6 +430,7 @@ struct LiveCleanupPlanView: View {
             }
 
         }.padding(StillDesign.Space.page).frame(maxWidth: .infinity, alignment: .leading)
+            .background(alignment: .topLeading) { DestinationViewport(offset: $presentation.offset).frame(width: 0, height: 0) }
         }
         }.background(StillDesign.reading)
         if selection.isRetryRechecking {

@@ -606,12 +606,18 @@ struct CategoryPrerequisite: View {
 /// Shared across destinations; stopping or finishing a scan never changes the route.
 struct ToolbarScanStatus: View {
     let location: String
+    var phase = "Reading metadata…"
+    var inspectedEntries: Int? = nil
     var returnToScan: (() -> Void)?
     let stop: () -> Void
     var body: some View {
         HStack(spacing: StillDesign.Space.sm) {
             ProgressView().controlSize(.small)
-            Text("Scanning " + location).font(.caption).lineLimit(1)
+            VStack(alignment: .leading, spacing: 0) {
+                Text(phase).font(.caption).lineLimit(1).accessibilityIdentifier("scanPhase")
+                Text(inspectedEntries.map { "\($0) entries inspected · " + location } ?? "Scanning " + location)
+                    .font(.caption2).foregroundStyle(.secondary).lineLimit(1).accessibilityIdentifier("scanProgressSummary")
+            }.frame(maxWidth: 240, alignment: .leading)
             Button("Stop scan", action: stop).controlSize(.small)
             if let returnToScan { Button("Return to scan", action: returnToScan).controlSize(.small) }
         }.accessibilityElement(children: .contain)

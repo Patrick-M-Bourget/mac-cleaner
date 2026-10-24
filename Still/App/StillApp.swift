@@ -184,7 +184,8 @@ private struct WorkspaceView: View {
                     LiveCleanupPlanView(selection: selection, recheck: { scope in scanLocations(locationsModel.included.filter { $0.path == scope.path }) }, stopRefresh: { folderInspection.cancel() }, chooseDownloads: scanDownloads,
                         exploreDownloads: { openExplorer(downloads: true, caller: .plan) },
                         viewHistory: { destination = .history }, newPlan: startNewPlan,
-                        backToExplorer: planReturnsToExplorer ? { nativeInspectionVisible = true; planReturnsToExplorer = false } : nil, presentation: planPresentation)
+                        backToExplorer: planReturnsToExplorer ? { nativeInspectionVisible = true; planReturnsToExplorer = false } : nil,
+                        manageLocations: { destination = .locations }, scopeMessage: locationsModel.message ?? folderInspection.message, presentation: planPresentation)
                 } else {
                 ScrollView {
                     VStack(alignment: .leading, spacing: StillDesign.Space.xl) {
@@ -313,6 +314,8 @@ private struct WorkspaceView: View {
     @ViewBuilder private var contextToolbarLabel: some View {
         if folderInspection.isScanning {
             ToolbarScanStatus(location: folderInspection.scope?.lastPathComponent ?? "selected locations",
+                phase: folderInspection.progress.map { $0.phase == .rechecking ? "Rechecking changed coverage (one attempt)…" : $0.phase == .checkingDirectories ? "Checking directory stability…" : "Reading file metadata…" } ?? "Preparing metadata scan…",
+                inspectedEntries: folderInspection.progress?.visitedEntries,
                 returnToScan: destination == scanOrigin && !nativeInspectionVisible ? nil : { nativeInspectionVisible = false; destination = scanOrigin },
                 stop: { folderInspection.cancel() })
         } else { Text(contextLabel).font(.caption).foregroundStyle(.secondary).lineLimit(1) }

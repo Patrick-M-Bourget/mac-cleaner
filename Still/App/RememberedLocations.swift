@@ -26,6 +26,7 @@ import StillCore
         do { let lease = try registry().resolveForScan(id: scope.id); statuses[scope.id] = "Ready for manual scan"; return lease }
         catch ScopeRegistryError.chooseAgain { statuses[scope.id] = "Access needs renewal · Choose again" }
         catch { statuses[scope.id] = "Location unavailable · Reconnect and recheck" }
+        message = statuses[scope.id].map { URL(fileURLWithPath: scope.path).lastPathComponent + " · " + $0 }
         return nil
     }
     @discardableResult func setIncluded(_ value: Bool, scope: RememberedScope) -> Bool {

@@ -29,6 +29,7 @@ final class FolderInspection {
     private var cancellation: ScanCancellation?
     var progress: ScanProgress?
     private var previewAccessScope: URL?
+    private var previewLease: ScopeAccessLease?
     private var refreshRequest: RefreshRequest?
     var scope: URL?
     var result: ScanResult?
@@ -198,6 +199,10 @@ final class FolderInspection {
 
     func preview(_ item: FileObservation) {
         closePreviewAccess()
+        if let scope {
+            do { previewLease = try AppLifecycleController.shared.locations.leases(for: [scope]).first }
+            catch { message = "Renew access to this location before previewing. No download was requested."; return }
+        }
         if let scope, scope.startAccessingSecurityScopedResource() { previewAccessScope = scope }
         let token = UUID(); previewGeneration = token
         previewTask = Task {
@@ -219,6 +224,7 @@ final class FolderInspection {
         previewGeneration = UUID()
         previewAccessScope?.stopAccessingSecurityScopedResource()
         previewAccessScope = nil
+        previewLease?.close(); previewLease = nil
     }
 
     func reveal(_ item: FileObservation) {
