@@ -109,11 +109,23 @@ import SwiftUI
     var overviewDownloadsCoverage: OverviewDownloadsCoverage {
         guard let downloads else { return .notInspected }
         let root = downloads.url.standardizedFileURL.pathComponents
+        let locations = AppLifecycleController.shared.locations
+        let included = locations.includedDownloads
+        let includedPaths = Set(included.map(\.path))
         let reports = scans.values.filter {
-            $0.exclusionFingerprint == expectedExclusionFingerprint && $0.scope.standardizedFileURL.pathComponents.starts(with: root)
+            $0.exclusionFingerprint == expectedExclusionFingerprint
+                && $0.scope.standardizedFileURL.pathComponents.starts(with: root)
+                && includedPaths.contains($0.scope.standardizedFileURL.path)
         }
-        guard !reports.isEmpty else { return .notInspected }
-        return reports.allSatisfy { $0.totalLogicalBytes != nil && !unavailableScopes.contains($0.scope.standardizedFileURL) } ? .complete : .incomplete
+        // Resolving a missing grant retires its scan, but that is failed coverage,
+        // not a never-inspected location. Omitted and freshly re-included scopes
+        // remain separate from this explicit recovery state.
+        let accessUnavailable = included.contains { locations.statuses[$0.id]?.needsRecovery == true }
+        guard !reports.isEmpty else { return accessUnavailable ? .incomplete : .notInspected }
+        let observedPaths = Set(reports.map { $0.scope.standardizedFileURL.path })
+        return !accessUnavailable && includedPaths.isSubset(of: observedPaths)
+            && reports.allSatisfy { $0.totalLogicalBytes != nil && !unavailableScopes.contains($0.scope.standardizedFileURL) }
+            ? .complete : .incomplete
     }
     /// Available observed Downloads findings, independent of any targeted retry subset.
     var overviewDownloadRows: [Row] { eligibleRows(restrictingTo: nil) }
