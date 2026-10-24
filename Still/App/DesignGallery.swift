@@ -141,7 +141,7 @@ private struct CapacityGalleryExamples: View {
             Text("Synthetic capacity " + name + " · Inert example").font(.headline)
             VolumeSummary(available: available, total: total, observation: observation, status: status,
                           refreshTitle: retry ? "Try again" : "Refresh capacity", refreshing: refreshing, refresh: {})
-        }.accessibilityIdentifier("capacityGallery-" + name)
+        }.accessibilityElement(children: .contain).accessibilityIdentifier("capacityGallery-" + name)
     }
 }
 #endif

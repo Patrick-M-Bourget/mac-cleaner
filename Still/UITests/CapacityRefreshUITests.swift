@@ -91,6 +91,16 @@ final class CapacityRefreshUITests: XCTestCase {
         app.typeKey("2", modifierFlags: .command)
         XCTAssertTrue(app.staticTexts["1 file selected"].waitForExistence(timeout: 5))
         XCTAssertEqual(try Data(contentsOf: file), original)
+        // Live choices already keep this process alive; capacity adds no keepalive.
+        try sample(75_000_000_000)
+        app.typeKey("w", modifierFlags: .command)
+        XCTAssertNotEqual(app.state, .notRunning)
+        app.activate(); app.menuBars.menuBarItems["Window"].click(); app.menuItems["Show Still"].firstMatch.click()
+        XCTAssertTrue(app.staticTexts["1 file selected"].waitForExistence(timeout: 5))
+        app.typeKey("1", modifierFlags: .command)
+        XCTAssertTrue(observes("70 GB"), "Recreating the window must retain recent process-owned evidence")
+        app.typeKey("2", modifierFlags: .command)
+        XCTAssertTrue(app.staticTexts["1 file selected"].waitForExistence(timeout: 5))
         guard cleanup else { return }
         try sample(80_000_000_000)
         app.buttons["Review cleanup"].click()
@@ -162,6 +172,12 @@ final class CapacityRefreshUITests: XCTestCase {
             }
         }
         capture("observed-important")
+        try sample(available: 50_000_000_000, total: 512_000_000_000, delay: 8_000)
+        app.buttons["Refresh capacity"].click()
+        XCTAssertFalse(app.buttons["refreshCapacity"].isEnabled)
+        XCTAssertEqual(amount.value as? String ?? amount.label, "40 GB")
+        capture("refreshing-retained")
+        XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate(format: "enabled == true"), object: app.buttons["refreshCapacity"])], timeout: 12), .completed)
         try sample(available: 40_000_000_000, total: nil, metric: "available")
         app.buttons["Refresh capacity"].click()
         let partial = app.staticTexts["Total capacity unavailable"]
@@ -185,5 +201,89 @@ final class CapacityRefreshUITests: XCTestCase {
         app.buttons["Try again"].click()
         XCTAssertTrue(app.buttons["Refresh capacity"].waitForExistence(timeout: 5))
         capture("recovered")
+    }
+
+    @MainActor func testUnavailableFirstUseRecoversAtMinimumSize() throws { try unavailableFirstUse(minimum: true) }
+    @MainActor func testUnavailableFirstUseRecoversAtInitialSize() throws { try unavailableFirstUse(minimum: false) }
+    @MainActor private func unavailableFirstUse(minimum: Bool) throws {
+        continueAfterFailure = false
+        let app = XCUIApplication(); let state = try configureIsolatedJourneyState(app)
+        defer { app.terminate(); try? FileManager.default.removeItem(at: state) }
+        let file = state.appendingPathComponent("capacity-reading.json")
+        try Data("{}".utf8).write(to: file)
+        app.launchArguments = ["--ui-test-capacity-reading", minimum ? "--design-minimum" : "--design-initial-size"]
+        app.launch()
+        guard app.buttons["Try again"].waitForExistence(timeout: 10) else { XCTFail("First-use failure needs retry"); return }
+        let bounds = app.windows.firstMatch.frame
+        let region = app.descendants(matching: .any)["capacityObservationRegion"].firstMatch
+        let frame = region.frame
+        func capture(_ stateName: String) {
+            for theme in ["Light", "Dark"] {
+                app.popUpButtons["Appearance"].click(); app.menuItems[theme].click()
+                let image = XCTAttachment(screenshot: app.windows.firstMatch.screenshot())
+                image.name = "capacity-first-use-" + stateName + (minimum ? "-minimum-" : "-initial-") + theme
+                image.lifetime = .keepAlways; add(image)
+                XCTAssertEqual(app.windows.firstMatch.frame, bounds)
+                XCTAssertEqual(region.frame, frame)
+                XCTAssertTrue(bounds.contains(app.buttons["refreshCapacity"].frame))
+            }
+        }
+        XCTAssertTrue(app.staticTexts["Capacity unavailable"].firstMatch.exists)
+        XCTAssertFalse(app.staticTexts["startupCapacityAmount"].exists)
+        capture("unavailable")
+        try Data("{\"available\":40000000000,\"total\":512000000000,\"delayMilliseconds\":8000}".utf8).write(to: file, options: .atomic)
+        app.buttons["Try again"].click()
+        XCTAssertFalse(app.buttons["refreshCapacity"].isEnabled)
+        XCTAssertTrue(app.staticTexts["Checking capacity…"].firstMatch.exists)
+        capture("checking")
+        guard app.staticTexts["startupCapacityAmount"].waitForExistence(timeout: 12) else { XCTFail("Retry must recover first-use capacity"); return }
+        XCTAssertTrue(app.buttons["Refresh capacity"].exists)
+        capture("recovered")
+        // Exercise the native one-shot deadline, then let its expired metadata reply arrive.
+        try Data("{\"available\":70000000000,\"total\":512000000000,\"delayMilliseconds\":15000}".utf8).write(to: file, options: .atomic)
+        app.buttons["Refresh capacity"].click()
+        guard app.buttons["Try again"].waitForExistence(timeout: 12) else { XCTFail("A stalled capacity read must expire after its deadline"); return }
+        XCTAssertEqual(app.staticTexts["startupCapacityAmount"].value as? String ?? app.staticTexts["startupCapacityAmount"].label, "40 GB")
+        capture("expired")
+        let changed = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value != %@ AND label != %@", "40 GB", "40 GB"), object: app.staticTexts["startupCapacityAmount"])
+        changed.isInverted = true
+        XCTAssertEqual(XCTWaiter.wait(for: [changed], timeout: 6), .completed, "An expired native reply must not replace retained evidence")
+        // Failure retries on real app activation, without changing any alert preferences.
+        try Data("{\"available\":60000000000,\"total\":512000000000}".utf8).write(to: file, options: .atomic)
+        XCUIApplication(bundleIdentifier: "com.apple.finder").activate(); app.activate()
+        let recovered = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@ OR label == %@", "60 GB", "60 GB"), object: app.staticTexts["startupCapacityAmount"])
+        XCTAssertEqual(XCTWaiter.wait(for: [recovered], timeout: 5), .completed)
+        capture("foreground-recovered")
+    }
+
+    @MainActor func testCapacityGalleryAtMinimumSize() throws { try capacityGallery(minimum: true) }
+    @MainActor func testCapacityGalleryAtInitialSize() throws { try capacityGallery(minimum: false) }
+    @MainActor private func capacityGallery(minimum: Bool) throws {
+        continueAfterFailure = false
+        let app = XCUIApplication(); let state = try configureIsolatedJourneyState(app)
+        defer { app.terminate(); try? FileManager.default.removeItem(at: state) }
+        app.launchArguments = ["--design-gallery", minimum ? "--design-minimum" : "--design-initial-size"]
+        app.launch()
+        XCTAssertTrue(app.staticTexts["Native design system"].waitForExistence(timeout: 10))
+        let bounds = app.windows.firstMatch.frame
+        for theme in ["Light", "Dark"] {
+            app.popUpButtons["Appearance"].click(); app.menuItems[theme].click()
+            for name in ["checking", "refreshing", "important", "fallback", "partial", "stale", "unavailable"] {
+                let heading = app.staticTexts["Synthetic capacity " + name + " · Inert example"]
+                revealScrollElement(app, control: heading, label: name)
+                let container = app.descendants(matching: .any)["capacityGallery-" + name].firstMatch
+                let action = container.buttons["refreshCapacity"]
+                for _ in 0..<8 where !app.scrollViews.firstMatch.frame.contains(action.frame) {
+                    app.scrollViews.firstMatch.scroll(byDeltaX: 0, deltaY: -60)
+                }
+                XCTAssertTrue(app.scrollViews.firstMatch.frame.contains(heading.frame))
+                XCTAssertTrue(app.scrollViews.firstMatch.frame.contains(action.frame))
+                XCTAssertEqual(action.isEnabled, !["checking", "refreshing"].contains(name))
+                let image = XCTAttachment(screenshot: app.windows.firstMatch.screenshot())
+                image.name = "capacity-gallery-" + name + (minimum ? "-minimum-" : "-initial-") + theme
+                image.lifetime = .keepAlways; add(image)
+                XCTAssertEqual(app.windows.firstMatch.frame, bounds)
+            }
+        }
     }
 }
