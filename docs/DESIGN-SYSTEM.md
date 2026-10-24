@@ -40,7 +40,7 @@ The app target owns these internal SwiftUI components; they are presentation pri
 | `ScanProgressSummary` | Bounded preliminary metadata evidence, explicit enumeration/recheck/stability phase, unknown remaining coverage; native spinner plus accessible phase text, no cleanup controls |
 | `CleanupScopeNotice` | Existing inspection/Overview guidance; the approved plan replacement uses a contextual category prerequisite, never a permanent global chooser/banner (FLOW-LOCK Q4/Q5) |
 | `StatusRow`, `EmptyState` | Honest status, blocked/error explanation, or no findings yet |
-| `HistoryActivityFilterControl`, `ScanActivitySummary`, `ScanRecordingNotice` | Native All activity/Scans/Cleanups presentation, recorded root/outcome/coverage details, and nonblocking recording-failure feedback; no historical selection or execution authority |
+| `HistoryActivityFilterControl`, `ScanActivitySummary`, `ScanHistoryRecordingNotice` | Native All activity/Scans/Cleanups presentation, recorded root/outcome/coverage details, and nonblocking recording-failure feedback; no historical selection or execution authority |
 | `SettingsRow` | Setting title, explanation and native controls |
 | `AppBrand`, `StillSidebarRow`, `ChromeSurface` | Shared brand, persistent native navigation, destination accents and adaptive chrome; reserve the actionable-category badge without moving its title |
 | `AppearancePicker`, `AppearancePreferenceNotice` | Shared full-value native choice and reserved 24-point persistent preference feedback; missing/invalid/unreadable/save-failed states, persistence-only Retry |
