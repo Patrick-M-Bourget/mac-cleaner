@@ -21,3 +21,5 @@ Test-only agent `ab42ba9`, root `8941c41`: explicit capacity refresh exists sepa
 | Source/metric/time and compatible comparisons | Explicit current evidence, no scope-volume substitution or history rewrite | Pending |
 
 Real native capacity metadata is separate from deterministic fixtures. Inert Gallery examples certify presentation only. Record actual hosted capture dimensions; the initial preset may be display-clamped. Do not label unrelated suites rerun unless run; no new platform/signing certification is implied.
+
+The original missing-action red PNG/manifest is preserved at `docs/visual/capacity-refresh/8941c41-red/`. Reviewed900×640 Automatic resolving Light: startup amount/time/important metric and ordinary findings are present, capacity card has no refresh affordance. This is before-state evidence only.
