@@ -4,7 +4,7 @@ The first Downloads journey (#55–#57) is qualified and integrated on `integrat
 
 ## Qualified second slice
 
-#58/#59 are qualified for integration on `integration/still-spec`. Latest application source9264d7a; later test/CI-only revisionc640bb9. [Connected next-slice evidence](validation/connected-next.md) records all exact outcomes and76 preserved originals. Final mixed initial/minimum jobs40059063609/40059065114 pass1+1; inspector40056586166 passes2/2 and Downloads40056609812 passes13/13. Final affected scope/recovery40058178176/40058179409 pass1each. Exact stale access notice red→green, readable compact recovery rows, conditional Forget/Cancel and independent hardlink membership are covered. Parallel source reviews found no blocker. This is combined focused proof, not full platform certification.
+#58/#59 are integrated at115dddf on `integration/still-spec`. Latest application source9264d7a; later test/CI-only revisionc640bb9. [Connected next-slice evidence](validation/connected-next.md) records all exact outcomes and76 preserved originals. Final mixed initial/minimum jobs40059063609/40059065114 pass1+1; inspector40056586166 passes2/2 and Downloads40056609812 passes13/13. Final affected scope/recovery40058178176/40058179409 pass1each. Exact stale access notice red→green, readable compact recovery rows, conditional Forget/Cancel and independent hardlink membership are covered. Parallel source reviews found no blocker. This is combined focused proof, not full platform certification.
 
 ## Remaining frontier
 

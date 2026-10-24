@@ -1,6 +1,6 @@
 # Mixed scopes and inspector evidence
 
-October 23, 2026. Tracking #58 (parent #46) and #59 (parent #47); approved FLOW-LOCK/proposal b96bb97. Baseline integration `5a9d588` is the qualified first Downloads slice. Both slices are qualified for integration on `integration/still-spec`; final application source9264d7a and test/CI-only revisionc640bb9. The source-bound results below define the bounded acceptance, not full parent/platform completion.
+October 23, 2026. Tracking #58 (parent #46) and #59 (parent #47); approved FLOW-LOCK/proposal b96bb97. Baseline integration `5a9d588` is the qualified first Downloads slice. Both slices are integrated at115dddf on `integration/still-spec`; final application source9264d7a and test/CI-only revisionc640bb9. The source-bound results below define the bounded acceptance, not full parent/platform completion.
 
 ## Source and public checks
 
