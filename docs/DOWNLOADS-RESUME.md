@@ -10,7 +10,7 @@ October24,2026. Repo `/Users/bender/Library/Caches/Codex/mac-cleaner-implementat
 
 ## Next frontier
 
-#44/#46/#47/#48 bounded M1 repairs are accepted and closed using final D/M/R/L evidence; keep #45 open for row dispositions and unresolved#49/#51–#54. After#62 no further approved unblocked implementation slice is established. Next bounded product decision is#49 capacity freshness, followed by#53 shell/appearance semantics. Empty dependencies do not make needs-triage issues approved. All future milestones stay in MILESTONES; M8 remains deferred.
+#44/#46/#47/#48 bounded M1 repairs are accepted and closed using final D/M/R/L evidence; keep #45 open for row dispositions and unresolved#51–#54. #49 capacity freshness is now user-confirmed and authorized under CAPACITY-REFRESH.md (lock09e5c18). Active worktree issue49, branch implement/capacity-refresh-49; root qualification branch verify/capacity-refresh-49. Service test-boundary approval is pending; approved UI tracer starts first. Next unresolved decision is#53 shell/appearance semantics. Empty dependencies do not make needs-triage issues approved. All future milestones stay in MILESTONES; M8 remains deferred.
 
 ## Work conventions
 
