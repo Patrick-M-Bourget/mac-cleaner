@@ -22,6 +22,8 @@ on:
           - connected-next
           - recovery-caller
           - recovery-context
+          - recovery-context-initial
+          - terminal-gallery
           - terminal-results
           - terminal-skipped
           - access-guide
@@ -106,6 +108,10 @@ jobs:
             scope=(-only-testing:StillUITests/WorkspaceUITests/testOptionalFolderAccessEducationPreservesScopeAndSelection)
           elif [[ "$EVENT_NAME" == "workflow_dispatch" && "$REQUESTED_SUITE" == "recovery-context" ]]; then
             scope=(-only-testing:StillUITests/RecoveryUITests/testHistoryRecoveryPreservesExpandedEvidenceAndObservedViewport)
+          elif [[ "$EVENT_NAME" == "workflow_dispatch" && "$REQUESTED_SUITE" == "recovery-context-initial" ]]; then
+            scope=(-only-testing:StillUITests/RecoveryUITests/testInitialHistoryRecoveryPreservesExpandedEvidenceAndObservedViewport)
+          elif [[ "$EVENT_NAME" == "workflow_dispatch" && "$REQUESTED_SUITE" == "terminal-gallery" ]]; then
+            scope=(-only-testing:StillUITests/CleanupRetryUITests/testSyntheticOutcomeGalleryAtInitialSize -only-testing:StillUITests/CleanupRetryUITests/testSyntheticOutcomeGalleryAtMinimumSize)
           elif [[ "$EVENT_NAME" == "workflow_dispatch" && "$REQUESTED_SUITE" == "terminal-skipped" ]]; then
             scope=(-only-testing:StillUITests/CleanupRetryUITests/testChangedConfirmedFileReportsNoFilesMoved)
           elif [[ "$EVENT_NAME" == "workflow_dispatch" && "$REQUESTED_SUITE" == "recovery-caller" ]]; then

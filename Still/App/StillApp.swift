@@ -99,6 +99,8 @@ enum Destination: String, CaseIterable, Identifiable {
     var historyExpandedRuns: Set<UUID> = []
     var historyOffset: CGPoint?
     var overviewOffset: CGPoint?
+    var locationsOffset: CGPoint?
+    var accessGuideExpanded = false
 }
 
 private struct FixtureItem: Identifiable {
@@ -242,6 +244,8 @@ private struct WorkspaceView: View {
                                     DestinationViewport(offset: $navigationState.historyOffset).frame(width: 0, height: 0)
                                 } else if destination == .overview {
                                     DestinationViewport(offset: $navigationState.overviewOffset).frame(width: 0, height: 0)
+                                } else if destination == .locations {
+                                    DestinationViewport(offset: $navigationState.locationsOffset).frame(width: 0, height: 0)
                                 }
                             }
                         }
@@ -688,6 +692,7 @@ private struct WorkspaceView: View {
             }
             if let message = locationsModel.message { StatusRow(text: message, symbol: "info.circle") }
             Text("Downloads files support cleanup. Other folders are inspection only. Access is rechecked for each manual scan; no files are scanned at launch.").font(.caption).foregroundStyle(.secondary)
+            LocationAccessGuide(expanded: $navigationState.accessGuideExpanded)
             if GrowthHistoryModel.enabled {
                 SettingsRow(title: "Custom exclusions", detail: "Explicit path rules reduce scan coverage; fixed protections stay active.") {
                     Button("Manage exclusions") { exclusionsVisible = true }.accessibilityIdentifier("manageExclusions")
