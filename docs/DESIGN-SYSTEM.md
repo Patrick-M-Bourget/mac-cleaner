@@ -83,7 +83,7 @@ The [visual review](CONNECTED-FLOW-DESIGN-REVIEW.md) illustrates these approved 
 | Pattern | Responsibilities / states |
 |---|---|
 | `ToolbarScanStatus` | Shared phase/entry evidence, Stop and return-to-origin while away; no completion navigation or invented percentage; FL07/FL08 |
-| `LocationScopeRow` | Inclusion, folder/path, current access/coverage, direct recovery and secondary Forget; editing paused during scan; Q29/FL09 |
+| `LocationScopeRow` | Inclusion, folder/path, current access/coverage and optional `overlap` explanation; fixed-size direct actions trail at wide widths and move below identity/status at compact widths; secondary Forget, editing paused during scan; Q29/FL09 |
 | `CategoryPrerequisite` | Not scanned/empty/partial versus eligible count and logical size; contextual scan/recheck within the stable plan; no permanent setup banner; FL01–FL06 |
 | `ExplorerInspector` | Separate folder navigation/info/file inspection/selection; right pane or compact bounded panel above footer, preserved context; FL10/FL11 |
 | Contextual return / `DestinationViewport` | Caller-labelled Back, viewport/query/inspector restoration and existing-ancestor reuse; no Plan/Explorer cycle; Q17/Q24 |
@@ -171,3 +171,9 @@ The revision 0.9 personal Light/Dark references remain the comparison authority,
 See [fidelity validation](validation/visual-fidelity.md) for exact source, captures, public regression results and remaining manual limits. A build alone is not visual acceptance.
 
 `ReviewCleanupButton` propagates its model-provided enabled state through SwiftUI `.disabled` as well as the native AppKit property. Keep both: native picker dismissal can otherwise expose an enabled-looking review control for an empty plan. The scope-guidance native journey exercises repeated picker cancellation and appearance changes; the gallery uses the actual disabled shared button.
+
+## Inspector evidence and adaptive location rows — #58/#59
+
+`LocationScopeRow.overlap` is optional explanatory copy supplied by configuration policy. `ViewThatFits` preserves full action labels; shared layout falls back below identity instead of screen-local truncation/width fixes. Gallery includes unavailable-overlap and omitted/editing-paused states. Inclusion/Forget semantics remain model-owned.
+
+`ExplorerInspector` keeps Close outside its bounded evidence scroll. Location, observed scope/time, logical/on-disk evidence, Why listed and Cleanup action are separate fields. `SessionPlan.inspectionRestriction` explains the existing eligible boundary; its text grants no selection/execution authority. Folder/package/link/cloud/unknown/stale and outside-Downloads cases remain explicit. Gallery uses labelled synthetic content; it cannot certify provider behavior. See [qualification](validation/connected-next.md) before treating these candidate states as integrated proof.
