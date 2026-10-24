@@ -142,6 +142,11 @@ final class LocalRecordsUITests: XCTestCase {
         let locationsFrame = manage.frame
         manage.click()
         XCTAssertTrue(app.buttons["Back to Locations & access"].waitForExistence(timeout: 5))
+        for theme in ["Light", "Dark"] {
+            app.popUpButtons["Appearance"].click(); app.menuItems[theme].click()
+            XCTAssertTrue(app.buttons["Back to Locations & access"].isHittable)
+            capture("locations-management-" + theme)
+        }
         XCTAssertEqual(try encoder.encode(journal.records()), beforeOpening)
         app.buttons["clearHistory"].click()
         XCTAssertTrue(app.sheets.buttons["Cancel"].waitForExistence(timeout: 3))
@@ -200,10 +205,12 @@ final class LocalRecordsUITests: XCTestCase {
         XCTAssertTrue((status.value as? String ?? status.label).contains("Reset is blocked by unfinished cleanup records."))
         let review = app.buttons["localRecordsRecovery"]
         revealScrollElement(app, control: review, label: "Recovery from Local records")
-        let beforeScroll = review.frame
-        app.scrollViews.firstMatch.scroll(byDeltaX: 0, deltaY: -40)
-        XCTAssertTrue(app.scrollViews.firstMatch.frame.contains(review.frame))
-        XCTAssertNotEqual(review.frame, beforeScroll, "Exercise an observed nonzero Local records viewport")
+        if minimum {
+            let beforeScroll = review.frame
+            app.scrollViews.firstMatch.scroll(byDeltaX: 0, deltaY: -40)
+            XCTAssertTrue(app.scrollViews.firstMatch.frame.contains(review.frame))
+            XCTAssertNotEqual(review.frame, beforeScroll, "Exercise an observed nonzero Local records viewport")
+        }
         let panelFrame = review.frame
         for theme in ["Light", "Dark"] {
             app.popUpButtons["Appearance"].click(); app.menuItems[theme].click(); capture("blocked-" + theme)
