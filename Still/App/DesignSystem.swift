@@ -272,7 +272,7 @@ struct VolumeSummary: View {
                     Spacer(minLength: StillDesign.Space.sm)
                     if let available, available >= 0 {
                         VStack(alignment: .trailing, spacing: StillDesign.Space.xs) {
-                            Text(ByteCountFormatter.string(fromByteCount: available, countStyle: .decimal)).font(StillDesign.TypeStyle.value).monospacedDigit()
+                            Text(ByteCountFormatter.string(fromByteCount: available, countStyle: .decimal)).font(StillDesign.TypeStyle.value).monospacedDigit().accessibilityIdentifier("startupCapacityAmount")
                             Text(total.map { "available of " + ByteCountFormatter.string(fromByteCount: $0, countStyle: .decimal) } ?? "Total capacity unavailable").font(.caption).foregroundStyle(.secondary)
                         }
                     }
