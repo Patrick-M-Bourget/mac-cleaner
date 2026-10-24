@@ -70,6 +70,10 @@ extension AppLifecycleController: HistoryMaintenanceLifecycle {
             try await ExclusionsModel.shared.reset()
             lifecycle.selection.endSession(); lifecycle.selection.execution.clear()
             await lifecycle.inspection.resetSession()
+            lifecycle.planPresentation.reset()
+            lifecycle.downloadsExplorer.openDownloads(); lifecycle.locationsExplorer.openLocations()
+            lifecycle.workspaceNavigation.explorerVisible = false
+            lifecycle.workspaceNavigation.planReturnsToExplorer = false
             snapshot = CleanupHistorySnapshot(records: [])
             message = "Still’s preferences, custom exclusions, selected locations and completed history were reset. Original files and macOS access grants are unchanged." + (result.1.completed ? "" : " Journal compaction did not finish; disk reclamation is not confirmed.")
             blocked = false

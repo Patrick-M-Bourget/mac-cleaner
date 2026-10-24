@@ -152,7 +152,7 @@ private struct WorkspaceView: View {
     private var showsPlan: Bool { destination == .plan && !recoveryVisible && !inspecting && !nativeInspectionVisible && !homebrewVisible && !pipVisible && !dockerVisible && !managedStorageVisible && !diagnosticsVisible && !exclusionsVisible }
     private var inspectionVisible: Bool { inspecting || nativeInspectionVisible }
     private var contextLabel: String {
-        diagnosticsVisible ? "Redacted diagnostics · Explicit local Save" : recoveryVisible ? "Recovery review · Recorded facts only" : selection.execution.isRunning ? "Moving approved files to Trash" : selection.execution.result != nil ? "Cleanup results · individual outcomes" : managedStorageVisible ? "App-managed inventory · selected objects only" : folderInspection.scope != nil ? "Read-only metadata · explicitly selected folder" : fixtureMode ? "Synthetic data — no personal files accessed" : "On-demand storage review"
+        diagnosticsVisible ? "Redacted diagnostics · Explicit local Save" : recoveryVisible ? "Recovery review · Recorded facts only" : selection.execution.isRunning ? "Moving approved files to Trash" : selection.execution.result != nil && showsPlan ? "Cleanup results · individual outcomes" : managedStorageVisible ? "App-managed inventory · selected objects only" : folderInspection.scope != nil ? "Read-only metadata · explicitly selected folder" : fixtureMode ? "Synthetic data — no personal files accessed" : "On-demand storage review"
     }
 
     var body: some View {
@@ -326,9 +326,17 @@ private struct WorkspaceView: View {
             ToolbarScanStatus(location: folderInspection.scope?.lastPathComponent ?? "selected locations",
                 phase: folderInspection.progress.map { $0.phase == .rechecking ? "Rechecking changed coverage (one attempt)…" : $0.phase == .checkingDirectories ? "Checking directory stability…" : "Reading file metadata…" } ?? "Preparing metadata scan…",
                 inspectedEntries: folderInspection.progress?.visitedEntries,
-                returnToScan: destination == scanOrigin && !nativeInspectionVisible ? nil : { nativeInspectionVisible = false; destination = scanOrigin },
+                returnToScan: destination == scanOrigin && !nativeInspectionVisible ? nil : returnToScanOrigin,
                 stop: { folderInspection.cancel() })
         } else { Text(contextLabel).font(.caption).foregroundStyle(.secondary).lineLimit(1) }
+    }
+
+    private func returnToScanOrigin() {
+        destination = scanOrigin
+        nativeInspectionVisible = false; inspecting = false; diagnosticsVisible = false
+        exclusionsVisible = false; recoveryVisible = false; homebrewVisible = false
+        pipVisible = false; dockerVisible = false; managedStorageVisible = false
+        planReturnsToExplorer = false
     }
 
     private func navigation(_ value: Destination) -> some View {

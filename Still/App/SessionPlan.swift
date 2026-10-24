@@ -160,7 +160,7 @@ import SwiftUI
         scans[scan.scope] = scan
     }
     func eligible(_ item: FileObservation, in scan: ScanResult) -> Bool {
-        guard !unavailableScopes.contains(scan.scope.standardizedFileURL), scan.exclusionFingerprint == expectedExclusionFingerprint, let downloads else { return false }
+        guard scans[scan.scope]?.observedAt == scan.observedAt, !unavailableScopes.contains(scan.scope.standardizedFileURL), scan.exclusionFingerprint == expectedExclusionFingerprint, let downloads else { return false }
         return PlanDraft.canConsider(item, in: scan, downloads: downloads)
     }
     func invalidateReview() { draft.invalidateReview(); approvedBatch = nil }
