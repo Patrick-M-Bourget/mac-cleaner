@@ -595,7 +595,7 @@ final class WorkspaceUITests: XCTestCase {
     @MainActor
     func testUnavailableSelectedFolderShowsUnknownCoverageAndRecovery() throws {
         continueAfterFailure = false
-        let root = FileManager.default.temporaryDirectory.appendingPathComponent("StillCoverageUI-" + UUID().uuidString, isDirectory: true)
+        let root = FileManager.default.temporaryDirectory.resolvingSymlinksInPath().appendingPathComponent("StillSelectionUI-" + UUID().uuidString, isDirectory: true)
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: root) }
         try Data([1]).write(to: root.appendingPathComponent("temporary.txt"))
@@ -616,6 +616,8 @@ final class WorkspaceUITests: XCTestCase {
         waitForOverviewScan(app, timeout: 10)
         let coverage = app.staticTexts["overviewScopeCoverage"]
         XCTAssertTrue((coverage.value as? String ?? coverage.label).contains("1 byte"))
+        let observedDownloads = app.descendants(matching: .any)["overviewDownloadsFinding"].firstMatch
+        XCTAssertTrue((observedDownloads.value as? String ?? observedDownloads.label).contains("1 file eligible"))
         try FileManager.default.removeItem(at: root)
         app.buttons["Scan again"].click()
         let unavailable = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
