@@ -16,7 +16,7 @@ October24,2026. Repo `/Users/bender/Library/Caches/Codex/mac-cleaner-implementat
 
 #44/#46/#47/#48 bounded M1 repairs remain accepted and closed; #45 retains row dispositions. #49 Q1–Q12 is implemented and automated qualification passes, with final source and all 71 originals accepted; integrated into integration/still-spec with #49 complete. Its clean implementation worktree is removed after preserving source. Preserve actual red→green and the earlier corrected test assumptions in validation, without calling them product failures.
 
-#53 shell/appearance is implemented at `c5886e8` with [bounded qualification](validation/shell-appearance.md); #51/#52/#54 remain untriaged. Do not reopen Q1–Q30 or start those untriaged features without resolving their existing decisions. Empty dependency lists do not grant approval. All future milestones remain in MILESTONES; M8 stays deferred.
+#53 shell/appearance is implemented at `c5886e8` with [bounded qualification](validation/shell-appearance.md); #51 is locked and authorized for implementation; #52/#54 remain untriaged. Do not reopen Q1–Q30 or start those untriaged features without resolving their existing decisions. Empty dependency lists do not grant approval. All future milestones remain in MILESTONES; M8 stays deferred.
 
 ## Work conventions
 
@@ -31,3 +31,8 @@ Current review build: `/Users/bender/Library/Caches/Codex/mac-cleaner-implementa
 
 
 Review build: `/Users/bender/Library/Caches/Codex/mac-cleaner-implementation/artifacts/shell-c5886e8/Still.app`. Next decisions are #51 completed-scan/cleanup History, #52 What grew first-use/review routes, and #54 protected release-archive guidance. They remain untriaged; keep all future milestones and M8 deferral.
+
+
+## History activity lock — October 24
+
+#51 Q1–Q15 and the consolidated contract are user-confirmed in [HISTORY-ACTIVITY](HISTORY-ACTIVITY.md). M1 History gains minimal terminal scan activity alongside completed cleanup runs, with All/Scans/Cleanups filters and honest scope/outcome/retention/availability. Detailed growth collection/comparisons stay M4-gated; historical routes never restore live findings or approval. Scan activity and enabled aggregates share the existing250 MB archive budget; cleanup retains its separate250 MB completed-payload budget, with protected recovery exemptions. Source/native implementation qualification is pending.

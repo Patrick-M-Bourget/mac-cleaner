@@ -208,3 +208,10 @@ For #53 follow [SHELL-APPEARANCE](SHELL-APPEARANCE.md). Share the actionable-cat
 
 
 #53 qualified accessibility composition: keep `AppearancePreferenceNotice` shared across live/Gallery. Hide only its blank message when absent; the Retry control is structurally absent except for save failure. Do not apply a visibility modifier to the whole recovery-action subtree. `NativeAppearanceRetryButton` owns native target/action, intrinsic full-label sizing and current actual screen-space bounds. It performs persistence only and never forces focus. A build, screenshot or isHittable flag alone does not prove activation; the normal public click, saved-file and relaunch journey is the acceptance check. Failed intermediate variants and local-harness limits are retained in qualification.
+
+
+## History activity — #51 locked composition
+
+Follow [HISTORY-ACTIVITY](HISTORY-ACTIVITY.md). Retain History as one sidebar destination with a native All activity/Scans/Cleanups filter and newest-first typed summaries. Reuse PageHeader, SummarySurface, StatusRow, native disclosures, EmptyState and shared Local records controls. Add a shared scan-activity summary/details component with inert Gallery states before composing live records. Native text/symbols distinguish outcome and type; unknown/partial measurements never look complete. Recorded selected-root paths wrap in expanded details; scan history has no child-file list or selection control. Existing cleanup per-file facts remain unchanged.
+
+Unavailable scan/cleanup stores have independent warnings and reload actions, never false empties. Filters, warnings and disclosures preserve the window and live choices. Contextual What grew Back restores History filter/expansion/viewport; the route is absent while growth is gated. Clear completed history confirmation names scans, cleanups and baselines independent of the active filter. Initial/minimum Light/Dark Gallery and live original-capture review remain integration gates; a build alone is not qualification.

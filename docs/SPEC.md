@@ -172,3 +172,8 @@ Failure retains explicitly last-observed evidence or shows unavailable; it never
 ## Shell and appearance lock — October 24
 
 #53 shell/appearance requirements are now user-confirmed in [SHELL-APPEARANCE](SHELL-APPEARANCE.md): actionable-category badge; destination-aware toolbar; truthful gated monitoring footer; app-wide saved Automatic/Light/Dark with explicit failure/retry/partial-Reset behavior. Implement that contract without changing scan/cleanup/alert policy. Implemented at `c5886e8` with [bounded shell qualification](validation/shell-appearance.md); no scan, cleanup or alert-policy expansion.
+
+
+## History activity lock — October 24
+
+#51 Q1–Q15 and the consolidated contract are user-confirmed in [HISTORY-ACTIVITY](HISTORY-ACTIVITY.md). M1 History gains minimal terminal scan activity alongside completed cleanup runs, with All/Scans/Cleanups filters and honest scope/outcome/retention/availability. Detailed growth collection/comparisons stay M4-gated; historical routes never restore live findings or approval. Scan activity and enabled aggregates share the existing250 MB archive budget; cleanup retains its separate250 MB completed-payload budget, with protected recovery exemptions. Source/native implementation qualification is pending.
