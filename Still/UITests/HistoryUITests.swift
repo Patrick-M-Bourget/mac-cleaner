@@ -51,6 +51,8 @@ final class HistoryUITests: XCTestCase {
         XCTAssertFalse(app.buttons["Back to History"].exists)
         app.buttons["clearHistory"].click()
         app.sheets.buttons["Clear completed runs"].click()
+        let cleared = XCTAttachment(screenshot: app.windows.firstMatch.screenshot())
+        cleared.name = "local-records-clear-status-minimum"; cleared.lifetime = .keepAlways; add(cleared)
         let status = app.staticTexts["historyStatus"]
         XCTAssertTrue(status.waitForExistence(timeout: 5))
         XCTAssertTrue((status.value as? String ?? status.label).hasPrefix("Cleared 1 completed runs."), "Actual maintenance status: " + (status.value as? String ?? status.label))
