@@ -135,3 +135,28 @@ import StillCore
     await #expect(throws: (any Error).self) { try await store.recordActivity(activity, now: time, expectedEpoch: epoch) }
     #expect(try FileManager.default.contentsOfDirectory(atPath: file.path).isEmpty)
 }
+
+@Test func oversizedActivityIsRejectedWholeWhileThirtyBaselineLimitIsGlobal() async throws {
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent("StillActivity-" + UUID().uuidString)
+    defer { try? FileManager.default.removeItem(at: root) }
+    let store = GrowthHistoryStore(directory: root)
+    let epoch = try await store.recordingEpoch()
+    for index in 0..<31 {
+        let time = Date(timeIntervalSince1970: Double(1000 + index))
+        let scope = "Scope-\(index)"
+        let snapshot = GrowthSnapshot(fingerprint: .init(scopeID: scope, rootID: scope, volumeID: "volume", access: "complete", rules: "one", exclusions: "none", classification: "one"), scopeLabel: scope, observedAt: time, groups: [.init(id: "files", label: "Files", logicalBytes: 1)])
+        _ = try await store.record(snapshot, now: time, expectedEpoch: epoch)
+    }
+    let now = Date(timeIntervalSince1970: 1100)
+    let snapshots = try await store.snapshots(now: now)
+    #expect(snapshots.count == 30)
+    #expect(snapshots.first?.scopeLabel == "Scope-1")
+    let smallRoot = root.appendingPathComponent("Small")
+    let small = GrowthHistoryStore(directory: smallRoot, policy: .init(bytes: 600))
+    let smallEpoch = try await small.recordingEpoch()
+    let fitting = ScanActivity(startedAt: now, completedAt: now, outcome: .stopped, locations: [.init(path: "/Example")])
+    #expect(try await small.recordActivity(fitting, now: now, expectedEpoch: smallEpoch))
+    let oversized = ScanActivity(startedAt: now, completedAt: now, outcome: .stopped, locations: [.init(path: "/" + String(repeating: "a", count: 2000))])
+    await #expect(throws: (any Error).self) { try await small.recordActivity(oversized, now: now, expectedEpoch: smallEpoch) }
+    #expect(try await GrowthHistoryStore(directory: smallRoot, policy: .init(bytes: 600)).activities(now: now).map(\.id) == [fitting.id])
+}
