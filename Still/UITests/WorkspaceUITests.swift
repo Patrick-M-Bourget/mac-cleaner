@@ -97,7 +97,60 @@ final class WorkspaceUITests: XCTestCase {
         XCTAssertTrue(app.buttons["Close inspector"].isHittable)
         XCTAssertTrue(app.buttons["View cleanup plan"].isHittable)
         XCTAssertFalse(app.buttons["Exclude from cleanup"].exists)
+        let bounds = app.windows.firstMatch.frame
+        for theme in ["Light", "Dark"] {
+            app.popUpButtons["Appearance"].click(); app.menuItems[theme].click()
+            XCTAssertEqual(app.windows.firstMatch.frame, bounds)
+            XCTAssertTrue(bounds.contains(app.buttons["Close inspector"].frame))
+            XCTAssertTrue(bounds.contains(app.buttons["View cleanup plan"].frame))
+            let shot = XCTAttachment(screenshot: app.windows.firstMatch.screenshot())
+            shot.name = "inspector-downloads-minimum-" + theme; shot.lifetime = .keepAlways; add(shot)
+        }
         XCTAssertEqual(try Data(contentsOf: file), Data("owned evidence".utf8))
+    }
+
+    @MainActor func testInspectorExplainsOwnedInspectionOnlyAndProtectedEntries() throws {
+        continueAfterFailure = false
+        let root = FileManager.default.temporaryDirectory.resolvingSymlinksInPath().appendingPathComponent("StillInspectorUI-" + UUID().uuidString)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let ordinary = root.appendingPathComponent("ordinary.txt")
+        try Data("owned".utf8).write(to: ordinary)
+        try FileManager.default.createDirectory(at: root.appendingPathComponent("Folder"), withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: root.appendingPathComponent("Protected.app"), withIntermediateDirectories: true)
+        try FileManager.default.createSymbolicLink(at: root.appendingPathComponent("Link"), withDestinationURL: ordinary)
+        let app = XCUIApplication()
+        let state = try configureIsolatedJourneyState(app)
+        defer { app.terminate(); try? FileManager.default.removeItem(at: state) }
+        app.launchArguments = ["--design-initial-size"]
+        app.launch()
+        XCTAssertTrue(app.buttons["Choose folder…"].waitForExistence(timeout: 10))
+        app.buttons["Choose folder…"].click(); app.typeKey("g", modifierFlags: [.command, .shift])
+        let path = app.textFields.firstMatch
+        XCTAssertTrue(path.waitForExistence(timeout: 5)); path.typeText(root.path)
+        app.typeKey(.return, modifierFlags: []); app.dialogs.buttons["Scan folder"].click()
+        waitForOverviewScan(app)
+        openObservedExplorer(app, root: root)
+        for (name, reason) in [
+            ("ordinary.txt", "Inspection only. Exact-file Trash review is available only within Downloads."),
+            ("Folder", "Folders are for navigation and inspection. Whole-folder cleanup is unavailable."),
+            ("Protected.app", "Protected package. Its contents were not inspected and cannot be selected."),
+            ("Link", "Symbolic link. Its destination was not followed and cannot be selected.")
+        ] {
+            app.buttons["Inspect " + name].click()
+            XCTAssertTrue(app.staticTexts[reason].waitForExistence(timeout: 5), name)
+            XCTAssertFalse(app.checkBoxes["Select " + name].exists)
+            XCTAssertTrue(app.buttons["Close inspector"].isHittable)
+            for theme in ["Light", "Dark"] {
+                app.popUpButtons["Appearance"].click(); app.menuItems[theme].click()
+                let shot = XCTAttachment(screenshot: app.windows.firstMatch.screenshot())
+                shot.name = "inspector-owned-" + name + "-initial-" + theme; shot.lifetime = .keepAlways; add(shot)
+            }
+            app.buttons["Close inspector"].click()
+            XCTAssertTrue(app.textFields["Search scanned descendants"].exists)
+        }
+        XCTAssertTrue(app.buttons["Open folder Folder"].exists)
+        XCTAssertEqual(try Data(contentsOf: ordinary), Data("owned".utf8))
     }
 
     @MainActor func testPlanStartsWithContextualDownloadsCategoryAndNoSetupDetour() throws {

@@ -103,7 +103,10 @@ jobs:
           elif [[ "$EVENT_NAME" == "workflow_dispatch" && "$REQUESTED_SUITE" == "mixed-scopes" ]]; then
             scope=(-only-testing:StillUITests/WorkspaceUITests/testMixedLocationsKeepValidChoicesWithUnknownCoverage)
           elif [[ "$EVENT_NAME" == "workflow_dispatch" && "$REQUESTED_SUITE" == "inspector" ]]; then
-            scope=(-only-testing:StillUITests/WorkspaceUITests/testInspectorExplainsOwnedDownloadsCandidateWithoutSelectingIt)
+            scope=(
+              -only-testing:StillUITests/WorkspaceUITests/testInspectorExplainsOwnedDownloadsCandidateWithoutSelectingIt
+              -only-testing:StillUITests/WorkspaceUITests/testInspectorExplainsOwnedInspectionOnlyAndProtectedEntries
+            )
           elif [[ "$EVENT_NAME" == "workflow_dispatch" && "$REQUESTED_SUITE" == "downloads-unavailable" ]]; then
             scope=(-only-testing:StillUITests/WorkspaceUITests/testUnavailableSelectedFolderShowsUnknownCoverageAndRecovery)
           elif [[ "$EVENT_NAME" == "workflow_dispatch" && "$REQUESTED_SUITE" == "downloads-refresh" ]]; then
