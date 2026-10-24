@@ -88,7 +88,8 @@ extension AppLifecycleController: HistoryMaintenanceLifecycle {
 }
 
 struct CleanupHistoryView: View {
-    @State private var model = CleanupHistoryModel()
+    @Bindable var model: CleanupHistoryModel
+    @Binding var expandedRuns: Set<UUID>
     @ObservedObject private var lifecycle = AppLifecycleController.shared
     @State private var confirmingClear = false
     @State private var confirmingReset = false
@@ -125,7 +126,10 @@ struct CleanupHistoryView: View {
                             Text("Planned allocation retained in Trash: " + (run.trashHeldAllocatedBytes.map(bytes) ?? "Unknown"))
                             Text("Observed startup-volume capacity change: " + (run.capacity?.observedChange.map { ($0 >= 0 ? "+" : "−") + bytes(abs($0)) } ?? "Unknown"))
                             Text("Capacity samples are independent and can change for other reasons. Allocation is an estimate, not an exclusive-space promise.").font(.caption).foregroundStyle(.secondary)
-                            DisclosureGroup("Per-file results") {
+                            DisclosureGroup("Per-file results", isExpanded: Binding(
+                                get: { expandedRuns.contains(run.id) },
+                                set: { if $0 { expandedRuns.insert(run.id) } else { expandedRuns.remove(run.id) } }
+                            )) {
                                 VStack(alignment: .leading, spacing: StillDesign.Space.lg) {
                                     ForEach(run.records) { record in
                                         SettingsRow(title: record.originalURL.lastPathComponent, detail: record.originalURL.path) {

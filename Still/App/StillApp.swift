@@ -95,6 +95,10 @@ enum Destination: String, CaseIterable, Identifiable {
     var downloadsExplorerActive = true
     var recoveryVisible = false
     var recoveryCaller = Destination.overview
+    let historyModel = CleanupHistoryModel()
+    var historyExpandedRuns: Set<UUID> = []
+    var historyOffset: CGPoint?
+    var overviewOffset: CGPoint?
 }
 
 private struct FixtureItem: Identifiable {
@@ -232,7 +236,17 @@ private struct WorkspaceView: View {
                             }
                         }
                     }.padding(StillDesign.Space.page).frame(maxWidth: .infinity, alignment: .leading)
-                }
+                        .background(alignment: .topLeading) {
+                            if !recoveryVisible && !diagnosticsVisible && !exclusionsVisible && !managedStorageVisible && !dockerVisible && !pipVisible && !homebrewVisible && !inspecting {
+                                if destination == .history {
+                                    DestinationViewport(offset: $navigationState.historyOffset).frame(width: 0, height: 0)
+                                } else if destination == .overview {
+                                    DestinationViewport(offset: $navigationState.overviewOffset).frame(width: 0, height: 0)
+                                }
+                            }
+                        }
+                }.id(recoveryVisible ? "recovery" : destination.rawValue)
+
                 Group {
                     if exclusionsVisible {
                         ActionStrip(message: "Custom rules change scan coverage; original files stay unchanged.") {
@@ -626,7 +640,7 @@ private struct WorkspaceView: View {
     }
 
     private var history: some View {
-        CleanupHistoryView(showRecovery: { openRecovery(caller: .history) }, didReset: {
+        CleanupHistoryView(model: navigationState.historyModel, expandedRuns: $navigationState.historyExpandedRuns, showRecovery: { openRecovery(caller: .history) }, didReset: {
             appearance = "Automatic"; nativeInspectionVisible = false; inspecting = false
             diagnosticsVisible = false; diagnostics = DiagnosticsModel(); exclusionsVisible = false
         })
