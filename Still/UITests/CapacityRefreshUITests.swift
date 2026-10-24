@@ -147,7 +147,9 @@ final class CapacityRefreshUITests: XCTestCase {
         guard amount.waitForExistence(timeout: 10) else { XCTFail("Launch capacity missing"); return }
         let bounds = app.windows.firstMatch.frame
         let observation = app.staticTexts["capacityObservation"]
-        let anchor = observation.frame
+        let observationRegion = app.descendants(matching: .any)["capacityObservationRegion"].firstMatch
+        XCTAssertTrue(observationRegion.waitForExistence(timeout: 5))
+        let anchor = observationRegion.frame
         func capture(_ name: String) {
             for theme in ["Light", "Dark"] {
                 app.popUpButtons["Appearance"].click(); app.menuItems[theme].click()
@@ -155,7 +157,7 @@ final class CapacityRefreshUITests: XCTestCase {
                 image.name = "capacity-" + name + (minimum ? "-minimum-" : "-initial-") + theme
                 image.lifetime = .keepAlways; add(image)
                 XCTAssertEqual(app.windows.firstMatch.frame, bounds)
-                XCTAssertEqual(observation.frame, anchor)
+                XCTAssertEqual(observationRegion.frame, anchor)
                 XCTAssertTrue(app.windows.firstMatch.frame.contains(app.buttons["refreshCapacity"].frame))
             }
         }

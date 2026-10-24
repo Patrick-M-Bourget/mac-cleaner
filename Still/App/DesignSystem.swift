@@ -298,7 +298,8 @@ struct VolumeSummary: View {
                             .accessibilityIdentifier("capacityObservation")
                         Text(status.isEmpty ? " " : status).font(.caption).foregroundStyle(.secondary)
                             .accessibilityIdentifier("capacityRefreshStatus")
-                    }.frame(height: 48, alignment: .topLeading)
+                    }.frame(maxWidth: .infinity, alignment: .leading).frame(height: 48, alignment: .topLeading)
+                        .accessibilityElement(children: .contain).accessibilityIdentifier("capacityObservationRegion")
                     Spacer(minLength: StillDesign.Space.sm)
                     if let refresh {
                         Button(refreshTitle, action: refresh).disabled(refreshing)
