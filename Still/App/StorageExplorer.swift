@@ -242,9 +242,17 @@ struct StorageExplorerView: View {
     }
     private func inspector(_ entry: Entry) -> some View {
         ExplorerInspector(name: entry.item.url.lastPathComponent, close: { context.clearInspector() }) {
-            Text(entry.item.url.path).font(.caption).textSelection(.enabled)
+            inspectorField("Location", entry.item.url.path)
+            inspectorField("Observed scope", entry.scan.scope.path)
+            inspectorField("Observed", entry.scan.observedAt.formatted(date: .abbreviated, time: .shortened))
+            inspectorField("Why listed", "Observed during your manual scan of this location. Browsing uses saved metadata only.")
             Text("On disk: " + (entry.item.kind == .folder ? folderAllocation(entry.item.url) : bytes(entry.item.allocatedBytes)))
             Text("Logical size: " + (entry.item.kind == .folder ? folderSubtotal(entry.item.url, logical: true) : bytes(entry.item.logicalBytes)))
+            inspectorField("Cleanup action", selection.inspectionRestriction(entry.item, in: entry.scan) ?? "Move this exact file to Trash after selection and confirmation.")
+            if selection.inspectionRestriction(entry.item, in: entry.scan) == nil {
+                Text("Selection is separate from inspection. Fresh checks run before review and execution; this observation is not a safety guarantee.").font(.caption).foregroundStyle(.secondary)
+            }
+            Text("Observed allocation is not reclaimable space. Trash may retain storage until emptied.").font(.caption).foregroundStyle(.secondary)
             if entry.item.isDuplicateResource { Text("Shared resource · allocation counts once within a total.") }
             if entry.item.kind == .package || entry.item.kind == .symbolicLink { Text("Protected boundary · contents not inspected.") }
             if entry.item.previewAvailability != .local { Text("Local contents are " + entry.item.previewAvailability.rawValue + ". Preview will not request a download.") }
@@ -252,6 +260,12 @@ struct StorageExplorerView: View {
                 Button("Quick Look") { model.showObserved(entry.scan); model.preview(entry.item) }.disabled(entry.item.kind != .file || entry.item.previewAvailability != .local || model.isScanning)
                 Button("Reveal in Finder") { model.reveal(entry.item) }
             }
+        }
+    }
+    private func inspectorField(_ title: String, _ value: String) -> some View {
+        VStack(alignment: .leading, spacing: StillDesign.Space.xs) {
+            Text(title).font(.caption).foregroundStyle(.secondary)
+            Text(value).font(.callout).textSelection(.enabled)
         }
     }
     private func folderAllocation(_ folder: URL) -> String { folderSubtotal(folder, logical: false) }
@@ -277,11 +291,12 @@ struct ExplorerInspector<Content: View>: View {
     @ViewBuilder var content: () -> Content
     var body: some View {
         SummarySurface {
-            ScrollView {
-                VStack(alignment: .leading, spacing: StillDesign.Space.sm) {
-                    HStack { Text(name).font(StillDesign.TypeStyle.section); Spacer(); Button("Close inspector", systemImage: "xmark", action: close).labelStyle(.iconOnly) }
-                    content()
-                }.frame(maxWidth: .infinity, alignment: .leading)
+            VStack(alignment: .leading, spacing: StillDesign.Space.sm) {
+                HStack { Text(name).font(StillDesign.TypeStyle.section).lineLimit(2); Spacer(); Button("Close inspector", systemImage: "xmark", action: close).labelStyle(.iconOnly) }
+                ScrollView {
+                    VStack(alignment: .leading, spacing: StillDesign.Space.sm) { content() }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
             }
         }.accessibilityIdentifier("explorerInspector")
     }

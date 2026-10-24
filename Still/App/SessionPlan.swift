@@ -215,6 +215,32 @@ import SwiftUI
         guard scans[scan.scope]?.observedAt == scan.observedAt, !unavailableScopes.contains(scan.scope.standardizedFileURL), scan.exclusionFingerprint == expectedExclusionFingerprint, let downloads else { return false }
         return PlanDraft.canConsider(item, in: scan, downloads: downloads)
     }
+    /// Explanation uses the same observed eligibility boundary as selection; it grants no authority.
+    func inspectionRestriction(_ item: FileObservation, in scan: ScanResult) -> String? {
+        if isRefreshing { return "Refresh in progress. Previous observations cannot authorize cleanup." }
+        if unavailableScopes.contains(scan.scope.standardizedFileURL) { return "This location requires a fresh check before cleanup." }
+        if scans[scan.scope]?.observedAt != scan.observedAt || scan.exclusionFingerprint != expectedExclusionFingerprint {
+            return "This observation is no longer current. Recheck the location before choosing files."
+        }
+        if let issue = scan.issues.first(where: { item.url.pathComponents.starts(with: $0.url.pathComponents) }) {
+            return issue.reason.rawValue + ": " + issue.recovery
+        }
+        switch item.kind {
+        case .folder: return "Folders are for navigation and inspection. Whole-folder cleanup is unavailable."
+        case .package: return "Protected package. Its contents were not inspected and cannot be selected."
+        case .symbolicLink: return "Symbolic link. Its destination was not followed and cannot be selected."
+        case .other: return "Unsupported item type. Cleanup is unavailable."
+        case .file: break
+        }
+        if item.cloud.membership == true { return "Cloud-managed item. Cloud cleanup is unavailable; no eviction or synced deletion is offered." }
+        if item.previewAvailability == .nonlocal { return "Contents are not local. Cleanup and Quick Look are unavailable; no download is requested." }
+        if item.previewAvailability == .unknown || item.cloud.membership == nil { return "Locality or cloud membership is unknown. Cleanup is unavailable until verified by a manual recheck." }
+        guard let downloads else { return "Downloads access is unavailable. Choose Downloads explicitly and recheck." }
+        if !item.url.pathComponents.starts(with: downloads.url.pathComponents) || !scan.scope.pathComponents.starts(with: downloads.url.pathComponents) {
+            return "Inspection only. Exact-file Trash review is available only within Downloads."
+        }
+        return eligible(item, in: scan) ? nil : "Protected path. This item is outside the supported Downloads cleanup boundary."
+    }
     func invalidateReview() { draft.invalidateReview(); approvedBatch = nil }
     func review() throws -> CleanupReview {
         guard canReview else { throw PlanSelectionError.ineligible }
