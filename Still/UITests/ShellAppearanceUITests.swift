@@ -44,7 +44,7 @@ final class ShellAppearanceUITests: XCTestCase {
         for theme in ["Light", "Dark"] {
             app.popUpButtons.firstMatch.click(); app.menuItems[theme].click()
             app.typeKey("3", modifierFlags: .command)
-            XCTAssertTrue(app.staticTexts["Recorded cleanup activity"].waitForExistence(timeout: 5))
+            XCTAssertTrue(app.staticTexts["Recorded scan and cleanup activity"].waitForExistence(timeout: 5))
             XCTAssertTrue(selectedPlan.exists)
             selectedPlan.click()
             XCTAssertTrue(app.staticTexts["2 files selected"].waitForExistence(timeout: 5))

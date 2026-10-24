@@ -184,7 +184,7 @@ private struct WorkspaceView: View {
         switch destination {
         case .overview: return "On-demand storage review"
         case .plan: return "Choose files, then review"
-        case .history: return "Recorded cleanup activity"
+        case .history: return "Recorded scan and cleanup activity"
         case .locations: return "Scan locations and access"
         case .alerts: return "Capacity checks only"
         case .growth: return "Observed storage changes"
@@ -724,7 +724,7 @@ private struct WorkspaceView: View {
 
     private var history: some View {
         CleanupHistoryView(model: navigationState.historyModel, expandedRuns: $navigationState.historyExpandedRuns,
-            showRecovery: { openRecovery(caller: .history) }, manageLocalRecords: { openLocalRecords(caller: .history) })
+            showRecovery: { openRecovery(caller: .history) }, manageLocalRecords: { openLocalRecords(caller: .history) }, goOverview: { navigate(.overview) }, viewPlan: { navigate(.plan) })
     }
 
     private var locations: some View {

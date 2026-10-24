@@ -25,7 +25,9 @@ import StillCore
         } catch { recordingWarning = "This scan could not be saved to History. Current results and choices remain available." }
     }
     func load(maintain: Bool = true) async {
-        do { records = try await store().activities(maintain: maintain); loadError = nil }
+        do { records = try await HistoryLoadCoordinator.load(lifecycle: AppLifecycleController.shared) { mayMaintain in
+                try await self.store().activities(maintain: maintain && mayMaintain)
+            }; loadError = nil }
         catch { records = nil; loadError = "Scan history is unavailable. Recorded scan activity could not be read." }
     }
 }
@@ -56,4 +58,13 @@ struct ScanActivitySummary: View {
         switch activity.outcome { case .complete: "Completed scan"; case .partial: "Partial scan"; case .stopped: "Stopped scan"; case .failed: "Failed scan" }
     }
     private func bytes(_ value: Int64?) -> String { value.map { ByteCountFormatter.string(fromByteCount: $0, countStyle: .decimal) } ?? "Unknown" }
+}
+
+struct HistoryActivityFilterControl: View {
+    @Binding var selection: HistoryActivityFilter
+    var body: some View {
+        Picker("Activity", selection: $selection) {
+            ForEach(HistoryActivityFilter.allCases, id: \.self) { Text($0.rawValue).tag($0) }
+        }.pickerStyle(.menu).fixedSize().accessibilityIdentifier("History activity filter")
+    }
 }

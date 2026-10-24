@@ -8,7 +8,16 @@ extension AppLifecycleController: HistoryMaintenanceLifecycle {
     var maintenanceActive: Bool { get { maintenanceInProgress } set { maintenanceInProgress = newValue } }
 }
 
+enum HistoryActivityFilter: String, CaseIterable { case all = "All activity", scans = "Scans", cleanups = "Cleanups" }
+private enum HistoryActivityItem: Identifiable {
+    case scan(ScanActivity), cleanup(CleanupHistoryRun)
+    var id: String { switch self { case .scan(let value): "scan-" + value.id.uuidString; case .cleanup(let value): "cleanup-" + value.id.uuidString } }
+    var date: Date { switch self { case .scan(let value): value.completedAt; case .cleanup(let value): value.date } }
+}
+
 @MainActor @Observable final class CleanupHistoryModel {
+    var filter = HistoryActivityFilter.all
+    var expandedScans: Set<UUID> = []
     var snapshot: CleanupHistorySnapshot?
     var message: String?
     var blocked = false
@@ -32,7 +41,7 @@ extension AppLifecycleController: HistoryMaintenanceLifecycle {
             snapshot = loaded.0
             if loaded.1 { message = "Expired completed history was removed, but journal compaction did not finish. Disk reclamation is not confirmed." }
             blocked = false
-        } catch { blocked = true; message = "The local journal cannot be read. Clear and reset are unavailable; keep its recovery records." }
+        } catch { snapshot = nil; blocked = true; message = "Cleanup history is unavailable. The local journal cannot be read. Clear and reset are unavailable; keep its recovery records." }
     }
     func clear() async {
         guard !busy, !AppLifecycleController.shared.maintenanceInProgress, !AppLifecycleController.shared.operationInProgress else { message = "Wait for the current cleanup to finish."; return }
@@ -103,15 +112,30 @@ extension AppLifecycleController: HistoryMaintenanceLifecycle {
 struct CleanupHistoryView: View {
     @Bindable var model: CleanupHistoryModel
     @Binding var expandedRuns: Set<UUID>
-    @State private var expandedScans: Set<UUID> = []
     @Bindable private var scans = ScanActivityHistory.shared
     var showRecovery: () -> Void
     var manageLocalRecords: () -> Void
+    var goOverview: () -> Void
+    var viewPlan: () -> Void
+    private var items: [HistoryActivityItem] {
+        let scanItems: [HistoryActivityItem] = model.filter == .cleanups ? [] : (scans.records ?? []).map(HistoryActivityItem.scan)
+        let cleanupItems: [HistoryActivityItem] = model.filter == .scans ? [] : (model.snapshot?.completedRuns ?? []).map(HistoryActivityItem.cleanup)
+        return (scanItems + cleanupItems).sorted { $0.date == $1.date ? $0.id < $1.id : $0.date > $1.date }
+    }
+    private var unavailable: Bool {
+        switch model.filter { case .all: scans.records == nil || model.snapshot == nil; case .scans: scans.records == nil; case .cleanups: model.snapshot == nil }
+    }
     var body: some View {
         VStack(alignment: .leading, spacing: StillDesign.Space.xl) {
-            PageHeader(title: "History", subtitle: "Completed cleanup runs stored locally. Recovery records are kept separately.")
+            PageHeader(title: "History", subtitle: "Recorded scans and cleanup outcomes stored locally. Recovery facts are kept separately.")
+            HistoryActivityFilterControl(selection: $model.filter)
             if let message = model.message {
                 StatusRow(text: message, symbol: model.blocked ? "exclamationmark.triangle" : "info.circle", role: model.blocked ? .caution : .neutral, identifier: "historyStatus")
+            }
+            if let warning = scans.recordingWarning { StatusRow(text: warning, symbol: "exclamationmark.triangle", role: .caution) }
+            if let error = scans.loadError { StatusRow(text: error, symbol: "exclamationmark.triangle", role: .caution) }
+            if model.blocked || scans.loadError != nil {
+                Button("Try again") { Task { await reload() } }.disabled(model.busy)
             }
             if model.blocked || (model.snapshot?.protectedRecordCount ?? 0) > 0 {
                 SettingsRow(title: "Recovery facts are protected", detail: "Unfinished runs are excluded from Clear and retention. Reset requires them to be resolved.") {
@@ -119,18 +143,36 @@ struct CleanupHistoryView: View {
                 }
             }
             LocalRecordsEntry(action: manageLocalRecords)
-            if let warning = scans.recordingWarning { StatusRow(text: warning, symbol: "exclamationmark.triangle", role: .caution) }
-            if let error = scans.loadError { StatusRow(text: error, symbol: "exclamationmark.triangle", role: .caution) }
-            ForEach(scans.records ?? []) { activity in
-                ScanActivitySummary(activity: activity, expanded: Binding(get: { expandedScans.contains(activity.id) }, set: { if $0 { expandedScans.insert(activity.id) } else { expandedScans.remove(activity.id) } }))
-            }
-            if let snapshot = model.snapshot {
-                if snapshot.completedRuns.isEmpty {
-                    EmptyState(title: "No completed runs", detail: "Completed per-file results appear here after a cleanup. Nothing is selected or retried from history.", symbol: "clock")
+            ForEach(items) { item in
+                switch item {
+                case .scan(let activity):
+                    ScanActivitySummary(activity: activity, expanded: Binding(get: { model.expandedScans.contains(activity.id) }, set: { if $0 { model.expandedScans.insert(activity.id) } else { model.expandedScans.remove(activity.id) } }))
+                case .cleanup(let run): cleanup(run)
                 }
-                ForEach(snapshot.completedRuns) { run in
+            }
+            if items.isEmpty {
+                if model.busy { ProgressView("Reading local history…") }
+                else if unavailable {
+                    EmptyState(title: "History unavailable", detail: "Some recorded activity could not be read. Try again reloads records only; it does not scan or clean files.", symbol: "exclamationmark.triangle")
+                } else {
+                    EmptyState(title: emptyTitle, detail: "History retains up to 90 days within its record budgets. Older or cleared records may no longer appear. Nothing is selected or retried here.", symbol: "clock")
+                    HStack {
+                        if model.filter != .cleanups { Button("Go to Overview", action: goOverview) }
+                        if model.filter != .scans { Button("View cleanup plan", action: viewPlan) }
+                    }
+                }
+            }
+            Text("Scan activity and enabled growth aggregates share a 250 MB archive budget and 90-day retention; at most 30 growth baselines are retained, without a 30-scan limit. Completed cleanup records have a separate 250 MB payload budget and 90-day retention. Protected recovery facts are exempt. Trash contents remain until you empty Trash in Finder.").font(.caption).foregroundStyle(.secondary)
+        }.task { await reload() }
+    }
+    private var emptyTitle: String {
+        switch model.filter { case .all: "No retained history."; case .scans: "No recorded scans."; case .cleanups: "No recorded cleanup runs." }
+    }
+    private func reload() async { await model.load(); await scans.load() }
+    private func cleanup(_ run: CleanupHistoryRun) -> some View {
                     SummarySurface {
                         VStack(alignment: .leading, spacing: StillDesign.Space.md) {
+                            Label("Cleanup run", systemImage: "checklist").font(StillDesign.TypeStyle.section)
                             Text(run.date.formatted(date: .abbreviated, time: .shortened)).font(StillDesign.TypeStyle.section)
                             if run.usesApprovalDate { Text("Approval date shown; outcome time was not recorded by this version.").font(.caption).foregroundStyle(.secondary) }
                             Text("Recorded file results: \(run.records.count)").font(.callout)
@@ -157,12 +199,6 @@ struct CleanupHistoryView: View {
                             }
                         }
                     }
-                }
-            } else if model.busy { ProgressView("Reading local history…") }
-            Text("Completed records are retained for 90 days within a 250 MB payload budget. Interrupted runs are exempt. Trash contents remain until you empty Trash in Finder.").font(.caption).foregroundStyle(.secondary)
-
-        }
-        .task { await model.load(); await scans.load() }
     }
     private func bytes(_ value: Int64) -> String { ByteCountFormatter.string(fromByteCount: value, countStyle: .decimal) }
 }
