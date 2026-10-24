@@ -452,8 +452,28 @@ final class HistoryActivityUITests: XCTestCase {
                 XCTAssertTrue(end.waitForExistence(timeout: 5))
                 let viewport = app.scrollViews.firstMatch
                 let oversized = end.frame.maxY - heading.frame.minY > viewport.frame.height
-                if oversized { capture(name + "-top-" + theme) }
-                for _ in 0..<12 where !viewport.frame.contains(end.frame) { viewport.scroll(byDeltaX: 0, deltaY: -80) }
+                if oversized {
+                    // Start a tall example at its heading so its first location is readable.
+                    for _ in 0..<12 {
+                        let distance = viewport.frame.minY + 8 - heading.frame.minY
+                        if abs(distance) <= 1 { break }
+                        viewport.scroll(byDeltaX: 0, deltaY: max(-240, min(240, distance)))
+                    }
+                    XCTAssertTrue(viewport.frame.contains(heading.frame))
+                    capture(name + "-top-" + theme)
+                }
+                for _ in 0..<12 {
+                    if viewport.frame.contains(end.frame) && (oversized || viewport.frame.contains(heading.frame)) { break }
+                    // Fixed wheel increments can overshoot the small slack of a fitting block.
+                    let distance = oversized ? viewport.frame.maxY - 8 - end.frame.maxY
+                        : viewport.frame.minY + (viewport.frame.height - (end.frame.maxY - heading.frame.minY)) / 2 - heading.frame.minY
+                    viewport.scroll(byDeltaX: 0, deltaY: max(-240, min(240, distance)))
+                }
+                if !viewport.frame.contains(end.frame) || (!oversized && !viewport.frame.contains(heading.frame)) {
+                    let geometry = XCTAttachment(string: "Case: " + name + "\nViewport: \(viewport.frame)\nHeading: \(heading.frame)\nEnd: \(end.frame)\nOversized: \(oversized)\n" + app.debugDescription)
+                    geometry.name = "history-gallery-containment-" + name; geometry.lifetime = .keepAlways; add(geometry)
+                    capture(name + "-containment-failure-" + theme)
+                }
                 XCTAssertTrue(viewport.frame.contains(end.frame)); if !oversized { XCTAssertTrue(viewport.frame.contains(heading.frame)) }
                 capture(name + "-" + theme)
             }
