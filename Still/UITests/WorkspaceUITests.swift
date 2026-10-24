@@ -76,6 +76,7 @@ final class WorkspaceUITests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: root) }
         let file = root.appendingPathComponent("evidence.txt")
         try Data("owned evidence".utf8).write(to: file)
+        try Data("owned database fixture".utf8).write(to: root.appendingPathComponent("protected.sqlite"))
         let app = XCUIApplication()
         let state = try configureIsolatedJourneyState(app)
         defer { app.terminate(); try? FileManager.default.removeItem(at: state) }
@@ -89,6 +90,10 @@ final class WorkspaceUITests: XCTestCase {
         app.typeKey(.return, modifierFlags: []); app.dialogs.buttons["Scan folder"].click()
         waitForOverviewScan(app)
         openObservedExplorer(app, root: root)
+        app.buttons["Inspect protected.sqlite"].click()
+        XCTAssertTrue(app.staticTexts["Protected file type (.sqlite). This file or an ancestor is excluded from Downloads cleanup."].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.checkBoxes["Select protected.sqlite"].exists)
+        app.buttons["Close inspector"].click()
         app.buttons["Inspect evidence.txt"].click()
         XCTAssertTrue(app.staticTexts["Why listed"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts["Cleanup action"].exists)
