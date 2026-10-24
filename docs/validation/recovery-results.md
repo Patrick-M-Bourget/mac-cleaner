@@ -4,7 +4,7 @@ October24,2026. Children #60 (parent#48) and #61 (parent#50). Baseintegration482
 
 ## Public red verification
 
-Test-only revisiond17f3fe adds an owned-journal History→recovery→History public journey and strengthens the existing real delayed-native-Trash cancellation journey to require a truthful partial outcome summary and reachable terminal actions. Hosted caller40060845331 and terminal40060846712 are pending. These use previously approved public app/executor/journal/disposable-filesystem seams; no new private seam or personal cleanup is introduced.
+Test-only revisiond17f3fe adds an owned-journal History→recovery→History public journey and strengthens the existing real delayed-native-Trash cancellation journey to require a truthful partial outcome summary and reachable terminal actions. Actual red caller40060845331 fails missing Back to History; terminal40060846712 fails missing partial outcome summary at both sizes. Minimal callerf2a7ab1 passes40061276492 (14.02s); minimal partialcfc4e1d passes40061178461 (2/2,123.93s). Broader History context and real all-skipped tests run at70aa493 as40061717062/40061718362, pending. These use previously approved public app/executor/journal/disposable-filesystem seams; no new private seam or personal cleanup is introduced.
 
 ## Required boundaries
 

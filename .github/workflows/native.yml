@@ -24,6 +24,7 @@ on:
           - recovery-context
           - terminal-results
           - terminal-skipped
+          - access-guide
           - selection-plan
           - exclusions
           - design
@@ -101,6 +102,8 @@ jobs:
               -only-testing:StillUITests/WorkspaceUITests/testKeyboardCancelRestoresReviewFocusWithoutChangingSelection
               -only-testing:StillUITests/CleanupRetryUITests
             )
+          elif [[ "$EVENT_NAME" == "workflow_dispatch" && "$REQUESTED_SUITE" == "access-guide" ]]; then
+            scope=(-only-testing:StillUITests/WorkspaceUITests/testOptionalFolderAccessEducationPreservesScopeAndSelection)
           elif [[ "$EVENT_NAME" == "workflow_dispatch" && "$REQUESTED_SUITE" == "recovery-context" ]]; then
             scope=(-only-testing:StillUITests/RecoveryUITests/testHistoryRecoveryPreservesExpandedEvidenceAndObservedViewport)
           elif [[ "$EVENT_NAME" == "workflow_dispatch" && "$REQUESTED_SUITE" == "terminal-skipped" ]]; then
