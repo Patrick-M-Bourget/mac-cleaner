@@ -70,6 +70,10 @@ extension CapacityRefreshController {
         let metric = reading.metric == "important" ? "Available for important usage" : "Available capacity fallback"
         return prefix + reading.observedAt.formatted() + " · " + metric
     }
+    var sidebarObservationText: String {
+        guard let reading else { return "Not yet observed" }
+        return (failed ? "Last observed " : "Observed ") + reading.observedAt.formatted(date: .omitted, time: .shortened)
+    }
     var statusText: String {
         if isRefreshing { return reading == nil ? "Checking capacity…" : "Refreshing…" }
         return failed ? "Couldn’t refresh capacity" : ""

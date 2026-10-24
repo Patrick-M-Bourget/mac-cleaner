@@ -184,8 +184,9 @@ private struct WorkspaceView: View {
                 VStack(alignment: .leading, spacing: StillDesign.Space.md) {
                     Label("This Mac", systemImage: "laptopcomputer").font(.callout)
                     CapacityMeter(available: startupCapacity?.available, total: startupCapacity?.total, compact: true)
-                    Text(capacity.observationText).font(.caption2).foregroundStyle(.secondary)
-                        .lineLimit(3).frame(height: 42, alignment: .topLeading)
+                    Text(capacity.sidebarObservationText).font(.caption2).foregroundStyle(.secondary)
+                        .lineLimit(1).frame(height: 14, alignment: .leading)
+                        .help(capacity.observationText).accessibilityLabel(capacity.observationText)
                         .accessibilityIdentifier("sidebarCapacityObservation")
                     Text(capacity.statusText.isEmpty ? " " : capacity.statusText).font(.caption2).foregroundStyle(.secondary)
                         .frame(height: 14, alignment: .leading)
