@@ -78,8 +78,35 @@ final class HistoryUITests: XCTestCase {
         defer { app.terminate(); try? FileManager.default.removeItem(at: root) }
         let sentinel = root.appendingPathComponent("unrelated-sentinel")
         try Data([9]).write(to: sentinel)
-        app.launch(); app.typeKey("3", modifierFlags: .command)
-        XCTAssertTrue(app.staticTexts["No completed runs"].waitForExistence(timeout: 5))
+        app.launch()
+        func captureLaunchDiagnostic(_ stage: String) {
+            let screen = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+            screen.name = "history-launch-" + (minimum ? "minimum-" : "initial-") + stage
+            screen.lifetime = .keepAlways; add(screen)
+            let hierarchy = XCTAttachment(string: "App state: " + String(app.state.rawValue) + "\n" + app.debugDescription)
+            hierarchy.name = "history-launch-hierarchy-" + stage
+            hierarchy.lifetime = .keepAlways; add(hierarchy)
+        }
+        let launchedWindow = app.windows.firstMatch.waitForExistence(timeout: 5)
+        if !launchedWindow {
+            captureLaunchDiagnostic("missing-window-before-command")
+            // Diagnostic only: reopening cannot satisfy the original launch requirement.
+            let menu = app.menuBars.menuBarItems["Window"]
+            if menu.exists {
+                menu.click()
+                let show = app.menuItems["Show Still"].firstMatch
+                if show.exists { show.click() }
+                _ = app.windows.firstMatch.waitForExistence(timeout: 5)
+            }
+            captureLaunchDiagnostic("after-show-still")
+            XCTFail("Initial History journey launch must expose its window before navigation")
+            return
+        }
+        app.typeKey("3", modifierFlags: .command)
+        let emptyHistory = app.staticTexts["No completed runs"].waitForExistence(timeout: 5)
+        if !emptyHistory { captureLaunchDiagnostic("missing-history-after-command") }
+        XCTAssertTrue(emptyHistory)
+        guard emptyHistory else { return }
         app.terminate()
         let files = root.appendingPathComponent("Downloads")
         try FileManager.default.createDirectory(at: files, withIntermediateDirectories: false)
