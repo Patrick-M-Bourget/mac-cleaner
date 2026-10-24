@@ -1,5 +1,13 @@
 # Shell and appearance qualification — #53
 
+## Current verification checkpoint — October 24, 2026
+
+Integration is still blocked. Corrected Gallery run `40094091084` at `4665407` passes 4 tests with 68 original captures (48 new shell examples, 20 existing capacity/local-records examples). All 48 shell originals have been individually accepted; existing-example review is tracked separately. Staged Reset run `40094530265` at `aadc664` passes both sizes, with all 6 originals accepted: clear failure retains uniform Dark; successful appearance removal switches chrome and content to Automatic even when a later service fails. The competing live SwiftUI appearance override was removed; the native process now owns live appearance. Originals and unchanged export manifests are preserved under `docs/visual/shell-appearance/` by run ID.
+
+The strict Retry journey still fails at `2795902` in run `40095078306`: after removing the owned write fault, clicking Retry does not save the preference. Explicit button style and increased z-order did not resolve it; neither is recorded as a successful fix. Earlier targeted instrumentation showed no action callback entry. Final affected-flow run `40094532205` passes the two capacity journeys but fails later History/window/navigation checks; diagnosis is pending. Earlier 16/16 regression evidence at `ba355dd` is historical and does not certify the changed live appearance composition. Do not close #53 or claim all journeys pass until these gates clear.
+
+The sections below are chronological evidence, including failed/superseded candidates. Their pending wording describes those checkpoints rather than overriding this current status.
+
 Contract [SHELL-APPEARANCE](../SHELL-APPEARANCE.md) locked October 24,2026 at f5174a6. Public appearance-service boundary explicitly approved by user; existing public UI journeys remain approved. Implementation started in isolated issue53 worktree. No new test result, source acceptance or native capture is claimed yet. Record actual red→green cycles and source-bound original theme/size captures here before integration.
 
 ## First public shell tracer
