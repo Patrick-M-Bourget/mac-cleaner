@@ -1,0 +1,17 @@
+[
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "13e45ad27cf196b7a9b1a286cdf27a68af959b9a",
+        "deviceName" : "My Mac",
+        "exportedFileName" : "E3004D72-8214-4C1F-8B8F-FC99C2ECFD14.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "shell-appearance-not-restored_0_1E4B4861-B2EA-49E8-A009-73547E2EA303.png",
+        "timestamp" : 1792842110.753
+      }
+    ],
+    "testIdentifier" : "ShellAppearanceUITests/testAppearanceSurvivesRelaunchWithoutRestoringPlan()",
+    "testIdentifierURL" : "test://com.apple.xcode/Still/StillUITests/ShellAppearanceUITests/testAppearanceSurvivesRelaunchWithoutRestoringPlan"
+  }
+]
