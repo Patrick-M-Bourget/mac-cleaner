@@ -90,4 +90,54 @@ final class ShellAppearanceUITests: XCTestCase {
         XCTAssertTrue(picker.waitForExistence(timeout: 10))
         XCTAssertEqual(picker.value as? String, "Automatic")
     }
+
+    @MainActor func testAttentionFooterOpensDetailsWithoutChangingChoicesOrSettings() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication(); let state = try configureIsolatedJourneyState(app)
+        let manager = FileManager.default
+        let downloads = manager.temporaryDirectory.resolvingSymlinksInPath().appendingPathComponent("StillSelectionUI-" + UUID().uuidString)
+        try manager.createDirectory(at: downloads, withIntermediateDirectories: false)
+        let file = downloads.appendingPathComponent("Choice.pdf"); try Data([4, 9]).write(to: file)
+        let folder = state.appendingPathComponent("StorageAlerts")
+        try manager.createDirectory(at: folder, withIntermediateDirectories: false)
+        let badState = folder.appendingPathComponent("episode-state.json")
+        let original = Data("owned invalid alert state".utf8); try original.write(to: badState)
+        defer { app.terminate(); try? manager.removeItem(at: state); try? manager.removeItem(at: downloads) }
+        var identity = stat(); XCTAssertEqual(lstat(downloads.path, &identity), 0)
+        app.launchArguments = ["--future-milestones", "--ui-test-alert-service", "--ui-test-downloads-root", "--design-minimum"]
+        app.launchEnvironment["STILL_TEST_DOWNLOADS_ROOT"] = downloads.path
+        app.launchEnvironment["STILL_TEST_DOWNLOADS_ID"] = "\(identity.st_dev):\(identity.st_ino)"
+        app.launch()
+        XCTAssertTrue(app.buttons["Choose folder…"].waitForExistence(timeout: 10))
+        app.buttons["Choose folder…"].click(); app.typeKey("g", modifierFlags: [.command, .shift])
+        XCTAssertTrue(app.textFields.firstMatch.waitForExistence(timeout: 5)); app.textFields.firstMatch.typeText(downloads.path)
+        app.typeKey(.return, modifierFlags: []); app.dialogs.buttons["Scan folder"].click()
+        waitForOverviewScan(app); app.typeKey("2", modifierFlags: .command)
+        let category = app.checkBoxes["downloadsCategorySelection"]
+        XCTAssertTrue(category.waitForExistence(timeout: 5)); category.click()
+        XCTAssertTrue(app.staticTexts["1 file selected"].waitForExistence(timeout: 5))
+        let footer = app.buttons["Alerts need attention"]
+        guard footer.waitForExistence(timeout: 5) else {
+            let image = XCTAttachment(screenshot: app.windows.firstMatch.screenshot())
+            image.name = "shell-attention-footer-missing"; image.lifetime = .keepAlways; add(image)
+            XCTFail("A known unreadable alert state must offer direct access to its details"); return
+        }
+        let bounds = app.windows.firstMatch.frame
+        footer.click()
+        XCTAssertTrue(app.staticTexts["Capacity checks only"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Saved alert state couldn’t be read. Monitoring is stopped to preserve suppression."].exists)
+        XCTAssertTrue(app.staticTexts["Capacity polling is stopped."].exists)
+        XCTAssertEqual(try Data(contentsOf: badState), original)
+        for theme in ["Light", "Dark"] {
+            app.popUpButtons["Appearance"].click(); app.menuItems[theme].click()
+            XCTAssertEqual(app.windows.firstMatch.frame, bounds)
+            let image = XCTAttachment(screenshot: app.windows.firstMatch.screenshot())
+            image.name = "shell-attention-details-minimum-" + theme; image.lifetime = .keepAlways; add(image)
+        }
+        app.typeKey("2", modifierFlags: .command)
+        XCTAssertTrue(app.staticTexts["1 file selected"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["Cleanup plan, 1 category selected"].exists)
+        XCTAssertEqual(try Data(contentsOf: file), Data([4, 9]))
+        XCTAssertEqual(try Data(contentsOf: badState), original)
+    }
 }

@@ -1,6 +1,7 @@
 import SwiftUI
 import AppKit
 import UserNotifications
+import Darwin
 
 extension Notification.Name {
     static let stillAlertOpened = Notification.Name("Still.alertOpened")
@@ -44,11 +45,55 @@ extension Notification.Name {
     }
 }
 
+#if DEBUG
+/// Controlled service boundary for one owned read-failure journey. No operation
+/// reaches notification APIs, creates a timer, or rewrites the fixture record.
+@MainActor private final class DisposableAlertMonitoringSystem: AlertMonitoringSystem {
+    let root: URL
+    init(root: URL) { self.root = root }
+    static func requested() -> DisposableAlertMonitoringSystem? {
+        guard StorageAlertsController.futureEnabled, LocalStateLocation.isDisposableTest,
+              ProcessInfo.processInfo.arguments.contains("--ui-test-alert-service"),
+              let root = try? LocalStateLocation.root(create: false) else { return nil }
+        return Self(root: root)
+    }
+    var available: Bool { true }
+    var allowsNotificationChanges: Bool { true }
+    var now: Date { Date() }
+    func authorization() async -> AlertPolicy.Authorization { .denied }
+    func requestAuthorization() async throws -> Bool { false }
+    func capacity() -> AlertCapacityReading { AlertCapacityReading(available: nil, total: nil, volumeID: nil, metric: "important") }
+    func load() throws -> AlertPolicy {
+        let folder = root.appendingPathComponent("StorageAlerts")
+        let file = folder.appendingPathComponent("episode-state.json")
+        var directory = stat(), item = stat()
+        guard lstat(folder.path, &directory) == 0, directory.st_mode & S_IFMT == S_IFDIR,
+              directory.st_uid == geteuid(), folder.path == folder.resolvingSymlinksInPath().path,
+              lstat(file.path, &item) == 0, item.st_mode & S_IFMT == S_IFREG,
+              item.st_uid == geteuid(), item.st_size <= 16_384,
+              file.path == file.resolvingSymlinksInPath().path else { throw CocoaError(.fileReadNoPermission) }
+        return try AlertStateStore(url: file).load()
+    }
+    func save(_ policy: AlertPolicy) throws { throw CocoaError(.fileWriteNoPermission) }
+    func reset() throws { throw CocoaError(.fileWriteNoPermission) }
+    func startPolling(_ sample: @escaping @MainActor () -> Void) -> () -> Void { {} }
+    func removePendingNotifications(identifiers: [String]) {}
+    func submitLowSpaceNotification(identifier: String, observedAt: Date) async throws { throw CocoaError(.featureUnsupported) }
+}
+#endif
+
 @MainActor final class StorageAlertsController: AlertMonitoringController, UNUserNotificationCenterDelegate {
     @Published private(set) var openedAlertContext: AlertOpenContext?
     static var futureEnabled: Bool { ProcessInfo.processInfo.arguments.contains("--future-milestones") }
     init() {
+        #if DEBUG
+        let system: any AlertMonitoringSystem
+        if let fixture = DisposableAlertMonitoringSystem.requested() { system = fixture }
+        else { system = NativeAlertMonitoringSystem() }
+        super.init(system: system)
+        #else
         super.init(system: NativeAlertMonitoringSystem())
+        #endif
         if Self.futureEnabled && !LocalStateLocation.isDisposableTest {
             let center = UNUserNotificationCenter.current()
             center.delegate = self
