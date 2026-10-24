@@ -330,8 +330,8 @@ import SwiftUI
     var search = ""
     var choosingItems = false
     var inspected: FileObservation?
-    var offset = CGPoint.zero
-    func reset() { search = ""; choosingItems = false; inspected = nil; offset = .zero }
+    var offset: CGPoint?
+    func reset() { search = ""; choosingItems = false; inspected = nil; offset = nil }
 }
 
 struct LiveCleanupPlanView: View {

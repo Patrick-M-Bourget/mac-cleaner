@@ -660,7 +660,7 @@ struct LocationScopeRow<Actions: View>: View {
 
 /// Restores a destination on insertion only. Selection-only changes never request scrolling.
 struct DestinationViewport: NSViewRepresentable {
-    @Binding var offset: CGPoint
+    @Binding var offset: CGPoint?
     func makeNSView(context: Context) -> Viewport { Viewport() }
     func updateNSView(_ view: Viewport, context: Context) {
         view.onOffset = { offset = $0 }
@@ -671,7 +671,7 @@ struct DestinationViewport: NSViewRepresentable {
         var onOffset: ((CGPoint) -> Void)?
         private weak var clip: NSClipView?
         private var restored = false
-        func attach(saved: CGPoint) {
+        func attach(saved: CGPoint?) {
             guard let scroll = enclosingScrollView else { return }
             if clip !== scroll.contentView {
                 NotificationCenter.default.removeObserver(self)
@@ -680,8 +680,14 @@ struct DestinationViewport: NSViewRepresentable {
             }
             if !restored {
                 restored = true
-                scroll.layoutSubtreeIfNeeded()
-                clip?.scroll(to: saved); scroll.reflectScrolledClipView(scroll.contentView)
+                // A new destination has no saved viewport. Its native top can be
+                // negative because of automatic content insets; zero is not a
+                // valid substitute. Only returning navigation restores an offset.
+                if let saved {
+                    scroll.layoutSubtreeIfNeeded()
+                    clip?.scroll(to: saved); scroll.reflectScrolledClipView(scroll.contentView)
+                }
+                onOffset?(scroll.contentView.bounds.origin)
             }
         }
         @objc private func moved() { if restored, let clip { onOffset?(clip.bounds.origin) } }
