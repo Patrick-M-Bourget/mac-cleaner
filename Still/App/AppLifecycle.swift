@@ -55,6 +55,8 @@ import StillCore
             self?.monitoringChanged(effective)
         }
     }
+    // A single native owner keeps SwiftUI content and auxiliary panels in the same
+    // appearance. A competing view-level override can outlive a reset to Automatic.
     func applyAppearance() {
         switch appearance.choice {
         case .automatic: NSApplication.shared.appearance = nil

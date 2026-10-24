@@ -380,7 +380,6 @@ private struct WorkspaceView: View {
             AppearancePicker(choice: Binding(get: { appearance.choice }, set: { AppLifecycleController.shared.chooseAppearance($0) }))
             }
         }
-        .preferredColorScheme(appearance.choice == .automatic ? nil : appearance.choice == .dark ? .dark : .light)
     }
 
     @ToolbarContentBuilder private var contextToolbar: some ToolbarContent {
