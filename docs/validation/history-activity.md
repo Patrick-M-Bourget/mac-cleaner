@@ -63,3 +63,18 @@ One P2: shared recording-failure notice is absent at Locations and current Explo
 Reports are preserved outsideGit in notes/history51-{standards,spec}-review.md. Both P2s require a public UI red→green correction and supplemental review before integration; optional reason strings remain an explicit bounded stored-schema judgement.
 
 Broader regression run `40134647627` at `761568d`:15/16 pass; LocalRecords context test fails81.985s at line244 because its generic first disclosure now opens the scan summary rather than Per-file results. Semantic selector correction is pending; no product-flow regression or blanket final16-pass claim is inferred from this attempt.
+
+## Final app source f062ca6 — source/build and live states
+
+Both supplemental reviews of `0433ff7...f062ca6` report no outstanding hard/source mismatches. Standards' independent-reload P2 and Spec's caller-feedback P2 are resolved; the optional reason-schema smell has a documented compatibility judgement, not a claimed refactor. The actual current StorageExplorer and Locations render the shared notice, along with legacy inspection. Each retry loads only its store; scan load generations reject stale results.
+
+Local Xcode27.1 build passes on macOS27.0.1 (`/tmp/history51-final-build.log`). Review app `artifacts/history-f062ca6/Still.app` copied from build products; ad-hoc strict/deep signature verifies. Later test-only changes leave production sources identical. This is a development build; M8 remains deferred.
+
+| Final native run at f062ca6 | Scope | Result |
+|---|---|---|
+|40136452086|Caller warning + independent retry, initial/minimum|2/2,53.209s/51.252s|
+|40136453600|Save failure + independently readable history, initial/minimum|2/2,59.383s/51.438s|
+|40136456813|Actual partial/failed scans, initial/minimum|2/2,37.975s/39.912s|
+|40136455122|Exact comparison/expired link/Back, initial/minimum|2/2,61.309s/65.605s|
+
+All40 explicit originals in these four final folders individually reviewed and accepted for their visible states (12 caller/retry,8 availability,8 coverage,12 exact routes). Per-file reviewer records/caveats accompany their folders; all original manifests remain unmodified. This supersedes intermediate expanded-detail alignment. Final Gallery, Clear confirmation captures and corrected contextual regressions remain pending; this is not yet complete #51 acceptance.
