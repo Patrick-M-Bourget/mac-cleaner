@@ -100,10 +100,11 @@ final class CapacityRefreshUITests: XCTestCase {
         let returned = app.staticTexts["trashLocation-" + file.lastPathComponent]
         let returnedPath = returned.value as? String ?? returned.label
         let returnedURL = URL(fileURLWithPath: returnedPath)
-        if returnedURL.deletingLastPathComponent().path == NSHomeDirectory() + "/.Trash", returnedURL.lastPathComponent == file.lastPathComponent {
-            defer { try? manager.removeItem(at: returnedURL) }
-            XCTAssertEqual(try Data(contentsOf: returnedURL), original)
+        guard returnedURL.deletingLastPathComponent().path == NSHomeDirectory() + "/.Trash", returnedURL.lastPathComponent == file.lastPathComponent else {
+            XCTFail("Cleanup must disclose the exact owned fixture's Trash location; an unknown location is never removed"); return
         }
+        XCTAssertEqual(try Data(contentsOf: returnedURL), original)
+        try manager.removeItem(at: returnedURL)
         let sidebar = app.staticTexts["sidebarCapacityAmount"]
         let expected = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value CONTAINS %@ OR label CONTAINS %@", "80 GB", "80 GB"), object: sidebar)
         guard XCTWaiter.wait(for: [expected], timeout: 5) == .completed else {

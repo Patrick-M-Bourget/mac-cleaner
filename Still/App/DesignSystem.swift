@@ -286,7 +286,7 @@ struct VolumeSummary: View {
                     } else {
                         VStack(alignment: .trailing, spacing: StillDesign.Space.xs) {
                             Text("—").font(StillDesign.TypeStyle.value)
-                            Text("Available space unavailable").font(.caption).foregroundStyle(.secondary)
+                            Text(refreshing ? "Startup-volume measurement" : "Available space unavailable").font(.caption).foregroundStyle(.secondary)
                         }
                     }
                 }.frame(height: 44)
