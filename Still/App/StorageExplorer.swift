@@ -46,6 +46,62 @@ import SwiftUI
     func clearInspector() { position.inspectedID = nil; position.inspectedResource = nil }
 }
 
+/// A read-only evidence snapshot: overlap, scope membership and totals share one owner.
+/// It uses supplied observations only and never reads filesystem metadata.
+private struct StorageExplorerObservations {
+    struct Entry: Identifiable {
+        let item: FileObservation
+        let scan: ScanResult
+        var id: String { item.id + "|" + item.resourceID }
+    }
+    struct Subtotal {
+        let bytes: Int64
+        let hasUnknownRemainder: Bool
+    }
+    let scans: [ScanResult]
+    let entries: [Entry]
+    init(scans selected: [URL: ScanResult], reports: [ScanResult], allowedScopes: Set<URL>?,
+         downloadsOnly: Bool, downloadsScopes: Set<URL>?, observedDownloadsScopes: Set<URL>,
+         configuredDownloads: URL?, eligible: (FileObservation, ScanResult) -> Bool) {
+        var latest = selected
+        for scan in reports {
+            if latest[scan.scope].map({ $0.observedAt < scan.observedAt }) ?? true { latest[scan.scope] = scan }
+        }
+        scans = latest.values.filter { scan in
+            (allowedScopes?.contains(scan.scope.standardizedFileURL) ?? true) && (!downloadsOnly || downloadsScopes?.contains(scan.scope.standardizedFileURL) == true || observedDownloadsScopes.contains(scan.scope.standardizedFileURL)
+                || configuredDownloads.map { scan.scope.standardizedFileURL.pathComponents.starts(with: $0.pathComponents) } == true)
+        }.sorted { $0.scope.path < $1.scope.path }
+        var representatives: [String: Entry] = [:]
+        for scan in scans.sorted(by: { $0.observedAt > $1.observedAt }) {
+            for item in scan.observations {
+                let entry = Entry(item: item, scan: scan)
+                if let existing = representatives[entry.id] {
+                    // One failed overlapping location must not suppress independent valid evidence.
+                    if !eligible(existing.item, existing.scan), eligible(item, scan) { representatives[entry.id] = entry }
+                } else { representatives[entry.id] = entry }
+            }
+        }
+        entries = representatives.values.sorted { left, right in
+            if (left.item.kind == .folder) != (right.item.kind == .folder) { return left.item.kind == .folder }
+            return left.item.url.path.localizedStandardCompare(right.item.url.path) == .orderedAscending
+        }
+    }
+    func overlaps(_ scope: URL) -> Bool {
+        scans.contains { $0.scope != scope && ($0.scope.pathComponents.starts(with: scope.pathComponents) || scope.pathComponents.starts(with: $0.scope.pathComponents)) }
+    }
+    func subtotal(in folder: URL, logical: Bool) -> Subtotal {
+        let children = entries.filter { $0.item.url != folder && $0.item.url.pathComponents.starts(with: folder.pathComponents) }
+        var seen = Set<String>(); var total: Int64 = 0; var unknown = false
+        for entry in children where entry.item.kind != .folder && seen.insert(entry.item.resourceID).inserted {
+            guard entry.item.kind == .file, let size = (logical ? entry.item.logicalBytes : entry.item.allocatedBytes) else { unknown = true; continue }
+            let sum = total.addingReportingOverflow(size)
+            if sum.overflow { unknown = true } else { total = sum.partialValue }
+        }
+        let partial = scans.contains { scan in scan.issues.contains { $0.url.pathComponents.starts(with: folder.pathComponents) } }
+        return Subtotal(bytes: total, hasUnknownRemainder: unknown || partial)
+    }
+}
+
 /// Browses observed metadata only. The workspace supplies its fixed sibling action strip.
 struct StorageExplorerView: View {
     @Bindable var model: FolderInspection
@@ -53,41 +109,17 @@ struct StorageExplorerView: View {
     @Bindable var context: StorageExplorerContext
     let backTitle: String
     let back: () -> Void
-    private struct Entry: Identifiable {
-        let item: FileObservation
-        let scan: ScanResult
-        var id: String { item.id + "|" + item.resourceID }
+    private typealias Entry = StorageExplorerObservations.Entry
+    private var observations: StorageExplorerObservations {
+        StorageExplorerObservations(scans: selection.scans, reports: model.scopeReports.map(\.current),
+            allowedScopes: context.allowedScopes, downloadsOnly: context.downloadsOnly,
+            downloadsScopes: context.downloadsScopes,
+            observedDownloadsScopes: Set(selection.overviewDownloadRows.map { $0.scan.scope.standardizedFileURL }),
+            configuredDownloads: FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask).first?.standardizedFileURL,
+            eligible: { selection.eligible($0, in: $1) })
     }
-    private var scans: [ScanResult] {
-        var latest = selection.scans
-        for report in model.scopeReports {
-            let scan = report.current
-            if latest[scan.scope].map({ $0.observedAt < scan.observedAt }) ?? true { latest[scan.scope] = scan }
-        }
-        let downloadsScopes = Set(selection.overviewDownloadRows.map { $0.scan.scope.standardizedFileURL })
-        let configured = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask).first?.standardizedFileURL
-        return latest.values.filter { scan in
-            (context.allowedScopes?.contains(scan.scope.standardizedFileURL) ?? true) && (!context.downloadsOnly || context.downloadsScopes?.contains(scan.scope.standardizedFileURL) == true || downloadsScopes.contains(scan.scope.standardizedFileURL)
-                || configured.map { scan.scope.standardizedFileURL.pathComponents.starts(with: $0.pathComponents) } == true)
-        }.sorted { $0.scope.path < $1.scope.path }
-    }
-    private var entries: [Entry] {
-        var representatives: [String: Entry] = [:]
-        for scan in scans.sorted(by: { $0.observedAt > $1.observedAt }) {
-            for item in scan.observations {
-                let entry = Entry(item: item, scan: scan)
-                let key = entry.id
-                if let existing = representatives[key] {
-                    // One failed overlapping location must not suppress independent valid evidence.
-                    if !selection.eligible(existing.item, in: existing.scan), selection.eligible(item, in: scan) { representatives[key] = entry }
-                } else { representatives[key] = entry }
-            }
-        }
-        return representatives.values.sorted { left, right in
-            if (left.item.kind == .folder) != (right.item.kind == .folder) { return left.item.kind == .folder }
-            return left.item.url.path.localizedStandardCompare(right.item.url.path) == .orderedAscending
-        }
-    }
+    private var scans: [ScanResult] { observations.scans }
+    private var entries: [Entry] { observations.entries }
     private var folderAvailable: Bool {
         guard let folder = context.position.folder else { return true }
         return scans.contains { $0.scope.standardizedFileURL == folder }
@@ -162,7 +194,7 @@ struct StorageExplorerView: View {
                             Text(scan.scope.path).font(.caption).foregroundStyle(.secondary).textSelection(.enabled)
                             Text(scan.totalAllocatedBytes.map { "On disk: " + bytes($0) } ?? "On disk: Unknown · observed subtotal " + bytes(scan.allocatedBytes)).font(.callout)
                             Text(scan.isComplete ? "Observed coverage" : "Partial coverage · uninspected bytes unknown").font(.caption).foregroundStyle(.secondary)
-                            if scans.contains(where: { $0.scope != scan.scope && ($0.scope.pathComponents.starts(with: scan.scope.pathComponents) || scan.scope.pathComponents.starts(with: $0.scope.pathComponents)) }) {
+                            if observations.overlaps(scan.scope) {
                                 Text("Overlaps another selected location · totals are not additive").font(.caption).foregroundStyle(.secondary)
                             }
                         }.padding(StillDesign.Space.md)
@@ -218,16 +250,10 @@ struct StorageExplorerView: View {
     }
     private func folderAllocation(_ folder: URL) -> String { folderSubtotal(folder, logical: false) }
     private func folderSubtotal(_ folder: URL, logical: Bool) -> String {
-        let children = entries.filter { $0.item.url != folder && $0.item.url.pathComponents.starts(with: folder.pathComponents) }
-        var seen = Set<String>(); var total: Int64 = 0; var unknown = false
-        for entry in children where entry.item.kind != .folder && seen.insert(entry.item.resourceID).inserted {
-            guard entry.item.kind == .file, let size = (logical ? entry.item.logicalBytes : entry.item.allocatedBytes) else { unknown = true; continue }
-            let sum = total.addingReportingOverflow(size)
-            if sum.overflow { unknown = true } else { total = sum.partialValue }
-        }
-        let partial = scans.contains { scan in scan.issues.contains { $0.url.pathComponents.starts(with: folder.pathComponents) } }
-        return bytes(total) + (unknown || partial ? " observed · remaining unknown" : " observed")
+        let subtotal = observations.subtotal(in: folder, logical: logical)
+        return bytes(subtotal.bytes) + (subtotal.hasUnknownRemainder ? " observed · remaining unknown" : " observed")
     }
+
     private func breadcrumbs(for folder: URL) -> [URL] {
         guard let root = scans.map(\.scope).filter({ folder.pathComponents.starts(with: $0.pathComponents) }).min(by: { $0.pathComponents.count < $1.pathComponents.count }) else { return [folder] }
         var result = [root]
