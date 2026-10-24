@@ -45,10 +45,11 @@ struct AppearancePreferenceNotice: View {
             Spacer(minLength: 0)
             Text(message).font(.caption).foregroundStyle(.secondary).lineLimit(1)
                 .accessibilityIdentifier("appearanceSaveNotice")
+                .accessibilityHidden(notice == nil)
             if notice == .saveFailed {
                 NativeAppearanceRetryButton(action: retry).fixedSize()
             }
-        }.frame(height: 24).accessibilityHidden(notice == nil)
+        }.frame(height: 24)
     }
     private var message: String {
         switch notice {
