@@ -1726,9 +1726,6 @@ final class WorkspaceUITests: XCTestCase {
         recoverB.click(); waitForLocationsScan()
         app.typeKey("2", modifierFlags: .command)
         assertSelected(1)
-        XCTAssertEqual(app.checkBoxes["downloadsCategorySelection"].label, "Downloads · 2 files eligible")
-        XCTAssertFalse(text("Downloads B · Access unavailable · Choose again to renew").exists)
-        XCTAssertFalse(text("Downloads B · Location unavailable · Reconnect and recheck").exists)
         XCTAssertTrue(app.buttons["Review cleanup"].isEnabled)
         app.typeKey("4", modifierFlags: .command)
         // A new hardlink path is a new unchecked choice; its bytes are shared.
@@ -1737,6 +1734,9 @@ final class WorkspaceUITests: XCTestCase {
         app.buttons["Scan selected locations"].click(); waitForLocationsScan()
         app.typeKey("2", modifierFlags: .command)
         assertSelected(1)
+        XCTAssertEqual(app.checkBoxes["downloadsCategorySelection"].label, "Downloads · 3 files eligible")
+        XCTAssertFalse(text("Downloads B · Access unavailable · Choose again to renew").exists)
+        XCTAssertFalse(text("Downloads B · Location unavailable · Reconnect and recheck").exists)
         expandPlanItems(app)
         for name in ["second-guide.pdf", "hardlink-guide.pdf"] {
             let checkbox = showPlanItem(name, selected: false)
