@@ -51,7 +51,9 @@ final class HistoryUITests: XCTestCase {
         XCTAssertFalse(app.buttons["Back to History"].exists)
         app.buttons["clearHistory"].click()
         app.sheets.buttons["Clear completed runs"].click()
-        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "Cleared 1 completed runs.")).firstMatch.waitForExistence(timeout: 5))
+        let status = app.staticTexts["historyStatus"]
+        XCTAssertTrue(status.waitForExistence(timeout: 5))
+        XCTAssertTrue((status.value as? String ?? status.label).hasPrefix("Cleared 1 completed runs."), "Actual maintenance status: " + (status.value as? String ?? status.label))
         XCTAssertTrue(try journal.records().isEmpty)
         app.buttons["Back to Locations & access"].click()
         XCTAssertTrue(manage.waitForExistence(timeout: 5))
