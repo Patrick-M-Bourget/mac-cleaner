@@ -30,7 +30,7 @@ Current review build: `/Users/bender/Library/Caches/Codex/mac-cleaner-implementa
 #53 shell/appearance is now grilled and locked in [SHELL-APPEARANCE](SHELL-APPEARANCE.md). User authorized implementation and explicitly approved the public appearance-preference service test seam. Final app source is `c5886e8`: Core146, alerts43,11 distinct new native journeys and18 existing checks pass across recorded scopes. Normal Retry clicks at both sizes pass after the shared native/actual-bounds/message-only accessibility correction; do not restore whole-row hiding or weaken the public click/persistence test. [Qualification](validation/shell-appearance.md) owns source boundaries, original-capture reviews and earlier failed candidates. #51/#52/#54 remain separate unresolved decisions.
 
 
-Review build: `/Users/bender/Library/Caches/Codex/mac-cleaner-implementation/artifacts/shell-c5886e8/Still.app`. Next decisions are #51 completed-scan/cleanup History, #52 What grew first-use/review routes, and #54 protected release-archive guidance. They remain untriaged; keep all future milestones and M8 deferral.
+Review build: `/Users/bender/Library/Caches/Codex/mac-cleaner-implementation/artifacts/shell-c5886e8/Still.app`. #51 History is now implemented and qualified below. Next decisions are #52 What grew first-use/review routes and #54 protected release-archive guidance. They remain untriaged; keep all future milestones and M8 deferral.
 
 
 ## History activity lock — October 24
