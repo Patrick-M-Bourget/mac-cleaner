@@ -93,6 +93,13 @@ final class WorkspaceUITests: XCTestCase {
         app.buttons["Inspect protected.sqlite"].click()
         XCTAssertTrue(app.staticTexts["Protected file type (.sqlite). This file or an ancestor is excluded from Downloads cleanup."].waitForExistence(timeout: 5))
         XCTAssertFalse(app.checkBoxes["Select protected.sqlite"].exists)
+        for theme in ["Light", "Dark"] {
+            app.popUpButtons["Appearance"].click(); app.menuItems[theme].click()
+            app.scrollViews["inspectorEvidenceScroll"].scroll(byDeltaX: 0, deltaY: -600)
+            XCTAssertTrue(app.buttons["Close inspector"].isHittable)
+            let shot = XCTAttachment(screenshot: app.windows.firstMatch.screenshot())
+            shot.name = "inspector-protected-sqlite-minimum-" + theme; shot.lifetime = .keepAlways; add(shot)
+        }
         app.buttons["Close inspector"].click()
         app.buttons["Inspect evidence.txt"].click()
         XCTAssertTrue(app.staticTexts["Why listed"].waitForExistence(timeout: 5))

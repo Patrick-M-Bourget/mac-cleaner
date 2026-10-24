@@ -243,7 +243,13 @@ import SwiftUI
             return "Inspection only. Exact-file Trash review is available only within Downloads."
         }
         guard downloads != nil else { return "Downloads access is unavailable. Choose Downloads explicitly and recheck." }
-        return eligible(item, in: scan) ? nil : "Protected path. This item is outside the supported Downloads cleanup boundary."
+        if let downloads, let restriction = PlanDraft.protectedPathRestriction(item, downloads: downloads) {
+            switch restriction {
+            case .fileType(let ext): return "Protected file type (." + ext + "). This file or an ancestor is excluded from Downloads cleanup."
+            case .directoryName(let name): return "Protected location (" + name + "). Files within it are excluded from Downloads cleanup."
+            }
+        }
+        return eligible(item, in: scan) ? nil : "This observation cannot currently support cleanup. Recheck the location before choosing files."
     }
     func invalidateReview() { draft.invalidateReview(); approvedBatch = nil }
     func review() throws -> CleanupReview {

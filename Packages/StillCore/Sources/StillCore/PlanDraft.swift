@@ -148,13 +148,29 @@ public struct PlanDraft: Sendable {
         let root = downloads.url.standardizedFileURL.pathComponents
         let parts = item.url.standardizedFileURL.pathComponents
         let scope = scan.scope.standardizedFileURL.pathComponents
-        let protectedExtensions = Set(["app", "bundle", "framework", "xcarchive", "dsym", "photoslibrary", "photolibrary", "musiclibrary", "library", "backupbundle", "sparsebundle", "band", "logicx", "db", "sqlite", "sqlite3"])
         let affected = scan.issues.contains { issue in
             parts.starts(with: issue.url.standardizedFileURL.pathComponents)
         }
         return !affected && item.kind == .file && item.previewAvailability == .local && item.cloud.membership == false && scope.starts(with: root)
             && parts.starts(with: root) && parts.count > root.count
-            && !parts.dropFirst(root.count).contains { protectedExtensions.contains(URL(fileURLWithPath: $0).pathExtension.lowercased()) || [".git", ".Trash", "Backups.backupdb", ".."].contains($0) }
+            && protectedPathRestriction(item, downloads: downloads) == nil
+    }
+    public enum ProtectedPathRestriction: Equatable, Sendable {
+        case fileType(String)
+        case directoryName(String)
+    }
+    /// Explains the protected path rule used by canConsider. This is observed
+    /// policy evidence only; nil does not grant eligibility or cleanup authority.
+    public static func protectedPathRestriction(_ item: FileObservation, downloads: DownloadsRoot) -> ProtectedPathRestriction? {
+        let root = downloads.url.standardizedFileURL.pathComponents
+        let parts = item.url.standardizedFileURL.pathComponents
+        let protectedExtensions = Set(["app", "bundle", "framework", "xcarchive", "dsym", "photoslibrary", "photolibrary", "musiclibrary", "library", "backupbundle", "sparsebundle", "band", "logicx", "db", "sqlite", "sqlite3"])
+        for part in parts.dropFirst(root.count) {
+            let ext = URL(fileURLWithPath: part).pathExtension.lowercased()
+            if protectedExtensions.contains(ext) { return .fileType(ext) }
+            if [".git", ".Trash", "Backups.backupdb", ".."].contains(part) { return .directoryName(part) }
+        }
+        return nil
     }
     public static func candidate(_ item: FileObservation, in scan: ScanResult, downloads: DownloadsRoot) throws -> PlannedTarget {
         guard scan.observations.contains(where: { $0.id == item.id && $0.resourceID == item.resourceID }) else { throw PlanSelectionError.ineligible }
