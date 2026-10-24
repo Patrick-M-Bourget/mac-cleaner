@@ -47,7 +47,7 @@ The tables below Classification retain the original audit baseline. This current
 | H04 | Partial; decision/future parts retained | R per-run expanded recorded facts; L shared local records. See what grew/History activity relationship remains #51/M4; never restore old approval for latest results |
 | O02,O06,X02 | Implemented bounded #49; final visual review accepted | User-locked CAPACITY-REFRESH.md now has process-owned lifecycle/manual/terminal refresh, 30-second foreground rule, coalesced trailing demand, 10-second expiry, stale/unavailable/partial states and shared native controls. Combined six policy tests/Core142, 10 new UI journeys and 17 existing checks pass; final presentation source8869b38, final 71-original capture review accepted. This overlay supersedes the historical once-at-window-creation/absent-retry findings below; no full-suite or universal platform claim |
 | H01,H03 | Decision pending #51 | Cleanup-only versus aggregate scan History and retention wording; existing protected history mechanisms retained |
-| N05–N07,A04 | Decision pending #53 | Badge semantics, effective alerts shell status, appearance persistence; existing theme controls do not settle persistence |
+| N05–N07,A04 | Locked; implementation pending #53 | [SHELL-APPEARANCE](SHELL-APPEARANCE.md) Q1–Q13 settles badge, effective monitoring context, saved shared appearance and failure/Reset behavior; bounded native proof pending |
 | S07,P10,C01–C02 and other adapters | Future gated | Recognized discovery, cloud/developer/browser actions retain their original M2/M3 tickets; never required to close M1 feature implementation |
 | G01–G04 | Future M4 + unresolved #52 | Existing comparison mechanisms do not complete first-use/review-options routing or approved visual hierarchy |
 | M01–M02 | Future M6 + unresolved #54 | Existing managed guidance retained; release-archive information architecture still outstanding, no deletion |
@@ -242,7 +242,7 @@ These source pointers make the classification reproducible at the pinned baselin
 - M1 lacks cloud/developer/browser mutation by approved design; those are retained future tickets, not removed features. Cloud metadata in Overview is explicitly scoped, not a made-up aggregate or eviction estimate.
 - App-managed directories/libraries may remain Unknown/Not inspected rather than recursively traversed for a sample-looking total. No direct backup/library/database deletion.
 - Review-only browser/cache/permission/alert simulations and milestone switcher do not ship. A development future flag does not promote M2–M6 to production.
-- History is currently cleanup-only; whether this is the intended permanent departure is **unresolved #51**, not silently accepted here. Appearance persistence is likewise unresolved #53.
+- History is currently cleanup-only; whether this is the intended permanent departure is **unresolved #51**, not silently accepted here. Appearance persistence was unresolved in this baseline; #53 is now locked under SHELL-APPEARANCE.md, with implementation/proof pending.
 
 ## Decision checkpoint and ongoing acceptance gate
 
