@@ -235,10 +235,14 @@ import SwiftUI
         if item.cloud.membership == true { return "Cloud-managed item. Cloud cleanup is unavailable; no eviction or synced deletion is offered." }
         if item.previewAvailability == .nonlocal { return "Contents are not local. Cleanup and Quick Look are unavailable; no download is requested." }
         if item.previewAvailability == .unknown || item.cloud.membership == nil { return "Locality or cloud membership is unknown. Cleanup is unavailable until verified by a manual recheck." }
-        guard let downloads else { return "Downloads access is unavailable. Choose Downloads explicitly and recheck." }
-        if !item.url.pathComponents.starts(with: downloads.url.pathComponents) || !scan.scope.pathComponents.starts(with: downloads.url.pathComponents) {
+        // Classifying an observed location needs only its lexical boundary, not a
+        // usable grant. A missing Downloads grant must not misdescribe another folder.
+        let downloadsLocation = downloads?.url ?? FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask).first
+        if let root = downloadsLocation?.standardizedFileURL.pathComponents,
+           !item.url.standardizedFileURL.pathComponents.starts(with: root) || !scan.scope.standardizedFileURL.pathComponents.starts(with: root) {
             return "Inspection only. Exact-file Trash review is available only within Downloads."
         }
+        guard downloads != nil else { return "Downloads access is unavailable. Choose Downloads explicitly and recheck." }
         return eligible(item, in: scan) ? nil : "Protected path. This item is outside the supported Downloads cleanup boundary."
     }
     func invalidateReview() { draft.invalidateReview(); approvedBatch = nil }
