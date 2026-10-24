@@ -16,6 +16,8 @@ on:
           - downloads-refresh
           - downloads-unavailable
           - mixed-scopes
+          - mixed-scopes-initial
+          - mixed-scopes-minimum
           - inspector
           - connected-next
           - selection-plan
@@ -103,6 +105,10 @@ jobs:
               -only-testing:StillUITests/WorkspaceUITests/testInspectorExplainsOwnedInspectionOnlyAndProtectedEntries
               -only-testing:StillUITests/WorkspaceUITests/testMinimumGalleryStatesAndOpaqueChromeCaptures
             )
+          elif [[ "$EVENT_NAME" == "workflow_dispatch" && "$REQUESTED_SUITE" == "mixed-scopes-initial" ]]; then
+            scope=(-only-testing:StillUITests/WorkspaceUITests/testMixedLocationsKeepValidChoicesWithUnknownCoverage)
+          elif [[ "$EVENT_NAME" == "workflow_dispatch" && "$REQUESTED_SUITE" == "mixed-scopes-minimum" ]]; then
+            scope=(-only-testing:StillUITests/WorkspaceUITests/testMinimumMixedLocationsKeepValidChoicesWithUnknownCoverage)
           elif [[ "$EVENT_NAME" == "workflow_dispatch" && "$REQUESTED_SUITE" == "mixed-scopes" ]]; then
             scope=(
               -only-testing:StillUITests/WorkspaceUITests/testMixedLocationsKeepValidChoicesWithUnknownCoverage
