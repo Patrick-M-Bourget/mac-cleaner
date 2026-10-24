@@ -602,7 +602,7 @@ final class WorkspaceUITests: XCTestCase {
         let app = XCUIApplication()
         let isolatedState = try configureIsolatedJourneyState(app)
         defer { app.terminate(); try? FileManager.default.removeItem(at: isolatedState) }
-        app.launchArguments = ["--ui-test-downloads-root"]
+        app.launchArguments = ["--ui-test-downloads-root", "--design-minimum"]
         app.launchEnvironment["STILL_TEST_DOWNLOADS_ROOT"] = root.path
         app.launch()
         XCTAssertTrue(app.buttons["Choose folder…"].waitForExistence(timeout: 5))
@@ -631,11 +631,25 @@ final class WorkspaceUITests: XCTestCase {
         }, object: downloadsFinding)
         XCTAssertEqual(XCTWaiter.wait(for: [downloadsUnknown], timeout: 5), .completed)
         XCTAssertFalse((downloadsFinding.value as? String ?? downloadsFinding.label).contains("No eligible files"))
+        revealScrollElement(app, control: downloadsFinding, label: "Unavailable Downloads finding")
+        for appearance in ["Light", "Dark"] {
+            app.popUpButtons["Appearance"].click(); app.menuItems[appearance].click()
+            let capture = XCTAttachment(screenshot: app.windows.firstMatch.screenshot())
+            capture.name = "downloads-unavailable-minimum-" + appearance
+            capture.lifetime = .keepAlways; add(capture)
+            XCTAssertEqual(app.windows.firstMatch.frame, bounds)
+        }
         app.typeKey("4", modifierFlags: .command)
         XCTAssertTrue(app.buttons["Choose again…"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "value CONTAINS[c] %@ OR label CONTAINS[c] %@", "unavailable", "unavailable")).firstMatch.exists)
         XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "value CONTAINS %@ OR label CONTAINS %@", "Last complete observation:", "Last complete observation:")).firstMatch.exists)
-        XCTAssertEqual(app.windows.firstMatch.frame, bounds)
+        for appearance in ["Light", "Dark"] {
+            app.popUpButtons["Appearance"].click(); app.menuItems[appearance].click()
+            let capture = XCTAttachment(screenshot: app.windows.firstMatch.screenshot())
+            capture.name = "downloads-access-recovery-minimum-" + appearance
+            capture.lifetime = .keepAlways; add(capture)
+            XCTAssertEqual(app.windows.firstMatch.frame, bounds)
+        }
     }
 
     @MainActor
