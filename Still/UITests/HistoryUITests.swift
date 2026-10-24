@@ -125,7 +125,7 @@ final class HistoryUITests: XCTestCase {
         let reset = app.buttons["resetStill"]
         XCTAssertTrue(reset.waitForExistence(timeout: 5))
         let ready = expectation(for: NSPredicate(format: "enabled == true"), evaluatedWith: reset)
-        wait(for: [ready], timeout: 5)
+        await fulfillment(of: [ready], timeout: 5)
         // Insert new unfinished evidence AFTER Local records loaded. Reset must read it afresh.
         let another = try draft.approve(draft.review())
         XCTAssertTrue(try journal.claim(another))

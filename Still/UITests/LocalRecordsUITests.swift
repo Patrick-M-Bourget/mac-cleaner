@@ -66,7 +66,7 @@ final class LocalRecordsUITests: XCTestCase {
         let category = app.checkBoxes["downloadsCategorySelection"]
         XCTAssertTrue(category.waitForExistence(timeout: 10))
         let ready = expectation(for: NSPredicate(format: "enabled == true"), evaluatedWith: category)
-        wait(for: [ready], timeout: 20)
+        await fulfillment(of: [ready], timeout: 20)
         category.click()
         XCTAssertEqual(app.staticTexts["liveSelectionSummary"].value as? String, "1 file selected")
         app.typeKey("3", modifierFlags: .command)
@@ -97,7 +97,7 @@ final class LocalRecordsUITests: XCTestCase {
         let reset = app.buttons["resetStill"]
         XCTAssertTrue(reset.waitForExistence(timeout: 5))
         let resetReady = expectation(for: NSPredicate(format: "enabled == true"), evaluatedWith: reset)
-        wait(for: [resetReady], timeout: 5)
+        await fulfillment(of: [resetReady], timeout: 5)
         // Insert unfinished facts after the panel's fresh read. Reset must consult
         // the actual journal rather than cached completed-history evidence.
         let interrupted = try draft.approve(draft.review()); XCTAssertTrue(try journal.claim(interrupted))
