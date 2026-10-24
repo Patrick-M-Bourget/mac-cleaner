@@ -107,4 +107,53 @@ final class HistoryActivityUITests: XCTestCase {
         XCTAssertEqual(try Data(contentsOf: file), Data([4, 2])); XCTAssertEqual(try journal.completedHistory().completedRuns.count, 1)
     }
 
+    @MainActor func testGroupedScanAndStopRetainOneHonestActivityPerOperation() throws {
+        continueAfterFailure = false
+        let manager = FileManager.default, app = XCUIApplication()
+        let state = try configureIsolatedJourneyState(app)
+        let root = manager.temporaryDirectory.resolvingSymlinksInPath().appendingPathComponent("StillSelectionUI-" + UUID().uuidString)
+        let a = root.appendingPathComponent("A"), b = root.appendingPathComponent("B")
+        for folder in [a, b] { try manager.createDirectory(at: folder, withIntermediateDirectories: true); try Data([1, 7]).write(to: folder.appendingPathComponent("Original.pdf")) }
+        var identity = stat(); XCTAssertEqual(lstat(root.path, &identity), 0)
+        app.launchArguments = ["--ui-test-downloads-root", "--ui-test-slow-refresh", "--design-minimum"]
+        app.launchEnvironment["STILL_TEST_DOWNLOADS_ROOT"] = root.path
+        app.launchEnvironment["STILL_TEST_DOWNLOADS_ID"] = "\(identity.st_dev):\(identity.st_ino)"
+        defer { app.terminate(); try? manager.removeItem(at: state); try? manager.removeItem(at: root) }
+        app.launch(); app.typeKey("4", modifierFlags: .command)
+        func remember(_ folder: URL) {
+            XCTAssertTrue(app.buttons["Add folder…"].waitForExistence(timeout: 10)); app.buttons["Add folder…"].click()
+            app.typeKey("g", modifierFlags: [.command, .shift]); XCTAssertTrue(app.textFields.firstMatch.waitForExistence(timeout: 5))
+            app.textFields.firstMatch.typeText(folder.path); app.typeKey(.return, modifierFlags: []); app.dialogs.buttons["Remember folder"].click()
+        }
+        remember(a); remember(b)
+        XCTAssertFalse(app.buttons["Stop scan"].exists)
+        app.buttons["Scan selected locations"].click()
+        let ready = XCTNSPredicateExpectation(predicate: NSPredicate(format: "enabled == true"), object: app.buttons["Scan selected locations"])
+        XCTAssertEqual(XCTWaiter.wait(for: [ready], timeout: 20), .completed)
+        app.typeKey("3", modifierFlags: .command)
+        XCTAssertTrue(app.staticTexts["Completed scan"].waitForExistence(timeout: 5))
+        guard app.staticTexts.matching(identifier: "Completed scan").count == 1 && app.staticTexts["Requested locations: 2"].exists else {
+            let image = XCTAttachment(screenshot: app.windows.firstMatch.screenshot()); image.name = "history-ungrouped-terminal-scan"; image.lifetime = .keepAlways; add(image)
+            XCTFail("One explicit two-location scan must retain one grouped activity, not one record per location"); return
+        }
+        for index in 0..<300 { try Data([2]).write(to: a.appendingPathComponent("Slow-" + String(index) + ".txt")) }
+        app.typeKey("4", modifierFlags: .command); app.buttons["Scan selected locations"].click()
+        let stop = app.buttons["Stop scan"].firstMatch
+        XCTAssertTrue(stop.waitForExistence(timeout: 5)); stop.click()
+        app.typeKey("3", modifierFlags: .command)
+        XCTAssertTrue(app.staticTexts["Stopped scan"].waitForExistence(timeout: 5))
+        XCTAssertEqual(app.staticTexts.matching(identifier: "Completed scan").count, 1)
+        let details = app.disclosureTriangles.firstMatch
+        revealScrollElement(app, control: details, label: "Stopped scan details"); details.click()
+        XCTAssertTrue(app.staticTexts["Not attempted"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["Stop scan"].exists)
+        let bounds = app.windows.firstMatch.frame
+        for theme in ["Light", "Dark"] {
+            app.popUpButtons["Appearance"].click(); app.menuItems[theme].click()
+            let image = XCTAttachment(screenshot: app.windows.firstMatch.screenshot()); image.name = "history-stopped-group-minimum-" + theme; image.lifetime = .keepAlways; add(image)
+            XCTAssertEqual(app.windows.firstMatch.frame, bounds)
+        }
+        for folder in [a, b] { XCTAssertEqual(try Data(contentsOf: folder.appendingPathComponent("Original.pdf")), Data([1, 7])) }
+    }
+
 }
