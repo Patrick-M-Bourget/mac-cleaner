@@ -1,6 +1,6 @@
 # Prototype-to-implementation parity audit
 
-Audited October 23, 2026. Native baseline: `f9e854f57d14bfb40f304ca06024faa75afc25a9`. Tracking: [#45](https://github.com/Patrick-M-Bourget/mac-cleaner/issues/45). **Audit complete; connected flow/presentation decisions Q1–Q30 are approved in [FLOW-LOCK](FLOW-LOCK.md). Repairs remain open; annotated visual-state approval precedes coding.**
+Audited October 23, 2026. Native baseline: `f9e854f57d14bfb40f304ca06024faa75afc25a9`. Tracking: [#45](https://github.com/Patrick-M-Bourget/mac-cleaner/issues/45). **Audit complete; connected Q1–Q30 and b96bb97 designs are approved. See the current acceptance overlay for delivered repairs, unresolved decisions and exact proof limits.**
 
 ## Baseline and evidence boundary
 
@@ -21,14 +21,14 @@ Qualified application source9264d7a extends the connected journey with mixed cur
 
 ## Current acceptance overlay — October 24
 
-The tables below Classification retain the original audit baseline. This current overlay prevents historical gaps from being mistaken for still-missing implementation. D/M/R are integrated; L remains under qualification until its diagnostics, final source review and affected regressions pass. Existing decisions and all future gates remain preserved.
+The tables below Classification retain the original audit baseline. This current overlay prevents historical gaps from being mistaken for still-missing implementation. D/M/R are integrated; L is qualified for integration after native context/diagnostics/History, original-image review, source reviews and affected regressions. Existing decisions and all future gates remain preserved.
 
 ### Evidence keys
 
 - **D — Downloads:** [connected-downloads](validation/connected-downloads.md), application 824328f; both real complete journeys, scope/config-only relaunch, Explorer/plan/confirmation/Results/new plan. Strengthened refresh 40052574336; unavailable recovery 40052410048; exact anchors 40050359141. Combined focused runs, not one full-suite green.
 - **M — mixed/inspector:** [connected-next](validation/connected-next.md), application 9264d7a; Downloads 13/13 at f233d10 (40056609812), inspector 2/2 (40056586166), final initial/minimum mixed 40059063609/40059065114 at c640bb9; 76 original native captures.
 - **R — recovery/Results/access:** [recovery-results](validation/recovery-results.md), final app changes through 664f6ce; recovery initial/minimum 40063307935/40063307903 and 8/8 affected regression 40063307890 at 7c28b7f; terminal 5/5 40063066782 at 9ab8aea; access 40062699173; History 2/2 40063851203; 78 originals. Native unknown/all-failed terminal reproduction is expressly unqualified.
-- **L — local records:** [local-records](validation/local-records.md), candidate 63361f9; actual context 40066234820 plus History 3/3 40066234839. Both origins, live choices, retained caller/management viewport/disclosure, fresh Reset guard and Recovery→Local records return. Final diagnostics/native capture/source review remains pending.
+- **L — local records:** [local-records](validation/local-records.md), final app dadc0c1; final context40068265478/40068265529, diagnostics40068265439/40068265594, History3/3 40068265641, regressions7/7 40068265638 atf8a0c86; Gallery2/2 40068435072 at test-onlyf754b83. 67 final originals individually reviewed. Both origins, live choices, retained caller/management/diagnostics viewport, fresh Reset guard and recovery return; direct root diagnostics Back.
 
 ### Current bounded acceptance
 
@@ -40,9 +40,9 @@ The tables below Classification retain the original audit baseline. This current
 | F05 | Qualified M1; provider limits | M structured location/time, logical/on-disk values, why listed, action/consequence and canonical policy reasons; synthetic unknown/provider presentation is not genuine cloud certification |
 | S01–S05,S09 | Qualified bounded M1 | D+M configured scopes, no-locations/manual scan, persistent Stop/origin, independent valid locations, missing/unknown/pending, explicit recovery/omit/reinclude, conditional Forget and overlap. Real OS revocation/disconnected-volume/provider behavior remains separate |
 | S06 | Qualified education | R optional FDA disclosure, manual settings instructions, expansion preserved across route return, no prompt/status detector/authority expansion |
-| N01,N02,P09 | Qualified specified origins; partial overall | D Explorer/plan; R manual History/Overview recovery, startup Overview, observed viewport/disclosure/process-window context. L extends Local records origins only after final qualification; diagnostics pending |
-| N03,L01 | Implemented candidate / qualification in progress | L shared History/Locations Local records, existing Clear/Reset policy, fresh protected-journal guard; require remaining final captures/reviews before marking qualified |
-| L02 | Partial / M6-gated | Existing frozen diagnostics preview/local Save mechanism stays qualified only at its recorded source; #62 caller routing is still pending. No ordinary-launch promotion |
+| N01,N02,P09 | Qualified specified origins; partial overall | D Explorer/plan; R manual History/Overview recovery, startup Overview, observed viewport/disclosure/process-window context. L adds both Local records origins and gated diagnostics direct-root return with exact viewport/reopen proof |
+| N03,L01 | Qualified bounded M1 | L shared History/Locations Local records, existing Clear/Reset policy, actual Clear/Cancel, fresh protected-journal guard, recovery return and final visual/regression/source review |
+| L02 | Partial / M6-gated | L qualifies frozen redacted preview, Save Cancel, caller return and process viewport/reopen; existing Save success/failure retains its earlier proof boundary. No ordinary-launch promotion |
 | R02,R05 | Qualified bounded presentation/normal terminal routes; partial native exceptional proof | D explicit History/new plan, R actual native partial/retry and all-skipped plus shared eight-branch synthetic Gallery and public Core failure/unknown/replay fixtures. Do not label native unknown/all-failed terminal flow qualified |
 | H04 | Partial; decision/future parts retained | R per-run expanded recorded facts; L shared local records. See what grew/History activity relationship remains #51/M4; never restore old approval for latest results |
 | O02,O06 | Decision pending #49 | Capacity refresh triggers, last-known/unavailable retry/concurrency not resolved by Q1–Q30 |
@@ -53,7 +53,7 @@ The tables below Classification retain the original audit baseline. This current
 | M01–M02 | Future M6 + unresolved #54 | Existing managed guidance retained; release-archive information architecture still outstanding, no deletion |
 | N08–N10 | Bounded qualified + M7 limits | Original native theme/size/fixed footer/keyboard/anchor evidence exists; no comprehensive VoiceOver/localization/OS/CPU certification |
 
-Unaffected already-covered/departure/simulation rows retain their status; this overlay is not permission to erase any roadmap row or claim all 79 rows implemented.
+#44/#47 bounded feature repairs are accepted; #46/#48 can now be reconciled against final L evidence. #50 retains exceptional native proof and #45 retains unresolved decisions. Unaffected already-covered/departure/simulation rows retain their status; this overlay is not permission to erase any roadmap row or claim all 79 rows implemented.
 
 
 ## Classification

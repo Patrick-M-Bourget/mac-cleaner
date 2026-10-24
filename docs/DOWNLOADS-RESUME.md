@@ -1,27 +1,19 @@
-# Connected Downloads checkpoint
+# Connected implementation resume
 
-The first Downloads journey (#55–#57) is qualified and integrated on `integration/still-spec` at5a9d588. [Validation](validation/connected-downloads.md) owns exact source/test/capture boundaries. Application source824328f; later commits are tests/docs. Core136, local Xcode27.1 build and app signature verify. Native final regressions40051984202 pass5/5; strengthened refresh40052574336 and unavailable/recovery40052410048 pass. b1702ef expanded12/13 has its sole offscreen-row assertion superseded by the strengthened passing refresh case. This is combined focused evidence, not one full UI suite green run.
+October24,2026. Repo `/Users/bender/Library/Caches/Codex/mac-cleaner-implementation/repo`; integration branch `integration/still-spec`, draft PR36. User-authorized continuation implemented #60/#61/#63 (integrated03cbdfc) and #62 (final appdadc0c1). #55–#59 were already integrated. Do not reopen approved b96bb97/Q1–Q30.
 
-## Qualified second slice
+## Latest qualification
 
-#58/#59 are integrated at115dddf on `integration/still-spec`. Latest application source9264d7a; later test/CI-only revisionc640bb9. [Connected next-slice evidence](validation/connected-next.md) records all exact outcomes and76 preserved originals. Final mixed initial/minimum jobs40059063609/40059065114 pass1+1; inspector40056586166 passes2/2 and Downloads40056609812 passes13/13. Final affected scope/recovery40058178176/40058179409 pass1each. Exact stale access notice red→green, readable compact recovery rows, conditional Forget/Cancel and independent hardlink membership are covered. Parallel source reviews found no blocker. This is combined focused proof, not full platform certification.
+[Local records](validation/local-records.md): final context2, diagnostics2, History3 and affected regressions7 atf8a0c86; Gallery2 at test-onlyf754b83:16/16 scoped UI checks, not one full-suite run. Existing Overview diagnostics2/2 atff51967. All67 final original PNGs individually reviewed; minimum900×640, initial display-clamped1024×640. Parallel Standards/Spec reviews found no actionable source findings. Local build-for-testing and ad-hoc app signature pass. No Core source changed; earlier136Core/33alerts evidence remains at its recorded sources.
 
-## Remaining frontier
+[Recovery/results/access](validation/recovery-results.md), [mixed locations/inspector](validation/connected-next.md), [Downloads](validation/connected-downloads.md) retain prior source-bound qualification and full red→green history. Unknown/all-failed terminal OS reproduction remains unqualified under#50; synthetic Gallery is presentation only.
 
-Parents #44/#46/#47/#48/#50/#45 remain open for complete acceptance. History caller-aware recovery and remaining results branches remain planned. Remaining #49/#51–#54 decisions are not implicitly resolved; all future milestones remain in MILESTONES, M8 stays deferred. Do not reopen approved b96bb97/Q1–Q30 flows. October24 continuation is authorized for next unblocked feature tickets. Active children #60/#61 cover caller-aware recovery and truthful terminal Results; #63 adds optional access education, while #62 Local records management is natively blocked by #60, based on integration48269e4; [current qualification](validation/recovery-results.md) owns source/run status. Implementer worktrees issue60/issue61 and validationbranch `verify/recovery-results-next` are isolated until native gates pass.
+## Next frontier
+
+#44/#47 bounded M1 repairs are accepted. Reconcile #46/#48 using final D/M/R/L evidence; keep #45 open for row dispositions and unresolved#49/#51–#54. After#62 no further approved unblocked implementation slice is established. Next bounded product decision is#49 capacity freshness, followed by#53 shell/appearance semantics. Empty dependencies do not make needs-triage issues approved. All future milestones stay in MILESTONES; M8 remains deferred.
 
 ## Work conventions
 
-Repo: `/Users/bender/Library/Caches/Codex/mac-cleaner-implementation/repo`. Existing integration branch `integration/still-spec`; draft PR36 remains draft for the broader specification. Read AGENTS and docs/README/SPEC/DESIGN-HANDOFF/DESIGN-SYSTEM/FLOW-LOCK. Do not re-grill the approved b96bb97/Q1–Q30 flows. Existing approved public app/scanner/executor/recovery test seams persist.
+Read AGENTS, docs/README/SPEC/DESIGN-HANDOFF/DESIGN-SYSTEM/FLOW-LOCK. Reuse shared native controls/Gallery and existing approved public test seams. Keep spec, design, parity, issue evidence synchronized. Native UI runs on hosted macOS26/Xcode26.6; local UI automation startup is unavailable. Local commands use `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer`. Commits use `[skip ci]`; dispatch focused suites after local compile. Do not claim permission/provider/OS/CPU/VoiceOver/localization certification from fixture tests.
 
-Start implementer worktrees from the current integration tip, keep ownership isolated, and record real native source-bound Light/Dark initial/minimum proof before UI integration. Local UI automation startup fails before assertions; hosted macOS26/Xcode26.6 runs the UI tests. Use `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer` for local tools (default command-line runtime lacks Testing/xcresulttool).
-
-Local feature-review build: `/Users/bender/Library/Caches/Codex/mac-cleaner-implementation/artifacts/connected-9264d7a/Still.app`; BUILD.md records source. No personal cleanup or OS permission changes were performed. Native permission/provider/supported OS/CPU/VoiceOver qualification remains separate.
-
-External native results/notes are under `/Users/bender/Library/Caches/Codex/mac-cleaner-implementation/notes`. Preserve needed originals/manifests and reviews before removing redundant owned worktrees/caches. GitHub57 records checkpoint and final status; check current branch/tickets before resuming rather than assuming old pending CI is still running.
-
-## October 24 continuation checkpoint
-
-#60/#61/#63 are qualified for integration; see [source-bound evidence](validation/recovery-results.md). Final app changes end at `664f6ce`; broader regression source `7c28b7f`, History CI source `be4c3ab`. Next approved frontier is #62 after integration. It must compose existing Clear/Reset safeguards and gated diagnostics from both History and Locations, with actual caller context. Do not reopen approved flow decisions or promote unresolved #49/#51–#54/future capabilities.
-
-Integration is now `03cbdfc` (pushed), and #60/#61/#63 are closed with evidence. #62 is unblocked and in progress in `/Users/bender/Library/Caches/Codex/mac-cleaner-implementation/issue62`, branch `implement/local-records-62`. Root remains on `integration/still-spec`. Previous #60/#61/#63 worktrees are cleanly removed; their branches/commits and committed evidence remain. PR #36 remains draft for broader scope.
+Review build: `/Users/bender/Library/Caches/Codex/mac-cleaner-implementation/artifacts/local-records-dadc0c1/Still.app` (BUILD.md alongside). No personal cleanup or OS permission changes performed. Root integration owns all qualified changes; issue62 worktree can be removed cleanly after integration. External notes/artifacts remain under the implementation cache; preserve originals/manifests before deleting redundant owned result caches.

@@ -1,6 +1,6 @@
 # Shared Local records — #62
 
-October 24, 2026. Approved FLOW-LOCK Q17/Q25, N03/H04/L01–L02 and child #62 under #48. Base integration `03cbdfc` contains qualified caller-aware recovery/Results/access guidance; `50d23db` advances the synchronized handoff. Implementation remains isolated on `verify/local-records-next` until qualification.
+October 24, 2026. Approved FLOW-LOCK Q17/Q25, N03/H04/L01–L02 and child #62 under #48. Base integration `03cbdfc` contains qualified caller-aware recovery/Results/access guidance; `50d23db` advances the synchronized handoff. Final app source `dadc0c1` is qualified for integration on `integration/still-spec`; final verification is summarized below. Chronological candidate notes retain their original evidence limits.
 
 ## Existing contract
 
@@ -43,16 +43,25 @@ Whole-slice source review through `ff51967` and incremental review `ff51967..f26
 
 ### Spec review
 
-The same two source-review ranges have no actionable implementation findings against #62/FLOW-LOCK. Both real callers, direct root diagnostics Back, gated availability and retained viewport context match the approved contract. Stale Overview-only diagnostics documentation is being reconciled before integration. Runtime and original-image review remain separate acceptance gates.
+The same two source-review ranges have no actionable implementation findings against #62/FLOW-LOCK. Both real callers, direct root diagnostics Back, gated availability and retained viewport context match the approved contract. Stale Overview-only diagnostics documentation is corrected in `1c0fc17`. Runtime and original-image qualification below complete the bounded acceptance gates.
 
 
 ### Final native results available so far
 
 At `f8a0c86` (application source `dadc0c1`): context minimum `40068265478` passes 87.352 seconds; display-clamped initial `40068265529` passes 89.725 seconds. Gated diagnostics minimum `40068265439` passes 74.734 seconds; initial `40068265594` passes 63.684 seconds. History `40068265641` passes 3/3 (38.775, 35.325, 16.660 seconds), including actual Clear and the fresh Reset guard after relocating controls.
 
-Gallery attempt `40068265576` fails both tests at its theme-picker lookup: native AX exposes label `Appearance, Appearance`. Test-only `f754b83` uses the established unique Gallery picker, asserts its uniqueness and chosen Light/Dark value. No application source or control/frame assertion changes; local build-for-testing passes. Focused Gallery rerun `40068435072` at test-only `f754b83` passes 2/2 (51.382 / 49.623 seconds). Affected regressions `40068265638` remain pending.
+Gallery attempt `40068265576` fails both tests at its theme-picker lookup: native AX exposes label `Appearance, Appearance`. Test-only `f754b83` uses the established unique Gallery picker, asserts its uniqueness and chosen Light/Dark value. No application source or control/frame assertion changes; local build-for-testing passes. Focused Gallery rerun `40068435072` at test-only `f754b83` passes 2/2 (51.382 / 49.623 seconds). Affected regressions `40068265638` pass 7/7 (384.585 seconds).
 
 Originals from the four final context/diagnostics runs are retained under `docs/visual/local-records/f8a0c86-<run>/` with unmodified manifests. All 44 were inspected individually: no blocking readability, caller, footer or geometry issue. Initial preset captures are actually 1024×640 due to the hosted display; minimum captures are 900×640. Deliberately scrolled History/management/diagnostics content can be partially clipped at its viewport boundary; the fixed shell and footer remain visible, and exact public frame assertions verify restoration. Initial blocked status changes from caution to informational styling when the existing model reloads; protected-record text/actions and actual safeguards remain explicit. This is a minor presentation observation, not evidence of an authority change.
 
 
 Final History and Gallery add 11 and 12 individually reviewed originals: **67 final originals total**, plus the historical first-pilot Clear image. Six unmodified manifests preserve test names and original UUID filenames. All final images are checked individually, not inferred from a contact sheet. No blocking readability, theme, caller or fixed-layout issue was found. Gallery captures explicitly show inert shared enabled/disabled maintenance and optional diagnostics presentation; they do not certify operation execution. Final History fixtures separately prove actual Clear and protected Reset. Dedicated protected-state captures fully reveal caution text even when a neighboring enabled-state view is deliberately scrolled. Original initial images are display-clamped 1024×640, not claimed as full1120×760 runtime proof.
+
+
+## Acceptance checkpoint
+
+Final affected regression `40068265638` at `f8a0c86` passes **7/7**: exact cancelled-batch retry approval, manual History recovery, startup unknown-fact recovery, opened-alert context, connected Downloads at both sizes, and optional folder-access guidance (384.585 seconds total). Final UI qualification is **16/16 across scoped runs**: context 2, diagnostics 2, History 3, Gallery 2 and affected regressions 7. Earlier existing Overview diagnostics adds 2/2 at `ff51967`; application routing for that mechanism is unchanged by the later pure-control extraction. These are combined focused runs, not one full UI suite or all-platform certification.
+
+Both Standards and Spec reviews found no actionable source findings. Final app source remains `dadc0c1`; later commits add tests, CI, documentation and original captures. Local Xcode build-for-testing and review-app signature verification pass. No Core source changed in this slice; previous 136 Core and 33 alerts checks retain their recorded source boundaries rather than being presented as new runs.
+
+#62 is accepted for the approved management/caller journey. Parent feature acceptance can be reconciled using the D/M/R/L parity overlay; exceptional native unknown/all-failed terminal proof remains #50, and #45 retains unresolved #49/#51–#54 decisions. Genuine OS permission/provider behavior, supported OS/CPU and comprehensive accessibility retain their platform gates. All M2–M8 scope is preserved; M8 remains deferred.
