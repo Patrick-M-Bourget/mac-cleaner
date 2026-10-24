@@ -22,7 +22,17 @@ import SwiftUI
         return try String(contentsOf: url, encoding: .utf8)
     }
     func write(_ value: String) throws {
-        try Data(value.utf8).write(to: file(createRoot: true), options: .atomic)
+        appearanceRetryProbe("write.enter")
+        do {
+            let target = try file(createRoot: true)
+            appearanceRetryProbe("write.target.directoryHint=" + String(target.hasDirectoryPath))
+            try Data(value.utf8).write(to: target, options: .atomic)
+            appearanceRetryProbe("write.complete")
+        } catch {
+            let failure = error as NSError
+            appearanceRetryProbe("write.error domain=" + failure.domain + " code=" + String(failure.code))
+            throw error
+        }
     }
     func remove() throws { try LocalStateLocation.removeKnownFile(filename) }
 }
@@ -58,4 +68,24 @@ struct AppearancePreferenceNotice: View {
         case nil: " "
         }
     }
+}
+
+/// Temporary, explicitly owned native-action diagnosis. Removed after the probe.
+func appearanceRetryProbe(_ event: String) {
+    #if DEBUG
+    guard LocalStateLocation.isDisposableTest,
+          ProcessInfo.processInfo.arguments.contains("--ui-test-appearance-probe"),
+          let root = try? LocalStateLocation.root(create: false) else { return }
+    let line = "[DEBUG-shell53-appearance] " + event + "\n"
+    NSLog("%@", line)
+    let target = root.appendingPathComponent("appearance-retry-probe.txt")
+    var information = stat()
+    if lstat(target.path, &information) == 0 {
+        guard information.st_mode & S_IFMT == S_IFREG, information.st_uid == geteuid(), information.st_size < 16_384,
+              target.path == target.resolvingSymlinksInPath().path else { return }
+    } else if errno != ENOENT { return }
+    var data = (try? Data(contentsOf: target)) ?? Data()
+    data.append(Data(line.utf8))
+    try? data.write(to: target, options: .atomic)
+    #endif
 }
