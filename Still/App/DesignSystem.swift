@@ -642,19 +642,34 @@ struct LocationScopeRow<Actions: View>: View {
     let name: String
     let path: String
     let status: String
+    var overlap: String? = nil
     @Binding var included: Bool
     let enabled: Bool
     @ViewBuilder let actions: () -> Actions
+    private var identity: some View {
+        VStack(alignment: .leading, spacing: StillDesign.Space.sm) {
+            Label(name, systemImage: "folder").font(StillDesign.TypeStyle.section)
+            Text(path).font(.caption).foregroundStyle(.secondary).lineLimit(2).textSelection(.enabled).help(path)
+            StatusRow(text: status, symbol: "info.circle")
+            if let overlap { Text(overlap).font(.caption).foregroundStyle(.secondary) }
+        }.frame(maxWidth: .infinity, alignment: .leading)
+    }
     var body: some View {
         HStack(alignment: .top, spacing: StillDesign.Space.md) {
             Toggle("Include " + name, isOn: $included).labelsHidden().disabled(!enabled)
-            VStack(alignment: .leading, spacing: StillDesign.Space.sm) {
-                Label(name, systemImage: "folder").font(StillDesign.TypeStyle.section)
-                Text(path).font(.caption).foregroundStyle(.secondary).lineLimit(2).textSelection(.enabled).help(path)
-                StatusRow(text: status, symbol: "info.circle")
-            }.frame(maxWidth: .infinity, alignment: .leading)
-            actions().disabled(!enabled)
+            ViewThatFits(in: .horizontal) {
+                HStack(alignment: .top, spacing: StillDesign.Space.md) {
+                    identity.frame(minWidth: 240, idealWidth: 240, maxWidth: .infinity)
+                    actions().fixedSize(horizontal: true, vertical: false).disabled(!enabled)
+                }
+                VStack(alignment: .leading, spacing: StillDesign.Space.md) {
+                    identity
+                    actions().fixedSize(horizontal: true, vertical: false).disabled(!enabled)
+                }
+            }
         }.padding(.vertical, StillDesign.Space.md)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("locationScope:" + path)
     }
 }
 

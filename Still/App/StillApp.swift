@@ -570,8 +570,9 @@ private struct WorkspaceView: View {
     private func isDownloadsLocation(_ url: URL) -> Bool {
         #if DEBUG
         if ProcessInfo.processInfo.arguments.contains("--ui-test-downloads-root"),
-           ProcessInfo.processInfo.environment["STILL_TEST_DOWNLOADS_ROOT"] == url.standardizedFileURL.path,
-           url.lastPathComponent.hasPrefix("StillSelectionUI-") { return true }
+           let path = ProcessInfo.processInfo.environment["STILL_TEST_DOWNLOADS_ROOT"],
+           URL(fileURLWithPath: path).lastPathComponent.hasPrefix("StillSelectionUI-"),
+           url.standardizedFileURL.pathComponents.starts(with: URL(fileURLWithPath: path).standardizedFileURL.pathComponents) { return true }
         #endif
         guard let root = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask).first else { return false }
         return url.standardizedFileURL.pathComponents.starts(with: root.standardizedFileURL.pathComponents)
@@ -633,7 +634,7 @@ private struct WorkspaceView: View {
             if locationsModel.scopes.isEmpty { EmptyState(title: "No locations yet", detail: "Add a folder, then run a manual scan. Adding a location never starts scanning.", symbol: "folder.badge.plus") }
             ForEach(locationsModel.scopes) { scope in
                 LocationScopeRow(name: URL(fileURLWithPath: scope.path).lastPathComponent, path: scope.path,
-                    status: locationStatus(scope), included: Binding(get: { scope.isIncluded }, set: { included in
+                    status: locationStatus(scope), overlap: locationOverlap(scope), included: Binding(get: { scope.isIncluded }, set: { included in
                         if locationsModel.setIncluded(included, scope: scope) { selection.suspendScope(URL(fileURLWithPath: scope.path)) }
                     }), enabled: !folderInspection.isScanning && !selection.execution.isRunning) {
                     HStack {
@@ -651,7 +652,7 @@ private struct WorkspaceView: View {
                                 let count = selection.dependentSelectionCount(for: URL(fileURLWithPath: scope.path))
                                 if count > 0 { locationToForget = scope } else { if locationsModel.forget(scope) { selection.suspendScope(URL(fileURLWithPath: scope.path), forget: true) } }
                             }
-                        }
+                        }.accessibilityIdentifier("locationActions:" + scope.path)
                     }
                 }
                 if locationsModel.statuses[scope.id]?.needsRecovery == true,
@@ -673,8 +674,20 @@ private struct WorkspaceView: View {
                 Button("Cancel", role: .cancel) { locationToForget = nil }
             }
         } message: {
-            if let scope = locationToForget { Text("Forget " + URL(fileURLWithPath: scope.path).lastPathComponent + " and remove \(selection.dependentSelectionCount(for: URL(fileURLWithPath: scope.path))) dependent choices? No files will be deleted.") }
+            if let scope = locationToForget {
+                let count = selection.dependentSelectionCount(for: URL(fileURLWithPath: scope.path))
+                Text("Forget " + URL(fileURLWithPath: scope.path).lastPathComponent + " and remove \(count) dependent " + (count == 1 ? "choice" : "choices") + "? No files will be deleted.")
+            }
         }
+    }
+    private func locationOverlap(_ scope: RememberedScope) -> String? {
+        let components = URL(fileURLWithPath: scope.path).standardizedFileURL.pathComponents
+        let overlaps = locationsModel.scopes.contains { other in
+            guard other.id != scope.id else { return false }
+            let candidate = URL(fileURLWithPath: other.path).standardizedFileURL.pathComponents
+            return components.starts(with: candidate) || candidate.starts(with: components)
+        }
+        return overlaps ? "Overlaps another remembered location · Shared contents are counted once." : nil
     }
     private func locationStatus(_ scope: RememberedScope) -> String {
         if !scope.isIncluded { return "Omitted from the next scan" }

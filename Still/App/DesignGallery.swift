@@ -20,9 +20,36 @@ struct DesignGallery: View {
                     PageHeader(title: "Native design system", subtitle: "Developer examples only · No personal storage measurements")
                     CategoryPrerequisite(title: "Not scanned", detail: "Scan the included Downloads locations before choosing files.", actionTitle: "Scan Downloads…", enabled: true, action: {})
                     CategoryPrerequisite(title: "No eligible files", detail: "No eligible files in this inspected location.", actionTitle: "Scan Downloads again", enabled: true, action: {})
-                    ExplorerInspector(name: "Camera guide.pdf", close: {}) { Text("Example local metadata · 8 MB logical · 8 MB on disk") }.frame(height: 160)
+                    ExplorerInspector(name: "Camera guide.pdf", close: {}) {
+                        Text("Location").font(.caption).foregroundStyle(.secondary)
+                        Text("/Example/Downloads/Camera guide.pdf")
+                        Text("Observed scope").font(.caption).foregroundStyle(.secondary)
+                        Text("/Example/Downloads")
+                        Text("On disk: 8 MB observed")
+                        Text("Logical size: 8 MB")
+                        Text("Why listed").font(.caption).foregroundStyle(.secondary)
+                        Text("Observed during a manual scan")
+                        Text("Cleanup action").font(.caption).foregroundStyle(.secondary)
+                        Text("Move this exact file to Trash after selection and confirmation.")
+                    }.frame(height: 220)
+                    ExplorerInspector(name: "Cloud metadata (synthetic)", close: {}) {
+                        Text("Synthetic Gallery metadata; no provider certification.")
+                        Text("On disk: Unknown")
+                        Text("Cleanup action").font(.caption).foregroundStyle(.secondary)
+                        Text("Cloud-managed item. Cloud cleanup is unavailable; no eviction or synced deletion is offered.")
+                    }.frame(height: 220)
                     ToolbarScanStatus(location: "Downloads", returnToScan: {}, stop: {})
                     LocationScopeRow(name: "Downloads", path: "/Example/Downloads", status: "Not scanned", included: $selected, enabled: true) { Menu("More") { Button("Forget location") {} } }
+                    LocationScopeRow(name: "Downloads B", path: "/Example/Downloads/Long project folder/Downloads B", status: "Location unavailable · Reconnect and recheck", overlap: "Overlaps another remembered location · Shared contents are counted once.", included: $selected, enabled: true) {
+                        HStack {
+                            Button("Choose again…") {}
+                            Button("Reconnect and recheck") {}
+                            Menu("More") { Button("Forget location") {} }
+                        }
+                    }.frame(maxWidth: 520)
+                    LocationScopeRow(name: "Omitted Downloads", path: "/Example/Downloads/Omitted", status: "Omitted from the next scan", included: .constant(false), enabled: false) {
+                        Menu("More") { Button("Forget location") {} }
+                    }
                     CleanupScopeNotice(chooseDownloads: {})
                     CleanupScopeNotice(enabled: false, chooseDownloads: {})
                     CleanupScopeNotice(compact: true, chooseDownloads: {})
