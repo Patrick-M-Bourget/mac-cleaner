@@ -12,7 +12,7 @@ Still is a working name. No native implementation exists yet. This bundle record
 4. [Detailed technical specification](reference/macos-cleaner-technical-spec.md): execution, permissions, alerts and platform feasibility.
 5. [UI state matrix](reference/macos-cleaner-ui-state-matrix.md) and [layout contract](reference/macos-cleaner-layout-contract.md): required exceptional states and geometry checks.
 
-Supporting context: [PRD](reference/macos-cleaner-prd.md), [flow audit](reference/macos-cleaner-flow-audit.md), [design contract](reference/macos-cleaner-design-contract.md), [research](reference/macos-cleaner-research.md), [competitors](reference/macos-cleaner-competitors.md).
+Supporting context: [PRD](reference/macos-cleaner-prd.md), [flow audit](reference/macos-cleaner-flow-audit.md), [design contract](reference/macos-cleaner-design-contract.md), [research](reference/macos-cleaner-research.md), [competitors](reference/macos-cleaner-competitors.md), [field scan of a real Mac](reference/macos-cleaner-field-scan.md).
 
 ## Authority and change policy
 
