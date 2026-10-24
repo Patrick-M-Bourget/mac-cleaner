@@ -62,6 +62,35 @@ final class CleanupRetryUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Not scanned"].exists)
         XCTAssertEqual(try Data(contentsOf: file), Data([9, 8, 7]))
     }
+    @MainActor func testSyntheticOutcomeGalleryAtInitialSize() throws { try reviewOutcomeGallery(minimum: false) }
+    @MainActor func testSyntheticOutcomeGalleryAtMinimumSize() throws { try reviewOutcomeGallery(minimum: true) }
+    @MainActor private func reviewOutcomeGallery(minimum: Bool) throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        let state = try configureIsolatedJourneyState(app)
+        defer { app.terminate(); try? FileManager.default.removeItem(at: state) }
+        app.launchArguments = ["--design-gallery", minimum ? "--design-minimum" : "--design-initial-size"]
+        app.launch()
+        XCTAssertTrue(app.staticTexts["Synthetic cleanup outcome examples"].waitForExistence(timeout: 10))
+        let bounds = app.windows.firstMatch.frame
+        let headings = ["Selected files moved to Trash", "Cleanup partially completed", "No files were moved", "Cleanup could not move any files", "Cleanup stopped", "Cleanup needs recovery review", "Cleanup could not start", "Cleanup was not repeated"]
+        for theme in ["Light", "Dark"] {
+            app.popUpButtons.firstMatch.click(); app.menuItems[theme].click()
+            for (index, heading) in headings.enumerated() {
+                let title = app.staticTexts[heading].firstMatch
+                revealScrollElement(app, control: title, label: heading)
+                XCTAssertTrue(title.isHittable)
+                let detail = app.staticTexts["outcomeDetail-" + String(index)]
+                revealScrollElement(app, control: detail, label: "Outcome explanation")
+                XCTAssertTrue(detail.isHittable)
+                XCTAssertTrue(app.staticTexts["Developer gallery · Actions are inert examples"].isHittable)
+                XCTAssertEqual(app.windows.firstMatch.frame, bounds)
+                let shot = XCTAttachment(screenshot: app.windows.firstMatch.screenshot())
+                shot.name = "synthetic-outcome-\(index)-" + (minimum ? "minimum-" : "initial-") + theme
+                shot.lifetime = .keepAlways; add(shot)
+            }
+        }
+    }
     @MainActor private func exercise(minimum: Bool) throws {
         continueAfterFailure = false
         let root = FileManager.default.temporaryDirectory.appendingPathComponent("StillSelectionUI-" + UUID().uuidString)
