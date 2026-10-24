@@ -82,6 +82,11 @@ final class WorkspaceUITests: XCTestCase {
         app.typeKey("2", modifierFlags: .command)
         XCTAssertTrue(app.checkBoxes["downloadsCategorySelection"].waitForExistence(timeout: 10))
         XCTAssertFalse(app.checkBoxes["downloadsCategorySelection"].isEnabled)
+        for theme in ["Light", "Dark"] {
+            app.popUpButtons["Appearance"].click(); app.menuItems[theme].click()
+            XCTAssertFalse(app.checkBoxes["downloadsCategorySelection"].isEnabled)
+            XCTAssertFalse(app.buttons["Review cleanup"].isEnabled)
+        }
         XCTAssertTrue(app.staticTexts["Not scanned"].exists)
         XCTAssertTrue(app.buttons["Scan Downloads…"].isHittable)
         XCTAssertFalse(app.buttons["Choose Downloads…"].exists)

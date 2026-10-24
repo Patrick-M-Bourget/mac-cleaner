@@ -326,9 +326,15 @@ private struct WorkspaceView: View {
             ToolbarScanStatus(location: folderInspection.scope?.lastPathComponent ?? "selected locations",
                 phase: folderInspection.progress.map { $0.phase == .rechecking ? "Rechecking changed coverage (one attempt)…" : $0.phase == .checkingDirectories ? "Checking directory stability…" : "Reading file metadata…" } ?? "Preparing metadata scan…",
                 inspectedEntries: folderInspection.progress?.visitedEntries,
-                returnToScan: destination == scanOrigin && !nativeInspectionVisible ? nil : returnToScanOrigin,
+                returnToScan: scanReturnAction,
                 stop: { folderInspection.cancel() })
         } else { Text(contextLabel).font(.caption).foregroundStyle(.secondary).lineLimit(1) }
+    }
+
+    private var scanReturnAction: (() -> Void)? {
+        let atOrigin = destination == scanOrigin && !nativeInspectionVisible && !inspecting && !diagnosticsVisible && !exclusionsVisible && !recoveryVisible && !homebrewVisible && !pipVisible && !dockerVisible && !managedStorageVisible
+        if atOrigin { return nil }
+        return { returnToScanOrigin() }
     }
 
     private func returnToScanOrigin() {

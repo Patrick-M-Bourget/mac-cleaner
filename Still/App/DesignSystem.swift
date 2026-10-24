@@ -302,7 +302,21 @@ struct StillSidebarRow: View {
     }
 }
 
-struct MacroCategoryCheckbox: NSViewRepresentable {
+struct MacroCategoryCheckbox: View {
+    let state: CategorySelectionState
+    let label: String
+    let enabled: Bool
+    let action: () -> Void
+    var identifier = "downloadsCategorySelection"
+    var showsTitle = true
+    var body: some View {
+        NativeCategoryCheckbox(state: state, label: label, enabled: enabled, action: action,
+            identifier: identifier, showsTitle: showsTitle).disabled(!enabled)
+    }
+}
+
+private struct NativeCategoryCheckbox: NSViewRepresentable {
+
     let state: CategorySelectionState
     let label: String
     let enabled: Bool
@@ -318,7 +332,7 @@ struct MacroCategoryCheckbox: NSViewRepresentable {
     func sizeThatFits(_ proposal: ProposedViewSize, nsView: NSButton, context: Context) -> CGSize? { nsView.intrinsicContentSize }
     func updateNSView(_ view: NSButton, context: Context) {
         context.coordinator.action = action
-        view.title = showsTitle ? label : ""; view.isEnabled = enabled
+        view.title = showsTitle ? label : ""; view.isEnabled = enabled && context.environment.isEnabled
         view.setAccessibilityIdentifier(identifier)
         view.setAccessibilityLabel(label)
         view.state = state == .checked ? .on : state == .mixed ? .mixed : .off
