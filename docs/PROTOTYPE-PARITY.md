@@ -155,10 +155,10 @@ Mixed rows identify separately implemented mechanisms and missing product flows.
 
 | ID | Reference intent | Native baseline / difference | Status / owner |
 |---|---|---|---|
-| H01 | Empty History explains completed scans and cleanup activity | Native History is completed cleanup-only; aggregate observations in future What grew | G decision [#51](https://github.com/Patrick-M-Bourget/mac-cleaner/issues/51) |
-| H02 | Activity dates, actual per-action outcomes, observed capacity | Native completed runs, per-file disclosure, estimates vs capacity and recorded Reveal exist | C #13; roadmap action types F #15/#17/#19/#21 |
-| H03 | History after clear/reset/retention remains honest | Native protected journal, guarded reset, growth clear and retention implemented; clarify domain retention wording with scan-history decision | C/G #13/#26/#51; unresolved recovery exempt |
-| H04 | History → what grew / local records / latest results | Per-file results inline, but no See what grew or common local-record route; exact latest-result replay may be replaced by recorded inline detail | C/G #48/#51; no old approval restored |
+| H01 | Empty History explains completed scans and cleanup activity | Combined newest-first scan/cleanup feed with All/Scans/Cleanups and retained-record empties | C #51; [bounded qualification](validation/history-activity.md) |
+| H02 | Activity dates, actual per-action outcomes, observed capacity | Terminal scan dates/root coverage/aggregates and cleanup per-file outcomes; estimates, independent capacity and recorded Reveal remain distinct | C #13/#51 within qualification; roadmap action types F #15/#17/#19/#21 |
+| H03 | History after clear/reset/retention remains honest | Separate cleanup payload/shared scan+baseline bounds; global Clear names all, partial outcomes honest, independent unavailable stores/retries | C #13/#26/#51; protected recovery/consumed identities exempt; bounded fixtures |
+| H04 | History → what grew / local records / latest results | Shared caller-aware Local records; gated exact recorded comparison with one Back; cleanup results remain inline recorded facts | C #48/#51 within qualification; M4 gate retained, no historical approval/reexecution |
 | G01 | What grew net change, scope, interval and groups | Folder/category compatible comparisons implemented, future gated; compact reference comparison/relative-magnitude hierarchy not reproduced by native text rows | C/G/F #26/#52; real values only, no writer attribution/exclusive-space claim |
 | G02 | First/cleared/missing/incompatible/partial baseline next actions | State messages exist once comparison set; completely empty nil state lacks explicit first-use explanation | C/G [#52](https://github.com/Patrick-M-Bourget/mac-cleaner/issues/52) |
 | G03 | Review options from useful comparison | No comparison-to-findings/plan CTA | G #52; never auto-select findings |
@@ -242,7 +242,7 @@ These source pointers make the classification reproducible at the pinned baselin
 - M1 lacks cloud/developer/browser mutation by approved design; those are retained future tickets, not removed features. Cloud metadata in Overview is explicitly scoped, not a made-up aggregate or eviction estimate.
 - App-managed directories/libraries may remain Unknown/Not inspected rather than recursively traversed for a sample-looking total. No direct backup/library/database deletion.
 - Review-only browser/cache/permission/alert simulations and milestone switcher do not ship. A development future flag does not promote M2–M6 to production.
-- History is currently cleanup-only; whether this is the intended permanent departure is **unresolved #51**, not silently accepted here. Appearance persistence was unresolved in this baseline; #53 is now implemented under SHELL-APPEARANCE.md with [bounded qualification](validation/shell-appearance.md).
+- The original audit baseline was cleanup-only. #51 now supplies combined activity and exact gated comparison returns under HISTORY-ACTIVITY.md with [bounded qualification](validation/history-activity.md). Appearance persistence was unresolved in this baseline; #53 is now implemented under SHELL-APPEARANCE.md with [bounded qualification](validation/shell-appearance.md).
 
 ## Decision checkpoint and ongoing acceptance gate
 

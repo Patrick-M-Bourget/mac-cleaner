@@ -46,3 +46,8 @@ Homebrew follow-up: [eight Homebrew captures](homebrew-inventory/manifest.json) 
 Alert-open context: [twelve original captures](alert-open/manifest.json) at `c2e9a320` cover dated, legacy and malformed notification context in both themes at hosted initial/minimum sizes. The implementing agent individually viewed every original. The [validation report](../validation/alert-open-context.md) records the focused public journey, native accessibility-value correction, shared-component reuse and remaining real OS delivery gates.
 
 Overview restoration: [36 unaltered captures](overview-restoration/manifest.json) at `9c26328` cover unscanned, useful findings, expanded cloud uncertainty, partial scope, rechecking and unavailable Downloads in both themes at hosted initial/minimum sizes. Each was individually viewed; the [validation report](../validation/overview-restoration.md) records source-separated public journey evidence, shared-component/gallery accounting and remaining manual gates.
+
+
+## History activity — #51
+
+App source `f062ca6` has96 final changed-state originals individually accepted:40 live caller/availability/coverage/exact comparison,8 native Clear confirmation/partial outcome and48 inert shared Gallery examples. [Qualification](../validation/history-activity.md) maps exact runs, source boundaries, per-image reports and unchanged original export manifests in `history-activity/*-final`. Intermediate red/provisional folders are labelled and are not final presentation claims. Light/Dark initial1024×640 and minimum900×640 are covered; cropped neighbors/offscreen content and universal platform behavior are not inferred from pixels.

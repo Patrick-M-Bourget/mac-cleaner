@@ -16,13 +16,13 @@ October24,2026. Repo `/Users/bender/Library/Caches/Codex/mac-cleaner-implementat
 
 #44/#46/#47/#48 bounded M1 repairs remain accepted and closed; #45 retains row dispositions. #49 Q1–Q12 is implemented and automated qualification passes, with final source and all 71 originals accepted; integrated into integration/still-spec with #49 complete. Its clean implementation worktree is removed after preserving source. Preserve actual red→green and the earlier corrected test assumptions in validation, without calling them product failures.
 
-#53 shell/appearance is implemented at `c5886e8` with [bounded qualification](validation/shell-appearance.md); #51 is locked and authorized for implementation; #52/#54 remain untriaged. Do not reopen Q1–Q30 or start those untriaged features without resolving their existing decisions. Empty dependency lists do not grant approval. All future milestones remain in MILESTONES; M8 stays deferred.
+#53 shell/appearance is implemented at `c5886e8` with [bounded qualification](validation/shell-appearance.md); #51 is implemented under HISTORY-ACTIVITY.md with [bounded qualification](validation/history-activity.md); #52/#54 remain untriaged. Do not reopen Q1–Q30 or start those untriaged features without resolving their existing decisions. Empty dependency lists do not grant approval. All future milestones remain in MILESTONES; M8 stays deferred.
 
 ## Work conventions
 
 Read AGENTS, docs/README/SPEC/DESIGN-HANDOFF/DESIGN-SYSTEM/FLOW-LOCK. Reuse shared native controls/Gallery and existing approved public test seams. Keep spec, design, parity, issue evidence synchronized. Native UI runs on hosted macOS26/Xcode26.6; local UI automation startup is unavailable. Local commands use `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer`. Commits use `[skip ci]`; dispatch focused suites after local compile. Do not claim permission/provider/OS/CPU/VoiceOver/localization certification from fixture tests.
 
-Current review build: `/Users/bender/Library/Caches/Codex/mac-cleaner-implementation/artifacts/shell-c5886e8/Still.app` (BUILD.md alongside). No personal cleanup or OS permission changes performed. Root integration owns all qualified changes; issue62 worktree is removed cleanly after integration; its branch and commits remain. External notes/artifacts remain under the implementation cache; preserve originals/manifests before deleting redundant owned result caches.
+Current review build: `/Users/bender/Library/Caches/Codex/mac-cleaner-implementation/artifacts/history-f062ca6/Still.app` (BUILD.md alongside). No personal cleanup or OS permission changes performed. Root integration owns all qualified changes; issue62 worktree is removed cleanly after integration; its branch and commits remain. External notes/artifacts remain under the implementation cache; preserve originals/manifests before deleting redundant owned result caches.
 
 
 ## Shell and appearance lock — October 24
@@ -35,4 +35,10 @@ Review build: `/Users/bender/Library/Caches/Codex/mac-cleaner-implementation/art
 
 ## History activity lock — October 24
 
-#51 Q1–Q15 and the consolidated contract are user-confirmed in [HISTORY-ACTIVITY](HISTORY-ACTIVITY.md). M1 History gains minimal terminal scan activity alongside completed cleanup runs, with All/Scans/Cleanups filters and honest scope/outcome/retention/availability. Detailed growth collection/comparisons stay M4-gated; historical routes never restore live findings or approval. Scan activity and enabled aggregates share the existing250 MB archive budget; cleanup retains its separate250 MB completed-payload budget, with protected recovery exemptions. Source/native implementation qualification is pending.
+#51 Q1–Q15 and the consolidated contract are user-confirmed in [HISTORY-ACTIVITY](HISTORY-ACTIVITY.md). M1 History gains minimal terminal scan activity alongside completed cleanup runs, with All/Scans/Cleanups filters and honest scope/outcome/retention/availability. Detailed growth collection/comparisons stay M4-gated; historical routes never restore live findings or approval. Scan activity and enabled aggregates share the existing250 MB archive budget; cleanup retains its separate250 MB completed-payload budget, with protected recovery exemptions. Implemented at app source `f062ca6` with [bounded source/native qualification](validation/history-activity.md), including96 individually accepted final originals. The full future roadmap and deferred M8 remain unchanged.
+
+## History activity implementation checkpoint
+
+App source `f062ca6` implements the user-locked #51 contract: minimal grouped terminal scan activity, combined filters, independent availability/reloads, global Clear/partial outcomes and exact gated comparison returns. Core154 (149 Swift Testing +5 XCTest),17 distinct new native journeys and21 affected existing journeys pass across the source-bound focused runs in [qualification](validation/history-activity.md); this is composed evidence, not one full-suite or universal platform result. All96 final changed-state originals are individually reviewed/accepted. Separate Standards/Spec reviews have no outstanding hard findings.
+
+Review build: `/Users/bender/Library/Caches/Codex/mac-cleaner-implementation/artifacts/history-f062ca6/Still.app` with BUILD.md. Normal mode remains on-demand and persists no cleanup choices/approval or scanned child-file catalogue. #52/#54 still need their own triage/grilling; all M2–M8 capabilities remain preserved and M8 stays deferred.

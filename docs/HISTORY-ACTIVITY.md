@@ -1,6 +1,6 @@
 # History activity — #51 locked contract
 
-User-confirmed October 24, 2026, Q1–Q15 and consolidated lock. Parity H01–H04. Approved for implementation; native qualification is pending. This extends the existing History, Local records and growth contracts without changing cleanup authority or promoting M4–M8.
+User-confirmed October 24, 2026, Q1–Q15 and consolidated lock. Parity H01–H04. Implemented at app source `f062ca6` with [bounded source/native qualification](validation/history-activity.md) and96 individually accepted final originals. This extends the existing History, Local records and growth contracts without changing cleanup authority or promoting M4–M8.
 
 ## Purpose and scope
 

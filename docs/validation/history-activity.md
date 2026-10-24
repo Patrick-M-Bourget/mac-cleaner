@@ -1,6 +1,10 @@
 # History activity qualification — #51
 
-Locked contract: [HISTORY-ACTIVITY](../HISTORY-ACTIVITY.md), user-confirmed October24,2026. Source/native qualification is pending. Existing approved public app journeys remain the UI boundary; the user explicitly approved the additional public archive boundary on October24,2026. Record actual red→green cycles, source/run identities, independent Standards/Spec review, original Light/Dark initial/minimum review and exact platform limits before acceptance. No complete parity or new native pass is claimed here.
+Final app source **f062ca6** implements the [locked contract](../HISTORY-ACTIVITY.md). Qualification is complete within the boundaries below: Core154/154 (149 Swift Testing +5 XCTest),17 distinct new UI journeys and21 affected existing journeys across focused source-bound runs,96 individually reviewed final changed-state originals, and separate Standards/Spec source reviews with no outstanding hard findings. These are composed checks, not a single full-suite or universal OS/CPU/provider/accessibility certification. Normal mode remains on-demand; M4 comparisons stay gated and M8 remains deferred.
+
+Final contextual run40137596490 at test-only13ee336 (unchanged production f062ca6) passes4/4: management initial98.729s/minimum91.272s; recovery minimum82.154s/initial77.218s. Observed non-top viewport, expanded cleanup evidence, caller/Back, live choice, fresh recovery guard, original records and window reopening assertions remain intact. Together with earlier diagnostics2/2 and15 other existing passes,21 distinct affected existing checks are covered; no claim that the failed intermediate16-test/6-test runs themselves passed. Current app build and all native final originals use equivalent production source; later changes are tests/docs/workflow only.
+
+The new public archive seam was explicitly approved October24,2026 before its tests were written. Chronological red→green and failed-candidate evidence follows. Source reviews and final per-image records remain authoritative for their precise limits.
 
 ## First public UI vertical
 
@@ -86,3 +90,9 @@ Gallery replay `40136783626`, test-only `cc9bd73` over unchanged app `f062ca6`, 
 Context attempt `40136221533` at `d34840e`: diagnostics2/2 pass71.258s/61.573s; management2 and recovery2 fail their pre-return setup containment checks, not a return assertion. Original AX shows target y67…91 versus viewport y107…671 immediately after unconditional−40 scroll. Test-only `c8088b3` replaces local fixed setup with bounded measured alignment, retains full containment/return/selection/recovery checks and explicitly asserts a non-top History viewport. Focused4 replay `40137596490` is pending; no product change or blanket context pass is inferred yet.
 
 Final Gallery: all48 originals individually accepted across Light/Dark initial/minimum in `40136783626-gallery-final`, with separate per-image review records. This completes96 final-source changed-state originals (40 live availability/caller/coverage/comparison +8 native Clear +48 shared Gallery). Cropped neighboring/offscreen content is not certified; Gallery examples are synthetic/inert, while live activation and data behavior are public-test assertions. Corrected contextual replay remains the only outstanding verification gate at this checkpoint.
+
+## Final acceptance and limits
+
+H01–H04 are Covered within this bounded #51 repair. Current source has no additional file-mutation capability, background scans, comparison promotion or restored cleanup authority. The archive stores minimal selected-root summaries and aggregate reasons, with shared90-day/250 MB scan+baseline bounds and global30-baseline count; cleanup retains separate bounds and protected facts. Clear/Reset/retention and exact comparison behavior remain governed by the locked contract.
+
+Hosted native journeys run on macOS26/Xcode26.6; local Core/build use Xcode27.1 on macOS27.0.1. Disposable fixtures and inert Gallery cannot certify every permission/provider/browser/volume/OS/CPU failure. Existing M7 platform/performance/accessibility and M8 release gates remain. No personal files were cleaned or OS permissions changed for this slice.
