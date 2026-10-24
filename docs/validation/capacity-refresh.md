@@ -45,3 +45,6 @@ Restricted Core review09e5c18..f347206: no actionable findings. Refresh policy s
 ### Spec
 
 The same restricted Core review found no actionable findings against CAPACITY-REFRESH.md: cadence, launch deduplication, trailing post-action demand, expiry/late-reply protection, retained success and partial metadata align. This does not qualify remaining app hooks or native presentation.
+
+
+At `f347206`, `40086277589` passes the real scan-completion journey (29.756s) and Core142 (137SwiftTesting+5XCTest). The old manual assertion fails as already noted. Both native state cases fail exact observation-frame equality because Text's intrinsic glyph width changes305→291points with its content (samex/y/height); this is not evidence of window resizing or a scroll jump. Sourcee5c60ab reserves the full observation and native action regions without loosening the exact frame assertion. All four journeys rerun at that source; completion is pending.
