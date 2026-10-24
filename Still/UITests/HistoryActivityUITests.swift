@@ -256,7 +256,9 @@ final class HistoryActivityUITests: XCTestCase {
         XCTAssertFalse(app.sheets.buttons["Move to Trash"].exists, "Viewing History cannot restore cleanup authority")
     }
 
-    @MainActor func testClearCompletedHistoryNamesAllRecordsAndReportsPartialSuccess() async throws {
+    @MainActor func testClearCompletedHistoryNamesAllRecordsAndReportsPartialSuccess() async throws { try await exerciseClearCompletedHistory(minimum: true) }
+    @MainActor func testClearCompletedHistoryAtInitialSize() async throws { try await exerciseClearCompletedHistory(minimum: false) }
+    @MainActor private func exerciseClearCompletedHistory(minimum: Bool) async throws {
         continueAfterFailure = false
         let manager = FileManager.default, app = XCUIApplication()
         let state = try configureIsolatedJourneyState(app)
@@ -273,22 +275,33 @@ final class HistoryActivityUITests: XCTestCase {
         _ = try await store.recordActivity(ScanActivity(startedAt: now.addingTimeInterval(-2), completedAt: now.addingTimeInterval(-1), outcome: .complete, locations: [ScanActivityLocation(path: root.path, observedAt: now.addingTimeInterval(-1), outcome: .complete, entryCount: 1, logicalBytes: 2, allocatedBytes: 4096, knownLogicalBytes: 2)]), expectedEpoch: epoch)
         let fingerprint = GrowthFingerprint(scopeID: "owned-scope", rootID: "owned-root", volumeID: "owned-volume", access: "explicit", rules: "owned", exclusions: "none", classification: "owned")
         _ = try await store.record(GrowthSnapshot(fingerprint: fingerprint, scopeLabel: "Owned folder", observedAt: now, groups: [.init(id: "root", label: "Files", logicalBytes: 2)]), expectedEpoch: epoch)
-        app.launchArguments = ["--design-minimum"]; app.launch(); app.typeKey("3", modifierFlags: .command)
+        app.launchArguments = [minimum ? "--design-minimum" : "--design-initial-size"]; app.launch(); app.typeKey("3", modifierFlags: .command)
         let filter = app.popUpButtons["History activity filter"]
         XCTAssertTrue(filter.waitForExistence(timeout: 10)); filter.click(); app.menuItems["Cleanups"].click()
-        app.popUpButtons["Appearance"].click(); app.menuItems["Dark"].click()
         revealScrollElement(app, control: app.buttons["manageLocalRecords"], label: "Manage local records"); app.buttons["manageLocalRecords"].click()
-        XCTAssertTrue(app.buttons["clearHistory"].waitForExistence(timeout: 5)); app.buttons["clearHistory"].click()
-        let clear = app.sheets.buttons["Clear completed history"]
-        guard clear.waitForExistence(timeout: 5) else {
-            let image = XCTAttachment(screenshot: app.windows.firstMatch.screenshot()); image.name = "history-clear-ambiguous-confirmation"; image.lifetime = .keepAlways; add(image)
-            XCTFail("Clear completed history must explicitly cover scan activity, completed cleanups and growth baselines regardless of filter"); return
+        XCTAssertTrue(app.buttons["clearHistory"].waitForExistence(timeout: 5))
+        let bounds = app.windows.firstMatch.frame
+        func capture(_ name: String) {
+            let image = XCTAttachment(screenshot: app.windows.firstMatch.screenshot())
+            image.name = "history-clear-" + (minimum ? "minimum-" : "initial-") + name; image.lifetime = .keepAlways; add(image)
+            XCTAssertEqual(app.windows.firstMatch.frame, bounds)
         }
-        let consequence = app.sheets.staticTexts.matching(NSPredicate(format: "value CONTAINS[c] %@ OR label CONTAINS[c] %@", "scan activity", "scan activity")).firstMatch
-        XCTAssertTrue(consequence.exists)
-        app.sheets.buttons["Cancel"].click()
-        let beforeActivities = try await store.activities(), beforeBaselines = try await store.snapshots()
-        XCTAssertEqual(beforeActivities.count, 1); XCTAssertEqual(beforeBaselines.count, 1); XCTAssertEqual(try journal.completedHistory().completedRuns.count, 1)
+        let clear = app.sheets.buttons["Clear completed history"]
+        for theme in ["Light", "Dark"] {
+            app.popUpButtons["Appearance"].click(); app.menuItems[theme].click()
+            app.buttons["clearHistory"].click()
+            guard clear.waitForExistence(timeout: 5) else {
+                capture("ambiguous-confirmation-" + theme)
+                XCTFail("Clear completed history must explicitly cover scan activity, completed cleanups and growth baselines regardless of filter"); return
+            }
+            let consequence = app.sheets.staticTexts.matching(NSPredicate(format: "value CONTAINS[c] %@ OR label CONTAINS[c] %@", "scan activity", "scan activity")).firstMatch
+            XCTAssertTrue(consequence.exists)
+            capture("confirmation-" + theme)
+            app.sheets.buttons["Cancel"].click()
+            let beforeActivities = try await store.activities(), beforeBaselines = try await store.snapshots()
+            XCTAssertEqual(beforeActivities.count, 1); XCTAssertEqual(beforeBaselines.count, 1); XCTAssertEqual(try journal.completedHistory().completedRuns.count, 1)
+            XCTAssertEqual(try Data(contentsOf: file), Data([3, 9]))
+        }
         let archive = growthDirectory.appendingPathComponent("aggregates-v1.json"), backup = growthDirectory.appendingPathComponent("owned-archive-backup.json")
         try manager.moveItem(at: archive, to: backup); try manager.createDirectory(at: archive, withIntermediateDirectories: false)
         app.buttons["clearHistory"].click(); clear.click()
@@ -299,7 +312,13 @@ final class HistoryActivityUITests: XCTestCase {
         }, object: status)
         XCTAssertEqual(XCTWaiter.wait(for: [partial], timeout: 5), .completed)
         XCTAssertTrue(try journal.completedHistory().completedRuns.isEmpty); XCTAssertFalse(try journal.claim(approval))
-        let image = XCTAttachment(screenshot: app.windows.firstMatch.screenshot()); image.name = "history-clear-partial-minimum-Dark"; image.lifetime = .keepAlways; add(image)
+        for theme in ["Light", "Dark"] {
+            app.popUpButtons["Appearance"].click(); app.menuItems[theme].click()
+            let text = status.value as? String ?? status.label
+            XCTAssertTrue(text.contains("Cleared 1 completed cleanup run."))
+            XCTAssertTrue(text.contains("Scan activity and growth baseline clearing could not be confirmed."))
+            capture("partial-" + theme)
+        }
         try manager.removeItem(at: archive); try manager.moveItem(at: backup, to: archive)
         app.buttons["clearHistory"].click(); clear.click()
         let cleared = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
