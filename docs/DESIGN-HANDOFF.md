@@ -173,7 +173,7 @@ The native active-operation footer keeps **Stop after current file** reachable. 
 
 ### M4 What grew native comparison states
 
-Future-gated What grew preserves existing shortcuts and adds Command-6. The fixed action strip opens an explicit folder picker. A selected completed observation shows scope, completeness and both interval endpoints; compatible comparisons show folder/category logical deltas. First, cleared, expired/missing, changed-coverage and unknown observations have distinct explanations. Partial/cancelled/unmeasured observations never masquerade as completed growth. Completed-observation selection is secondary disclosure content; no writer attribution or cleanup selection is inferred. See [implementation evidence](validation/growth-comparisons.md).
+Future-gated What grew preserves existing shortcuts and adds Command-6. The fixed action strip follows [WHAT-GREW](WHAT-GREW.md): establish a baseline, scan again, Stop during scanning, or explicitly reconnect missing authority. It uses the verified remembered location where available instead of always reopening a generic picker. A selected completed observation shows scope, completeness and both interval endpoints; compatible comparisons show folder/category logical deltas. First, cleared, expired/missing, changed-coverage and unknown observations have distinct explanations. Partial/cancelled/unmeasured observations never masquerade as completed growth. Completed-observation selection is secondary disclosure content; no writer attribution or cleanup selection is inferred. See [historical mechanism evidence](validation/growth-comparisons.md) and [current #52 qualification in progress](validation/what-grew.md).
 
 ### Directory instability during scanning
 

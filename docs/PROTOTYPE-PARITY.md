@@ -49,7 +49,7 @@ The tables below Classification retain the original audit baseline. This current
 | H01,H03 | Locked; implementation pending #51 | [HISTORY-ACTIVITY](HISTORY-ACTIVITY.md) Q1–Q15 confirms combined terminal activity, honest filters, independent availability, shared scan/growth archive budget and global Clear; existing protected history mechanisms retained |
 | N05–N07,A04 | Covered within bounded #53 qualification | [SHELL-APPEARANCE](SHELL-APPEARANCE.md) Q1–Q13 is implemented at `c5886e8`; [native/source evidence](validation/shell-appearance.md) records normal-click, theme, size and affected-flow acceptance and limits |
 | S07,P10,C01–C02 and other adapters | Future gated | Recognized discovery, cloud/developer/browser actions retain their original M2/M3 tickets; never required to close M1 feature implementation |
-| G01–G04 | Future M4 + unresolved #52 | Existing comparison mechanisms do not complete first-use/review-options routing or approved visual hierarchy |
+| G01–G04 | Future M4 + locked #52; implementation pending | Existing comparison mechanisms do not complete first-use/review-options routing or approved visual hierarchy |
 | M01–M02 | Future M6 + unresolved #54 | Existing managed guidance retained; release-archive information architecture still outstanding, no deletion |
 | N08–N10 | Bounded qualified + M7 limits | Original native theme/size/fixed footer/keyboard/anchor evidence exists; no comprehensive VoiceOver/localization/OS/CPU certification |
 
@@ -277,7 +277,7 @@ Current N05/N06/N07/A04 decision overlay: #53 Q1–Q13 and consolidated contract
 
 ## History contract lock — October 24
 
-Current H01–H04 implementation overlay: #51 Q1–Q15 is implemented at `f062ca6` under [HISTORY-ACTIVITY](HISTORY-ACTIVITY.md), with [bounded qualification](validation/history-activity.md). H01–H04 are Covered for combined terminal activity, filters/root summaries, honest separate retention/availability, global Clear and exact gated comparison returns. Core154,17 new UI journeys and21 affected existing checks pass across focused source-bound runs; all96 final originals are individually accepted. #52 first-use/review flows and #54 archive guidance remain separate, untriaged decisions; M4/M8 gates are unchanged.
+Current H01–H04 implementation overlay: #51 Q1–Q15 is implemented at `f062ca6` under [HISTORY-ACTIVITY](HISTORY-ACTIVITY.md), with [bounded qualification](validation/history-activity.md). H01–H04 are Covered for combined terminal activity, filters/root summaries, honest separate retention/availability, global Clear and exact gated comparison returns. Core154,17 new UI journeys and21 affected existing checks pass across focused source-bound runs; all96 final originals are individually accepted. #52 first-use/review flows are now locked under WHAT-GREW.md and pending implementation qualification; #54 archive guidance remains untriaged. M4/M8 gates are unchanged.
 
 
 ## G01–G04 decision overlay — #52
