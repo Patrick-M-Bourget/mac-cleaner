@@ -1,0 +1,22 @@
+# Chrome asset-cache qualification and cleanup — locked #18/#19 contract
+
+User confirmed Q1–Q6 and consolidated contract October25,2026; documentation lock and remaining #18 qualification authorized. #19 stays blocked by #18. This contract does not qualify an adapter or enable mutation.
+
+1. **Delivery target:** #18 establishes the capability decision needed for #19's real Chrome cleanup feature. Do not add another standalone guidance screen as a substitute. Preserve the approved Overview → browser/profile review → shared Cleanup plan → permanent confirmation → per-group results journey.
+2. **Initial compatibility:** qualify one explicitly verified macOS Chrome Stable release and supported profile layouts. Chrome for Testing156.0.8078.47 evidence remains supporting evidence only, not automatic installed-Stable compatibility. Pin observed tool/version/OS/root provenance. Expand compatibility only with new evidence; unknown versions/layouts remain unavailable for cleanup.
+3. **Initial targets:** verified downloaded asset caches only. GPU/code caches and other groups stay unsupported until independently validated and remain retained future scope. Preserve cookies, credentials, history, site/offline storage, autofill, downloads and session/tab state. A familiar path/basename alone never proves ownership.
+4. **Access and profiles:** explicitly enable Chrome inspection once; inspect verified profiles under authorized standard storage. Remember access where macOS permits; avoid repeated per-profile pickers. Custom locations require a separate explicit choice. Collect no account addresses or browsing contents. #18 uses disposable native profile roots; personal inspection/discovery UI belongs to qualified #19, not this experiment.
+5. **Exact approval and concurrent change:** selected groups materialize exact eligible reviewed files. Browser reopen, uncertain ownership or changed targets stops unstarted cleanup and requires explicit recheck; no new files join the plan, no automatic retry and no force-quit. Preserve choices with explanation; recheck leaves newly discovered targets unchecked. Actual exclusion of concurrent owners and remaining final-unlink limitations must be established/documented, not inferred from process names or descriptor-relative preflight alone.
+6. **Qualification environment and stop rule:** remaining Stable experiments run only in disposable environments with synthetic browsing data/test credentials, never personal Chrome/profiles/accounts. Test real preserved history/download/session/credential/autofill/offline semantics and ownership/change/denial/swap behavior. Do not repeat the existing broad CfT experiment as new qualification. If required ownership/concurrent-write protection cannot be established, report the specific blocker and keep cleanup disabled; no endless broad probes or silently weakened acceptance.
+
+## Scope and evidence
+
+Start only #18's remaining capability work. No production allowlist, #19 execution/UI implementation, browser termination, personal-profile inspection, new permissions, general executor refactor or M8 work is authorized by probe success. Existing public adapter/protected-fixture boundary is approved for tests. Controlled fixtures and genuine native observations must be reported separately with exact versions/source and negative results. #18 closes only against its full remaining acceptance; #19 and M3 promotion need their own qualification. #27 real notification gate and other milestones remain unchanged.
+
+## Design trace
+
+Parity B01–B03/P10 and CACHE-01–04. Profile/shared groups count ownership once; show running, denied, unsupported, unknown and empty states, never zero for unknown. Eligible group/category selection shares the process plan, with no automatic selection on rescan. Permanent asset-cache removal differs from Downloads Trash and may regrow; confirmation/results must preserve that distinction. This is a locked future interaction contract, not a new native visual qualification claim. Use shared design-system category, status, selection, confirmation and results presentation when #19 is authorized.
+
+## Status
+
+Locked; first remaining prerequisite investigation reached the Q6 stop rule. [Bounded evidence](validation/chrome-stable-qualification.md) records the ownership/final-removal blocker; #18 remains open and #19 blocked. Prior genuine CfT evidence: validation/chrome-owned-profiles.md. Production positive allowlist remains empty until required Stable/ownership/protection evidence succeeds.
