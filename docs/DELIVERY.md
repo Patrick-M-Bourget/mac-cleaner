@@ -13,3 +13,7 @@ Application and package production source are exactly the qualified integration8
 ## Closure policy
 
 Close only issues whose full stated feature acceptance is evidenced at this baseline. Keep partial adapters, deferred mutation/signing and incomplete platform/manual qualification open with explicit remaining criteria. Child delivery does not automatically complete an audit parent. Future work is preserved even when a bounded implemented ticket closes.
+
+## Completed consolidation
+
+PR65 merged at89ea92c.20 completed tickets are now closed against [the acceptance audit](validation/completed-delivery-audit.md);25 remain open for actual outstanding scope. Obsolete delivery branches are retired with recoverable archives; current development uses main plus feature/what-grew-52. Product-notes remains separate. DraftPR36 is closed as superseded. Finish #52 from WHAT-GREW.md, then merge its bounded feature PR; do not reopen completed baseline work or expand #52.
