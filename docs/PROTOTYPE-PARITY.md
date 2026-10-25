@@ -50,7 +50,7 @@ The tables below Classification retain the original audit baseline. This current
 | N05–N07,A04 | Covered within bounded #53 qualification | [SHELL-APPEARANCE](SHELL-APPEARANCE.md) Q1–Q13 is implemented at `c5886e8`; [native/source evidence](validation/shell-appearance.md) records normal-click, theme, size and affected-flow acceptance and limits |
 | S07,P10,C01–C02 and other adapters | Future gated | Recognized discovery, cloud/developer/browser actions retain their original M2/M3 tickets; never required to close M1 feature implementation |
 | G01–G04 | Covered within gated #52 | fb20196 completes per-location baselines, explicit scan/review/return, signed folder/file-type hierarchy and honest unavailable states; validation/what-grew.md owns source/run/capture limits |
-| M01–M02 | Future M6; #54 locked, implementation pending | RELEASE-ARCHIVES.md Q1–Q7 adds guidance-only protected/not-inspected row and explicit Xcode/Apple guide actions; no measurement or deletion |
+| M01–M02 | Covered guidance slice; future M6 gate retained | #54 / RELEASE-ARCHIVES.md Q1–Q7 qualified at62bcf8a; broader #31 owner-app/platform gate remains |
 | N08–N10 | Bounded qualified + M7 limits | Original native theme/size/fixed footer/keyboard/anchor evidence exists; no comprehensive VoiceOver/localization/OS/CPU certification |
 
 #44/#46/#47/#48 bounded M1 feature repairs are accepted and closed against D/M/R/L evidence. #50 retains exceptional native proof and #45 retains unresolved decisions. Unaffected already-covered/departure/simulation rows retain their status; this overlay is not permission to erase any roadmap row or claim all 79 rows implemented.
@@ -95,7 +95,7 @@ Mixed rows identify separately implemented mechanisms and missing product flows.
 | O05 | Scope bytes separate from disk and release estimates | Native current-scope logical/allocated evidence; Downloads resource dedup; Trash not immediate release; no naïve overlap sum | C/D #3/#41/#42; future mixed-action summary #15/#17/#19/#21 |
 | O06 | Capacity unknown, historical last reading and retry | Unknown meter supported; dedicated refresh/last-known recovery action absent | C/G #49 |
 | O07 | Explore selected storage without claiming whole disk | Current focus only for cloud/scope amounts, known-location count and exact Downloads findings; narrower aggregation is explicitly labelled | D SPEC Overview contract; navigation depth G #47 |
-| O08 | App-managed guidance remains reachable below findings | Future More tools route exists; intentionally secondary; release-archive row missing | C/F #31; G #54 |
+| O08 | App-managed guidance remains reachable below findings | Future More tools route exists; intentionally secondary; protected release-archive guidance qualified | C/F #31; C #54 |
 | O09 | First launch/no eligible findings are useful and honest | Choose folder/Downloads and scoped empty/partial findings exist; no global “Mac is clean” claim | C/D #42/#43; fuller scope setup G #46 |
 | O10 | Scan again known scopes; progress/Stop; incomplete results not executable | Sequential known roots, cancellation/generation protection and selection preservation implemented | C #41/#43; scope configuration G #46 |
 | O11 | Disk total/category chart conveys observed capacity | Neutral volume meter replaces unmeasured synthetic category segments; no whole-disk category taxonomy fabricated | D #37/#42, measurement rules in SPEC |
@@ -166,8 +166,8 @@ Mixed rows identify separately implemented mechanisms and missing product flows.
 | L01 | Local-record management reachable from Locations/History | Mechanisms exist in History; Settings route/origin missing | G #48; preserve #13 mechanisms |
 | L02 | Diagnostics review then explicit local Save, return to caller | Exact redacted frozen preview/Save/Cancel/failure implemented; only future Overview entry and Back there | C/F #32; route G #48 |
 | L03 | Exclusion rules, fixed protections, remove and recheck | Explicit native volume/path rules and preview/save/remove work; no exclusion from unchecked item | C/F #30; [native evidence](validation/exclusions.md) |
-| M01 | App-managed categories include release archives | Backups/Photos/Mail/Messages/system present; release archives absent | C/G/F [#54](https://github.com/Patrick-M-Bourget/mac-cleaner/issues/54), #31 (M6) |
-| M02 | Native owner guidance, optional selected metadata, no library surgery | Existing guidance/launch fallback/read-only metadata; add safe Xcode Organizer guidance for missing category | C/F #31; G #54; no archive deletion |
+| M01 | App-managed categories include release archives | Release archives first, permanently uninspected/protected; Device backups default preserved | C [#54](https://github.com/Patrick-M-Bourget/mac-cleaner/issues/54), #31 (M6) |
+| M02 | Native owner guidance, optional selected metadata, no library surgery | Existing guidance/launch fallback/read-only metadata; qualified Xcode launch-only instructions/failure, archive measurement refused | C/F #31; C #54; no archive deletion |
 
 ## Alerts and future action capabilities
 
@@ -277,7 +277,7 @@ Current N05/N06/N07/A04 decision overlay: #53 Q1–Q13 and consolidated contract
 
 ## History contract lock — October 24
 
-Current H01–H04 implementation overlay: #51 Q1–Q15 is implemented at `f062ca6` under [HISTORY-ACTIVITY](HISTORY-ACTIVITY.md), with [bounded qualification](validation/history-activity.md). H01–H04 are Covered for combined terminal activity, filters/root summaries, honest separate retention/availability, global Clear and exact gated comparison returns. Core154,17 new UI journeys and21 affected existing checks pass across focused source-bound runs; all96 final originals are individually accepted. #52 first-use/review flows are now qualified under WHAT-GREW.md and validation/what-grew.md; #54 archive guidance is now locked under RELEASE-ARCHIVES.md, implementation pending. M4/M8 gates are unchanged.
+Current H01–H04 implementation overlay: #51 Q1–Q15 is implemented at `f062ca6` under [HISTORY-ACTIVITY](HISTORY-ACTIVITY.md), with [bounded qualification](validation/history-activity.md). H01–H04 are Covered for combined terminal activity, filters/root summaries, honest separate retention/availability, global Clear and exact gated comparison returns. Core154,17 new UI journeys and21 affected existing checks pass across focused source-bound runs; all96 final originals are individually accepted. #52 first-use/review flows are now qualified under WHAT-GREW.md and validation/what-grew.md; #54 archive guidance is qualified under RELEASE-ARCHIVES.md and validation/release-archives.md. M4/M8 gates are unchanged.
 
 
 ## G01–G04 decision overlay — #52
@@ -287,4 +287,4 @@ Q1–Q17 and the consolidated [WHAT-GREW](WHAT-GREW.md) contract are implemented
 
 ## M01–M02 decision overlay — #54
 
-Q1–Q7 and consolidated [RELEASE-ARCHIVES](RELEASE-ARCHIVES.md) contract are user-confirmed. Guidance-only Release archives is first in the existing M6-gated list; Device backups remains default. Show Not inspected and Protected from Still cleanup, retention explanation, explicit Open Xcode/Apple guide and honest unavailable fallback. No picker/measurement/traversal/deletion, new permissions or navigation framework. Implementation is authorized; M01–M02 remain pending qualification. Other categories, all future milestones and M8 deferral remain unchanged.
+Q1–Q7 in [RELEASE-ARCHIVES](RELEASE-ARCHIVES.md) are implemented at application source `62bcf8a`, with [bounded Core/native/visual evidence](validation/release-archives.md). Guidance-only Release archives is first in the existing M6-gated list; Device backups remains default. It is always Not inspected and Protected from Still cleanup, with retention guidance, explicit Open Xcode/Apple guide and truthful unavailable fallback. The shared inert `ReleaseArchiveGuidance` is reused live and in the collapsed Gallery. No picker, metadata read, traversal, deletion, new permissions or navigation framework was added. M01–M02 are Covered for this guidance slice; broader #31 native owner-app/platform qualification, other categories, future milestones and M8 deferral remain unchanged.
