@@ -13,6 +13,13 @@ public struct GrowthScanToken: Sendable {
 public actor GrowthScanRecorder: GrowthObservationRecording {
     private let store: GrowthHistoryStore
     public init(store: GrowthHistoryStore) { self.store = store }
+    /// Verifies a user-authorized location against historical identity; never grants access or starts a scan.
+    public func matchesLocation(_ scope: URL, snapshot: GrowthSnapshot) throws -> Bool {
+        let current = try fingerprint(scope, exclusions: "none")
+        return current.scopeID == snapshot.fingerprint.scopeID
+            && current.rootID == snapshot.fingerprint.rootID
+            && current.volumeID == snapshot.fingerprint.volumeID
+    }
     public func begin(scope: URL) async throws -> GrowthScanToken { try await begin(scope: scope, exclusionFingerprint: "none") }
     public func begin(scope: URL, exclusionFingerprint: String) async throws -> GrowthScanToken {
         let epoch = try await store.recordingEpoch()
