@@ -33,6 +33,47 @@ final class HistoryActivityUITests: XCTestCase {
         }
         XCTAssertEqual(try Data(contentsOf: file), Data([5, 2]))
     }
+    @MainActor func testWhatGrewKeepsIndependentLocationBaselines() async throws {
+        continueAfterFailure = false
+        let manager = FileManager.default, app = XCUIApplication()
+        let state = try configureIsolatedJourneyState(app)
+        let root = manager.temporaryDirectory.resolvingSymlinksInPath().appendingPathComponent("StillGrowthUI-" + UUID().uuidString)
+        let a = root.appendingPathComponent("First location"), b = root.appendingPathComponent("Second location")
+        for folder in [a, b] { try manager.createDirectory(at: folder, withIntermediateDirectories: true) }
+        let store = GrowthHistoryStore(directory: state.appendingPathComponent("Growth"))
+        let recorder = GrowthScanRecorder(store: store)
+        try Data([1]).write(to: a.appendingPathComponent("Original.txt"))
+        var token = try await recorder.begin(scope: a); _ = try await recorder.complete(try await FolderScanner().scan(a), token: token)
+        try Data([2, 3, 4, 5]).write(to: a.appendingPathComponent("Added.txt"))
+        token = try await recorder.begin(scope: a); _ = try await recorder.complete(try await FolderScanner().scan(a), token: token)
+        try Data([7, 8, 9]).write(to: b.appendingPathComponent("Other.txt"))
+        token = try await recorder.begin(scope: b); _ = try await recorder.complete(try await FolderScanner().scan(b), token: token)
+        app.launchArguments = ["--future-milestones", "--design-minimum"]
+        defer { app.terminate(); try? manager.removeItem(at: state); try? manager.removeItem(at: root) }
+        app.launch(); app.typeKey("6", modifierFlags: .command)
+        let picker = app.popUpButtons["Comparison location"]
+        guard picker.waitForExistence(timeout: 10) else {
+            let image = XCTAttachment(screenshot: app.windows.firstMatch.screenshot()); image.name = "growth52-missing-location-selector"; image.lifetime = .keepAlways; add(image)
+            XCTFail("Each location needs its own baseline and comparison selector"); return
+        }
+        XCTAssertEqual(picker.value as? String, "Second location")
+        XCTAssertFalse(app.staticTexts["growthNetChange"].exists)
+        picker.click(); app.menuItems["First location"].click()
+        XCTAssertTrue(app.staticTexts["growthNetChange"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["growthNetChange"].label.contains("+4 bytes"))
+        XCTAssertTrue(app.popUpButtons["Growth breakdown"].exists)
+        let bounds = app.windows.firstMatch.frame
+        for theme in ["Light", "Dark"] {
+            app.popUpButtons["Appearance"].click(); app.menuItems[theme].click()
+            let image = XCTAttachment(screenshot: app.windows.firstMatch.screenshot()); image.name = "growth52-location-comparison-minimum-" + theme; image.lifetime = .keepAlways; add(image)
+            XCTAssertEqual(app.windows.firstMatch.frame, bounds)
+        }
+        picker.click(); app.menuItems["Second location"].click()
+        XCTAssertFalse(app.staticTexts["growthNetChange"].exists)
+        XCTAssertTrue(app.buttons["Scan again to compare"].exists)
+        app.typeKey("1", modifierFlags: .command); app.typeKey("6", modifierFlags: .command)
+        XCTAssertEqual(picker.value as? String, "Second location")
+    }
     @MainActor func testCompletedScanAppearsInHistoryWithoutRestoringSelection() throws {
         continueAfterFailure = false
         let manager = FileManager.default
