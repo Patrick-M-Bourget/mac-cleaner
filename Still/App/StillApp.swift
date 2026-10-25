@@ -761,7 +761,7 @@ private struct WorkspaceView: View {
     }
     private var growthReviewTitle: String? {
         let model = GrowthHistoryModel.shared
-        guard model.comparison?.current != nil else { return nil }
+        guard model.reviewSnapshot != nil else { return nil }
         if model.authorityChecking { return "Checking location…" }
         guard let url = model.resolvedURL else { return "Locate folder…" }
         guard selection.scans[url.standardizedFileURL] != nil, !selection.unavailableScopes.contains(url.standardizedFileURL) else { return "Scan to review" }
@@ -776,12 +776,12 @@ private struct WorkspaceView: View {
     private func scanGrowthLocation(locate: Bool = false, fromHistorical: Bool = false) async {
         let model = GrowthHistoryModel.shared
         guard canStartGrowthScan, !model.isResolving else { return }
-        guard let snapshot = model.comparison?.current else { chooseNewGrowthLocation(); return }
+        guard let snapshot = model.reviewSnapshot else { chooseNewGrowthLocation(); return }
         let route = navigationState.routeGeneration
         model.isResolving = true
         defer { model.isResolving = false }
         if !locate && !model.needsLocationAccess, let lease = await model.leaseForSelection() {
-            guard canStartGrowthScan, destination == .growth, navigationState.routeGeneration == route, model.comparison?.current?.id == snapshot.id else { lease.close(); return }
+            guard canStartGrowthScan, destination == .growth, navigationState.routeGeneration == route, model.reviewSnapshot?.id == snapshot.id else { lease.close(); return }
             model.accessNotice = nil; model.needsLocationAccess = false
             if fromHistorical { model.moveHistoricalToCurrent() }
             selection.leaveRetryMode(); scanOrigin = .growth
@@ -792,12 +792,12 @@ private struct WorkspaceView: View {
             model.needsLocationAccess = true; return
         }
         guard let url = FolderInspection.chooseFolder() else { return }
-        guard await model.matches(url, snapshot: snapshot), model.comparison?.current?.id == snapshot.id else {
+        guard await model.matches(url, snapshot: snapshot), model.reviewSnapshot?.id == snapshot.id else {
             model.accessNotice = "That folder does not match the recorded location’s root and volume identity. Nothing was scanned or rebound."; return
         }
         guard canStartGrowthScan, locationsModel.remember(url, downloads: isDownloadsLocation(url)) else { return }
         guard let lease = await model.leaseForSelection() else { model.accessNotice = "Access could not be renewed. Nothing was scanned."; return }
-        guard canStartGrowthScan, destination == .growth, navigationState.routeGeneration == route, model.comparison?.current?.id == snapshot.id else { lease.close(); return }
+        guard canStartGrowthScan, destination == .growth, navigationState.routeGeneration == route, model.reviewSnapshot?.id == snapshot.id else { lease.close(); return }
         model.accessNotice = nil; model.needsLocationAccess = false
         if fromHistorical { model.moveHistoricalToCurrent() }
         selection.leaveRetryMode(); scanOrigin = .growth
@@ -806,9 +806,9 @@ private struct WorkspaceView: View {
     private func reviewGrowthLocation() async {
         let model = GrowthHistoryModel.shared
         guard canStartGrowthScan, !model.isResolving else { return }
-        let route = navigationState.routeGeneration, snapshot = model.comparison?.current?.id
+        let route = navigationState.routeGeneration, snapshot = model.reviewSnapshot?.id
         let resolved = await model.leaseForSelection()
-        guard canStartGrowthScan, destination == .growth, navigationState.routeGeneration == route, model.comparison?.current?.id == snapshot else { resolved?.close(); return }
+        guard canStartGrowthScan, destination == .growth, navigationState.routeGeneration == route, model.reviewSnapshot?.id == snapshot else { resolved?.close(); return }
         guard let lease = resolved else { await scanGrowthLocation(locate: true, fromHistorical: model.isHistorical); return }
         let url = lease.url.standardizedFileURL; lease.close()
         guard selection.scans[url] != nil, !selection.unavailableScopes.contains(url) else { await scanGrowthLocation(fromHistorical: model.isHistorical); return }
