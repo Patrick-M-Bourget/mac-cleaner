@@ -102,6 +102,57 @@ final class HistoryActivityUITests: XCTestCase {
         app.typeKey("2", modifierFlags: .command); XCTAssertTrue(app.staticTexts["1 file selected"].waitForExistence(timeout: 5))
         XCTAssertEqual(try Data(contentsOf: file), Data([2, 8]))
     }
+    @MainActor func testWhatGrewHistoricalScanRequiresAcceptedAuthorityAndReturnsToHistory() async throws {
+        continueAfterFailure = false
+        let manager = FileManager.default, app = XCUIApplication()
+        let state = try configureIsolatedJourneyState(app)
+        let root = manager.temporaryDirectory.resolvingSymlinksInPath().appendingPathComponent("StillSelectionUI-" + UUID().uuidString)
+        try manager.createDirectory(at: root, withIntermediateDirectories: false)
+        let original = root.appendingPathComponent("Original.pdf"); try Data([2, 1]).write(to: original)
+        var identity = stat(); XCTAssertEqual(lstat(root.path, &identity), 0)
+        app.launchArguments = ["--future-milestones", "--ui-test-downloads-root", "--design-minimum"]
+        app.launchEnvironment["STILL_TEST_DOWNLOADS_ROOT"] = root.path; app.launchEnvironment["STILL_TEST_DOWNLOADS_ID"] = "\(identity.st_dev):\(identity.st_ino)"
+        defer { app.terminate(); try? manager.removeItem(at: state); try? manager.removeItem(at: root) }
+        app.launch(); XCTAssertTrue(app.buttons["Choose folder…"].waitForExistence(timeout: 10)); app.buttons["Choose folder…"].click()
+        func chooseRoot() {
+            app.typeKey("g", modifierFlags: [.command, .shift]); XCTAssertTrue(app.textFields.firstMatch.waitForExistence(timeout: 5)); app.textFields.firstMatch.typeText(root.path)
+            app.typeKey(.return, modifierFlags: []); app.dialogs.buttons["Scan folder"].click()
+        }
+        chooseRoot(); waitForOverviewScan(app)
+        let added = root.appendingPathComponent("Added.txt"); try Data([3, 4, 5]).write(to: added)
+        app.buttons["Scan again"].click(); waitForOverviewScan(app)
+        app.terminate(); try ScopeRegistry(directory: state.appendingPathComponent("Scopes")).reset(); app.launch(); app.typeKey("3", modifierFlags: .command)
+        let filter = app.popUpButtons["History activity filter"]; XCTAssertTrue(filter.waitForExistence(timeout: 10)); filter.click(); app.menuItems["Scans"].click()
+        let disclosure = app.disclosureTriangles.firstMatch
+        revealScrollElement(app, control: disclosure, label: "Historical scan details")
+        disclosure.coordinate(withNormalizedOffset: CGVector(dx: 0, dy: 0.5)).withOffset(CGVector(dx: 26, dy: 0)).click(); XCTAssertEqual(disclosure.value as? Int, 1)
+        let link = app.buttons["See what grew"].firstMatch; revealScrollElement(app, control: link, label: "See what grew")
+        let callerFrame = link.frame, bounds = app.windows.firstMatch.frame
+        link.click(); XCTAssertTrue(app.staticTexts["growthNetChange"].waitForExistence(timeout: 5))
+        let recorded = app.staticTexts["growthNetChange"].value as? String
+        let scan = app.buttons["Scan this location now"]
+        guard scan.waitForExistence(timeout: 5) else { XCTFail("An exact historical comparison needs an explicit current-scan action"); return }
+        revealScrollElement(app, control: scan, label: "Scan this location now"); scan.click()
+        let locate = app.buttons["Locate folder…"]; revealScrollElement(app, control: locate, label: "Locate folder")
+        locate.click(); XCTAssertTrue(app.dialogs.buttons["Cancel"].waitForExistence(timeout: 5)); app.dialogs.buttons["Cancel"].click()
+        XCTAssertEqual(app.staticTexts["growthNetChange"].value as? String, recorded)
+        XCTAssertFalse(app.popUpButtons["Comparison location"].exists, "Cancelled reconnect keeps the exact historical mode")
+        XCTAssertTrue(app.buttons["Back to History"].exists); XCTAssertFalse(app.buttons["Stop scan"].exists)
+        let newer = root.appendingPathComponent("Newer.txt"); try Data([6, 7]).write(to: newer)
+        locate.click(); chooseRoot()
+        XCTAssertTrue(app.buttons["Scan again to compare"].waitForExistence(timeout: 20))
+        XCTAssertTrue(app.popUpButtons["Comparison location"].exists)
+        XCTAssertTrue((app.staticTexts["growthNetChange"].value as? String ?? "").contains("+2 bytes"))
+        for theme in ["Light", "Dark"] {
+            app.popUpButtons["Appearance"].click(); app.menuItems[theme].click()
+            let image = XCTAttachment(screenshot: app.windows.firstMatch.screenshot()); image.name = "growth52-historical-current-minimum-" + theme; image.lifetime = .keepAlways; add(image)
+        }
+        app.buttons["Back to History"].click(); XCTAssertEqual(filter.value as? String, "Scans"); XCTAssertEqual(disclosure.value as? Int, 1)
+        let restored = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in link.frame == callerFrame }, object: link)
+        XCTAssertEqual(XCTWaiter.wait(for: [restored], timeout: 5), .completed)
+        XCTAssertEqual(app.windows.firstMatch.frame, bounds)
+        XCTAssertEqual(try Data(contentsOf: original), Data([2, 1])); XCTAssertEqual(try Data(contentsOf: newer), Data([6, 7]))
+    }
     @MainActor func testCompletedScanAppearsInHistoryWithoutRestoringSelection() throws {
         continueAfterFailure = false
         let manager = FileManager.default
