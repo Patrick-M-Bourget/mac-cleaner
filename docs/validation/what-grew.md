@@ -21,3 +21,15 @@ A real unavailable-location begin produced a red loss of comparison; green prese
 ## Native and visual qualification
 
 Pending. First public native tracer is being exercised before production changes. No new native pass, screenshot acceptance or parity coverage is claimed here yet.
+
+## Core review corrections
+
+Independent source review found two P2 gaps: preserving a numeric comparison when only its older endpoint expired, and inferring a missing per-location baseline from unrelated global history. Both received genuine public regression reds and focused greens in60f0490, integrated7c11a92. Unknown/partial results now re-read the exact comparison rather than only checking the selected endpoint; a newly recorded observation with no retained same-location predecessor establishes a baseline without claiming it is the first-ever scan. No schema or retention expansion. Full final Core158 Swift Testing+5 XCTest passes (`/tmp/growth52-core-review-full.log`).
+
+## First native tracer
+
+Run40226814851 was skipped by an initial focused-workflow filter and supplies no product evidence. Corrected red40226858665 at0f0d348 failed the intended missing “Scan to establish a baseline” action (9.948s); original inspected capture showed only the old “Inspect a folder” footer. Green40227101004 at091e526 passes that unchanged first-use journey after minimal production wiring. This is the first native slice only: location selector/review/historical/exceptional/final visual qualification remain pending. Original artifacts retained externally under artifacts/growth52-first-red and corresponding export; final capture acceptance not inferred.
+
+## Location hierarchy candidate
+
+Source2284804 adds shared GrowthComparisonSummary/GrowthChangeBreakdown/GrowthChangeRow and a location selector, with an inert DEBUG Gallery family. Native first-use regression40227584434 passes. Location attempt40227582611 failed a native StaticText label assertion despite the original B8A9B615-E8C8-400F-B0B6-0BB690DBC4B3 showing +4 bytes and First location. Root individually viewed that original; test-only508cf37 reads the native value with label fallback, keeping the exact +4 requirement. This attempt is not a passing location journey or final visual acceptance. Later review routes and final matrix remain pending.
