@@ -1,5 +1,11 @@
 # Native development
 
+## Current delivery checkpoint — October25,2026
+
+Completed baseline merged into main via PR65. #52 is implemented atfb20196 under WHAT-GREW.md with [bounded qualification](validation/what-grew.md), including strict old/new historical returns,50 accepted original images and synchronized spec/design/parity. PR66 is its delivery vehicle. This supersedes older pending/triage notes below; do not reopen settled decisions or re-run proved checks after docs-only changes. Only #54 needs its own grilling among the remaining parity-flow decisions; other open issues retain their explicitly recorded adapter/platform/personal gates. M8 remains deferred.
+
+Review build: `/Users/bender/Library/Caches/Codex/mac-cleaner-implementation/artifacts/growth-fb20196/Still.app`, with BUILD.md for the explicit `--future-milestones` launch. Normal launch remains gated/on-demand.
+
 Native UI implementation follows the mandatory [design system](DESIGN-SYSTEM.md).
 
 The current native app scans metadata only after an explicit manual scan of user-chosen locations. Locations are remembered as configuration; reopening restores neither findings nor selections. See the [connected Downloads implementation and validation](validation/connected-downloads.md) and [qualified mixed locations/inspector](validation/connected-next.md). Remembered overlap is explicit, recovered access retires obsolete notices, and the structured inspector explains existing action restrictions without selecting files. Quick Look and Reveal in Finder run only from their controls; preview requires fresh positive locality and matching resource identity. Eligible local Downloads files can enter a shared session plan and move to Trash only after exact consequence confirmation. Progress, cancellation, per-file results, fresh explicitly approved retry and startup recovery are implemented; completed-history/reset are integrated, while personal/release qualification retains its ticket gates. Historical slice notes below describe implementation stages, not the current feature ceiling. Start with the [personal-build walkthrough](validation/personal-build-walkthrough.md); it distinguishes read-only inspection from separately approved personal cleanup.

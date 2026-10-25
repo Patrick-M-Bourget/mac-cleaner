@@ -1,6 +1,27 @@
 # What grew #52 — implementation evidence
 
-Contract: [WHAT-GREW](../WHAT-GREW.md), Q1–Q17 user-confirmed October25,2026. G01–G04 remain pending complete native/source/visual qualification. M4 stays gated. This report records actual incremental evidence, not completion of the ticket.
+## Final qualification — applicationfb20196
+
+The locked #52 contract and #26 compatible comparison mechanism are complete within the future-gated manual scope; G01–G04 Covered. No new monitoring, file-level history, adapter mutation or commercialization work. Earlier incremental sections below retain chronology, not current blockers.
+
+| Boundary | Exact proof |
+|---|---|
+| Core | 158 Swift Testing +5 XCTest at60f0490/7c11a92; Core source unchanged throughfb20196. Full log /tmp/growth52-core-review-full.log. Nine new public regression cases at existing approved seams use disposable metadata/archive fixtures; genuine red→green evidence recorded below |
+| Six business journeys ×two sizes | Run40229706025 at5a82e16 passes12 methods: baseline, independent locations, current Downloads review/Back, historical reconnect/new scan/Back, archive Retry/save failure/current review/no replay, shared scan/Stop/no forced navigation/Explorer/failure/partial. This is12 methods, not12 distinct business journeys |
+| Shared Gallery | Run40229574971 at78a0c31 passes2 methods; shared presentation unchanged finalfb20196. Six inert families ×two sizes ×two themes =24 accepted originals |
+| Existing affected regressions | Run40229704131 at5a82e16: five passed, one minimum History frame failed; never call it6/6 green. Its five include both independent store-warning/reload checks, both connected Downloads journeys and initial old historical route |
+| Final old/new History return | Run40230725235 atfb20196 passes4/4 unchanged strict methods at both sizes. Covers the formerly failing old minimum return plus the initial old return and both new-scan-prepend returns. Combining these source-bound runs qualifies six distinct existing checks and the12 new methods, not a fresh whole-suite run |
+| Source reviews | SPEC-FINAL.md and STANDARDS-FINAL.md in what-grew-reviews: initial issues fixed; no outstanding blockers. Final narrow revision preserves the existing raw offset for unchanged feeds and applies the one-time clicked-link correction only to changed feedIDs/order |
+| Visual review | All50 final changed-presentation originals individually accepted:26 live and24 Gallery. Full unmodified export manifests and per-image state/dimensions/caveats retained under docs/visual/what-grew and what-grew-reviews |
+
+The actual isolated History prepend red40228922318 was fixed by a local exact-link marker/context. The first candidate passed the new route but conflicted with the old minimum raw-offset path in40229704131. Finalfb20196 gates correction to changed feeds;40230725235 proves both old and new paths without weakening assertions. No general navigation architecture or support feature was added.
+
+Live progress/Stop/failure shots use Automatic/Light; shared Dark outcome copy is accepted in Gallery. Some live shots intentionally preserve scroll and crop the summary/notice above the viewport: those offscreen details are not visually certified. Public journey assertions supply behavior evidence. Downloads review has no additional Plan success image; previously qualified shared Plan layout and the new explicit Back click/return remain its bounded evidence.
+
+Local Xcode27.1 build-for-testing and ad-hoc strict/deep signature pass. Review app is artifacts/growth-fb20196/Still.app with BUILD.md; launch What grew explicitly with --future-milestones. This does not certify real TCC/File Provider behavior, every volume/OS/CPU, atomic APFS observation, real notifications/login or commercial signing/notarization. Those existing gates and all future milestones remain preserved.
+
+
+Contract: [WHAT-GREW](../WHAT-GREW.md), Q1–Q17 user-confirmed October25,2026. The final section above supersedes incremental pending notes below. M4 stays gated; chronological checkpoints retain their exact earlier source/run limits.
 
 ## Core first slices
 

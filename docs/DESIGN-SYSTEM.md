@@ -223,7 +223,7 @@ Unavailable scan/cleanup stores have independent warnings and reload actions, ne
 
 ## What grew shared presentation requirements — #52
 
-Q1–Q17 and the consolidated contract are user-confirmed in [WHAT-GREW](WHAT-GREW.md). Independent location baselines, explicit manual scan/return, current destination-specific review, exact historical context, honest failures and accessible proportional comparison hierarchy are locked. Implementation is authorized, not yet qualified. M4 gating, #51 archive/recovery rules and all future milestones remain unchanged. G01–G04 stay pending implementation and evidence.
+Q1–Q17 and the consolidated [WHAT-GREW](WHAT-GREW.md) contract are implemented at application source `fb20196`, with [bounded qualification](validation/what-grew.md): Core158 Swift Testing +5 XCTest, six business journeys at two sizes (12 methods), two Gallery checks and six affected existing checks across source-bound runs. All50 final changed-presentation originals are individually accepted. G01–G04 are Covered for this future-gated manual workflow. M4 gating, #51 archive/recovery authority, platform limits and all future milestones/M8 deferral remain unchanged.
 
 
 ### What grew implementation composition
@@ -232,4 +232,4 @@ Q1–Q17 and the consolidated contract are user-confirmed in [WHAT-GREW](WHAT-GR
 
 The process-owned `HistoryGrowthReturnContext` is specific to a clicked recorded-comparison link. It remembers the link's position within the native viewport and restores it once after returning and reloading History, including when a new scan prepends a row. Ordinary selection, disclosure and theme changes do not request scrolling. It persists no filesystem authority or preference. This supplements the raw `DestinationViewport` offset rather than introducing a general navigation abstraction. `HistoryGrowthLinkViewport` is an inert native position marker behind the existing button; Gallery summaries omit its context.
 
-Source5a82e16 contains the candidate implementation. Qualification and original-capture acceptance are tracked in [what-grew evidence](validation/what-grew.md); source review alone does not certify native behavior.
+Sourcefb20196 is qualified within [what-grew evidence](validation/what-grew.md). Unchanged History feeds retain the existing raw viewport restoration; only changed feed IDs/order request the exact-link adjustment. No source review or screenshot alone certifies native behavior.

@@ -251,7 +251,7 @@ Closing/reopening a retained process preserves current evidence and live choices
 
 ## What grew flow and navigation lock — #52
 
-Q1–Q17 and the consolidated contract are user-confirmed in [WHAT-GREW](WHAT-GREW.md). Independent location baselines, explicit manual scan/return, current destination-specific review, exact historical context, honest failures and accessible proportional comparison hierarchy are locked. Implementation is authorized, not yet qualified. M4 gating, #51 archive/recovery rules and all future milestones remain unchanged. G01–G04 stay pending implementation and evidence.
+Q1–Q17 and the consolidated [WHAT-GREW](WHAT-GREW.md) contract are implemented at application source `fb20196`, with [bounded qualification](validation/what-grew.md): Core158 Swift Testing +5 XCTest, six business journeys at two sizes (12 methods), two Gallery checks and six affected existing checks across source-bound runs. All50 final changed-presentation originals are individually accepted. G01–G04 are Covered for this future-gated manual workflow. M4 gating, #51 archive/recovery authority, platform limits and all future milestones/M8 deferral remain unchanged.
 
 
 ### What grew route details — #52 implementation

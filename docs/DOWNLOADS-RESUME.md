@@ -1,5 +1,11 @@
 # Connected implementation resume
 
+## Current delivery checkpoint — October25,2026
+
+Completed baseline merged into main via PR65. #52 is implemented atfb20196 under WHAT-GREW.md with [bounded qualification](validation/what-grew.md), including strict old/new historical returns,50 accepted original images and synchronized spec/design/parity. PR66 is its delivery vehicle. This supersedes older pending/triage notes below; do not reopen settled decisions or re-run proved checks after docs-only changes. Only #54 needs its own grilling among the remaining parity-flow decisions; other open issues retain their explicitly recorded adapter/platform/personal gates. M8 remains deferred.
+
+Review build: `/Users/bender/Library/Caches/Codex/mac-cleaner-implementation/artifacts/growth-fb20196/Still.app`, with BUILD.md for the explicit `--future-milestones` launch. Normal launch remains gated/on-demand.
+
 October24,2026. Repo `/Users/bender/Library/Caches/Codex/mac-cleaner-implementation/repo`; integration branch `integration/still-spec`, draft PR36. User-authorized continuation implemented #60/#61/#63 (integrated03cbdfc) and #62 (integrated03779f5, final appdadc0c1). #55–#59 were already integrated. Do not reopen approved b96bb97/Q1–Q30.
 
 ## Latest qualification
