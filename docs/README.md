@@ -56,4 +56,4 @@ Native implementation and disposable-fixture validation are recorded in [DEVELOP
 
 See [decision record](DECISIONS.md) for the completed grilling rounds and [milestones](MILESTONES.md) for every retained feature. No feature is silently removed by narrowing M1.
 
-Current authorized feature: [#27 Storage alerts settings](STORAGE-ALERTS.md). Q1–Q7 locked; bounded implementation pending.
+Current authorized feature: [#27 Storage alerts settings](STORAGE-ALERTS.md). Q1–Q7 bounded settings implemented/qualified; #27 retains its genuine notification authorization/delivery gate.

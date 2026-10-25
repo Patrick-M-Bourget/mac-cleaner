@@ -16,4 +16,4 @@ Existing sidebar Storage alerts route and process state remain. Compose shared P
 
 ## Verification status
 
-Locked, implementation authorized; not yet qualified. Relevant parity A01/A04/A05 and CAP-01 alert branch. #49/#53 qualified behaviors remain authoritative. Existing policy/orchestration, suppression and alert-open context evidence remains source-bound in validation/alert-monitoring-orchestration.md and validation/alert-open-context.md. No new native authorization/delivery is claimed by this lock.
+Bounded settings qualified at live/controller336fcb9 and Gallery5049ce4; see validation/storage-alerts-settings.md. Genuine OS authorization/delivery is still unqualified, so #27 remains open and M5 gated. Relevant parity A01/A04/A05 and CAP-01 alert branch. #49/#53 qualified behaviors remain authoritative. Existing policy/orchestration, suppression and alert-open context evidence remains source-bound in validation/alert-monitoring-orchestration.md and validation/alert-open-context.md. No new native authorization/delivery is claimed by this lock.

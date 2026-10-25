@@ -25,3 +25,9 @@ The bounded protected guidance slice is qualified at application62bcf8a. Core160
 Review app: `/Users/bender/Library/Caches/Codex/mac-cleaner-implementation/artifacts/archives-62bcf8a/Still.app`, executable SHA256 `5047b04a46c0633ae339913b57ede07bbed022c8602e888201c89a073b08ab63`. It is an arm64 ad-hoc development build; explicit `--future-milestones` reveals App-managed storage.
 
 #54 is closed through mergedPR67 (`8220eca`). Its temporary worktree and merged local/remote branch are retired; recoverable tip598f1a5 remains under refs/archive/2026-10-25/release-archives-54. Main is clean and retains all evidence. Automatic broad main runs40234596976 and older40231477774 were canceled as redundant with source-bound focused qualification; neither supplies acceptance evidence. No new whole-suite pass is claimed.
+
+## Storage alerts settings #27 — bounded delivery
+
+Live/controller336fcb9, final Gallery5049ce4 implements STORAGE-ALERTS.md Q1–Q7 settings. [Evidence](validation/storage-alerts-settings.md):47 public alert-package tests, two composed native settings methods, two known-invalid Gallery methods and three existing alert journeys pass; all29 originals individually accepted. Display refresh stays separate from alert sampling; applied/pending thresholds and permission recovery are explicit. No new policy, permission, test notification, scanner or cleanup action.
+
+#27 remains open solely for its genuine macOS authorization/delivery acceptance gate; M5 remains gated and #28/#29 retain their independent remaining criteria/dependencies. M8 is still deferred. Review app artifacts/alerts-settings-5049ce4/Still.app is arm64/ad-hoc; see BUILD.md and source-bound evidence for limits.
