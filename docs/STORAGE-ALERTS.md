@@ -1,0 +1,19 @@
+# Storage alerts settings — locked #27 contract
+
+User confirmed Q1–Q7 and consolidated contract October25,2026, then authorized documentation lock and implementation. This is the bounded settings/permission/current-capacity completion of #27, not a monitoring rebuild or automatic M5 promotion.
+
+1. **Scope:** finish Storage alerts settings and focused notification verification. Preserve existing monitoring policy. #28 menu-bar/login and #29 persistent reminder/snooze acceptance remain separate; keep existing controls/behavior and future milestones.
+2. **Capacity evidence:** reuse #49's process-owned startup-volume display reading, timestamp, Refresh and checking/unavailable/last-known states. Explicit display refresh must not invoke alert-policy evaluation, submit notifications, scan or clean. Display evidence is distinct from the monitoring decision's own sample/time; never imply a refreshed display caused an alert check.
+3. **Permission:** show a separate truthful notification authorization state. Request permission only on explicit alert enablement when not determined. Blocked/denied state explains monitoring is stopped, with explicit System Settings launch and System Settings → Notifications → Still instructions. Return/activation rechecks permission without another prompt; opening Settings never claims success. No private deep link or extra permissions.
+4. **Threshold:** distinguish the active applied threshold from a pending edit. Apply only for valid changed values, decimal GB, at least1 GB and below startup-volume capacity. Unknown startup total preserves saved threshold and provides Refresh instead of accepting an unverifiable change. Invalid/unapplied edits never change monitoring. Existing40 GB suggestion and application-only draft semantics stay.
+5. **Preview:** omit the prototype's simulated notification-preview control from production. Do not send a real test alert or suggest OS delivery was verified by a mock.
+6. **Quiet explanation:** collapsed How reminders stay quiet explains one alert per episode, rearm after threshold+5 GB capped at capacity,24-hour snooze, macOS notification/Focus settings, independent login preference and capacity-only checks requiring no folder access. Explain existing close-window versus Quit behavior without redesigning lifecycle.
+7. **Acceptance/gates:** focused existing public UI/controller/capacity boundaries, shared inert Gallery states, Light/Dark initial/minimum originals and affected flows qualify settings. Genuine macOS authorization/delivery evidence is required to close #27. If unavailable, finish qualified UI but leave that criterion/ticket open and retain the M5 development gate. Do not count controlled fixtures as native delivery, do not move M8 signing back onto the feature path, and do not expand #28/#29 scope.
+
+## Presentation and routes
+
+Existing sidebar Storage alerts route and process state remain. Compose shared PageHeader, SummarySurface/SettingsRow, capacity evidence, MonitoringDetails and StatusRow; add shared pure presentation only where missing. Separate capacity, permission, threshold/applied status, effective monitoring and independent login. Keep action/status changes inside the fixed window; no destination resizing, forced scrolling or automatic navigation. Ordinary entry and alerts off remain scan-free and permission-prompt-free. Preserve Overview alert context, Downloads selection, History, appearance and return routes.
+
+## Verification status
+
+Locked, implementation authorized; not yet qualified. Relevant parity A01/A04/A05 and CAP-01 alert branch. #49/#53 qualified behaviors remain authoritative. Existing policy/orchestration, suppression and alert-open context evidence remains source-bound in validation/alert-monitoring-orchestration.md and validation/alert-open-context.md. No new native authorization/delivery is claimed by this lock.
