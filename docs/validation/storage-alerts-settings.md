@@ -26,3 +26,7 @@ The settings changes can be qualified and integrated while #27 remains open for 
 ## Review build
 
 Local Xcode27.1 arm64/ad-hoc review app: `/Users/bender/Library/Caches/Codex/mac-cleaner-implementation/artifacts/alerts-settings-5049ce4/Still.app`, BUILD.md alongside. Deep/strict signature verification passes; executable SHA256 `4c1d9ab01d12e05a8e123dd793ecd27ce5a27d69108b0f44a58394a20373c03a`. Explicit `--future-milestones` reveals Storage alerts; ordinary launch keeps the existing gate. This is not a notarized/commercial release.
+
+## Integration
+
+MergedPR68 at `97a98f8`. Live/controller remains336fcb9, final Gallery5049ce4; later changes are documentation. #27 stays open for genuine OS authorization/delivery. Temporary branch/worktree retired after clean/merged verification; full future milestones and other issue gates retained.
