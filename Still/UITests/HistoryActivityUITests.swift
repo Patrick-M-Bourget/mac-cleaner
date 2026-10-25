@@ -252,6 +252,40 @@ final class HistoryActivityUITests: XCTestCase {
         let retained = try await store.snapshots(); XCTAssertEqual(retained.count, 3)
         XCTAssertEqual(try Data(contentsOf: original), Data([1]))
     }
+    @MainActor func testWhatGrewGalleryAtInitialSize() throws { try exerciseWhatGrewGallery(minimum: false) }
+    @MainActor func testWhatGrewGalleryAtMinimumSize() throws { try exerciseWhatGrewGallery(minimum: true) }
+    @MainActor private func exerciseWhatGrewGallery(minimum: Bool) throws {
+        continueAfterFailure = false
+        let manager = FileManager.default, app = XCUIApplication(), state = try configureIsolatedJourneyState(app)
+        defer { app.terminate(); try? manager.removeItem(at: state) }
+        app.launchArguments = ["--design-gallery", minimum ? "--design-minimum" : "--design-initial-size"]
+        app.launch(); XCTAssertTrue(app.staticTexts["Native design system"].waitForExistence(timeout: 10))
+        let disclosure = app.disclosureTriangles["Synthetic What grew examples"]
+        revealScrollElement(app, control: disclosure, label: "Synthetic What grew examples")
+        disclosure.coordinate(withNormalizedOffset: CGVector(dx: 0, dy: 0.5)).withOffset(CGVector(dx: 26, dy: 0)).click(); XCTAssertEqual(disclosure.value as? Int, 1)
+        guard app.staticTexts["growthGalleryCase-baselines"].waitForExistence(timeout: 5) else {
+            let image = XCTAttachment(screenshot: app.windows.firstMatch.screenshot()); image.name = "growth52-missing-gallery-states"; image.lifetime = .keepAlways; add(image)
+            XCTFail("The shared What grew Gallery must cover its baseline, missing, outcome and archive states"); return
+        }
+        let bounds = app.windows.firstMatch.frame
+        for theme in ["Light", "Dark"] {
+            app.popUpButtons["Appearance"].click(); app.menuItems[theme].click()
+            for name in ["baselines", "comparison", "missing", "outcomes", "archive", "zero-tiny"] {
+                let heading = app.staticTexts["growthGalleryCase-" + name], end = app.staticTexts["growthGalleryEnd-" + name]
+                revealScrollElement(app, control: heading, label: "Synthetic " + name)
+                XCTAssertTrue(end.waitForExistence(timeout: 5))
+                let viewport = app.scrollViews.firstMatch
+                for _ in 0..<12 {
+                    if viewport.frame.contains(heading.frame) && viewport.frame.contains(end.frame) { break }
+                    let distance = viewport.frame.minY + (viewport.frame.height - (end.frame.maxY - heading.frame.minY)) / 2 - heading.frame.minY
+                    viewport.scroll(byDeltaX: 0, deltaY: max(-240, min(240, distance)))
+                }
+                XCTAssertTrue(viewport.frame.contains(heading.frame)); XCTAssertTrue(viewport.frame.contains(end.frame))
+                let image = XCTAttachment(screenshot: app.windows.firstMatch.screenshot()); image.name = "growth52-gallery-" + (minimum ? "minimum-" : "initial-") + name + "-" + theme; image.lifetime = .keepAlways; add(image)
+                XCTAssertEqual(app.windows.firstMatch.frame, bounds)
+            }
+        }
+    }
     @MainActor func testCompletedScanAppearsInHistoryWithoutRestoringSelection() throws {
         continueAfterFailure = false
         let manager = FileManager.default
