@@ -129,7 +129,7 @@ import StillCore
         await session?.complete(scan, token: token)
         latestRecorded = session?.comparison?.current.flatMap { current in current.observedAt == scan.observedAt && snapshots.contains(where: { $0.id == current.id }) ? current : nil }
         if !scan.isComplete || scan.hasUnmeasuredContents {
-            outcomeNotice = "This scan could not establish a complete measured baseline. Retained observations are shown below."
+            outcomeNotice = GrowthPresentation.partial
         } else { outcomeNotice = nil }
         guard !isHistorical else { return }
         if let current = latestRecorded, selectNextLocation || selectedScopeID == nil || selectedScopeID == current.fingerprint.scopeID {
@@ -158,11 +158,11 @@ import StillCore
     }
     func failed() {
         guard Self.enabled else { return }
-        outcomeNotice = "Scan failed. No new baseline was recorded; retained observations are shown below."
+        outcomeNotice = GrowthPresentation.failed
         Task { await self.load() }
     }
     func cancelled() {
-        session?.cancelled(); outcomeNotice = "Scan stopped. No new baseline was recorded; retained observations are shown below."
+        session?.cancelled(); outcomeNotice = GrowthPresentation.stopped
         Task { await self.load() }
     }
     func select(_ id: UUID) async {
@@ -235,6 +235,9 @@ struct GrowthComparisonSummary: View {
 }
 
 enum GrowthPresentation {
+    static let failed = "Scan failed. No new baseline was recorded; retained observations are shown below."
+    static let partial = "This scan could not establish a complete measured baseline. Retained observations are shown below."
+    static let stopped = "Scan stopped. No new baseline was recorded; retained observations are shown below."
     static func signed(_ bytes: Int64) -> String {
         (bytes > 0 ? "+" : bytes < 0 ? "−" : "") + ByteCountFormatter.string(fromByteCount: bytes == .min ? .max : abs(bytes), countStyle: .decimal)
     }
@@ -246,6 +249,18 @@ enum GrowthPresentation {
         case .coverageChanged: "Coverage changed · Root, volume, access, scan/exclusion rules or classification differ. This complete observation establishes a new baseline; scan again to compare."
         case .unknown: "Growth unknown · This observation is incomplete, unmeasured or unavailable."
         case .compared: "Compatible completed observations · Increases and decreases are net logical-size changes."
+        }
+    }
+}
+
+struct GrowthBaselineNotice: View {
+    let state: GrowthComparisonState
+    var hasCurrent: Bool
+    var body: some View {
+        if hasCurrent {
+            StatusRow(text: GrowthPresentation.message(state), symbol: state == .compared ? "chart.line.uptrend.xyaxis" : "info.circle", role: state == .coverageChanged ? .caution : .neutral)
+        } else {
+            EmptyState(title: "Establish a baseline", detail: state == .firstBaseline ? "Scan a location now, then scan it again later to compare two completed observations. Nothing scans automatically." : GrowthPresentation.message(state), symbol: "chart.line.uptrend.xyaxis")
         }
     }
 }
@@ -331,10 +346,10 @@ struct GrowthHistoryView: View {
                 EmptyState(title: "Comparison unavailable for this recorded observation.", detail: "The exact linked baseline is missing, expired or unreadable. No other observation was substituted, and no scan was started.", symbol: "clock.badge.exclamationmark")
             } else if let comparison = model.comparison {
                 if comparison.current == nil {
-                    EmptyState(title: "Establish a baseline", detail: comparison.state == .firstBaseline ? "Scan a location now, then scan it again later to compare two completed observations. Nothing scans automatically." : GrowthPresentation.message(comparison.state), symbol: "chart.line.uptrend.xyaxis")
+                    GrowthBaselineNotice(state: comparison.state, hasCurrent: false)
                 } else {
                     GrowthComparisonSummary(comparison: comparison)
-                    StatusRow(text: GrowthPresentation.message(comparison.state), symbol: comparison.state == .compared ? "chart.line.uptrend.xyaxis" : "info.circle", role: comparison.state == .coverageChanged ? .caution : .neutral)
+                    GrowthBaselineNotice(state: comparison.state, hasCurrent: true)
                     if comparison.state == .compared { GrowthChangeBreakdown(comparison: comparison, dimension: $model.dimension) }
                 }
             } else if !model.loading {
@@ -374,21 +389,47 @@ struct GrowthGalleryExamples: View {
     var body: some View {
         VStack(alignment: .leading, spacing: StillDesign.Space.xl) {
             Text("Synthetic growth examples · Inert, no scans or archive access").font(.caption).foregroundStyle(.secondary)
-            Text("One retained baseline").font(StillDesign.TypeStyle.section)
-            GrowthComparisonSummary(snapshot: snapshot)
-            StatusRow(text: GrowthPresentation.message(.firstBaseline), symbol: "info.circle")
-            Text("Compatible comparison").font(StillDesign.TypeStyle.section)
-            GrowthComparisonSummary(snapshot: snapshot, from: date.addingTimeInterval(-86_400), delta: 2_000_000)
-            Text("Increases").font(StillDesign.TypeStyle.section)
-            GrowthChangeRow(label: "Documents", delta: 3_000_000, maximum: 3_000_000)
-            Text("Decreases").font(StillDesign.TypeStyle.section)
-            GrowthChangeRow(label: "Archives and installers", delta: -1_000_000, maximum: 3_000_000)
-            Text("Tiny changes remain readable").font(StillDesign.TypeStyle.section)
-            GrowthChangeRow(label: "Other files", delta: 3, maximum: 3_000_000)
-            Text("Zero net can contain both directions").font(StillDesign.TypeStyle.section)
-            GrowthComparisonSummary(snapshot: snapshot, from: date.addingTimeInterval(-86_400), delta: 0)
-            GrowthChangeRow(label: "Added folder", delta: 1_000, maximum: 1_000)
-            GrowthChangeRow(label: "Removed folder", delta: -1_000, maximum: 1_000)
+            family("baselines", title: "No observation and one retained baseline") {
+                GrowthBaselineNotice(state: .firstBaseline, hasCurrent: false)
+                GrowthComparisonSummary(snapshot: snapshot)
+                GrowthBaselineNotice(state: .firstBaseline, hasCurrent: true)
+            }
+            family("comparison", title: "Compatible comparison · Separate directions") {
+                GrowthComparisonSummary(snapshot: snapshot, from: date.addingTimeInterval(-86_400), delta: 2_000_000)
+                Text("Increases").font(StillDesign.TypeStyle.section)
+                GrowthChangeRow(label: "Documents", delta: 3_000_000, maximum: 3_000_000)
+                Text("Decreases").font(StillDesign.TypeStyle.section)
+                GrowthChangeRow(label: "Archives and installers", delta: -1_000_000, maximum: 3_000_000)
+            }
+            family("missing", title: "Missing, cleared and incompatible baselines") {
+                GrowthBaselineNotice(state: .missingBaseline, hasCurrent: true)
+                GrowthBaselineNotice(state: .clearedBaseline, hasCurrent: true)
+                GrowthBaselineNotice(state: .coverageChanged, hasCurrent: true)
+            }
+            family("outcomes", title: "Stopped, partial and failed scans") {
+                StatusRow(text: GrowthPresentation.stopped, symbol: "info.circle")
+                StatusRow(text: GrowthPresentation.partial, symbol: "info.circle")
+                StatusRow(text: GrowthPresentation.failed, symbol: "info.circle")
+                Text("Retained comparisons stay distinct from an unsuccessful new attempt.").font(.caption).foregroundStyle(.secondary)
+            }
+            family("archive", title: "Unavailable archive and unsaved current results") {
+                HistoryStoreFailure(message: "Comparison history is unavailable. No growth can be inferred from missing observations.", retryTitle: "Retry comparison history") {}
+                ScanHistoryRecordingFeedback(message: "This scan could not be saved to History. Current results and choices remain available.")
+                Text("Retry reloads records only. Current findings remain reviewable; nothing is replayed or selected automatically.").font(.caption).foregroundStyle(.secondary)
+            }
+            family("zero-tiny", title: "Zero net and tiny changes") {
+                GrowthComparisonSummary(snapshot: snapshot, from: date.addingTimeInterval(-86_400), delta: 0)
+                GrowthChangeRow(label: "Added folder · Increase", delta: 1_000, maximum: 1_000)
+                GrowthChangeRow(label: "Removed folder · Decrease", delta: -1_000, maximum: 1_000)
+                GrowthChangeRow(label: "Other files · Tiny increase", delta: 3, maximum: 3_000_000)
+            }
+        }
+    }
+    private func family<Content: View>(_ id: String, title: String, @ViewBuilder content: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: StillDesign.Space.md) {
+            Text(title).font(StillDesign.TypeStyle.section).accessibilityIdentifier("growthGalleryCase-" + id)
+            content()
+            Text("Synthetic example · No action performed").font(.caption).foregroundStyle(.secondary).accessibilityIdentifier("growthGalleryEnd-" + id)
         }
     }
 }
