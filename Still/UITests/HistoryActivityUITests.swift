@@ -3,6 +3,36 @@ import Darwin
 import StillCore
 
 final class HistoryActivityUITests: XCTestCase {
+    @MainActor func testWhatGrewFirstScanStaysInJourney() throws {
+        continueAfterFailure = false
+        let manager = FileManager.default, app = XCUIApplication()
+        let state = try configureIsolatedJourneyState(app)
+        let root = manager.temporaryDirectory.resolvingSymlinksInPath().appendingPathComponent("StillSelectionUI-" + UUID().uuidString)
+        try manager.createDirectory(at: root, withIntermediateDirectories: false)
+        let file = root.appendingPathComponent("Original.pdf"); try Data([5, 2]).write(to: file)
+        app.launchArguments = ["--future-milestones", "--design-minimum"]
+        defer { app.terminate(); try? manager.removeItem(at: state); try? manager.removeItem(at: root) }
+        app.launch(); app.typeKey("6", modifierFlags: .command)
+        XCTAssertTrue(app.staticTexts["What grew"].firstMatch.waitForExistence(timeout: 10))
+        let start = app.buttons["Scan to establish a baseline"]
+        guard start.waitForExistence(timeout: 5) else {
+            let image = XCTAttachment(screenshot: app.windows.firstMatch.screenshot()); image.name = "growth52-missing-first-baseline-action"; image.lifetime = .keepAlways; add(image)
+            XCTFail("What grew must offer its own explicit first-baseline scan journey"); return
+        }
+        let bounds = app.windows.firstMatch.frame
+        start.click(); app.typeKey("g", modifierFlags: [.command, .shift])
+        XCTAssertTrue(app.textFields.firstMatch.waitForExistence(timeout: 5)); app.textFields.firstMatch.typeText(root.path)
+        app.typeKey(.return, modifierFlags: []); app.dialogs.buttons["Scan folder"].click()
+        XCTAssertTrue(app.buttons["Scan again to compare"].waitForExistence(timeout: 20))
+        XCTAssertTrue(app.staticTexts["What grew"].firstMatch.exists)
+        XCTAssertFalse(app.buttons["Review cleanup"].exists)
+        XCTAssertEqual(app.windows.firstMatch.frame, bounds)
+        for theme in ["Light", "Dark"] {
+            app.popUpButtons["Appearance"].click(); app.menuItems[theme].click()
+            let image = XCTAttachment(screenshot: app.windows.firstMatch.screenshot()); image.name = "growth52-first-baseline-minimum-" + theme; image.lifetime = .keepAlways; add(image)
+        }
+        XCTAssertEqual(try Data(contentsOf: file), Data([5, 2]))
+    }
     @MainActor func testCompletedScanAppearsInHistoryWithoutRestoringSelection() throws {
         continueAfterFailure = false
         let manager = FileManager.default
