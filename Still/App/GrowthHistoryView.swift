@@ -28,6 +28,9 @@ import StillCore
     var archiveUnavailable = false
     var resolvedURL: URL?
     var isResolving = false
+    var authorityChecking = false
+    private var authorityRequest = UUID()
+    private var resolvedSnapshotID: UUID?
     var locations: [GrowthSnapshot] {
         var seen = Set<String>()
         return snapshots.reversed().filter { seen.insert($0.fingerprint.scopeID).inserted }
@@ -146,6 +149,11 @@ import StillCore
     func resetHistory() async throws {
         displayRequest = UUID(); try await open().resetHistory(); selectedScopeID = nil; selectedObservationID = nil; liveComparison = session?.comparison; resolvedURL = nil
     }
+    func failed() {
+        guard Self.enabled else { return }
+        outcomeNotice = "Scan failed. No new baseline was recorded; retained observations are shown below."
+        Task { await self.load() }
+    }
     func cancelled() {
         session?.cancelled(); outcomeNotice = "Scan stopped. No new baseline was recorded; retained observations are shown below."
         Task { await self.load() }
@@ -156,7 +164,7 @@ import StillCore
         do {
             let result = try await store().comparison(id: id)
             guard displayRequest == request, !Task.isCancelled else { return }
-            selectedScopeID = snapshot.fingerprint.scopeID; selectedObservationID = id; liveComparison = result
+            selectedScopeID = snapshot.fingerprint.scopeID; selectedObservationID = id; liveComparison = result; loading = false
             accessNotice = nil; needsLocationAccess = false; archiveUnavailable = false
             await refreshAuthority()
         } catch {
@@ -181,12 +189,14 @@ import StillCore
     }
     func refreshAuthority() async {
         let snapshotID = comparison?.current?.id
-        resolvedURL = nil
+        let request = UUID(); authorityRequest = request; authorityChecking = true
+        defer { if authorityRequest == request { authorityChecking = false } }
+        if resolvedSnapshotID != snapshotID { resolvedURL = nil; resolvedSnapshotID = snapshotID }
         if let lease = await leaseForSelection() {
             defer { lease.close() }
-            guard comparison?.current?.id == snapshotID else { return }
+            guard authorityRequest == request, comparison?.current?.id == snapshotID else { return }
             resolvedURL = lease.url
-        }
+        } else if authorityRequest == request { resolvedURL = nil }
     }
 }
 
@@ -289,6 +299,7 @@ struct GrowthHistoryView: View {
     var reviewTitle: String? = nil
     var review: (() -> Void)? = nil
     var scanHistorical: (() -> Void)? = nil
+    var actionsEnabled = true
     var body: some View {
         VStack(alignment: .leading, spacing: StillDesign.Space.xl) {
             PageHeader(title: "What grew", subtitle: "What changed between your manual scans. Changes do not identify who wrote files or what can be cleaned.")
@@ -325,12 +336,12 @@ struct GrowthHistoryView: View {
             if let review, let reviewTitle, model.comparison?.current != nil {
                 VStack(alignment: .leading, spacing: StillDesign.Space.sm) {
                     Text("Review uses current findings, not historical file-level changes. Nothing is selected automatically.").font(.caption).foregroundStyle(.secondary)
-                    Button(reviewTitle, action: review).disabled(model.isResolving || AppLifecycleController.shared.inspection.isScanning)
+                    Button(reviewTitle, action: review).disabled(!actionsEnabled || model.isResolving || model.authorityChecking || AppLifecycleController.shared.inspection.isScanning)
                 }
             }
             if model.isHistorical, let scanHistorical, model.comparison?.current != nil, !model.historicalUnavailable {
                 Text("A new manual scan creates a current observation; this recorded comparison is not replaced silently.").font(.caption).foregroundStyle(.secondary)
-                Button("Scan this location now", action: scanHistorical).disabled(model.isResolving || AppLifecycleController.shared.inspection.isScanning)
+                Button("Scan this location now", action: scanHistorical).disabled(!actionsEnabled || model.isResolving || model.authorityChecking || AppLifecycleController.shared.inspection.isScanning)
             }
             if !model.isHistorical && !model.locationObservations.isEmpty {
                 DisclosureGroup("Completed observations", isExpanded: $model.observationsExpanded) {

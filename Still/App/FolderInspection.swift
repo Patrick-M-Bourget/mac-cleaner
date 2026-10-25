@@ -169,6 +169,7 @@ final class FolderInspection {
                 progress = nil
                 isScanningCurrent = false
                 message = error is CancellationError ? "Scan stopped. Choose a folder to try again." : ExclusionsModel.shared.error ?? "This folder could not be inspected. Choose the folder again or check access in System Settings."
+                GrowthHistoryModel.shared.failed()
                 activity?.failed(url)
                 if !grouped { await finishActivity() }
                 if scanAgainTask == nil { AppLifecycleController.shared.capacity.request(.scanEnded) }
