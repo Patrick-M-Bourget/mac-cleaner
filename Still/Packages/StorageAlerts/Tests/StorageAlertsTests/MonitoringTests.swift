@@ -521,3 +521,18 @@ import StorageAlerts
     #expect(system.permissionRequests == 0)
     await alerts.setEnabled(false)
 }
+
+@Test @MainActor func stalePermissionReplyCannotOverwriteNewerSettingsEvidence() async {
+    let system = ControlledAlertSystem()
+    let alerts = AlertMonitoringController(system: system)
+    system.holdNextAuthorization = true
+    let earlier = Task { await alerts.activated() }
+    var began = system.heldBegan.stream.makeAsyncIterator(); _ = await began.next()
+    await alerts.activated()
+    #expect(alerts.authorization == .allowed)
+    system.held?.resume(returning: .denied); system.held = nil
+    await earlier.value
+    #expect(alerts.authorization == .allowed)
+    #expect(!alerts.requested)
+    #expect(system.permissionRequests == 0)
+}

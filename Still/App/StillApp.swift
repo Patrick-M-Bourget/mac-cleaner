@@ -272,7 +272,7 @@ private struct WorkspaceView: View {
                         else if inspecting { inspection }
                         else {
                             switch destination {
-                            case .alerts: StorageAlertsView(controller: alerts, configureOnEntry: navigationState.configureAlertsOnEntry)
+                            case .alerts: StorageAlertsView(controller: alerts, capacity: capacity, configureOnEntry: navigationState.configureAlertsOnEntry)
                             case .growth: GrowthHistoryView(model: GrowthHistoryModel.shared,
                                 reviewTitle: growthReviewTitle, review: { Task { await reviewGrowthLocation() } },
                                 scanHistorical: { Task { await scanHistoricalGrowthLocation() } }, actionsEnabled: canStartGrowthScan)

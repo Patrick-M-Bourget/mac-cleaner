@@ -53,6 +53,7 @@ public enum AlertShellState: Equatable, Sendable {
     private var cancelPolling: (() -> Void)?
     private var samplingGeneration: UUID?
     private var monitoringGeneration = UUID()
+    private var authorizationGeneration = UUID()
     private let delivery = AlertDeliveryGate()
     private var terminating = false
     private var persistenceHealthy = true
@@ -90,6 +91,7 @@ public enum AlertShellState: Equatable, Sendable {
     public func resetPreferences() throws {
         guard !terminating else { throw CocoaError(.userCancelled) }
         monitoringGeneration = UUID()
+        authorizationGeneration = UUID()
         delivery.invalidate()
         pauseMonitoring()
         // Explicit global Reset must recover cancellation ownership even when monitoring is gated off.
@@ -118,6 +120,7 @@ public enum AlertShellState: Equatable, Sendable {
     /// Terminal for this app session. A new controller may restore the saved preference.
     public func stopForTermination() {
         terminating = true
+        authorizationGeneration = UUID()
         pauseMonitoring()
         delivery.invalidate()
         let savedOwnership = !(policy.notificationRequestIdentifiers ?? []).isEmpty
@@ -132,7 +135,7 @@ public enum AlertShellState: Equatable, Sendable {
     public func configure() {
         guard system.available, !terminating else { return }
         total = capacity().total
-        Task { if requested { await sample() } else { await refreshAuthorization() } }
+        if requested { Task { await sample() } }
     }
     public func setEnabled(_ enabled: Bool) async {
         guard system.available, !terminating else { return }
@@ -143,6 +146,7 @@ public enum AlertShellState: Equatable, Sendable {
         policy.enabled = enabled
         delivery.setEnabled(enabled)
         if !enabled {
+            authorizationGeneration = UUID()
             monitoringGeneration = UUID()
             pauseMonitoring()
             removePendingNotifications()
@@ -150,8 +154,7 @@ public enum AlertShellState: Equatable, Sendable {
         guard persist() else { return }
         if !enabled { shellState = .off; status = "Alerts are off."; return }
         let enablingGeneration = monitoringGeneration
-        let settings = await system.authorization()
-        authorization = settings; authorizationChecked = true
+        guard let settings = await readAuthorization() else { return }
         guard requested, enablingGeneration == monitoringGeneration else { return }
         if settings == .unknown {
             status = "Allow notifications to receive low-space alerts."
@@ -180,7 +183,14 @@ public enum AlertShellState: Equatable, Sendable {
     }
     private func refreshAuthorization() async {
         guard system.available, !terminating else { return }
-        authorization = await system.authorization(); authorizationChecked = true
+        _ = await readAuthorization()
+    }
+    private func readAuthorization() async -> AlertPolicy.Authorization? {
+        let generation = UUID(); authorizationGeneration = generation
+        let settings = await system.authorization()
+        guard !terminating, authorizationGeneration == generation else { return nil }
+        authorization = settings; authorizationChecked = true
+        return settings
     }
     private func persist() -> Bool {
         guard persistenceHealthy else { effectiveMonitoring = false; return false }
@@ -214,9 +224,8 @@ public enum AlertShellState: Equatable, Sendable {
         guard system.available, !terminating, persistenceHealthy, requested, samplingGeneration != generation else { return }
         samplingGeneration = generation
         defer { if samplingGeneration == generation { samplingGeneration = nil } }
-        let settings = await system.authorization()
+        guard let settings = await readAuthorization() else { return }
         guard requested, generation == monitoringGeneration else { return }
-        authorization = settings; authorizationChecked = true
         guard settings == .allowed else {
             cancelPolling?(); cancelPolling = nil; effectiveMonitoring = false
             shellState = .attention(.notificationsUnavailable)

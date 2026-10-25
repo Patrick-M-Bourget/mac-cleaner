@@ -44,6 +44,12 @@ final class StorageAlertsUITests: XCTestCase {
         field.click(); app.typeKey("a", modifierFlags: .command); field.typeText("80")
         XCTAssertFalse(app.buttons["Apply threshold"].isEnabled)
         XCTAssertTrue(app.staticTexts["Applied threshold: 60 GB"].exists)
+        for theme in ["Light", "Dark"] {
+            app.popUpButtons["Appearance"].click(); app.menuItems[theme].click()
+            let capture = XCTAttachment(screenshot: app.windows.firstMatch.screenshot())
+            capture.name = "alerts-unavailable-pending-" + (minimum ? "minimum-" : "initial-") + theme
+            capture.lifetime = .keepAlways; add(capture)
+        }
         XCTAssertFalse(app.buttons["Preview notification"].exists)
         XCTAssertFalse(app.buttons["Stop scan"].exists)
         app.buttons["Cleanup plan"].click()
@@ -51,6 +57,59 @@ final class StorageAlertsUITests: XCTestCase {
         app.buttons["Overview"].click()
         XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 5))
         XCTAssertEqual(app.windows.firstMatch.frame, bounds)
+        app.terminate()
+        // Existing disposable service boundary supplies denied authorization without OS changes.
+        let folder = state.appendingPathComponent("StorageAlerts")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        try JSONSerialization.data(withJSONObject: ["enabled": true, "thresholdBytes": 40_000_000_000, "episodes": [:]])
+            .write(to: folder.appendingPathComponent("episode-state.json"), options: .atomic)
+        app.launchArguments += ["--ui-test-alert-service", "--ui-test-managed-launcher"]
+        app.launchEnvironment["STILL_TEST_MANAGED_LAUNCH"] = "unavailable"
+        app.launch()
+        XCTAssertTrue(app.buttons["Storage alerts"].waitForExistence(timeout: 10)); app.buttons["Storage alerts"].click()
+        let blocked = app.staticTexts["notificationPermissionStatus"]
+        XCTAssertTrue(blocked.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Notifications blocked"].waitForExistence(timeout: 5))
+        revealScrollElement(app, control: app.buttons["Open System Settings"], label: "Permission recovery")
+        app.buttons["Open System Settings"].click()
+        XCTAssertTrue(app.staticTexts["System Settings could not be opened. Open it from the Apple menu, then Notifications → Still."].waitForExistence(timeout: 5))
+        for theme in ["Light", "Dark"] {
+            app.popUpButtons["Appearance"].click(); app.menuItems[theme].click()
+            let capture = XCTAttachment(screenshot: app.windows.firstMatch.screenshot())
+            capture.name = "alerts-permission-blocked-" + (minimum ? "minimum-" : "initial-") + theme
+            capture.lifetime = .keepAlways; add(capture)
+        }
+        let quiet = app.disclosureTriangles["How reminders stay quiet"]
+        revealScrollElement(app, control: quiet, label: "Quiet reminders")
+        quiet.coordinate(withNormalizedOffset: CGVector(dx: 0, dy: 0.5)).withOffset(CGVector(dx: 26, dy: 0)).click()
+        XCTAssertEqual(quiet.value as? Int, 1)
+        for theme in ["Light", "Dark"] {
+            app.popUpButtons["Appearance"].click(); app.menuItems[theme].click()
+            revealScrollElement(app, control: quiet, label: "Quiet explanation")
+            app.scrollViews.firstMatch.scroll(byDeltaX: 0, deltaY: -260)
+            let capture = XCTAttachment(screenshot: app.windows.firstMatch.screenshot())
+            capture.name = "alerts-quiet-expanded-" + (minimum ? "minimum-" : "initial-") + theme
+            capture.lifetime = .keepAlways; add(capture)
+        }
+        XCTAssertFalse(app.buttons["Stop scan"].exists)
+        app.terminate()
+        app.launchArguments = ["--design-gallery", minimum ? "--design-minimum" : "--design-initial-size"]
+        app.launch()
+        let examples = app.disclosureTriangles["Synthetic storage alert settings"]
+        revealScrollElement(app, control: examples, label: "Alert Gallery")
+        examples.coordinate(withNormalizedOffset: CGVector(dx: 0, dy: 0.5)).withOffset(CGVector(dx: 26, dy: 0)).click()
+        XCTAssertEqual(examples.value as? Int, 1)
+        for theme in ["Light", "Dark"] {
+            app.popUpButtons["Appearance"].click(); app.menuItems[theme].click()
+            revealScrollElement(app, control: app.textFields["Minimum available space (GB)"].firstMatch, label: "Threshold Gallery")
+            let capture = XCTAttachment(screenshot: app.windows.firstMatch.screenshot())
+            capture.name = "alerts-gallery-threshold-" + (minimum ? "minimum-" : "initial-") + theme
+            capture.lifetime = .keepAlways; add(capture)
+            revealScrollElement(app, control: app.staticTexts["System Settings could not be opened."], label: "Permission Gallery")
+            let permission = XCTAttachment(screenshot: app.windows.firstMatch.screenshot())
+            permission.name = "alerts-gallery-permission-" + (minimum ? "minimum-" : "initial-") + theme
+            permission.lifetime = .keepAlways; add(permission)
+        }
     }
 
     @MainActor func testOpenedAlertPreservesContextAndOffersOnlyExplicitScanAcrossThemesAndSizes() throws {
