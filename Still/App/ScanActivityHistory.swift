@@ -49,6 +49,7 @@ struct ScanActivitySummary: View {
     var showGrowth: ((UUID) -> Void)? = nil
     var exampleIdentifier = ""
     var growthReturn: HistoryGrowthReturnContext? = nil
+    var growthFeedRevision: [String] = []
     var body: some View {
         SummarySurface {
             VStack(alignment: .leading, spacing: StillDesign.Space.md) {
@@ -73,7 +74,7 @@ struct ScanActivitySummary: View {
                             }
                             if location.outcome == .complete, let baseline = location.baselineID, let showGrowth {
                                 Button("See what grew") {
-                                    growthReturn?.remember(baseline)
+                                    growthReturn?.remember(baseline, revision: growthFeedRevision)
                                     showGrowth(baseline)
                                 }.background {
                                     if let growthReturn { HistoryGrowthLinkViewport(id: baseline, context: growthReturn) }
@@ -276,6 +277,7 @@ struct HistoryActivityGalleryExamples: View {
     private struct Anchor {
         let id: UUID
         let relativeY: CGFloat
+        let revision: [String]
         weak var source: NSView?
         var departed = false
     }
@@ -284,13 +286,16 @@ struct HistoryActivityGalleryExamples: View {
     private var anchor: Anchor?
     private var historyReady = true
     func register(_ id: UUID, view: NSView) { markers[id] = Marker(view) }
-    func remember(_ id: UUID) {
+    func remember(_ id: UUID, revision: [String]) {
         guard let view = markers[id]?.view, let clip = view.enclosingScrollView?.contentView else { return }
-        anchor = Anchor(id: id, relativeY: view.convert(view.bounds.origin, to: clip).y - clip.bounds.minY, source: view)
+        anchor = Anchor(id: id, relativeY: view.convert(view.bounds.origin, to: clip).y - clip.bounds.minY, revision: revision, source: view)
         historyReady = false
     }
-    func finishReload() {
+    func finishReload(revision: [String]) {
         historyReady = true
+        // The existing destination offset already restores an unchanged feed.
+        // Only added/removed/reordered records need link-relative correction.
+        if anchor?.revision == revision { anchor = nil; return }
         DispatchQueue.main.async { [weak self] in
             DispatchQueue.main.async { [weak self] in
                 guard let self, let saved = anchor, let view = markers[saved.id]?.view else { return }

@@ -171,7 +171,7 @@ struct CleanupHistoryView: View {
             ForEach(items) { item in
                 switch item {
                 case .scan(let activity):
-                    ScanActivitySummary(activity: activity, expanded: Binding(get: { model.expandedScans.contains(activity.id) }, set: { if $0 { model.expandedScans.insert(activity.id) } else { model.expandedScans.remove(activity.id) } }), showGrowth: showGrowth, growthReturn: model.growthReturn)
+                    ScanActivitySummary(activity: activity, expanded: Binding(get: { model.expandedScans.contains(activity.id) }, set: { if $0 { model.expandedScans.insert(activity.id) } else { model.expandedScans.remove(activity.id) } }), showGrowth: showGrowth, growthReturn: model.growthReturn, growthFeedRevision: items.map(\.id))
                 case .cleanup(let run): cleanup(run)
                 }
             }
@@ -194,7 +194,7 @@ struct CleanupHistoryView: View {
         async let scanRecords: Void = scans.load()
         _ = await (cleanup, scanRecords)
         guard !Task.isCancelled else { return }
-        model.growthReturn.finishReload()
+        model.growthReturn.finishReload(revision: items.map(\.id))
     }
     private func cleanup(_ run: CleanupHistoryRun) -> some View {
                     SummarySurface {
