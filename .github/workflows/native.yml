@@ -96,7 +96,7 @@ permissions:
   contents: read
 jobs:
   native:
-    if: github.event_name != 'workflow_dispatch' || (inputs.suite != 'growth-first' && inputs.suite != 'benchmark' && inputs.suite != 'filesystem' && inputs.suite != 'chrome-probe' && inputs.suite != 'alerts-native')
+    if: github.event_name != 'workflow_dispatch' || (inputs.suite != 'benchmark' && inputs.suite != 'filesystem' && inputs.suite != 'chrome-probe' && inputs.suite != 'alerts-native')
     runs-on: macos-26
     steps:
       - uses: actions/checkout@v4
