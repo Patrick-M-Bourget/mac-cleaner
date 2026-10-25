@@ -59,3 +59,5 @@ See [decision record](DECISIONS.md) for the completed grilling rounds and [miles
 Current authorized feature: [#27 Storage alerts settings](STORAGE-ALERTS.md). Q1–Q7 bounded settings implemented/qualified; #27 retains its genuine notification authorization/delivery gate.
 
 Current qualification work: [#18/#19 Chrome contract](CHROME-CLEANUP.md), Q1–Q6 locked. #18 remaining disposable Stable capability work authorized; #19 remains blocked.
+
+#18 bounded ownership investigation is recorded in [Chrome Stable qualification](validation/chrome-stable-qualification.md); cleanup stays disabled, #18 open/#19 blocked pending an enforceable coordination design.

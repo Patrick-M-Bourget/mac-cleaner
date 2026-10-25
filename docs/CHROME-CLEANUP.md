@@ -19,4 +19,4 @@ Parity B01–B03/P10 and CACHE-01–04. Profile/shared groups count ownership on
 
 ## Status
 
-Locked; remaining #18 qualification in progress. Prior genuine CfT evidence: validation/chrome-owned-profiles.md. Production positive allowlist remains empty until required Stable/ownership/protection evidence succeeds.
+Locked; first remaining prerequisite investigation reached the Q6 stop rule. [Bounded evidence](validation/chrome-stable-qualification.md) records the ownership/final-removal blocker; #18 remains open and #19 blocked. Prior genuine CfT evidence: validation/chrome-owned-profiles.md. Production positive allowlist remains empty until required Stable/ownership/protection evidence succeeds.

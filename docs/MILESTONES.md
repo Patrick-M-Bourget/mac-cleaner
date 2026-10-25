@@ -66,3 +66,5 @@ The user-locked #49 capacity-refresh slice is implemented under [CAPACITY-REFRES
 #27 bounded settings is implemented under [STORAGE-ALERTS](STORAGE-ALERTS.md), with [focused qualification](validation/storage-alerts-settings.md). Shared capacity/permission/threshold presentation does not promote M5 or complete #28/#29. Genuine notification authorization/delivery remains a separate acceptance gate; M8 remains deferred.
 
 #18/#19 Chrome contract is locked under [CHROME-CLEANUP](CHROME-CLEANUP.md). Remaining Stable/ownership/protection qualification proceeds under #18; no production cleanup or broader browser support is promoted. GPU/code caches, other browsers/versions and full feature scope remain retained.
+
+#18 ownership prerequisite reached the locked stop rule; [decision/evidence](validation/chrome-stable-qualification.md). No externally enforceable coordination established, no Stable action qualified. #18 open/#19 blocked; all browser features retained for later resolution, not silently dropped.
