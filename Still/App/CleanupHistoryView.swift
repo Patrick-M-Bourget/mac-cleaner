@@ -18,6 +18,7 @@ private enum HistoryActivityItem: Identifiable {
 @MainActor @Observable final class CleanupHistoryModel {
     var filter = HistoryActivityFilter.all
     var expandedScans: Set<UUID> = []
+    let growthReturn = HistoryGrowthReturnContext()
     var snapshot: CleanupHistorySnapshot?
     var message: String?
     var loadError: String?
@@ -170,7 +171,7 @@ struct CleanupHistoryView: View {
             ForEach(items) { item in
                 switch item {
                 case .scan(let activity):
-                    ScanActivitySummary(activity: activity, expanded: Binding(get: { model.expandedScans.contains(activity.id) }, set: { if $0 { model.expandedScans.insert(activity.id) } else { model.expandedScans.remove(activity.id) } }), showGrowth: showGrowth)
+                    ScanActivitySummary(activity: activity, expanded: Binding(get: { model.expandedScans.contains(activity.id) }, set: { if $0 { model.expandedScans.insert(activity.id) } else { model.expandedScans.remove(activity.id) } }), showGrowth: showGrowth, growthReturn: model.growthReturn)
                 case .cleanup(let run): cleanup(run)
                 }
             }

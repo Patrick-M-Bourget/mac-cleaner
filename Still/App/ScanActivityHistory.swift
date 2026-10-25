@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 import Observation
 import StillCore
 
@@ -47,6 +48,7 @@ struct ScanActivitySummary: View {
     @Binding var expanded: Bool
     var showGrowth: ((UUID) -> Void)? = nil
     var exampleIdentifier = ""
+    var growthReturn: HistoryGrowthReturnContext? = nil
     var body: some View {
         SummarySurface {
             VStack(alignment: .leading, spacing: StillDesign.Space.md) {
@@ -70,7 +72,12 @@ struct ScanActivitySummary: View {
                                 Text(reasonLabel(reason) + ": " + String(location.reasons[reason] ?? 0)).font(.caption).foregroundStyle(.secondary)
                             }
                             if location.outcome == .complete, let baseline = location.baselineID, let showGrowth {
-                                Button("See what grew") { showGrowth(baseline) }
+                                Button("See what grew") {
+                                    growthReturn?.remember(baseline)
+                                    showGrowth(baseline)
+                                }.background {
+                                    if let growthReturn { HistoryGrowthLinkViewport(id: baseline, context: growthReturn) }
+                                }
                             }
                         }.padding(.leading, StillDesign.Space.xl).frame(maxWidth: .infinity, alignment: .leading)
                     }
@@ -261,3 +268,68 @@ struct HistoryActivityGalleryExamples: View {
     private func end(_ id: String, _ text: String) -> some View { Text(text).font(.caption).foregroundStyle(.secondary).accessibilityIdentifier("historyGalleryEnd-" + id) }
 }
 #endif
+
+
+/// Process-only return position for a clicked History comparison link.
+/// Raw destination offsets cannot preserve that link when a new scan prepends a row.
+@MainActor final class HistoryGrowthReturnContext {
+    private struct Anchor {
+        let id: UUID
+        let relativeY: CGFloat
+        weak var source: NSView?
+        var departed = false
+    }
+    private final class Marker { weak var view: NSView?; init(_ view: NSView) { self.view = view } }
+    private var markers: [UUID: Marker] = [:]
+    private var anchor: Anchor?
+    func register(_ id: UUID, view: NSView) { markers[id] = Marker(view) }
+    func remember(_ id: UUID) {
+        guard let view = markers[id]?.view, let clip = view.enclosingScrollView?.contentView else { return }
+        anchor = Anchor(id: id, relativeY: view.convert(view.bounds.origin, to: clip).y - clip.bounds.minY, source: view)
+    }
+    func departed(_ view: NSView) {
+        if anchor?.source === view { anchor?.departed = true }
+    }
+    func restore(_ id: UUID, view: NSView) {
+        guard let saved = anchor, saved.departed, saved.id == id,
+              let scroll = view.enclosingScrollView, view.window != nil else { return }
+        // Consume once. A later checkbox/disclosure/theme change must never scroll.
+        anchor = nil
+        scroll.layoutSubtreeIfNeeded()
+        let clip = scroll.contentView
+        let requested = NSRect(origin: CGPoint(x: clip.bounds.minX,
+            y: view.convert(view.bounds.origin, to: clip).y - saved.relativeY), size: clip.bounds.size)
+        clip.scroll(to: clip.constrainBoundsRect(requested).origin)
+        scroll.reflectScrolledClipView(clip)
+    }
+}
+
+private struct HistoryGrowthLinkViewport: NSViewRepresentable {
+    let id: UUID
+    let context: HistoryGrowthReturnContext
+    func makeNSView(context: Context) -> MarkerView { MarkerView() }
+    func updateNSView(_ view: MarkerView, context: Context) {
+        view.id = id; view.returnContext = self.context
+        self.context.register(id, view: view)
+        view.scheduleReturn()
+    }
+    @MainActor final class MarkerView: NSView {
+        var id: UUID?
+        weak var returnContext: HistoryGrowthReturnContext?
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            if window == nil { returnContext?.departed(self) }
+            else { scheduleReturn() }
+        }
+        func scheduleReturn() {
+            // The enclosing destination first restores its raw viewport on insertion.
+            // Resolve this exact-link adjustment after that insertion/layout pass.
+            DispatchQueue.main.async { [weak self] in
+                DispatchQueue.main.async { [weak self] in
+                    guard let self, let id else { return }
+                    returnContext?.restore(id, view: self)
+                }
+            }
+        }
+    }
+}
