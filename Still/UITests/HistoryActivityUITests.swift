@@ -121,9 +121,14 @@ final class HistoryActivityUITests: XCTestCase {
         chooseRoot(); waitForOverviewScan(app)
         let added = root.appendingPathComponent("Added.txt"); try Data([3, 4, 5]).write(to: added)
         app.buttons["Scan again"].click(); waitForOverviewScan(app)
+        app.typeKey("3", modifierFlags: .command)
+        let twoScans = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in app.staticTexts.matching(identifier: "Completed scan").count == 2 }, object: app)
+        XCTAssertEqual(XCTWaiter.wait(for: [twoScans], timeout: 5), .completed)
+        let recordedActivities = try await GrowthHistoryStore(directory: state.appendingPathComponent("Growth")).activities()
+        let originalActivityID = try XCTUnwrap(recordedActivities.first?.id)
         app.terminate(); try ScopeRegistry(directory: state.appendingPathComponent("Scopes")).reset(); app.launch(); app.typeKey("3", modifierFlags: .command)
         let filter = app.popUpButtons["History activity filter"]; XCTAssertTrue(filter.waitForExistence(timeout: 10)); filter.click(); app.menuItems["Scans"].click()
-        let disclosure = app.disclosureTriangles.firstMatch
+        let disclosure = app.disclosureTriangles["scanActivityDetails:" + originalActivityID.uuidString]
         revealScrollElement(app, control: disclosure, label: "Historical scan details")
         disclosure.coordinate(withNormalizedOffset: CGVector(dx: 0, dy: 0.5)).withOffset(CGVector(dx: 26, dy: 0)).click(); XCTAssertEqual(disclosure.value as? Int, 1)
         let link = app.buttons["See what grew"].firstMatch; revealScrollElement(app, control: link, label: "See what grew")

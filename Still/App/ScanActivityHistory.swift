@@ -75,6 +75,7 @@ struct ScanActivitySummary: View {
                         }.padding(.leading, StillDesign.Space.xl).frame(maxWidth: .infinity, alignment: .leading)
                     }
                 }.frame(maxWidth: .infinity, alignment: .leading).padding(.leading, StillDesign.Space.xl)
+                    .accessibilityIdentifier("scanActivityDetails:" + activity.id.uuidString)
                 Text("Recorded observations, not reclaimable or released space.").font(.caption).foregroundStyle(.secondary).accessibilityIdentifier(exampleIdentifier)
             }
         }
