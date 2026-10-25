@@ -158,6 +158,48 @@ final class HistoryActivityUITests: XCTestCase {
         XCTAssertEqual(app.windows.firstMatch.frame, bounds)
         XCTAssertEqual(try Data(contentsOf: original), Data([2, 1])); XCTAssertEqual(try Data(contentsOf: newer), Data([6, 7]))
     }
+    @MainActor func testWhatGrewUnavailableArchiveRetriesWithoutLosingCurrentReview() async throws {
+        continueAfterFailure = false
+        let manager = FileManager.default, app = XCUIApplication(), state = try configureIsolatedJourneyState(app)
+        let root = manager.temporaryDirectory.resolvingSymlinksInPath().appendingPathComponent("StillSelectionUI-" + UUID().uuidString)
+        try manager.createDirectory(at: root, withIntermediateDirectories: false)
+        let original = root.appendingPathComponent("Original.pdf"); try Data([8, 5]).write(to: original)
+        var identity = stat(); XCTAssertEqual(lstat(root.path, &identity), 0)
+        app.launchArguments = ["--future-milestones", "--ui-test-downloads-root", "--design-minimum"]
+        app.launchEnvironment["STILL_TEST_DOWNLOADS_ROOT"] = root.path; app.launchEnvironment["STILL_TEST_DOWNLOADS_ID"] = "\(identity.st_dev):\(identity.st_ino)"
+        let archive = state.appendingPathComponent("Growth/aggregates-v1.json"), backup = state.appendingPathComponent("Owned-archive-backup.json")
+        try manager.createDirectory(at: archive, withIntermediateDirectories: true)
+        defer { app.terminate(); try? manager.removeItem(at: state); try? manager.removeItem(at: root) }
+        app.launch(); app.typeKey("6", modifierFlags: .command)
+        let retry = app.buttons["Retry comparison history"]
+        XCTAssertTrue(retry.waitForExistence(timeout: 10)); XCTAssertFalse(app.staticTexts["Establish a baseline"].exists)
+        try manager.removeItem(at: archive); retry.click()
+        let start = app.buttons["Scan to establish a baseline"]; XCTAssertTrue(start.waitForExistence(timeout: 5)); start.click()
+        app.typeKey("g", modifierFlags: [.command, .shift]); XCTAssertTrue(app.textFields.firstMatch.waitForExistence(timeout: 5)); app.textFields.firstMatch.typeText(root.path)
+        app.typeKey(.return, modifierFlags: []); app.dialogs.buttons["Scan folder"].click()
+        XCTAssertTrue(app.buttons["Review Downloads"].waitForExistence(timeout: 20))
+        try manager.moveItem(at: archive, to: backup); try manager.createDirectory(at: archive, withIntermediateDirectories: false)
+        app.buttons["Scan again to compare"].click()
+        XCTAssertTrue(app.staticTexts["This scan could not be saved to History. Current results and choices remain available."].waitForExistence(timeout: 20))
+        let review = app.buttons["Review Downloads"]
+        guard review.waitForExistence(timeout: 5) else {
+            let image = XCTAttachment(screenshot: app.windows.firstMatch.screenshot()); image.name = "growth52-save-failure-lost-current-review"; image.lifetime = .keepAlways; add(image)
+            XCTFail("Unavailable comparison storage must not remove review of current findings"); return
+        }
+        for theme in ["Light", "Dark"] {
+            app.popUpButtons["Appearance"].click(); app.menuItems[theme].click()
+            let image = XCTAttachment(screenshot: app.windows.firstMatch.screenshot()); image.name = "growth52-unsaved-current-findings-minimum-" + theme; image.lifetime = .keepAlways; add(image)
+        }
+        review.click(); XCTAssertTrue(app.buttons["Back to What grew"].waitForExistence(timeout: 5)); XCTAssertFalse(app.buttons["Review cleanup"].isEnabled)
+        app.buttons["Back to What grew"].click()
+        try manager.removeItem(at: archive); try manager.moveItem(at: backup, to: archive)
+        XCTAssertTrue(retry.waitForExistence(timeout: 5)); retry.click()
+        XCTAssertTrue(app.staticTexts["Baseline established"].waitForExistence(timeout: 5))
+        let store = GrowthHistoryStore(directory: state.appendingPathComponent("Growth"))
+        let retainedSnapshots = try await store.snapshots(), retainedActivities = try await store.activities()
+        XCTAssertEqual(retainedSnapshots.count, 1); XCTAssertEqual(retainedActivities.count, 1)
+        XCTAssertFalse(app.buttons["Stop scan"].exists); XCTAssertEqual(try Data(contentsOf: original), Data([8, 5]))
+    }
     @MainActor func testCompletedScanAppearsInHistoryWithoutRestoringSelection() throws {
         continueAfterFailure = false
         let manager = FileManager.default
