@@ -22,7 +22,7 @@ SPEC.md and DESIGN-HANDOFF.md are the consolidated entry points. Detailed refere
 
 Update the relevant spec, design contract, state tests and visual reference together whenever behavior changes. Keep proposed features separate from accepted scope. Do not copy simulation labels, sample storage values or the prototype scenario picker into production.
 
-Latest qualified slice: [What grew #52](WHAT-GREW.md), app `fb20196`, with [source/native/visual evidence](validation/what-grew.md). Completed baseline is consolidated in main through PR65; bounded #52 is merged through PR66. #54 still requires its own decisions. Full future milestones and M8 deferral remain preserved.
+Latest qualified slice: [What grew #52](WHAT-GREW.md), app `fb20196`, with [source/native/visual evidence](validation/what-grew.md). Completed baseline is consolidated in main through PR65; bounded #52 is merged through PR66. #54 is now locked under [RELEASE-ARCHIVES](RELEASE-ARCHIVES.md), with tight implementation underway. Full future milestones and M8 deferral remain preserved.
 
 ## Suggested repository layout
 

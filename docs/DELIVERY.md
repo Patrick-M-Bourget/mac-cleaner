@@ -10,7 +10,7 @@ Spec, design handoff, design system and parity ledger are synchronized. #52 did 
 
 ## Tickets and branches
 
-The acceptance audit closed20 completed baseline tickets, followed by #52 and #26 through PR66:22 tickets closed in this reconciliation;23 remain genuinely open. The [audit](validation/completed-delivery-audit.md) retains its dated pre-#52 counts and each residual gate. #54 still requires grilling; #45/#50 and broad qualification/platform/adapter tickets remain open for their actual remaining criteria.
+The acceptance audit closed20 completed baseline tickets, followed by #52 and #26 through PR66:22 tickets closed in this reconciliation;23 remain genuinely open. The [audit](validation/completed-delivery-audit.md) retains its dated pre-#52 counts and each residual gate. #54 is now user-locked and implementation-authorized under RELEASE-ARCHIVES.md; #45/#50 and broad qualification/platform/adapter tickets remain open for their actual remaining criteria.
 
 Obsolete branches are retired with recoverable archived refs/SHA manifests and a verified external bundle. After #52 integration only main remains local; GitHub retains main plus the separate product-notes branch. No source or evidence was discarded. Close tickets only against full stated acceptance; child delivery does not automatically close a broader parent.
 
