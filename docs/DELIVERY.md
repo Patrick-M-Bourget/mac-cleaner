@@ -1,6 +1,6 @@
 # Delivery checkpoint — October25,2026
 
-Completed work is consolidated into main. PR65 merged the qualified8f0172a development baseline at89ea92c; superseded draftPR36 is closed. PR66 then merged the complete locked #52 What grew journey at687e034, application sourcefb20196.
+Completed work is consolidated into main. PR65 merged the qualified8f0172a development baseline at89ea92c; superseded draftPR36 is closed. PR66 then merged the complete locked #52 What grew journey at687e034, application sourcefb20196. PR67 merges protected release-archive guidance #54 at8220eca, application62bcf8a.
 
 ## Completed scope and proof
 
@@ -10,9 +10,9 @@ Spec, design handoff, design system and parity ledger are synchronized. #52 did 
 
 ## Tickets and branches
 
-The acceptance audit closed20 completed baseline tickets, followed by #52 and #26 through PR66:22 tickets closed in this reconciliation;23 remain genuinely open. The [audit](validation/completed-delivery-audit.md) retains its dated pre-#52 counts and each residual gate. #54 protected release-archive guidance is qualified at62bcf8a under [RELEASE-ARCHIVES](RELEASE-ARCHIVES.md) / [evidence](validation/release-archives.md); #45/#50 and broad qualification/platform/adapter tickets remain open for their actual remaining criteria.
+The acceptance audit closed20 completed baseline tickets, followed by #52 and #26 through PR66:23 tickets closed in this reconciliation including #54;22 remain genuinely open. The [audit](validation/completed-delivery-audit.md) retains its dated pre-#52 counts and each residual gate. #54 protected release-archive guidance is qualified at62bcf8a under [RELEASE-ARCHIVES](RELEASE-ARCHIVES.md) / [evidence](validation/release-archives.md); #45/#50 and broad qualification/platform/adapter tickets remain open for their actual remaining criteria.
 
-Obsolete branches are retired with recoverable archived refs/SHA manifests and a verified external bundle. After #52 integration only main remains local; GitHub retains main plus the separate product-notes branch. No source or evidence was discarded. Close tickets only against full stated acceptance; child delivery does not automatically close a broader parent.
+Obsolete branches are retired with recoverable archived refs/SHA manifests and a verified external bundle. After #54 integration only main remains local; GitHub retains main plus the separate product-notes branch. No source or evidence was discarded. Close tickets only against full stated acceptance; child delivery does not automatically close a broader parent.
 
 ## Review build
 
@@ -23,3 +23,5 @@ Obsolete branches are retired with recoverable archived refs/SHA manifests and a
 The bounded protected guidance slice is qualified at application62bcf8a. Core160 Swift Testing+5 XCTest pass; final composed live/Gallery journeys pass at both sizes in40234083631, following the actual missing-row native red. Light/Dark originals and both source reviews support this slice. The default Device backups route, existing inspection actions and Back remain. No archive discovery, measurement, deletion, permissions or gate expansion. Broader #31 remains open.
 
 Review app: `/Users/bender/Library/Caches/Codex/mac-cleaner-implementation/artifacts/archives-62bcf8a/Still.app`, executable SHA256 `5047b04a46c0633ae339913b57ede07bbed022c8602e888201c89a073b08ab63`. It is an arm64 ad-hoc development build; explicit `--future-milestones` reveals App-managed storage.
+
+#54 is closed through mergedPR67 (`8220eca`). Its temporary worktree and merged local/remote branch are retired; recoverable tip598f1a5 remains under refs/archive/2026-10-25/release-archives-54. Main is clean and retains all evidence. Automatic broad main runs40234596976 and older40231477774 were canceled as redundant with source-bound focused qualification; neither supplies acceptance evidence. No new whole-suite pass is claimed.

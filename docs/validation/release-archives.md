@@ -21,3 +21,7 @@ All12 final originals are accepted. [Per-image review](../visual/release-archive
 Launcher failure uses the existing DEBUG controlled system boundary; Core also checks requested Xcode bundle identity and outcome. This does not certify every installed Xcode version, genuine native opening, menu path on every supported OS, TCC or commercial distribution. Broader #31 owner-app/platform qualification remains open. M6 gating, #17 generated-data cleanup and M8 deferral remain unchanged.
 
 Local Xcode27.1 build-for-testing and ad-hoc deep/strict signature pass. Review app: `/Users/bender/Library/Caches/Codex/mac-cleaner-implementation/artifacts/archives-62bcf8a/Still.app`, BUILD.md alongside; executable SHA256 `5047b04a46c0633ae339913b57ede07bbed022c8602e888201c89a073b08ab63`. Launch explicitly with `--future-milestones`, then Overview → More tools → Review app-managed storage → Release archives. Ordinary launch retains existing gates. This is an arm64 development build, not a notarized release.
+
+## Integration
+
+MergedPR67 at `8220eca` closes #54. Production remains `62bcf8a`; later test/documentation commits do not change the application. The merged temporary branch/worktree is retired; main and the independent product-notes remote branch remain. Broader qualification and future milestones are preserved.
