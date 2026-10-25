@@ -74,6 +74,34 @@ final class HistoryActivityUITests: XCTestCase {
         app.typeKey("1", modifierFlags: .command); app.typeKey("6", modifierFlags: .command)
         XCTAssertEqual(picker.value as? String, "Second location")
     }
+    @MainActor func testWhatGrewReviewsCurrentDownloadsAndReturnsWithoutChangingChoices() throws {
+        continueAfterFailure = false
+        let manager = FileManager.default, app = XCUIApplication()
+        let state = try configureIsolatedJourneyState(app)
+        let root = manager.temporaryDirectory.resolvingSymlinksInPath().appendingPathComponent("StillSelectionUI-" + UUID().uuidString)
+        try manager.createDirectory(at: root, withIntermediateDirectories: false)
+        let file = root.appendingPathComponent("Original.pdf"); try Data([2, 8]).write(to: file)
+        var identity = stat(); XCTAssertEqual(lstat(root.path, &identity), 0)
+        app.launchArguments = ["--future-milestones", "--ui-test-downloads-root", "--design-minimum"]
+        app.launchEnvironment["STILL_TEST_DOWNLOADS_ROOT"] = root.path; app.launchEnvironment["STILL_TEST_DOWNLOADS_ID"] = "\(identity.st_dev):\(identity.st_ino)"
+        defer { app.terminate(); try? manager.removeItem(at: state); try? manager.removeItem(at: root) }
+        app.launch(); XCTAssertTrue(app.buttons["Choose folder…"].waitForExistence(timeout: 10)); app.buttons["Choose folder…"].click()
+        app.typeKey("g", modifierFlags: [.command, .shift]); XCTAssertTrue(app.textFields.firstMatch.waitForExistence(timeout: 5)); app.textFields.firstMatch.typeText(root.path)
+        app.typeKey(.return, modifierFlags: []); app.dialogs.buttons["Scan folder"].click(); waitForOverviewScan(app)
+        app.typeKey("2", modifierFlags: .command); XCTAssertTrue(app.checkBoxes["downloadsCategorySelection"].waitForExistence(timeout: 5)); app.checkBoxes["downloadsCategorySelection"].click()
+        XCTAssertTrue(app.staticTexts["1 file selected"].waitForExistence(timeout: 5))
+        app.typeKey("6", modifierFlags: .command)
+        let review = app.buttons["Review Downloads"]
+        guard review.waitForExistence(timeout: 5) else {
+            let image = XCTAttachment(screenshot: app.windows.firstMatch.screenshot()); image.name = "growth52-missing-current-downloads-route"; image.lifetime = .keepAlways; add(image)
+            XCTFail("Growth must offer a destination-specific route to current Downloads findings"); return
+        }
+        review.click(); XCTAssertTrue(app.staticTexts["Cleanup plan"].firstMatch.waitForExistence(timeout: 5)); XCTAssertTrue(app.staticTexts["1 file selected"].exists)
+        XCTAssertTrue(app.buttons["Back to What grew"].exists); app.buttons["Back to What grew"].click()
+        XCTAssertTrue(app.popUpButtons["Comparison location"].waitForExistence(timeout: 5)); XCTAssertTrue(review.exists)
+        app.typeKey("2", modifierFlags: .command); XCTAssertTrue(app.staticTexts["1 file selected"].waitForExistence(timeout: 5))
+        XCTAssertEqual(try Data(contentsOf: file), Data([2, 8]))
+    }
     @MainActor func testCompletedScanAppearsInHistoryWithoutRestoringSelection() throws {
         continueAfterFailure = false
         let manager = FileManager.default
