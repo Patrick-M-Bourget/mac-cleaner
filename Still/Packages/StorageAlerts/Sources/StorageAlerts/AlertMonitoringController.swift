@@ -45,6 +45,10 @@ public enum AlertShellState: Equatable, Sendable {
     @Published public private(set) var status = "Alerts are off."
     @Published public private(set) var total: Int64?
     @Published public var thresholdGB = "40"
+    @Published public private(set) var appliedThresholdBytes: Int64 = 40_000_000_000
+    @Published public private(set) var authorization: AlertPolicy.Authorization = .unknown
+    @Published public private(set) var authorizationChecked = false
+    @Published public private(set) var lastMonitoringCheck: Date?
     private var policy = AlertPolicy()
     private var cancelPolling: (() -> Void)?
     private var samplingGeneration: UUID?
@@ -61,6 +65,7 @@ public enum AlertShellState: Equatable, Sendable {
         do {
             policy = try system.load()
             requested = policy.enabled
+            appliedThresholdBytes = policy.thresholdBytes
             thresholdGB = String(Double(policy.thresholdBytes) / 1_000_000_000)
             if !requested && policy.thresholdBytes == 40_000_000_000 { thresholdGB = "40" }
             if requested { shellState = .checking; status = "Saved alert preference restored; checking authorization and capacity." }
@@ -76,6 +81,10 @@ public enum AlertShellState: Equatable, Sendable {
     }
     /// Editor validity controls Apply/opt-in; polling continues to use the last applied preference.
     public var thresholdValid: Bool { threshold.map { AlertPolicy.validThreshold($0, total: total) } ?? false }
+    public var thresholdChanged: Bool { threshold != appliedThresholdBytes }
+    public func thresholdValid(for capacity: Int64?) -> Bool {
+        threshold.map { AlertPolicy.validThreshold($0, total: capacity) } ?? false
+    }
     private var appliedThresholdValid: Bool { AlertPolicy.validThreshold(policy.thresholdBytes, total: total) }
 
     public func resetPreferences() throws {
@@ -96,7 +105,7 @@ public enum AlertShellState: Equatable, Sendable {
             }
         }
         removePendingNotifications()
-        requested = false; policy = AlertPolicy(); thresholdGB = "40"; persistenceHealthy = true
+        requested = false; policy = AlertPolicy(); thresholdGB = "40"; appliedThresholdBytes = policy.thresholdBytes; persistenceHealthy = true
         do { try system.reset() }
         catch {
             shellState = .attention(.saveFailed)
@@ -123,12 +132,12 @@ public enum AlertShellState: Equatable, Sendable {
     public func configure() {
         guard system.available, !terminating else { return }
         total = capacity().total
-        if requested { Task { await sample() } }
+        Task { if requested { await sample() } else { await refreshAuthorization() } }
     }
     public func setEnabled(_ enabled: Bool) async {
         guard system.available, !terminating else { return }
         guard system.allowsNotificationChanges else { status = "Disposable tests do not change notification settings."; return }
-        if enabled && !thresholdValid { status = "Enter at least 1 GB and less than startup-volume capacity."; return }
+        if enabled && !appliedThresholdValid { status = "Enter at least 1 GB and less than startup-volume capacity."; return }
         requested = enabled
         if enabled, shellState == .off { shellState = .checking }
         policy.enabled = enabled
@@ -140,11 +149,9 @@ public enum AlertShellState: Equatable, Sendable {
         }
         guard persist() else { return }
         if !enabled { shellState = .off; status = "Alerts are off."; return }
-        guard thresholdValid, let threshold else { requested = false; policy.enabled = false; status = "Enter at least 1 GB and less than startup-volume capacity."; return }
-        policy.thresholdBytes = threshold
-        guard persist() else { return }
         let enablingGeneration = monitoringGeneration
         let settings = await system.authorization()
+        authorization = settings; authorizationChecked = true
         guard requested, enablingGeneration == monitoringGeneration else { return }
         if settings == .unknown {
             status = "Allow notifications to receive low-space alerts."
@@ -157,16 +164,23 @@ public enum AlertShellState: Equatable, Sendable {
         guard requested, enablingGeneration == monitoringGeneration else { return }
         await sample()
     }
-    public func applyThreshold() async {
+    public func applyThreshold() async { await applyThreshold(validatingTotal: total) }
+    public func applyThreshold(validatingTotal: Int64?) async {
         guard !terminating else { return }
-        guard thresholdValid, let threshold else { status = "Enter at least 1 GB and less than startup-volume capacity."; return }
+        guard thresholdValid(for: validatingTotal), let threshold else { status = "Enter at least 1 GB and less than startup-volume capacity."; return }
+        let previous = policy.thresholdBytes
         policy.thresholdBytes = threshold
-        guard persist() else { return }
+        guard persist() else { policy.thresholdBytes = previous; return }
+        appliedThresholdBytes = threshold
         if requested { await sample() }
     }
     public func activated() async {
-        guard requested, !terminating else { return }
-        await sample()
+        guard !terminating else { return }
+        if requested { await sample() } else { await refreshAuthorization() }
+    }
+    private func refreshAuthorization() async {
+        guard system.available, !terminating else { return }
+        authorization = await system.authorization(); authorizationChecked = true
     }
     private func persist() -> Bool {
         guard persistenceHealthy else { effectiveMonitoring = false; return false }
@@ -202,6 +216,7 @@ public enum AlertShellState: Equatable, Sendable {
         defer { if samplingGeneration == generation { samplingGeneration = nil } }
         let settings = await system.authorization()
         guard requested, generation == monitoringGeneration else { return }
+        authorization = settings; authorizationChecked = true
         guard settings == .allowed else {
             cancelPolling?(); cancelPolling = nil; effectiveMonitoring = false
             shellState = .attention(.notificationsUnavailable)
@@ -215,7 +230,7 @@ public enum AlertShellState: Equatable, Sendable {
             }
         }
         guard policy.shouldSample(at: system.now, authorization: .allowed) else { return }
-        let reading = capacity(); total = reading.total
+        let reading = capacity(); total = reading.total; lastMonitoringCheck = system.now
         guard let available = reading.available, let total = reading.total, let volumeID = reading.volumeID else { shellState = .attention(.capacityUnavailable); status = "Capacity unavailable. Alert decisions are paused."; return }
         let validCapacity = available >= 0 && total > 0 && available <= total && !volumeID.isEmpty && !reading.metric.isEmpty
         guard appliedThresholdValid else {

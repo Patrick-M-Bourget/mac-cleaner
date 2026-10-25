@@ -1,6 +1,58 @@
 import XCTest
 import Darwin
 final class StorageAlertsUITests: XCTestCase {
+    @MainActor func testAlertSettingsAtInitialSize() throws { try alertSettings(minimum: false) }
+    @MainActor func testAlertSettingsAtMinimumSize() throws { try alertSettings(minimum: true) }
+    @MainActor private func alertSettings(minimum: Bool) throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        let state = try configureIsolatedJourneyState(app)
+        defer { app.terminate(); try? FileManager.default.removeItem(at: state) }
+        func capacity(_ object: [String: Any]) throws {
+            try JSONSerialization.data(withJSONObject: object).write(to: state.appendingPathComponent("capacity-reading.json"), options: .atomic)
+        }
+        try capacity(["available": 48_000_000_000, "total": 512_000_000_000])
+        app.launchArguments = ["--future-milestones", "--ui-test-capacity-reading", minimum ? "--design-minimum" : "--design-initial-size"]
+        app.launch()
+        XCTAssertTrue(app.buttons["Storage alerts"].waitForExistence(timeout: 10))
+        app.buttons["Storage alerts"].click()
+        let bounds = app.windows.firstMatch.frame
+        let amount = app.staticTexts["startupCapacityAmount"]
+        XCTAssertTrue(amount.waitForExistence(timeout: 5), "Settings must expose shared current capacity")
+        XCTAssertTrue(app.staticTexts["notificationPermissionStatus"].exists)
+        let field = app.textFields["Minimum available space (GB)"]
+        revealScrollElement(app, control: field, label: "Threshold")
+        XCTAssertFalse(app.buttons["Apply threshold"].isEnabled)
+        field.click(); app.typeKey("a", modifierFlags: .command); field.typeText("60")
+        XCTAssertTrue(app.buttons["Apply threshold"].isEnabled)
+        XCTAssertTrue(app.staticTexts["Applied threshold: 40 GB"].exists)
+        app.buttons["Apply threshold"].click()
+        XCTAssertTrue(app.staticTexts["Applied threshold: 60 GB"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["Apply threshold"].isEnabled)
+        for theme in ["Light", "Dark"] {
+            app.popUpButtons["Appearance"].click(); app.menuItems[theme].click()
+            revealScrollElement(app, control: amount, label: "Capacity")
+            let capture = XCTAttachment(screenshot: app.windows.firstMatch.screenshot())
+            capture.name = "alerts-settings-" + (minimum ? "minimum-" : "initial-") + theme
+            capture.lifetime = .keepAlways; add(capture)
+            XCTAssertEqual(app.windows.firstMatch.frame, bounds)
+        }
+        try capacity(["available": NSNull(), "total": NSNull()])
+        app.buttons["Refresh capacity"].click()
+        XCTAssertTrue(app.staticTexts["Couldn’t refresh capacity"].waitForExistence(timeout: 5))
+        revealScrollElement(app, control: field, label: "Threshold")
+        field.click(); app.typeKey("a", modifierFlags: .command); field.typeText("80")
+        XCTAssertFalse(app.buttons["Apply threshold"].isEnabled)
+        XCTAssertTrue(app.staticTexts["Applied threshold: 60 GB"].exists)
+        XCTAssertFalse(app.buttons["Preview notification"].exists)
+        XCTAssertFalse(app.buttons["Stop scan"].exists)
+        app.buttons["Cleanup plan"].click()
+        XCTAssertFalse(app.buttons["Review cleanup"].isEnabled)
+        app.buttons["Overview"].click()
+        XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 5))
+        XCTAssertEqual(app.windows.firstMatch.frame, bounds)
+    }
+
     @MainActor func testOpenedAlertPreservesContextAndOffersOnlyExplicitScanAcrossThemesAndSizes() throws {
         continueAfterFailure = false
         let manager = FileManager.default
