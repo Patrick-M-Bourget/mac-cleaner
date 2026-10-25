@@ -63,3 +63,14 @@ private struct DeniedManagedMetadata: ManagedMetadataReading {
     #expect(rows.first { $0.category == .photos }?.allocation == .uninspected)
     #expect(rows.first { $0.category == .systemData }?.allocation == .notIndependentlyEstimated)
 }
+
+@Test func releaseArchivesNeverInspectEvenARegularSelectedFile() async throws {
+    let category = try #require(ManagedStorageCategory.allCases.first { $0.title == "Release archives" })
+    let inventory = ManagedStorageInventory(metadata: ManagedMeasurementFixture())
+    let initial = try #require(await inventory.observations().first { $0.category == category })
+    #expect(initial.allocation == .uninspected)
+    let result = await inventory.inspect(category, selected: URL(fileURLWithPath: "/disposable/archive"))
+    #expect(result.allocation == .uninspected)
+    #expect(result.selectedURL == nil && result.observedAt == nil)
+    #expect(!result.canExecuteCleanup && result.reclaimableBytes == nil)
+}
