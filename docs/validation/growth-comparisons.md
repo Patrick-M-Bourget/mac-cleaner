@@ -1,5 +1,8 @@
 # Compatible aggregate comparisons — issue #26
 
+
+Current #52 behavior is governed by [WHAT-GREW](../WHAT-GREW.md); its incremental evidence is [what-grew](what-grew.md). The report below is historical source-bound #26 evidence. In particular, Q7 supersedes replacing a valid comparison after a stopped/partial attempt: retain it while it remains retained and compatible, with the new attempt outcome separate. #51 owns current shared activity/growth retention and Clear behavior. #52 remains unqualified until its native/source/visual checks finish.
+
 M4 remains behind `--future-milestones`. **What grew** uses Command-6; existing Command-1 through Command-5 destinations retain their assignments. The screen uses shared headers, summary surfaces, status rows, settings rows and a fixed ActionStrip. No new presentation component or background scanner is introduced.
 
 ## Data contract

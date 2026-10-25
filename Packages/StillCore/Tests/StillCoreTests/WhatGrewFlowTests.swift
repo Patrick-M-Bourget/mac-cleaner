@@ -107,3 +107,41 @@ import Testing
     #expect(session.comparison?.state == .compared)
     #expect(try await store.snapshots().count == 2)
 }
+
+@Test @MainActor func unavailableLocationDoesNotEraseTheRetainedComparison() async throws {
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent("StillWhatGrew-" + UUID().uuidString)
+    defer { try? FileManager.default.removeItem(at: root) }
+    let scope = root.appendingPathComponent("Folder")
+    try FileManager.default.createDirectory(at: scope, withIntermediateDirectories: true)
+    let session = GrowthHistorySession(store: GrowthHistoryStore(directory: root.appendingPathComponent("History")))
+    let token = try #require(await session.begin(scope))
+    await session.complete(try await FolderScanner().scan(scope), token: token)
+    let selected = try #require(session.comparison?.current?.id)
+    try FileManager.default.removeItem(at: scope)
+    #expect(await session.begin(scope) == nil)
+    #expect(session.comparison?.current?.id == selected)
+    #expect(session.error != nil)
+}
+
+@Test @MainActor func partialScanCannotKeepANumericComparisonWhoseHistoryHasExpired() async throws {
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent("StillWhatGrew-" + UUID().uuidString)
+    defer { try? FileManager.default.removeItem(at: root) }
+    let scope = root.appendingPathComponent("Folder")
+    try FileManager.default.createDirectory(at: scope, withIntermediateDirectories: true)
+    for name in ["one.txt", "two.txt"] { try Data([1]).write(to: scope.appendingPathComponent(name)) }
+    let store = GrowthHistoryStore(directory: root.appendingPathComponent("History"))
+    let past = Date().addingTimeInterval(-91 * 86400)
+    let fingerprint = GrowthFingerprint(scopeID: "A", rootID: "A", volumeID: "volume", access: "complete", rules: "one", exclusions: "none", classification: "one")
+    for (offset, bytes) in [(0.0, Int64(1)), (1.0, Int64(3))] {
+        let date = past.addingTimeInterval(offset)
+        _ = try await store.record(GrowthSnapshot(fingerprint: fingerprint, scopeLabel: "Folder", observedAt: date, groups: [.init(id: "root", label: "Files", logicalBytes: bytes)]), now: date, expectedEpoch: try await store.recordingEpoch())
+    }
+    let session = GrowthHistorySession(store: store)
+    await session.load(now: past.addingTimeInterval(2))
+    #expect(session.comparison?.logicalDelta == 2)
+    let token = try #require(await session.begin(scope))
+    await session.complete(try await FolderScanner(maximumEntries: 1).scan(scope), token: token)
+    #expect(session.snapshots.isEmpty)
+    #expect(session.comparison?.state == .missingBaseline)
+    #expect(session.comparison?.logicalDelta == nil)
+}
