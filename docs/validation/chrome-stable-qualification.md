@@ -17,3 +17,7 @@ Under Q6's explicit stop rule, do not repeat the prior closed-owned-process CfT 
 #18 remains open; #19 remains blocked by #18; production allowlist remains empty. Need a supported maintenance API or externally enforceable cooperative ownership/isolation design that preserves exact approved targets across browser/helper reopen and final removal. Absence of such a mechanism in this research is not a proof that every possible design is impossible. A different action/scope contract requires separate explicit product approval; this pass does not weaken the lock or add a guidance-only substitute.
 
 Once a concrete mechanism is established, qualify one genuine Stable release/profile layout in a disposable hosted environment, followed by the remaining protected credential/autofill/history/download/session/offline semantics, actual denial, swaps, shared ownership and unsupported layouts. Existing CfT evidence remains useful but bounded in [chrome-owned-profiles](chrome-owned-profiles.md). M3/M8 and all other milestones remain unchanged.
+
+## Review
+
+Independent [Spec](chrome-stable-qualification/spec-review.md) and [Standards](chrome-stable-qualification/standards-review.md) reviews found no blocking findings. Follow-up wording says “did not establish” rather than implying impossibility; the integrity-analyzer source link is pinned and its identity constants were checked. No executable behavior changed, so no test/native pass is claimed.

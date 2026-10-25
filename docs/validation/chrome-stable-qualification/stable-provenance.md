@@ -10,7 +10,7 @@ Google explicitly explains that regular versioned Chrome downloads are intention
 
 ## Identity verification
 
-Chromium's own macOS integrity-check implementation defines Google's Developer ID team **EQHXZ8M8AV**, Apple generic anchor, Developer ID intermediate/leaf certificate markers, and Chrome identifiers. For this probe require the exact regular Stable identifier **com.google.Chrome**, not its beta/dev/canary alternatives. Verify actual signature validity as well as displaying metadata; a printed team string or bundle name alone is insufficient. Retain verification output for application, executable and framework, plus observed certificate/CDHash. The source supports the signing expectation, not a lifetime certificate promise. [Official Chromium source](https://chromium.googlesource.com/chromium/src/+/HEAD/chrome/browser/safe_browsing/incident_reporting/binary_integrity_analyzer_mac.cc).
+Chromium's own macOS integrity-check implementation defines Google's Developer ID team **EQHXZ8M8AV**, Apple generic anchor, Developer ID intermediate/leaf certificate markers, and Chrome identifiers. For this probe require the exact regular Stable identifier **com.google.Chrome**, not its beta/dev/canary alternatives. Verify actual signature validity as well as displaying metadata; a printed team string or bundle name alone is insufficient. Retain verification output for application, executable and framework, plus observed certificate/CDHash. The source supports the signing expectation, not a lifetime certificate promise. [Official Chromium source](https://chromium.googlesource.com/chromium/src/+/d586be9fa9b8009487056edccf01555bb18dc3b2/chrome/browser/safe_browsing/incident_reporting/binary_integrity_analyzer_mac.cc).
 
 ## Bounded hosted qualification recommendation
 
@@ -19,3 +19,5 @@ On a fresh disposable hosted macOS runner only: fetch from the documented offici
 At research time the [official ChromiumDash Mac Stable JSON](https://chromiumdash.appspot.com/fetch_releases?channel=Stable&platform=Mac&num=1) reported **156.0.8078.48**, previous156.0.8078.47. Save contemporaneous JSON and compare the *actual downloaded application's* version; do not hardcode this transient web observation as the expected future download or infer artifact checksum from it. Google also [directs developers to ChromiumDash for release/channel information](https://developer.chrome.com/docs/web-platform/chrome-release-channels/).
 
 This establishes a provenance procedure only. Stable acquisition and signing cannot establish profile ownership, exclude concurrent owners or close #18's protected-data semantics gate. Those remain separate experimental obligations and the locked stop rule still applies.
+
+Source-link review: the integrity-analyzer file above was fetched at the pinned revision and contains both the Google team requirement and Chrome identifier. This validates the cited source, not any installed binary.
