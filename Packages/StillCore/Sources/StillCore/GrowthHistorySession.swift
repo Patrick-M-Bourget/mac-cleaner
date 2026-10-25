@@ -50,7 +50,7 @@ public extension GrowthObservationRecording {
             active = token.id; return token
         } catch {
             guard attempt == request, !Task.isCancelled else { return nil }
-            comparison = .unknown; self.error = "Scope or volume identity could not be verified. This scan cannot establish a comparison baseline."; presentationVersion += 1
+            self.error = "Scope or volume identity could not be verified. This scan cannot establish a comparison baseline."; presentationVersion += 1
             return nil
         }
     }
@@ -61,8 +61,13 @@ public extension GrowthObservationRecording {
             guard active == token.id, !Task.isCancelled else { return }
             let values = try await store.snapshots()
             guard active == token.id, !Task.isCancelled else { return }
-            active = nil
-            if result.state != .unknown { comparison = result }
+            var displayed = result.state == .unknown ? comparison : result
+            if result.state == .unknown, let selected = comparison?.current?.id,
+               !values.contains(where: { $0.id == selected }) {
+                displayed = try await store.comparison(id: selected)
+            }
+            guard active == token.id, !Task.isCancelled else { return }
+            active = nil; comparison = displayed
             snapshots = values; error = nil; presentationVersion += 1
         } catch {
             guard active == token.id, !Task.isCancelled else { return }
