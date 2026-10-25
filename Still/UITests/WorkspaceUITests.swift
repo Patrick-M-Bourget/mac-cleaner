@@ -129,6 +129,21 @@ final class WorkspaceUITests: XCTestCase {
         app.buttons["Back to Overview"].click()
         revealOverviewTool(app, label: "Review app-managed storage"); app.buttons["Review app-managed storage"].click()
         XCTAssertTrue(app.staticTexts["Device backups guidance"].waitForExistence(timeout: 5))
+        app.terminate()
+        app.launchArguments = ["--design-gallery", minimum ? "--design-minimum" : "--design-initial-size"]
+        app.launch()
+        let archiveExamples = app.disclosureTriangles["Synthetic release archive guidance"]
+        revealScrollElement(app, control: archiveExamples, label: "Archive Gallery")
+        archiveExamples.coordinate(withNormalizedOffset: CGVector(dx: 0, dy: 0.5)).withOffset(CGVector(dx: 26, dy: 0)).click()
+        XCTAssertEqual(archiveExamples.value as? Int, 1)
+        for theme in ["Light", "Dark"] {
+            app.popUpButtons["Appearance"].click(); app.menuItems[theme].click()
+            revealScrollElement(app, control: app.staticTexts["Release archives guidance"], label: "Archive Gallery content")
+            XCTAssertTrue(app.staticTexts["Protected from Still cleanup"].exists)
+            let gallery = XCTAttachment(screenshot: app.windows.firstMatch.screenshot())
+            gallery.name = "archives-gallery-" + (minimum ? "minimum-" : "initial-") + theme
+            gallery.lifetime = .keepAlways; add(gallery)
+        }
     }
 
     @MainActor func testInspectorExplainsOwnedDownloadsCandidateWithoutSelectingIt() throws {
