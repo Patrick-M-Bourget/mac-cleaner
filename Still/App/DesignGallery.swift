@@ -10,6 +10,7 @@ struct DesignGallery: View {
     @State private var shellExamplesExpanded = false
     @State private var historyExamplesExpanded = false
     @State private var growthExamplesExpanded = false
+    @State private var archiveExamplesExpanded = false
     var body: some View {
         VStack(spacing: 0) {
             HStack {
@@ -37,6 +38,16 @@ struct DesignGallery: View {
                         HistoryActivityGalleryExamples()
                     }
                     DisclosureGroup("Synthetic What grew examples", isExpanded: $growthExamplesExpanded) { GrowthGalleryExamples() }
+                    DisclosureGroup("Synthetic release archive guidance", isExpanded: $archiveExamplesExpanded) {
+                        SummarySurface {
+                            VStack(alignment: .leading, spacing: StillDesign.Space.md) {
+                                Text("Release archives guidance").font(.title3.weight(.semibold))
+                                Text("Not inspected").foregroundStyle(.secondary)
+                                ReleaseArchiveGuidance(guidance: .init(category: .releaseArchives))
+                                Text("Xcode could not be opened. The instructions and Apple guide remain available.").foregroundStyle(.secondary)
+                            }
+                        }
+                    }
                     CapacityGalleryExamples()
                     Text("Synthetic cleanup outcome examples").font(.headline)
                     Text("Presentation fixtures only · These examples are not native executor or OS failure evidence.").foregroundStyle(.secondary)

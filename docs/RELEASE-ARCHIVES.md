@@ -1,6 +1,6 @@
 # Release-archive guidance — locked #54 contract
 
-User confirmed Q1–Q7 and consolidated contract October25,2026; documentation lock and implementation authorized. Parent #45, parity M01–M02. This lock is not qualification evidence.
+User confirmed Q1–Q7 and consolidated contract October25,2026; documentation lock and implementation authorized. Parent #45, parity M01–M02. Implementation at62bcf8a has [bounded qualification](validation/release-archives.md); the contract alone is not qualification evidence.
 
 1. **Guidance only:** add Release archives within the existing M6-gated App-managed storage screen. No selection, cleanup action, archive/dSYM deletion, background scan or Automation/Accessibility permission. Do not enable #17 or M8.
 2. **Unknown amount:** display Not inspected, never zero, reclaimable bytes or a cleanup estimate. No discovery, measurement, picker or recursive archive/library traversal. Release archives cannot use the existing arbitrary selected-object measurement route.
@@ -14,7 +14,7 @@ User confirmed Q1–Q7 and consolidated contract October25,2026; documentation l
 
 Reuse shared page/badge/summary/status presentation. Give this category a shared pure guidance component and inert Gallery example where needed. Focused existing public inventory/guidance/launcher and UI journey boundaries verify protected/uninspected behavior, native route/context/actions and honest failure at controlled system boundaries. Review Light/Dark at initial/minimum. Preserve existing managed categories and cleanup choices. Do not repeat unrelated suites or add a separate test per copy string. Genuine OS app lookup/opening retains documented integration limits; a fixture is not proof of every Xcode installation.
 
-Update SPEC, DESIGN-HANDOFF, DESIGN-SYSTEM and PROTOTYPE-PARITY together. M01–M02 remain pending until source/public journey/visual qualification. Do not use #54 to close broader #31 owner-app/platform acceptance without its own evidence.
+Update SPEC, DESIGN-HANDOFF, DESIGN-SYSTEM and PROTOTYPE-PARITY together. M01–M02 are Covered for this guidance slice with source/public journey/visual evidence in validation/release-archives.md. Do not use #54 to close broader #31 owner-app/platform acceptance without its own evidence.
 
 ## Official guidance
 

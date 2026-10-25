@@ -91,6 +91,61 @@ import Darwin
 }
 
 final class WorkspaceUITests: XCTestCase {
+    @MainActor func testReleaseArchiveGuidanceAtInitialSize() throws { try releaseArchiveGuidance(minimum: false) }
+    @MainActor func testReleaseArchiveGuidanceAtMinimumSize() throws { try releaseArchiveGuidance(minimum: true) }
+    @MainActor private func releaseArchiveGuidance(minimum: Bool) throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        let state = try configureIsolatedJourneyState(app)
+        defer { app.terminate(); try? FileManager.default.removeItem(at: state) }
+        app.launchArguments = ["--future-milestones", minimum ? "--design-minimum" : "--design-initial-size", "--ui-test-managed-launcher"]
+        app.launchEnvironment["STILL_TEST_MANAGED_LAUNCH"] = "unavailable"
+        app.launch()
+        revealOverviewTool(app, label: "Review app-managed storage")
+        app.buttons["Review app-managed storage"].click()
+        XCTAssertTrue(app.staticTexts["Device backups guidance"].waitForExistence(timeout: 5))
+        revealScrollElement(app, control: app.buttons["Review Release archives"], label: "Release archives")
+        app.buttons["Review Release archives"].click()
+        let bounds = app.windows.firstMatch.frame
+        for theme in ["Light", "Dark"] {
+            app.popUpButtons["Appearance"].click(); app.menuItems[theme].click()
+            revealScrollElement(app, control: app.buttons["Open Xcode"], label: "Open Xcode")
+            XCTAssertTrue(app.staticTexts["Protected from Still cleanup"].exists)
+            XCTAssertFalse(app.buttons["Inspect selected location…"].exists)
+            XCTAssertTrue(app.links["Read Apple guidance"].exists)
+            let before = XCTAttachment(screenshot: app.windows.firstMatch.screenshot())
+            before.name = "archives-guidance-" + (minimum ? "minimum-" : "initial-") + theme; before.lifetime = .keepAlways; add(before)
+            app.buttons["Open Xcode"].click()
+            XCTAssertTrue(app.staticTexts["Xcode could not be opened. The instructions and Apple guide remain available."].waitForExistence(timeout: 5))
+            let failure = XCTAttachment(screenshot: app.windows.firstMatch.screenshot())
+            failure.name = "archives-unavailable-" + (minimum ? "minimum-" : "initial-") + theme; failure.lifetime = .keepAlways; add(failure)
+            XCTAssertEqual(app.windows.firstMatch.frame, bounds)
+        }
+        revealScrollElement(app, control: app.buttons["Review Device backups"], label: "Device backups")
+        app.buttons["Review Device backups"].click()
+        revealScrollElement(app, control: app.buttons["Inspect selected location…"], label: "Existing inspection")
+        XCTAssertTrue(app.buttons["Open Finder"].exists)
+        revealScrollElement(app, control: app.buttons["Back to Overview"], label: "Back")
+        app.buttons["Back to Overview"].click()
+        revealOverviewTool(app, label: "Review app-managed storage"); app.buttons["Review app-managed storage"].click()
+        XCTAssertTrue(app.staticTexts["Device backups guidance"].waitForExistence(timeout: 5))
+        app.terminate()
+        app.launchArguments = ["--design-gallery", minimum ? "--design-minimum" : "--design-initial-size"]
+        app.launch()
+        let archiveExamples = app.disclosureTriangles["Synthetic release archive guidance"]
+        revealScrollElement(app, control: archiveExamples, label: "Archive Gallery")
+        archiveExamples.coordinate(withNormalizedOffset: CGVector(dx: 0, dy: 0.5)).withOffset(CGVector(dx: 26, dy: 0)).click()
+        XCTAssertEqual(archiveExamples.value as? Int, 1)
+        for theme in ["Light", "Dark"] {
+            app.popUpButtons["Appearance"].click(); app.menuItems[theme].click()
+            revealScrollElement(app, control: app.staticTexts["Release archives guidance"], label: "Archive Gallery content")
+            XCTAssertTrue(app.staticTexts["Protected from Still cleanup"].exists)
+            let gallery = XCTAttachment(screenshot: app.windows.firstMatch.screenshot())
+            gallery.name = "archives-gallery-" + (minimum ? "minimum-" : "initial-") + theme
+            gallery.lifetime = .keepAlways; add(gallery)
+        }
+    }
+
     @MainActor func testInspectorExplainsOwnedDownloadsCandidateWithoutSelectingIt() throws {
         continueAfterFailure = false
         let root = FileManager.default.temporaryDirectory.resolvingSymlinksInPath().appendingPathComponent("StillSelectionUI-" + UUID().uuidString)

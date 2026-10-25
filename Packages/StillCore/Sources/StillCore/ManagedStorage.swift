@@ -2,10 +2,11 @@ import Foundation
 import Darwin
 
 public enum ManagedStorageCategory: String, CaseIterable, Sendable, Identifiable {
-    case deviceBackups, photos, mail, messages, systemData
+    case releaseArchives, deviceBackups, photos, mail, messages, systemData
     public var id: String { rawValue }
     public var title: String {
         switch self {
+        case .releaseArchives: "Release archives"
         case .deviceBackups: "Device backups"
         case .photos: "Photos"
         case .mail: "Mail"
@@ -68,6 +69,9 @@ public actor ManagedStorageInventory {
     }
     @discardableResult
     public func inspect(_ category: ManagedStorageCategory, selected url: URL) -> ManagedStorageObservation {
+        if category == .releaseArchives {
+            return .init(category: category, allocation: .uninspected, selectedURL: nil, observedAt: nil, coverage: "Protected from Still cleanup")
+        }
         guard category != .systemData else {
             return .init(category: .systemData, allocation: .notIndependentlyEstimated, selectedURL: nil,
                 observedAt: nil, coverage: "Managed by macOS; no independent category estimate")

@@ -63,3 +63,29 @@ private struct DeniedManagedMetadata: ManagedMetadataReading {
     #expect(rows.first { $0.category == .photos }?.allocation == .uninspected)
     #expect(rows.first { $0.category == .systemData }?.allocation == .notIndependentlyEstimated)
 }
+
+private struct ForbiddenArchiveMetadata: ManagedMetadataReading {
+    func read(_ url: URL) throws -> ManagedObjectMetadata {
+        Issue.record("Release archives must not request metadata")
+        return .init(kind: .regularFile, allocatedBytes: 4_096)
+    }
+}
+
+@Test func releaseArchivesNeverInspectEvenARegularSelectedFile() async throws {
+    let category = try #require(ManagedStorageCategory.allCases.first { $0.title == "Release archives" })
+    let inventory = ManagedStorageInventory(metadata: ForbiddenArchiveMetadata())
+    let initial = try #require(await inventory.observations().first { $0.category == category })
+    #expect(initial.allocation == .uninspected)
+    let result = await inventory.inspect(category, selected: URL(fileURLWithPath: "/disposable/archive"))
+    #expect(result.allocation == .uninspected)
+    #expect(result.selectedURL == nil && result.observedAt == nil)
+    #expect(!result.canExecuteCleanup && result.reclaimableBytes == nil)
+}
+
+@Test func releaseArchiveOwnerLaunchUsesXcodeAndRetainsGuidanceOnFailure() async {
+    let launcher = UnavailableOwnerApp()
+    let guidance = ManagedStorageGuidance(category: .releaseArchives)
+    #expect(await guidance.open(using: launcher) == .unavailable)
+    #expect(await launcher.requested == ["com.apple.dt.Xcode"])
+    #expect(guidance.supportURL.absoluteString == "https://developer.apple.com/documentation/xcode/building-your-app-to-include-debugging-information")
+}

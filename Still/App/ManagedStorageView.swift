@@ -5,6 +5,12 @@ import SwiftUI
 
 @MainActor final class NativeManagedAppLauncher: ManagedApplicationLaunching {
     func open(identifiers: [String]) async -> Bool {
+        #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("--ui-test-managed-launcher"),
+           let outcome = ProcessInfo.processInfo.environment["STILL_TEST_MANAGED_LAUNCH"] {
+            return outcome == "opened"
+        }
+#endif
         for identifier in identifiers {
             guard let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: identifier) else { continue }
             do { _ = try await NSWorkspace.shared.openApplication(at: url, configuration: .init()); return true }
@@ -27,6 +33,7 @@ import SwiftUI
     var selected: ManagedStorageObservation? { rows.first { $0.category == category } }
     func load() async { rows = await inventory.observations() }
     func chooseLocation() {
+        guard category != .releaseArchives else { return }
         let panel = NSOpenPanel()
         panel.title = "Choose a managed location"
         panel.message = "Metadata only. Managed folders and library contents are protected and will not be traversed."
@@ -93,18 +100,24 @@ struct ManagedStorageView: View {
                 VStack(alignment: .leading, spacing: StillDesign.Space.md) {
                     Text("\(selected.category.title) guidance").font(.title3.weight(.semibold))
                     Text(allocation(selected.allocation)).foregroundStyle(.secondary)
-                    Text(selected.coverage).foregroundStyle(.secondary)
+                    if selected.category == .releaseArchives {
+                        ReleaseArchiveGuidance(guidance: model.guidance)
+                    } else {
+                        Text(selected.coverage).foregroundStyle(.secondary)
+                    }
                     if let url = selected.selectedURL { Text(url.path).textSelection(.enabled).font(.caption) }
                     if let time = selected.observedAt { Text("Observed \(time.formatted())").font(.caption).foregroundStyle(.secondary) }
-                    Text(model.guidance.steps)
-                    Text(model.guidance.consequence).font(.callout).foregroundStyle(.secondary)
+                    if selected.category != .releaseArchives {
+                        Text(model.guidance.steps)
+                        Text(model.guidance.consequence).font(.callout).foregroundStyle(.secondary)
+                    }
                     if let message = model.message { Text(message).foregroundStyle(.secondary).accessibilityIdentifier("managedGuidanceStatus") }
                     HStack {
                         Button("Open \(model.guidance.appName)") { Task { await model.openOwner() } }
                             .disabled(model.inspecting || model.opening)
                         Link("Read Apple guidance", destination: model.guidance.supportURL)
                     }
-                    if selected.category != .systemData {
+                    if selected.category != .systemData && selected.category != .releaseArchives {
                         Button("Inspect selected location…") { model.chooseLocation() }.disabled(model.inspecting || model.opening)
                         Text("A selected regular file can have a measured allocation. Folders, packages and links remain uninspected; no recursive library size is invented.")
                             .font(.caption).foregroundStyle(.secondary)
@@ -123,6 +136,18 @@ struct ManagedStorageView: View {
         case .inaccessible: "Access unavailable"
         case .uninspected: "Not inspected"
         case .notIndependentlyEstimated: "Not independently estimated"
+        }
+    }
+}
+
+/// Shared, inert release-archive content; actions remain on the owning surface.
+struct ReleaseArchiveGuidance: View {
+    let guidance: ManagedStorageGuidance
+    var body: some View {
+        VStack(alignment: .leading, spacing: StillDesign.Space.md) {
+            StatusRow(text: "Protected from Still cleanup", symbol: "lock", role: .neutral)
+            Text(guidance.steps)
+            Text(guidance.consequence).font(.callout).foregroundStyle(.secondary)
         }
     }
 }

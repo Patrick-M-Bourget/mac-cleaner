@@ -10,10 +10,16 @@ Spec, design handoff, design system and parity ledger are synchronized. #52 did 
 
 ## Tickets and branches
 
-The acceptance audit closed20 completed baseline tickets, followed by #52 and #26 through PR66:22 tickets closed in this reconciliation;23 remain genuinely open. The [audit](validation/completed-delivery-audit.md) retains its dated pre-#52 counts and each residual gate. #54 is now user-locked and implementation-authorized under RELEASE-ARCHIVES.md; #45/#50 and broad qualification/platform/adapter tickets remain open for their actual remaining criteria.
+The acceptance audit closed20 completed baseline tickets, followed by #52 and #26 through PR66:22 tickets closed in this reconciliation;23 remain genuinely open. The [audit](validation/completed-delivery-audit.md) retains its dated pre-#52 counts and each residual gate. #54 protected release-archive guidance is qualified at62bcf8a under [RELEASE-ARCHIVES](RELEASE-ARCHIVES.md) / [evidence](validation/release-archives.md); #45/#50 and broad qualification/platform/adapter tickets remain open for their actual remaining criteria.
 
 Obsolete branches are retired with recoverable archived refs/SHA manifests and a verified external bundle. After #52 integration only main remains local; GitHub retains main plus the separate product-notes branch. No source or evidence was discarded. Close tickets only against full stated acceptance; child delivery does not automatically close a broader parent.
 
 ## Review build
 
 `/Users/bender/Library/Caches/Codex/mac-cleaner-implementation/artifacts/growth-fb20196/Still.app`, BUILD.md alongside. Explicit --future-milestones enables What grew; ordinary launch keeps existing gates. Local build and ad-hoc strict/deep signature pass; executable SHA256364109f8d7934e8841efb6aa277535cd7da2ab9baab3dd007a68fe0797f88ed2. Later main changes are documentation only.
+
+## Release archives #54
+
+The bounded protected guidance slice is qualified at application62bcf8a. Core160 Swift Testing+5 XCTest pass; final composed live/Gallery journeys pass at both sizes in40234083631, following the actual missing-row native red. Light/Dark originals and both source reviews support this slice. The default Device backups route, existing inspection actions and Back remain. No archive discovery, measurement, deletion, permissions or gate expansion. Broader #31 remains open.
+
+Review app: `/Users/bender/Library/Caches/Codex/mac-cleaner-implementation/artifacts/archives-62bcf8a/Still.app`, executable SHA256 `5047b04a46c0633ae339913b57ede07bbed022c8602e888201c89a073b08ab63`. It is an arm64 ad-hoc development build; explicit `--future-milestones` reveals App-managed storage.

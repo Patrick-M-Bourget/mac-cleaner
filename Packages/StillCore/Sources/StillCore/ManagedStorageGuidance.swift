@@ -10,6 +10,7 @@ public struct ManagedStorageGuidance: Sendable {
     public init(category: ManagedStorageCategory) { self.category = category }
     public var appName: String {
         switch category {
+        case .releaseArchives: "Xcode"
         case .deviceBackups: "Finder"
         case .photos: "Photos"
         case .mail: "Mail"
@@ -19,6 +20,7 @@ public struct ManagedStorageGuidance: Sendable {
     }
     public var applicationIdentifiers: [String] {
         switch category {
+        case .releaseArchives: ["com.apple.dt.Xcode"]
         case .deviceBackups: ["com.apple.finder"]
         case .photos: ["com.apple.Photos"]
         case .mail: ["com.apple.mail"]
@@ -28,6 +30,7 @@ public struct ManagedStorageGuidance: Sendable {
     }
     public var steps: String {
         switch category {
+        case .releaseArchives: "In Xcode, choose Window → Organizer → Archives. Open Xcode launches the app; it does not open Organizer directly."
         case .deviceBackups: "In Finder, connect and select your device, then choose General → Manage Backups. Review backups in Finder's own interface."
         case .photos: "In Photos, choose Photos → Settings → iCloud → Optimize Mac Storage if you use iCloud Photos. Photos manages its own library."
         case .mail: "In Mail, use View → Sort By → Size to review large messages. Mailbox → Erase Deleted Items permanently removes discarded mail."
@@ -37,6 +40,7 @@ public struct ManagedStorageGuidance: Sendable {
     }
     public var consequence: String {
         switch category {
+        case .releaseArchives: "Keep archives and matching debug symbols for distributed builds; they may be needed to diagnose crashes. Still does not inspect or remove release archives."
         case .deviceBackups: "Deleting a backup in Finder cannot be recovered there. Archive a backup you want to preserve against replacement. Still does not edit or remove backups."
         case .photos: "With iCloud Photos enabled, deleting photos can delete them on all synced devices. Optimization is different from deleting originals."
         case .mail: "Message → Remove Attachments can delete IMAP attachments from the mail server. Do not treat message or attachment deletion as local cache clearing."
@@ -47,6 +51,7 @@ public struct ManagedStorageGuidance: Sendable {
     public var supportURL: URL {
         let path: String
         switch category {
+        case .releaseArchives: return URL(string: "https://developer.apple.com/documentation/xcode/building-your-app-to-include-debugging-information")!
         case .deviceBackups: path = "/en-ca/108809"
         case .photos: path = "/en-ca/guide/photos/phtf5e48489c/mac"
         case .mail: path = "/guide/mail/delete-emails-and-manage-storage-mlhlp1001/mac"
