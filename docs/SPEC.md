@@ -182,3 +182,6 @@ Failure retains explicitly last-observed evidence or shows unavailable; it never
 ## What grew product behavior — #52
 
 Q1–Q17 and the consolidated contract are user-confirmed in [WHAT-GREW](WHAT-GREW.md). Independent location baselines, explicit manual scan/return, current destination-specific review, exact historical context, honest failures and accessible proportional comparison hierarchy are locked. Implementation is authorized, not yet qualified. M4 gating, #51 archive/recovery rules and all future milestones remain unchanged. G01–G04 stay pending implementation and evidence.
+
+
+#52 implementation keeps scope/root/volume identity verification in the metadata recorder, separate from access grants and enumeration. Historical labels cannot create paths or authority. Display requests and review/reconnect operations reject stale async responses; partial results revalidate both retained comparison endpoints. A recorded-comparison return anchors the original History link after feed changes. Unavailable archives permit current-finding review only through freshly verified remembered authority, never stale historical numeric claims. See WHAT-GREW.md and validation/what-grew.md for contract and exact qualification boundary.

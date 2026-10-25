@@ -252,3 +252,12 @@ Closing/reopening a retained process preserves current evidence and live choices
 ## What grew flow and navigation lock — #52
 
 Q1–Q17 and the consolidated contract are user-confirmed in [WHAT-GREW](WHAT-GREW.md). Independent location baselines, explicit manual scan/return, current destination-specific review, exact historical context, honest failures and accessible proportional comparison hierarchy are locked. Implementation is authorized, not yet qualified. M4 gating, #51 archive/recovery rules and all future milestones remain unchanged. G01–G04 stay pending implementation and evidence.
+
+
+### What grew route details — #52 implementation
+
+Current selection and exact History requests are separate. An exact historical page retains Back to History, and “Scan this location now” changes to current mode only after verified authority and an accepted actual scan. Cancelling reconnect preserves the exact historical observation. A new History row must not displace the original link on Back: restore its position, filter and disclosure after the updated feed loads.
+
+Review uses verified current findings: Review Downloads enters the existing plan with Back to What grew; Explore folder enters the observed-only Explorer with that same caller. Missing current findings require explicit Scan to review. Pending access verification is disabled/checking, never a transient false Locate prompt. Reconnect rejects same-named/replaced roots; stale async results cannot navigate or start a scan after the caller changes.
+
+Archive unavailability hides numeric comparisons and offers explicit Retry. The retained identity may still resolve current authorized findings; this does not make cached historical numbers valid. Save warnings keep current review usable without replaying the failed observation. Stop/partial/failed attempts explain their outcome separately from the last valid retained comparison. M4 gating and all cleanup/recovery authority stay unchanged.
