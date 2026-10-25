@@ -54,3 +54,7 @@ Run40226814851 was skipped by an initial focused-workflow filter and supplies no
 ## Location hierarchy candidate
 
 Source2284804 adds shared GrowthComparisonSummary/GrowthChangeBreakdown/GrowthChangeRow and a location selector, with an inert DEBUG Gallery family. Native first-use regression40227584434 passes. Location attempt40227582611 failed a native StaticText label assertion despite the original B8A9B615-E8C8-400F-B0B6-0BB690DBC4B3 showing +4 bytes and First location. Root individually viewed that original; test-only508cf37 reads the native value with label fallback, keeping the exact +4 requirement. This attempt is not a passing location journey or final visual acceptance. Later review routes and final matrix remain pending.
+
+## Integrated delivery
+
+MergedPR66 at687e034 closes #52 and #26. Production source remainsfb20196; later changes are docs only. Final review app/hash and retained milestone gates are in DELIVERY.md and the external artifact BUILD.md. Obsolete feature worktree/branch is removed only after merge and clean verification.

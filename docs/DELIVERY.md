@@ -1,19 +1,19 @@
-# Delivery checkpoint — October 25, 2026
+# Delivery checkpoint — October25,2026
 
-The user authorized consolidation of completed work into main, evidence-based ticket closure, obsolete-branch cleanup, and then completion of locked #52 without scope expansion.
+Completed work is consolidated into main. PR65 merged the qualified8f0172a development baseline at89ea92c; superseded draftPR36 is closed. PR66 then merged the complete locked #52 What grew journey at687e034, application sourcefb20196.
 
-## Qualified baseline
+## Completed scope and proof
 
-Application and package production source are exactly the qualified integration8f0172a baseline. This includes the connected Downloads journey, Overview restoration, bounded scanning, capacity refresh, appearance and combined History. Existing validation reports record their exact source/run/capture boundaries. Main is a development baseline, not a signed or universally qualified commercial release. M2–M8 scope and platform/adapter gates remain in MILESTONES.md.
+The connected Downloads journey, Overview, bounded scanning, capacity refresh, shared appearance/design system and combined History retain their source-bound qualification. What grew adds independent baselines, explicit manual scan/review/reconnect, signed comparison hierarchy, honest archive/outcome states and exact historical returns. [Final evidence](validation/what-grew.md): Core158 Swift Testing+5 XCTest, six business journeys at two sizes (12 methods), two Gallery checks, six affected checks composed across source-bound runs, and50 individually accepted original captures. The final four old/new History return checks pass with strict frame assertions.
 
-## Separate unfinished work
+Spec, design handoff, design system and parity ledger are synchronized. #52 did not expand into monitoring, file-level history or new cleanup adapters. M4 remains gated; main is a qualified development baseline rather than a signed commercial release. Full future milestones and platform/adapter gates remain in MILESTONES.md; M8 stays deferred.
 
-#52 Q1–Q17 is locked in WHAT-GREW.md. Its partial Core/App work stays on feature/what-grew-52 and is deliberately excluded from this baseline. The prior integration branch and draftPR36 include incomplete #52 work and are superseded as a delivery vehicle; retain unique work until #52 is integrated. #54 remains untriaged. Do not reopen settled #52 decisions or add support abstractions without a demonstrated locked-flow need.
+## Tickets and branches
 
-## Closure policy
+The acceptance audit closed20 completed baseline tickets, followed by #52 and #26 through PR66:22 tickets closed in this reconciliation;23 remain genuinely open. The [audit](validation/completed-delivery-audit.md) retains its dated pre-#52 counts and each residual gate. #54 still requires grilling; #45/#50 and broad qualification/platform/adapter tickets remain open for their actual remaining criteria.
 
-Close only issues whose full stated feature acceptance is evidenced at this baseline. Keep partial adapters, deferred mutation/signing and incomplete platform/manual qualification open with explicit remaining criteria. Child delivery does not automatically complete an audit parent. Future work is preserved even when a bounded implemented ticket closes.
+Obsolete branches are retired with recoverable archived refs/SHA manifests and a verified external bundle. After #52 integration only main remains local; GitHub retains main plus the separate product-notes branch. No source or evidence was discarded. Close tickets only against full stated acceptance; child delivery does not automatically close a broader parent.
 
-## Completed consolidation
+## Review build
 
-PR65 merged at89ea92c.20 completed tickets are now closed against [the acceptance audit](validation/completed-delivery-audit.md);25 remain open for actual outstanding scope. Obsolete delivery branches are retired with recoverable archives; current development uses main plus feature/what-grew-52. Product-notes remains separate. DraftPR36 is closed as superseded. Finish #52 from WHAT-GREW.md, then merge its bounded feature PR; do not reopen completed baseline work or expand #52.
+`/Users/bender/Library/Caches/Codex/mac-cleaner-implementation/artifacts/growth-fb20196/Still.app`, BUILD.md alongside. Explicit --future-milestones enables What grew; ordinary launch keeps existing gates. Local build and ad-hoc strict/deep signature pass; executable SHA256364109f8d7934e8841efb6aa277535cd7da2ab9baab3dd007a68fe0797f88ed2. Later main changes are documentation only.
