@@ -185,3 +185,8 @@ Q1–Q17 and the consolidated [WHAT-GREW](WHAT-GREW.md) contract are implemented
 
 
 #52 implementation keeps scope/root/volume identity verification in the metadata recorder, separate from access grants and enumeration. Historical labels cannot create paths or authority. Display requests and review/reconnect operations reject stale async responses; partial results revalidate both retained comparison endpoints. A recorded-comparison return anchors the original History link after feed changes. Unavailable archives permit current-finding review only through freshly verified remembered authority, never stale historical numeric claims. See WHAT-GREW.md and validation/what-grew.md for contract and exact qualification boundary.
+
+
+## Release archives product lock — #54
+
+Q1–Q7 and consolidated [RELEASE-ARCHIVES](RELEASE-ARCHIVES.md) contract are user-confirmed. Guidance-only Release archives is first in the existing M6-gated list; Device backups remains default. Show Not inspected and Protected from Still cleanup, retention explanation, explicit Open Xcode/Apple guide and honest unavailable fallback. No picker/measurement/traversal/deletion, new permissions or navigation framework. Implementation is authorized; M01–M02 remain pending qualification. Other categories, all future milestones and M8 deferral remain unchanged.

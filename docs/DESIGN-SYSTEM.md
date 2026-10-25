@@ -233,3 +233,8 @@ Q1–Q17 and the consolidated [WHAT-GREW](WHAT-GREW.md) contract are implemented
 The process-owned `HistoryGrowthReturnContext` is specific to a clicked recorded-comparison link. It remembers the link's position within the native viewport and restores it once after returning and reloading History, including when a new scan prepends a row. Ordinary selection, disclosure and theme changes do not request scrolling. It persists no filesystem authority or preference. This supplements the raw `DestinationViewport` offset rather than introducing a general navigation abstraction. `HistoryGrowthLinkViewport` is an inert native position marker behind the existing button; Gallery summaries omit its context.
 
 Sourcefb20196 is qualified within [what-grew evidence](validation/what-grew.md). Unchanged History feeds retain the existing raw viewport restoration; only changed feed IDs/order request the exact-link adjustment. No source review or screenshot alone certifies native behavior.
+
+
+## Release archives shared presentation — #54
+
+Q1–Q7 and consolidated [RELEASE-ARCHIVES](RELEASE-ARCHIVES.md) contract are user-confirmed. Guidance-only Release archives is first in the existing M6-gated list; Device backups remains default. Show Not inspected and Protected from Still cleanup, retention explanation, explicit Open Xcode/Apple guide and honest unavailable fallback. No picker/measurement/traversal/deletion, new permissions or navigation framework. Implementation is authorized; M01–M02 remain pending qualification. Other categories, all future milestones and M8 deferral remain unchanged.

@@ -261,3 +261,8 @@ Current selection and exact History requests are separate. An exact historical p
 Review uses verified current findings: Review Downloads enters the existing plan with Back to What grew; Explore folder enters the observed-only Explorer with that same caller. Missing current findings require explicit Scan to review. Pending access verification is disabled/checking, never a transient false Locate prompt. Reconnect rejects same-named/replaced roots; stale async results cannot navigate or start a scan after the caller changes.
 
 Archive unavailability hides numeric comparisons and offers explicit Retry. The retained identity may still resolve current authorized findings; this does not make cached historical numbers valid. Save warnings keep current review usable without replaying the failed observation. Stop/partial/failed attempts explain their outcome separately from the last valid retained comparison. M4 gating and all cleanup/recovery authority stay unchanged.
+
+
+## Release archives guidance flow — #54
+
+Q1–Q7 and consolidated [RELEASE-ARCHIVES](RELEASE-ARCHIVES.md) contract are user-confirmed. Guidance-only Release archives is first in the existing M6-gated list; Device backups remains default. Show Not inspected and Protected from Still cleanup, retention explanation, explicit Open Xcode/Apple guide and honest unavailable fallback. No picker/measurement/traversal/deletion, new permissions or navigation framework. Implementation is authorized; M01–M02 remain pending qualification. Other categories, all future milestones and M8 deferral remain unchanged.

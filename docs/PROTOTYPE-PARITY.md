@@ -283,3 +283,8 @@ Current H01–H04 implementation overlay: #51 Q1–Q15 is implemented at `f062ca
 ## G01–G04 decision overlay — #52
 
 Q1–Q17 and the consolidated [WHAT-GREW](WHAT-GREW.md) contract are implemented at application source `fb20196`, with [bounded qualification](validation/what-grew.md): Core158 Swift Testing +5 XCTest, six business journeys at two sizes (12 methods), two Gallery checks and six affected existing checks across source-bound runs. All50 final changed-presentation originals are individually accepted. G01–G04 are Covered for this future-gated manual workflow. M4 gating, #51 archive/recovery authority, platform limits and all future milestones/M8 deferral remain unchanged.
+
+
+## M01–M02 decision overlay — #54
+
+Q1–Q7 and consolidated [RELEASE-ARCHIVES](RELEASE-ARCHIVES.md) contract are user-confirmed. Guidance-only Release archives is first in the existing M6-gated list; Device backups remains default. Show Not inspected and Protected from Still cleanup, retention explanation, explicit Open Xcode/Apple guide and honest unavailable fallback. No picker/measurement/traversal/deletion, new permissions or navigation framework. Implementation is authorized; M01–M02 remain pending qualification. Other categories, all future milestones and M8 deferral remain unchanged.
