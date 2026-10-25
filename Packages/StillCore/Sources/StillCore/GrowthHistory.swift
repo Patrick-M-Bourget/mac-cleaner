@@ -96,7 +96,7 @@ public actor GrowthHistoryStore {
             value.entries.removeAll { now.timeIntervalSince($0.snapshot.observedAt) > Double(policy.days) * 86400 }
             let hasLocationHistory = value.entries.contains { $0.snapshot.fingerprint.scopeID == snapshot.fingerprint.scopeID }
             let origin: GrowthComparisonState = value.cleared ? .clearedBaseline
-                : hasLocationHistory || (value.entries.isEmpty && value.hadHistory) ? .missingBaseline : .firstBaseline
+                : hasLocationHistory ? .missingBaseline : .firstBaseline
             value.entries.append(Entry(snapshot: snapshot, origin: origin)); value.hadHistory = true; value.cleared = false
             if value.entries.count > policy.baselines { value.entries.removeFirst(value.entries.count - policy.baselines) }
             try trim(&value, now: now)

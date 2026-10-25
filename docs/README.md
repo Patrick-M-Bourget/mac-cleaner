@@ -22,7 +22,7 @@ SPEC.md and DESIGN-HANDOFF.md are the consolidated entry points. Detailed refere
 
 Update the relevant spec, design contract, state tests and visual reference together whenever behavior changes. Keep proposed features separate from accepted scope. Do not copy simulation labels, sample storage values or the prototype scenario picker into production.
 
-Latest qualified slice: [History activity #51](HISTORY-ACTIVITY.md), app source `f062ca6`, with [source/native evidence](validation/history-activity.md). The active parity ledger and handoff include combined terminal scan/cleanup history. #52/#54 still require their own decisions; future milestones and M8 deferral remain preserved.
+Latest qualified slice: [History activity #51](HISTORY-ACTIVITY.md), app source `f062ca6`, with [source/native evidence](validation/history-activity.md). The active parity ledger and handoff include combined terminal scan/cleanup history. #52 What grew is now user-locked and authorized under [WHAT-GREW](WHAT-GREW.md), with [implementation evidence in progress](validation/what-grew.md). #54 still requires its own decisions; future milestones and M8 deferral remain preserved.
 
 ## Suggested repository layout
 

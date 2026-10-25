@@ -62,8 +62,7 @@ public extension GrowthObservationRecording {
             let values = try await store.snapshots()
             guard active == token.id, !Task.isCancelled else { return }
             var displayed = result.state == .unknown ? comparison : result
-            if result.state == .unknown, let selected = comparison?.current?.id,
-               !values.contains(where: { $0.id == selected }) {
+            if result.state == .unknown, let selected = comparison?.current?.id {
                 displayed = try await store.comparison(id: selected)
             }
             guard active == token.id, !Task.isCancelled else { return }
