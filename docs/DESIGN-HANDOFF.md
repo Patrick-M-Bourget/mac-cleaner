@@ -247,3 +247,8 @@ Closing/reopening a retained process preserves current evidence and live choices
 ## History activity lock — October 24
 
 #51 Q1–Q15 and the consolidated contract are user-confirmed in [HISTORY-ACTIVITY](HISTORY-ACTIVITY.md). M1 History gains minimal terminal scan activity alongside completed cleanup runs, with All/Scans/Cleanups filters and honest scope/outcome/retention/availability. Detailed growth collection/comparisons stay M4-gated; historical routes never restore live findings or approval. Scan activity and enabled aggregates share the existing250 MB archive budget; cleanup retains its separate250 MB completed-payload budget, with protected recovery exemptions. Implemented at app source `f062ca6` with [bounded source/native qualification](validation/history-activity.md), including96 individually accepted final originals. The full future roadmap and deferred M8 remain unchanged.
+
+
+## What grew flow and navigation lock — #52
+
+Q1–Q17 and the consolidated contract are user-confirmed in [WHAT-GREW](WHAT-GREW.md). Independent location baselines, explicit manual scan/return, current destination-specific review, exact historical context, honest failures and accessible proportional comparison hierarchy are locked. Implementation is authorized, not yet qualified. M4 gating, #51 archive/recovery rules and all future milestones remain unchanged. G01–G04 stay pending implementation and evidence.

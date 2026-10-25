@@ -278,3 +278,8 @@ Current N05/N06/N07/A04 decision overlay: #53 Q1–Q13 and consolidated contract
 ## History contract lock — October 24
 
 Current H01–H04 implementation overlay: #51 Q1–Q15 is implemented at `f062ca6` under [HISTORY-ACTIVITY](HISTORY-ACTIVITY.md), with [bounded qualification](validation/history-activity.md). H01–H04 are Covered for combined terminal activity, filters/root summaries, honest separate retention/availability, global Clear and exact gated comparison returns. Core154,17 new UI journeys and21 affected existing checks pass across focused source-bound runs; all96 final originals are individually accepted. #52 first-use/review flows and #54 archive guidance remain separate, untriaged decisions; M4/M8 gates are unchanged.
+
+
+## G01–G04 decision overlay — #52
+
+Q1–Q17 and the consolidated contract are user-confirmed in [WHAT-GREW](WHAT-GREW.md). Independent location baselines, explicit manual scan/return, current destination-specific review, exact historical context, honest failures and accessible proportional comparison hierarchy are locked. Implementation is authorized, not yet qualified. M4 gating, #51 archive/recovery rules and all future milestones remain unchanged. G01–G04 stay pending implementation and evidence.
