@@ -76,6 +76,15 @@ struct GrowthHistoryView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: StillDesign.Space.xl) {
             PageHeader(title: "What grew", subtitle: "Compare completed observations of the same scope. Changes do not identify which app or person wrote files.")
+            if AppLifecycleController.shared.inspection.isScanning {
+                let inspection = AppLifecycleController.shared.inspection
+                ScanProgressSummary(inspectedEntries: inspection.progress?.visitedEntries ?? 0,
+                    logicalSubtotal: "Unknown",
+                    recentNames: [], phaseMessage: "Scanning " + (inspection.scope?.lastPathComponent ?? "selected location") + "…")
+            }
+            if model.comparison?.current == nil && model.error == nil {
+                EmptyState(title: "Establish a baseline", detail: "Scan a location now, then scan it again later to compare two completed observations. Nothing scans automatically.", symbol: "chart.line.uptrend.xyaxis")
+            }
             if let error = model.error { StatusRow(text: error, symbol: "exclamationmark.circle", role: .caution) }
             if model.historicalBusy { ProgressView("Reading recorded comparison…") }
             if model.historicalUnavailable {

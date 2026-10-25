@@ -344,7 +344,12 @@ private struct WorkspaceView: View {
                             }
                         } else {
                             ActionStrip(message: "Two compatible completed observations reveal net changes.") {
-                                Button("Inspect a folder", action: chooseFolderForScan).buttonStyle(.borderedProminent)
+                                if folderInspection.isScanning {
+                                    Button("Stop scan") { folderInspection.cancel() }.buttonStyle(.borderedProminent)
+                                } else {
+                                    Button(GrowthHistoryModel.shared.comparison?.current == nil ? "Scan to establish a baseline" : "Scan again to compare", action: chooseFolderForScan)
+                                        .buttonStyle(.borderedProminent).disabled(selection.execution.isRunning || selection.isRefreshing || AppLifecycleController.shared.maintenanceInProgress)
+                                }
                             }
                         }
                     } else if destination == .overview && !managedStorageVisible && !dockerVisible && !pipVisible && !homebrewVisible {
