@@ -21,3 +21,5 @@ Once a concrete mechanism is established, qualify one genuine Stable release/pro
 ## Review
 
 Independent [Spec](chrome-stable-qualification/spec-review.md) and [Standards](chrome-stable-qualification/standards-review.md) reviews found no blocking findings. Follow-up wording says “did not establish” rather than implying impossibility; the integrity-analyzer source link is pinned and its identity constants were checked. No executable behavior changed, so no test/native pass is claimed.
+
+Integrated through PR69 at `a068ec3`; #18 remains open/#19 blocked. Temporary merged worktree/branch retired, evidence retained in main.

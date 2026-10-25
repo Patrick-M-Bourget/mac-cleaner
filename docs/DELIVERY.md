@@ -37,3 +37,5 @@ MergedPR68 (`97a98f8`) integrates the bounded #27 settings slice. #27 remains op
 ## Chrome #18/#19 contract and qualification checkpoint
 
 CHROME-CLEANUP.md Q1–Q6 is user-locked and synchronized across spec/handoff/system/parity. [The first remaining prerequisite investigation](validation/chrome-stable-qualification.md) found no supported external ownership/coordination guarantee and documented the exact final-stat/name-unlink race. Q6 stops further broad experiments at this blocker: no code/UI/test/workflow or production allowlist changed, no personal browser touched, #18 remains open/#19 blocked. Stable distribution research records a future reproducible artifact procedure, not a qualified browser. All future browser features and M8 deferral remain preserved.
+
+PR69 (`a068ec3`) integrates this documentation-only qualification checkpoint. Both review axes clear; no new executable/test/native pass is claimed. #18 stays open, #19 blocked by #18; the clean merged branch/worktree is retired and recoverable tipd3a1473 retained under refs/archive/2026-10-25/chrome-qualification-18. Main is the sole local branch; unrelated remote product-notes remains.
