@@ -461,6 +461,7 @@ struct LiveCleanupPlanView: View {
     var newPlan: (() -> Void)? = nil
     var reviewRecovery: (() -> Void)? = nil
     var backToExplorer: (() -> Void)? = nil
+    var backToExplorerTitle = "Back to Explorer"
     var manageLocations: (() -> Void)? = nil
     var scopeMessage: String? = nil
     @Bindable var presentation: CleanupPlanPresentation
@@ -474,7 +475,7 @@ struct LiveCleanupPlanView: View {
             CleanupExecutionView(model: selection.execution, retryMessage: selection.message).padding(StillDesign.Space.page)
         } else {
         VStack(alignment: .leading, spacing: StillDesign.Space.lg) {
-            if let backToExplorer { Button("Back to Explorer", systemImage: "chevron.left", action: backToExplorer) }
+            if let backToExplorer { Button(backToExplorerTitle, systemImage: "chevron.left", action: backToExplorer) }
             PageHeader(title: "Cleanup plan", subtitle: selection.retryTargetIDs == nil ? "Choose categories, adjust items if needed, then review the changes." : "Only rechecked unfinished files are included. Completed successes and new discoveries stay excluded.")
                 .padding(.bottom, StillDesign.Space.sm)
             ScanHistoryRecordingNotice()

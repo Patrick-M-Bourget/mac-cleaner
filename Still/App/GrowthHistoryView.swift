@@ -11,11 +11,12 @@ import StillCore
     private var requestedObservation: UUID?
     private var historicalComparison: GrowthComparison?
     private var historicalError: String?
-    var historicalBusy = false
-    var selectedScopeID: String?
     private var selectedObservationID: UUID?
     private var liveComparison: GrowthComparison?
     private var latestRecorded: GrowthSnapshot?
+    private var displayRequest = UUID()
+    var historicalBusy = false
+    var selectedScopeID: String?
     var detailsExpanded = false
     var observationsExpanded = false
     var dimension = GrowthDimension.folder
@@ -25,12 +26,18 @@ import StillCore
     var selectNextLocation = false
     var loading = false
     var archiveUnavailable = false
+    var resolvedURL: URL?
+    var isResolving = false
     var locations: [GrowthSnapshot] {
         var seen = Set<String>()
         return snapshots.reversed().filter { seen.insert($0.fingerprint.scopeID).inserted }
     }
+    func locationLabel(_ snapshot: GrowthSnapshot) -> String {
+        let duplicates = locations.filter { $0.scopeLabel == snapshot.scopeLabel }.count > 1
+        return duplicates ? snapshot.scopeLabel + " · " + String(snapshot.fingerprint.scopeID.prefix(8)) : snapshot.scopeLabel
+    }
     var locationObservations: [GrowthSnapshot] { snapshots.reversed().filter { $0.fingerprint.scopeID == selectedScopeID } }
-    var scanTitle: String { comparison?.current == nil ? "Scan to establish a baseline" : "Scan again to compare" }
+    var scanTitle: String { needsLocationAccess ? "Locate folder…" : comparison?.current == nil ? "Scan to establish a baseline" : "Scan again to compare" }
     var historicalUnavailable: Bool { requestedObservation != nil && !historicalBusy && historicalComparison?.current?.id != requestedObservation }
     var isHistorical: Bool { requestedObservation != nil }
     var comparison: GrowthComparison? { isHistorical ? historicalComparison : liveComparison }
@@ -48,80 +55,138 @@ import StillCore
     }
     func load() async {
         guard Self.enabled else { return }
+        let request = UUID(); displayRequest = request
         if let requestedObservation {
             historicalBusy = true
-            defer { if self.requestedObservation == requestedObservation { historicalBusy = false } }
+            defer { if displayRequest == request { historicalBusy = false } }
             do {
                 let value = try await store().comparison(id: requestedObservation)
-                guard self.requestedObservation == requestedObservation, !Task.isCancelled else { return }
+                guard displayRequest == request, self.requestedObservation == requestedObservation, !Task.isCancelled else { return }
                 historicalComparison = value; historicalError = nil
+                await refreshAuthority()
             } catch {
-                guard self.requestedObservation == requestedObservation, !Task.isCancelled else { return }
+                guard displayRequest == request, self.requestedObservation == requestedObservation, !Task.isCancelled else { return }
                 historicalComparison = nil; historicalError = "The recorded comparison could not be read. No other observation was selected."
             }
             return
         }
         loading = true
-        defer { loading = false }
+        defer { if displayRequest == request { loading = false } }
         do {
             let value = try open(); await value.load()
-            guard value.error == nil else { archiveUnavailable = true; liveComparison = nil; return }; archiveUnavailable = false
-            if let selectedObservationID, snapshots.contains(where: { $0.id == selectedObservationID }) {
-                await value.select(selectedObservationID)
-            } else if let selectedScopeID {
-                if let latest = locations.first(where: { $0.fingerprint.scopeID == selectedScopeID }) {
-                    await value.select(latest.id); self.selectedObservationID = latest.id
-                } else { liveComparison = nil; return }
-            } else if let latest = locations.first {
-                selectedScopeID = latest.fingerprint.scopeID; selectedObservationID = latest.id
-                await value.select(latest.id)
-            }
-            liveComparison = value.comparison
+            guard displayRequest == request, !Task.isCancelled else { return }
+            guard value.error == nil else { archiveUnavailable = true; liveComparison = nil; return }
+            openingError = nil; archiveUnavailable = false
+            if let selectedObservationID {
+                let result = try await store().comparison(id: selectedObservationID)
+                guard displayRequest == request, !Task.isCancelled else { return }
+                liveComparison = result
+            } else if let selectedScopeID, let latest = locations.first(where: { $0.fingerprint.scopeID == selectedScopeID }) {
+                let result = try await store().comparison(id: latest.id)
+                guard displayRequest == request, !Task.isCancelled else { return }
+                liveComparison = result; selectedObservationID = latest.id
+            } else if selectedScopeID == nil, let latest = locations.first {
+                let result = try await store().comparison(id: latest.id)
+                guard displayRequest == request, !Task.isCancelled else { return }
+                selectedScopeID = latest.fingerprint.scopeID; selectedObservationID = latest.id; liveComparison = result
+            } else { liveComparison = value.comparison?.current == nil ? value.comparison : nil }
+            await refreshAuthority()
+        } catch {
+            guard displayRequest == request, !Task.isCancelled else { return }
+            archiveUnavailable = true; liveComparison = nil
+            openingError = "Comparison history is unavailable. No growth can be inferred from missing observations."
         }
-        catch { archiveUnavailable = true; openingError = "Comparison history is unavailable. No growth can be inferred from missing observations." }
     }
     func requestHistorical(_ id: UUID) {
-        requestedObservation = id; historicalComparison = nil; historicalError = nil; historicalBusy = true
+        displayRequest = UUID(); requestedObservation = id; historicalComparison = nil; historicalError = nil; historicalBusy = true
+        resolvedURL = nil; accessNotice = nil; needsLocationAccess = false
     }
-    func endHistoricalRequest() { requestedObservation = nil; historicalComparison = nil; historicalError = nil; historicalBusy = false }
+    func endHistoricalRequest() { displayRequest = UUID(); requestedObservation = nil; historicalComparison = nil; historicalError = nil; historicalBusy = false }
+    func moveHistoricalToCurrent() {
+        guard let current = historicalComparison?.current else { return }
+        let retained = historicalComparison
+        endHistoricalRequest(); selectedScopeID = current.fingerprint.scopeID; selectedObservationID = current.id; liveComparison = retained
+    }
     func retainedBaseline(for scan: ScanResult) -> UUID? {
         guard let current = latestRecorded, current.observedAt == scan.observedAt,
-              current.scopeLabel == scan.scope.lastPathComponent,
-              snapshots.contains(where: { $0.id == current.id }) else { return nil }
+              current.scopeLabel == scan.scope.lastPathComponent, snapshots.contains(where: { $0.id == current.id }) else { return nil }
         return current.id
     }
     func begin(_ scope: URL, exclusionFingerprint: String = "none") async -> GrowthScanToken? {
         guard Self.enabled else { return nil }
+        outcomeNotice = nil
         do { return await (try open()).begin(scope, exclusionFingerprint: exclusionFingerprint) }
         catch { openingError = "Scope or volume identity could not be verified. This scan cannot establish a comparison baseline."; return nil }
     }
     func complete(_ scan: ScanResult, token: GrowthScanToken?) async {
         await session?.complete(scan, token: token)
-        latestRecorded = session?.comparison?.current.flatMap { $0.observedAt == scan.observedAt ? $0 : nil }
+        latestRecorded = session?.comparison?.current.flatMap { current in current.observedAt == scan.observedAt && snapshots.contains(where: { $0.id == current.id }) ? current : nil }
         if !scan.isComplete || scan.hasUnmeasuredContents {
-            outcomeNotice = "This scan could not establish a complete measured baseline. The last retained comparison remains available."
+            outcomeNotice = "This scan could not establish a complete measured baseline. Retained observations are shown below."
         } else { outcomeNotice = nil }
+        guard !isHistorical else { return }
         if let current = latestRecorded, selectNextLocation || selectedScopeID == nil || selectedScopeID == current.fingerprint.scopeID {
-            selectedScopeID = current.fingerprint.scopeID; selectedObservationID = current.id
-            liveComparison = session?.comparison; selectNextLocation = false
+            selectedScopeID = current.fingerprint.scopeID; selectedObservationID = current.id; selectNextLocation = false
         }
+        // Re-read the selected exact comparison even for partial results: either endpoint may have expired.
+        // A failed save must remain visible; load() would clear the session's recording error.
+        let request = UUID(); displayRequest = request
+        do {
+            var value: GrowthComparison?
+            if let selectedObservationID { value = try await store().comparison(id: selectedObservationID) }
+            guard displayRequest == request, !Task.isCancelled else { return }
+            liveComparison = value ?? session?.comparison; archiveUnavailable = false
+            await refreshAuthority()
+        } catch { archiveUnavailable = true; openingError = "Comparison history is unavailable. Current scan results remain usable."; liveComparison = nil }
     }
-    func invalidateCoverage() async throws {
-        guard Self.enabled else { return }
-        try await open().invalidateCoverage()
+    func invalidateCoverage() async throws { guard Self.enabled else { return }; try await open().invalidateCoverage() }
+    func clearCompletedHistory() async throws {
+        displayRequest = UUID(); try await open().clearCompletedHistory(); selectedObservationID = nil; liveComparison = session?.comparison; resolvedURL = nil
     }
-    func clearCompletedHistory() async throws { try await open().clearCompletedHistory(); selectedObservationID = nil; liveComparison = session?.comparison }
-    func resetHistory() async throws { try await open().resetHistory(); selectedScopeID = nil; selectedObservationID = nil; liveComparison = session?.comparison }
-    func cancelled() { session?.cancelled(); outcomeNotice = "Scan stopped. No new baseline was recorded; the last retained comparison remains available." }
+    func resetHistory() async throws {
+        displayRequest = UUID(); try await open().resetHistory(); selectedScopeID = nil; selectedObservationID = nil; liveComparison = session?.comparison; resolvedURL = nil
+    }
+    func cancelled() {
+        session?.cancelled(); outcomeNotice = "Scan stopped. No new baseline was recorded; retained observations are shown below."
+        Task { await self.load() }
+    }
     func select(_ id: UUID) async {
         guard let snapshot = snapshots.first(where: { $0.id == id }) else { return }
-        selectedScopeID = snapshot.fingerprint.scopeID; selectedObservationID = id
-        await session?.select(id); liveComparison = session?.comparison
-        accessNotice = nil; needsLocationAccess = false
+        let request = UUID(); displayRequest = request
+        do {
+            let result = try await store().comparison(id: id)
+            guard displayRequest == request, !Task.isCancelled else { return }
+            selectedScopeID = snapshot.fingerprint.scopeID; selectedObservationID = id; liveComparison = result
+            accessNotice = nil; needsLocationAccess = false; archiveUnavailable = false
+            await refreshAuthority()
+        } catch {
+            guard displayRequest == request, !Task.isCancelled else { return }
+            archiveUnavailable = true; openingError = "The selected comparison is unavailable. Retry reloads records only."
+        }
     }
-    func selectLocation(_ id: String) async {
-        guard let latest = locations.first(where: { $0.fingerprint.scopeID == id }) else { return }
-        await select(latest.id)
+    func selectLocation(_ id: String) async { if let latest = locations.first(where: { $0.fingerprint.scopeID == id }) { await select(latest.id) } }
+    func matches(_ url: URL, snapshot: GrowthSnapshot) async -> Bool {
+        do { return try await GrowthScanRecorder(store: store()).matchesLocation(url, snapshot: snapshot) }
+        catch { return false }
+    }
+    func leaseForSelection() async -> ScopeAccessLease? {
+        guard let snapshot = comparison?.current else { return nil }
+        let locations = AppLifecycleController.shared.locations
+        for scope in locations.included {
+            guard let lease = locations.resolve(scope) else { continue }
+            if await matches(lease.url, snapshot: snapshot), comparison?.current?.id == snapshot.id { return lease }
+            lease.close()
+        }
+        return nil
+    }
+    func refreshAuthority() async {
+        let snapshotID = comparison?.current?.id
+        resolvedURL = nil
+        if let lease = await leaseForSelection() {
+            defer { lease.close() }
+            guard comparison?.current?.id == snapshotID else { return }
+            resolvedURL = lease.url
+        }
     }
 }
 
@@ -221,19 +286,22 @@ struct GrowthChangeRow: View {
 
 struct GrowthHistoryView: View {
     @Bindable var model: GrowthHistoryModel
+    var reviewTitle: String? = nil
+    var review: (() -> Void)? = nil
+    var scanHistorical: (() -> Void)? = nil
     var body: some View {
         VStack(alignment: .leading, spacing: StillDesign.Space.xl) {
             PageHeader(title: "What grew", subtitle: "What changed between your manual scans. Changes do not identify who wrote files or what can be cleaned.")
             if !model.isHistorical && !model.locations.isEmpty {
                 Picker("Comparison location", selection: Binding(get: { model.selectedScopeID ?? model.locations.first!.fingerprint.scopeID }, set: { id in Task { await model.selectLocation(id) } })) {
-                    ForEach(model.locations) { snapshot in Text(snapshot.scopeLabel).tag(snapshot.fingerprint.scopeID) }
+                    ForEach(model.locations) { snapshot in Text(model.locationLabel(snapshot)).tag(snapshot.fingerprint.scopeID) }
                 }.pickerStyle(.menu).accessibilityLabel("Comparison location")
             }
             ScanHistoryRecordingNotice()
             if AppLifecycleController.shared.inspection.isScanning {
                 let inspection = AppLifecycleController.shared.inspection
                 ScanProgressSummary(inspectedEntries: inspection.progress?.visitedEntries ?? 0,
-                    logicalSubtotal: "Unknown", recentNames: [], phaseMessage: "Scanning " + (inspection.scope?.lastPathComponent ?? "selected location") + "…")
+                    logicalSubtotal: inspection.progress.map { ByteCountFormatter.string(fromByteCount: $0.knownLogicalSubtotal, countStyle: .decimal) } ?? "Unknown", recentNames: [], phaseMessage: "Scanning " + (inspection.scope?.lastPathComponent ?? "selected location") + "…")
             }
             if let outcome = model.outcomeNotice, !model.isHistorical { StatusRow(text: outcome, symbol: "info.circle") }
             if let notice = model.accessNotice { StatusRow(text: notice, symbol: "folder.badge.questionmark", role: .caution) }
@@ -253,6 +321,16 @@ struct GrowthHistoryView: View {
                 }
             } else if !model.loading {
                 EmptyState(title: "Establish a baseline", detail: "Scan a location now, then scan it again later to compare two completed observations. Nothing scans automatically.", symbol: "chart.line.uptrend.xyaxis")
+            }
+            if let review, let reviewTitle, model.comparison?.current != nil {
+                VStack(alignment: .leading, spacing: StillDesign.Space.sm) {
+                    Text("Review uses current findings, not historical file-level changes. Nothing is selected automatically.").font(.caption).foregroundStyle(.secondary)
+                    Button(reviewTitle, action: review).disabled(model.isResolving || AppLifecycleController.shared.inspection.isScanning)
+                }
+            }
+            if model.isHistorical, let scanHistorical, model.comparison?.current != nil, !model.historicalUnavailable {
+                Text("A new manual scan creates a current observation; this recorded comparison is not replaced silently.").font(.caption).foregroundStyle(.secondary)
+                Button("Scan this location now", action: scanHistorical).disabled(model.isResolving || AppLifecycleController.shared.inspection.isScanning)
             }
             if !model.isHistorical && !model.locationObservations.isEmpty {
                 DisclosureGroup("Completed observations", isExpanded: $model.observationsExpanded) {
