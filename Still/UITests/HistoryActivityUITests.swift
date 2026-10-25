@@ -3,14 +3,16 @@ import Darwin
 import StillCore
 
 final class HistoryActivityUITests: XCTestCase {
-    @MainActor func testWhatGrewFirstScanStaysInJourney() throws {
+    @MainActor func testWhatGrewFirstScanStaysInJourney() throws { try exerciseGrowthFirst(minimum: true) }
+    @MainActor func testInitialWhatGrewFirstScanStaysInJourney() throws { try exerciseGrowthFirst(minimum: false) }
+    @MainActor private func exerciseGrowthFirst(minimum: Bool) throws {
         continueAfterFailure = false
         let manager = FileManager.default, app = XCUIApplication()
         let state = try configureIsolatedJourneyState(app)
         let root = manager.temporaryDirectory.resolvingSymlinksInPath().appendingPathComponent("StillSelectionUI-" + UUID().uuidString)
         try manager.createDirectory(at: root, withIntermediateDirectories: false)
         let file = root.appendingPathComponent("Original.pdf"); try Data([5, 2]).write(to: file)
-        app.launchArguments = ["--future-milestones", "--design-minimum"]
+        app.launchArguments = ["--future-milestones", minimum ? "--design-minimum" : "--design-initial-size"]
         defer { app.terminate(); try? manager.removeItem(at: state); try? manager.removeItem(at: root) }
         app.launch(); app.typeKey("6", modifierFlags: .command)
         XCTAssertTrue(app.staticTexts["What grew"].firstMatch.waitForExistence(timeout: 10))
@@ -29,11 +31,13 @@ final class HistoryActivityUITests: XCTestCase {
         XCTAssertEqual(app.windows.firstMatch.frame, bounds)
         for theme in ["Light", "Dark"] {
             app.popUpButtons["Appearance"].click(); app.menuItems[theme].click()
-            let image = XCTAttachment(screenshot: app.windows.firstMatch.screenshot()); image.name = "growth52-first-baseline-minimum-" + theme; image.lifetime = .keepAlways; add(image)
+            let image = XCTAttachment(screenshot: app.windows.firstMatch.screenshot()); image.name = "growth52-first-baseline-" + (minimum ? "minimum-" : "initial-") + theme; image.lifetime = .keepAlways; add(image)
         }
         XCTAssertEqual(try Data(contentsOf: file), Data([5, 2]))
     }
-    @MainActor func testWhatGrewKeepsIndependentLocationBaselines() async throws {
+    @MainActor func testWhatGrewKeepsIndependentLocationBaselines() async throws { try await exerciseGrowthLocations(minimum: true) }
+    @MainActor func testInitialWhatGrewKeepsIndependentLocationBaselines() async throws { try await exerciseGrowthLocations(minimum: false) }
+    @MainActor private func exerciseGrowthLocations(minimum: Bool) async throws {
         continueAfterFailure = false
         let manager = FileManager.default, app = XCUIApplication()
         let state = try configureIsolatedJourneyState(app)
@@ -48,7 +52,7 @@ final class HistoryActivityUITests: XCTestCase {
         token = try await recorder.begin(scope: a); _ = try await recorder.complete(try await FolderScanner().scan(a), token: token)
         try Data([7, 8, 9]).write(to: b.appendingPathComponent("Other.txt"))
         token = try await recorder.begin(scope: b); _ = try await recorder.complete(try await FolderScanner().scan(b), token: token)
-        app.launchArguments = ["--future-milestones", "--design-minimum"]
+        app.launchArguments = ["--future-milestones", minimum ? "--design-minimum" : "--design-initial-size"]
         defer { app.terminate(); try? manager.removeItem(at: state); try? manager.removeItem(at: root) }
         app.launch(); app.typeKey("6", modifierFlags: .command)
         let picker = app.popUpButtons["Comparison location"]
@@ -65,7 +69,7 @@ final class HistoryActivityUITests: XCTestCase {
         let bounds = app.windows.firstMatch.frame
         for theme in ["Light", "Dark"] {
             app.popUpButtons["Appearance"].click(); app.menuItems[theme].click()
-            let image = XCTAttachment(screenshot: app.windows.firstMatch.screenshot()); image.name = "growth52-location-comparison-minimum-" + theme; image.lifetime = .keepAlways; add(image)
+            let image = XCTAttachment(screenshot: app.windows.firstMatch.screenshot()); image.name = "growth52-location-comparison-" + (minimum ? "minimum-" : "initial-") + theme; image.lifetime = .keepAlways; add(image)
             XCTAssertEqual(app.windows.firstMatch.frame, bounds)
         }
         picker.click(); app.menuItems["Second location"].click()
@@ -74,7 +78,9 @@ final class HistoryActivityUITests: XCTestCase {
         app.typeKey("1", modifierFlags: .command); app.typeKey("6", modifierFlags: .command)
         XCTAssertEqual(picker.value as? String, "Second location")
     }
-    @MainActor func testWhatGrewReviewsCurrentDownloadsAndReturnsWithoutChangingChoices() throws {
+    @MainActor func testWhatGrewReviewsCurrentDownloadsAndReturnsWithoutChangingChoices() throws { try exerciseGrowthReview(minimum: true) }
+    @MainActor func testInitialWhatGrewReviewsCurrentDownloadsAndReturnsWithoutChangingChoices() throws { try exerciseGrowthReview(minimum: false) }
+    @MainActor private func exerciseGrowthReview(minimum: Bool) throws {
         continueAfterFailure = false
         let manager = FileManager.default, app = XCUIApplication()
         let state = try configureIsolatedJourneyState(app)
@@ -82,7 +88,7 @@ final class HistoryActivityUITests: XCTestCase {
         try manager.createDirectory(at: root, withIntermediateDirectories: false)
         let file = root.appendingPathComponent("Original.pdf"); try Data([2, 8]).write(to: file)
         var identity = stat(); XCTAssertEqual(lstat(root.path, &identity), 0)
-        app.launchArguments = ["--future-milestones", "--ui-test-downloads-root", "--design-minimum"]
+        app.launchArguments = ["--future-milestones", "--ui-test-downloads-root", minimum ? "--design-minimum" : "--design-initial-size"]
         app.launchEnvironment["STILL_TEST_DOWNLOADS_ROOT"] = root.path; app.launchEnvironment["STILL_TEST_DOWNLOADS_ID"] = "\(identity.st_dev):\(identity.st_ino)"
         defer { app.terminate(); try? manager.removeItem(at: state); try? manager.removeItem(at: root) }
         app.launch(); XCTAssertTrue(app.buttons["Choose folder…"].waitForExistence(timeout: 10)); app.buttons["Choose folder…"].click()
@@ -102,7 +108,9 @@ final class HistoryActivityUITests: XCTestCase {
         app.typeKey("2", modifierFlags: .command); XCTAssertTrue(app.staticTexts["1 file selected"].waitForExistence(timeout: 5))
         XCTAssertEqual(try Data(contentsOf: file), Data([2, 8]))
     }
-    @MainActor func testWhatGrewHistoricalScanRequiresAcceptedAuthorityAndReturnsToHistory() async throws {
+    @MainActor func testWhatGrewHistoricalScanRequiresAcceptedAuthorityAndReturnsToHistory() async throws { try await exerciseGrowthHistorical(minimum: true) }
+    @MainActor func testInitialWhatGrewHistoricalScanRequiresAcceptedAuthorityAndReturnsToHistory() async throws { try await exerciseGrowthHistorical(minimum: false) }
+    @MainActor private func exerciseGrowthHistorical(minimum: Bool) async throws {
         continueAfterFailure = false
         let manager = FileManager.default, app = XCUIApplication()
         let state = try configureIsolatedJourneyState(app)
@@ -110,7 +118,7 @@ final class HistoryActivityUITests: XCTestCase {
         try manager.createDirectory(at: root, withIntermediateDirectories: false)
         let original = root.appendingPathComponent("Original.pdf"); try Data([2, 1]).write(to: original)
         var identity = stat(); XCTAssertEqual(lstat(root.path, &identity), 0)
-        app.launchArguments = ["--future-milestones", "--ui-test-downloads-root", "--design-minimum"]
+        app.launchArguments = ["--future-milestones", "--ui-test-downloads-root", minimum ? "--design-minimum" : "--design-initial-size"]
         app.launchEnvironment["STILL_TEST_DOWNLOADS_ROOT"] = root.path; app.launchEnvironment["STILL_TEST_DOWNLOADS_ID"] = "\(identity.st_dev):\(identity.st_ino)"
         defer { app.terminate(); try? manager.removeItem(at: state); try? manager.removeItem(at: root) }
         app.launch(); XCTAssertTrue(app.buttons["Choose folder…"].waitForExistence(timeout: 10)); app.buttons["Choose folder…"].click()
@@ -150,7 +158,7 @@ final class HistoryActivityUITests: XCTestCase {
         XCTAssertTrue((app.staticTexts["growthNetChange"].value as? String ?? "").contains("+2 bytes"))
         for theme in ["Light", "Dark"] {
             app.popUpButtons["Appearance"].click(); app.menuItems[theme].click()
-            let image = XCTAttachment(screenshot: app.windows.firstMatch.screenshot()); image.name = "growth52-historical-current-minimum-" + theme; image.lifetime = .keepAlways; add(image)
+            let image = XCTAttachment(screenshot: app.windows.firstMatch.screenshot()); image.name = "growth52-historical-current-" + (minimum ? "minimum-" : "initial-") + theme; image.lifetime = .keepAlways; add(image)
         }
         app.buttons["Back to History"].click(); XCTAssertEqual(filter.value as? String, "Scans"); XCTAssertEqual(disclosure.value as? Int, 1)
         let restored = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in link.frame == callerFrame }, object: link)
@@ -158,14 +166,16 @@ final class HistoryActivityUITests: XCTestCase {
         XCTAssertEqual(app.windows.firstMatch.frame, bounds)
         XCTAssertEqual(try Data(contentsOf: original), Data([2, 1])); XCTAssertEqual(try Data(contentsOf: newer), Data([6, 7]))
     }
-    @MainActor func testWhatGrewUnavailableArchiveRetriesWithoutLosingCurrentReview() async throws {
+    @MainActor func testWhatGrewUnavailableArchiveRetriesWithoutLosingCurrentReview() async throws { try await exerciseGrowthAvailability(minimum: true) }
+    @MainActor func testInitialWhatGrewUnavailableArchiveRetriesWithoutLosingCurrentReview() async throws { try await exerciseGrowthAvailability(minimum: false) }
+    @MainActor private func exerciseGrowthAvailability(minimum: Bool) async throws {
         continueAfterFailure = false
         let manager = FileManager.default, app = XCUIApplication(), state = try configureIsolatedJourneyState(app)
         let root = manager.temporaryDirectory.resolvingSymlinksInPath().appendingPathComponent("StillSelectionUI-" + UUID().uuidString)
         try manager.createDirectory(at: root, withIntermediateDirectories: false)
         let original = root.appendingPathComponent("Original.pdf"); try Data([8, 5]).write(to: original)
         var identity = stat(); XCTAssertEqual(lstat(root.path, &identity), 0)
-        app.launchArguments = ["--future-milestones", "--ui-test-downloads-root", "--design-minimum"]
+        app.launchArguments = ["--future-milestones", "--ui-test-downloads-root", minimum ? "--design-minimum" : "--design-initial-size"]
         app.launchEnvironment["STILL_TEST_DOWNLOADS_ROOT"] = root.path; app.launchEnvironment["STILL_TEST_DOWNLOADS_ID"] = "\(identity.st_dev):\(identity.st_ino)"
         let archive = state.appendingPathComponent("Growth/aggregates-v1.json"), backup = state.appendingPathComponent("Owned-archive-backup.json")
         try manager.createDirectory(at: archive, withIntermediateDirectories: true)
@@ -188,7 +198,7 @@ final class HistoryActivityUITests: XCTestCase {
         }
         for theme in ["Light", "Dark"] {
             app.popUpButtons["Appearance"].click(); app.menuItems[theme].click()
-            let image = XCTAttachment(screenshot: app.windows.firstMatch.screenshot()); image.name = "growth52-unsaved-current-findings-minimum-" + theme; image.lifetime = .keepAlways; add(image)
+            let image = XCTAttachment(screenshot: app.windows.firstMatch.screenshot()); image.name = "growth52-unsaved-current-findings-" + (minimum ? "minimum-" : "initial-") + theme; image.lifetime = .keepAlways; add(image)
         }
         review.click(); XCTAssertTrue(app.buttons["Back to What grew"].waitForExistence(timeout: 5)); XCTAssertFalse(app.buttons["Review cleanup"].isEnabled)
         app.buttons["Back to What grew"].click()
@@ -200,7 +210,9 @@ final class HistoryActivityUITests: XCTestCase {
         XCTAssertEqual(retainedSnapshots.count, 1); XCTAssertEqual(retainedActivities.count, 1)
         XCTAssertFalse(app.buttons["Stop scan"].exists); XCTAssertEqual(try Data(contentsOf: original), Data([8, 5]))
     }
-    @MainActor func testWhatGrewSharedScanOutcomesAndInspectionReturn() async throws {
+    @MainActor func testWhatGrewSharedScanOutcomesAndInspectionReturn() async throws { try await exerciseGrowthOutcomes(minimum: true) }
+    @MainActor func testInitialWhatGrewSharedScanOutcomesAndInspectionReturn() async throws { try await exerciseGrowthOutcomes(minimum: false) }
+    @MainActor private func exerciseGrowthOutcomes(minimum: Bool) async throws {
         continueAfterFailure = false
         let manager = FileManager.default, app = XCUIApplication(), state = try configureIsolatedJourneyState(app)
         let root = manager.temporaryDirectory.resolvingSymlinksInPath().appendingPathComponent("StillSelectionUI-" + UUID().uuidString)
@@ -210,20 +222,22 @@ final class HistoryActivityUITests: XCTestCase {
         var token = try await recorder.begin(scope: root); _ = try await recorder.complete(try await FolderScanner().scan(root), token: token)
         try Data([1, 2, 3, 4]).write(to: root.appendingPathComponent("Added.txt"))
         token = try await recorder.begin(scope: root); _ = try await recorder.complete(try await FolderScanner().scan(root), token: token)
-        _ = try ScopeRegistry(directory: state.appendingPathComponent("Scopes")).remember(url: root, kind: .inspection)
         for index in 0..<600 { try Data([9]).write(to: root.appendingPathComponent("Slow-" + String(index) + ".txt")) }
         var identity = stat(); XCTAssertEqual(lstat(root.path, &identity), 0)
-        app.launchArguments = ["--future-milestones", "--ui-test-slow-refresh", "--design-minimum"]
+        app.launchArguments = ["--future-milestones", "--ui-test-slow-refresh", minimum ? "--design-minimum" : "--design-initial-size"]
         app.launchEnvironment["STILL_TEST_DOWNLOADS_ROOT"] = root.path; app.launchEnvironment["STILL_TEST_DOWNLOADS_ID"] = "\(identity.st_dev):\(identity.st_ino)"
         defer { app.terminate(); try? manager.removeItem(at: state); try? manager.removeItem(at: root) }
-        app.launch(); app.typeKey("6", modifierFlags: .command)
+        app.launch(); app.typeKey("4", modifierFlags: .command)
+        XCTAssertTrue(app.buttons["Add folder…"].waitForExistence(timeout: 10)); app.buttons["Add folder…"].click()
+        app.typeKey("g", modifierFlags: [.command, .shift]); XCTAssertTrue(app.textFields.firstMatch.waitForExistence(timeout: 5)); app.textFields.firstMatch.typeText(root.path)
+        app.typeKey(.return, modifierFlags: []); app.dialogs.buttons["Remember folder"].click(); app.typeKey("6", modifierFlags: .command)
         XCTAssertTrue(app.buttons["Scan again to compare"].waitForExistence(timeout: 10)); app.buttons["Scan again to compare"].click()
         XCTAssertTrue(app.buttons["Stop scan"].firstMatch.waitForExistence(timeout: 5)); XCTAssertFalse(app.dialogs.firstMatch.exists)
         app.typeKey("4", modifierFlags: .command); XCTAssertFalse(app.buttons["Scan selected locations"].isEnabled)
         XCTAssertTrue(app.buttons["Return to scan"].exists); app.buttons["Return to scan"].click()
         let bounds = app.windows.firstMatch.frame
         func capture(_ state: String) {
-            let image = XCTAttachment(screenshot: app.windows.firstMatch.screenshot()); image.name = "growth52-outcomes-minimum-" + state; image.lifetime = .keepAlways; add(image)
+            let image = XCTAttachment(screenshot: app.windows.firstMatch.screenshot()); image.name = "growth52-outcomes-" + (minimum ? "minimum-" : "initial-") + state; image.lifetime = .keepAlways; add(image)
             XCTAssertEqual(app.windows.firstMatch.frame, bounds)
         }
         capture("progress"); app.buttons["Stop scan"].firstMatch.click()
