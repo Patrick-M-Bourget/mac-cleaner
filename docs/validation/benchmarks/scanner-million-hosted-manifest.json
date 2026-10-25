@@ -1,0 +1,37 @@
+{
+  "provenance": "Original unaltered hosted benchmark reports and environment metadata. Fixture creation and scan occur in one measured process; no personal files scanned.",
+  "files": [
+    {
+      "file": "scanner-million-hosted-before-pool.json",
+      "sourceCommit": "6e5cbdb6d0c90b4108bb5b50f5b53a05085ae706",
+      "runURL": "https://github.com/Patrick-M-Bourget/mac-cleaner/actions/runs/39997624851",
+      "artifactName": "owned-scanner-benchmark",
+      "originalFileName": "million.json",
+      "sha256": "b8e7b05399c94ee26cdf6b2d4b855961a35e8ea01e2a1232a1baf1a455969210"
+    },
+    {
+      "file": "scanner-million-hosted-before-pool-environment.json",
+      "sourceCommit": "6e5cbdb6d0c90b4108bb5b50f5b53a05085ae706",
+      "runURL": "https://github.com/Patrick-M-Bourget/mac-cleaner/actions/runs/39997624851",
+      "artifactName": "owned-scanner-benchmark",
+      "originalFileName": "environment.json",
+      "sha256": "c8cc226190500b91bdc90515f8064c631847b3a46c3ebf24585815aa2c329278"
+    },
+    {
+      "file": "scanner-million-hosted-final.json",
+      "sourceCommit": "db70c50c2565312b42fe065283a530139b9baad1",
+      "runURL": "https://github.com/Patrick-M-Bourget/mac-cleaner/actions/runs/39998429826",
+      "artifactName": "owned-scanner-benchmark",
+      "originalFileName": "million.json",
+      "sha256": "08f123b297157fb21a641a5f1a87f43ab270770ca6f8827a832bb7b46bdd3b6e"
+    },
+    {
+      "file": "scanner-million-hosted-final-environment.json",
+      "sourceCommit": "db70c50c2565312b42fe065283a530139b9baad1",
+      "runURL": "https://github.com/Patrick-M-Bourget/mac-cleaner/actions/runs/39998429826",
+      "artifactName": "owned-scanner-benchmark",
+      "originalFileName": "environment.json",
+      "sha256": "f299a0ec9aeaa48f8ed7bdfc4e492d1f8ebacc62dfe3c24be2c863c21cb33c0a"
+    }
+  ]
+}

@@ -1,0 +1,57 @@
+# Completed history, retention and reset — #13
+
+History reads public durable journal records, not the live selection or cached startup recovery snapshot. A run appears as completed only when every target has a recorded succeeded/failed/skipped/cancelled outcome. Any pending/intent/unknown target protects the entire run, including its known outcomes, from Clear and normal retention. This conservative grouping preserves recovery context.
+
+## Storage and authority
+
+`SQLiteCleanupJournal.completedHistory()` separates run summaries and protected records. `clearCompletedRuns(requireNoRecovery:)` reads records inside the same immediate transaction as deletion. Reset sets the process-wide maintenance gate, defers Quit/window-only termination until maintenance ends, rejects active execution, and calls this fresh durable guard before changing preferences. Corrupt/unreadable storage fails closed. The startup presentation snapshot cannot authorize reset. History never reconstructs a selection, executes a recorded approval, or retries a file.
+
+Clear removes completed per-target payloads and aggregate growth baselines. Reset additionally uses Growth's separate `resetHistory()` first-baseline hook, forgets in-memory scope/selection observations, clears known login/alert preferences and stops registrations/checks. Only known app-owned regular files are removed; arbitrary directory contents, originals, Trash contents and macOS notification/folder grants are untouched. Opaque consumed approval UUIDs remain after clear/reset so a previously consumed approval cannot replay. Interrupted records and those replay markers are exempt from completed-payload retention.
+
+Completed payloads expire after 90 days and are evicted oldest first to a 250,000,000-byte encoded-payload budget when History opens while idle. Legacy records without an outcome timestamp use the approval timestamp and say so. The 30-baseline growth cap belongs to the separate aggregate store. Replay/recovery data may exceed the completed-payload budget; the app does not erase safety evidence to promise a total physical cap.
+
+## Measurements and compaction
+
+History distinguishes planned logical bytes, planned allocation associated with recorded successful Trash moves, and independently sampled startup-volume capacity changes. Resource IDs deduplicate estimates. Unknown allocation or absent/invalid/mismatched capacity samples remain Unknown. Capacity observations require matching volume identity, metric, total, ordered timestamps and valid bounds; changes may be negative and are not attributed solely to cleanup. Older runs without saved capacity measurements remain Unknown. Recorded resulting paths are unverified historical locations, revealed only by explicit user action.
+
+Deletion alone need not reduce a SQLite file. Explicit supported checkpoint/VACUUM/checkpoint maintenance measures database plus WAL sizes before/after. It declines databases above 1 GB, insufficient free headroom (twice stored bytes plus 64 MB reserve), or a nonpositive time budget. SQLite's progress handler interrupts VM work after at most five seconds (default two), with a 100 ms busy timeout. This bounds SQLite work cooperatively; blocked kernel I/O has no hard deadline guarantee. Failure/deferral is a partial maintenance result, never a disk-reclamation claim. Facts and consumed IDs remain intact.
+
+Primary API semantics: [SQLite VACUUM](https://www.sqlite.org/lang_vacuum.html), [progress handler](https://www.sqlite.org/c3ref/progress_handler.html). VACUUM runs outside a transaction; it may need twice the original database size in free space. The app does not implement a custom database-file rewrite.
+
+## Validation
+
+Public-store tests use disposable files and reopened SQLite connections. They cover whole interrupted-run retention, fresh second-connection reset blocking, active-operation rejection, 90-day and byte eviction, measured physical compaction, compaction deferral, persisted independent negative capacity change, original-file preservation and approval replay rejection after payload removal. Native tests use the DEBUG identity-bound `StillTestState-*` root; invalid bindings never fall back to personal state. Reset in that namespace skips real login/notification service changes.
+
+Merged validation: **100 core tests passed** (including five public history tests). One disposable large-payload measurement reported database+WAL lengths of 1,190,688 bytes before clear, 1,207,168 before VACUUM and 20,480 after. This proves journal-file shrink in that fixture, not an exclusive APFS or startup-volume available-capacity gain. The merged Debug app/test build and Release app build passed with normal ad-hoc signing (`CODE_SIGN_IDENTITY=-`). These local artifacts are not signed/notarized release qualification.
+
+Historical local native validation was **partial, not accepted**. The initial/minimum journeys reached empty history, relaunch with one completed disposable run, both theme switches and the native clear confirmation. Both then failed because the new test queried an unscoped Cancel button and matched both the Touch Bar and sheet; the test now scopes confirmation actions to the sheet, following #38. That local attempt did not pass the final clear/reset/restart assertions. The corrected sheet-scoped tests subsequently passed on hosted CI as documented below.
+
+An earlier unsigned UI runner never entered tests. A fresh normally ad-hoc-signed build entered the product successfully. One partial History attachment visibly contained an alert saying “StillUITests-Runner” was damaged; its owning process was not established, and one exact-warning-targeted XCTest attempt found no matching CoreServicesUIAgent window and performed no UI action. Later diagnostics (#32) captures show a different obstruction, the “Enable ChatGPT Computer Use” onboarding window; that later overlay is not evidence of a Gatekeeper block. Neither set of obstructed captures qualifies the product visually. No Gatekeeper, quarantine, permission or process-wide security setting was changed. Further warning diagnosis was stopped. Clean hosted CI below now supplies complete History journey results and unobscured populated/blocked-reset/clear-confirmation captures. Dedicated empty and expanded per-file visual states remain uncaptured; do not infer their visual qualification from assertions or the combined blocked/empty state. Real signed login unregistration, live alert removal, OS permission preservation, VoiceOver and power-loss behavior remain manual release gates. No automated test changes personal login settings, notification grants or default app data.
+
+
+## Clean hosted native evidence at 38a593e
+
+Both [run 39901477511](https://github.com/Patrick-M-Bourget/mac-cleaner/actions/runs/39901477511) and [run 39901474557](https://github.com/Patrick-M-Bourget/mac-cleaner/actions/runs/39901474557) completed the native workspace suite successfully at commit `38a593e5c7eadae32b99e1538fafc87e18ac766d`. The downloaded `native-test-results` artifact from run 39901477511 reports **30 native tests passed, zero failed/skipped**, on an arm64 Apple Virtual Machine running macOS 26.6.2. This is clean hosted evidence separate from the obstructed local attempts above.
+
+Both HistoryUITests journeys passed: initial display-clamped **1024×677**, and minimum **900×640**. Assertions cover empty/relaunch/populated history; Cancel retaining completed records; Clear removing completed records; Reset freshly detecting pending evidence inserted after the view loaded; the recovery route; allowed reset after a known cancelled fixture outcome; subsequent restart; consumed-approval replay prevention; and unchanged owned originals/unrelated sentinel. Journal fixtures are synthetic recorded outcomes, not evidence of real file moves or real login/notification service changes.
+
+The 10 unaltered window attachments are [indexed with source test, run, commit, dimensions and SHA-256](../visual/history/manifest.json). Root reviewed all 10; a second agent viewed representative populated, blocked-reset and confirmation frames. The retained states are:
+
+| State | Initial | Minimum |
+|---|---|---|
+| Populated, Light | [capture](../visual/history/history-populated-initial-Light.png) | [capture](../visual/history/history-populated-minimum-Light.png) |
+| Populated, Dark | [capture](../visual/history/history-populated-initial-Dark.png) | [capture](../visual/history/history-populated-minimum-Dark.png) |
+| Blocked Reset, Light | [capture](../visual/history/history-reset-blocked-initial-Light.png) | [capture](../visual/history/history-reset-blocked-minimum-Light.png) |
+| Blocked Reset, Dark | [capture](../visual/history/history-reset-blocked-initial-Dark.png) | [capture](../visual/history/history-reset-blocked-minimum-Dark.png) |
+| Clear confirmation, Dark | [capture](../visual/history/history-clear-confirmation-initial-Dark.png) | [capture](../visual/history/history-clear-confirmation-minimum-Dark.png) |
+
+The reviewed frames are unobscured and legible, retain the white Light sidebar, wrap consequences/recovery text, keep Clear/Reset or native confirmation controls visible, and show stable bounds at both sizes. **No dedicated empty-only or expanded per-file capture exists; no Light clear-confirmation capture exists.** Empty behavior is asserted, not independently visually qualified. VoiceOver, real OS preferences/grants, signed service registration, power loss and later source revisions are not certified by these images. Subsequent maintenance/growth fixes have their own core/build evidence below and in [growth comparisons](growth-comparisons.md); these older captures must not be labeled as screenshots of those later commits.
+
+
+## Follow-up maintenance/reset race corrections
+
+Automatic load retention/compaction now acquires the shared lifecycle maintenance lease before dispatching work and releases it with defer after the awaited job, including failure. An active cleanup or existing maintenance lease takes the read-only path without clearing another owner’s lease. The same lifecycle flag prevents starting an approved cleanup and defers Quit until maintenance reaches its safe boundary.
+
+A public delivery-generation boundary now distinguishes current/stale success and current/stale failure. Reset invalidates it before clearing alert state. A failed pre-reset notification submission can no longer persist a reset policy or replace the Off status; stale accepted requests retain the existing explicit pending-request cleanup. Controlled service completions establish this policy without actual notification permission/delivery. Native OS integration remains a manual gate.
+
+Follow-up checks: **105 core tests and 17 alert/lifecycle tests passed**; native Debug build-for-testing and Release compilation passed (Release signing disabled, no distribution claim). The public suspended-history operation first failed cleanup-block/Quit-release assertions against the prior unleased behavior, then passed with the shared lease. Error release and active/other-maintenance read-only cases also pass. The controlled delayed notification failure first changed the simulated status/persistence sink after invalidation, then passed with no stale update; current success/failure and stale success remain distinct. These are public policy/service-boundary checks, not a real OS notification/reset qualification. No extra UI run or permission change was performed for these nonvisual corrections.

@@ -1,0 +1,1 @@
+Actual Clear red run40134336734 atc87b743. Original900×640 Dark confirmation individually reviewed: old Clear completed runs omits scan activity. Intendedline284 failure20.586s. Unmodified full export manifest preserved with explicitPNG only; complete rawresult/export outsideGit artifacts/history51-clear-red and history51-clear-red-export.

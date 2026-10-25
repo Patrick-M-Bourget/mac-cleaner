@@ -1,0 +1,26 @@
+[
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "f2efcb67062ab49b845fe1b468cae2b141407667",
+        "deviceName" : "My Mac",
+        "exportedFileName" : "AF5E1046-A5C2-409C-B2F3-E48259104735.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "shell-selected-category-minimum-Dark_0_E1548EE6-7C2D-4988-849B-702AF7A005A9.png",
+        "timestamp" : 1792842119.051
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "f2efcb67062ab49b845fe1b468cae2b141407667",
+        "deviceName" : "My Mac",
+        "exportedFileName" : "C9133176-52C1-40DE-96A9-25836A8FDA95.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "shell-selected-category-minimum-Light_0_E196C757-7B97-4DB4-B03F-44385E4441A0.png",
+        "timestamp" : 1792842113.748
+      }
+    ],
+    "testIdentifier" : "ShellAppearanceUITests/testSelectedCategoryBadgeAndDestinationContextPreserveChoices()",
+    "testIdentifierURL" : "test://com.apple.xcode/Still/StillUITests/ShellAppearanceUITests/testSelectedCategoryBadgeAndDestinationContextPreserveChoices"
+  }
+]

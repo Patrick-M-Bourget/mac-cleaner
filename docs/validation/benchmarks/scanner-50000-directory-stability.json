@@ -1,0 +1,36 @@
+{
+  "availableBeforeBytes" : 4725972992,
+  "cancellationStopped" : true,
+  "cancelRequestToWorkerStopUpperBoundSeconds" : 0.00048058328684419394,
+  "completeCoverage" : true,
+  "fixtureCleanup" : "owned root removed on process exit",
+  "fixtureCreated" : true,
+  "fixtureCreationSeconds" : 2.6755557083524764,
+  "hostOS" : "Version 27.0.1 (Build 26A434)",
+  "issues" : [
+
+  ],
+  "memoryAfterScan" : {
+    "processPeakResidentBytes" : 113901568,
+    "residentBytes" : 113901568
+  },
+  "memoryBeforeScan" : {
+    "processPeakResidentBytes" : 38486016,
+    "residentBytes" : 38486016
+  },
+  "observations" : 50050,
+  "physicalMemoryBytes" : 17179869184,
+  "preflightReservationBytes" : 1892941824,
+  "processorCount" : 8,
+  "progress" : {
+    "firstUsefulProgressSeconds" : 0.0014597499975934625,
+    "largestBatch" : 256,
+    "progressEvents" : 71
+  },
+  "reference512GBHost" : false,
+  "requestedFiles" : 50000,
+  "scannerRetainedEntryLimit" : 100000,
+  "scanSeconds" : 7.5013890833361074,
+  "status" : "completed-owned-fixture-benchmark",
+  "volumeCapacityBytes" : 245107195904
+}

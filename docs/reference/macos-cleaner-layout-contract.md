@@ -56,3 +56,7 @@ Overview recommendations open the relevant item review. The item inspector offer
 Item review loads a scoped draft from the current plan. “Add selected items to cleanup plan” applies the reviewed scope and opens Cleanup plan; “Update cleanup plan” permits clearing an existing scoped selection. Preserve other categories and deduplicate target IDs. Leaving via Back does not apply an unsubmitted draft. Reopening review loads the committed plan. Browser-profile review follows the same contract. Inline category refinement edits the plan directly. Only “Review cleanup” opens the final confirmation; no review entry executes cleanup.
 
 Keep a single context-labelled Back action, stable window bounds and destination scroll restoration. Selecting or inspecting an item must never navigate. Initial startup must not populate hidden selections.
+
+## Native fixed-action hit testing
+
+An interactive native `ActionStrip` is a fixed sibling below its `ScrollView` in a zero-spacing `VStack`. Keep content scrolling above it and preserve existing shell bounds. Do not put this strip in `ScrollView.safeAreaInset`: hosted macOS 26.6 evidence showed correctly drawn, enabled, in-bounds controls that failed accessibility hit-testing in that composition. The equivalent sibling layout passed the original Save action. Validate enabled/hittable buttons and the resulting action at initial/minimum bounds and both themes, rather than accepting visible geometry alone. [Diagnosis and qualification](../validation/footer-reachability.md).

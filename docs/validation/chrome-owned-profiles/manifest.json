@@ -1,0 +1,9 @@
+{
+  "sourceCommit": "169a255e8b8c01738335e5b5d29c607cebfe53d8",
+  "runURL": "https://github.com/Patrick-M-Bourget/mac-cleaner/actions/runs/40004053915",
+  "artifact": "genuine-chrome-fixture-evidence",
+  "files": {
+    "provision.json": "64475fe75d0b4ad14a2b54b1bf2880a8e62d97142b484c8d959533fa88cea8b8",
+    "report.json": "a0d8849cc5c183a7e90cc736878055f6d536eff26795d7f0e443745d9e0c8b4e"
+  }
+}

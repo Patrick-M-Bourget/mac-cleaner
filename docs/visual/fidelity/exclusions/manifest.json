@@ -1,0 +1,121 @@
+{
+  "sourceCommit": "524f878f25f55fd861c0d125e76e99c691ec0aae",
+  "runURL": "https://github.com/Patrick-M-Bourget/mac-cleaner/actions/runs/39963988565",
+  "artifactName": "native-test-results",
+  "artifact": {
+    "id": 12507030064,
+    "size_in_bytes": 1842117
+  },
+  "provenance": "Unaltered named original PNG attachments; no cropping or repainting.",
+  "review": "All12 final-source originals individually viewed: empty/preview/saved Light/Dark at1024x640 initial and900x640 minimum; no new clipped essential text or hidden fixed action observed. Exact owned paths/consequences wrap.",
+  "captures": [
+    {
+      "file": "exclusions-empty-initial-Dark.png",
+      "attachmentName": "exclusions-empty-initial-Dark_0_8F77C7C9-43F9-4E0C-90B9-7E20524F0B12.png",
+      "exportedFileName": "0A74EA86-7471-49F4-8B48-14453A2B2E6B.png",
+      "testIdentifier": "ExclusionsUITests/testExplicitExclusionPreviewSaveReopenScanAndRemove()",
+      "width": 1024,
+      "height": 640,
+      "sha256": "7791937ffb00c7253cbf4dab2ad9cfdc684561a315c3564c9a718a3618ce7762"
+    },
+    {
+      "file": "exclusions-empty-initial-Light.png",
+      "attachmentName": "exclusions-empty-initial-Light_0_33FCA0E2-7427-40DB-B3D2-DB65B5D43612.png",
+      "exportedFileName": "91BF534F-7CCC-4745-9F28-CB708B6F383A.png",
+      "testIdentifier": "ExclusionsUITests/testExplicitExclusionPreviewSaveReopenScanAndRemove()",
+      "width": 1024,
+      "height": 640,
+      "sha256": "6ac218f9d0b219ed3c5a966aa9339f2a22a1b16b7f717b5d41b9500efc1625e2"
+    },
+    {
+      "file": "exclusions-empty-minimum-Dark.png",
+      "attachmentName": "exclusions-empty-minimum-Dark_0_CA04A45A-5F0C-410D-9366-390F73BC37C9.png",
+      "exportedFileName": "16B12139-DF26-47D8-8C46-157B7BEB7271.png",
+      "testIdentifier": "ExclusionsUITests/testMinimumExclusionsKeepExplicitActionsReachable()",
+      "width": 900,
+      "height": 640,
+      "sha256": "f5f5f3b58434cf11faad77a47dede8a459d9047ae283495d95ddce95bf422c31"
+    },
+    {
+      "file": "exclusions-empty-minimum-Light.png",
+      "attachmentName": "exclusions-empty-minimum-Light_0_F2404282-D968-4E1B-ADF2-A582F9339CFE.png",
+      "exportedFileName": "AFB968B0-D492-47C3-935E-C82255D5A975.png",
+      "testIdentifier": "ExclusionsUITests/testMinimumExclusionsKeepExplicitActionsReachable()",
+      "width": 900,
+      "height": 640,
+      "sha256": "e5fc126cf45d411dd7cf796ce73b45895f8bc7f9615035767781390081f48a1d"
+    },
+    {
+      "file": "exclusions-preview-initial-Dark.png",
+      "attachmentName": "exclusions-preview-initial-Dark_0_BD4E44FF-8DF5-454D-832B-74F83FE7DAD5.png",
+      "exportedFileName": "3A7DB0E9-521D-45DB-ABEB-57935109C800.png",
+      "testIdentifier": "ExclusionsUITests/testExplicitExclusionPreviewSaveReopenScanAndRemove()",
+      "width": 1024,
+      "height": 640,
+      "sha256": "0ce9722ea3af09324eb8964f6fe393543551041a546fd3baf5e06ce8693f1da5"
+    },
+    {
+      "file": "exclusions-preview-initial-Light.png",
+      "attachmentName": "exclusions-preview-initial-Light_0_62D4392B-1EC1-4480-8C32-0A1C48689CE2.png",
+      "exportedFileName": "6934D0E6-74A9-4045-9E8C-9BD46CD86B64.png",
+      "testIdentifier": "ExclusionsUITests/testExplicitExclusionPreviewSaveReopenScanAndRemove()",
+      "width": 1024,
+      "height": 640,
+      "sha256": "eccfc18a547be40d9bb3df3c2884804355c5334873a03b281c9839d77b500b99"
+    },
+    {
+      "file": "exclusions-preview-minimum-Dark.png",
+      "attachmentName": "exclusions-preview-minimum-Dark_0_67810812-9F86-4538-AF4F-EDF01F332A49.png",
+      "exportedFileName": "C187B6D8-47BF-4672-9613-2A10D3B303D5.png",
+      "testIdentifier": "ExclusionsUITests/testMinimumExclusionsKeepExplicitActionsReachable()",
+      "width": 900,
+      "height": 640,
+      "sha256": "c0e0ec96f664ce94e79a68cf63743d66d1faea0a1acdf707aaa76d6ddba4e815"
+    },
+    {
+      "file": "exclusions-preview-minimum-Light.png",
+      "attachmentName": "exclusions-preview-minimum-Light_0_6C18C55F-8214-4F33-A611-8C1A6C61DF58.png",
+      "exportedFileName": "87AFD69A-7FE2-4BBD-8107-996CB4E97418.png",
+      "testIdentifier": "ExclusionsUITests/testMinimumExclusionsKeepExplicitActionsReachable()",
+      "width": 900,
+      "height": 640,
+      "sha256": "96e3dd16b86c6560e741a3efa57e68d5b3dc9f51da91189091f1632f249b79eb"
+    },
+    {
+      "file": "exclusions-saved-initial-Dark.png",
+      "attachmentName": "exclusions-saved-initial-Dark_0_6AC8FF11-B5F5-40C7-B171-6A251B130FFA.png",
+      "exportedFileName": "7E500004-D9B2-4C5D-8C66-224453EF3DC5.png",
+      "testIdentifier": "ExclusionsUITests/testExplicitExclusionPreviewSaveReopenScanAndRemove()",
+      "width": 1024,
+      "height": 640,
+      "sha256": "7980ac4d382981d7ead833f5d0e2664321ba5faaa95198cf69abac32b4b39995"
+    },
+    {
+      "file": "exclusions-saved-initial-Light.png",
+      "attachmentName": "exclusions-saved-initial-Light_0_BD798DF5-4C63-4A62-B1B0-E45BB28343FA.png",
+      "exportedFileName": "316FACDD-419E-4EDE-A6D9-A2D7DB942D1D.png",
+      "testIdentifier": "ExclusionsUITests/testExplicitExclusionPreviewSaveReopenScanAndRemove()",
+      "width": 1024,
+      "height": 640,
+      "sha256": "4365b0718044ed678b23d6a375f775aa251bdfc1efdf722098dd52bf0da134a1"
+    },
+    {
+      "file": "exclusions-saved-minimum-Dark.png",
+      "attachmentName": "exclusions-saved-minimum-Dark_0_DBE4F564-D905-4A89-831E-4E30A57598CC.png",
+      "exportedFileName": "9F94A986-9F42-4357-9C64-E3654FCC8ECE.png",
+      "testIdentifier": "ExclusionsUITests/testMinimumExclusionsKeepExplicitActionsReachable()",
+      "width": 900,
+      "height": 640,
+      "sha256": "aba7516976e958df95677de2b7904cc5de492d1f52f855fa0030a3d64d891128"
+    },
+    {
+      "file": "exclusions-saved-minimum-Light.png",
+      "attachmentName": "exclusions-saved-minimum-Light_0_C619CC58-CE36-4B28-9F6E-ECA32EC1984F.png",
+      "exportedFileName": "A720E100-2EFE-4ED8-A71E-083A3DC8D99E.png",
+      "testIdentifier": "ExclusionsUITests/testMinimumExclusionsKeepExplicitActionsReachable()",
+      "width": 900,
+      "height": 640,
+      "sha256": "116db8d3823f346ef811010e2a60c13591148bf4fa3d1baa1b3b6a7852b69c4d"
+    }
+  ]
+}

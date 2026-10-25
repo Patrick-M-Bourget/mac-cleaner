@@ -1,14 +1,14 @@
 # Still — repository handoff
 
-Revision 0.9 · October 22, 2026 · Ready for repository setup and native-shell development.
+Approved product contract revision 0.9 · October 22, 2026. Prototype parity checkpoint · October 23, 2026.
 
-Still is a working name. No native implementation exists yet. This bundle records the accepted product direction; it does not certify native filesystem integrations.
+Still is a working name. Native implementation is underway; see [development and validation instructions](DEVELOPMENT.md) for current capabilities and remaining gates. This bundle records the accepted product direction; it does not certify every native filesystem integration.
 
 ## Read in this order
 
 1. [Implementation spec](SPEC.md): scope, architecture, safety boundaries and build sequence.
-2. [Design handoff](DESIGN-HANDOFF.md): screens, interactions, components and acceptance criteria.
-3. [Milestones and full-feature preservation](MILESTONES.md).
+2. [Design handoff](DESIGN-HANDOFF.md): screens, interactions, components and acceptance criteria; [native design system](DESIGN-SYSTEM.md): mandatory shared components and UI change process.
+3. [Milestones and full-feature preservation](MILESTONES.md), including deferred [M8 commercialization](COMMERCIALIZATION.md).
 4. [Detailed technical specification](reference/macos-cleaner-technical-spec.md): execution, permissions, alerts and platform feasibility.
 5. [UI state matrix](reference/macos-cleaner-ui-state-matrix.md) and [layout contract](reference/macos-cleaner-layout-contract.md): required exceptional states and geometry checks.
 
@@ -16,9 +16,13 @@ Supporting context: [PRD](reference/macos-cleaner-prd.md), [flow audit](referenc
 
 ## Authority and change policy
 
+**Current checkpoint:** [prototype-to-implementation parity audit](PROTOTYPE-PARITY.md), October 23. The audit is complete; the connected [flow lock](FLOW-LOCK.md) is user-confirmed under #45. Flow/presentation/delivery decisions Q1–Q30 are confirmed; [annotated visual proposal](CONNECTED-FLOW-DESIGN-REVIEW.md) is now user-approved; connected Downloads-first implementation may proceed. Review the parity ledger before further building; existing validation reports certify their stated boundaries, not the entire prototype experience.
+
 SPEC.md and DESIGN-HANDOFF.md are the consolidated entry points. Detailed reference documents supply requirements where these are abbreviated. Revision 0.9 shared live-selection rules and milestone scope supersede earlier flows. Reference documents are historical detailed feature records; do not implement their conflicting draft, rescan or plan-persistence behavior. Historical research and prototype behavior are not requirements when they contradict these contracts. Resolve any remaining conflict explicitly before implementation rather than copying inconsistent behavior.
 
 Update the relevant spec, design contract, state tests and visual reference together whenever behavior changes. Keep proposed features separate from accepted scope. Do not copy simulation labels, sample storage values or the prototype scenario picker into production.
+
+Latest qualified slice: [History activity #51](HISTORY-ACTIVITY.md), app source `f062ca6`, with [source/native evidence](validation/history-activity.md). The active parity ledger and handoff include combined terminal scan/cleanup history. #52 is now user-locked under [WHAT-GREW](WHAT-GREW.md) and being implemented separately; #54 still requires its own decisions. Future milestones and M8 deferral remain preserved.
 
 ## Suggested repository layout
 
@@ -46,7 +50,7 @@ This is a starting structure, not a mandate to create a package for each type. K
 
 ## Validation boundary
 
-The native implementation has not started. Visual references and fixture interactions cannot certify native filesystem, persistence or permission behavior. [Visual review notes](visual/README.md) record exactly what has been exercised. Native implementation must pass SPEC.md and milestone-specific acceptance before capabilities ship.
+Native implementation and disposable-fixture validation are recorded in [DEVELOPMENT.md](DEVELOPMENT.md). Visual references and fixture interactions cannot certify native filesystem, persistence or permission behavior. [Visual review notes](visual/README.md) record exactly what has been exercised. Native implementation must pass SPEC.md and milestone-specific acceptance before capabilities ship.
 
 ## Approved decisions
 

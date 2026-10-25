@@ -1,0 +1,149 @@
+{
+  "schemaVersion": 1,
+  "repository": "Patrick-M-Bourget/mac-cleaner",
+  "sourceCommit": "0e8a1430ab1ae8077078ab4a0ac340745ff2708e",
+  "workflow": "Native Mac workspace",
+  "sourceArtifact": {
+    "id": 12479309198,
+    "name": "native-test-results",
+    "sizeBytes": 12895222
+  },
+  "artifactRun": {
+    "id": 39902296790,
+    "url": "https://github.com/Patrick-M-Bourget/mac-cleaner/actions/runs/39902296790",
+    "conclusion": "success",
+    "nativeTestsPassed": 32,
+    "nativeTestsFailed": 0,
+    "nativeTestsSkipped": 0
+  },
+  "confirmingRun": {
+    "id": 39902293448,
+    "url": "https://github.com/Patrick-M-Bourget/mac-cleaner/actions/runs/39902293448",
+    "conclusion": "success"
+  },
+  "host": {
+    "model": "Apple Virtual Machine 1",
+    "architecture": "arm64",
+    "macOS": "26.6.2",
+    "osBuild": "25G83"
+  },
+  "review": {
+    "unalteredXCTestWindowAttachments": true,
+    "reviewedStates": "All eight images were viewed individually. Header and scrolled-payload states are unobscured, with legible included/excluded fields and fixed reachable Back/Save in both themes and sizes. Actual image dimensions are display-clamped 1024\u00d7674 and minimum 900\u00d7640.",
+    "notQualified": [
+      "native Save panel appearance",
+      "post-Cancel status visual state",
+      "saved/write-failure visual states",
+      "VoiceOver",
+      "localization",
+      "real OS preferences or grants",
+      "later source revisions"
+    ]
+  },
+  "captures": [
+    {
+      "file": "diagnostics-initial-Dark.png",
+      "state": "review header and fields",
+      "appearance": "Dark",
+      "sizeMode": "initial",
+      "imageWidthPixels": 1024,
+      "imageHeightPixels": 674,
+      "sha256": "f310ddba5392e912b05d42cca49516d8dbc4d146b6a6abeecda9ef4fd0ae0141",
+      "sourceAttachment": "6FEA0FFC-8A09-42B2-9182-3D67493AA3A9.png",
+      "sourceSuggestedName": "diagnostics-initial-Dark_0_45ACA612-9D6B-4B74-B269-2ACFC0932793.png",
+      "testIdentifier": "DiagnosticsUITests/testReviewedDiagnosticsCancelKeepsPayloadAndRecovery()",
+      "attachmentTimestamp": 1792731379.31
+    },
+    {
+      "file": "diagnostics-initial-Light.png",
+      "state": "review header and fields",
+      "appearance": "Light",
+      "sizeMode": "initial",
+      "imageWidthPixels": 1024,
+      "imageHeightPixels": 674,
+      "sha256": "699ea9416c0bd89bf8efdfd06f00983eb8a77b105d0ccb659aa93377dd61e669",
+      "sourceAttachment": "195F238D-0D03-4E73-90C5-AF71A660B04A.png",
+      "sourceSuggestedName": "diagnostics-initial-Light_0_272270C2-B389-46FA-AE68-74E1B8623F4B.png",
+      "testIdentifier": "DiagnosticsUITests/testReviewedDiagnosticsCancelKeepsPayloadAndRecovery()",
+      "attachmentTimestamp": 1792731374.198
+    },
+    {
+      "file": "diagnostics-minimum-Dark.png",
+      "state": "review header and fields",
+      "appearance": "Dark",
+      "sizeMode": "minimum",
+      "imageWidthPixels": 900,
+      "imageHeightPixels": 640,
+      "sha256": "3cb648dea2d23ce22c59f5aaf6e86e8c77a465e853c850a74c7ba42276ca353b",
+      "sourceAttachment": "18B79905-7CE0-4A87-9D0D-6803170487F5.png",
+      "sourceSuggestedName": "diagnostics-minimum-Dark_0_EC1F99B9-C1A5-4B85-A9E5-859F8FFAB33C.png",
+      "testIdentifier": "DiagnosticsUITests/testMinimumDiagnosticsKeepsSaveAndPayloadReachable()",
+      "attachmentTimestamp": 1792731344.596
+    },
+    {
+      "file": "diagnostics-minimum-Light.png",
+      "state": "review header and fields",
+      "appearance": "Light",
+      "sizeMode": "minimum",
+      "imageWidthPixels": 900,
+      "imageHeightPixels": 640,
+      "sha256": "069a4fea0324f9b59c68c3b7a177e0599e7b8b7c90ca97d851bf856782dcc308",
+      "sourceAttachment": "0EB7E391-B6DE-4505-98C8-DC6F8FB8B7D6.png",
+      "sourceSuggestedName": "diagnostics-minimum-Light_0_D7F8D84A-BF2E-450D-9CD6-B175EE1469AF.png",
+      "testIdentifier": "DiagnosticsUITests/testMinimumDiagnosticsKeepsSaveAndPayloadReachable()",
+      "attachmentTimestamp": 1792731339.169
+    },
+    {
+      "file": "diagnostics-payload-initial-Dark.png",
+      "state": "scrolled exact payload",
+      "appearance": "Dark",
+      "sizeMode": "initial",
+      "imageWidthPixels": 1024,
+      "imageHeightPixels": 674,
+      "sha256": "2413b9ea39aa6a0703ea703b0a1a68a61166bf35ad324ebe4eb1b7b32eb3be34",
+      "sourceAttachment": "9140E606-9905-4ACF-BBF8-B5918A4699E7.png",
+      "sourceSuggestedName": "diagnostics-payload-initial-Dark_0_399FAA85-6697-4262-9E1B-0620EA818DA3.png",
+      "testIdentifier": "DiagnosticsUITests/testReviewedDiagnosticsCancelKeepsPayloadAndRecovery()",
+      "attachmentTimestamp": 1792731380.215
+    },
+    {
+      "file": "diagnostics-payload-initial-Light.png",
+      "state": "scrolled exact payload",
+      "appearance": "Light",
+      "sizeMode": "initial",
+      "imageWidthPixels": 1024,
+      "imageHeightPixels": 674,
+      "sha256": "304e3e7ab6c7455ed8ad282a8f3f33334543c58e343f1c1bd12e8cf961241dc2",
+      "sourceAttachment": "34A4C1D8-A405-4A35-AD81-CE3915008003.png",
+      "sourceSuggestedName": "diagnostics-payload-initial-Light_0_DA7AECE2-E437-4F2D-8B16-E42B8426F13B.png",
+      "testIdentifier": "DiagnosticsUITests/testReviewedDiagnosticsCancelKeepsPayloadAndRecovery()",
+      "attachmentTimestamp": 1792731375.163
+    },
+    {
+      "file": "diagnostics-payload-minimum-Dark.png",
+      "state": "scrolled exact payload",
+      "appearance": "Dark",
+      "sizeMode": "minimum",
+      "imageWidthPixels": 900,
+      "imageHeightPixels": 640,
+      "sha256": "ab40c3495179d224a59ef646e05faa76e151bf84e8c3f814b400122f80db99e2",
+      "sourceAttachment": "F065899D-3BD8-4EAB-B577-6B622EB92188.png",
+      "sourceSuggestedName": "diagnostics-payload-minimum-Dark_0_664720A7-28D8-4BFC-866C-40C545E35788.png",
+      "testIdentifier": "DiagnosticsUITests/testMinimumDiagnosticsKeepsSaveAndPayloadReachable()",
+      "attachmentTimestamp": 1792731345.53
+    },
+    {
+      "file": "diagnostics-payload-minimum-Light.png",
+      "state": "scrolled exact payload",
+      "appearance": "Light",
+      "sizeMode": "minimum",
+      "imageWidthPixels": 900,
+      "imageHeightPixels": 640,
+      "sha256": "71f2642e08e5d411faecb3af6de1a51f13ed14af934c765c2c769ef829de6e6a",
+      "sourceAttachment": "57258472-65C2-4006-86C8-51D2B44C6F1F.png",
+      "sourceSuggestedName": "diagnostics-payload-minimum-Light_0_148C2601-52A7-4DA3-8E75-527E1C60694C.png",
+      "testIdentifier": "DiagnosticsUITests/testMinimumDiagnosticsKeepsSaveAndPayloadReachable()",
+      "attachmentTimestamp": 1792731340.303
+    }
+  ]
+}

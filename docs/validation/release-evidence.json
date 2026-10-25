@@ -1,0 +1,219 @@
+{
+  "schema": 2,
+  "status": "preparation-only-not-qualified",
+  "candidateBase": "61470ca2fe608a35a58611e69e12adb11f8b9294",
+  "observedAt": "2026-10-23",
+  "historicalPreparation": {
+    "notice": "Historical observation only. Its blockingEvidence list is superseded by current blockingEvidence below; identity availability was not re-queried.",
+    "schema": 1,
+    "status": "preparation-only-not-qualified",
+    "candidateBase": "5e849e8",
+    "observedAt": "2026-10-23",
+    "host": {
+      "macOS": "27.0.1",
+      "build": "26A434",
+      "architecture": "arm64",
+      "Xcode": "27.1",
+      "XcodeBuild": "27A9275",
+      "validSigningIdentityCount": 0
+    },
+    "releaseBuild": {
+      "configuration": "Release",
+      "codeSigningAllowed": false,
+      "result": "passed",
+      "runtimeExecuted": false
+    },
+    "artifactPreflight": {
+      "result": "rejected-as-expected",
+      "checks": [
+        {
+          "name": "version-identifiers",
+          "passed": false
+        },
+        {
+          "name": "no-debug-artifacts",
+          "passed": true
+        },
+        {
+          "name": "bundle",
+          "passed": true
+        },
+        {
+          "name": "developer-id",
+          "passed": false
+        },
+        {
+          "name": "hardened-runtime",
+          "passed": false
+        },
+        {
+          "name": "signature-integrity",
+          "passed": false
+        },
+        {
+          "name": "no-debug-runtime-exceptions",
+          "passed": true
+        },
+        {
+          "name": "privacy-purpose-declarations",
+          "passed": true
+        },
+        {
+          "name": "architecture-readable",
+          "passed": true
+        },
+        {
+          "name": "stapled-notary-ticket",
+          "passed": false
+        },
+        {
+          "name": "gatekeeper-assessment",
+          "passed": false
+        }
+      ],
+      "releaseQualified": false
+    },
+    "supportClaims": [],
+    "blockingEvidence": [
+      "#14 personal usefulness and explicitly reviewed cleanup",
+      "#34 full performance qualification",
+      "#13 completed history/reset gate before inclusion",
+      "minimum OS and Intel runtime coverage absent",
+      "VoiceOver/localization/preferences/display manual qualification absent",
+      "valid Developer ID identity/notarization/clean-machine installation absent",
+      "release marketing/build versions unassigned",
+      "unsandboxed Application Support required-reason eligibility unresolved"
+    ]
+  },
+  "currentArtifactPreflight": {
+    "artifactBuildSource": "169a255e8b8c01738335e5b5d29c607cebfe53d8",
+    "checkedFromIntegration": "61470ca2fe608a35a58611e69e12adb11f8b9294",
+    "capturedAt": "2026-10-23T18:58:46.302846+00:00",
+    "artifact": {
+      "version": null,
+      "build": null,
+      "minimumOS": "14.0",
+      "architectures": "x86_64 arm64",
+      "executableSHA256": "b0715f7b3ee570ad323fb2f43ab72c5f42283a410b305fe27440329736241e0d"
+    },
+    "result": "rejected-as-expected",
+    "checks": [
+      {
+        "name": "version-identifiers",
+        "passed": false
+      },
+      {
+        "name": "no-debug-artifacts",
+        "passed": true
+      },
+      {
+        "name": "bundle",
+        "passed": true
+      },
+      {
+        "name": "developer-id",
+        "passed": false
+      },
+      {
+        "name": "hardened-runtime",
+        "passed": true
+      },
+      {
+        "name": "signature-integrity",
+        "passed": true
+      },
+      {
+        "name": "no-debug-runtime-exceptions",
+        "passed": true
+      },
+      {
+        "name": "privacy-purpose-declarations",
+        "passed": true
+      },
+      {
+        "name": "architecture-readable",
+        "passed": true
+      },
+      {
+        "name": "stapled-notary-ticket",
+        "passed": false
+      },
+      {
+        "name": "gatekeeper-assessment",
+        "passed": false
+      }
+    ],
+    "releaseQualified": false,
+    "limits": [
+      "Ad-hoc Release development artifact, not Developer ID distribution",
+      "Architecture listing does not prove Intel runtime support",
+      "No app launch or signing-identity query during this recheck"
+    ]
+  },
+  "unsignedArchive": {
+    "sourceBase": "61470ca2fe608a35a58611e69e12adb11f8b9294",
+    "schemeSHA256": "683eb90569dbde75f8ee43ab5a9a03b6f9d085e5d5e4889c04afc273270f4126",
+    "command": "DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild -project Still/Still.xcodeproj -scheme Still -destination generic/platform=macOS -derivedDataPath <owned-build-path> -archivePath <owned-archive-path>/Still-61470ca-unsigned.xcarchive CODE_SIGNING_ALLOWED=NO archive",
+    "configuration": "Release (shared scheme ArchiveAction; no command-line configuration override)",
+    "result": "ARCHIVE SUCCEEDED",
+    "archiveVersion": 2,
+    "applicationPath": "Applications/Still.app",
+    "bundleIdentifier": "com.patrickbourget.Still",
+    "architectures": [
+      "x86_64",
+      "arm64"
+    ],
+    "minimumDeployment": "14.0",
+    "codeSigningAllowed": false,
+    "archiveSigningIdentity": "",
+    "debugOrTestArtifacts": [],
+    "executableSHA256": "7a4b8d073268a24b21e8152e7833b753c3305a7bf0e0f2b6638536c2b3b080d0",
+    "bundledPrivacySHA256": "5565cfdd4780164837d35d5c235e333bcba4f096a5bbd57f5231a6afbec46609",
+    "sourcePrivacySHA256": "5565cfdd4780164837d35d5c235e333bcba4f096a5bbd57f5231a6afbec46609",
+    "archiveLogSHA256": "442ea7fec7bc8ecb5b188ef9f4a7f5e95db624820cffccd336413728b4e23aa9",
+    "runtimeExecuted": false,
+    "distributionExported": false,
+    "notarized": false,
+    "limits": [
+      "Unsigned packaging proof only; no distribution qualification",
+      "No minimum-OS or Intel runtime exercised",
+      "Versions remain unapproved and absent"
+    ]
+  },
+  "implementedEvidence": {
+    "completedHistoryReset": "history-reset.md",
+    "hostedMillionEntryPartialWorkload": "scanner-performance.md#hosted-million-entry-workload--october-23-follow-up",
+    "hostedHFSCompressionAndDisconnect": "scanner-performance.md#opt-in-genuine-volumecompression-harness",
+    "privacyApplicability": "privacy-required-reason-research.md"
+  },
+  "supportClaims": [],
+  "blockingEvidence": [
+    "#14 personal usefulness and explicitly reviewed cleanup",
+    "Remaining #34 reference-host, provider/non-returning-I/O and platform qualification",
+    "Actual advertised minimum OS and CPU runtime coverage",
+    "VoiceOver/localization/preferences/display manual qualification",
+    "Developer ID/notarization/clean-machine install, signed update and uninstall",
+    "Approved release marketing/build versions",
+    "Final archive privacy report, dependencies and distribution-channel data-practice review"
+  ],
+  "releaseQualified": false,
+  "scheduling": {
+    "approvedAt": "2026-10-23",
+    "functionalMilestone": "M7 / #35",
+    "distributionMilestone": "M8 / #40",
+    "distributionBlocksFeatureDevelopment": false,
+    "preflightCorrections": "deferred to M8; test boundary not approved or required for ongoing features"
+  },
+  "functionalQualificationGates": [
+    "#14 personal usefulness and explicitly reviewed cleanup",
+    "Remaining #34 reference-host, provider/non-returning-I/O and platform qualification",
+    "Actual advertised minimum OS and CPU runtime coverage",
+    "VoiceOver/localization/preferences/display manual qualification"
+  ],
+  "commercializationGates": [
+    "Developer ID/notarization/clean-machine install, signed update and uninstall",
+    "Approved release marketing/build versions",
+    "Final archive privacy report, dependencies and distribution-channel data-practice review"
+  ],
+  "blockingEvidenceAppliesTo": "Final distribution only; feature work is governed by its own safety/platform gates."
+}

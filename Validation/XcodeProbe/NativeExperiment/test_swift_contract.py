@@ -1,0 +1,26 @@
+"""Public disposable experiment command; no personal roots or implementation inspection."""
+import json, pathlib, subprocess, unittest
+class SwiftOwnedSession(unittest.TestCase):
+    def test_custom_swift_package_session_preserves_protected_data_and_never_replays_crash(self):
+        command = pathlib.Path(__file__).with_name('swift_session.py')
+        result = subprocess.run(['python3', str(command)], text=True, capture_output=True, timeout=360)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        report = json.loads(result.stdout)
+        self.assertFalse(report['productionMutationQualified'])
+        self.assertTrue(report['swiftPackageBuilt'])
+        self.assertTrue(report['customOutputMappingObserved'])
+        self.assertTrue(report['swiftCompilerObserved'])
+        self.assertTrue(report['activeTrackedWriterRejected'])
+        self.assertTrue(report['lateDiscoveryPreserved'])
+        self.assertTrue(report['cancellationLeftUnstartedObjects'])
+        self.assertEqual(report['crashSignal'], 9)
+        self.assertEqual(report['recoveryState'], 'unresolved-no-automatic-replay')
+        self.assertTrue(report['allProtectedHashesUnchanged'])
+        self.assertTrue(report['removedObjectsRegenerated'])
+        self.assertTrue(report['ownedRootRemoved'])
+        self.assertEqual(report['durableRecordEvents'], ['intent', 'outcome', 'cancelled', 'intent'])
+        self.assertTrue(report['journalReadOnlyObservationUnchanged'])
+        self.assertTrue(report['cancellationScenarioOnly'])
+        self.assertEqual(report['protectedBeforeSHA256'], report['protectedAfterSHA256'])
+        print(result.stdout, end='')
+if __name__ == '__main__': unittest.main()

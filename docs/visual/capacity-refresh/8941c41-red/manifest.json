@@ -1,0 +1,17 @@
+[
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "d4e62201e6844e6804fce21fd4e4062b4d921e06",
+        "deviceName" : "My Mac",
+        "exportedFileName" : "113C7F01-E21E-4F4E-9742-164063D7E3B3.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "capacity-refresh-missing-action_0_1AD92C0E-EDFF-47CA-A84A-B9A4C3CE7E39.png",
+        "timestamp" : 1792835715.287
+      }
+    ],
+    "testIdentifier" : "CapacityRefreshUITests/testCapacityRefreshIsSeparateFromScanAndKeepsOverviewContext()",
+    "testIdentifierURL" : "test://com.apple.xcode/Still/StillUITests/CapacityRefreshUITests/testCapacityRefreshIsSeparateFromScanAndKeepsOverviewContext"
+  }
+]

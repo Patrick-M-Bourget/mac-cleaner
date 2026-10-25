@@ -1,0 +1,26 @@
+[
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "369f9d84eeb19fa8e04456d73236090d97b23072",
+        "deviceName" : "My Mac",
+        "exportedFileName" : "3A69E43D-BCFF-48E0-9DB6-540945385C9F.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "history-stopped-group-minimum-Dark_0_C32DD70E-4612-4989-95B6-84BB505F9017.png",
+        "timestamp" : 1792877256.654
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "369f9d84eeb19fa8e04456d73236090d97b23072",
+        "deviceName" : "My Mac",
+        "exportedFileName" : "234B900E-EB6E-4F7E-9669-4C0E15B6B170.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "history-stopped-group-minimum-Light_0_8FFD0AC6-3AD4-4BAC-BC8E-1F474016D74E.png",
+        "timestamp" : 1792877254.923
+      }
+    ],
+    "testIdentifier" : "HistoryActivityUITests/testGroupedScanAndStopRetainOneHonestActivityPerOperation()",
+    "testIdentifierURL" : "test://com.apple.xcode/Still/StillUITests/HistoryActivityUITests/testGroupedScanAndStopRetainOneHonestActivityPerOperation"
+  }
+]

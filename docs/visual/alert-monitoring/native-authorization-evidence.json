@@ -1,0 +1,105 @@
+{
+  "runURL": "https://github.com/Patrick-M-Bourget/mac-cleaner/actions/runs/40018074926",
+  "sourceCommit": "6ac661fa1b2d07fb5361be7284d2e7b5cd4f704d",
+  "probeID": "964a2f18-4934-4407-a2b1-dd41607d29fb",
+  "qualification": "inconclusive-native-authorization",
+  "workflowResult": "failure",
+  "frameworkResult": "Skipped",
+  "passedTests": 0,
+  "failedTests": 0,
+  "skippedTests": 1,
+  "nativeTestSeconds": 55.551,
+  "os": "ProductName:\t\tmacOS\nProductVersion:\t\t26.6.2\nBuildVersion:\t\t25G83\n",
+  "xcode": "Xcode 26.6\nBuild version 17F113\n",
+  "architecture": "arm64",
+  "manifestSourceAndProbeVerified": true,
+  "authorizationAttempted": true,
+  "effectiveMonitoringObserved": false,
+  "expectedStillPermissionControlObserved": false,
+  "permissionDeniedObserved": false,
+  "notificationDeliveryQualified": false,
+  "loginRegistrationQualified": false,
+  "subsequentNativeLifecycleExercised": false,
+  "publicStateAfterOptIn": {
+    "checkboxValue": 1,
+    "status": "Allow notifications to receive low-space alerts."
+  },
+  "captures": [
+    {
+      "file": "native-authorization-before.png",
+      "originalExportedFileName": "7693662A-7453-4C3F-A724-33304B600139.png",
+      "sha256": "82b35ee503d02c53895843fbb5c9ca112a25854acd4190921ff7f05cf26f3698",
+      "pixelWidth": 1024,
+      "pixelHeight": 768,
+      "appearance": "Light"
+    },
+    {
+      "file": "native-authorization-waiting.png",
+      "originalExportedFileName": "7D96443B-9C95-4A9E-8429-D946A08EEE90.png",
+      "sha256": "9abb992fe8f27d94afc3a69f1919ddad4fdde50bdb8d6d299414a22156f0b696",
+      "pixelWidth": 1024,
+      "pixelHeight": 768,
+      "appearance": "Light"
+    },
+    {
+      "file": "native-notification-ui-observed.png",
+      "originalExportedFileName": "9E70ECA2-F711-482D-97A1-30039F421BC6.png",
+      "sha256": "9abb992fe8f27d94afc3a69f1919ddad4fdde50bdb8d6d299414a22156f0b696",
+      "pixelWidth": 1024,
+      "pixelHeight": 768,
+      "appearance": "Light"
+    },
+    {
+      "file": "native-authorization-journey.json",
+      "originalExportedFileName": "5D2D068B-D083-457C-B92C-F7E37700C6EB.json",
+      "sha256": "aa12701533ffc2f4a345d1b0a98f4195b6bc58f2a5e5092445f4c6594d4a029a"
+    }
+  ],
+  "originalEvidenceHashes": [
+    {
+      "originalFileName": "7693662A-7453-4C3F-A724-33304B600139.png",
+      "sha256": "82b35ee503d02c53895843fbb5c9ca112a25854acd4190921ff7f05cf26f3698"
+    },
+    {
+      "originalFileName": "7D96443B-9C95-4A9E-8429-D946A08EEE90.png",
+      "sha256": "9abb992fe8f27d94afc3a69f1919ddad4fdde50bdb8d6d299414a22156f0b696"
+    },
+    {
+      "originalFileName": "39063C64-0EBC-44B5-8F7C-97AE4C11259B.txt",
+      "sha256": "a89db4ab24b4fe0cec0f5f8fa504352847942e76c83b6eb2284499f67b89e29d"
+    },
+    {
+      "originalFileName": "A5D76726-2BCE-47B4-AB6B-64DFC2721393.txt",
+      "sha256": "fccf99521b143eff1bb4258a2d83ce9132a70ee9e45dc97f3ebfd0811ee5e419"
+    },
+    {
+      "originalFileName": "5D2D068B-D083-457C-B92C-F7E37700C6EB.json",
+      "sha256": "aa12701533ffc2f4a345d1b0a98f4195b6bc58f2a5e5092445f4c6594d4a029a"
+    },
+    {
+      "originalFileName": "manifest.json",
+      "sha256": "c2e962702b5c042b4ccdc3b92d9c126d9da093ab4f41352f65cbc347bc227e48"
+    },
+    {
+      "originalFileName": "D05F3DFD-3C6A-4304-8D03-231FE2E5C271.txt",
+      "sha256": "c299a490113fbd4019e6b9a7173310e02fd53ef91a82d5b2bae9f74f14aed7ff"
+    },
+    {
+      "originalFileName": "9E70ECA2-F711-482D-97A1-30039F421BC6.png",
+      "sha256": "9abb992fe8f27d94afc3a69f1919ddad4fdde50bdb8d6d299414a22156f0b696"
+    },
+    {
+      "originalFileName": "environment.json",
+      "sha256": "d468d904fdc845591a574349cd469f1314336143dcd1ba65ed1adcc92bf8dac7"
+    },
+    {
+      "originalFileName": "alerts-native-summary.json",
+      "sha256": "9eeacf5832248b6078bc1626ee2f088e74f14b1bd09b5f5310203559cc476b30"
+    }
+  ],
+  "limits": [
+    "No visible Still permission prompt or native decision observed",
+    "No authorization bypass, Settings automation, reset, signing workaround or further retry",
+    "Raw AX trees retained with original artifact only; not published as repo content"
+  ]
+}
