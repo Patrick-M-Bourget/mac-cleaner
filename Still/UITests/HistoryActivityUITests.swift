@@ -60,7 +60,7 @@ final class HistoryActivityUITests: XCTestCase {
         XCTAssertFalse(app.staticTexts["growthNetChange"].exists)
         picker.click(); app.menuItems["First location"].click()
         XCTAssertTrue(app.staticTexts["growthNetChange"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.staticTexts["growthNetChange"].label.contains("+4 bytes"))
+        XCTAssertTrue((app.staticTexts["growthNetChange"].value as? String ?? app.staticTexts["growthNetChange"].label).contains("+4 bytes"))
         XCTAssertTrue(app.popUpButtons["Growth breakdown"].exists)
         let bounds = app.windows.firstMatch.frame
         for theme in ["Light", "Dark"] {
