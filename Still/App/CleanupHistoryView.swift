@@ -193,6 +193,8 @@ struct CleanupHistoryView: View {
         async let cleanup: Void = model.load()
         async let scanRecords: Void = scans.load()
         _ = await (cleanup, scanRecords)
+        guard !Task.isCancelled else { return }
+        model.growthReturn.finishReload()
     }
     private func cleanup(_ run: CleanupHistoryRun) -> some View {
                     SummarySurface {

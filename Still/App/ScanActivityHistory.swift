@@ -282,16 +282,27 @@ struct HistoryActivityGalleryExamples: View {
     private final class Marker { weak var view: NSView?; init(_ view: NSView) { self.view = view } }
     private var markers: [UUID: Marker] = [:]
     private var anchor: Anchor?
+    private var historyReady = true
     func register(_ id: UUID, view: NSView) { markers[id] = Marker(view) }
     func remember(_ id: UUID) {
         guard let view = markers[id]?.view, let clip = view.enclosingScrollView?.contentView else { return }
         anchor = Anchor(id: id, relativeY: view.convert(view.bounds.origin, to: clip).y - clip.bounds.minY, source: view)
+        historyReady = false
+    }
+    func finishReload() {
+        historyReady = true
+        DispatchQueue.main.async { [weak self] in
+            DispatchQueue.main.async { [weak self] in
+                guard let self, let saved = anchor, let view = markers[saved.id]?.view else { return }
+                restore(saved.id, view: view)
+            }
+        }
     }
     func departed(_ view: NSView) {
         if anchor?.source === view { anchor?.departed = true }
     }
     func restore(_ id: UUID, view: NSView) {
-        guard let saved = anchor, saved.departed, saved.id == id,
+        guard historyReady, let saved = anchor, (saved.departed || saved.source !== view), saved.id == id,
               let scroll = view.enclosingScrollView, view.window != nil else { return }
         // Consume once. A later checkbox/disclosure/theme change must never scroll.
         anchor = nil
