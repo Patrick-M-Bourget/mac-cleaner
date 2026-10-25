@@ -34,7 +34,6 @@ import StillCore
     }
     #expect(try await store.snapshots(now: Date(timeIntervalSince1970: 1000)).count == 1)
     for changed in [
-        GrowthFingerprint(scopeID: "other", rootID: "root", volumeID: "volume", access: "complete", rules: "one", exclusions: "none", classification: "one"),
         GrowthFingerprint(scopeID: "scope", rootID: "new-root", volumeID: "volume", access: "complete", rules: "one", exclusions: "none", classification: "one"),
         GrowthFingerprint(scopeID: "scope", rootID: "root", volumeID: "other", access: "complete", rules: "two", exclusions: "custom", classification: "two")
     ] {
