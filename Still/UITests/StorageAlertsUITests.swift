@@ -1,6 +1,139 @@
 import XCTest
 import Darwin
 final class StorageAlertsUITests: XCTestCase {
+    @MainActor func testAlertInvalidGalleryAtInitialSize() throws { try invalidAlertGallery(minimum: false) }
+    @MainActor func testAlertInvalidGalleryAtMinimumSize() throws { try invalidAlertGallery(minimum: true) }
+    @MainActor private func invalidAlertGallery(minimum: Bool) throws {
+        let app = XCUIApplication()
+        let state = try configureIsolatedJourneyState(app)
+        defer { app.terminate(); try? FileManager.default.removeItem(at: state) }
+        app.launchArguments = ["--design-gallery", minimum ? "--design-minimum" : "--design-initial-size"]
+        app.launch()
+        let examples = app.disclosureTriangles["Synthetic storage alert settings"]
+        revealScrollElement(app, control: examples, label: "Alert Gallery")
+        examples.coordinate(withNormalizedOffset: CGVector(dx: 0, dy: 0.5)).withOffset(CGVector(dx: 26, dy: 0)).click()
+        let reason = app.staticTexts["Enter a number of at least 1 GB and below startup-volume capacity. Your applied threshold is unchanged."]
+        for theme in ["Light", "Dark"] {
+            app.popUpButtons["Appearance"].click(); app.menuItems[theme].click()
+            revealScrollElement(app, control: reason, label: "Invalid threshold Gallery")
+            XCTAssertTrue(reason.exists)
+            let capture = XCTAttachment(screenshot: app.windows.firstMatch.screenshot())
+            capture.name = "alerts-gallery-invalid-" + (minimum ? "minimum-" : "initial-") + theme
+            capture.lifetime = .keepAlways; add(capture)
+        }
+    }
+
+    @MainActor func testAlertSettingsAtInitialSize() throws { try alertSettings(minimum: false) }
+    @MainActor func testAlertSettingsAtMinimumSize() throws { try alertSettings(minimum: true) }
+    @MainActor private func alertSettings(minimum: Bool) throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        let state = try configureIsolatedJourneyState(app)
+        defer { app.terminate(); try? FileManager.default.removeItem(at: state) }
+        func capacity(_ object: [String: Any]) throws {
+            try JSONSerialization.data(withJSONObject: object).write(to: state.appendingPathComponent("capacity-reading.json"), options: .atomic)
+        }
+        try capacity(["available": 48_000_000_000, "total": 512_000_000_000])
+        app.launchArguments = ["--future-milestones", "--ui-test-capacity-reading", minimum ? "--design-minimum" : "--design-initial-size"]
+        app.launch()
+        XCTAssertTrue(app.buttons["Storage alerts"].waitForExistence(timeout: 10))
+        app.buttons["Storage alerts"].click()
+        let bounds = app.windows.firstMatch.frame
+        let amount = app.staticTexts["startupCapacityAmount"]
+        XCTAssertTrue(amount.waitForExistence(timeout: 5), "Settings must expose shared current capacity")
+        XCTAssertTrue(app.staticTexts["notificationPermissionStatus"].exists)
+        let field = app.textFields["Minimum available space (GB)"]
+        revealScrollElement(app, control: field, label: "Threshold")
+        XCTAssertFalse(app.buttons["Apply threshold"].isEnabled)
+        field.click(); app.typeKey("a", modifierFlags: .command); field.typeText("60")
+        XCTAssertTrue(app.buttons["Apply threshold"].isEnabled)
+        XCTAssertTrue(app.staticTexts["Applied threshold: 40 GB"].exists)
+        app.buttons["Apply threshold"].click()
+        XCTAssertTrue(app.staticTexts["Applied threshold: 60 GB"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["Apply threshold"].isEnabled)
+        for theme in ["Light", "Dark"] {
+            app.popUpButtons["Appearance"].click(); app.menuItems[theme].click()
+            revealScrollElement(app, control: amount, label: "Capacity")
+            let capture = XCTAttachment(screenshot: app.windows.firstMatch.screenshot())
+            capture.name = "alerts-settings-" + (minimum ? "minimum-" : "initial-") + theme
+            capture.lifetime = .keepAlways; add(capture)
+            XCTAssertEqual(app.windows.firstMatch.frame, bounds)
+        }
+        try capacity(["available": NSNull(), "total": NSNull()])
+        app.buttons["Refresh capacity"].click()
+        XCTAssertTrue(app.staticTexts["Couldn’t refresh capacity"].waitForExistence(timeout: 5))
+        revealScrollElement(app, control: field, label: "Threshold")
+        field.click(); app.typeKey("a", modifierFlags: .command); field.typeText("80")
+        XCTAssertFalse(app.buttons["Apply threshold"].isEnabled)
+        XCTAssertTrue(app.staticTexts["Applied threshold: 60 GB"].exists)
+        for theme in ["Light", "Dark"] {
+            app.popUpButtons["Appearance"].click(); app.menuItems[theme].click()
+            let capture = XCTAttachment(screenshot: app.windows.firstMatch.screenshot())
+            capture.name = "alerts-unavailable-pending-" + (minimum ? "minimum-" : "initial-") + theme
+            capture.lifetime = .keepAlways; add(capture)
+        }
+        XCTAssertFalse(app.buttons["Preview notification"].exists)
+        XCTAssertFalse(app.buttons["Stop scan"].exists)
+        app.buttons["Cleanup plan"].click()
+        XCTAssertFalse(app.buttons["Review cleanup"].isEnabled)
+        app.buttons["Overview"].click()
+        XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 5))
+        XCTAssertEqual(app.windows.firstMatch.frame, bounds)
+        app.terminate()
+        // Existing disposable service boundary supplies denied authorization without OS changes.
+        let folder = state.appendingPathComponent("StorageAlerts")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        try JSONSerialization.data(withJSONObject: ["enabled": true, "thresholdBytes": 40_000_000_000, "episodes": [:]])
+            .write(to: folder.appendingPathComponent("episode-state.json"), options: .atomic)
+        app.launchArguments += ["--ui-test-alert-service", "--ui-test-managed-launcher"]
+        app.launchEnvironment["STILL_TEST_MANAGED_LAUNCH"] = "unavailable"
+        app.launch()
+        XCTAssertTrue(app.buttons["Storage alerts"].waitForExistence(timeout: 10)); app.buttons["Storage alerts"].click()
+        let blocked = app.staticTexts["notificationPermissionStatus"]
+        XCTAssertTrue(blocked.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Notifications blocked"].waitForExistence(timeout: 5))
+        revealScrollElement(app, control: app.buttons["Open System Settings"], label: "Permission recovery")
+        app.buttons["Open System Settings"].click()
+        XCTAssertTrue(app.staticTexts["System Settings could not be opened. Open it from the Apple menu, then Notifications → Still."].waitForExistence(timeout: 5))
+        for theme in ["Light", "Dark"] {
+            app.popUpButtons["Appearance"].click(); app.menuItems[theme].click()
+            let capture = XCTAttachment(screenshot: app.windows.firstMatch.screenshot())
+            capture.name = "alerts-permission-blocked-" + (minimum ? "minimum-" : "initial-") + theme
+            capture.lifetime = .keepAlways; add(capture)
+        }
+        let quiet = app.disclosureTriangles["How reminders stay quiet"]
+        revealScrollElement(app, control: quiet, label: "Quiet reminders")
+        quiet.coordinate(withNormalizedOffset: CGVector(dx: 0, dy: 0.5)).withOffset(CGVector(dx: 26, dy: 0)).click()
+        XCTAssertEqual(quiet.value as? Int, 1)
+        for theme in ["Light", "Dark"] {
+            app.popUpButtons["Appearance"].click(); app.menuItems[theme].click()
+            revealScrollElement(app, control: quiet, label: "Quiet explanation")
+            app.scrollViews.firstMatch.scroll(byDeltaX: 0, deltaY: -260)
+            let capture = XCTAttachment(screenshot: app.windows.firstMatch.screenshot())
+            capture.name = "alerts-quiet-expanded-" + (minimum ? "minimum-" : "initial-") + theme
+            capture.lifetime = .keepAlways; add(capture)
+        }
+        XCTAssertFalse(app.buttons["Stop scan"].exists)
+        app.terminate()
+        app.launchArguments = ["--design-gallery", minimum ? "--design-minimum" : "--design-initial-size"]
+        app.launch()
+        let examples = app.disclosureTriangles["Synthetic storage alert settings"]
+        revealScrollElement(app, control: examples, label: "Alert Gallery")
+        examples.coordinate(withNormalizedOffset: CGVector(dx: 0, dy: 0.5)).withOffset(CGVector(dx: 26, dy: 0)).click()
+        XCTAssertEqual(examples.value as? Int, 1)
+        for theme in ["Light", "Dark"] {
+            app.popUpButtons["Appearance"].click(); app.menuItems[theme].click()
+            revealScrollElement(app, control: app.textFields["Minimum available space (GB)"].firstMatch, label: "Threshold Gallery")
+            let capture = XCTAttachment(screenshot: app.windows.firstMatch.screenshot())
+            capture.name = "alerts-gallery-threshold-" + (minimum ? "minimum-" : "initial-") + theme
+            capture.lifetime = .keepAlways; add(capture)
+            revealScrollElement(app, control: app.staticTexts["System Settings could not be opened."], label: "Permission Gallery")
+            let permission = XCTAttachment(screenshot: app.windows.firstMatch.screenshot())
+            permission.name = "alerts-gallery-permission-" + (minimum ? "minimum-" : "initial-") + theme
+            permission.lifetime = .keepAlways; add(permission)
+        }
+    }
+
     @MainActor func testOpenedAlertPreservesContextAndOffersOnlyExplicitScanAcrossThemesAndSizes() throws {
         continueAfterFailure = false
         let manager = FileManager.default
@@ -94,9 +227,11 @@ final class StorageAlertsUITests: XCTestCase {
         app.buttons["Storage alerts"].click()
         XCTAssertTrue(app.staticTexts["Alerts are off."].waitForExistence(timeout: 5))
         let threshold = app.textFields["Minimum available space (GB)"]
+        revealScrollElement(app, control: threshold, label: "Threshold")
         threshold.click(); app.typeKey("a", modifierFlags: .command); threshold.typeText("1")
         app.buttons["Apply threshold"].click()
         let toggle = app.checkBoxes["Notify me when space is low"]
+        revealScrollElement(app, control: toggle, label: "Alert opt-in")
         XCTAssertTrue(toggle.isEnabled && toggle.isHittable)
         toggle.click()
         let refusal = app.staticTexts["Disposable tests do not change notification settings."]

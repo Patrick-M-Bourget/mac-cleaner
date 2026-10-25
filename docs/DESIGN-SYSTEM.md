@@ -45,6 +45,7 @@ The app target owns these internal SwiftUI components; they are presentation pri
 | `ScanHistoryRecordingNotice`, `ScanHistoryRecordingFeedback`, `HistoryStoreFailure` | Live recording warning backed by pure shared feedback; independently unavailable store explanation with its own native reload action |
 | `HistoryActivityEmptyState`, `HistoryActivityUnavailableState`, `HistoryRetentionNote` | Filter-specific retained-record absence, honest unreadability and shared bounded-retention explanation |
 | `SettingsRow` | Setting title, explanation and native controls |
+| `AlertThresholdEditor`, `AlertPermissionDetails`, `QuietAlertExplanation` | Shared pure applied/pending/invalid/unknown-total threshold, explicit permission/recovery feedback and collapsed quiet-reminder presentation; controller/services own effects. Inert Gallery examples use the same APIs |
 | `AppBrand`, `StillSidebarRow`, `ChromeSurface` | Shared brand, persistent native navigation, destination accents and adaptive chrome; reserve the actionable-category badge without moving its title |
 | `AppearancePicker`, `AppearancePreferenceNotice` | Shared full-value native choice and reserved 24-point persistent preference feedback; missing/invalid/unreadable/save-failed states, persistence-only Retry |
 | `MonitoringFooter`, `MonitoringDetails` | Shared 16-point typed monitoring evidence and direct read-only detail route; off/checking/on/snoozed/attention |
@@ -238,3 +239,7 @@ Sourcefb20196 is qualified within [what-grew evidence](validation/what-grew.md).
 ## Release archives shared presentation — #54
 
 Q1–Q7 in [RELEASE-ARCHIVES](RELEASE-ARCHIVES.md) are implemented at application source `62bcf8a`, with [bounded Core/native/visual evidence](validation/release-archives.md). Guidance-only Release archives is first in the existing M6-gated list; Device backups remains default. It is always Not inspected and Protected from Still cleanup, with retention guidance, explicit Open Xcode/Apple guide and truthful unavailable fallback. The shared inert `ReleaseArchiveGuidance` is reused live and in the collapsed Gallery. No picker, metadata read, traversal, deletion, new permissions or navigation framework was added. M01–M02 are Covered for this guidance slice; broader #31 native owner-app/platform qualification, other categories, future milestones and M8 deferral remain unchanged.
+
+## Storage alerts settings lock — #27
+
+Q1–Q7 in [STORAGE-ALERTS](STORAGE-ALERTS.md) have bounded settings implementation at live/controller source `336fcb9`, final Gallery `5049ce4`, with [source-bound evidence](validation/storage-alerts-settings.md). Shared current capacity/Refresh is separate from monitoring samples; permission recovery is contextual; only explicit valid Apply changes a pending threshold. Unknown display total preserves the saved threshold. Shared pure settings/Gallery and the collapsed quiet explanation omit the prototype test-notification control. #27 remains open for genuine macOS authorization/delivery; M5 stays gated, #28/#29 stay separate, and all future milestones/M8 deferral remain.

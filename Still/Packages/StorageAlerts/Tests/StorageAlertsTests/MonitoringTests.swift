@@ -14,6 +14,7 @@ import StorageAlerts
     var pollers: [UUID: @MainActor () -> Void] = [:]
     var notifications = 0
     var permissionRequests = 0
+    var permission: AlertPolicy.Authorization = .allowed
     var stateUnreadable = false
     var saveFails = false
     var resetFails = false
@@ -29,7 +30,7 @@ import StorageAlerts
                 held = continuation; heldBegan.continuation.yield(())
             }
         }
-        return .allowed
+        return permission
     }
     func afterAbruptProcessExit() -> ControlledAlertSystem {
         pollers.removeAll()
@@ -472,4 +473,66 @@ import StorageAlerts
     #expect(!alerts.effectiveMonitoring)
     #expect(alerts.shellState == .attention(.savedStateUnavailable))
     #expect(alerts.status == "Alert state could not be read. Monitoring is stopped to preserve suppression.")
+}
+
+@Test @MainActor func pendingThresholdDoesNotBecomeAppliedUntilExplicitApply() async {
+    let system = ControlledAlertSystem()
+    let alerts = AlertMonitoringController(system: system)
+    alerts.configure()
+    alerts.thresholdGB = "60"
+    #expect(alerts.thresholdChanged)
+    #expect(alerts.appliedThresholdBytes == 40_000_000_000)
+    await alerts.setEnabled(true)
+    #expect(system.saved.thresholdBytes == 40_000_000_000)
+    await alerts.applyThreshold()
+    #expect(alerts.appliedThresholdBytes == 60_000_000_000)
+    #expect(!alerts.thresholdChanged)
+    await alerts.setEnabled(false)
+}
+
+@Test @MainActor func unknownDisplayTotalCannotReplaceSavedThreshold() async {
+    let system = ControlledAlertSystem()
+    let alerts = AlertMonitoringController(system: system)
+    alerts.configure()
+    alerts.thresholdGB = "60"
+    await alerts.applyThreshold(validatingTotal: nil)
+    #expect(alerts.appliedThresholdBytes == 40_000_000_000)
+    #expect(system.saved.thresholdBytes == 40_000_000_000)
+    #expect(alerts.thresholdChanged)
+    #expect(system.notifications == 0)
+}
+
+@Test @MainActor func permissionRecoveryRechecksWithoutPromptAndPreservesMonitoringSampleTime() async {
+    let system = ControlledAlertSystem()
+    system.permission = .denied
+    let alerts = AlertMonitoringController(system: system)
+    alerts.configure()
+    await alerts.activated()
+    #expect(alerts.authorizationChecked)
+    #expect(alerts.authorization == .denied)
+    #expect(alerts.lastMonitoringCheck == nil)
+    await alerts.setEnabled(true)
+    #expect(!alerts.effectiveMonitoring)
+    #expect(system.permissionRequests == 0)
+    system.permission = .allowed
+    await alerts.activated()
+    #expect(alerts.effectiveMonitoring)
+    #expect(alerts.lastMonitoringCheck == system.now)
+    #expect(system.permissionRequests == 0)
+    await alerts.setEnabled(false)
+}
+
+@Test @MainActor func stalePermissionReplyCannotOverwriteNewerSettingsEvidence() async {
+    let system = ControlledAlertSystem()
+    let alerts = AlertMonitoringController(system: system)
+    system.holdNextAuthorization = true
+    let earlier = Task { await alerts.activated() }
+    var began = system.heldBegan.stream.makeAsyncIterator(); _ = await began.next()
+    await alerts.activated()
+    #expect(alerts.authorization == .allowed)
+    system.held?.resume(returning: .denied); system.held = nil
+    await earlier.value
+    #expect(alerts.authorization == .allowed)
+    #expect(!alerts.requested)
+    #expect(system.permissionRequests == 0)
 }
