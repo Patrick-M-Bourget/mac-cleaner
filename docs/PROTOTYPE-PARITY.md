@@ -49,7 +49,7 @@ The tables below Classification retain the original audit baseline. This current
 | H01,H03 | Locked; implementation pending #51 | [HISTORY-ACTIVITY](HISTORY-ACTIVITY.md) Q1–Q15 confirms combined terminal activity, honest filters, independent availability, shared scan/growth archive budget and global Clear; existing protected history mechanisms retained |
 | N05–N07,A04 | Covered within bounded #53 qualification | [SHELL-APPEARANCE](SHELL-APPEARANCE.md) Q1–Q13 is implemented at `c5886e8`; [native/source evidence](validation/shell-appearance.md) records normal-click, theme, size and affected-flow acceptance and limits |
 | S07,P10,C01–C02 and other adapters | Future gated | Recognized discovery, cloud/developer/browser actions retain their original M2/M3 tickets; never required to close M1 feature implementation |
-| G01–G04 | Future M4 + unresolved #52 | Existing comparison mechanisms do not complete first-use/review-options routing or approved visual hierarchy |
+| G01–G04 | Future M4 + locked #52; implementation pending | Existing comparison mechanisms do not complete first-use/review-options routing or approved visual hierarchy |
 | M01–M02 | Future M6 + unresolved #54 | Existing managed guidance retained; release-archive information architecture still outstanding, no deletion |
 | N08–N10 | Bounded qualified + M7 limits | Original native theme/size/fixed footer/keyboard/anchor evidence exists; no comprehensive VoiceOver/localization/OS/CPU certification |
 
