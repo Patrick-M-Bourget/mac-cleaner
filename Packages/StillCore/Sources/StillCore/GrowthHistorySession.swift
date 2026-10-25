@@ -50,7 +50,7 @@ public extension GrowthObservationRecording {
             active = token.id; return token
         } catch {
             guard attempt == request, !Task.isCancelled else { return nil }
-            comparison = .unknown; self.error = "Scope or volume identity could not be verified. This scan cannot establish a comparison baseline."; presentationVersion += 1
+            self.error = "Scope or volume identity could not be verified. This scan cannot establish a comparison baseline."; presentationVersion += 1
             return nil
         }
     }
@@ -61,10 +61,16 @@ public extension GrowthObservationRecording {
             guard active == token.id, !Task.isCancelled else { return }
             let values = try await store.snapshots()
             guard active == token.id, !Task.isCancelled else { return }
-            active = nil; comparison = result; snapshots = values; error = nil; presentationVersion += 1
+            var displayed = result.state == .unknown ? comparison : result
+            if result.state == .unknown, let selected = comparison?.current?.id {
+                displayed = try await store.comparison(id: selected)
+            }
+            guard active == token.id, !Task.isCancelled else { return }
+            active = nil; comparison = displayed
+            snapshots = values; error = nil; presentationVersion += 1
         } catch {
             guard active == token.id, !Task.isCancelled else { return }
-            comparison = .unknown; self.error = "This observation could not be saved. The previous completed baseline is retained."; presentationVersion += 1
+            active = nil; self.error = "This observation could not be saved. No new baseline was recorded; current scan results remain usable."; presentationVersion += 1
         }
     }
     public func invalidateCoverage() async throws {
@@ -85,7 +91,7 @@ public extension GrowthObservationRecording {
         guard attempt == request, !Task.isCancelled else { return }
         snapshots = []; comparison = result; error = nil; presentationVersion += 1
     }
-    public func cancelled() { attempt = UUID(); active = nil; comparison = .unknown; error = nil; presentationVersion += 1 }
+    public func cancelled() { attempt = UUID(); active = nil; error = nil; presentationVersion += 1 }
     public func select(_ id: UUID, now: Date = Date()) async {
         let request = attempt, version = presentationVersion
         do {

@@ -101,6 +101,8 @@ enum Destination: String, CaseIterable, Identifiable {
     var historyOffset: CGPoint?
     var growthOffset: CGPoint?
     var growthFromHistory = false
+    var planReturnsToGrowth = false
+    var routeGeneration = UUID()
     var overviewOffset: CGPoint?
     var locationsOffset: CGPoint?
     var localRecordsVisible = false
@@ -241,7 +243,8 @@ private struct WorkspaceView: View {
                         exploreDownloads: { openExplorer(downloads: true, caller: .plan) },
                         viewHistory: { destination = .history }, newPlan: startNewPlan,
                         reviewRecovery: { openRecovery(caller: .plan) },
-                        backToExplorer: planReturnsToExplorer ? { nativeInspectionVisible = true; planReturnsToExplorer = false } : nil,
+                        backToExplorer: navigationState.planReturnsToGrowth ? { navigationState.planReturnsToGrowth = false; destination = .growth } : planReturnsToExplorer ? { nativeInspectionVisible = true; planReturnsToExplorer = false } : nil,
+                        backToExplorerTitle: navigationState.planReturnsToGrowth ? "Back to What grew" : "Back to Explorer",
                         manageLocations: { destination = .locations }, scopeMessage: locationsModel.message ?? folderInspection.message, presentation: planPresentation)
                 } else {
                 ScrollView {
@@ -270,7 +273,9 @@ private struct WorkspaceView: View {
                         else {
                             switch destination {
                             case .alerts: StorageAlertsView(controller: alerts, configureOnEntry: navigationState.configureAlertsOnEntry)
-                            case .growth: GrowthHistoryView(model: GrowthHistoryModel.shared)
+                            case .growth: GrowthHistoryView(model: GrowthHistoryModel.shared,
+                                reviewTitle: growthReviewTitle, review: { Task { await reviewGrowthLocation() } },
+                                scanHistorical: { Task { await scanHistoricalGrowthLocation() } }, actionsEnabled: canStartGrowthScan)
                             case .overview: overview
                             case .plan: EmptyView()
                             case .history: history
@@ -340,11 +345,24 @@ private struct WorkspaceView: View {
                     } else if destination == .growth {
                         if navigationState.growthFromHistory {
                             ActionStrip(message: "Recorded observation · Current files and cleanup choices stay unchanged.") {
-                                Button("Back to History") { navigate(.history) }.buttonStyle(.borderedProminent)
+                                Button("Back to History") { navigate(.history) }
+                                if folderInspection.isScanning {
+                                    Button("Stop scan") { folderInspection.cancel() }.buttonStyle(.borderedProminent)
+                                } else if !GrowthHistoryModel.shared.isHistorical {
+                                    Button(GrowthHistoryModel.shared.scanTitle) { Task { await scanGrowthLocation() } }.buttonStyle(.borderedProminent).disabled(!canStartGrowthScan || GrowthHistoryModel.shared.isResolving || GrowthHistoryModel.shared.authorityChecking)
+                                }
                             }
                         } else {
                             ActionStrip(message: "Two compatible completed observations reveal net changes.") {
-                                Button("Inspect a folder", action: chooseFolderForScan).buttonStyle(.borderedProminent)
+                                if folderInspection.isScanning {
+                                    Button("Stop scan") { folderInspection.cancel() }.buttonStyle(.borderedProminent)
+                                } else {
+                                    if GrowthHistoryModel.shared.comparison?.current != nil {
+                                        Button("Choose another location…") { chooseNewGrowthLocation() }.disabled(!canStartGrowthScan)
+                                    }
+                                    Button(GrowthHistoryModel.shared.scanTitle) { Task { await scanGrowthLocation() } }
+                                        .buttonStyle(.borderedProminent).disabled(!canStartGrowthScan || GrowthHistoryModel.shared.isResolving || GrowthHistoryModel.shared.authorityChecking)
+                                }
                             }
                         }
                     } else if destination == .overview && !managedStorageVisible && !dockerVisible && !pipVisible && !homebrewVisible {
@@ -427,8 +445,10 @@ private struct WorkspaceView: View {
     }
 
     private func navigate(_ value: Destination, configureAlerts: Bool = true) {
+        navigationState.routeGeneration = UUID()
         if navigationState.growthFromHistory { GrowthHistoryModel.shared.endHistoricalRequest() }
         navigationState.growthFromHistory = false
+        navigationState.planReturnsToGrowth = false
         navigationState.configureAlertsOnEntry = configureAlerts
         destination = value
         planReturnsToExplorer = false
@@ -734,6 +754,74 @@ private struct WorkspaceView: View {
     private func didResetLocalRecords() {
         nativeInspectionVisible = false; inspecting = false
         diagnosticsVisible = false; diagnostics = DiagnosticsModel(); exclusionsVisible = false
+    }
+
+    private var canStartGrowthScan: Bool {
+        !folderInspection.isScanning && !selection.execution.isRunning && !selection.isRefreshing && !selection.isPreparing && !AppLifecycleController.shared.maintenanceInProgress
+    }
+    private var growthReviewTitle: String? {
+        let model = GrowthHistoryModel.shared
+        guard model.reviewSnapshot != nil else { return nil }
+        if model.authorityChecking { return "Checking location…" }
+        guard let url = model.resolvedURL else { return "Locate folder…" }
+        guard selection.scans[url.standardizedFileURL] != nil, !selection.unavailableScopes.contains(url.standardizedFileURL) else { return "Scan to review" }
+        return isDownloadsLocation(url) ? "Review Downloads" : "Explore folder"
+    }
+    private func chooseNewGrowthLocation() {
+        guard canStartGrowthScan else { return }
+        guard let url = FolderInspection.chooseFolder(), locationsModel.remember(url, downloads: isDownloadsLocation(url)) else { return }
+        GrowthHistoryModel.shared.selectNextLocation = true
+        selection.leaveRetryMode(); scanOrigin = .growth; folderInspection.scan(url)
+    }
+    private func scanGrowthLocation(locate: Bool = false, fromHistorical: Bool = false) async {
+        let model = GrowthHistoryModel.shared
+        guard canStartGrowthScan, !model.isResolving else { return }
+        guard let snapshot = model.reviewSnapshot else { chooseNewGrowthLocation(); return }
+        let route = navigationState.routeGeneration
+        model.isResolving = true
+        defer { model.isResolving = false }
+        if !locate && !model.needsLocationAccess, let lease = await model.leaseForSelection() {
+            guard canStartGrowthScan, destination == .growth, navigationState.routeGeneration == route, model.reviewSnapshot?.id == snapshot.id else { lease.close(); return }
+            model.accessNotice = nil; model.needsLocationAccess = false
+            if fromHistorical { model.moveHistoricalToCurrent() }
+            selection.leaveRetryMode(); scanOrigin = .growth
+            folderInspection.scanAgain(scopes: [lease.url], leases: [lease]); return
+        }
+        guard locate || model.needsLocationAccess else {
+            model.accessNotice = "This location is not currently authorized or available. Locate the original folder to reconnect before scanning or reviewing. Retained observations stay readable."
+            model.needsLocationAccess = true; return
+        }
+        guard let url = FolderInspection.chooseFolder() else { return }
+        guard await model.matches(url, snapshot: snapshot), model.reviewSnapshot?.id == snapshot.id else {
+            model.accessNotice = "That folder does not match the recorded location’s root and volume identity. Nothing was scanned or rebound."; return
+        }
+        guard canStartGrowthScan, locationsModel.remember(url, downloads: isDownloadsLocation(url)) else { return }
+        guard let lease = await model.leaseForSelection() else { model.accessNotice = "Access could not be renewed. Nothing was scanned."; return }
+        guard canStartGrowthScan, destination == .growth, navigationState.routeGeneration == route, model.reviewSnapshot?.id == snapshot.id else { lease.close(); return }
+        model.accessNotice = nil; model.needsLocationAccess = false
+        if fromHistorical { model.moveHistoricalToCurrent() }
+        selection.leaveRetryMode(); scanOrigin = .growth
+        folderInspection.scanAgain(scopes: [lease.url], leases: [lease])
+    }
+    private func reviewGrowthLocation() async {
+        let model = GrowthHistoryModel.shared
+        guard canStartGrowthScan, !model.isResolving else { return }
+        let route = navigationState.routeGeneration, snapshot = model.reviewSnapshot?.id
+        let resolved = await model.leaseForSelection()
+        guard canStartGrowthScan, destination == .growth, navigationState.routeGeneration == route, model.reviewSnapshot?.id == snapshot else { resolved?.close(); return }
+        guard let lease = resolved else { await scanGrowthLocation(locate: true, fromHistorical: model.isHistorical); return }
+        let url = lease.url.standardizedFileURL; lease.close()
+        guard selection.scans[url] != nil, !selection.unavailableScopes.contains(url) else { await scanGrowthLocation(fromHistorical: model.isHistorical); return }
+        if isDownloadsLocation(url) {
+            navigationState.planReturnsToGrowth = true; planReturnsToExplorer = false; destination = .plan
+        } else {
+            openExplorer(downloads: false, caller: .growth)
+            explorerContext.openLocation(url)
+        }
+    }
+    private func scanHistoricalGrowthLocation() async {
+        guard canStartGrowthScan else { return }
+        await scanGrowthLocation(fromHistorical: true)
     }
 
     private func openHistoricalGrowth(_ id: UUID) {

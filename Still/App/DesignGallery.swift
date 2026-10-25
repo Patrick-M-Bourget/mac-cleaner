@@ -9,6 +9,7 @@ struct DesignGallery: View {
     @State private var selected = true
     @State private var shellExamplesExpanded = false
     @State private var historyExamplesExpanded = false
+    @State private var growthExamplesExpanded = false
     var body: some View {
         VStack(spacing: 0) {
             HStack {
@@ -35,6 +36,7 @@ struct DesignGallery: View {
                     DisclosureGroup("Synthetic History activity examples", isExpanded: $historyExamplesExpanded) {
                         HistoryActivityGalleryExamples()
                     }
+                    DisclosureGroup("Synthetic What grew examples", isExpanded: $growthExamplesExpanded) { GrowthGalleryExamples() }
                     CapacityGalleryExamples()
                     Text("Synthetic cleanup outcome examples").font(.headline)
                     Text("Presentation fixtures only · These examples are not native executor or OS failure evidence.").foregroundStyle(.secondary)

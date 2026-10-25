@@ -51,3 +51,8 @@ Overview restoration: [36 unaltered captures](overview-restoration/manifest.json
 ## History activity — #51
 
 App source `f062ca6` has96 final changed-state originals individually accepted:40 live caller/availability/coverage/exact comparison,8 native Clear confirmation/partial outcome and48 inert shared Gallery examples. [Qualification](../validation/history-activity.md) maps exact runs, source boundaries, per-image reports and unchanged original export manifests in `history-activity/*-final`. Intermediate red/provisional folders are labelled and are not final presentation claims. Light/Dark initial1024×640 and minimum900×640 are covered; cropped neighbors/offscreen content and universal platform behavior are not inferred from pixels.
+
+
+## What grew — #52
+
+[26 live originals](what-grew/40229706025-live/manifest.json) at5a82e16 and [24 Gallery originals](what-grew/40229574971-gallery/manifest.json) at78a0c31 are individually accepted across Light/Dark and initial1024×640/minimum900×640. The presentation is unchanged in finalfb20196; its conditional History return fix has strict native old/new frame proof. [Qualification](../validation/what-grew.md) maps exact source/run and per-original caveats. Scrolled summaries, offscreen notices and synthetic actions are not inferred. No new Plan success screenshot was requested: shared Plan geometry retains its prior qualification, and the new caller label is exercised through an actual public Back click/return.

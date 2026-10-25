@@ -94,7 +94,9 @@ public actor GrowthHistoryStore {
                 return GrowthComparison(state: .unknown, current: snapshot, from: nil, groups: [])
             }
             value.entries.removeAll { now.timeIntervalSince($0.snapshot.observedAt) > Double(policy.days) * 86400 }
-            let origin: GrowthComparisonState = value.cleared ? .clearedBaseline : value.hadHistory ? .missingBaseline : .firstBaseline
+            let hasLocationHistory = value.entries.contains { $0.snapshot.fingerprint.scopeID == snapshot.fingerprint.scopeID }
+            let origin: GrowthComparisonState = value.cleared ? .clearedBaseline
+                : hasLocationHistory ? .missingBaseline : .firstBaseline
             value.entries.append(Entry(snapshot: snapshot, origin: origin)); value.hadHistory = true; value.cleared = false
             if value.entries.count > policy.baselines { value.entries.removeFirst(value.entries.count - policy.baselines) }
             try trim(&value, now: now)
@@ -128,8 +130,9 @@ public actor GrowthHistoryStore {
             return GrowthComparison(state: value.cleared ? .clearedBaseline : value.hadHistory ? .missingBaseline : .firstBaseline, current: nil, from: nil, groups: [])
         }
         let current = value.entries[index].snapshot
-        guard index > 0 else { return GrowthComparison(state: value.entries[index].origin, current: current, from: nil, groups: []) }
-        let previous = value.entries[..<index].last(where: { $0.snapshot.fingerprint.scopeID == current.fingerprint.scopeID })?.snapshot ?? value.entries[index - 1].snapshot
+        guard let previous = value.entries[..<index].last(where: { $0.snapshot.fingerprint.scopeID == current.fingerprint.scopeID })?.snapshot else {
+            return GrowthComparison(state: value.entries[index].origin, current: current, from: nil, groups: [])
+        }
         guard current.fingerprint == previous.fingerprint else { return GrowthComparison(state: .coverageChanged, current: current, from: previous.observedAt, groups: []) }
         let older = Dictionary(uniqueKeysWithValues: previous.groups.map { ($0.id, $0) })
         let newer = Dictionary(uniqueKeysWithValues: current.groups.map { ($0.id, $0) })

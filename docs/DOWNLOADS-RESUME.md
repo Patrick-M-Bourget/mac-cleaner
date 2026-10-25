@@ -1,5 +1,11 @@
 # Connected implementation resume
 
+## Current delivery checkpoint — October25,2026
+
+Completed baseline merged into main via PR65. #52 is implemented atfb20196 under WHAT-GREW.md with [bounded qualification](validation/what-grew.md), including strict old/new historical returns,50 accepted original images and synchronized spec/design/parity. PR66 is its delivery vehicle. This supersedes older pending/triage notes below; do not reopen settled decisions or re-run proved checks after docs-only changes. Only #54 needs its own grilling among the remaining parity-flow decisions; other open issues retain their explicitly recorded adapter/platform/personal gates. M8 remains deferred.
+
+Review build: `/Users/bender/Library/Caches/Codex/mac-cleaner-implementation/artifacts/growth-fb20196/Still.app`, with BUILD.md for the explicit `--future-milestones` launch. Normal launch remains gated/on-demand.
+
 October24,2026. Repo `/Users/bender/Library/Caches/Codex/mac-cleaner-implementation/repo`; integration branch `integration/still-spec`, draft PR36. User-authorized continuation implemented #60/#61/#63 (integrated03cbdfc) and #62 (integrated03779f5, final appdadc0c1). #55–#59 were already integrated. Do not reopen approved b96bb97/Q1–Q30.
 
 ## Latest qualification
@@ -42,3 +48,8 @@ Review build: `/Users/bender/Library/Caches/Codex/mac-cleaner-implementation/art
 App source `f062ca6` implements the user-locked #51 contract: minimal grouped terminal scan activity, combined filters, independent availability/reloads, global Clear/partial outcomes and exact gated comparison returns. Core154 (149 Swift Testing +5 XCTest),17 distinct new native journeys and21 affected existing journeys pass across the source-bound focused runs in [qualification](validation/history-activity.md); this is composed evidence, not one full-suite or universal platform result. All96 final changed-state originals are individually reviewed/accepted. Separate Standards/Spec reviews have no outstanding hard findings.
 
 Review build: `/Users/bender/Library/Caches/Codex/mac-cleaner-implementation/artifacts/history-f062ca6/Still.app` with BUILD.md. Normal mode remains on-demand and persists no cleanup choices/approval or scanned child-file catalogue. #52/#54 still need their own triage/grilling; all M2–M8 capabilities remain preserved and M8 stays deferred.
+
+
+## Current #52 checkpoint — October25,2026
+
+Supersedes the earlier next-decision notes above: #52 Q1–Q17 and consolidated contract are user-confirmed in [WHAT-GREW](WHAT-GREW.md). Implementation is authorized and underway, qualification pending. Root integration `dce5c86` contains contract and first Core slices; isolated `feature/what-grew-52` contains native journey work. Follow [incremental evidence](validation/what-grew.md); do not mark G01–G04 Covered prematurely. Latest qualified review app remains history-f062ca6 until #52 qualifies. #54 remains untriaged. No need to re-grill settled #52 decisions. M4 gate and full future milestones/M8 deferral stay unchanged.

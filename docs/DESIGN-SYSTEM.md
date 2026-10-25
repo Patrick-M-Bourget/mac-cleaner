@@ -37,6 +37,7 @@ The app target owns these internal SwiftUI components; they are presentation pri
 | `FindingRow`, `CategoryBadge` | Category hierarchy, consequence and explicit accessory action |
 | `InspectableItemRow` | Separate selection control from filename inspection; size aligned at trailing edge |
 | `MacroCategoryCheckbox`, `CategorySelectionHeader` | Native AppKit unchecked/mixed/checked selection; checkbox → badge → category evidence → trailing size composition |
+| `GrowthComparisonSummary`, `GrowthBaselineNotice`, `GrowthChangeBreakdown`, `GrowthChangeRow` | Shared What grew baseline/actual interval/net change and separate Folders/File types presentation; signed values and labelled increase/decrease groups with one proportional scale per view; no attribution or reclaimable claim. DEBUG `GrowthGalleryExamples` uses inert synthetic values, never archive/scanner access. #52 implementation qualification pending. |
 | `ScanProgressSummary` | Bounded preliminary metadata evidence, explicit enumeration/recheck/stability phase, unknown remaining coverage; native spinner plus accessible phase text, no cleanup controls |
 | `CleanupScopeNotice` | Existing inspection/Overview guidance; the approved plan replacement uses a contextual category prerequisite, never a permanent global chooser/banner (FLOW-LOCK Q4/Q5) |
 | `StatusRow`, `EmptyState` | Honest status, blocked/error explanation, or no findings yet |
@@ -222,4 +223,13 @@ Unavailable scan/cleanup stores have independent warnings and reload actions, ne
 
 ## What grew shared presentation requirements — #52
 
-Q1–Q17 and the consolidated contract are user-confirmed in [WHAT-GREW](WHAT-GREW.md). Independent location baselines, explicit manual scan/return, current destination-specific review, exact historical context, honest failures and accessible proportional comparison hierarchy are locked. Implementation is authorized, not yet qualified. M4 gating, #51 archive/recovery rules and all future milestones remain unchanged. G01–G04 stay pending implementation and evidence.
+Q1–Q17 and the consolidated [WHAT-GREW](WHAT-GREW.md) contract are implemented at application source `fb20196`, with [bounded qualification](validation/what-grew.md): Core158 Swift Testing +5 XCTest, six business journeys at two sizes (12 methods), two Gallery checks and six affected existing checks across source-bound runs. All50 final changed-presentation originals are individually accepted. G01–G04 are Covered for this future-gated manual workflow. M4 gating, #51 archive/recovery authority, platform limits and all future milestones/M8 deferral remain unchanged.
+
+
+### What grew implementation composition
+
+`GrowthBaselineNotice` shares honest empty/first/cleared/missing/incompatible/unknown copy between live UI and the inert Gallery. `GrowthComparisonSummary` shows actual scope/date endpoints and signed net logical change, never reclaimable allocation. `GrowthChangeBreakdown` switches Folders/File types without summing them; `GrowthChangeRow` provides signed text and proportional purple/teal bars on one scale per selected view, with labelled Increases/Decreases. Tiny/zero-net and same-named roots retain readable evidence. Duplicate root labels have stable identity disambiguation; no historical path is invented.
+
+The process-owned `HistoryGrowthReturnContext` is specific to a clicked recorded-comparison link. It remembers the link's position within the native viewport and restores it once after returning and reloading History, including when a new scan prepends a row. Ordinary selection, disclosure and theme changes do not request scrolling. It persists no filesystem authority or preference. This supplements the raw `DestinationViewport` offset rather than introducing a general navigation abstraction. `HistoryGrowthLinkViewport` is an inert native position marker behind the existing button; Gallery summaries omit its context.
+
+Sourcefb20196 is qualified within [what-grew evidence](validation/what-grew.md). Unchanged History feeds retain the existing raw viewport restoration; only changed feed IDs/order request the exact-link adjustment. No source review or screenshot alone certifies native behavior.

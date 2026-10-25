@@ -173,7 +173,7 @@ The native active-operation footer keeps **Stop after current file** reachable. 
 
 ### M4 What grew native comparison states
 
-Future-gated What grew preserves existing shortcuts and adds Command-6. The fixed action strip opens an explicit folder picker. A selected completed observation shows scope, completeness and both interval endpoints; compatible comparisons show folder/category logical deltas. First, cleared, expired/missing, changed-coverage and unknown observations have distinct explanations. Partial/cancelled/unmeasured observations never masquerade as completed growth. Completed-observation selection is secondary disclosure content; no writer attribution or cleanup selection is inferred. See [implementation evidence](validation/growth-comparisons.md).
+Future-gated What grew preserves existing shortcuts and adds Command-6. The fixed action strip follows [WHAT-GREW](WHAT-GREW.md): establish a baseline, scan again, Stop during scanning, or explicitly reconnect missing authority. It uses the verified remembered location where available instead of always reopening a generic picker. A selected completed observation shows scope, completeness and both interval endpoints; compatible comparisons show folder/category logical deltas. First, cleared, expired/missing, changed-coverage and unknown observations have distinct explanations. Partial/cancelled/unmeasured observations never masquerade as completed growth. Completed-observation selection is secondary disclosure content; no writer attribution or cleanup selection is inferred. See [historical mechanism evidence](validation/growth-comparisons.md) and [current #52 qualification in progress](validation/what-grew.md).
 
 ### Directory instability during scanning
 
@@ -251,4 +251,13 @@ Closing/reopening a retained process preserves current evidence and live choices
 
 ## What grew flow and navigation lock — #52
 
-Q1–Q17 and the consolidated contract are user-confirmed in [WHAT-GREW](WHAT-GREW.md). Independent location baselines, explicit manual scan/return, current destination-specific review, exact historical context, honest failures and accessible proportional comparison hierarchy are locked. Implementation is authorized, not yet qualified. M4 gating, #51 archive/recovery rules and all future milestones remain unchanged. G01–G04 stay pending implementation and evidence.
+Q1–Q17 and the consolidated [WHAT-GREW](WHAT-GREW.md) contract are implemented at application source `fb20196`, with [bounded qualification](validation/what-grew.md): Core158 Swift Testing +5 XCTest, six business journeys at two sizes (12 methods), two Gallery checks and six affected existing checks across source-bound runs. All50 final changed-presentation originals are individually accepted. G01–G04 are Covered for this future-gated manual workflow. M4 gating, #51 archive/recovery authority, platform limits and all future milestones/M8 deferral remain unchanged.
+
+
+### What grew route details — #52 implementation
+
+Current selection and exact History requests are separate. An exact historical page retains Back to History, and “Scan this location now” changes to current mode only after verified authority and an accepted actual scan. Cancelling reconnect preserves the exact historical observation. A new History row must not displace the original link on Back: restore its position, filter and disclosure after the updated feed loads.
+
+Review uses verified current findings: Review Downloads enters the existing plan with Back to What grew; Explore folder enters the observed-only Explorer with that same caller. Missing current findings require explicit Scan to review. Pending access verification is disabled/checking, never a transient false Locate prompt. Reconnect rejects same-named/replaced roots; stale async results cannot navigate or start a scan after the caller changes.
+
+Archive unavailability hides numeric comparisons and offers explicit Retry. The retained identity may still resolve current authorized findings; this does not make cached historical numbers valid. Save warnings keep current review usable without replaying the failed observation. Stop/partial/failed attempts explain their outcome separately from the last valid retained comparison. M4 gating and all cleanup/recovery authority stay unchanged.
