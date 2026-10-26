@@ -1,0 +1,749 @@
+{
+  "schema": 1,
+  "experiment": "hosted-standard-deriveddata-mapping",
+  "productionMutationQualified": false,
+  "cleanupExercised": true,
+  "noOwnerTermination": true,
+  "standardRootInitiallyAbsent": true,
+  "freshHostedLayoutPreferences": {},
+  "source": "f937636743c28483dcab30998645eb0abb4f3e62",
+  "runID": "40337504058",
+  "os": "ProductName:\t\tmacOS\nProductVersion:\t\t26.6.2\nBuildVersion:\t\t25G83\n",
+  "architecture": "arm64",
+  "toolchain": "Xcode 26.6\nBuild version 17F113\n",
+  "publicNativeOwnerReadings": [
+    {
+      "phase": "before-owned-build",
+      "ownedBuildStillRunning": false,
+      "publicObservation": {
+        "activity": "closed",
+        "elapsedSeconds": 0.2834687083333449,
+        "reason": null,
+        "runID": "40337504058",
+        "selectedApplication": "/Applications/Xcode_26.6.app",
+        "source": "f937636743c28483dcab30998645eb0abb4f3e62"
+      }
+    },
+    {
+      "phase": "during-owned-build",
+      "ownedBuildStillRunning": true,
+      "publicObservation": {
+        "activity": "running",
+        "elapsedSeconds": 0.1453119999999899,
+        "reason": "Xcode or a relevant build owner is still running. Close it normally, then recheck.",
+        "runID": "40337504058",
+        "selectedApplication": "/Applications/Xcode_26.6.app",
+        "source": "f937636743c28483dcab30998645eb0abb4f3e62"
+      }
+    },
+    {
+      "phase": "after-owned-build-0",
+      "ownedBuildStillRunning": false,
+      "publicObservation": {
+        "activity": "closed",
+        "elapsedSeconds": 0.4197435000000098,
+        "reason": null,
+        "runID": "40337504058",
+        "selectedApplication": "/Applications/Xcode_26.6.app",
+        "source": "f937636743c28483dcab30998645eb0abb4f3e62"
+      }
+    },
+    {
+      "phase": "after-owned-build-1",
+      "ownedBuildStillRunning": false,
+      "publicObservation": {
+        "activity": "closed",
+        "elapsedSeconds": 0.033514583333328574,
+        "reason": null,
+        "runID": "40337504058",
+        "selectedApplication": "/Applications/Xcode_26.6.app",
+        "source": "f937636743c28483dcab30998645eb0abb4f3e62"
+      }
+    },
+    {
+      "phase": "after-owned-build-2",
+      "ownedBuildStillRunning": false,
+      "publicObservation": {
+        "activity": "closed",
+        "elapsedSeconds": 0.0462203749999901,
+        "reason": null,
+        "runID": "40337504058",
+        "selectedApplication": "/Applications/Xcode_26.6.app",
+        "source": "f937636743c28483dcab30998645eb0abb4f3e62"
+      }
+    }
+  ],
+  "buildArguments": [
+    "/usr/bin/xcodebuild",
+    "-project",
+    "/Users/runner/work/_temp/StillXcodeStandard-_g4q5wuz/Sources/Probe.xcodeproj",
+    "-scheme",
+    "Probe",
+    "-configuration",
+    "Debug",
+    "-destination",
+    "platform=macOS",
+    "-disableAutomaticPackageResolution",
+    "CODE_SIGNING_ALLOWED=NO",
+    "build"
+  ],
+  "ownedBuildDescendants": [
+    {
+      "pid": 2099,
+      "parent": 2042,
+      "executableBasename": "xcodebuild"
+    },
+    {
+      "pid": 2220,
+      "parent": 2099,
+      "executableBasename": "xcrun"
+    },
+    {
+      "pid": 2221,
+      "parent": 2099,
+      "executableBasename": "xcrun"
+    },
+    {
+      "pid": 2227,
+      "parent": 2221,
+      "executableBasename": "xcodebuild"
+    },
+    {
+      "pid": 2228,
+      "parent": 2220,
+      "executableBasename": "xcodebuild"
+    },
+    {
+      "pid": 2235,
+      "parent": 2220,
+      "executableBasename": "sh"
+    },
+    {
+      "pid": 2236,
+      "parent": 2221,
+      "executableBasename": "sh"
+    },
+    {
+      "pid": 2237,
+      "parent": 2236,
+      "executableBasename": "xcodebuild"
+    },
+    {
+      "pid": 2238,
+      "parent": 2235,
+      "executableBasename": "xcodebuild"
+    },
+    {
+      "pid": 2249,
+      "parent": 2099,
+      "executableBasename": "SWBBuildService"
+    },
+    {
+      "pid": 2265,
+      "parent": 2249,
+      "executableBasename": "clang-stat-cache"
+    },
+    {
+      "pid": 2444,
+      "parent": 2249,
+      "executableBasename": "(clang)"
+    },
+    {
+      "pid": 2445,
+      "parent": 2249,
+      "executableBasename": "(clang)"
+    },
+    {
+      "pid": 2446,
+      "parent": 2444,
+      "executableBasename": "(clang)"
+    },
+    {
+      "pid": 2447,
+      "parent": 2445,
+      "executableBasename": "(clang)"
+    },
+    {
+      "pid": 2452,
+      "parent": 2249,
+      "executableBasename": "(clang)"
+    },
+    {
+      "pid": 2453,
+      "parent": 2452,
+      "executableBasename": "(ld)"
+    }
+  ],
+  "capturedHelperLifetimeAfterBuild": [
+    {
+      "secondsAfterPreviousObservation": 0,
+      "capturedPIDRows": []
+    },
+    {
+      "secondsAfterPreviousObservation": 1,
+      "capturedPIDRows": []
+    },
+    {
+      "secondsAfterPreviousObservation": 2,
+      "capturedPIDRows": []
+    }
+  ],
+  "nativeProjectMetadata": [
+    {
+      "folder": "Probe-bohqkmzlkjxuneaddvfwlfnmyhcg",
+      "rootIdentity": {
+        "device": 16777231,
+        "inode": 2986954,
+        "owner": 501,
+        "mode": 16877,
+        "size": 192
+      },
+      "metadataIdentity": {
+        "device": 16777231,
+        "inode": 2987090,
+        "owner": 501,
+        "mode": 33188,
+        "size": 373
+      },
+      "keys": {
+        "LastAccessedDate": "datetime",
+        "WorkspacePath": "str"
+      },
+      "workspacePath": "/Users/runner/work/_temp/StillXcodeStandard-_g4q5wuz/Sources/Probe.xcodeproj",
+      "knownOwnedAssociation": true
+    }
+  ],
+  "nativeObjectLeaves": [
+    {
+      "relativePath": "Build/Intermediates.noindex/Probe.build/Debug/Probe.build/Objects-normal/arm64/main.o",
+      "identity": {
+        "device": 16777231,
+        "inode": 2987247,
+        "owner": 501,
+        "mode": 33188,
+        "size": 1960
+      },
+      "nativeObjectHeader": {
+        "first32BytesHex": "cffaedfe0c000001000000000100000004000000e80300000020000000000000",
+        "littleEndianMagic": 4277009103,
+        "cpuType": 16777228,
+        "cpuSubtype": 0,
+        "fileType": 1
+      }
+    },
+    {
+      "relativePath": "Build/Intermediates.noindex/Probe.build/Debug/Probe.build/Objects-normal/arm64/helper.o",
+      "identity": {
+        "device": 16777231,
+        "inode": 2987248,
+        "owner": 501,
+        "mode": 33188,
+        "size": 1904
+      },
+      "nativeObjectHeader": {
+        "first32BytesHex": "cffaedfe0c000001000000000100000004000000e80300000020000000000000",
+        "littleEndianMagic": 4277009103,
+        "cpuType": 16777228,
+        "cpuSubtype": 0,
+        "fileType": 1
+      }
+    }
+  ],
+  "nativeOwnedBuildSettings": [
+    {
+      "PROJECT_FILE_PATH": "/Users/runner/work/_temp/StillXcodeStandard-_g4q5wuz/Sources/Probe.xcodeproj",
+      "PROJECT_TEMP_DIR": "/Users/runner/Library/Developer/Xcode/DerivedData/Probe-bohqkmzlkjxuneaddvfwlfnmyhcg/Build/Intermediates.noindex/Probe.build",
+      "TARGET_TEMP_DIR": "/Users/runner/Library/Developer/Xcode/DerivedData/Probe-bohqkmzlkjxuneaddvfwlfnmyhcg/Build/Intermediates.noindex/Probe.build/Debug/Probe.build",
+      "OBJROOT": "/Users/runner/Library/Developer/Xcode/DerivedData/Probe-bohqkmzlkjxuneaddvfwlfnmyhcg/Build/Intermediates.noindex",
+      "OBJECT_FILE_DIR_normal": "/Users/runner/Library/Developer/Xcode/DerivedData/Probe-bohqkmzlkjxuneaddvfwlfnmyhcg/Build/Intermediates.noindex/Probe.build/Debug/Probe.build/Objects-normal",
+      "SYMROOT": "/Users/runner/Library/Developer/Xcode/DerivedData/Probe-bohqkmzlkjxuneaddvfwlfnmyhcg/Build/Products",
+      "BUILT_PRODUCTS_DIR": "/Users/runner/Library/Developer/Xcode/DerivedData/Probe-bohqkmzlkjxuneaddvfwlfnmyhcg/Build/Products/Debug"
+    }
+  ],
+  "protectedSourcesUnchanged": true,
+  "mappingObserved": true,
+  "protectedActionBefore": {
+    "sources/helper.c": {
+      "sha256": "7ad1544ff00dd1a25013685ee85be7c989385ec7b6445d6b8cce34541d39b48e",
+      "size": 31,
+      "mode": 33188
+    },
+    "sources/main.c": {
+      "sha256": "fca6def087a4c83ab2c92b51f1a9438bbdf8e44c799e1ebfc50984351f27c254",
+      "size": 54,
+      "mode": 33188
+    },
+    "sources/Probe.xcodeproj/project.pbxproj": {
+      "sha256": "c0a456e962cf06d0e35d4e5dd3063b209ccce4bd3394933e0e0defd48b2124c9",
+      "size": 2604,
+      "mode": 33188
+    },
+    "sources/Probe.xcodeproj/xcshareddata/xcschemes/Probe.xcscheme": {
+      "sha256": "3268d546caacdc08c7b5f3c3b44e9524f56a657cf920927a1e0874ab6ce8ccb9",
+      "size": 639,
+      "mode": 33188
+    },
+    "products/Debug/Probe": {
+      "sha256": "3ae71e90ced0abccfe2dd8ff261616bf79a81b886e5f8a44bd6ea5b0cc9397dd",
+      "size": 17608,
+      "mode": 33261
+    },
+    "products/Debug/Probe.dSYM/Contents/Info.plist": {
+      "sha256": "2456f972d1940063ed590a0cad9c7808169a03174e99e66dec1e4c55411c5137",
+      "size": 634,
+      "mode": 33188
+    },
+    "products/Debug/Probe.dSYM/Contents/Resources/Relocations/aarch64/Probe.yml": {
+      "sha256": "2415266b5cb544e6e858cb645bb50ba6145ccc50eef859fb23b7513429f1ba7f",
+      "size": 664,
+      "mode": 33188
+    },
+    "products/Debug/Probe.dSYM/Contents/Resources/DWARF/Probe": {
+      "sha256": "e918da8709434adaee42ddb762dc64fcc896d602465cd3dd4ceb5af7322476d4",
+      "size": 9301,
+      "mode": 33188
+    }
+  },
+  "coreActionStarted": true,
+  "publicCoreAction": {
+    "artifactCount": 2,
+    "command": "action",
+    "durableReloadCount": 1,
+    "elapsedSeconds": 0.37398762499998384,
+    "lateFile": "/Users/runner/Library/Developer/Xcode/DerivedData/Probe-bohqkmzlkjxuneaddvfwlfnmyhcg/Build/Intermediates.noindex/Probe.build/Debug/Probe.build/Objects-normal/arm64/Still-late-unapproved.o",
+    "lateFilePreserved": true,
+    "qualificationPassed": true,
+    "replacedFilePreserved": true,
+    "replayDisposition": "rejected",
+    "run": {
+      "approvedAt": 814716850.949353,
+      "artifacts": [
+        {
+          "approvedIdentity": {
+            "changed": 1793024042,
+            "changedNanos": 428223874,
+            "device": 16777231,
+            "inode": 2987247,
+            "links": 1,
+            "mode": 33188,
+            "modified": 1793024042,
+            "modifiedNanos": 424190749,
+            "size": 1960,
+            "uid": 501
+          },
+          "artifact": {
+            "id": "0a2d0a85c95d6dc4380c27c15f44c672e265b34305d6e75db2420aaad9b159ae",
+            "logicalBytes": 1960,
+            "observedAt": 814716850.704836,
+            "projectURL": "file:///Users/runner/work/_temp/StillXcodeStandard-_g4q5wuz/Sources/Probe.xcodeproj/",
+            "relativePath": "Probe-bohqkmzlkjxuneaddvfwlfnmyhcg/Build/Intermediates.noindex/Probe.build/Debug/Probe.build/Objects-normal/arm64/main.o",
+            "url": "file:///Users/runner/Library/Developer/Xcode/DerivedData/Probe-bohqkmzlkjxuneaddvfwlfnmyhcg/Build/Intermediates.noindex/Probe.build/Debug/Probe.build/Objects-normal/arm64/main.o"
+          },
+          "removedBytes": 1960,
+          "status": "succeeded"
+        },
+        {
+          "approvedIdentity": {
+            "changed": 1793024042,
+            "changedNanos": 428516208,
+            "device": 16777231,
+            "inode": 2987248,
+            "links": 1,
+            "mode": 33188,
+            "modified": 1793024042,
+            "modifiedNanos": 424116708,
+            "size": 1904,
+            "uid": 501
+          },
+          "artifact": {
+            "id": "485656e8b7bb1af01cc32e0c7d56d2b662bcce2cb3d19450e1e0b28bf93faeb3",
+            "logicalBytes": 1904,
+            "observedAt": 814716850.704836,
+            "projectURL": "file:///Users/runner/work/_temp/StillXcodeStandard-_g4q5wuz/Sources/Probe.xcodeproj/",
+            "relativePath": "Probe-bohqkmzlkjxuneaddvfwlfnmyhcg/Build/Intermediates.noindex/Probe.build/Debug/Probe.build/Objects-normal/arm64/helper.o",
+            "url": "file:///Users/runner/Library/Developer/Xcode/DerivedData/Probe-bohqkmzlkjxuneaddvfwlfnmyhcg/Build/Intermediates.noindex/Probe.build/Debug/Probe.build/Objects-normal/arm64/helper.o"
+          },
+          "reason": "The exact approved artifact changed or disappeared.",
+          "removedBytes": 0,
+          "status": "skipped"
+        }
+      ],
+      "disposition": "completed",
+      "id": "15412D99-21CE-4A68-B99C-50AC139EDA1B",
+      "observedAt": 814716850.952675,
+      "unresolved": false
+    },
+    "runID": "40337504058",
+    "source": "f937636743c28483dcab30998645eb0abb4f3e62"
+  },
+  "protectedActionAfter": {
+    "sources/helper.c": {
+      "sha256": "7ad1544ff00dd1a25013685ee85be7c989385ec7b6445d6b8cce34541d39b48e",
+      "size": 31,
+      "mode": 33188
+    },
+    "sources/main.c": {
+      "sha256": "fca6def087a4c83ab2c92b51f1a9438bbdf8e44c799e1ebfc50984351f27c254",
+      "size": 54,
+      "mode": 33188
+    },
+    "sources/Probe.xcodeproj/project.pbxproj": {
+      "sha256": "c0a456e962cf06d0e35d4e5dd3063b209ccce4bd3394933e0e0defd48b2124c9",
+      "size": 2604,
+      "mode": 33188
+    },
+    "sources/Probe.xcodeproj/xcshareddata/xcschemes/Probe.xcscheme": {
+      "sha256": "3268d546caacdc08c7b5f3c3b44e9524f56a657cf920927a1e0874ab6ce8ccb9",
+      "size": 639,
+      "mode": 33188
+    },
+    "products/Debug/Probe": {
+      "sha256": "3ae71e90ced0abccfe2dd8ff261616bf79a81b886e5f8a44bd6ea5b0cc9397dd",
+      "size": 17608,
+      "mode": 33261
+    },
+    "products/Debug/Probe.dSYM/Contents/Info.plist": {
+      "sha256": "2456f972d1940063ed590a0cad9c7808169a03174e99e66dec1e4c55411c5137",
+      "size": 634,
+      "mode": 33188
+    },
+    "products/Debug/Probe.dSYM/Contents/Resources/Relocations/aarch64/Probe.yml": {
+      "sha256": "2415266b5cb544e6e858cb645bb50ba6145ccc50eef859fb23b7513429f1ba7f",
+      "size": 664,
+      "mode": 33188
+    },
+    "products/Debug/Probe.dSYM/Contents/Resources/DWARF/Probe": {
+      "sha256": "e918da8709434adaee42ddb762dc64fcc896d602465cd3dd4ceb5af7322476d4",
+      "size": 9301,
+      "mode": 33188
+    }
+  },
+  "removedObjectsRegenerated": true,
+  "ownedWorkerReturnCode": -9,
+  "publicCrashRecords": {
+    "command": "records",
+    "qualificationPassed": true,
+    "records": [
+      {
+        "approvedAt": 814716853.861258,
+        "artifacts": [
+          {
+            "approvedIdentity": {
+              "changed": 1793024053,
+              "changedNanos": 269615416,
+              "device": 16777231,
+              "inode": 2987603,
+              "links": 1,
+              "mode": 33188,
+              "modified": 1793024053,
+              "modifiedNanos": 266284583,
+              "size": 1960,
+              "uid": 501
+            },
+            "artifact": {
+              "id": "1b7b1b767a2f0a87d3e5277d3c4b75a973605d7b937b39d411e71804ec977589",
+              "logicalBytes": 1960,
+              "observedAt": 814716853.645832,
+              "projectURL": "file:///Users/runner/work/_temp/StillXcodeStandard-_g4q5wuz/Sources/Probe.xcodeproj/",
+              "relativePath": "Probe-bohqkmzlkjxuneaddvfwlfnmyhcg/Build/Intermediates.noindex/Probe.build/Debug/Probe.build/Objects-normal/arm64/main.o",
+              "url": "file:///Users/runner/Library/Developer/Xcode/DerivedData/Probe-bohqkmzlkjxuneaddvfwlfnmyhcg/Build/Intermediates.noindex/Probe.build/Debug/Probe.build/Objects-normal/arm64/main.o"
+            },
+            "removedBytes": 0,
+            "status": "unknown"
+          },
+          {
+            "approvedIdentity": {
+              "changed": 1793024053,
+              "changedNanos": 324344249,
+              "device": 16777231,
+              "inode": 2987607,
+              "links": 1,
+              "mode": 33188,
+              "modified": 1793024053,
+              "modifiedNanos": 322888749,
+              "size": 1904,
+              "uid": 501
+            },
+            "artifact": {
+              "id": "2c96d924c5f9f8ce9437e64034684de4dc285cb3bf5cf1a7c52de833c24141cc",
+              "logicalBytes": 1904,
+              "observedAt": 814716853.645832,
+              "projectURL": "file:///Users/runner/work/_temp/StillXcodeStandard-_g4q5wuz/Sources/Probe.xcodeproj/",
+              "relativePath": "Probe-bohqkmzlkjxuneaddvfwlfnmyhcg/Build/Intermediates.noindex/Probe.build/Debug/Probe.build/Objects-normal/arm64/helper.o",
+              "url": "file:///Users/runner/Library/Developer/Xcode/DerivedData/Probe-bohqkmzlkjxuneaddvfwlfnmyhcg/Build/Intermediates.noindex/Probe.build/Debug/Probe.build/Objects-normal/arm64/helper.o"
+            },
+            "removedBytes": 0,
+            "status": "notStarted"
+          }
+        ],
+        "disposition": "recoveryRequired",
+        "id": "FE1A92A8-C9A1-4B47-A44A-F0B05E053B15",
+        "observedAt": 814716853.861397,
+        "unresolved": true
+      }
+    ],
+    "runID": "40337504058",
+    "source": "f937636743c28483dcab30998645eb0abb4f3e62"
+  },
+  "publicCrashReplay": {
+    "command": "replay",
+    "qualificationPassed": true,
+    "records": [
+      {
+        "approvedAt": 814716853.861258,
+        "artifacts": [
+          {
+            "approvedIdentity": {
+              "changed": 1793024053,
+              "changedNanos": 269615416,
+              "device": 16777231,
+              "inode": 2987603,
+              "links": 1,
+              "mode": 33188,
+              "modified": 1793024053,
+              "modifiedNanos": 266284583,
+              "size": 1960,
+              "uid": 501
+            },
+            "artifact": {
+              "id": "1b7b1b767a2f0a87d3e5277d3c4b75a973605d7b937b39d411e71804ec977589",
+              "logicalBytes": 1960,
+              "observedAt": 814716853.645832,
+              "projectURL": "file:///Users/runner/work/_temp/StillXcodeStandard-_g4q5wuz/Sources/Probe.xcodeproj/",
+              "relativePath": "Probe-bohqkmzlkjxuneaddvfwlfnmyhcg/Build/Intermediates.noindex/Probe.build/Debug/Probe.build/Objects-normal/arm64/main.o",
+              "url": "file:///Users/runner/Library/Developer/Xcode/DerivedData/Probe-bohqkmzlkjxuneaddvfwlfnmyhcg/Build/Intermediates.noindex/Probe.build/Debug/Probe.build/Objects-normal/arm64/main.o"
+            },
+            "removedBytes": 0,
+            "status": "unknown"
+          },
+          {
+            "approvedIdentity": {
+              "changed": 1793024053,
+              "changedNanos": 324344249,
+              "device": 16777231,
+              "inode": 2987607,
+              "links": 1,
+              "mode": 33188,
+              "modified": 1793024053,
+              "modifiedNanos": 322888749,
+              "size": 1904,
+              "uid": 501
+            },
+            "artifact": {
+              "id": "2c96d924c5f9f8ce9437e64034684de4dc285cb3bf5cf1a7c52de833c24141cc",
+              "logicalBytes": 1904,
+              "observedAt": 814716853.645832,
+              "projectURL": "file:///Users/runner/work/_temp/StillXcodeStandard-_g4q5wuz/Sources/Probe.xcodeproj/",
+              "relativePath": "Probe-bohqkmzlkjxuneaddvfwlfnmyhcg/Build/Intermediates.noindex/Probe.build/Debug/Probe.build/Objects-normal/arm64/helper.o",
+              "url": "file:///Users/runner/Library/Developer/Xcode/DerivedData/Probe-bohqkmzlkjxuneaddvfwlfnmyhcg/Build/Intermediates.noindex/Probe.build/Debug/Probe.build/Objects-normal/arm64/helper.o"
+            },
+            "removedBytes": 0,
+            "status": "notStarted"
+          }
+        ],
+        "disposition": "recoveryRequired",
+        "id": "FE1A92A8-C9A1-4B47-A44A-F0B05E053B15",
+        "observedAt": 814716853.861397,
+        "unresolved": true
+      }
+    ],
+    "run": {
+      "approvedAt": 814716854.1514,
+      "artifacts": [
+        {
+          "approvedIdentity": {
+            "changed": 1793024053,
+            "changedNanos": 269615416,
+            "device": 16777231,
+            "inode": 2987603,
+            "links": 1,
+            "mode": 33188,
+            "modified": 1793024053,
+            "modifiedNanos": 266284583,
+            "size": 1960,
+            "uid": 501
+          },
+          "artifact": {
+            "id": "1b7b1b767a2f0a87d3e5277d3c4b75a973605d7b937b39d411e71804ec977589",
+            "logicalBytes": 1960,
+            "observedAt": 814716853.981099,
+            "projectURL": "file:///Users/runner/work/_temp/StillXcodeStandard-_g4q5wuz/Sources/Probe.xcodeproj/",
+            "relativePath": "Probe-bohqkmzlkjxuneaddvfwlfnmyhcg/Build/Intermediates.noindex/Probe.build/Debug/Probe.build/Objects-normal/arm64/main.o",
+            "url": "file:///Users/runner/Library/Developer/Xcode/DerivedData/Probe-bohqkmzlkjxuneaddvfwlfnmyhcg/Build/Intermediates.noindex/Probe.build/Debug/Probe.build/Objects-normal/arm64/main.o"
+          },
+          "removedBytes": 0,
+          "status": "notStarted"
+        },
+        {
+          "approvedIdentity": {
+            "changed": 1793024053,
+            "changedNanos": 324344249,
+            "device": 16777231,
+            "inode": 2987607,
+            "links": 1,
+            "mode": 33188,
+            "modified": 1793024053,
+            "modifiedNanos": 322888749,
+            "size": 1904,
+            "uid": 501
+          },
+          "artifact": {
+            "id": "2c96d924c5f9f8ce9437e64034684de4dc285cb3bf5cf1a7c52de833c24141cc",
+            "logicalBytes": 1904,
+            "observedAt": 814716853.981099,
+            "projectURL": "file:///Users/runner/work/_temp/StillXcodeStandard-_g4q5wuz/Sources/Probe.xcodeproj/",
+            "relativePath": "Probe-bohqkmzlkjxuneaddvfwlfnmyhcg/Build/Intermediates.noindex/Probe.build/Debug/Probe.build/Objects-normal/arm64/helper.o",
+            "url": "file:///Users/runner/Library/Developer/Xcode/DerivedData/Probe-bohqkmzlkjxuneaddvfwlfnmyhcg/Build/Intermediates.noindex/Probe.build/Debug/Probe.build/Objects-normal/arm64/helper.o"
+          },
+          "removedBytes": 0,
+          "status": "notStarted"
+        }
+      ],
+      "disposition": "rejected",
+      "id": "9F42DEE1-823B-44E2-B5A0-FD09D1BB497F",
+      "observedAt": 814716854.152196,
+      "stopReason": "This operation is consumed or unresolved cleanup requires review.",
+      "unresolved": false
+    },
+    "runID": "40337504058",
+    "source": "f937636743c28483dcab30998645eb0abb4f3e62"
+  },
+  "protectedCrashBefore": {
+    "sources/helper.c": {
+      "sha256": "7ad1544ff00dd1a25013685ee85be7c989385ec7b6445d6b8cce34541d39b48e",
+      "size": 31,
+      "mode": 33188
+    },
+    "sources/main.c": {
+      "sha256": "fca6def087a4c83ab2c92b51f1a9438bbdf8e44c799e1ebfc50984351f27c254",
+      "size": 54,
+      "mode": 33188
+    },
+    "sources/Probe.xcodeproj/project.pbxproj": {
+      "sha256": "c0a456e962cf06d0e35d4e5dd3063b209ccce4bd3394933e0e0defd48b2124c9",
+      "size": 2604,
+      "mode": 33188
+    },
+    "sources/Probe.xcodeproj/xcshareddata/xcschemes/Probe.xcscheme": {
+      "sha256": "3268d546caacdc08c7b5f3c3b44e9524f56a657cf920927a1e0874ab6ce8ccb9",
+      "size": 639,
+      "mode": 33188
+    },
+    "products/Debug/Probe": {
+      "sha256": "3ae71e90ced0abccfe2dd8ff261616bf79a81b886e5f8a44bd6ea5b0cc9397dd",
+      "size": 17608,
+      "mode": 33261
+    },
+    "products/Debug/Probe.dSYM/Contents/Info.plist": {
+      "sha256": "2456f972d1940063ed590a0cad9c7808169a03174e99e66dec1e4c55411c5137",
+      "size": 634,
+      "mode": 33188
+    },
+    "products/Debug/Probe.dSYM/Contents/Resources/Relocations/aarch64/Probe.yml": {
+      "sha256": "2415266b5cb544e6e858cb645bb50ba6145ccc50eef859fb23b7513429f1ba7f",
+      "size": 664,
+      "mode": 33188
+    },
+    "products/Debug/Probe.dSYM/Contents/Resources/DWARF/Probe": {
+      "sha256": "e918da8709434adaee42ddb762dc64fcc896d602465cd3dd4ceb5af7322476d4",
+      "size": 9301,
+      "mode": 33188
+    }
+  },
+  "protectedCrashAfter": {
+    "sources/helper.c": {
+      "sha256": "7ad1544ff00dd1a25013685ee85be7c989385ec7b6445d6b8cce34541d39b48e",
+      "size": 31,
+      "mode": 33188
+    },
+    "sources/main.c": {
+      "sha256": "fca6def087a4c83ab2c92b51f1a9438bbdf8e44c799e1ebfc50984351f27c254",
+      "size": 54,
+      "mode": 33188
+    },
+    "sources/Probe.xcodeproj/project.pbxproj": {
+      "sha256": "c0a456e962cf06d0e35d4e5dd3063b209ccce4bd3394933e0e0defd48b2124c9",
+      "size": 2604,
+      "mode": 33188
+    },
+    "sources/Probe.xcodeproj/xcshareddata/xcschemes/Probe.xcscheme": {
+      "sha256": "3268d546caacdc08c7b5f3c3b44e9524f56a657cf920927a1e0874ab6ce8ccb9",
+      "size": 639,
+      "mode": 33188
+    },
+    "products/Debug/Probe": {
+      "sha256": "3ae71e90ced0abccfe2dd8ff261616bf79a81b886e5f8a44bd6ea5b0cc9397dd",
+      "size": 17608,
+      "mode": 33261
+    },
+    "products/Debug/Probe.dSYM/Contents/Info.plist": {
+      "sha256": "2456f972d1940063ed590a0cad9c7808169a03174e99e66dec1e4c55411c5137",
+      "size": 634,
+      "mode": 33188
+    },
+    "products/Debug/Probe.dSYM/Contents/Resources/Relocations/aarch64/Probe.yml": {
+      "sha256": "2415266b5cb544e6e858cb645bb50ba6145ccc50eef859fb23b7513429f1ba7f",
+      "size": 664,
+      "mode": 33188
+    },
+    "products/Debug/Probe.dSYM/Contents/Resources/DWARF/Probe": {
+      "sha256": "e918da8709434adaee42ddb762dc64fcc896d602465cd3dd4ceb5af7322476d4",
+      "size": 9301,
+      "mode": 33188
+    }
+  },
+  "completed": true,
+  "limits": "One generated C project on recorded configuration; no personal/default-existing roots, arbitrary workspaces, custom outputs or universal owner exclusion qualified. Prior archive/Swift experiments remain separate. Fixture outputs retained for runner disposal.",
+  "ownedJournalEvidence": {
+    "action-journal.json": {
+      "bytes": 1890,
+      "sha256": "2debe0a378fa3ffd40af1d77b9ba0f94993f9915f61cfa7a7d698237ad065dd8"
+    },
+    "crash-journal.json": {
+      "bytes": 1831,
+      "sha256": "65a5dd8de4ab6e18434ff53711a21c8f4bfc2df759687aed21114358f8cfca2c"
+    }
+  },
+  "protectedSnapshotAtExit": {
+    "sources/helper.c": {
+      "sha256": "7ad1544ff00dd1a25013685ee85be7c989385ec7b6445d6b8cce34541d39b48e",
+      "size": 31,
+      "mode": 33188
+    },
+    "sources/main.c": {
+      "sha256": "fca6def087a4c83ab2c92b51f1a9438bbdf8e44c799e1ebfc50984351f27c254",
+      "size": 54,
+      "mode": 33188
+    },
+    "sources/Probe.xcodeproj/project.pbxproj": {
+      "sha256": "c0a456e962cf06d0e35d4e5dd3063b209ccce4bd3394933e0e0defd48b2124c9",
+      "size": 2604,
+      "mode": 33188
+    },
+    "sources/Probe.xcodeproj/xcshareddata/xcschemes/Probe.xcscheme": {
+      "sha256": "3268d546caacdc08c7b5f3c3b44e9524f56a657cf920927a1e0874ab6ce8ccb9",
+      "size": 639,
+      "mode": 33188
+    },
+    "products/Debug/Probe": {
+      "sha256": "3ae71e90ced0abccfe2dd8ff261616bf79a81b886e5f8a44bd6ea5b0cc9397dd",
+      "size": 17608,
+      "mode": 33261
+    },
+    "products/Debug/Probe.dSYM/Contents/Info.plist": {
+      "sha256": "2456f972d1940063ed590a0cad9c7808169a03174e99e66dec1e4c55411c5137",
+      "size": 634,
+      "mode": 33188
+    },
+    "products/Debug/Probe.dSYM/Contents/Resources/Relocations/aarch64/Probe.yml": {
+      "sha256": "2415266b5cb544e6e858cb645bb50ba6145ccc50eef859fb23b7513429f1ba7f",
+      "size": 664,
+      "mode": 33188
+    },
+    "products/Debug/Probe.dSYM/Contents/Resources/DWARF/Probe": {
+      "sha256": "e918da8709434adaee42ddb762dc64fcc896d602465cd3dd4ceb5af7322476d4",
+      "size": 9301,
+      "mode": 33188
+    }
+  }
+}

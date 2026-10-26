@@ -184,7 +184,7 @@ The scanner permits at most one internal metadata recheck within shared entry an
 
 ## Genuine owned Xcode evidence (#16)
 
-The [bounded native experiment](../Validation/XcodeProbe/NativeExperiment/README.md) builds/archives a minimal owned27.1 project and verifies exact-object removal/regeneration with source/archive/dSYM preservation. This advances layout evidence beyond synthetic policy; production Xcode mutation remains unsupported because general project/helper ownership and the full action/recovery contract are not qualified.
+The [bounded native experiment](../Validation/XcodeProbe/NativeExperiment/README.md) builds/archives a minimal owned27.1 project and verifies exact-object removal/regeneration with source/archive/dSYM preservation. The subsequent [reusable Core qualification](validation/xcode-intermediates.md) passes at `f937636` on its recorded26.6 installation/macOS26.6.2 arm64 boundary, including actual default-root mapping, owner detection, frozen targets, protected data, regeneration and durable crash/replay refusal. #16 is complete within that boundary. #17's full app journey is unblocked and remains pending; broader compatibility and custom roots are not qualified by the old27.1 experiment.
 
 ## pip mutation boundary (#25)
 
