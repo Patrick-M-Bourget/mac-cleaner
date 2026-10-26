@@ -61,7 +61,7 @@ public struct SystemInUseChecker: InUseChecking {
         var address: UInt64 = 0
         var region = proc_regionwithpathinfo()
         let regionSize = Int32(MemoryLayout<proc_regionwithpathinfo>.size)
-        while proc_pidinfo(pid, regionFlavor, address, &region, regionSize) == regionSize {
+        while proc_pidinfo(pid, PROC_PIDREGIONPATHINFO, address, &region, regionSize) == regionSize {
             let mapped = path(region.prp_vip.vip_path)
             if !mapped.isEmpty { paths.append(mapped) }
             let next = region.prp_prinfo.pri_address &+ region.prp_prinfo.pri_size
@@ -70,17 +70,6 @@ public struct SystemInUseChecker: InUseChecking {
         }
         return paths
     }
-
-    /// libproc's flavor that walks only file-backed regions, as `lsof` does (`PROC_PIDREGIONPATHINFO2`, not in the public header).
-    /// Every region takes about 2 seconds for all of the user's processes; file-backed ones about 0.2. It is used only when it
-    /// reports this process's own mapped executable, so a macOS without it falls back to walking every region.
-    static let regionFlavor: Int32 = {
-        let fileBackedOnly: Int32 = 22
-        var region = proc_regionwithpathinfo()
-        let regionSize = Int32(MemoryLayout<proc_regionwithpathinfo>.size)
-        guard proc_pidinfo(getpid(), fileBackedOnly, 0, &region, regionSize) == regionSize, !path(region.prp_vip.vip_path).isEmpty else { return PROC_PIDREGIONPATHINFO }
-        return fileBackedOnly
-    }()
 
     private static func path<T>(_ tuple: T) -> String {
         withUnsafeBytes(of: tuple) { String(cString: $0.bindMemory(to: CChar.self).baseAddress!) }
