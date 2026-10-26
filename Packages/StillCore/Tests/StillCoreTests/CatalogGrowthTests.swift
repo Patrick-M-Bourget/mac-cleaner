@@ -7,7 +7,7 @@ private func growthStore() -> (GrowthHistoryStore, URL) {
     return (GrowthHistoryStore(directory: directory), directory)
 }
 private let catalogFingerprint = GrowthFingerprint(scopeID: "catalog", rootID: "home", volumeID: "volume", access: "per-location", rules: "catalog", exclusions: "none", classification: "catalog")
-private func location(_ id: String, _ category: String, _ bytes: Int64, measured: Bool = true) -> GrowthAggregate {
+private func location(_ id: String, _ category: CatalogCategory, _ bytes: Int64, measured: Bool = true) -> GrowthAggregate {
     GrowthAggregate(id: "location:" + id, label: "~/" + id, logicalBytes: bytes, dimension: .location, category: category, ruleID: id, measured: measured)
 }
 private func catalogSnapshot(_ time: Double, _ groups: [GrowthAggregate]) -> GrowthSnapshot {
@@ -17,9 +17,9 @@ private func catalogSnapshot(_ time: Double, _ groups: [GrowthAggregate]) -> Gro
 @Test func catalogComparisonReportsGrowthPerLocationAndPerCategory() async throws {
     let (store, directory) = growthStore()
     defer { try? FileManager.default.removeItem(at: directory) }
-    let first = catalogSnapshot(100, [location("npm", "developer", 100), location("yarn", "developer", 50), location("chrome", "browser", 10)])
+    let first = catalogSnapshot(100, [location("npm", .developer, 100), location("yarn", .developer, 50), location("chrome", .browser, 10)])
     #expect(try await store.record(first, now: first.observedAt, expectedEpoch: try await store.recordingEpoch()).state == .firstBaseline)
-    let second = catalogSnapshot(200, [location("npm", "developer", 400), location("yarn", "developer", 20), location("chrome", "browser", 30)])
+    let second = catalogSnapshot(200, [location("npm", .developer, 400), location("yarn", .developer, 20), location("chrome", .browser, 30)])
     let result = try await store.record(second, now: second.observedAt, expectedEpoch: try await store.recordingEpoch())
     #expect(result.state == .compared)
     #expect(result.logicalDelta == 290)
@@ -33,9 +33,9 @@ private func catalogSnapshot(_ time: Double, _ groups: [GrowthAggregate]) -> Gro
 @Test func aLocationThatBecomesReadableOrUnreadableIsCoverageNeverGrowth() async throws {
     let (store, directory) = growthStore()
     defer { try? FileManager.default.removeItem(at: directory) }
-    let first = catalogSnapshot(100, [location("npm", "developer", 100), location("safari", "browser", 0, measured: false), location("mail", "logs", 500)])
+    let first = catalogSnapshot(100, [location("npm", .developer, 100), location("safari", .browser, 0, measured: false), location("mail", .logs, 500)])
     _ = try await store.record(first, now: first.observedAt, expectedEpoch: try await store.recordingEpoch())
-    let second = catalogSnapshot(200, [location("npm", "developer", 150), location("safari", "browser", 9_000, measured: true), location("mail", "logs", 0, measured: false)])
+    let second = catalogSnapshot(200, [location("npm", .developer, 150), location("safari", .browser, 9_000, measured: true), location("mail", .logs, 0, measured: false)])
     let result = try await store.record(second, now: second.observedAt, expectedEpoch: try await store.recordingEpoch())
     #expect(result.state == .compared)
     #expect(result.logicalDelta == 50)
@@ -49,9 +49,9 @@ private func catalogSnapshot(_ time: Double, _ groups: [GrowthAggregate]) -> Gro
 @Test func aLocationNewlyScannedOrNoLongerScannedIsCoverageNeverGrowth() async throws {
     let (store, directory) = growthStore()
     defer { try? FileManager.default.removeItem(at: directory) }
-    let first = catalogSnapshot(100, [location("npm", "developer", 100), location("gone", "developer", 700)])
+    let first = catalogSnapshot(100, [location("npm", .developer, 100), location("gone", .developer, 700)])
     _ = try await store.record(first, now: first.observedAt, expectedEpoch: try await store.recordingEpoch())
-    let second = catalogSnapshot(200, [location("npm", "developer", 100), location("new", "models", 5_000)])
+    let second = catalogSnapshot(200, [location("npm", .developer, 100), location("new", .models, 5_000)])
     let result = try await store.record(second, now: second.observedAt, expectedEpoch: try await store.recordingEpoch())
     #expect(result.logicalDelta == 0)
     #expect(result.groups.first { $0.id == "category:models" }?.logicalDelta ?? 0 == 0)
@@ -59,7 +59,7 @@ private func catalogSnapshot(_ time: Double, _ groups: [GrowthAggregate]) -> Gro
 }
 
 @Test func unmeasuredLocationsAreLeftOutOfTheRecordedTotal() {
-    let snapshot = catalogSnapshot(100, [location("npm", "developer", 100), location("safari", "browser", 40, measured: false)])
+    let snapshot = catalogSnapshot(100, [location("npm", .developer, 100), location("safari", .browser, 40, measured: false)])
     #expect(snapshot.logicalBytes == 100)
 }
 
@@ -88,7 +88,7 @@ private func recordCatalogScan(_ catalog: Catalog, home: URL, recorder: GrowthSc
     #expect(first.state == .firstBaseline)
     #expect(first.current?.fingerprint.isCatalog == true)
     let npm = try #require(first.current?.groups.first { $0.ruleID == "npm-cache" })
-    #expect(npm.dimension == .location && npm.category == "developer" && npm.label == "~/.npm/_cacache" && npm.measured == true)
+    #expect(npm.dimension == .location && npm.category == .developer && npm.label == "~/.npm/_cacache" && npm.measured == true)
     #expect(npm.logicalBytes >= 10_000)
     // Every scanned rule location is recorded, found or not, so a later appearance isn't mistaken for coverage.
     #expect(first.current?.groups.contains { $0.ruleID == "yarn-cache" && $0.logicalBytes == 0 } == true)
@@ -148,7 +148,7 @@ private func recordCatalogScan(_ catalog: Catalog, home: URL, recorder: GrowthSc
     defer { try? FileManager.default.removeItem(at: directory) }
     let store = GrowthHistoryStore(directory: directory, policy: GrowthRetention(days: 1, baselines: 2))
     for time in [100.0, 200, 300] {
-        _ = try await store.record(catalogSnapshot(time, [location("npm", "developer", Int64(time))]), now: Date(timeIntervalSince1970: time), expectedEpoch: try await store.recordingEpoch())
+        _ = try await store.record(catalogSnapshot(time, [location("npm", .developer, Int64(time))]), now: Date(timeIntervalSince1970: time), expectedEpoch: try await store.recordingEpoch())
     }
     #expect(try await store.snapshots(now: Date(timeIntervalSince1970: 300)).map(\.observedAt.timeIntervalSince1970) == [200, 300])
     #expect(try await store.snapshots(now: Date(timeIntervalSince1970: 300 + 86_401)).isEmpty)

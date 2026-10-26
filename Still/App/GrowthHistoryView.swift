@@ -64,8 +64,8 @@ enum GrowthPresentation {
         (bytes > 0 ? "+" : bytes < 0 ? "−" : "") + ByteCountFormatter.string(fromByteCount: bytes == .min ? .max : abs(bytes), countStyle: .decimal)
     }
     /// A category group's title, as in Overview.
-    static func categoryTitle(_ raw: String?) -> String { raw.flatMap(CatalogCategory.init(rawValue:))?.overviewTitle ?? "Other" }
-    static func storageCategory(_ raw: String?) -> StorageCategory { raw.flatMap(CatalogCategory.init(rawValue:))?.storageCategory ?? .managed }
+    static func categoryTitle(_ category: CatalogCategory?) -> String { category?.overviewTitle ?? "Other" }
+    static func storageCategory(_ category: CatalogCategory?) -> StorageCategory { category?.storageCategory ?? .managed }
     static func coverage(_ change: GrowthCoverageChange) -> String {
         switch change.kind {
         case .newlyReadable: change.label + " can now be read, so its size isn’t counted as growth."

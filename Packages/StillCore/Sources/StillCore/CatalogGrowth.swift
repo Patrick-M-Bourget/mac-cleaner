@@ -26,7 +26,7 @@ public enum CatalogGrowth {
         return order.map { id in
             let group = groups[id]!
             return GrowthAggregate(id: id, label: label(group.location, base: group.rule.base), logicalBytes: group.bytes, dimension: .location,
-                                   category: group.rule.category.rawValue, ruleID: group.rule.id, measured: group.measured)
+                                   category: group.rule.category, ruleID: group.rule.id, measured: group.measured)
         }
     }
 

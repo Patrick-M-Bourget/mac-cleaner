@@ -16,13 +16,13 @@ public struct GrowthAggregate: Codable, Sendable, Identifiable {
     public let id, label: String
     public let logicalBytes: Int64
     public let dimension: GrowthDimension
-    /// A location group's catalog category (`CatalogCategory` raw value) and rule.
-    public let category: String?
+    /// A location group's catalog category and rule.
+    public let category: CatalogCategory?
     public let ruleID: String?
     /// False when the location couldn't be fully read (no Full Disk Access, unreadable folders): its size is not a measurement.
     /// Nil in records made before catalog scans, which were always measured.
     public let measured: Bool?
-    public init(id: String, label: String, logicalBytes: Int64, dimension: GrowthDimension = .folder, category: String? = nil, ruleID: String? = nil, measured: Bool? = nil) {
+    public init(id: String, label: String, logicalBytes: Int64, dimension: GrowthDimension = .folder, category: CatalogCategory? = nil, ruleID: String? = nil, measured: Bool? = nil) {
         self.id = id; self.label = label; self.logicalBytes = logicalBytes; self.dimension = dimension
         self.category = category; self.ruleID = ruleID; self.measured = measured
     }
@@ -47,7 +47,7 @@ public struct GrowthChange: Sendable, Identifiable {
     public let id, label: String
     public let logicalDelta: Int64
     public let dimension: GrowthDimension
-    public var category: String? = nil
+    public var category: CatalogCategory? = nil
     public var ruleID: String? = nil
 }
 /// A location whose coverage differs between the two scans. Its size change is never counted as growth.
@@ -55,7 +55,7 @@ public struct GrowthCoverageChange: Sendable, Identifiable, Equatable {
     public enum Kind: String, Sendable { case newlyReadable, newlyUnreadable, newlyScanned, noLongerScanned }
     public let id, label: String
     public let kind: Kind
-    public let category: String?
+    public let category: CatalogCategory?
     public let ruleID: String?
 }
 public struct GrowthComparison: Sendable {
@@ -170,7 +170,7 @@ public actor GrowthHistoryStore {
     static func catalogComparison(_ previous: GrowthSnapshot, _ current: GrowthSnapshot) -> GrowthComparison {
         let older = Dictionary(uniqueKeysWithValues: previous.groups.filter { $0.dimension == .location }.map { ($0.id, $0) })
         let newer = Dictionary(uniqueKeysWithValues: current.groups.filter { $0.dimension == .location }.map { ($0.id, $0) })
-        var changes: [GrowthChange] = [], coverage: [GrowthCoverageChange] = [], categories: [String: Int64] = [:]
+        var changes: [GrowthChange] = [], coverage: [GrowthCoverageChange] = [], categories: [CatalogCategory?: Int64] = [:]
         for key in Set(older.keys).union(newer.keys).sorted() {
             let group = (newer[key] ?? older[key])!
             func covered(_ kind: GrowthCoverageChange.Kind) { coverage.append(GrowthCoverageChange(id: key, label: group.label, kind: kind, category: group.category, ruleID: group.ruleID)) }
@@ -178,14 +178,14 @@ public actor GrowthHistoryStore {
             case let (old?, new?) where old.isMeasured && new.isMeasured:
                 let delta = new.logicalBytes - old.logicalBytes
                 changes.append(GrowthChange(id: key, label: group.label, logicalDelta: delta, dimension: .location, category: group.category, ruleID: group.ruleID))
-                categories[group.category ?? "", default: 0] += delta
+                categories[group.category, default: 0] += delta
             case let (old?, new?) where old.isMeasured != new.isMeasured: covered(new.isMeasured ? .newlyReadable : .newlyUnreadable)
             case (nil, _?): covered(.newlyScanned)
             case (_?, nil): covered(.noLongerScanned)
             default: break // Unreadable in both scans: nothing to compare.
             }
         }
-        changes += categories.map { GrowthChange(id: "category:" + $0.key, label: $0.key, logicalDelta: $0.value, dimension: .category, category: $0.key) }
+        changes += categories.map { GrowthChange(id: "category:" + ($0.key?.rawValue ?? ""), label: $0.key?.rawValue ?? "", logicalDelta: $0.value, dimension: .category, category: $0.key) }
         var result = GrowthComparison(state: .compared, current: current, from: previous.observedAt, groups: changes.sorted { $0.id < $1.id })
         result.coverageChanges = coverage
         return result
