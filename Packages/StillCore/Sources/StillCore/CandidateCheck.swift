@@ -124,6 +124,8 @@ public struct CandidateCheck: Sendable {
             guard let used = inUse.inUse([candidate.url], by: owner) else { return .inUseUnknown(owner.name) }
             if !used.isEmpty { return .inUse(owner.name) }
         }
+        // An old temporary item that anything inside changed in since the scan is in use again (`TemporaryFiles`).
+        if rule.unused != nil, !candidate.isLeftover, Catalog.lastChange(in: candidate.url).map({ $0 > candidate.observedAt }) ?? true { return .changed }
         guard info.st_uid == geteuid(),
               info.st_flags & UInt32(UF_IMMUTABLE | SF_IMMUTABLE | UF_APPEND | SF_APPEND) == 0,
               access(candidate.url.deletingLastPathComponent().path, W_OK | X_OK) == 0 else { return .notPermitted }

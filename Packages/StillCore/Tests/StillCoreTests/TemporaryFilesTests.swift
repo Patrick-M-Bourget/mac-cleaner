@@ -63,3 +63,104 @@ private func temporaryFiles(_ candidates: [Candidate]) -> [String] {
     #expect(rule.category == .system && rule.action == .delete && rule.base == .userFolder)
     #expect(candidates.filter { $0.ruleID == "temporary-files" }.allSatisfy { ($0.allocatedBytes ?? 0) >= 8192 })
 }
+
+@Test func anItemAProcessHasOpenIsNeverOfferedAndWhenUseCantBeCheckedNothingIs() throws {
+    let folder = try fixtureUserFolder()
+    defer { try? FileManager.default.removeItem(at: folder) }
+    let open = try writeFile("T/open.tmp", in: folder, modified: daysAgo(30))
+    let idle = try writeFile("C/idle.bin", in: folder, modified: daysAgo(30))
+    #expect(temporaryFiles(catalog.discover(fixture: fixtureHome(), userFolder: folder, inUse: FakeInUse(open: [open.path]), now: now)) == [idle.path])
+    let discovery = catalog.discovery(fixture: fixtureHome(), userFolder: folder, inUse: FakeInUse(unknown: true), now: now)
+    #expect(temporaryFiles(discovery.candidates).isEmpty)
+    #expect(discovery.notes.contains(CatalogNote(ruleID: "temporary-files", text: "Old temporary files: kept all, because Still couldn’t tell which ones apps are using.")))
+}
+
+@Test func aFolderWithAnythingChangedInsideRecentlyIsNotOffered() throws {
+    let folder = try fixtureUserFolder()
+    defer { try? FileManager.default.removeItem(at: folder) }
+    try writeFile("T/session/old/blob", in: folder, modified: daysAgo(30))
+    try age("T/session", in: folder, to: daysAgo(30))
+    try writeFile("T/session/old/fresh", in: folder, modified: daysAgo(1))
+    try FileManager.default.setAttributes([.modificationDate: daysAgo(30)], ofItemAtPath: folder.appendingPathComponent("T/session/old").path)
+    #expect(temporaryFiles(catalog.discover(fixture: fixtureHome(), userFolder: folder, now: now)).isEmpty)
+    // Exactly at the limit is still too recent; a moment older is offered.
+    try FileManager.default.removeItem(at: folder.appendingPathComponent("T/session/old/fresh"))
+    try age("T/session", in: folder, to: daysAgo(3).addingTimeInterval(1))
+    #expect(temporaryFiles(catalog.discover(fixture: fixtureHome(), userFolder: folder, now: now)).isEmpty)
+    try age("T/session", in: folder, to: daysAgo(3).addingTimeInterval(-60))
+    #expect(temporaryFiles(catalog.discover(fixture: fixtureHome(), userFolder: folder, now: now)) == [folder.appendingPathComponent("T/session").path])
+}
+
+@Test func withoutTheUserFolderNoTemporaryFilesAreLookedFor() throws {
+    let folder = try fixtureUserFolder()
+    defer { try? FileManager.default.removeItem(at: folder) }
+    try writeFile("T/old.tmp", in: folder, modified: daysAgo(30))
+    #expect(temporaryFiles(catalog.discover(fixture: fixtureHome(), now: now)).isEmpty)
+}
+
+@Test func anItemOpenedOrChangedSinceTheScanIsRefusedJustBeforeActing() throws {
+    let folder = try fixtureUserFolder()
+    defer { try? FileManager.default.removeItem(at: folder) }
+    try writeFile("T/job/blob", in: folder, modified: daysAgo(30))
+    try age("T/job", in: folder, to: daysAgo(30))
+    let candidate = try #require(catalog.discover(fixture: fixtureHome(), userFolder: folder, now: now).first { $0.ruleID == "temporary-files" })
+    let home = fixtureHome()
+    func check(_ inUse: FakeInUse) -> CheckRefusal? { CandidateCheck(catalog: catalog, running: NothingRunning(), inUse: inUse, home: home).check(candidate) }
+    #expect(check(FakeInUse()) == nil)
+    let refusal = check(FakeInUse(open: [candidate.url.path]))
+    #expect(refusal == .inUse("An app"))
+    #expect(refusal?.reason == "An app is using it. It is kept.")
+    #expect(check(FakeInUse(unknown: true)) == .inUseUnknown("An app"))
+    // A file written inside after the scan means it's in use again.
+    Thread.sleep(forTimeInterval: 0.01)
+    try Data([1]).write(to: candidate.url.appendingPathComponent("new"))
+    #expect(check(FakeInUse()) == .changed)
+}
+
+/// Available space grows by what each deleted item really frees.
+private final class FakeVolume: @unchecked Sendable {
+    private let lock = NSLock()
+    private var available: Int64 = 1_000_000
+    var freedPerRead: [Int64] = []
+    func read(_ url: URL) -> CapacitySample? {
+        lock.lock(); defer { lock.unlock() }
+        if !freedPerRead.isEmpty { available += freedPerRead.removeFirst() }
+        return CapacitySample(available: available, total: 10_000_000, volumeID: "fake-volume", metric: .important, date: Date())
+    }
+}
+
+@Test func deletingTemporaryFilesReportsMeasuredFreedSpace() async throws {
+    let folder = try fixtureUserFolder()
+    defer { try? FileManager.default.removeItem(at: folder) }
+    let file = try writeFile("T/old.tmp", in: folder, modified: daysAgo(30))
+    try writeFile("C/old.cache/blob", in: folder, modified: daysAgo(30))
+    try age("C/old.cache", in: folder, to: daysAgo(30))
+    let recent = try writeFile("T/recent.tmp", in: folder, modified: daysAgo(1))
+    let candidates = catalog.discover(fixture: fixtureHome(), userFolder: folder, now: now).filter { $0.ruleID == "temporary-files" }
+    #expect(candidates.count == 2)
+    let volume = FakeVolume()
+    volume.freedPerRead = [0, 8192, 0, 12_288]
+    let journal = try SQLiteCleanupJournal(url: folder.appendingPathComponent("journal.sqlite"))
+    let check = CandidateCheck(catalog: catalog, running: NothingRunning(), inUse: FakeInUse(), home: fixtureHome())
+    let run = CleanupExecutor(journal: journal, check: check, measure: volume.read, trash: TrashNeverUsed())
+    let result = await run.execute(CatalogApproval(candidates: candidates, previewOnly: false))
+    #expect(result.records.map(\.state) == [.succeeded, .succeeded])
+    #expect(result.measuredFreedBytes == 20_480)
+    #expect(!FileManager.default.fileExists(atPath: file.path) && !FileManager.default.fileExists(atPath: folder.appendingPathComponent("C/old.cache").path))
+    #expect(FileManager.default.fileExists(atPath: recent.path))
+}
+
+@Test func theSystemCheckerSeesATempFileAnyProcessOfTheUsersHasOpen() throws {
+    let folder = try fixtureUserFolder()
+    defer { try? FileManager.default.removeItem(at: folder) }
+    let opened = try writeFile("T/open.tmp", in: folder, modified: daysAgo(30))
+    let mapped = try writeFile("T/mapped.tmp", in: folder, modified: daysAgo(30))
+    let idle = try writeFile("C/idle.bin", in: folder, modified: daysAgo(30))
+    let descriptor = Darwin.open(opened.path, O_RDONLY)
+    #expect(descriptor >= 0)
+    defer { close(descriptor) }
+    let mapping = try Data(contentsOf: mapped, options: .alwaysMapped)
+    let used = SystemInUseChecker().inUse([opened, mapped, idle], by: .anyApp)
+    #expect(used == [opened.path, mapped.path])
+    #expect(mapping.count == 8192)
+}
