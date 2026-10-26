@@ -251,3 +251,25 @@ private let editor = InstalledApp(name: "Editor", bundleID: "com.example.Editor"
         #expect(catalog.target(for: finding) == .app(bundleID: item.app))
     }
 }
+
+/// Opens folders only, as on a Mac where the managing app isn't installed; records what it was asked to open.
+private actor NoAppsInstalled: GuidanceOpening {
+    private(set) var targets: [GuidanceTarget] = []
+    func open(_ target: GuidanceTarget) async -> Bool {
+        targets.append(target)
+        if case .folder = target { return true }
+        return false
+    }
+}
+
+@Test func withoutItsManagingAppGuidanceRevealsTheFolderInFinder() async throws {
+    let home = try fixtureHome()
+    defer { try? FileManager.default.removeItem(at: home) }
+    // GarageBand alone: Logic Pro, whose Sound Library Manager the row opens, isn't installed.
+    try write(home, "Library/Audio/Apple Loops/Apple/Apple Loops for GarageBand/a.caf", bytes: 4_096)
+    let catalog = Catalog(rules: fixtureRules)
+    let finding = try #require(catalog.guidance(fixture: home).first { $0.ruleID == "logic-sound-library" })
+    let opener = NoAppsInstalled()
+    #expect(await catalog.open(finding, using: opener))
+    #expect(await opener.targets == [.app(bundleID: "com.apple.logic10"), .folder(home.appendingPathComponent("Library/Audio/Apple Loops/Apple"))])
+}
