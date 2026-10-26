@@ -122,7 +122,7 @@ public actor CleanupExecutor {
         if previewOnly {
             let size = ByteCountFormatter.string(fromByteCount: candidate.estimatedBytes, countStyle: .decimal)
             record.state = .skipped; record.message = CleanupRecord.previewPrefix + " would \(verb) (\(size)). Checks passed; nothing changed."
-            Self.log.info("Preview only: would \(verb, privacy: .public) \(candidate.url.path, privacy: .public), \(size, privacy: .public)")
+            Self.log.info("Dry run: would \(verb, privacy: .public) \(candidate.url.path, privacy: .public), \(size, privacy: .public)")
             return
         }
         let before = measure(candidate.url.deletingLastPathComponent())

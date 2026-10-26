@@ -7,7 +7,7 @@ public struct ActionWording: Sendable {
     /// Overview's phrase for the titles of the rules it applies to; rules whose phrases share `overviewGroup` are listed together.
     public let overviewGroup: Int
     public let overview: @Sendable (String) -> String
-    /// With Preview only on, e.g. "Would move to Trash".
+    /// With the dry run on, e.g. "Would move to Trash".
     public let previewOutcome: String
     public let succeeded: String
     public let partlyFailed: String
@@ -52,10 +52,14 @@ extension CleanupAction {
 /// How Results, History and Recovery describe a record, per action (`ActionWording`). Records from the
 /// Downloads-only flow carry the "moveToTrash" action, so they read as Trash moves.
 extension CleanupRecord {
-    static let previewPrefix = "Preview only:"
+    static let previewPrefix = "Dry run:"
+    /// What dry-run records journaled before the switch moved to Settings start with.
+    static let legacyPreviewPrefix = "Preview only:"
     private var wording: ActionWording { cleanupAction?.wording ?? .unknown }
-    /// Checked with Preview only on: every check passed and nothing changed.
-    public var wasPreviewed: Bool { previewOnly == true && state == .skipped && message.hasPrefix(Self.previewPrefix) }
+    /// Checked with the dry run on: every check passed and nothing changed.
+    public var wasPreviewed: Bool {
+        previewOnly == true && state == .skipped && (message.hasPrefix(Self.previewPrefix) || message.hasPrefix(Self.legacyPreviewPrefix))
+    }
     public var actionTitle: String { cleanupAction?.wording.title ?? action }
     public var outcomeTitle: String {
         if wasPreviewed { return wording.previewOutcome }
@@ -73,17 +77,17 @@ extension CleanupRecord {
         case .intent, .unknown: return wording.unresolved
         case .succeeded: return "Recorded success · " + outcomeTitle
         case .failed: return partlyRemoved == true ? wording.partlyFailedRecovery : "Recorded failure · Not changed"
-        case .skipped: return wasPreviewed ? "Preview · " + outcomeTitle : "Recorded skip · Not changed"
+        case .skipped: return wasPreviewed ? "Dry run · " + outcomeTitle : "Recorded skip · Not changed"
         case .cancelled: return "Recorded cancellation · Not started"
         }
     }
 }
 
 extension CleanupHistoryRun {
-    /// Every record was checked with Preview only on; nothing changed on disk.
+    /// Every record was checked with the dry run on; nothing changed on disk.
     public var isPreview: Bool { !records.isEmpty && records.allSatisfy { $0.previewOnly == true } }
     public var title: String {
-        if isPreview { return "Preview · Nothing changed" }
+        if isPreview { return "Dry run · Nothing changed" }
         let done = records.filter { $0.state == .succeeded }
         var parts: [String] = []
         for action in [CleanupAction.delete, .tool, .trash, .evict] where done.contains(where: { $0.cleanupAction == action }) {
