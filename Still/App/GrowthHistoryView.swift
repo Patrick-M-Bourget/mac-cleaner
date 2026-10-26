@@ -2,7 +2,7 @@ import SwiftUI
 import Observation
 import StillCore
 
-/// What grew: compares the last two completed catalog scans of the known locations (SPEC, RESET Decision 12 revisited in #119).
+/// Storage trends (formerly What grew): compares the last two completed catalog scans of the known locations (SPEC, RESET Decision 12 revisited in #119).
 /// Each catalog scan records a baseline; nothing scans in the background.
 @MainActor @Observable final class GrowthHistoryModel {
     static let shared = GrowthHistoryModel()
@@ -33,14 +33,14 @@ import StillCore
             comparison = value; error = nil
         } catch {
             guard request == current, !Task.isCancelled else { return }
-            comparison = nil; self.error = "What grew history is unavailable. No growth can be inferred from missing scans."
+            comparison = nil; self.error = "Storage trends history is unavailable. No growth can be inferred from missing scans."
         }
     }
 
     /// Before a catalog scan: captures the history's epoch and the home folder's identity.
     func beginCatalog(home: URL, exclusionFingerprint: String) async -> GrowthScanToken? {
         do { return try await GrowthScanRecorder(store: store()).beginCatalog(home: home, exclusionFingerprint: exclusionFingerprint) }
-        catch { self.error = "The home folder’s identity couldn’t be checked, so this scan isn’t recorded in What grew."; return nil }
+        catch { self.error = "The home folder’s identity couldn’t be checked, so this scan isn’t recorded in Storage trends."; return nil }
     }
 
     /// After a completed catalog scan: records it per category and location and shows the new comparison.
@@ -51,7 +51,7 @@ import StillCore
             let result = try await GrowthScanRecorder(store: store()).completeCatalog(discovery, catalog: catalog, fullDiskAccess: fullDiskAccess, token: token)
             if result.state != .unknown { comparison = result }
             error = nil
-        } catch { self.error = "This scan couldn’t be saved to What grew. Current results are still usable." }
+        } catch { self.error = "This scan couldn’t be saved to Storage trends. Current results are still usable." }
     }
 
     func invalidateCoverage() async throws { try await store().invalidateCoverage() }
@@ -114,18 +114,18 @@ struct GrowthHistoryView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: StillDesign.Space.xl) {
             if let error = model.error, model.comparison == nil {
-                PageHeader(title: "What grew")
+                PageHeader(title: "Storage trends")
                 HistoryStoreFailure(message: error, retryTitle: "Try again") { Task { await model.load() } }
             } else if let comparison = model.comparison, let current = comparison.current {
                 if comparison.state == .compared, let from = comparison.from {
                     compared(comparison, from: from, to: current.observedAt)
                 } else {
-                    PageHeader(title: "What grew", subtitle: "Changes in your known locations between two completed scans.")
+                    PageHeader(title: "Storage trends", subtitle: "Changes in your known locations between two completed scans.")
                     EmptyState(title: "Baseline recorded", detail: "Recorded " + current.observedAt.formatted(date: .abbreviated, time: .shortened) + ". " + GrowthPresentation.baseline(comparison.state),
                                symbol: "chart.line.uptrend.xyaxis").accessibilityIdentifier("growthBaselineRecorded")
                 }
             } else if !model.loading {
-                PageHeader(title: "What grew", subtitle: "Changes in your known locations between two completed scans.")
+                PageHeader(title: "Storage trends", subtitle: "Changes in your known locations between two completed scans.")
                 EmptyState(title: catalog.isScanning ? "Scanning known locations…" : "No scan recorded yet",
                            detail: "The first completed scan records a baseline. The next one shows what grew. Nothing scans in the background.", symbol: "chart.line.uptrend.xyaxis")
             }
@@ -136,7 +136,7 @@ struct GrowthHistoryView: View {
 
     @ViewBuilder private func compared(_ comparison: GrowthComparison, from: Date, to: Date) -> some View {
         let days = max(1, Calendar.current.dateComponents([.day], from: from, to: to).day ?? 0)
-        PageHeader(title: "What grew", subtitle: "Changes in your known locations since " + from.formatted(date: .long, time: .omitted) + ".")
+        PageHeader(title: "Storage trends", subtitle: "Changes in your known locations since " + from.formatted(date: .long, time: .omitted) + ".")
         HStack(alignment: .firstTextBaseline, spacing: StillDesign.Space.sm) {
             Text(GrowthPresentation.signed(comparison.logicalDelta ?? 0)).font(StillDesign.TypeStyle.page).monospacedDigit().accessibilityIdentifier("growthNetChange")
             Text("net growth · " + (days == 1 ? "past day" : "past \(days) days")).foregroundStyle(.secondary)

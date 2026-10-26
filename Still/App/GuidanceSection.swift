@@ -22,7 +22,7 @@ struct AppManagedStorageView: View {
                     if let rule = model.guidanceRule(finding), let guidance = rule.guidance {
                         if index > 0 { Divider().padding(.horizontal, StillDesign.Space.lg) }
                         let needsAccess = finding.size == .notAccessible
-                        StorageReviewRow(category: .managed, title: rule.title, detail: rule.detail.firstSentence,
+                        StorageReviewRow(category: rule.managedCategory, title: rule.title, detail: rule.detail.firstSentence,
                                          value: needsAccess ? "Needs access" : finding.size.text,
                                          actionTitle: guidance.openTitle, action: { Task { await model.open(finding) } },
                                          identifier: "guidance-" + finding.id, mutedValue: needsAccess)
@@ -31,6 +31,22 @@ struct AppManagedStorageView: View {
                 }
             }
             if let status = model.guidanceStatus { StatusRow(text: status, symbol: "info.circle", identifier: "guidanceStatus") }
+        }
+    }
+}
+
+extension CleanupRule {
+    /// The badge for an app-managed row; a place without its own symbol keeps the shared app-managed one.
+    var managedCategory: StorageCategory {
+        switch id {
+        case "device-backups": .deviceBackups
+        case "mail-attachments": .mail
+        case "messages-attachments": .messages
+        case "photos-library": .photos
+        case "time-machine-snapshots": .timeMachine
+        case "xcode-archives": .xcodeArchives
+        case "audio-plug-ins": .audioPlugIns
+        default: .managed
         }
     }
 }

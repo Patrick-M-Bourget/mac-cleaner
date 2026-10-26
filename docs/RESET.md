@@ -139,6 +139,8 @@ Phase 0 → 1 → 2 → Tier A (2–3 sessions) → Overview/onboarding → Tier
     - no long paths in rows: name plus a short location, full path in the inspector or a tooltip;
     - one short line of detail per row; consequences appear once, in the review sheet;
     - the cleanup plan groups rules by catalog category, matching Overview, with "Choose items" inside;
+    - per scan, a category with one rule and one item has only its checkbox, one rule with several items lists the items without a rule row, and two or more rules keep their rule rows;
+    - under "Potential space released", one secondary line says "X of this goes to Trash", only when the selection includes Trash-bound items;
     - Overview hides 0-byte categories, shows the 5 largest with "Show N more", and folds not-accessible locations into one "needs Full Disk Access · Learn more" line;
     - App-managed storage is one Overview row that leads to its own quiet page;
     - the review sheet is grouped by consequence;
@@ -146,4 +148,5 @@ Phase 0 → 1 → 2 → Tier A (2–3 sessions) → Overview/onboarding → Tier
     - History is a compact list, and local records live only in Locations & access;
     - Full Disk Access is one settings row;
     - appearance follows the system, with an override in a Settings window;
-    - What grew keeps only its retention footnote.
+    - Storage trends keeps only its retention footnote.
+26. **Storage trends (2026-10-26, #127).** The growth page is named Storage trends and sits third in the sidebar.

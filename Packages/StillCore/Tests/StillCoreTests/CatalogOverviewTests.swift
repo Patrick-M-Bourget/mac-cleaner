@@ -109,3 +109,28 @@ private func rule(_ id: String, _ category: CatalogCategory, _ action: CleanupAc
     #expect(overview.rows.first { $0.category == .models }?.estimate == .measured(0), "An empty location is a 0-byte row")
     #expect(!overview.visibleRows.contains { $0.estimate == .measured(0) })
 }
+
+@Test func thePlanShowsRuleRowsOnlyWhenACategoryFoundSomethingForTwoOrMoreRules() throws {
+    let home = try overviewHome()
+    defer { try? FileManager.default.removeItem(at: home) }
+    try write(4096, at: "single/f", in: home)
+    try write(4096, at: "a/f", in: home)
+    try write(4096, at: "b/f", in: home)
+    let catalog = Catalog(rules: [rule("single", .developer), rule("a", .browser), rule("b", .browser), rule("missing", .browser)])
+    let overview = CatalogOverview(catalog: catalog, candidates: catalog.discover(fixture: home))
+    #expect(overview.rows.map(\.planLayout) == [.categoryOnly, .ruleRows])
+}
+
+@Test func aSingleRuleWithSeveralItemsListsItsItemsWithoutARuleRow() throws {
+    let home = try overviewHome()
+    defer { try? FileManager.default.removeItem(at: home) }
+    try write(4096, at: "parent/one/f", in: home)
+    try write(4096, at: "parent/two/f", in: home)
+    let catalog = Catalog(rules: [CleanupRule(id: "each", category: .models, title: "each", detail: "", consequence: "", regen: .cache,
+                                              action: .delete, locations: ["parent/*"], owner: nil)])
+    let candidates = catalog.discover(fixture: home)
+    #expect(candidates.count == 2)
+    let overview = CatalogOverview(catalog: catalog, candidates: candidates)
+    #expect(overview.rows.map(\.planLayout) == [.items])
+    #expect(overview.rows.first?.itemCount == 2)
+}
