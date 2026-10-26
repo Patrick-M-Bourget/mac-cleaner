@@ -44,7 +44,7 @@ async function inspect(label){const data=await evaluate(`(()=>{${deep}return all
 async function clickText(text){const ok=await evaluate(`(()=>{${deep}const e=all().find(e=>visible(e)&&['BUTTON','CR-BUTTON'].includes(e.tagName)&&e.innerText.trim()===${JSON.stringify(text)});if(e)e.click();return !!e;})()`);assert(ok,'UI button absent: '+text);await sleep(400);}
 async function field(match,value){const ok=await evaluate(`(()=>{${deep}const e=all().find(e=>visible(e)&&['INPUT','TEXTAREA'].includes(e.tagName)&&${match});if(!e)return false;e.focus();return true;})()`);assert(ok,'UI field absent: '+match);await cdp.call('Input.insertText',{text:value},session);}
 async function close(){if(!owned)return;await cdp?.call('Browser.close').catch(()=>{});for(let i=0;i<100&&owned.exitCode===null;i++)await sleep(100);if(owned.exitCode===null){process.kill(-owned.pid,'SIGTERM');await sleep(1000);}assert(owned.exitCode!==null,'owned browser did not close');ws?.close();owned=undefined;}
-async function key(key,code,virtual){for(const type of ['keyDown','keyUp'])await cdp.call('Input.dispatchKeyEvent',{type,key,code,windowsVirtualKeyCode:virtual,nativeVirtualKeyCode:virtual},session);}
+async function key(key,code,virtual){for(const type of ['keyDown','keyUp'])await cdp.call('Input.dispatchKeyEvent',{type,key,code,windowsVirtualKeyCode:virtual,nativeVirtualKeyCode:key==='ArrowDown'?0x7D:0x24},session);}
 async function addressFill(phase){
  const position=await evaluate("(()=>{const r=document.querySelector('#name').getBoundingClientRect();return{x:r.x+r.width/2,y:r.y+r.height/2};})()");
  for(const type of ['mousePressed','mouseReleased'])await cdp.call('Input.dispatchMouseEvent',{type,...position,button:'left',clickCount:1},session);

@@ -668,11 +668,13 @@ jobs:
       - name: Check disposable qualification syntax and public policy fixtures
         run: |
           node --check Validation/ChromeProbe/headed.mjs
+          python3 -m py_compile Validation/ChromeProbe/standard-profile.py Validation/ChromeProbe/native-faults.py
+          python3 Validation/ChromeProbe/test_standard_proof.py
           python3 Validation/ChromeProbe/test_cache_group.py
           python3 Validation/ChromeProbe/test_owned_cache.py
       - name: Extract vendor-signed Stable without installing
         run: python3 Validation/ChromeProbe/provision-stable.py "$RUNNER_TEMP/chrome-stable-final"
-      - name: Genuine standard-root profile and split-cache mapping
+      - name: Genuine standard-root split-cache mapping, cleanup and regeneration
         if: always()
         run: python3 Validation/ChromeProbe/standard-profile.py "$RUNNER_TEMP/chrome-stable-final/evidence/provision.json" "$RUNNER_TEMP/chrome-stable-final/evidence/standard-profile"
       - name: Genuine headed password, address and download-history semantics
