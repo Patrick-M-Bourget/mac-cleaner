@@ -222,6 +222,7 @@ extension SizeEstimate {
         switch self {
         case .measured(let bytes): catalogBytes(bytes)
         case .atLeast(let bytes): catalogBytes(bytes, complete: false)
+        case .about(let bytes): catalogBytes(bytes, estimate: true)
         case .unknown: "Unknown"
         }
     }

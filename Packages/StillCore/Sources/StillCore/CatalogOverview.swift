@@ -5,25 +5,29 @@ public enum SizeEstimate: Equatable, Sendable {
     case measured(Int64)
     /// Part of it couldn't be read or sizing stopped early; the real size is larger.
     case atLeast(Int64)
+    /// Estimated rather than measured, such as an Ollama model's unshared blobs: "About X".
+    case about(Int64)
     /// Nothing could be measured.
     case unknown
 
     /// A candidate's estimate, from allocated size where available. An incomplete size of 0 is unknown.
     public init(_ candidate: Candidate) {
         let bytes = candidate.estimatedBytes
-        self = candidate.sizeComplete ? .measured(bytes) : bytes > 0 ? .atLeast(bytes) : .unknown
+        self = !candidate.sizeComplete ? (bytes > 0 ? .atLeast(bytes) : .unknown) : candidate.sizeIsEstimate ? .about(bytes) : .measured(bytes)
     }
-    /// The sum of estimates. Any unknown or lower-bound part makes the sum a lower bound.
+    /// The sum of estimates. Any unknown or lower-bound part makes the sum a lower bound; otherwise any
+    /// estimated part makes it an estimate.
     public init(sum parts: [SizeEstimate]) {
-        var bytes: Int64 = 0, complete = true
+        var bytes: Int64 = 0, complete = true, estimated = false
         for part in parts {
             switch part {
             case .measured(let value): bytes += value
+            case .about(let value): bytes += value; estimated = true
             case .atLeast(let value): bytes += value; complete = false
             case .unknown: complete = false
             }
         }
-        self = complete ? .measured(bytes) : bytes > 0 ? .atLeast(bytes) : .unknown
+        self = !complete ? (bytes > 0 ? .atLeast(bytes) : .unknown) : estimated ? .about(bytes) : .measured(bytes)
     }
 }
 

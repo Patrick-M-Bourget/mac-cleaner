@@ -468,6 +468,7 @@ private struct WorkspaceView: View {
     private func recommendedText(_ estimate: SizeEstimate) -> String {
         switch estimate {
         case .measured(let bytes): "Up to " + catalogBytes(bytes) + " estimated"
+        case .about(let bytes): "About " + catalogBytes(bytes) + " estimated"
         case .atLeast(let bytes): "At least " + catalogBytes(bytes) + " estimated · Some sizes unknown"
         case .unknown: "Size unknown"
         }

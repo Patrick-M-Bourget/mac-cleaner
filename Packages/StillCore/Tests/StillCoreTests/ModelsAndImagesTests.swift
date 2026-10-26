@@ -156,6 +156,21 @@ private func fakeOllama(_ home: URL, _ script: String = "echo \"$@\" >> \"$(dirn
     #expect(rule.tool?.commandLine == "ollama rm <model>")
 }
 
+@Test func overviewShowsOllamasEstimatedSizeAsAnEstimate() throws {
+    let home = try modelsHome()
+    defer { try? FileManager.default.removeItem(at: home) }
+    let ollama = try fakeOllama(home)
+    try ollamaModel(home, "registry.ollama.ai/library/llama3/latest", layers: [("weights1", 4000)])
+    let catalog = Catalog(rules: fixtureRules)
+    let candidates = catalog.discover(fixture: home, locateTool: { _ in ollama })
+    let overview = CatalogOverview(catalog: catalog, candidates: candidates.filter { $0.ruleID == "ollama-models" })
+    #expect(overview.rows.map(\.estimate) == [.about(4010)])
+    #expect(overview.recommended == .about(4010))
+    // An estimate summed with measured sizes stays an estimate; a lower bound still wins.
+    #expect(SizeEstimate(sum: [.about(10), .measured(5)]) == .about(15))
+    #expect(SizeEstimate(sum: [.about(10), .atLeast(5)]) == .atLeast(15))
+}
+
 @Test func aChosenOllamaModelIsRemovedWithOllamaRmByName() async throws {
     let home = try modelsHome()
     defer { try? FileManager.default.removeItem(at: home) }
