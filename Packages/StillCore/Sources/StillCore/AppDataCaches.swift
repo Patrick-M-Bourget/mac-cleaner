@@ -76,10 +76,33 @@ public enum AppDataCaches {
                          executables: ["Adobe Premiere*", "After Effects", "Adobe After Effects*", "Adobe Media Encoder*", "Adobe Audition*",
                                        "Adobe Character Animator*", "Adobe Prelude*", "dynamiclinkmanager"]))
 
+    // MARK: Sandboxed apps
+
+    /// A sandboxed app's caches folder, `~/Library/Containers/<bundle id>/Data/Library/Caches`: its own ~/Library/Caches
+    /// (Apple, File System Programming Guide: a sandboxed app's container). The rest of the container is the app's data
+    /// and is never a location; nor are group containers, which several apps share.
+    static let containerCaches = "Library/Containers/*/Data/Library/Caches"
+    /// The installed app whose container holds the caches folder; nil for macOS's and Still's own, or an app that isn't installed.
+    static func containerOwner(_ url: URL, apps: any AppLookup) -> RuleOwner? {
+        let parts = url.pathComponents
+        guard parts.count > 5, Array(parts.suffix(3)) == ["Data", "Library", "Caches"], parts[parts.count - 5] == "Containers" else { return nil }
+        return AppCaches.installedOwner(parts[parts.count - 4], apps: apps)
+    }
+    /// Reading another app's container can make macOS ask the user for access, so the rule is read only with Full Disk
+    /// Access; without it the row says not accessible (`FullDiskAccessProbe` never opens a container for the same reason).
+    static func sandboxedCaches(apps: any AppLookup) -> CleanupRule {
+        CleanupRule(id: "container-caches", category: .system, title: "Sandboxed app caches",
+                    detail: "Files sandboxed apps keep to start and work faster, per app.",
+                    consequence: "Permanently removed. Only each app’s caches folder; its documents, settings and other data are kept. An app must be closed first; Still never quits it for you.",
+                    regen: .cache, action: .delete, locations: [containerCaches], owner: nil,
+                    itemOwner: { containerOwner($0, apps: apps) }, protectedDepth: AppCaches.liveWorkDepth, requiresFullDiskAccess: true)
+    }
+
     public static func rules(apps: any AppLookup) -> [CleanupRule] {
         [
             jetBrains,
             adobeMediaCache,
+            sandboxedCaches(apps: apps),
             vsCode(id: "vscode-cache", name: "Visual Studio Code", nameShort: "Code", bundleID: "com.microsoft.VSCode"),
             vsCode(id: "vscodium-cache", name: "VSCodium", nameShort: "VSCodium", bundleID: "com.vscodium"),
         ]

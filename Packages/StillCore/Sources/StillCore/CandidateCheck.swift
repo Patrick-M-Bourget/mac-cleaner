@@ -98,7 +98,7 @@ public struct CandidateCheck: Sendable {
         let ownership = Catalog.ownership(of: candidate.url, under: rule)
         switch ownership {
         // An item whose own owner can't be found any more (the app was removed) is refused, never guessed.
-        case .unknown: return .ownerUnknown(candidate.url.lastPathComponent)
+        case .unknown: return .ownerUnknown(candidate.appName ?? candidate.url.lastPathComponent)
         case .mustBeClosed(let owner):
             switch running.isRunning(owner) {
             case nil: return .ownerUnknown(owner.name)

@@ -136,3 +136,53 @@ private func found(_ catalog: Catalog, _ home: URL, access: FullDiskAccessStatus
     }
     #expect(CandidateCheck(catalog: catalog, running: Running(processes: [["/Applications/Adobe Photoshop 2025/Adobe Photoshop 2025.app/Contents/MacOS/Adobe Photoshop 2025"]])).check(cache) == nil)
 }
+
+// MARK: Sandboxed apps
+
+private let editor = InstalledApp(name: "Editor", bundleID: "com.example.Editor", path: "/Applications/Editor.app")
+
+@Test func aSandboxedAppsContainerOffersOnlyItsCaches() throws {
+    let home = try fixtureHome()
+    defer { try? FileManager.default.removeItem(at: home) }
+    let container = "Library/Containers/com.example.Editor/Data/"
+    try write(home, container + "Library/Caches/com.example.Editor/Cache.db", bytes: 4_096)
+    for kept in ["Library/Application Support/Editor/store.sqlite", "Library/Preferences/com.example.Editor.plist", "Documents/draft.txt",
+                 "Library/Containers.plist"] {
+        try write(home, container + kept)
+    }
+    // Not installed, macOS's own, Still's own, and a group container: none is offered.
+    for other in ["Library/Containers/com.example.Gone/Data/Library/Caches/x", "Library/Containers/com.apple.Notes/Data/Library/Caches/x",
+                  "Library/Containers/com.patrickbourget.Still/Data/Library/Caches/x", "Library/Group Containers/group.com.example.Editor/Library/Caches/x"] {
+        try write(home, other)
+    }
+    let installed = [editor, InstalledApp(name: "Notes", bundleID: "com.apple.Notes", path: "/System/Applications/Notes.app"),
+                     InstalledApp(name: "Still", bundleID: "com.patrickbourget.Still", path: "/Applications/Still.app")]
+    let catalog = Catalog(rules: BuiltInCatalog.rules(apps: Apps(installed: installed)))
+    #expect(found(catalog, home) == [container + "Library/Caches": "container-caches"])
+    let cache = try #require(catalog.discover(fixture: home).first)
+    #expect(cache.appName == "Editor" && cache.action == .delete)
+    #expect(catalog.rule("container-caches")?.category == .system)
+}
+
+@Test func aContainersCachesAreRefusedWhileItsAppRunsOrOnceItIsUninstalled() throws {
+    let home = try fixtureHome()
+    defer { try? FileManager.default.removeItem(at: home) }
+    try write(home, "Library/Containers/com.example.Editor/Data/Library/Caches/com.example.Editor/Cache.db")
+    let catalog = Catalog(rules: BuiltInCatalog.rules(apps: Apps(installed: [editor])))
+    let cache = try #require(catalog.discover(fixture: home).first)
+    #expect(CandidateCheck(catalog: catalog, running: Running(bundleIDs: ["com.example.Editor"])).check(cache) == .ownerRunning("Editor"))
+    #expect(CandidateCheck(catalog: catalog, running: Running()).check(cache) == nil)
+    let uninstalled = Catalog(rules: BuiltInCatalog.rules(apps: Apps()))
+    #expect(CandidateCheck(catalog: uninstalled, running: Running()).check(cache) == .ownerUnknown("Editor"))
+}
+
+@Test func containersAreNeverReadWithoutFullDiskAccess() throws {
+    let home = try fixtureHome()
+    defer { try? FileManager.default.removeItem(at: home) }
+    try write(home, "Library/Containers/com.example.Editor/Data/Library/Caches/com.example.Editor/Cache.db")
+    let catalog = Catalog(rules: BuiltInCatalog.rules(apps: Apps(installed: [editor])))
+    // Reading other apps' containers can ask the user for access; without Full Disk Access they're not accessible, never 0.
+    let discovery = catalog.discovery(fixture: home, access: .notGranted)
+    #expect(discovery.candidates.isEmpty)
+    #expect(discovery.notAccessible.map(\.id).contains("container-caches"))
+}
