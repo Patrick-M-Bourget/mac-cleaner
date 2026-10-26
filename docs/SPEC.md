@@ -61,13 +61,14 @@ Notes per category:
 - **Per-app caches**: only while the owning app isn't running.
 - **Models and VM images** show their size and last-used date so the user can judge.
 - **A cleanup rule appears only when its tool or folder exists** on this Mac.
+- **Overview** shows one row per category that found something. Its storage bar is the whole disk, used against available, as in the prototype's full mode; it never splits the bar by category.
 
 ## 4. Checks just before acting
 
 When the user confirms, Still freezes the plan. Then, for each item in turn, right before acting, it checks that:
 
 1. the item still exists;
-2. it is unchanged since the scan (same file identity, not modified);
+2. it is unchanged since the scan: the same file identity. A file must also have the same size and modification time. A folder is checked for identity only, not modification time, because caches change constantly;
 3. its owning app is not running, or for a command-line tool's cache (npm, pip, Cargo and the like), no process of that tool is running;
 4. it is not excluded and doesn't match a protected rule;
 5. Still can act on it as the current user, without admin rights.
@@ -85,7 +86,7 @@ An item that fails any check is skipped, and the results say which check failed.
 
 ## 6. Estimated vs measured freed space
 
-- **Estimated** space is what the scan sizes before cleanup, from allocated size where available. Overview's "Recommended for review: up to X GB" is the sum of current catalog candidates, labeled as an estimate.
+- **Estimated** space is what the scan sizes before cleanup, from allocated size where available. Overview's "Recommended for review: up to X GB" is the sum of current catalog candidates whose action frees space (delete or run a tool), labeled as an estimate. Items bound for the Trash are shown separately, because their space stays used until the Trash is emptied.
 - **Moved to Trash** is reported on its own. That space is still used until the user empties the Trash, and is never counted as freed.
 - **Measured freed space** is the change in the volume's available space, read right before and right after each item. Results report the measured total, separately from the estimate.
 - **Why both:** on APFS, clones share disk blocks. Deleting a clone frees only the blocks no other file uses. Chrome's code-sign copies showed 52 GB but freed about 2 GB. For categories made of clones, the estimate is labeled as an upper bound.
