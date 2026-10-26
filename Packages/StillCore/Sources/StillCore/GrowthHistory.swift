@@ -7,13 +7,26 @@ public struct GrowthFingerprint: Codable, Sendable, Equatable {
         self.scopeID = scopeID; self.rootID = rootID; self.volumeID = volumeID; self.access = access
         self.rules = rules; self.exclusions = exclusions; self.classification = classification
     }
+    /// Whether this records a catalog scan of the known locations rather than a chosen folder.
+    public var isCatalog: Bool { scopeID.hasPrefix("catalog:") }
 }
-public enum GrowthDimension: String, Codable, Sendable { case folder, category }
+/// `location` groups come from catalog scans: one per rule location, with its catalog category and whether it could be read.
+public enum GrowthDimension: String, Codable, Sendable { case folder, category, location }
 public struct GrowthAggregate: Codable, Sendable, Identifiable {
     public let id, label: String
     public let logicalBytes: Int64
     public let dimension: GrowthDimension
-    public init(id: String, label: String, logicalBytes: Int64, dimension: GrowthDimension = .folder) { self.id = id; self.label = label; self.logicalBytes = logicalBytes; self.dimension = dimension }
+    /// A location group's catalog category (`CatalogCategory` raw value) and rule.
+    public let category: String?
+    public let ruleID: String?
+    /// False when the location couldn't be fully read (no Full Disk Access, unreadable folders): its size is not a measurement.
+    /// Nil in records made before catalog scans, which were always measured.
+    public let measured: Bool?
+    public init(id: String, label: String, logicalBytes: Int64, dimension: GrowthDimension = .folder, category: String? = nil, ruleID: String? = nil, measured: Bool? = nil) {
+        self.id = id; self.label = label; self.logicalBytes = logicalBytes; self.dimension = dimension
+        self.category = category; self.ruleID = ruleID; self.measured = measured
+    }
+    var isMeasured: Bool { measured != false }
 }
 public enum GrowthCoverage: String, Codable, Sendable { case complete, partial, cancelled, unmeasured }
 public struct GrowthSnapshot: Codable, Sendable, Identifiable {
@@ -27,13 +40,23 @@ public struct GrowthSnapshot: Codable, Sendable, Identifiable {
         id = UUID(); self.fingerprint = fingerprint; self.scopeLabel = scopeLabel
         self.observedAt = observedAt; self.groups = groups; self.coverage = coverage
     }
-    public var logicalBytes: Int64 { groups.filter { $0.dimension == .folder }.reduce(0) { $0 + $1.logicalBytes } }
+    public var logicalBytes: Int64 { groups.filter { $0.dimension != .category && $0.isMeasured }.reduce(0) { $0 + $1.logicalBytes } }
 }
 public enum GrowthComparisonState: String, Codable, Sendable { case firstBaseline, clearedBaseline, missingBaseline, coverageChanged, unknown, compared }
 public struct GrowthChange: Sendable, Identifiable {
     public let id, label: String
     public let logicalDelta: Int64
     public let dimension: GrowthDimension
+    public var category: String? = nil
+    public var ruleID: String? = nil
+}
+/// A location whose coverage differs between the two scans. Its size change is never counted as growth.
+public struct GrowthCoverageChange: Sendable, Identifiable, Equatable {
+    public enum Kind: String, Sendable { case newlyReadable, newlyUnreadable, newlyScanned, noLongerScanned }
+    public let id, label: String
+    public let kind: Kind
+    public let category: String?
+    public let ruleID: String?
 }
 public struct GrowthComparison: Sendable {
     public let state: GrowthComparisonState
@@ -42,7 +65,9 @@ public struct GrowthComparison: Sendable {
     public let from: Date?
     public var to: Date? { current?.observedAt }
     public let groups: [GrowthChange]
-    public var logicalDelta: Int64? { state == .compared ? groups.filter { $0.dimension == .folder }.reduce(0) { $0 + $1.logicalDelta } : nil }
+    /// Catalog locations whose coverage changed; left out of `groups` and `logicalDelta`.
+    public var coverageChanges: [GrowthCoverageChange] = []
+    public var logicalDelta: Int64? { state == .compared ? groups.filter { $0.dimension != .category }.reduce(0) { $0 + $1.logicalDelta } : nil }
 }
 public struct GrowthRetention: Sendable {
     public let days, baselines, bytes: Int
@@ -134,10 +159,36 @@ public actor GrowthHistoryStore {
             return GrowthComparison(state: value.entries[index].origin, current: current, from: nil, groups: [])
         }
         guard current.fingerprint == previous.fingerprint else { return GrowthComparison(state: .coverageChanged, current: current, from: previous.observedAt, groups: []) }
+        if (current.groups + previous.groups).contains(where: { $0.dimension == .location }) { return Self.catalogComparison(previous, current) }
         let older = Dictionary(uniqueKeysWithValues: previous.groups.map { ($0.id, $0) })
         let newer = Dictionary(uniqueKeysWithValues: current.groups.map { ($0.id, $0) })
         let changes = Set(older.keys).union(newer.keys).map { key in GrowthChange(id: key, label: newer[key]?.label ?? older[key]!.label, logicalDelta: (newer[key]?.logicalBytes ?? 0) - (older[key]?.logicalBytes ?? 0), dimension: newer[key]?.dimension ?? older[key]!.dimension) }.sorted { $0.id < $1.id }
         return GrowthComparison(state: .compared, current: current, from: previous.observedAt, groups: changes)
+    }
+    /// Compares catalog scans location by location. Only a location measured in both scans counts toward growth,
+    /// per location and in its category; any other difference is a coverage change.
+    static func catalogComparison(_ previous: GrowthSnapshot, _ current: GrowthSnapshot) -> GrowthComparison {
+        let older = Dictionary(uniqueKeysWithValues: previous.groups.filter { $0.dimension == .location }.map { ($0.id, $0) })
+        let newer = Dictionary(uniqueKeysWithValues: current.groups.filter { $0.dimension == .location }.map { ($0.id, $0) })
+        var changes: [GrowthChange] = [], coverage: [GrowthCoverageChange] = [], categories: [String: Int64] = [:]
+        for key in Set(older.keys).union(newer.keys).sorted() {
+            let group = (newer[key] ?? older[key])!
+            func covered(_ kind: GrowthCoverageChange.Kind) { coverage.append(GrowthCoverageChange(id: key, label: group.label, kind: kind, category: group.category, ruleID: group.ruleID)) }
+            switch (older[key], newer[key]) {
+            case let (old?, new?) where old.isMeasured && new.isMeasured:
+                let delta = new.logicalBytes - old.logicalBytes
+                changes.append(GrowthChange(id: key, label: group.label, logicalDelta: delta, dimension: .location, category: group.category, ruleID: group.ruleID))
+                categories[group.category ?? "", default: 0] += delta
+            case let (old?, new?) where old.isMeasured != new.isMeasured: covered(new.isMeasured ? .newlyReadable : .newlyUnreadable)
+            case (nil, _?): covered(.newlyScanned)
+            case (_?, nil): covered(.noLongerScanned)
+            default: break // Unreadable in both scans: nothing to compare.
+            }
+        }
+        changes += categories.map { GrowthChange(id: "category:" + $0.key, label: $0.key, logicalDelta: $0.value, dimension: .category, category: $0.key) }
+        var result = GrowthComparison(state: .compared, current: current, from: previous.observedAt, groups: changes.sorted { $0.id < $1.id })
+        result.coverageChanges = coverage
+        return result
     }
     private func trim(_ value: inout Archive, now: Date) throws {
         value.entries.removeAll { now.timeIntervalSince($0.snapshot.observedAt) > Double(policy.days) * 86400 }

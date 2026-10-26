@@ -348,17 +348,20 @@ public struct Catalog: Sendable {
         let homeBase = home.resolvingSymlinksInPath(), userBase = userFolder
         var seen = Set<String>()
         var notes: [CatalogNote] = []
+        var scanned: [String] = []
         // `docker system df` runs once per scan, for every Docker rule, and only once a rule's folder exists.
         var dockerUsage: [String: Result<[DockerStorageCategory], ToolPreviewError>] = [:]
         let overridden = Set(overriddenRules(home: home, systemRoot: systemRoot).map(\.id))
         let candidates = rules.flatMap { rule -> [Candidate] in
             // Guidance rules are sized by `guidance(home:)` and never become candidates.
-            guard rule.action != .guidance, !overridden.contains(rule.id), !notAccessible.contains(where: { $0.id == rule.id }),
-                  let base = rule.base == .home ? homeBase : userBase else { return [] }
+            guard rule.action != .guidance, !overridden.contains(rule.id), let base = rule.base == .home ? homeBase : userBase else { return [] }
+            // Looked at but not read: What grew records it as not measured, so access granted later is coverage, not growth.
+            if notAccessible.contains(where: { $0.id == rule.id }) { scanned.append(rule.id); return [] }
             // What an earlier cleanup left half-deleted comes back under the same rule, even if its tool is gone.
             let leftovers = leftovers(of: rule, in: base, sizer: sizer)
             let toolURL = rule.tool.flatMap(locateTool)
             guard rule.action != .tool || toolURL != nil else { return leftovers.map { $0.found(under: base) } }
+            scanned.append(rule.id)
             // A trailing `/*` offers each folder inside (DeviceSupport versions); a `*` inside the path names a profile.
             let found = rule.locations.flatMap { location -> [(URL, String?)] in
                 // A pattern as the last component (`models--*`) also offers each matching folder.
@@ -411,7 +414,7 @@ public struct Catalog: Sendable {
             if !exclusions.rules.isEmpty, candidate.volumeID.map({ exclusions.covers(candidate.url, volumeID: $0) }) ?? true { return false }
             return seen.insert(spaceKey(of: candidate)).inserted
         }
-        return CatalogDiscovery(candidates: candidates, notes: notes, notAccessible: notAccessible)
+        return CatalogDiscovery(candidates: candidates, notes: notes, scannedRuleIDs: scanned, notAccessible: notAccessible)
     }
 
     /// What a candidate's space is keyed on, so the same space is offered and counted once: the item itself, or for a tool

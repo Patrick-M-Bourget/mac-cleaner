@@ -17,7 +17,7 @@ import Darwin
 }
 
 final class LaunchSmokeUITests: XCTestCase {
-    @MainActor func testLaunchShowsOverviewWithoutUnwiredDestinations() throws {
+    @MainActor func testLaunchShowsOverviewAndWhatGrewWithoutStorageAlerts() throws {
         continueAfterFailure = false
         let app = XCUIApplication()
         let state = try configureIsolatedState(app)
@@ -25,7 +25,7 @@ final class LaunchSmokeUITests: XCTestCase {
         app.launch()
         XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
         XCTAssertTrue(app.buttons["Cleanup plan"].exists || app.staticTexts["Cleanup plan"].exists)
-        XCTAssertFalse(app.staticTexts["What grew"].exists)
+        XCTAssertTrue(app.staticTexts["What grew"].exists || app.buttons["What grew"].exists, "What grew is in the sidebar (#119)")
         XCTAssertFalse(app.staticTexts["Storage alerts"].exists)
     }
 
@@ -75,5 +75,35 @@ final class LaunchSmokeUITests: XCTestCase {
         XCTAssertTrue(app.buttons["openFullDiskAccessSettings"].exists) // Not pressed: tests never open System Settings.
         app.buttons["closeFullDiskAccess"].click()
         XCTAssertFalse(app.staticTexts["Full Disk Access is optional"].waitForExistence(timeout: 2))
+    }
+}
+
+/// #119: the first catalog scan records a baseline; the next shows growth per category and location.
+final class WhatGrewUITests: XCTestCase {
+    @MainActor func testFirstScanRecordsABaselineAndTheNextShowsWhatGrew() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        let state = try configureIsolatedState(app)
+        let home = try configureCatalogHome(app)
+        defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
+        app.launchArguments = ["-ApplePersistenceIgnoreState", "YES"]
+        app.launch()
+        XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
+
+        app.staticTexts["What grew"].firstMatch.click()
+        XCTAssertTrue(app.staticTexts["Baseline recorded"].waitForExistence(timeout: 15))
+
+        let grown = home.appendingPathComponent(".npm/_cacache/content-v2/sha512/cd/blob")
+        try FileManager.default.createDirectory(at: grown.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Data(repeating: 9, count: 5_000_000).write(to: grown)
+        app.buttons["growthScanAgain"].click()
+        XCTAssertTrue(app.staticTexts["growthNetChange"].waitForExistence(timeout: 15))
+        XCTAssertTrue(app.staticTexts["Developer caches and build files"].exists)
+
+        app.radioButtons["Locations"].firstMatch.click()
+        XCTAssertTrue(app.staticTexts["~/.npm/_cacache"].waitForExistence(timeout: 5))
+
+        app.buttons["growthReviewOptions"].click()
+        XCTAssertTrue(app.buttons["Back to What grew"].waitForExistence(timeout: 5))
     }
 }
