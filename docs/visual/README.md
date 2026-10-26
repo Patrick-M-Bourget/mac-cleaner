@@ -56,3 +56,8 @@ App source `f062ca6` has96 final changed-state originals individually accepted:4
 ## What grew — #52
 
 [26 live originals](what-grew/40229706025-live/manifest.json) at5a82e16 and [24 Gallery originals](what-grew/40229574971-gallery/manifest.json) at78a0c31 are individually accepted across Light/Dark and initial1024×640/minimum900×640. The presentation is unchanged in finalfb20196; its conditional History return fix has strict native old/new frame proof. [Qualification](../validation/what-grew.md) maps exact source/run and per-original caveats. Scrolled summaries, offscreen notices and synthetic actions are not inferred. No new Plan success screenshot was requested: shared Plan geometry retains its prior qualification, and the new caller label is exercised through an actual public Back click/return.
+
+
+## Chrome cleanup — #19
+
+[47 unchanged selected originals](chrome-cleanup/manifest.json) cover browser review, mixed selection/confirmation/results, Chrome-only results, unavailable/empty states, rescan, cancellation and shared gallery examples. [Individual-original review](chrome-cleanup/REVIEW.md) records source/run mapping, Light/Dark initial/minimum geometry and explicit viewport limits. Functional/native gates are recorded separately in [Chrome cleanup qualification](../validation/chrome-cleanup.md).
