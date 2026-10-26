@@ -90,3 +90,22 @@ private func rule(_ id: String, _ category: CatalogCategory, _ action: CleanupAc
     #expect(overview.recommended == .atLeast(8192))
     #expect(overview.proposedForTrash == .measured(0))
 }
+
+@Test func visibleRowsAreLargestFirstHideZeroBytesAndKeepUnknownLast() throws {
+    let home = try overviewHome()
+    try write(4096, at: "small/f", in: home)
+    try write(16384, at: "large/f", in: home)
+    try FileManager.default.createDirectory(at: home.appendingPathComponent("empty/sub"), withIntermediateDirectories: true)
+    let locked = home.appendingPathComponent("locked")
+    try FileManager.default.createDirectory(at: locked, withIntermediateDirectories: true)
+    try FileManager.default.setAttributes([.posixPermissions: 0], ofItemAtPath: locked.path)
+    defer {
+        try? FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: locked.path)
+        try? FileManager.default.removeItem(at: home)
+    }
+    let catalog = Catalog(rules: [rule("locked", .logs), rule("small", .browser), rule("empty", .models), rule("large", .developer)])
+    let overview = CatalogOverview(catalog: catalog, candidates: catalog.discover(fixture: home))
+    #expect(overview.visibleRows.map(\.category) == [.developer, .browser, .logs])
+    #expect(overview.rows.first { $0.category == .models }?.estimate == .measured(0), "An empty location is a 0-byte row")
+    #expect(!overview.visibleRows.contains { $0.estimate == .measured(0) })
+}

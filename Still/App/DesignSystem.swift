@@ -190,38 +190,42 @@ struct RecommendationGroup<Content: View>: View {
             .overlay { RoundedRectangle(cornerRadius: StillDesign.Radius.surface).strokeBorder(StillDesign.separator, lineWidth: contrast == .increased ? 1 : 0.5) }
     }
 }
+/// An empty `detail` or `meaning` draws no line. `mutedValue` draws the value as a secondary note, such as "Needs access".
 struct StorageReviewRow: View {
     let category: StorageCategory
     let title: String
     let detail: String
     let value: String
-    let meaning: String
+    var meaning = ""
     var actionTitle: String? = nil
     var action: (() -> Void)? = nil
     var identifier = ""
+    var mutedValue = false
     var body: some View {
         Group {
         if let action {
             Button(action: action) { contents }.buttonStyle(.plain)
                 .accessibilityLabel(actionTitle ?? title)
-                .accessibilityValue("\(title) · \(detail) · \(value) · \(meaning)")
+                .accessibilityValue(spoken([title, detail, value, meaning]))
         }
         else {
             contents.accessibilityElement(children: .combine).accessibilityLabel(title)
-                .accessibilityValue("\(detail) · \(value) · \(meaning)")
+                .accessibilityValue(spoken([detail, value, meaning]))
         }
         }.accessibilityIdentifier(identifier)
     }
+    private func spoken(_ parts: [String]) -> String { parts.filter { !$0.isEmpty }.joined(separator: " · ") }
     private var contents: some View {
         HStack(spacing: StillDesign.Space.lg) {
             CategoryBadge(category: category)
             VStack(alignment: .leading, spacing: StillDesign.Space.xs) {
                 Text(title).font(StillDesign.TypeStyle.section)
-                Text(detail).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                if !detail.isEmpty { Text(detail).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true) }
             }.frame(maxWidth: .infinity, alignment: .leading)
             VStack(alignment: .trailing, spacing: StillDesign.Space.xs) {
-                Text(value).font(StillDesign.TypeStyle.section).monospacedDigit()
-                Text(meaning).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                Text(value).font(mutedValue ? StillDesign.TypeStyle.caption : StillDesign.TypeStyle.section).monospacedDigit()
+                    .foregroundStyle(mutedValue ? .secondary : .primary)
+                if !meaning.isEmpty { Text(meaning).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true) }
             }.multilineTextAlignment(.trailing)
             if action != nil { Image(systemName: "chevron.right").font(.caption).foregroundStyle(.secondary) }
         }.padding(StillDesign.Space.lg).frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())

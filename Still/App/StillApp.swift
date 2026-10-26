@@ -76,6 +76,8 @@ enum Destination: String, CaseIterable, Identifiable {
     var diagnosticsCaller = Destination.overview
     var diagnosticsOffset: CGPoint?
     var diagnosticsModel = DiagnosticsModel()
+    /// Overview's App-managed storage page (Decision 25).
+    var appManagedVisible = false
 }
 
 private struct WorkspaceView: View {
@@ -95,6 +97,7 @@ private struct WorkspaceView: View {
     @State private var exclusionsVisible = false
     private var diagnosticsVisible: Bool { get { navigationState.diagnosticsVisible } nonmutating set { navigationState.diagnosticsVisible = newValue } }
     @State private var overviewCloudExpanded = false
+    @State private var overviewShowsAllCategories = false
     private var diagnostics: DiagnosticsModel { get { navigationState.diagnosticsModel } nonmutating set { navigationState.diagnosticsModel = newValue } }
     @State private var locationsModel = AppLifecycleController.shared.locations
     private var explorerContext: StorageExplorerContext { navigationState.downloadsExplorerActive ? AppLifecycleController.shared.downloadsExplorer : AppLifecycleController.shared.locationsExplorer }
@@ -106,18 +109,20 @@ private struct WorkspaceView: View {
     @State private var capacity = AppLifecycleController.shared.capacity
     private var startupCapacity: StartupCapacityReading? { capacity.reading }
     private var showsPlan: Bool { destination == .plan && !navigationState.localRecordsVisible && !recoveryVisible && !nativeInspectionVisible && !homebrewVisible && !pipVisible && !diagnosticsVisible && !exclusionsVisible }
-    private var contextLabel: String {
+    /// The toolbar's note, which only reports state (Decision 25: no toolbar subtitles). A screen returns nil to show none.
+    private var contextLabel: String? {
         if selection.workspaceRunning { return "Running approved cleanup" }
         if navigationState.localRecordsVisible && !recoveryVisible { return "" }
         if diagnosticsVisible { return "Redacted diagnostics · Explicit local Save" }
         if recoveryVisible { return "Recovery review · Recorded facts only" }
         if selection.hasWorkspaceResult && showsPlan { return "Cleanup results · individual outcomes" }
-        if nativeInspectionVisible { return "Read-only storage inspection" }
+        if nativeInspectionVisible { return nil }
         if homebrewVisible { return "Read-only Homebrew inventory" }
         if pipVisible { return "Read-only pip inventory" }
         if exclusionsVisible { return "Custom scan exclusions" }
+        if navigationState.appManagedVisible { return nil }
         switch destination {
-        case .overview: return "On-demand storage review"
+        case .overview: return nil
         case .plan: return "Choose files, then review"
         case .history, .locations: return "" // Decision 25: no toolbar subtitles
         case .alerts: return "Capacity checks only"
@@ -158,7 +163,7 @@ private struct WorkspaceView: View {
                 if nativeInspectionVisible {
                     StorageExplorerView(model: folderInspection, selection: selection, context: explorerContext,
                         backTitle: "Back to " + explorerCaller.rawValue, back: { nativeInspectionVisible = false; destination = explorerCaller })
-                    ActionStrip(message: "Inspection only · \(StillDesign.items(selection.workspaceSelectedCount)) in the cleanup plan · Nothing changes before confirmation.") {
+                    ActionStrip(message: nil) {
                         Button("View cleanup plan") {
                             nativeInspectionVisible = false
                             planReturnsToExplorer = explorerCaller != .plan
@@ -183,6 +188,8 @@ private struct WorkspaceView: View {
                             ExclusionsView(model: ExclusionsModel.shared)
                         } else if diagnosticsVisible {
                             DiagnosticsView(model: diagnostics)
+                        } else if navigationState.appManagedVisible {
+                            AppManagedStorageView(model: selection.catalog) { navigationState.appManagedVisible = false }
                         } else if pipVisible {
                             PipInspectionView { pipVisible = false; destination = .overview }
                         } else if homebrewVisible {
@@ -206,7 +213,7 @@ private struct WorkspaceView: View {
                                 DestinationViewport(offset: $navigationState.diagnosticsOffset).frame(width: 0, height: 0)
                             } else if navigationState.localRecordsVisible && !recoveryVisible {
                                 DestinationViewport(offset: $navigationState.localRecordsOffset).frame(width: 0, height: 0)
-                            } else if !recoveryVisible && !diagnosticsVisible && !exclusionsVisible && !pipVisible && !homebrewVisible {
+                            } else if !recoveryVisible && !diagnosticsVisible && !exclusionsVisible && !pipVisible && !homebrewVisible && !navigationState.appManagedVisible {
                                 if destination == .history {
                                     DestinationViewport(offset: $navigationState.historyOffset).frame(width: 0, height: 0)
                                 } else if destination == .growth {
@@ -218,7 +225,7 @@ private struct WorkspaceView: View {
                                 }
                             }
                         }
-                }.id(recoveryVisible ? "recovery" : diagnosticsVisible ? "diagnostics" : navigationState.localRecordsVisible ? "local-records" : destination.rawValue)
+                }.id(recoveryVisible ? "recovery" : diagnosticsVisible ? "diagnostics" : navigationState.localRecordsVisible ? "local-records" : navigationState.appManagedVisible ? "app-managed" : destination.rawValue)
 
                 Group {
                     if exclusionsVisible {
@@ -283,7 +290,7 @@ private struct WorkspaceView: View {
             explorerContext.downloadsScopes = Set(locationsModel.includedDownloads.map { URL(fileURLWithPath: $0.path).standardizedFileURL })
         }
         .onAppear { AppLifecycleController.shared.openWorkspace = { openWindow(id: "workspace") } }
-        .onReceive(NotificationCenter.default.publisher(for: .stillAlertOpened)) { _ in destination = .overview; navigationState.localRecordsVisible = false; exclusionsVisible = false; diagnosticsVisible = false; recoveryVisible = false; nativeInspectionVisible = false; homebrewVisible = false; pipVisible = false }
+        .onReceive(NotificationCenter.default.publisher(for: .stillAlertOpened)) { _ in destination = .overview; navigationState.localRecordsVisible = false; navigationState.appManagedVisible = false; exclusionsVisible = false; diagnosticsVisible = false; recoveryVisible = false; nativeInspectionVisible = false; homebrewVisible = false; pipVisible = false }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in Task { await alerts.activated() } }
         .onReceive(NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.didWakeNotification)) { _ in Task { await alerts.activated() } }
         .toolbar { contextToolbar }
@@ -297,7 +304,7 @@ private struct WorkspaceView: View {
         }
     }
     @ViewBuilder private var contextToolbarLabel: some View {
-        if selection.workspaceRunning {
+        if selection.workspaceRunning, let contextLabel {
             Text(contextLabel).font(.caption).foregroundStyle(.secondary).lineLimit(1)
         } else if folderInspection.isScanning {
             ToolbarScanStatus(location: folderInspection.scope?.lastPathComponent ?? "selected locations",
@@ -305,18 +312,18 @@ private struct WorkspaceView: View {
                 inspectedEntries: folderInspection.progress?.visitedEntries,
                 returnToScan: scanReturnAction,
                 stop: { folderInspection.cancel() })
-        } else { Text(contextLabel).font(.caption).foregroundStyle(.secondary).lineLimit(1) }
+        } else if let contextLabel, !contextLabel.isEmpty { Text(contextLabel).font(.caption).foregroundStyle(.secondary).lineLimit(1) }
     }
 
     private var scanReturnAction: (() -> Void)? {
-        let atOrigin = destination == scanOrigin && !navigationState.localRecordsVisible && !nativeInspectionVisible && !diagnosticsVisible && !exclusionsVisible && !recoveryVisible && !homebrewVisible && !pipVisible
+        let atOrigin = destination == scanOrigin && !navigationState.localRecordsVisible && !navigationState.appManagedVisible && !nativeInspectionVisible && !diagnosticsVisible && !exclusionsVisible && !recoveryVisible && !homebrewVisible && !pipVisible
         if atOrigin { return nil }
         return { returnToScanOrigin() }
     }
 
     private func returnToScanOrigin() {
         destination = scanOrigin
-        navigationState.localRecordsVisible = false
+        navigationState.localRecordsVisible = false; navigationState.appManagedVisible = false
         nativeInspectionVisible = false; diagnosticsVisible = false
         exclusionsVisible = false; recoveryVisible = false; homebrewVisible = false
         pipVisible = false
@@ -330,7 +337,7 @@ private struct WorkspaceView: View {
         destination = value
         planReturnsToExplorer = false
         if value == .plan && selection.hasWorkspaceResult { startNewPlan() }
-        navigationState.localRecordsVisible = false
+        navigationState.localRecordsVisible = false; navigationState.appManagedVisible = false
         diagnosticsVisible = false; exclusionsVisible = false
         recoveryVisible = false; navigationState.recoveryCaller = .overview; nativeInspectionVisible = false; homebrewVisible = false
         pipVisible = false
@@ -400,6 +407,13 @@ private struct WorkspaceView: View {
     private var overviewRecommendations: some View {
         let catalog = selection.catalog
         let summary = catalog.overview
+        let rows = summary?.visibleRows ?? []
+        let more = max(0, rows.count - CatalogOverview.leadingRowCount)
+        let shown = overviewShowsAllCategories ? rows : Array(rows.prefix(CatalogOverview.leadingRowCount))
+        // The scanned folders' iCloud inventory, when the catalog found no local copies of its own.
+        // Hidden at 0 bytes, like any category; unknown is never 0.
+        let showsCloudInventory = overviewObservation.map { $0.cloudInventory.localAllocatedBytes != 0 } == true && !rows.contains { $0.category == .icloud }
+        let checking = summary == nil && catalog.isScanning
         return VStack(alignment: .leading, spacing: StillDesign.Space.md) {
                 HStack(alignment: .firstTextBaseline) {
                     Text("Recommended for review").font(StillDesign.TypeStyle.section)
@@ -407,30 +421,45 @@ private struct WorkspaceView: View {
                     Text(summary.map { recommendedText($0.recommended) } ?? (catalog.isScanning ? "Checking known locations…" : "Not measured yet"))
                         .font(.caption).foregroundStyle(.secondary).monospacedDigit().accessibilityIdentifier("overviewRecommendedTotal")
                 }
-                RecommendationGroup {
-                    // iCloud keeps its first place: the catalog's local copies once found, else the scanned location's inventory.
-                    if let cloud = summary?.rows.first(where: { $0.category == .icloud }) { catalogRow(cloud) } else {
-                        overviewCloudRow
-                        if overviewCloudExpanded, let report = overviewObservation?.cloudInventory { CloudInventoryView(report: report).padding(StillDesign.Space.md) }
+                if showsCloudInventory || checking || !shown.isEmpty {
+                    RecommendationGroup {
+                        if showsCloudInventory {
+                            overviewCloudRow
+                            if overviewCloudExpanded, let report = overviewObservation?.cloudInventory { CloudInventoryView(report: report).padding(StillDesign.Space.md) }
+                        }
+                        if checking {
+                            if showsCloudInventory { Divider().padding(.horizontal, StillDesign.Space.lg) }
+                            ProgressView("Checking known locations…").font(.caption).padding(StillDesign.Space.lg).frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        // The largest catalog categories that found something; categories are data in StillCore.
+                        ForEach(Array(shown.enumerated()), id: \.element.id) { index, row in
+                            if index > 0 || showsCloudInventory { Divider().padding(.horizontal, StillDesign.Space.lg) }
+                            catalogRow(row)
+                        }
+                        if more > 0 {
+                            Divider().padding(.horizontal, StillDesign.Space.lg)
+                            Button(overviewShowsAllCategories ? "Show fewer" : "Show \(more) more") { overviewShowsAllCategories.toggle() }
+                                .buttonStyle(.link).font(.callout).padding(StillDesign.Space.lg).frame(maxWidth: .infinity, alignment: .leading)
+                                .accessibilityIdentifier("overviewShowMore")
+                        }
                     }
-                    Divider().padding(.horizontal, StillDesign.Space.lg)
-                    if summary == nil && catalog.isScanning {
-                        ProgressView("Checking known locations…").font(.caption).padding(StillDesign.Space.lg).frame(maxWidth: .infinity, alignment: .leading)
-                        Divider().padding(.horizontal, StillDesign.Space.lg)
-                    }
-                    // One row per catalog category that found something; categories are data in StillCore.
-                    ForEach(summary?.rows.filter { $0.category != .icloud } ?? []) { row in
-                        catalogRow(row)
-                        Divider().padding(.horizontal, StillDesign.Space.lg)
-                    }
-                    // Places macOS protects (Safari's cache) without Full Disk Access: not accessible, never 0.
-                    ForEach(catalog.notAccessibleRules) { rule in
-                        NotAccessibleRow(title: rule.title).padding(StillDesign.Space.lg).accessibilityIdentifier("overviewNotAccessible-" + rule.id)
-                        Divider().padding(.horizontal, StillDesign.Space.lg)
+                } else if summary != nil {
+                    Text("Nothing to review in the known locations.").font(.callout).foregroundStyle(.secondary)
+                }
+                // Places macOS protects (Safari's cache) without Full Disk Access: one line, never a 0-byte row.
+                if !catalog.notAccessibleRules.isEmpty {
+                    FullDiskAccessNote(places: catalog.notAccessibleRules.map(\.title)).accessibilityIdentifier("overviewNotAccessible")
+                }
+                if let trash = summary?.proposedForTrash, trash != .measured(0) {
+                    Text("Estimated release excludes " + trash.text + " proposed for Trash.").font(.caption).foregroundStyle(.secondary)
+                }
+                if !catalog.guidance.isEmpty {
+                    RecommendationGroup {
+                        StorageReviewRow(category: .managed, title: "App-managed storage", detail: "", value: StillDesign.items(catalog.guidance.count),
+                                         actionTitle: "Review app-managed storage", action: { navigationState.appManagedVisible = true },
+                                         identifier: "overviewAppManaged", mutedValue: true)
                     }
                 }
-                Text(trashFootnote(summary?.proposedForTrash)).font(.caption).foregroundStyle(.secondary)
-                GuidanceSection(model: catalog)
             }
     }
     private func catalogRow(_ row: CatalogOverview.Row) -> some View {
@@ -451,10 +480,6 @@ private struct WorkspaceView: View {
         case .atLeast(let bytes): "At least " + catalogBytes(bytes) + " estimated · Some sizes unknown"
         case .unknown: "Size unknown"
         }
-    }
-    private func trashFootnote(_ trash: SizeEstimate?) -> String {
-        guard let trash, trash != .measured(0) else { return "Moving files to Trash won’t free space until you empty it." }
-        return "Estimated release excludes " + trash.text + " proposed for Trash."
     }
 
     private var overviewCloudRow: some View {
