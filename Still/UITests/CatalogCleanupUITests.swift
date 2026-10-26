@@ -864,34 +864,63 @@ final class TrashSpaceUITests: XCTestCase {
 }
 
 extension CatalogCleanupUITests {
-    /// #137: Overview's recommended plan preselects only data that rebuilds itself and opens the review directly;
-    /// Clean up runs it, two clicks from Overview. The installer (Trash) and Homebrew (a tool) stay out of it.
-    @MainActor func testRecommendedPlanReviewsOnlyRebuildableItemsAndCleansUpInTwoClicks() throws {
+    /// #137, #141: Smart clean, opened from Overview's link, lists only data that rebuilds itself, all ticked and each untickable.
+    /// Its Clean up opens the review; the installer (Trash) and Homebrew (a tool) stay out. The Cleanup plan keeps its own selection.
+    @MainActor func testSmartCleanReviewsOnlyRebuildableItemsAndKeepsThePlanSelection() throws {
         continueAfterFailure = false
         let app = XCUIApplication()
         let state = try configureIsolatedState(app)
         let home = try configureCatalogHome(app)
         turnOnDryRun(app)
-        let marker = try addDeveloperCaches(home, folders: ["Library/Caches/Homebrew"])
+        let marker = try addDeveloperCaches(home, folders: ["Library/Caches/Homebrew", "Library/Caches/Yarn"])
         defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
         app.launch()
+        XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
 
-        let recommended = app.buttons["overviewRecommendedPlan"]
-        XCTAssertTrue(recommended.waitForExistence(timeout: 10))
-        XCTAssertTrue(recommended.label.hasPrefix("Recommended plan · "), recommended.label)
-        revealAndClick(recommended, in: app)
+        // The Cleanup plan's own choice: the installer.
+        app.typeKey("3", modifierFlags: .command)
+        let installer = app.checkBoxes["planCategory-downloads"]
+        XCTAssertTrue(installer.waitForExistence(timeout: 10))
+        revealAndClick(installer, in: app)
+        XCTAssertEqual(installer.value as? Int, 1)
 
-        // The review opens on its own and lists only the npm cache.
+        app.typeKey("1", modifierFlags: .command)
+        let link = app.links["overviewSmartClean"]
+        XCTAssertTrue(link.waitForExistence(timeout: 10))
+        XCTAssertTrue(link.label.hasPrefix("Smart clean · "), link.label)
+        revealAndClick(link, in: app)
+
+        // Only rebuildable data, all ticked; the installer is not in it, and Yarn can be unticked.
+        let developer = app.checkBoxes["smartCleanCategory-developer"]
+        XCTAssertTrue(developer.waitForExistence(timeout: 10))
+        XCTAssertEqual(developer.value as? Int, 1)
+        XCTAssertFalse(app.checkBoxes["smartCleanCategory-downloads"].exists)
+        XCTAssertTrue(app.descendants(matching: .any)["smartCleanNotIncluded-downloads"].exists)
+        let yarn = app.checkBoxes["smartCleanLine-yarn-cache|"]
+        XCTAssertTrue(yarn.waitForExistence(timeout: 5))
+        XCTAssertEqual(app.checkBoxes["smartCleanLine-npm-cache|"].value as? Int, 1)
+        revealAndClick(yarn, in: app)
+        XCTAssertEqual(yarn.value as? Int, 0)
+        app.buttons["smartCleanCleanUp"].click()
+
+        // The review lists only the npm cache.
         XCTAssertTrue(reviewLine(app, "permanentlyRemoved", "developer").waitForExistence(timeout: 10))
         XCTAssertFalse(reviewLine(app, "movedToTrash", "downloads").exists)
         XCTAssertFalse(reviewLine(app, "commandsRun", "developer").exists)
         XCTAssertTrue(app.descendants(matching: .any).matching(NSPredicate(format: "label == '1 item · Show files'")).firstMatch.exists)
-        cleanUpFromReview(app)
+        XCTAssertTrue(app.buttons["Cancel"].exists)
+        app.buttons.matching(NSPredicate(format: "label == 'Clean up' AND identifier != 'smartCleanCleanUp'")).firstMatch.click()
 
         XCTAssertTrue(app.staticTexts["catalogPreviewNotice"].waitForExistence(timeout: 10))
         XCTAssertFalse(FileManager.default.fileExists(atPath: marker.path))
-        for kept in [".npm/_cacache/content-v2/sha512/ab/blob", "Downloads/Setup.dmg", "Library/Caches/Homebrew/entry"] {
+        for kept in [".npm/_cacache/content-v2/sha512/ab/blob", "Downloads/Setup.dmg", "Library/Caches/Homebrew/entry", "Library/Caches/Yarn/entry"] {
             XCTAssertTrue(FileManager.default.fileExists(atPath: home.appendingPathComponent(kept).path), kept)
         }
+
+        // The Smart clean run left the Cleanup plan's choice alone.
+        app.typeKey("3", modifierFlags: .command)
+        XCTAssertTrue(installer.waitForExistence(timeout: 15))
+        let chosen = NSPredicate(format: "value == 1")
+        XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: chosen, object: installer)], timeout: 15), .completed, "The installer is still chosen")
     }
 }

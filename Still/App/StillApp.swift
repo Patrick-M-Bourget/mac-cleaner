@@ -35,22 +35,24 @@ struct StillApp: App {
 }
 
 enum Destination: String, CaseIterable, Identifiable {
-    case overview = "Overview", plan = "Cleanup plan", growth = "Storage trends", history = "History", locations = "Locations & access"
+    case overview = "Overview", smartClean = "Smart clean", plan = "Cleanup plan", growth = "Storage trends", history = "History", locations = "Locations & access"
     var id: String { rawValue }
-    /// ⌘1–⌘5 follow the sidebar order (#127). Low-space alerts live in the Settings window (#131).
+    /// ⌘1–⌘6 follow the sidebar order (#127, #141). Low-space alerts live in the Settings window (#131).
     var shortcut: KeyEquivalent {
         switch self {
         case .overview: "1"
-        case .plan: "2"
-        case .growth: "3"
-        case .history: "4"
-        case .locations: "5"
+        case .smartClean: "2"
+        case .plan: "3"
+        case .growth: "4"
+        case .history: "5"
+        case .locations: "6"
         }
     }
     var symbol: String {
         switch self {
         case .growth: "chart.line.uptrend.xyaxis"
         case .overview: "internaldrive"
+        case .smartClean: "sparkles"
         case .plan: "checklist"
         case .history: "clock"
         case .locations: "folder.badge.gearshape"
@@ -115,6 +117,7 @@ private struct WorkspaceView: View {
     @State private var locationToForget: RememberedScope?
     @State private var capacity = AppLifecycleController.shared.capacity
     private var startupCapacity: StartupCapacityReading? { capacity.reading }
+    private var showsSmartClean: Bool { destination == .smartClean && !navigationState.localRecordsVisible && !recoveryVisible && !nativeInspectionVisible && !homebrewVisible && !pipVisible && !diagnosticsVisible && !exclusionsVisible && !navigationState.appManagedVisible }
     private var showsPlan: Bool { destination == .plan && !navigationState.localRecordsVisible && !recoveryVisible && !nativeInspectionVisible && !homebrewVisible && !pipVisible && !diagnosticsVisible && !exclusionsVisible }
     /// The toolbar's note, which only reports state (Decision 25: no toolbar subtitles). A screen returns nil to show none.
     private var contextLabel: String? {
@@ -130,7 +133,7 @@ private struct WorkspaceView: View {
         if navigationState.appManagedVisible { return nil }
         switch destination {
         case .overview: return nil
-        case .plan: return nil
+        case .smartClean, .plan: return nil
         case .history, .locations: return "" // Decision 25: no toolbar subtitles
         case .growth: return ""
         }
@@ -182,6 +185,8 @@ private struct WorkspaceView: View {
                         backToExplorer: navigationState.planReturnsToGrowth ? { navigationState.planReturnsToGrowth = false; destination = .growth } : planReturnsToExplorer ? { nativeInspectionVisible = true; planReturnsToExplorer = false } : nil,
                         backToExplorerTitle: navigationState.planReturnsToGrowth ? "Back to Storage trends" : "Back to Explorer",
                         presentation: planPresentation)
+                } else if showsSmartClean {
+                    SmartCleanView(selection: selection, openPlan: openPlan, viewHistory: { navigate(.history) }, reviewRecovery: { openRecovery(caller: .smartClean) })
                 } else {
                 ScrollView {
                     VStack(alignment: .leading, spacing: StillDesign.Space.xl) {
@@ -203,7 +208,7 @@ private struct WorkspaceView: View {
                             switch destination {
                             case .growth: GrowthHistoryView(model: GrowthHistoryModel.shared, catalog: selection.catalog)
                             case .overview: overview
-                            case .plan: EmptyView()
+                            case .plan, .smartClean: EmptyView()
                             case .history: history
                             case .locations: locations
                             }
@@ -293,7 +298,7 @@ private struct WorkspaceView: View {
         .onAppear {
             AppLifecycleController.shared.openWorkspace = { openWindow(id: "workspace") }
             AppLifecycleController.shared.scanAgain = { if canScanAgain { scanAgain() } }
-            AppLifecycleController.shared.reviewRecommendedPlan = { openRecommendedPlan() }
+            AppLifecycleController.shared.openSmartClean = { navigate(.smartClean) }
             selection.catalog.scanRememberedFolders = { scanRememberedFolders() }
         }
         .onReceive(NotificationCenter.default.publisher(for: .stillAlertOpened)) { _ in destination = .overview; navigationState.localRecordsVisible = false; navigationState.appManagedVisible = false; exclusionsVisible = false; diagnosticsVisible = false; recoveryVisible = false; nativeInspectionVisible = false; homebrewVisible = false; pipVisible = false }
@@ -342,7 +347,8 @@ private struct WorkspaceView: View {
         navigationState.planReturnsToGrowth = false
         destination = value
         planReturnsToExplorer = false
-        if value == .plan && selection.hasWorkspaceResult { startNewPlan() }
+        if value == .plan && selection.showsRun(for: .plan) { startNewPlan() }
+        if value == .smartClean && selection.showsRun(for: .smartClean) { selection.dismissResult() }
         navigationState.localRecordsVisible = false; navigationState.appManagedVisible = false
         diagnosticsVisible = false; exclusionsVisible = false
         recoveryVisible = false; navigationState.recoveryCaller = .overview; nativeInspectionVisible = false; homebrewVisible = false
@@ -424,16 +430,14 @@ private struct WorkspaceView: View {
                     Spacer(minLength: StillDesign.Space.md)
                     Text(summary.map { recommendedText($0.recommended) } ?? (catalog.isScanning ? "Checking known locations…" : "Not measured yet"))
                         .font(.caption).foregroundStyle(.secondary).monospacedDigit().accessibilityIdentifier("overviewRecommendedTotal")
+                    // The recommended plan lives on its own page (#141): one quiet link to it.
+                    if summary != nil, !catalog.recommendedCandidates.isEmpty {
+                        Button("Smart clean · " + catalog.recommendedSizeText + " ›") { navigate(.smartClean) }
+                            .buttonStyle(.link).font(.caption).accessibilityIdentifier("overviewSmartClean")
+                    }
                 }
                 // One quiet line while the scan runs; rows and the total fill in as each location finishes (#128).
                 if catalog.isScanning { CatalogScanProgressLine(model: catalog) }
-                if summary != nil, !catalog.recommendedCandidates.isEmpty {
-                    // The one way anything is preselected: rebuildable data only, then straight to the review (#137, Decision 28).
-                    Button("Recommended plan · " + catalog.recommendedSizeText + " · Review", action: openRecommendedPlan)
-                        .buttonStyle(.borderedProminent).controlSize(.small).disabled(!catalog.canEdit || selection.workspaceRunning)
-                        .help("Caches, build data, update downloads, logs and leftover app copies that rebuild themselves. You see every item before anything changes.")
-                        .accessibilityIdentifier("overviewRecommendedPlan")
-                }
                 if showsCloudInventory || !shown.isEmpty {
                     RecommendationGroup {
                         if showsCloudInventory {
@@ -482,10 +486,10 @@ private struct WorkspaceView: View {
             action: { navigate(.plan); planPresentation.expandedCategories.insert(row.category) },
             identifier: "overviewCategory-" + row.id)
     }
-    /// Chooses the recommended plan and opens its review: Clean up there runs it, two clicks from Overview.
-    private func openRecommendedPlan() {
+    /// Opens the Cleanup plan from Smart clean's "Not included" note, with the category open when one is named.
+    private func openPlan(_ category: CatalogCategory?) {
         navigate(.plan)
-        Task { if await selection.catalog.chooseRecommendedPlan() { planPresentation.opensReview = true } }
+        if let category { planPresentation.expandedCategories.insert(category) }
     }
     /// SPEC section 6: an estimate, and an upper bound because clones share blocks.
     private func recommendedText(_ estimate: SizeEstimate) -> String {

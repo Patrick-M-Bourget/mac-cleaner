@@ -6,7 +6,7 @@ This spec covers behavior the prototype can't show. The screens, layout and copy
 
 - Still answers four questions: what takes space, what can be removed, what happens if it is, and how much space came back.
 - Size, age and location only suggest candidates. Every candidate is judged on three questions: who owns it, how it comes back, and whether anything uses it now.
-- Nothing is preselected unless the user asks for the recommended plan. The user picks categories or items, or asks for the recommended plan (only deleted data that rebuilds itself and passes the checks: caches, build data, updater downloads, logs, leaked app copies), then reviews the consequences before anything changes.
+- Nothing is preselected in the Cleanup plan. The user picks categories or items there, or opens Smart clean, the recommended plan on its own page (only deleted data that rebuilds itself and passes the checks: caches, build data, updater downloads, logs, leaked app copies; all ticked, each can be unticked). Either way the user reviews the consequences before anything changes. The two selections are separate: neither ever changes the other (#141, Decision 31).
 - Every item is checked again just before Still acts on it (section 4).
 - Scanning never writes. Choosing scan locations never means consent to clean.
 - Unknown is shown as unknown, never as 0. A location Still can't read is listed as not accessible, not left out of the picture.
@@ -132,6 +132,7 @@ In M1 (tickets #97–#105):
 - updater downloads, per-app caches, logs and crash reports (#103);
 - Hugging Face and Ollama models, VM and disk images (#104);
 - Overview with the storage bar and recommended total (#105);
+- Smart clean (#141, Decision 31): the sidebar reads Overview, Smart clean, Cleanup plan, Storage trends, History, then Locations & access, and ⌘1–⌘6 follow it. The page says "Smart clean · X ready to clean" and "Rebuildable caches, build files and logs. Never your files.", lists the recommended items by category, one line each with its size, all ticked, notes what is not included (Trash items, models, iCloud copies, your files, anything a running app is using), each a link to the Cleanup plan, and has one Clean up button that opens the review sheet. The full checks run at that click;
 - iCloud local copies: inventory only, no eviction (Decision 13).
 
 After M1 (#92), in rough order:
@@ -141,7 +142,7 @@ After M1 (#92), in rough order:
 - large and old files explorer (Trash only): it lists files of 500 MB or more OR not opened in 90 days, and you choose each file. Downloads keeps AND (Decision 24);
 - guidance-only categories (section 3);
 - Storage trends (formerly What grew, #119, #127): each completed catalog scan records the size per catalog category and per scanned rule location. The first scan records a baseline; a later scan shows net growth against the newest scan about a day older (20 h or more, #126) that isn't the rescan right after a cleanup. Until one exists, the page says "Baseline recorded · Check back tomorrow to see trends". Only a location measured in both scans counts. A location newly readable or unreadable (Full Disk Access, unreadable folders), or newly scanned or no longer scanned, is shown as a coverage change, never as growth. A change in exclusions starts a new baseline. History keeps at most 30 scans over 90 days and 250 MB, on this Mac;
-- menu bar item and low-space alerts (#131, Decision 30): the menu bar shows free space ("38 GB free"; only a symbol when capacity is unknown), with Open Still, Scan again, Review recommended plan… (when there is one), Settings… and Quit. It is shown by default; a Settings toggle hides it. While it is shown, closing the window keeps Still running. Low-space alerts are off by default and live in the Settings window, with a threshold and a 24-hour snooze. Turning them on is the only time Still asks for notification permission. Alerts read the startup volume's capacity about every 15 minutes while Still runs; they never scan folders or clean. Start at Login is a separate toggle in the same window;
+- menu bar item and low-space alerts (#131, Decision 30): the menu bar shows free space ("38 GB free"; only a symbol when capacity is unknown), with Open Still, Scan again, Smart clean… (when it has something; it opens the Smart clean page, #141), Settings… and Quit. It is shown by default; a Settings toggle hides it. While it is shown, closing the window keeps Still running. Low-space alerts are off by default and live in the Settings window, with a threshold and a 24-hour snooze. Turning them on is the only time Still asks for notification permission. Alerts read the startup volume's capacity about every 15 minutes while Still runs; they never scan folders or clean. Start at Login is a separate toggle in the same window;
 - the optional Full Disk Access onboarding flow;
 - signing, notarization and a DMG for a shareable build.
 
