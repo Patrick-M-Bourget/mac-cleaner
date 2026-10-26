@@ -625,9 +625,9 @@ final class GuidanceUITests: XCTestCase {
         XCTAssertTrue(photos.waitForExistence(timeout: 10))
         XCTAssertEqual(photos.label, "Open Photos")
         XCTAssertTrue((app.buttons["guidance-messages-attachments"].value as? String)?.contains("Needs access") == true)
-        // One access note for the page; Messages is the only protected place the fixture can't read.
+        // One access note for the page, never a link per row.
         XCTAssertTrue(app.descendants(matching: .any)["guidanceAccess"].exists)
-        XCTAssertTrue(app.staticTexts["1 location needs Full Disk Access ·"].exists)
+        XCTAssertEqual(app.links.matching(identifier: "fullDiskAccessLink").count, 1)
         XCTAssertTrue((app.buttons["guidance-time-machine-snapshots"].value as? String)?.contains("2 snapshots · Size unknown") == true)
         XCTAssertTrue(app.buttons["guidance-xcode-archives"].exists)
         revealAndClick(photos, in: app)
