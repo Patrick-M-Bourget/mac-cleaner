@@ -237,3 +237,82 @@ private final class CountingInUse: InUseChecking, @unchecked Sendable {
     #expect(snapshot.inUse([idle], by: .anyApp) == [])
     #expect(snapshot.inUse([opened, idle], by: RuleOwner(name: "Nobody", executables: ["no-such-process-\(UUID())"])) == [])
 }
+
+/// A clock a test moves forward by hand.
+private final class StepClock: @unchecked Sendable {
+    private let lock = NSLock()
+    private var current = Date(timeIntervalSince1970: 1_000_000)
+    var now: Date { lock.lock(); defer { lock.unlock() }; return current }
+    func advance(_ seconds: TimeInterval) { lock.lock(); current += seconds; lock.unlock() }
+}
+
+/// Records when each snapshot was taken, by the step clock, and answers from what is open at that moment.
+private final class TimedInUse: InUseChecking, @unchecked Sendable {
+    private let lock = NSLock()
+    private let clock: StepClock
+    private var takenAt: [Date] = []
+    var open: Set<String> = []
+    init(clock: StepClock) { self.clock = clock }
+    var snapshots: [Date] { lock.lock(); defer { lock.unlock() }; return takenAt }
+    func inUse(_ folders: [URL], by owner: RuleOwner) -> Set<String>? { Set(folders.map(\.path)).intersection(open) }
+    func snapshot() -> any InUseChecking {
+        lock.lock(); takenAt.append(clock.now); let frozen = FakeInUse(open: open); lock.unlock()
+        return frozen
+    }
+}
+
+@Test func aLongRunReadsWhatIsInUseAgainBeforeAnItemOnceTheLastReadingIsTooOld() async throws {
+    let folder = try fixtureUserFolder()
+    defer { try? FileManager.default.removeItem(at: folder) }
+    for name in ["a", "b", "c", "d"] { try writeFile("T/\(name).tmp", in: folder, modified: daysAgo(30)) }
+    let approved = catalog.discover(fixture: fixtureHome(), userFolder: folder, inUse: FakeInUse(), now: now)
+        .filter { $0.ruleID == "temporary-files" }.sorted { $0.url.path < $1.url.path }
+    #expect(approved.count == 4)
+    let clock = StepClock()
+    let inUse = TimedInUse(clock: clock)
+    let journal = try SQLiteCleanupJournal(url: folder.appendingPathComponent("journal.sqlite"))
+    let run = CleanupExecutor(journal: journal, check: CandidateCheck(catalog: catalog, running: NothingRunning(), inUse: inUse, home: fixtureHome()),
+                              measure: { _ in nil }, trash: TrashNeverUsed(), clock: { clock.now })
+    let start = clock.now
+    // Each item takes a little longer than the reading may be old, except the third, which follows quickly.
+    let steps: [TimeInterval] = [CleanupExecutor.inUseReadingMaxAge + 1, 1, CleanupExecutor.inUseReadingMaxAge + 1]
+    let result = await run.execute(CatalogApproval(candidates: approved, previewOnly: true)) { progress in
+        if progress.resolved >= 1, progress.resolved <= steps.count { clock.advance(steps[progress.resolved - 1]) }
+    }
+    #expect(result.records.count == 4)
+    let maxAge = CleanupExecutor.inUseReadingMaxAge
+    #expect(inUse.snapshots == [start, start + maxAge + 1, start + maxAge + 1 + 1 + maxAge + 1])
+}
+
+@Test func aFileOpenedAfterTheRunStartedIsRefused() async throws {
+    let folder = try fixtureUserFolder()
+    defer { try? FileManager.default.removeItem(at: folder) }
+    let first = try writeFile("T/a.tmp", in: folder, modified: daysAgo(30))
+    let later = try writeFile("T/b.tmp", in: folder, modified: daysAgo(30))
+    let approved = catalog.discover(fixture: fixtureHome(), userFolder: folder, inUse: FakeInUse(), now: now)
+        .filter { $0.ruleID == "temporary-files" }.sorted { $0.url.path < $1.url.path }
+    #expect(approved.map(\.url.path) == [first.path, later.path])
+    let clock = StepClock()
+    let journal = try SQLiteCleanupJournal(url: folder.appendingPathComponent("journal.sqlite"))
+    let run = CleanupExecutor(journal: journal, check: CandidateCheck(catalog: catalog, running: NothingRunning(), home: fixtureHome()),
+                              measure: { _ in nil }, trash: TrashNeverUsed(), clock: { clock.now })
+    let descriptor = Descriptor()
+    defer { descriptor.close() }
+    // After the first item, this process opens the second file, and the run goes on long enough for a new reading.
+    let result = await run.execute(CatalogApproval(candidates: approved, previewOnly: true)) { progress in
+        guard progress.resolved == 1 else { return }
+        descriptor.open(later.path)
+        clock.advance(CleanupExecutor.inUseReadingMaxAge + 1)
+    }
+    #expect(descriptor.value >= 0)
+    #expect(result.records.map(\.state) == [.skipped, .skipped])
+    #expect(result.records.first?.message.hasPrefix(CleanupRecord.previewPrefix) == true)
+    #expect(result.records.last?.message == CheckRefusal.inUse("An app").reason)
+}
+
+/// A file descriptor a sendable closure can open and a test closes.
+private final class Descriptor: @unchecked Sendable {
+    private(set) var value: Int32 = -1
+    func open(_ path: String) { value = Darwin.open(path, O_RDONLY) }
+    func close() { if value >= 0 { Darwin.close(value) } }
+}

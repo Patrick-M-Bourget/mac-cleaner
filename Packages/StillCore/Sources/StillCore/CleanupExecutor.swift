@@ -64,9 +64,15 @@ public actor CleanupExecutor {
     private let measure: @Sendable (URL) -> CapacitySample?
     private let cancellation: CleanupCancellation
     private let trashMover: any TrashMoving
+    private let clock: @Sendable () -> Date
     private var running = false
-    public init(journal: any CleanupJournaling, check: CandidateCheck, measure: @escaping @Sendable (URL) -> CapacitySample? = CapacitySample.read, trash: any TrashMoving = FinderTrash(), cancellation: CleanupCancellation = CleanupCancellation()) {
-        self.journal = journal; self.check = check; self.measure = measure; self.trashMover = trash; self.cancellation = cancellation
+    /// How old a reading of what processes have open may be before an item that needs the in-use check reads it again
+    /// (SPEC section 4). A long step, such as a tool with a 600-second limit, would otherwise leave later items checked
+    /// against what was open when the run began.
+    public static let inUseReadingMaxAge: TimeInterval = 5
+    public init(journal: any CleanupJournaling, check: CandidateCheck, measure: @escaping @Sendable (URL) -> CapacitySample? = CapacitySample.read, trash: any TrashMoving = FinderTrash(), cancellation: CleanupCancellation = CleanupCancellation(),
+                clock: @escaping @Sendable () -> Date = Date.init) {
+        self.journal = journal; self.check = check; self.measure = measure; self.trashMover = trash; self.cancellation = cancellation; self.clock = clock
     }
     public nonisolated func cancel() { cancellation.cancel() }
 
@@ -85,8 +91,8 @@ public actor CleanupExecutor {
         do { guard try journal.claim(batchID: approval.id, records: pending) else { return result([], replay: true) } }
         catch { return result([], failure: "Could not record the cleanup. Nothing was changed.") }
         var records: [CleanupRecord] = [], failure: String?
-        // One reading of what processes have open for the whole run, not one per item.
-        let check = self.check.snapshotted()
+        // One reading of what processes have open serves many items, but never one older than `inUseReadingMaxAge`.
+        var reading: (check: CandidateCheck, takenAt: Date)?
         for (candidate, initial) in zip(approval.candidates, pending) {
             await Task.yield()
             var record = initial
@@ -98,7 +104,10 @@ public actor CleanupExecutor {
             record.state = .intent; record.message = "Started; outcome not yet recorded"
             do { try journal.intent(record) }
             catch { record.state = .cancelled; record.message = "Could not record the start; not changed"; failure = record.message; records.append(record); await progress(.init(resolved: records.count, total: total, last: record)); continue }
-            await perform(candidate, check: check, previewOnly: approval.previewOnly, into: &record)
+            if self.check.needsInUseCheck(candidate), reading.map({ clock().timeIntervalSince($0.takenAt) > Self.inUseReadingMaxAge }) ?? true {
+                reading = (self.check.snapshotted(), clock())
+            }
+            await perform(candidate, check: reading?.check ?? self.check, previewOnly: approval.previewOnly, into: &record)
             do { try journal.outcome(record) }
             catch { record.state = .unknown; record.message = "Outcome could not be recorded. Review recovery; do not repeat automatically."; failure = record.message }
             if record.state == .unknown { failure = record.message }
