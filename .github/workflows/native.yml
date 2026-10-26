@@ -113,6 +113,7 @@ on:
           - chrome-cleanup-chrome-only
           - chrome-swift-only
           - chrome-native-process-only
+          - xcode-standard
           - chrome-probe
       chromeFinalLane:
         description: Chrome final qualification lane (only chrome-stable-final)
@@ -125,7 +126,7 @@ permissions:
   contents: read
 jobs:
   native:
-    if: github.event_name != 'workflow_dispatch' || (inputs.suite != 'chrome-native-process-only' && inputs.suite != 'chrome-swift-only' && inputs.suite != 'benchmark' && inputs.suite != 'filesystem' && inputs.suite != 'chrome-probe' && inputs.suite != 'chrome-stable-probe' && inputs.suite != 'chrome-stable-final' && inputs.suite != 'alerts-native')
+    if: github.event_name != 'workflow_dispatch' || (inputs.suite != 'xcode-standard' && inputs.suite != 'chrome-native-process-only' && inputs.suite != 'chrome-swift-only' && inputs.suite != 'benchmark' && inputs.suite != 'filesystem' && inputs.suite != 'chrome-probe' && inputs.suite != 'chrome-stable-probe' && inputs.suite != 'chrome-stable-final' && inputs.suite != 'alerts-native')
     runs-on: macos-26
     steps:
       - uses: actions/checkout@v4
@@ -776,3 +777,21 @@ jobs:
           name: chrome-native-process-evidence
           path: ${{ runner.temp }}/chrome-native-process.log
           if-no-files-found: error
+
+  xcode-standard-mapping:
+    if: github.event_name == 'workflow_dispatch' && inputs.suite == 'xcode-standard'
+    runs-on: macos-26
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: '26.6'
+      - name: Observe fresh standard layout and owned helper lifetime
+        run: python3 Validation/XcodeProbe/NativeExperiment/standard_root.py --output "$RUNNER_TEMP/xcode-standard-evidence"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: xcode-standard-evidence
+          path: ${{ runner.temp }}/xcode-standard-evidence
+          if-no-files-found: warn
