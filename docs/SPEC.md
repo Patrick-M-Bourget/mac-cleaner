@@ -126,7 +126,8 @@ After M1 (#92), in rough order:
 - Docker: `docker system df`, then a chosen prune;
 - large and old files explorer (Trash only);
 - guidance-only categories (section 3);
-- What grew and storage alerts: the code stays in the tree, unwired, and is rewired only if still wanted (Decision 12);
+- What grew (#119): each completed catalog scan records the size per catalog category and per scanned rule location. The first scan records a baseline; later scans show net growth against the previous one. Only a location measured in both scans counts. A location newly readable or unreadable (Full Disk Access, unreadable folders), or newly scanned or no longer scanned, is shown as a coverage change, never as growth. A change in exclusions starts a new baseline. History keeps at most 30 scans over 90 days and 250 MB, on this Mac;
+- storage alerts: the code stays in the tree, unwired, and is rewired only if still wanted (Decision 12);
 - the optional Full Disk Access onboarding flow;
 - signing, notarization and a DMG for a shareable build.
 
