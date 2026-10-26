@@ -17,8 +17,11 @@ public struct RuleOwner: Sendable, Hashable {
     /// Script names the tool runs under an interpreter. npm runs as `node …/npm-cli.js`,
     /// so matching the script, not `node`, keeps editors and agents that run node from refusing it.
     public let scripts: [String]
-    public init(name: String, bundleIDs: [String] = [], executables: [String] = [], scripts: [String] = []) {
-        self.name = name; self.bundleIDs = bundleIDs; self.executables = executables; self.scripts = scripts
+    /// Any later argument, such as a JVM main class (the Gradle daemon runs as `java … org.gradle…`).
+    /// All three lists take shell-style patterns (`pip3.*`, `yarn-*.cjs`).
+    public let arguments: [String]
+    public init(name: String, bundleIDs: [String] = [], executables: [String] = [], scripts: [String] = [], arguments: [String] = []) {
+        self.name = name; self.bundleIDs = bundleIDs; self.executables = executables; self.scripts = scripts; self.arguments = arguments
     }
 }
 
@@ -51,6 +54,41 @@ public enum BuiltInCatalog {
                     consequence: "Permanently removed. npm downloads packages again as needed; the next install may take longer.",
                     regen: .cache, action: .delete, locations: [".npm/_cacache"],
                     owner: RuleOwner(name: "npm", executables: ["npm", "npx"], scripts: ["npm", "npx", "npm-cli.js", "npx-cli.js"])),
+        CleanupRule(id: "yarn-cache", category: .developer, title: "Yarn cache",
+                    detail: "Packages Yarn downloaded for your projects.",
+                    consequence: "Permanently removed. Yarn downloads packages again as needed; the next install may take longer.",
+                    regen: .cache, action: .delete, locations: ["Library/Caches/Yarn", ".yarn/berry/cache"],
+                    owner: RuleOwner(name: "Yarn", executables: ["yarn", "yarnpkg"], scripts: ["yarn", "yarnpkg", "yarn.js", "yarn.cjs", "yarn-*.cjs", "yarn-*.js"])),
+        CleanupRule(id: "pnpm-store", category: .developer, title: "pnpm store",
+                    detail: "Packages pnpm downloaded for your projects.",
+                    consequence: "Permanently removed. pnpm downloads packages again as needed; the next install may take longer.",
+                    regen: .cache, action: .delete, locations: ["Library/pnpm/store", "Library/Caches/pnpm"],
+                    owner: RuleOwner(name: "pnpm", executables: ["pnpm", "pnpx"], scripts: ["pnpm", "pnpx", "pnpm.js", "pnpm.cjs", "pnpx.js", "pnpx.cjs"])),
+        CleanupRule(id: "uv-cache", category: .developer, title: "uv cache",
+                    detail: "Python packages uv downloaded and built.",
+                    consequence: "Permanently removed. uv downloads or builds packages again as needed; the next install may take longer.",
+                    regen: .cache, action: .delete, locations: [".cache/uv"],
+                    owner: RuleOwner(name: "uv", executables: ["uv", "uvx"])),
+        CleanupRule(id: "pip-cache", category: .developer, title: "pip cache",
+                    detail: "Python packages pip downloaded and built.",
+                    consequence: "Permanently removed. pip downloads packages again as needed; the next install may take longer.",
+                    regen: .cache, action: .delete, locations: ["Library/Caches/pip"],
+                    owner: RuleOwner(name: "pip", executables: ["pip", "pip3", "pip3.*"], scripts: ["pip", "pip3", "pip3.*"])),
+        CleanupRule(id: "cargo-cache", category: .developer, title: "Cargo cache",
+                    detail: "Rust crates and git dependencies Cargo downloaded. Installed tools are not included.",
+                    consequence: "Permanently removed. Cargo downloads crates again as needed; the next build may take longer.",
+                    regen: .cache, action: .delete, locations: [".cargo/registry", ".cargo/git"],
+                    owner: RuleOwner(name: "Cargo", executables: ["cargo", "cargo-*"])),
+        CleanupRule(id: "gradle-cache", category: .developer, title: "Gradle cache",
+                    detail: "Dependencies and build caches Gradle downloaded.",
+                    consequence: "Permanently removed. Gradle downloads dependencies again as needed; the next build may take longer.",
+                    regen: .cache, action: .delete, locations: [".gradle/caches"],
+                    owner: RuleOwner(name: "Gradle", executables: ["gradle", "gradlew"], scripts: ["gradle", "gradlew"], arguments: ["org.gradle.*"])),
+        CleanupRule(id: "cocoapods-cache", category: .developer, title: "CocoaPods cache",
+                    detail: "Pods CocoaPods downloaded for your projects.",
+                    consequence: "Permanently removed. CocoaPods downloads pods again as needed; the next install may take longer.",
+                    regen: .cache, action: .delete, locations: ["Library/Caches/CocoaPods"],
+                    owner: RuleOwner(name: "CocoaPods", executables: ["pod"], scripts: ["pod"])),
     ]
 }
 
