@@ -525,7 +525,6 @@ struct LiveCleanupPlanView: View {
     var backToExplorer: (() -> Void)? = nil
     var backToExplorerTitle = "Back to Explorer"
     var manageLocations: (() -> Void)? = nil
-    var reviewBrowsers: (() -> Void)? = nil
     var scopeMessage: String? = nil
     @Bindable var presentation: CleanupPlanPresentation
     @State private var review: WorkspaceCleanupReview?
@@ -632,7 +631,6 @@ struct LiveCleanupPlanView: View {
             ForEach(selection.retryExcludedURLs, id: \.path) { url in
                 StatusRow(text: "\(url.lastPathComponent): changed or unavailable. Review it through a new scan from Overview.", symbol: "exclamationmark.circle", role: .caution).help(url.path)
             }
-            if selection.retryTargetIDs == nil { ChromePlanSection(model: selection.chrome, onReview: { reviewBrowsers?() }) }
             DisclosureGroup("Size and selection details") {
                 Text("Logical size describes the selected files, not guaranteed space freed. Linked files count once in the size total; each selected path is a separate target. Hidden search results keep their selections.").font(.caption).foregroundStyle(.secondary)
             }
