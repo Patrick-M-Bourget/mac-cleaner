@@ -265,7 +265,7 @@ extension CatalogCategory {
         case .icloud: .cloud
         case .browser: .browser
         case .downloads: .downloads
-        case .files: .downloads
+        case .files: .files
         case .system, .models, .updaters, .logs, .managed: .managed
         }
     }

@@ -36,9 +36,10 @@ enum StillDesign {
     static var separator: Color { Color(nsColor: .separatorColor) }
 }
 enum StorageCategory {
-    case cloud, developer, downloads, browser, managed
-    var color: Color { switch self { case .cloud: StillDesign.blue; case .developer: StillDesign.purple; case .downloads: StillDesign.orange; case .browser: StillDesign.teal; case .managed: .indigo } }
-    var symbol: String { switch self { case .cloud: "icloud"; case .developer: "hammer"; case .downloads: "shippingbox"; case .browser: "globe"; case .managed: "square.stack.3d.up" } }
+    /// `files`: files from folders the user picked, shown as the prototype shows a chosen folder.
+    case cloud, developer, downloads, browser, managed, files
+    var color: Color { switch self { case .cloud, .files: StillDesign.blue; case .developer: StillDesign.purple; case .downloads: StillDesign.orange; case .browser: StillDesign.teal; case .managed: .indigo } }
+    var symbol: String { switch self { case .cloud: "icloud"; case .developer: "hammer"; case .downloads: "shippingbox"; case .browser: "globe"; case .managed: "square.stack.3d.up"; case .files: "folder" } }
 }
 private struct OpaqueChromeKey: EnvironmentKey { static let defaultValue = false }
 extension EnvironmentValues {
