@@ -444,7 +444,10 @@ public struct Catalog: Sendable {
             let name = url.lastPathComponent, ext = url.pathExtension.lowercased()
             if kind == FTS_D {
                 let package = (try? url.resourceValues(forKeys: [.isPackageKey]).isPackage) == true
-                if entry.pointee.fts_level > 0, package || protection.protects(name) { fts_set(tree, entry, FTS_SKIP) }
+                // A git working tree is live work: nothing inside it is offered (the check refuses it too).
+                var git = stat()
+                let checkout = lstat(url.appendingPathComponent(".git").path, &git) == 0
+                if checkout || (entry.pointee.fts_level > 0 && (package || protection.protects(name))) { fts_set(tree, entry, FTS_SKIP) }
                 continue
             }
             guard info.st_uid == geteuid(), !protection.protects(name), info.st_flags & UInt32(SF_DATALESS) == 0 else { continue }
