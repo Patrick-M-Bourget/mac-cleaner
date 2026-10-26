@@ -95,6 +95,7 @@ private struct WorkspaceView: View {
     @State private var exclusionsVisible = false
     private var diagnosticsVisible: Bool { get { navigationState.diagnosticsVisible } nonmutating set { navigationState.diagnosticsVisible = newValue } }
     @State private var overviewCloudExpanded = false
+    @State private var overviewShowsAllCategories = false
     private var diagnostics: DiagnosticsModel { get { navigationState.diagnosticsModel } nonmutating set { navigationState.diagnosticsModel = newValue } }
     @State private var locationsModel = AppLifecycleController.shared.locations
     private var explorerContext: StorageExplorerContext { navigationState.downloadsExplorerActive ? AppLifecycleController.shared.downloadsExplorer : AppLifecycleController.shared.locationsExplorer }
@@ -407,6 +408,13 @@ private struct WorkspaceView: View {
     private var overviewRecommendations: some View {
         let catalog = selection.catalog
         let summary = catalog.overview
+        let rows = summary?.visibleRows ?? []
+        let more = max(0, rows.count - CatalogOverview.leadingRowCount)
+        let shown = overviewShowsAllCategories ? rows : Array(rows.prefix(CatalogOverview.leadingRowCount))
+        // The scanned folders' iCloud inventory, when the catalog found no local copies of its own.
+        // Hidden at 0 bytes, like any category; unknown is never 0.
+        let showsCloudInventory = overviewObservation.map { $0.cloudInventory.localAllocatedBytes != 0 } == true && !rows.contains { $0.category == .icloud }
+        let checking = summary == nil && catalog.isScanning
         return VStack(alignment: .leading, spacing: StillDesign.Space.md) {
                 HStack(alignment: .firstTextBaseline) {
                     Text("Recommended for review").font(StillDesign.TypeStyle.section)
@@ -414,29 +422,38 @@ private struct WorkspaceView: View {
                     Text(summary.map { recommendedText($0.recommended) } ?? (catalog.isScanning ? "Checking known locations…" : "Not measured yet"))
                         .font(.caption).foregroundStyle(.secondary).monospacedDigit().accessibilityIdentifier("overviewRecommendedTotal")
                 }
-                RecommendationGroup {
-                    // iCloud keeps its first place: the catalog's local copies once found, else the scanned location's inventory.
-                    if let cloud = summary?.rows.first(where: { $0.category == .icloud }) { catalogRow(cloud) } else {
-                        overviewCloudRow
-                        if overviewCloudExpanded, let report = overviewObservation?.cloudInventory { CloudInventoryView(report: report).padding(StillDesign.Space.md) }
+                if showsCloudInventory || checking || !shown.isEmpty {
+                    RecommendationGroup {
+                        if showsCloudInventory {
+                            overviewCloudRow
+                            if overviewCloudExpanded, let report = overviewObservation?.cloudInventory { CloudInventoryView(report: report).padding(StillDesign.Space.md) }
+                        }
+                        if checking {
+                            if showsCloudInventory { Divider().padding(.horizontal, StillDesign.Space.lg) }
+                            ProgressView("Checking known locations…").font(.caption).padding(StillDesign.Space.lg).frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        // The largest catalog categories that found something; categories are data in StillCore.
+                        ForEach(Array(shown.enumerated()), id: \.element.id) { index, row in
+                            if index > 0 || showsCloudInventory { Divider().padding(.horizontal, StillDesign.Space.lg) }
+                            catalogRow(row)
+                        }
+                        if more > 0 {
+                            Divider().padding(.horizontal, StillDesign.Space.lg)
+                            Button(overviewShowsAllCategories ? "Show fewer" : "Show \(more) more") { overviewShowsAllCategories.toggle() }
+                                .buttonStyle(.link).font(.callout).padding(StillDesign.Space.lg).frame(maxWidth: .infinity, alignment: .leading)
+                                .accessibilityIdentifier("overviewShowMore")
+                        }
                     }
-                    Divider().padding(.horizontal, StillDesign.Space.lg)
-                    if summary == nil && catalog.isScanning {
-                        ProgressView("Checking known locations…").font(.caption).padding(StillDesign.Space.lg).frame(maxWidth: .infinity, alignment: .leading)
-                        Divider().padding(.horizontal, StillDesign.Space.lg)
-                    }
-                    // One row per catalog category that found something; categories are data in StillCore.
-                    ForEach(summary?.rows.filter { $0.category != .icloud } ?? []) { row in
-                        catalogRow(row)
-                        Divider().padding(.horizontal, StillDesign.Space.lg)
-                    }
-                    // Places macOS protects (Safari's cache) without Full Disk Access: not accessible, never 0.
-                    ForEach(catalog.notAccessibleRules) { rule in
-                        NotAccessibleRow(title: rule.title).padding(StillDesign.Space.lg).accessibilityIdentifier("overviewNotAccessible-" + rule.id)
-                        Divider().padding(.horizontal, StillDesign.Space.lg)
-                    }
+                } else if summary != nil {
+                    Text("Nothing to review in the known locations.").font(.callout).foregroundStyle(.secondary)
                 }
-                Text(trashFootnote(summary?.proposedForTrash)).font(.caption).foregroundStyle(.secondary)
+                // Places macOS protects (Safari's cache) without Full Disk Access: one line, never a 0-byte row.
+                if !catalog.notAccessibleRules.isEmpty {
+                    FullDiskAccessNote(places: catalog.notAccessibleRules.map(\.title)).accessibilityIdentifier("overviewNotAccessible")
+                }
+                if let trash = summary?.proposedForTrash, trash != .measured(0) {
+                    Text("Estimated release excludes " + trash.text + " proposed for Trash.").font(.caption).foregroundStyle(.secondary)
+                }
                 GuidanceSection(model: catalog)
             }
     }
@@ -458,10 +475,6 @@ private struct WorkspaceView: View {
         case .atLeast(let bytes): "At least " + catalogBytes(bytes) + " estimated · Some sizes unknown"
         case .unknown: "Size unknown"
         }
-    }
-    private func trashFootnote(_ trash: SizeEstimate?) -> String {
-        guard let trash, trash != .measured(0) else { return "Moving files to Trash won’t free space until you empty it." }
-        return "Estimated release excludes " + trash.text + " proposed for Trash."
     }
 
     private var overviewCloudRow: some View {

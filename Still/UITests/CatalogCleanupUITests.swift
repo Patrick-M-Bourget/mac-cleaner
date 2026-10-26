@@ -344,9 +344,9 @@ final class CatalogCleanupUITests: XCTestCase {
         app.launch()
 
         XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
-        let denied = app.descendants(matching: .any)["overviewNotAccessible-safari-cache"]
+        let denied = app.descendants(matching: .any)["overviewNotAccessible"]
         XCTAssertTrue(denied.waitForExistence(timeout: 10))
-        XCTAssertTrue(app.staticTexts["Not accessible"].exists)
+        XCTAssertTrue(app.staticTexts["1 location needs Full Disk Access ·"].exists)
         XCTAssertFalse(app.descendants(matching: .any)["overviewCategory-browser"].exists, "Nothing found, so no 0-byte browser row")
         revealAndClick(denied.links["fullDiskAccessLink"], in: app)
         XCTAssertTrue(app.staticTexts["Full Disk Access is optional"].waitForExistence(timeout: 5))
@@ -358,7 +358,7 @@ final class CatalogCleanupUITests: XCTestCase {
         app.launch()
         let row = app.buttons["overviewCategory-browser"]
         XCTAssertTrue(row.waitForExistence(timeout: 10))
-        XCTAssertFalse(app.descendants(matching: .any)["overviewNotAccessible-safari-cache"].exists)
+        XCTAssertFalse(app.descendants(matching: .any)["overviewNotAccessible"].exists)
         revealAndClick(row, in: app)
         let rule = app.checkBoxes["planRule-safari-cache"]
         XCTAssertTrue(rule.waitForExistence(timeout: 5))
