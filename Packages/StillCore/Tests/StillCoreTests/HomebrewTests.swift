@@ -2,22 +2,22 @@ import Foundation
 import Testing
 @testable import StillCore
 
-@Test func unsupportedHomebrewVersionProducesGuidanceWithoutCleanupPreview() throws {
-    let report = HomebrewPreview.parse(version: "Homebrew 999.0", prefix: "/fixture/prefix", cache: "/fixture/cache", output: "Would remove: /fixture/cache/item (1 MB)", qualifiedVersion: "Homebrew fixture-1")
+@Test func nonHomebrewVersionOutputProducesGuidanceWithoutCleanupPreview() throws {
+    let report = HomebrewPreview.parse(version: "zsh: command not found", prefix: "/fixture/prefix", cache: "/fixture/cache", output: "Would remove: /fixture/cache/item (1 MB)")
     #expect(!report.qualified)
     #expect(report.targets.isEmpty)
     #expect(report.guidance != nil)
 }
 
-@Test func qualifiedFixturePreviewKeepsToolEstimateSeparateFromTargets() {
-    let report = HomebrewPreview.parse(version: "Homebrew fixture-1", prefix: "/fixture/prefix", cache: "/fixture/cache", output: "Would remove: /fixture/cache/archive (12.3MB)\nWould free: 12.3MB\n", qualifiedVersion: "Homebrew fixture-1")
+@Test func anyHomebrewVersionPreviewKeepsToolEstimateSeparateFromTargets() {
+    let report = HomebrewPreview.parse(version: "Homebrew 5.1.3", prefix: "/fixture/prefix", cache: "/fixture/cache", output: "Would remove: /fixture/cache/archive (12.3MB)\nWould free: 12.3MB\n")
     #expect(report.qualified)
     #expect(report.targets == ["/fixture/cache/archive (12.3MB)"])
     #expect(report.estimate == "12.3MB")
 }
 
 @Test func unconstrainedOrOutOfRootOutputNeverBecomesAPlan() {
-    let report = HomebrewPreview.parse(version: "Homebrew fixture-1", prefix: "/fixture/prefix", cache: "/fixture/cache", output: "Would remove: /outside/private-file (1MB)\n", qualifiedVersion: "Homebrew fixture-1")
+    let report = HomebrewPreview.parse(version: "Homebrew fixture-1", prefix: "/fixture/prefix", cache: "/fixture/cache", output: "Would remove: /outside/private-file (1MB)\n")
     #expect(!report.qualified)
     #expect(report.targets.isEmpty)
 }
@@ -50,68 +50,41 @@ import Testing
     """
     try Data(script.utf8).write(to: executable)
     try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: executable.path)
-    let preview = try HomebrewInspector.inspectDisposable(executable: executable, qualifiedVersion: "Homebrew fixture-1")
+    let preview = try HomebrewInspector.inspectDisposable(executable: executable)
     #expect(preview.qualified)
     #expect(preview.targets.count == 1)
     #expect(try Data(contentsOf: sentinel) == Data("keep-package-data".utf8))
 }
 
-@Test func realInstallationRemainsUnexecutedUntilQualifiedAndMissingToolGuides() throws {
-    #expect(throws: (any Error).self) { try HomebrewInspector.inspect(executable: URL(fileURLWithPath: "/missing/brew")) }
-    let root = FileManager.default.temporaryDirectory.appendingPathComponent("StillHomebrewProbe-" + UUID().uuidString)
-    try FileManager.default.createDirectory(at: root, withIntermediateDirectories: false)
-    defer { try? FileManager.default.removeItem(at: root) }
-    let executable = root.appendingPathComponent("brew")
-    try Data("#!/bin/sh\nexit 99\n".utf8).write(to: executable)
-    try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: executable.path)
-    let report = try HomebrewInspector.inspect(executable: executable)
-    #expect(report.version == "Unqualified installation (not executed)")
-    #expect(!report.qualified)
-}
-
-@Test(.enabled(if: ProcessInfo.processInfo.environment["STILL_HOMEBREW_PROBE_ROOT"] != nil, "Requires explicitly provisioned owned official Homebrew source")) func selectedPinnedHomebrewReportsCacheMetadataWithoutExecutingInstalledCode() throws {
-    guard let path = ProcessInfo.processInfo.environment["STILL_HOMEBREW_PROBE_ROOT"] else {
-        return // Genuine source integration is separately invoked with an owned installation.
-    }
-    let source = URL(fileURLWithPath: path)
+@Test func selectedHomebrewCacheIsMeasuredWithoutExecutingBrew() throws {
     let root = FileManager.default.temporaryDirectory.appendingPathComponent("StillHomebrewInventory-" + UUID().uuidString)
-    try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
-    defer { try? FileManager.default.removeItem(at: root) }
-    try Data(repeating: 0x61, count: 27).write(to: root.appendingPathComponent("obsolete.incomplete"))
-    try Data(repeating: 0x62, count: 101).write(to: root.appendingPathComponent("current.bottle.tar.gz"))
-    let report = try HomebrewInspector.inspectSelected(executable: source.appendingPathComponent("bin/brew"), cache: root)
-    #expect(report.supported)
-    #expect(report.version == "Homebrew shell source 4.6.17")
-    #expect(report.cache == root.resolvingSymlinksInPath().path)
-    #expect(report.regularFileCount == 2)
-    #expect(report.logicalBytes == 128)
-    #expect(report.incompleteDownloads.count == 1)
-    #expect(report.incompleteDownloads.first?.logicalBytes == 27)
-    #expect(report.estimatedReleaseBytes == nil)
-    #expect(try Data(contentsOf: root.appendingPathComponent("obsolete.incomplete")) == Data(repeating: 0x61, count: 27))
-    try FileManager.default.linkItem(at: root.appendingPathComponent("current.bottle.tar.gz"), to: root.appendingPathComponent("alias.bottle.tar.gz"))
-    let hardlinks = try HomebrewInspector.inspectSelected(executable: source.appendingPathComponent("bin/brew"), cache: root)
-    #expect(hardlinks.regularFileCount == 3)
-    #expect(hardlinks.logicalBytes == 128)
-    try FileManager.default.createSymbolicLink(atPath: root.appendingPathComponent("unavailable-link").path, withDestinationPath: "/nonexistent/StillHomebrewOutsideCache")
-    let partial = try HomebrewInspector.inspectSelected(executable: source.appendingPathComponent("bin/brew"), cache: root)
-    #expect(partial.supported)
-    #expect(!partial.complete)
-    #expect(partial.logicalBytes == nil)
-    #expect(partial.allocatedBytes == nil)
-}
-
-@Test func arbitraryHomebrewNameDoesNotExecuteOrInspectCache() throws {
-    let root = FileManager.default.temporaryDirectory.appendingPathComponent("StillHomebrewInventory-" + UUID().uuidString)
+    let cache = root.appendingPathComponent("cache")
     try FileManager.default.createDirectory(at: root.appendingPathComponent("bin"), withIntermediateDirectories: true)
+    try FileManager.default.createDirectory(at: cache, withIntermediateDirectories: true)
     defer { try? FileManager.default.removeItem(at: root) }
     let brew = root.appendingPathComponent("bin/brew")
     let marker = root.appendingPathComponent("executed")
     try Data("#!/bin/sh\ntouch '\(marker.path)'\n".utf8).write(to: brew)
     try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: brew.path)
-    let report = try HomebrewInspector.inspectSelected(executable: brew, cache: root)
-    #expect(!report.supported)
-    #expect(report.logicalBytes == nil)
-    #expect(report.incompleteDownloads.isEmpty)
+    try Data(repeating: 0x61, count: 27).write(to: cache.appendingPathComponent("obsolete.incomplete"))
+    try Data(repeating: 0x62, count: 101).write(to: cache.appendingPathComponent("current.bottle.tar.gz"))
+    let report = try HomebrewInspector.inspectSelected(executable: brew, cache: cache)
+    #expect(report.supported)
+    #expect(report.cache == cache.resolvingSymlinksInPath().path)
+    #expect(report.regularFileCount == 2)
+    #expect(report.logicalBytes == 128)
+    #expect(report.incompleteDownloads.count == 1)
+    #expect(report.incompleteDownloads.first?.logicalBytes == 27)
+    #expect(report.estimatedReleaseBytes == nil)
+    #expect(try Data(contentsOf: cache.appendingPathComponent("obsolete.incomplete")) == Data(repeating: 0x61, count: 27))
+    try FileManager.default.linkItem(at: cache.appendingPathComponent("current.bottle.tar.gz"), to: cache.appendingPathComponent("alias.bottle.tar.gz"))
+    let hardlinks = try HomebrewInspector.inspectSelected(executable: brew, cache: cache)
+    #expect(hardlinks.regularFileCount == 3)
+    #expect(hardlinks.logicalBytes == 128)
+    try FileManager.default.createSymbolicLink(atPath: cache.appendingPathComponent("unavailable-link").path, withDestinationPath: "/nonexistent/StillHomebrewOutsideCache")
+    let partial = try HomebrewInspector.inspectSelected(executable: brew, cache: cache)
+    #expect(partial.supported)
+    #expect(!partial.complete)
+    #expect(partial.logicalBytes == nil)
     #expect(!FileManager.default.fileExists(atPath: marker.path))
 }

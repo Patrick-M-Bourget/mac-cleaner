@@ -1,5 +1,4 @@
 import Foundation
-import CryptoKit
 import Darwin
 
 public struct HomebrewCacheEntry: Sendable {
@@ -27,62 +26,14 @@ public struct HomebrewCacheInventory: Sendable {
 }
 
 extension HomebrewInspector {
-    /// The chosen installation is not executed. Only byte-verified shell fast paths
-    /// are staged; no mutable brew.env, Git, tap, formula, Ruby or wrapper is loaded.
+    /// The chosen installation is never executed; only the selected cache's metadata is read.
     public static func inspectSelected(executable: URL, cache: URL) throws -> HomebrewCacheInventory {
         guard executable.isFileURL, cache.isFileURL, executable.lastPathComponent == "brew",
               executable.deletingLastPathComponent().lastPathComponent == "bin" else { throw ToolPreviewError.unavailable }
-        let selected = executable.standardizedFileURL
-        let repository = selected.resolvingSymlinksInPath().deletingLastPathComponent().deletingLastPathComponent()
-        let prefix = selected.deletingLastPathComponent().deletingLastPathComponent().resolvingSymlinksInPath()
+        let prefix = executable.standardizedFileURL.deletingLastPathComponent().deletingLastPathComponent().resolvingSymlinksInPath()
         let selectedCache = cache.standardizedFileURL.resolvingSymlinksInPath()
         guard prefix.path != "/", selectedCache.path != "/" else { throw ToolPreviewError.unavailable }
-        let pins = [
-            "bin/brew": "5486710858db51927d4ec84ae0a4952da3e132c55cc12bad76ae8f1c18c9fb00",
-            "Library/Homebrew/brew.sh": "cdb88f545ad22a68862c28153c4f91b79d9d0778c03442c7bcdfe5ab3c2bd84c",
-            "Library/Homebrew/help.sh": "1dd0d74bb55ca636bff19b74e0c54710c61c114791b22b9fce3280394a33e38e",
-            "Library/Homebrew/formula_path.sh": "87c5c6c9e751769c5fa7a208fecb811c18405e52515d7ee7a893b95e0e815212"
-        ]
-        var sources: [String: Data] = [:]
-        for (path, pin) in pins {
-            let url = repository.appendingPathComponent(path)
-            var metadata = stat()
-            guard lstat(url.path, &metadata) == 0, metadata.st_mode & S_IFMT == S_IFREG,
-                  metadata.st_size > 0, metadata.st_size < 256_000,
-                  let data = try? boundedSource(url),
-                  SHA256.hash(data: data).map({ String(format: "%02x", $0) }).joined() == pin else {
-                return .init(version: "Unqualified installation (not executed)", prefix: prefix.path, cache: selectedCache.path,
-                             supported: false, complete: false, regularFileCount: 0, logicalBytes: nil, allocatedBytes: nil,
-                             downloadFileCount: 0, incompleteDownloads: [], incompleteDownloadCount: 0, observedAt: Date(),
-                             guidance: "Choose an unmodified Homebrew 4.6.17 shell installation. Other versions remain unsupported; no installed code or cache was inspected.")
-            }
-            sources[path] = data
-        }
-        let stage = FileManager.default.temporaryDirectory.appendingPathComponent("StillHomebrewQuery-" + UUID().uuidString)
-        try FileManager.default.createDirectory(at: stage, withIntermediateDirectories: false, attributes: [.posixPermissions: 0o700])
-        defer { try? FileManager.default.removeItem(at: stage) }
-        for (path, data) in sources {
-            let target = stage.appendingPathComponent(path)
-            try FileManager.default.createDirectory(at: target.deletingLastPathComponent(), withIntermediateDirectories: true)
-            try data.write(to: target)
-        }
-        let environment = ["PATH": "/usr/bin:/bin:/usr/sbin:/sbin", "HOME": stage.path, "TMPDIR": stage.path,
-                           "LANG": "C", "LC_ALL": "C", "HOMEBREW_PREFIX": prefix.path,
-                           "HOMEBREW_REPOSITORY": stage.path, "HOMEBREW_LIBRARY": stage.appendingPathComponent("Library").path,
-                           "HOMEBREW_CACHE": selectedCache.path, "HOMEBREW_NO_AUTO_UPDATE": "1", "HOMEBREW_NO_ANALYTICS": "1"]
-        let script = stage.appendingPathComponent("Library/Homebrew/brew.sh")
-        for (argument, expected) in [("--prefix", prefix.path), ("--cache", selectedCache.path)] {
-            let output = try BoundedTool.run(executable: URL(fileURLWithPath: "/bin/bash"), arguments: ["-p", script.path, argument], environment: environment)
-            guard output == expected + "\n" else { throw ToolPreviewError.invalidOutput }
-        }
         return try measureHomebrewCache(selectedCache, prefix: prefix.path)
-    }
-
-    private static func boundedSource(_ url: URL) throws -> Data {
-        let handle = try FileHandle(forReadingFrom: url)
-        defer { try? handle.close() }
-        guard let data = try handle.read(upToCount: 256_000), data.count < 256_000 else { throw ToolPreviewError.outputLimit }
-        return data
     }
 
     private static func measureHomebrewCache(_ cache: URL, prefix: String) throws -> HomebrewCacheInventory {
@@ -91,7 +42,7 @@ extension HomebrewInspector {
         // Reject a cloud-only root before obtaining an enumerator: entering it can
         // cause provider work even when individual file contents are never opened.
         if initial.st_flags & UInt32(SF_DATALESS) != 0 {
-            return .init(version: "Homebrew shell source 4.6.17", prefix: prefix, cache: cache.path,
+            return .init(version: "Not executed", prefix: prefix, cache: cache.path,
                          supported: true, complete: false, regularFileCount: 0, logicalBytes: nil, allocatedBytes: nil,
                          downloadFileCount: 0, incompleteDownloads: [], incompleteDownloadCount: 0, observedAt: Date(),
                          guidance: "Selected cache folder is not fully local; contents were not enumerated. Totals and reclaimable space are unknown. No cleanup is available.")
@@ -136,7 +87,7 @@ extension HomebrewInspector {
         }
         var final = stat()
         if lstat(cache.path, &final) != 0 || initial.st_dev != final.st_dev || initial.st_ino != final.st_ino || initial.st_mtimespec.tv_sec != final.st_mtimespec.tv_sec || initial.st_mtimespec.tv_nsec != final.st_mtimespec.tv_nsec || final.st_flags & UInt32(SF_DATALESS) != 0 { complete = false }
-        return .init(version: "Homebrew shell source 4.6.17", prefix: prefix, cache: cache.path, supported: true, complete: complete,
+        return .init(version: "Not executed", prefix: prefix, cache: cache.path, supported: true, complete: complete,
                      regularFileCount: count, logicalBytes: complete ? logical : nil, allocatedBytes: complete ? allocated : nil,
                      downloadFileCount: downloads, incompleteDownloads: incomplete.sorted { $0.relativePath < $1.relativePath }, incompleteDownloadCount: incompleteCount,
                      observedAt: Date(), guidance: "Explicit cache override; user and system brew.env settings are not read. Metadata is not an atomic snapshot. Folder ownership is not established by selection. Incomplete names can belong to active downloads. Vendor cleanup, formula/Cellar inventory and exclusively reclaimable space remain unqualified; no cleanup is available.")

@@ -39,7 +39,7 @@ import StillCore
     func chooseExecutable(isCache: Bool = false) {
         let panel = NSOpenPanel()
         panel.title = isCache ? "Choose Homebrew cache folder" : "Choose Homebrew executable"
-        panel.message = isCache ? "This explicitly overrides Homebrew cache settings. Still does not discover or read brew.env." : "Supports pinned Homebrew 4.6.17 shell sources only. Installed code is never executed."
+        panel.message = isCache ? "This explicitly overrides Homebrew cache settings. Still does not discover or read brew.env." : "Choose the brew executable in your Homebrew prefix. Installed code is never executed."
         panel.canChooseDirectories = isCache; panel.canChooseFiles = !isCache; panel.allowsMultipleSelection = false
         guard panel.runModal() == .OK, let url = panel.url else { return }
         if isCache { cache = url } else { executable = url }; report = nil; inventory = nil; isExample = false
@@ -70,7 +70,7 @@ import StillCore
     func showExample() {
         isExample = true
         executable = nil; cache = nil; inventory = nil
-        report = HomebrewPreview.parse(version: "Homebrew fixture-1", prefix: "/disposable/prefix", cache: "/disposable/cache", output: "Would remove: /disposable/cache/archive (12.3MB)\nWould free: 12.3MB", qualifiedVersion: "Homebrew fixture-1")
+        report = HomebrewPreview.parse(version: "Homebrew fixture", prefix: "/disposable/prefix", cache: "/disposable/cache", output: "Would remove: /disposable/cache/archive (12.3MB)\nWould free: 12.3MB")
         status = "Disposable example only. These paths and estimates are synthetic; no installed tool was inspected."
     }
 }
@@ -83,7 +83,7 @@ struct HomebrewInspectionView: View {
             Button("Back to Overview", systemImage: "chevron.left", action: back)
             PageHeader(title: "Homebrew opportunities")
             Text("Read-only Homebrew cache inventory").foregroundStyle(.secondary)
-            Text("Supports pinned Homebrew 4.6.17 shell sources. Still inspects your chosen cache without running installed code, reading brew.env or loading formulae. Vendor cleanup remains unqualified.")
+            Text("Still inspects your chosen cache without running installed code, reading brew.env or loading formulae. Vendor cleanup remains unqualified.")
             SettingsRow(title: "Selected installation") {
             HStack {
                 Button("Choose Homebrew executable…") { model.chooseExecutable() }.disabled(model.inspecting)
