@@ -457,7 +457,7 @@ final class CatalogCleanupUITests: XCTestCase {
         app.buttons["Run preview"].click()
 
         XCTAssertTrue(app.staticTexts["catalogPreviewNotice"].waitForExistence(timeout: 10))
-        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS 'would run docker builder prune -a -f'")).firstMatch.exists)
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "value CONTAINS 'would run docker builder prune -a -f'")).firstMatch.exists)
         XCTAssertFalse(FileManager.default.fileExists(atPath: marker.path))
     }
 
@@ -477,7 +477,7 @@ final class CatalogCleanupUITests: XCTestCase {
         row.click()
 
         XCTAssertTrue(app.staticTexts["planNote-docker-images"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH 'Docker isn’t running'")).firstMatch.exists)
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "value BEGINSWITH 'Docker isn’t running'")).firstMatch.exists)
         XCTAssertFalse(app.checkBoxes["planRule-docker-images"].exists)
         XCTAssertFalse(FileManager.default.fileExists(atPath: marker.path))
     }
@@ -525,7 +525,7 @@ final class ICloudCleanupUITests: XCTestCase {
         app.buttons["Review cleanup"].click()
 
         XCTAssertTrue(app.staticTexts["Remove local copies: Downloaded iCloud Drive files"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS 'stay in iCloud and download again when you open them'")).firstMatch.exists)
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "value CONTAINS 'stay in iCloud and download again when you open them'")).firstMatch.exists)
         app.buttons["Run preview"].click()
 
         XCTAssertTrue(app.staticTexts["catalogPreviewNotice"].waitForExistence(timeout: 10))
@@ -630,7 +630,7 @@ final class GuidanceUITests: XCTestCase {
         XCTAssertTrue(app.buttons["guidance-xcode-archives"].exists)
         photos.click()
         XCTAssertTrue(app.staticTexts["guidanceStatus"].waitForExistence(timeout: 5))
-        XCTAssertEqual(app.staticTexts["guidanceStatus"].label, "Test run: would open Photos.")
+        XCTAssertEqual(app.staticTexts["guidanceStatus"].value as? String, "Test run: would open Photos.")
 
         app.buttons["overviewCategory-developer"].click()
         XCTAssertTrue(app.descendants(matching: .any)["planRule-npm-cache"].waitForExistence(timeout: 5))
