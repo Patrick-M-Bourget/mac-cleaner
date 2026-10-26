@@ -200,7 +200,7 @@ struct StillMenuBarLabel: View {
     }
 }
 
-/// The menu bar item's menu: Open Still, Scan again, the recommended plan when there is one, Settings… and Quit.
+/// The menu bar item's menu: Open Still, Scan again, Smart clean… when it has something, Settings… and Quit.
 struct StillMenuBarMenu: View {
     @Environment(\.openWindow) private var openWindow
     let lifecycle: AppLifecycleController
@@ -212,7 +212,7 @@ struct StillMenuBarMenu: View {
         Button(MenuBarStatus.Item.openStill.title, action: openStill)
         Button(MenuBarStatus.Item.scanAgain.title) { openStill(); lifecycle.scanAgain?() }
         if hasRecommendedPlan {
-            Button(MenuBarStatus.Item.reviewRecommendedPlan.title) { openStill(); lifecycle.reviewRecommendedPlan?() }
+            Button(MenuBarStatus.Item.smartClean.title) { openStill(); lifecycle.openSmartClean?() }
         }
         Divider()
         SettingsLink { Text(MenuBarStatus.Item.settings.title) }.keyboardShortcut(",")

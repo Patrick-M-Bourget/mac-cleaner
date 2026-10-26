@@ -593,13 +593,14 @@ struct InspectableItemRow<Selection: View>: View {
                     Image(systemName: symbol).foregroundStyle(.secondary).frame(width: 20)
                     VStack(alignment: .leading, spacing: StillDesign.Space.xs) {
                         Text(name).foregroundStyle(.primary)
-                        Text(detail).font(.caption).foregroundStyle(.secondary).lineLimit(detailLineLimit)
+                        // An empty detail makes it a one-line row (Smart clean, #141).
+                        if !detail.isEmpty { Text(detail).font(.caption).foregroundStyle(.secondary).lineLimit(detailLineLimit) }
                     }.frame(maxWidth: .infinity, alignment: .leading)
                     Text(size).font(.callout).monospacedDigit().foregroundStyle(.secondary)
                 }.contentShape(Rectangle())
             }.buttonStyle(.plain).accessibilityLabel("Inspect " + name)
                 // The button hides its texts from accessibility; keep the detail (e.g. when it was last used) and size readable.
-                .accessibilityValue(detail + ", " + size)
+                .accessibilityValue(detail.isEmpty ? size : detail + ", " + size)
         }.padding(StillDesign.Space.md)
             .background(inspected ? Color.accentColor.opacity(0.06) : .clear, in: RoundedRectangle(cornerRadius: StillDesign.Radius.row))
     }

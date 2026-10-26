@@ -18,6 +18,9 @@ struct RefreshRequest: Sendable {
     private(set) var workspaceStopRequested = false
     private var workspaceCancellation: CleanupCancellation?
     var hasWorkspaceResult: Bool { workspaceFinished || catalog.result != nil }
+    /// The selection the running or last finished cleanup came from; only its page shows the run (#141).
+    private(set) var runSource = CleanupSelections.Source.plan
+    func showsRun(for source: CleanupSelections.Source) -> Bool { runSource == source && (workspaceRunning || hasWorkspaceResult) }
     var hasPendingChoices: Bool { catalog.selectedCount > 0 }
     var workspaceSelectedCount: Int { catalog.selectedCount }
     var workspaceSelectedSize: String {
@@ -99,6 +102,20 @@ struct RefreshRequest: Sendable {
         guard !workspaceRunning, !catalog.isRunning else { return }
         endSession(); workspaceFinished = false; workspaceStopRequested = false; workspaceCancellation = nil; unavailableScopes.removeAll()
     }
+    /// Whether a Smart clean can be reviewed: nothing else is running and the catalog can be edited.
+    var canReviewSmartClean: Bool {
+        !AppLifecycleController.shared.maintenanceInProgress && !workspaceRunning && catalog.canEdit && !catalog.smartCleanCandidates.isEmpty
+    }
+    /// Smart clean's review (#141): its own selection, checked now, through the same review and executor as the plan.
+    func prepareSmartCleanReview() async throws -> WorkspaceCleanupReview {
+        guard canReviewSmartClean else { throw PlanReviewError.changed }
+        let catalogVersion = catalog.selectionRevision
+        guard let items = await catalog.smartCleanCheckedNow() else { throw PlanReviewError.changed }
+        guard !items.isEmpty else { throw PlanReviewError.nothingToClean }
+        let review = await catalog.prepareReview(of: items)
+        guard let review, canReviewSmartClean, catalog.selectionRevision == catalogVersion else { throw PlanReviewError.changed }
+        return WorkspaceCleanupReview(catalog: review, catalogVersion: catalogVersion, source: .smartClean)
+    }
     func prepareWorkspaceReview() async throws -> WorkspaceCleanupReview {
         guard canReview else { throw PlanReviewError.changed }
         let catalogVersion = catalog.selectionRevision
@@ -107,16 +124,22 @@ struct RefreshRequest: Sendable {
         return WorkspaceCleanupReview(catalog: items, catalogVersion: catalogVersion)
     }
     func executeWorkspace(_ review: WorkspaceCleanupReview) async throws {
-        guard canReview, catalog.selectionRevision == review.catalogVersion else { throw PlanReviewError.changed }
+        guard review.source == .smartClean ? canReviewSmartClean : canReview, catalog.selectionRevision == review.catalogVersion else { throw PlanReviewError.changed }
+        runSource = review.source
         let cancellation = CleanupCancellation()
         workspaceCancellation = cancellation; workspaceStopRequested = false
         workspaceRunning = true; workspaceFinished = false
         let lifecycle = AppLifecycleController.shared
         lifecycle.operationInProgress = true
         defer { workspaceRunning = false; workspaceCancellation = nil; lifecycle.operationInProgress = false; lifecycle.hasPendingPlan = hasPendingChoices }
-        if let items = review.catalog { await catalog.execute(items.approval, cancellation: cancellation) }
+        if let items = review.catalog { await catalog.execute(items.approval, from: review.source, cancellation: cancellation) }
         workspaceFinished = true
         lifecycle.capacity.request(.cleanupEnded)
+    }
+    /// Leaves a finished Smart clean's results; the Cleanup plan's selection is kept (#141).
+    func dismissResult() {
+        guard !workspaceRunning, !catalog.isRunning else { return }
+        workspaceFinished = false; catalog.dismissResult()
     }
     func cancelWorkspace() { workspaceStopRequested = true; workspaceCancellation?.cancel(); catalog.cancel() }
     func endSession() {
@@ -125,7 +148,7 @@ struct RefreshRequest: Sendable {
         isRefreshingBatch = false; refreshRequests.removeAll(); AppLifecycleController.shared.hasPendingPlan = false
     }
 }
-enum PlanReviewError: Error { case changed }
+enum PlanReviewError: Error { case changed, nothingToClean }
 
 @MainActor @Observable final class CleanupPlanPresentation {
     var search = ""
@@ -134,9 +157,7 @@ enum PlanReviewError: Error { case changed }
     var offset: CGPoint?
     /// Categories whose "Choose items" is open; opening a category from Overview opens it.
     var expandedCategories: Set<CatalogCategory> = []
-    /// Overview's recommended plan asks the plan to open its review sheet directly (#137).
-    var opensReview = false
-    func reset() { search = ""; choosingItems = false; inspected = nil; offset = nil; expandedCategories = []; opensReview = false }
+    func reset() { search = ""; choosingItems = false; inspected = nil; offset = nil; expandedCategories = [] }
 }
 
 struct LiveCleanupPlanView: View {
@@ -153,13 +174,8 @@ struct LiveCleanupPlanView: View {
     var body: some View {
         VStack(spacing: 0) {
         ScrollView {
-        if selection.workspaceRunning || selection.hasWorkspaceResult {
-            VStack(alignment: .leading, spacing: StillDesign.Space.xl) {
-                PageHeader(title: selection.workspaceRunning ? "Running cleanup" : "Cleanup results")
-                if selection.catalog.isRunning { ProgressView(selection.catalog.dryRun ? "Checking selected items…" : "Cleaning selected items…") }
-                if let result = selection.catalog.result { CatalogResultsSection(result: result, catalog: selection.catalog.catalog) }
-                if let message = selection.catalog.message { StatusRow(text: message, symbol: "exclamationmark.triangle", role: .caution) }
-            }.padding(StillDesign.Space.page)
+        if selection.showsRun(for: .plan) {
+            CleanupRunSection(selection: selection)
         } else {
         VStack(alignment: .leading, spacing: StillDesign.Space.lg) {
             if let backToExplorer { Button(backToExplorerTitle, systemImage: "chevron.left", action: backToExplorer) }
@@ -177,11 +193,9 @@ struct LiveCleanupPlanView: View {
             .background(alignment: .topLeading) { DestinationViewport(offset: $presentation.offset).frame(width: 0, height: 0) }
         }
         }.background(StillDesign.reading)
-        if selection.workspaceRunning {
-            ActionStrip(message: "Stopping preserves unstarted work. Completed Trash moves and cache removals are not rolled back.") {
-                Button(selection.workspaceStopRequested ? "Stop requested" : "Stop after current item") { selection.cancelWorkspace() }.disabled(selection.workspaceStopRequested)
-            }
-        } else if selection.hasWorkspaceResult {
+        if selection.showsRun(for: .plan) && selection.workspaceRunning {
+            CleanupStopStrip(selection: selection)
+        } else if selection.showsRun(for: .plan) {
             ActionStrip(message: selection.requiresRecoveryReview ? "Review unresolved records before making another plan." : nil) {
                 if let viewHistory { Button("View history", action: viewHistory) }
                 if selection.requiresRecoveryReview, let reviewRecovery { Button("Review recovery", action: reviewRecovery) }
@@ -200,11 +214,6 @@ struct LiveCleanupPlanView: View {
             }
         }
         .onChange(of: selection.catalog.selectionRevision) { _, _ in if review != nil { review = nil } }
-        .task(id: presentation.opensReview) {
-            guard presentation.opensReview else { return }
-            presentation.opensReview = false
-            await openReview()
-        }
     }
     private func openReview() async {
         do { review = try await selection.prepareWorkspaceReview(); approvalError = nil } catch { approvalError = "Your choices changed. Review the latest items and try again." }
@@ -216,8 +225,31 @@ struct WorkspaceCleanupReview: Identifiable {
     let id = UUID()
     let catalog: CatalogReview?
     let catalogVersion: UInt64
+    /// The selection it came from; a finished run clears only that one (#141).
+    var source = CleanupSelections.Source.plan
 }
-private struct WorkspaceCleanupConfirmationView: View {
+/// A running or finished cleanup, from either selection: the header, progress and outcomes.
+struct CleanupRunSection: View {
+    let selection: SessionPlan
+    var body: some View {
+        VStack(alignment: .leading, spacing: StillDesign.Space.xl) {
+            PageHeader(title: selection.workspaceRunning ? "Running cleanup" : "Cleanup results")
+            if selection.catalog.isRunning { ProgressView(selection.catalog.dryRun ? "Checking selected items…" : "Cleaning selected items…") }
+            if let result = selection.catalog.result { CatalogResultsSection(result: result, catalog: selection.catalog.catalog) }
+            if let message = selection.catalog.message { StatusRow(text: message, symbol: "exclamationmark.triangle", role: .caution) }
+        }.padding(StillDesign.Space.page)
+    }
+}
+/// The running cleanup's one action.
+struct CleanupStopStrip: View {
+    let selection: SessionPlan
+    var body: some View {
+        ActionStrip(message: "Stopping preserves unstarted work. Completed Trash moves and cache removals are not rolled back.") {
+            Button(selection.workspaceStopRequested ? "Stop requested" : "Stop after current item") { selection.cancelWorkspace() }.disabled(selection.workspaceStopRequested)
+        }
+    }
+}
+struct WorkspaceCleanupConfirmationView: View {
     let review: WorkspaceCleanupReview
     let cancel: () -> Void
     let approve: () -> Void

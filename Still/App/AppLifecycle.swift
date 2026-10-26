@@ -34,8 +34,8 @@ import StillCore
     var openWorkspace: (() -> Void)?
     /// The workspace's Scan again, for the ⌘R menu command (#127).
     var scanAgain: (() -> Void)?
-    /// The Overview's recommended plan, for the menu bar item (#131).
-    var reviewRecommendedPlan: (() -> Void)?
+    /// Opens the Smart clean page, for the menu bar item (#131, #141).
+    var openSmartClean: (() -> Void)?
     /// The menu bar item is shown unless turned off in Settings (#131).
     var menuBarItemShown: Bool { UserDefaults.standard.object(forKey: MenuBarItemPreference.key) as? Bool ?? true }
     private var capacityTimer: Timer?
