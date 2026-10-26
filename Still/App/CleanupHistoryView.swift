@@ -215,7 +215,7 @@ struct CleanupHistoryView: View {
                             if run.isPreview {
                                 Text("Preview only · Each item was checked and nothing on disk changed. No space was freed.").font(.callout).foregroundStyle(.secondary)
                             } else {
-                                if run.records.contains(where: { $0.action == CleanupAction.trash.rawValue }) {
+                                if run.records.contains(where: { $0.cleanupAction == .trash }) {
                                     Text("Moved to Trash, still using space until the Trash is emptied: " + (run.trashHeldAllocatedBytes.map(bytes) ?? "Unknown"))
                                 }
                                 Text("Observed startup-volume capacity change: " + (run.capacity?.observedChange.map { ($0 >= 0 ? "+" : "−") + bytes(abs($0)) } ?? "Unknown"))

@@ -29,13 +29,10 @@ public struct ToolCommand: Sendable, Hashable {
         return arguments.map { $0 == itemPlaceholder ? item : $0 }
     }
     /// As shown to the user and logged, e.g. `brew cleanup -s`.
-    public var commandLine: String {
-        ([executables.first.map { URL(fileURLWithPath: $0).lastPathComponent } ?? ""] + arguments).joined(separator: " ")
-    }
-    /// As shown and logged for one item, e.g. `ollama rm llama3:latest`.
+    public var commandLine: String { commandLine(for: nil) }
+    /// As shown and logged for one item, e.g. `ollama rm llama3:latest`; the plain command when it takes no item or has none.
     public func commandLine(for item: String?) -> String {
-        guard itemPlaceholder != nil, let arguments = arguments(for: item) else { return commandLine }
-        return ([executables.first.map { URL(fileURLWithPath: $0).lastPathComponent } ?? ""] + arguments).joined(separator: " ")
+        ([executables.first.map { URL(fileURLWithPath: $0).lastPathComponent } ?? ""] + (self.arguments(for: item) ?? arguments)).joined(separator: " ")
     }
     /// The first listed executable that is installed on this Mac.
     @Sendable public static func installed(_ command: ToolCommand) -> URL? {

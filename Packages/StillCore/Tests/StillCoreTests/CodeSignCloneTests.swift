@@ -115,7 +115,7 @@ private final class FakeVolume: @unchecked Sendable {
     func read(_ url: URL) -> CapacitySample? {
         lock.lock(); defer { lock.unlock() }
         if !freedPerRead.isEmpty { available += freedPerRead.removeFirst() }
-        return CapacitySample(available: available, total: 10_000_000, volumeID: "fake-volume", metric: "important", date: Date())
+        return CapacitySample(available: available, total: 10_000_000, volumeID: "fake-volume", metric: .important, date: Date())
     }
 }
 

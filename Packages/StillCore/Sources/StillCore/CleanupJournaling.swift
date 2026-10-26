@@ -34,6 +34,8 @@ public struct CleanupRecord: Codable, Sendable, Identifiable {
     public var itemCapacity: CleanupCapacityObservation? = nil
     /// The end of a tool action's output, shown in results.
     public var toolOutput: String? = nil
+    /// `action` as a type; nil for an action this version doesn't know.
+    public var cleanupAction: CleanupAction? { CleanupAction(rawValue: action) }
     /// True when a delete or tool action failed after it may have removed part of the item.
     public var partlyRemoved: Bool? = nil
 }

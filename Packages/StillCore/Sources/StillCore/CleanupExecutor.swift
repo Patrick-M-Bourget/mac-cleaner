@@ -2,14 +2,17 @@ import Foundation
 import Darwin
 import os
 
+/// Which available-space figure a reading is: for important usage, or the plain fallback.
+public enum CapacityMetric: String, Codable, Sendable { case important, available }
+
 /// The volume's available space at one moment.
 public struct CapacitySample: Sendable {
     public let available: Int64?
     public let total: Int64?
     public let volumeID: String?
-    public let metric: String
+    public let metric: CapacityMetric
     public let date: Date
-    public init(available: Int64?, total: Int64?, volumeID: String?, metric: String, date: Date) {
+    public init(available: Int64?, total: Int64?, volumeID: String?, metric: CapacityMetric, date: Date) {
         self.available = available; self.total = total; self.volumeID = volumeID; self.metric = metric; self.date = date
     }
     /// Reads the volume holding `url`, preferring available space for important usage.
@@ -17,7 +20,7 @@ public struct CapacitySample: Sendable {
         guard let values = try? url.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey, .volumeAvailableCapacityKey, .volumeTotalCapacityKey, .volumeUUIDStringKey]) else { return nil }
         let important = values.volumeAvailableCapacityForImportantUsage
         return CapacitySample(available: important ?? values.volumeAvailableCapacity.map(Int64.init), total: values.volumeTotalCapacity.map(Int64.init),
-                              volumeID: values.volumeUUIDString, metric: important == nil ? "available" : "important", date: Date())
+                              volumeID: values.volumeUUIDString, metric: important == nil ? .available : .important, date: Date())
     }
 }
 
@@ -64,7 +67,7 @@ public struct CatalogExecutionResult: Sendable {
     public let estimatedBytes: Int64
     /// Sum of the available-space change read around each removed item; nil when any reading is missing.
     public var measuredFreedBytes: Int64? {
-        let removed = records.filter { $0.state == .succeeded && $0.action != CleanupAction.trash.rawValue }
+        let removed = records.filter { $0.state == .succeeded && $0.cleanupAction != .trash }
         guard !previewOnly else { return nil }
         var total: Int64 = 0
         for record in removed {
@@ -75,7 +78,7 @@ public struct CatalogExecutionResult: Sendable {
     }
     /// Space held in Trash, never counted as freed.
     public var movedToTrashBytes: Int64 {
-        records.filter { $0.state == .succeeded && $0.action == CleanupAction.trash.rawValue }.reduce(0) { $0 + ($1.allocatedBytes ?? $1.logicalBytes) }
+        records.filter { $0.state == .succeeded && $0.cleanupAction == .trash }.reduce(0) { $0 + ($1.allocatedBytes ?? $1.logicalBytes) }
     }
 }
 
@@ -170,7 +173,7 @@ public actor CleanupExecutor {
         case .tool: await runTool(candidate, command, into: &record)
         }
         if record.state == .succeeded, let before, let after = measure(candidate.url.deletingLastPathComponent()) {
-            record.itemCapacity = CleanupCapacityObservation(beforeAvailable: before.available, afterAvailable: after.available, beforeTotal: before.total, afterTotal: after.total, beforeVolumeID: before.volumeID, afterVolumeID: after.volumeID, beforeMetric: before.metric, afterMetric: after.metric, beforeDate: before.date, afterDate: after.date)
+            record.itemCapacity = CleanupCapacityObservation(beforeAvailable: before.available, afterAvailable: after.available, beforeTotal: before.total, afterTotal: after.total, beforeVolumeID: before.volumeID, afterVolumeID: after.volumeID, beforeMetric: before.metric.rawValue, afterMetric: after.metric.rawValue, beforeDate: before.date, afterDate: after.date)
         }
         let state = record.state.rawValue
         Self.log.info("\(state, privacy: .public) \(verb, privacy: .public) \(candidate.url.path, privacy: .public)")
