@@ -144,19 +144,16 @@ public actor ChromeCacheService {
             try environment.validateInstallation(at: access.applicationURL)
             guard try !environment.browserIsRunning(bundleURL: access.applicationURL) else { throw ChromeCacheFailure("Quit Chrome and its helpers, then check again.", .running) }
             try validateMapping(access)
-            let localState = try safeJSON(access.dataRootURL.appendingPathComponent("Local State"))
-            guard localState["disk_cache_dir"] == nil, localState["DiskCacheDir"] == nil,
-                  let profile = localState["profile"] as? [String: Any],
-                  let cache = profile["info_cache"] as? [String: Any], cache.count <= 100 else {
+            let ownership = try readChromeOwnership(access.dataRootURL.appendingPathComponent("Local State"))
+            guard !ownership.hasOverride, ownership.identifiers.count <= 100 else {
                 throw ChromeCacheFailure("Chrome profile ownership or cache configuration is unsupported.")
             }
-            for identifier in cache.keys.sorted() {
-                guard cache[identifier] is [String: Any] else { throw ChromeCacheFailure("Unsupported profile ownership metadata.") }
+            for identifier in ownership.identifiers.sorted() {
                 guard identifier == "Default" || identifier.range(of: #"^Profile [1-9][0-9]*$"#, options: .regularExpression) != nil else {
                     throw ChromeCacheFailure("A custom or shared profile layout is unsupported.")
                 }
                 let profileURL = access.dataRootURL.appendingPathComponent(identifier)
-                _ = try safeJSON(profileURL.appendingPathComponent("Preferences"))
+                try verifyChromeProfileMetadata(profileURL.appendingPathComponent("Preferences"))
                 let target = access.cacheRootURL.appendingPathComponent(identifier + "/Cache/Cache_Data")
                 var info = stat()
                 if lstat(target.path, &info) != 0, errno == ENOENT { continue }
@@ -201,7 +198,30 @@ public actor ChromeCacheService {
     }
 }
 extension ChromeDirectory: Equatable {}
-func safeJSON(_ url: URL) throws -> [String: Any] {
+private struct ChromeMetadataKey: CodingKey {
+    let stringValue: String
+    var intValue: Int? { nil }
+    init(_ key: String) { stringValue = key }
+    init?(stringValue: String) { self.stringValue = stringValue }
+    init?(intValue: Int) { return nil }
+}
+struct ChromeProfileOwnership: Decodable {
+    let identifiers: [String]
+    let hasOverride: Bool
+    init(from decoder: any Decoder) throws {
+        let root = try decoder.container(keyedBy: ChromeMetadataKey.self)
+        hasOverride = root.contains(.init("disk_cache_dir")) || root.contains(.init("DiskCacheDir"))
+        let profile = try root.nestedContainer(keyedBy: ChromeMetadataKey.self, forKey: .init("profile"))
+        let cache = try profile.nestedContainer(keyedBy: ChromeMetadataKey.self, forKey: .init("info_cache"))
+        identifiers = cache.allKeys.map(\.stringValue)
+        for key in cache.allKeys {
+            // Validate the ownership record's object shape; never decode its name,
+            // account, address, URL or other private values.
+            _ = try cache.nestedContainer(keyedBy: ChromeMetadataKey.self, forKey: key)
+        }
+    }
+}
+func readChromeOwnership(_ url: URL) throws -> ChromeProfileOwnership {
     var info = stat()
     guard url.isFileURL, url.resolvingSymlinksInPath().path == url.path, lstat(url.path, &info) == 0, info.st_mode & S_IFMT == S_IFREG, info.st_uid == getuid(), info.st_nlink == 1,
           info.st_size <= 5 * 1024 * 1024 else { throw ChromeCacheFailure("Chrome metadata is inaccessible or unsupported.") }
@@ -211,8 +231,7 @@ func safeJSON(_ url: URL) throws -> [String: Any] {
     var opened = stat(); guard fstat(fd, &opened) == 0, ChromeObjectIdentity(info) == ChromeObjectIdentity(opened) else { throw ChromeCacheFailure("Chrome metadata changed.") }
     let data = try FileHandle(fileDescriptor: fd, closeOnDealloc: false).read(upToCount: 5 * 1024 * 1024 + 1) ?? Data()
     guard data.count <= 5 * 1024 * 1024 else { throw ChromeCacheFailure("Chrome metadata exceeds the supported limit.") }
-    guard let object = try JSONSerialization.jsonObject(with: data) as? [String: Any] else { throw ChromeCacheFailure("Unsupported Chrome metadata.") }
-    return object
+    return try JSONDecoder().decode(ChromeProfileOwnership.self, from: data)
 }
 func directoryChain(_ urls: [URL]) throws -> [ChromeDirectory] {
     var result: [ChromeDirectory] = []
@@ -225,4 +244,13 @@ func directoryChain(_ urls: [URL]) throws -> [ChromeDirectory] {
         result.append(.init(url: url, identity: .init(info)))
     }
     return result
+}
+
+func verifyChromeProfileMetadata(_ url: URL) throws {
+    var info = stat()
+    guard url.isFileURL, url.resolvingSymlinksInPath().path == url.path,
+          lstat(url.path, &info) == 0, info.st_mode & S_IFMT == S_IFREG,
+          info.st_uid == getuid(), info.st_nlink == 1 else {
+        throw ChromeCacheFailure("Profile metadata identity is inaccessible or unsupported.")
+    }
 }

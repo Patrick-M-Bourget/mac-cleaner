@@ -101,12 +101,9 @@ extension ChromeCacheService {
             do {
                 try environment.validateInstallation(at: authority.access.applicationURL)
                 try validateMapping(authority.access)
-                let state = try safeJSON(authority.access.dataRootURL.appendingPathComponent("Local State"))
-                guard state["disk_cache_dir"] == nil, state["DiskCacheDir"] == nil,
-                      let profile = state["profile"] as? [String: Any],
-                      let owners = profile["info_cache"] as? [String: Any],
-                      owners[group.profileIdentifier] is [String: Any] else { throw ChromeCacheFailure("Chrome profile ownership or cache configuration changed.") }
-                _ = try safeJSON(authority.access.dataRootURL.appendingPathComponent(group.profileIdentifier + "/Preferences"))
+                let state = try readChromeOwnership(authority.access.dataRootURL.appendingPathComponent("Local State"))
+                guard !state.hasOverride, state.identifiers.contains(group.profileIdentifier) else { throw ChromeCacheFailure("Chrome profile ownership or cache configuration changed.") }
+                try verifyChromeProfileMetadata(authority.access.dataRootURL.appendingPathComponent(group.profileIdentifier + "/Preferences"))
                 guard try !environment.browserIsRunning(bundleURL: authority.access.applicationURL) else { throw ChromeCacheFailure("Chrome or a helper is running. Check again after quitting.") }
                 let opened = try ChromeOpenGroup(chain: authority.chain)
                 let leaves = try opened.entries()
