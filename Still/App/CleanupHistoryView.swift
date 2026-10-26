@@ -31,27 +31,45 @@ private enum HistoryActivityItem: Identifiable {
         busy = true; defer { busy = false }
         do {
             let loaded = try await HistoryLoadCoordinator.load(lifecycle: AppLifecycleController.shared) { mayMaintain in
-                try await Task.detached {
+                var chromeRecords: [ChromeCacheRun]?
+                var chromeError: String?
+                do {
+                    let journal = ChromeCacheService(journalURL: try LocalStateLocation.root(create: mayMaintain && maintainCompleted).appendingPathComponent("chrome-cleanup.json"))
+                    if mayMaintain && maintainCompleted { _ = try await journal.retainCompletedRecords() }
+                    chromeRecords = try await journal.records()
+                } catch { chromeError = "Chrome cleanup history is unavailable. Its recovery records are retained; no cleanup resumes automatically." }
+                // Completed payloads share the existing maintenance ceiling; unknown
+                // Chrome storage makes the other store read-only, never guessed zero.
+                let remainingBudget: Int?
+                if let chromeRecords {
+                    let chromeBytes = try JSONEncoder().encode(chromeRecords.filter { !$0.unresolved }).count
+                    remainingBudget = max(0, 250_000_000 - chromeBytes)
+                } else { remainingBudget = nil }
+                let trash = try await Task.detached {
                     guard let reader = try CleanupJournalLocation.existingReader() else { return (CleanupHistorySnapshot(records: []), false) }
-                    if mayMaintain && maintainCompleted {
+                    if mayMaintain && maintainCompleted, let remainingBudget {
                         let journal = try CleanupJournalLocation.writer()
-                        let maintenance = try journal.retainCompletedRuns()
+                        let maintenance = try journal.retainCompletedRuns(maximumBytes: remainingBudget)
                         let compacted = maintenance.removedRecords == 0 ? true : try journal.compact().completed
                         return (try journal.completedHistory(), !compacted)
                     }
                     return (try reader.completedHistory(), false)
                 }.value
+                return (trash.0, trash.1, chromeRecords, chromeError)
             }
-            snapshot = loaded.0
-            loadError = nil
+            snapshot = loaded.0; loadError = nil
+            chromeRuns = loaded.2; chromeLoadError = loaded.3
             if loaded.1 { message = "Expired completed history was removed, but journal compaction did not finish. Disk reclamation is not confirmed." }
-            blocked = false
-        } catch { snapshot = nil; blocked = true; loadError = "Cleanup history is unavailable. The local journal cannot be read. Clear and reset are unavailable; keep its recovery records." }
-        do {
-            chromeRuns = try await AppLifecycleController.shared.selection.chrome.records()
-            chromeLoadError = nil
-        } catch { chromeRuns = nil; chromeLoadError = "Chrome cleanup history is unavailable. Its recovery records are retained; no cleanup resumes automatically." }
+            blocked = loaded.3 != nil
+        } catch {
+            snapshot = nil; blocked = true
+            loadError = "Cleanup history is unavailable. The local journal cannot be read. Clear and reset are unavailable; keep its recovery records."
+            // Preserve independently readable browser facts when the Trash journal fails.
+            do { chromeRuns = try await AppLifecycleController.shared.selection.chrome.records(); chromeLoadError = nil }
+            catch { chromeRuns = nil; chromeLoadError = "Chrome cleanup history is unavailable. Its recovery records are retained; no cleanup resumes automatically." }
+        }
     }
+
     func clear() async {
         let lifecycle = AppLifecycleController.shared
         guard !busy, !lifecycle.maintenanceInProgress, !lifecycle.operationInProgress, !lifecycle.selection.execution.isRunning else { message = "Wait for the current cleanup to finish."; return }
