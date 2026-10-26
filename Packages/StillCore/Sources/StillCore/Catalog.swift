@@ -3,8 +3,29 @@ import Darwin
 
 /// What kind of data a rule covers; it decides how the data comes back.
 public enum RegenClass: String, Codable, Sendable { case cache, build, updaterDownload, leakedCopy, log, installer, model, userFile }
-/// Decision 3: regenerable data is deleted; user files go to Trash. Tool actions arrive with #99.
-public enum CleanupAction: String, Codable, Sendable { case delete, trash }
+/// Decision 3: regenerable data is deleted; user files go to Trash. A few rules run the tool's own command (Decision 21).
+public enum CleanupAction: String, Codable, Sendable { case delete, trash, tool }
+
+/// A command a `.tool` rule runs, with a time limit. The executable and its arguments are fixed in the rule.
+public struct ToolCommand: Sendable, Hashable {
+    /// Absolute paths to try in order; the first installed one is used. None installed means the rule doesn't appear.
+    public let executables: [String]
+    public let arguments: [String]
+    public let timeout: TimeInterval
+    /// Delete the candidate folder after the command succeeds (Homebrew: `brew cleanup -s` plus its cache folder).
+    public let deletesLocationAfter: Bool
+    public init(executables: [String], arguments: [String], timeout: TimeInterval, deletesLocationAfter: Bool = false) {
+        self.executables = executables; self.arguments = arguments; self.timeout = timeout; self.deletesLocationAfter = deletesLocationAfter
+    }
+    /// As shown to the user and logged, e.g. `brew cleanup -s`.
+    public var commandLine: String {
+        ([executables.first.map { URL(fileURLWithPath: $0).lastPathComponent } ?? ""] + arguments).joined(separator: " ")
+    }
+    /// The first listed executable that is installed on this Mac.
+    @Sendable public static func installed(_ command: ToolCommand) -> URL? {
+        command.executables.lazy.map { URL(fileURLWithPath: $0) }.first { FileManager.default.isExecutableFile(atPath: $0.path) }
+    }
+}
 public enum CatalogCategory: String, Codable, Sendable { case developer, browser, downloads, system, models }
 
 /// Who must be closed before a rule's data is touched.
@@ -41,9 +62,11 @@ public struct CleanupRule: Sendable, Identifiable {
     public let owner: RuleOwner?
     /// Names that are never acted on when they are the item, one of its ancestors, or a top-level entry inside it.
     public let protectedNames: [String]
-    public init(id: String, category: CatalogCategory, title: String, detail: String, consequence: String, regen: RegenClass, action: CleanupAction, locations: [String], owner: RuleOwner?, protectedNames: [String] = []) {
+    /// The command a `.tool` rule runs; nil for every other action.
+    public let tool: ToolCommand?
+    public init(id: String, category: CatalogCategory, title: String, detail: String, consequence: String, regen: RegenClass, action: CleanupAction, locations: [String], owner: RuleOwner?, protectedNames: [String] = [], tool: ToolCommand? = nil) {
         self.id = id; self.category = category; self.title = title; self.detail = detail; self.consequence = consequence
-        self.regen = regen; self.action = action; self.locations = locations; self.owner = owner; self.protectedNames = protectedNames
+        self.regen = regen; self.action = action; self.locations = locations; self.owner = owner; self.protectedNames = protectedNames; self.tool = tool
     }
 }
 
@@ -89,6 +112,12 @@ public enum BuiltInCatalog {
                     consequence: "Permanently removed. CocoaPods downloads pods again as needed; the next install may take longer.",
                     regen: .cache, action: .delete, locations: ["Library/Caches/CocoaPods"],
                     owner: RuleOwner(name: "CocoaPods", executables: ["pod"], scripts: ["pod"])),
+        CleanupRule(id: "homebrew", category: .developer, title: "Homebrew cache",
+                    detail: "Downloads Homebrew kept, plus old versions `brew cleanup -s` removes.",
+                    consequence: "Runs `brew cleanup -s`, then permanently removes the cache folder. Homebrew downloads again when you install or upgrade.",
+                    regen: .cache, action: .tool, locations: ["Library/Caches/Homebrew"],
+                    owner: RuleOwner(name: "Homebrew", executables: ["brew"], scripts: ["brew", "brew.sh", "brew.rb"]),
+                    tool: ToolCommand(executables: ["/opt/homebrew/bin/brew", "/usr/local/bin/brew"], arguments: ["cleanup", "-s"], timeout: 300, deletesLocationAfter: true)),
     ]
 }
 
@@ -101,6 +130,8 @@ public struct Candidate: Sendable, Identifiable, Hashable {
     /// "dev:ino" of the item itself.
     public let resourceID: String
     public let isDirectory: Bool
+    /// The installed executable a `.tool` candidate runs, found at discovery.
+    public let toolURL: URL?
     public let volumeID: String?
     public let modifiedSeconds: Int64
     public let modifiedNanoseconds: Int64
@@ -119,10 +150,13 @@ public struct Catalog: Sendable {
     public static let neverOffered: Set<String> = ["ccache", ".ccache", "sccache"]
 
     /// Sizes only the rules' known locations under `home`. Read-only.
-    public func discover(home: URL, sizer: KnownLocationSizer = KnownLocationSizer()) -> [Candidate] {
+    /// A `.tool` rule appears only when `locateTool` finds its executable.
+    public func discover(home: URL, sizer: KnownLocationSizer = KnownLocationSizer(), locateTool: (ToolCommand) -> URL? = ToolCommand.installed) -> [Candidate] {
         let base = home.resolvingSymlinksInPath()
-        return rules.flatMap { rule in
-            rule.locations.compactMap { relative -> Candidate? in
+        return rules.flatMap { rule -> [Candidate] in
+            let toolURL = rule.tool.flatMap(locateTool)
+            guard rule.action != .tool || toolURL != nil else { return [] }
+            return rule.locations.compactMap { relative -> Candidate? in
                 guard Self.neverOffered.isDisjoint(with: relative.split(separator: "/").map(String.init)) else { return nil }
                 let url = base.appendingPathComponent(relative)
                 var info = stat()
@@ -131,7 +165,7 @@ public struct Catalog: Sendable {
                 let size = sizer.size(url)
                 let volume = try? url.resourceValues(forKeys: [.volumeUUIDStringKey]).volumeUUIDString
                 return Candidate(ruleID: rule.id, action: rule.action, url: url, resourceID: "\(info.st_dev):\(info.st_ino)",
-                                 isDirectory: info.st_mode & S_IFMT == S_IFDIR, volumeID: volume,
+                                 isDirectory: info.st_mode & S_IFMT == S_IFDIR, toolURL: toolURL, volumeID: volume,
                                  modifiedSeconds: Int64(info.st_mtimespec.tv_sec), modifiedNanoseconds: Int64(info.st_mtimespec.tv_nsec),
                                  logicalBytes: size.logicalBytes, allocatedBytes: size.allocatedBytes, sizeComplete: size.complete, observedAt: Date())
             }
