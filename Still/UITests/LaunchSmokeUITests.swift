@@ -57,7 +57,6 @@ final class LaunchSmokeUITests: XCTestCase {
             app.terminate(); try? FileManager.default.removeItem(at: state)
             try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: safari.path); try? FileManager.default.removeItem(at: home)
         }
-        app.launchArguments = ["-ApplePersistenceIgnoreState", "YES"]
         app.launch()
         XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
         XCTAssertFalse(app.sheets.firstMatch.exists, "Nothing asks for access at launch")
@@ -85,7 +84,6 @@ final class WhatGrewUITests: XCTestCase {
         let state = try configureIsolatedState(app)
         let home = try configureCatalogHome(app)
         defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
-        app.launchArguments = ["-ApplePersistenceIgnoreState", "YES"]
         app.launch()
         XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
 

@@ -341,7 +341,6 @@ final class CatalogCleanupUITests: XCTestCase {
             app.terminate(); try? FileManager.default.removeItem(at: state)
             try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: safari.path); try? FileManager.default.removeItem(at: home)
         }
-        app.launchArguments = ["-ApplePersistenceIgnoreState", "YES"]
         app.launch()
 
         XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
@@ -432,7 +431,6 @@ final class CatalogCleanupUITests: XCTestCase {
         let home = try configureCatalogHome(app)
         let marker = try addDocker(home, daemonAnswers: true)
         defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
-        app.launchArguments = ["-ApplePersistenceIgnoreState", "YES"]
         app.launch()
 
         XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
@@ -468,7 +466,6 @@ final class CatalogCleanupUITests: XCTestCase {
         let home = try configureCatalogHome(app)
         let marker = try addDocker(home, daemonAnswers: false)
         defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
-        app.launchArguments = ["-ApplePersistenceIgnoreState", "YES"]
         app.launch()
 
         XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
@@ -504,7 +501,6 @@ final class ICloudCleanupUITests: XCTestCase {
         let home = try configureCatalogHome(app)
         try addICloudFiles(home)
         defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
-        app.launchArguments = ["-ApplePersistenceIgnoreState", "YES"]
         app.launch()
 
         XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
@@ -552,7 +548,6 @@ extension CatalogCleanupUITests {
         try FileManager.default.setAttributes([.creationDate: then, .modificationDate: then], ofItemAtPath: old.path)
         var times = [timeval(tv_sec: Int(then.timeIntervalSince1970), tv_usec: 0), timeval(tv_sec: Int(then.timeIntervalSince1970), tv_usec: 0)]
         XCTAssertEqual(utimes(old.path, &times), 0)
-        app.launchArguments = ["-ApplePersistenceIgnoreState", "YES"]
         app.launch()
 
         XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
@@ -618,7 +613,6 @@ final class GuidanceUITests: XCTestCase {
             try? FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: locked.path)
             try? FileManager.default.removeItem(at: home)
         }
-        app.launchArguments = ["-ApplePersistenceIgnoreState", "YES"]
         app.launch()
 
         XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
