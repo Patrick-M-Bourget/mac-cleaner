@@ -79,3 +79,39 @@ private func found(_ catalog: Catalog, _ home: URL, access: FullDiskAccessStatus
     #expect(CandidateCheck(catalog: catalog, running: Running(bundleIDs: ["com.vscodium"])).check(cache) == .ownerRunning("VSCodium"))
     #expect(CandidateCheck(catalog: catalog, running: Running(bundleIDs: ["com.microsoft.VSCode"])).check(cache) == nil)
 }
+
+// MARK: JetBrains
+
+@Test func onlyOlderVersionsOfAJetBrainsIDEAreOffered() throws {
+    let home = try fixtureHome()
+    defer { try? FileManager.default.removeItem(at: home) }
+    let jetbrains = "Library/Caches/JetBrains/"
+    for folder in ["IntelliJIdea2023.3", "IntelliJIdea2024.2", "IntelliJIdea2024.10", "PyCharm2024.1", "PyCharmCE2023.1", "PyCharmCE2023.2",
+                   "SomeNewIDE2023.1", "SomeNewIDE2024.1", "consentOptions"] {
+        try write(home, jetbrains + folder + "/caches/content.dat", bytes: 1_024)
+    }
+    let catalog = Catalog(rules: fixtureRules)
+    // The newest version of each product is the one in use; a product Still doesn't know has no owner to check.
+    #expect(found(catalog, home) == [jetbrains + "IntelliJIdea2023.3": "jetbrains-caches", jetbrains + "IntelliJIdea2024.2": "jetbrains-caches",
+                                     jetbrains + "PyCharmCE2023.1": "jetbrains-caches"])
+    let rule = try #require(catalog.rule("jetbrains-caches"))
+    #expect(rule.category == .developer && rule.action == .delete)
+    let names = Set(catalog.discover(fixture: home).compactMap(\.appName))
+    #expect(names == ["IntelliJ IDEA", "PyCharm"])
+}
+
+@Test func anOldJetBrainsCacheIsRefusedWhileThatIDERuns() throws {
+    let home = try fixtureHome()
+    defer { try? FileManager.default.removeItem(at: home) }
+    for folder in ["IntelliJIdea2023.3", "IntelliJIdea2024.2"] { try write(home, "Library/Caches/JetBrains/\(folder)/caches/content.dat") }
+    let catalog = Catalog(rules: fixtureRules)
+    let old = try #require(catalog.discover(fixture: home).first)
+    #expect(old.url.lastPathComponent == "IntelliJIdea2023.3")
+    // Any version of the IDE, from any install (Toolbox or /Applications).
+    let idea = ["/Users/me/Applications/IntelliJ IDEA Ultimate.app/Contents/MacOS/idea"]
+    #expect(CandidateCheck(catalog: catalog, running: Running(processes: [idea])).check(old) == .ownerRunning("IntelliJ IDEA"))
+    #expect(CandidateCheck(catalog: catalog, running: Running(processes: [["/Applications/PyCharm.app/Contents/MacOS/pycharm"]])).check(old) == nil)
+    // The newer version's folder is gone since the scan: this one may be in use again.
+    try FileManager.default.removeItem(at: home.appendingPathComponent("Library/Caches/JetBrains/IntelliJIdea2024.2"))
+    #expect(CandidateCheck(catalog: catalog, running: Running()).check(old) != nil)
+}

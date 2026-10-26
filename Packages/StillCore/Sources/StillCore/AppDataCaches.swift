@@ -25,8 +25,44 @@ public enum AppDataCaches {
                     protectedNames: vsCodeData)
     }
 
+    // MARK: JetBrains
+
+    /// JetBrains IDEs keep caches, indexes and local history in ~/Library/Caches/JetBrains/<product><version>
+    /// (JetBrains, "Directories used by the IDE": `~/Library/Caches/JetBrains/IntelliJIdea2026.2`). Each product's
+    /// folder name, with the name and launcher (Contents/MacOS) of the IDE that uses it.
+    static let jetBrainsProducts: [String: (name: String, executable: String)] = [
+        "IntelliJIdea": ("IntelliJ IDEA", "idea"), "IdeaIC": ("IntelliJ IDEA", "idea"), "PyCharm": ("PyCharm", "pycharm"),
+        "PyCharmCE": ("PyCharm", "pycharm"), "WebStorm": ("WebStorm", "webstorm"), "PhpStorm": ("PhpStorm", "phpstorm"),
+        "GoLand": ("GoLand", "goland"), "CLion": ("CLion", "clion"), "Rider": ("Rider", "rider"), "RubyMine": ("RubyMine", "rubymine"),
+        "DataGrip": ("DataGrip", "datagrip"), "RustRover": ("RustRover", "rustrover"), "DataSpell": ("DataSpell", "dataspell"),
+    ]
+    /// "IntelliJIdea2024.2" as ("IntelliJIdea", [2024, 2]); nil for a name without a version.
+    static func jetBrainsVersion(_ name: String) -> (product: String, version: [Int])? {
+        guard let start = name.firstIndex(where: \.isNumber), start != name.startIndex else { return nil }
+        let parts = name[start...].split(separator: ".", omittingEmptySubsequences: false).map { Int($0) }
+        guard !parts.contains(nil) else { return nil }
+        return (String(name[..<start]), parts.compactMap { $0 })
+    }
+    /// The IDE an older version's folder belongs to. The newest version of each product is the one the installed IDE
+    /// uses, so it has no owner Still can close and is never offered; nor is a product Still doesn't know.
+    static func jetBrainsOwner(_ url: URL) -> RuleOwner? {
+        guard let (product, version) = jetBrainsVersion(url.lastPathComponent), let ide = jetBrainsProducts[product],
+              let siblings = try? FileManager.default.contentsOfDirectory(atPath: url.deletingLastPathComponent().path) else { return nil }
+        let newer = siblings.contains { name in
+            guard let other = jetBrainsVersion(name), other.product == product else { return false }
+            return version.lexicographicallyPrecedes(other.version)
+        }
+        return newer ? RuleOwner(name: ide.name, executables: [ide.executable]) : nil
+    }
+    static let jetBrains = CleanupRule(id: "jetbrains-caches", category: .developer, title: "Old JetBrains IDE caches",
+                                       detail: "Caches and indexes of older IDE versions. The newest version of each IDE is kept.",
+                                       consequence: "Permanently removed, with that version’s local history. Newer versions keep their own caches and history.",
+                                       regen: .cache, action: .delete, locations: ["Library/Caches/JetBrains/*"], owner: nil,
+                                       itemOwner: jetBrainsOwner, protectedDepth: AppCaches.liveWorkDepth)
+
     public static func rules(apps: any AppLookup) -> [CleanupRule] {
         [
+            jetBrains,
             vsCode(id: "vscode-cache", name: "Visual Studio Code", nameShort: "Code", bundleID: "com.microsoft.VSCode"),
             vsCode(id: "vscodium-cache", name: "VSCodium", nameShort: "VSCodium", bundleID: "com.vscodium"),
         ]
