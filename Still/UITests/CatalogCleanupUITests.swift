@@ -141,7 +141,7 @@ final class CatalogCleanupUITests: XCTestCase {
         // The plan says why DerivedData will be refused: this journey runs under xcodebuild or Xcode.
         let running = app.staticTexts["planRunning-xcode-derived-data"]
         XCTAssertTrue(running.waitForExistence(timeout: 5))
-        XCTAssertTrue(running.label.contains("Xcode is running"), running.label)
+        XCTAssertTrue((running.value as? String ?? "").contains("Xcode is running"), running.debugDescription)
         XCTAssertEqual(app.checkBoxes["previewOnlyToggle"].value as? Int, 1)
         app.buttons["Review cleanup"].click()
 
@@ -249,14 +249,14 @@ final class CatalogCleanupUITests: XCTestCase {
         let rule = app.checkBoxes["planRule-chrome-code-sign-clones"]
         XCTAssertTrue(rule.waitForExistence(timeout: 5))
         XCTAssertEqual(rule.value as? Int, 0)
-        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH 'Up to '")).firstMatch.exists)
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "value BEGINSWITH 'Up to '")).firstMatch.exists)
         revealAndClick(rule, in: app)
         XCTAssertEqual(app.checkBoxes["previewOnlyToggle"].value as? Int, 1)
         app.buttons["Review cleanup"].click()
 
         XCTAssertTrue(app.staticTexts["Clear Chrome code-sign copies"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS 'code_sign_clone.old'")).firstMatch.exists)
-        XCTAssertFalse(app.staticTexts.matching(NSPredicate(format: "label CONTAINS 'code_sign_clone.new'")).firstMatch.exists)
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "value CONTAINS 'code_sign_clone.old'")).firstMatch.exists)
+        XCTAssertFalse(app.staticTexts.matching(NSPredicate(format: "value CONTAINS 'code_sign_clone.new'")).firstMatch.exists)
         app.buttons["Run preview"].click()
 
         XCTAssertTrue(app.staticTexts["catalogPreviewNotice"].waitForExistence(timeout: 10))
@@ -300,7 +300,7 @@ final class CatalogCleanupUITests: XCTestCase {
         let profile = app.checkBoxes["planProfile-chrome-cache-Default"]
         XCTAssertTrue(profile.exists)
         XCTAssertTrue(app.checkBoxes["planProfile-chrome-cache-Profile 1"].exists)
-        XCTAssertFalse(app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS 'Cookies' OR label CONTAINS 'Local Storage'")).firstMatch.exists)
+        XCTAssertFalse(app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS 'Cookies' OR label CONTAINS 'Local Storage' OR value CONTAINS 'Cookies' OR value CONTAINS 'Local Storage'")).firstMatch.exists)
         XCTAssertEqual(profile.value as? Int, 0)
         revealAndClick(profile, in: app)
         XCTAssertEqual(app.checkBoxes["previewOnlyToggle"].value as? Int, 1)
@@ -341,7 +341,7 @@ final class CatalogCleanupUITests: XCTestCase {
         XCTAssertTrue(update.waitForExistence(timeout: 5))
         XCTAssertTrue(app.checkBoxes["planRule-crash-reports"].exists)
         XCTAssertTrue(app.checkBoxes["planRule-app-logs"].exists)
-        XCTAssertFalse(app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS 'FixtureAgent' OR identifier CONTAINS 'FixtureAgent'")).firstMatch.exists)
+        XCTAssertFalse(app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS 'FixtureAgent' OR value CONTAINS 'FixtureAgent' OR identifier CONTAINS 'FixtureAgent'")).firstMatch.exists)
         revealAndClick(update, in: app)
         revealAndClick(app.checkBoxes["planRule-crash-reports"], in: app)
         XCTAssertEqual(app.checkBoxes["previewOnlyToggle"].value as? Int, 1)
