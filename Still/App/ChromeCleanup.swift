@@ -263,6 +263,12 @@ struct ChromeCacheProtectionNotice: View {
     }
 }
 
+struct ChromeCachePermanenceNotice: View {
+    var body: some View {
+        StatusRow(text: "These cache files do not go to Trash and cannot be restored by Still. Caches may refill. Downloads and other personal files keep their separate Trash confirmation.", symbol: "exclamationmark.triangle", role: .caution)
+    }
+}
+
 struct BrowserReviewView: View {
     @Bindable var model: ChromeCleanupModel
     var body: some View {
@@ -336,7 +342,7 @@ struct ChromeConfirmationSection: View {
     var body: some View {
         VStack(alignment: .leading, spacing: StillDesign.Space.md) {
             Text("Permanently clear Chrome asset caches").font(.headline)
-            StatusRow(text: "These cache files do not go to Trash and cannot be restored by Still. Caches may refill. Downloads and other personal files keep their separate Trash confirmation.", symbol: "exclamationmark.triangle", role: .caution)
+            ChromeCachePermanenceNotice()
             ForEach(approval.groups) { group in
                 HStack {
                     VStack(alignment: .leading, spacing: StillDesign.Space.xs) {

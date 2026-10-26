@@ -60,6 +60,7 @@ struct DesignGallery: View {
                     }
                     DisclosureGroup("Synthetic browser cache groups", isExpanded: $chromeExamplesExpanded) {
                         ChromeCacheProtectionNotice()
+                        ChromeCachePermanenceNotice()
                         ChromeCacheGroupRows(rows: [
                             .init(id: "synthetic-ready", profile: "Default", estimatedBytes: 420_000_000, observedAt: Date(timeIntervalSince1970: 1_790_000_000), availability: .eligible, selected: true),
                             .init(id: "synthetic-running", profile: "Profile 1", estimatedBytes: nil, observedAt: Date(timeIntervalSince1970: 1_790_000_000), availability: .running),
