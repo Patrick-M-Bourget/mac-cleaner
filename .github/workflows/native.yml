@@ -672,16 +672,17 @@ jobs:
           python3 Validation/ChromeProbe/test_owned_cache.py
       - name: Extract vendor-signed Stable without installing
         run: python3 Validation/ChromeProbe/provision-stable.py "$RUNNER_TEMP/chrome-stable-final"
+      - name: Genuine standard-root profile and split-cache mapping
+        if: always()
+        run: python3 Validation/ChromeProbe/standard-profile.py "$RUNNER_TEMP/chrome-stable-final/evidence/provision.json" "$RUNNER_TEMP/chrome-stable-final/evidence/standard-profile"
       - name: Genuine headed password, address and download-history semantics
+        if: always()
         run: node Validation/ChromeProbe/headed.mjs "$RUNNER_TEMP/chrome-stable-final/evidence/provision.json" "$RUNNER_TEMP/chrome-stable-final/evidence/headed.json"
       - name: Native activity, index-directory and denied-access observations
         if: always()
         run: |
           BUNDLE=$(python3 -c 'import json,os; print(json.load(open(os.environ["RUNNER_TEMP"]+"/chrome-stable-final/evidence/provision.json"))["bundle"])')
           python3 Validation/ChromeProbe/native-faults.py --bundle "$BUNDLE" --output "$RUNNER_TEMP/chrome-stable-final/evidence/native-faults.json"
-      - name: Genuine standard-root profile and split-cache mapping
-        if: always()
-        run: python3 Validation/ChromeProbe/standard-profile.py "$RUNNER_TEMP/chrome-stable-final/evidence/provision.json" "$RUNNER_TEMP/chrome-stable-final/evidence/standard-profile"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
