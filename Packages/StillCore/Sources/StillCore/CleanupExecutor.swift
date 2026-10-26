@@ -71,7 +71,7 @@ public actor CleanupExecutor {
 
     public func execute(_ approval: CatalogApproval, progress: @Sendable (CleanupExecutionProgress) async -> Void = { _ in }) async -> CatalogExecutionResult {
         var seen = Set<String>()
-        let estimate = approval.candidates.filter { seen.insert($0.resourceID).inserted }.reduce(Int64(0)) { $0 + $1.estimatedBytes }
+        let estimate = approval.candidates.filter { seen.insert(check.catalog.spaceKey(of: $0)).inserted }.reduce(Int64(0)) { $0 + $1.estimatedBytes }
         func result(_ records: [CleanupRecord], replay: Bool = false, failure: String? = nil) -> CatalogExecutionResult {
             CatalogExecutionResult(batchID: approval.id, records: records, previewOnly: approval.previewOnly, rejectedReplay: replay, journalFailure: failure, estimatedBytes: estimate)
         }

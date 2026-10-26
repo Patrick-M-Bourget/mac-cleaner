@@ -143,7 +143,7 @@ public enum BuiltInCatalog {
     /// The catalog as the app uses it, with installed apps found through LaunchServices.
     public static let rules: [CleanupRule] = rules(apps: SystemAppLookup())
     /// The catalog with installed apps found by `apps`. Tests pass a fake, so they never depend on this Mac's apps.
-    public static func rules(apps: any AppLookup) -> [CleanupRule] { fixedRules + BrowserCaches.rules + AppCaches.rules(apps: apps) }
+    public static func rules(apps: any AppLookup) -> [CleanupRule] { fixedRules + BrowserCaches.rules + AppCaches.rules(apps: apps) + dockerRules }
     private static let fixedRules: [CleanupRule] = [
         CleanupRule(id: "npm-cache", category: .developer, title: "npm cache",
                     detail: "Packages npm downloaded for your projects.",
@@ -331,6 +331,8 @@ public struct Catalog: Sendable {
         let homeBase = home.resolvingSymlinksInPath(), userBase = userFolder
         var seen = Set<String>()
         var notes: [CatalogNote] = []
+        // `docker system df` runs once per scan, for every Docker rule, and only once a rule's folder exists.
+        var dockerUsage: [String: Result<[DockerStorageCategory], ToolPreviewError>] = [:]
         let overridden = Set(overriddenRules(home: home, systemRoot: systemRoot).map(\.id))
         let candidates = rules.flatMap { rule -> [Candidate] in
             guard !overridden.contains(rule.id), let base = rule.base == .home ? homeBase : userBase else { return [] }
@@ -353,6 +355,13 @@ public struct Catalog: Sendable {
                 }
                 if let contents = rule.contents { return files(in: url, matching: contents, rule: rule, now: now) }
                 if rule.items == .ollamaModels { return ollamaModels(in: url, rule: rule, toolURL: toolURL) }
+                if case .docker(let kind) = rule.items, let toolURL {
+                    let usage = dockerUsage[toolURL.path] ?? DockerDiskUsage.read(toolURL)
+                    if dockerUsage[toolURL.path] == nil, case .failure(let error) = usage { notes.append(CatalogNote(ruleID: rule.id, text: DockerDiskUsage.notice(error))) }
+                    dockerUsage[toolURL.path] = usage
+                    guard case .success(let rows) = usage else { return [] }
+                    return dockerCandidate(kind, at: url, rule: rule, toolURL: toolURL, usage: rows).map { [$0] } ?? []
+                }
                 var info = stat()
                 guard lstat(url.path, &info) == 0, info.st_uid == geteuid(),
                       [S_IFDIR, S_IFREG].contains(info.st_mode & S_IFMT) else { return [] }
@@ -380,9 +389,15 @@ public struct Catalog: Sendable {
             // Excluded items are never candidates (SPEC section 2); the check refuses them again just before acting.
             // With exclusions set, an item whose volume can't be read can't be cleared of them, so it is left out too.
             if !exclusions.rules.isEmpty, candidate.volumeID.map({ exclusions.covers(candidate.url, volumeID: $0) }) ?? true { return false }
-            return seen.insert(candidate.resourceID).inserted
+            return seen.insert(spaceKey(of: candidate)).inserted
         }
         return CatalogDiscovery(candidates: candidates, notes: notes)
+    }
+
+    /// What a candidate's space is keyed on, so the same space is offered and counted once: the item itself, or for a tool
+    /// that leaves its folder in place (Docker, `pnpm store prune`), the command, since the folder only anchors it.
+    func spaceKey(of candidate: Candidate) -> String {
+        rule(candidate.ruleID)?.tool?.deletesLocationAfter == false ? candidate.id : candidate.resourceID
     }
 
     /// Whether another rule's location is this item, holds it, or exists inside it, whether or not that rule offers it now.
