@@ -101,12 +101,15 @@ public struct CleanupRule: Sendable, Identifiable {
     /// A broad rule (every app's cache) offers nothing another rule's location names, holds or sits inside,
     /// so no folder is offered twice and no other rule's data goes with a parent folder.
     public let yieldsToOtherRules: Bool
+    /// How many levels inside a folder candidate protected names are looked for (1: its top-level entries).
+    /// Deeper for folders that can hold live work, such as an agent's git checkout under Caches.
+    public let protectedDepth: Int
     public init(id: String, category: CatalogCategory, title: String, detail: String, consequence: String, regen: RegenClass, action: CleanupAction, locations: [String], owner: RuleOwner?, protectedNames: [String] = [], tool: ToolCommand? = nil, protectedExtensions: [String] = [], contents: ContentsMatch? = nil, keepNewestVersions: Int? = nil, layoutOverrides: [LayoutOverride] = [],
-                itemOwner: (@Sendable (URL) -> RuleOwner?)? = nil, yieldsToOtherRules: Bool = false) {
+                itemOwner: (@Sendable (URL) -> RuleOwner?)? = nil, yieldsToOtherRules: Bool = false, protectedDepth: Int = 1) {
         self.id = id; self.category = category; self.title = title; self.detail = detail; self.consequence = consequence
         self.regen = regen; self.action = action; self.locations = locations; self.owner = owner; self.protectedNames = protectedNames; self.tool = tool
         self.protectedExtensions = protectedExtensions; self.contents = contents; self.keepNewestVersions = keepNewestVersions; self.layoutOverrides = layoutOverrides
-        self.itemOwner = itemOwner; self.yieldsToOtherRules = yieldsToOtherRules
+        self.itemOwner = itemOwner; self.yieldsToOtherRules = yieldsToOtherRules; self.protectedDepth = protectedDepth
     }
 }
 
@@ -266,6 +269,9 @@ public struct Catalog: Sendable {
                 guard lstat(url.path, &info) == 0, info.st_uid == geteuid(),
                       [S_IFDIR, S_IFREG].contains(info.st_mode & S_IFMT) else { return [] }
                 if rule.yieldsToOtherRules, claimedByAnotherRule(url, besides: rule, base: base) { return [] }
+                // Rules that look deeper for live work leave such folders out of the plan; the check refuses them either way.
+                if rule.protectedDepth > 1, info.st_mode & S_IFMT == S_IFDIR,
+                   CandidateCheck.protectedEntry(in: url, names: CandidateCheck.protectedNames(for: rule), depth: rule.protectedDepth) != nil { return [] }
                 var profile = profile
                 if let itemOwner = rule.itemOwner {
                     guard let owner = itemOwner(url) else { return [] }

@@ -31,6 +31,37 @@ public struct CandidateCheck: Sendable {
     /// Never candidates, as the item, an ancestor or a top-level entry inside it (git work, Trash, backups).
     static let protectedNames: Set<String> = [".git", ".Trash", "Backups.backupdb"]
     static let protectedExtensions: Set<String> = ["app", "bundle", "framework", "xcarchive", "photoslibrary", "photolibrary", "musiclibrary", "backupbundle", "sparsebundle", "band", "logicx"]
+    static func protectedNames(for rule: CleanupRule) -> Set<String> { protectedNames.union(Catalog.neverOffered).union(rule.protectedNames) }
+    /// At most this many entries are looked at; a deeper search that would need more refuses the folder.
+    static let protectedSearchLimit = 200_000
+
+    /// The first protected name among the entries up to `depth` levels inside `folder`, never following symlinks or crossing volumes.
+    /// A folder that can't be fully searched answers with the reason, so it is refused rather than guessed at.
+    static func protectedEntry(in folder: URL, names: Set<String>, depth: Int) -> String? {
+        if depth <= 1 {
+            return names.sorted().first { name in
+                var inner = stat()
+                return lstat(folder.appendingPathComponent(name).path, &inner) == 0
+            }
+        }
+        let path = strdup(folder.path)
+        defer { free(path) }
+        var paths: [UnsafeMutablePointer<CChar>?] = [path, nil]
+        guard let tree = fts_open(&paths, FTS_PHYSICAL | FTS_XDEV | FTS_NOCHDIR, nil) else { return "unreadable folder" }
+        defer { fts_close(tree) }
+        var seen = 0
+        while let entry = fts_read(tree) {
+            let level = Int(entry.pointee.fts_level), kind = Int32(entry.pointee.fts_info)
+            guard level > 0, kind != FTS_DP else { continue }
+            seen += 1
+            if seen > protectedSearchLimit { return "too many items to check" }
+            let name = String(cString: entry.pointee.fts_path).split(separator: "/").last.map(String.init) ?? ""
+            if names.contains(name) { return name }
+            if kind == FTS_DNR || kind == FTS_ERR { return "unreadable folder" }
+            if kind == FTS_D, level >= depth { fts_set(tree, entry, FTS_SKIP) }
+        }
+        return nil
+    }
     public init(catalog: Catalog, running: any RunningAppChecking, exclusions: ExclusionPolicy = ExclusionPolicy()) {
         self.catalog = catalog; self.running = running; self.exclusions = exclusions
     }
@@ -61,17 +92,12 @@ public struct CandidateCheck: Sendable {
         let values = try? candidate.url.resourceValues(forKeys: [.volumeUUIDStringKey, .isUbiquitousItemKey])
         if values?.isUbiquitousItem == true || info.st_flags & UInt32(SF_DATALESS) != 0 { return .cloud }
         guard let volume = values?.volumeUUIDString, volume == candidate.volumeID else { return .changed }
-        let names = Self.protectedNames.union(Catalog.neverOffered).union(rule.protectedNames)
+        let names = Self.protectedNames(for: rule)
         let extensions = Self.protectedExtensions.union(rule.protectedExtensions)
         for part in candidate.url.pathComponents {
             if names.contains(part) || extensions.contains(URL(fileURLWithPath: part).pathExtension.lowercased()) { return .protected(part) }
         }
-        if candidate.isDirectory {
-            for name in names.sorted() {
-                var inner = stat()
-                if lstat(candidate.url.appendingPathComponent(name).path, &inner) == 0 { return .protected(name) }
-            }
-        }
+        if candidate.isDirectory, let name = Self.protectedEntry(in: candidate.url, names: names, depth: rule.protectedDepth) { return .protected(name) }
         if exclusions.matches(candidate.url, volumeID: volume) { return .excluded }
         let parts = candidate.url.standardizedFileURL.pathComponents
         if exclusions.rules.contains(where: { $0.volumeID == volume && URL(fileURLWithPath: $0.path).pathComponents.starts(with: parts) }) { return .excluded }

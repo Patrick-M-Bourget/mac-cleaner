@@ -118,3 +118,23 @@ private func catalogWith(_ apps: Apps) -> Catalog {
     let apps = Apps(installed: names.map { InstalledApp(name: $0, bundleID: $0, path: "/Applications/\($0).app") })
     #expect(!catalogWith(apps).discover(home: home, locateTool: { _ in URL(fileURLWithPath: "/bin/echo") }).contains { $0.ruleID == "app-caches" })
 }
+
+@Test func aGitWorkingTreeInsideACacheFolderIsNeverACandidate() throws {
+    let home = try fixtureHome()
+    defer { try? FileManager.default.removeItem(at: home) }
+    // The field scan's case: an agent's live checkout two levels down in its cache folder. A linked worktree has a `.git` file.
+    try write(home, "Library/Caches/com.example.Agent/mac-cleaner-implementation/.git/HEAD")
+    try write(home, "Library/Caches/com.example.Agent/mac-cleaner-implementation/Package.swift")
+    try write(home, "Library/Caches/com.example.Worker/runs/42/tree/.git")
+    try write(home, "Library/Logs/com.example.Agent/session/.git/HEAD")
+    try write(home, "Library/Caches/com.example.Editor/Cache.db")
+    let apps = Apps(installed: [editor] + ["com.example.Agent", "com.example.Worker"].map { InstalledApp(name: $0, bundleID: $0, path: "/Applications/\($0).app") })
+    let catalog = catalogWith(apps)
+    let found = catalog.discover(home: home)
+    #expect(found.map(\.url.lastPathComponent) == ["com.example.Editor"])
+
+    // A checkout that appears after the scan is refused just before acting.
+    let cache = try #require(found.first)
+    try write(home, "Library/Caches/com.example.Editor/work/repo/.git/HEAD")
+    #expect(CandidateCheck(catalog: catalog, running: Running()).check(cache) == .protected(".git"))
+}
