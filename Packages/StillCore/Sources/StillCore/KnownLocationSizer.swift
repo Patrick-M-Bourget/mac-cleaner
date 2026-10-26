@@ -33,7 +33,7 @@ public struct KnownLocationSizer: Sendable {
             guard let info = entry.pointee.fts_statp?.pointee else { complete = false; continue }
             entries += 1
             if entries % 1024 == 0, ProcessInfo.processInfo.systemUptime > deadline { complete = false; break }
-            if info.st_mode & S_IFMT != S_IFDIR, info.st_nlink > 1, !linked.insert("\(info.st_dev):\(info.st_ino)").inserted { continue }
+            if info.st_mode & S_IFMT != S_IFDIR, info.st_nlink > 1, !linked.insert(info.resourceID).inserted { continue }
             if info.st_mode & S_IFMT == S_IFREG { logical += Int64(info.st_size) }
             allocated += Int64(info.st_blocks) * 512
         }

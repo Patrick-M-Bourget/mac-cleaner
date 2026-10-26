@@ -87,7 +87,7 @@ extension CleanupRecord {
         state = .pending; trashURL = nil; message = "Approved; not started"; observedAt = candidate.observedAt
         let parent = candidate.url.deletingLastPathComponent()
         var info = stat()
-        scopeURL = parent; scopeResourceID = lstat(parent.path, &info) == 0 ? "\(info.st_dev):\(info.st_ino)" : ""
+        scopeURL = parent; scopeResourceID = lstat(parent.path, &info) == 0 ? info.resourceID : ""
         volumeID = candidate.volumeID; downloadsURL = nil; downloadsResourceID = nil
         modifiedSeconds = candidate.modifiedSeconds; modifiedNanoseconds = candidate.modifiedNanoseconds
         action = candidate.action.rawValue; policyVersion = 2; self.approvedAt = approvedAt
@@ -234,7 +234,7 @@ public actor CleanupExecutor {
             record.state = .failed; record.message = "Couldn’t remove it (\(String(cString: strerror(errno)))). Left unchanged."; return
         }
         var info = stat()
-        guard fstatat(parentFD, asideName, &info, AT_SYMLINK_NOFOLLOW) == 0, "\(info.st_dev):\(info.st_ino)" == candidate.resourceID else {
+        guard fstatat(parentFD, asideName, &info, AT_SYMLINK_NOFOLLOW) == 0, info.resourceID == candidate.resourceID else {
             if renameat(parentFD, asideName, parentFD, name) == 0 { record.state = .skipped; record.message = CheckRefusal.changed.reason }
             else { record.state = .unknown; record.message = "Changed while starting; left at \(aside.path). Review it before cleaning again." }
             return
@@ -255,7 +255,7 @@ public actor CleanupExecutor {
     private func trash(_ candidate: Candidate, into record: inout CleanupRecord) {
         func unchanged() -> Bool {
             var info = stat()
-            return lstat(candidate.url.path, &info) == 0 && "\(info.st_dev):\(info.st_ino)" == candidate.resourceID
+            return lstat(candidate.url.path, &info) == 0 && info.resourceID == candidate.resourceID
         }
         guard unchanged(), let root = candidate.scopeRoot, ScopeContainment.contains(candidate.url, in: root) else {
             record.state = .skipped; record.message = CheckRefusal.changed.reason; return
@@ -264,7 +264,7 @@ public actor CleanupExecutor {
             let resulting = try trashMover.moveToTrash(candidate.url)
             record.trashURL = resulting
             var moved = stat()
-            if let resulting, lstat(resulting.path, &moved) != 0 || "\(moved.st_dev):\(moved.st_ino)" != candidate.resourceID {
+            if let resulting, lstat(resulting.path, &moved) != 0 || moved.resourceID != candidate.resourceID {
                 record.state = .unknown; record.message = "The item in the Trash isn’t the one approved. Review it before cleaning again."
                 return
             }

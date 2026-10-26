@@ -405,7 +405,7 @@ public struct Catalog: Sendable {
     func candidate(_ rule: CleanupRule, _ url: URL, _ info: stat, logical: Int64, allocated: Int64?, complete: Bool, lastUsed: Date?, toolURL: URL? = nil, profile: String? = nil,
                    action: CleanupAction? = nil) -> Candidate {
         let volume = try? url.resourceValues(forKeys: [.volumeUUIDStringKey]).volumeUUIDString
-        return Candidate(ruleID: rule.id, action: action ?? rule.action, url: url, resourceID: "\(info.st_dev):\(info.st_ino)",
+        return Candidate(ruleID: rule.id, action: action ?? rule.action, url: url, resourceID: info.resourceID,
                          isDirectory: info.st_mode & S_IFMT == S_IFDIR, toolURL: toolURL, volumeID: volume,
                          modifiedSeconds: Int64(info.st_mtimespec.tv_sec), modifiedNanoseconds: Int64(info.st_mtimespec.tv_nsec),
                          logicalBytes: logical, allocatedBytes: allocated, sizeComplete: complete, lastUsed: lastUsed, observedAt: Date(), profile: profile)

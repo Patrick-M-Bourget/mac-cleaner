@@ -77,7 +77,7 @@ extension HomebrewInspector {
                 incompleteCount += 1
                 if incomplete.count < 100 { incomplete.append(.init(relativePath: relative, logicalBytes: metadata.st_size, allocatedBytes: metadata.st_blocks * 512)) }
             }
-            if seen.insert("\(metadata.st_dev):\(metadata.st_ino)").inserted {
+            if seen.insert(metadata.resourceID).inserted {
                 let nextLogical = logical.addingReportingOverflow(metadata.st_size)
                 let blocks = metadata.st_blocks.multipliedReportingOverflow(by: 512)
                 let nextAllocated = allocated.addingReportingOverflow(blocks.partialValue)
