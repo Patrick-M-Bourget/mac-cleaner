@@ -161,7 +161,7 @@ jobs:
           elif [[ "$EVENT_NAME" == "workflow_dispatch" && "$REQUESTED_SUITE" == "chrome-cleanup-gallery" ]]; then
             scope=(-only-testing:StillUITests/ChromeCleanupUITests/testChromeGalleryExamplesAtInitialAndMinimumSizes)
           elif [[ "$EVENT_NAME" == "workflow_dispatch" && "$REQUESTED_SUITE" == "chrome-cleanup-presentation" ]]; then
-            scope=(-only-testing:StillUITests/ChromeCleanupUITests/testChromeSelectionCancelAndPermanentCleanupPreservePersonalData -only-testing:StillUITests/ChromeCleanupUITests/testMinimumChromeSelectionCancelAndPermanentCleanupPreservePersonalData -only-testing:StillUITests/ChromeCleanupUITests/testChromeGalleryExamplesAtInitialAndMinimumSizes)
+            scope=(-only-testing:StillUITests/ChromeCleanupUITests/testChromeSelectionCancelAndPermanentCleanupPreservePersonalData -only-testing:StillUITests/ChromeCleanupUITests/testMinimumChromeSelectionCancelAndPermanentCleanupPreservePersonalData -only-testing:StillUITests/ChromeCleanupUITests/testChromeOnlyCleanupShowsPermanentResultsWithoutTrashOutcome)
           elif [[ "$EVENT_NAME" == "workflow_dispatch" && "$REQUESTED_SUITE" == "chrome-cleanup-feedback" ]]; then
             scope=(-only-testing:StillUITests/ChromeCleanupUITests/testHistoryReportsChromeClearWhenDownloadsJournalLaterFails -only-testing:StillUITests/ChromeCleanupUITests/testResetIdentifiesChromePreferenceFailureBeforeAppearanceChanges)
           elif [[ "$EVENT_NAME" == "workflow_dispatch" && "$REQUESTED_SUITE" == "chrome-cleanup-cancel" ]]; then

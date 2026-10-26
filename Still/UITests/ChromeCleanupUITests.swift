@@ -76,6 +76,39 @@ final class ChromeCleanupUITests: XCTestCase {
         for theme in ["Light", "Dark"] {
             app.popUpButtons["Appearance"].click(); app.menuItems[theme].click()
             capture(app, name: "chrome-mixed-results-" + (minimum ? "minimum-" : "initial-") + theme)
+            revealScrollElement(app, control: app.staticTexts["Chrome cache results"], label: "Chrome results")
+            capture(app, name: "chrome-cache-results-" + (minimum ? "minimum-" : "initial-") + theme)
+        }
+    }
+
+    @MainActor func testChromeOnlyCleanupShowsPermanentResultsWithoutTrashOutcome() throws {
+        continueAfterFailure = false
+        for minimum in [false, true] {
+            let app = XCUIApplication()
+            let state = try configureIsolatedJourneyState(app)
+            defer { app.terminate(); try? FileManager.default.removeItem(at: state) }
+            let root = try makeChromeFixture(state)
+            app.launchArguments = ["--chrome-cleanup-fixture", minimum ? "--design-minimum" : "--design-initial-size"]
+            app.launch()
+            revealOverviewControl(app, label: "Review browser caches"); app.buttons["Review browser caches"].click()
+            XCTAssertTrue(app.buttons["Enable Chrome inspection"].waitForExistence(timeout: 5)); app.buttons["Enable Chrome inspection"].click()
+            let group = app.checkBoxes["chromeGroupSelection-Default"]
+            XCTAssertTrue(group.waitForExistence(timeout: 10)); revealScrollElement(app, control: group, label: "Chrome group"); group.click()
+            app.buttons["View cleanup plan"].click()
+            XCTAssertTrue(app.buttons["Review cleanup"].waitForExistence(timeout: 5)); app.buttons["Review cleanup"].click()
+            XCTAssertTrue(app.sheets.buttons["Run cleanup"].waitForExistence(timeout: 5))
+            XCTAssertFalse(app.staticTexts["Move exact Downloads files to Trash"].exists)
+            app.sheets.buttons["Run cleanup"].click()
+            XCTAssertTrue(app.staticTexts["Chrome cache results"].waitForExistence(timeout: 15))
+            XCTAssertTrue(app.staticTexts["Cleanup results"].exists)
+            XCTAssertFalse(app.staticTexts["Selected files moved to Trash"].exists)
+            XCTAssertFalse(FileManager.default.fileExists(atPath: root.appendingPathComponent("Default/Cache/Cache_Data/0123456789abcdef_0").path))
+            XCTAssertEqual(try Data(contentsOf: root.appendingPathComponent("Default/Cookies")), Data("protected-cookie".utf8))
+            for theme in ["Light", "Dark"] {
+                app.popUpButtons["Appearance"].click(); app.menuItems[theme].click()
+                capture(app, name: "chrome-only-results-" + (minimum ? "minimum-" : "initial-") + theme)
+            }
+            app.terminate()
         }
     }
 

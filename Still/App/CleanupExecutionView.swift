@@ -65,9 +65,10 @@ import SwiftUI
 struct CleanupExecutionView: View {
     @Bindable var model: CleanupExecutionModel
     var retryMessage: String? = nil
+    var showsHeader = true
     var body: some View {
         VStack(alignment: .leading, spacing: StillDesign.Space.xl) {
-            PageHeader(title: model.isRunning ? "Moving selected files to Trash" : "Cleanup results", subtitle: "Each exact file has its own result. Moving to Trash does not empty Trash.")
+            if showsHeader { PageHeader(title: model.isRunning ? "Moving selected files to Trash" : "Cleanup results", subtitle: "Each exact file has its own result. Moving to Trash does not empty Trash.") }
             if model.isRunning {
                 ProgressView(value: Double(model.progress?.resolved ?? 0), total: Double(max(1, model.progress?.total ?? 1)))
                 StatusRow(text: model.stopRequested ? "Stopping after the current file reaches a recorded outcome…" : "\(model.progress?.resolved ?? 0) of \(model.progress?.total ?? 0) targets reported", symbol: "clock")

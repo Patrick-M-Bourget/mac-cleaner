@@ -536,7 +536,11 @@ struct LiveCleanupPlanView: View {
         ScrollView {
         if selection.workspaceRunning || selection.hasWorkspaceResult {
             VStack(alignment: .leading, spacing: StillDesign.Space.xl) {
-                if selection.execution.isRunning || selection.execution.result != nil || selection.execution.error != nil { CleanupExecutionView(model: selection.execution, retryMessage: selection.message) }
+                let includesChrome = selection.chrome.selectedCount > 0 || selection.chrome.isRunning || selection.chrome.result != nil
+                if includesChrome {
+                    PageHeader(title: selection.workspaceRunning ? "Running cleanup" : "Cleanup results", subtitle: "Review each action's recorded outcome. Chrome caches are permanently removed; Downloads go to Trash.")
+                }
+                if selection.execution.isRunning || selection.execution.result != nil || selection.execution.error != nil { CleanupExecutionView(model: selection.execution, retryMessage: selection.message, showsHeader: !includesChrome) }
                 if selection.chrome.isRunning { ProgressView("Clearing selected Chrome cache groups…") }
                 if let result = selection.chrome.result { ChromeResultsSection(result: result) }
                 if selection.chrome.result != nil || selection.chrome.isRunning {
