@@ -186,7 +186,11 @@ def main():
         report.update(cleanupExercised=True, cleanup=outcome, protectedProfileUnchanged=True,
                       protectedObjectCount=len(protected))
         # Regrowth may legitimately update profile databases; compare them before reopening.
+        asset_requests_before = requests.count('/asset.js')
         launch('http://127.0.0.1:' + str(server.server_port) + '/', 'regrowth')
+        if requests.count('/asset.js') <= asset_requests_before:
+            raise ValueError('deleted asset was not requested again')
+        report['assetRequestedAgainAfterCleanup'] = True
         if not any(re.fullmatch(r'[0-9a-f]{16}_[0-9]+', item.name) and item.is_file()
                    for item in group.iterdir()):
             raise ValueError('standard asset cache did not regenerate')
