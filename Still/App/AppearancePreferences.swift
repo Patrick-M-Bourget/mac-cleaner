@@ -41,14 +41,22 @@ struct AppearancePicker: View {
     }
 }
 
-/// The Settings window (⌘,). Appearance follows the system unless overridden here; the dry run is off unless turned on here.
+/// The Settings window (⌘,). Appearance follows the system unless overridden here; the menu bar item is shown and
+/// low-space alerts are off unless changed here (#131); the dry run is off unless turned on here.
 struct StillSettingsView: View {
     @State private var appearance = AppLifecycleController.shared.appearance
+    @AppStorage(MenuBarItemPreference.key) private var showsMenuBarItem = true
     var body: some View {
         Form {
-            AppearancePicker(choice: Binding(get: { appearance.choice }, set: { AppLifecycleController.shared.chooseAppearance($0) }))
-            if appearance.notice != nil { AppearancePreferenceNotice(notice: appearance.notice, retry: { appearance.retrySaving() }) }
-            DryRunToggle(model: AppLifecycleController.shared.selection.catalog)
+            Section {
+                AppearancePicker(choice: Binding(get: { appearance.choice }, set: { AppLifecycleController.shared.chooseAppearance($0) }))
+                if appearance.notice != nil { AppearancePreferenceNotice(notice: appearance.notice, retry: { appearance.retrySaving() }) }
+                Toggle("Show free space in the menu bar", isOn: $showsMenuBarItem).accessibilityIdentifier("menuBarItemToggle")
+                LoginSettingsView()
+            }
+            // #131: low-space alerts live here, not in the sidebar.
+            LowSpaceAlertsSettings(controller: AppLifecycleController.shared.alerts)
+            Section { DryRunToggle(model: AppLifecycleController.shared.selection.catalog) }
         }.formStyle(.grouped).frame(width: StillDesign.Size.sheetNarrow).fixedSize(horizontal: false, vertical: true)
     }
 }

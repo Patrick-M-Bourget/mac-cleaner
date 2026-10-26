@@ -110,7 +110,7 @@ An item that fails any check is skipped, and the results say which check failed.
 - Still works only in what the current user owns: the home folder, `~/Library`, and the user's own entry under `/private/var/folders` (its `T`, `C` and `X` folders). It never asks for admin rights (Decision 4).
 - It sizes only the catalog's known locations, plus folders the user picks. It never walks the whole disk.
 - **Full Disk Access is optional**, a way to "see more" (for example Safari's cache, which macOS may protect). Without it, Still works and lists what it couldn't read as not accessible. Still explains that Full Disk Access is broad read/write authority, not a read-only permission, and that Still's own scans stay read-only.
-- Still asks for access when a feature needs it, not as a launch checklist. No Accessibility, Screen Recording, notifications or login item is needed to scan or clean.
+- Still asks for access when a feature needs it, not as a launch checklist. No Accessibility, Screen Recording, notifications or login item is needed to scan or clean. Notification permission is asked for only when you turn low-space alerts on (#131).
 
 ## 8. Milestone 1 vs later
 
@@ -136,7 +136,7 @@ After M1 (#92), in rough order:
 - large and old files explorer (Trash only): it lists files of 500 MB or more OR not opened in 90 days, and you choose each file. Downloads keeps AND (Decision 24);
 - guidance-only categories (section 3);
 - Storage trends (formerly What grew, #119, #127): each completed catalog scan records the size per catalog category and per scanned rule location. The first scan records a baseline; a later scan shows net growth against the newest scan about a day older (20 h or more, #126) that isn't the rescan right after a cleanup. Until one exists, the page says "Baseline recorded · Check back tomorrow to see trends". Only a location measured in both scans counts. A location newly readable or unreadable (Full Disk Access, unreadable folders), or newly scanned or no longer scanned, is shown as a coverage change, never as growth. A change in exclusions starts a new baseline. History keeps at most 30 scans over 90 days and 250 MB, on this Mac;
-- storage alerts: the code stays in the tree, unwired, and is rewired only if still wanted (Decision 12);
+- menu bar item and low-space alerts (#131, Decision 30): the menu bar shows free space ("38 GB free"; only a symbol when capacity is unknown), with Open Still, Scan again, Review recommended plan… (when there is one), Settings… and Quit. It is shown by default; a Settings toggle hides it. While it is shown, closing the window keeps Still running. Low-space alerts are off by default and live in the Settings window, with a threshold and a 24-hour snooze. Turning them on is the only time Still asks for notification permission. Alerts read the startup volume's capacity about every 15 minutes while Still runs; they never scan folders or clean. Start at Login is a separate toggle in the same window;
 - the optional Full Disk Access onboarding flow;
 - signing, notarization and a DMG for a shareable build.
 
