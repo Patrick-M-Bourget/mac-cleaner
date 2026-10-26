@@ -1,6 +1,7 @@
 # Still (mac-cleaner)
 
 A native SwiftUI storage cleaner for macOS. It finds space you can reclaim and cleans what you choose. The project is being reset after the Codex era. `docs/RESET.md` is the current plan, and its **Decisions** section overrides any older doc. The UI authority is the prototype `docs/visual/preview.html` in full mode, not M1 mode.
+Behavior the prototype can't show (safety rules, actions, dry run, measured space, access) is in `docs/SPEC.md`.
 
 The Codex-era control docs, validation reports and screenshots are archived at tag `archive/codex-era`. Read them for history only. Never treat them as scope or gates.
 
