@@ -13,6 +13,8 @@ import SwiftUI
     }()
     private(set) var workspaceRunning = false
     private(set) var workspaceFinished = false
+    private(set) var workspaceStopRequested = false
+    private var workspaceCancellation: CleanupCancellation?
     private(set) var workspaceBefore: StartupVolumeCapacity?
     private(set) var workspaceAfter: StartupVolumeCapacity?
     var hasWorkspaceResult: Bool { workspaceFinished || execution.result != nil || execution.error != nil || chrome.result != nil }
@@ -297,7 +299,7 @@ import SwiftUI
         guard canReview else { throw PlanSelectionError.ineligible }
         approvedBatch = try draft.approve(review)
     }
-    func executeApproved(holdingOperationLock: Bool = false) async {
+    func executeApproved(holdingOperationLock: Bool = false, cancellation: CleanupCancellation? = nil) async {
         guard (canReview || holdingOperationLock), let batch = approvedBatch else { return }
         let leases: [ScopeAccessLease]
         do { leases = try AppLifecycleController.shared.locations.leases(for: batch.targets.map(\.scope)) }
@@ -311,7 +313,7 @@ import SwiftUI
         draft.clear(); scans.removeAll()
         AppLifecycleController.shared.hasPendingPlan = false
         if !holdingOperationLock { AppLifecycleController.shared.operationInProgress = true }
-        await execution.run(batch)
+        await execution.run(batch, cancellation: cancellation)
         AppLifecycleController.shared.capacity.request(.cleanupEnded)
         if !holdingOperationLock { AppLifecycleController.shared.operationInProgress = false }
     }
@@ -395,7 +397,7 @@ import SwiftUI
         for target in draft.selected where refresh.requiresRefresh(target.id) || unavailableSelected.contains(where: { $0.id == target.id }) { remove(target) }
     }
     func startNewPlan() {
-        guard !workspaceRunning, !chrome.isRunning else { return }; endSession(); execution.clear(); chrome.endSession(); workspaceFinished = false; workspaceBefore = nil; workspaceAfter = nil; unavailableScopes.removeAll()
+        guard !workspaceRunning, !chrome.isRunning else { return }; endSession(); execution.clear(); chrome.endSession(); workspaceFinished = false; workspaceStopRequested = false; workspaceCancellation = nil; workspaceBefore = nil; workspaceAfter = nil; unavailableScopes.removeAll()
     }
     func leaveRetryMode() {
         guard !isRetryRechecking && !execution.isRunning else { return }
@@ -482,22 +484,24 @@ import SwiftUI
     func executeWorkspace(_ review: WorkspaceCleanupReview) async throws {
         guard canReview, mutationVersion == review.downloadsVersion, chrome.selectionRevision == review.chromeVersion else { throw PlanSelectionError.ineligible }
         if let files = review.downloads { try approve(files) }
+        let cancellation = CleanupCancellation()
+        workspaceCancellation = cancellation; workspaceStopRequested = false
         workspaceRunning = true; workspaceFinished = false
         let lifecycle = AppLifecycleController.shared
         lifecycle.operationInProgress = true
-        defer { workspaceRunning = false; lifecycle.operationInProgress = false; lifecycle.hasPendingPlan = hasPendingChoices }
+        defer { workspaceRunning = false; workspaceCancellation = nil; lifecycle.operationInProgress = false; lifecycle.hasPendingPlan = hasPendingChoices }
         workspaceBefore = await Task.detached { StartupVolumeCapacity.read() }.value
         if review.downloads != nil {
-            await executeApproved(holdingOperationLock: true)
+            await executeApproved(holdingOperationLock: true, cancellation: cancellation)
             // Access failure leaves the exact file choices intact and starts neither action.
             guard draft.selectedCount == 0 else { return }
         }
-        if let caches = review.chrome { await chrome.execute(caches) }
+        if let caches = review.chrome { await chrome.execute(caches, cancellation: cancellation) }
         workspaceAfter = await Task.detached { StartupVolumeCapacity.read() }.value
         workspaceFinished = true
         lifecycle.capacity.request(.cleanupEnded)
     }
-    func cancelWorkspace() { execution.cancel(); chrome.cancel() }
+    func cancelWorkspace() { workspaceStopRequested = true; workspaceCancellation?.cancel(); execution.cancel(); chrome.cancel() }
     func endSession() { guard !execution.isRunning && !workspaceRunning && !chrome.isRunning else { return }; chrome.endSession(); retryCancellation?.cancel(); retryGeneration = UUID(); retryCancellation = nil; isRetryRechecking = false; isPreparing = false; retryTargetIDs = nil; retryExcludedURLs = []; draft.clear(); scans.removeAll(); unavailableScopes.removeAll(); isRefreshingBatch = false; refresh = RefreshChoices(); refreshRequests.removeAll(); approvedBatch = nil; AppLifecycleController.shared.hasPendingPlan = false }
 }
 
@@ -639,8 +643,8 @@ struct LiveCleanupPlanView: View {
                 Button("Stop recheck") { selection.stopRetryRecheck() }
             }
         } else if selection.workspaceRunning || selection.execution.isRunning {
-            ActionStrip(message: "Stopping never rolls back files already moved to Trash.") {
-                Button(selection.execution.stopRequested ? "Stop requested" : "Stop after current file") { selection.cancelWorkspace() }.disabled(selection.execution.stopRequested)
+            ActionStrip(message: "Stopping preserves unstarted work. Completed Trash moves and cache removals are not rolled back.") {
+                Button(selection.workspaceStopRequested ? "Stop requested" : "Stop after current file") { selection.cancelWorkspace() }.disabled(selection.workspaceStopRequested)
             }
         } else if selection.hasWorkspaceResult {
             ActionStrip(message: selection.execution.requiresRecoveryReview ? "Review unresolved records before making another plan." : "This run has ended. A new plan requires a fresh manual scan.") {

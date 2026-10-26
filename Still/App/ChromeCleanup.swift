@@ -127,9 +127,9 @@ import SwiftUI
         do { return try await currentService().approve(groupIDs: selectedGroupIDs) }
         catch { message = "Chrome cache review could not be prepared: \(error). Recheck Chrome before continuing."; return nil }
     }
-    func execute(_ approval: ChromeCacheApproval) async {
+    func execute(_ approval: ChromeCacheApproval, cancellation externalCancellation: CleanupCancellation? = nil) async {
         guard !isRunning, !isBusy else { return }
-        isRunning = true; let request = CleanupCancellation(); cancellation = request
+        isRunning = true; let request = externalCancellation ?? CleanupCancellation(); cancellation = request
         defer { isRunning = false; cancellation = nil }
         do {
             result = try await currentService().execute(approval, cancellation: request)
