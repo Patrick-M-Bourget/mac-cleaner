@@ -210,3 +210,43 @@ private final class ChromeActivitySequence: ChromeCacheEnvironment, @unchecked S
     #expect(local.groups.first?.profileIdentifier == "Profile 1")
     #expect(local.groups.first?.estimatedBytes == 5)
 }
+
+@Test func chromeRetentionExpiresCompletedHistoryButKeepsUnknownClaimIDsAndConsumedApproval() async throws {
+    let (root, access) = try chromeFixture(); defer { try? FileManager.default.removeItem(at: root) }
+    let journal = root.appendingPathComponent("journal.json")
+    let service = ChromeCacheService(environment: ChromeEnvironmentFixture(running: false), journalURL: journal)
+    let inspected = await service.inspect(access)
+    let approval = try await service.approve(groupIDs: Set(inspected.groups.map(\.id)))
+    let completed = await service.execute(approval, cancellation: CleanupCancellation())
+    var records = try #require(JSONSerialization.jsonObject(with: Data(contentsOf: journal)) as? [[String: Any]])
+    var expired = records[0]; let expiredID = UUID(); expired["id"] = expiredID.uuidString
+    expired["observedAt"] = Date(timeIntervalSince1970: 42).addingTimeInterval(-91 * 86400).timeIntervalSinceReferenceDate
+    var unresolved = expired; let claimID = UUID(); unresolved["id"] = claimID.uuidString; unresolved["unresolved"] = true
+    records += [expired, unresolved]; try JSONSerialization.data(withJSONObject: records).write(to: journal)
+    #expect(try await service.retainCompletedRecords() == 1)
+    let retained = try await service.records()
+    #expect(Set(retained.map(\.id)) == [completed.id, claimID])
+    #expect(retained.first(where: { $0.id == claimID })?.unresolved == true)
+    let leaf = access.cacheRootURL.appendingPathComponent("Default/Cache/Cache_Data/0123456789abcdef_0")
+    try Data("later protected cache".utf8).write(to: leaf)
+    let replay = await service.execute(approval, cancellation: CleanupCancellation())
+    #expect(replay.groups.first?.status == .skipped)
+    #expect(try Data(contentsOf: leaf) == Data("later protected cache".utf8))
+}
+
+@Test func chromeRetentionBudgetKeepsNewestCompletedRunAndExemptsUnknownRecords() async throws {
+    let (root, access) = try chromeFixture(); defer { try? FileManager.default.removeItem(at: root) }
+    let journal = root.appendingPathComponent("journal.json")
+    let service = ChromeCacheService(environment: ChromeEnvironmentFixture(running: false), journalURL: journal)
+    let scan = await service.inspect(access)
+    let newest = await service.execute(try await service.approve(groupIDs: Set(scan.groups.map(\.id))), cancellation: CleanupCancellation())
+    var rows = try #require(JSONSerialization.jsonObject(with: Data(contentsOf: journal)) as? [[String: Any]])
+    var older = rows[0]; older["id"] = UUID().uuidString; older["observedAt"] = Date(timeIntervalSince1970: 41).timeIntervalSinceReferenceDate
+    var unknown = older; let claimID = UUID(); unknown["id"] = claimID.uuidString; unknown["unresolved"] = true
+    rows = [older, unknown, rows[0]]; try JSONSerialization.data(withJSONObject: rows).write(to: journal)
+    let newestBudget = try JSONEncoder().encode(newest).count + 2
+    #expect(try await service.retainCompletedRecords(maximumBytes: newestBudget) == 1)
+    let retained = try await service.records()
+    #expect(Set(retained.map(\.id)) == [newest.id, claimID])
+    #expect(retained.first(where: { $0.id == claimID })?.unresolved == true)
+}

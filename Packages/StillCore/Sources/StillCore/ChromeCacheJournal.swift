@@ -1,6 +1,8 @@
 import Foundation
 import Darwin
 
+private let chromeArchiveLimit = 20_000_000
+
 final class ChromeJournalLease {
     let descriptor: Int32
     init(_ journal: URL) throws {
@@ -19,6 +21,34 @@ final class ChromeJournalLease {
 }
 
 extension ChromeCacheService {
+    /// Completed history has a component budget; unresolved claims never expire.
+    public func retainCompletedRecords(days: Int = 90, maximumBytes: Int = 20_000_000) throws -> Int {
+        guard !executing else { throw ChromeCacheFailure("Cleanup is in progress.") }
+        let lease = try ChromeJournalLease(journalURL)
+        defer { withExtendedLifetime(lease) {} }
+        let archive = try records()
+        let retained = try retainedArchive(archive, days: days, maximumBytes: maximumBytes)
+        if retained.count != archive.count { try persist(retained) }
+        return archive.count - retained.count
+    }
+
+    /// Caller already owns the journal lease; never reacquire its flock in execution.
+    private func retainedArchive(_ archive: [ChromeCacheRun], days: Int = 90, maximumBytes: Int = 20_000_000) throws -> [ChromeCacheRun] {
+        let cutoff = environment.now().addingTimeInterval(-Double(min(90, max(0, days))) * 86400)
+        let budget = min(chromeArchiveLimit, max(0, maximumBytes))
+        let protected = archive.filter(\.unresolved)
+        let newest = archive.filter { !$0.unresolved && $0.observedAt >= cutoff }.sorted {
+            $0.observedAt == $1.observedAt ? $0.id.uuidString < $1.id.uuidString : $0.observedAt > $1.observedAt
+        }
+        var retained: [ChromeCacheRun] = []; var bytes = 2
+        for run in newest {
+            let cost = try JSONEncoder().encode(run).count + (retained.isEmpty ? 0 : 1)
+            guard cost <= budget - min(bytes, budget) else { continue }
+            retained.append(run); bytes += cost
+        }
+        return protected + retained
+    }
+
     public func clearCompletedRecords(requireNoRecovery: Bool = false) throws -> Int {
         guard !executing else { throw ChromeCacheFailure("Cleanup is in progress.") }
         let lease = try ChromeJournalLease(journalURL)
@@ -38,21 +68,21 @@ extension ChromeCacheService {
             throw ChromeCacheFailure("Chrome cleanup records are unreadable.")
         }
         guard info.st_mode & S_IFMT == S_IFREG, info.st_uid == getuid(), info.st_nlink == 1,
-              info.st_size <= 20 * 1024 * 1024 else { throw ChromeCacheFailure("Chrome cleanup records are unsafe or too large.") }
+              info.st_size <= chromeArchiveLimit else { throw ChromeCacheFailure("Chrome cleanup records are unsafe or too large.") }
         let fd = open(journalURL.path, O_RDONLY | O_NOFOLLOW)
         guard fd >= 0 else { throw ChromeCacheFailure("Chrome cleanup records cannot be read.") }
         defer { close(fd) }
         var opened = stat()
         guard fstat(fd, &opened) == 0, ChromeObjectIdentity(opened) == ChromeObjectIdentity(info) else { throw ChromeCacheFailure("Cleanup records changed.") }
-        let data = try FileHandle(fileDescriptor: fd, closeOnDealloc: false).read(upToCount: 20 * 1024 * 1024 + 1) ?? Data()
-        guard data.count <= 20 * 1024 * 1024 else { throw ChromeCacheFailure("Cleanup record budget exceeded.") }
+        let data = try FileHandle(fileDescriptor: fd, closeOnDealloc: false).read(upToCount: chromeArchiveLimit + 1) ?? Data()
+        guard data.count <= chromeArchiveLimit else { throw ChromeCacheFailure("Cleanup record budget exceeded.") }
         return try JSONDecoder().decode([ChromeCacheRun].self, from: data)
     }
     func persist(_ records: [ChromeCacheRun]) throws {
         let parent = journalURL.deletingLastPathComponent()
         _ = try directoryChain([parent])
         let encoded = try JSONEncoder().encode(records)
-        guard encoded.count <= 20 * 1024 * 1024 else { throw ChromeCacheFailure("Chrome cleanup record budget reached.") }
+        guard encoded.count <= chromeArchiveLimit else { throw ChromeCacheFailure("Chrome cleanup record budget reached.") }
         let temporary = parent.appendingPathComponent(".chrome-claim-" + UUID().uuidString)
         let fd = open(temporary.path, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW, 0o600)
         guard fd >= 0 else { throw ChromeCacheFailure("Cannot save the cleanup claim. Nothing was started.") }
@@ -82,6 +112,12 @@ extension ChromeCacheService {
         } catch { return failed("Cleanup records are unavailable. Nothing was started.") }
         var run = ChromeCacheRun(id: UUID(), groups: approval.groups.map { .init(profileIdentifier: $0.profileIdentifier, status: .skipped, removedFiles: 0, removedBytes: 0, reason: "Not started.") }, unresolved: false, approvedAt: approval.approvedAt, observedAt: environment.now())
         // Claim each group before mutation. A crash leaves unknown, never replayable work.
+        // Reserve bounded outcome/claim overhead before adding this run. Retention
+        // can discard only completed history, never this run or unresolved facts.
+        do {
+            let reserve = try JSONEncoder().encode(run).count + 4096 + approval.groups.count * 1024
+            archive = try retainedArchive(archive, maximumBytes: max(0, chromeArchiveLimit - reserve))
+        } catch { return failed("Completed cleanup history could not be maintained. Nothing was started.") }
         archive.append(run)
         for (groupIndex, group) in approval.groups.enumerated() {
             var removed = 0; var bytes: Int64 = 0
