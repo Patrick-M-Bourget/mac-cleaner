@@ -6,7 +6,13 @@ import StillCore
 enum StillDesign {
     enum Space { static let xs: CGFloat = 4; static let sm: CGFloat = 8; static let md: CGFloat = 12; static let lg: CGFloat = 16; static let xl: CGFloat = 24; static let page: CGFloat = 32 }
     enum Radius { static let row: CGFloat = 8; static let surface: CGFloat = 12 }
-    enum TypeStyle { static let page = Font.system(size: 26, weight: .medium); static let value = Font.system(size: 22, weight: .medium); static let section = Font.system(size: 13, weight: .medium) }
+    /// Fixed sizes: the capacity bar's heights (sidebar, card, prominent card) and the device card's icon tile.
+    enum Size { static let meterCompact: CGFloat = 4; static let meter: CGFloat = 8; static let meterProminent: CGFloat = 12; static let deviceIcon: CGFloat = 44 }
+    enum TypeStyle {
+        static let page = Font.system(size: 26, weight: .medium); static let value = Font.system(size: 22, weight: .medium); static let section = Font.system(size: 13, weight: .medium)
+        /// The symbol in the device card's icon tile.
+        static let deviceIcon = Font.system(size: 16, weight: .light)
+    }
     /// Reference colours belong here, never in individual screens. Keep system text/focus colours.
     static func adaptive(light: UInt32, dark: UInt32) -> Color {
         Color(nsColor: NSColor(name: nil) { appearance in
@@ -233,11 +239,14 @@ struct CapacityMeter: View {
     var showsValue = true
     /// The taller bar of the Overview device card.
     var prominent = false
-    private func bytes(_ value: Int64) -> String { ByteCountFormatter.string(fromByteCount: value, countStyle: .decimal) }
-    private var validTotal: Int64? {
+    static func bytes(_ value: Int64) -> String { ByteCountFormatter.string(fromByteCount: value, countStyle: .decimal) }
+    /// The total, when it and the available space are a consistent whole-disk reading.
+    static func validTotal(available: Int64?, total: Int64?) -> Int64? {
         guard let available, let total, total > 0, available >= 0, available <= total else { return nil }
         return total
     }
+    private func bytes(_ value: Int64) -> String { Self.bytes(value) }
+    private var validTotal: Int64? { Self.validTotal(available: available, total: total) }
     private var amountText: String {
         guard let available, available >= 0 else { return "Capacity unavailable" }
         if let total = validTotal { return "\(bytes(available)) available of \(bytes(total))" }
@@ -258,7 +267,7 @@ struct CapacityMeter: View {
                         Capsule().fill(StillDesign.capacityFill).frame(width: geometry.size.width * CGFloat(Double(total - available) / Double(total)))
                     }
                 } else { Color.clear }
-            }.frame(height: compact ? 4 : prominent ? StillDesign.Space.md : 8).accessibilityElement(children: .ignore)
+            }.frame(height: compact ? StillDesign.Size.meterCompact : prominent ? StillDesign.Size.meterProminent : StillDesign.Size.meter).accessibilityElement(children: .ignore)
                 .accessibilityLabel(validTotal == nil ? "Capacity meter unavailable" : amountText)
         }
     }
@@ -274,23 +283,23 @@ struct VolumeSummary: View {
     var refreshing = false
     var refresh: (() -> Void)? = nil
     var name = StartupVolumeCapacity.name ?? "This Mac"
-    private func bytes(_ value: Int64) -> String { ByteCountFormatter.string(fromByteCount: value, countStyle: .decimal) }
+    private func bytes(_ value: Int64) -> String { CapacityMeter.bytes(value) }
     private var used: Int64? {
-        guard let available, let total, total > 0, available >= 0, available <= total else { return nil }
+        guard let available, let total = CapacityMeter.validTotal(available: available, total: total) else { return nil }
         return total - available
     }
     var body: some View {
         SummarySurface {
             VStack(alignment: .leading, spacing: StillDesign.Space.lg) {
                 HStack(alignment: .top, spacing: StillDesign.Space.md) {
-                    Image(systemName: "internaldrive").font(.system(size: 16, weight: .light)).foregroundStyle(.secondary)
-                        .frame(width: 44, height: 44).background(StillDesign.reading.gradient, in: RoundedRectangle(cornerRadius: StillDesign.Radius.row))
+                    Image(systemName: "internaldrive").font(StillDesign.TypeStyle.deviceIcon).foregroundStyle(.secondary)
+                        .frame(width: StillDesign.Size.deviceIcon, height: StillDesign.Size.deviceIcon).background(StillDesign.reading.gradient, in: RoundedRectangle(cornerRadius: StillDesign.Radius.row))
                         .overlay { RoundedRectangle(cornerRadius: StillDesign.Radius.row).strokeBorder(StillDesign.separator, lineWidth: 0.5) }
                         .accessibilityHidden(true)
                     VStack(alignment: .leading, spacing: StillDesign.Space.xs) {
                         Text(name).font(StillDesign.TypeStyle.section)
                         Text("Startup volume · " + (total.map(bytes) ?? "Total capacity unavailable")).font(.caption).foregroundStyle(.secondary)
-                    }.frame(height: 44)
+                    }.frame(height: StillDesign.Size.deviceIcon)
                     Spacer(minLength: StillDesign.Space.sm)
                     VStack(alignment: .trailing, spacing: StillDesign.Space.xs) {
                         if let available, available >= 0 {

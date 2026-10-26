@@ -350,8 +350,7 @@ struct CatalogItemChooser: View {
                 }
             }.padding(.top, StillDesign.Space.sm)
         } label: {
-            let noun = rule.contents != nil ? "file" : "item"
-            Text(items.count == 1 ? "1 \(noun) · Choose items" : "\(items.count) \(noun)s · Choose items")
+            Text((rule.contents != nil ? StillDesign.files(items.count) : StillDesign.items(items.count)) + " · Choose items")
         }
     }
     private func detail(_ item: Candidate) -> String {
@@ -379,7 +378,7 @@ struct CatalogConfirmationSection: View {
                                           estimate: items.contains(where: \.sizeIsEstimate))).monospacedDigit()
                     }
                     Text(rule.consequence).font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-                    DisclosureGroup(items.count == 1 ? "1 item · Show files" : "\(items.count) items · Show files") {
+                    DisclosureGroup(StillDesign.items(items.count) + " · Show files") {
                         VStack(alignment: .leading, spacing: StillDesign.Space.xs) {
                             ForEach(items) { item in
                                 // A tool item shows the exact command, e.g. `ollama rm llama3:latest`.
@@ -406,7 +405,7 @@ struct CatalogResultsSection: View {
             }
             SummarySurface {
                 HStack(alignment: .top, spacing: StillDesign.Space.xl) {
-                    metric(result.previewOnly ? "—" : result.measuredFreedBytes.map { catalogBytes($0) } ?? "Unknown", "Measured freed space")
+                    metric(result.previewOnly ? "—" : result.measuredFreedBytes.map { catalogBytes($0) } ?? SizeEstimate.unknown.text, "Measured freed space")
                     let upperBound = result.records.contains { $0.ruleID.flatMap { catalog.rule($0)?.estimateIsUpperBound } == true }
                     metric(catalogBytes(result.estimatedBytes, upperBound: upperBound), upperBound ? "Estimated before cleanup · Upper bound" : "Estimated before cleanup")
                     if result.movedToTrashBytes > 0 { metric(catalogBytes(result.movedToTrashBytes), "Moved to Trash · Not yet freed") }
