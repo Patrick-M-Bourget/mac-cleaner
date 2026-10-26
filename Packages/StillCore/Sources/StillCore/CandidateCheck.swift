@@ -69,23 +69,18 @@ public struct CandidateCheck: Sendable {
                 return lstat(folder.appendingPathComponent(name).path, &inner) == 0
             }
         }
-        let path = strdup(folder.path)
-        defer { free(path) }
-        var paths: [UnsafeMutablePointer<CChar>?] = [path, nil]
-        guard let tree = fts_open(&paths, FTS_PHYSICAL | FTS_XDEV | FTS_NOCHDIR, nil) else { return "unreadable folder" }
-        defer { fts_close(tree) }
-        var seen = 0
-        while let entry = fts_read(tree) {
+        var seen = 0, found: String?
+        let opened = FileTree.walk(folder) { entry in
             let level = Int(entry.pointee.fts_level), kind = Int32(entry.pointee.fts_info)
-            guard level > 0, kind != FTS_DP else { continue }
+            guard level > 0, kind != FTS_DP else { return .continue }
             seen += 1
-            if seen > protectedSearchLimit { return "too many items to check" }
+            if seen > protectedSearchLimit { found = "too many items to check"; return .stop }
             let name = String(cString: entry.pointee.fts_path).split(separator: "/").last.map(String.init) ?? ""
-            if names.contains(name) { return name }
-            if kind == FTS_DNR || kind == FTS_ERR { return "unreadable folder" }
-            if kind == FTS_D, level >= depth { fts_set(tree, entry, FTS_SKIP) }
+            if names.contains(name) { found = name; return .stop }
+            if kind == FTS_DNR || kind == FTS_ERR { found = "unreadable folder"; return .stop }
+            return kind == FTS_D && level >= depth ? .skip : .continue
         }
-        return nil
+        return opened ? found : "unreadable folder"
     }
     public init(catalog: Catalog, running: any RunningAppChecking, exclusions: ExclusionPolicy = ExclusionPolicy(), inUse: any InUseChecking = SystemInUseChecker(),
                 cloud: any UbiquitousItemAccess = SystemUbiquitousItems(), home: URL) {

@@ -185,25 +185,21 @@ extension Catalog {
     /// The summed size of every folder called `name` inside `root`, whose contents are never listed beyond sizing.
     static func sizeOfFolders(named name: String, in root: URL, sizer: KnownLocationSizer) -> SizeEstimate {
         let deadline = ProcessInfo.processInfo.systemUptime + sizer.timeBudget
-        let path = strdup(root.path)
-        defer { free(path) }
-        var paths: [UnsafeMutablePointer<CChar>?] = [path, nil]
-        guard let tree = fts_open(&paths, FTS_PHYSICAL | FTS_XDEV | FTS_NOCHDIR, nil) else { return .unknown }
-        defer { fts_close(tree) }
         var parts: [SizeEstimate] = [], complete = true, entries = 0
-        while let entry = fts_read(tree) {
+        let opened = FileTree.walk(root) { entry in
             entries += 1
+            var next = FileTree.Next.continue
             switch Int32(entry.pointee.fts_info) {
             case FTS_DNR, FTS_ERR, FTS_NS: complete = false
             case FTS_D:
                 let url = URL(fileURLWithPath: String(cString: entry.pointee.fts_path))
-                guard entry.pointee.fts_level > 0, url.lastPathComponent == name else { continue }
-                parts.append(estimate(sizer.size(url)))
-                fts_set(tree, entry, FTS_SKIP)
+                if entry.pointee.fts_level > 0, url.lastPathComponent == name { parts.append(estimate(sizer.size(url))); next = .skip }
             default: break
             }
-            if entries % 1024 == 0, ProcessInfo.processInfo.systemUptime > deadline { complete = false; break }
+            if entries % 1024 == 0, ProcessInfo.processInfo.systemUptime > deadline { complete = false; return .stop }
+            return next
         }
+        guard opened else { return .unknown }
         if !complete { parts.append(.unknown) }
         return parts.isEmpty ? .measured(0) : SizeEstimate(sum: parts)
     }

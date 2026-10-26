@@ -70,24 +70,20 @@ extension Catalog {
     static func cloudCopies(in root: URL, rule: CleanupRule, cloud: any UbiquitousItemAccess, exclusions: ExclusionPolicy, volumeID: String?) -> CloudCopies {
         withoutDownloads {
             let protection = Protection(rule)
-            let path = strdup(root.path)
-            defer { free(path) }
-            var paths: [UnsafeMutablePointer<CChar>?] = [path, nil]
-            guard let tree = fts_open(&paths, FTS_PHYSICAL | FTS_XDEV | FTS_NOCHDIR, nil) else { return CloudCopies() }
-            defer { fts_close(tree) }
             var found = CloudCopies()
-            while let entry = fts_read(tree) {
+            FileTree.walk(root) { entry in
                 let kind = Int32(entry.pointee.fts_info)
-                guard kind == FTS_D || kind == FTS_F, let info = entry.pointee.fts_statp?.pointee else { continue }
+                guard kind == FTS_D || kind == FTS_F, let info = entry.pointee.fts_statp?.pointee else { return .continue }
                 let url = URL(fileURLWithPath: String(cString: entry.pointee.fts_path))
                 let skip = (entry.pointee.fts_level > 0 && protection.protects(url.lastPathComponent))
                     || info.st_flags & UInt32(SF_DATALESS) != 0 || info.st_uid != geteuid()
                     || (!exclusions.rules.isEmpty && (volumeID.map { exclusions.covers(url, volumeID: $0) } ?? true))
                 let package = kind == FTS_D && (try? url.resourceValues(forKeys: [.isPackageKey]).isPackage) == true
-                if kind == FTS_D, skip || package { fts_set(tree, entry, FTS_SKIP) }
-                guard !skip, kind == FTS_F || package, cloud.metadata(url).evictionRefusal == nil else { continue }
+                let next: FileTree.Next = kind == FTS_D && (skip || package) ? .skip : .continue
+                guard !skip, kind == FTS_F || package, cloud.metadata(url).evictionRefusal == nil else { return next }
                 let size = package ? packageSize(url) : (Int64(info.st_size), Int64(info.st_blocks) * 512)
                 found.units.append(url); found.logicalBytes += size.0; found.allocatedBytes += size.1
+                return next
             }
             return found
         }
@@ -95,15 +91,11 @@ extension Catalog {
 
     /// Logical and allocated bytes of the files in a package; placeholders inside count as nothing local.
     private static func packageSize(_ package: URL) -> (Int64, Int64) {
-        let path = strdup(package.path)
-        defer { free(path) }
-        var paths: [UnsafeMutablePointer<CChar>?] = [path, nil]
-        guard let tree = fts_open(&paths, FTS_PHYSICAL | FTS_XDEV | FTS_NOCHDIR, nil) else { return (0, 0) }
-        defer { fts_close(tree) }
         var logical: Int64 = 0, allocated: Int64 = 0
-        while let entry = fts_read(tree) {
-            guard Int32(entry.pointee.fts_info) == FTS_F, let info = entry.pointee.fts_statp?.pointee, info.st_flags & UInt32(SF_DATALESS) == 0 else { continue }
+        FileTree.walk(package) { entry in
+            guard Int32(entry.pointee.fts_info) == FTS_F, let info = entry.pointee.fts_statp?.pointee, info.st_flags & UInt32(SF_DATALESS) == 0 else { return .continue }
             logical += Int64(info.st_size); allocated += Int64(info.st_blocks) * 512
+            return .continue
         }
         return (logical, allocated)
     }

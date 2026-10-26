@@ -485,30 +485,25 @@ public struct Catalog: Sendable {
     /// Regular files under `root` that match. Never follows symlinks, crosses volumes or enters packages and protected folders.
     private func files(in root: URL, matching match: ContentsMatch, rule: CleanupRule, now: Date) -> [Candidate] {
         let protection = Protection(rule)
-        let path = strdup(root.path)
-        defer { free(path) }
-        var paths: [UnsafeMutablePointer<CChar>?] = [path, nil]
-        guard let tree = fts_open(&paths, FTS_PHYSICAL | FTS_XDEV | FTS_NOCHDIR, nil) else { return [] }
-        defer { fts_close(tree) }
         var found: [Candidate] = []
-        while let entry = fts_read(tree) {
+        FileTree.walk(root) { entry in
             let kind = Int32(entry.pointee.fts_info)
-            guard let info = entry.pointee.fts_statp?.pointee, kind == FTS_D || kind == FTS_F else { continue }
+            guard let info = entry.pointee.fts_statp?.pointee, kind == FTS_D || kind == FTS_F else { return .continue }
             let url = URL(fileURLWithPath: String(cString: entry.pointee.fts_path))
             let name = url.lastPathComponent, ext = url.pathExtension.lowercased()
             if kind == FTS_D {
                 let package = (try? url.resourceValues(forKeys: [.isPackageKey]).isPackage) == true
                 // A git working tree is live work: nothing inside it is offered (the check refuses it too).
-                if GitCheckout.isRoot(url) || (entry.pointee.fts_level > 0 && (package || protection.protects(name))) { fts_set(tree, entry, FTS_SKIP) }
-                continue
+                return GitCheckout.isRoot(url) || (entry.pointee.fts_level > 0 && (package || protection.protects(name))) ? .skip : .continue
             }
-            guard info.st_uid == geteuid(), !protection.protects(name), info.st_flags & UInt32(SF_DATALESS) == 0 else { continue }
-            if !match.extensions.isEmpty, !match.extensions.contains(ext) { continue }
-            if let minimum = match.minimumBytes, Int64(info.st_size) < minimum { continue }
-            if match.besideCompressedSource, !Self.hasCompressedSource(url, size: Int64(info.st_size)) { continue }
+            guard info.st_uid == geteuid(), !protection.protects(name), info.st_flags & UInt32(SF_DATALESS) == 0 else { return .continue }
+            if !match.extensions.isEmpty, !match.extensions.contains(ext) { return .continue }
+            if let minimum = match.minimumBytes, Int64(info.st_size) < minimum { return .continue }
+            if match.besideCompressedSource, !Self.hasCompressedSource(url, size: Int64(info.st_size)) { return .continue }
             let lastUsed = Self.lastUsed(url, info)
-            if let days = match.unusedDays, lastUsed > now.addingTimeInterval(-Double(days) * 86_400) { continue }
+            if let days = match.unusedDays, lastUsed > now.addingTimeInterval(-Double(days) * 86_400) { return .continue }
             found.append(candidate(rule, url, info, logical: Int64(info.st_size), allocated: Int64(info.st_blocks) * 512, complete: true, lastUsed: lastUsed))
+            return .continue
         }
         return found
     }
