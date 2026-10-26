@@ -19,7 +19,7 @@ extension BuiltInCatalog {
         docker(.buildCache, id: "docker-build-cache", title: "Docker build cache",
                detail: "Layers Docker kept to speed up builds. The size is Docker’s own estimate.",
                consequence: "Runs `docker builder prune -f`, which permanently removes unused build cache. The next build may take longer. Docker must be running.",
-               regen: .build, arguments: ["builder", "prune", "-f"]),
+               regen: .build, arguments: ["builder", "prune", "-a", "-f"]),
         docker(.stoppedContainers, id: "docker-containers", title: "Stopped Docker containers",
                detail: "Containers that aren’t running. The size is Docker’s own estimate.",
                consequence: "Runs `docker container prune -f`, which permanently removes stopped containers and any changes made inside them. Running containers and volumes are not touched. Docker must be running.",

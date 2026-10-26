@@ -56,7 +56,7 @@ private func calls(_ home: URL) -> [String] {
     // One `system df` for all three kinds; nothing else is run while scanning.
     #expect(calls(home) == ["system df --format json"])
     #expect(catalog.rule("docker-images")?.tool?.commandLine == "docker image prune -a -f")
-    #expect(catalog.rule("docker-build-cache")?.tool?.commandLine == "docker builder prune -f")
+    #expect(catalog.rule("docker-build-cache")?.tool?.commandLine == "docker builder prune -a -f")
     #expect(catalog.rule("docker-containers")?.tool?.commandLine == "docker container prune -f")
     #expect(catalog.rule("docker-images")?.tool?.executables == ["/usr/local/bin/docker", "/opt/homebrew/bin/docker", NSHomeDirectory() + "/.docker/bin/docker"])
 }
@@ -169,7 +169,7 @@ private func dockerRun(_ home: URL, docker: URL, choose ruleIDs: Set<String>, vo
     let docker = try fakeDocker(home)
     let result = try await dockerRun(home, docker: docker, choose: ["docker-images", "docker-build-cache", "docker-containers"])
     #expect(result.records.allSatisfy { $0.state == .succeeded })
-    #expect(Set(calls(home).dropFirst()) == ["image prune -a -f", "builder prune -f", "container prune -f"])
+    #expect(Set(calls(home).dropFirst()) == ["image prune -a -f", "builder prune -a -f", "container prune -f"])
     #expect(result.estimatedBytes == 2_500_000_000 + 1_234_000_000 + 120_000_000)
 }
 
@@ -180,7 +180,7 @@ private func dockerRun(_ home: URL, docker: URL, choose ruleIDs: Set<String>, vo
     let result = try await dockerRun(home, docker: docker, choose: ["docker-build-cache"], previewOnly: true)
     let record = try #require(result.records.first)
     #expect(record.state == .skipped)
-    #expect(record.message.hasPrefix("Preview only: would run docker builder prune -f (1.23 GB)"))
+    #expect(record.message.hasPrefix("Preview only: would run docker builder prune -a -f (1.23 GB)"))
     #expect(result.measuredFreedBytes == nil)
     #expect(calls(home) == ["system df --format json"])
 }

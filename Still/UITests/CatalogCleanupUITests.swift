@@ -362,7 +362,7 @@ final class CatalogCleanupUITests: XCTestCase {
         app.buttons["Run preview"].click()
 
         XCTAssertTrue(app.staticTexts["catalogPreviewNotice"].waitForExistence(timeout: 10))
-        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS 'would run docker builder prune -f'")).firstMatch.exists)
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS 'would run docker builder prune -a -f'")).firstMatch.exists)
         XCTAssertFalse(FileManager.default.fileExists(atPath: marker.path))
     }
 
