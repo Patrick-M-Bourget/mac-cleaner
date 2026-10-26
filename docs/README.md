@@ -58,10 +58,10 @@ See [decision record](DECISIONS.md) for the completed grilling rounds and [miles
 
 Current authorized feature: [#27 Storage alerts settings](STORAGE-ALERTS.md). Q1–Q7 bounded settings implemented/qualified; #27 retains its genuine notification authorization/delivery gate.
 
-Current qualification work: [#18/#19 Chrome contract](CHROME-CLEANUP.md), Q1–Q6 locked with revised rules5–7. Bounded #18 qualification is complete; #19 is the next implementation dependency after integration.
+Current qualification work: [#18/#19 Chrome contract](CHROME-CLEANUP.md), Q1–Q6 locked with revised rules5–7. Bounded #18 qualification is complete; #19 is the next unblocked implementation ticket.
 
 Historical #18 ownership investigation is recorded in [Chrome Stable qualification](validation/chrome-stable-qualification.md). The revised close-and-clean contract below supersedes the former exclusive-lease prerequisite.
 
 Current Chrome authority: revised native close-and-clean rules5–7 in CHROME-CLEANUP.md, superseding the stronger cache-only exact-file/lease requirement. #18 qualification resumed; personal-file protections unchanged.
 
-Latest Chrome decision: [bounded #18 qualification complete](validation/chrome-close-clean.md#final-saved-record-evidence-and-18-capability-decision), with exact compatibility/unsupported states. #19 may proceed after integration; no app action or production allowlist is enabled and personal-file policy remains unchanged.
+Latest Chrome decision: [bounded #18 qualification complete](validation/chrome-close-clean.md#final-saved-record-evidence-and-18-capability-decision), with exact compatibility/unsupported states. #19 may now proceed; no app action or production allowlist is enabled and personal-file policy remains unchanged.
