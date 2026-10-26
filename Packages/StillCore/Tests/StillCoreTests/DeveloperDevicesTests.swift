@@ -187,3 +187,118 @@ private let nothingRunning = Running(names: [])
     device.toolItem = "--set"
     #expect(CandidateCheck(catalog: catalog, running: nothingRunning).check(device) == .changed)
 }
+
+// MARK: Android
+
+private let avdHome = ".android/avd"
+private let images = "Library/Android/sdk/system-images"
+/// An AVD folder with its config and the `.ini` beside it that Android Studio reads.
+private func makeAVD(_ home: URL, _ name: String, image: String?, bytes: Int = 2000) throws {
+    try write(home, avdHome + "/\(name).avd/userdata-qemu.img", bytes: bytes)
+    let config = ["avd.ini.displayname=\(name.replacingOccurrences(of: "_", with: " "))", "hw.lcd.density=420"] + (image.map { ["image.sysdir.1=\($0)"] } ?? [])
+    try write(home, avdHome + "/\(name).avd/config.ini", text: config.joined(separator: "\n") + "\n")
+    try write(home, avdHome + "/\(name).ini", text: "avd.ini.encoding=UTF-8\npath=\(home.path)/\(avdHome)/\(name).avd\npath.rel=avd/\(name).avd\ntarget=android-34\n")
+}
+private func makeImage(_ home: URL, _ relative: String, bytes: Int = 5000) throws { try write(home, images + "/\(relative)/system.img", bytes: bytes) }
+
+/// Records what would go to the Trash and moves it into a fixture folder, never the real Trash.
+private final class FixtureTrash: TrashMoving, @unchecked Sendable {
+    let folder: URL
+    private(set) var moved: [String] = []
+    init(_ folder: URL) { self.folder = folder }
+    func moveToTrash(_ url: URL) throws -> URL? {
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let target = folder.appendingPathComponent(url.lastPathComponent)
+        try FileManager.default.moveItem(at: url, to: target)
+        moved.append(url.lastPathComponent)
+        return target
+    }
+}
+
+@Test func androidVirtualDevicesAreOfferedOneByOneWithSizeAndLastUse() throws {
+    let home = try fixtureHome()
+    defer { try? FileManager.default.removeItem(at: home) }
+    try makeAVD(home, "Pixel_8_API_34", image: "system-images/android-34/google_apis/arm64-v8a/", bytes: 2000)
+    try makeAVD(home, "Tablet", image: "system-images/android-33/default/arm64-v8a/", bytes: 700)
+    try write(home, avdHome + "/stray.txt")
+    let found = Catalog(rules: fixtureRules).discover(fixture: home).filter { $0.ruleID == "android-virtual-devices" }.sorted { $0.url.path < $1.url.path }
+    #expect(found.map(\.url.lastPathComponent) == ["Pixel_8_API_34.avd", "Tablet.avd"])
+    #expect(found.map(\.itemName) == ["Pixel 8 API 34", "Tablet"])
+    #expect(found.allSatisfy { $0.action == .trash && $0.isDirectory && $0.lastUsed != nil })
+    #expect(found.first?.logicalBytes ?? 0 >= 2000)
+}
+
+@Test func onlySystemImagesNoVirtualDeviceUsesAreOffered() throws {
+    let home = try fixtureHome()
+    defer { try? FileManager.default.removeItem(at: home) }
+    try makeAVD(home, "Pixel", image: "system-images/android-34/google_apis/arm64-v8a/")
+    try makeAVD(home, "Absolute", image: home.path + "/" + images + "/android-33/default/arm64-v8a")
+    for image in ["android-34/google_apis/arm64-v8a", "android-34/google_apis_playstore/arm64-v8a", "android-33/default/arm64-v8a", "android-30/default/x86_64"] {
+        try makeImage(home, image)
+    }
+    let found = Catalog(rules: fixtureRules).discover(fixture: home).filter { $0.ruleID == "android-system-images" }
+    #expect(Set(found.compactMap(\.itemName)) == ["Android 34 · google_apis_playstore · arm64-v8a", "Android 30 · default · x86_64"])
+    #expect(found.allSatisfy { $0.action == .delete && $0.logicalBytes == 5000 && $0.lastUsed != nil })
+}
+
+@Test func noSystemImageIsOfferedWhenAVirtualDevicesImageCantBeRead() throws {
+    let home = try fixtureHome()
+    defer { try? FileManager.default.removeItem(at: home) }
+    try makeAVD(home, "Unknown", image: nil)
+    try makeImage(home, "android-30/default/x86_64")
+    let discovery = Catalog(rules: fixtureRules).discovery(fixture: home)
+    #expect(!discovery.candidates.contains { $0.ruleID == "android-system-images" })
+    #expect(discovery.notes.map(\.text) == [AndroidSDK.unreadableNotice])
+}
+
+@Test func androidItemsAreRefusedWhileTheEmulatorOrAndroidStudioRuns() async throws {
+    let home = try fixtureHome()
+    defer { try? FileManager.default.removeItem(at: home) }
+    try makeAVD(home, "Pixel", image: "system-images/android-34/google_apis/arm64-v8a/")
+    try makeImage(home, "android-30/default/x86_64")
+    let catalog = Catalog(rules: fixtureRules)
+    let items = catalog.discover(fixture: home).filter { $0.ruleID.hasPrefix("android-") }
+    #expect(items.count == 2)
+    let journal = try SQLiteCleanupJournal(url: home.appendingPathComponent("journal.sqlite"))
+    for process in ["emulator", "qemu-system-aarch64", "com.google.android.studio"] {
+        let check = CandidateCheck(catalog: catalog, running: Running(names: [process]), home: home)
+        let result = await CleanupExecutor(journal: journal, check: check, trash: TrashNeverUsed()).execute(CatalogApproval(candidates: items, previewOnly: false))
+        #expect(result.records.allSatisfy { $0.state == .skipped && $0.message == "Android Studio or the emulator is running. Quit it, then scan again." }, "\(process)")
+    }
+    #expect(FileManager.default.fileExists(atPath: home.appendingPathComponent(avdHome + "/Pixel.avd/userdata-qemu.img").path))
+    #expect(FileManager.default.fileExists(atPath: home.appendingPathComponent(images + "/android-30/default/x86_64/system.img").path))
+}
+
+@Test func aVirtualDeviceGoesToTrashWithItsIniAndAnUnusedImageIsDeleted() async throws {
+    let home = try fixtureHome()
+    defer { try? FileManager.default.removeItem(at: home) }
+    try makeAVD(home, "Pixel", image: "system-images/android-34/google_apis/arm64-v8a/")
+    try makeAVD(home, "Keep", image: "system-images/android-33/default/arm64-v8a/")
+    try makeImage(home, "android-33/default/arm64-v8a")
+    try makeImage(home, "android-30/default/x86_64")
+    let catalog = Catalog(rules: fixtureRules)
+    let items = catalog.discover(fixture: home).filter { $0.ruleID == "android-system-images" || $0.url.lastPathComponent == "Pixel.avd" }
+    #expect(items.count == 2)
+    let trash = FixtureTrash(home.appendingPathComponent("fixture-trash"))
+    let check = CandidateCheck(catalog: catalog, running: nothingRunning, home: home)
+    let result = await CleanupExecutor(journal: try SQLiteCleanupJournal(url: home.appendingPathComponent("journal.sqlite")), check: check, trash: trash)
+        .execute(CatalogApproval(candidates: items, previewOnly: false))
+    #expect(result.records.allSatisfy { $0.state == .succeeded }, "\(result.records.map(\.message))")
+    #expect(Set(trash.moved) == ["Pixel.avd", "Pixel.ini"])
+    #expect(!FileManager.default.fileExists(atPath: home.appendingPathComponent(images + "/android-30/default/x86_64").path))
+    // The image the remaining device uses, and that device, stay.
+    #expect(FileManager.default.fileExists(atPath: home.appendingPathComponent(images + "/android-33/default/arm64-v8a/system.img").path))
+    #expect(FileManager.default.fileExists(atPath: home.appendingPathComponent(avdHome + "/Keep.ini").path))
+}
+
+@Test func anImageAVirtualDeviceStartedUsingAfterTheScanIsRefused() throws {
+    let home = try fixtureHome()
+    defer { try? FileManager.default.removeItem(at: home) }
+    try makeImage(home, "android-30/default/x86_64")
+    let catalog = Catalog(rules: fixtureRules)
+    let image = try #require(catalog.discover(fixture: home).first { $0.ruleID == "android-system-images" })
+    let check = CandidateCheck(catalog: catalog, running: nothingRunning, home: home)
+    #expect(check.check(image) == nil)
+    try makeAVD(home, "New", image: "system-images/android-30/default/x86_64")
+    #expect(check.check(image) == .inUse("An Android virtual device"))
+}

@@ -135,6 +135,10 @@ public struct CandidateCheck: Sendable {
             guard let used = inUse.inUse([candidate.url], by: .anyApp) else { return .inUseUnknown(RuleOwner.anyApp.name) }
             if !used.isEmpty { return .inUse(RuleOwner.anyApp.name) }
         }
+        // A system image a virtual device started using since the scan is kept (#134).
+        if rule.items == .androidSystemImages, AndroidSDK.referencedImages(home: home).map({ $0.contains(AndroidSDK.key(candidate.url)) }) ?? true {
+            return .inUse("An Android virtual device")
+        }
         // An old temporary item that anything inside changed in since the scan is in use again (`TemporaryFiles`).
         if rule.unused != nil, !candidate.isLeftover, Catalog.lastChange(in: candidate.url).map({ $0 > candidate.observedAt }) ?? true { return .changed }
         guard info.st_uid == geteuid(),

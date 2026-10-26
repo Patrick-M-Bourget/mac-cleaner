@@ -404,6 +404,12 @@ public struct Catalog: Sendable {
                 if rule.action == .evict { return cloudCandidates(in: url, rule: rule, cloud: cloud, exclusions: exclusions) }
                 if let contents = rule.contents { return files(in: url, matching: contents, rule: rule, now: now) }
                 if rule.items == .ollamaModels { return ollamaModels(in: url, rule: rule, toolURL: toolURL) }
+                if rule.items == .androidVirtualDevices { return androidVirtualDevices(in: url, rule: rule, sizer: sizer) }
+                if rule.items == .androidSystemImages {
+                    let (found, note) = androidSystemImages(in: url, home: base, rule: rule, sizer: sizer)
+                    notes += note.map { [$0] } ?? []
+                    return found
+                }
                 if rule.items == .simulatorRuntimes || rule.items == .simulatorDevices, let toolURL {
                     let read = simulators[toolURL.path] ?? SimulatorInventory.read(toolURL)
                     if simulators[toolURL.path] == nil, case .failure = read { notes.append(CatalogNote(ruleID: rule.id, text: SimulatorInventory.notice)) }
