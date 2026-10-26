@@ -1,4 +1,4 @@
-// Hosted-only genuine Chrome UI qualification. No password DB, preference or Keychain changes.
+// Hosted-only genuine Chrome UI qualification. No direct password DB, preference or Keychain manipulation.
 import assert from 'node:assert/strict';
 import {spawn, execFileSync} from 'node:child_process';
 import {readFile, writeFile, mkdtemp, mkdir, unlink, realpath} from 'node:fs/promises';
@@ -51,7 +51,7 @@ try {
  await field("(e.id+' '+e.getAttribute('aria-label')+' '+e.placeholder).match(/website|site/i)",origin);
  await field("(e.id+' '+e.getAttribute('aria-label')+' '+e.placeholder).match(/username/i)",'still-synthetic');
  await field("e.type==='password'",'StillSynthetic-Password-42');await clickText('Save');await sleep(700);report.checks.passwordSavedViaBrowserUI=await evaluate(`(()=>{${deep}return all().some(e=>visible(e)&&e.innerText?.includes('127.0.0.1'));})()`);assert(report.checks.passwordSavedViaBrowserUI);
- await navigate('chrome://settings/addresses');await sleep(700);await inspect('addressUIBefore');await clickText('Add');await inspect('addressAddDialog');
+ await navigate('chrome://settings/contactInfo');await sleep(700);await inspect('addressUIBefore');await clickText('Add');await inspect('addressAddDialog');
  // Fill only synthetic address fields through rendered controls and normal input events.
  await field("(e.id+' '+e.getAttribute('aria-label')).match(/name/i)",'Still Synthetic');
  await field("(e.id+' '+e.getAttribute('aria-label')).match(/address.*line|street/i)",'123 Example Street');
