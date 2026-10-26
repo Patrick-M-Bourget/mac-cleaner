@@ -28,8 +28,9 @@ struct GuidanceSection: View {
                     if let status = model.guidanceStatus { StatusRow(text: status, symbol: "info.circle", identifier: "guidanceStatus") }
                 }.padding(.top, StillDesign.Space.sm)
             } label: {
-                Text("App-managed storage").font(StillDesign.TypeStyle.section)
-            }.accessibilityIdentifier("guidanceSection")
+                // On the title only: on the group it replaces every row's own identifier.
+                Text("App-managed storage").font(StillDesign.TypeStyle.section).accessibilityIdentifier("guidanceSection")
+            }
         }
     }
 }
