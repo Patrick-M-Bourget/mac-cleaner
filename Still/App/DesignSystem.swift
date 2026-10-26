@@ -242,14 +242,15 @@ struct EmptyState: View {
         }.frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, StillDesign.Space.xl)
     }
 }
+/// A screen's bottom bar. Its message only reports state (Decision 25: no footnotes); leave it empty for none.
 struct ActionStrip<Actions: View>: View {
-    let message: String
+    var message = ""
     @ViewBuilder var actions: () -> Actions
     var body: some View {
         VStack(spacing: 0) {
             Divider()
             HStack(spacing: StillDesign.Space.lg) {
-                Text(message).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                if !message.isEmpty { Text(message).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true) }
                 Spacer(minLength: StillDesign.Space.sm)
                 actions()
             }.padding(.horizontal, StillDesign.Space.page).padding(.vertical, StillDesign.Space.lg)

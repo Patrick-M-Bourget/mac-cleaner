@@ -164,7 +164,7 @@ private struct WorkspaceView: View {
                 if nativeInspectionVisible {
                     StorageExplorerView(model: folderInspection, selection: selection, context: explorerContext,
                         backTitle: "Back to " + explorerCaller.rawValue, back: { nativeInspectionVisible = false; destination = explorerCaller })
-                    ActionStrip(message: "Inspection only · \(StillDesign.items(selection.workspaceSelectedCount)) in the cleanup plan · Nothing changes before confirmation.") {
+                    ActionStrip {
                         Button("View cleanup plan") {
                             nativeInspectionVisible = false
                             planReturnsToExplorer = explorerCaller != .plan

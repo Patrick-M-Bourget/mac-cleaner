@@ -152,7 +152,7 @@ struct StorageExplorerView: View {
                 Button(context.canGoBack ? "Back to previous folder" : backTitle, systemImage: "chevron.left") {
                     if !context.backWithinExplorer() { back() }
                 }.accessibilityIdentifier("explorerBack")
-                PageHeader(title: context.downloadsOnly ? "Explore Downloads" : "Explore storage", subtitle: "Browse existing observations. On disk sizes are allocation evidence, not reclaimable space.")
+                PageHeader(title: context.downloadsOnly ? "Explore Downloads" : "Explore storage", subtitle: "Inspect local allocations within your selected folders.")
                 ScanHistoryRecordingNotice()
                 breadcrumbs
                 HStack(alignment: .top, spacing: StillDesign.Space.lg) {
@@ -185,10 +185,8 @@ struct StorageExplorerView: View {
                 }
             }
             if folderAvailable, let folder = context.position.folder {
-                Text(folder.path).font(.caption).foregroundStyle(.secondary).lineLimit(2).textSelection(.enabled)
-                TextField("Search scanned descendants", text: $context.position.query)
+                TextField("Search this folder", text: $context.position.query).help(folder.path)
                     .accessibilityIdentifier("explorerSearch")
-                Text("Search covers this folder and its scanned descendants only.").font(.caption).foregroundStyle(.secondary)
             }
             if !selection.catalog.pickedByResource.isEmpty && !context.downloadsOnly {
                 HStack {
@@ -216,13 +214,12 @@ struct StorageExplorerView: View {
                     ForEach(scans, id: \.scope) { scan in
                         VStack(alignment: .leading, spacing: StillDesign.Space.sm) {
                             Button(scan.scope.lastPathComponent, systemImage: "folder") { context.enter(scan.scope) }
-                                .accessibilityLabel("Open folder " + scan.scope.lastPathComponent)
-                            Text(scan.scope.path).font(.caption).foregroundStyle(.secondary).textSelection(.enabled)
-                            Text(scan.totalAllocatedBytes.map { "On disk: " + bytes($0) } ?? "On disk: Unknown · observed subtotal " + bytes(scan.allocatedBytes)).font(.callout)
-                            Text(scan.isComplete ? "Observed coverage" : "Partial coverage · uninspected bytes unknown").font(.caption).foregroundStyle(.secondary)
-                            if observations.overlaps(scan.scope) {
-                                Text("Overlaps another selected location · totals are not additive").font(.caption).foregroundStyle(.secondary)
-                            }
+                                .accessibilityLabel("Open folder " + scan.scope.lastPathComponent).help(scan.scope.path)
+                            // One short line: the size, then only the caveats that apply.
+                            Text(([scan.totalAllocatedBytes.map { bytes($0) + " on disk" } ?? "At least " + bytes(scan.allocatedBytes) + " on disk",
+                                   scan.isComplete ? nil : "Partial coverage",
+                                   observations.overlaps(scan.scope) ? "Overlaps another location" : nil] as [String?]).compactMap { $0 }.joined(separator: " · "))
+                                .font(.caption).foregroundStyle(.secondary)
                         }.padding(StillDesign.Space.md)
                         Divider()
                     }
@@ -306,14 +303,15 @@ struct StorageExplorerView: View {
     private var largeAndOldFiles: some View {
         let files = offeredHere
         return VStack(alignment: .leading, spacing: 0) {
-            Text("Files of 500 MB or more, or not opened in 90 days. Choose the ones to move to Trash, then review them in the cleanup plan.")
+            Text("Files of 500 MB or more, or not opened in 90 days.")
                 .font(.caption).foregroundStyle(.secondary).padding(.bottom, StillDesign.Space.sm)
             if files.isEmpty { EmptyState(title: "No large or old files here", detail: "Nothing in this folder is 500 MB or more or unopened for 90 days. Protected files and git checkouts are never listed.", symbol: "doc") }
             LazyVStack(alignment: .leading, spacing: 0) {
                 ForEach(files, id: \.file.id) { file, entry in
-                    InspectableItemRow(name: file.displayName, detail: fileDetail(file), size: catalogBytes(file.estimatedBytes), symbol: "doc",
+                    InspectableItemRow(name: file.displayName, detail: fileDetail(file, in: entry.scan.scope), size: catalogBytes(file.estimatedBytes), symbol: "doc",
                                        inspected: context.position.inspectedID == entry.item.id,
                                        inspect: { context.inspect(entry.item) }) { planToggle(file) }
+                        .help(file.url.path)
                     Divider()
                 }
             }
@@ -324,8 +322,9 @@ struct StorageExplorerView: View {
         Toggle("Select " + file.displayName, isOn: Binding(get: { selection.catalog.isSelected(file) }, set: { selection.catalog.setSelected(file, $0) }))
             .labelsHidden().toggleStyle(.checkbox).disabled(!selection.catalog.canEdit).accessibilityIdentifier("explorerChoose-" + file.displayName)
     }
-    private func fileDetail(_ file: Candidate) -> String {
-        let folder = file.url.deletingLastPathComponent().path.replacingOccurrences(of: FileManager.default.homeDirectoryForCurrentUser.path, with: "~")
+    /// A short location and when it was last used; the full path is the row's tooltip and in the inspector.
+    private func fileDetail(_ file: Candidate, in scope: URL) -> String {
+        let folder = ShortLocation.of(file.url, in: scope)
         return file.lastUsed.map { folder + " · Last used " + $0.formatted(date: .abbreviated, time: .omitted) } ?? folder
     }
     private func whyListed(_ file: Candidate) -> String {
