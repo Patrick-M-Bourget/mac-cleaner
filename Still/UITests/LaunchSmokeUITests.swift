@@ -43,7 +43,7 @@ final class LaunchSmokeUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
     }
 
-    /// #115: launch never asks for access; Locations & access shows the state and the shared explanation.
+    /// #115: launch never asks for access; Locations & access shows the state in one row and the shared explanation.
     /// The fixture home's Safari folder refuses to open, which is how the probe sees missing Full Disk Access.
     @MainActor func testFullDiskAccessIsExplainedOnlyWhenAsked() throws {
         continueAfterFailure = false
@@ -62,7 +62,6 @@ final class LaunchSmokeUITests: XCTestCase {
         XCTAssertFalse(app.sheets.firstMatch.exists, "Nothing asks for access at launch")
 
         app.buttons["Locations & access"].click()
-        revealAndClick(app.disclosureTriangles["About folder access"].firstMatch, in: app)
         let status = app.staticTexts["fullDiskAccessStatus"]
         XCTAssertTrue(status.waitForExistence(timeout: 5))
         XCTAssertTrue((status.value as? String ?? status.label).contains("Not granted"))
@@ -103,5 +102,22 @@ final class WhatGrewUITests: XCTestCase {
 
         app.buttons["growthReviewOptions"].click()
         XCTAssertTrue(app.buttons["Back to What grew"].waitForExistence(timeout: 5))
+    }
+}
+
+/// Decision 25: appearance follows the system; the override lives in the Settings window (⌘,).
+final class AppearanceSettingsUITests: XCTestCase {
+    @MainActor func testAppearanceOverrideLivesInTheSettingsWindow() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        let state = try configureIsolatedState(app)
+        defer { app.terminate(); try? FileManager.default.removeItem(at: state) }
+        app.launch()
+        XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
+        XCTAssertFalse(app.popUpButtons["Appearance"].exists, "No appearance picker in the toolbar")
+        app.typeKey(",", modifierFlags: .command)
+        let picker = app.popUpButtons["Appearance"]
+        XCTAssertTrue(picker.waitForExistence(timeout: 5))
+        XCTAssertEqual(picker.value as? String, "System")
     }
 }

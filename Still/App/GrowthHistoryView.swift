@@ -130,20 +130,16 @@ struct GrowthHistoryView: View {
                            detail: "The first completed scan records a baseline. The next one shows what grew. Nothing scans in the background.", symbol: "chart.line.uptrend.xyaxis")
             }
             if let error = model.error, model.comparison != nil { StatusRow(text: error, symbol: "exclamationmark.circle", role: .caution) }
-            StatusRow(text: GrowthPresentation.retention, symbol: "lock")
+            Text(GrowthPresentation.retention).font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
         }.task { await model.load() }
     }
 
     @ViewBuilder private func compared(_ comparison: GrowthComparison, from: Date, to: Date) -> some View {
         let days = max(1, Calendar.current.dateComponents([.day], from: from, to: to).day ?? 0)
-        HStack(alignment: .top) {
-            PageHeader(title: "What grew", subtitle: "Changes in your known locations since " + from.formatted(date: .long, time: .omitted) + ".")
-            Spacer(minLength: StillDesign.Space.md)
-            Text(days == 1 ? "Past day" : "Past \(days) days").font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary)
-        }
+        PageHeader(title: "What grew", subtitle: "Changes in your known locations since " + from.formatted(date: .long, time: .omitted) + ".")
         HStack(alignment: .firstTextBaseline, spacing: StillDesign.Space.sm) {
             Text(GrowthPresentation.signed(comparison.logicalDelta ?? 0)).font(StillDesign.TypeStyle.page).monospacedDigit().accessibilityIdentifier("growthNetChange")
-            Text("net growth").foregroundStyle(.secondary)
+            Text("net growth · " + (days == 1 ? "past day" : "past \(days) days")).foregroundStyle(.secondary)
         }
         Picker("Show growth by", selection: $model.dimension) {
             Text("Categories").tag(GrowthDimension.category)

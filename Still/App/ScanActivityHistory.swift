@@ -43,39 +43,76 @@ import StillCore
     }
 }
 
+/// One compact History row: symbol, title, date and size; details appear when the row is opened.
+struct HistoryRow<Details: View>: View {
+    let symbol: String
+    let title: String
+    let date: Date
+    let size: String
+    var sizeNote: String? = nil
+    @Binding var expanded: Bool
+    var identifier = ""
+    @ViewBuilder var details: () -> Details
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Button { expanded.toggle() } label: {
+                HStack(spacing: StillDesign.Space.md) {
+                    Image(systemName: symbol).foregroundStyle(.secondary).frame(width: StillDesign.Size.rowIcon)
+                    VStack(alignment: .leading, spacing: StillDesign.Space.xs) {
+                        Text(title).font(StillDesign.TypeStyle.rowTitle).lineLimit(1).truncationMode(.middle)
+                        Text(date.formatted(date: .abbreviated, time: .shortened)).font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary)
+                    }.frame(maxWidth: .infinity, alignment: .leading)
+                    VStack(alignment: .trailing, spacing: StillDesign.Space.xs) {
+                        Text(size).monospacedDigit()
+                        if let sizeNote { Text(sizeNote).font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary) }
+                    }
+                    Image(systemName: "chevron.right").font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary)
+                        .rotationEffect(.degrees(expanded ? 90 : 0))
+                }.padding(.vertical, StillDesign.Space.md).contentShape(Rectangle())
+            }.buttonStyle(.plain)
+                .accessibilityElement(children: .combine)
+                .accessibilityValue(expanded ? "Expanded" : "Collapsed")
+                .accessibilityIdentifier(identifier)
+            if expanded {
+                VStack(alignment: .leading, spacing: StillDesign.Space.sm, content: details)
+                    .padding(.leading, StillDesign.Size.rowIcon + StillDesign.Space.md).padding(.bottom, StillDesign.Space.md)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+    }
+}
+
 struct ScanActivitySummary: View {
     let activity: ScanActivity
     @Binding var expanded: Bool
     var exampleIdentifier = ""
     var body: some View {
-        SummarySurface {
-            VStack(alignment: .leading, spacing: StillDesign.Space.md) {
-                Label(title, systemImage: "viewfinder").font(StillDesign.TypeStyle.section)
-                Text(activity.completedAt.formatted(date: .abbreviated, time: .shortened)).font(.caption).foregroundStyle(.secondary)
-                Text("Requested locations: \(activity.locations.count)").font(.caption).foregroundStyle(.secondary)
-                Text(locationSummary).lineLimit(2).truncationMode(.middle)
-                    .help(activity.locations.map { URL(fileURLWithPath: $0.path).lastPathComponent }.joined(separator: ", "))
-                DisclosureGroup("Scan details", isExpanded: $expanded) {
-                    ForEach(activity.locations) { location in
-                        VStack(alignment: .leading, spacing: StillDesign.Space.sm) {
-                            Text(location.path).textSelection(.enabled).fixedSize(horizontal: false, vertical: true).help(location.path)
-                            Text(location.outcome.map { $0 == .complete ? "Observed included coverage" : $0.rawValue.capitalized + " · Coverage incomplete" } ?? "Not attempted").font(.callout)
-                            if let time = location.observedAt { Text("Observed " + time.formatted(date: .abbreviated, time: .standard)).font(.caption).foregroundStyle(.secondary) }
-                            if let count = location.entryCount { Text("Observed entries: \(count)").font(.caption) }
-                            else { Text("No measurements available").font(.caption).foregroundStyle(.secondary) }
-                            Text("Complete scope logical size: " + bytes(location.logicalBytes)).font(.callout)
-                            Text("Complete scope allocated size: " + bytes(location.allocatedBytes)).font(.callout)
-                            if location.logicalBytes == nil, let known = location.knownLogicalBytes { Text("Known observed logical subtotal: " + bytes(known) + " · Remaining bytes unknown").font(.caption) }
-                            ForEach(location.reasons.keys.sorted(), id: \.self) { reason in
-                                Text(reasonLabel(reason) + ": " + String(location.reasons[reason] ?? 0)).font(.caption).foregroundStyle(.secondary)
-                            }
-                        }.padding(.leading, StillDesign.Space.xl).frame(maxWidth: .infinity, alignment: .leading)
+        HistoryRow(symbol: "viewfinder", title: title + " · " + locationSummary, date: activity.completedAt, size: size, sizeNote: "Observed",
+                   expanded: $expanded, identifier: "scanActivity:" + activity.id.uuidString) {
+            ForEach(activity.locations) { location in
+                VStack(alignment: .leading, spacing: StillDesign.Space.xs) {
+                    Text(URL(fileURLWithPath: location.path).lastPathComponent + " · " + PathDisplay.shortLocation(of: location.path))
+                        .lineLimit(1).truncationMode(.middle).help(location.path)
+                    Text(locationDetail(location)).font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary)
+                    if !location.reasons.isEmpty {
+                        Text(location.reasons.keys.sorted().map { reasonLabel($0) + " (\(location.reasons[$0] ?? 0))" }.joined(separator: " · "))
+                            .font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                     }
-                }.frame(maxWidth: .infinity, alignment: .leading).padding(.leading, StillDesign.Space.xl)
-                    .accessibilityIdentifier("scanActivityDetails:" + activity.id.uuidString)
-                Text("Recorded observations, not reclaimable or released space.").font(.caption).foregroundStyle(.secondary).accessibilityIdentifier(exampleIdentifier)
+                }.accessibilityElement(children: .combine)
             }
+            Text("Recorded observations, not reclaimable or released space.").font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary).accessibilityIdentifier(exampleIdentifier)
         }
+    }
+    private var size: String {
+        guard let size = activity.observedSize else { return "Not measured" }
+        return (size.complete ? "" : "At least ") + ByteCountFormatter.string(fromByteCount: size.bytes, countStyle: .decimal)
+    }
+    private func locationDetail(_ location: ScanActivityLocation) -> String {
+        var parts = [location.outcome.map { $0 == .complete ? "Complete" : $0.rawValue.capitalized + " · Coverage incomplete" } ?? "Not attempted"]
+        if let count = location.entryCount { parts.append("\(count) entries") }
+        if let bytes = location.logicalBytes { parts.append(format(bytes)) }
+        else if let known = location.knownLogicalBytes { parts.append("At least " + format(known)) }
+        return parts.joined(separator: " · ")
     }
     private var locationSummary: String {
         let labels = activity.locations.prefix(2).map { URL(fileURLWithPath: $0.path).lastPathComponent }.joined(separator: ", ")
@@ -104,7 +141,7 @@ struct ScanActivitySummary: View {
         default: "Coverage issues"
         }
     }
-    private func bytes(_ value: Int64?) -> String { value.map { ByteCountFormatter.string(fromByteCount: $0, countStyle: .decimal) } ?? "Unknown" }
+    private func format(_ value: Int64) -> String { ByteCountFormatter.string(fromByteCount: value, countStyle: .decimal) }
 }
 
 struct HistoryActivityFilterControl: View {
@@ -112,7 +149,7 @@ struct HistoryActivityFilterControl: View {
     var body: some View {
         Picker("Activity", selection: $selection) {
             ForEach(HistoryActivityFilter.allCases, id: \.self) { Text($0.rawValue).tag($0) }
-        }.pickerStyle(.menu).fixedSize().accessibilityIdentifier("History activity filter")
+        }.pickerStyle(.menu).labelsHidden().controlSize(.small).fixedSize().accessibilityIdentifier("History activity filter")
     }
 }
 
@@ -184,7 +221,7 @@ struct HistoryActivityEmptyState: View {
     }
     var body: some View {
         VStack(alignment: .leading, spacing: StillDesign.Space.lg) {
-            EmptyState(title: title, detail: "History retains up to 90 days within its record budgets. Older or cleared records may no longer appear. Nothing is selected or retried here.", symbol: "clock")
+            EmptyState(title: title, detail: "Scans and cleanups appear here when they finish.", symbol: "clock")
             HStack {
                 if filter != .cleanups { Button("Go to Overview", action: goOverview) }
                 if filter != .scans { Button("View cleanup plan", action: viewPlan) }
@@ -194,7 +231,7 @@ struct HistoryActivityEmptyState: View {
 }
 struct HistoryRetentionNote: View {
     var body: some View {
-        Text("Scan activity and enabled growth aggregates share a 250 MB archive budget and 90-day retention; at most 30 growth baselines are retained, without a 30-scan limit. Completed cleanup records have a separate 250 MB payload budget and 90-day retention. Protected recovery facts are exempt. Trash contents remain until you empty Trash in Finder.").font(.caption).foregroundStyle(.secondary)
+        Text("History is kept on this Mac for up to 90 days. Recovery records are kept separately until resolved.").font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary)
     }
 }
 

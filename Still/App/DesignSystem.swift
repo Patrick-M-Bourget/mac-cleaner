@@ -242,15 +242,15 @@ struct EmptyState: View {
         }.frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, StillDesign.Space.xl)
     }
 }
-/// A screen's bottom bar. Its message only reports state (Decision 25: no footnotes); leave it empty for none.
 struct ActionStrip<Actions: View>: View {
-    var message = ""
+    /// Only for notes that report state, such as Preview only (Decision 25); nil leaves the actions alone.
+    let message: String?
     @ViewBuilder var actions: () -> Actions
     var body: some View {
         VStack(spacing: 0) {
             Divider()
             HStack(spacing: StillDesign.Space.lg) {
-                if !message.isEmpty { Text(message).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true) }
+                if let message { Text(message).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true) }
                 Spacer(minLength: StillDesign.Space.sm)
                 actions()
             }.padding(.horizontal, StillDesign.Space.page).padding(.vertical, StillDesign.Space.lg)
@@ -651,8 +651,7 @@ struct LocationScopeRow<Actions: View>: View {
     private var identity: some View {
         VStack(alignment: .leading, spacing: StillDesign.Space.sm) {
             Label(name, systemImage: "folder").font(StillDesign.TypeStyle.section)
-            Text(path).font(.caption).foregroundStyle(.secondary).lineLimit(2).textSelection(.enabled).help(path)
-            StatusRow(text: status, symbol: "info.circle")
+            Text(PathDisplay.shortLocation(of: path) + " · " + status).font(.caption).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle).help(path)
             if let overlap { Text(overlap).font(.caption).foregroundStyle(.secondary) }
         }.frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -710,4 +709,9 @@ struct DestinationViewport: NSViewRepresentable {
         @objc private func moved() { if restored, let clip { onOffset?(clip.bounds.origin) } }
         deinit { NotificationCenter.default.removeObserver(self) }
     }
+}
+
+extension StillDesign.Size {
+    /// The leading symbol column of a compact list row (History).
+    static let rowIcon: CGFloat = 24
 }

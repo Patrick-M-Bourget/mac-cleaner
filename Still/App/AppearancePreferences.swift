@@ -27,12 +27,28 @@ import SwiftUI
     func remove() throws { try LocalStateLocation.removeKnownFile(filename) }
 }
 
+extension AppearanceChoice {
+    /// What the picker shows. The stored raw value stays "Automatic".
+    var title: String { self == .automatic ? "System" : rawValue }
+}
+
 struct AppearancePicker: View {
     @Binding var choice: AppearanceChoice
     var body: some View {
         Picker("Appearance", selection: $choice) {
-            ForEach(AppearanceChoice.allCases, id: \.self) { Text($0.rawValue).tag($0) }
-        }.labelsHidden().controlSize(.small).frame(width: 110).accessibilityLabel("Appearance").accessibilityIdentifier("Appearance")
+            ForEach(AppearanceChoice.allCases, id: \.self) { Text($0.title).tag($0) }
+        }.accessibilityIdentifier("Appearance")
+    }
+}
+
+/// The Settings window (⌘,). Appearance follows the system unless overridden here.
+struct AppearanceSettingsView: View {
+    @State private var appearance = AppLifecycleController.shared.appearance
+    var body: some View {
+        Form {
+            AppearancePicker(choice: Binding(get: { appearance.choice }, set: { AppLifecycleController.shared.chooseAppearance($0) }))
+            if appearance.notice != nil { AppearancePreferenceNotice(notice: appearance.notice, retry: { appearance.retrySaving() }) }
+        }.formStyle(.grouped).frame(width: StillDesign.Size.sheetNarrow).fixedSize(horizontal: false, vertical: true)
     }
 }
 
@@ -53,8 +69,8 @@ struct AppearancePreferenceNotice: View {
     }
     private var message: String {
         switch notice {
-        case .invalidSavedValue: "Saved appearance isn’t recognized. Using Automatic."
-        case .unreadable: "Couldn’t read saved appearance. Using Automatic."
+        case .invalidSavedValue: "Saved appearance isn’t recognized. Using System."
+        case .unreadable: "Couldn’t read saved appearance. Using System."
         case .saveFailed: "Appearance wasn’t saved."
         case nil: " "
         }

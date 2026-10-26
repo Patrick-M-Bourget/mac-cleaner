@@ -308,7 +308,7 @@ struct StorageExplorerView: View {
             if files.isEmpty { EmptyState(title: "No large or old files here", detail: "Nothing in this folder is 500 MB or more or unopened for 90 days. Protected files and git checkouts are never listed.", symbol: "doc") }
             LazyVStack(alignment: .leading, spacing: 0) {
                 ForEach(files, id: \.file.id) { file, entry in
-                    InspectableItemRow(name: file.displayName, detail: fileDetail(file, in: entry.scan.scope), size: catalogBytes(file.estimatedBytes), symbol: "doc",
+                    InspectableItemRow(name: file.displayName, detail: fileDetail(file), size: catalogBytes(file.estimatedBytes), symbol: "doc",
                                        inspected: context.position.inspectedID == entry.item.id,
                                        inspect: { context.inspect(entry.item) }) { planToggle(file) }
                         .help(file.url.path)
@@ -323,8 +323,8 @@ struct StorageExplorerView: View {
             .labelsHidden().toggleStyle(.checkbox).disabled(!selection.catalog.canEdit).accessibilityIdentifier("explorerChoose-" + file.displayName)
     }
     /// A short location and when it was last used; the full path is the row's tooltip and in the inspector.
-    private func fileDetail(_ file: Candidate, in scope: URL) -> String {
-        let folder = ShortLocation.of(file.url, in: scope)
+    private func fileDetail(_ file: Candidate) -> String {
+        let folder = PathDisplay.shortLocation(of: file.url.path)
         return file.lastUsed.map { folder + " · Last used " + $0.formatted(date: .abbreviated, time: .omitted) } ?? folder
     }
     private func whyListed(_ file: Candidate) -> String {
