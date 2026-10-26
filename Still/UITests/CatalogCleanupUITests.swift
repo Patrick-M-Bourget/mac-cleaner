@@ -231,4 +231,46 @@ final class CatalogCleanupUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Would delete"].exists || app.staticTexts["Skipped"].exists)
         for file in files { XCTAssertTrue(FileManager.default.fileExists(atPath: file.path), file.path) }
     }
+
+    /// Updater downloads and logs show as their own Overview categories. A log folder holding a git checkout never appears,
+    /// and a preview run leaves every fixture file in place. Per-app caches need an installed app, so unit tests cover them.
+    @MainActor func testUpdaterDownloadsAndLogsAreTheirOwnCategoriesAndPreviewLeavesThemInPlace() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        let state = try configureIsolatedState(app)
+        let home = try configureCatalogHome(app)
+        defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
+        let files = ["Library/Caches/com.example.StillFixture/org.sparkle-project.Sparkle/Installation/a/Fixture.tar.xz",
+                     "Library/Logs/DiagnosticReports/Fixture-2026-10-26.ips", "Library/Logs/FixtureApp/main.log",
+                     "Library/Logs/FixtureAgent/checkout/.git/HEAD"].map(home.appendingPathComponent)
+        for file in files {
+            try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try Data(repeating: 4, count: 60_000).write(to: file)
+        }
+        app.launchArguments = ["-ApplePersistenceIgnoreState", "YES"]
+        app.launch()
+
+        XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
+        let updaters = app.buttons["overviewCategory-updaters"]
+        XCTAssertTrue(updaters.waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["overviewCategory-logs"].exists)
+        updaters.click()
+
+        let update = app.checkBoxes["planProfile-updater-downloads-com.example.StillFixture"]
+        XCTAssertTrue(update.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.checkBoxes["planRule-crash-reports"].exists)
+        XCTAssertTrue(app.checkBoxes["planRule-app-logs"].exists)
+        XCTAssertFalse(app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS 'FixtureAgent' OR identifier CONTAINS 'FixtureAgent'")).firstMatch.exists)
+        update.click()
+        app.checkBoxes["planRule-crash-reports"].click()
+        XCTAssertEqual(app.checkBoxes["previewOnlyToggle"].value as? Int, 1)
+        app.buttons["Review cleanup"].click()
+
+        XCTAssertTrue(app.staticTexts["Clear App update downloads"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Clear Crash reports"].exists)
+        app.buttons["Run preview"].click()
+
+        XCTAssertTrue(app.staticTexts["catalogPreviewNotice"].waitForExistence(timeout: 10))
+        for file in files { XCTAssertTrue(FileManager.default.fileExists(atPath: file.path), file.path) }
+    }
 }
