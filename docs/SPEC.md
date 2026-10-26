@@ -36,7 +36,7 @@ Decision 3 sets the main split: regenerable data is deleted permanently; user fi
 
 | Kind | Examples | Action | How it comes back |
 |---|---|---|---|
-| Cache | npm, Yarn, pnpm metadata, uv, pip, Cargo, Gradle, CocoaPods, Homebrew cache; browser cache folders; per-app `~/Library/Caches`; caches apps keep elsewhere (#133): VS Code and VSCodium cache folders, older JetBrains IDE versions' caches, Adobe's media cache, sandboxed apps' container caches | Delete permanently | Downloaded or rebuilt on next use |
+| Cache | npm, Yarn, pnpm metadata, uv, pip, Cargo, Gradle, CocoaPods, Homebrew cache; browser cache folders; per-app `~/Library/Caches`; caches apps keep elsewhere (#133): VS Code, VSCodium, Cursor and Windsurf cache folders, older JetBrains IDE versions' caches, Adobe's media cache, sandboxed apps' container caches | Delete permanently | Downloaded or rebuilt on next use |
 | Build output | Xcode DerivedData project folders (products and dSYMs included), iOS DeviceSupport except the 2 newest versions per platform | Delete permanently | Rebuilt; next build is slower |
 | Updater downloads | Sparkle and vendor updater caches | Delete permanently | Downloaded by the next update |
 | Leaked app copies | Chrome `code_sign_clone` copies | Delete permanently, except the copy in use and the newest | Not needed again |
@@ -64,7 +64,7 @@ Notes per category:
 - **Ollama**: shared blobs make per-file Trash unsafe, so models are removed with `ollama rm` (an exception to Decision 3).
 - **Per-app caches**: only while the owning app isn't running.
 - **Caches outside `~/Library/Caches`** (#133), each only while its app isn't running:
-  - VS Code and VSCodium: `Cache`, `CachedData`, `CachedExtensionVSIXs`, `Code Cache` and `GPUCache` in `~/Library/Application Support/<Code|VSCodium>`; never `User`, `extensions` or backups. Cursor isn't offered until its layout is confirmed.
+  - VS Code, VSCodium, Cursor and Windsurf: `Cache`, `CachedData`, `CachedExtensionVSIXs`, `Code Cache` and `GPUCache` in `~/Library/Application Support/<Code|VSCodium|Cursor|Windsurf>`; never `User`, `extensions` or backups. Refused while that editor runs (#140). Copilot keeps its data in VS Code's folders, so it has no rule of its own.
   - JetBrains: `~/Library/Caches/JetBrains/<product><version>` of older versions only; the newest version of each IDE, and products Still doesn't know, are never offered. Refused while any version of that IDE runs.
   - Adobe: `Media Cache Files` and `Media Cache` in `~/Library/Application Support/Adobe/Common`, refused while an Adobe video app runs.
   - Sandboxed apps: only `~/Library/Containers/<bundle id>/Data/Library/Caches`, never other container data or group containers; the app must be installed and closed. Reading containers can make macOS ask for access, so without Full Disk Access the rule shows as not accessible and nothing there is read.

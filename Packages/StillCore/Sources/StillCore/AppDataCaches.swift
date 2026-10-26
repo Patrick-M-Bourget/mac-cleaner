@@ -14,7 +14,9 @@ public enum AppDataCaches {
     /// `GPUCache` are Electron's (Chromium's) caches, `CachedData` is VS Code's compiled-code cache, and
     /// `CachedExtensionVSIXs` holds extension downloads. The app's executable is named after nameShort too.
     /// VSCodium sets nameShort "VSCodium" and bundle identifier "com.vscodium" (VSCodium's prepare_vscode.sh).
-    /// Cursor isn't listed: its layout isn't documented.
+    /// Cursor and Windsurf are VS Code forks with the same layout (#140): ~/Library/Application Support/Cursor
+    /// (Cursor docs, where `User/settings.json` lives; bundle identifier "com.todesktop.230313mzl4w4u92") and
+    /// ~/Library/Application Support/Windsurf (bundle identifier "com.exafunction.windsurf").
     static func vsCode(id: String, name: String, nameShort: String, bundleID: String) -> CleanupRule {
         CleanupRule(id: id, category: .developer, title: name + " caches",
                     detail: "Cached code, graphics and extension downloads.",
@@ -105,6 +107,8 @@ public enum AppDataCaches {
             sandboxedCaches(apps: apps),
             vsCode(id: "vscode-cache", name: "Visual Studio Code", nameShort: "Code", bundleID: "com.microsoft.VSCode"),
             vsCode(id: "vscodium-cache", name: "VSCodium", nameShort: "VSCodium", bundleID: "com.vscodium"),
+            vsCode(id: "cursor-cache", name: "Cursor", nameShort: "Cursor", bundleID: "com.todesktop.230313mzl4w4u92"),
+            vsCode(id: "windsurf-cache", name: "Windsurf", nameShort: "Windsurf", bundleID: "com.exafunction.windsurf"),
         ]
     }
 }
