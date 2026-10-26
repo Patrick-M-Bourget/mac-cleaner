@@ -60,4 +60,26 @@ public struct CatalogOverview: Sendable {
             return Row(category: category, rules: rules, estimate: estimate)
         }
     }
+
+    /// How many rows Overview shows before "Show N more".
+    public static let leadingRowCount = 5
+    /// Overview's rows, largest first: a category that measured 0 bytes is hidden, and one whose size is unknown
+    /// stays (unknown is never 0) after every sized one. Ties keep catalog order.
+    public var visibleRows: [Row] {
+        rows.enumerated().filter { $0.element.estimate != .measured(0) }
+            .sorted { left, right in
+                let a = left.element.estimate.sortBytes, b = right.element.estimate.sortBytes
+                return a != b ? a > b : left.offset < right.offset
+            }.map(\.element)
+    }
+}
+
+private extension SizeEstimate {
+    /// Unknown sorts below every known size, a 0-byte one included.
+    var sortBytes: Int64 {
+        switch self {
+        case .measured(let bytes), .about(let bytes), .atLeast(let bytes): bytes
+        case .unknown: -1
+        }
+    }
 }
