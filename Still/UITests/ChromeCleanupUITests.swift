@@ -93,8 +93,10 @@ final class ChromeCleanupUITests: XCTestCase {
             XCTAssertEqual(examples.value as? Int, 1)
             for theme in ["Light", "Dark"] {
                 app.popUpButtons["Appearance"].click(); app.menuItems[theme].click()
-                revealScrollElement(app, control: app.staticTexts["These cache files do not go to Trash and cannot be restored by Still. Caches may refill. Downloads and other personal files keep their separate Trash confirmation."], label: "Cache permanence notice")
-                capture(app, name: "chrome-gallery-" + (minimum ? "minimum-" : "initial-") + theme)
+                revealScrollElement(app, control: app.staticTexts.matching(NSPredicate(format: "value BEGINSWITH %@", "These cache files do not go to Trash")).firstMatch, label: "Cache permanence notice")
+                capture(app, name: "chrome-gallery-top-" + (minimum ? "minimum-" : "initial-") + theme)
+                revealScrollElement(app, control: app.checkBoxes["chromeGroupSelection-Profile 5"], label: "Unsupported browser group")
+                capture(app, name: "chrome-gallery-groups-" + (minimum ? "minimum-" : "initial-") + theme)
             }
             app.terminate()
         }
