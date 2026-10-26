@@ -142,10 +142,14 @@ final class CatalogCleanupUITests: XCTestCase {
                                                    "Library/Developer/Xcode/iOS DeviceSupport/16.4 (20E247)",
                                                    "Library/Developer/Xcode/iOS DeviceSupport/17.5 (21F79)",
                                                    "Library/Developer/Xcode/iOS DeviceSupport/18.1 (22B83)",
-                                                   "Library/Developer/CoreSimulator/Devices/0A1B2C3D-0000-0000-0000-000000000000"])
+                                                   "Library/Developer/CoreSimulator/Devices/0A1B2C3D-0000-0000-0000-000000000000",
+                                                   ".android/avd/Pixel.avd"])
         let marker = home.appendingPathComponent("simctl-ran")
         let simctl = home.appendingPathComponent(".still-test-tools/simctl")
-        try writeStandInTool("#!/bin/sh\ntouch '\(marker.path)'\n", to: simctl)
+        // Lists one shut-down simulator and one unused runtime (#134); any other call leaves the marker.
+        let devices = #"{"devices":{"com.apple.CoreSimulator.SimRuntime.iOS-18-0":[{"udid":"0A1B2C3D-0000-0000-0000-000000000000","name":"iPhone 16","state":"Shutdown","isAvailable":true}]}}"#
+        let runtimes = #"{"BBBBBBBB-BBBB-4BBB-8BBB-BBBBBBBBBBBB":{"identifier":"BBBBBBBB-BBBB-4BBB-8BBB-BBBBBBBBBBBB","deletable":true,"runtimeIdentifier":"com.apple.CoreSimulator.SimRuntime.watchOS-11-0","version":"11.0","build":"22R349","sizeBytes":4500000000}}"#
+        try writeStandInTool("#!/bin/sh\ncase \"$*\" in\n\"list devices -j\") echo '\(devices)' ;;\n\"runtime list -j\") echo '\(runtimes)' ;;\n*) touch '\(marker.path)' ;;\nesac\n", to: simctl)
         defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
         app.launch()
 
@@ -155,6 +159,16 @@ final class CatalogCleanupUITests: XCTestCase {
         XCTAssertFalse(app.descendants(matching: .any).matching(NSPredicate(format: "identifier CONTAINS 'Archives'")).firstMatch.exists)
         revealAndClick(developer, in: app)
         XCTAssertTrue(app.checkBoxes["planRule-xcode-device-support"].waitForExistence(timeout: 5))
+        // Simulators, runtimes and Android emulators are each listed on their own, and none is preselected (#134).
+        for (rule, name) in [("simulator-runtimes", "watchOS 11.0 (22R349)"), ("android-virtual-devices", "Pixel"), ("simulator-devices", "iPhone 16 (iOS 18.0)")] {
+            // Items are drawn lazily: bring the rule's list into view first.
+            reveal(app.checkBoxes["planRule-" + rule], in: app, nearTop: true)
+            let item = app.checkBoxes["planItem-" + name]
+            if !item.waitForExistence(timeout: 2) { expandDisclosures(in: app) }
+            XCTAssertTrue(item.waitForExistence(timeout: 5), name)
+            XCTAssertEqual(item.value as? Int, 0, name)
+        }
+        revealAndClick(app.checkBoxes["planItem-iPhone 16 (iOS 18.0)"], in: app)
 
         for rule in ["xcode-derived-data", "xcode-simulators"] {
             let box = app.checkBoxes["planRule-" + rule]
