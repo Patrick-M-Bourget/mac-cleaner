@@ -219,3 +219,14 @@ private func snapshot(_ root: URL) throws -> [String: Data] {
     #expect(!FileManager.default.fileExists(atPath: home.appendingPathComponent("b/cache").path))
     #expect(FileManager.default.fileExists(atPath: home.appendingPathComponent("c/cache/file").path))
 }
+
+@Test func historyNeverCountsDeletedCachesAsHeldInTrash() async throws {
+    let home = try fixtureHome()
+    defer { try? FileManager.default.removeItem(at: home) }
+    _ = try writeNpmCache(in: home)
+    let (run, journal) = try executor(home)
+    _ = await run.execute(CatalogApproval(candidates: [try npmCandidate(home)], previewOnly: false))
+    let history = try journal.completedHistory()
+    #expect(history.completedRuns.count == 1)
+    #expect(history.completedRuns.first?.trashHeldAllocatedBytes == 0)
+}
