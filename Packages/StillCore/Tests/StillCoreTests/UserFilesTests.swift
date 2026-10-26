@@ -163,3 +163,27 @@ private func executor(trash: URL) -> CleanupExecutor {
     #expect(result.records.first?.message == CheckRefusal.protected(".git").reason)
     #expect(FileManager.default.fileExists(atPath: movie.path))
 }
+
+/// #125: a cleanup run removes from the explorer only the picked files it acted on; the rest stay offered.
+@Test func aRunKeepsOfferingThePickedFilesItDidNotActOn() async throws {
+    let folder = try pickedFolder(), trash = try pickedFolder()
+    defer { try? FileManager.default.removeItem(at: folder); try? FileManager.default.removeItem(at: trash) }
+    let now = Date()
+    try file(folder, "movie.mov", size: 600 * megabyte, now: now)
+    try file(folder, "other.mov", size: 700 * megabyte, now: now)
+    let found = try await offered(folder, now: now)
+    let movie = try #require(found["movie.mov"]), other = try #require(found["other.mov"])
+
+    let result = await executor(trash: trash).execute(CatalogApproval(candidates: [movie], previewOnly: false))
+    #expect(UserFiles.remaining([movie, other], after: result) == [other])
+}
+
+@Test func aPreviewRunKeepsOfferingEveryPickedFile() async throws {
+    let folder = try pickedFolder(), trash = try pickedFolder()
+    defer { try? FileManager.default.removeItem(at: folder); try? FileManager.default.removeItem(at: trash) }
+    try file(folder, "movie.mov", size: 600 * megabyte, now: Date())
+    let movie = try #require(try await offered(folder, now: Date())["movie.mov"])
+
+    let result = await executor(trash: trash).execute(CatalogApproval(candidates: [movie], previewOnly: true))
+    #expect(UserFiles.remaining([movie], after: result) == [movie])
+}
