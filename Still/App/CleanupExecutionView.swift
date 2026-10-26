@@ -19,11 +19,11 @@ import SwiftUI
     var canRetry: Bool { !isRunning && !requiresRecoveryReview && result?.targets.contains(where: { $0.state != .succeeded }) == true }
     private var executor: TrashExecutor?
     private var cancellation = CleanupCancellation()
-    func clear() { guard !isRunning else { return }; result = nil; error = nil; before = nil; after = nil }
+    func clear() { guard !isRunning else { return }; result = nil; error = nil; before = nil; after = nil; stopRequested = false; cancellation = CleanupCancellation() }
     func cancel() { stopRequested = true; cancellation.cancel() }
-    func run(_ batch: CleanupApproval) async {
+    func run(_ batch: CleanupApproval, cancellation externalCancellation: CleanupCancellation? = nil) async {
         guard !isRunning, !AppLifecycleController.shared.maintenanceInProgress else { return }
-        isRunning = true; cancellation = CleanupCancellation(); result = nil; error = nil; progress = nil; stopRequested = false; retryScopes = []
+        isRunning = true; cancellation = externalCancellation ?? CleanupCancellation(); result = nil; error = nil; progress = nil; stopRequested = cancellation.isCancelled; retryScopes = []
         defer { isRunning = false; executor = nil }
         do {
             let journal = try await Task.detached(priority: .userInitiated) {
@@ -65,9 +65,10 @@ import SwiftUI
 struct CleanupExecutionView: View {
     @Bindable var model: CleanupExecutionModel
     var retryMessage: String? = nil
+    var showsHeader = true
     var body: some View {
         VStack(alignment: .leading, spacing: StillDesign.Space.xl) {
-            PageHeader(title: model.isRunning ? "Moving selected files to Trash" : "Cleanup results", subtitle: "Each exact file has its own result. Moving to Trash does not empty Trash.")
+            if showsHeader { PageHeader(title: model.isRunning ? "Moving selected files to Trash" : "Cleanup results", subtitle: "Each exact file has its own result. Moving to Trash does not empty Trash.") }
             if model.isRunning {
                 ProgressView(value: Double(model.progress?.resolved ?? 0), total: Double(max(1, model.progress?.total ?? 1)))
                 StatusRow(text: model.stopRequested ? "Stopping after the current file reaches a recorded outcome…" : "\(model.progress?.resolved ?? 0) of \(model.progress?.total ?? 0) targets reported", symbol: "clock")

@@ -105,6 +105,14 @@ on:
           - filesystem
           - chrome-stable-probe
           - chrome-stable-final
+          - chrome-cleanup
+          - chrome-cleanup-cancel
+          - chrome-cleanup-feedback
+          - chrome-cleanup-presentation
+          - chrome-cleanup-gallery
+          - chrome-cleanup-chrome-only
+          - chrome-swift-only
+          - chrome-native-process-only
           - chrome-probe
       chromeFinalLane:
         description: Chrome final qualification lane (only chrome-stable-final)
@@ -117,7 +125,7 @@ permissions:
   contents: read
 jobs:
   native:
-    if: github.event_name != 'workflow_dispatch' || (inputs.suite != 'benchmark' && inputs.suite != 'filesystem' && inputs.suite != 'chrome-probe' && inputs.suite != 'chrome-stable-probe' && inputs.suite != 'chrome-stable-final' && inputs.suite != 'alerts-native')
+    if: github.event_name != 'workflow_dispatch' || (inputs.suite != 'chrome-native-process-only' && inputs.suite != 'chrome-swift-only' && inputs.suite != 'benchmark' && inputs.suite != 'filesystem' && inputs.suite != 'chrome-probe' && inputs.suite != 'chrome-stable-probe' && inputs.suite != 'chrome-stable-final' && inputs.suite != 'alerts-native')
     runs-on: macos-26
     steps:
       - uses: actions/checkout@v4
@@ -125,10 +133,10 @@ jobs:
         with:
           xcode-version: '26.6'
       - name: Verify disposable scanner boundaries
-        if: github.event_name != 'workflow_dispatch' || (inputs.suite != 'storage-alerts-gallery' && inputs.suite != 'storage-alerts-settings' && inputs.suite != 'release-archives' && inputs.suite != 'growth-history-final' && inputs.suite != 'growth-final' && inputs.suite != 'growth-regressions' && inputs.suite != 'growth-gallery' && inputs.suite != 'growth-outcomes' && inputs.suite != 'growth-availability' && inputs.suite != 'growth-historical' && inputs.suite != 'growth-review' && inputs.suite != 'growth-locations' && inputs.suite != 'growth-first' && inputs.suite != 'history-activity-availability' && inputs.suite != 'history-activity-recheck' && inputs.suite != 'history-activity-clear' && inputs.suite != 'history-activity-growth' && inputs.suite != 'history-activity-coverage' && inputs.suite != 'history-activity-review' && inputs.suite != 'history-activity-context' && inputs.suite != 'history-activity-grouped' && inputs.suite != 'history-activity-first' && inputs.suite != 'history-activity' && inputs.suite != 'history-activity-gallery' && inputs.suite != 'shell-history' && inputs.suite != 'shell-reset' && inputs.suite != 'shell-retry' && inputs.suite != 'shell-final-flows' && inputs.suite != 'shell-appearance-states' && inputs.suite != 'shell-footer' && inputs.suite != 'shell-appearance' && inputs.suite != 'shell-ui' && inputs.suite != 'shell-gallery' && inputs.suite != 'shell-regressions' && inputs.suite != 'capacity-footer' && inputs.suite != 'capacity-scan' && inputs.suite != 'capacity-flows' && inputs.suite != 'capacity-retry' && inputs.suite != 'capacity-unavailable' && inputs.suite != 'capacity-gallery' && inputs.suite != 'capacity-cleanup' && inputs.suite != 'capacity-regressions' && inputs.suite != 'capacity-overview' && inputs.suite != 'capacity-manual' && inputs.suite != 'capacity-states' && inputs.suite != 'selection' && inputs.suite != 'selection-scroll' && inputs.suite != 'scope' && inputs.suite != 'exclusions' && inputs.suite != 'repair' && inputs.suite != 'handoff' && inputs.suite != 'history' && inputs.suite != 'local-records' && inputs.suite != 'local-records-context' && inputs.suite != 'local-records-context-initial' && inputs.suite != 'local-records-diagnostics' && inputs.suite != 'local-records-diagnostics-initial' && inputs.suite != 'local-records-gallery' && inputs.suite != 'local-records-diagnostics-regressions' && inputs.suite != 'local-records-regressions' && inputs.suite != 'pip' && inputs.suite != 'keyboard' && inputs.suite != 'alerts' && inputs.suite != 'alert-open' && inputs.suite != 'overview' && inputs.suite != 'overview-main')
+        if: github.event_name != 'workflow_dispatch' || (inputs.suite != 'chrome-cleanup-chrome-only' && inputs.suite != 'chrome-cleanup-gallery' && inputs.suite != 'chrome-cleanup-presentation' && inputs.suite != 'chrome-cleanup-feedback' && inputs.suite != 'chrome-cleanup-cancel' && inputs.suite != 'storage-alerts-gallery' && inputs.suite != 'storage-alerts-settings' && inputs.suite != 'release-archives' && inputs.suite != 'growth-history-final' && inputs.suite != 'growth-final' && inputs.suite != 'growth-regressions' && inputs.suite != 'growth-gallery' && inputs.suite != 'growth-outcomes' && inputs.suite != 'growth-availability' && inputs.suite != 'growth-historical' && inputs.suite != 'growth-review' && inputs.suite != 'growth-locations' && inputs.suite != 'growth-first' && inputs.suite != 'history-activity-availability' && inputs.suite != 'history-activity-recheck' && inputs.suite != 'history-activity-clear' && inputs.suite != 'history-activity-growth' && inputs.suite != 'history-activity-coverage' && inputs.suite != 'history-activity-review' && inputs.suite != 'history-activity-context' && inputs.suite != 'history-activity-grouped' && inputs.suite != 'history-activity-first' && inputs.suite != 'history-activity' && inputs.suite != 'history-activity-gallery' && inputs.suite != 'shell-history' && inputs.suite != 'shell-reset' && inputs.suite != 'shell-retry' && inputs.suite != 'shell-final-flows' && inputs.suite != 'shell-appearance-states' && inputs.suite != 'shell-footer' && inputs.suite != 'shell-appearance' && inputs.suite != 'shell-ui' && inputs.suite != 'shell-gallery' && inputs.suite != 'shell-regressions' && inputs.suite != 'capacity-footer' && inputs.suite != 'capacity-scan' && inputs.suite != 'capacity-flows' && inputs.suite != 'capacity-retry' && inputs.suite != 'capacity-unavailable' && inputs.suite != 'capacity-gallery' && inputs.suite != 'capacity-cleanup' && inputs.suite != 'capacity-regressions' && inputs.suite != 'capacity-overview' && inputs.suite != 'capacity-manual' && inputs.suite != 'capacity-states' && inputs.suite != 'selection' && inputs.suite != 'selection-scroll' && inputs.suite != 'scope' && inputs.suite != 'exclusions' && inputs.suite != 'repair' && inputs.suite != 'handoff' && inputs.suite != 'history' && inputs.suite != 'local-records' && inputs.suite != 'local-records-context' && inputs.suite != 'local-records-context-initial' && inputs.suite != 'local-records-diagnostics' && inputs.suite != 'local-records-diagnostics-initial' && inputs.suite != 'local-records-gallery' && inputs.suite != 'local-records-diagnostics-regressions' && inputs.suite != 'local-records-regressions' && inputs.suite != 'pip' && inputs.suite != 'keyboard' && inputs.suite != 'alerts' && inputs.suite != 'alert-open' && inputs.suite != 'overview' && inputs.suite != 'overview-main')
         run: xcrun swift test --package-path Packages/StillCore
       - name: Verify alert policies and lifecycle without OS permission prompts
-        if: github.event_name != 'workflow_dispatch' || (inputs.suite != 'storage-alerts-gallery' && inputs.suite != 'storage-alerts-settings' && inputs.suite != 'release-archives' && inputs.suite != 'growth-history-final' && inputs.suite != 'growth-final' && inputs.suite != 'growth-regressions' && inputs.suite != 'growth-gallery' && inputs.suite != 'growth-outcomes' && inputs.suite != 'growth-availability' && inputs.suite != 'growth-historical' && inputs.suite != 'growth-review' && inputs.suite != 'growth-locations' && inputs.suite != 'growth-first' && inputs.suite != 'history-activity-availability' && inputs.suite != 'history-activity-recheck' && inputs.suite != 'history-activity-clear' && inputs.suite != 'history-activity-growth' && inputs.suite != 'history-activity-coverage' && inputs.suite != 'history-activity-review' && inputs.suite != 'history-activity-context' && inputs.suite != 'history-activity-grouped' && inputs.suite != 'history-activity-first' && inputs.suite != 'history-activity' && inputs.suite != 'history-activity-gallery' && inputs.suite != 'shell-history' && inputs.suite != 'shell-reset' && inputs.suite != 'shell-retry' && inputs.suite != 'shell-final-flows' && inputs.suite != 'shell-appearance-states' && inputs.suite != 'shell-footer' && inputs.suite != 'shell-appearance' && inputs.suite != 'shell-ui' && inputs.suite != 'shell-gallery' && inputs.suite != 'shell-regressions' && inputs.suite != 'capacity-footer' && inputs.suite != 'capacity-scan' && inputs.suite != 'capacity-flows' && inputs.suite != 'capacity-retry' && inputs.suite != 'capacity-unavailable' && inputs.suite != 'capacity-gallery' && inputs.suite != 'capacity-cleanup' && inputs.suite != 'capacity-regressions' && inputs.suite != 'capacity-overview' && inputs.suite != 'capacity-manual' && inputs.suite != 'capacity-states' && inputs.suite != 'capacity' && inputs.suite != 'selection' && inputs.suite != 'selection-scroll' && inputs.suite != 'scope' && inputs.suite != 'exclusions' && inputs.suite != 'repair' && inputs.suite != 'handoff' && inputs.suite != 'history' && inputs.suite != 'local-records' && inputs.suite != 'local-records-context' && inputs.suite != 'local-records-context-initial' && inputs.suite != 'local-records-diagnostics' && inputs.suite != 'local-records-diagnostics-initial' && inputs.suite != 'local-records-gallery' && inputs.suite != 'local-records-diagnostics-regressions' && inputs.suite != 'local-records-regressions' && inputs.suite != 'tools' && inputs.suite != 'pip' && inputs.suite != 'homebrew' && inputs.suite != 'keyboard' && inputs.suite != 'overview' && inputs.suite != 'overview-main' && inputs.suite != 'downloads' && inputs.suite != 'downloads-journey')
+        if: github.event_name != 'workflow_dispatch' || (inputs.suite != 'chrome-cleanup-chrome-only' && inputs.suite != 'chrome-cleanup-gallery' && inputs.suite != 'chrome-cleanup-presentation' && inputs.suite != 'chrome-cleanup-feedback' && inputs.suite != 'chrome-cleanup-cancel' && inputs.suite != 'storage-alerts-gallery' && inputs.suite != 'storage-alerts-settings' && inputs.suite != 'release-archives' && inputs.suite != 'growth-history-final' && inputs.suite != 'growth-final' && inputs.suite != 'growth-regressions' && inputs.suite != 'growth-gallery' && inputs.suite != 'growth-outcomes' && inputs.suite != 'growth-availability' && inputs.suite != 'growth-historical' && inputs.suite != 'growth-review' && inputs.suite != 'growth-locations' && inputs.suite != 'growth-first' && inputs.suite != 'history-activity-availability' && inputs.suite != 'history-activity-recheck' && inputs.suite != 'history-activity-clear' && inputs.suite != 'history-activity-growth' && inputs.suite != 'history-activity-coverage' && inputs.suite != 'history-activity-review' && inputs.suite != 'history-activity-context' && inputs.suite != 'history-activity-grouped' && inputs.suite != 'history-activity-first' && inputs.suite != 'history-activity' && inputs.suite != 'history-activity-gallery' && inputs.suite != 'shell-history' && inputs.suite != 'shell-reset' && inputs.suite != 'shell-retry' && inputs.suite != 'shell-final-flows' && inputs.suite != 'shell-appearance-states' && inputs.suite != 'shell-footer' && inputs.suite != 'shell-appearance' && inputs.suite != 'shell-ui' && inputs.suite != 'shell-gallery' && inputs.suite != 'shell-regressions' && inputs.suite != 'capacity-footer' && inputs.suite != 'capacity-scan' && inputs.suite != 'capacity-flows' && inputs.suite != 'capacity-retry' && inputs.suite != 'capacity-unavailable' && inputs.suite != 'capacity-gallery' && inputs.suite != 'capacity-cleanup' && inputs.suite != 'capacity-regressions' && inputs.suite != 'capacity-overview' && inputs.suite != 'capacity-manual' && inputs.suite != 'capacity-states' && inputs.suite != 'capacity' && inputs.suite != 'selection' && inputs.suite != 'selection-scroll' && inputs.suite != 'scope' && inputs.suite != 'exclusions' && inputs.suite != 'repair' && inputs.suite != 'handoff' && inputs.suite != 'history' && inputs.suite != 'local-records' && inputs.suite != 'local-records-context' && inputs.suite != 'local-records-context-initial' && inputs.suite != 'local-records-diagnostics' && inputs.suite != 'local-records-diagnostics-initial' && inputs.suite != 'local-records-gallery' && inputs.suite != 'local-records-diagnostics-regressions' && inputs.suite != 'local-records-regressions' && inputs.suite != 'tools' && inputs.suite != 'pip' && inputs.suite != 'homebrew' && inputs.suite != 'keyboard' && inputs.suite != 'overview' && inputs.suite != 'overview-main' && inputs.suite != 'downloads' && inputs.suite != 'downloads-journey')
         run: xcrun swift test --package-path Still/Packages/StorageAlerts
       - name: Verify isolated disposable adapter investigations
         if: github.event_name != 'workflow_dispatch' || (inputs.suite != 'storage-alerts-gallery' && inputs.suite != 'storage-alerts-settings' && inputs.suite != 'release-archives' && inputs.suite != 'growth-history-final' && inputs.suite != 'growth-final' && inputs.suite != 'growth-regressions' && inputs.suite != 'growth-gallery' && inputs.suite != 'growth-outcomes' && inputs.suite != 'growth-availability' && inputs.suite != 'growth-historical' && inputs.suite != 'growth-review' && inputs.suite != 'growth-locations' && inputs.suite != 'growth-first' && inputs.suite != 'shell' && inputs.suite != 'history-activity-availability' && inputs.suite != 'history-activity-recheck' && inputs.suite != 'history-activity-clear' && inputs.suite != 'history-activity-growth' && inputs.suite != 'history-activity-coverage' && inputs.suite != 'history-activity-review' && inputs.suite != 'history-activity-context' && inputs.suite != 'history-activity-grouped' && inputs.suite != 'history-activity-first' && inputs.suite != 'history-activity' && inputs.suite != 'history-activity-gallery' && inputs.suite != 'shell-history' && inputs.suite != 'shell-reset' && inputs.suite != 'shell-retry' && inputs.suite != 'shell-final-flows' && inputs.suite != 'shell-appearance-states' && inputs.suite != 'shell-footer' && inputs.suite != 'shell-appearance' && inputs.suite != 'shell-ui' && inputs.suite != 'shell-gallery' && inputs.suite != 'shell-regressions' && inputs.suite != 'capacity-footer' && inputs.suite != 'capacity-scan' && inputs.suite != 'capacity-flows' && inputs.suite != 'capacity-retry' && inputs.suite != 'capacity-unavailable' && inputs.suite != 'capacity-gallery' && inputs.suite != 'capacity-cleanup' && inputs.suite != 'capacity-regressions' && inputs.suite != 'capacity-overview' && inputs.suite != 'capacity-manual' && inputs.suite != 'capacity-states' && inputs.suite != 'capacity' && inputs.suite != 'selection' && inputs.suite != 'selection-scroll' && inputs.suite != 'scope' && inputs.suite != 'exclusions' && inputs.suite != 'repair' && inputs.suite != 'handoff' && inputs.suite != 'history' && inputs.suite != 'local-records' && inputs.suite != 'local-records-context' && inputs.suite != 'local-records-context-initial' && inputs.suite != 'local-records-diagnostics' && inputs.suite != 'local-records-diagnostics-initial' && inputs.suite != 'local-records-gallery' && inputs.suite != 'local-records-diagnostics-regressions' && inputs.suite != 'local-records-regressions' && inputs.suite != 'tools' && inputs.suite != 'pip' && inputs.suite != 'homebrew' && inputs.suite != 'keyboard' && inputs.suite != 'alerts' && inputs.suite != 'alert-open' && inputs.suite != 'overview' && inputs.suite != 'overview-main' && inputs.suite != 'downloads' && inputs.suite != 'downloads-journey')
@@ -152,6 +160,18 @@ jobs:
             scope=(-only-testing:StillUITests/StorageAlertsUITests/testAlertInvalidGalleryAtInitialSize -only-testing:StillUITests/StorageAlertsUITests/testAlertInvalidGalleryAtMinimumSize)
           elif [[ "$EVENT_NAME" == "workflow_dispatch" && "$REQUESTED_SUITE" == "storage-alerts-settings" ]]; then
             scope=(-only-testing:StillUITests/StorageAlertsUITests/testAlertSettingsAtInitialSize -only-testing:StillUITests/StorageAlertsUITests/testAlertSettingsAtMinimumSize)
+          elif [[ "$EVENT_NAME" == "workflow_dispatch" && "$REQUESTED_SUITE" == "chrome-cleanup-chrome-only" ]]; then
+            scope=(-only-testing:StillUITests/ChromeCleanupUITests/testChromeOnlyCleanupShowsPermanentResultsWithoutTrashOutcome)
+          elif [[ "$EVENT_NAME" == "workflow_dispatch" && "$REQUESTED_SUITE" == "chrome-cleanup-gallery" ]]; then
+            scope=(-only-testing:StillUITests/ChromeCleanupUITests/testChromeGalleryExamplesAtInitialAndMinimumSizes)
+          elif [[ "$EVENT_NAME" == "workflow_dispatch" && "$REQUESTED_SUITE" == "chrome-cleanup-presentation" ]]; then
+            scope=(-only-testing:StillUITests/ChromeCleanupUITests/testChromeSelectionCancelAndPermanentCleanupPreservePersonalData -only-testing:StillUITests/ChromeCleanupUITests/testMinimumChromeSelectionCancelAndPermanentCleanupPreservePersonalData -only-testing:StillUITests/ChromeCleanupUITests/testChromeOnlyCleanupShowsPermanentResultsWithoutTrashOutcome)
+          elif [[ "$EVENT_NAME" == "workflow_dispatch" && "$REQUESTED_SUITE" == "chrome-cleanup-feedback" ]]; then
+            scope=(-only-testing:StillUITests/ChromeCleanupUITests/testHistoryReportsChromeClearWhenDownloadsJournalLaterFails -only-testing:StillUITests/ChromeCleanupUITests/testResetIdentifiesChromePreferenceFailureBeforeAppearanceChanges)
+          elif [[ "$EVENT_NAME" == "workflow_dispatch" && "$REQUESTED_SUITE" == "chrome-cleanup-cancel" ]]; then
+            scope=(-only-testing:StillUITests/ChromeCleanupUITests/testStoppingDownloadsPreventsStartingChrome)
+          elif [[ "$EVENT_NAME" == "workflow_dispatch" && "$REQUESTED_SUITE" == "chrome-cleanup" ]]; then
+            scope=(-only-testing:StillUITests/ChromeCleanupUITests -only-testing:StillUITests/WorkspaceUITests/testConnectedDownloadsJourneyPreservesContextAndConsumesPlan -only-testing:StillUITests/WorkspaceUITests/testMinimumConnectedDownloadsJourneyPreservesContextAndConsumesPlan)
           elif [[ "$EVENT_NAME" == "workflow_dispatch" && "$REQUESTED_SUITE" == "release-archives" ]]; then
             scope=(-only-testing:StillUITests/WorkspaceUITests/testReleaseArchiveGuidanceAtInitialSize -only-testing:StillUITests/WorkspaceUITests/testReleaseArchiveGuidanceAtMinimumSize)
           elif [[ "$EVENT_NAME" == "workflow_dispatch" && "$REQUESTED_SUITE" == "growth-history-final" ]]; then
@@ -697,4 +717,62 @@ jobs:
         with:
           name: stable-chrome-final-evidence
           path: ${{ runner.temp }}/chrome-stable-final/evidence/
+          if-no-files-found: error
+
+  chrome-swift-qualification:
+    if: github.event_name == 'workflow_dispatch' && (inputs.suite == 'chrome-cleanup' || inputs.suite == 'chrome-swift-only')
+    runs-on: macos-26
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: '26.6'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Build actual Swift cache module and qualify public fixture behavior
+        run: |
+          xcrun swift test --package-path Packages/StillCore --filter ChromeCache
+          xcrun swift build --package-path Validation/ChromeCleanupRunner
+          node --check Validation/ChromeProbe/genuine.mjs
+          node --check Validation/ChromeProbe/headed.mjs
+      - name: Extract and verify regular vendor Stable without installing
+        run: python3 Validation/ChromeProbe/provision-stable.py "$RUNNER_TEMP/chrome-swift"
+      - name: Genuine Stable protected semantics through production Swift cleanup
+        env:
+          STILL_CHROME_STABLE_PROBE: '1'
+        run: |
+          export STILL_CHROME_SWIFT_RUNNER="$GITHUB_WORKSPACE/Validation/ChromeCleanupRunner/.build/debug/ChromeCleanupRunner"
+          export STILL_CHROME_SWIFT_PROVISION="$RUNNER_TEMP/chrome-swift/evidence/provision.json"
+          BROWSER=$(python3 -c 'import json,os; print(json.load(open(os.environ["STILL_CHROME_SWIFT_PROVISION"]))["bundle"]+"/Contents/MacOS/Google Chrome")')
+          node Validation/ChromeProbe/genuine.mjs "$BROWSER" "$RUNNER_TEMP/chrome-swift/evidence/report.json"
+          node Validation/ChromeProbe/headed.mjs "$STILL_CHROME_SWIFT_PROVISION" "$RUNNER_TEMP/chrome-swift/evidence/headed.json"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: chrome-swift-evidence
+          path: ${{ runner.temp }}/chrome-swift/evidence/
+          if-no-files-found: error
+
+  chrome-native-process:
+    if: github.event_name == 'workflow_dispatch' && inputs.suite == 'chrome-native-process-only'
+    runs-on: macos-26
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: '26.6'
+      - name: Observe only the controlled exited child at the public native process boundary
+        env:
+          STILL_CHROME_PROCESS_PROBE: '1'
+        run: |
+          set -o pipefail
+          xcrun swift test --package-path Packages/StillCore --filter chromeNativeUnreapedExitedChildIsNotBrowserActivity 2>&1 | tee "$RUNNER_TEMP/chrome-native-process.log"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: chrome-native-process-evidence
+          path: ${{ runner.temp }}/chrome-native-process.log
           if-no-files-found: error

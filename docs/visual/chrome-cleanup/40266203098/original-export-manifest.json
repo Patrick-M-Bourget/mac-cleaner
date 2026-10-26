@@ -1,0 +1,17 @@
+[
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "7e8c4737b30064bd94bae953ffc67d94f6987002",
+        "deviceName" : "My Mac",
+        "exportedFileName" : "59ECBDCC-E688-4EAE-9E82-15AF560FA57D.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "chrome-cancelled-results_0_4BB9BC36-0461-4829-8714-9F73736CF6FF.png",
+        "timestamp" : 1792986992.412
+      }
+    ],
+    "testIdentifier" : "ChromeCleanupUITests/testStoppingDownloadsPreventsStartingChrome()",
+    "testIdentifierURL" : "test://com.apple.xcode/Still/StillUITests/ChromeCleanupUITests/testStoppingDownloadsPreventsStartingChrome"
+  }
+]

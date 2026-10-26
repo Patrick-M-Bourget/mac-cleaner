@@ -88,6 +88,8 @@ enum Destination: String, CaseIterable, Identifiable {
 /// Window restoration within this process never restores cleanup authority after Quit.
 @MainActor @Observable final class WorkspaceNavigation {
     var destination = Destination.overview
+    var browserReviewVisible = false
+    var browserReviewCaller = Destination.overview
     var configureAlertsOnEntry = true
     var explorerVisible = false
     var explorerCaller = Destination.overview
@@ -170,14 +172,16 @@ private struct WorkspaceView: View {
         false
         #endif
     }
-    private var showsPlan: Bool { destination == .plan && !navigationState.localRecordsVisible && !recoveryVisible && !inspecting && !nativeInspectionVisible && !homebrewVisible && !pipVisible && !dockerVisible && !managedStorageVisible && !diagnosticsVisible && !exclusionsVisible }
+    private var showsPlan: Bool { destination == .plan && !navigationState.browserReviewVisible && !navigationState.localRecordsVisible && !recoveryVisible && !inspecting && !nativeInspectionVisible && !homebrewVisible && !pipVisible && !dockerVisible && !managedStorageVisible && !diagnosticsVisible && !exclusionsVisible }
     private var inspectionVisible: Bool { inspecting || nativeInspectionVisible }
     private var contextLabel: String {
+        if selection.chrome.isRunning { return "Clearing approved Chrome caches" }
         if selection.execution.isRunning { return "Moving approved files to Trash" }
+        if selection.workspaceRunning { return "Running approved cleanup" }
         if navigationState.localRecordsVisible && !recoveryVisible { return "Local records · Explicit maintenance only" }
         if diagnosticsVisible { return "Redacted diagnostics · Explicit local Save" }
         if recoveryVisible { return "Recovery review · Recorded facts only" }
-        if selection.execution.result != nil && showsPlan { return "Cleanup results · individual outcomes" }
+        if selection.hasWorkspaceResult && showsPlan { return "Cleanup results · individual outcomes" }
         if nativeInspectionVisible || inspecting { return "Read-only storage inspection" }
         if managedStorageVisible { return "App-managed inventory · selected objects only" }
         if homebrewVisible { return "Read-only Homebrew inventory" }
@@ -231,7 +235,7 @@ private struct WorkspaceView: View {
                 if nativeInspectionVisible {
                     StorageExplorerView(model: folderInspection, selection: selection, context: explorerContext,
                         backTitle: "Back to " + explorerCaller.rawValue, back: { nativeInspectionVisible = false; destination = explorerCaller })
-                    ActionStrip(message: "\(StillDesign.files(selection.draft.selectedCount)) selected · Nothing changes before confirmation.") {
+                    ActionStrip(message: "\(StillDesign.files(selection.draft.selectedCount)) · \(selection.chrome.selectedCount) Chrome groups selected · Nothing changes before confirmation.") {
                         Button("View cleanup plan") {
                             nativeInspectionVisible = false
                             planReturnsToExplorer = explorerCaller != .plan
@@ -245,11 +249,13 @@ private struct WorkspaceView: View {
                         reviewRecovery: { openRecovery(caller: .plan) },
                         backToExplorer: navigationState.planReturnsToGrowth ? { navigationState.planReturnsToGrowth = false; destination = .growth } : planReturnsToExplorer ? { nativeInspectionVisible = true; planReturnsToExplorer = false } : nil,
                         backToExplorerTitle: navigationState.planReturnsToGrowth ? "Back to What grew" : "Back to Explorer",
-                        manageLocations: { destination = .locations }, scopeMessage: locationsModel.message ?? folderInspection.message, presentation: planPresentation)
+                        manageLocations: { destination = .locations }, reviewBrowsers: { openBrowserReview(caller: .plan) }, scopeMessage: locationsModel.message ?? folderInspection.message, presentation: planPresentation)
                 } else {
                 ScrollView {
                     VStack(alignment: .leading, spacing: StillDesign.Space.xl) {
-                        if recoveryVisible {
+                        if navigationState.browserReviewVisible {
+                            BrowserReviewView(model: selection.chrome)
+                        } else if recoveryVisible {
                             CleanupRecoveryView(model: recovery)
                         } else if navigationState.localRecordsVisible {
                             LocalRecordsView(model: navigationState.historyModel, showRecovery: { openRecovery(caller: navigationState.localRecordsCaller) }, didReset: didResetLocalRecords,
@@ -303,7 +309,12 @@ private struct WorkspaceView: View {
                 }.id(recoveryVisible ? "recovery" : diagnosticsVisible ? "diagnostics" : navigationState.localRecordsVisible ? "local-records" : destination.rawValue)
 
                 Group {
-                    if exclusionsVisible {
+                    if navigationState.browserReviewVisible {
+                        ActionStrip(message: "\(selection.chrome.selectedCount) Chrome cache groups selected · No changes before confirmation.") {
+                            Button("Back to " + navigationState.browserReviewCaller.rawValue) { navigationState.browserReviewVisible = false; destination = navigationState.browserReviewCaller }
+                            Button("View cleanup plan") { navigationState.browserReviewVisible = false; destination = .plan }.buttonStyle(.borderedProminent)
+                        }
+                    } else if exclusionsVisible {
                         ActionStrip(message: "Custom rules change scan coverage; original files stay unchanged.") {
                             Button("Back to Locations & access") { exclusionsVisible = false; destination = .locations }.disabled(ExclusionsModel.shared.editingBlocked)
                             if ExclusionsModel.shared.preview != nil {
@@ -369,8 +380,8 @@ private struct WorkspaceView: View {
                         if folderInspection.isScanning {
                             ActionStrip(message: "Manual scan running · No cleanup is running") { EmptyView() }
                         } else {
-                        ActionStrip(message: "\(StillDesign.files(selection.draft.selectedCount)) selected · Nothing changes before confirmation.") {
-                            Button("Review cleanup plan") { destination = .plan }.buttonStyle(.borderedProminent).disabled(selection.scans.isEmpty && selection.draft.selectedCount == 0)
+                        ActionStrip(message: "\(StillDesign.files(selection.draft.selectedCount)) · \(selection.chrome.selectedCount) Chrome groups selected · Nothing changes before confirmation.") {
+                            Button("Review cleanup plan") { destination = .plan }.buttonStyle(.borderedProminent).disabled(selection.scans.isEmpty && !selection.hasPendingChoices)
                         }
                         }
                     } else if showsPlan {
@@ -381,6 +392,9 @@ private struct WorkspaceView: View {
             }.frame(maxWidth: .infinity, maxHeight: .infinity)
                 .background(StillDesign.reading)
         }
+        .onChange(of: selection.chrome.isBusy) { previous, current in if previous && !current { capacity.request(.scanEnded) } }
+        .onChange(of: selection.chrome.selectionRevision) { _, _ in AppLifecycleController.shared.hasPendingPlan = selection.hasPendingChoices }
+        .onChange(of: selection.mutationVersion) { _, _ in AppLifecycleController.shared.hasPendingPlan = selection.hasPendingChoices }
         .task {
             #if DEBUG
             if !injectedAlertOpen, LocalStateLocation.isDisposableTest, StorageAlertsController.futureEnabled,
@@ -446,13 +460,14 @@ private struct WorkspaceView: View {
 
     private func navigate(_ value: Destination, configureAlerts: Bool = true) {
         navigationState.routeGeneration = UUID()
+        navigationState.browserReviewVisible = false
         if navigationState.growthFromHistory { GrowthHistoryModel.shared.endHistoricalRequest() }
         navigationState.growthFromHistory = false
         navigationState.planReturnsToGrowth = false
         navigationState.configureAlertsOnEntry = configureAlerts
         destination = value
         planReturnsToExplorer = false
-        if value == .plan && selection.execution.result != nil { startNewPlan() }
+        if value == .plan && selection.hasWorkspaceResult { startNewPlan() }
         navigationState.localRecordsVisible = false
         diagnosticsVisible = false; exclusionsVisible = false
         recoveryVisible = false; navigationState.recoveryCaller = .overview; inspecting = false; nativeInspectionVisible = false; homebrewVisible = false
@@ -564,7 +579,7 @@ private struct WorkspaceView: View {
                     Divider().padding(.horizontal, StillDesign.Space.lg)
                     overviewDownloadsRow
                     Divider().padding(.horizontal, StillDesign.Space.lg)
-                    StorageReviewRow(category: .browser, title: "Browser caches", detail: "Browser cleanup isn’t available yet; manage caches in your browser.", value: "Not inspected", meaning: "Unavailable")
+                    StorageReviewRow(category: .browser, title: "Browser caches", detail: "Permanently clear qualified Chrome asset caches. Keep logins and history.", value: selection.chrome.availableBytes.map(overviewBytes) ?? (selection.chrome.inspection == nil ? "Not inspected" : "Unknown"), meaning: selection.chrome.inspection == nil ? "Explicit inspection required" : selection.chrome.statusText, actionTitle: "Review browser caches", action: { openBrowserReview(caller: .overview) }, identifier: "overviewBrowserFinding")
                 }
                 Text("Moving files to Trash won’t free space until you empty it.").font(.caption).foregroundStyle(.secondary)
             }
@@ -719,6 +734,11 @@ private struct WorkspaceView: View {
         explorerContext.allowedScopes = Set(locationsModel.included.map { URL(fileURLWithPath: $0.path).standardizedFileURL })
         explorerContext.downloadsScopes = Set(locationsModel.includedDownloads.map { URL(fileURLWithPath: $0.path).standardizedFileURL })
         explorerCaller = caller; nativeInspectionVisible = true; planReturnsToExplorer = false
+    }
+    private func openBrowserReview(caller: Destination) {
+        navigationState.browserReviewCaller = caller
+        navigate(caller)
+        navigationState.browserReviewVisible = true
     }
     private func startNewPlan() {
         planPresentation.reset(); selection.startNewPlan(); planReturnsToExplorer = false; nativeInspectionVisible = false; destination = .plan

@@ -1,0 +1,308 @@
+{
+  "productionSwiftAdapter": true,
+  "schema": 1,
+  "sealedBundleVerified": true,
+  "signatureVerification": {
+    "bundle": {
+      "status": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    "executable": {
+      "status": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    "framework": {
+      "status": 0,
+      "stdout": "",
+      "stderr": ""
+    }
+  },
+  "browserVersion": "Google Chrome 156.0.8078.48",
+  "executableSHA256": "4f71e9dbe725fec1110977b6a6dd0708fb32fbde9c905b4b461cef880ac08288",
+  "node": "v22.23.3",
+  "githubSHA": "23e22197d7fb812e84587ce2c38905ea7c3b4cc5",
+  "githubRunID": "40264317079",
+  "os": "25.6.0",
+  "architecture": "arm64",
+  "sourceURL": "https://dl.google.com/chrome/mac/stable/accept_tos%3Dhttps%253A%252F%252Fwww.google.com%252Fintl%252Fen_ph%252Fchrome%252Fterms%252F%26_and_accept_tos%3Dhttps%253A%252F%252Fpolicies.google.com%252Fterms/googlechrome.pkg",
+  "profiles": [
+    {
+      "profile": "Default",
+      "configuredRoot": "owned/custom/configured-user-data",
+      "cacheGroup": "Default/Cache/Cache_Data",
+      "observedOwnedProcesses": [
+        {
+          "type": "browser"
+        },
+        {
+          "type": "renderer"
+        },
+        {
+          "type": "renderer"
+        },
+        {
+          "type": "renderer"
+        },
+        {
+          "type": "renderer"
+        },
+        {
+          "type": "renderer"
+        },
+        {
+          "type": "renderer"
+        },
+        {
+          "type": "GPU"
+        },
+        {
+          "type": "network.mojom.NetworkService"
+        },
+        {
+          "type": "storage.mojom.StorageService"
+        }
+      ],
+      "protocolVersion": {
+        "protocolVersion": "1.3",
+        "product": "Chrome/156.0.8078.48",
+        "revision": "@d0c02bfad08ec92a6ffcf989e53cd995e6381a4c",
+        "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/156.0.0.0 Safari/537.36",
+        "jsVersion": "15.6.75.19"
+      },
+      "activeRefusal": true,
+      "generated": {
+        "leafCount": 5
+      },
+      "reopenRefusal": true,
+      "secondSessionTabCompleteBeforeClose": true,
+      "preCleanupNavigationHistoryCreated": true,
+      "removed": {
+        "coreRun": {
+          "approvedAt": 814678331.1079,
+          "groups": [
+            {
+              "profileIdentifier": "Default",
+              "removedBytes": 529106,
+              "removedFiles": 5,
+              "status": "succeeded"
+            }
+          ],
+          "id": "C5FCC7BF-A955-475A-BD53-47678593E5FC",
+          "observedAt": 814678331.109437,
+          "unresolved": false
+        },
+        "productionSwiftAdapter": true,
+        "reason": "",
+        "removed": 5,
+        "status": "completed"
+      },
+      "downloadedFilePreserved": true,
+      "protectedFileNames": [
+        "Cookies",
+        "History",
+        "Login Data",
+        "Web Data",
+        "Preferences"
+      ],
+      "protectedBytesUnchangedDuringRemoval": true,
+      "restoredSessionObservation": {
+        "requested": true,
+        "restoredFixtureTabs": 2,
+        "expectedFixtureTabs": 2,
+        "persistedBackTraversal": true,
+        "status": "restored-and-back-traversed"
+      },
+      "httpOnlyAuthenticatedWebsiteSessionPreserved": true,
+      "serviceWorkerOfflineNavigationPreserved": true,
+      "regenerated": {
+        "leafCount": 5
+      },
+      "relaunchProtectedStatePassed": true
+    },
+    {
+      "profile": "Profile 1",
+      "configuredRoot": "owned/custom/configured-user-data",
+      "cacheGroup": "Profile 1/Cache/Cache_Data",
+      "observedOwnedProcesses": [
+        {
+          "type": "browser"
+        },
+        {
+          "type": "renderer"
+        },
+        {
+          "type": "renderer"
+        },
+        {
+          "type": "renderer"
+        },
+        {
+          "type": "renderer"
+        },
+        {
+          "type": "renderer"
+        },
+        {
+          "type": "renderer"
+        },
+        {
+          "type": "GPU"
+        },
+        {
+          "type": "network.mojom.NetworkService"
+        },
+        {
+          "type": "storage.mojom.StorageService"
+        }
+      ],
+      "protocolVersion": {
+        "protocolVersion": "1.3",
+        "product": "Chrome/156.0.8078.48",
+        "revision": "@d0c02bfad08ec92a6ffcf989e53cd995e6381a4c",
+        "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/156.0.0.0 Safari/537.36",
+        "jsVersion": "15.6.75.19"
+      },
+      "activeRefusal": true,
+      "generated": {
+        "leafCount": 5
+      },
+      "reopenRefusal": true,
+      "secondSessionTabCompleteBeforeClose": true,
+      "preCleanupNavigationHistoryCreated": true,
+      "removed": {
+        "coreRun": {
+          "approvedAt": 814678385.791243,
+          "groups": [
+            {
+              "profileIdentifier": "Profile 1",
+              "removedBytes": 529106,
+              "removedFiles": 5,
+              "status": "succeeded"
+            }
+          ],
+          "id": "2B32F562-1FB0-43A2-9282-19D1D272DDA9",
+          "observedAt": 814678385.791611,
+          "unresolved": false
+        },
+        "productionSwiftAdapter": true,
+        "reason": "",
+        "removed": 5,
+        "status": "completed"
+      },
+      "downloadedFilePreserved": true,
+      "protectedFileNames": [
+        "Cookies",
+        "History",
+        "Login Data",
+        "Web Data",
+        "Preferences"
+      ],
+      "protectedBytesUnchangedDuringRemoval": true,
+      "restoredSessionObservation": {
+        "requested": true,
+        "restoredFixtureTabs": 2,
+        "expectedFixtureTabs": 2,
+        "persistedBackTraversal": true,
+        "status": "restored-and-back-traversed"
+      },
+      "httpOnlyAuthenticatedWebsiteSessionPreserved": true,
+      "serviceWorkerOfflineNavigationPreserved": true,
+      "regenerated": {
+        "leafCount": 5
+      },
+      "relaunchProtectedStatePassed": true
+    }
+  ],
+  "productionMutationSupported": false,
+  "limitations": [
+    "Native observations are not a lease: residual reopen/write/final-name-operation races accepted for bounded cache-only model",
+    "No saved password/autofill or download-history UI qualification; restored-tab/history result reported separately; offline navigation starts from online-controlled page",
+    "No enterprise policy, shared cache, minimum OS or Intel qualification",
+    "Background-network flags are not a network trace; no network absence claim"
+  ],
+  "lastSwiftFailure": {
+    "activityDiagnostic": [
+      {
+        "executableBasename": "Google Chrome Helper (Renderer)",
+        "parentPID": 16536,
+        "pid": 16672,
+        "selectedBundle": true,
+        "status": 2,
+        "uid": 501
+      },
+      {
+        "executableBasename": "Google Chrome Helper (Renderer)",
+        "parentPID": 16536,
+        "pid": 16639,
+        "selectedBundle": true,
+        "status": 2,
+        "uid": 501
+      },
+      {
+        "executableBasename": "Google Chrome Helper (Renderer)",
+        "parentPID": 16536,
+        "pid": 16637,
+        "selectedBundle": true,
+        "status": 2,
+        "uid": 501
+      },
+      {
+        "executableBasename": "Google Chrome Helper (Renderer)",
+        "parentPID": 16536,
+        "pid": 16631,
+        "selectedBundle": true,
+        "status": 2,
+        "uid": 501
+      },
+      {
+        "executableBasename": "Google Chrome Helper",
+        "parentPID": 16536,
+        "pid": 16588,
+        "selectedBundle": true,
+        "status": 2,
+        "uid": 501
+      },
+      {
+        "executableBasename": "Google Chrome Helper",
+        "parentPID": 16536,
+        "pid": 16576,
+        "selectedBundle": true,
+        "status": 2,
+        "uid": 501
+      },
+      {
+        "executableBasename": "Google Chrome Helper",
+        "parentPID": 16536,
+        "pid": 16574,
+        "selectedBundle": true,
+        "status": 2,
+        "uid": 501
+      },
+      {
+        "executableBasename": "chrome_crashpad_handler",
+        "parentPID": 1,
+        "pid": 16553,
+        "selectedBundle": true,
+        "status": 2,
+        "uid": 501
+      },
+      {
+        "executableBasename": "Google Chrome",
+        "parentPID": 13255,
+        "pid": 16536,
+        "selectedBundle": true,
+        "status": 2,
+        "uid": 501
+      }
+    ],
+    "activityDiagnosticScope": "verified bundle only; an empty result is not evidence of inactivity",
+    "productionSwiftAdapter": true,
+    "reason": "Quit Chrome and its helpers, then check again.",
+    "removed": 0,
+    "status": "stopped"
+  },
+  "postRunVendorSignatureVerified": true,
+  "passed": true
+}

@@ -88,12 +88,13 @@ struct SelectionSummary: View {
     let detail: String
     var identifier = ""
     var consequence: String? = nil
+    var title = "Selected for Trash"
     var body: some View {
         VStack(alignment: .leading, spacing: StillDesign.Space.md) {
         SummarySurface {
             HStack(alignment: .center) {
                 VStack(alignment: .leading, spacing: StillDesign.Space.sm) {
-                    Text("Selected for Trash").font(.caption).foregroundStyle(.secondary)
+                    Text(title).font(.caption).foregroundStyle(.secondary)
                     Text(value).font(StillDesign.TypeStyle.value).monospacedDigit()
                 }
                 Spacer(minLength: StillDesign.Space.lg)
@@ -400,7 +401,7 @@ struct CategorySelectionHeader: View {
     let action: () -> Void
     var body: some View {
         HStack(alignment: .top, spacing: StillDesign.Space.md) {
-            MacroCategoryCheckbox(state: state, label: title, enabled: enabled, action: action, showsTitle: false)
+            MacroCategoryCheckbox(state: state, label: title, enabled: enabled, action: action, identifier: category == .downloads ? "downloadsCategorySelection" : "\(category)-CategorySelection", showsTitle: false)
                 .fixedSize().padding(.top, StillDesign.Space.sm)
             CategoryBadge(category: category)
             VStack(alignment: .leading, spacing: StillDesign.Space.xs) {

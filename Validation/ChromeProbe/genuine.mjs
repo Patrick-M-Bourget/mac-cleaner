@@ -7,6 +7,7 @@ import { tmpdir, release, arch } from 'node:os';
 import { join, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import assert from 'node:assert/strict';
+import {crashpadBaseline,captureOwnedCrashpad,closeOwnedCrashpad} from './owned-crashpad.mjs';
 
 // Hosted-only: no installed browser, personal profile, OS settings or permissions.
 assert.equal(process.env.GITHUB_ACTIONS, 'true', 'Run on an ephemeral GitHub-hosted macOS runner only');
@@ -88,7 +89,7 @@ const server = createServer((req, res) => {
 await new Promise(r => server.listen(0, '127.0.0.1', r));
 const origin = `http://127.0.0.1:${server.address().port}`;
 const sleep = ms => new Promise(r => setTimeout(r, ms));
-const report = { schema: 1, sealedBundleVerified: provisioning.sealedBundleVerified, signatureVerification: provisioning.signatureVerification, nativeCodeSignatureObservations: provisioning.nativeCodeSignatureObservations, browserVersion: version, executableSHA256: digest(await readFile(browser)), node: process.version, githubSHA: process.env.GITHUB_SHA, githubRunID: process.env.GITHUB_RUN_ID, os: release(), architecture: arch(), sourceURL: provisioning.sourceURL, profiles: [], productionMutationSupported: false, limitations: ['No production inactivity or reopen-race closure', 'No saved password/autofill or download-history UI qualification; restored-tab/history result reported separately; offline navigation starts from online-controlled page', 'No enterprise policy, shared cache, minimum OS or Intel qualification', 'Background-network flags are not a network trace; no network absence claim'] };
+const report = { productionSwiftAdapter: !!process.env.STILL_CHROME_SWIFT_RUNNER, schema: 1, sealedBundleVerified: provisioning.sealedBundleVerified, signatureVerification: provisioning.signatureVerification, nativeCodeSignatureObservations: provisioning.nativeCodeSignatureObservations, browserVersion: version, executableSHA256: digest(await readFile(browser)), node: process.version, githubSHA: process.env.GITHUB_SHA, githubRunID: process.env.GITHUB_RUN_ID, os: release(), architecture: arch(), sourceURL: provisioning.sourceURL, profiles: [], productionMutationSupported: false, limitations: ['No production inactivity or reopen-race closure', 'No saved password/autofill or download-history UI qualification; restored-tab/history result reported separately; offline navigation starts from online-controlled page', 'No enterprise policy, shared cache, minimum OS or Intel qualification', 'Background-network flags are not a network trace; no network absence claim'] };
 let owned;
 class CDP {
   constructor(ws) {
@@ -115,7 +116,8 @@ async function launch(profile, restore = false) {
   await unlink(portFile).catch(e => { if (e.code !== 'ENOENT') throw e; });
   const args = ['--enable-automation', '--headless=new', '--no-first-run', '--no-default-browser-check', '--disable-background-networking', '--disable-component-update', '--disable-sync', '--disable-extensions', '--disable-default-apps', '--metrics-recording-only', '--password-store=basic', '--use-mock-keychain', '--remote-debugging-address=127.0.0.1', '--remote-debugging-port=0', `--user-data-dir=${userData}`, `--profile-directory=${profile}`, 'about:blank'];
   if (restore) args.splice(-1, 0, '--restore-last-session');
-  const child = spawn(browser, args, { detached: true, stdio: ['ignore', 'ignore', 'pipe'] });
+  const priorCrashpad = process.env.STILL_CHROME_SWIFT_RUNNER ? crashpadBaseline(bundle) : null;
+  const child = spawn(browser, args, { detached: true, stdio: ['ignore', 'ignore', 'pipe'], env: process.env.STILL_CHROME_SWIFT_RUNNER ? {...process.env,BREAKPAD_DUMP_LOCATION:join(userData,'Crashpad')} : process.env });
   owned = { child, pid: child.pid, stderr: '' };
   child.stderr.on('data', b => { owned && (owned.stderr = (owned.stderr + b.toString()).slice(-8000)); });
   let endpoint;
@@ -128,6 +130,12 @@ async function launch(profile, restore = false) {
   const ws = new WebSocket(endpoint);
   await new Promise((resolve, reject) => { ws.addEventListener('open', resolve, { once: true }); ws.addEventListener('error', reject, { once: true }); });
   const cdp = new CDP(ws);
+  if (priorCrashpad) {
+    owned.crashpadOwnership = await captureOwnedCrashpad(bundle,userData,priorCrashpad);
+    assert(owned.crashpadOwnership.captured.length>0,'Expected an observed helper with exact synthetic crash database');
+    (report.fixtureHelperCapture??=[]).push({profile,capturedCount:owned.crashpadOwnership.captured.length});
+    report.fixtureCrashDatabaseContainment={environment:'BREAKPAD_DUMP_LOCATION',database:'owned/user-data/Crashpad',sourceRevision:'d0c02bfad08ec92a6ffcf989e53cd995e6381a4c',productionBehaviorClaim:false};
+  }
   if (restore) {
     let targets = [];
     for (let i = 0; i < 50; i++) {
@@ -189,6 +197,10 @@ async function closeOwned() {
   try { process.kill(-current.pid, 0); } catch (e) { if (e.code === 'ESRCH') groupExists = false; else throw e; }
   if (groupExists) { process.kill(-current.pid, 'SIGTERM'); await sleep(1000); }
   try { process.kill(-current.pid, 0); throw new Error('Owned browser/helper group remains active'); } catch (e) { if (e.code !== 'ESRCH') throw e; }
+  if (current.crashpadOwnership) {
+    const outcomes = await closeOwnedCrashpad(current.crashpadOwnership);
+    (report.fixtureHelperTeardown ??= []).push(...outcomes);
+  }
   current.ws?.close(); owned = undefined;
 }
 async function leaves(directory) {
@@ -202,6 +214,19 @@ async function leaves(directory) {
   return result;
 }
 async function clearCache(cache) {
+  if (process.env.STILL_CHROME_SWIFT_RUNNER) {
+    assert(stable, 'Swift qualification requires actual Stable');
+    const profile = cache.slice(userData.length + 1).split('/')[0];
+    const args = ['--root', root, '--data', userData, '--bundle', bundle, '--profile', profile,
+      '--journal', join(root, 'swift-journal-' + profile.replaceAll(' ', '-') + '.json')];
+    try { return JSON.parse(execFileSync(process.env.STILL_CHROME_SWIFT_RUNNER, args, {encoding:'utf8', timeout:60000})); }
+    catch (error) {
+      const observed = JSON.parse(error.stdout?.toString() || '{}');
+      report.lastSwiftFailure = observed;
+      if (observed.reason?.includes('Quit Chrome')) throw new Error('browser or helper activity observed: ' + observed.reason);
+      throw new Error(observed.reason || String(error));
+    }
+  }
   if (stable) {
     const args = [join(dirname(fileURLToPath(import.meta.url)), 'cache-group.py'), root, cache, bundle];
     const approval = execFileSync('python3', [...args, 'observe'], { encoding: 'utf8', timeout: 15000 });

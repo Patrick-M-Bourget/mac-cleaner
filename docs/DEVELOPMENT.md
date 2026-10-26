@@ -1,10 +1,10 @@
 # Native development
 
-## Current delivery checkpoint — October25,2026
+## Current delivery checkpoint — October 26, 2026
 
-Completed baseline merged into main via PR65. #52 is implemented atfb20196 under WHAT-GREW.md with [bounded qualification](validation/what-grew.md), including strict old/new historical returns,50 accepted original images and synchronized spec/design/parity. PR66 is its delivery vehicle. This supersedes older pending/triage notes below; do not reopen settled decisions or re-run proved checks after docs-only changes. Only #54 needs its own grilling among the remaining parity-flow decisions; other open issues retain their explicitly recorded adapter/platform/personal gates. M8 remains deferred.
+The completed baseline is consolidated in main through PR71; [PR72](https://github.com/Patrick-M-Bourget/mac-cleaner/pull/72) delivers bounded #19 Chrome cleanup. The [qualification report](validation/chrome-cleanup.md) maps the exact production adapter, app journeys, visual originals and limits. Chrome inspection is explicit; only the verified release/layouts can enter permanent cache cleanup. Downloads retain exact-target Trash approval. Historical slice notes below are development history, not the current feature ceiling.
 
-Review build: `/Users/bender/Library/Caches/Codex/mac-cleaner-implementation/artifacts/growth-fb20196/Still.app`, with BUILD.md for the explicit `--future-milestones` launch. Normal launch remains gated/on-demand.
+Review build: `/Users/bender/Library/Caches/Codex/mac-cleaner-implementation/artifacts/Still-ceec55f.app`. The final app presentation is `ceec55f`; no `--future-milestones` flag is needed for qualified Chrome review. Other future features retain their own gates, and M8 signing/commercialization remains deferred.
 
 Native UI implementation follows the mandatory [design system](DESIGN-SYSTEM.md).
 
@@ -218,9 +218,9 @@ The [scrolled-category anchor correction](validation/checkbox-content-anchor.md)
 
 The future-gated pip opportunity route now supports explicit read-only cache inventory using verified Apple Command Line Tools Python 3.9 and its pinned bundled pip 21.2.4 wheel. Arbitrary selected interpreters remain unexecuted; cache/root/coverage and mutation limits are in [pip inventory qualification](validation/pip-inventory.md). This is conditional M3 inventory, not M1 cleanup expansion. Focused live native verification passed and eight original Light/Dark initial/minimum captures were individually reviewed; exact source/run/hash provenance and remaining limits are recorded in that report.
 
-## Genuine Chrome qualification progress
+## Historical genuine Chrome feasibility progress
 
-The [owned-profile experiment](validation/chrome-owned-profiles.md) now records actual Chrome for Testing156.0.8078.47 cache generation/removal/regrowth across two fresh profiles on ephemeral hosted CI, including protected file hashes and cookie/localStorage/IndexedDB/CacheStorage persistence. This is experimental evidence rather than a production cleanup capability: the application version allowlist remains empty. Native helper ownership, reopen/write races, authenticated data/session semantics and supported installed-channel layouts remain gates. No personal browser is launched or inspected by the experiment.
+The [owned-profile experiment](validation/chrome-owned-profiles.md) now records actual Chrome for Testing156.0.8078.47 cache generation/removal/regrowth across two fresh profiles on ephemeral hosted CI, including protected file hashes and cookie/localStorage/IndexedDB/CacheStorage persistence. This is experimental evidence rather than a production cleanup capability: at that checkpoint the application version allowlist remained empty. Native helper ownership, reopen/write races, authenticated data/session semantics and supported installed-channel layouts remain gates. No personal browser is launched or inspected by the experiment.
 
 The [focused native keyboard qualification](validation/native-keyboard.md) records Command navigation, Escape cancellation and restored Review focus with Return/Space on owned disposable data. It does not certify a full keyboard-only workflow or VoiceOver; #35 release gates remain open.
 
@@ -263,4 +263,4 @@ Review build: `/Users/bender/Library/Caches/Codex/mac-cleaner-implementation/art
 
 ## Final Chrome capability checkpoint
 
-Remaining #18 qualification is complete within the [recorded compatibility boundary](validation/chrome-close-clean.md#final-saved-record-evidence-and-18-capability-decision): actual Stable156.0.8078.48/macOS26.6.2 arm64; standard split-root removal/regrowth and native conflict/access checks at8f610f7; genuine headed password fill, saved-address record retention and download history atfa8192d; earlier27c1db6 preserves two-profile site/session/history/offline semantics. #19 can now proceed with the approved browser/profile → shared plan → permanent confirmation/results journey. Production cleanup/allowlist stay disabled until #19 is implemented and qualified. Unknown/shared/managed/redirected layouts remain unavailable; additional compatibility remains future scope. Address form-suggestion acceptance is unqualified; actual saved-record preservation is independently proven. Personal-file/Downloads exact-target protections are unchanged.
+Remaining #18 qualification is complete within the [recorded compatibility boundary](validation/chrome-close-clean.md#final-saved-record-evidence-and-18-capability-decision): actual Stable156.0.8078.48/macOS26.6.2 arm64; standard split-root removal/regrowth and native conflict/access checks at8f610f7; genuine headed password fill, saved-address record retention and download history atfa8192d; earlier27c1db6 preserves two-profile site/session/history/offline semantics. That capability decision enabled the subsequent #19 browser/profile → shared plan → permanent confirmation/results implementation. At the #18 checkpoint, production cleanup remained disabled pending #19. The qualified #19 delivery is recorded below. Unknown/shared/managed/redirected layouts remain unavailable; additional compatibility remains future scope. Address form-suggestion acceptance is unqualified; actual saved-record preservation is independently proven. Personal-file/Downloads exact-target protections are unchanged.

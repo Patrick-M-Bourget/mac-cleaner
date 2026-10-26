@@ -22,7 +22,9 @@ SPEC.md and DESIGN-HANDOFF.md are the consolidated entry points. Detailed refere
 
 Update the relevant spec, design contract, state tests and visual reference together whenever behavior changes. Keep proposed features separate from accepted scope. Do not copy simulation labels, sample storage values or the prototype scenario picker into production.
 
-Latest qualified slice: [What grew #52](WHAT-GREW.md), app `fb20196`, with [source/native/visual evidence](validation/what-grew.md). Completed baseline is consolidated in main through PR65; bounded #52 is merged through PR66. #54 protected release-archive guidance is implemented at62bcf8a under [RELEASE-ARCHIVES](RELEASE-ARCHIVES.md), with [bounded evidence](validation/release-archives.md), merged through PR67. Full future milestones and M8 deferral remain preserved.
+Latest Chrome slice: [#19 qualified cleanup](validation/chrome-cleanup.md), final app `ceec55f`, delivered through PR72. Its production adapter matches the full successful `23e2219` genuine Chrome qualification; [47 reviewed originals](visual/chrome-cleanup/REVIEW.md) cover the native journey.
+
+Earlier qualified slices: [What grew #52](WHAT-GREW.md), app `fb20196`, with [source/native/visual evidence](validation/what-grew.md). Completed baseline is consolidated in main through PR65; bounded #52 is merged through PR66. #54 protected release-archive guidance is implemented at62bcf8a under [RELEASE-ARCHIVES](RELEASE-ARCHIVES.md), with [bounded evidence](validation/release-archives.md), merged through PR67. Full future milestones and M8 deferral remain preserved.
 
 ## Suggested repository layout
 
@@ -58,10 +60,10 @@ See [decision record](DECISIONS.md) for the completed grilling rounds and [miles
 
 Current authorized feature: [#27 Storage alerts settings](STORAGE-ALERTS.md). Q1–Q7 bounded settings implemented/qualified; #27 retains its genuine notification authorization/delivery gate.
 
-Current qualification work: [#18/#19 Chrome contract](CHROME-CLEANUP.md), Q1–Q6 locked with revised rules5–7. Bounded #18 qualification is complete; #19 is the next unblocked implementation ticket.
+Current Chrome delivery: [#19 Chrome cleanup](CHROME-CLEANUP.md) is implemented and qualified within the recorded compatibility boundary, with synchronized [native/visual evidence](validation/chrome-cleanup.md). Broader browsers, versions and cache groups remain future scope.
 
-Historical #18 ownership investigation is recorded in [Chrome Stable qualification](validation/chrome-stable-qualification.md). The revised close-and-clean contract below supersedes the former exclusive-lease prerequisite.
+Historical #18 ownership investigation is recorded in [Chrome Stable qualification](validation/chrome-stable-qualification.md). The revised close-and-clean contract supersedes the former exclusive-lease prerequisite.
 
-Current Chrome authority: revised native close-and-clean rules5–7 in CHROME-CLEANUP.md, superseding the stronger cache-only exact-file/lease requirement. #18 qualification resumed; personal-file protections unchanged.
+Current Chrome authority: revised native close-and-clean rules5–7 in CHROME-CLEANUP.md, superseding the stronger cache-only exact-file/lease requirement. #18 and bounded #19 are complete; personal-file protections remain unchanged.
 
-Latest Chrome decision: [bounded #18 qualification complete](validation/chrome-close-clean.md#final-saved-record-evidence-and-18-capability-decision), with exact compatibility/unsupported states. #19 may now proceed; no app action or production allowlist is enabled and personal-file policy remains unchanged.
+Latest Chrome decision: [bounded #18 qualification complete](validation/chrome-close-clean.md#final-saved-record-evidence-and-18-capability-decision), with exact compatibility/unsupported states. The subsequent [#19 delivery](validation/chrome-cleanup.md) enables only the qualified Chrome action; personal-file policy remains unchanged.
