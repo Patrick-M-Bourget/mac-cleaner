@@ -274,7 +274,11 @@ extension CatalogCategory {
         case .browser: .browser
         case .downloads: .downloads
         case .files: .files
-        case .system, .models, .updaters, .logs, .managed: .managed
+        case .system: .appCaches
+        case .models: .models
+        case .updaters: .appUpdates
+        case .logs: .logs
+        case .managed: .managed
         }
     }
     /// Overview's row title for a category; the rows themselves come from what the catalog found.
