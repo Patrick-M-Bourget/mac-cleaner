@@ -180,7 +180,10 @@ public actor CleanupExecutor {
     private func runTool(_ candidate: Candidate, _ command: ToolCommand?, into record: inout CleanupRecord) async {
         guard let command, let executable = candidate.toolURL else { record.state = .skipped; record.message = CheckRefusal.changed.reason; return }
         let outcome = await Task.detached(priority: .userInitiated) {
-            Result { try BoundedTool.capture(executable: executable, arguments: command.arguments, timeout: command.timeout) }
+            // The tool's own folder goes first on PATH, so `#!/usr/bin/env node` tools such as pnpm find their runtime.
+            var environment = BoundedTool.defaultEnvironment
+            environment["PATH"] = executable.deletingLastPathComponent().path + ":" + (environment["PATH"] ?? "")
+            return Result { try BoundedTool.capture(executable: executable, arguments: command.arguments, timeout: command.timeout, environment: environment) }
         }.value
         let name = command.commandLine
         switch outcome {

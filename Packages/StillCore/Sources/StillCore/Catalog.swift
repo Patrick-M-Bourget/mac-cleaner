@@ -94,6 +94,7 @@ public struct CleanupRule: Sendable, Identifiable {
 }
 
 public enum BuiltInCatalog {
+    private static let pnpmOwner = RuleOwner(name: "pnpm", executables: ["pnpm", "pnpx"], scripts: ["pnpm", "pnpx", "pnpm.js", "pnpm.cjs", "pnpx.js", "pnpx.cjs"])
     public static let rules: [CleanupRule] = [
         CleanupRule(id: "npm-cache", category: .developer, title: "npm cache",
                     detail: "Packages npm downloaded for your projects.",
@@ -106,10 +107,16 @@ public enum BuiltInCatalog {
                     regen: .cache, action: .delete, locations: ["Library/Caches/Yarn", ".yarn/berry/cache"],
                     owner: RuleOwner(name: "Yarn", executables: ["yarn", "yarnpkg"], scripts: ["yarn", "yarnpkg", "yarn.js", "yarn.cjs", "yarn-*.cjs", "yarn-*.js"])),
         CleanupRule(id: "pnpm-store", category: .developer, title: "pnpm store",
-                    detail: "Packages pnpm downloaded for your projects.",
-                    consequence: "Permanently removed. pnpm downloads packages again as needed; the next install may take longer.",
-                    regen: .cache, action: .delete, locations: ["Library/pnpm/store", "Library/Caches/pnpm"],
-                    owner: RuleOwner(name: "pnpm", executables: ["pnpm", "pnpx"], scripts: ["pnpm", "pnpx", "pnpm.js", "pnpm.cjs", "pnpx.js", "pnpx.cjs"])),
+                    detail: "Packages pnpm downloaded that no project uses any more.",
+                    consequence: "Runs `pnpm store prune`, which permanently removes only packages no project references. Projects that link into the store keep working.",
+                    regen: .cache, action: .tool, locations: ["Library/pnpm/store"],
+                    owner: pnpmOwner,
+                    tool: ToolCommand(executables: ["/opt/homebrew/bin/pnpm", "/usr/local/bin/pnpm", NSHomeDirectory() + "/Library/pnpm/pnpm"], arguments: ["store", "prune"], timeout: 300)),
+        CleanupRule(id: "pnpm-cache", category: .developer, title: "pnpm metadata cache",
+                    detail: "Package metadata pnpm downloaded.",
+                    consequence: "Permanently removed. pnpm downloads metadata again as needed.",
+                    regen: .cache, action: .delete, locations: ["Library/Caches/pnpm"],
+                    owner: pnpmOwner),
         CleanupRule(id: "uv-cache", category: .developer, title: "uv cache",
                     detail: "Python packages uv downloaded and built.",
                     consequence: "Permanently removed. uv downloads or builds packages again as needed; the next install may take longer.",
