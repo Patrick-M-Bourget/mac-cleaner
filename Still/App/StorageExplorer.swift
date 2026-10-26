@@ -245,7 +245,7 @@ struct StorageExplorerView: View {
             } label: {
                 VStack(alignment: .leading, spacing: StillDesign.Space.xs) {
                     Text(item.url.lastPathComponent).foregroundStyle(.primary)
-                    if let folder = context.position.folder, !context.position.query.isEmpty { Text(relative(item.url, to: folder)).font(.caption).foregroundStyle(.secondary) }
+                    if context.position.folder != nil, !context.position.query.isEmpty { Text(PathDisplay.shortLocation(of: item.url.path)).font(.caption).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle) }
                 }.frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
             }.buttonStyle(.plain).accessibilityLabel((item.kind == .folder ? "Open folder " : "Inspect ") + item.url.lastPathComponent)
             Text(item.kind == .folder ? folderAllocation(item.url) : bytes(item.allocatedBytes)).font(.callout).monospacedDigit().foregroundStyle(.secondary)
@@ -332,6 +332,7 @@ struct StorageExplorerView: View {
         let old = file.lastUsed.flatMap { $0 < Date().addingTimeInterval(-Double(UserFiles.unusedDays) * 86_400) ? "not opened since " + $0.formatted(date: .abbreviated, time: .omitted) : nil }
         return ([large, old].compactMap { $0 }.joined(separator: " and ") + ".").capitalizedFirst + " Age and size don’t mean it’s unwanted; you decide."
     }
+    private func relative(_ url: URL, to root: URL) -> String { url.pathComponents.dropFirst(root.pathComponents.count).joined(separator: "/") }
     private func inspectorField(_ title: String, _ value: String) -> some View {
         VStack(alignment: .leading, spacing: StillDesign.Space.xs) {
             Text(title).font(.caption).foregroundStyle(.secondary)
@@ -351,7 +352,6 @@ struct StorageExplorerView: View {
         return result
     }
     private func bytes(_ value: Int64?) -> String { value.map { ByteCountFormatter.string(fromByteCount: $0, countStyle: .decimal) } ?? "Unknown" }
-    private func relative(_ url: URL, to root: URL) -> String { url.pathComponents.dropFirst(root.pathComponents.count).joined(separator: "/") }
 }
 
 /// Shared bounded inspector surface: the host chooses a side pane or compact panel.
