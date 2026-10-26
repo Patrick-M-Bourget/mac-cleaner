@@ -17,9 +17,3 @@ private let en = Locale(identifier: "en_US")
     #expect(MenuBarStatus.freeSpaceTitle(available: nil, locale: en) == nil)
     #expect(MenuBarStatus.freeSpaceTitle(available: -1, locale: en) == nil)
 }
-
-@Test func menuOffersTheRecommendedPlanOnlyWhenThereIsOne() {
-    #expect(MenuBarStatus.items(hasRecommendedPlan: false) == [.openStill, .scanAgain, .settings, .quit])
-    #expect(MenuBarStatus.items(hasRecommendedPlan: true) == [.openStill, .scanAgain, .reviewRecommendedPlan, .settings, .quit])
-    #expect(MenuBarStatus.Item.reviewRecommendedPlan.title == "Review recommended plan…")
-}

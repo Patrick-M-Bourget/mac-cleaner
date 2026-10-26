@@ -64,7 +64,7 @@ public enum LoginStatus: String, Sendable { case enabled, requiresApproval, disa
     }
 }
 
-/// The menu bar item (#131): free space in a short form, and the menu's fixed order.
+/// The menu bar item (#131): free space in a short form, and the menu's item titles.
 public enum MenuBarStatus {
     /// "38 GB free": whole gigabytes from 10 GB, one decimal below that, terabytes from 1,000 GB. Decimal units,
     /// as Finder shows them. Nil when capacity is unknown, so the item shows only its symbol.
@@ -86,8 +86,5 @@ public enum MenuBarStatus {
             case .quit: "Quit Still"
             }
         }
-    }
-    public static func items(hasRecommendedPlan: Bool) -> [Item] {
-        hasRecommendedPlan ? [.openStill, .scanAgain, .reviewRecommendedPlan, .settings, .quit] : [.openStill, .scanAgain, .settings, .quit]
     }
 }
