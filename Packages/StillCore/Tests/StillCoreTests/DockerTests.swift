@@ -204,3 +204,12 @@ private func dockerRun(_ home: URL, docker: URL, choose ruleIDs: Set<String>, vo
     #expect(overview.recommended == .about(2_500_000_000 + 1_234_000_000 + 120_000_000))
     #expect(overview.rows.map(\.category) == [.developer])
 }
+
+@Test func historyCountsEachDockerPruneInThePlannedTotal() async throws {
+    let home = try fixtureHome()
+    defer { try? FileManager.default.removeItem(at: home) }
+    let docker = try fakeDocker(home)
+    let result = try await dockerRun(home, docker: docker, choose: ["docker-images", "docker-containers"])
+    let run = try #require(CleanupHistorySnapshot(records: result.records).completedRuns.first)
+    #expect(run.plannedLogicalBytes == 2_500_000_000 + 120_000_000)
+}
