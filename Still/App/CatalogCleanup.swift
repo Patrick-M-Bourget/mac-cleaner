@@ -171,7 +171,7 @@ extension CatalogCategory {
         case .developer: .developer
         case .browser: .browser
         case .downloads: .downloads
-        case .system, .models: .managed
+        case .system, .models, .updaters, .logs: .managed
         }
     }
 }
@@ -183,8 +183,10 @@ extension CatalogCategory {
         case .developer: "Developer caches and build files"
         case .browser: "Browser caches"
         case .downloads: "Downloads to review"
-        case .system: "App caches and logs"
+        case .system: "App caches"
         case .models: "Models and disk images"
+        case .updaters: "App update downloads"
+        case .logs: "Logs and crash reports"
         }
     }
 }
