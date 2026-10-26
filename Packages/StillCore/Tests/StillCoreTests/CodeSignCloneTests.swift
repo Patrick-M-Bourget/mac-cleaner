@@ -89,7 +89,9 @@ private func day(_ n: Double) -> Date { Date(timeIntervalSince1970: 1_790_000_00
     defer { try? FileManager.default.removeItem(at: folder) }
     try FileManager.default.createDirectory(at: folder.appendingPathComponent("T"), withIntermediateDirectories: true)
     let found = try #require(Catalog.userFolder(holding: folder.appendingPathComponent("T").path + "/"))
-    #expect(found.path == realpath(folder.path, nil).map { defer { free($0) }; return String(cString: $0) })
+    let real = try #require(realpath(folder.path, nil))
+    defer { free(real) }
+    #expect(found.path == String(cString: real))
     #expect(Catalog.userFolder(holding: folder.appendingPathComponent("missing/T").path) == nil)
 }
 
