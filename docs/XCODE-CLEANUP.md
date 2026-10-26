@@ -1,6 +1,6 @@
 # Xcode generated-data cleanup — #16/#17
 
-Status: Q1–Q7 were confirmed by the user on October26,2026. The decision frontier is resolved; final consolidated contract confirmation is pending. This document does not yet authorize implementation or enable cleanup. #16 is unblocked capability work; #17 remains blocked by #16. SPEC and DESIGN-HANDOFF remain the consolidated entry points.
+Status: Q1–Q7 and the consolidated contract were explicitly confirmed by the user on October26,2026. Remaining #16 qualification is authorized; proceed to #17’s app journey only after the capability gate passes. Design approval alone does not enable cleanup. #16 is unblocked capability work; #17 remains blocked by #16. SPEC and DESIGN-HANDOFF remain the consolidated entry points.
 
 ## Confirmed decisions
 
@@ -20,9 +20,9 @@ Refresh retains pending choices while evidence is checked and suspends Review fo
 
 Confirmation uses the bounded shared sheet, exact targets and separate permanent-build/Chrome/Trash consequences. Cancel preserves the plan and restores focus. Explain rebuild cost without predicting a duration; no automatic rebuild runs. Results and History retain per-file recorded outcomes, grouped by project for review, with planned estimates and independent observed capacity kept separate. No Trash recovery or universal Undo is offered for permanent build cleanup. Unresolved records never imply success or trigger replay; recheck and fresh approval are required. Stop and Quit cancel unstarted work across the complete workspace; completed mutations are not rolled back.
 
-## Final confirmation
+## Implementation authorization
 
-No product-flow questions remain open. Confirm this consolidated Q1–Q7 contract before implementation. Then lock it into #16/#17, complete only the remaining #16 capability gaps and proceed to #17’s app journey when qualification passes. Existing evidence is reused; passing experiments are not repeated after documentation-only changes. A concrete preservation, scope or provenance failure stops qualification and is reported rather than bypassed.
+No product-flow questions remain open. The user explicitly confirmed the consolidated Q1–Q7 contract and authorized implementation. Complete only the remaining #16 capability gaps and proceed to #17’s app journey when qualification passes. Existing evidence is reused; passing experiments are not repeated after documentation-only changes. A concrete preservation, scope or provenance failure stops qualification and is reported rather than bypassed.
 
 This contract does not complete #16 by itself. #17 remains blocked until the actual capability gate passes. No broader generated-data category, custom-root support, personal-file authority or commercialization milestone is promoted.
 
@@ -31,3 +31,8 @@ This contract does not complete #16 by itself. #17 remains blocked until the act
 [Fixture policy](../Validation/XcodeProbe/README.md), [genuine owned-project experiment](../Validation/XcodeProbe/NativeExperiment/README.md) and [Swift/package/custom-output follow-up](../Validation/XcodeProbe/NativeExperiment/SWIFT-SESSION.md) establish bounded generated-object removal/regeneration and protected owned sentinels. They do not establish arbitrary production project mapping or general build-owner coordination. Q4 supersedes the historical universal-exclusive-access prerequisite only for this qualified Xcode exact-artifact model. Existing experiments remain bounded evidence, not production qualification or permission to relax any other adapter.
 
 No personal projects, default DerivedData or source/symbol contents are inspected by grilling or ordinary verification. Qualification remains disposable. Downloads and all personal-file protections are unchanged. Release-archive guidance remains separate under #54. Broader developer/browser support and M8 commercialization remain preserved.
+
+
+## Qualification and test boundaries
+
+Reuse the previously user-approved public adapter/protected-fixture boundary for classification, mapping, owner state and target eligibility; approved-plan execution/durable recovery records for exact target mutation, cancellation and crashes; and public app journeys for navigation, selection, confirmation and recovery when #17 is unblocked. Tests observe public behavior with disposable files/controlled OS-boundary inputs, not private implementation. Real Xcode ownership/layout observations are separate qualification evidence and run only on disposable projects. No additional personal-data inspection is authorized. New test boundaries, if genuinely needed, require their own agreement.
