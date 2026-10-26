@@ -123,7 +123,7 @@ private func trashExecutor(_ home: URL, trash: FixtureTrash) throws -> (CleanupE
     let (run, _) = try trashExecutor(home, trash: FixtureTrash(folder: home.appendingPathComponent("FixtureTrash")))
     let result = await run.execute(CatalogApproval(candidates: Catalog(rules: fixtureRules).discover(fixture: home), previewOnly: true))
     #expect(result.records.map(\.state) == [.skipped])
-    #expect(result.records.first?.message.hasPrefix("Preview only: would move to Trash") == true)
+    #expect(result.records.first?.message.hasPrefix("Dry run: would move to Trash") == true)
     #expect(result.movedToTrashBytes == 0)
     #expect(FileManager.default.fileExists(atPath: installer.path))
     #expect(!FileManager.default.fileExists(atPath: home.appendingPathComponent("FixtureTrash").path))

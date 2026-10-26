@@ -41,13 +41,14 @@ struct AppearancePicker: View {
     }
 }
 
-/// The Settings window (⌘,). Appearance follows the system unless overridden here.
-struct AppearanceSettingsView: View {
+/// The Settings window (⌘,). Appearance follows the system unless overridden here; the dry run is off unless turned on here.
+struct StillSettingsView: View {
     @State private var appearance = AppLifecycleController.shared.appearance
     var body: some View {
         Form {
             AppearancePicker(choice: Binding(get: { appearance.choice }, set: { AppLifecycleController.shared.chooseAppearance($0) }))
             if appearance.notice != nil { AppearancePreferenceNotice(notice: appearance.notice, retry: { appearance.retrySaving() }) }
+            DryRunToggle(model: AppLifecycleController.shared.selection.catalog)
         }.formStyle(.grouped).frame(width: StillDesign.Size.sheetNarrow).fixedSize(horizontal: false, vertical: true)
     }
 }

@@ -191,7 +191,7 @@ private func snapshot(_ root: URL) throws -> [String: Data] {
     let record = try #require(result.records.first)
     #expect(record.previewOnly == true)
     #expect(record.state == .skipped)
-    #expect(record.message.hasPrefix("Preview only: would delete"))
+    #expect(record.message.hasPrefix("Dry run: would delete"))
     #expect(result.previewOnly)
     #expect(result.measuredFreedBytes == nil)
     #expect(result.estimatedBytes == candidate.allocatedBytes)

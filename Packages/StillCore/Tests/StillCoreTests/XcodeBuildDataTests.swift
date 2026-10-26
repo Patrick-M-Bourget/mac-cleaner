@@ -146,7 +146,7 @@ private let devices = "Library/Developer/CoreSimulator/Devices"
     let check = CandidateCheck(catalog: catalog, running: NothingRunning())
 
     let preview = await CleanupExecutor(journal: journal, check: check, trash: TrashNeverUsed()).execute(CatalogApproval(candidates: [candidate], previewOnly: true))
-    #expect(preview.records.first?.message.hasPrefix("Preview only: would run simctl delete unavailable") == true)
+    #expect(preview.records.first?.message.hasPrefix("Dry run: would run simctl delete unavailable") == true)
     #expect(!FileManager.default.fileExists(atPath: marker.path))
 
     let result = await CleanupExecutor(journal: journal, check: check, trash: TrashNeverUsed()).execute(CatalogApproval(candidates: [candidate], previewOnly: false))

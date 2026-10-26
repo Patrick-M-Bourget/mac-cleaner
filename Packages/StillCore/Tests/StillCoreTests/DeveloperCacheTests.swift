@@ -164,7 +164,7 @@ private func homebrewRun(_ home: URL, script: String, timeout: TimeInterval? = n
     let result = try await homebrewRun(home, script: "touch '\(marker.path)'", previewOnly: true)
     let record = try #require(result.records.first)
     #expect(record.state == .skipped)
-    #expect(record.message.hasPrefix("Preview only: would run brew cleanup -s, then delete the folder"))
+    #expect(record.message.hasPrefix("Dry run: would run brew cleanup -s, then delete the folder"))
     #expect(!FileManager.default.fileExists(atPath: marker.path))
     #expect(FileManager.default.fileExists(atPath: home.appendingPathComponent("Library/Caches/Homebrew/entry").path))
     #expect(result.measuredFreedBytes == nil)

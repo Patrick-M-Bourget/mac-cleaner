@@ -181,7 +181,7 @@ private func fakeOllama(_ home: URL, _ script: String = "echo \"$@\" >> \"$(dirn
     let chosen = try #require(candidates.first { $0.itemName == "someone/tuned:v2" })
 
     let preview = try await run(home, [chosen], previewOnly: true)
-    #expect(preview.records.first?.message.hasPrefix("Preview only: would run ollama rm someone/tuned:v2") == true)
+    #expect(preview.records.first?.message.hasPrefix("Dry run: would run ollama rm someone/tuned:v2") == true)
     #expect(!FileManager.default.fileExists(atPath: home.appendingPathComponent("tools/calls").path))
 
     let result = try await run(home, [chosen])
