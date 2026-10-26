@@ -22,6 +22,8 @@ final class LaunchSmokeUITests: XCTestCase {
         let app = XCUIApplication()
         let state = try configureIsolatedState(app)
         defer { app.terminate(); try? FileManager.default.removeItem(at: state) }
+        // Restored window state from earlier real launches can leave no window open.
+        app.launchArguments = ["-ApplePersistenceIgnoreState", "YES"]
         app.launch()
         XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
         XCTAssertTrue(app.buttons["Cleanup plan"].exists || app.staticTexts["Cleanup plan"].exists)
