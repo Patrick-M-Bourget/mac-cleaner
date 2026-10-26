@@ -776,6 +776,19 @@ final class GuidanceUITests: XCTestCase {
             try Data(repeating: 5, count: 90_000).write(to: file)
         }
         try "2".write(to: home.appendingPathComponent(".still-test-snapshots"), atomically: true, encoding: .utf8)
+        // An agent workspace (#140): a fixture git checkout with a commit on no remote, then an uncommitted edit.
+        let workspace = home.appendingPathComponent(".codex/worktrees/a1b2/app")
+        try FileManager.default.createDirectory(at: workspace, withIntermediateDirectories: true)
+        for arguments in [["init", "-q"], ["add", "."], ["commit", "-qm", "work"]] {
+            if arguments == ["add", "."] { try "first".write(to: workspace.appendingPathComponent("a.txt"), atomically: true, encoding: .utf8) }
+            let git = Process()
+            git.executableURL = URL(fileURLWithPath: "/usr/bin/git")
+            git.arguments = ["-c", "user.name=Still Test", "-c", "user.email=test@example.com", "-c", "commit.gpgsign=false", "-C", workspace.path] + arguments
+            git.environment = ["PATH": "/usr/bin:/bin", "HOME": workspace.path, "GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": "/dev/null"]
+            try git.run(); git.waitUntilExit()
+            XCTAssertEqual(git.terminationStatus, 0, arguments.joined(separator: " "))
+        }
+        try "edited".write(to: workspace.appendingPathComponent("a.txt"), atomically: true, encoding: .utf8)
         let locked = home.appendingPathComponent("Library/Messages/Attachments")
         try FileManager.default.setAttributes([.posixPermissions: 0], ofItemAtPath: locked.path)
         return locked
@@ -809,6 +822,10 @@ final class GuidanceUITests: XCTestCase {
         XCTAssertEqual(app.links.matching(identifier: "fullDiskAccessLink").count, 1)
         XCTAssertTrue((app.buttons["guidance-time-machine-snapshots"].value as? String)?.contains("2 snapshots · Size unknown") == true)
         XCTAssertTrue(app.buttons["guidance-xcode-archives"].exists)
+        let workspaces = app.buttons["guidance-agent-workspaces"]
+        XCTAssertEqual(workspaces.label, "Open in Finder")
+        XCTAssertTrue((workspaces.value as? String)?.contains("1 workspace · 1 has uncommitted changes · 1 has unpushed commits") == true,
+                      String(describing: workspaces.value))
         revealAndClick(photos, in: app)
         XCTAssertTrue(app.staticTexts["guidanceStatus"].waitForExistence(timeout: 5))
         XCTAssertEqual(app.staticTexts["guidanceStatus"].value as? String, "Test run: would open Photos.")
@@ -816,7 +833,7 @@ final class GuidanceUITests: XCTestCase {
         app.buttons["appManagedBack"].click()
         revealAndClick(app.buttons["overviewCategory-developer"], in: app)
         XCTAssertTrue(app.descendants(matching: .any)["planCategory-developer"].waitForExistence(timeout: 5))
-        for id in ["photos-library", "xcode-archives", "messages-attachments", "time-machine-snapshots"] {
+        for id in ["photos-library", "xcode-archives", "messages-attachments", "time-machine-snapshots", "agent-workspaces"] {
             XCTAssertFalse(app.descendants(matching: .any)["planRule-" + id].exists, id)
         }
         XCTAssertTrue(FileManager.default.fileExists(atPath: home.appendingPathComponent("Pictures/Photos Library.photoslibrary/originals/a.heic").path))
