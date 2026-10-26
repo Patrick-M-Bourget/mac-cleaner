@@ -51,6 +51,10 @@ public enum CatalogItems: Sendable, Equatable {
     case ollamaModels
     /// One item per prune kind, sized by what `docker system df` says Docker can reclaim.
     case docker(DockerPruneKind)
+    /// Simulator runtimes and devices, from `simctl`'s own lists (#134).
+    case simulatorRuntimes, simulatorDevices
+    /// Android virtual devices and the system images none of them uses (#134).
+    case androidVirtualDevices, androidSystemImages
 }
 
 private struct OllamaManifest: Decodable {

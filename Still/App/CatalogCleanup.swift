@@ -467,7 +467,7 @@ func catalogBytes(_ value: Int64, complete: Bool = true, upperBound: Bool = fals
 
 extension CleanupRule {
     /// Rules whose items the user chooses one by one: single Downloads files, and each model or disk image.
-    var choosesItems: Bool { contents != nil || regen == .model || action == .evict || fromPickedFolders }
+    var choosesItems: Bool { contents != nil || regen == .model || action == .evict || fromPickedFolders || items?.choosesEachItem == true }
     /// Whether every item the rule offers is a single file.
     var offersFiles: Bool { contents != nil || fromPickedFolders }
 }
@@ -738,8 +738,9 @@ struct CatalogConfirmationSection: View {
             Text(rule.consequence).font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             ForEach(items) { item in
                 // A tool shows the exact command, e.g. `ollama rm llama3:latest` or `docker builder prune -a -f`.
-                if let tool = rule.tool { Text(tool.commandLine(for: item.itemName)).font(StillDesign.TypeStyle.code).textSelection(.enabled) }
-                if rule.tool?.deletesLocationAfter ?? true {
+                if let tool = rule.tool { Text(tool.commandLine(for: item.toolArgument)).font(StillDesign.TypeStyle.code).textSelection(.enabled) }
+                // A command that takes an identifier (a simulator's UDID) also names the item.
+                if rule.tool?.deletesLocationAfter ?? true || item.toolItem != nil {
                     Text(item.displayName + " · " + PathDisplay.shortLocation(of: item.url, home: CatalogCleanupModel.checkHome))
                         .font(StillDesign.TypeStyle.caption).help(item.url.path)
                 }
@@ -804,7 +805,7 @@ private struct CatalogResultRow: View {
     let showsDetails: Bool
     private var name: String {
         let file = record.originalURL.lastPathComponent
-        return rule?.itemName?(file) ?? (rule?.choosesItems == true ? file : rule?.title ?? file)
+        return record.itemName ?? rule?.itemName?(file) ?? (rule?.choosesItems == true ? file : rule?.title ?? file)
     }
     var body: some View {
         let role: StatusRole = record.state == .succeeded ? .success : record.wasPreviewed ? .neutral : .caution

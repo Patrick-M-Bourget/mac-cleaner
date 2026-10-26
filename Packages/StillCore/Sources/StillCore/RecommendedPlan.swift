@@ -20,7 +20,8 @@ public struct RecommendedPlan: Sendable {
 
     /// Whether a rule's data, acted on with `action`, is ever recommended. The rule itself must delete: a leftover of a
     /// tool rule (Homebrew) is offered as a plain delete, but its rule runs a command, so it is left to the user.
+    /// Items the user chooses one by one (an Android system image, #134) are left to the user too.
     static func recommends(_ rule: CleanupRule, action: CleanupAction) -> Bool {
-        action == .delete && rule.action == .delete && rebuildsItself.contains(rule.regen)
+        action == .delete && rule.action == .delete && rebuildsItself.contains(rule.regen) && rule.items?.choosesEachItem != true
     }
 }
