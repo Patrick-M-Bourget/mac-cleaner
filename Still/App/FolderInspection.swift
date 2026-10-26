@@ -47,7 +47,7 @@ final class FolderInspection {
         picker.message = "Scans inspect metadata only. Cleanup choices come from the cleanup plan."
         if downloads { picker.directoryURL = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask).first }
         picker.prompt = remembering ? "Remember folder" : "Scan folder"
-        if remembering { picker.message = "Remember this location for future manual scans. Adding it does not start a scan." }
+        if remembering { picker.message = "Choose the same folder again to renew access." }
         return picker.runModal() == .OK ? picker.url : nil
     }
 

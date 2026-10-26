@@ -170,7 +170,10 @@ import SwiftUI
         return chosen == 0 ? .unchecked : chosen == items.count ? .checked : .mixed
     }
 
-    func scanIfNeeded() async { if !hasScanned { await scan() } }
+    /// Rescans the remembered, included folders. Set by the workspace; called after each scan `scanIfNeeded` starts,
+    /// at launch and after a cleanup, so those folders are scanned along with the catalog (#125).
+    var scanRememberedFolders: (() -> Void)?
+    func scanIfNeeded() async { if !hasScanned { await scan(); scanRememberedFolders?() } }
     /// Read-only sizing of the catalog's known locations.
     func scan() async {
         guard canEdit else { return }
@@ -283,9 +286,11 @@ import SwiftUI
         do {
             let run = CleanupExecutor(journal: try CleanupJournalLocation.writer(), check: check, cancellation: cancellation)
             executor = run
-            result = await run.execute(approval)
+            let outcome = await run.execute(approval)
+            result = outcome
             if !approval.previewOnly { rescanFollowsCleanup = true }
-            selectedIDs = []; discovered = []; pickedFiles = [:]; hasScanned = false; selectionRevision &+= 1
+            // Picked folders keep the large and old files this run didn't act on (#125).
+            selectedIDs = []; discovered = []; pickedFiles = pickedFiles.mapValues { UserFiles.remaining($0, after: outcome) }; hasScanned = false; selectionRevision &+= 1
         } catch { message = "The cleanup journal is unavailable. Nothing was changed." }
     }
     func cancel() { executor?.cancel() }
