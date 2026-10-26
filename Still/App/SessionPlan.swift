@@ -153,8 +153,8 @@ struct LiveCleanupPlanView: View {
         ScrollView {
         if selection.workspaceRunning || selection.hasWorkspaceResult {
             VStack(alignment: .leading, spacing: StillDesign.Space.xl) {
-                PageHeader(title: selection.workspaceRunning ? "Running cleanup" : selection.catalog.result?.previewOnly == true ? "Preview results" : "Cleanup results")
-                if selection.catalog.isRunning { ProgressView(selection.catalog.previewOnly ? "Checking selected items…" : "Cleaning selected items…") }
+                PageHeader(title: selection.workspaceRunning ? "Running cleanup" : "Cleanup results")
+                if selection.catalog.isRunning { ProgressView(selection.catalog.dryRun ? "Checking selected items…" : "Cleaning selected items…") }
                 if let result = selection.catalog.result { CatalogResultsSection(result: result, catalog: selection.catalog.catalog) }
                 if let message = selection.catalog.message { StatusRow(text: message, symbol: "exclamationmark.triangle", role: .caution) }
             }.padding(StillDesign.Space.page)
@@ -186,7 +186,7 @@ struct LiveCleanupPlanView: View {
                 if let newPlan { Button("Start a new plan", action: newPlan).buttonStyle(.borderedProminent) }
             }
         } else {
-            ActionStrip(leading: { PreviewOnlyToggle(model: selection.catalog) }) {
+            ActionStrip(message: nil) {
                 ReviewCleanupButton(enabled: selection.canReview, focusRequest: reviewFocusRequest) {
                     Task { do { review = try await selection.prepareWorkspaceReview(); approvalError = nil } catch { approvalError = "Your choices changed. Review the latest items and try again." } }
                 }.fixedSize()
@@ -213,8 +213,6 @@ private struct WorkspaceCleanupConfirmationView: View {
     let review: WorkspaceCleanupReview
     let cancel: () -> Void
     let approve: () -> Void
-    /// Only catalog actions are selected and Preview only is on, so nothing will change.
-    private var previewOnlyRun: Bool { review.catalog?.approval.previewOnly == true }
     var body: some View {
         VStack(alignment: .leading, spacing: StillDesign.Space.lg) {
             PageHeader(title: "Review your changes", subtitle: "Check what each action does. You can go back and change your selection.")
@@ -224,7 +222,7 @@ private struct WorkspaceCleanupConfirmationView: View {
                 }.frame(maxWidth: .infinity, alignment: .leading)
             }
             Divider()
-            HStack { Button("Cancel", action: cancel).keyboardShortcut(.cancelAction); Spacer(); Button(previewOnlyRun ? "Run preview" : "Run cleanup", action: approve).buttonStyle(.borderedProminent) }
+            HStack { Button("Cancel", action: cancel).keyboardShortcut(.cancelAction); Spacer(); Button("Clean up", action: approve).buttonStyle(.borderedProminent) }
         }.padding(StillDesign.Space.xl).frame(width: 640, height: 520).background(StillDesign.reading)
     }
 }

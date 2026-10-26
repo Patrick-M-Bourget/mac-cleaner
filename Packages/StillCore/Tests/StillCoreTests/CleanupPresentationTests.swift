@@ -58,7 +58,7 @@ private func fixture(_ rules: [CleanupRule]) throws -> (URL, Catalog, [Candidate
     let (home, _, candidates) = try fixture([rule("a", .developer, .delete)])
     defer { try? FileManager.default.removeItem(at: home) }
     var record = try #require(candidates.first.map { CleanupRecord(batchID: UUID(), approvedAt: Date(), candidate: $0, previewOnly: true) })
-    record.state = .skipped; record.message = "Preview only: would delete (10 KB). Checks passed; nothing changed."
+    record.state = .skipped; record.message = "Dry run: would delete (10 KB). Checks passed; nothing changed."
     #expect(!record.needsAttention)
     record.message = "Google Chrome is running. Quit it, then scan again."
     #expect(record.needsAttention)

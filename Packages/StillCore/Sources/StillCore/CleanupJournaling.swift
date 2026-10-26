@@ -28,7 +28,7 @@ public struct CleanupRecord: Codable, Sendable, Identifiable {
     public let approvedAt: Date
     /// Catalog records only. Optional so journals written before the catalog still decode.
     public var ruleID: String? = nil
-    /// True when Preview only was on: the item was checked and nothing changed on disk.
+    /// True when the dry run was on: the item was checked and nothing changed on disk.
     public var previewOnly: Bool? = nil
     /// Available space read right before and right after this item.
     public var itemCapacity: CleanupCapacityObservation? = nil

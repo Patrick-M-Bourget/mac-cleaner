@@ -180,7 +180,7 @@ private func dockerRun(_ home: URL, docker: URL, choose ruleIDs: Set<String>, vo
     let result = try await dockerRun(home, docker: docker, choose: ["docker-build-cache"], previewOnly: true)
     let record = try #require(result.records.first)
     #expect(record.state == .skipped)
-    #expect(record.message.hasPrefix("Preview only: would run docker builder prune -a -f (1.23 GB)"))
+    #expect(record.message.hasPrefix("Dry run: would run docker builder prune -a -f (1.23 GB)"))
     #expect(result.measuredFreedBytes == nil)
     #expect(calls(home) == ["system df --format json"])
 }

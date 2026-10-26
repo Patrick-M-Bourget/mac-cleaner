@@ -116,7 +116,7 @@ private func executor(trash: URL) -> CleanupExecutor {
 
     let result = await executor(trash: trash).execute(CatalogApproval(candidates: Array(found.values), previewOnly: true))
     #expect(result.records.map(\.state) == [.skipped])
-    #expect(result.records.first?.message.hasPrefix("Preview only: would move to Trash") == true)
+    #expect(result.records.first?.message.hasPrefix("Dry run: would move to Trash") == true)
     #expect(FileManager.default.fileExists(atPath: movie.path))
     #expect(try FileManager.default.contentsOfDirectory(atPath: trash.path).isEmpty)
 }

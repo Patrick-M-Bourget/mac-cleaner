@@ -23,7 +23,7 @@ struct StillApp: App {
                 Button("Scan again") { lifecycle.scanAgain?() }.keyboardShortcut("r")
             }
         }
-        Settings { AppearanceSettingsView() }
+        Settings { StillSettingsView() }
     }
 }
 
@@ -276,7 +276,7 @@ private struct WorkspaceView: View {
                                 .accessibilityIdentifier("growthReviewOptions")
                         }
                     } else if showsPlan {
-                        ActionStrip(leading: { PreviewOnlyToggle(model: selection.catalog) }) { Button("Review cleanup") {}.disabled(true) }
+                        ActionStrip(message: nil) { Button("Review cleanup") {}.disabled(true) }
                     }
                 }
                 }
@@ -407,6 +407,7 @@ private struct WorkspaceView: View {
             scannedLocations
             overviewRecommendations
         }.task { await selection.catalog.scanIfNeeded() }
+            .task { await TrashModel.shared.refresh() }
     }
 
     private var overviewRecommendations: some View {
@@ -455,6 +456,7 @@ private struct WorkspaceView: View {
                 if !catalog.notAccessibleRules.isEmpty {
                     FullDiskAccessNote(places: catalog.notAccessibleRules.map(\.title)).accessibilityIdentifier("overviewNotAccessible")
                 }
+                TrashNote()
                 if let trash = summary?.proposedForTrash, trash != .measured(0) {
                     Text("Estimated release excludes " + trash.text + " proposed for Trash.").font(.caption).foregroundStyle(.secondary)
                 }
@@ -507,6 +509,7 @@ private struct WorkspaceView: View {
     private func scanAgain() {
         capacity.request(.manual)
         Task { await selection.catalog.scan() }
+        Task { await TrashModel.shared.refresh() }
         if !locationsModel.included.isEmpty { scanKnownLocations() }
     }
     private var scannedLocations: some View {
