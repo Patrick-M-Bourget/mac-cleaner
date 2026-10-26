@@ -438,27 +438,34 @@ private struct WorkspaceView: View {
                         .font(.caption).foregroundStyle(.secondary).monospacedDigit().accessibilityIdentifier("overviewRecommendedTotal")
                 }
                 RecommendationGroup {
-                    overviewCloudRow
-                    if overviewCloudExpanded, let report = overviewObservation?.cloudInventory { CloudInventoryView(report: report).padding(StillDesign.Space.md) }
+                    // iCloud keeps its first place: the catalog's local copies once found, else the scanned location's inventory.
+                    if let cloud = summary?.rows.first(where: { $0.category == .icloud }) { catalogRow(cloud) } else {
+                        overviewCloudRow
+                        if overviewCloudExpanded, let report = overviewObservation?.cloudInventory { CloudInventoryView(report: report).padding(StillDesign.Space.md) }
+                    }
                     Divider().padding(.horizontal, StillDesign.Space.lg)
                     if summary == nil && catalog.isScanning {
                         ProgressView("Checking known locations…").font(.caption).padding(StillDesign.Space.lg).frame(maxWidth: .infinity, alignment: .leading)
                         Divider().padding(.horizontal, StillDesign.Space.lg)
                     }
                     // One row per catalog category that found something; categories are data in StillCore.
-                    ForEach(summary?.rows ?? []) { row in
-                        let inPlan = row.rules.contains { catalog.isSelected($0) }
-                        StorageReviewRow(category: row.category.storageCategory, title: row.category.overviewTitle, detail: row.detail,
-                            value: row.valueText,
-                            meaning: row.estimate == .unknown ? "Couldn’t be measured" : inPlan ? "In cleanup plan" : row.rules.allSatisfy { $0.action == .delete } ? "Rebuildable" : "Review files",
-                            actionTitle: "Review \(row.category.overviewTitle) in the cleanup plan",
-                            action: { destination = .plan },
-                            identifier: "overviewCategory-" + row.id)
+                    ForEach(summary?.rows.filter { $0.category != .icloud } ?? []) { row in
+                        catalogRow(row)
                         Divider().padding(.horizontal, StillDesign.Space.lg)
                     }
                 }
                 Text(trashFootnote(summary?.proposedForTrash)).font(.caption).foregroundStyle(.secondary)
             }
+    }
+    private func catalogRow(_ row: CatalogOverview.Row) -> some View {
+        let inPlan = row.rules.contains { selection.catalog.isSelected($0) }
+        return StorageReviewRow(category: row.category.storageCategory, title: row.category.overviewTitle, detail: row.detail,
+            value: row.valueText,
+            meaning: row.estimate == .unknown ? "Couldn’t be measured" : inPlan ? "In cleanup plan"
+                : row.rules.allSatisfy { $0.action == .delete } ? "Rebuildable" : row.rules.allSatisfy { $0.action == .evict } ? "Local copies" : "Review files",
+            actionTitle: "Review \(row.category.overviewTitle) in the cleanup plan",
+            action: { destination = .plan },
+            identifier: "overviewCategory-" + row.id)
     }
     /// SPEC section 6: an estimate, and an upper bound because clones share blocks.
     private func recommendedText(_ estimate: SizeEstimate) -> String {

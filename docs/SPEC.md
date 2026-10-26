@@ -50,7 +50,7 @@ Decision 3 sets the main split: regenerable data is deleted permanently; user fi
 Other actions:
 
 - **Run a tool**, with a time limit: `brew cleanup -s` (plus the Homebrew cache folder), `xcrun simctl delete unavailable`, `ollama rm <model>`, `pnpm store prune`, `docker image prune -a -f`, `docker builder prune -a -f`, `docker container prune -f`. Every other cache is cleaned by deleting its folder, not with the tool's own purge command. The tool's output and the measured freed space appear in the results. A tool that isn't installed means its rule doesn't appear; Still never installs anything.
-- **Evict local iCloud copy** (after M1): removes only the local download; the original stays in iCloud. Pinned, not-yet-uploaded and conflicted files are skipped. This is never a delete.
+- **Evict local iCloud copy** (#111): removes only the local download (`evictUbiquitousItem`); the original stays in iCloud and downloads again when opened. Items are the files and folders at the top of iCloud Drive; a folder evicts each qualifying file inside it, and a package counts as one file. Files set to Keep Downloaded (pinned), not yet uploaded, in conflict, or whose state can't be read are never offered, and the check just before acting refuses them. No public API reports Keep Downloaded, so Still reads the `com.apple.fileprovider.pinned#PX` attribute on the file and its folders; when it can't be read the file counts as pinned. Scanning reads metadata only, with placeholder downloads blocked for the scanning thread. This is never a delete.
 - **Guidance only**: Still shows the size and tells the user where to manage it. It never changes these: iOS backups, Mail and Messages attachments, Photos, Time Machine local snapshots, Xcode release archives, purchased content such as audio plug-ins ("reinstall through the vendor", owner's call).
 
 Notes per category:
@@ -122,7 +122,7 @@ In M1 (tickets #97–#105):
 
 After M1 (#92), in rough order:
 
-- iCloud local eviction;
+- iCloud local eviction (#111, section 3);
 - Docker: `docker system df`, then a chosen prune;
 - large and old files explorer (Trash only);
 - guidance-only categories (section 3);
