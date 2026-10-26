@@ -6,7 +6,7 @@ This spec covers behavior the prototype can't show. The screens, layout and copy
 
 - Still answers four questions: what takes space, what can be removed, what happens if it is, and how much space came back.
 - Size, age and location only suggest candidates. Every candidate is judged on three questions: who owns it, how it comes back, and whether anything uses it now.
-- Nothing is preselected. The user picks categories or items, then reviews the consequences before anything changes.
+- Nothing is preselected unless the user asks for the recommended plan. The user picks categories or items, or asks for the recommended plan (only deleted data that rebuilds itself and passes the checks: caches, build data, updater downloads, logs, leaked app copies), then reviews the consequences before anything changes.
 - Every item is checked again just before Still acts on it (section 4).
 - Scanning never writes. Choosing scan locations never means consent to clean.
 - Unknown is shown as unknown, never as 0. A location Still can't read is listed as not accessible, not left out of the picture.
@@ -22,7 +22,7 @@ These hold for every category, in every milestone.
 - **Never touched:** browser logins, cookies, history, passwords, autofill, site data (IndexedDB, Local Storage, service-worker data), sessions and profile settings; the Photos, Mail and Messages databases; app binaries and signed bundles (except Chrome's leaked code-sign copies, section 3); other users' data; system files.
 - **Protected rules in the catalog.** Codex's protected-data lists become catalog rules that no cleanup rule can override: Chrome logins, cookies, history and profiles; Xcode Archives and anything outside DerivedData (project source). Everything inside DerivedData, built products and dSYMs included, is regenerable build output.
 - **A cache folder can hold live work.** A git working tree inside a cache folder is never a candidate. Known load-bearing caches (such as ccache) and Still's own tools are never offered.
-- **Owning app must be closed.** If the app that owns a candidate is running, that candidate is refused with a reason. Still never force-quits or asks for Accessibility to quit an app. The user closes the app and rescans.
+- **Owning app must be closed.** If the app that owns a candidate is running, that candidate is refused with a reason. Still never force-quits, and quits apps only when you ask: the plan's **Quit <App>** link sends a normal quit request, like ⌘Q, which the app may answer by asking to save or by refusing. Still never asks for Accessibility to quit an app. When the app quits, Still checks again; when it doesn't, the plan says it is still open. A command-line tool isn't an app: the plan says "Quit <tool> to include this" with **Check again**.
 - **No admin rights.** Still never asks for an administrator password and never installs a helper. An item it can't change as the user is skipped and reported.
 - **Exclusions win.** An item inside a user exclusion is never a candidate.
 - **No transactional rollback.** Items are handled one at a time. Still never claims a multi-item undo.
@@ -41,8 +41,8 @@ Decision 3 sets the main split: regenerable data is deleted permanently; user fi
 | Updater downloads | Sparkle and vendor updater caches | Delete permanently | Downloaded by the next update |
 | Leaked app copies | Chrome `code_sign_clone` copies | Delete permanently, except the copy in use and the newest | Not needed again |
 | Logs | User logs and crash reports | Delete permanently | Written again as apps run |
-| Installers and old files | `.dmg`, `.pkg`, `.zip` in Downloads at any age; files of 500 MB or more not opened in 90 days | Move to Trash | Restore from Trash in Finder |
-| Models | Hugging Face models | Move to Trash | Restore from Trash, or download again |
+| Installers and old files | `.dmg`, `.pkg`, `.zip` in Downloads at any age; files of 500 MB or more not opened in 90 days; iPhone, iPad and iPod update files (`.ipsw`) in `~/Library/iTunes/*Software Updates` (#135) | Move to Trash | Restore from Trash in Finder |
+| Models | Hugging Face models; LM Studio models (each model folder; refused while LM Studio runs) | Move to Trash | Restore from Trash, or download again |
 | Ollama models | Each model, removed with `ollama rm <model>` | Run a tool | Download again (`ollama pull`) |
 | VM and disk images | e.g. an unpacked image next to its compressed source | Move to Trash | Restore from Trash, or the app unpacks or downloads again |
 | Docker | Unused images, build cache, stopped containers: each its own choice. Volumes never | Run a tool | Pulled or built again |
@@ -79,7 +79,7 @@ When the user confirms, Still freezes the plan. Then, for each item in turn, rig
 
 An item that fails any check is skipped, and the results say which check failed. The rest of the plan continues. Skipped items can be reviewed again after a fresh scan; Still never silently repeats a completed action or widens a plan after a rescan.
 
-**Cancel** stops new items from starting. The item in progress finishes or reports its failure. Every item's outcome (done, skipped, failed, not started) goes into the cleanup journal. If Still quits in the middle of a run, it recovers the journal on next launch and reports what happened.
+**Cancel** stops new items from starting. The item in progress finishes or reports its failure. Every item's outcome (done, skipped, failed, not started) goes into the cleanup journal. Quitting during a run asks first, "A cleanup is running. Stop after this item and quit?", with Cancel as the default; confirming cancels as above and quits once the current item finishes (#130). If Still quits in the middle of a run anyway, it recovers the journal on next launch and reports what happened.
 
 ## 5. Dry-run switch
 

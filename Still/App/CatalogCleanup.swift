@@ -29,7 +29,7 @@ import SwiftUI
     private(set) var hasScanned = false
     /// Watches for Full Disk Access being granted while Still was away (#124, `rescanIfFullDiskAccessGranted`).
     var fullDiskAccessRescan = FullDiskAccessRescan()
-    /// Chosen candidate ids. Nothing is preselected.
+    /// Chosen candidate ids. Nothing is preselected unless the user asks for the recommended plan (Decision 28).
     private(set) var selectedIDs: Set<String> = []
     private(set) var selectionRevision: UInt64 = 0
     private(set) var isRunning = false
@@ -49,6 +49,12 @@ import SwiftUI
     private(set) var notAccessibleRules: [CleanupRule] = []
     /// Names of owners that were running at the last scan. Their items stay choosable; the checks refuse them.
     private(set) var runningOwners: Set<String> = []
+    /// The running owners themselves, by name, and those whose app (not only a command-line tool) is open (#138).
+    private var runningOwnerDetails: [String: RuleOwner] = [:]
+    private(set) var openApps: Set<String> = []
+    /// Apps the user asked to quit: still waiting, or still open after the wait.
+    private(set) var quitStates: [String: AppQuitState] = [:]
+    enum AppQuitState { case quitting, stillOpen }
     /// Each candidate's owner name at the last scan, so views never look owners up while drawing.
     private var ownerNames: [String: String] = [:]
     private var executor: CleanupExecutor?
@@ -144,6 +150,47 @@ import SwiftUI
     func runningOwnerNames(for rule: CleanupRule) -> [String] {
         Set(candidates(for: rule).compactMap { ownerNames[$0.id] }).intersection(runningOwners).sorted()
     }
+    /// The plan's line for each running owner of the rule: an open app offers to quit, a tool offers a check (#138).
+    func runningOwnerNotices(for rule: CleanupRule) -> [(name: String, notice: RunningOwnerNotice)] {
+        runningOwnerNames(for: rule).map { ($0, RunningOwnerNotice(name: $0, appOpen: openApps.contains($0), stillOpen: quitStates[$0] == .stillOpen)) }
+    }
+
+    /// Asks Still's quitter; a debug UI test run never asks a real app to quit.
+    nonisolated static var quitter: any AppQuitting {
+        #if DEBUG
+        if LocalStateLocation.isDisposableTest { return SystemAppQuitter(sendsRequests: false) }
+        #endif
+        return SystemAppQuitter()
+    }
+
+    /// Which owners are running, and which of them as an open app.
+    nonisolated private static func running(_ owners: [String: RuleOwner], quitter: any AppQuitting) -> ([String: RuleOwner], Set<String>) {
+        let checker = SystemRunningAppChecker()
+        let running = owners.filter { checker.isRunning($0.value) == true }
+        return (running, Set(running.values.filter { quitter.isOpen($0.bundleIDs) }.map(\.name)))
+    }
+    private func setRunning(_ owners: [String: RuleOwner], open: Set<String>) {
+        runningOwnerDetails = owners; runningOwners = Set(owners.keys); openApps = open
+        quitStates = quitStates.filter { owners[$0.key] != nil }
+    }
+
+    /// Looks again at the owners that were running, without a full scan. The checks run again at review either way.
+    func checkRunningOwnersAgain() async {
+        let owners = runningOwnerDetails, quitter = Self.quitter
+        let (running, open) = await Task.detached(priority: .userInitiated) { Self.running(owners, quitter: quitter) }.value
+        setRunning(running, open: open)
+    }
+
+    /// Sends the owner's app a normal quit request, like ⌘Q, only because the user asked. When it quits, Still checks again;
+    /// when it doesn't (unsaved work, or it refused), the plan says it is still open.
+    func quitApp(named name: String) async {
+        guard let owner = runningOwnerDetails[name], quitStates[name] != .quitting else { return }
+        quitStates[name] = .quitting
+        let outcome = await AppQuitRequest(quitter: Self.quitter).quit(owner)
+        await checkRunningOwnersAgain()
+        if runningOwners.contains(name) { quitStates[name] = outcome == .quit ? nil : .stillOpen }
+    }
+
     var rulesFound: [CleanupRule] { catalog.rules.filter { rule in candidates.contains { $0.ruleID == rule.id } } }
     func candidates(for rule: CleanupRule) -> [Candidate] { candidates.filter { $0.ruleID == rule.id } }
     func estimatedBytes(for rule: CleanupRule) -> Int64 { candidates(for: rule).reduce(0) { $0 + $1.estimatedBytes } }
@@ -179,10 +226,10 @@ import SwiftUI
         guard canEdit else { return }
         isScanning = true; message = nil
         defer { isScanning = false; hasScanned = true }
-        guard let home = Self.home else { discovered = []; notes = []; overriddenRules = []; notAccessibleRules = []; runningOwners = []; ownerNames = [:]; return }
+        guard let home = Self.home else { discovered = []; notes = []; overriddenRules = []; notAccessibleRules = []; setRunning([:], open: []); ownerNames = [:]; return }
         // Excluded items are never offered (SPEC section 2); without the settings nothing can be offered safely.
         guard let exclusions = try? await ExclusionsModel.shared.policyForScan() else {
-            discovered = []; notes = []; overriddenRules = []; notAccessibleRules = []; runningOwners = []; ownerNames = [:]
+            discovered = []; notes = []; overriddenRules = []; notAccessibleRules = []; setRunning([:], open: []); ownerNames = [:]
             message = "Exclusion settings are unavailable, so nothing can be checked. Try again."; return
         }
         let catalog = catalog
@@ -190,7 +237,8 @@ import SwiftUI
         let userFolder = Self.userFolder, cloud = Self.cloud
         // What grew records each completed catalog scan (#119).
         let growth = await GrowthHistoryModel.shared.beginCatalog(home: home, exclusionFingerprint: exclusions.fingerprint)
-        let scanned = await Task.detached(priority: .userInitiated) { () -> (CatalogDiscovery, [CleanupRule], Set<String>, [String: String], FullDiskAccessStatus) in
+        let quitter = Self.quitter
+        let scanned = await Task.detached(priority: .userInitiated) { () -> (CatalogDiscovery, [CleanupRule], ([String: RuleOwner], Set<String>), [String: String], FullDiskAccessStatus) in
             // Probed once per scan, at launch too, and shared with the guidance scan: it only opens a protected folder
             // and never prompts (#117).
             let access = FullDiskAccessProbe(home: home).status()
@@ -198,14 +246,12 @@ import SwiftUI
                                                access: access)
             var owners: [String: RuleOwner] = [:], names: [String: String] = [:]
             for candidate in discovered.candidates { if let owner = catalog.owner(for: candidate) { owners[owner.name] = owner; names[candidate.id] = owner.name } }
-            let running = SystemRunningAppChecker()
-            return (discovered, catalog.overriddenRules(home: home, systemRoot: system), Set(owners.values.filter { running.isRunning($0) == true }.map(\.name)), names,
-                    access)
+            return (discovered, catalog.overriddenRules(home: home, systemRoot: system), Self.running(owners, quitter: quitter), names, access)
         }.value
         await GrowthHistoryModel.shared.completeCatalog(scanned.0, catalog: catalog, fullDiskAccess: scanned.4, token: growth, afterCleanup: rescanFollowsCleanup)
         rescanFollowsCleanup = false
         fullDiskAccessRescan.scanned(scanned.4)
-        discovered = scanned.0.candidates; notes = scanned.0.notes; notAccessibleRules = scanned.0.notAccessible; overriddenRules = scanned.1; runningOwners = scanned.2; ownerNames = scanned.3
+        discovered = scanned.0.candidates; notes = scanned.0.notes; notAccessibleRules = scanned.0.notAccessible; overriddenRules = scanned.1; setRunning(scanned.2.0, open: scanned.2.1); ownerNames = scanned.3
         keepOnlyCurrentChoices()
         await scanGuidance(home: home, fullDiskAccess: scanned.4)
     }
@@ -244,6 +290,30 @@ import SwiftUI
         guard canEdit, candidates.contains(candidate) else { return }
         if selected { selectedIDs.insert(candidate.id) } else { selectedIDs.remove(candidate.id) }
         selectionRevision &+= 1
+    }
+
+    /// The recommended plan as the last scan sees it (`RecommendedPlan`): owners running at the scan are left out.
+    /// The full checks run when it is chosen, and again in the review.
+    var recommendedCandidates: [Candidate] {
+        let running = runningOwners, names = ownerNames
+        return RecommendedPlan(catalog: catalog, candidates: discovered) { item in
+            names[item.id].flatMap { running.contains($0) ? .ownerRunning($0) : nil }
+        }.candidates
+    }
+    /// "Up to" when part of the plan is copies that share disk blocks (SPEC section 6).
+    var recommendedSizeText: String {
+        let items = recommendedCandidates
+        return SizeEstimate(sum: items.map(SizeEstimate.init)).text(upperBound: items.contains { catalog.rule($0.ruleID)?.estimateIsUpperBound == true })
+    }
+    /// Replaces the selection with the recommended plan, checked now. Nothing is preselected unless the user asks for this (Decision 28).
+    func chooseRecommendedPlan() async -> Bool {
+        guard canEdit, let check = await currentCheck()?.snapshotted() else { return false }
+        let catalog = catalog, found = discovered
+        let ids = await Task.detached { Set(RecommendedPlan(catalog: catalog, candidates: found, check: check.check).candidates.map(\.id)) }.value
+        guard canEdit, discovered == found else { return false }
+        guard !ids.isEmpty else { message = "Nothing in the recommended plan can be cleaned right now. Scan again, or choose items below."; return false }
+        selectedIDs = ids; message = nil; selectionRevision &+= 1
+        return true
     }
 
     /// Freezes the chosen candidates and checks them once so the review can show what would be refused.
@@ -452,14 +522,27 @@ private struct PlanCategoryRow: View {
     }
 }
 
-/// Why a rule can't be cleaned right now: its owner is open.
+/// Why a rule can't be cleaned right now: its owner is open. One quiet line with one link, as `TrashLine` is drawn
+/// (Decision 25): "Quit <App>" for an open app, "Check again" for a command-line tool (#138).
 private struct PlanRunningOwners: View {
     let model: CatalogCleanupModel
     let rule: CleanupRule
     var body: some View {
-        ForEach(model.runningOwnerNames(for: rule), id: \.self) { name in
-            StatusRow(text: CheckRefusal.ownerRunning(name).reason, symbol: "exclamationmark.circle", role: .caution, identifier: "planRunning-" + rule.id)
-                .font(StillDesign.TypeStyle.caption)
+        ForEach(model.runningOwnerNotices(for: rule), id: \.name) { owner in
+            let quitting = model.quitStates[owner.name] == .quitting
+            HStack(alignment: .firstTextBaseline, spacing: StillDesign.Space.xs) {
+                Image(systemName: "exclamationmark.circle").foregroundStyle(StatusRole.caution.color).accessibilityHidden(true)
+                Text(owner.notice.text + " ·").foregroundStyle(.secondary).accessibilityIdentifier("planRunning-" + rule.id)
+                switch owner.notice.action {
+                case .quitApp(let title):
+                    Button(quitting ? "Quitting…" : title) { Task { await model.quitApp(named: owner.name) } }.disabled(quitting)
+                        .buttonStyle(.link).accessibilityIdentifier("planRunningQuit-" + rule.id)
+                case .checkAgain:
+                    Button("Check again") { Task { await model.checkRunningOwnersAgain() } }
+                        .buttonStyle(.link).accessibilityIdentifier("planRunningCheck-" + rule.id)
+                }
+            }.font(StillDesign.TypeStyle.caption).frame(maxWidth: .infinity, alignment: .leading)
+                .accessibilityElement(children: .contain)
         }
     }
 }

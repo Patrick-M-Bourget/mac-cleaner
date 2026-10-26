@@ -178,7 +178,8 @@ final class CatalogCleanupUITests: XCTestCase {
         // The plan says why DerivedData will be refused: this journey runs under xcodebuild or Xcode.
         let running = app.staticTexts["planRunning-xcode-derived-data"]
         XCTAssertTrue(running.waitForExistence(timeout: 5))
-        XCTAssertTrue((running.value as? String ?? "").contains("Xcode is running"), running.debugDescription)
+        // "Xcode is running" with Quit Xcode when the app is open, "Quit Xcode to include this" when only its tools run.
+        XCTAssertTrue((running.value as? String ?? "").contains("Xcode"), running.debugDescription)
         app.buttons["Review cleanup"].click()
 
         XCTAssertTrue(reviewLine(app, "permanentlyRemoved", "developer").waitForExistence(timeout: 5))
@@ -191,6 +192,37 @@ final class CatalogCleanupUITests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: home.appendingPathComponent("Library/Developer/Xcode/DerivedData/Still-abc/Build/Products/Debug/Still.app/entry").path))
     }
 
+
+    /// #138: a running command-line owner reads "Quit npm to include this" with Check again, and the check clears the line
+    /// once npm is gone. The stand-in npm is a shell running a script named npm-cli.js; no real app is ever quit here.
+    @MainActor func testARunningCommandLineOwnerClearsAfterCheckAgain() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        let state = try configureIsolatedState(app)
+        let home = try configureCatalogHome(app)
+        let script = home.appendingPathComponent(".still-test-npm/npm-cli.js")
+        try FileManager.default.createDirectory(at: script.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try "while :; do sleep 1; done\n".write(to: script, atomically: true, encoding: .utf8)
+        let npm = Process()
+        npm.executableURL = URL(fileURLWithPath: "/bin/sh")
+        npm.arguments = [script.path]
+        try npm.run()
+        defer { if npm.isRunning { npm.terminate() }; app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
+        app.launch()
+
+        XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
+        let row = app.buttons["overviewCategory-developer"]
+        XCTAssertTrue(row.waitForExistence(timeout: 10))
+        revealAndClick(row, in: app)
+        let running = app.staticTexts["planRunning-npm-cache"]
+        XCTAssertTrue(running.waitForExistence(timeout: 5))
+        XCTAssertTrue((running.value as? String ?? "").contains("Quit npm to include this"), running.debugDescription)
+        XCTAssertFalse(app.links["planRunningQuit-npm-cache"].exists)
+
+        npm.terminate(); npm.waitUntilExit()
+        revealAndClick(app.links["planRunningCheck-npm-cache"], in: app)
+        XCTAssertTrue(running.waitForNonExistence(timeout: 5))
+    }
 
     /// Dry run is off by default, so Clean up really deletes the fixture npm cache. It lives in a temp fixture home, never the real disk.
     @MainActor func testCleanUpOfAFixtureCategoryDeletesItAndReachesResults() throws {
@@ -789,5 +821,38 @@ final class TrashSpaceUITests: XCTestCase {
         while !FileManager.default.fileExists(atPath: marker.path), Date() < deadline { RunLoop.current.run(until: Date().addingTimeInterval(0.2)) }
         XCTAssertEqual(try String(contentsOf: marker, encoding: .utf8), home.appendingPathComponent(".Trash").path)
         XCTAssertTrue(FileManager.default.fileExists(atPath: trashed.path), "Opening the Trash changes nothing in it")
+    }
+}
+
+extension CatalogCleanupUITests {
+    /// #137: Overview's recommended plan preselects only data that rebuilds itself and opens the review directly;
+    /// Clean up runs it, two clicks from Overview. The installer (Trash) and Homebrew (a tool) stay out of it.
+    @MainActor func testRecommendedPlanReviewsOnlyRebuildableItemsAndCleansUpInTwoClicks() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        let state = try configureIsolatedState(app)
+        let home = try configureCatalogHome(app)
+        turnOnDryRun(app)
+        let marker = try addDeveloperCaches(home, folders: ["Library/Caches/Homebrew"])
+        defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
+        app.launch()
+
+        let recommended = app.buttons["overviewRecommendedPlan"]
+        XCTAssertTrue(recommended.waitForExistence(timeout: 10))
+        XCTAssertTrue(recommended.label.hasPrefix("Recommended plan · "), recommended.label)
+        revealAndClick(recommended, in: app)
+
+        // The review opens on its own and lists only the npm cache.
+        XCTAssertTrue(reviewLine(app, "permanentlyRemoved", "developer").waitForExistence(timeout: 10))
+        XCTAssertFalse(reviewLine(app, "movedToTrash", "downloads").exists)
+        XCTAssertFalse(reviewLine(app, "commandsRun", "developer").exists)
+        XCTAssertTrue(app.descendants(matching: .any).matching(NSPredicate(format: "label == '1 item · Show files'")).firstMatch.exists)
+        cleanUpFromReview(app)
+
+        XCTAssertTrue(app.staticTexts["catalogPreviewNotice"].waitForExistence(timeout: 10))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: marker.path))
+        for kept in [".npm/_cacache/content-v2/sha512/ab/blob", "Downloads/Setup.dmg", "Library/Caches/Homebrew/entry"] {
+            XCTAssertTrue(FileManager.default.fileExists(atPath: home.appendingPathComponent(kept).path), kept)
+        }
     }
 }

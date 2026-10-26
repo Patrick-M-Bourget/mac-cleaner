@@ -134,7 +134,9 @@ enum PlanReviewError: Error { case changed }
     var offset: CGPoint?
     /// Categories whose "Choose items" is open; opening a category from Overview opens it.
     var expandedCategories: Set<CatalogCategory> = []
-    func reset() { search = ""; choosingItems = false; inspected = nil; offset = nil; expandedCategories = [] }
+    /// Overview's recommended plan asks the plan to open its review sheet directly (#137).
+    var opensReview = false
+    func reset() { search = ""; choosingItems = false; inspected = nil; offset = nil; expandedCategories = []; opensReview = false }
 }
 
 struct LiveCleanupPlanView: View {
@@ -187,9 +189,7 @@ struct LiveCleanupPlanView: View {
             }
         } else {
             ActionStrip(message: nil) {
-                ReviewCleanupButton(enabled: selection.canReview, focusRequest: reviewFocusRequest) {
-                    Task { do { review = try await selection.prepareWorkspaceReview(); approvalError = nil } catch { approvalError = "Your choices changed. Review the latest items and try again." } }
-                }.fixedSize()
+                ReviewCleanupButton(enabled: selection.canReview, focusRequest: reviewFocusRequest) { Task { await openReview() } }.fixedSize()
             }
         }
         }
@@ -200,6 +200,14 @@ struct LiveCleanupPlanView: View {
             }
         }
         .onChange(of: selection.catalog.selectionRevision) { _, _ in if review != nil { review = nil } }
+        .task(id: presentation.opensReview) {
+            guard presentation.opensReview else { return }
+            presentation.opensReview = false
+            await openReview()
+        }
+    }
+    private func openReview() async {
+        do { review = try await selection.prepareWorkspaceReview(); approvalError = nil } catch { approvalError = "Your choices changed. Review the latest items and try again." }
     }
 }
 

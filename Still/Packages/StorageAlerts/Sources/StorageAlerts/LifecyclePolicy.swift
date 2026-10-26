@@ -5,6 +5,32 @@ public enum AppLifecyclePolicy {
         effectiveAlerts || operationInProgress || hasPendingPlan
     }
     public static func mayQuit(operationInProgress: Bool) -> Bool { !operationInProgress }
+
+    /// What a quit request does now (#130). A running cleanup asks first; once a stop is confirmed,
+    /// or while maintenance runs, quitting waits for the current item and then completes on its own.
+    public enum QuitDecision: Equatable, Sendable { case quitNow, askToStopCleanup, waitForCurrentItem }
+    public static func quitDecision(cleanupRunning: Bool, maintenanceInProgress: Bool, stopConfirmed: Bool) -> QuitDecision {
+        if maintenanceInProgress { return .waitForCurrentItem }
+        guard cleanupRunning else { return .quitNow }
+        return stopConfirmed ? .waitForCurrentItem : .askToStopCleanup
+    }
+}
+
+/// The question asked when quitting during a cleanup (#130). Cancel is the default and keeps it running;
+/// only an explicit "Stop and Quit" stops the cleanup after the current item.
+@MainActor public struct QuitDuringCleanupPrompt {
+    public enum Answer: Sendable { case keepRunning, stopAndQuit }
+    public static let message = "A cleanup is running. Stop after this item and quit?"
+    /// In order; the first is the default button.
+    public static let buttons = ["Cancel", "Stop and Quit"]
+    private let ask: @MainActor () -> Answer
+    public init(ask: @escaping @MainActor () -> Answer) { self.ask = ask }
+    /// Asks, and stops the cleanup only when confirmed. Returns whether to quit once the current item finishes.
+    public func confirm(stopCleanup: () -> Void) -> Bool {
+        guard ask() == .stopAndQuit else { return false }
+        stopCleanup()
+        return true
+    }
 }
 
 /// A normal launch always opens the main window (#110). macOS's saved window state could restore
