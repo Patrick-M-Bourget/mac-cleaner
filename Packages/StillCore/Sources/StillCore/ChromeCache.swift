@@ -27,23 +27,14 @@ public struct NativeChromeCacheEnvironment: ChromeCacheEnvironment {
         try verifyChromeLocalLocation(url)
         try verifyChromeLocalLocation(url.appendingPathComponent("Contents/Info.plist"))
         try verifyChromeLocalLocation(url.appendingPathComponent("Contents/MacOS/Google Chrome"))
-        let os = ProcessInfo.processInfo.operatingSystemVersion
-        var machine = utsname(); uname(&machine)
-        let architecture = withUnsafeBytes(of: machine.machine) { String(decoding: $0.prefix { $0 != 0 }, as: UTF8.self) }
-        guard os.majorVersion == 26, os.minorVersion == 6, os.patchVersion == 2, architecture == "arm64",
-              let bundle = Bundle(url: url), bundle.bundleIdentifier == "com.google.Chrome",
-              bundle.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String == "156.0.8078.48" else {
-            throw ChromeCacheFailure("This Chrome or macOS version has not been qualified.")
+        guard let bundle = Bundle(url: url), bundle.bundleIdentifier == "com.google.Chrome" else {
+            throw ChromeCacheFailure("This application is not Google Chrome.")
         }
         var code: SecStaticCode?; var requirement: SecRequirement?
         guard SecStaticCodeCreateWithPath(url as CFURL, [], &code) == errSecSuccess, let code,
               SecRequirementCreateWithString("anchor apple generic and identifier \"com.google.Chrome\" and certificate leaf[subject.OU] = \"EQHXZ8M8AV\"" as CFString, [], &requirement) == errSecSuccess,
               SecStaticCodeCheckValidity(code, SecCSFlags(rawValue: kSecCSCheckAllArchitectures | kSecCSStrictValidate | kSecCSCheckNestedCode), requirement) == errSecSuccess else {
             throw ChromeCacheFailure("Chrome's verified Google signature is unavailable.")
-        }
-        let binary = try Data(contentsOf: url.appendingPathComponent("Contents/MacOS/Google Chrome"), options: .mappedIfSafe)
-        guard SHA256.hash(data: binary).map({ String(format: "%02x", $0) }).joined() == "4f71e9dbe725fec1110977b6a6dd0708fb32fbde9c905b4b461cef880ac08288" else {
-            throw ChromeCacheFailure("This Chrome executable has not been qualified.")
         }
         let home = FileManager.default.homeDirectoryForCurrentUser
         // Query only layout-policy keys; ordinary macOS window preferences are
