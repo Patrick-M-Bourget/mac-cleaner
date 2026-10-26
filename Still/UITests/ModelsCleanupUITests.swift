@@ -11,9 +11,7 @@ final class ModelsCleanupUITests: XCTestCase {
         try Data(#"{"schemaVersion":2,"config":{"digest":"sha256:c1","size":10},"layers":[{"digest":"sha256:w1","size":90000}]}"#.utf8).write(to: manifest)
         let marker = home.appendingPathComponent("ollama-ran")
         let ollama = home.appendingPathComponent(".still-test-tools/ollama")
-        try FileManager.default.createDirectory(at: ollama.deletingLastPathComponent(), withIntermediateDirectories: true)
-        try "#!/bin/sh\ntouch '\(marker.path)'\n".write(to: ollama, atomically: true, encoding: .utf8)
-        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: ollama.path)
+        try writeStandInTool("#!/bin/sh\ntouch '\(marker.path)'\n", to: ollama)
         return marker
     }
 

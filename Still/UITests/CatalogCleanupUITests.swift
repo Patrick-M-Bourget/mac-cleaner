@@ -14,6 +14,14 @@ import XCTest
     return home
 }
 
+/// Writes an executable stand-in tool into the fixture home's `.still-test-tools`. The sandboxed runner quarantines every
+/// file it writes and can't clear that; the app clears it on stand-ins it finds there (debug test seam), so they can run.
+@MainActor func writeStandInTool(_ script: String, to tool: URL) throws {
+    try FileManager.default.createDirectory(at: tool.deletingLastPathComponent(), withIntermediateDirectories: true)
+    try script.write(to: tool, atomically: true, encoding: .utf8)
+    try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: tool.path)
+}
+
 /// Adds developer caches and a stand-in `brew` that would leave a marker if it ever ran.
 @MainActor func addDeveloperCaches(_ home: URL, folders: [String]) throws -> URL {
     for folder in folders {
@@ -23,9 +31,7 @@ import XCTest
     }
     let marker = home.appendingPathComponent("brew-ran")
     let brew = home.appendingPathComponent(".still-test-tools/brew")
-    try FileManager.default.createDirectory(at: brew.deletingLastPathComponent(), withIntermediateDirectories: true)
-    try "#!/bin/sh\ntouch '\(marker.path)'\n".write(to: brew, atomically: true, encoding: .utf8)
-    try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: brew.path)
+    try writeStandInTool("#!/bin/sh\ntouch '\(marker.path)'\n", to: brew)
     return marker
 }
 
@@ -121,8 +127,7 @@ final class CatalogCleanupUITests: XCTestCase {
                                                    "Library/Developer/CoreSimulator/Devices/0A1B2C3D-0000-0000-0000-000000000000"])
         let marker = home.appendingPathComponent("simctl-ran")
         let simctl = home.appendingPathComponent(".still-test-tools/simctl")
-        try "#!/bin/sh\ntouch '\(marker.path)'\n".write(to: simctl, atomically: true, encoding: .utf8)
-        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: simctl.path)
+        try writeStandInTool("#!/bin/sh\ntouch '\(marker.path)'\n", to: simctl)
         defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
         app.launch()
 
@@ -413,12 +418,10 @@ final class CatalogCleanupUITests: XCTestCase {
         try FileManager.default.createDirectory(at: home.appendingPathComponent(".docker"), withIntermediateDirectories: true)
         let marker = home.appendingPathComponent("docker-pruned")
         let docker = home.appendingPathComponent(".still-test-tools/docker")
-        try FileManager.default.createDirectory(at: docker.deletingLastPathComponent(), withIntermediateDirectories: true)
         let df = daemonAnswers
             ? #"echo '{"Active":"1","Reclaimable":"2.5GB (62%)","Size":"4GB","TotalCount":"5","Type":"Images"}'; echo '{"Active":"0","Reclaimable":"1.2GB","Size":"1.2GB","TotalCount":"9","Type":"Build Cache"}'"#
             : "echo 'Cannot connect to the Docker daemon' >&2; exit 1"
-        try "#!/bin/sh\nif test \"$*\" = 'system df --format json'; then \(df); else touch '\(marker.path)'; fi\n".write(to: docker, atomically: true, encoding: .utf8)
-        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: docker.path)
+        try writeStandInTool("#!/bin/sh\nif test \"$*\" = 'system df --format json'; then \(df); else touch '\(marker.path)'; fi\n", to: docker)
         return marker
     }
 

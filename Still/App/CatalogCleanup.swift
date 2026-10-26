@@ -95,14 +95,17 @@ import SwiftUI
     }
 
     /// Where a tool rule's executable is found. A debug test home only ever finds stand-ins inside
-    /// `<home>/.still-test-tools`, so a UI test never runs a real tool.
+    /// `<home>/.still-test-tools`, so a UI test never runs a real tool. The sandboxed UI test runner quarantines the
+    /// stand-ins it writes, and macOS won't run a quarantined script, so the attribute is cleared here.
     static var locateTool: @Sendable (ToolCommand) -> URL? {
         #if DEBUG
         if LocalStateLocation.isDisposableTest {
             guard let home else { return { _ in nil } }
             return { command in
-                command.executables.lazy.map { home.appendingPathComponent(".still-test-tools/" + URL(fileURLWithPath: $0).lastPathComponent) }
+                let tool = command.executables.lazy.map { home.appendingPathComponent(".still-test-tools/" + URL(fileURLWithPath: $0).lastPathComponent) }
                     .first { FileManager.default.isExecutableFile(atPath: $0.path) }
+                if let tool { removexattr(tool.path, "com.apple.quarantine", 0) }
+                return tool
             }
         }
         #endif
