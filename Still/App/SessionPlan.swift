@@ -44,6 +44,7 @@ struct RefreshRequest: Sendable {
     private var expectedExclusionFingerprint = "none"
     func invalidateCoverage() {
         refreshRequests.removeAll(); scans.removeAll()
+        catalog.forgetPickedFiles()
         message = "Exclusion settings changed. Recheck selected locations to see the new coverage."
     }
     func expectExclusions(_ fingerprint: String) {
@@ -88,6 +89,7 @@ struct RefreshRequest: Sendable {
         let request = beginRefresh(scope)
         cancelRefresh(request)
         scans = scans.filter { $0.key.standardizedFileURL.path != scope.standardizedFileURL.path }
+        catalog.forgetPickedFiles(scope)
     }
     func startNewPlan() {
         guard !workspaceRunning, !catalog.isRunning else { return }

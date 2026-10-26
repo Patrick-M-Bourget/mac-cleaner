@@ -42,4 +42,38 @@ final class LaunchSmokeUITests: XCTestCase {
         XCTAssertTrue(app.windows.firstMatch.waitForExistence(timeout: 10))
         XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
     }
+
+    /// #115: launch never asks for access; Locations & access shows the state and the shared explanation.
+    /// The fixture home's Safari folder refuses to open, which is how the probe sees missing Full Disk Access.
+    @MainActor func testFullDiskAccessIsExplainedOnlyWhenAsked() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        let state = try configureIsolatedState(app)
+        let home = try configureCatalogHome(app)
+        let safari = home.appendingPathComponent("Library/Safari")
+        try FileManager.default.createDirectory(at: safari, withIntermediateDirectories: true)
+        try FileManager.default.setAttributes([.posixPermissions: 0], ofItemAtPath: safari.path)
+        defer {
+            app.terminate(); try? FileManager.default.removeItem(at: state)
+            try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: safari.path); try? FileManager.default.removeItem(at: home)
+        }
+        app.launchArguments = ["-ApplePersistenceIgnoreState", "YES"]
+        app.launch()
+        XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
+        XCTAssertFalse(app.sheets.firstMatch.exists, "Nothing asks for access at launch")
+
+        app.staticTexts["Locations & access"].firstMatch.click()
+        let guide = app.disclosureTriangles["About folder access"].firstMatch
+        if guide.waitForExistence(timeout: 5) { guide.click() } else { app.staticTexts["About folder access"].firstMatch.click() }
+        let status = app.staticTexts["fullDiskAccessStatus"]
+        XCTAssertTrue(status.waitForExistence(timeout: 5))
+        XCTAssertTrue((status.value as? String ?? status.label).contains("Not granted"))
+
+        app.buttons["fullDiskAccessLink"].firstMatch.click()
+        XCTAssertTrue(app.staticTexts["Full Disk Access is optional"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Still’s scans stay read-only. Nothing protected becomes eligible for cleanup, and Still only changes what you choose and review."].exists)
+        XCTAssertTrue(app.buttons["openFullDiskAccessSettings"].exists) // Not pressed: tests never open System Settings.
+        app.buttons["closeFullDiskAccess"].click()
+        XCTAssertFalse(app.staticTexts["Full Disk Access is optional"].waitForExistence(timeout: 2))
+    }
 }

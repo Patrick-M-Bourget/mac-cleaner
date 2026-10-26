@@ -99,6 +99,7 @@ struct ManagedStorageView: View {
                     } else {
                         Text(selected.coverage).foregroundStyle(.secondary)
                     }
+                    if selected.allocation == .inaccessible { FullDiskAccessLink(title: "Review access options") }
                     if let url = selected.selectedURL { Text(url.path).textSelection(.enabled).font(.caption) }
                     if let time = selected.observedAt { Text("Observed \(time.formatted())").font(.caption).foregroundStyle(.secondary) }
                     if selected.category != .releaseArchives {
@@ -127,7 +128,7 @@ struct ManagedStorageView: View {
         switch value {
         case .measured(let bytes): "Measured selected object: \(bytes == 0 ? "0 bytes" : ByteCountFormatter.string(fromByteCount: bytes, countStyle: .decimal))"
         case .unknown: "Unknown allocation"
-        case .inaccessible: "Access unavailable"
+        case .inaccessible: "Not accessible"
         case .uninspected: "Not inspected"
         case .notIndependentlyEstimated: "Not independently estimated"
         }
