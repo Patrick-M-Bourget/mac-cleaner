@@ -149,3 +149,18 @@ private func executor(trash: URL) -> CleanupExecutor {
     check.home = home
     #expect(check.check(fromEarlierScan) == .protected("Library"))
 }
+
+@Test func aPickedFolderThatJoinedAGitCheckoutAboveItAfterTheScanIsSkipped() async throws {
+    let outer = try pickedFolder(), trash = try pickedFolder()
+    defer { try? FileManager.default.removeItem(at: outer); try? FileManager.default.removeItem(at: trash) }
+    let picked = outer.appendingPathComponent("build")
+    let movie = try file(picked, "movie.mov", size: 600 * megabyte, now: Date())
+    let chosen = try #require(try await offered(picked, now: Date())["movie.mov"])
+    // The check just before acting looks above the picked folder, as discovery does.
+    try FileManager.default.createDirectory(at: outer.appendingPathComponent(".git"), withIntermediateDirectories: true)
+
+    let result = await executor(trash: trash).execute(CatalogApproval(candidates: [chosen], previewOnly: false))
+    #expect(result.records.map(\.state) == [.skipped])
+    #expect(result.records.first?.message == CheckRefusal.protected(".git").reason)
+    #expect(FileManager.default.fileExists(atPath: movie.path))
+}

@@ -26,7 +26,7 @@ public enum UserFiles {
         let catalog = Catalog(rules: [rule]), scope = URL(fileURLWithPath: scopePath, isDirectory: true)
         let protection = Protection(rule)
         // A folder picked inside a git working tree (a project's build folder) offers nothing.
-        if insideGitCheckoutAbove(scope) { return [] }
+        if GitCheckout.encloses(scope, upTo: nil, home: home) { return [] }
         let cutoff = now.addingTimeInterval(-Double(unusedDays) * 86_400)
         var seen = Set<String>(), found: [Candidate] = []
         for item in scan.observations.filter({ $0.kind == .file }).sorted(by: { ($0.logicalBytes ?? 0) > ($1.logicalBytes ?? 0) }) {
@@ -36,7 +36,7 @@ public enum UserFiles {
                   seen.insert(info.resourceID).inserted, let path = realPath(item.url.path) else { continue }
             let url = URL(fileURLWithPath: path)
             guard info.st_uid == geteuid(), info.st_flags & UInt32(SF_DATALESS) == 0, item.cloud.membership == false,
-                  protection.protectedComponent(of: url, below: scope) == nil, protectedFolder(of: url, home: home) == nil, !Protection.insideGitCheckout(url, upTo: scope) else { continue }
+                  protection.protectedComponent(of: url, below: scope) == nil, protectedFolder(of: url, home: home) == nil, !GitCheckout.encloses(url, upTo: scope, home: home) else { continue }
             let volume = try? url.resourceValues(forKeys: [.volumeUUIDStringKey]).volumeUUIDString
             if !exclusions.rules.isEmpty, volume.map({ exclusions.covers(url, volumeID: $0) }) ?? true { continue }
             let size = Int64(info.st_size)
@@ -55,18 +55,6 @@ public enum UserFiles {
     static func protectedFolder(of url: URL, home: URL) -> String? {
         guard let item = realPath(url.path) ?? realPath(url.deletingLastPathComponent().path), let home = realPath(home.path) else { return nil }
         return protectedFolders.first { item.hasPrefix(home + "/" + $0 + "/") || item == home + "/" + $0 }
-    }
-
-    /// Whether a folder above the scope, below the home folder or the root, holds a `.git` entry.
-    private static func insideGitCheckoutAbove(_ scope: URL) -> Bool {
-        let home = realPath(NSHomeDirectory())
-        var folder = scope.deletingLastPathComponent()
-        while folder.path != "/", folder.path != home {
-            var info = stat()
-            if lstat(folder.appendingPathComponent(".git").path, &info) == 0 { return true }
-            folder = folder.deletingLastPathComponent()
-        }
-        return false
     }
 
     /// Access, change and creation times; Spotlight's last-opened date can only make a file more recent.

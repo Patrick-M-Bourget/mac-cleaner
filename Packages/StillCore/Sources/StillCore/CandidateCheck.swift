@@ -115,8 +115,10 @@ public struct CandidateCheck: Sendable {
         // The same folder moved out of scope and reached through a symlink keeps its identity, so containment is checked too.
         guard let root = candidate.scopeRoot, ScopeContainment.contains(candidate.url, in: root) else { return .changed }
         if let part = Protection(rule).protectedComponent(of: candidate.url, below: root) { return .protected(part) }
-        if rule.id == UserFiles.ruleID, let folder = UserFiles.protectedFolder(of: candidate.url, home: home) { return .protected(folder) }
-        if !candidate.isDirectory, Protection.insideGitCheckout(candidate.url, upTo: root) { return .protected(".git") }
+        let picked = rule.id == UserFiles.ruleID
+        if picked, let folder = UserFiles.protectedFolder(of: candidate.url, home: home) { return .protected(folder) }
+        // A picked folder's file is looked at above the folder too, as the explorer does when it lists it.
+        if !candidate.isDirectory, GitCheckout.encloses(candidate.url, upTo: picked ? nil : root, home: home) { return .protected(".git") }
         if !candidate.isDirectory {
             // Files must be byte-for-byte the observed version; cache folders churn, so folders keep identity only.
             guard Int64(info.st_size) == candidate.fileBytes ?? candidate.logicalBytes, Int64(info.st_mtimespec.tv_sec) == candidate.modifiedSeconds,
