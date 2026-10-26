@@ -430,7 +430,7 @@ struct CatalogItemChooser: View {
     }
     private func detail(_ item: Candidate) -> String {
         let folder = item.url.deletingLastPathComponent().path.replacingOccurrences(of: FileManager.default.homeDirectoryForCurrentUser.path, with: "~")
-            .replacingOccurrences(of: "~/Library/Mobile Documents/com~apple~CloudDocs", with: "iCloud Drive")
+            .replacingOccurrences(of: "~/" + BuiltInCatalog.iCloudDrivePath, with: "iCloud Drive")
         return item.lastUsed.map { folder + " · Last used " + $0.formatted(date: .abbreviated, time: .omitted) } ?? folder
     }
 }
