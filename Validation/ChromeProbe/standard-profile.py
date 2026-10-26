@@ -79,15 +79,18 @@ def main():
               'dataRoot': str(data), 'cacheRoot': str(cache),
               'cleanupExercised': False, 'personalFilesInspected': False,
               'initialRootsAbsent': True, 'verifiedProvision': str(provenance_path),
-              'limitations': ['headless browser-created default profile, not headed daily use',
+              'explicitFreshStandardUserDataDir': True,
+              'limitations': ['headless explicitly selects fresh standard data root; not unflagged headed startup',
                              'no saved-password/address semantics in this check',
                              'managed/custom disk-cache/shared layouts unsupported',
                              'hosted fresh-root qualification authority only; no production adapter']}
     save = lambda: (evidence / 'report.json').write_text(json.dumps(report, indent=2) + '\n')
     save()
-    # These flags affect presentation/first-run only; no sandbox/signature/security bypass.
+    # Actual prior DOM showed headless auto-selects a temporary incognito root.
+    # Explicitly select ONLY the standard root whose absence was proved above.
+    # No HOME redirect, remote debugging or sandbox/signature bypass.
     flags = [str(binary), '--headless=new', '--no-first-run', '--no-default-browser-check',
-             '--profile-directory=Default', '--dump-dom']
+             '--profile-directory=Default', '--user-data-dir=' + str(data), '--dump-dom']
     def launch(url, name):
         # Chrome documents chrome:// access as an explicit headless opt-in since123.
         scheme_access = ['--allow-chrome-scheme-url'] if url == 'chrome://version' else []
@@ -121,7 +124,12 @@ def main():
         actual_profile = html.unescape(re.sub('<[^>]+>', '', match.group(1))).strip() if match else None
         if actual_profile != str(expected_profile):
             raise ValueError('browser-owned Profile Path does not identify standard Default')
-        report.update(browserProfilePathMatched=True, actualProfilePath=actual_profile)
+        command_match = re.search(r'id=[\"\']command_line[\"\'][^>]*>(.*?)</td>', dom, re.S)
+        actual_command = html.unescape(re.sub('<[^>]+>', '', command_match.group(1))).strip() if command_match else None
+        if actual_command is None or re.search(r'(^|\s)--incognito(?:\s|=|$)', actual_command):
+            raise ValueError('browser command line missing or profile remains incognito')
+        report.update(browserProfilePathMatched=True, actualProfilePath=actual_profile,
+                      actualBrowserCommandLine=actual_command, incognitoObserved=False)
         launch('http://127.0.0.1:' + str(server.server_port) + '/', 'loopback')
         if '/asset.js' not in requests:
             raise ValueError('browser did not request synthetic downloaded asset')
