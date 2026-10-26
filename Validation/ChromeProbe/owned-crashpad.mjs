@@ -56,6 +56,7 @@ export async function captureOwnedCrashpad(bundle,userData,priorPIDs){
  for(const row of rows().filter(row=>row.executable.startsWith(bundle+'/')&&row.executable.endsWith('/chrome_crashpad_handler'))){
   const argumentsText=command(row.pid);if(argumentsText===null)continue;
   const observed={...row,command:argumentsText};
+  assert(qualifiesCrashpad(observed,scope),'Verified bundle helper lacks exact new synthetic database ownership; no teardown authority');
   if(qualifiesCrashpad(observed,scope)){
    assert.equal(await realpath(observed.executable),observed.executable,'Helper executable must have physical bundle provenance');captured.push(observed);
   }

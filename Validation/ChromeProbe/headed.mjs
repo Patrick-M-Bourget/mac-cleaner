@@ -32,12 +32,12 @@ class CDP {constructor(ws){this.ws=ws;this.id=0;this.pending=new Map();ws.addEve
 async function launch(){
  await unlink(join(userData,'DevToolsActivePort')).catch(e=>{if(e.code!=='ENOENT')throw e;});
  const priorCrashpad=process.env.STILL_CHROME_SWIFT_RUNNER?crashpadBaseline(bundle):null;
- owned=spawn(browser,['--no-first-run','--no-default-browser-check','--disable-background-networking','--disable-component-update','--remote-debugging-address=127.0.0.1','--remote-debugging-port=0',`--user-data-dir=${userData}`,'about:blank'],{detached:true,stdio:['ignore','ignore','pipe']});
+ owned=spawn(browser,['--no-first-run','--no-default-browser-check','--disable-background-networking','--disable-component-update','--remote-debugging-address=127.0.0.1','--remote-debugging-port=0',`--user-data-dir=${userData}`,'about:blank'],{detached:true,stdio:['ignore','ignore','pipe'],env:process.env.STILL_CHROME_SWIFT_RUNNER?{...process.env,BREAKPAD_DUMP_LOCATION:join(userData,'Crashpad')}:process.env});
  let stderr='';owned.stderr.on('data',b=>{stderr=(stderr+b).slice(-4000);});let endpoint;
  for(let i=0;i<150;i++){assert.equal(owned.exitCode,null,stderr);try{const [p,s]=(await readFile(join(userData,'DevToolsActivePort'),'utf8')).trim().split('\n');endpoint=`ws://127.0.0.1:${p}${s}`;break;}catch(e){if(e.code!=='ENOENT')throw e;}await sleep(100);}
  assert(endpoint,'headed debug endpoint unavailable');ws=new WebSocket(endpoint);await new Promise((r,j)=>{ws.addEventListener('open',r,{once:true});ws.addEventListener('error',j,{once:true});});cdp=new CDP(ws);
  const {targetId}=await cdp.call('Target.createTarget',{url:'about:blank'});({sessionId:session}=await cdp.call('Target.attachToTarget',{targetId,flatten:true}));await cdp.call('Page.enable',{},session);
- if(priorCrashpad)owned.crashpadOwnership=await captureOwnedCrashpad(bundle,userData,priorCrashpad);
+ if(priorCrashpad){owned.crashpadOwnership=await captureOwnedCrashpad(bundle,userData,priorCrashpad);assert(owned.crashpadOwnership.captured.length>0,'Expected observed headed helper with exact synthetic crash database');(report.fixtureHelperCapture??=[]).push({capturedCount:owned.crashpadOwnership.captured.length});report.fixtureCrashDatabaseContainment={environment:'BREAKPAD_DUMP_LOCATION',database:'owned/user-data/Crashpad',sourceRevision:'d0c02bfad08ec92a6ffcf989e53cd995e6381a4c',productionBehaviorClaim:false};}
 }
 const evaluate=async expression=>{const r=await cdp.call('Runtime.evaluate',{expression,returnByValue:true,awaitPromise:true},session);if(r.exceptionDetails)throw new Error(JSON.stringify(r.exceptionDetails));return r.result.value;};
 async function navigate(url){await cdp.call('Page.navigate',{url},session);for(let i=0;i<80;i++){if(await evaluate('location.href+":"+document.readyState').catch(()=>null)===url+':complete')return;await sleep(100);}throw new Error('navigation incomplete '+url);}

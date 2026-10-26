@@ -117,7 +117,7 @@ async function launch(profile, restore = false) {
   const args = ['--enable-automation', '--headless=new', '--no-first-run', '--no-default-browser-check', '--disable-background-networking', '--disable-component-update', '--disable-sync', '--disable-extensions', '--disable-default-apps', '--metrics-recording-only', '--password-store=basic', '--use-mock-keychain', '--remote-debugging-address=127.0.0.1', '--remote-debugging-port=0', `--user-data-dir=${userData}`, `--profile-directory=${profile}`, 'about:blank'];
   if (restore) args.splice(-1, 0, '--restore-last-session');
   const priorCrashpad = process.env.STILL_CHROME_SWIFT_RUNNER ? crashpadBaseline(bundle) : null;
-  const child = spawn(browser, args, { detached: true, stdio: ['ignore', 'ignore', 'pipe'] });
+  const child = spawn(browser, args, { detached: true, stdio: ['ignore', 'ignore', 'pipe'], env: process.env.STILL_CHROME_SWIFT_RUNNER ? {...process.env,BREAKPAD_DUMP_LOCATION:join(userData,'Crashpad')} : process.env });
   owned = { child, pid: child.pid, stderr: '' };
   child.stderr.on('data', b => { owned && (owned.stderr = (owned.stderr + b.toString()).slice(-8000)); });
   let endpoint;
@@ -130,7 +130,12 @@ async function launch(profile, restore = false) {
   const ws = new WebSocket(endpoint);
   await new Promise((resolve, reject) => { ws.addEventListener('open', resolve, { once: true }); ws.addEventListener('error', reject, { once: true }); });
   const cdp = new CDP(ws);
-  if (priorCrashpad) owned.crashpadOwnership = await captureOwnedCrashpad(bundle,userData,priorCrashpad);
+  if (priorCrashpad) {
+    owned.crashpadOwnership = await captureOwnedCrashpad(bundle,userData,priorCrashpad);
+    assert(owned.crashpadOwnership.captured.length>0,'Expected an observed helper with exact synthetic crash database');
+    (report.fixtureHelperCapture??=[]).push({profile,capturedCount:owned.crashpadOwnership.captured.length});
+    report.fixtureCrashDatabaseContainment={environment:'BREAKPAD_DUMP_LOCATION',database:'owned/user-data/Crashpad',sourceRevision:'d0c02bfad08ec92a6ffcf989e53cd995e6381a4c',productionBehaviorClaim:false};
+  }
   if (restore) {
     let targets = [];
     for (let i = 0; i < 50; i++) {
