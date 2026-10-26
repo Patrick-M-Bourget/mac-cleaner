@@ -16,7 +16,7 @@ public enum UserFiles {
         detail: "Files in folders you picked: 500 MB or more, or not opened in 90 days.",
         consequence: "Moved to Trash. The space stays used until you empty the Trash; you can restore them from the Trash in Finder.",
         regen: .userFile, action: .trash, locations: [], owner: nil,
-        protectedExtensions: BuiltInCatalog.downloadsProtectedExtensions)
+        protectedExtensions: BuiltInCatalog.downloadsProtectedExtensions, fromPickedFolders: true)
 
     /// The scan's files that are large or old, largest first. Read-only.
     public static func candidates(in scan: ScanResult, rule: CleanupRule = rule, exclusions: ExclusionPolicy = ExclusionPolicy(),

@@ -135,9 +135,12 @@ public struct CleanupRule: Sendable, Identifiable {
     public let requiresFullDiskAccess: Bool
     /// macOS folder names (`com.apple.…`) this rule may act inside, such as Safari's own caches folder. Every other one stays protected.
     public let unprotectedNames: Set<String>
+    /// Its items are single files from folders the user picked (`UserFiles`), never from its own locations. They're never
+    /// taken from the home folder's protected folders, and a git checkout above the picked folder counts too.
+    public let fromPickedFolders: Bool
     public init(id: String, category: CatalogCategory, title: String, detail: String, consequence: String, regen: RegenClass, action: CleanupAction, locations: [String], owner: RuleOwner?, protectedNames: [String] = [], tool: ToolCommand? = nil, protectedExtensions: [String] = [], contents: ContentsMatch? = nil, keepNewestVersions: Int? = nil, layoutOverrides: [LayoutOverride] = [], base: LocationBase = .home, copies: LeakedCopies? = nil, itemName: (@Sendable (String) -> String?)? = nil, items: CatalogItems? = nil, unprotectedExtensions: Set<String> = [],
                 itemOwner: (@Sendable (URL) -> RuleOwner?)? = nil, yieldsToOtherRules: Bool = false, protectedDepth: Int = 1, requiresFullDiskAccess: Bool = false, guidance: Guidance? = nil,
-                unprotectedNames: Set<String> = []) {
+                unprotectedNames: Set<String> = [], fromPickedFolders: Bool = false) {
         self.id = id; self.category = category; self.title = title; self.detail = detail; self.consequence = consequence
         self.regen = regen; self.action = action; self.locations = locations; self.owner = owner; self.protectedNames = protectedNames; self.tool = tool
         self.protectedExtensions = protectedExtensions; self.contents = contents; self.keepNewestVersions = keepNewestVersions; self.layoutOverrides = layoutOverrides
@@ -145,7 +148,7 @@ public struct CleanupRule: Sendable, Identifiable {
         self.itemName = itemName; self.items = items; self.unprotectedExtensions = unprotectedExtensions
         self.itemOwner = itemOwner; self.yieldsToOtherRules = yieldsToOtherRules; self.protectedDepth = protectedDepth
         self.requiresFullDiskAccess = requiresFullDiskAccess; self.unprotectedNames = unprotectedNames
-        self.guidance = guidance
+        self.guidance = guidance; self.fromPickedFolders = fromPickedFolders
     }
 }
 

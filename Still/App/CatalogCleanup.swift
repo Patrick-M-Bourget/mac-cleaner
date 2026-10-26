@@ -325,9 +325,9 @@ func catalogBytes(_ value: Int64, complete: Bool = true, upperBound: Bool = fals
 
 extension CleanupRule {
     /// Rules whose items the user chooses one by one: single Downloads files, and each model or disk image.
-    var choosesItems: Bool { contents != nil || regen == .model || action == .evict || id == UserFiles.ruleID }
+    var choosesItems: Bool { contents != nil || regen == .model || action == .evict || fromPickedFolders }
     /// Whether every item the rule offers is a single file.
-    var offersFiles: Bool { contents != nil || id == UserFiles.ruleID }
+    var offersFiles: Bool { contents != nil || fromPickedFolders }
     /// How the review names what happens, e.g. "Move to Trash: Installers in Downloads".
     var reviewTitle: String { action.wording.reviewPrefix + title }
 }
