@@ -86,6 +86,7 @@ private func recordCatalogScan(_ catalog: Catalog, home: URL, recorder: GrowthSc
     try write(10_000, at: ".npm/_cacache/content-v2/one", in: home)
     let first = try await recordCatalogScan(catalog, home: home, recorder: recorder)
     #expect(first.state == .firstBaseline)
+    #expect(first.current?.fingerprint.isCatalog == true)
     let npm = try #require(first.current?.groups.first { $0.ruleID == "npm-cache" })
     #expect(npm.dimension == .location && npm.category == "developer" && npm.label == "~/.npm/_cacache" && npm.measured == true)
     #expect(npm.logicalBytes >= 10_000)

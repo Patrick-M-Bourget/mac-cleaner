@@ -7,6 +7,8 @@ public struct GrowthFingerprint: Codable, Sendable, Equatable {
         self.scopeID = scopeID; self.rootID = rootID; self.volumeID = volumeID; self.access = access
         self.rules = rules; self.exclusions = exclusions; self.classification = classification
     }
+    /// Whether this records a catalog scan of the known locations rather than a chosen folder.
+    public var isCatalog: Bool { scopeID.hasPrefix("catalog:") }
 }
 /// `location` groups come from catalog scans: one per rule location, with its catalog category and whether it could be read.
 public enum GrowthDimension: String, Codable, Sendable { case folder, category, location }
