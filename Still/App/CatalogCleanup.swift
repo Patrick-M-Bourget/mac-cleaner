@@ -68,6 +68,7 @@ import SwiftUI
     func candidates(for rule: CleanupRule) -> [Candidate] { candidates.filter { $0.ruleID == rule.id } }
     func estimatedBytes(for rule: CleanupRule) -> Int64 { candidates(for: rule).reduce(0) { $0 + ($1.allocatedBytes ?? $1.logicalBytes) } }
     func sizeComplete(for rule: CleanupRule) -> Bool { candidates(for: rule).allSatisfy(\.sizeComplete) }
+    func sizeIsEstimate(for rule: CleanupRule) -> Bool { candidates(for: rule).contains(where: \.sizeIsEstimate) }
     var selectedCandidates: [Candidate] { candidates.filter { selectedIDs.contains($0.id) } }
     /// Rules with at least one chosen item.
     var selectedRuleCount: Int { Set(selectedCandidates.map(\.ruleID)).count }
@@ -184,7 +185,7 @@ extension SizeEstimate {
 extension CatalogOverview.Row {
     /// What happens and to what, e.g. "Clear npm cache, Yarn cache · Move Installers to Trash".
     var detail: String {
-        let cleared = rules.filter { $0.action == .delete }.map(\.title)
+        let cleared = rules.filter { $0.action != .trash }.map(\.title)
         let trashed = rules.filter { $0.action == .trash }.map(\.title)
         return ([cleared.isEmpty ? nil : "Clear " + Self.list(cleared), trashed.isEmpty ? nil : "Move " + Self.list(trashed) + " to Trash"]
             .compactMap { $0 }).joined(separator: " · ")
@@ -194,10 +195,20 @@ extension CatalogOverview.Row {
     }
 }
 
-/// An incomplete size of 0 is unknown, as in `SizeEstimate`.
-func catalogBytes(_ value: Int64, complete: Bool = true) -> String {
+/// An incomplete size of 0 is unknown, as in `SizeEstimate`. An estimate reads "About".
+func catalogBytes(_ value: Int64, complete: Bool = true, estimate: Bool = false) -> String {
     if !complete && value == 0 { return SizeEstimate.unknown.text }
-    return (complete ? "" : "At least ") + ByteCountFormatter.string(fromByteCount: value, countStyle: .decimal)
+    return (complete ? estimate ? "About " : "" : "At least ") + ByteCountFormatter.string(fromByteCount: value, countStyle: .decimal)
+}
+
+extension CleanupRule {
+    /// Rules whose items the user chooses one by one: single Downloads files, and each model or disk image.
+    var choosesItems: Bool { contents != nil || regen == .model }
+}
+
+extension Candidate {
+    /// The name the plan shows, e.g. a model's name rather than its folder or manifest.
+    var displayName: String { itemName ?? url.lastPathComponent }
 }
 
 struct PreviewOnlyToggle: View {
@@ -220,9 +231,9 @@ struct CatalogPlanSection: View {
             ForEach(model.rulesFound) { rule in
                 CategorySelectionHeader(category: rule.category.storageCategory, state: model.selectionState(for: rule),
                     title: rule.title, detail: rule.detail + " " + rule.consequence,
-                    size: catalogBytes(model.estimatedBytes(for: rule), complete: model.sizeComplete(for: rule)),
+                    size: catalogBytes(model.estimatedBytes(for: rule), complete: model.sizeComplete(for: rule), estimate: model.sizeIsEstimate(for: rule)),
                     enabled: model.canEdit, identifier: "planRule-" + rule.id) { model.setSelected(rule, model.selectionState(for: rule) != .checked) }
-                if rule.contents != nil { CatalogItemChooser(model: model, rule: rule).padding(.leading, StillDesign.Space.xl) }
+                if rule.choosesItems { CatalogItemChooser(model: model, rule: rule).padding(.leading, StillDesign.Space.xl) }
             }
             if model.isScanning { ProgressView("Checking known locations…") }
             if !model.rulesFound.isEmpty || model.result != nil { PreviewOnlyToggle(model: model).padding(.leading, StillDesign.Space.xl) }
@@ -231,26 +242,27 @@ struct CatalogPlanSection: View {
     }
 }
 
-/// Single files a rule found (Downloads), each chosen on its own.
+/// Single items a rule found (Downloads files, models, disk images), each chosen on its own. Nothing is preselected.
 struct CatalogItemChooser: View {
     @Bindable var model: CatalogCleanupModel
     let rule: CleanupRule
     @State private var expanded = false
     var body: some View {
-        let items = model.candidates(for: rule).sorted { $0.url.path.localizedStandardCompare($1.url.path) == .orderedAscending }
+        let items = model.candidates(for: rule).sorted { $0.displayName.localizedStandardCompare($1.displayName) == .orderedAscending }
         DisclosureGroup(isExpanded: $expanded) {
             LazyVStack(alignment: .leading, spacing: 0) {
                 ForEach(items) { item in
-                    InspectableItemRow(name: item.url.lastPathComponent, detail: detail(item), size: catalogBytes(item.allocatedBytes ?? item.logicalBytes),
-                                       symbol: "doc", inspected: false, inspect: { NSWorkspace.shared.activateFileViewerSelecting([item.url]) }) {
-                        Toggle("Select " + item.url.lastPathComponent, isOn: Binding(get: { model.isSelected(item) }, set: { model.setSelected(item, $0) }))
-                            .labelsHidden().disabled(!model.canEdit).accessibilityIdentifier("planItem-" + item.url.lastPathComponent)
+                    InspectableItemRow(name: item.displayName, detail: detail(item), size: catalogBytes(item.allocatedBytes ?? item.logicalBytes, estimate: item.sizeIsEstimate),
+                                       symbol: item.isDirectory ? "folder" : "doc", inspected: false, inspect: { NSWorkspace.shared.activateFileViewerSelecting([item.url]) }) {
+                        Toggle("Select " + item.displayName, isOn: Binding(get: { model.isSelected(item) }, set: { model.setSelected(item, $0) }))
+                            .labelsHidden().disabled(!model.canEdit).accessibilityIdentifier("planItem-" + item.displayName)
                     }
                     Divider()
                 }
             }.padding(.top, StillDesign.Space.sm)
         } label: {
-            Text(items.count == 1 ? "1 file · Choose items" : "\(items.count) files · Choose items")
+            let noun = rule.contents != nil ? "file" : "item"
+            Text(items.count == 1 ? "1 \(noun) · Choose items" : "\(items.count) \(noun)s · Choose items")
         }
     }
     private func detail(_ item: Candidate) -> String {
@@ -274,13 +286,14 @@ struct CatalogConfirmationSection: View {
                         CategoryBadge(category: rule.category.storageCategory)
                         Text((rule.action == .trash ? "Move to Trash: " : "Clear ") + rule.title).font(StillDesign.TypeStyle.section)
                         Spacer()
-                        Text(catalogBytes(items.reduce(0) { $0 + ($1.allocatedBytes ?? $1.logicalBytes) }, complete: items.allSatisfy(\.sizeComplete))).monospacedDigit()
+                        Text(catalogBytes(items.reduce(0) { $0 + ($1.allocatedBytes ?? $1.logicalBytes) }, complete: items.allSatisfy(\.sizeComplete), estimate: items.contains(where: \.sizeIsEstimate))).monospacedDigit()
                     }
                     Text(rule.consequence).font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                     DisclosureGroup(items.count == 1 ? "1 item · Show files" : "\(items.count) items · Show files") {
                         VStack(alignment: .leading, spacing: StillDesign.Space.xs) {
                             ForEach(items) { item in
-                                Text(item.url.path).font(.caption).textSelection(.enabled)
+                                // A tool item shows the exact command, e.g. `ollama rm llama3:latest`.
+                                Text(rule.tool.flatMap { $0.itemPlaceholder == nil ? nil : $0.commandLine(for: item.itemName) } ?? item.url.path).font(.caption).textSelection(.enabled)
                                 if let refusal = review.refusals[item.id] { StatusRow(text: "Will be skipped: " + refusal.reason, symbol: "exclamationmark.circle", role: .caution) }
                             }
                         }.padding(.top, StillDesign.Space.sm)
