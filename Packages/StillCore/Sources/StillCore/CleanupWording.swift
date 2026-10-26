@@ -47,3 +47,16 @@ extension CleanupHistoryRun {
         }
     }
 }
+
+extension CleanupRecoverySnapshot {
+    /// What a missing original can and can't mean, for the actions the unresolved items were taking.
+    public var unresolvedNotice: String {
+        let actions = Set(interruptedBatches.flatMap(\.records).filter { $0.state == .intent || $0.state == .unknown }.map(\.action))
+        let deletes = actions.contains(CleanupAction.delete.rawValue), trashes = actions.contains(CleanupAction.trash.rawValue)
+        let tail = " Current file locations have not been inspected."
+        if deletes && trashes { return "A missing original may have reached the Trash or been permanently deleted, possibly only in part." + tail }
+        if deletes { return "A missing original may have been permanently deleted, possibly only in part. Deleted items can’t be restored from the Trash." + tail }
+        if trashes { return "A missing original does not prove it reached the Trash." + tail }
+        return "Nothing was started for the unfinished items." + tail
+    }
+}

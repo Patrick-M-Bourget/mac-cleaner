@@ -41,13 +41,13 @@ struct CleanupRecoveryView: View {
                         Text("\(snapshot.knownResultCount) recorded results in these batches").font(.callout).foregroundStyle(.secondary)
                     }
                 }
-                StatusRow(text: "A missing original does not prove it reached Trash. Current file locations have not been inspected.", symbol: "info.circle", role: .caution)
+                StatusRow(text: snapshot.unresolvedNotice, symbol: "info.circle", role: .caution)
                 ForEach(snapshot.interruptedBatches) { batch in
                     Text("Approved " + (batch.records.first?.approvedAt.formatted(date: .abbreviated, time: .shortened) ?? "Unknown date")).font(StillDesign.TypeStyle.section)
                     LazyVStack(alignment: .leading, spacing: StillDesign.Space.lg) {
                         ForEach(batch.records) { record in
                             SettingsRow(title: record.originalURL.lastPathComponent, detail: record.originalURL.path) {
-                                StatusRow(text: stateText(record.state), symbol: record.state == .succeeded ? "checkmark.circle" : "info.circle", role: record.state == .succeeded ? .success : .neutral)
+                                StatusRow(text: record.recoveryStateText, symbol: record.state == .succeeded ? "checkmark.circle" : "info.circle", role: record.state == .succeeded ? .success : .neutral)
                                     .accessibilityIdentifier("recoveryState-" + record.originalURL.lastPathComponent)
                                 Text(record.message).font(.caption).foregroundStyle(.secondary)
                                 if let returned = record.trashURL {
@@ -61,7 +61,7 @@ struct CleanupRecoveryView: View {
                                 DisclosureGroup("Recorded details") {
                                     VStack(alignment: .leading, spacing: StillDesign.Space.sm) {
                                         Text("Scope: " + record.scopeURL.path)
-                                        Text("Action: " + record.action + " · Policy \(record.policyVersion)")
+                                        Text("Action: " + record.actionTitle + (record.previewOnly == true ? " · Preview only" : "") + " · Policy \(record.policyVersion)")
                                         Text("Resource identity at approval: " + record.resourceID)
                                     }.font(.caption).foregroundStyle(.secondary).textSelection(.enabled)
                                 }
@@ -70,20 +70,10 @@ struct CleanupRecoveryView: View {
                         }
                     }
                 }
-                StatusRow(text: "For another cleanup, choose the location again, scan it and make a new selection. These records do not restore a plan or grant file access.", symbol: "arrow.clockwise")
+                StatusRow(text: "For another cleanup, start a new plan from a fresh scan. These records do not restore a plan or grant file access.", symbol: "arrow.clockwise")
             } else {
                 EmptyState(title: "No interrupted cleanup recorded", detail: "A new cleanup still requires a manual scan and approval.", symbol: "checkmark.circle")
             }
-        }
-    }
-    private func stateText(_ state: CleanupTargetState) -> String {
-        switch state {
-        case .pending: "Not started · No operation intent was recorded"
-        case .intent, .unknown: "Unresolved · Outcome unknown"
-        case .succeeded: "Recorded success · Moved to Trash"
-        case .failed: "Recorded failure"
-        case .skipped: "Recorded skip · Not moved"
-        case .cancelled: "Recorded cancellation · Not started"
         }
     }
 }
