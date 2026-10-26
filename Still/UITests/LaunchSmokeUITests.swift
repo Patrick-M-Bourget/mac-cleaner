@@ -62,13 +62,13 @@ final class LaunchSmokeUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
         XCTAssertFalse(app.sheets.firstMatch.exists, "Nothing asks for access at launch")
 
-        app.staticTexts["Locations & access"].firstMatch.click()
+        app.buttons["Locations & access"].click()
         revealAndClick(app.disclosureTriangles["About folder access"].firstMatch, in: app)
         let status = app.staticTexts["fullDiskAccessStatus"]
         XCTAssertTrue(status.waitForExistence(timeout: 5))
         XCTAssertTrue((status.value as? String ?? status.label).contains("Not granted"))
 
-        app.buttons["fullDiskAccessLink"].firstMatch.click()
+        revealAndClick(app.links["fullDiskAccessLink"].firstMatch, in: app)
         XCTAssertTrue(app.staticTexts["Full Disk Access is optional"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts["Still’s scans stay read-only. Nothing protected becomes eligible for cleanup, and Still only changes what you choose and review."].exists)
         XCTAssertTrue(app.buttons["openFullDiskAccessSettings"].exists) // Not pressed: tests never open System Settings.
@@ -89,7 +89,7 @@ final class WhatGrewUITests: XCTestCase {
         app.launch()
         XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
 
-        app.staticTexts["What grew"].firstMatch.click()
+        app.buttons["What grew"].click()
         XCTAssertTrue(app.staticTexts["Baseline recorded"].waitForExistence(timeout: 15))
 
         let grown = home.appendingPathComponent(".npm/_cacache/content-v2/sha512/cd/blob")
@@ -97,10 +97,11 @@ final class WhatGrewUITests: XCTestCase {
         try Data(repeating: 9, count: 5_000_000).write(to: grown)
         app.buttons["growthScanAgain"].click()
         XCTAssertTrue(app.staticTexts["growthNetChange"].waitForExistence(timeout: 15))
-        XCTAssertTrue(app.staticTexts["Developer caches and build files"].exists)
+        // Each change row reads as one element: its title, the rules that grew and the change.
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "value BEGINSWITH 'Developer caches and build files'")).firstMatch.exists)
 
         app.radioButtons["Locations"].firstMatch.click()
-        XCTAssertTrue(app.staticTexts["~/.npm/_cacache"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "value BEGINSWITH '~/.npm/_cacache'")).firstMatch.waitForExistence(timeout: 5))
 
         app.buttons["growthReviewOptions"].click()
         XCTAssertTrue(app.buttons["Back to What grew"].waitForExistence(timeout: 5))

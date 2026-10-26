@@ -349,7 +349,7 @@ final class CatalogCleanupUITests: XCTestCase {
         XCTAssertTrue(denied.waitForExistence(timeout: 10))
         XCTAssertTrue(app.staticTexts["Not accessible"].exists)
         XCTAssertFalse(app.descendants(matching: .any)["overviewCategory-browser"].exists, "Nothing found, so no 0-byte browser row")
-        denied.buttons["fullDiskAccessLink"].click()
+        revealAndClick(denied.links["fullDiskAccessLink"], in: app)
         XCTAssertTrue(app.staticTexts["Full Disk Access is optional"].waitForExistence(timeout: 5))
         app.buttons["closeFullDiskAccess"].click() // Never "Open System Settings".
         app.terminate()
@@ -360,10 +360,10 @@ final class CatalogCleanupUITests: XCTestCase {
         let row = app.buttons["overviewCategory-browser"]
         XCTAssertTrue(row.waitForExistence(timeout: 10))
         XCTAssertFalse(app.descendants(matching: .any)["overviewNotAccessible-safari-cache"].exists)
-        row.click()
+        revealAndClick(row, in: app)
         let rule = app.checkBoxes["planRule-safari-cache"]
         XCTAssertTrue(rule.waitForExistence(timeout: 5))
-        rule.click()
+        revealAndClick(rule, in: app)
         XCTAssertEqual(app.checkBoxes["previewOnlyToggle"].value as? Int, 1)
         app.buttons["Review cleanup"].click()
         XCTAssertTrue(app.staticTexts["Clear Safari cache"].waitForExistence(timeout: 5))
@@ -438,7 +438,7 @@ final class CatalogCleanupUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
         let row = app.buttons["overviewCategory-developer"]
         XCTAssertTrue(row.waitForExistence(timeout: 10))
-        row.click()
+        revealAndClick(row, in: app)
 
         // Each prune kind is its own choice, none preselected; nothing is offered for volumes.
         for rule in ["docker-images", "docker-build-cache"] {
@@ -447,7 +447,7 @@ final class CatalogCleanupUITests: XCTestCase {
             XCTAssertEqual(header.value as? Int, 0, rule)
         }
         XCTAssertFalse(app.checkBoxes["planRule-docker-containers"].exists)
-        app.checkBoxes["planRule-docker-build-cache"].click()
+        revealAndClick(app.checkBoxes["planRule-docker-build-cache"], in: app)
         XCTAssertEqual(app.checkBoxes["planRule-docker-images"].value as? Int, 0)
         XCTAssertEqual(app.checkBoxes["previewOnlyToggle"].value as? Int, 1)
         app.buttons["Review cleanup"].click()
@@ -474,7 +474,7 @@ final class CatalogCleanupUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
         let row = app.buttons["overviewCategory-developer"]
         XCTAssertTrue(row.waitForExistence(timeout: 10))
-        row.click()
+        revealAndClick(row, in: app)
 
         XCTAssertTrue(app.staticTexts["planNote-docker-images"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "value BEGINSWITH 'Docker isn’t running'")).firstMatch.exists)
@@ -510,17 +510,17 @@ final class ICloudCleanupUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
         let row = app.buttons["overviewCategory-icloud"]
         XCTAssertTrue(row.waitForExistence(timeout: 10))
-        XCTAssertFalse(app.buttons["overviewCloudFinding"].exists)
-        row.click()
+        XCTAssertFalse(app.descendants(matching: .any)["overviewCloudFinding"].exists, "The catalog row replaces the inventory row")
+        revealAndClick(row, in: app)
 
         let header = app.checkBoxes["planRule-icloud-local-copies"]
         XCTAssertTrue(header.waitForExistence(timeout: 5))
         XCTAssertEqual(header.value as? Int, 0)
         let item = app.checkBoxes["planItem-Report.pdf"]
-        if !item.waitForExistence(timeout: 2) { app.disclosureTriangles.allElementsBoundByIndex.forEach { $0.click() } }
+        if !item.waitForExistence(timeout: 2) { expandDisclosures(in: app) }
         XCTAssertTrue(item.waitForExistence(timeout: 5))
         XCTAssertFalse(app.checkBoxes["planItem-Pinned.pdf"].exists, "Keep Downloaded files are never offered")
-        item.click()
+        revealAndClick(item, in: app)
         XCTAssertEqual(app.checkBoxes["previewOnlyToggle"].value as? Int, 1)
         app.buttons["Review cleanup"].click()
 
@@ -556,19 +556,20 @@ extension CatalogCleanupUITests {
         app.launch()
 
         XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
-        app.buttons["Choose a folder…"].click()
+        app.links["Choose a folder…"].click()
         let panel = app.sheets.firstMatch.exists ? app.sheets.firstMatch : app.dialogs.firstMatch
         XCTAssertTrue(panel.waitForExistence(timeout: 5))
         panel.typeKey("g", modifierFlags: [.command, .shift])
         app.typeText(folder.path + "\n")
         panel.buttons["Scan folder"].click()
 
-        let explore = app.buttons["Explore storage"]
+        let explore = app.links["Explore storage"]
         XCTAssertTrue(explore.waitForExistence(timeout: 20))
         explore.click()
-        let mode = app.segmentedControls["explorerMode"]
+        // A segmented picker is a radio group to accessibility.
+        let mode = app.radioGroups["explorerMode"]
         XCTAssertTrue(mode.waitForExistence(timeout: 10))
-        mode.buttons["Large and old files"].click()
+        mode.radioButtons["Large and old files"].click()
 
         // Only the old file is listed, and nothing is preselected.
         let item = app.checkBoxes["explorerChoose-old-archive.zip"]
@@ -629,11 +630,11 @@ final class GuidanceUITests: XCTestCase {
         XCTAssertFalse(app.descendants(matching: .any)["guidanceAccess-time-machine-snapshots"].exists)
         XCTAssertTrue((app.buttons["guidance-time-machine-snapshots"].value as? String)?.contains("2 snapshots · Size unknown") == true)
         XCTAssertTrue(app.buttons["guidance-xcode-archives"].exists)
-        photos.click()
+        revealAndClick(photos, in: app)
         XCTAssertTrue(app.staticTexts["guidanceStatus"].waitForExistence(timeout: 5))
         XCTAssertEqual(app.staticTexts["guidanceStatus"].value as? String, "Test run: would open Photos.")
 
-        app.buttons["overviewCategory-developer"].click()
+        revealAndClick(app.buttons["overviewCategory-developer"], in: app)
         XCTAssertTrue(app.descendants(matching: .any)["planRule-npm-cache"].waitForExistence(timeout: 5))
         for id in ["photos-library", "xcode-archives", "messages-attachments", "time-machine-snapshots"] {
             XCTAssertFalse(app.descendants(matching: .any)["planRule-" + id].exists, id)
