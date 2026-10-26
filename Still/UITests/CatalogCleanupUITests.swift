@@ -776,19 +776,15 @@ final class GuidanceUITests: XCTestCase {
             try Data(repeating: 5, count: 90_000).write(to: file)
         }
         try "2".write(to: home.appendingPathComponent(".still-test-snapshots"), atomically: true, encoding: .utf8)
-        // An agent workspace (#140): a fixture git checkout with a commit on no remote, then an uncommitted edit.
+        // An agent workspace (#140): a fixture git repository, written by hand since the test runner can't run git,
+        // with no commit yet and one file not committed.
         let workspace = home.appendingPathComponent(".codex/worktrees/a1b2/app")
-        try FileManager.default.createDirectory(at: workspace, withIntermediateDirectories: true)
-        for arguments in [["init", "-q"], ["add", "."], ["commit", "-qm", "work"]] {
-            if arguments == ["add", "."] { try "first".write(to: workspace.appendingPathComponent("a.txt"), atomically: true, encoding: .utf8) }
-            let git = Process()
-            git.executableURL = URL(fileURLWithPath: "/usr/bin/git")
-            git.arguments = ["-c", "user.name=Still Test", "-c", "user.email=test@example.com", "-c", "commit.gpgsign=false", "-C", workspace.path] + arguments
-            git.environment = ["PATH": "/usr/bin:/bin", "HOME": workspace.path, "GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": "/dev/null"]
-            try git.run(); git.waitUntilExit()
-            XCTAssertEqual(git.terminationStatus, 0, arguments.joined(separator: " "))
+        for folder in [".git/objects", ".git/refs/heads"] {
+            try FileManager.default.createDirectory(at: workspace.appendingPathComponent(folder), withIntermediateDirectories: true)
         }
-        try "edited".write(to: workspace.appendingPathComponent("a.txt"), atomically: true, encoding: .utf8)
+        try "ref: refs/heads/main\n".write(to: workspace.appendingPathComponent(".git/HEAD"), atomically: true, encoding: .utf8)
+        try "[core]\n\trepositoryformatversion = 0\n\tbare = false\n".write(to: workspace.appendingPathComponent(".git/config"), atomically: true, encoding: .utf8)
+        try "draft".write(to: workspace.appendingPathComponent("draft.swift"), atomically: true, encoding: .utf8)
         let locked = home.appendingPathComponent("Library/Messages/Attachments")
         try FileManager.default.setAttributes([.posixPermissions: 0], ofItemAtPath: locked.path)
         return locked
@@ -824,7 +820,7 @@ final class GuidanceUITests: XCTestCase {
         XCTAssertTrue(app.buttons["guidance-xcode-archives"].exists)
         let workspaces = app.buttons["guidance-agent-workspaces"]
         XCTAssertEqual(workspaces.label, "Open in Finder")
-        XCTAssertTrue((workspaces.value as? String)?.contains("1 workspace · 1 has uncommitted changes · 1 has unpushed commits") == true,
+        XCTAssertTrue((workspaces.value as? String)?.contains("1 workspace · 1 has uncommitted changes") == true,
                       String(describing: workspaces.value))
         revealAndClick(photos, in: app)
         XCTAssertTrue(app.staticTexts["guidanceStatus"].waitForExistence(timeout: 5))
