@@ -215,9 +215,11 @@ extension CatalogOverview.Row {
     }
 }
 
-/// A size as text. `upperBound` is for copies that share disk blocks (SPEC section 6): less may come back.
+/// A size as text. An incomplete size of 0 is unknown, as in `SizeEstimate`.
+/// `upperBound` is for copies that share disk blocks (SPEC section 6): less may come back.
 func catalogBytes(_ value: Int64, complete: Bool = true, upperBound: Bool = false) -> String {
-    (!complete ? "At least " : upperBound ? "Up to " : "") + ByteCountFormatter.string(fromByteCount: value, countStyle: .decimal)
+    if !complete && value == 0 { return SizeEstimate.unknown.text }
+    return (!complete ? "At least " : upperBound ? "Up to " : "") + ByteCountFormatter.string(fromByteCount: value, countStyle: .decimal)
 }
 
 struct PreviewOnlyToggle: View {

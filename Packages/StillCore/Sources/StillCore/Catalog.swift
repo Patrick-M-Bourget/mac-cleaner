@@ -76,6 +76,8 @@ public struct CleanupRule: Sendable, Identifiable {
     public let regen: RegenClass
     public let action: CleanupAction
     /// Paths relative to the user's home folder; each existing one is a candidate.
+    /// A last component of `*` makes each folder directly inside that path a candidate instead
+    /// (hidden entries, files and symlinks are skipped; the path itself must be a real folder).
     public let locations: [String]
     public let owner: RuleOwner?
     /// Names that are never acted on when they are the item, one of its ancestors, or a top-level entry inside it.
@@ -86,14 +88,17 @@ public struct CleanupRule: Sendable, Identifiable {
     public let protectedExtensions: [String]
     /// When set, candidates are the matching files inside each location, not the location.
     public let contents: ContentsMatch?
+    /// For `*` locations named by version (DeviceSupport): keep this many newest versions in each folder.
+    /// Children whose name has no version are then never offered.
+    public let keepNewestVersions: Int?
     /// What `locations` are relative to; the home folder unless set.
     public let base: LocationBase
     /// When set, each folder inside a location is a leaked copy, and the in-use and newest copies are kept.
     public let copies: LeakedCopies?
-    public init(id: String, category: CatalogCategory, title: String, detail: String, consequence: String, regen: RegenClass, action: CleanupAction, locations: [String], owner: RuleOwner?, protectedNames: [String] = [], tool: ToolCommand? = nil, protectedExtensions: [String] = [], contents: ContentsMatch? = nil, base: LocationBase = .home, copies: LeakedCopies? = nil) {
+    public init(id: String, category: CatalogCategory, title: String, detail: String, consequence: String, regen: RegenClass, action: CleanupAction, locations: [String], owner: RuleOwner?, protectedNames: [String] = [], tool: ToolCommand? = nil, protectedExtensions: [String] = [], contents: ContentsMatch? = nil, keepNewestVersions: Int? = nil, base: LocationBase = .home, copies: LeakedCopies? = nil) {
         self.id = id; self.category = category; self.title = title; self.detail = detail; self.consequence = consequence
         self.regen = regen; self.action = action; self.locations = locations; self.owner = owner; self.protectedNames = protectedNames; self.tool = tool
-        self.protectedExtensions = protectedExtensions; self.contents = contents
+        self.protectedExtensions = protectedExtensions; self.contents = contents; self.keepNewestVersions = keepNewestVersions
         self.base = base; self.copies = copies
     }
 }
@@ -153,6 +158,26 @@ public enum BuiltInCatalog {
                     regen: .cache, action: .tool, locations: ["Library/Caches/Homebrew"],
                     owner: RuleOwner(name: "Homebrew", executables: ["brew"], scripts: ["brew", "brew.sh", "brew.rb"]),
                     tool: ToolCommand(executables: ["/opt/homebrew/bin/brew", "/usr/local/bin/brew"], arguments: ["cleanup", "-s"], timeout: 300, deletesLocationAfter: true)),
+        CleanupRule(id: "xcode-derived-data", category: .developer, title: "Xcode DerivedData",
+                    detail: "Build files, indexes and products Xcode keeps for each project.",
+                    consequence: "Permanently removed. Xcode rebuilds them; the next build and indexing take longer. Archives and your projects are not touched.",
+                    regen: .build, action: .delete, locations: ["Library/Developer/Xcode/DerivedData/*"],
+                    owner: xcode),
+        CleanupRule(id: "xcode-device-support", category: .developer, title: "Old device support files",
+                    detail: "Debug symbols Xcode copied from each OS version of your devices. The 2 newest versions per platform are kept.",
+                    consequence: "Permanently removed. Xcode copies them again if you connect a device running one of those versions.",
+                    regen: .build, action: .delete,
+                    locations: ["iOS", "watchOS", "tvOS", "visionOS", "macOS"].map { "Library/Developer/Xcode/\($0) DeviceSupport/*" },
+                    owner: xcode, keepNewestVersions: 2),
+        CleanupRule(id: "xcode-simulators", category: .developer, title: "Unavailable simulators",
+                    detail: "Simulator devices whose OS version is no longer installed, so they can’t run.",
+                    consequence: "Runs `simctl delete unavailable`. Only devices that can’t run are removed, with their apps and data; available simulators are not touched.",
+                    regen: .build, action: .tool, locations: ["Library/Developer/CoreSimulator/Devices"], owner: nil,
+                    // CoreSimulator's own simctl first: `xcrun` fails while xcode-select points at the Command Line Tools,
+                    // and Xcode's wrapper may run first-launch setup, which can ask for an admin password (Decision 4).
+                    tool: ToolCommand(executables: ["/Library/Developer/PrivateFrameworks/CoreSimulator.framework/Versions/A/Resources/bin/simctl",
+                                                    "/Applications/Xcode.app/Contents/Developer/usr/bin/simctl"],
+                                      arguments: ["delete", "unavailable"], timeout: 300)),
         // RESET Decision 18. Installers come first so a large old installer is listed once, as an installer.
         CleanupRule(id: "downloads-installers", category: .downloads, title: "Installers in Downloads",
                     detail: "Disk images, packages and archives you downloaded, at any age.",
@@ -173,6 +198,10 @@ public enum BuiltInCatalog {
     ]
     /// Kept from the Downloads-era policy: libraries and databases are never moved, even inside Downloads.
     static let downloadsProtectedExtensions = ["dsym", "library", "db", "sqlite", "sqlite3"]
+    /// Xcode and the build processes that write into DerivedData, including command-line builds.
+    static let xcode = RuleOwner(name: "Xcode", bundleIDs: ["com.apple.dt.Xcode"],
+                                 executables: ["Xcode", "xcodebuild", "SWBBuildService*", "XCBBuildService*", "swift-driver", "swift-frontend",
+                                               "swiftc", "clang", "clang++", "ld", "dsymutil"])
 }
 
 /// A concrete item a rule found, with the identity it had when sized.
@@ -221,7 +250,7 @@ public struct Catalog: Sendable {
             let toolURL = rule.tool.flatMap(locateTool)
             guard rule.action != .tool || toolURL != nil else { return [] }
             guard let base = rule.base == .home ? homeBase : userBase else { return [] }
-            return rule.locations.flatMap { relative -> [Candidate] in
+            return rule.locations.flatMap { Self.expand($0, in: base, keepNewestVersions: rule.keepNewestVersions) }.flatMap { relative -> [Candidate] in
                 guard Self.neverOffered.isDisjoint(with: relative.split(separator: "/").map(String.init)) else { return [] }
                 let url = base.appendingPathComponent(relative)
                 if let copies = rule.copies {
@@ -233,7 +262,8 @@ public struct Catalog: Sendable {
                 var info = stat()
                 guard lstat(url.path, &info) == 0, info.st_uid == geteuid(),
                       [S_IFDIR, S_IFREG].contains(info.st_mode & S_IFMT) else { return [] }
-                let size = sizer.size(url)
+                // A tool that cleans only part of its folder frees an unknown amount; the folder's total would overstate it.
+                let size = rule.tool?.deletesLocationAfter == false ? ItemSize(logicalBytes: 0, allocatedBytes: nil, entries: 0, complete: false) : sizer.size(url)
                 return [candidate(rule, url, info, logical: size.logicalBytes, allocated: size.allocatedBytes, complete: size.complete, lastUsed: nil, toolURL: toolURL)]
             }
         }.filter { seen.insert($0.resourceID).inserted }
@@ -284,5 +314,36 @@ public struct Catalog: Sendable {
         var dates = [date(info.st_atimespec), date(info.st_mtimespec), date(info.st_birthtimespec)]
         if let item = MDItemCreateWithURL(nil, url as CFURL), let opened = MDItemCopyAttribute(item, kMDItemLastUsedDate) as? Date { dates.append(opened) }
         return dates.max()!
+    }
+
+    /// At most this many children of a `*` location are offered.
+    static let childLimit = 1_000
+    /// A plain location as is; a `parent/*` location as each real folder directly inside `parent`.
+    static func expand(_ relative: String, in base: URL, keepNewestVersions keep: Int? = nil) -> [String] {
+        guard relative.hasSuffix("/*") else { return [relative] }
+        let parent = String(relative.dropLast(2))
+        var info = stat()
+        guard lstat(base.appendingPathComponent(parent).path, &info) == 0, info.st_mode & S_IFMT == S_IFDIR,
+              let names = try? FileManager.default.contentsOfDirectory(atPath: base.appendingPathComponent(parent).path) else { return [] }
+        let folders = names.filter { name in
+            var child = stat()
+            return !name.hasPrefix(".") && lstat(base.appendingPathComponent(parent + "/" + name).path, &child) == 0 && child.st_mode & S_IFMT == S_IFDIR
+        }
+        var offered = folders
+        if let keep {
+            let versions = Dictionary(uniqueKeysWithValues: folders.compactMap { name in version(in: name).map { (name, $0) } })
+            let kept = Set(versions.values).sorted { $0.lexicographicallyPrecedes($1) }.suffix(keep)
+            offered = folders.filter { versions[$0].map { !kept.contains($0) } ?? false }
+        }
+        return offered.sorted().prefix(childLimit).map { parent + "/" + $0 }
+    }
+
+    /// The version in a DeviceSupport folder name: "17.0 (21A329)" or "iPhone15,2 17.0.1 (21A340)" give [17, 0] and [17, 0, 1].
+    static func version(in name: String) -> [Int]? {
+        for word in name.split(separator: " ") where word.first?.isNumber == true {
+            let parts = word.split(separator: ".", omittingEmptySubsequences: false).map { Int($0) }
+            if !parts.contains(nil) { return parts.compactMap { $0 } }
+        }
+        return nil
     }
 }
