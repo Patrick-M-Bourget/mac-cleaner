@@ -46,3 +46,26 @@ private func cleanUp(_ home: URL) {
     defer { try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: tcc.path) }
     #expect(FullDiskAccessProbe(home: home).status() == .notGranted)
 }
+
+/// Stands in for the probe so rule tests never depend on this Mac's grants.
+private struct FakeFullDiskAccess: FullDiskAccessDetecting {
+    let answer: FullDiskAccessStatus
+    func status() -> FullDiskAccessStatus { answer }
+}
+private func rule(requiringFullDiskAccess: Bool) -> CleanupRule {
+    CleanupRule(id: "protected-cache", category: .browser, title: "Protected cache", detail: "", consequence: "", regen: .cache, action: .delete,
+                locations: ["Library/Caches/Protected"], owner: nil, requiresFullDiskAccess: requiringFullDiskAccess)
+}
+
+@Test func aRuleThatRequiresFullDiskAccessIsNotAccessibleUntilItIsGranted() {
+    let protected = rule(requiringFullDiskAccess: true)
+    #expect(protected.access(given: FakeFullDiskAccess(answer: .notGranted).status()) == .needsFullDiskAccess)
+    #expect(protected.access(given: FakeFullDiskAccess(answer: .granted).status()) == .available)
+    // Unknown means no protected folder exists to check; the rule's own sizing then reports what it couldn't read.
+    #expect(protected.access(given: FakeFullDiskAccess(answer: .unknown).status()) == .available)
+}
+
+@Test func ordinaryRulesNeverWaitForFullDiskAccess() {
+    #expect(rule(requiringFullDiskAccess: false).access(given: .notGranted) == .available)
+    #expect(fixtureRules.allSatisfy { !$0.requiresFullDiskAccess })
+}

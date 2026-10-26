@@ -127,14 +127,17 @@ public struct CleanupRule: Sendable, Identifiable {
     public let items: CatalogItems?
     /// Global protected extensions this rule may act inside, e.g. an app's own VM `.bundle`. Never `sparsebundle` lightly.
     public let unprotectedExtensions: Set<String>
+    /// Its locations are ones macOS protects (Safari's data): without Full Disk Access they're shown as not accessible.
+    public let requiresFullDiskAccess: Bool
     public init(id: String, category: CatalogCategory, title: String, detail: String, consequence: String, regen: RegenClass, action: CleanupAction, locations: [String], owner: RuleOwner?, protectedNames: [String] = [], tool: ToolCommand? = nil, protectedExtensions: [String] = [], contents: ContentsMatch? = nil, keepNewestVersions: Int? = nil, layoutOverrides: [LayoutOverride] = [], base: LocationBase = .home, copies: LeakedCopies? = nil, itemName: (@Sendable (String) -> String?)? = nil, items: CatalogItems? = nil, unprotectedExtensions: Set<String> = [],
-                itemOwner: (@Sendable (URL) -> RuleOwner?)? = nil, yieldsToOtherRules: Bool = false, protectedDepth: Int = 1) {
+                itemOwner: (@Sendable (URL) -> RuleOwner?)? = nil, yieldsToOtherRules: Bool = false, protectedDepth: Int = 1, requiresFullDiskAccess: Bool = false) {
         self.id = id; self.category = category; self.title = title; self.detail = detail; self.consequence = consequence
         self.regen = regen; self.action = action; self.locations = locations; self.owner = owner; self.protectedNames = protectedNames; self.tool = tool
         self.protectedExtensions = protectedExtensions; self.contents = contents; self.keepNewestVersions = keepNewestVersions; self.layoutOverrides = layoutOverrides
         self.base = base; self.copies = copies
         self.itemName = itemName; self.items = items; self.unprotectedExtensions = unprotectedExtensions
         self.itemOwner = itemOwner; self.yieldsToOtherRules = yieldsToOtherRules; self.protectedDepth = protectedDepth
+        self.requiresFullDiskAccess = requiresFullDiskAccess
     }
 }
 
