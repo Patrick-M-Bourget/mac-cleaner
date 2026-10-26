@@ -438,3 +438,53 @@ final class ICloudCleanupUITests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: home.appendingPathComponent(".still-test-icloud-evicted").path))
     }
 }
+
+final class GuidanceUITests: XCTestCase {
+    /// A Photos library, Xcode archives, unreadable Messages attachments and two local snapshots in the fixture home.
+    /// The snapshot count comes from a debug fixture file, so tmutil never runs, and opening is a debug no-op.
+    @MainActor private func addGuidanceData(_ home: URL) throws -> URL {
+        for path in ["Pictures/Photos Library.photoslibrary/originals/a.heic", "Library/Developer/Xcode/Archives/2026-10-26/App.xcarchive/Info.plist",
+                     "Library/Messages/Attachments/ab/photo.jpg"] {
+            let file = home.appendingPathComponent(path)
+            try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try Data(repeating: 5, count: 90_000).write(to: file)
+        }
+        try "2".write(to: home.appendingPathComponent(".still-test-snapshots"), atomically: true, encoding: .utf8)
+        let locked = home.appendingPathComponent("Library/Messages/Attachments")
+        try FileManager.default.setAttributes([.posixPermissions: 0], ofItemAtPath: locked.path)
+        return locked
+    }
+
+    @MainActor func testGuidanceCategoriesShowSizeOrNotAccessibleAndNeverJoinThePlan() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        let state = try configureIsolatedState(app)
+        let home = try configureCatalogHome(app)
+        let locked = try addGuidanceData(home)
+        defer {
+            app.terminate(); try? FileManager.default.removeItem(at: state)
+            try? FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: locked.path)
+            try? FileManager.default.removeItem(at: home)
+        }
+        app.launchArguments = ["-ApplePersistenceIgnoreState", "YES"]
+        app.launch()
+
+        XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
+        let photos = app.buttons["guidance-photos-library"]
+        XCTAssertTrue(photos.waitForExistence(timeout: 10))
+        XCTAssertTrue((photos.value as? String)?.contains("Open Photos") == true)
+        XCTAssertTrue((app.buttons["guidance-messages-attachments"].value as? String)?.contains("Not accessible") == true)
+        XCTAssertTrue((app.buttons["guidance-time-machine-snapshots"].value as? String)?.contains("2 snapshots · Size unknown") == true)
+        XCTAssertTrue(app.buttons["guidance-xcode-archives"].exists)
+        photos.click()
+        XCTAssertTrue(app.staticTexts["guidanceStatus"].waitForExistence(timeout: 5))
+        XCTAssertEqual(app.staticTexts["guidanceStatus"].label, "Test run: would open Photos.")
+
+        app.buttons["overviewCategory-developer"].click()
+        XCTAssertTrue(app.descendants(matching: .any)["planRule-npm-cache"].waitForExistence(timeout: 5))
+        for id in ["photos-library", "xcode-archives", "messages-attachments", "time-machine-snapshots"] {
+            XCTAssertFalse(app.descendants(matching: .any)["planRule-" + id].exists, id)
+        }
+        XCTAssertTrue(FileManager.default.fileExists(atPath: home.appendingPathComponent("Pictures/Photos Library.photoslibrary/originals/a.heic").path))
+    }
+}
