@@ -91,6 +91,32 @@ import XCTest
 }
 
 final class CatalogCleanupUITests: XCTestCase {
+    /// #128: the first scan names the location it is checking with a count, and Overview fills in as each one finishes.
+    /// Discovery is slowed through a DEBUG-only seam so the fixture scan is still running when the rows appear.
+    @MainActor func testFirstScanNamesEachLocationAndFillsOverviewAsItGoes() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        let state = try configureIsolatedState(app)
+        let home = try configureCatalogHome(app)
+        app.launchEnvironment["STILL_TEST_DISCOVERY_PAUSE"] = "0.25"
+        defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
+        app.launch()
+
+        let progress = app.staticTexts["catalogScanProgress"]
+        XCTAssertTrue(progress.waitForExistence(timeout: 10))
+        let counted = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value MATCHES %@", "Checking .+… [0-9]+ of [0-9]+"), object: progress)
+        XCTAssertEqual(XCTWaiter.wait(for: [counted], timeout: 10), .completed, progress.debugDescription)
+        // The npm cache is among the first locations, Downloads comes later: its row and the total show up mid-scan.
+        XCTAssertTrue(app.buttons["overviewCategory-developer"].waitForExistence(timeout: 10))
+        XCTAssertTrue(progress.exists, "The developer row appeared before the scan finished")
+        let total = app.staticTexts["overviewRecommendedTotal"]
+        XCTAssertTrue((total.value as? String)?.hasPrefix("Up to ") == true, total.debugDescription)
+        XCTAssertFalse(app.staticTexts["Nothing to review in the known locations."].exists)
+
+        XCTAssertTrue(progress.waitForNonExistence(timeout: 60))
+        XCTAssertTrue(app.buttons["overviewCategory-downloads"].exists)
+    }
+
     @MainActor func testDeveloperCachesShowOnlyWhenPresentAndADryRunNeverRunsTheTool() throws {
         continueAfterFailure = false
         let app = XCUIApplication()
@@ -142,10 +168,14 @@ final class CatalogCleanupUITests: XCTestCase {
                                                    "Library/Developer/Xcode/iOS DeviceSupport/16.4 (20E247)",
                                                    "Library/Developer/Xcode/iOS DeviceSupport/17.5 (21F79)",
                                                    "Library/Developer/Xcode/iOS DeviceSupport/18.1 (22B83)",
-                                                   "Library/Developer/CoreSimulator/Devices/0A1B2C3D-0000-0000-0000-000000000000"])
+                                                   "Library/Developer/CoreSimulator/Devices/0A1B2C3D-0000-0000-0000-000000000000",
+                                                   ".android/avd/Pixel.avd"])
         let marker = home.appendingPathComponent("simctl-ran")
         let simctl = home.appendingPathComponent(".still-test-tools/simctl")
-        try writeStandInTool("#!/bin/sh\ntouch '\(marker.path)'\n", to: simctl)
+        // Lists one shut-down simulator and one unused runtime (#134); any other call leaves the marker.
+        let devices = #"{"devices":{"com.apple.CoreSimulator.SimRuntime.iOS-18-0":[{"udid":"0A1B2C3D-0000-0000-0000-000000000000","name":"iPhone 16","state":"Shutdown","isAvailable":true}]}}"#
+        let runtimes = #"{"BBBBBBBB-BBBB-4BBB-8BBB-BBBBBBBBBBBB":{"identifier":"BBBBBBBB-BBBB-4BBB-8BBB-BBBBBBBBBBBB","deletable":true,"runtimeIdentifier":"com.apple.CoreSimulator.SimRuntime.watchOS-11-0","version":"11.0","build":"22R349","sizeBytes":4500000000}}"#
+        try writeStandInTool("#!/bin/sh\ncase \"$*\" in\n\"list devices -j\") echo '\(devices)' ;;\n\"runtime list -j\") echo '\(runtimes)' ;;\n*) touch '\(marker.path)' ;;\nesac\n", to: simctl)
         defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
         app.launch()
 
@@ -155,6 +185,16 @@ final class CatalogCleanupUITests: XCTestCase {
         XCTAssertFalse(app.descendants(matching: .any).matching(NSPredicate(format: "identifier CONTAINS 'Archives'")).firstMatch.exists)
         revealAndClick(developer, in: app)
         XCTAssertTrue(app.checkBoxes["planRule-xcode-device-support"].waitForExistence(timeout: 5))
+        // Simulators, runtimes and Android emulators are each listed on their own, and none is preselected (#134).
+        for (rule, name) in [("simulator-runtimes", "watchOS 11.0 (22R349)"), ("android-virtual-devices", "Pixel"), ("simulator-devices", "iPhone 16 (iOS 18.0)")] {
+            // Items are drawn lazily: bring the rule's list into view first.
+            reveal(app.checkBoxes["planRule-" + rule], in: app, nearTop: true)
+            let item = app.checkBoxes["planItem-" + name]
+            if !item.waitForExistence(timeout: 2) { expandDisclosures(in: app) }
+            XCTAssertTrue(item.waitForExistence(timeout: 5), name)
+            XCTAssertEqual(item.value as? Int, 0, name)
+        }
+        revealAndClick(app.checkBoxes["planItem-iPhone 16 (iOS 18.0)"], in: app)
 
         for rule in ["xcode-derived-data", "xcode-simulators"] {
             let box = app.checkBoxes["planRule-" + rule]
@@ -164,7 +204,8 @@ final class CatalogCleanupUITests: XCTestCase {
         // The plan says why DerivedData will be refused: this journey runs under xcodebuild or Xcode.
         let running = app.staticTexts["planRunning-xcode-derived-data"]
         XCTAssertTrue(running.waitForExistence(timeout: 5))
-        XCTAssertTrue((running.value as? String ?? "").contains("Xcode is running"), running.debugDescription)
+        // "Xcode is running" with Quit Xcode when the app is open, "Quit Xcode to include this" when only its tools run.
+        XCTAssertTrue((running.value as? String ?? "").contains("Xcode"), running.debugDescription)
         app.buttons["Review cleanup"].click()
 
         XCTAssertTrue(reviewLine(app, "permanentlyRemoved", "developer").waitForExistence(timeout: 5))
@@ -177,6 +218,37 @@ final class CatalogCleanupUITests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: home.appendingPathComponent("Library/Developer/Xcode/DerivedData/Still-abc/Build/Products/Debug/Still.app/entry").path))
     }
 
+
+    /// #138: a running command-line owner reads "Quit npm to include this" with Check again, and the check clears the line
+    /// once npm is gone. The stand-in npm is a shell running a script named npm-cli.js; no real app is ever quit here.
+    @MainActor func testARunningCommandLineOwnerClearsAfterCheckAgain() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        let state = try configureIsolatedState(app)
+        let home = try configureCatalogHome(app)
+        let script = home.appendingPathComponent(".still-test-npm/npm-cli.js")
+        try FileManager.default.createDirectory(at: script.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try "while :; do sleep 1; done\n".write(to: script, atomically: true, encoding: .utf8)
+        let npm = Process()
+        npm.executableURL = URL(fileURLWithPath: "/bin/sh")
+        npm.arguments = [script.path]
+        try npm.run()
+        defer { if npm.isRunning { npm.terminate() }; app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
+        app.launch()
+
+        XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
+        let row = app.buttons["overviewCategory-developer"]
+        XCTAssertTrue(row.waitForExistence(timeout: 10))
+        revealAndClick(row, in: app)
+        let running = app.staticTexts["planRunning-npm-cache"]
+        XCTAssertTrue(running.waitForExistence(timeout: 5))
+        XCTAssertTrue((running.value as? String ?? "").contains("Quit npm to include this"), running.debugDescription)
+        XCTAssertFalse(app.links["planRunningQuit-npm-cache"].exists)
+
+        npm.terminate(); npm.waitUntilExit()
+        revealAndClick(app.links["planRunningCheck-npm-cache"], in: app)
+        XCTAssertTrue(running.waitForNonExistence(timeout: 5))
+    }
 
     /// Dry run is off by default, so Clean up really deletes the fixture npm cache. It lives in a temp fixture home, never the real disk.
     @MainActor func testCleanUpOfAFixtureCategoryDeletesItAndReachesResults() throws {

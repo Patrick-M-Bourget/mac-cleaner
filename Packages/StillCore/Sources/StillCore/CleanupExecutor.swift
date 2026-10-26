@@ -52,6 +52,7 @@ extension CleanupRecord {
         modifiedSeconds = candidate.modifiedSeconds; modifiedNanoseconds = candidate.modifiedNanoseconds
         action = candidate.action.rawValue; policyVersion = 2; self.approvedAt = approvedAt
         ruleID = candidate.ruleID; self.previewOnly = previewOnly
+        itemName = candidate.itemName; toolItem = candidate.toolItem
     }
 }
 
@@ -114,7 +115,7 @@ public actor CleanupExecutor {
         case .trash: "move to Trash"
         case .evict: "remove the local copy"
         case .guidance: "change nothing (guidance only)"
-        case .tool: "run " + (command?.commandLine(for: candidate.itemName) ?? "its tool") + (command?.deletesLocationAfter == true ? ", then delete the folder" : "")
+        case .tool: "run " + (command?.commandLine(for: candidate.toolArgument) ?? "its tool") + (command?.deletesLocationAfter == true ? ", then delete the folder" : "")
         }
         if let refusal = check.check(candidate) {
             record.state = .skipped; record.message = refusal.reason
@@ -130,7 +131,9 @@ public actor CleanupExecutor {
         let before = measure(candidate.url.deletingLastPathComponent())
         switch candidate.action {
         case .delete: delete(candidate, into: &record)
-        case .trash: trash(candidate, into: &record)
+        case .trash:
+            trash(candidate, into: &record)
+            if record.state == .succeeded, check.catalog.rule(candidate.ruleID)?.items == .androidVirtualDevices { trashIniFile(of: candidate, into: &record) }
         case .tool: await runTool(candidate, command, into: &record)
         case .evict: evict(candidate, into: &record)
         // The check refuses guidance first; this stays a refusal if it ever doesn't.
@@ -145,7 +148,7 @@ public actor CleanupExecutor {
 
     /// Runs the rule's fixed command off the actor with its time limit, then deletes the folder if the rule says so.
     private func runTool(_ candidate: Candidate, _ command: ToolCommand?, into record: inout CleanupRecord) async {
-        guard let command, let executable = candidate.toolURL, let arguments = command.arguments(for: candidate.itemName) else {
+        guard let command, let executable = candidate.toolURL, let arguments = command.arguments(for: candidate.toolArgument) else {
             record.state = .skipped; record.message = CheckRefusal.changed.reason; return
         }
         let outcome = await Task.detached(priority: .userInitiated) {
@@ -154,7 +157,7 @@ public actor CleanupExecutor {
             environment["PATH"] = executable.deletingLastPathComponent().path + ":" + (environment["PATH"] ?? "")
             return Result { try BoundedTool.capture(executable: executable, arguments: arguments, timeout: command.timeout, environment: environment) }
         }.value
-        let name = command.commandLine(for: candidate.itemName)
+        let name = command.commandLine(for: candidate.toolArgument)
         switch outcome {
         case .success(let (status, output)):
             record.toolOutput = Self.trimmed(output)
@@ -240,6 +243,15 @@ public actor CleanupExecutor {
             record.state = unchanged() ? .failed : .unknown
             record.message = record.state == .failed ? "Couldn’t move it to Trash. Left unchanged." : "Move to Trash may be incomplete. Review it before cleaning again."
         }
+    }
+
+    /// An Android virtual device's `<name>.ini` follows its folder to the Trash, so Android Studio doesn't list a broken device.
+    private func trashIniFile(of candidate: Candidate, into record: inout CleanupRecord) {
+        let ini = AndroidSDK.iniFile(of: candidate.url)
+        var info = stat()
+        guard lstat(ini.path, &info) == 0, info.st_mode & S_IFMT == S_IFREG, info.st_uid == geteuid() else { return }
+        do { _ = try trashMover.moveToTrash(ini); record.message = "Moved to Trash with \(ini.lastPathComponent)" }
+        catch { record.message = "Moved to Trash. Couldn’t move \(ini.lastPathComponent); Android Studio may list the device as broken." }
     }
 
     /// Removes only local copies: the file or package itself, or each qualifying file in a folder, each read again

@@ -160,7 +160,7 @@ public enum BuiltInCatalog {
     /// The catalog as the app uses it, with installed apps found through LaunchServices.
     public static let rules: [CleanupRule] = rules(apps: SystemAppLookup())
     /// The catalog with installed apps found by `apps`. Tests pass a fake, so they never depend on this Mac's apps.
-    public static func rules(apps: any AppLookup) -> [CleanupRule] { fixedRules + BrowserCaches.rules + AppDataCaches.rules(apps: apps) + AppCaches.rules(apps: apps) + dockerRules + guidanceRules
+    public static func rules(apps: any AppLookup) -> [CleanupRule] { fixedRules + BrowserCaches.rules + AppDataCaches.rules(apps: apps) + AppCaches.rules(apps: apps) + dockerRules + developerDeviceRules + guidanceRules
         + TemporaryFiles.rules(apps: apps) }
     private static let fixedRules: [CleanupRule] = [
         CleanupRule(id: "npm-cache", category: .developer, title: "npm cache",
@@ -230,11 +230,7 @@ public enum BuiltInCatalog {
                     detail: "Simulator devices whose OS version is no longer installed, so they can’t run.",
                     consequence: "Runs `simctl delete unavailable`. Only devices that can’t run are removed, with their apps and data; available simulators are not touched.",
                     regen: .build, action: .tool, locations: ["Library/Developer/CoreSimulator/Devices"], owner: nil,
-                    // CoreSimulator's own simctl first: `xcrun` fails while xcode-select points at the Command Line Tools,
-                    // and Xcode's wrapper may run first-launch setup, which can ask for an admin password (Decision 4).
-                    tool: ToolCommand(executables: ["/Library/Developer/PrivateFrameworks/CoreSimulator.framework/Versions/A/Resources/bin/simctl",
-                                                    "/Applications/Xcode.app/Contents/Developer/usr/bin/simctl"],
-                                      arguments: ["delete", "unavailable"], timeout: 300)),
+                    tool: ToolCommand(executables: simctlExecutables, arguments: ["delete", "unavailable"], timeout: 300)),
         // RESET Decision 18. Installers come first so a large old installer is listed once, as an installer.
         CleanupRule(id: "downloads-installers", category: .downloads, title: "Installers in Downloads",
                     detail: "Disk images, packages and archives you downloaded, at any age.",
@@ -277,7 +273,7 @@ public enum BuiltInCatalog {
 
 /// A concrete item a rule found, with the identity it had when sized.
 public struct Candidate: Sendable, Identifiable, Hashable {
-    public var id: String { ruleID + "|" + url.path + "|" + resourceID + "|" + action.rawValue }
+    public var id: String { ruleID + "|" + url.path + "|" + resourceID + "|" + action.rawValue + (toolItem.map { "|" + $0 } ?? "") }
     public let ruleID: String
     public let action: CleanupAction
     public let url: URL
@@ -302,6 +298,10 @@ public struct Candidate: Sendable, Identifiable, Hashable {
     public internal(set) var appName: String? = nil
     /// What the item is called, e.g. a model's name; nil means its file name.
     public internal(set) var itemName: String? = nil
+    /// What a per-item tool command takes for this item when it isn't its name, such as a simulator's UDID.
+    public internal(set) var toolItem: String? = nil
+    /// The argument a per-item tool command runs with: `toolItem`, else the item's name.
+    public var toolArgument: String? { toolItem ?? itemName }
     /// The size is an estimate rather than a measurement (an Ollama model's own, unshared blobs).
     public internal(set) var sizeIsEstimate = false
     /// The file's own size when `logicalBytes` sizes something else (an Ollama manifest stands for its model).
@@ -358,7 +358,8 @@ public struct Catalog: Sendable {
     /// `discover`, plus notes on rules that kept items back, such as copies kept because their use couldn't be checked.
     /// A rule that needs Full Disk Access Still doesn't have (`access`) is never read; it comes back in `notAccessible`.
     public func discovery(home: URL, userFolder: URL? = nil, exclusions: ExclusionPolicy = ExclusionPolicy(), inUse: any InUseChecking = SystemInUseChecker(), sizer: KnownLocationSizer = KnownLocationSizer(), now: Date = Date(), locateTool: (ToolCommand) -> URL? = ToolCommand.installed,
-                          systemRoot: URL = URL(fileURLWithPath: "/"), cloud: any UbiquitousItemAccess = SystemUbiquitousItems(), access: FullDiskAccessStatus = .unknown) -> CatalogDiscovery {
+                          systemRoot: URL = URL(fileURLWithPath: "/"), cloud: any UbiquitousItemAccess = SystemUbiquitousItems(), access: FullDiskAccessStatus = .unknown,
+                          progress: (CatalogDiscoveryProgress) -> Void = { _ in }) -> CatalogDiscovery {
         // Guidance rules report their own access (`guidance(home:)`).
         let notAccessible = rules.filter { $0.action != .guidance && $0.access(given: access) == .needsFullDiskAccess }
         let homeBase = home.resolvingSymlinksInPath(), userBase = userFolder
@@ -371,10 +372,13 @@ public struct Catalog: Sendable {
         // `docker system df` runs once per scan for every Docker rule, whenever the CLI is installed: without its folder
         // nothing is offered, but a daemon that doesn't answer is still shown.
         var dockerUsage: [String: Result<[DockerStorageCategory], ToolPreviewError>] = [:]
+        // simctl's lists are read once per scan for both simulator rules (#134).
+        var simulators: [String: Result<SimulatorInventory, ToolPreviewError>] = [:]
         let overridden = Set(overriddenRules(home: home, systemRoot: systemRoot).map(\.id))
-        let candidates = rules.flatMap { rule -> [Candidate] in
-            // Guidance rules are sized by `guidance(home:)` and never become candidates.
-            guard rule.action != .guidance, !overridden.contains(rule.id), let base = rule.base == .home ? homeBase : userBase else { return [] }
+        // Guidance rules are sized by `guidance(home:)` and never become candidates.
+        let checked = rules.filter { $0.action != .guidance && !overridden.contains($0.id) && ($0.base == .home || userBase != nil) }
+        func offered(by rule: CleanupRule) -> [Candidate] {
+            guard let base = rule.base == .home ? homeBase : userBase else { return [] }
             // Looked at but not read: What grew records it as not measured, so access granted later is coverage, not growth.
             if notAccessible.contains(where: { $0.id == rule.id }) { scanned.append(rule.id); return [] }
             // What an earlier cleanup left half-deleted comes back under the same rule, even if its tool is gone.
@@ -410,6 +414,20 @@ public struct Catalog: Sendable {
                 if rule.action == .evict { return cloudCandidates(in: url, rule: rule, cloud: cloud, exclusions: exclusions) }
                 if let contents = rule.contents { return files(in: url, matching: contents, rule: rule, now: now) }
                 if rule.items == .ollamaModels { return ollamaModels(in: url, rule: rule, toolURL: toolURL) }
+                if rule.items == .androidVirtualDevices { return androidVirtualDevices(in: url, rule: rule, sizer: sizer) }
+                if rule.items == .androidSystemImages {
+                    let (found, note) = androidSystemImages(in: url, home: base, rule: rule, sizer: sizer)
+                    notes += note.map { [$0] } ?? []
+                    return found
+                }
+                if rule.items == .simulatorRuntimes || rule.items == .simulatorDevices, let toolURL {
+                    let read = simulators[toolURL.path] ?? SimulatorInventory.read(toolURL)
+                    if simulators[toolURL.path] == nil, case .failure = read { notes.append(CatalogNote(ruleID: rule.id, text: SimulatorInventory.notice)) }
+                    simulators[toolURL.path] = read
+                    guard case .success(let inventory) = read else { return [] }
+                    return rule.items == .simulatorDevices ? simulatorDevices(in: url, rule: rule, toolURL: toolURL, inventory: inventory, sizer: sizer)
+                        : simulatorRuntimes(anchor: url, rule: rule, toolURL: toolURL, inventory: inventory)
+                }
                 if case .docker(let kind) = rule.items, let toolURL {
                     guard case .success(let rows)? = dockerUsage[toolURL.path] else { return [] }
                     return dockerCandidate(kind, at: url, rule: rule, toolURL: toolURL, usage: rows).map { [$0] } ?? []
@@ -437,11 +455,19 @@ public struct Catalog: Sendable {
                 return [found]
             }
             return (found + leftovers).map { $0.found(under: base) }
-        }.filter { candidate in
-            // Excluded items are never candidates (SPEC section 2); the check refuses them again just before acting.
-            // With exclusions set, an item whose volume can't be read can't be cleared of them, so it is left out too.
-            if !exclusions.rules.isEmpty, candidate.volumeID.map({ exclusions.covers(candidate.url, volumeID: $0) }) ?? true { return false }
-            return seen.insert(spaceKey(of: candidate)).inserted
+        }
+        var candidates: [Candidate] = []
+        // One rule at a time, in catalog order, so progress can report each as it finishes (#128).
+        for (index, rule) in checked.enumerated() {
+            progress(.checking(ruleID: rule.id, title: rule.title, number: index + 1, total: checked.count))
+            let kept = offered(by: rule).filter { candidate in
+                // Excluded items are never candidates (SPEC section 2); the check refuses them again just before acting.
+                // With exclusions set, an item whose volume can't be read can't be cleared of them, so it is left out too.
+                if !exclusions.rules.isEmpty, candidate.volumeID.map({ exclusions.covers(candidate.url, volumeID: $0) }) ?? true { return false }
+                return seen.insert(spaceKey(of: candidate)).inserted
+            }
+            candidates += kept
+            progress(.finished(ruleID: rule.id, number: index + 1, total: checked.count, found: kept))
         }
         return CatalogDiscovery(candidates: candidates, notes: notes, scannedRuleIDs: scanned, notAccessible: notAccessible, notMeasured: notMeasured)
     }
@@ -458,7 +484,7 @@ public struct Catalog: Sendable {
 
     /// What a candidate's space is keyed on, so the same space is offered once (`SpaceKey`).
     func spaceKey(of candidate: Candidate) -> String {
-        SpaceKey.of(resourceID: candidate.resourceID, ruleID: candidate.ruleID, action: candidate.action)
+        SpaceKey.of(resourceID: candidate.resourceID, ruleID: candidate.ruleID, action: candidate.action, item: candidate.toolItem)
     }
 
     /// Whether another rule's location is this item, holds it, or exists inside it, whether or not that rule offers it now.

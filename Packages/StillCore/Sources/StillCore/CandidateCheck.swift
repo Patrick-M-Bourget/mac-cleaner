@@ -95,6 +95,8 @@ public struct CandidateCheck: Sendable {
         if candidate.action == .guidance || catalog.rule(candidate.ruleID)?.action == .guidance { return .guidanceOnly }
         guard let rule = catalog.rule(candidate.ruleID),
               rule.action == candidate.action || (candidate.isLeftover && rule.deletesItems && candidate.action == .delete) else { return .changed }
+        // A per-item command's argument is never an option, whatever the item says (#134).
+        if candidate.action == .tool, rule.tool?.itemPlaceholder != nil, candidate.toolArgument.map({ $0.isEmpty || $0.hasPrefix("-") }) ?? true { return .changed }
         let ownership = Catalog.ownership(of: candidate.url, under: rule)
         switch ownership {
         // An item whose own owner can't be found any more (the app was removed) is refused, never guessed.
@@ -132,6 +134,10 @@ public struct CandidateCheck: Sendable {
         if rule.unused != nil, rule.itemOwner != nil {
             guard let used = inUse.inUse([candidate.url], by: .anyApp) else { return .inUseUnknown(RuleOwner.anyApp.name) }
             if !used.isEmpty { return .inUse(RuleOwner.anyApp.name) }
+        }
+        // A system image a virtual device started using since the scan is kept (#134).
+        if rule.items == .androidSystemImages, AndroidSDK.referencedImages(home: home).map({ $0.contains(AndroidSDK.key(candidate.url)) }) ?? true {
+            return .inUse("An Android virtual device")
         }
         // An old temporary item that anything inside changed in since the scan is in use again (`TemporaryFiles`).
         if rule.unused != nil, !candidate.isLeftover, Catalog.lastChange(in: candidate.url).map({ $0 > candidate.observedAt }) ?? true { return .changed }

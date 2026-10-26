@@ -27,6 +27,8 @@ import SwiftUI
     }
     private(set) var isScanning = false
     private(set) var hasScanned = false
+    /// The running catalog scan's progress, one location at a time (#128); nil when no scan is running.
+    private(set) var scanProgress: CatalogScanProgress?
     /// Watches for Full Disk Access being granted while Still was away (#124, `rescanIfFullDiskAccessGranted`).
     var fullDiskAccessRescan = FullDiskAccessRescan()
     /// Chosen candidate ids. Nothing is preselected unless the user asks for the recommended plan (Decision 28).
@@ -49,6 +51,12 @@ import SwiftUI
     private(set) var notAccessibleRules: [CleanupRule] = []
     /// Names of owners that were running at the last scan. Their items stay choosable; the checks refuse them.
     private(set) var runningOwners: Set<String> = []
+    /// The running owners themselves, by name, and those whose app (not only a command-line tool) is open (#138).
+    private var runningOwnerDetails: [String: RuleOwner] = [:]
+    private(set) var openApps: Set<String> = []
+    /// Apps the user asked to quit: still waiting, or still open after the wait.
+    private(set) var quitStates: [String: AppQuitState] = [:]
+    enum AppQuitState { case quitting, stillOpen }
     /// Each candidate's owner name at the last scan, so views never look owners up while drawing.
     private var ownerNames: [String: String] = [:]
     private var executor: CleanupExecutor?
@@ -138,12 +146,62 @@ import SwiftUI
         return SystemUbiquitousItems()
     }
 
-    /// Overview's summary; nil until the first scan of the known locations has finished.
-    var overview: CatalogOverview? { hasScanned ? CatalogOverview(catalog: catalog, candidates: discovered) : nil }
+    /// Overview's summary. While the first scan runs it covers the locations finished so far, so rows and the total fill in
+    /// as each one completes (#128); nil until the first one has.
+    var overview: CatalogOverview? {
+        if hasScanned { return CatalogOverview(catalog: catalog, candidates: discovered) }
+        return scanProgress.flatMap { $0.finished > 0 ? CatalogOverview(catalog: catalog, candidates: $0.found) : nil }
+    }
+    /// "Checking Xcode DerivedData… 4 of 31": one quiet line while the catalog scan runs (Decision 25).
+    var scanProgressText: String {
+        guard let progress = scanProgress, progress.total > 0 else { return "Checking known locations…" }
+        return "Checking \(progress.title)… \(progress.number) of \(progress.total)"
+    }
     /// Owners of the rule's items that were running at the last scan, in name order.
     func runningOwnerNames(for rule: CleanupRule) -> [String] {
         Set(candidates(for: rule).compactMap { ownerNames[$0.id] }).intersection(runningOwners).sorted()
     }
+    /// The plan's line for each running owner of the rule: an open app offers to quit, a tool offers a check (#138).
+    func runningOwnerNotices(for rule: CleanupRule) -> [(name: String, notice: RunningOwnerNotice)] {
+        runningOwnerNames(for: rule).map { ($0, RunningOwnerNotice(name: $0, appOpen: openApps.contains($0), stillOpen: quitStates[$0] == .stillOpen)) }
+    }
+
+    /// Asks Still's quitter; a debug UI test run never asks a real app to quit.
+    nonisolated static var quitter: any AppQuitting {
+        #if DEBUG
+        if LocalStateLocation.isDisposableTest { return SystemAppQuitter(sendsRequests: false) }
+        #endif
+        return SystemAppQuitter()
+    }
+
+    /// Which owners are running, and which of them as an open app.
+    nonisolated private static func running(_ owners: [String: RuleOwner], quitter: any AppQuitting) -> ([String: RuleOwner], Set<String>) {
+        let checker = SystemRunningAppChecker()
+        let running = owners.filter { checker.isRunning($0.value) == true }
+        return (running, Set(running.values.filter { quitter.isOpen($0.bundleIDs) }.map(\.name)))
+    }
+    private func setRunning(_ owners: [String: RuleOwner], open: Set<String>) {
+        runningOwnerDetails = owners; runningOwners = Set(owners.keys); openApps = open
+        quitStates = quitStates.filter { owners[$0.key] != nil }
+    }
+
+    /// Looks again at the owners that were running, without a full scan. The checks run again at review either way.
+    func checkRunningOwnersAgain() async {
+        let owners = runningOwnerDetails, quitter = Self.quitter
+        let (running, open) = await Task.detached(priority: .userInitiated) { Self.running(owners, quitter: quitter) }.value
+        setRunning(running, open: open)
+    }
+
+    /// Sends the owner's app a normal quit request, like ⌘Q, only because the user asked. When it quits, Still checks again;
+    /// when it doesn't (unsaved work, or it refused), the plan says it is still open.
+    func quitApp(named name: String) async {
+        guard let owner = runningOwnerDetails[name], quitStates[name] != .quitting else { return }
+        quitStates[name] = .quitting
+        let outcome = await AppQuitRequest(quitter: Self.quitter).quit(owner)
+        await checkRunningOwnersAgain()
+        if runningOwners.contains(name) { quitStates[name] = outcome == .quit ? nil : .stillOpen }
+    }
+
     var rulesFound: [CleanupRule] { catalog.rules.filter { rule in candidates.contains { $0.ruleID == rule.id } } }
     func candidates(for rule: CleanupRule) -> [Candidate] { candidates.filter { $0.ruleID == rule.id } }
     func estimatedBytes(for rule: CleanupRule) -> Int64 { candidates(for: rule).reduce(0) { $0 + $1.estimatedBytes } }
@@ -177,12 +235,12 @@ import SwiftUI
     /// Read-only sizing of the catalog's known locations.
     func scan() async {
         guard canEdit else { return }
-        isScanning = true; message = nil
-        defer { isScanning = false; hasScanned = true }
-        guard let home = Self.home else { discovered = []; notes = []; overriddenRules = []; notAccessibleRules = []; runningOwners = []; ownerNames = [:]; return }
+        isScanning = true; message = nil; scanProgress = CatalogScanProgress()
+        defer { isScanning = false; hasScanned = true; scanProgress = nil }
+        guard let home = Self.home else { discovered = []; notes = []; overriddenRules = []; notAccessibleRules = []; setRunning([:], open: []); ownerNames = [:]; return }
         // Excluded items are never offered (SPEC section 2); without the settings nothing can be offered safely.
         guard let exclusions = try? await ExclusionsModel.shared.policyForScan() else {
-            discovered = []; notes = []; overriddenRules = []; notAccessibleRules = []; runningOwners = []; ownerNames = [:]
+            discovered = []; notes = []; overriddenRules = []; notAccessibleRules = []; setRunning([:], open: []); ownerNames = [:]
             message = "Exclusion settings are unavailable, so nothing can be checked. Try again."; return
         }
         let catalog = catalog
@@ -190,25 +248,42 @@ import SwiftUI
         let userFolder = Self.userFolder, cloud = Self.cloud
         // What grew records each completed catalog scan (#119).
         let growth = await GrowthHistoryModel.shared.beginCatalog(home: home, exclusionFingerprint: exclusions.fingerprint)
-        let scanned = await Task.detached(priority: .userInitiated) { () -> (CatalogDiscovery, [CleanupRule], Set<String>, [String: String], FullDiskAccessStatus) in
+        let quitter = Self.quitter
+        // Discovery reports each location as it goes; the steps reach the main actor in order (#128).
+        let (steps, reporter) = AsyncStream.makeStream(of: CatalogDiscoveryProgress.self)
+        let progress = Task { for await step in steps { scanProgress?.apply(step) } }
+        let scanned = await Task.detached(priority: .userInitiated) { () -> (CatalogDiscovery, [CleanupRule], ([String: RuleOwner], Set<String>), [String: String], FullDiskAccessStatus) in
             // Probed once per scan, at launch too, and shared with the guidance scan: it only opens a protected folder
             // and never prompts (#117).
             let access = FullDiskAccessProbe(home: home).status()
             let discovered = catalog.discovery(home: home, userFolder: userFolder, exclusions: exclusions, locateTool: locate, systemRoot: system, cloud: cloud,
-                                               access: access)
+                                               access: access, progress: { step in
+                                                   reporter.yield(step)
+                                                   #if DEBUG
+                                                   if case .finished = step { Self.pauseForTests() }
+                                                   #endif
+                                               })
+            reporter.finish()
             var owners: [String: RuleOwner] = [:], names: [String: String] = [:]
             for candidate in discovered.candidates { if let owner = catalog.owner(for: candidate) { owners[owner.name] = owner; names[candidate.id] = owner.name } }
-            let running = SystemRunningAppChecker()
-            return (discovered, catalog.overriddenRules(home: home, systemRoot: system), Set(owners.values.filter { running.isRunning($0) == true }.map(\.name)), names,
-                    access)
+            return (discovered, catalog.overriddenRules(home: home, systemRoot: system), Self.running(owners, quitter: quitter), names, access)
         }.value
+        await progress.value
         await GrowthHistoryModel.shared.completeCatalog(scanned.0, catalog: catalog, fullDiskAccess: scanned.4, token: growth, afterCleanup: rescanFollowsCleanup)
         rescanFollowsCleanup = false
         fullDiskAccessRescan.scanned(scanned.4)
-        discovered = scanned.0.candidates; notes = scanned.0.notes; notAccessibleRules = scanned.0.notAccessible; overriddenRules = scanned.1; runningOwners = scanned.2; ownerNames = scanned.3
+        discovered = scanned.0.candidates; notes = scanned.0.notes; notAccessibleRules = scanned.0.notAccessible; overriddenRules = scanned.1; setRunning(scanned.2.0, open: scanned.2.1); ownerNames = scanned.3
         keepOnlyCurrentChoices()
         await scanGuidance(home: home, fullDiskAccess: scanned.4)
     }
+    #if DEBUG
+    /// A disposable test run can slow discovery down (`STILL_TEST_DISCOVERY_PAUSE`, seconds after each location), so a UI journey sees
+    /// Overview fill in while the fixture scan runs. Never set outside tests.
+    nonisolated private static func pauseForTests() {
+        guard LocalStateLocation.isDisposableTest, let pause = ProcessInfo.processInfo.environment["STILL_TEST_DISCOVERY_PAUSE"].flatMap(Double.init), pause > 0 else { return }
+        Thread.sleep(forTimeInterval: min(pause, 2))
+    }
+    #endif
     /// Drops chosen items that are no longer offered, and says so.
     private func keepOnlyCurrentChoices() {
         let found = Set(candidates.map(\.id))
@@ -392,7 +467,7 @@ func catalogBytes(_ value: Int64, complete: Bool = true, upperBound: Bool = fals
 
 extension CleanupRule {
     /// Rules whose items the user chooses one by one: single Downloads files, and each model or disk image.
-    var choosesItems: Bool { contents != nil || regen == .model || action == .evict || fromPickedFolders }
+    var choosesItems: Bool { contents != nil || regen == .model || action == .evict || fromPickedFolders || items?.choosesEachItem == true }
     /// Whether every item the rule offers is a single file.
     var offersFiles: Bool { contents != nil || fromPickedFolders }
 }
@@ -402,6 +477,33 @@ extension Candidate {
     var displayName: String { itemName ?? url.lastPathComponent }
     /// The row the plan groups the item under: the app it belongs to, or its browser profile.
     var group: String? { appName ?? profile }
+}
+
+/// How far the catalog scan is: the location being checked, its number, and what the finished ones found.
+struct CatalogScanProgress {
+    var title = ""
+    var number = 0
+    var total = 0
+    var finished = 0
+    var found: [Candidate] = []
+    mutating func apply(_ step: CatalogDiscoveryProgress) {
+        switch step {
+        case .checking(_, let title, let number, let total): self.title = title; self.number = number; self.total = total
+        case .finished(_, let number, _, let found): finished = number; self.found += found
+        }
+    }
+}
+
+/// The catalog scan's progress as one quiet line: a small spinner and "Checking <location>… 4 of 31" (Decision 25).
+struct CatalogScanProgressLine: View {
+    let model: CatalogCleanupModel
+    var body: some View {
+        HStack(spacing: StillDesign.Space.sm) {
+            ProgressView().controlSize(.small).accessibilityHidden(true)
+            Text(model.scanProgressText).font(.caption).foregroundStyle(.secondary).monospacedDigit().lineLimit(1).truncationMode(.middle)
+                .accessibilityIdentifier("catalogScanProgress")
+        }
+    }
 }
 
 /// The Settings dry run. Off by default (Decision 27).
@@ -439,7 +541,7 @@ struct CatalogPlanSection: View {
                 }
             }
             ForEach(model.notes, id: \.ruleID) { note in StatusRow(text: note.text, symbol: "info.circle", role: .neutral, identifier: "planNote-" + note.ruleID) }
-            if model.isScanning { ProgressView("Checking known locations…") }
+            if model.isScanning { CatalogScanProgressLine(model: model) }
             if let message = model.message { StatusRow(text: message, symbol: "info.circle", role: .caution) }
         }.task { await model.scanIfNeeded() }
     }
@@ -476,14 +578,27 @@ private struct PlanCategoryRow: View {
     }
 }
 
-/// Why a rule can't be cleaned right now: its owner is open.
+/// Why a rule can't be cleaned right now: its owner is open. One quiet line with one link, as `TrashLine` is drawn
+/// (Decision 25): "Quit <App>" for an open app, "Check again" for a command-line tool (#138).
 private struct PlanRunningOwners: View {
     let model: CatalogCleanupModel
     let rule: CleanupRule
     var body: some View {
-        ForEach(model.runningOwnerNames(for: rule), id: \.self) { name in
-            StatusRow(text: CheckRefusal.ownerRunning(name).reason, symbol: "exclamationmark.circle", role: .caution, identifier: "planRunning-" + rule.id)
-                .font(StillDesign.TypeStyle.caption)
+        ForEach(model.runningOwnerNotices(for: rule), id: \.name) { owner in
+            let quitting = model.quitStates[owner.name] == .quitting
+            HStack(alignment: .firstTextBaseline, spacing: StillDesign.Space.xs) {
+                Image(systemName: "exclamationmark.circle").foregroundStyle(StatusRole.caution.color).accessibilityHidden(true)
+                Text(owner.notice.text + " ·").foregroundStyle(.secondary).accessibilityIdentifier("planRunning-" + rule.id)
+                switch owner.notice.action {
+                case .quitApp(let title):
+                    Button(quitting ? "Quitting…" : title) { Task { await model.quitApp(named: owner.name) } }.disabled(quitting)
+                        .buttonStyle(.link).accessibilityIdentifier("planRunningQuit-" + rule.id)
+                case .checkAgain:
+                    Button("Check again") { Task { await model.checkRunningOwnersAgain() } }
+                        .buttonStyle(.link).accessibilityIdentifier("planRunningCheck-" + rule.id)
+                }
+            }.font(StillDesign.TypeStyle.caption).frame(maxWidth: .infinity, alignment: .leading)
+                .accessibilityElement(children: .contain)
         }
     }
 }
@@ -623,8 +738,9 @@ struct CatalogConfirmationSection: View {
             Text(rule.consequence).font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             ForEach(items) { item in
                 // A tool shows the exact command, e.g. `ollama rm llama3:latest` or `docker builder prune -a -f`.
-                if let tool = rule.tool { Text(tool.commandLine(for: item.itemName)).font(StillDesign.TypeStyle.code).textSelection(.enabled) }
-                if rule.tool?.deletesLocationAfter ?? true {
+                if let tool = rule.tool { Text(tool.commandLine(for: item.toolArgument)).font(StillDesign.TypeStyle.code).textSelection(.enabled) }
+                // A command that takes an identifier (a simulator's UDID) also names the item.
+                if rule.tool?.deletesLocationAfter ?? true || item.toolItem != nil {
                     Text(item.displayName + " · " + PathDisplay.shortLocation(of: item.url, home: CatalogCleanupModel.checkHome))
                         .font(StillDesign.TypeStyle.caption).help(item.url.path)
                 }
@@ -689,7 +805,7 @@ private struct CatalogResultRow: View {
     let showsDetails: Bool
     private var name: String {
         let file = record.originalURL.lastPathComponent
-        return rule?.itemName?(file) ?? (rule?.choosesItems == true ? file : rule?.title ?? file)
+        return record.itemName ?? rule?.itemName?(file) ?? (rule?.choosesItems == true ? file : rule?.title ?? file)
     }
     var body: some View {
         let role: StatusRole = record.state == .succeeded ? .success : record.wasPreviewed ? .neutral : .caution

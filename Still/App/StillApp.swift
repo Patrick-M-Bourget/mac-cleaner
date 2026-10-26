@@ -420,7 +420,6 @@ private struct WorkspaceView: View {
         // The scanned folders' iCloud inventory, when the catalog found no local copies of its own.
         // Hidden at 0 bytes, like any category; unknown is never 0.
         let showsCloudInventory = overviewObservation.map { $0.cloudInventory.localAllocatedBytes != 0 } == true && !rows.contains { $0.category == .icloud }
-        let checking = summary == nil && catalog.isScanning
         return VStack(alignment: .leading, spacing: StillDesign.Space.md) {
                 HStack(alignment: .firstTextBaseline) {
                     Text("Recommended for review").font(StillDesign.TypeStyle.section)
@@ -428,6 +427,8 @@ private struct WorkspaceView: View {
                     Text(summary.map { recommendedText($0.recommended) } ?? (catalog.isScanning ? "Checking known locations…" : "Not measured yet"))
                         .font(.caption).foregroundStyle(.secondary).monospacedDigit().accessibilityIdentifier("overviewRecommendedTotal")
                 }
+                // One quiet line while the scan runs; rows and the total fill in as each location finishes (#128).
+                if catalog.isScanning { CatalogScanProgressLine(model: catalog) }
                 if summary != nil, !catalog.recommendedCandidates.isEmpty {
                     // The one way anything is preselected: rebuildable data only, then straight to the review (#137, Decision 28).
                     Button("Recommended plan · " + catalog.recommendedSizeText + " · Review", action: openRecommendedPlan)
@@ -435,15 +436,11 @@ private struct WorkspaceView: View {
                         .help("Caches, build data, update downloads, logs and leftover app copies that rebuild themselves. You see every item before anything changes.")
                         .accessibilityIdentifier("overviewRecommendedPlan")
                 }
-                if showsCloudInventory || checking || !shown.isEmpty {
+                if showsCloudInventory || !shown.isEmpty {
                     RecommendationGroup {
                         if showsCloudInventory {
                             overviewCloudRow
                             if overviewCloudExpanded, let report = overviewObservation?.cloudInventory { CloudInventoryView(report: report).padding(StillDesign.Space.md) }
-                        }
-                        if checking {
-                            if showsCloudInventory { Divider().padding(.horizontal, StillDesign.Space.lg) }
-                            ProgressView("Checking known locations…").font(.caption).padding(StillDesign.Space.lg).frame(maxWidth: .infinity, alignment: .leading)
                         }
                         // The largest catalog categories that found something; categories are data in StillCore.
                         ForEach(Array(shown.enumerated()), id: \.element.id) { index, row in
@@ -457,7 +454,7 @@ private struct WorkspaceView: View {
                                 .accessibilityIdentifier("overviewShowMore")
                         }
                     }
-                } else if summary != nil {
+                } else if summary != nil, !catalog.isScanning {
                     Text("Nothing to review in the known locations.").font(.callout).foregroundStyle(.secondary)
                 }
                 // Places macOS protects (Safari's cache) without Full Disk Access: one line, never a 0-byte row.
