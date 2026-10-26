@@ -296,14 +296,6 @@ private struct WorkspaceView: View {
                                 }
                             }
                         }
-                    } else if destination == .overview && !managedStorageVisible && !dockerVisible && !pipVisible && !homebrewVisible {
-                        if folderInspection.isScanning {
-                            ActionStrip(message: "Manual scan running · No cleanup is running") { EmptyView() }
-                        } else {
-                        ActionStrip(message: "\(StillDesign.items(selection.workspaceSelectedCount)) selected · Nothing changes before confirmation.") {
-                            Button("Review cleanup plan") { destination = .plan }.buttonStyle(.borderedProminent)
-                        }
-                        }
                     } else if showsPlan {
                         ActionStrip(message: "Nothing changes until you confirm the next step.") { Button("Review cleanup") {}.disabled(true) }
                     }
@@ -410,7 +402,7 @@ private struct WorkspaceView: View {
             HStack(alignment: .top) {
                 PageHeader(title: "Storage overview", subtitle: "A clearer picture of what’s on your Mac.")
                 Spacer(minLength: StillDesign.Space.md)
-                Button("Scan again", action: scanKnownLocations).disabled(locationsModel.included.isEmpty || folderInspection.isScanning || selection.workspaceRunning)
+                Button("Scan again", action: scanAgain).disabled(folderInspection.isScanning || selection.workspaceRunning || !selection.catalog.canEdit)
             }
             ScanHistoryRecordingNotice()
             if let context = alerts.openedAlertContext {
@@ -436,7 +428,7 @@ private struct WorkspaceView: View {
             }
             VolumeSummary(available: startupCapacity?.available, total: startupCapacity?.total,
                           observation: capacity.observationText, status: capacity.statusText,
-                          refreshTitle: capacity.failed ? "Try again" : "Refresh capacity", refreshing: capacity.isRefreshing,
+                          refreshTitle: "Try again", refreshing: capacity.isRefreshing,
                           refresh: { capacity.request(.manual) })
             scannedLocations
             overviewRecommendations
@@ -444,28 +436,49 @@ private struct WorkspaceView: View {
     }
 
     private var overviewRecommendations: some View {
-        VStack(alignment: .leading, spacing: StillDesign.Space.md) {
-                Text("Recommended for review").font(StillDesign.TypeStyle.section)
+        let catalog = selection.catalog
+        let summary = catalog.overview
+        return VStack(alignment: .leading, spacing: StillDesign.Space.md) {
+                HStack(alignment: .firstTextBaseline) {
+                    Text("Recommended for review").font(StillDesign.TypeStyle.section)
+                    Spacer(minLength: StillDesign.Space.md)
+                    Text(summary.map { recommendedText($0.recommended) } ?? (catalog.isScanning ? "Checking known locations…" : "Not measured yet"))
+                        .font(.caption).foregroundStyle(.secondary).monospacedDigit().accessibilityIdentifier("overviewRecommendedTotal")
+                }
                 RecommendationGroup {
                     overviewCloudRow
                     if overviewCloudExpanded, let report = overviewObservation?.cloudInventory { CloudInventoryView(report: report).padding(StillDesign.Space.md) }
                     Divider().padding(.horizontal, StillDesign.Space.lg)
-                    StorageReviewRow(category: .developer, title: "Xcode build files", detail: "Build-file cleanup isn’t available yet.", value: "Not inspected", meaning: "Unavailable")
-                    Divider().padding(.horizontal, StillDesign.Space.lg)
-                    ForEach(selection.catalog.rulesFound) { rule in
-                        let catalog = selection.catalog
-                        StorageReviewRow(category: rule.category.storageCategory, title: rule.title, detail: rule.detail,
-                            value: catalogBytes(catalog.estimatedBytes(for: rule), complete: catalog.sizeComplete(for: rule)),
-                            meaning: catalog.isSelected(rule) ? "Estimated · In cleanup plan" : "Estimated",
-                            actionTitle: "Add \(rule.title) to the cleanup plan",
-                            action: catalog.canEdit ? { catalog.setSelected(rule, true); destination = .plan } : nil,
-                            identifier: "overviewRule-" + rule.id)
+                    if summary == nil && catalog.isScanning {
+                        ProgressView("Checking known locations…").font(.caption).padding(StillDesign.Space.lg).frame(maxWidth: .infinity, alignment: .leading)
                         Divider().padding(.horizontal, StillDesign.Space.lg)
                     }
-                    StorageReviewRow(category: .browser, title: "Browser caches", detail: "Browser cache cleanup isn’t available yet.", value: "Not inspected", meaning: "Unavailable")
+                    // One row per catalog category that found something; categories are data in StillCore.
+                    ForEach(summary?.rows ?? []) { row in
+                        let inPlan = row.rules.contains { catalog.isSelected($0) }
+                        StorageReviewRow(category: row.category.storageCategory, title: row.category.overviewTitle, detail: row.detail,
+                            value: row.estimate.text,
+                            meaning: row.estimate == .unknown ? "Couldn’t be measured" : inPlan ? "In cleanup plan" : row.rules.allSatisfy { $0.action == .delete } ? "Rebuildable" : "Review files",
+                            actionTitle: "Review \(row.category.overviewTitle) in the cleanup plan",
+                            action: { destination = .plan },
+                            identifier: "overviewCategory-" + row.id)
+                        Divider().padding(.horizontal, StillDesign.Space.lg)
+                    }
                 }
-                Text("Moving files to Trash won’t free space until you empty it.").font(.caption).foregroundStyle(.secondary)
+                Text(trashFootnote(summary?.proposedForTrash)).font(.caption).foregroundStyle(.secondary)
             }
+    }
+    /// SPEC section 6: an estimate, and an upper bound because clones share blocks.
+    private func recommendedText(_ estimate: SizeEstimate) -> String {
+        switch estimate {
+        case .measured(let bytes): "Up to " + catalogBytes(bytes) + " estimated"
+        case .atLeast(let bytes): "At least " + catalogBytes(bytes) + " estimated · Some sizes unknown"
+        case .unknown: "Size unknown"
+        }
+    }
+    private func trashFootnote(_ trash: SizeEstimate?) -> String {
+        guard let trash, trash != .measured(0) else { return "Moving files to Trash won’t free space until you empty it." }
+        return "Estimated release excludes " + trash.text + " proposed for Trash."
     }
 
     private var overviewCloudRow: some View {
@@ -482,38 +495,49 @@ private struct WorkspaceView: View {
     private func scanKnownLocations() {
         scanLocations(locationsModel.included)
     }
+    /// Rechecks capacity, the catalog's known locations and any included folders. Read-only.
+    private func scanAgain() {
+        capacity.request(.manual)
+        Task { await selection.catalog.scan() }
+        if !locationsModel.included.isEmpty { scanKnownLocations() }
+    }
     private var scannedLocations: some View {
         VStack(alignment: .leading, spacing: StillDesign.Space.sm) {
-            HStack(alignment: .top) {
-                VStack(alignment: .leading, spacing: StillDesign.Space.xs) {
-                    Text("Scanned locations").font(StillDesign.TypeStyle.section)
-                    if let result = overviewObservation {
-                        Text("\(selection.scans.count) locations · Current: \(result.scope.lastPathComponent)").font(.caption).foregroundStyle(.secondary).help(result.scope.path)
-                        Text("Observed \(result.observedAt.formatted(date: .abbreviated, time: .shortened))").font(.caption).foregroundStyle(.secondary)
-                    } else if locationsModel.included.isEmpty {
-                        Text("No included locations with current observations.").font(.caption).foregroundStyle(.secondary)
-                    } else if folderInspection.scope != nil {
-                        Text("Current coverage: Unknown · Recheck required").font(.caption).foregroundStyle(.secondary).accessibilityIdentifier("overviewScopeCoverage")
-                        if let previous = folderInspection.lastComplete { Text("Last complete observation: " + previous.observedAt.formatted() + " · Historical").font(.caption).foregroundStyle(.secondary) }
-                    } else { Text("Choose a folder to understand its local storage.").font(.caption).foregroundStyle(.secondary) }
-                }.frame(maxWidth: .infinity, alignment: .leading)
-                VStack(alignment: .trailing, spacing: StillDesign.Space.sm) {
-                    Button("Choose folder…", systemImage: "folder.badge.plus", action: chooseFolderForScan).disabled(folderInspection.isScanning || selection.workspaceRunning)
-                    if overviewObservation != nil { Button("Explore storage") { openExplorer(downloads: false, caller: .overview) }.disabled(selection.workspaceRunning) }
+            HStack(alignment: .firstTextBaseline, spacing: StillDesign.Space.sm) {
+                Text("Scanned locations").font(.caption.weight(.medium))
+                Text(scannedSummary).font(.caption).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
+                    .help(overviewObservation?.scope.path ?? "").accessibilityIdentifier("overviewScopeCoverage")
+                if overviewObservation != nil {
+                    Button("Explore storage") { openExplorer(downloads: false, caller: .overview) }.buttonStyle(.link).font(.caption).disabled(selection.workspaceRunning)
+                } else {
+                    Button("Choose a folder…", action: chooseFolderForScan).buttonStyle(.link).font(.caption).disabled(folderInspection.isScanning || selection.workspaceRunning)
                 }
+                Spacer(minLength: 0)
             }
-            if let result = overviewObservation {
-                Text(result.isComplete ? "Current location · \(overviewBytes(result.totalLogicalBytes)) logical · \(overviewBytes(result.totalAllocatedBytes)) allocated" : "Partial coverage · Observed logical subtotal \(overviewBytes(result.logicalBytes)) · Remaining bytes unknown")
-                    .font(.caption).foregroundStyle(.secondary).accessibilityIdentifier("overviewScopeCoverage")
-                if result.excludedEntryCount > 0 || result.hasUnmeasuredContents { Text("Unmeasured or excluded contents remain unknown.").font(.caption).foregroundStyle(.secondary) }
-            }
-            if selection.scans.values.contains(where: { !$0.isComplete }) {
+            if selection.scans.values.contains(where: { !$0.isComplete }) || overviewObservation.map({ $0.excludedEntryCount > 0 || $0.hasUnmeasuredContents }) == true {
                 StatusRow(text: "Some locations have partial coverage. Uninspected bytes remain unknown.", symbol: "exclamationmark.circle", role: .caution)
             }
             if folderInspection.isScanning { ProgressView("Rechecking selected locations…").font(.caption) }
             if let message = locationsModel.message { StatusRow(text: message, symbol: "info.circle", role: .caution) }
             if let message = folderInspection.message { StatusRow(text: message, symbol: "info.circle") }
         }
+    }
+    /// Folders the user picked plus the catalog's known locations; unknown stays unknown.
+    private var scannedSummary: String {
+        var parts: [String] = []
+        if let result = overviewObservation {
+            parts.append(selection.scans.count == 1 ? "1 folder" : "\(selection.scans.count) folders")
+            parts.append(result.isComplete ? overviewBytes(result.totalLogicalBytes) + " observed" : "at least " + overviewBytes(result.logicalBytes) + " observed")
+        } else if folderInspection.scope != nil {
+            parts.append("Folder coverage unknown · Recheck required")
+        }
+        if let rows = selection.catalog.overview?.rows {
+            let found = rows.reduce(0) { $0 + $1.rules.count }
+            parts.append(found == 1 ? "1 recognized cache location" : "\(found) recognized cache locations")
+        } else if selection.catalog.isScanning {
+            parts.append("Checking recognized locations…")
+        }
+        return parts.isEmpty ? "No folders chosen yet" : parts.joined(separator: " · ")
     }
 
     private func isDownloadsLocation(_ url: URL) -> Bool {

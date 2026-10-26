@@ -9,6 +9,8 @@ struct StartupVolumeCapacity: Sendable {
     let volumeID: String?
     let metric: String
     let observedAt: Date
+    /// The startup volume's name as Finder shows it, e.g. "Macintosh HD". Metadata only.
+    static let name: String? = try? URL(fileURLWithPath: "/").resourceValues(forKeys: [.volumeLocalizedNameKey]).volumeLocalizedName
     static func read() -> Self {
         let values = try? URL(fileURLWithPath: "/").resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey, .volumeAvailableCapacityKey, .volumeTotalCapacityKey, .volumeUUIDStringKey])
         let important = values?.volumeAvailableCapacityForImportantUsage

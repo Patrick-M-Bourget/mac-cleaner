@@ -6,13 +6,14 @@ extension CleanupRecord {
     static let previewPrefix = "Preview only:"
     private var isTrash: Bool { action == CleanupAction.trash.rawValue }
     private var isDelete: Bool { action == CleanupAction.delete.rawValue }
+    private var isTool: Bool { action == CleanupAction.tool.rawValue }
     /// Checked with Preview only on: every check passed and nothing changed.
     public var wasPreviewed: Bool { previewOnly == true && state == .skipped && message.hasPrefix(Self.previewPrefix) }
-    public var actionTitle: String { isDelete ? "Delete permanently" : isTrash ? "Move to Trash" : action }
+    public var actionTitle: String { isDelete ? "Delete permanently" : isTrash ? "Move to Trash" : isTool ? "Run its cleanup command" : action }
     public var outcomeTitle: String {
         if wasPreviewed { return isDelete ? "Would delete" : isTrash ? "Would move to Trash" : "Would run" }
         switch state {
-        case .succeeded: return isDelete ? "Deleted" : isTrash ? "Moved to Trash" : "Done"
+        case .succeeded: return isDelete ? "Deleted" : isTrash ? "Moved to Trash" : isTool ? "Cleaned" : "Done"
         case .skipped: return "Skipped"
         case .failed: return "Failed"
         case .cancelled, .pending: return "Not started"
@@ -22,7 +23,7 @@ extension CleanupRecord {
     public var recoveryStateText: String {
         switch state {
         case .pending: return "Not started · Nothing was changed"
-        case .intent, .unknown: return isDelete ? "Unresolved · It may be partly deleted" : isTrash ? "Unresolved · It may or may not be in the Trash" : "Unresolved · Outcome unknown"
+        case .intent, .unknown: return isDelete || isTool ? "Unresolved · It may be partly deleted" : isTrash ? "Unresolved · It may or may not be in the Trash" : "Unresolved · Outcome unknown"
         case .succeeded: return "Recorded success · " + outcomeTitle
         case .failed: return "Recorded failure · Not changed"
         case .skipped: return wasPreviewed ? "Preview · " + outcomeTitle : "Recorded skip · Not changed"
@@ -37,7 +38,7 @@ extension CleanupHistoryRun {
     public var title: String {
         if isPreview { return "Preview · Nothing changed" }
         let done = records.filter { $0.state == .succeeded }
-        let deleted = done.contains { $0.action == CleanupAction.delete.rawValue }
+        let deleted = done.contains { $0.action == CleanupAction.delete.rawValue || $0.action == CleanupAction.tool.rawValue }
         let trashed = done.contains { $0.action == CleanupAction.trash.rawValue }
         switch (deleted, trashed) {
         case (true, true): return "Cleanup · Deleted and moved to Trash"
@@ -52,7 +53,7 @@ extension CleanupRecoverySnapshot {
     /// What a missing original can and can't mean, for the actions the unresolved items were taking.
     public var unresolvedNotice: String {
         let actions = Set(interruptedBatches.flatMap(\.records).filter { $0.state == .intent || $0.state == .unknown }.map(\.action))
-        let deletes = actions.contains(CleanupAction.delete.rawValue), trashes = actions.contains(CleanupAction.trash.rawValue)
+        let deletes = actions.contains(CleanupAction.delete.rawValue) || actions.contains(CleanupAction.tool.rawValue), trashes = actions.contains(CleanupAction.trash.rawValue)
         let tail = " Current file locations have not been inspected."
         if deletes && trashes { return "A missing original may have reached the Trash or been permanently deleted, possibly only in part." + tail }
         if deletes { return "A missing original may have been permanently deleted, possibly only in part. Deleted items can’t be restored from the Trash." + tail }

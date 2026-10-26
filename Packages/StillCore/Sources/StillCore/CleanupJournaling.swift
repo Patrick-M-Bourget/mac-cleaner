@@ -32,6 +32,8 @@ public struct CleanupRecord: Codable, Sendable, Identifiable {
     public var previewOnly: Bool? = nil
     /// Available space read right before and right after this item.
     public var itemCapacity: CleanupCapacityObservation? = nil
+    /// The end of a tool action's output, shown in results.
+    public var toolOutput: String? = nil
 }
 public protocol CleanupJournaling: Sendable {
     /// Writes every record as pending in one transaction; false when the batch was already claimed.

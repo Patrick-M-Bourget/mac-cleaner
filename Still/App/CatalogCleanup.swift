@@ -47,6 +47,23 @@ import SwiftUI
         return FileManager.default.homeDirectoryForCurrentUser
     }
 
+    /// Where a tool rule's executable is found. A debug test home only ever finds stand-ins inside
+    /// `<home>/.still-test-tools`, so a UI test never runs a real tool.
+    static var locateTool: @Sendable (ToolCommand) -> URL? {
+        #if DEBUG
+        if LocalStateLocation.isDisposableTest {
+            guard let home else { return { _ in nil } }
+            return { command in
+                command.executables.lazy.map { home.appendingPathComponent(".still-test-tools/" + URL(fileURLWithPath: $0).lastPathComponent) }
+                    .first { FileManager.default.isExecutableFile(atPath: $0.path) }
+            }
+        }
+        #endif
+        return ToolCommand.installed
+    }
+
+    /// Overview's summary; nil until the first scan of the known locations has finished.
+    var overview: CatalogOverview? { hasScanned ? CatalogOverview(catalog: catalog, candidates: candidates) : nil }
     var rulesFound: [CleanupRule] { catalog.rules.filter { rule in candidates.contains { $0.ruleID == rule.id } } }
     func candidates(for rule: CleanupRule) -> [Candidate] { candidates.filter { $0.ruleID == rule.id } }
     func estimatedBytes(for rule: CleanupRule) -> Int64 { candidates(for: rule).reduce(0) { $0 + ($1.allocatedBytes ?? $1.logicalBytes) } }
@@ -73,7 +90,8 @@ import SwiftUI
         defer { isScanning = false; hasScanned = true }
         guard let home = Self.home else { candidates = []; return }
         let catalog = catalog
-        candidates = await Task.detached(priority: .userInitiated) { catalog.discover(home: home) }.value
+        let locate = Self.locateTool
+        candidates = await Task.detached(priority: .userInitiated) { catalog.discover(home: home, locateTool: locate) }.value
         let found = Set(candidates.map(\.id))
         if !selectedIDs.isSubset(of: found) { selectedIDs.formIntersection(found); message = "Some items changed or are no longer on this Mac and were removed from your plan." }
         selectionRevision &+= 1
@@ -136,6 +154,43 @@ extension CatalogCategory {
         case .downloads: .downloads
         case .system, .models: .managed
         }
+    }
+}
+
+extension CatalogCategory {
+    /// Overview's row title for a category; the rows themselves come from what the catalog found.
+    var overviewTitle: String {
+        switch self {
+        case .developer: "Developer caches and build files"
+        case .browser: "Browser caches"
+        case .downloads: "Downloads to review"
+        case .system: "App caches and logs"
+        case .models: "Models and disk images"
+        }
+    }
+}
+
+extension SizeEstimate {
+    /// Unknown stays unknown, never 0 (SPEC section 1).
+    var text: String {
+        switch self {
+        case .measured(let bytes): catalogBytes(bytes)
+        case .atLeast(let bytes): catalogBytes(bytes, complete: false)
+        case .unknown: "Unknown"
+        }
+    }
+}
+
+extension CatalogOverview.Row {
+    /// What happens and to what, e.g. "Clear npm cache, Yarn cache · Move Installers to Trash".
+    var detail: String {
+        let cleared = rules.filter { $0.action == .delete }.map(\.title)
+        let trashed = rules.filter { $0.action == .trash }.map(\.title)
+        return ([cleared.isEmpty ? nil : "Clear " + Self.list(cleared), trashed.isEmpty ? nil : "Move " + Self.list(trashed) + " to Trash"]
+            .compactMap { $0 }).joined(separator: " · ")
+    }
+    private static func list(_ titles: [String]) -> String {
+        titles.count <= 3 ? titles.joined(separator: ", ") : titles.prefix(2).joined(separator: ", ") + " and \(titles.count - 2) more"
     }
 }
 
@@ -215,7 +270,7 @@ struct CatalogConfirmationSection: View {
                 VStack(alignment: .leading, spacing: StillDesign.Space.sm) {
                     HStack {
                         CategoryBadge(category: rule.category.storageCategory)
-                        Text((rule.action == .delete ? "Clear " : "Move to Trash: ") + rule.title).font(StillDesign.TypeStyle.section)
+                        Text((rule.action == .trash ? "Move to Trash: " : "Clear ") + rule.title).font(StillDesign.TypeStyle.section)
                         Spacer()
                         Text(catalogBytes(items.reduce(0) { $0 + ($1.allocatedBytes ?? $1.logicalBytes) }, complete: items.allSatisfy(\.sizeComplete))).monospacedDigit()
                     }
@@ -260,6 +315,12 @@ struct CatalogResultsSection: View {
                         Text(record.ruleID.flatMap { catalog.rule($0)?.title } ?? record.originalURL.lastPathComponent).font(.body.weight(.medium))
                         Text(record.originalURL.path).font(.caption).foregroundStyle(.secondary).textSelection(.enabled)
                         Text(record.message).font(.caption).foregroundStyle(.secondary)
+                        if let output = record.toolOutput {
+                            DisclosureGroup("Tool output") {
+                                Text(output).font(.caption.monospaced()).foregroundStyle(.secondary).textSelection(.enabled)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                            }.font(.caption).accessibilityIdentifier("toolOutput-" + (record.ruleID ?? ""))
+                        }
                     }
                     Spacer()
                     VStack(alignment: .trailing, spacing: StillDesign.Space.xs) {

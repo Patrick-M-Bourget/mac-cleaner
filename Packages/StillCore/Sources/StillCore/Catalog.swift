@@ -4,8 +4,30 @@ import CoreServices
 
 /// What kind of data a rule covers; it decides how the data comes back.
 public enum RegenClass: String, Codable, Sendable { case cache, build, updaterDownload, leakedCopy, log, installer, model, userFile }
-/// Decision 3: regenerable data is deleted; user files go to Trash. Tool actions arrive with #99.
-public enum CleanupAction: String, Codable, Sendable { case delete; case trash = "moveToTrash" }
+/// Decision 3: regenerable data is deleted; user files go to Trash. A few rules run the tool's own command (Decision 21).
+/// Trash keeps the "moveToTrash" string that Downloads-era journal records use.
+public enum CleanupAction: String, Codable, Sendable { case delete; case trash = "moveToTrash"; case tool }
+
+/// A command a `.tool` rule runs, with a time limit. The executable and its arguments are fixed in the rule.
+public struct ToolCommand: Sendable, Hashable {
+    /// Absolute paths to try in order; the first installed one is used. None installed means the rule doesn't appear.
+    public let executables: [String]
+    public let arguments: [String]
+    public let timeout: TimeInterval
+    /// Delete the candidate folder after the command succeeds (Homebrew: `brew cleanup -s` plus its cache folder).
+    public let deletesLocationAfter: Bool
+    public init(executables: [String], arguments: [String], timeout: TimeInterval, deletesLocationAfter: Bool = false) {
+        self.executables = executables; self.arguments = arguments; self.timeout = timeout; self.deletesLocationAfter = deletesLocationAfter
+    }
+    /// As shown to the user and logged, e.g. `brew cleanup -s`.
+    public var commandLine: String {
+        ([executables.first.map { URL(fileURLWithPath: $0).lastPathComponent } ?? ""] + arguments).joined(separator: " ")
+    }
+    /// The first listed executable that is installed on this Mac.
+    @Sendable public static func installed(_ command: ToolCommand) -> URL? {
+        command.executables.lazy.map { URL(fileURLWithPath: $0) }.first { FileManager.default.isExecutableFile(atPath: $0.path) }
+    }
+}
 /// Whether none, some or all of a category's items are chosen.
 public enum CategorySelectionState: Sendable { case unchecked, mixed, checked }
 public enum CatalogCategory: String, Codable, Sendable { case developer, browser, downloads, system, models }
@@ -20,8 +42,11 @@ public struct RuleOwner: Sendable, Hashable {
     /// Script names the tool runs under an interpreter. npm runs as `node …/npm-cli.js`,
     /// so matching the script, not `node`, keeps editors and agents that run node from refusing it.
     public let scripts: [String]
-    public init(name: String, bundleIDs: [String] = [], executables: [String] = [], scripts: [String] = []) {
-        self.name = name; self.bundleIDs = bundleIDs; self.executables = executables; self.scripts = scripts
+    /// Any later argument, such as a JVM main class (the Gradle daemon runs as `java … org.gradle…`).
+    /// All three lists take shell-style patterns (`pip3.*`, `yarn-*.cjs`).
+    public let arguments: [String]
+    public init(name: String, bundleIDs: [String] = [], executables: [String] = [], scripts: [String] = [], arguments: [String] = []) {
+        self.name = name; self.bundleIDs = bundleIDs; self.executables = executables; self.scripts = scripts; self.arguments = arguments
     }
 }
 
@@ -55,13 +80,15 @@ public struct CleanupRule: Sendable, Identifiable {
     public let owner: RuleOwner?
     /// Names that are never acted on when they are the item, one of its ancestors, or a top-level entry inside it.
     public let protectedNames: [String]
+    /// The command a `.tool` rule runs; nil for every other action.
+    public let tool: ToolCommand?
     /// Extensions never acted on as the item or an ancestor, on top of the global ones.
     public let protectedExtensions: [String]
     /// When set, candidates are the matching files inside each location, not the location.
     public let contents: ContentsMatch?
-    public init(id: String, category: CatalogCategory, title: String, detail: String, consequence: String, regen: RegenClass, action: CleanupAction, locations: [String], owner: RuleOwner?, protectedNames: [String] = [], protectedExtensions: [String] = [], contents: ContentsMatch? = nil) {
+    public init(id: String, category: CatalogCategory, title: String, detail: String, consequence: String, regen: RegenClass, action: CleanupAction, locations: [String], owner: RuleOwner?, protectedNames: [String] = [], tool: ToolCommand? = nil, protectedExtensions: [String] = [], contents: ContentsMatch? = nil) {
         self.id = id; self.category = category; self.title = title; self.detail = detail; self.consequence = consequence
-        self.regen = regen; self.action = action; self.locations = locations; self.owner = owner; self.protectedNames = protectedNames
+        self.regen = regen; self.action = action; self.locations = locations; self.owner = owner; self.protectedNames = protectedNames; self.tool = tool
         self.protectedExtensions = protectedExtensions; self.contents = contents
     }
 }
@@ -73,6 +100,47 @@ public enum BuiltInCatalog {
                     consequence: "Permanently removed. npm downloads packages again as needed; the next install may take longer.",
                     regen: .cache, action: .delete, locations: [".npm/_cacache"],
                     owner: RuleOwner(name: "npm", executables: ["npm", "npx"], scripts: ["npm", "npx", "npm-cli.js", "npx-cli.js"])),
+        CleanupRule(id: "yarn-cache", category: .developer, title: "Yarn cache",
+                    detail: "Packages Yarn downloaded for your projects.",
+                    consequence: "Permanently removed. Yarn downloads packages again as needed; the next install may take longer.",
+                    regen: .cache, action: .delete, locations: ["Library/Caches/Yarn", ".yarn/berry/cache"],
+                    owner: RuleOwner(name: "Yarn", executables: ["yarn", "yarnpkg"], scripts: ["yarn", "yarnpkg", "yarn.js", "yarn.cjs", "yarn-*.cjs", "yarn-*.js"])),
+        CleanupRule(id: "pnpm-store", category: .developer, title: "pnpm store",
+                    detail: "Packages pnpm downloaded for your projects.",
+                    consequence: "Permanently removed. pnpm downloads packages again as needed; the next install may take longer.",
+                    regen: .cache, action: .delete, locations: ["Library/pnpm/store", "Library/Caches/pnpm"],
+                    owner: RuleOwner(name: "pnpm", executables: ["pnpm", "pnpx"], scripts: ["pnpm", "pnpx", "pnpm.js", "pnpm.cjs", "pnpx.js", "pnpx.cjs"])),
+        CleanupRule(id: "uv-cache", category: .developer, title: "uv cache",
+                    detail: "Python packages uv downloaded and built.",
+                    consequence: "Permanently removed. uv downloads or builds packages again as needed; the next install may take longer.",
+                    regen: .cache, action: .delete, locations: [".cache/uv"],
+                    owner: RuleOwner(name: "uv", executables: ["uv", "uvx"])),
+        CleanupRule(id: "pip-cache", category: .developer, title: "pip cache",
+                    detail: "Python packages pip downloaded and built.",
+                    consequence: "Permanently removed. pip downloads packages again as needed; the next install may take longer.",
+                    regen: .cache, action: .delete, locations: ["Library/Caches/pip"],
+                    owner: RuleOwner(name: "pip", executables: ["pip", "pip3", "pip3.*"], scripts: ["pip", "pip3", "pip3.*"])),
+        CleanupRule(id: "cargo-cache", category: .developer, title: "Cargo cache",
+                    detail: "Rust crates and git dependencies Cargo downloaded. Installed tools are not included.",
+                    consequence: "Permanently removed. Cargo downloads crates again as needed; the next build may take longer.",
+                    regen: .cache, action: .delete, locations: [".cargo/registry", ".cargo/git"],
+                    owner: RuleOwner(name: "Cargo", executables: ["cargo", "cargo-*"])),
+        CleanupRule(id: "gradle-cache", category: .developer, title: "Gradle cache",
+                    detail: "Dependencies and build caches Gradle downloaded.",
+                    consequence: "Permanently removed. Gradle downloads dependencies again as needed; the next build may take longer.",
+                    regen: .cache, action: .delete, locations: [".gradle/caches"],
+                    owner: RuleOwner(name: "Gradle", executables: ["gradle", "gradlew"], scripts: ["gradle", "gradlew"], arguments: ["org.gradle.*"])),
+        CleanupRule(id: "cocoapods-cache", category: .developer, title: "CocoaPods cache",
+                    detail: "Pods CocoaPods downloaded for your projects.",
+                    consequence: "Permanently removed. CocoaPods downloads pods again as needed; the next install may take longer.",
+                    regen: .cache, action: .delete, locations: ["Library/Caches/CocoaPods"],
+                    owner: RuleOwner(name: "CocoaPods", executables: ["pod"], scripts: ["pod"])),
+        CleanupRule(id: "homebrew", category: .developer, title: "Homebrew cache",
+                    detail: "Downloads Homebrew kept, plus old versions `brew cleanup -s` removes.",
+                    consequence: "Runs `brew cleanup -s`, then permanently removes the cache folder. Homebrew downloads again when you install or upgrade.",
+                    regen: .cache, action: .tool, locations: ["Library/Caches/Homebrew"],
+                    owner: RuleOwner(name: "Homebrew", executables: ["brew"], scripts: ["brew", "brew.sh", "brew.rb"]),
+                    tool: ToolCommand(executables: ["/opt/homebrew/bin/brew", "/usr/local/bin/brew"], arguments: ["cleanup", "-s"], timeout: 300, deletesLocationAfter: true)),
         // RESET Decision 18. Installers come first so a large old installer is listed once, as an installer.
         CleanupRule(id: "downloads-installers", category: .downloads, title: "Installers in Downloads",
                     detail: "Disk images, packages and archives you downloaded, at any age.",
@@ -98,6 +166,8 @@ public struct Candidate: Sendable, Identifiable, Hashable {
     /// "dev:ino" of the item itself.
     public let resourceID: String
     public let isDirectory: Bool
+    /// The installed executable a `.tool` candidate runs, found at discovery.
+    public let toolURL: URL?
     public let volumeID: String?
     public let modifiedSeconds: Int64
     public let modifiedNanoseconds: Int64
@@ -114,28 +184,34 @@ public struct Catalog: Sendable {
     public let rules: [CleanupRule]
     public init(rules: [CleanupRule]) { self.rules = rules }
     public func rule(_ id: String) -> CleanupRule? { rules.first { $0.id == id } }
+    /// Load-bearing caches that are never offered, whatever a rule says (spec section 2).
+    public static let neverOffered: Set<String> = ["ccache", ".ccache", "sccache"]
 
     /// Sizes only the rules' known locations under `home`. Read-only. An item two rules match is offered once, by the first.
-    public func discover(home: URL, sizer: KnownLocationSizer = KnownLocationSizer(), now: Date = Date()) -> [Candidate] {
+    /// A `.tool` rule appears only when `locateTool` finds its executable.
+    public func discover(home: URL, sizer: KnownLocationSizer = KnownLocationSizer(), now: Date = Date(), locateTool: (ToolCommand) -> URL? = ToolCommand.installed) -> [Candidate] {
         let base = home.resolvingSymlinksInPath()
         var seen = Set<String>()
-        return rules.flatMap { rule in
-            rule.locations.flatMap { relative -> [Candidate] in
+        return rules.flatMap { rule -> [Candidate] in
+            let toolURL = rule.tool.flatMap(locateTool)
+            guard rule.action != .tool || toolURL != nil else { return [] }
+            return rule.locations.flatMap { relative -> [Candidate] in
+                guard Self.neverOffered.isDisjoint(with: relative.split(separator: "/").map(String.init)) else { return [] }
                 let url = base.appendingPathComponent(relative)
                 if let contents = rule.contents { return files(in: url, matching: contents, rule: rule, now: now) }
                 var info = stat()
                 guard lstat(url.path, &info) == 0, info.st_uid == geteuid(),
                       [S_IFDIR, S_IFREG].contains(info.st_mode & S_IFMT) else { return [] }
                 let size = sizer.size(url)
-                return [candidate(rule, url, info, logical: size.logicalBytes, allocated: size.allocatedBytes, complete: size.complete, lastUsed: nil)]
+                return [candidate(rule, url, info, logical: size.logicalBytes, allocated: size.allocatedBytes, complete: size.complete, lastUsed: nil, toolURL: toolURL)]
             }
         }.filter { seen.insert($0.resourceID).inserted }
     }
 
-    private func candidate(_ rule: CleanupRule, _ url: URL, _ info: stat, logical: Int64, allocated: Int64?, complete: Bool, lastUsed: Date?) -> Candidate {
+    private func candidate(_ rule: CleanupRule, _ url: URL, _ info: stat, logical: Int64, allocated: Int64?, complete: Bool, lastUsed: Date?, toolURL: URL? = nil) -> Candidate {
         let volume = try? url.resourceValues(forKeys: [.volumeUUIDStringKey]).volumeUUIDString
         return Candidate(ruleID: rule.id, action: rule.action, url: url, resourceID: "\(info.st_dev):\(info.st_ino)",
-                         isDirectory: info.st_mode & S_IFMT == S_IFDIR, volumeID: volume,
+                         isDirectory: info.st_mode & S_IFMT == S_IFDIR, toolURL: toolURL, volumeID: volume,
                          modifiedSeconds: Int64(info.st_mtimespec.tv_sec), modifiedNanoseconds: Int64(info.st_mtimespec.tv_nsec),
                          logicalBytes: logical, allocatedBytes: allocated, sizeComplete: complete, lastUsed: lastUsed, observedAt: Date())
     }

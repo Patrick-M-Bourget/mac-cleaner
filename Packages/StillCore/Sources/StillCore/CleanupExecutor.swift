@@ -64,7 +64,7 @@ public struct CatalogExecutionResult: Sendable {
     public let estimatedBytes: Int64
     /// Sum of the available-space change read around each removed item; nil when any reading is missing.
     public var measuredFreedBytes: Int64? {
-        let removed = records.filter { $0.state == .succeeded && $0.action == CleanupAction.delete.rawValue }
+        let removed = records.filter { $0.state == .succeeded && $0.action != CleanupAction.trash.rawValue }
         guard !previewOnly else { return nil }
         var total: Int64 = 0
         for record in removed {
@@ -135,7 +135,7 @@ public actor CleanupExecutor {
             record.state = .intent; record.message = "Started; outcome not yet recorded"
             do { try journal.intent(record) }
             catch { record.state = .cancelled; record.message = "Could not record the start; not changed"; failure = record.message; records.append(record); await progress(.init(resolved: records.count, total: total, last: record)); continue }
-            perform(candidate, previewOnly: approval.previewOnly, into: &record)
+            await perform(candidate, previewOnly: approval.previewOnly, into: &record)
             do { try journal.outcome(record) }
             catch { record.state = .unknown; record.message = "Outcome could not be recorded. Review recovery; do not repeat automatically."; failure = record.message }
             if record.state == .unknown { failure = record.message }
@@ -145,8 +145,13 @@ public actor CleanupExecutor {
         return result(records, failure: failure)
     }
 
-    private func perform(_ candidate: Candidate, previewOnly: Bool, into record: inout CleanupRecord) {
-        let verb = candidate.action == .delete ? "delete" : "move to Trash"
+    private func perform(_ candidate: Candidate, previewOnly: Bool, into record: inout CleanupRecord) async {
+        let command = check.catalog.rule(candidate.ruleID)?.tool
+        let verb = switch candidate.action {
+        case .delete: "delete"
+        case .trash: "move to Trash"
+        case .tool: "run " + (command?.commandLine ?? "its tool") + (command?.deletesLocationAfter == true ? ", then delete the folder" : "")
+        }
         if let refusal = check.check(candidate) {
             record.state = .skipped; record.message = refusal.reason
             Self.log.info("Skipped \(candidate.url.path, privacy: .public): \(refusal.reason, privacy: .public)")
@@ -162,12 +167,48 @@ public actor CleanupExecutor {
         switch candidate.action {
         case .delete: delete(candidate, into: &record)
         case .trash: trash(candidate, into: &record)
+        case .tool: await runTool(candidate, command, into: &record)
         }
         if record.state == .succeeded, let before, let after = measure(candidate.url.deletingLastPathComponent()) {
             record.itemCapacity = CleanupCapacityObservation(beforeAvailable: before.available, afterAvailable: after.available, beforeTotal: before.total, afterTotal: after.total, beforeVolumeID: before.volumeID, afterVolumeID: after.volumeID, beforeMetric: before.metric, afterMetric: after.metric, beforeDate: before.date, afterDate: after.date)
         }
         let state = record.state.rawValue
         Self.log.info("\(state, privacy: .public) \(verb, privacy: .public) \(candidate.url.path, privacy: .public)")
+    }
+
+    /// Runs the rule's fixed command off the actor with its time limit, then deletes the folder if the rule says so.
+    private func runTool(_ candidate: Candidate, _ command: ToolCommand?, into record: inout CleanupRecord) async {
+        guard let command, let executable = candidate.toolURL else { record.state = .skipped; record.message = CheckRefusal.changed.reason; return }
+        let outcome = await Task.detached(priority: .userInitiated) {
+            Result { try BoundedTool.capture(executable: executable, arguments: command.arguments, timeout: command.timeout) }
+        }.value
+        let name = command.commandLine
+        switch outcome {
+        case .success(let (status, output)):
+            record.toolOutput = Self.trimmed(output)
+            guard status == 0 else { record.state = .failed; record.message = "\(name) exited with status \(status). The folder was left in place."; return }
+            guard command.deletesLocationAfter else { record.state = .succeeded; record.message = "Ran \(name)"; return }
+            var info = stat()
+            if lstat(candidate.url.path, &info) != 0, errno == ENOENT { record.state = .succeeded; record.message = "Ran \(name); it removed the folder itself"; return }
+            delete(candidate, into: &record)
+            if record.state == .succeeded { record.message = "Ran \(name) and permanently removed the folder" }
+            else { record.message = "Ran \(name). " + record.message }
+        case .failure(let error as ToolTimeout):
+            record.toolOutput = Self.trimmed(error.output)
+            record.state = .failed
+            record.message = "Stopped at the \(Int(command.timeout.rounded(.up)))-second time limit. \(name) may have cleaned part of it; the folder was left in place."
+        case .failure(ToolPreviewError.unavailable):
+            record.state = .skipped; record.message = "\(name) is no longer installed."
+        case .failure:
+            record.state = .failed; record.message = "Couldn’t run \(name). Nothing was changed."
+        }
+    }
+
+    /// The last 40 lines, so the journal and results stay small.
+    private static func trimmed(_ output: String) -> String? {
+        let lines = output.split(separator: "\n", omittingEmptySubsequences: false).map { $0.trimmingCharacters(in: .whitespaces) }
+        let text = lines.suffix(40).joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
+        return text.isEmpty ? nil : text
     }
 
     /// Renames the checked item aside atomically, confirms it is the same item, then removes it.

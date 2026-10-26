@@ -7,7 +7,8 @@ private func records(_ actions: [CleanupAction], previewOnly: Bool = false) thro
     var rules: [CleanupRule] = []
     for (index, action) in actions.enumerated() {
         try FileManager.default.createDirectory(at: home.appendingPathComponent("item\(index)"), withIntermediateDirectories: true)
-        rules.append(CleanupRule(id: "r\(index)", category: .developer, title: "R", detail: "", consequence: "", regen: .cache, action: action, locations: ["item\(index)"], owner: nil))
+        rules.append(CleanupRule(id: "r\(index)", category: .developer, title: "R", detail: "", consequence: "", regen: .cache, action: action, locations: ["item\(index)"], owner: nil,
+                                 tool: action == .tool ? ToolCommand(executables: ["/usr/bin/true"], arguments: [], timeout: 1) : nil))
     }
     let batch = UUID()
     let made = Catalog(rules: rules).discover(home: home).map { CleanupRecord(batchID: batch, approvedAt: Date(), candidate: $0, previewOnly: previewOnly) }
@@ -29,6 +30,14 @@ private func records(_ actions: [CleanupAction], previewOnly: Bool = false) thro
     #expect(trash.recoveryStateText == "Unresolved · It may or may not be in the Trash")
     delete.state = .skipped
     #expect(delete.outcomeTitle == "Skipped")
+    let (toolHome, toolRecords) = try records([.tool])
+    defer { try? FileManager.default.removeItem(at: toolHome) }
+    var tool = try #require(toolRecords.first)
+    #expect(tool.actionTitle == "Run its cleanup command")
+    tool.state = .succeeded
+    #expect(tool.outcomeTitle == "Cleaned")
+    tool.state = .unknown
+    #expect(tool.recoveryStateText == "Unresolved · It may be partly deleted")
     #expect(delete.recoveryStateText == "Recorded skip · Not changed")
 }
 
