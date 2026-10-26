@@ -14,9 +14,80 @@ extension BuiltInCatalog {
             guard name.hasPrefix("models--") else { return nil }
             return name.dropFirst("models--".count).replacingOccurrences(of: "--", with: "/")
         })
+    /// Ollama's own server must be running for `ollama rm`, so the rule has no owner to close.
+    static let ollamaModels = CleanupRule(
+        id: "ollama-models", category: .models, title: "Ollama models",
+        detail: "Models Ollama downloaded. Sizes count only the files no other model shares. Check when each was last used.",
+        consequence: "Runs `ollama rm` for each model, which permanently removes it and any files no other model uses. Run `ollama pull` to download it again. Ollama must be open.",
+        regen: .model, action: .tool, locations: [".ollama/models/manifests"], owner: nil,
+        tool: ToolCommand(executables: ["/usr/local/bin/ollama", "/opt/homebrew/bin/ollama", "/Applications/Ollama.app/Contents/Resources/ollama"],
+                          arguments: ["rm", "<model>"], timeout: 120, itemPlaceholder: "<model>"),
+        items: .ollamaModels)
+}
+
+/// Where a rule's items come from when they aren't folders or files matched by name.
+public enum CatalogItems: Sendable, Equatable {
+    /// One item per model manifest under Ollama's `models/manifests`; Ollama itself is never run to list them.
+    case ollamaModels
+}
+
+private struct OllamaManifest: Decodable {
+    struct Layer: Decodable { let digest: String; let size: Int64 }
+    let config: Layer?
+    let layers: [Layer]
 }
 
 extension Catalog {
+    /// One candidate per model manifest (`<host>/<namespace>/<model>/<tag>`). The size is an estimate: only blobs
+    /// no other manifest references, since `ollama rm` keeps shared ones.
+    func ollamaModels(in manifests: URL, rule: CleanupRule, toolURL: URL?) -> [Candidate] {
+        let blobs = manifests.deletingLastPathComponent().appendingPathComponent("blobs")
+        var parsed: [(url: URL, info: stat, name: String?, layers: [OllamaManifest.Layer])] = []
+        let path = strdup(manifests.path)
+        defer { free(path) }
+        var paths: [UnsafeMutablePointer<CChar>?] = [path, nil]
+        guard let tree = fts_open(&paths, FTS_PHYSICAL | FTS_XDEV | FTS_NOCHDIR, nil) else { return [] }
+        defer { fts_close(tree) }
+        while let entry = fts_read(tree), parsed.count < Self.childLimit {
+            let level = Int(entry.pointee.fts_level)
+            if Int32(entry.pointee.fts_info) == FTS_D, level >= 4 { fts_set(tree, entry, FTS_SKIP); continue }
+            guard Int32(entry.pointee.fts_info) == FTS_F, level == 4, let info = entry.pointee.fts_statp?.pointee,
+                  info.st_uid == geteuid(), info.st_size <= 1_000_000 else { continue }
+            let url = URL(fileURLWithPath: String(cString: entry.pointee.fts_path))
+            guard let data = try? Data(contentsOf: url), let manifest = try? JSONDecoder().decode(OllamaManifest.self, from: data) else { continue }
+            let parts = Array(url.pathComponents.suffix(4))
+            parsed.append((url, info, Self.ollamaName(parts), (manifest.config.map { [$0] } ?? []) + manifest.layers))
+        }
+        // Every readable manifest counts toward sharing, even one that isn't offered.
+        var references: [String: Int] = [:]
+        for model in parsed { for digest in Set(model.layers.map(\.digest)) { references[digest, default: 0] += 1 } }
+        return parsed.compactMap { model in
+            guard let name = model.name else { return nil }
+            var seen = Set<String>()
+            let own = model.layers.filter { seen.insert($0.digest).inserted && references[$0.digest] == 1 }.reduce(Int64(0)) { $0 + max($1.size, 0) }
+            var lastUsed = Self.lastUsed(model.url, model.info)
+            if let largest = model.layers.max(by: { $0.size < $1.size }) {
+                let blob = blobs.appendingPathComponent(largest.digest.replacingOccurrences(of: ":", with: "-"))
+                var info = stat()
+                if lstat(blob.path, &info) == 0, info.st_mode & S_IFMT == S_IFREG { lastUsed = max(lastUsed, Self.lastUsed(blob, info)) }
+            }
+            var found = candidate(rule, model.url, model.info, logical: own, allocated: nil, complete: true, lastUsed: lastUsed, toolURL: toolURL)
+            found.itemName = name; found.sizeIsEstimate = true; found.fileBytes = Int64(model.info.st_size)
+            return found
+        }
+    }
+
+    /// The name `ollama rm` takes: `llama3:latest`, `someone/tuned:v2`, or `hf.co/org/repo:tag` for other registries.
+    /// Nil unless every part is a plain name, so nothing read from disk can become an option.
+    static func ollamaName(_ parts: [String]) -> String? {
+        guard parts.count == 4, parts.allSatisfy({ part in
+            part.first.map { $0.isLetter || $0.isNumber } == true && part.allSatisfy { $0.isASCII && ($0.isLetter || $0.isNumber || "._-".contains($0)) }
+        }) else { return nil }
+        let (host, namespace, model, tag) = (parts[0], parts[1], parts[2], parts[3])
+        if host == "registry.ollama.ai" { return (namespace == "library" ? "" : namespace + "/") + model + ":" + tag }
+        return host + "/" + namespace + "/" + model + ":" + tag
+    }
+
     /// Conservative "last used" for a folder: the latest of Spotlight's last-opened date for the folder and
     /// the access, change and creation times of the files inside. Folder access times are left out,
     /// because listing a folder (as sizing does) updates them.

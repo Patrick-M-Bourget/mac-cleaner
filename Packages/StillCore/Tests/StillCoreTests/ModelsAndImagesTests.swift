@@ -103,3 +103,88 @@ private func run(_ home: URL, _ candidates: [Candidate], running: Running = Runn
     #expect(!FileManager.default.fileExists(atPath: chosen.url.path))
     #expect(FileManager.default.fileExists(atPath: kept.path))
 }
+
+// MARK: Ollama
+
+private let manifests = ".ollama/models/manifests"
+/// Writes an Ollama manifest naming `layers` (digest suffix → size) and their blobs. Ollama itself is never run.
+@discardableResult
+private func ollamaModel(_ home: URL, _ path: String, layers: [(String, Int)], age: TimeInterval = 30 * day) throws -> URL {
+    let entries = layers.map { "{\"mediaType\":\"application/vnd.ollama.image.model\",\"digest\":\"sha256:\($0.0)\",\"size\":\($0.1)}" }
+    let config = "cfg" + path.filter { $0.isLetter || $0.isNumber }
+    let json = "{\"schemaVersion\":2,\"config\":{\"digest\":\"sha256:\(config)\",\"size\":10},\"layers\":[\(entries.joined(separator: ","))]}"
+    for (digest, size) in layers { try file(home, ".ollama/models/blobs/sha256-\(digest)", size: size, age: age) }
+    try file(home, ".ollama/models/blobs/sha256-\(config)", size: 10, age: age)
+    return try file(home, manifests + "/" + path, age: age, contents: Data(json.utf8))
+}
+/// A stand-in `ollama` in the fixture that records its arguments; the real one is never run by tests.
+private func fakeOllama(_ home: URL, _ script: String = "echo \"$@\" >> \"$(dirname \"$0\")/calls\"") throws -> URL {
+    let tool = home.appendingPathComponent("tools/ollama")
+    try FileManager.default.createDirectory(at: tool.deletingLastPathComponent(), withIntermediateDirectories: true)
+    try ("#!/bin/sh\n" + script + "\n").write(to: tool, atomically: true, encoding: .utf8)
+    try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: tool.path)
+    return tool
+}
+
+@Test func ollamaModelsAreListedFromTheirManifestsWithTheSpaceOnlyTheyUse() throws {
+    let home = try modelsHome()
+    defer { try? FileManager.default.removeItem(at: home) }
+    let ollama = try fakeOllama(home)
+    try ollamaModel(home, "registry.ollama.ai/library/llama3/latest", layers: [("weights1", 4000), ("shared", 500)], age: 100 * day)
+    try ollamaModel(home, "registry.ollama.ai/library/llama3/8b", layers: [("weights1", 4000), ("shared", 500)])
+    try ollamaModel(home, "registry.ollama.ai/someone/tuned/v2", layers: [("weights2", 3000), ("shared", 500)], age: 2 * day)
+    try ollamaModel(home, "hf.co/org/repo/Q4_K_M", layers: [("weights3", 1000)])
+    // Unreadable or unsafe manifests are never offered.
+    try file(home, manifests + "/registry.ollama.ai/library/broken/latest", contents: Data("not json".utf8))
+    try ollamaModel(home, "registry.ollama.ai/library/-rf/latest", layers: [("weights4", 100)])
+
+    let catalog = Catalog(rules: BuiltInCatalog.rules)
+    #expect(catalog.discover(home: home, locateTool: { _ in nil }).isEmpty)
+    let candidates = catalog.discover(home: home, locateTool: { _ in ollama })
+    #expect(candidates.allSatisfy { $0.ruleID == "ollama-models" && $0.action == .tool && !$0.isDirectory && $0.toolURL == ollama })
+    let found = Dictionary(uniqueKeysWithValues: candidates.map { ($0.itemName ?? "", $0) })
+    #expect(Set(found.keys) == ["llama3:latest", "llama3:8b", "someone/tuned:v2", "hf.co/org/repo:Q4_K_M"])
+    // Two tags of one model share every blob: removing either frees only its own config.
+    #expect(found["llama3:latest"]?.logicalBytes == 10)
+    #expect(found["someone/tuned:v2"]?.logicalBytes == 3010)
+    #expect(found["hf.co/org/repo:Q4_K_M"]?.logicalBytes == 1010)
+    #expect(candidates.allSatisfy { $0.sizeIsEstimate && $0.allocatedBytes == nil })
+    let used = try #require(found["someone/tuned:v2"]?.lastUsed)
+    #expect(abs(used.timeIntervalSinceNow + 2 * day) < 5)
+    let rule = try #require(catalog.rule("ollama-models"))
+    #expect(rule.category == .models)
+    #expect(rule.tool?.commandLine == "ollama rm <model>")
+}
+
+@Test func aChosenOllamaModelIsRemovedWithOllamaRmByName() async throws {
+    let home = try modelsHome()
+    defer { try? FileManager.default.removeItem(at: home) }
+    let ollama = try fakeOllama(home)
+    try ollamaModel(home, "registry.ollama.ai/library/llama3/latest", layers: [("weights1", 4000)])
+    try ollamaModel(home, "registry.ollama.ai/someone/tuned/v2", layers: [("weights2", 3000)])
+    let candidates = Catalog(rules: BuiltInCatalog.rules).discover(home: home, locateTool: { _ in ollama })
+    let chosen = try #require(candidates.first { $0.itemName == "someone/tuned:v2" })
+
+    let preview = try await run(home, [chosen], previewOnly: true)
+    #expect(preview.records.first?.message.hasPrefix("Preview only: would run ollama rm someone/tuned:v2") == true)
+    #expect(!FileManager.default.fileExists(atPath: home.appendingPathComponent("tools/calls").path))
+
+    let result = try await run(home, [chosen])
+    let record = try #require(result.records.first)
+    #expect(record.state == .succeeded)
+    #expect(record.action == "tool")
+    #expect(record.message == "Ran ollama rm someone/tuned:v2")
+    #expect(try String(contentsOf: home.appendingPathComponent("tools/calls"), encoding: .utf8) == "rm someone/tuned:v2\n")
+}
+
+@Test func aFailedOllamaRmShowsItsOutputAndChangesNothing() async throws {
+    let home = try modelsHome()
+    defer { try? FileManager.default.removeItem(at: home) }
+    let ollama = try fakeOllama(home, "echo 'Error: could not connect to ollama app, is it running?'; exit 1")
+    let manifest = try ollamaModel(home, "registry.ollama.ai/library/llama3/latest", layers: [("weights1", 4000)])
+    let chosen = try #require(Catalog(rules: BuiltInCatalog.rules).discover(home: home, locateTool: { _ in ollama }).first)
+    let record = try #require(try await run(home, [chosen]).records.first)
+    #expect(record.state == .failed, "\(record.message)")
+    #expect(record.toolOutput == "Error: could not connect to ollama app, is it running?")
+    #expect(FileManager.default.fileExists(atPath: manifest.path))
+}

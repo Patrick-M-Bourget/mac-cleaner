@@ -16,12 +16,26 @@ public struct ToolCommand: Sendable, Hashable {
     public let timeout: TimeInterval
     /// Delete the candidate folder after the command succeeds (Homebrew: `brew cleanup -s` plus its cache folder).
     public let deletesLocationAfter: Bool
-    public init(executables: [String], arguments: [String], timeout: TimeInterval, deletesLocationAfter: Bool = false) {
+    /// An argument replaced by each item's name, as in `ollama rm <model>`; nil for commands that take none.
+    public let itemPlaceholder: String?
+    public init(executables: [String], arguments: [String], timeout: TimeInterval, deletesLocationAfter: Bool = false, itemPlaceholder: String? = nil) {
         self.executables = executables; self.arguments = arguments; self.timeout = timeout; self.deletesLocationAfter = deletesLocationAfter
+        self.itemPlaceholder = itemPlaceholder
+    }
+    /// The arguments for one item; nil when the command needs an item name and has none.
+    public func arguments(for item: String?) -> [String]? {
+        guard let itemPlaceholder else { return arguments }
+        guard let item else { return nil }
+        return arguments.map { $0 == itemPlaceholder ? item : $0 }
     }
     /// As shown to the user and logged, e.g. `brew cleanup -s`.
     public var commandLine: String {
         ([executables.first.map { URL(fileURLWithPath: $0).lastPathComponent } ?? ""] + arguments).joined(separator: " ")
+    }
+    /// As shown and logged for one item, e.g. `ollama rm llama3:latest`.
+    public func commandLine(for item: String?) -> String {
+        guard itemPlaceholder != nil, let arguments = arguments(for: item) else { return commandLine }
+        return ([executables.first.map { URL(fileURLWithPath: $0).lastPathComponent } ?? ""] + arguments).joined(separator: " ")
     }
     /// The first listed executable that is installed on this Mac.
     @Sendable public static func installed(_ command: ToolCommand) -> URL? {
@@ -93,11 +107,13 @@ public struct CleanupRule: Sendable, Identifiable {
     public let keepNewestVersions: Int?
     /// The name shown for a folder or file the rule found, from its file name; nil shows the file name.
     public let itemName: (@Sendable (String) -> String?)?
-    public init(id: String, category: CatalogCategory, title: String, detail: String, consequence: String, regen: RegenClass, action: CleanupAction, locations: [String], owner: RuleOwner?, protectedNames: [String] = [], tool: ToolCommand? = nil, protectedExtensions: [String] = [], contents: ContentsMatch? = nil, keepNewestVersions: Int? = nil, itemName: (@Sendable (String) -> String?)? = nil) {
+    /// When set, candidates are items a tool's own records on disk list, not the location.
+    public let items: CatalogItems?
+    public init(id: String, category: CatalogCategory, title: String, detail: String, consequence: String, regen: RegenClass, action: CleanupAction, locations: [String], owner: RuleOwner?, protectedNames: [String] = [], tool: ToolCommand? = nil, protectedExtensions: [String] = [], contents: ContentsMatch? = nil, keepNewestVersions: Int? = nil, itemName: (@Sendable (String) -> String?)? = nil, items: CatalogItems? = nil) {
         self.id = id; self.category = category; self.title = title; self.detail = detail; self.consequence = consequence
         self.regen = regen; self.action = action; self.locations = locations; self.owner = owner; self.protectedNames = protectedNames; self.tool = tool
         self.protectedExtensions = protectedExtensions; self.contents = contents; self.keepNewestVersions = keepNewestVersions
-        self.itemName = itemName
+        self.itemName = itemName; self.items = items
     }
 }
 
@@ -188,6 +204,7 @@ public enum BuiltInCatalog {
                     regen: .userFile, action: .trash, locations: ["Downloads"], owner: nil,
                     protectedExtensions: downloadsProtectedExtensions, contents: ContentsMatch(minimumBytes: 500_000_000, unusedDays: 90)),
         huggingFaceModels,
+        ollamaModels,
     ]
     /// Kept from the Downloads-era policy: libraries and databases are never moved, even inside Downloads.
     static let downloadsProtectedExtensions = ["dsym", "library", "db", "sqlite", "sqlite3"]
@@ -220,6 +237,10 @@ public struct Candidate: Sendable, Identifiable, Hashable {
     public let observedAt: Date
     /// What the item is called, e.g. a model's name; nil means its file name.
     public internal(set) var itemName: String? = nil
+    /// The size is an estimate rather than a measurement (an Ollama model's own, unshared blobs).
+    public internal(set) var sizeIsEstimate = false
+    /// The file's own size when `logicalBytes` sizes something else (an Ollama manifest stands for its model).
+    public internal(set) var fileBytes: Int64? = nil
 }
 
 public struct Catalog: Sendable {
@@ -241,6 +262,7 @@ public struct Catalog: Sendable {
                 guard Self.neverOffered.isDisjoint(with: relative.split(separator: "/").map(String.init)) else { return [] }
                 let url = base.appendingPathComponent(relative)
                 if let contents = rule.contents { return files(in: url, matching: contents, rule: rule, now: now) }
+                if rule.items == .ollamaModels { return ollamaModels(in: url, rule: rule, toolURL: toolURL) }
                 var info = stat()
                 guard lstat(url.path, &info) == 0, info.st_uid == geteuid(),
                       [S_IFDIR, S_IFREG].contains(info.st_mode & S_IFMT) else { return [] }
@@ -255,7 +277,7 @@ public struct Catalog: Sendable {
         }.filter { seen.insert($0.resourceID).inserted }
     }
 
-    private func candidate(_ rule: CleanupRule, _ url: URL, _ info: stat, logical: Int64, allocated: Int64?, complete: Bool, lastUsed: Date?, toolURL: URL? = nil) -> Candidate {
+    func candidate(_ rule: CleanupRule, _ url: URL, _ info: stat, logical: Int64, allocated: Int64?, complete: Bool, lastUsed: Date?, toolURL: URL? = nil) -> Candidate {
         let volume = try? url.resourceValues(forKeys: [.volumeUUIDStringKey]).volumeUUIDString
         return Candidate(ruleID: rule.id, action: rule.action, url: url, resourceID: "\(info.st_dev):\(info.st_ino)",
                          isDirectory: info.st_mode & S_IFMT == S_IFDIR, toolURL: toolURL, volumeID: volume,

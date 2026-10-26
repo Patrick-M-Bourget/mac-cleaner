@@ -50,7 +50,7 @@ public struct CandidateCheck: Sendable {
         guard type == (candidate.isDirectory ? S_IFDIR : S_IFREG), "\(info.st_dev):\(info.st_ino)" == candidate.resourceID else { return .changed }
         if !candidate.isDirectory {
             // Files must be byte-for-byte the observed version; cache folders churn, so folders keep identity only.
-            guard Int64(info.st_size) == candidate.logicalBytes, Int64(info.st_mtimespec.tv_sec) == candidate.modifiedSeconds,
+            guard Int64(info.st_size) == candidate.fileBytes ?? candidate.logicalBytes, Int64(info.st_mtimespec.tv_sec) == candidate.modifiedSeconds,
                   Int64(info.st_mtimespec.tv_nsec) == candidate.modifiedNanoseconds else { return .changed }
         }
         guard info.st_uid == geteuid(),
