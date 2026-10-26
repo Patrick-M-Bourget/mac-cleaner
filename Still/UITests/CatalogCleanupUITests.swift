@@ -65,6 +65,11 @@ import XCTest
     element.click()
 }
 
+/// The review sheet's line for a catalog category in a consequence group, e.g. `reviewLine(app, "permanentlyRemoved", "developer")`.
+@MainActor func reviewLine(_ app: XCUIApplication, _ group: String, _ category: String) -> XCUIElement {
+    app.descendants(matching: .any)["reviewLine-\(group)-\(category)"]
+}
+
 /// Expands every collapsed disclosure group in the plan, so items a rule found one by one are drawn.
 @MainActor func expandDisclosures(in app: XCUIApplication) {
     for triangle in app.disclosureTriangles.allElementsBoundByIndex where triangle.exists && (triangle.value as? Int) != 1 {
@@ -102,7 +107,7 @@ final class CatalogCleanupUITests: XCTestCase {
         XCTAssertEqual(app.checkBoxes["previewOnlyToggle"].value as? Int, 1)
         app.buttons["Review cleanup"].click()
 
-        XCTAssertTrue(app.staticTexts["Clear Homebrew cache"].waitForExistence(timeout: 5))
+        XCTAssertTrue(reviewLine(app, "commandsRun", "developer").waitForExistence(timeout: 5))
         app.buttons["Run preview"].click()
 
         XCTAssertTrue(app.staticTexts["catalogPreviewNotice"].waitForExistence(timeout: 10))
@@ -150,7 +155,8 @@ final class CatalogCleanupUITests: XCTestCase {
         XCTAssertEqual(app.checkBoxes["previewOnlyToggle"].value as? Int, 1)
         app.buttons["Review cleanup"].click()
 
-        XCTAssertTrue(app.staticTexts["Clear Xcode DerivedData"].waitForExistence(timeout: 5))
+        XCTAssertTrue(reviewLine(app, "permanentlyRemoved", "developer").waitForExistence(timeout: 5))
+        XCTAssertTrue(reviewLine(app, "commandsRun", "developer").exists)
         app.buttons["Run preview"].click()
 
         XCTAssertTrue(app.staticTexts["catalogPreviewNotice"].waitForExistence(timeout: 10))
@@ -188,7 +194,8 @@ final class CatalogCleanupUITests: XCTestCase {
         XCTAssertTrue(review.isEnabled)
         review.click()
 
-        XCTAssertTrue(app.staticTexts["Clear npm cache"].waitForExistence(timeout: 5))
+        XCTAssertTrue(reviewLine(app, "permanentlyRemoved", "developer").waitForExistence(timeout: 5))
+        XCTAssertFalse(reviewLine(app, "commandsRun", "developer").exists)
         app.buttons["Run preview"].click()
 
         XCTAssertTrue(app.staticTexts["catalogPreviewNotice"].waitForExistence(timeout: 10))
@@ -222,7 +229,7 @@ final class CatalogCleanupUITests: XCTestCase {
         XCTAssertEqual(app.checkBoxes["previewOnlyToggle"].value as? Int, 1)
         app.buttons["Review cleanup"].click()
 
-        XCTAssertTrue(app.staticTexts["Move to Trash: Installers in Downloads"].waitForExistence(timeout: 5))
+        XCTAssertTrue(reviewLine(app, "movedToTrash", "downloads").waitForExistence(timeout: 5))
         app.buttons["Run preview"].click()
 
         XCTAssertTrue(app.staticTexts["catalogPreviewNotice"].waitForExistence(timeout: 10))
@@ -259,7 +266,7 @@ final class CatalogCleanupUITests: XCTestCase {
         XCTAssertEqual(app.checkBoxes["previewOnlyToggle"].value as? Int, 1)
         app.buttons["Review cleanup"].click()
 
-        XCTAssertTrue(app.staticTexts["Clear Chrome code-sign copies"].waitForExistence(timeout: 5))
+        XCTAssertTrue(reviewLine(app, "permanentlyRemoved", "browser").waitForExistence(timeout: 5))
         // The review lists each copy in a collapsed file list.
         revealAndClick(app.disclosureTriangles.matching(NSPredicate(format: "label ENDSWITH 'Show files'")).firstMatch, in: app)
         XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "value CONTAINS 'code_sign_clone.old'")).firstMatch.exists)
@@ -313,7 +320,7 @@ final class CatalogCleanupUITests: XCTestCase {
         XCTAssertEqual(app.checkBoxes["previewOnlyToggle"].value as? Int, 1)
         app.buttons["Review cleanup"].click()
 
-        XCTAssertTrue(app.staticTexts["Clear Google Chrome cache"].waitForExistence(timeout: 5))
+        XCTAssertTrue(reviewLine(app, "permanentlyRemoved", "browser").waitForExistence(timeout: 5))
         app.buttons["Run preview"].click()
 
         XCTAssertTrue(app.staticTexts["catalogPreviewNotice"].waitForExistence(timeout: 10))
@@ -365,7 +372,7 @@ final class CatalogCleanupUITests: XCTestCase {
         revealAndClick(rule, in: app)
         XCTAssertEqual(app.checkBoxes["previewOnlyToggle"].value as? Int, 1)
         app.buttons["Review cleanup"].click()
-        XCTAssertTrue(app.staticTexts["Clear Safari cache"].waitForExistence(timeout: 5))
+        XCTAssertTrue(reviewLine(app, "permanentlyRemoved", "browser").waitForExistence(timeout: 5))
         app.buttons["Run preview"].click()
         XCTAssertTrue(app.staticTexts["catalogPreviewNotice"].waitForExistence(timeout: 10))
         for file in [history, cache] { XCTAssertTrue(FileManager.default.fileExists(atPath: file.path), file.path) }
@@ -407,8 +414,8 @@ final class CatalogCleanupUITests: XCTestCase {
         XCTAssertEqual(app.checkBoxes["previewOnlyToggle"].value as? Int, 1)
         app.buttons["Review cleanup"].click()
 
-        XCTAssertTrue(app.staticTexts["Clear App update downloads"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.staticTexts["Clear Crash reports"].exists)
+        XCTAssertTrue(reviewLine(app, "permanentlyRemoved", "updaters").waitForExistence(timeout: 5))
+        XCTAssertTrue(reviewLine(app, "permanentlyRemoved", "logs").exists)
         app.buttons["Run preview"].click()
 
         XCTAssertTrue(app.staticTexts["catalogPreviewNotice"].waitForExistence(timeout: 10))
@@ -453,8 +460,11 @@ final class CatalogCleanupUITests: XCTestCase {
         XCTAssertEqual(app.checkBoxes["previewOnlyToggle"].value as? Int, 1)
         app.buttons["Review cleanup"].click()
 
-        XCTAssertTrue(app.staticTexts["Clear Docker build cache"].waitForExistence(timeout: 5))
-        XCTAssertFalse(app.staticTexts["Clear Docker images"].exists)
+        XCTAssertTrue(reviewLine(app, "commandsRun", "developer").waitForExistence(timeout: 5))
+        // The exact command shows with the files; only the chosen kind is there.
+        revealAndClick(app.disclosureTriangles.matching(NSPredicate(format: "label ENDSWITH 'Show files'")).firstMatch, in: app)
+        XCTAssertTrue(app.staticTexts["docker builder prune -a -f"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.staticTexts["docker image prune -a -f"].exists)
         app.buttons["Run preview"].click()
 
         XCTAssertTrue(app.staticTexts["catalogPreviewNotice"].waitForExistence(timeout: 10))
@@ -523,7 +533,7 @@ final class ICloudCleanupUITests: XCTestCase {
         XCTAssertEqual(app.checkBoxes["previewOnlyToggle"].value as? Int, 1)
         app.buttons["Review cleanup"].click()
 
-        XCTAssertTrue(app.staticTexts["Remove local copies: Downloaded iCloud Drive files"].waitForExistence(timeout: 5))
+        XCTAssertTrue(reviewLine(app, "localCopiesRemoved", "icloud").waitForExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "value CONTAINS 'stay in iCloud and download again when you open them'")).firstMatch.exists)
         app.buttons["Run preview"].click()
 
@@ -580,7 +590,7 @@ extension CatalogCleanupUITests {
 
         XCTAssertEqual(app.checkBoxes["previewOnlyToggle"].value as? Int, 1)
         app.buttons["Review cleanup"].click()
-        XCTAssertTrue(app.staticTexts["Move to Trash: Large and old files"].waitForExistence(timeout: 5))
+        XCTAssertTrue(reviewLine(app, "movedToTrash", "files").waitForExistence(timeout: 5))
         app.buttons["Run preview"].click()
 
         XCTAssertTrue(app.staticTexts["catalogPreviewNotice"].waitForExistence(timeout: 10))

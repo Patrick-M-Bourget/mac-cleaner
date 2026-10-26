@@ -46,8 +46,8 @@ final class ModelsCleanupUITests: XCTestCase {
         XCTAssertEqual(app.checkBoxes["previewOnlyToggle"].value as? Int, 1)
         app.buttons["Review cleanup"].click()
 
-        XCTAssertTrue(app.staticTexts["Move to Trash: Hugging Face models"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.staticTexts["Clear Ollama models"].exists)
+        XCTAssertTrue(reviewLine(app, "movedToTrash", "models").waitForExistence(timeout: 5))
+        XCTAssertTrue(reviewLine(app, "commandsRun", "models").exists)
         app.buttons["Run preview"].click()
 
         XCTAssertTrue(app.staticTexts["catalogPreviewNotice"].waitForExistence(timeout: 10))

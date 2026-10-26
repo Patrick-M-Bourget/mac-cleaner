@@ -341,8 +341,6 @@ extension CleanupRule {
     var choosesItems: Bool { contents != nil || regen == .model || action == .evict || fromPickedFolders }
     /// Whether every item the rule offers is a single file.
     var offersFiles: Bool { contents != nil || fromPickedFolders }
-    /// How the review names what happens, e.g. "Move to Trash: Installers in Downloads".
-    var reviewTitle: String { action.wording.reviewPrefix + title }
 }
 
 extension Candidate {
@@ -483,38 +481,70 @@ struct CatalogItemRows: View {
     }
 }
 
+extension ConsequenceGroup {
+    var badge: CategoryBadge {
+        switch self {
+        case .permanentlyRemoved: CategoryBadge(symbol: "xmark.bin", color: StillDesign.purple)
+        case .movedToTrash: CategoryBadge(symbol: "trash", color: StillDesign.orange)
+        case .localCopiesRemoved: CategoryBadge(symbol: "icloud", color: StillDesign.blue)
+        case .commandsRun: CategoryBadge(symbol: "terminal", color: StillDesign.teal)
+        }
+    }
+}
+
+/// The review sheet, grouped by consequence: each group's consequence once, one line per category, the files behind one disclosure.
 struct CatalogConfirmationSection: View {
     let review: CatalogReview
     let catalog: Catalog
     var body: some View {
         VStack(alignment: .leading, spacing: StillDesign.Space.lg) {
             if review.approval.previewOnly {
-                StatusRow(text: "Preview only is on. Still checks each item and records what it would do. Nothing on disk changes.", symbol: "eye", role: .neutral)
+                StatusRow(text: "Preview only is on. Nothing on disk changes.", symbol: "eye", role: .neutral, identifier: "reviewPreviewNotice")
             }
-            ForEach(catalog.rules.filter { rule in review.approval.candidates.contains { $0.ruleID == rule.id } }) { rule in
-                let items = review.approval.candidates.filter { $0.ruleID == rule.id }
+            ForEach(ReviewGroup.groups(catalog: catalog, candidates: review.approval.candidates)) { group in
                 VStack(alignment: .leading, spacing: StillDesign.Space.sm) {
-                    HStack {
-                        CategoryBadge(category: rule.category.storageCategory)
-                        Text(rule.reviewTitle).font(StillDesign.TypeStyle.section)
+                    HStack(spacing: StillDesign.Space.md) {
+                        group.consequence.badge
+                        Text(group.consequence.title).font(StillDesign.TypeStyle.section)
                         Spacer()
-                        Text(catalogBytes(items.reduce(0) { $0 + $1.estimatedBytes }, complete: items.allSatisfy(\.sizeComplete), upperBound: rule.estimateIsUpperBound,
-                                          estimate: items.contains(where: \.sizeIsEstimate))).monospacedDigit()
+                        Text(SizeEstimate(sum: group.lines.map(\.estimate)).text(upperBound: group.lines.contains(where: \.isUpperBound)))
+                            .font(StillDesign.TypeStyle.section).monospacedDigit()
                     }
-                    Text(rule.consequence).font(StillDesign.TypeStyle.note).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-                    ActionDisclosureGroup(StillDesign.items(items.count) + " · Show files") {
-                        VStack(alignment: .leading, spacing: StillDesign.Space.xs) {
-                            ForEach(items) { item in
-                                // A tool that leaves its folder in place shows the exact command, e.g. `ollama rm llama3:latest` or `docker builder prune -a -f`.
-                                Text(rule.tool.flatMap { $0.deletesLocationAfter ? nil : $0.commandLine(for: item.itemName) } ?? item.url.path).font(StillDesign.TypeStyle.caption).textSelection(.enabled)
-                                if let refusal = review.refusals[item.id] { StatusRow(text: "Will be skipped: " + refusal.reason, symbol: "exclamationmark.circle", role: .caution) }
-                            }
-                        }.padding(.top, StillDesign.Space.sm)
-                    }
+                    VStack(alignment: .leading, spacing: StillDesign.Space.sm) {
+                        Text(group.consequence.consequence).font(StillDesign.TypeStyle.note).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                        ForEach(group.lines) { line in
+                            HStack {
+                                Text(line.category.overviewTitle)
+                                Spacer()
+                                Text(line.estimate.text(upperBound: line.isUpperBound)).monospacedDigit()
+                            }.font(StillDesign.TypeStyle.note).accessibilityElement(children: .combine).accessibilityIdentifier("reviewLine-\(group.consequence)-\(line.id)")
+                        }
+                        ForEach(group.candidates.filter { review.refusals[$0.id] != nil }) { item in
+                            StatusRow(text: item.displayName + " will be skipped: " + (review.refusals[item.id]?.reason ?? ""), symbol: "exclamationmark.circle", role: .caution)
+                        }
+                        ActionDisclosureGroup(StillDesign.items(group.candidates.count) + " · Show files") {
+                            VStack(alignment: .leading, spacing: StillDesign.Space.md) {
+                                ForEach(group.lines) { line in ForEach(line.rules) { rule in files(rule, line.candidates(for: rule)) } }
+                            }.padding(.top, StillDesign.Space.sm)
+                        }
+                    }.padding(.leading, StillDesign.Size.badgeIndent)
+                }
+                Divider()
+            }
+        }
+    }
+    private func files(_ rule: CleanupRule, _ items: [Candidate]) -> some View {
+        VStack(alignment: .leading, spacing: StillDesign.Space.xs) {
+            Text(rule.title).font(StillDesign.TypeStyle.caption.weight(.medium))
+            Text(rule.consequence).font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            ForEach(items) { item in
+                // A tool shows the exact command, e.g. `ollama rm llama3:latest` or `docker builder prune -a -f`.
+                if let tool = rule.tool { Text(tool.commandLine(for: item.itemName)).font(StillDesign.TypeStyle.code).textSelection(.enabled) }
+                if rule.tool?.deletesLocationAfter ?? true {
+                    Text(item.displayName + " · " + PathDisplay.shortLocation(of: item.url, home: CatalogCleanupModel.checkHome))
+                        .font(StillDesign.TypeStyle.caption).help(item.url.path)
                 }
             }
-            Text("Each item is checked again just before Still acts on it. Changed items, or items whose app is running, are skipped and reported.")
-                .font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary)
         }
     }
 }
