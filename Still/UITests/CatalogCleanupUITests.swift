@@ -61,6 +61,54 @@ final class CatalogCleanupUITests: XCTestCase {
     }
 
 
+    /// Xcode build data in a fixture home. The journey itself runs under xcodebuild or Xcode, so
+    /// DerivedData must show as refused with its reason; the stand-in simctl must never run in preview.
+    @MainActor func testXcodeBuildDataIsRefusedWhileXcodeRunsAndPreviewNeverRunsSimctl() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        let state = try configureIsolatedState(app)
+        let home = try configureCatalogHome(app)
+        _ = try addDeveloperCaches(home, folders: ["Library/Developer/Xcode/DerivedData/Still-abc/Build/Products/Debug/Still.app",
+                                                   "Library/Developer/Xcode/Archives/2026-10-01/Still.xcarchive",
+                                                   "Library/Developer/Xcode/iOS DeviceSupport/16.4 (20E247)",
+                                                   "Library/Developer/Xcode/iOS DeviceSupport/17.5 (21F79)",
+                                                   "Library/Developer/Xcode/iOS DeviceSupport/18.1 (22B83)",
+                                                   "Library/Developer/CoreSimulator/Devices/0A1B2C3D-0000-0000-0000-000000000000"])
+        let marker = home.appendingPathComponent("simctl-ran")
+        let simctl = home.appendingPathComponent(".still-test-tools/simctl")
+        try "#!/bin/sh\ntouch '\(marker.path)'\n".write(to: simctl, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: simctl.path)
+        defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
+        app.launchArguments = ["-ApplePersistenceIgnoreState", "YES"]
+        app.launch()
+
+        XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
+        let derivedData = app.buttons["overviewRule-xcode-derived-data"]
+        XCTAssertTrue(derivedData.waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["overviewRule-xcode-device-support"].exists)
+        XCTAssertTrue(app.buttons["overviewRule-xcode-simulators"].exists)
+        XCTAssertFalse(app.descendants(matching: .any).matching(NSPredicate(format: "identifier CONTAINS 'Archives'")).firstMatch.exists)
+        derivedData.click()
+
+        for rule in ["xcode-derived-data", "xcode-simulators"] {
+            let box = app.checkBoxes["planRule-" + rule]
+            XCTAssertTrue(box.waitForExistence(timeout: 5), rule)
+            box.click()
+        }
+        XCTAssertEqual(app.checkBoxes["previewOnlyToggle"].value as? Int, 1)
+        app.buttons["Review cleanup"].click()
+
+        let refused = app.staticTexts.matching(NSPredicate(format: "label CONTAINS 'Xcode is running'")).firstMatch
+        XCTAssertTrue(refused.waitForExistence(timeout: 5))
+        app.buttons["Run preview"].click()
+
+        XCTAssertTrue(app.staticTexts["catalogPreviewNotice"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["Would run"].exists)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: marker.path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: home.appendingPathComponent("Library/Developer/Xcode/DerivedData/Still-abc/Build/Products/Debug/Still.app/entry").path))
+    }
+
+
     @MainActor func testPreviewOnlyCleanupOfAFixtureCategoryReachesResultsAndChangesNothing() throws {
         continueAfterFailure = false
         let app = XCUIApplication()
