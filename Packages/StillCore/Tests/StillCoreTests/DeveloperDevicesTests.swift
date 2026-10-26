@@ -302,3 +302,13 @@ private final class FixtureTrash: TrashMoving, @unchecked Sendable {
     try makeAVD(home, "New", image: "system-images/android-30/default/x86_64")
     #expect(check.check(image) == .inUse("An Android virtual device"))
 }
+
+@Test func androidSystemImagesAreNeverRecommendedButChosenOneByOne() throws {
+    let home = try fixtureHome()
+    defer { try? FileManager.default.removeItem(at: home) }
+    try makeImage(home, "android-30/default/x86_64")
+    let catalog = Catalog(rules: fixtureRules)
+    let found = catalog.discover(fixture: home)
+    #expect(found.contains { $0.ruleID == "android-system-images" })
+    #expect(RecommendedPlan(catalog: catalog, candidates: found, check: { _ in nil }).candidates.isEmpty)
+}
