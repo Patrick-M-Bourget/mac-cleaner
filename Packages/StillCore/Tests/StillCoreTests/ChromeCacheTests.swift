@@ -181,3 +181,14 @@ private final class ChromeActivitySequence: ChromeCacheEnvironment, @unchecked S
     #expect(try await service.records().count == 1)
     #expect(try await service.records().first?.unresolved == true)
 }
+
+@Test func chromeActualMetadataPermissionDenialIsNotUnsupportedOrMeasuredZero() async throws {
+    let (root, access) = try chromeFixture(); defer { try? FileManager.default.removeItem(at: root) }
+    let state = access.dataRootURL.appendingPathComponent("Local State")
+    try FileManager.default.setAttributes([.posixPermissions: 0o000], ofItemAtPath: state.path)
+    defer { try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: state.path) }
+    let service = ChromeCacheService(environment: ChromeEnvironmentFixture(running: false), journalURL: root.appendingPathComponent("journal.json"))
+    let scan = await service.inspect(access)
+    #expect(scan.availability == .denied)
+    #expect(scan.groups.isEmpty)
+}

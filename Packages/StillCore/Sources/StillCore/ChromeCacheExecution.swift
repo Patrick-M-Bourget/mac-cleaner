@@ -16,7 +16,7 @@ final class ChromeOpenGroup {
         do {
             for item in chain {
                 let fd = open(item.url.path, O_RDONLY | O_DIRECTORY | O_NOFOLLOW)
-                guard fd >= 0 else { throw ChromeCacheFailure("Cache access is unavailable.") }
+                guard fd >= 0 else { throw ChromeCacheFailure("Cache access is unavailable.", (errno == EACCES || errno == EPERM) ? .denied : .unknown) }
                 descriptors.append(fd)
                 var info = stat()
                 guard fstat(fd, &info) == 0, ChromeObjectIdentity(info) == item.identity,

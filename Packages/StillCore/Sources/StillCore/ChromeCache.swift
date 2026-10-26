@@ -226,7 +226,7 @@ func readChromeOwnership(_ url: URL) throws -> ChromeProfileOwnership {
     guard url.isFileURL, url.resolvingSymlinksInPath().path == url.path, lstat(url.path, &info) == 0, info.st_mode & S_IFMT == S_IFREG, info.st_uid == getuid(), info.st_nlink == 1,
           info.st_size <= 5 * 1024 * 1024 else { throw ChromeCacheFailure("Chrome metadata is inaccessible or unsupported.") }
     let fd = open(url.path, O_RDONLY | O_NOFOLLOW)
-    guard fd >= 0 else { throw ChromeCacheFailure("Chrome metadata could not be opened safely.") }
+    guard fd >= 0 else { throw ChromeCacheFailure("Chrome metadata could not be opened safely.", (errno == EACCES || errno == EPERM) ? .denied : .unknown) }
     defer { close(fd) }
     var opened = stat(); guard fstat(fd, &opened) == 0, ChromeObjectIdentity(info) == ChromeObjectIdentity(opened) else { throw ChromeCacheFailure("Chrome metadata changed.") }
     let data = try FileHandle(fileDescriptor: fd, closeOnDealloc: false).read(upToCount: 5 * 1024 * 1024 + 1) ?? Data()
