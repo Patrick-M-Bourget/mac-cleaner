@@ -95,6 +95,8 @@ public struct CandidateCheck: Sendable {
         if candidate.action == .guidance || catalog.rule(candidate.ruleID)?.action == .guidance { return .guidanceOnly }
         guard let rule = catalog.rule(candidate.ruleID),
               rule.action == candidate.action || (candidate.isLeftover && rule.deletesItems && candidate.action == .delete) else { return .changed }
+        // A per-item command's argument is never an option, whatever the item says (#134).
+        if candidate.action == .tool, rule.tool?.itemPlaceholder != nil, candidate.toolArgument.map({ $0.isEmpty || $0.hasPrefix("-") }) ?? true { return .changed }
         let ownership = Catalog.ownership(of: candidate.url, under: rule)
         switch ownership {
         // An item whose own owner can't be found any more (the app was removed) is refused, never guessed.

@@ -139,7 +139,8 @@ private let devices = "Library/Developer/CoreSimulator/Devices"
     defer { try? FileManager.default.removeItem(at: home) }
     try makeFolder(home, devices + "/0A1B2C3D-0000-0000-0000-000000000000/data")
     let marker = home.appendingPathComponent("ran")
-    let simctl = try fakeSimctl(home, "echo \"$@\" > '\(marker.path)'\necho 'Deleted: iPhone 12 (0A1B2C3D)'")
+    // Discovery also lists simulators (#134); only the cleanup command is recorded.
+    let simctl = try fakeSimctl(home, "[ \"$1\" = list ] || [ \"$1\" = runtime ] && exit 1\necho \"$@\" > '\(marker.path)'\necho 'Deleted: iPhone 12 (0A1B2C3D)'")
     let catalog = Catalog(rules: fixtureRules)
     let candidate = try #require(catalog.discover(fixture: home, locateTool: onlyTool("simctl", simctl)).first)
     let journal = try SQLiteCleanupJournal(url: home.appendingPathComponent("journal.sqlite"))
