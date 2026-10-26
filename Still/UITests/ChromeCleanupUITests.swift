@@ -175,8 +175,9 @@ final class ChromeCleanupUITests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: root.appendingPathComponent("Default/Cache/Cache_Data/0123456789abcdef_0").path), "Stopping the mixed run must preserve the unstarted Chrome stage")
         revealScrollElement(app, control: app.staticTexts["Cancelled"].firstMatch, label: "Cancelled browser group")
         XCTAssertTrue(app.staticTexts["Cancelled"].exists)
-        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "0 cache files permanently removed")).firstMatch.exists)
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "value BEGINSWITH %@", "0 cache files permanently removed")).firstMatch.exists)
         XCTAssertEqual(try Data(contentsOf: root.appendingPathComponent("Default/Web Data")), Data("protected-autofill".utf8))
+        capture(app, name: "chrome-cancelled-results")
     }
 
     @MainActor func testChromeRescanKeepsNewGroupsUncheckedAndRunningInvalidatesSelection() throws {
