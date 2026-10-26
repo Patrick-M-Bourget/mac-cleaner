@@ -1,9 +1,0 @@
-{
-  "imageBytes": 67108864,
-  "filesystem": "HFS+",
-  "source": "9ef1f06042b8ec4c771b7bde7b184846e3be5d9a",
-  "status": "completed-see-native-compression-status",
-  "detached": true,
-  "ownedRootRemoved": true,
-  "ownedRoot": "/private/var/folders/n6/hn37q6pj7sj_9dmqqc2113800000gn/T/StillFilesystemFixtures-d2k3e4vl"
-}

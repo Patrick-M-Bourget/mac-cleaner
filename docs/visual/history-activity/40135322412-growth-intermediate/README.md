@@ -1,3 +1,0 @@
-# Exact comparison route — intermediate behavioral green
-
-Source d26f47b, run40135322412, initial52.717s/minimum55.251s pass. All12 original explicit PNGs individually reviewed: exact +3-byte observation, preserved expanded History/filter/viewport and choice badge1, expired exact UUID gives unavailable with one Back and no latest substitution. A horizontal alignment inconsistency in expanded scan details was found and sent for shared-component refinement; this is not final presentation acceptance. Two representative originals and unmodified complete manifest copied here; all12 originals remain outsideGit under artifacts/history51-growth-green-export with rawresult in history51-growth-green/native-test-results. Final alignment captures must supersede this checkpoint.
