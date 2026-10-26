@@ -29,14 +29,14 @@ struct StillApp: App {
 
 enum Destination: String, CaseIterable, Identifiable {
     case alerts = "Storage alerts"
-    case overview = "Overview", growth = "What grew", plan = "Cleanup plan", history = "History", locations = "Locations & access"
+    case overview = "Overview", plan = "Cleanup plan", growth = "What grew", history = "History", locations = "Locations & access"
     var id: String { rawValue }
     /// ⌘1–⌘5 follow the sidebar order (#127). Storage alerts is not in the sidebar (Decision 12).
     var shortcut: KeyEquivalent {
         switch self {
         case .overview: "1"
-        case .growth: "2"
-        case .plan: "3"
+        case .plan: "2"
+        case .growth: "3"
         case .history: "4"
         case .locations: "5"
         case .alerts: "6"

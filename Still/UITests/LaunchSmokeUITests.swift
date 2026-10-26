@@ -133,7 +133,9 @@ final class KeyboardShortcutsUITests: XCTestCase {
         app.launch()
         XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
 
-        let sidebar = ["Overview", "What grew", "Cleanup plan", "History", "Locations & access"]
+        let sidebar = ["Overview", "Cleanup plan", "What grew", "History", "Locations & access"]
+        let rows = sidebar.map { app.buttons[$0].frame.minY }
+        XCTAssertEqual(rows, rows.sorted(), "The sidebar lists \(sidebar.joined(separator: ", ")) from the top")
         for (index, title) in sidebar.enumerated().reversed() {
             app.typeKey(String(index + 1), modifierFlags: .command)
             let row = app.buttons[title]
@@ -142,7 +144,7 @@ final class KeyboardShortcutsUITests: XCTestCase {
             XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: selected, object: row)], timeout: 5), .completed, "⌘\(index + 1) opens \(title)")
         }
 
-        app.typeKey("2", modifierFlags: .command)
+        app.typeKey("3", modifierFlags: .command)
         XCTAssertTrue(app.staticTexts["Baseline recorded"].waitForExistence(timeout: 15))
         let grown = home.appendingPathComponent(".npm/_cacache/content-v2/sha512/cd/blob")
         try FileManager.default.createDirectory(at: grown.deletingLastPathComponent(), withIntermediateDirectories: true)
@@ -150,7 +152,7 @@ final class KeyboardShortcutsUITests: XCTestCase {
         app.typeKey("4", modifierFlags: .command)
         XCTAssertTrue(app.menuBars.menuItems["Scan again"].exists, "Scan again is a menu command")
         app.typeKey("r", modifierFlags: .command)
-        app.typeKey("2", modifierFlags: .command)
+        app.typeKey("3", modifierFlags: .command)
         XCTAssertTrue(app.staticTexts["growthNetChange"].waitForExistence(timeout: 15), "⌘R from History scanned again")
     }
 }
