@@ -17,7 +17,7 @@ struct DesignGallery: View {
                 Text("Still · Component gallery").font(.headline)
                 Spacer()
                 Toggle("Opaque chrome", isOn: $opaque)
-                AppearancePicker(choice: $appearance)
+                AppearancePicker(choice: $appearance).labelsHidden().fixedSize()
             }.padding(StillDesign.Space.lg).background { ChromeSurface() }
             ScrollView {
                 VStack(alignment: .leading, spacing: StillDesign.Space.xl) {

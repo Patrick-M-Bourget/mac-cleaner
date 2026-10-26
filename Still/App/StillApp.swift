@@ -20,6 +20,7 @@ struct StillApp: App {
                 Button("Show Still") { lifecycle.openWorkspace?() }
             }
         }
+        Settings { AppearanceSettingsView() }
     }
 }
 
@@ -286,12 +287,7 @@ private struct WorkspaceView: View {
         .onReceive(NotificationCenter.default.publisher(for: .stillAlertOpened)) { _ in destination = .overview; navigationState.localRecordsVisible = false; exclusionsVisible = false; diagnosticsVisible = false; recoveryVisible = false; nativeInspectionVisible = false; homebrewVisible = false; pipVisible = false }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in Task { await alerts.activated() } }
         .onReceive(NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.didWakeNotification)) { _ in Task { await alerts.activated() } }
-        .toolbar {
-            contextToolbar
-            ToolbarItem(placement: .automatic) {
-            AppearancePicker(choice: Binding(get: { appearance.choice }, set: { AppLifecycleController.shared.chooseAppearance($0) }))
-            }
-        }
+        .toolbar { contextToolbar }
     }
 
     @ToolbarContentBuilder private var contextToolbar: some ToolbarContent {
