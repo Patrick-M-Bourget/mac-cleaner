@@ -91,6 +91,32 @@ import XCTest
 }
 
 final class CatalogCleanupUITests: XCTestCase {
+    /// #128: the first scan names the location it is checking with a count, and Overview fills in as each one finishes.
+    /// Discovery is slowed through a DEBUG-only seam so the fixture scan is still running when the rows appear.
+    @MainActor func testFirstScanNamesEachLocationAndFillsOverviewAsItGoes() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        let state = try configureIsolatedState(app)
+        let home = try configureCatalogHome(app)
+        app.launchEnvironment["STILL_TEST_DISCOVERY_PAUSE"] = "0.25"
+        defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
+        app.launch()
+
+        let progress = app.staticTexts["catalogScanProgress"]
+        XCTAssertTrue(progress.waitForExistence(timeout: 10))
+        let counted = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value MATCHES %@", "Checking .+… [0-9]+ of [0-9]+"), object: progress)
+        XCTAssertEqual(XCTWaiter.wait(for: [counted], timeout: 10), .completed, progress.debugDescription)
+        // The npm cache is among the first locations, Downloads comes later: its row and the total show up mid-scan.
+        XCTAssertTrue(app.buttons["overviewCategory-developer"].waitForExistence(timeout: 10))
+        XCTAssertTrue(progress.exists, "The developer row appeared before the scan finished")
+        let total = app.staticTexts["overviewRecommendedTotal"]
+        XCTAssertTrue((total.value as? String)?.hasPrefix("Up to ") == true, total.debugDescription)
+        XCTAssertFalse(app.staticTexts["Nothing to review in the known locations."].exists)
+
+        XCTAssertTrue(progress.waitForNonExistence(timeout: 60))
+        XCTAssertTrue(app.buttons["overviewCategory-downloads"].exists)
+    }
+
     @MainActor func testDeveloperCachesShowOnlyWhenPresentAndADryRunNeverRunsTheTool() throws {
         continueAfterFailure = false
         let app = XCUIApplication()
