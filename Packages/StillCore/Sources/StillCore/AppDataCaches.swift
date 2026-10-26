@@ -45,22 +45,44 @@ public enum AppDataCaches {
         guard !parts.contains(nil) else { return nil }
         return (String(name[..<start]), parts.compactMap { $0 })
     }
-    /// The IDE an older version's folder belongs to. The newest version of each product is the one the installed IDE
-    /// uses, so it has no owner Still can close and is never offered; nor is a product Still doesn't know.
-    static func jetBrainsOwner(_ url: URL) -> RuleOwner? {
+    /// The bundle identifier of each product's app, as in its Info.plist; an EAP build adds "-EAP".
+    static let jetBrainsBundleIDs: [String: String] = [
+        "com.jetbrains.intellij": "IntelliJIdea", "com.jetbrains.intellij.ce": "IdeaIC", "com.jetbrains.pycharm": "PyCharm",
+        "com.jetbrains.pycharm.ce": "PyCharmCE", "com.jetbrains.WebStorm": "WebStorm", "com.jetbrains.PhpStorm": "PhpStorm",
+        "com.jetbrains.goland": "GoLand", "com.jetbrains.CLion": "CLion", "com.jetbrains.rider": "Rider", "com.jetbrains.rubymine": "RubyMine",
+        "com.jetbrains.datagrip": "DataGrip", "com.jetbrains.rustrover": "RustRover", "com.jetbrains.dataspell": "DataSpell",
+    ]
+    static func jetBrainsProduct(bundleID: String) -> String? {
+        let id = bundleID.hasSuffix("-EAP") ? String(bundleID.dropLast(4)) : bundleID
+        return jetBrainsBundleIDs.first { $0.key.caseInsensitiveCompare(id) == .orderedSame }?.value
+    }
+    /// "2025.2.1" (or "2025.2 EAP") as [2025, 2], the release its cache folder is named after; nil otherwise.
+    static func jetBrainsReleaseVersion(_ text: String) -> [Int]? {
+        let parts = (text.split(separator: " ").first ?? "").split(separator: ".").prefix(2).map { Int($0) }
+        guard parts.count == 2, !parts.contains(nil) else { return nil }
+        return parts.compactMap { $0 }
+    }
+    /// The IDE an older version's folder belongs to. Never offered: the folder of any installed version, every folder
+    /// of a product installed in a version Still can't read, the newest folder of each product (an install Still didn't
+    /// find may use it), and a product Still doesn't know.
+    static func jetBrainsOwner(_ url: URL, apps: any AppLookup) -> RuleOwner? {
         guard let (product, version) = jetBrainsVersion(url.lastPathComponent), let ide = jetBrainsProducts[product],
               let siblings = try? FileManager.default.contentsOfDirectory(atPath: url.deletingLastPathComponent().path) else { return nil }
+        let installed = apps.jetBrainsIDEs().filter { $0.product == product }
+        guard installed.allSatisfy({ $0.version != nil && $0.version != version }) else { return nil }
         let newer = siblings.contains { name in
             guard let other = jetBrainsVersion(name), other.product == product else { return false }
             return version.lexicographicallyPrecedes(other.version)
         }
         return newer ? RuleOwner(name: ide.name, executables: [ide.executable]) : nil
     }
-    static let jetBrains = CleanupRule(id: "jetbrains-caches", category: .developer, title: "Old JetBrains IDE caches",
-                                       detail: "Caches and indexes of older IDE versions. The newest version of each IDE is kept.",
-                                       consequence: "Permanently removed, with that version’s local history. Newer versions keep their own caches and history.",
-                                       regen: .cache, action: .delete, locations: ["Library/Caches/JetBrains/*"], owner: nil,
-                                       itemOwner: jetBrainsOwner, protectedDepth: AppCaches.liveWorkDepth)
+    static func jetBrains(apps: any AppLookup) -> CleanupRule {
+        CleanupRule(id: "jetbrains-caches", category: .developer, title: "Old JetBrains IDE caches",
+                    detail: "Caches and indexes of older IDE versions. The versions you have installed, and the newest of each IDE, are kept.",
+                    consequence: "Permanently removed, with that version’s local history. Newer versions keep their own caches and history.",
+                    regen: .cache, action: .delete, locations: ["Library/Caches/JetBrains/*"], owner: nil,
+                    itemOwner: { jetBrainsOwner($0, apps: apps) }, protectedDepth: AppCaches.liveWorkDepth)
+    }
 
     // MARK: Adobe
 
@@ -116,7 +138,7 @@ public enum AppDataCaches {
 
     public static func rules(apps: any AppLookup) -> [CleanupRule] {
         [
-            jetBrains,
+            jetBrains(apps: apps),
             adobeMediaCache,
             abletonCache,
             sandboxedCaches(apps: apps),

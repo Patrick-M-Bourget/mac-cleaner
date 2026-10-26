@@ -17,8 +17,10 @@ private func write(_ home: URL, _ relative: String, bytes: Int = 100) throws {
 /// Installed apps as LaunchServices would report them; the real Mac's apps are never consulted.
 private struct Apps: AppLookup {
     var installed: [InstalledApp] = []
+    var jetBrains: [JetBrainsInstall] = []
     func app(bundleID: String) -> InstalledApp? { installed.first { $0.bundleID == bundleID } }
     func app(updaterCacheDirName name: String) -> InstalledApp? { nil }
+    func jetBrainsIDEs() -> [JetBrainsInstall] { jetBrains }
 }
 
 /// Which apps and processes are "running" in a test.
@@ -98,6 +100,53 @@ private func found(_ catalog: Catalog, _ home: URL, access: FullDiskAccessStatus
     #expect(rule.category == .developer && rule.action == .delete)
     let names = Set(catalog.discover(fixture: home).compactMap(\.appName))
     #expect(names == ["IntelliJ IDEA", "PyCharm"])
+}
+
+@Test func theCacheOfAnInstalledJetBrainsVersionIsNeverOfferedEvenWithANewerFolder() throws {
+    let home = try fixtureHome()
+    defer { try? FileManager.default.removeItem(at: home) }
+    let jetbrains = "Library/Caches/JetBrains/"
+    // 2025.1 is left over from an EAP; the installed IDE is 2024.2.
+    for folder in ["IntelliJIdea2023.3", "IntelliJIdea2024.2", "IntelliJIdea2025.1"] { try write(home, jetbrains + folder + "/caches/content.dat") }
+    let catalog = Catalog(rules: BuiltInCatalog.rules(apps: Apps(jetBrains: [JetBrainsInstall(product: "IntelliJIdea", version: [2024, 2])])))
+    #expect(found(catalog, home) == [jetbrains + "IntelliJIdea2023.3": "jetbrains-caches"])
+}
+
+@Test func aJetBrainsIDEWhoseInstalledVersionIsUnknownOffersNothing() throws {
+    let home = try fixtureHome()
+    defer { try? FileManager.default.removeItem(at: home) }
+    let jetbrains = "Library/Caches/JetBrains/"
+    for folder in ["PyCharm2023.1", "PyCharm2024.1", "GoLand2023.1", "GoLand2024.1"] { try write(home, jetbrains + folder + "/caches/content.dat") }
+    let catalog = Catalog(rules: BuiltInCatalog.rules(apps: Apps(jetBrains: [JetBrainsInstall(product: "PyCharm", version: nil)])))
+    #expect(found(catalog, home) == [jetbrains + "GoLand2023.1": "jetbrains-caches"])
+}
+
+@Test func anInstalledJetBrainsIDEsVersionIsReadFromItsAppBundle() throws {
+    let home = try fixtureHome()
+    defer { try? FileManager.default.removeItem(at: home) }
+    func plist(_ values: [String: String]) throws -> Data { try PropertyListSerialization.data(fromPropertyList: values, format: .xml, options: 0) }
+    // product-info.json names the folder the IDE uses.
+    try write(home, "IntelliJ IDEA.app/Contents/Info.plist")
+    try Data(#"{"name": "IntelliJ IDEA", "dataDirectoryName": "IntelliJIdea2025.2"}"#.utf8)
+        .write(to: home.appendingPathComponent("IntelliJ IDEA.app/Contents/Resources/product-info.json").creatingParent())
+    #expect(SystemAppLookup.jetBrainsInstall(home.appendingPathComponent("IntelliJ IDEA.app")) == JetBrainsInstall(product: "IntelliJIdea", version: [2025, 2]))
+    // Without it, the bundle identifier and short version.
+    try plist(["CFBundleIdentifier": "com.jetbrains.pycharm-EAP", "CFBundleShortVersionString": "2025.3.1"])
+        .write(to: home.appendingPathComponent("PyCharm.app/Contents/Info.plist").creatingParent())
+    #expect(SystemAppLookup.jetBrainsInstall(home.appendingPathComponent("PyCharm.app")) == JetBrainsInstall(product: "PyCharm", version: [2025, 3]))
+    try plist(["CFBundleIdentifier": "com.jetbrains.goland", "CFBundleShortVersionString": "unknown"])
+        .write(to: home.appendingPathComponent("GoLand.app/Contents/Info.plist").creatingParent())
+    #expect(SystemAppLookup.jetBrainsInstall(home.appendingPathComponent("GoLand.app")) == JetBrainsInstall(product: "GoLand", version: nil))
+    try plist(["CFBundleIdentifier": "com.example.editor", "CFBundleShortVersionString": "2025.1"])
+        .write(to: home.appendingPathComponent("Editor.app/Contents/Info.plist").creatingParent())
+    #expect(SystemAppLookup.jetBrainsInstall(home.appendingPathComponent("Editor.app")) == nil)
+}
+
+private extension URL {
+    func creatingParent() throws -> URL {
+        try FileManager.default.createDirectory(at: deletingLastPathComponent(), withIntermediateDirectories: true)
+        return self
+    }
 }
 
 @Test func anOldJetBrainsCacheIsRefusedWhileThatIDERuns() throws {
