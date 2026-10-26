@@ -105,3 +105,56 @@ private struct Processes: RunningAppChecking {
     // 18.1 and 17.5 stay for iOS, 10.0 and 9.6 for watchOS; a name without a version is never offered.
     #expect(Set(found.map(\.url.lastPathComponent)) == ["16.4 (20E247)", "17.0 (21A329)", "iPhone15,2 17.0.1 (21A340)", "Watch6,1 9.1 (20S75)"])
 }
+
+/// A stand-in simctl inside the fixture; tests never run the real one.
+private func fakeSimctl(_ home: URL, _ script: String) throws -> URL {
+    let tool = home.appendingPathComponent("tools/simctl")
+    try FileManager.default.createDirectory(at: tool.deletingLastPathComponent(), withIntermediateDirectories: true)
+    try ("#!/bin/sh\n" + script + "\n").write(to: tool, atomically: true, encoding: .utf8)
+    try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: tool.path)
+    return tool
+}
+private struct NothingRunning: RunningAppChecking { func isRunning(_ owner: RuleOwner) -> Bool? { false } }
+private let devices = "Library/Developer/CoreSimulator/Devices"
+
+@Test func unavailableSimulatorsAreOfferedOnlyWithSimctlAndTheirSizeIsUnknown() throws {
+    let home = try fixtureHome()
+    defer { try? FileManager.default.removeItem(at: home) }
+    let catalog = Catalog(rules: BuiltInCatalog.rules)
+    let simctl = try fakeSimctl(home, "exit 0")
+    try makeFolder(home, devices + "/0A1B2C3D-0000-0000-0000-000000000000/data", bytes: 5000)
+    #expect(catalog.discover(home: home, locateTool: { _ in nil }).isEmpty)
+    let candidate = try #require(catalog.discover(home: home, locateTool: { _ in simctl }).first)
+    #expect(candidate.ruleID == "xcode-simulators")
+    #expect(candidate.action == .tool)
+    // simctl removes only the unavailable devices, so the folder's total isn't what it frees.
+    #expect(SizeEstimate(candidate) == .unknown)
+    let tool = try #require(catalog.rule("xcode-simulators")?.tool)
+    #expect(tool.commandLine == "simctl delete unavailable")
+    #expect(tool.deletesLocationAfter == false)
+}
+
+@Test func simulatorCleanupRunsThroughTheToolActionAndReportsItsResult() async throws {
+    let home = try fixtureHome()
+    defer { try? FileManager.default.removeItem(at: home) }
+    try makeFolder(home, devices + "/0A1B2C3D-0000-0000-0000-000000000000/data")
+    let marker = home.appendingPathComponent("ran")
+    let simctl = try fakeSimctl(home, "echo \"$@\" > '\(marker.path)'\necho 'Deleted: iPhone 12 (0A1B2C3D)'")
+    let catalog = Catalog(rules: BuiltInCatalog.rules)
+    let candidate = try #require(catalog.discover(home: home, locateTool: { _ in simctl }).first)
+    let journal = try SQLiteCleanupJournal(url: home.appendingPathComponent("journal.sqlite"))
+    let check = CandidateCheck(catalog: catalog, running: NothingRunning())
+
+    let preview = await CleanupExecutor(journal: journal, check: check).execute(CatalogApproval(candidates: [candidate], previewOnly: true))
+    #expect(preview.records.first?.message.hasPrefix("Preview only: would run simctl delete unavailable") == true)
+    #expect(!FileManager.default.fileExists(atPath: marker.path))
+
+    let result = await CleanupExecutor(journal: journal, check: check).execute(CatalogApproval(candidates: [candidate], previewOnly: false))
+    let record = try #require(result.records.first)
+    #expect(record.state == .succeeded)
+    #expect(record.message == "Ran simctl delete unavailable")
+    #expect(record.toolOutput == "Deleted: iPhone 12 (0A1B2C3D)")
+    #expect(try String(contentsOf: marker, encoding: .utf8) == "delete unavailable\n")
+    // The tool decides what goes; Still never deletes the Devices folder itself.
+    #expect(FileManager.default.fileExists(atPath: home.appendingPathComponent(devices + "/0A1B2C3D-0000-0000-0000-000000000000/data/entry").path))
+}

@@ -135,6 +135,15 @@ public enum BuiltInCatalog {
                     regen: .build, action: .delete,
                     locations: ["iOS", "watchOS", "tvOS", "visionOS", "macOS"].map { "Library/Developer/Xcode/\($0) DeviceSupport/*" },
                     owner: xcode, keepNewestVersions: 2),
+        CleanupRule(id: "xcode-simulators", category: .developer, title: "Unavailable simulators",
+                    detail: "Simulator devices whose OS version is no longer installed, so they can’t run.",
+                    consequence: "Runs `simctl delete unavailable`. Only devices that can’t run are removed, with their apps and data; available simulators are not touched.",
+                    regen: .build, action: .tool, locations: ["Library/Developer/CoreSimulator/Devices"], owner: nil,
+                    // CoreSimulator's own simctl first: `xcrun` fails while xcode-select points at the Command Line Tools,
+                    // and Xcode's wrapper may run first-launch setup, which can ask for an admin password (Decision 4).
+                    tool: ToolCommand(executables: ["/Library/Developer/PrivateFrameworks/CoreSimulator.framework/Versions/A/Resources/bin/simctl",
+                                                    "/Applications/Xcode.app/Contents/Developer/usr/bin/simctl"],
+                                      arguments: ["delete", "unavailable"], timeout: 300)),
     ]
 
     /// Xcode and the build processes that write into DerivedData, including command-line builds.
@@ -184,7 +193,8 @@ public struct Catalog: Sendable {
                 var info = stat()
                 guard lstat(url.path, &info) == 0, info.st_uid == geteuid(),
                       [S_IFDIR, S_IFREG].contains(info.st_mode & S_IFMT) else { return nil }
-                let size = sizer.size(url)
+                // A tool that cleans only part of its folder frees an unknown amount; the folder's total would overstate it.
+                let size = rule.tool?.deletesLocationAfter == false ? ItemSize(logicalBytes: 0, allocatedBytes: nil, entries: 0, complete: false) : sizer.size(url)
                 let volume = try? url.resourceValues(forKeys: [.volumeUUIDStringKey]).volumeUUIDString
                 return Candidate(ruleID: rule.id, action: rule.action, url: url, resourceID: "\(info.st_dev):\(info.st_ino)",
                                  isDirectory: info.st_mode & S_IFMT == S_IFDIR, toolURL: toolURL, volumeID: volume,
