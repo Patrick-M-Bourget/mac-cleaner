@@ -127,7 +127,6 @@ import StillCore
     }
     func applicationDidFinishLaunching(_ notification: Notification) { AppLifecycleController.shared.applyAppearance() }
     func applicationDidBecomeActive(_ notification: Notification) {
-        AppLifecycleController.shared.refreshLogin()
         AppLifecycleController.shared.capacity.request(.foreground)
     }
 }
