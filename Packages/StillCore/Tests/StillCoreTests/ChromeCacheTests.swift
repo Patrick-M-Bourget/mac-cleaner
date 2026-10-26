@@ -253,7 +253,7 @@ private final class ChromeActivitySequence: ChromeCacheEnvironment, @unchecked S
 }
 
 
-@Test(.enabled(if: ProcessInfo.processInfo.environment["GITHUB_ACTIONS"] == "true" && ProcessInfo.processInfo.environment["RUNNER_ENVIRONMENT"] == "github-hosted"))
+@Test(.enabled(if: ProcessInfo.processInfo.environment["STILL_CHROME_PROCESS_PROBE"] == "1" && ProcessInfo.processInfo.environment["GITHUB_ACTIONS"] == "true" && ProcessInfo.processInfo.environment["RUNNER_ENVIRONMENT"] == "github-hosted"))
 func chromeNativeUnreapedExitedChildIsNotBrowserActivity() throws {
     // Hosted-only system boundary: no personal browser or process observation.
     // Swift forbids fork(); supported posix_spawn owns an immediate-exit child

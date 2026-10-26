@@ -1,0 +1,182 @@
+Building for debugging...
+[0/7] /Users/runner/work/mac-cleaner/mac-cleaner/Packages/StillCore/.build/arm64-apple-macosx/debug/StillCorePackageTests.derived/runner.swift
+[0/7] Write sources
+[4/7] Write swift-version-7974D3F7F03D5E95.txt
+[6/29] Emitting module StillCore
+[7/39] Compiling StillCore ManagedStorageGuidance.swift
+[8/39] Compiling StillCore PipInventory.swift
+[9/39] Compiling StillCore PlanDraft.swift
+[10/39] Compiling StillCore RefreshChoices.swift
+[11/39] Compiling StillCore RetryPlan.swift
+[12/39] Compiling StillCore SQLiteCleanupJournal.swift
+[13/39] Compiling StillCore ScanActivity.swift
+[14/39] Compiling StillCore ScanProgress.swift
+[15/39] Compiling StillCore ScopeRegistry.swift
+[16/39] Compiling StillCore TrashExecutor.swift
+[17/39] Compiling StillCore AppearancePreference.swift
+/Users/runner/work/mac-cleaner/mac-cleaner/Packages/StillCore/Sources/StillCore/ChromeCache.swift:78:24: warning: 'init(cString:)' is deprecated: Use String(decoding: array, as: UTF8.self) instead, after truncating the null termination. [#DeprecatedDeclaration]
+ 76 |                 continue
+ 77 |             }
+ 78 |             let path = String(cString: bytes)
+    |                        `- warning: 'init(cString:)' is deprecated: Use String(decoding: array, as: UTF8.self) instead, after truncating the null termination. [#DeprecatedDeclaration]
+ 79 |             if path.hasPrefix(bundleURL.path + "/") || path.hasSuffix("/Contents/MacOS/Google Chrome") || path.contains("/Google Chrome Framework.framework/") { return true }
+ 80 |         }
+
+[#DeprecatedDeclaration]: <https://docs.swift.org/compiler/documentation/diagnostics/deprecated-declaration>
+[18/39] Compiling StillCore BoundedTool.swift
+/Users/runner/work/mac-cleaner/mac-cleaner/Packages/StillCore/Sources/StillCore/ChromeCache.swift:78:24: warning: 'init(cString:)' is deprecated: Use String(decoding: array, as: UTF8.self) instead, after truncating the null termination. [#DeprecatedDeclaration]
+ 76 |                 continue
+ 77 |             }
+ 78 |             let path = String(cString: bytes)
+    |                        `- warning: 'init(cString:)' is deprecated: Use String(decoding: array, as: UTF8.self) instead, after truncating the null termination. [#DeprecatedDeclaration]
+ 79 |             if path.hasPrefix(bundleURL.path + "/") || path.hasSuffix("/Contents/MacOS/Google Chrome") || path.contains("/Google Chrome Framework.framework/") { return true }
+ 80 |         }
+
+[#DeprecatedDeclaration]: <https://docs.swift.org/compiler/documentation/diagnostics/deprecated-declaration>
+[19/39] Compiling StillCore CapacityRefresh.swift
+/Users/runner/work/mac-cleaner/mac-cleaner/Packages/StillCore/Sources/StillCore/ChromeCache.swift:78:24: warning: 'init(cString:)' is deprecated: Use String(decoding: array, as: UTF8.self) instead, after truncating the null termination. [#DeprecatedDeclaration]
+ 76 |                 continue
+ 77 |             }
+ 78 |             let path = String(cString: bytes)
+    |                        `- warning: 'init(cString:)' is deprecated: Use String(decoding: array, as: UTF8.self) instead, after truncating the null termination. [#DeprecatedDeclaration]
+ 79 |             if path.hasPrefix(bundleURL.path + "/") || path.hasSuffix("/Contents/MacOS/Google Chrome") || path.contains("/Google Chrome Framework.framework/") { return true }
+ 80 |         }
+
+[#DeprecatedDeclaration]: <https://docs.swift.org/compiler/documentation/diagnostics/deprecated-declaration>
+[20/39] Compiling StillCore ChromeCache.swift
+/Users/runner/work/mac-cleaner/mac-cleaner/Packages/StillCore/Sources/StillCore/ChromeCache.swift:78:24: warning: 'init(cString:)' is deprecated: Use String(decoding: array, as: UTF8.self) instead, after truncating the null termination. [#DeprecatedDeclaration]
+ 76 |                 continue
+ 77 |             }
+ 78 |             let path = String(cString: bytes)
+    |                        `- warning: 'init(cString:)' is deprecated: Use String(decoding: array, as: UTF8.self) instead, after truncating the null termination. [#DeprecatedDeclaration]
+ 79 |             if path.hasPrefix(bundleURL.path + "/") || path.hasSuffix("/Contents/MacOS/Google Chrome") || path.contains("/Google Chrome Framework.framework/") { return true }
+ 80 |         }
+
+[#DeprecatedDeclaration]: <https://docs.swift.org/compiler/documentation/diagnostics/deprecated-declaration>
+[21/39] Compiling StillCore ChromeCacheExecution.swift
+/Users/runner/work/mac-cleaner/mac-cleaner/Packages/StillCore/Sources/StillCore/ChromeCache.swift:78:24: warning: 'init(cString:)' is deprecated: Use String(decoding: array, as: UTF8.self) instead, after truncating the null termination. [#DeprecatedDeclaration]
+ 76 |                 continue
+ 77 |             }
+ 78 |             let path = String(cString: bytes)
+    |                        `- warning: 'init(cString:)' is deprecated: Use String(decoding: array, as: UTF8.self) instead, after truncating the null termination. [#DeprecatedDeclaration]
+ 79 |             if path.hasPrefix(bundleURL.path + "/") || path.hasSuffix("/Contents/MacOS/Google Chrome") || path.contains("/Google Chrome Framework.framework/") { return true }
+ 80 |         }
+
+[#DeprecatedDeclaration]: <https://docs.swift.org/compiler/documentation/diagnostics/deprecated-declaration>
+[22/39] Compiling StillCore ChromeCacheJournal.swift
+/Users/runner/work/mac-cleaner/mac-cleaner/Packages/StillCore/Sources/StillCore/ChromeCache.swift:78:24: warning: 'init(cString:)' is deprecated: Use String(decoding: array, as: UTF8.self) instead, after truncating the null termination. [#DeprecatedDeclaration]
+ 76 |                 continue
+ 77 |             }
+ 78 |             let path = String(cString: bytes)
+    |                        `- warning: 'init(cString:)' is deprecated: Use String(decoding: array, as: UTF8.self) instead, after truncating the null termination. [#DeprecatedDeclaration]
+ 79 |             if path.hasPrefix(bundleURL.path + "/") || path.hasSuffix("/Contents/MacOS/Google Chrome") || path.contains("/Google Chrome Framework.framework/") { return true }
+ 80 |         }
+
+[#DeprecatedDeclaration]: <https://docs.swift.org/compiler/documentation/diagnostics/deprecated-declaration>
+[23/39] Compiling StillCore CleanupHistory.swift
+/Users/runner/work/mac-cleaner/mac-cleaner/Packages/StillCore/Sources/StillCore/ChromeCache.swift:78:24: warning: 'init(cString:)' is deprecated: Use String(decoding: array, as: UTF8.self) instead, after truncating the null termination. [#DeprecatedDeclaration]
+ 76 |                 continue
+ 77 |             }
+ 78 |             let path = String(cString: bytes)
+    |                        `- warning: 'init(cString:)' is deprecated: Use String(decoding: array, as: UTF8.self) instead, after truncating the null termination. [#DeprecatedDeclaration]
+ 79 |             if path.hasPrefix(bundleURL.path + "/") || path.hasSuffix("/Contents/MacOS/Google Chrome") || path.contains("/Google Chrome Framework.framework/") { return true }
+ 80 |         }
+
+[#DeprecatedDeclaration]: <https://docs.swift.org/compiler/documentation/diagnostics/deprecated-declaration>
+[24/39] Compiling StillCore CleanupRecovery.swift
+/Users/runner/work/mac-cleaner/mac-cleaner/Packages/StillCore/Sources/StillCore/ChromeCache.swift:78:24: warning: 'init(cString:)' is deprecated: Use String(decoding: array, as: UTF8.self) instead, after truncating the null termination. [#DeprecatedDeclaration]
+ 76 |                 continue
+ 77 |             }
+ 78 |             let path = String(cString: bytes)
+    |                        `- warning: 'init(cString:)' is deprecated: Use String(decoding: array, as: UTF8.self) instead, after truncating the null termination. [#DeprecatedDeclaration]
+ 79 |             if path.hasPrefix(bundleURL.path + "/") || path.hasSuffix("/Contents/MacOS/Google Chrome") || path.contains("/Google Chrome Framework.framework/") { return true }
+ 80 |         }
+
+[#DeprecatedDeclaration]: <https://docs.swift.org/compiler/documentation/diagnostics/deprecated-declaration>
+[25/39] Compiling StillCore CloudInventory.swift
+/Users/runner/work/mac-cleaner/mac-cleaner/Packages/StillCore/Sources/StillCore/ChromeCache.swift:78:24: warning: 'init(cString:)' is deprecated: Use String(decoding: array, as: UTF8.self) instead, after truncating the null termination. [#DeprecatedDeclaration]
+ 76 |                 continue
+ 77 |             }
+ 78 |             let path = String(cString: bytes)
+    |                        `- warning: 'init(cString:)' is deprecated: Use String(decoding: array, as: UTF8.self) instead, after truncating the null termination. [#DeprecatedDeclaration]
+ 79 |             if path.hasPrefix(bundleURL.path + "/") || path.hasSuffix("/Contents/MacOS/Google Chrome") || path.contains("/Google Chrome Framework.framework/") { return true }
+ 80 |         }
+
+[#DeprecatedDeclaration]: <https://docs.swift.org/compiler/documentation/diagnostics/deprecated-declaration>
+[26/39] Compiling StillCore Diagnostics.swift
+/Users/runner/work/mac-cleaner/mac-cleaner/Packages/StillCore/Sources/StillCore/ChromeCache.swift:78:24: warning: 'init(cString:)' is deprecated: Use String(decoding: array, as: UTF8.self) instead, after truncating the null termination. [#DeprecatedDeclaration]
+ 76 |                 continue
+ 77 |             }
+ 78 |             let path = String(cString: bytes)
+    |                        `- warning: 'init(cString:)' is deprecated: Use String(decoding: array, as: UTF8.self) instead, after truncating the null termination. [#DeprecatedDeclaration]
+ 79 |             if path.hasPrefix(bundleURL.path + "/") || path.hasSuffix("/Contents/MacOS/Google Chrome") || path.contains("/Google Chrome Framework.framework/") { return true }
+ 80 |         }
+
+[#DeprecatedDeclaration]: <https://docs.swift.org/compiler/documentation/diagnostics/deprecated-declaration>
+[27/39] Compiling StillCore DockerInventory.swift
+/Users/runner/work/mac-cleaner/mac-cleaner/Packages/StillCore/Sources/StillCore/ChromeCache.swift:78:24: warning: 'init(cString:)' is deprecated: Use String(decoding: array, as: UTF8.self) instead, after truncating the null termination. [#DeprecatedDeclaration]
+ 76 |                 continue
+ 77 |             }
+ 78 |             let path = String(cString: bytes)
+    |                        `- warning: 'init(cString:)' is deprecated: Use String(decoding: array, as: UTF8.self) instead, after truncating the null termination. [#DeprecatedDeclaration]
+ 79 |             if path.hasPrefix(bundleURL.path + "/") || path.hasSuffix("/Contents/MacOS/Google Chrome") || path.contains("/Google Chrome Framework.framework/") { return true }
+ 80 |         }
+
+[#DeprecatedDeclaration]: <https://docs.swift.org/compiler/documentation/diagnostics/deprecated-declaration>
+[28/39] Compiling StillCore Exclusions.swift
+[29/39] Compiling StillCore FolderScanner.swift
+[30/39] Compiling StillCore GrowthHistory.swift
+[31/39] Compiling StillCore GrowthHistorySession.swift
+[32/39] Compiling StillCore GrowthScanRecorder.swift
+[33/39] Compiling StillCore HistoryLoadCoordinator.swift
+[34/39] Compiling StillCore HomebrewCacheInventory.swift
+[35/39] Compiling StillCore HomebrewPreview.swift
+[36/39] Compiling StillCore InspectionSession.swift
+[37/39] Compiling StillCore ManagedStorage.swift
+[38/59] Compiling StillCoreTests ExclusionTests.swift
+[39/59] Compiling StillCoreTests FolderScannerTests.swift
+[40/59] Compiling StillCoreTests GrowthHistoryTests.swift
+[41/59] Compiling StillCoreTests GrowthReviewTests.swift
+[42/59] Compiling StillCoreTests HistoryMaintenanceTests.swift
+[43/59] Compiling StillCoreTests HomebrewTests.swift
+[44/59] Compiling StillCoreTests ManagedStorageTests.swift
+[45/59] Compiling StillCoreTests PipInventoryTests.swift
+[46/59] Compiling StillCoreTests PlanDraftTests.swift
+[47/68] Emitting module StillCoreTests
+[48/68] Compiling StillCoreTests AppearancePreferenceTests.swift
+[49/68] Compiling StillCoreTests CapacityRefreshTests.swift
+[50/68] Compiling StillCoreTests ChromeCacheTests.swift
+[51/68] Compiling StillCoreTests CleanupHistoryTests.swift
+[52/68] Compiling StillCoreTests CleanupRecoveryTests.swift
+[53/68] Compiling StillCoreTests CleanupReviewTests.swift
+[54/68] Compiling StillCoreTests CloudInventoryTests.swift
+[55/68] Compiling StillCoreTests DiagnosticsTests.swift
+[56/68] Compiling StillCoreTests DirectoryStabilityTests.swift
+[57/68] Compiling StillCoreTests DockerInventoryTests.swift
+[58/68] Compiling StillCoreTests RefreshTests.swift
+[59/68] Compiling StillCoreTests RetryPlanTests.swift
+[60/68] Compiling StillCoreTests ScanActivityTests.swift
+[61/68] Compiling StillCoreTests ScanProgressTests.swift
+[62/68] Compiling StillCoreTests ScannerPathAliasTests.swift
+[63/68] Compiling StillCoreTests ScopeRebindingTests.swift
+[64/68] Compiling StillCoreTests ScopeRegistryTests.swift
+[65/68] Compiling StillCoreTests TrashExecutorTests.swift
+[66/68] Compiling StillCoreTests WhatGrewFlowTests.swift
+[67/70] Compiling StillCorePackageTests runner.swift
+[68/70] Emitting module StillCorePackageTests
+[68/70] Write Objects.LinkFileList
+[69/70] Linking StillCorePackageTests
+Build complete! (29.61s)
+Test Suite 'Selected tests' started at 2026-10-26 04:14:08.161.
+Test Suite 'StillCorePackageTests.xctest' started at 2026-10-26 04:14:08.165.
+Test Suite 'StillCorePackageTests.xctest' passed at 2026-10-26 04:14:08.165.
+	 Executed 0 tests, with 0 failures (0 unexpected) in 0.000 (0.000) seconds
+Test Suite 'Selected tests' passed at 2026-10-26 04:14:08.165.
+	 Executed 0 tests, with 0 failures (0 unexpected) in 0.000 (0.004) seconds
+◇ Test run started.
+↳ Testing Library Version: 1902
+↳ Target Platform: arm64e-apple-macos14.0
+◇ Test chromeNativeUnreapedExitedChildIsNotBrowserActivity() started.
+DISPOSABLE_CHILD_OBSERVATION pid=7740 waitPID=7740 exitCode=1 procInfoResult=0 expectedInfoSize=136 parent=0 uid=0 state=0 pathLookupResult=0
+✔ Test chromeNativeUnreapedExitedChildIsNotBrowserActivity() passed after 0.099 seconds.
+✔ Test run with 1 test in 0 suites passed after 0.099 seconds.

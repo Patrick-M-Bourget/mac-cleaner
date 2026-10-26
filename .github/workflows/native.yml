@@ -765,6 +765,8 @@ jobs:
         with:
           xcode-version: '26.6'
       - name: Observe only the controlled exited child at the public native process boundary
+        env:
+          STILL_CHROME_PROCESS_PROBE: '1'
         run: |
           set -o pipefail
           xcrun swift test --package-path Packages/StillCore --filter chromeNativeUnreapedExitedChildIsNotBrowserActivity 2>&1 | tee "$RUNNER_TEMP/chrome-native-process.log"
