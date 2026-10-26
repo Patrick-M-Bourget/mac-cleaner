@@ -117,7 +117,7 @@ Phase 0 → 1 → 2 → Tier A (2–3 sessions) → Overview/onboarding → Tier
 5. The prototype (full mode) is the UI authority again, plus one short SPEC.md for behavior.
 6. Tag main as `archive/codex-era`, then delete the control docs, validation reports and PNGs from main. Keep the prototype, PRD and field note.
 7. **M1 done when:** on the user's Mac the app finds the field-scan categories (Chrome code-sign clones, developer caches, updater downloads, Xcode, browser caches, models/VM images, old Downloads), cleans what the user picks, and the freed space it reports matches `df`.
-8. A dry-run switch is used for the first real passes. Tests only touch temp fixtures.
+8. A dry-run switch is used for the first real passes. Tests only touch temp fixtures. *Superseded by 26.*
 9. Codex's protected-data lists (Chrome logins/cookies/history/profiles; Xcode source/archives/dSYMs/products) become catalog "protected" rules. Their version gates are dropped.
 10. CI becomes one PR job (unit tests + app build). L3 approved.
 11. Export the Codex stashes as patches and back up its notes. The user deletes the Codex cache. Close the 25 open issues as superseded and open new ones from this plan.
@@ -125,7 +125,7 @@ Phase 0 → 1 → 2 → Tier A (2–3 sessions) → Overview/onboarding → Tier
 13. iCloud is inventory only in M1; eviction comes right after.
 14. Workflow: push branch → PR → CI → user smoke-tests → Claude merges.
 15. Delete the 14 Codex-era UI test files and replace them with about 5 smoke journeys. Adapt the unit tests.
-16. The dry run is a visible "Preview only (don't change anything)" setting, on by default in M1 builds.
+16. The dry run is a visible "Preview only (don't change anything)" setting, on by default in M1 builds. *Superseded by 26.*
 17. "Matches `df`" means within 10% or 1 GB (whichever is larger) of the `df` change measured around the whole run.
 18. "Old": Downloads installers at any age; other Downloads files at 500 MB or more and not opened in 90 days. iOS DeviceSupport keeps the 2 newest versions per platform.
 19. Ollama models are removed with `ollama rm` (tool action), an exception to Decision 3. Hugging Face models still go to Trash.
@@ -135,7 +135,7 @@ Phase 0 → 1 → 2 → Tier A (2–3 sessions) → Overview/onboarding → Tier
 23. The pnpm store is cleaned with `pnpm store prune` (tool action), never deleted: with pnpm's global virtual store, projects link into it. pnpm's metadata cache is still deleted.
 24. The large and old files explorer lists files of 500 MB or more OR not opened in 90 days (you choose each file); Downloads keeps AND (Decision 18).
 25. **Calm design pass (2026-10-26).** Still should feel simple and elegant, not overbearing. Rules for every screen:
-    - one explanation per screen: no toolbar subtitles and no bottom-bar footnotes, except notes that report state such as Preview only;
+    - one explanation per screen: no toolbar subtitles and no bottom-bar footnotes, except notes that report state, such as a running cleanup;
     - no long paths in rows: name plus a short location, full path in the inspector or a tooltip;
     - one short line of detail per row; consequences appear once, in the review sheet;
     - the cleanup plan groups rules by catalog category, matching Overview, with "Choose items" inside;
@@ -149,3 +149,4 @@ Phase 0 → 1 → 2 → Tier A (2–3 sessions) → Overview/onboarding → Tier
     - Full Disk Access is one settings row;
     - appearance follows the system, with an override in a Settings window;
     - What grew keeps only its retention footnote.
+26. **One-button cleanup (2026-10-26, #136; supersedes 8 and 16).** The review sheet is the preview: it lists exactly what will happen, and its one **Clean up** button runs it for real. Preview only is no longer a mode in the plan. "Dry run (nothing changes)" is a switch in the Settings window, off by default, for testing; with it on, the whole flow runs and nothing changes. Tests still touch only temp fixtures; UI journeys that assert nothing changed turn the dry run on.

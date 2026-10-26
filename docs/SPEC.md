@@ -83,7 +83,8 @@ An item that fails any check is skipped, and the results say which check failed.
 
 ## 5. Dry-run switch
 
-- A visible setting, **Preview only (don't change anything)**. It's on by default in M1 builds; the user turns it off after the first pass (Decision 8). Whether it stays visible in a shareable build is decided later.
+- The review sheet is the preview: it lists exactly what will happen, and **Clean up** runs it for real (Decision 26). The plan has no preview mode.
+- The dry run is a switch in the Settings window, **Dry run (nothing changes)**, off by default and meant for testing. While it's on, the review sheet says so in one line.
 - With dry run on, the whole flow runs as normal: scan, plan, review, confirm, per-item checks, results.
 - Instead of acting, Still logs each action it would take (item, action, size, check outcome) and changes nothing on disk. Tool actions are not run; the command is logged.
 - Results make clear it was a dry run. No freed space is reported, because none was freed.
