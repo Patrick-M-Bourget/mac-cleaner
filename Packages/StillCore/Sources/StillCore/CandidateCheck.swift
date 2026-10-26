@@ -80,14 +80,17 @@ public struct CandidateCheck: Sendable {
     public func check(_ candidate: Candidate) -> CheckRefusal? {
         guard let rule = catalog.rule(candidate.ruleID),
               rule.action == candidate.action || (candidate.isLeftover && rule.deletesItems && candidate.action == .delete) else { return .changed }
+        let ownership = Catalog.ownership(of: candidate.url, under: rule)
+        switch ownership {
         // An item whose own owner can't be found any more (the app was removed) is refused, never guessed.
-        if rule.itemOwner != nil, !candidate.isLeftover, catalog.owner(for: candidate) == nil { return .ownerUnknown(candidate.url.lastPathComponent) }
-        if let owner = catalog.owner(for: candidate) {
+        case .unknown: return .ownerUnknown(candidate.url.lastPathComponent)
+        case .mustBeClosed(let owner):
             switch running.isRunning(owner) {
             case nil: return .ownerUnknown(owner.name)
             case true?: return .ownerRunning(owner.name)
             case false?: break
             }
+        case .mustNotUse, .none: break
         }
         let path = candidate.url.path
         var info = stat()
@@ -102,9 +105,9 @@ public struct CandidateCheck: Sendable {
             guard Int64(info.st_size) == candidate.fileBytes ?? candidate.logicalBytes, Int64(info.st_mtimespec.tv_sec) == candidate.modifiedSeconds,
                   Int64(info.st_mtimespec.tv_nsec) == candidate.modifiedNanoseconds else { return .changed }
         }
-        if let copies = rule.copies {
-            guard let used = inUse.inUse([candidate.url], by: copies.owner) else { return .inUseUnknown(copies.owner.name) }
-            if !used.isEmpty { return .inUse(copies.owner.name) }
+        if case .mustNotUse(let owner) = ownership {
+            guard let used = inUse.inUse([candidate.url], by: owner) else { return .inUseUnknown(owner.name) }
+            if !used.isEmpty { return .inUse(owner.name) }
         }
         guard info.st_uid == geteuid(),
               info.st_flags & UInt32(UF_IMMUTABLE | SF_IMMUTABLE | UF_APPEND | SF_APPEND) == 0,

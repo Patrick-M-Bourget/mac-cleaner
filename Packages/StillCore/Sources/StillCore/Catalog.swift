@@ -287,10 +287,30 @@ public struct Catalog: Sendable {
     public init(rules: [CleanupRule]) { self.rules = rules }
     public func rule(_ id: String) -> CleanupRule? { rules.first { $0.id == id } }
     /// Who must be closed before the candidate is touched: the rule's owner, or the item's own when it has one.
-    /// A leftover from an earlier delete has no owner to close: no app uses a folder renamed aside.
     public func owner(for candidate: Candidate) -> RuleOwner? {
-        guard let rule = rule(candidate.ruleID), !candidate.isLeftover else { return nil }
-        return rule.itemOwner.map { $0(candidate.url) } ?? rule.owner
+        guard let rule = rule(candidate.ruleID), case .mustBeClosed(let owner) = Self.ownership(of: candidate.url, under: rule) else { return nil }
+        return owner
+    }
+
+    /// Whose processes guard an item, and how.
+    enum Ownership {
+        /// Must be closed before the item is touched.
+        case mustBeClosed(RuleOwner)
+        /// May keep running but must not be using the item: the app a leaked copy is of.
+        case mustNotUse(RuleOwner)
+        /// The item's own owner can't be determined. Such an item is never offered, and refused.
+        case unknown
+        /// Nothing guards it.
+        case none
+    }
+    /// The one place an item's owner is resolved, from the rule's `owner`, `itemOwner` and `copies.owner`.
+    /// A leftover from an earlier delete has no owner to close, since no app uses a folder renamed aside,
+    /// but a leaked copy's app may still have one open.
+    static func ownership(of url: URL, under rule: CleanupRule) -> Ownership {
+        if let copies = rule.copies { return .mustNotUse(copies.owner) }
+        if Catalog.isLeftover(url.lastPathComponent, of: rule.id) { return .none }
+        if let itemOwner = rule.itemOwner { return itemOwner(url).map(Ownership.mustBeClosed) ?? .unknown }
+        return rule.owner.map(Ownership.mustBeClosed) ?? .none
     }
     /// Load-bearing caches that are never offered, whatever a rule says (spec section 2).
     public static let neverOffered: Set<String> = ["ccache", ".ccache", "sccache"]
@@ -339,9 +359,10 @@ public struct Catalog: Sendable {
                 // Folders holding live work (a git checkout, protected data) are left out of the plan; the check refuses them either way.
                 if info.st_mode & S_IFMT == S_IFDIR, CandidateCheck.protectedEntry(in: url, rule: rule) != nil { return [] }
                 var profile = profile
-                if let itemOwner = rule.itemOwner {
-                    guard let owner = itemOwner(url) else { return [] }
-                    profile = owner.name
+                switch Self.ownership(of: url, under: rule) {
+                case .unknown: return []
+                case .mustBeClosed(let owner) where rule.itemOwner != nil: profile = owner.name
+                default: break
                 }
                 // A tool that cleans only part of its folder frees an unknown amount; the folder's total would overstate it.
                 let size = rule.tool?.deletesLocationAfter == false ? ItemSize(logicalBytes: 0, allocatedBytes: nil, entries: 0, complete: false) : sizer.size(url)
