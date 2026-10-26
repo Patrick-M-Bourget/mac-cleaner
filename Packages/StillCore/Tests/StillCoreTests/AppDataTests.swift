@@ -204,3 +204,72 @@ private let editor = InstalledApp(name: "Editor", bundleID: "com.example.Editor"
     let rule = try #require(catalog.rule("rack-extensions"))
     #expect(rule.category == .managed && rule.action == .guidance && rule.guidance?.openTitle == "Open in Finder")
 }
+
+// MARK: Audio production (#139)
+
+@Test func abletonsDecodingCacheIsOfferedAndRefusedWhileLiveRuns() throws {
+    let home = try fixtureHome()
+    defer { try? FileManager.default.removeItem(at: home) }
+    try write(home, "Library/Caches/Ableton/Cache/Decoding/loop.mp3.wav", bytes: 8_192)
+    // The User Library and Packs are the user's content, never a cache.
+    for kept in ["Music/Ableton/User Library/Presets/a.adv", "Music/Ableton/Factory Packs/Core Library/b.wav"] { try write(home, kept) }
+    let catalog = Catalog(rules: fixtureRules)
+    #expect(found(catalog, home) == ["Library/Caches/Ableton/Cache": "ableton-cache"])
+    let rule = try #require(catalog.rule("ableton-cache"))
+    #expect(rule.action == .delete && rule.regen == .cache)
+    let cache = try #require(catalog.discover(fixture: home).first)
+    #expect(CandidateCheck(catalog: catalog, running: Running(bundleIDs: ["com.ableton.live"])).check(cache) == .ownerRunning("Ableton Live"))
+    #expect(CandidateCheck(catalog: catalog, running: Running(processes: [["/Applications/Ableton Live 12 Suite.app/Contents/MacOS/Live"]])).check(cache) == .ownerRunning("Ableton Live"))
+    #expect(CandidateCheck(catalog: catalog, running: Running()).check(cache) == nil)
+}
+
+@Test func soundLibrariesPacksAndSamplesAreGuidanceThatOpensTheirOwnManager() async throws {
+    let home = try fixtureHome()
+    defer { try? FileManager.default.removeItem(at: home) }
+    // The fixture home stands in for the system root, so `/Library/...` is read here too.
+    try write(home, "Library/Application Support/Logic/Alchemy Samples/a.wav", bytes: 8_192)
+    try write(home, "Library/Audio/Apple Loops/Apple/01 Hip Hop/b.caf", bytes: 4_096)
+    try write(home, "Library/Audio/Apple Loops/User Loops/SingleFiles/c.aif", bytes: 2_048)
+    try write(home, "Music/Ableton/Factory Packs/Core Library/d.wav", bytes: 4_096)
+    try write(home, "Splice/sounds/packs/Drums/e.wav", bytes: 4_096)
+    let catalog = Catalog(rules: fixtureRules)
+    // Libraries and content are never offered for deletion.
+    #expect(catalog.discover(fixture: home).isEmpty)
+    let findings = catalog.guidance(fixture: home)
+    let expected: [(id: String, bytes: Int64, folder: String, app: String, place: String)] = [
+        ("logic-sound-library", 14_336, "Library/Application Support/Logic", "com.apple.logic10", "Logic Pro"),
+        ("ableton-packs", 4_096, "Music/Ableton/Factory Packs", "com.ableton.live", "Ableton Live"),
+        ("splice-samples", 4_096, "Splice", "com.splice.Splice", "Splice"),
+    ]
+    for item in expected {
+        let finding = try #require(findings.first { $0.ruleID == item.id })
+        guard case .estimate(.measured(let bytes)) = finding.size else { Issue.record("Expected a measured size for \(item.id), got \(finding.size)"); continue }
+        #expect(bytes >= item.bytes)
+        #expect(finding.folder?.path == home.appendingPathComponent(item.folder).path)
+        let rule = try #require(catalog.rule(item.id))
+        #expect(rule.category == .managed && rule.action == .guidance && rule.guidance?.openTitle == "Open " + item.place)
+        #expect(catalog.target(for: finding) == .app(bundleID: item.app))
+    }
+}
+
+/// Opens folders only, as on a Mac where the managing app isn't installed; records what it was asked to open.
+private actor NoAppsInstalled: GuidanceOpening {
+    private(set) var targets: [GuidanceTarget] = []
+    func open(_ target: GuidanceTarget) async -> Bool {
+        targets.append(target)
+        if case .folder = target { return true }
+        return false
+    }
+}
+
+@Test func withoutItsManagingAppGuidanceRevealsTheFolderInFinder() async throws {
+    let home = try fixtureHome()
+    defer { try? FileManager.default.removeItem(at: home) }
+    // GarageBand alone: Logic Pro, whose Sound Library Manager the row opens, isn't installed.
+    try write(home, "Library/Audio/Apple Loops/Apple/Apple Loops for GarageBand/a.caf", bytes: 4_096)
+    let catalog = Catalog(rules: fixtureRules)
+    let finding = try #require(catalog.guidance(fixture: home).first { $0.ruleID == "logic-sound-library" })
+    let opener = NoAppsInstalled()
+    #expect(await catalog.open(finding, using: opener))
+    #expect(await opener.targets == [.app(bundleID: "com.apple.logic10"), .folder(home.appendingPathComponent("Library/Audio/Apple Loops/Apple"))])
+}

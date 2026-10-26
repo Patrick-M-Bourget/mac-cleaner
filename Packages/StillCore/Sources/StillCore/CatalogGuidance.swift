@@ -50,10 +50,13 @@ extension Catalog {
         }
     }
 
-    /// Opens where the finding is managed. False when there is nowhere to go or it didn't open.
+    /// Opens where the finding is managed. When its app doesn't open, usually because it isn't installed (GarageBand
+    /// without Logic Pro), the folder is revealed in Finder instead (#139). False when there is nowhere to go or it didn't open.
     public func open(_ finding: GuidanceFinding, using opener: any GuidanceOpening) async -> Bool {
         guard let target = target(for: finding) else { return false }
-        return await opener.open(target)
+        if await opener.open(target) { return true }
+        guard case .app = target, let folder = finding.folder else { return false }
+        return await opener.open(.folder(folder))
     }
 
     /// A folder must list its entries to be sized; macOS privacy protection (TCC) refuses that without Full Disk Access.
