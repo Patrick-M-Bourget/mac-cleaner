@@ -17,7 +17,7 @@ extension Catalog {
     func leftovers(of rule: CleanupRule, in base: URL, sizer: KnownLocationSizer) -> [Candidate] {
         guard rule.deletesItems else { return [] }
         let folders = Set(rule.locations.flatMap { location in
-            Self.expand(base, rule.copies != nil ? location : (location as NSString).deletingLastPathComponent).map(\.0)
+            Self.pathsMatching(rule.copies != nil ? location : (location as NSString).deletingLastPathComponent, under: base).map(\.0)
         })
         return folders.sorted { $0.path < $1.path }.flatMap { folder in
             ((try? FileManager.default.contentsOfDirectory(atPath: folder.path)) ?? []).sorted().filter { Self.isLeftover($0, of: rule.id) }.compactMap { name -> Candidate? in

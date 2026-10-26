@@ -25,7 +25,7 @@ public enum LayoutOverride: Sendable {
         }
         let resolved = file.replacingOccurrences(of: "$USER", with: NSUserName())
         let isSystem = resolved.hasPrefix("/")
-        let urls = Catalog.expand(isSystem ? systemRoot : home.resolvingSymlinksInPath(), String(resolved.drop { $0 == "/" })).map(\.0)
+        let urls = Catalog.pathsMatching(String(resolved.drop { $0 == "/" }), under: isSystem ? systemRoot : home.resolvingSymlinksInPath()).map(\.0)
         // Settings files are small; a huge one is not a settings file.
         return urls.contains { url in
             guard let size = try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize, size <= 5_000_000,

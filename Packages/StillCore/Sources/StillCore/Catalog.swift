@@ -341,8 +341,8 @@ public struct Catalog: Sendable {
             let found = rule.locations.flatMap { location -> [(URL, String?)] in
                 // A pattern as the last component (`models--*`) also offers each matching folder.
                 (location as NSString).lastPathComponent.contains("*")
-                    ? Self.expand(location, in: base, keepNewestVersions: rule.keepNewestVersions).map { (base.appendingPathComponent($0), nil) }
-                    : Self.expand(base, location).map { ($0.0, $0.1.isEmpty ? nil : $0.1.joined(separator: "/")) }
+                    ? Self.childFolders(of: location, in: base, keepNewestVersions: rule.keepNewestVersions).map { (base.appendingPathComponent($0), nil) }
+                    : Self.pathsMatching(location, under: base).map { ($0.0, $0.1.isEmpty ? nil : $0.1.joined(separator: "/")) }
             }.flatMap { url, profile -> [Candidate] in
                 guard Protection(rule).protectedComponent(of: url, below: base) == nil, ScopeContainment.contains(url, in: base) else { return [] }
                 if let copies = rule.copies {
@@ -392,7 +392,7 @@ public struct Catalog: Sendable {
                 let shared = min(pattern.count, parts.count)
                 guard zip(pattern.prefix(shared), parts.prefix(shared)).allSatisfy({ fnmatch($0, $1, 0) == 0 }) else { return false }
                 if pattern.count <= parts.count { return true }
-                return Self.expand(url, pattern.dropFirst(shared).joined(separator: "/")).contains { found, _ in
+                return Self.pathsMatching(pattern.dropFirst(shared).joined(separator: "/"), under: url).contains { found, _ in
                     var info = stat()
                     return lstat(found.path, &info) == 0
                 }
@@ -412,7 +412,7 @@ public struct Catalog: Sendable {
     /// The paths a location names under `base`. A `*` component matches each visible folder at that level, and a
     /// component such as `*.ShipIt` each visible folder whose name matches it
     /// (a browser profile, say), never a symlink; the matched names come back with the path.
-    static func expand(_ base: URL, _ relative: String) -> [(URL, [String])] {
+    static func pathsMatching(_ relative: String, under base: URL) -> [(URL, [String])] {
         relative.split(separator: "/").map(String.init).reduce([(base, [String]())]) { paths, part in
             guard part.contains("*") else { return paths.map { ($0.0.appendingPathComponent(part), $0.1) } }
             return paths.flatMap { url, matched in
@@ -468,7 +468,7 @@ public struct Catalog: Sendable {
     static let childLimit = 1_000
     /// A plain location as is; a `parent/*` location as each real folder directly inside `parent`.
     /// The last component may be a shell pattern such as `models--*`.
-    static func expand(_ relative: String, in base: URL, keepNewestVersions keep: Int? = nil) -> [String] {
+    static func childFolders(of relative: String, in base: URL, keepNewestVersions keep: Int? = nil) -> [String] {
         let pattern = (relative as NSString).lastPathComponent
         guard pattern.contains("*") else { return [relative] }
         let parent = (relative as NSString).deletingLastPathComponent
