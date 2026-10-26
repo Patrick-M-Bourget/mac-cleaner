@@ -6,7 +6,7 @@ This spec covers behavior the prototype can't show. The screens, layout and copy
 
 - Still answers four questions: what takes space, what can be removed, what happens if it is, and how much space came back.
 - Size, age and location only suggest candidates. Every candidate is judged on three questions: who owns it, how it comes back, and whether anything uses it now.
-- Nothing is preselected. The user picks categories or items, then reviews the consequences before anything changes.
+- Nothing is preselected unless the user asks for the recommended plan. The user picks categories or items, or asks for the recommended plan (only deleted data that rebuilds itself and passes the checks: caches, build data, updater downloads, logs, leaked app copies), then reviews the consequences before anything changes.
 - Every item is checked again just before Still acts on it (section 4).
 - Scanning never writes. Choosing scan locations never means consent to clean.
 - Unknown is shown as unknown, never as 0. A location Still can't read is listed as not accessible, not left out of the picture.
