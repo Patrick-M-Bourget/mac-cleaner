@@ -60,8 +60,9 @@ public struct CandidateCheck: Sendable {
         if values?.isUbiquitousItem == true || info.st_flags & UInt32(SF_DATALESS) != 0 { return .cloud }
         guard let volume = values?.volumeUUIDString, volume == candidate.volumeID else { return .changed }
         let names = Self.protectedNames.union(rule.protectedNames)
+        let extensions = Self.protectedExtensions.union(rule.protectedExtensions)
         for part in candidate.url.pathComponents {
-            if names.contains(part) || Self.protectedExtensions.contains(URL(fileURLWithPath: part).pathExtension.lowercased()) { return .protected(part) }
+            if names.contains(part) || extensions.contains(URL(fileURLWithPath: part).pathExtension.lowercased()) { return .protected(part) }
         }
         if candidate.isDirectory {
             for name in names.sorted() {
