@@ -16,20 +16,39 @@ assert.equal(arch(), 'arm64');
 const [browserArg, outputArg] = process.argv.slice(2);
 assert(browserArg && outputArg, 'usage: node genuine.mjs /owned/CfT/binary /owned/report.json');
 const browser = await realpath(resolve(browserArg));
+const stable = process.env.STILL_CHROME_STABLE_PROBE === '1';
+let provisioning, version, bundle;
+if (stable) {
+assert(browser.includes('/expanded/') && browser.endsWith('/Google Chrome.app/Contents/MacOS/Google Chrome'), 'Explicit extracted Stable bundle required');
+assert(!browser.startsWith('/Applications/'));
+const disk = await statfs(tmpdir());
+assert(disk.bavail * disk.bsize > 1024 ** 3, 'At least 1 GiB free required');
+bundle = browser.slice(0, browser.indexOf('.app/') + 4);
+provisioning = JSON.parse(await readFile(join(resolve(outputArg), '..', 'provision.json'), 'utf8'));
+assert.equal(provisioning.bundleIdentifier, 'com.google.Chrome');
+assert.equal(provisioning.provisioningComplete, true);
+assert.equal(provisioning.sealedBundleVerified, true);
+assert.equal(provisioning.bundle, bundle);
+assert.equal(provisioning.executableSHA256, createHash('sha256').update(await readFile(browser)).digest('hex'));
+version = execFileSync(browser, ['--version'], { encoding: 'utf8', timeout: 10000 }).trim();
+assert.equal(version.split(/\s+/).at(-1), provisioning.version);
+
+ } else {
 assert(browser.includes('/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/'), 'Explicit downloaded CfT bundle required');
 assert(!browser.startsWith('/Applications/'));
 const disk = await statfs(tmpdir());
 assert(disk.bavail * disk.bsize > 1024 ** 3, 'At least 1 GiB free required');
 const expectedVersion = '156.0.8078.47';
-const bundle = browser.slice(0, browser.indexOf('.app/') + 4);
-const provisioning = JSON.parse(await readFile(join(dirname(dirname(bundle)), 'evidence', 'provision.json'), 'utf8'));
+bundle = browser.slice(0, browser.indexOf('.app/') + 4);
+provisioning = JSON.parse(await readFile(join(dirname(dirname(bundle)), 'evidence', 'provision.json'), 'utf8'));
 assert.equal(provisioning.archiveSHA256, 'ad7f2b49a4dc679af286b1b1b386670d93ca7868079f69012d21ba0ac8293df3');
 assert.equal(provisioning.archiveBytes, 194932023);
 assert.equal(provisioning.provisioningComplete, true);
 assert.equal(provisioning.executableSHA256, createHash('sha256').update(await readFile(browser)).digest('hex'));
-const version = execFileSync(browser, ['--version'], { encoding: 'utf8', timeout: 10000 }).trim();
+version = execFileSync(browser, ['--version'], { encoding: 'utf8', timeout: 10000 }).trim();
 assert.equal(version.split(/\s+/).at(-1), expectedVersion, `Unexpected browser version: ${version}`);
 
+ }
 const root = await realpath(await mkdtemp(join(tmpdir(), 'StillChromeProbe-')));
 const userData = join(root, 'custom', 'configured-user-data');
 await mkdir(userData, { recursive: true });
@@ -42,6 +61,8 @@ const server = createServer((req, res) => {
     assetRequests++;
     res.writeHead(200, { 'Content-Type': 'application/octet-stream', 'Cache-Control': 'public, max-age=86400' });
     res.end(asset);
+  } else if (req.url === '/download') {
+    res.writeHead(200, { 'Content-Type': 'application/octet-stream', 'Content-Disposition': 'attachment; filename=still-download.bin' }); res.end(asset);
   } else if (req.url === '/page') {
     res.writeHead(200, { 'Content-Type': 'text/html', 'Cache-Control': 'no-store' });
     res.end('<!doctype html><title>Owned Still cache fixture</title><body>Disposable local fixture</body>');
@@ -50,7 +71,7 @@ const server = createServer((req, res) => {
 await new Promise(r => server.listen(0, '127.0.0.1', r));
 const origin = `http://127.0.0.1:${server.address().port}`;
 const sleep = ms => new Promise(r => setTimeout(r, ms));
-const report = { schema: 1, sealedBundleVerified: provisioning.sealedBundleVerified, signatureVerification: provisioning.signatureVerification, nativeCodeSignatureObservations: provisioning.nativeCodeSignatureObservations, browserVersion: version, executableSHA256: digest(await readFile(browser)), node: process.version, githubSHA: process.env.GITHUB_SHA, githubRunID: process.env.GITHUB_RUN_ID, os: release(), architecture: arch(), sourceURL: `https://storage.googleapis.com/chrome-for-testing-public/${expectedVersion}/mac-arm64/chrome-mac-arm64.zip`, profiles: [], productionMutationSupported: false, limitations: ['No production inactivity or reopen-race closure', 'No credentials/autofill/download/history/session-tab semantic qualification', 'No enterprise policy, shared cache, minimum OS or Intel qualification', 'Background-network flags are not a network trace; no network absence claim'] };
+const report = { schema: 1, sealedBundleVerified: provisioning.sealedBundleVerified, signatureVerification: provisioning.signatureVerification, nativeCodeSignatureObservations: provisioning.nativeCodeSignatureObservations, browserVersion: version, executableSHA256: digest(await readFile(browser)), node: process.version, githubSHA: process.env.GITHUB_SHA, githubRunID: process.env.GITHUB_RUN_ID, os: release(), architecture: arch(), sourceURL: provisioning.sourceURL, profiles: [], productionMutationSupported: false, limitations: ['No production inactivity or reopen-race closure', 'No credentials/autofill/download/history/session-tab semantic qualification', 'No enterprise policy, shared cache, minimum OS or Intel qualification', 'Background-network flags are not a network trace; no network absence claim'] };
 let owned;
 class CDP {
   constructor(ws) {
@@ -130,6 +151,11 @@ async function leaves(directory) {
   return result;
 }
 async function clearCache(cache) {
+  if (stable) {
+    const args = [join(dirname(fileURLToPath(import.meta.url)), 'cache-group.py'), root, cache, bundle];
+    const approval = execFileSync('python3', [...args, 'observe'], { encoding: 'utf8', timeout: 15000 });
+    return JSON.parse(execFileSync('python3', [...args, 'clean'], { input: approval, encoding: 'utf8', timeout: 15000 }));
+  }
   assert(!owned, 'Refuse while owned browser/helper activity or reopen is possible');
   const manifest = await leaves(cache);
   assert(manifest.length > 0, 'No genuine generated cache leaves');
@@ -148,11 +174,19 @@ try {
     await evaluate(`(async()=>{ document.cookie='still=${token}; Max-Age=3600; SameSite=Lax';localStorage.setItem('still','${token}');const db=await new Promise((r,j)=>{const q=indexedDB.open('still-fixture',1);q.onupgradeneeded=()=>q.result.createObjectStore('kv');q.onsuccess=()=>r(q.result);q.onerror=()=>j(q.error);});await new Promise((r,j)=>{const t=db.transaction('kv','readwrite');t.objectStore('kv').put('${token}','key');t.oncomplete=r;t.onerror=()=>j(t.error);});db.close();const c=await caches.open('still-offline');await c.put('/offline',new Response('${token}'));return true;})()`);
     const expected = { cookie: `still=${token}`, local: token, idb: token, offline: token };
     assert.deepEqual(await evaluate(stateExpression), expected);
+    const downloadDirectory = join(root, 'downloads', profile);
+    await mkdir(downloadDirectory, { recursive: true });
+    await owned.cdp.call('Browser.setDownloadBehavior', { behavior: 'allow', downloadPath: downloadDirectory });
+    await evaluate(`(()=>{const a=document.createElement('a');a.href='/download';a.download='still-download.bin';document.body.append(a);a.click();return true;})()`);
+    const download = join(downloadDirectory, 'still-download.bin');
+    let downloaded = false;
+    for (let i = 0; i < 100; i++) { try { if (digest(await readFile(download)) === digest(asset)) { downloaded = true; break; } } catch (e) { if (e.code !== 'ENOENT') throw e; } await sleep(100); }
+    assert(downloaded, 'Actual disposable browser download must finish');
     const before = assetRequests;
     assert.equal(await evaluate(`fetch('/asset').then(r=>r.arrayBuffer()).then(b=>b.byteLength)`), asset.length);
     assert.equal(assetRequests, before + 1, 'First asset must reach owned HTTP server');
     const cache = join(userData, profile, 'Cache', 'Cache_Data');
-    await assert.rejects(clearCache(cache), /Refuse while owned/);
+    await assert.rejects(clearCache(cache), /Refuse while owned|browser or helper activity observed/);
     entry.activeRefusal = true;
     await closeOwned();
     entry.generated = { leafCount: (await leaves(cache)).length };
@@ -161,7 +195,7 @@ try {
     assert.deepEqual(await warm(stateExpression), expected, 'Native persisted site state after first relaunch');
     await warm(`fetch('/asset').then(r=>r.arrayBuffer()).then(b=>b.byteLength)`);
     assert.equal(assetRequests, before + 1, 'Warm relaunch should serve asset from genuine disk cache');
-    await assert.rejects(clearCache(cache), /Refuse while owned/); entry.reopenRefusal = true;
+    await assert.rejects(clearCache(cache), /Refuse while owned|browser or helper activity observed/); entry.reopenRefusal = true;
     await closeOwned();
     // Browser-created protected files only: snapshot immediately around our closed-cache removal.
     const protectedPaths = ['Network/Cookies', 'Cookies', 'History', 'Login Data', 'Web Data', 'Preferences'];
@@ -171,6 +205,8 @@ try {
     }
     entry.removed = await clearCache(cache);
     for (const [relative, hash] of snapshots) assert.equal(digest(await readFile(join(userData, profile, relative))), hash, 'Protected browser file changed during cache removal');
+    assert.equal(digest(await readFile(download)), digest(asset), 'Actual downloaded file preserved');
+    entry.downloadedFilePreserved = true;
     entry.protectedFileNames = [...snapshots.keys()]; entry.protectedBytesUnchangedDuringRemoval = true;
     const reopened = await launch(profile);
     assert.deepEqual(await reopened(stateExpression), expected, 'Cookie/localStorage/IDB/offline response must survive cache removal and genuine relaunch');
@@ -180,6 +216,12 @@ try {
     entry.regenerated = { leafCount: (await leaves(cache)).length };
     assert(entry.regenerated.leafCount > 0); entry.relaunchProtectedStatePassed = true;
     report.profiles.push(entry);
+  }
+  if (stable) {
+    assert.equal(digest(await readFile(browser)), provisioning.executableSHA256);
+    execFileSync('/usr/bin/codesign', ['--verify', '--deep', '--strict', bundle], { timeout: 90000 });
+    report.postRunVendorSignatureVerified = true;
+    report.limitations[0] = 'Native observations are not a lease: residual reopen/write/final-name-operation races accepted for bounded cache-only model';
   }
   report.passed = true;
 } finally {

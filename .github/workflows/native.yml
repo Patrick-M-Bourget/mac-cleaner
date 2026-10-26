@@ -103,6 +103,7 @@ on:
           - overview-main
           - alerts-native
           - filesystem
+          - chrome-stable-probe
           - chrome-probe
 permissions:
   contents: read
@@ -623,4 +624,33 @@ jobs:
         with:
           name: genuine-chrome-fixture-evidence
           path: ${{ runner.temp }}/chrome-probe/evidence/
+          if-no-files-found: error
+
+  stable-chrome-close-clean:
+    if: github.event_name == 'workflow_dispatch' && inputs.suite == 'chrome-stable-probe'
+    runs-on: macos-26
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check disposable helper and syntax
+        run: |
+          python3 Validation/ChromeProbe/test_cache_group.py
+          python3 Validation/ChromeProbe/test_owned_cache.py
+          node --check Validation/ChromeProbe/genuine.mjs
+      - name: Extract and verify official moving Stable without installing
+        run: python3 Validation/ChromeProbe/provision-stable.py "$RUNNER_TEMP/chrome-stable-probe"
+      - name: Exercise owned Stable profiles using native process observations
+        env:
+          STILL_CHROME_STABLE_PROBE: '1'
+        run: |
+          BROWSER=$(python3 -c 'import json,os; print(json.load(open(os.environ["RUNNER_TEMP"]+"/chrome-stable-probe/evidence/provision.json"))["bundle"]+"/Contents/MacOS/Google Chrome")')
+          node Validation/ChromeProbe/genuine.mjs "$BROWSER" "$RUNNER_TEMP/chrome-stable-probe/evidence/report.json"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: stable-chrome-close-clean-evidence
+          path: ${{ runner.temp }}/chrome-stable-probe/evidence/
           if-no-files-found: error
