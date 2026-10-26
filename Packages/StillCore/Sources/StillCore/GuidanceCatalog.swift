@@ -36,5 +36,11 @@ extension BuiltInCatalog {
                      detail: "Plug-ins you bought or installed. Remove them with the vendor’s uninstaller, and reinstall through the vendor.",
                      locations: ["/Library/Audio/Plug-Ins", "Library/Audio/Plug-Ins"],
                      Guidance(place: .folder, placeName: "in Finder")),
+        // Reason Studios installs Rack Extensions here: `Optional REs` holds Reason 13's additional devices (Reason Studios
+        // Help, "Installing Additional Content in Reason 13"); `RackExtensions` is the field scan's folder (17 GB).
+        guidanceRule("rack-extensions", "Rack Extensions",
+                     detail: "Devices you bought or installed for Reason. Manage them in Reason Companion, which reinstalls them from your account.",
+                     locations: ["RackExtensions", "Optional REs"].map { "Library/Application Support/Propellerhead Software/" + $0 },
+                     Guidance(place: .folder, placeName: "in Finder")),
     ]
 }

@@ -186,3 +186,21 @@ private let editor = InstalledApp(name: "Editor", bundleID: "com.example.Editor"
     #expect(discovery.candidates.isEmpty)
     #expect(discovery.notAccessible.map(\.id).contains("container-caches"))
 }
+
+// MARK: Rack Extensions
+
+@Test func rackExtensionsAreGuidanceWithTheirSizeAndFolder() throws {
+    let home = try fixtureHome()
+    defer { try? FileManager.default.removeItem(at: home) }
+    let reason = "Library/Application Support/Propellerhead Software/"
+    try write(home, reason + "RackExtensions/com.example.Synth/Synth.dylib", bytes: 8_192)
+    try write(home, reason + "Optional REs/com.example.Drums/Drums.dylib", bytes: 4_096)
+    let catalog = Catalog(rules: fixtureRules)
+    #expect(catalog.discover(fixture: home).isEmpty)
+    let finding = try #require(catalog.guidance(fixture: home).first { $0.ruleID == "rack-extensions" })
+    guard case .estimate(.measured(let bytes)) = finding.size else { Issue.record("Expected a measured size, got \(finding.size)"); return }
+    #expect(bytes >= 12_288)
+    #expect(finding.folder?.path == home.appendingPathComponent(reason + "RackExtensions").path)
+    let rule = try #require(catalog.rule("rack-extensions"))
+    #expect(rule.category == .managed && rule.action == .guidance && rule.guidance?.openTitle == "Open in Finder")
+}
