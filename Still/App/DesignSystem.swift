@@ -66,11 +66,15 @@ struct ChromeSurface: View {
     }
 }
 struct CategoryBadge: View {
-    let category: StorageCategory
+    let symbol: String
+    let color: Color
+    init(category: StorageCategory) { symbol = category.symbol; color = category.color }
+    /// A badge for something other than a storage category, such as a review sheet's consequence group.
+    init(symbol: String, color: Color) { self.symbol = symbol; self.color = color }
     var body: some View {
-        Image(systemName: category.symbol).font(.system(size: 16, weight: .regular))
-            .foregroundStyle(category.color).frame(width: 32, height: 32)
-            .background(category.color.opacity(0.10), in: RoundedRectangle(cornerRadius: StillDesign.Radius.row))
+        Image(systemName: symbol).font(.system(size: 16, weight: .regular))
+            .foregroundStyle(color).frame(width: 32, height: 32)
+            .background(color.opacity(0.10), in: RoundedRectangle(cornerRadius: StillDesign.Radius.row))
             .accessibilityHidden(true)
     }
 }
@@ -238,19 +242,27 @@ struct EmptyState: View {
         }.frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, StillDesign.Space.xl)
     }
 }
-struct ActionStrip<Actions: View>: View {
-    let message: String
+struct ActionStrip<Leading: View, Actions: View>: View {
+    @ViewBuilder var leading: () -> Leading
     @ViewBuilder var actions: () -> Actions
     var body: some View {
         VStack(spacing: 0) {
             Divider()
             HStack(spacing: StillDesign.Space.lg) {
-                Text(message).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                leading()
                 Spacer(minLength: StillDesign.Space.sm)
                 actions()
             }.padding(.horizontal, StillDesign.Space.page).padding(.vertical, StillDesign.Space.lg)
         }.background(StillDesign.reading).controlSize(.large).buttonBorderShape(.capsule)
     }
+}
+extension ActionStrip where Leading == ActionStripMessage {
+    init(message: String, @ViewBuilder actions: @escaping () -> Actions) { self.init(leading: { ActionStripMessage(text: message) }, actions: actions) }
+}
+/// A bottom bar's note; Decision 25 keeps these to notes that report state.
+struct ActionStripMessage: View {
+    let text: String
+    var body: some View { Text(text).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true) }
 }
 struct CapacityMeter: View {
     let available: Int64?
@@ -428,6 +440,12 @@ private struct NativeCategoryCheckbox: NSViewRepresentable {
     }
 }
 
+extension StillDesign.Size {
+    /// A category badge and the gap after it: content under a badged header lines up with its title.
+    static let badgeIndent: CGFloat = 32 + StillDesign.Space.md
+    /// A checkbox, then a badge: content under a `CategorySelectionHeader` lines up with its title.
+    static let categoryContentIndent: CGFloat = 16 + StillDesign.Space.md + badgeIndent
+}
 /// Selection stays on the native checkbox; the badge/title never become extra toggles.
 struct CategorySelectionHeader: View {
     let category: StorageCategory
@@ -445,7 +463,7 @@ struct CategorySelectionHeader: View {
             CategoryBadge(category: category)
             VStack(alignment: .leading, spacing: StillDesign.Space.xs) {
                 Text(title).font(StillDesign.TypeStyle.section)
-                Text(detail).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                Text(detail).font(.caption).foregroundStyle(.secondary).lineLimit(1).help(detail)
             }.frame(maxWidth: .infinity, alignment: .leading)
             Text(size).font(.callout).monospacedDigit().fixedSize()
         }
@@ -526,6 +544,7 @@ struct InspectableItemRow<Selection: View>: View {
     let symbol: String
     let inspected: Bool
     let inspect: () -> Void
+    var detailLineLimit = 2
     @ViewBuilder var selection: () -> Selection
     var body: some View {
         HStack(alignment: .center, spacing: StillDesign.Space.md) {
@@ -535,7 +554,7 @@ struct InspectableItemRow<Selection: View>: View {
                     Image(systemName: symbol).foregroundStyle(.secondary).frame(width: 20)
                     VStack(alignment: .leading, spacing: StillDesign.Space.xs) {
                         Text(name).foregroundStyle(.primary)
-                        Text(detail).font(.caption).foregroundStyle(.secondary).lineLimit(2)
+                        Text(detail).font(.caption).foregroundStyle(.secondary).lineLimit(detailLineLimit)
                     }.frame(maxWidth: .infinity, alignment: .leading)
                     Text(size).font(.callout).monospacedDigit().foregroundStyle(.secondary)
                 }.contentShape(Rectangle())
