@@ -22,12 +22,24 @@ final class LaunchSmokeUITests: XCTestCase {
         let app = XCUIApplication()
         let state = try configureIsolatedState(app)
         defer { app.terminate(); try? FileManager.default.removeItem(at: state) }
-        // Restored window state from earlier real launches can leave no window open.
-        app.launchArguments = ["-ApplePersistenceIgnoreState", "YES"]
         app.launch()
         XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
         XCTAssertTrue(app.buttons["Cleanup plan"].exists || app.staticTexts["Cleanup plan"].exists)
         XCTAssertFalse(app.staticTexts["What grew"].exists)
         XCTAssertFalse(app.staticTexts["Storage alerts"].exists)
+    }
+
+    /// A relaunch after a previous session must still open the main window, whatever state macOS saved.
+    @MainActor func testRelaunchShowsMainWindow() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        let state = try configureIsolatedState(app)
+        defer { app.terminate(); try? FileManager.default.removeItem(at: state) }
+        app.launch()
+        XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
+        app.terminate()
+        app.launch()
+        XCTAssertTrue(app.windows.firstMatch.waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
     }
 }
