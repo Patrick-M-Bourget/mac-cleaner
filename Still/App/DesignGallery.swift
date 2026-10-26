@@ -10,7 +10,6 @@ struct DesignGallery: View {
     @State private var shellExamplesExpanded = false
     @State private var historyExamplesExpanded = false
     @State private var growthExamplesExpanded = false
-    @State private var archiveExamplesExpanded = false
     @State private var alertExamplesExpanded = false
     var body: some View {
         VStack(spacing: 0) {
@@ -39,16 +38,6 @@ struct DesignGallery: View {
                         HistoryActivityGalleryExamples()
                     }
                     DisclosureGroup("Synthetic What grew examples", isExpanded: $growthExamplesExpanded) { GrowthGalleryExamples() }
-                    DisclosureGroup("Synthetic release archive guidance", isExpanded: $archiveExamplesExpanded) {
-                        SummarySurface {
-                            VStack(alignment: .leading, spacing: StillDesign.Space.md) {
-                                Text("Release archives guidance").font(.title3.weight(.semibold))
-                                Text("Not inspected").foregroundStyle(.secondary)
-                                ReleaseArchiveGuidance(guidance: .init(category: .releaseArchives))
-                                Text("Xcode could not be opened. The instructions and Apple guide remain available.").foregroundStyle(.secondary)
-                            }
-                        }
-                    }
                     DisclosureGroup("Synthetic storage alert settings", isExpanded: $alertExamplesExpanded) {
                         AlertThresholdEditor(draft: .constant("60"), appliedBytes: 40_000_000_000, hasCurrentTotal: true, canApply: true, apply: {})
                         AlertThresholdEditor(draft: .constant("invalid"), appliedBytes: 40_000_000_000, hasCurrentTotal: true, canApply: false, invalidDraft: true, apply: {})
