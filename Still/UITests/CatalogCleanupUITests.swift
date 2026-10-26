@@ -255,6 +255,8 @@ final class CatalogCleanupUITests: XCTestCase {
         app.buttons["Review cleanup"].click()
 
         XCTAssertTrue(app.staticTexts["Clear Chrome code-sign copies"].waitForExistence(timeout: 5))
+        // The review lists each copy in a collapsed file list.
+        revealAndClick(app.disclosureTriangles.matching(NSPredicate(format: "label ENDSWITH 'Show files'")).firstMatch, in: app)
         XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "value CONTAINS 'code_sign_clone.old'")).firstMatch.exists)
         XCTAssertFalse(app.staticTexts.matching(NSPredicate(format: "value CONTAINS 'code_sign_clone.new'")).firstMatch.exists)
         app.buttons["Run preview"].click()
