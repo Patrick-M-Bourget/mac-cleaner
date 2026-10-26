@@ -293,6 +293,7 @@ private struct WorkspaceView: View {
         .onAppear {
             AppLifecycleController.shared.openWorkspace = { openWindow(id: "workspace") }
             AppLifecycleController.shared.scanAgain = { if canScanAgain { scanAgain() } }
+            selection.catalog.scanRememberedFolders = { scanRememberedFolders() }
         }
         .onReceive(NotificationCenter.default.publisher(for: .stillAlertOpened)) { _ in destination = .overview; navigationState.localRecordsVisible = false; navigationState.appManagedVisible = false; exclusionsVisible = false; diagnosticsVisible = false; recoveryVisible = false; nativeInspectionVisible = false; homebrewVisible = false; pipVisible = false }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in Task { await alerts.activated() } }
@@ -427,6 +428,13 @@ private struct WorkspaceView: View {
                     Text(summary.map { recommendedText($0.recommended) } ?? (catalog.isScanning ? "Checking known locations…" : "Not measured yet"))
                         .font(.caption).foregroundStyle(.secondary).monospacedDigit().accessibilityIdentifier("overviewRecommendedTotal")
                 }
+                if summary != nil, !catalog.recommendedCandidates.isEmpty {
+                    // The one way anything is preselected: rebuildable data only, then straight to the review (#137, Decision 28).
+                    Button("Recommended plan · " + catalog.recommendedSizeText + " · Review", action: openRecommendedPlan)
+                        .buttonStyle(.borderedProminent).controlSize(.small).disabled(!catalog.canEdit || selection.workspaceRunning)
+                        .help("Caches, build data, update downloads, logs and leftover app copies that rebuild themselves. You see every item before anything changes.")
+                        .accessibilityIdentifier("overviewRecommendedPlan")
+                }
                 if showsCloudInventory || checking || !shown.isEmpty {
                     RecommendationGroup {
                         if showsCloudInventory {
@@ -479,6 +487,11 @@ private struct WorkspaceView: View {
             action: { navigate(.plan); planPresentation.expandedCategories.insert(row.category) },
             identifier: "overviewCategory-" + row.id)
     }
+    /// Chooses the recommended plan and opens its review: Clean up there runs it, two clicks from Overview.
+    private func openRecommendedPlan() {
+        navigate(.plan)
+        Task { if await selection.catalog.chooseRecommendedPlan() { planPresentation.opensReview = true } }
+    }
     /// SPEC section 6: an estimate, and an upper bound because clones share blocks.
     private func recommendedText(_ estimate: SizeEstimate) -> String {
         switch estimate {
@@ -512,6 +525,11 @@ private struct WorkspaceView: View {
         Task { await TrashModel.shared.refresh() }
         if !locationsModel.included.isEmpty { scanKnownLocations() }
     }
+    /// The remembered, included folders, scanned along with the catalog at launch and after a cleanup (#125).
+    private func scanRememberedFolders() {
+        locationsModel.load()
+        if !locationsModel.included.isEmpty { scanKnownLocations() }
+    }
     private var scannedLocations: some View {
         VStack(alignment: .leading, spacing: StillDesign.Space.sm) {
             HStack(alignment: .firstTextBaseline, spacing: StillDesign.Space.sm) {
@@ -520,10 +538,11 @@ private struct WorkspaceView: View {
                     .help(overviewObservation?.scope.path ?? "").accessibilityIdentifier("overviewScopeCoverage")
                 if overviewObservation != nil {
                     Button("Explore storage") { openExplorer(downloads: false, caller: .overview) }.buttonStyle(.link).font(.caption).disabled(selection.workspaceRunning)
-                } else {
-                    Button("Choose a folder…", action: chooseFolderForScan).buttonStyle(.link).font(.caption).disabled(folderInspection.isScanning || selection.workspaceRunning)
                 }
                 Spacer(minLength: 0)
+                // One clear action: pick a folder, remember it and scan it now (#125).
+                Button("Scan a folder…", systemImage: "folder.badge.plus", action: chooseFolderForScan)
+                    .disabled(folderInspection.isScanning || selection.workspaceRunning).accessibilityIdentifier("overviewScanFolder")
             }
             if selection.scans.values.contains(where: { !$0.isComplete }) || overviewObservation.map({ $0.excludedEntryCount > 0 || $0.hasUnmeasuredContents }) == true {
                 StatusRow(text: "Some locations have partial coverage. Uninspected bytes remain unknown.", symbol: "exclamationmark.circle", role: .caution)
@@ -607,16 +626,14 @@ private struct WorkspaceView: View {
 
     private var locations: some View {
         VStack(alignment: .leading, spacing: StillDesign.Space.xl) {
-            PageHeader(title: "Locations & access", subtitle: "Remember locations to include in your next manual scan.")
+            PageHeader(title: "Locations & access", subtitle: "Folders Still scans at launch and when you scan again.")
             ScanHistoryRecordingNotice()
             HStack {
-                Button("Add folder…") {
-                    if let url = FolderInspection.chooseFolder(remembering: true) { _ = locationsModel.remember(url, downloads: isDownloadsLocation(url)) }
-                }.disabled(folderInspection.isScanning || selection.workspaceRunning)
+                Button("Add folder…", action: chooseFolderForScan).disabled(folderInspection.isScanning || selection.workspaceRunning)
                 Button("Scan selected locations") { scanLocations(locationsModel.included) }
                     .disabled(locationsModel.included.isEmpty || folderInspection.isScanning || selection.workspaceRunning)
             }
-            if locationsModel.scopes.isEmpty { EmptyState(title: "No locations yet", detail: "Add a folder, then run a manual scan. Adding a location never starts scanning.", symbol: "folder.badge.plus") }
+            if locationsModel.scopes.isEmpty { EmptyState(title: "No locations yet", detail: "Add a folder to scan it now and each time Still opens.", symbol: "folder.badge.plus") }
             ForEach(locationsModel.scopes) { scope in
                 LocationScopeRow(name: URL(fileURLWithPath: scope.path).lastPathComponent, path: scope.path,
                     status: locationStatus(scope), overlap: locationOverlap(scope), included: Binding(get: { scope.isIncluded }, set: { included in

@@ -637,7 +637,8 @@ extension CatalogCleanupUITests {
         app.launch()
 
         XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
-        app.links["Choose a folder…"].click()
+        // #125: a clear Scan a folder action on Overview picks the folder and scans it right away.
+        app.buttons["overviewScanFolder"].click()
         let panel = app.sheets.firstMatch.exists ? app.sheets.firstMatch : app.dialogs.firstMatch
         XCTAssertTrue(panel.waitForExistence(timeout: 5))
         panel.typeKey("g", modifierFlags: [.command, .shift])
@@ -668,6 +669,27 @@ extension CatalogCleanupUITests {
         XCTAssertTrue(app.staticTexts["catalogPreviewNotice"].waitForExistence(timeout: 10))
         XCTAssertTrue(app.staticTexts["Would move to Trash"].exists)
         XCTAssertTrue(FileManager.default.fileExists(atPath: old.path))
+
+        // #125: the cleanup run doesn't wipe the folder's large and old files.
+        app.typeKey("1", modifierFlags: .command)
+        XCTAssertTrue(openLargeAndOld(app).waitForExistence(timeout: 20))
+
+        // #125: the remembered folder is scanned again at launch, with no folder picked.
+        app.terminate()
+        app.launch()
+        XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
+        XCTAssertTrue(openLargeAndOld(app).waitForExistence(timeout: 30))
+    }
+
+    /// Opens Explore storage from Overview in its Large and old files mode; returns the fixture's old file toggle.
+    @MainActor private func openLargeAndOld(_ app: XCUIApplication) -> XCUIElement {
+        let explore = app.links["Explore storage"]
+        XCTAssertTrue(explore.waitForExistence(timeout: 30))
+        explore.click()
+        let mode = app.radioGroups["explorerMode"]
+        XCTAssertTrue(mode.waitForExistence(timeout: 20))
+        mode.radioButtons["Large and old files"].click()
+        return app.checkBoxes["explorerChoose-old-archive.zip"]
     }
 }
 
@@ -753,5 +775,38 @@ final class TrashSpaceUITests: XCTestCase {
         while !FileManager.default.fileExists(atPath: marker.path), Date() < deadline { RunLoop.current.run(until: Date().addingTimeInterval(0.2)) }
         XCTAssertEqual(try String(contentsOf: marker, encoding: .utf8), home.appendingPathComponent(".Trash").path)
         XCTAssertTrue(FileManager.default.fileExists(atPath: trashed.path), "Opening the Trash changes nothing in it")
+    }
+}
+
+extension CatalogCleanupUITests {
+    /// #137: Overview's recommended plan preselects only data that rebuilds itself and opens the review directly;
+    /// Clean up runs it, two clicks from Overview. The installer (Trash) and Homebrew (a tool) stay out of it.
+    @MainActor func testRecommendedPlanReviewsOnlyRebuildableItemsAndCleansUpInTwoClicks() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        let state = try configureIsolatedState(app)
+        let home = try configureCatalogHome(app)
+        turnOnDryRun(app)
+        let marker = try addDeveloperCaches(home, folders: ["Library/Caches/Homebrew"])
+        defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
+        app.launch()
+
+        let recommended = app.buttons["overviewRecommendedPlan"]
+        XCTAssertTrue(recommended.waitForExistence(timeout: 10))
+        XCTAssertTrue(recommended.label.hasPrefix("Recommended plan · "), recommended.label)
+        revealAndClick(recommended, in: app)
+
+        // The review opens on its own and lists only the npm cache.
+        XCTAssertTrue(reviewLine(app, "permanentlyRemoved", "developer").waitForExistence(timeout: 10))
+        XCTAssertFalse(reviewLine(app, "movedToTrash", "downloads").exists)
+        XCTAssertFalse(reviewLine(app, "commandsRun", "developer").exists)
+        XCTAssertTrue(app.descendants(matching: .any).matching(NSPredicate(format: "label == '1 item · Show files'")).firstMatch.exists)
+        cleanUpFromReview(app)
+
+        XCTAssertTrue(app.staticTexts["catalogPreviewNotice"].waitForExistence(timeout: 10))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: marker.path))
+        for kept in [".npm/_cacache/content-v2/sha512/ab/blob", "Downloads/Setup.dmg", "Library/Caches/Homebrew/entry"] {
+            XCTAssertTrue(FileManager.default.fileExists(atPath: home.appendingPathComponent(kept).path), kept)
+        }
     }
 }

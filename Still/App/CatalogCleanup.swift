@@ -29,7 +29,7 @@ import SwiftUI
     private(set) var hasScanned = false
     /// Watches for Full Disk Access being granted while Still was away (#124, `rescanIfFullDiskAccessGranted`).
     var fullDiskAccessRescan = FullDiskAccessRescan()
-    /// Chosen candidate ids. Nothing is preselected.
+    /// Chosen candidate ids. Nothing is preselected unless the user asks for the recommended plan (Decision 28).
     private(set) var selectedIDs: Set<String> = []
     private(set) var selectionRevision: UInt64 = 0
     private(set) var isRunning = false
@@ -170,7 +170,10 @@ import SwiftUI
         return chosen == 0 ? .unchecked : chosen == items.count ? .checked : .mixed
     }
 
-    func scanIfNeeded() async { if !hasScanned { await scan() } }
+    /// Rescans the remembered, included folders. Set by the workspace; called after each scan `scanIfNeeded` starts,
+    /// at launch and after a cleanup, so those folders are scanned along with the catalog (#125).
+    var scanRememberedFolders: (() -> Void)?
+    func scanIfNeeded() async { if !hasScanned { await scan(); scanRememberedFolders?() } }
     /// Read-only sizing of the catalog's known locations.
     func scan() async {
         guard canEdit else { return }
@@ -243,6 +246,30 @@ import SwiftUI
         selectionRevision &+= 1
     }
 
+    /// The recommended plan as the last scan sees it (`RecommendedPlan`): owners running at the scan are left out.
+    /// The full checks run when it is chosen, and again in the review.
+    var recommendedCandidates: [Candidate] {
+        let running = runningOwners, names = ownerNames
+        return RecommendedPlan(catalog: catalog, candidates: discovered) { item in
+            names[item.id].flatMap { running.contains($0) ? .ownerRunning($0) : nil }
+        }.candidates
+    }
+    /// "Up to" when part of the plan is copies that share disk blocks (SPEC section 6).
+    var recommendedSizeText: String {
+        let items = recommendedCandidates
+        return SizeEstimate(sum: items.map(SizeEstimate.init)).text(upperBound: items.contains { catalog.rule($0.ruleID)?.estimateIsUpperBound == true })
+    }
+    /// Replaces the selection with the recommended plan, checked now. Nothing is preselected unless the user asks for this (Decision 28).
+    func chooseRecommendedPlan() async -> Bool {
+        guard canEdit, let check = await currentCheck()?.snapshotted() else { return false }
+        let catalog = catalog, found = discovered
+        let ids = await Task.detached { Set(RecommendedPlan(catalog: catalog, candidates: found, check: check.check).candidates.map(\.id)) }.value
+        guard canEdit, discovered == found else { return false }
+        guard !ids.isEmpty else { message = "Nothing in the recommended plan can be cleaned right now. Scan again, or choose items below."; return false }
+        selectedIDs = ids; message = nil; selectionRevision &+= 1
+        return true
+    }
+
     /// Freezes the chosen candidates and checks them once so the review can show what would be refused.
     func prepareReview() async -> CatalogReview? {
         guard canReview else { return nil }
@@ -259,9 +286,11 @@ import SwiftUI
         do {
             let run = CleanupExecutor(journal: try CleanupJournalLocation.writer(), check: check, cancellation: cancellation)
             executor = run
-            result = await run.execute(approval)
+            let outcome = await run.execute(approval)
+            result = outcome
             if !approval.previewOnly { rescanFollowsCleanup = true }
-            selectedIDs = []; discovered = []; pickedFiles = [:]; hasScanned = false; selectionRevision &+= 1
+            // Picked folders keep the large and old files this run didn't act on (#125).
+            selectedIDs = []; discovered = []; pickedFiles = pickedFiles.mapValues { UserFiles.remaining($0, after: outcome) }; hasScanned = false; selectionRevision &+= 1
         } catch { message = "The cleanup journal is unavailable. Nothing was changed." }
     }
     func cancel() { executor?.cancel() }
