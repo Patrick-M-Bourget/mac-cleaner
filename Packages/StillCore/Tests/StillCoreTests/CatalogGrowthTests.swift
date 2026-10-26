@@ -218,3 +218,17 @@ private func recordCatalogScan(_ catalog: Catalog, home: URL, recorder: GrowthSc
     #expect(try await recorder.completeCatalog(discovery, catalog: catalog, fullDiskAccess: .granted, token: stale).state == .unknown)
     #expect(try await store.snapshots().count == 1)
 }
+
+/// #126: the rescan after a cleanup is recorded as such, so it never becomes a later scan's baseline.
+@Test func aCatalogRescanAfterACleanupIsRecordedAsOne() async throws {
+    let home = try fixtureHome(), (store, directory) = growthStore()
+    defer { try? FileManager.default.removeItem(at: home); try? FileManager.default.removeItem(at: directory) }
+    let catalog = Catalog(rules: fixtureRules), recorder = GrowthScanRecorder(store: store)
+    let first = try await recordCatalogScan(catalog, home: home, recorder: recorder)
+    #expect(first.current?.afterCleanup == false)
+    let token = try await recorder.beginCatalog(home: home, exclusionFingerprint: ExclusionPolicy().fingerprint)
+    let rescan = try await recorder.completeCatalog(catalog.discovery(fixture: home, access: .granted), catalog: catalog, fullDiskAccess: .granted, token: token,
+                                                    afterCleanup: true)
+    #expect(rescan.current?.afterCleanup == true)
+    #expect(try await store.snapshots().last?.afterCleanup == true)
+}
