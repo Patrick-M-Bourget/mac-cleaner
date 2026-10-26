@@ -56,6 +56,7 @@ Other actions:
 Notes per category:
 
 - **Browsers** (Chrome, Safari, Firefox, Arc, Edge): cache folders only, per profile, only while that browser is closed. Sizes show per browser and per profile. Review says caches are permanently removed, will refill, and pages may load slower at first.
+- **Safari** (#117): only WebKit's HTTP cache, `~/Library/Caches/com.apple.Safari/WebKit/NetworkCache`. The rest of that folder (CacheStorage, HSTS), history, bookmarks, cookies and website data are protected. Safari's container and per-profile caches aren't offered until their layout is confirmed. macOS protects Safari's data, so without Full Disk Access the row says not accessible, with the explanation, and nothing there is read.
 - **Chrome code-sign clones** live in the user's own folder under `/private/var/folders`. The copy the running browser has open and the newest copy are always kept.
 - **Xcode**: whole DerivedData project folders, only while Xcode and its build processes aren't running. Archives are never candidates.
 - **Docker**: sizes are the reclaimable estimates from one `docker system df` per scan, with a short time limit. Docker must be running, the inverse of other owners; when its daemon doesn't answer, a notice says so and no size is shown, never 0. Volumes hold databases and app data, so they are never pruned.
