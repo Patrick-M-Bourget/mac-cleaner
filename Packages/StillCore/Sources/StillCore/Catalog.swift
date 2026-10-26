@@ -58,6 +58,8 @@ public struct CleanupRule: Sendable, Identifiable {
     public let regen: RegenClass
     public let action: CleanupAction
     /// Paths relative to the user's home folder; each existing one is a candidate.
+    /// A last component of `*` makes each folder directly inside that path a candidate instead
+    /// (hidden entries, files and symlinks are skipped; the path itself must be a real folder).
     public let locations: [String]
     public let owner: RuleOwner?
     /// Names that are never acted on when they are the item, one of its ancestors, or a top-level entry inside it.
@@ -118,7 +120,17 @@ public enum BuiltInCatalog {
                     regen: .cache, action: .tool, locations: ["Library/Caches/Homebrew"],
                     owner: RuleOwner(name: "Homebrew", executables: ["brew"], scripts: ["brew", "brew.sh", "brew.rb"]),
                     tool: ToolCommand(executables: ["/opt/homebrew/bin/brew", "/usr/local/bin/brew"], arguments: ["cleanup", "-s"], timeout: 300, deletesLocationAfter: true)),
+        CleanupRule(id: "xcode-derived-data", category: .developer, title: "Xcode DerivedData",
+                    detail: "Build files, indexes and products Xcode keeps for each project.",
+                    consequence: "Permanently removed. Xcode rebuilds them; the next build and indexing take longer. Archives and your projects are not touched.",
+                    regen: .build, action: .delete, locations: ["Library/Developer/Xcode/DerivedData/*"],
+                    owner: xcode),
     ]
+
+    /// Xcode and the build processes that write into DerivedData, including command-line builds.
+    static let xcode = RuleOwner(name: "Xcode", bundleIDs: ["com.apple.dt.Xcode"],
+                                 executables: ["Xcode", "xcodebuild", "SWBBuildService*", "XCBBuildService*", "swift-driver", "swift-frontend",
+                                               "swiftc", "clang", "clang++", "ld", "dsymutil"])
 }
 
 /// A concrete item a rule found, with the identity it had when sized.
@@ -156,7 +168,7 @@ public struct Catalog: Sendable {
         return rules.flatMap { rule -> [Candidate] in
             let toolURL = rule.tool.flatMap(locateTool)
             guard rule.action != .tool || toolURL != nil else { return [] }
-            return rule.locations.compactMap { relative -> Candidate? in
+            return rule.locations.flatMap { Self.expand($0, in: base) }.compactMap { relative -> Candidate? in
                 guard Self.neverOffered.isDisjoint(with: relative.split(separator: "/").map(String.init)) else { return nil }
                 let url = base.appendingPathComponent(relative)
                 var info = stat()
@@ -170,5 +182,21 @@ public struct Catalog: Sendable {
                                  logicalBytes: size.logicalBytes, allocatedBytes: size.allocatedBytes, sizeComplete: size.complete, observedAt: Date())
             }
         }
+    }
+
+    /// At most this many children of a `*` location are offered.
+    static let childLimit = 1_000
+    /// A plain location as is; a `parent/*` location as each real folder directly inside `parent`.
+    static func expand(_ relative: String, in base: URL) -> [String] {
+        guard relative.hasSuffix("/*") else { return [relative] }
+        let parent = String(relative.dropLast(2))
+        var info = stat()
+        guard lstat(base.appendingPathComponent(parent).path, &info) == 0, info.st_mode & S_IFMT == S_IFDIR,
+              let names = try? FileManager.default.contentsOfDirectory(atPath: base.appendingPathComponent(parent).path) else { return [] }
+        let folders = names.filter { name in
+            var child = stat()
+            return !name.hasPrefix(".") && lstat(base.appendingPathComponent(parent + "/" + name).path, &child) == 0 && child.st_mode & S_IFMT == S_IFDIR
+        }
+        return folders.sorted().prefix(childLimit).map { parent + "/" + $0 }
     }
 }
