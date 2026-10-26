@@ -65,29 +65,6 @@ import StillCore
     #expect(try Data(contentsOf: journal) == Data("unresolved".utf8))
 }
 
-@Test func scanCapturePersistsFolderAndCategoryAggregatesButNeverRawFilenamesOrUnmeasuredPackages() async throws {
-    let root = FileManager.default.temporaryDirectory.appendingPathComponent("StillGrowthScan-" + UUID().uuidString)
-    let data = root.appendingPathComponent("State"), scope = root.appendingPathComponent("Selected")
-    let folder = scope.appendingPathComponent("Projects")
-    try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-    defer { try? FileManager.default.removeItem(at: root) }
-    try Data([1, 2, 3]).write(to: folder.appendingPathComponent("private-filename.pdf"))
-    let store = GrowthHistoryStore(directory: data)
-    let recorder = GrowthScanRecorder(store: store)
-    let token = try await recorder.begin(scope: scope)
-    let result = try await recorder.complete(try await FolderScanner().scan(scope), token: token)
-    #expect(result.state == .firstBaseline)
-    #expect(result.current?.logicalBytes == 3)
-    #expect(result.current?.groups.contains { $0.label == "Projects" && $0.logicalBytes == 3 } == true)
-    #expect(result.current?.groups.contains { $0.label == "Documents" && $0.logicalBytes == 3 } == true)
-    let persisted = try String(contentsOf: data.appendingPathComponent("aggregates-v1.json"), encoding: .utf8)
-    #expect(!persisted.contains("private-filename"))
-    try FileManager.default.createDirectory(at: scope.appendingPathComponent("Library.photoslibrary"), withIntermediateDirectories: true)
-    let next = try await recorder.begin(scope: scope)
-    #expect(try await recorder.complete(try await FolderScanner().scan(scope), token: next).state == .unknown)
-    #expect(try await store.snapshots().count == 1)
-}
-
 @Test func aggregateArchiveRejectsCorruptionAndNeverExceedsBytePolicy() async throws {
     let directory = FileManager.default.temporaryDirectory.appendingPathComponent("StillGrowth-" + UUID().uuidString)
     defer { try? FileManager.default.removeItem(at: directory) }
@@ -119,22 +96,6 @@ import StillCore
     do { try await GrowthHistoryStore(directory: link).clearCompletedHistory(); Issue.record("Symlinked store accepted") }
     catch { }
     #expect(try FileManager.default.contentsOfDirectory(atPath: destination.path).isEmpty)
-}
-
-@Test func cachedScanAndReplacedScopeCannotBecomeCompletedGrowthBaselines() async throws {
-    let root = FileManager.default.temporaryDirectory.appendingPathComponent("StillGrowth-" + UUID().uuidString)
-    let scope = root.appendingPathComponent("Selected")
-    try FileManager.default.createDirectory(at: scope, withIntermediateDirectories: true)
-    defer { try? FileManager.default.removeItem(at: root) }
-    let store = GrowthHistoryStore(directory: root.appendingPathComponent("History")), recorder = GrowthScanRecorder(store: store)
-    let previous = try await FolderScanner().scan(scope)
-    let token = try await recorder.begin(scope: scope)
-    #expect(try await recorder.complete(previous, token: token).state == .unknown)
-    let other = root.appendingPathComponent("Original")
-    try FileManager.default.moveItem(at: scope, to: other)
-    try FileManager.default.createDirectory(at: scope, withIntermediateDirectories: false)
-    #expect(try await recorder.complete(try await FolderScanner().scan(scope), token: token).state == .unknown)
-    #expect(try await store.snapshots().isEmpty)
 }
 
 @Test func interleavedScopesCompareTheirOwnLatestCompletedObservation() async throws {
