@@ -33,6 +33,8 @@ import SwiftUI
     private(set) var selectedIDs: Set<String> = []
     private(set) var selectionRevision: UInt64 = 0
     private(set) var isRunning = false
+    /// A cleanup changed files since the last catalog scan, so the next one is recorded as a post-cleanup rescan (#126).
+    private var rescanFollowsCleanup = false
     private(set) var result: CatalogExecutionResult?
     private(set) var message: String?
     /// Why a rule kept items back, such as copies whose use couldn't be checked.
@@ -200,7 +202,8 @@ import SwiftUI
             return (discovered, catalog.overriddenRules(home: home, systemRoot: system), Set(owners.values.filter { running.isRunning($0) == true }.map(\.name)), names,
                     access)
         }.value
-        await GrowthHistoryModel.shared.completeCatalog(scanned.0, catalog: catalog, fullDiskAccess: scanned.4, token: growth)
+        await GrowthHistoryModel.shared.completeCatalog(scanned.0, catalog: catalog, fullDiskAccess: scanned.4, token: growth, afterCleanup: rescanFollowsCleanup)
+        rescanFollowsCleanup = false
         fullDiskAccessRescan.scanned(scanned.4)
         discovered = scanned.0.candidates; notes = scanned.0.notes; notAccessibleRules = scanned.0.notAccessible; overriddenRules = scanned.1; runningOwners = scanned.2; ownerNames = scanned.3
         keepOnlyCurrentChoices()
@@ -261,6 +264,7 @@ import SwiftUI
             executor = run
             let outcome = await run.execute(approval)
             result = outcome
+            if !approval.previewOnly { rescanFollowsCleanup = true }
             // Picked folders keep the large and old files this run didn't act on (#125).
             selectedIDs = []; discovered = []; pickedFiles = pickedFiles.mapValues { UserFiles.remaining($0, after: outcome) }; hasScanned = false; selectionRevision &+= 1
         } catch { message = "The cleanup journal is unavailable. Nothing was changed." }

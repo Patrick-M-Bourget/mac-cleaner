@@ -5,7 +5,7 @@ import StillCore
 @Test func completedCompatibleAggregatesCompareAdditionsAndRemovalsWithoutFileRecords() async throws {
     let directory = FileManager.default.temporaryDirectory.appendingPathComponent("StillGrowth-" + UUID().uuidString)
     defer { try? FileManager.default.removeItem(at: directory) }
-    let store = GrowthHistoryStore(directory: directory)
+    let store = GrowthHistoryStore(directory: directory, minimumBaselineAge: 0)
     let fingerprint = GrowthFingerprint(scopeID: "scope", rootID: "root", volumeID: "volume", access: "complete", rules: "rules1", exclusions: "none", classification: "folders-v1")
     let first = GrowthSnapshot(fingerprint: fingerprint, scopeLabel: "Selected folder", observedAt: Date(timeIntervalSince1970: 100), groups: [.init(id: "folder:one", label: "One", logicalBytes: 10), .init(id: "folder:two", label: "Two", logicalBytes: 5)])
     #expect(try await store.record(first, now: first.observedAt, expectedEpoch: try await store.recordingEpoch()).state == .firstBaseline)
@@ -16,7 +16,7 @@ import StillCore
     #expect(result.groups.first { $0.id == "folder:one" }?.logicalDelta == 10)
     #expect(result.groups.first { $0.id == "folder:two" }?.logicalDelta == -5)
     #expect(result.from == first.observedAt && result.to == second.observedAt)
-    let reopened = GrowthHistoryStore(directory: directory)
+    let reopened = GrowthHistoryStore(directory: directory, minimumBaselineAge: 0)
     #expect(try await reopened.latest(now: second.observedAt).state == .compared)
 }
 
@@ -101,7 +101,7 @@ import StillCore
 @Test func interleavedScopesCompareTheirOwnLatestCompletedObservation() async throws {
     let directory = FileManager.default.temporaryDirectory.appendingPathComponent("StillGrowth-" + UUID().uuidString)
     defer { try? FileManager.default.removeItem(at: directory) }
-    let store = GrowthHistoryStore(directory: directory)
+    let store = GrowthHistoryStore(directory: directory, minimumBaselineAge: 0)
     func snapshot(_ scope: String, _ time: Double, _ bytes: Int64) -> GrowthSnapshot {
         .init(fingerprint: .init(scopeID: scope, rootID: scope, volumeID: "volume", access: "complete", rules: "one", exclusions: "none", classification: "one"), scopeLabel: scope, observedAt: Date(timeIntervalSince1970: time), groups: [.init(id: "files", label: "Files", logicalBytes: bytes)])
     }
