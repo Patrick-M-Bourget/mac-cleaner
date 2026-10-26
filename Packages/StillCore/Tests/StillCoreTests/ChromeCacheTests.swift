@@ -273,10 +273,11 @@ func chromeNativeUnreapedExitedChildIsNotBrowserActivity() throws {
         var status: Int32 = 0
         var reaped = false
         for _ in 0..<100 {
-            if waitpid(child, &status, WNOHANG) == child { reaped = true; break }
+            let result = waitpid(child, &status, WNOHANG)
+            if result == child || (result == -1 && errno == ECHILD) { reaped = true; break }
             usleep(10_000)
         }
-        if !reaped { kill(child, SIGTERM); _ = waitpid(child, &status, 0) }
+        if !reaped { Issue.record("Owned child did not reap within the bounded fixture interval; no unrelated PID may be terminated") }
     }
     var exited = siginfo_t()
     var exitObserved = false
