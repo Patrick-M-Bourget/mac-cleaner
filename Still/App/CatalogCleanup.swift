@@ -146,6 +146,11 @@ import SwiftUI
     var selectedRuleCount: Int { Set(selectedCandidates.map(\.ruleID)).count }
     var selectedCount: Int { selectedCandidates.count }
     var estimatedBytes: Int64 { selectedCandidates.reduce(0) { $0 + $1.estimatedBytes } }
+    /// The chosen items that go to Trash and their size; nil when none do.
+    var selectedTrashBytes: Int64? {
+        let trash = selectedCandidates.filter { $0.action == .trash }
+        return trash.isEmpty ? nil : trash.reduce(0) { $0 + $1.estimatedBytes }
+    }
     var canEdit: Bool { !isScanning && !isRunning && !AppLifecycleController.shared.operationInProgress && !AppLifecycleController.shared.maintenanceInProgress }
     var canReview: Bool { canEdit && selectedCount > 0 }
     func isSelected(_ rule: CleanupRule) -> Bool { candidates(for: rule).contains { selectedIDs.contains($0.id) } }
@@ -274,7 +279,11 @@ extension CatalogCategory {
         case .browser: .browser
         case .downloads: .downloads
         case .files: .files
-        case .system, .models, .updaters, .logs, .managed: .managed
+        case .system: .appCaches
+        case .models: .models
+        case .updaters: .appUpdates
+        case .logs: .logs
+        case .managed: .managed
         }
     }
     /// Overview's row title for a category; the rows themselves come from what the catalog found.
@@ -290,6 +299,21 @@ extension CatalogCategory {
         case .icloud: "Downloaded iCloud files"
         case .files: "Large and old files"
         case .managed: "App-managed storage"
+        }
+    }
+    /// The one short line under a category's title on Overview and in the plan, written per category rather than built from rule names.
+    var overviewDetail: String {
+        switch self {
+        case .developer: "Package caches and build files that tools rebuild"
+        case .browser: "Cached pages and images browsers fetch again"
+        case .downloads: "Installers and large files you haven’t opened lately"
+        case .system: "Caches apps rebuild when they need them"
+        case .models: "AI models and disk images you can download again"
+        case .updaters: "Updates apps downloaded and kept"
+        case .logs: "Logs and crash reports apps wrote"
+        case .icloud: "Local copies of files that stay in iCloud"
+        case .files: "Large files you haven’t opened in a while"
+        case .managed: "Data the apps that own it look after"
         }
     }
 }
@@ -317,16 +341,6 @@ extension SizeEstimate {
 extension CatalogOverview.Row {
     /// The row's size; "Up to" when part of it is copies that share disk blocks.
     var valueText: String { estimate.text(upperBound: rules.contains(where: \.estimateIsUpperBound)) }
-    /// What happens and to what, e.g. "Clear npm cache, Yarn cache · Move Installers to Trash" (`ActionWording`).
-    var detail: String {
-        let groups = Dictionary(grouping: rules) { $0.action.wording.overviewGroup }
-        return groups.keys.sorted().compactMap { key in
-            groups[key].flatMap { rules in rules.first.map { $0.action.wording.overview(Self.list(rules.map(\.title))) } }
-        }.joined(separator: " · ")
-    }
-    private static func list(_ titles: [String]) -> String {
-        titles.count <= 3 ? titles.joined(separator: ", ") : titles.prefix(2).joined(separator: ", ") + " and \(titles.count - 2) more"
-    }
 }
 
 /// A size as text. An incomplete size of 0 is unknown, as in `SizeEstimate`.
@@ -381,7 +395,7 @@ struct CatalogPlanSection: View {
                 HStack(spacing: StillDesign.Space.sm) {
                     StatusRow(text: ListFormatter.localizedString(byJoining: model.notAccessibleRules.map(\.title)) + " needs Full Disk Access.", symbol: "lock",
                               identifier: "planNotAccessible").fixedSize()
-                    FullDiskAccessLink(title: "Learn more")
+                    FullDiskAccessLink(title: "Learn more", symbol: nil)
                     Spacer(minLength: 0)
                 }
             }
@@ -400,14 +414,48 @@ private struct PlanCategoryRow: View {
     var body: some View {
         let state = model.selectionState(for: row.rules)
         VStack(alignment: .leading, spacing: StillDesign.Space.sm) {
-            CategorySelectionHeader(category: row.category.storageCategory, state: state, title: row.category.overviewTitle, detail: row.detail,
+            CategorySelectionHeader(category: row.category.storageCategory, state: state, title: row.category.overviewTitle, detail: row.category.overviewDetail,
                                     size: row.valueText, enabled: model.canEdit, identifier: "planCategory-" + row.id) { model.setSelected(row.rules, state != .checked) }
-            ActionDisclosureGroup("Choose items · \(row.rules.reduce(0) { $0 + model.candidates(for: $1).count })", isExpanded: $expanded) {
-                VStack(alignment: .leading, spacing: 0) {
-                    ForEach(row.rules) { rule in PlanRuleRows(model: model, rule: rule) }
-                }.padding(.top, StillDesign.Space.sm)
-            }.padding(.leading, StillDesign.Size.categoryContentIndent)
+            switch row.planLayout {
+            case .ruleRows:
+                ActionDisclosureGroup("Choose items · \(row.itemCount)", isExpanded: $expanded) {
+                    VStack(alignment: .leading, spacing: 0) {
+                        ForEach(row.rules) { rule in PlanRuleRows(model: model, rule: rule) }
+                    }.padding(.top, StillDesign.Space.sm)
+                }.padding(.leading, StillDesign.Size.categoryContentIndent)
+            case .items:
+                if let rule = row.rules.first {
+                    PlanRunningOwners(model: model, rule: rule).padding(.leading, StillDesign.Size.categoryContentIndent)
+                    ActionDisclosureGroup("Choose items · \(row.itemCount)", isExpanded: $expanded) {
+                        PlanRuleItems(model: model, rule: rule).padding(.top, StillDesign.Space.sm)
+                    }.padding(.leading, StillDesign.Size.categoryContentIndent)
+                }
+            case .categoryOnly:
+                if let rule = row.rules.first { PlanRunningOwners(model: model, rule: rule).padding(.leading, StillDesign.Size.categoryContentIndent) }
+            }
         }
+    }
+}
+
+/// Why a rule can't be cleaned right now: its owner is open.
+private struct PlanRunningOwners: View {
+    let model: CatalogCleanupModel
+    let rule: CleanupRule
+    var body: some View {
+        ForEach(model.runningOwnerNames(for: rule), id: \.self) { name in
+            StatusRow(text: CheckRefusal.ownerRunning(name).reason, symbol: "exclamationmark.circle", role: .caution, identifier: "planRunning-" + rule.id)
+                .font(StillDesign.TypeStyle.caption)
+        }
+    }
+}
+
+/// A rule's items, each chosen on its own: profiles or apps when it groups them, otherwise single items.
+private struct PlanRuleItems: View {
+    @Bindable var model: CatalogCleanupModel
+    let rule: CleanupRule
+    var body: some View {
+        if model.candidates(for: rule).contains(where: { $0.group != nil }) { CatalogProfileRows(model: model, rule: rule) }
+        else { CatalogItemRows(model: model, rule: rule) }
     }
 }
 
@@ -426,10 +474,7 @@ private struct PlanRuleRows: View {
                 MacroCategoryCheckbox(state: state, label: rule.title, enabled: model.canEdit, action: { model.setSelected(rule, state != .checked) },
                                       identifier: "planRule-" + rule.id, showsTitle: false).fixedSize()
             }
-            ForEach(model.runningOwnerNames(for: rule), id: \.self) { name in
-                StatusRow(text: CheckRefusal.ownerRunning(name).reason, symbol: "exclamationmark.circle", role: .caution, identifier: "planRunning-" + rule.id)
-                    .font(StillDesign.TypeStyle.caption).padding(.leading, StillDesign.Space.xl).padding(.bottom, StillDesign.Space.sm)
-            }
+            PlanRunningOwners(model: model, rule: rule).padding(.leading, StillDesign.Space.xl).padding(.bottom, StillDesign.Space.sm)
             if rule.choosesItems { CatalogItemRows(model: model, rule: rule).padding(.leading, StillDesign.Space.xl) }
             if items.contains(where: { $0.group != nil }) { CatalogProfileRows(model: model, rule: rule).padding(.leading, StillDesign.Space.xl) }
             Divider()
