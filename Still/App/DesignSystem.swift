@@ -400,7 +400,7 @@ struct CategorySelectionHeader: View {
     let action: () -> Void
     var body: some View {
         HStack(alignment: .top, spacing: StillDesign.Space.md) {
-            MacroCategoryCheckbox(state: state, label: title, enabled: enabled, action: action, showsTitle: false)
+            MacroCategoryCheckbox(state: state, label: title, enabled: enabled, action: action, identifier: category == .downloads ? "downloadsCategorySelection" : "\(category)-CategorySelection", showsTitle: false)
                 .fixedSize().padding(.top, StillDesign.Space.sm)
             CategoryBadge(category: category)
             VStack(alignment: .leading, spacing: StillDesign.Space.xs) {
