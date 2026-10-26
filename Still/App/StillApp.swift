@@ -20,6 +20,7 @@ struct StillApp: App {
                 Button("Show Still") { lifecycle.openWorkspace?() }
             }
         }
+        Settings { AppearanceSettingsView() }
     }
 }
 
@@ -75,7 +76,6 @@ enum Destination: String, CaseIterable, Identifiable {
     var diagnosticsCaller = Destination.overview
     var diagnosticsOffset: CGPoint?
     var diagnosticsModel = DiagnosticsModel()
-    var accessGuideExpanded = false
 }
 
 private struct WorkspaceView: View {
@@ -108,7 +108,7 @@ private struct WorkspaceView: View {
     private var showsPlan: Bool { destination == .plan && !navigationState.localRecordsVisible && !recoveryVisible && !nativeInspectionVisible && !homebrewVisible && !pipVisible && !diagnosticsVisible && !exclusionsVisible }
     private var contextLabel: String {
         if selection.workspaceRunning { return "Running approved cleanup" }
-        if navigationState.localRecordsVisible && !recoveryVisible { return "Local records · Explicit maintenance only" }
+        if navigationState.localRecordsVisible && !recoveryVisible { return "" }
         if diagnosticsVisible { return "Redacted diagnostics · Explicit local Save" }
         if recoveryVisible { return "Recovery review · Recorded facts only" }
         if selection.hasWorkspaceResult && showsPlan { return "Cleanup results · individual outcomes" }
@@ -119,10 +119,9 @@ private struct WorkspaceView: View {
         switch destination {
         case .overview: return "On-demand storage review"
         case .plan: return "Choose files, then review"
-        case .history: return "Recorded scan and cleanup activity"
-        case .locations: return "Scan locations and access"
+        case .history, .locations: return "" // Decision 25: no toolbar subtitles
         case .alerts: return "Capacity checks only"
-        case .growth: return "Observed storage changes"
+        case .growth: return ""
         }
     }
 
@@ -247,7 +246,7 @@ private struct WorkspaceView: View {
                             }.buttonStyle(.borderedProminent)
                         }
                     } else if navigationState.localRecordsVisible {
-                        ActionStrip(message: "These controls manage Still’s records, not your original files.") {
+                        ActionStrip(message: nil) {
                             Button("Back to " + navigationState.localRecordsCaller.rawValue) {
                                 navigationState.localRecordsVisible = false
                                 destination = navigationState.localRecordsCaller
@@ -262,7 +261,7 @@ private struct WorkspaceView: View {
                             Button("View cleanup plan") { nativeInspectionVisible = false; destination = .plan }.buttonStyle(.borderedProminent)
                         }
                     } else if destination == .growth {
-                        ActionStrip(message: GrowthHistoryModel.shared.comparison?.state == .compared ? "Two completed scans · Coverage changes aren’t counted as growth. No continuous monitoring required." : "Each completed scan of the known locations is recorded. No continuous monitoring required.") {
+                        ActionStrip(message: nil) {
                             Button("Scan again", action: scanAgain).disabled(selection.catalog.isScanning || folderInspection.isScanning || selection.workspaceRunning || !selection.catalog.canEdit)
                                 .accessibilityIdentifier("growthScanAgain")
                             Button("Review options") { navigate(.plan); navigationState.planReturnsToGrowth = true }.buttonStyle(.borderedProminent)
@@ -287,12 +286,7 @@ private struct WorkspaceView: View {
         .onReceive(NotificationCenter.default.publisher(for: .stillAlertOpened)) { _ in destination = .overview; navigationState.localRecordsVisible = false; exclusionsVisible = false; diagnosticsVisible = false; recoveryVisible = false; nativeInspectionVisible = false; homebrewVisible = false; pipVisible = false }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in Task { await alerts.activated() } }
         .onReceive(NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.didWakeNotification)) { _ in Task { await alerts.activated() } }
-        .toolbar {
-            contextToolbar
-            ToolbarItem(placement: .automatic) {
-            AppearancePicker(choice: Binding(get: { appearance.choice }, set: { AppLifecycleController.shared.chooseAppearance($0) }))
-            }
-        }
+        .toolbar { contextToolbar }
     }
 
     @ToolbarContentBuilder private var contextToolbar: some ToolbarContent {
@@ -573,7 +567,7 @@ private struct WorkspaceView: View {
 
     private var history: some View {
         CleanupHistoryView(model: navigationState.historyModel, expandedRuns: $navigationState.historyExpandedRuns,
-            showRecovery: { openRecovery(caller: .history) }, manageLocalRecords: { openLocalRecords(caller: .history) }, goOverview: { navigate(.overview) }, viewPlan: { navigate(.plan) })
+            showRecovery: { openRecovery(caller: .history) }, goOverview: { navigate(.overview) }, viewPlan: { navigate(.plan) })
     }
 
     private var locations: some View {
@@ -615,8 +609,7 @@ private struct WorkspaceView: View {
                 Divider()
             }
             if let message = locationsModel.message { StatusRow(text: message, symbol: "info.circle") }
-            Text("Scanned folders are for inspection. Cleanup choices, Downloads included, come from the cleanup plan. Access is rechecked for each manual scan; no files are scanned at launch.").font(.caption).foregroundStyle(.secondary)
-            LocationAccessGuide(expanded: $navigationState.accessGuideExpanded)
+            FullDiskAccessSetting()
             LocalRecordsEntry { openLocalRecords(caller: .locations) }
         }.confirmationDialog("Forget location?", isPresented: Binding(get: { locationToForget != nil }, set: { if !$0 { locationToForget = nil } }), titleVisibility: .visible) {
             if let scope = locationToForget {

@@ -44,3 +44,19 @@ public struct ScanActivity: Codable, Sendable, Identifiable {
         }
     }
 }
+
+/// What a compact History row shows on the right: the logical size the scan observed.
+public struct ScanActivitySize: Equatable, Sendable {
+    public let bytes: Int64
+    /// False when some location has no complete size, so `bytes` is a known minimum.
+    public let complete: Bool
+    public init(bytes: Int64, complete: Bool) { self.bytes = bytes; self.complete = complete }
+}
+public extension ScanActivity {
+    /// Sums each location's complete size, or its known subtotal when incomplete. Nil when nothing was measured.
+    var observedSize: ScanActivitySize? {
+        let known = locations.compactMap { $0.logicalBytes ?? $0.knownLogicalBytes }
+        guard !known.isEmpty else { return nil }
+        return ScanActivitySize(bytes: known.reduce(0, +), complete: locations.allSatisfy { $0.logicalBytes != nil })
+    }
+}

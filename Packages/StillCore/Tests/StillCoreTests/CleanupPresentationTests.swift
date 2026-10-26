@@ -64,15 +64,11 @@ private func fixture(_ rules: [CleanupRule]) throws -> (URL, Catalog, [Candidate
     #expect(record.needsAttention)
 }
 
-@Test func shortLocationsNameAFewFoldersNotTheWholePath() {
+@Test func catalogItemsNameICloudDriveByNameAndOtherwiseUseShortLocations() {
     let home = URL(fileURLWithPath: "/Users/someone")
     let short = { PathDisplay.shortLocation(of: home.appendingPathComponent($0), home: home) }
-    #expect(short("Downloads/Setup.dmg") == "Downloads")
-    #expect(short("Library/Caches/Google/Chrome/Default/Cache") == "Chrome › Default")
-    #expect(short(".npm") == "Home")
-    #expect(short(".npm/_cacache") == ".npm")
+    #expect(short("Downloads/Setup.dmg") == "~/Downloads")
+    #expect(short("Library/Caches/Google/Chrome/Default/Cache") == "…/Chrome/Default")
     #expect(short("Library/Mobile Documents/com~apple~CloudDocs/Report.pdf") == "iCloud Drive")
     #expect(short("Library/Mobile Documents/com~apple~CloudDocs/Taxes/Report.pdf") == "iCloud Drive › Taxes")
-    #expect(PathDisplay.shortLocation(of: URL(fileURLWithPath: "/private/var/folders/ab/X/com.google.Chrome.code_sign_clone/old"), home: home)
-            == "X › com.google.Chrome.code_sign_clone")
 }

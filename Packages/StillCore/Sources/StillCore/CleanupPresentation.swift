@@ -80,21 +80,13 @@ extension Array where Element == CleanupRecord {
     public var attentionFirst: [CleanupRecord] { filter(\.needsAttention) + filter { !$0.needsAttention } }
 }
 
-/// Short locations for rows: the full path goes in a tooltip or a disclosure (Decision 25).
-public enum PathDisplay {
-    /// Where an item sits, in a few words: "Downloads" for `~/Downloads/Setup.dmg`, "Chrome › Default" for a deeper folder,
-    /// "iCloud Drive" for iCloud Drive's top level.
+extension PathDisplay {
+    /// A catalog item's short location: iCloud Drive by name, otherwise `shortLocation(of:home:)`, e.g. `~/Downloads`.
     public static func shortLocation(of url: URL, home: URL) -> String {
         let parent = url.standardizedFileURL.deletingLastPathComponent().path
-        let homePath = home.standardizedFileURL.path
-        let drive = homePath + "/" + BuiltInCatalog.iCloudDrivePath
+        let drive = home.standardizedFileURL.path + "/" + BuiltInCatalog.iCloudDrivePath
         if parent == drive { return "iCloud Drive" }
         if parent.hasPrefix(drive + "/") { return "iCloud Drive › " + URL(fileURLWithPath: parent).lastPathComponent }
-        if parent == homePath { return "Home" }
-        let components = URL(fileURLWithPath: parent).pathComponents.filter { $0 != "/" }
-        let homeDepth = URL(fileURLWithPath: homePath).pathComponents.filter { $0 != "/" }.count
-        let inHome = parent.hasPrefix(homePath + "/")
-        let tail = components.suffix(inHome ? Swift.min(2, components.count - homeDepth) : 2)
-        return tail.joined(separator: " › ")
+        return shortLocation(of: url.path, home: home.path)
     }
 }

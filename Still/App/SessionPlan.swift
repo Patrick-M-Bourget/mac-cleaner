@@ -175,7 +175,7 @@ struct LiveCleanupPlanView: View {
                 Button(selection.workspaceStopRequested ? "Stop requested" : "Stop after current item") { selection.cancelWorkspace() }.disabled(selection.workspaceStopRequested)
             }
         } else if selection.hasWorkspaceResult {
-            ActionStrip(message: selection.requiresRecoveryReview ? "Review unresolved records before making another plan." : "") {
+            ActionStrip(message: selection.requiresRecoveryReview ? "Review unresolved records before making another plan." : nil) {
                 if let viewHistory { Button("View history", action: viewHistory) }
                 if selection.requiresRecoveryReview, let reviewRecovery { Button("Review recovery", action: reviewRecovery) }
                 if let newPlan { Button("Start a new plan", action: newPlan).buttonStyle(.borderedProminent) }
