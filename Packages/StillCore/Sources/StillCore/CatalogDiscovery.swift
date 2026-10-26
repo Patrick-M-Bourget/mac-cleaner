@@ -10,4 +10,6 @@ public struct CatalogNote: Sendable, Equatable {
 public struct CatalogDiscovery: Sendable {
     public let candidates: [Candidate]
     public let notes: [CatalogNote]
+    /// Rules whose locations this scan looked at, in catalog order: not overridden by a setting, with their base folder and tool present.
+    public var scannedRuleIDs: [String] = []
 }

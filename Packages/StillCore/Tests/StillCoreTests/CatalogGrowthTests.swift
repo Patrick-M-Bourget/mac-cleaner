@@ -62,3 +62,96 @@ private func catalogSnapshot(_ time: Double, _ groups: [GrowthAggregate]) -> Gro
     let snapshot = catalogSnapshot(100, [location("npm", "developer", 100), location("safari", "browser", 40, measured: false)])
     #expect(snapshot.logicalBytes == 100)
 }
+
+private func fixtureHome() throws -> URL {
+    let home = FileManager.default.temporaryDirectory.appendingPathComponent("StillCatalogGrowthHome-\(UUID())")
+    try FileManager.default.createDirectory(at: home, withIntermediateDirectories: true)
+    return home.resolvingSymlinksInPath()
+}
+private func write(_ bytes: Int, at path: String, in home: URL) throws {
+    let file = home.appendingPathComponent(path)
+    try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
+    try Data(repeating: 1, count: bytes).write(to: file)
+}
+private func recordCatalogScan(_ catalog: Catalog, home: URL, recorder: GrowthScanRecorder, access: FullDiskAccessStatus = .granted) async throws -> GrowthComparison {
+    let token = try await recorder.beginCatalog(home: home, exclusionFingerprint: ExclusionPolicy().fingerprint)
+    let discovery = catalog.discovery(fixture: home)
+    return try await recorder.completeCatalog(discovery, catalog: catalog, fullDiskAccess: access, token: token)
+}
+
+@Test func theFirstCatalogScanRecordsABaselineAndTheNextShowsGrowthPerCategoryAndLocation() async throws {
+    let home = try fixtureHome(), (store, directory) = growthStore()
+    defer { try? FileManager.default.removeItem(at: home); try? FileManager.default.removeItem(at: directory) }
+    let catalog = Catalog(rules: fixtureRules), recorder = GrowthScanRecorder(store: store)
+    try write(10_000, at: ".npm/_cacache/content-v2/one", in: home)
+    let first = try await recordCatalogScan(catalog, home: home, recorder: recorder)
+    #expect(first.state == .firstBaseline)
+    let npm = try #require(first.current?.groups.first { $0.ruleID == "npm-cache" })
+    #expect(npm.dimension == .location && npm.category == "developer" && npm.label == "~/.npm/_cacache" && npm.measured == true)
+    #expect(npm.logicalBytes >= 10_000)
+    // Every scanned rule location is recorded, found or not, so a later appearance isn't mistaken for coverage.
+    #expect(first.current?.groups.contains { $0.ruleID == "yarn-cache" && $0.logicalBytes == 0 } == true)
+
+    try write(1_000_000, at: ".npm/_cacache/content-v2/two", in: home)
+    try write(500_000, at: "Library/Caches/Yarn/blob", in: home)
+    let second = try await recordCatalogScan(catalog, home: home, recorder: recorder)
+    #expect(second.state == .compared)
+    #expect(second.coverageChanges.isEmpty)
+    let npmDelta = try #require(second.groups.first { $0.id == npm.id }?.logicalDelta)
+    #expect(npmDelta >= 1_000_000)
+    let developer = try #require(second.groups.first { $0.id == "category:developer" }?.logicalDelta)
+    #expect(developer >= 1_500_000)
+    #expect(second.logicalDelta == developer)
+}
+
+@Test func aCatalogLocationThatNeedsFullDiskAccessIsCoverageWhenAccessIsGranted() async throws {
+    let home = try fixtureHome(), (store, directory) = growthStore()
+    defer { try? FileManager.default.removeItem(at: home); try? FileManager.default.removeItem(at: directory) }
+    let safari = CleanupRule(id: "safari-fixture", category: .browser, title: "Safari cache", detail: "", consequence: "", regen: .cache, action: .delete,
+                             locations: ["Library/Caches/com.apple.Safari"], owner: nil, requiresFullDiskAccess: true)
+    let catalog = Catalog(rules: [safari]), recorder = GrowthScanRecorder(store: store)
+    try write(4_000_000, at: "Library/Caches/com.apple.Safari/blob", in: home)
+    let first = try await recordCatalogScan(catalog, home: home, recorder: recorder, access: .notGranted)
+    #expect(first.current?.groups.first?.measured == false)
+    let second = try await recordCatalogScan(catalog, home: home, recorder: recorder, access: .granted)
+    #expect(second.state == .compared)
+    #expect(second.logicalDelta == 0)
+    #expect(second.groups.first { $0.id == "category:browser" }?.logicalDelta ?? 0 == 0)
+    #expect(second.coverageChanges.map(\.kind) == [.newlyReadable])
+}
+
+@Test func theBuiltInCatalogFitsInOneGrowthSnapshot() async throws {
+    let home = try fixtureHome(), (store, directory) = growthStore()
+    defer { try? FileManager.default.removeItem(at: home); try? FileManager.default.removeItem(at: directory) }
+    let result = try await recordCatalogScan(Catalog(rules: fixtureRules), home: home, recorder: GrowthScanRecorder(store: store))
+    #expect(result.state == .firstBaseline)
+}
+
+@Test func itemsUnderAWildcardLocationAndLeftoversBesideItCountInThatLocation() async throws {
+    let home = try fixtureHome(), (store, directory) = growthStore()
+    defer { try? FileManager.default.removeItem(at: home); try? FileManager.default.removeItem(at: directory) }
+    let rule = CleanupRule(id: "fixture-caches", category: .system, title: "Fixture caches", detail: "", consequence: "", regen: .cache, action: .delete,
+                           locations: ["Library/FixtureCaches/*"], owner: nil)
+    try write(1_000, at: "Library/FixtureCaches/one/blob", in: home)
+    try write(2_000, at: "Library/FixtureCaches/two/blob", in: home)
+    try write(4_000, at: "Library/FixtureCaches/.still-deleting-fixture-caches-\(UUID().uuidString)/blob", in: home)
+    let result = try await recordCatalogScan(Catalog(rules: [rule]), home: home, recorder: GrowthScanRecorder(store: store))
+    let groups = try #require(result.current?.groups)
+    #expect(groups.count == 1)
+    #expect(groups.first?.label == "~/Library/FixtureCaches")
+    #expect((groups.first?.logicalBytes ?? 0) >= 7_000)
+}
+
+@Test func catalogSnapshotsKeepTheRetentionLimits() async throws {
+    let directory = FileManager.default.temporaryDirectory.appendingPathComponent("StillCatalogGrowth-" + UUID().uuidString)
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let store = GrowthHistoryStore(directory: directory, policy: GrowthRetention(days: 1, baselines: 2))
+    for time in [100.0, 200, 300] {
+        _ = try await store.record(catalogSnapshot(time, [location("npm", "developer", Int64(time))]), now: Date(timeIntervalSince1970: time), expectedEpoch: try await store.recordingEpoch())
+    }
+    #expect(try await store.snapshots(now: Date(timeIntervalSince1970: 300)).map(\.observedAt.timeIntervalSince1970) == [200, 300])
+    #expect(try await store.snapshots(now: Date(timeIntervalSince1970: 300 + 86_401)).isEmpty)
+    // The limits never loosen past 90 days and 30 baselines.
+    let widest = GrowthRetention(days: 365, baselines: 100, bytes: .max)
+    #expect(widest.days == 90 && widest.baselines == 30 && widest.bytes == 250_000_000)
+}
