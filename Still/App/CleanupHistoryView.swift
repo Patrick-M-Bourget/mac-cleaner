@@ -76,10 +76,11 @@ private enum HistoryActivityItem: Identifiable {
         busy = true; defer { busy = false }
         lifecycle.maintenanceInProgress = true; defer { lifecycle.maintenanceInProgress = false }
         var clearedRuns: Int?
+        var chromeClearedRuns: Int?
         var compactionCompleted = false
         do {
             let chromeJournal = ChromeCacheService(journalURL: try LocalStateLocation.root(create: true).appendingPathComponent("chrome-cleanup.json"))
-            _ = try await chromeJournal.clearCompletedRecords()
+            chromeClearedRuns = try await chromeJournal.clearCompletedRecords()
             chromeRuns = try await chromeJournal.records()
             let result = try await Task.detached {
                 let journal = try CleanupJournalLocation.writer()
@@ -95,11 +96,21 @@ private enum HistoryActivityItem: Identifiable {
             try await GrowthHistoryModel.shared.clearCompletedHistory()
             await ScanActivityHistory.shared.load(maintain: false)
             let noun = result.0.removedRuns == 1 ? "run" : "runs"
-            message = "Cleared \(result.0.removedRuns) completed cleanup \(noun), scan activity and growth baselines. Recovery facts retained." + compactionMessage(compactionCompleted)
+            if let chromeClearedRuns, chromeClearedRuns > 0 {
+                message = "Cleared \(result.0.removedRuns) completed Downloads cleanup \(noun) and \(chromeClearedRuns) completed Chrome cleanup \(chromeClearedRuns == 1 ? "run" : "runs"), scan activity and growth baselines. Recovery facts retained." + compactionMessage(compactionCompleted)
+            } else {
+                message = "Cleared \(result.0.removedRuns) completed cleanup \(noun), scan activity and growth baselines. Recovery facts retained." + compactionMessage(compactionCompleted)
+            }
         } catch {
             if let clearedRuns {
                 let noun = clearedRuns == 1 ? "run" : "runs"
-                message = "Cleared \(clearedRuns) completed cleanup \(noun). Scan activity and growth baseline clearing could not be confirmed. Recovery facts remain protected." + compactionMessage(compactionCompleted)
+                if let chromeClearedRuns, chromeClearedRuns > 0 {
+                    message = "Cleared \(clearedRuns) completed Downloads cleanup \(noun) and \(chromeClearedRuns) completed Chrome cleanup \(chromeClearedRuns == 1 ? "run" : "runs"). Scan activity and growth baseline clearing could not be confirmed. Recovery facts remain protected." + compactionMessage(compactionCompleted)
+                } else {
+                    message = "Cleared \(clearedRuns) completed cleanup \(noun). Scan activity and growth baseline clearing could not be confirmed. Recovery facts remain protected." + compactionMessage(compactionCompleted)
+                }
+            } else if let chromeClearedRuns {
+                message = "Cleared \(chromeClearedRuns) completed Chrome cleanup \(chromeClearedRuns == 1 ? "run" : "runs"). Downloads cleanup history clearing could not be confirmed. Scan activity and growth baselines were not cleared. Recovery facts remain protected."
             } else {
                 message = "Cleanup history clearing could not be confirmed. Scan activity and growth baselines were not cleared. Recovery facts remain protected."
             }
@@ -113,11 +124,13 @@ private enum HistoryActivityItem: Identifiable {
         guard !busy, !lifecycle.maintenanceInProgress, !lifecycle.operationInProgress, !lifecycle.selection.execution.isRunning else { message = "Reset is blocked while cleanup is running. Stop and review its results first."; return false }
         busy = true; lifecycle.maintenanceInProgress = true
         defer { busy = false; lifecycle.maintenanceInProgress = false }
-        enum ResetStage { case journal, appearance, remainingPreferences }
+        enum ResetStage { case journal, chromeInspection, appearance, remainingPreferences }
         var resetStage = ResetStage.journal
+        var chromeClearedRuns: Int?
+        var downloadsClearedRuns: Int?
         do {
             let chromeJournal = ChromeCacheService(journalURL: try LocalStateLocation.root(create: true).appendingPathComponent("chrome-cleanup.json"))
-            _ = try await chromeJournal.clearCompletedRecords(requireNoRecovery: true)
+            chromeClearedRuns = try await chromeJournal.clearCompletedRecords(requireNoRecovery: true)
             chromeRuns = try await chromeJournal.records()
             // This check is deliberately inside the write transaction, never based on cached UI.
             let result = try await Task.detached {
@@ -126,8 +139,10 @@ private enum HistoryActivityItem: Identifiable {
                 let compacted = try journal.compact()
                 return (removed, compacted)
             }.value
-            resetStage = .appearance
+            downloadsClearedRuns = result.0.removedRuns
+            resetStage = .chromeInspection
             try lifecycle.selection.chrome.resetInspectionPreference()
+            resetStage = .appearance
             try lifecycle.resetAppearancePreference()
             resetStage = .remainingPreferences
             try lifecycle.resetPreferences()
@@ -151,11 +166,19 @@ private enum HistoryActivityItem: Identifiable {
             switch resetStage {
             case .journal:
                 message = "Reset could not finish safely. The journal is unavailable; preferences are unchanged and some completed history may already be cleared. Review recovery before trying again."
+            case .chromeInspection:
+                message = "Reset could not clear the Chrome inspection preference. Appearance and remaining preferences are unchanged; some completed history may already be cleared. Resolve the preference failure before trying again."
             case .appearance:
                 message = "Reset could not clear the appearance preference. The current appearance is retained; some completed history may already be cleared. Review recovery before trying again."
             case .remainingPreferences:
                 message = "Reset could not finish safely. Appearance was reset to Automatic, but another preference service is unavailable; some completed history may already be cleared. Review recovery before trying again."
             }
+        }
+        if let chromeClearedRuns, chromeClearedRuns > 0 {
+            message = (message ?? "Reset did not finish.") + " Completed Chrome cleanup runs cleared: \(chromeClearedRuns)."
+        }
+        if let downloadsClearedRuns, downloadsClearedRuns > 0 {
+            message = (message ?? "Reset did not finish.") + " Completed Downloads cleanup runs cleared: \(downloadsClearedRuns)."
         }
         return false
     }
