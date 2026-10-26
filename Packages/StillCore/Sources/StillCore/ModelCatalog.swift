@@ -41,6 +41,8 @@ extension BuiltInCatalog {
 public enum CatalogItems: Sendable, Equatable {
     /// One item per model manifest under Ollama's `models/manifests`; Ollama itself is never run to list them.
     case ollamaModels
+    /// One item per prune kind, sized by what `docker system df` says Docker can reclaim.
+    case docker(DockerPruneKind)
 }
 
 private struct OllamaManifest: Decodable {
@@ -64,21 +66,18 @@ extension Catalog {
     func ollamaModels(in manifests: URL, rule: CleanupRule, toolURL: URL?) -> [Candidate] {
         let blobs = manifests.deletingLastPathComponent().appendingPathComponent("blobs")
         var parsed: [(url: URL, info: stat, name: String?, layers: [OllamaManifest.Layer])] = []
-        let path = strdup(manifests.path)
-        defer { free(path) }
-        var paths: [UnsafeMutablePointer<CChar>?] = [path, nil]
-        guard let tree = fts_open(&paths, FTS_PHYSICAL | FTS_XDEV | FTS_NOCHDIR, nil) else { return [] }
-        defer { fts_close(tree) }
-        while let entry = fts_read(tree), parsed.count < Self.childLimit {
+        guard FileTree.walk(manifests, { entry in
+            guard parsed.count < Self.childLimit else { return .stop }
             let level = Int(entry.pointee.fts_level)
-            if Int32(entry.pointee.fts_info) == FTS_D, level >= 4 { fts_set(tree, entry, FTS_SKIP); continue }
+            if Int32(entry.pointee.fts_info) == FTS_D, level >= 4 { return .skip }
             guard Int32(entry.pointee.fts_info) == FTS_F, level == 4, let info = entry.pointee.fts_statp?.pointee,
-                  info.st_uid == geteuid(), info.st_size <= 1_000_000 else { continue }
+                  info.st_uid == geteuid(), info.st_size <= 1_000_000 else { return .continue }
             let url = URL(fileURLWithPath: String(cString: entry.pointee.fts_path))
-            guard let data = try? Data(contentsOf: url), let manifest = try? JSONDecoder().decode(OllamaManifest.self, from: data) else { continue }
+            guard let data = try? Data(contentsOf: url), let manifest = try? JSONDecoder().decode(OllamaManifest.self, from: data) else { return .continue }
             let parts = Array(url.pathComponents.suffix(4))
             parsed.append((url, info, Self.ollamaName(parts), (manifest.config.map { [$0] } ?? []) + manifest.layers))
-        }
+            return .continue
+        }) else { return [] }
         // Every readable manifest counts toward sharing, even one that isn't offered.
         var references: [String: Int] = [:]
         for model in parsed { for digest in Set(model.layers.map(\.digest)) { references[digest, default: 0] += 1 } }
@@ -116,20 +115,16 @@ extension Catalog {
         func date(_ time: timespec) -> Date { Date(timeIntervalSince1970: Double(time.tv_sec) + Double(time.tv_nsec) / 1e9) }
         var newest = [date(info.st_mtimespec), date(info.st_birthtimespec)].max()!
         if let item = MDItemCreateWithURL(nil, url as CFURL), let opened = MDItemCopyAttribute(item, kMDItemLastUsedDate) as? Date { newest = max(newest, opened) }
-        let path = strdup(url.path)
-        defer { free(path) }
-        var paths: [UnsafeMutablePointer<CChar>?] = [path, nil]
-        guard let tree = fts_open(&paths, FTS_PHYSICAL | FTS_XDEV | FTS_NOCHDIR, nil) else { return newest }
-        defer { fts_close(tree) }
-        while let entry = fts_read(tree) {
-            guard let entryInfo = entry.pointee.fts_statp?.pointee else { continue }
+        FileTree.walk(url) { entry in
+            guard let entryInfo = entry.pointee.fts_statp?.pointee else { return .continue }
             switch Int32(entry.pointee.fts_info) {
             case FTS_F, FTS_SL, FTS_SLNONE:
                 newest = max(newest, date(entryInfo.st_atimespec), date(entryInfo.st_mtimespec), date(entryInfo.st_birthtimespec))
             case FTS_D:
                 newest = max(newest, date(entryInfo.st_mtimespec), date(entryInfo.st_birthtimespec))
-            default: continue
+            default: break
             }
+            return .continue
         }
         return newest
     }

@@ -3,10 +3,12 @@ import Darwin
 import CoreServices
 
 /// What kind of data a rule covers; it decides how the data comes back.
-public enum RegenClass: String, Codable, Sendable { case cache, build, updaterDownload, leakedCopy, log, installer, model, userFile }
+public enum RegenClass: String, Codable, Sendable { case cache, build, updaterDownload, leakedCopy, log, installer, model, userFile, cloudCopy }
 /// Decision 3: regenerable data is deleted; user files go to Trash. A few rules run the tool's own command (Decision 21).
 /// Trash keeps the "moveToTrash" string that Downloads-era journal records use.
-public enum CleanupAction: String, Codable, Sendable { case delete; case trash = "moveToTrash"; case tool }
+/// Evict removes only the local copy of an iCloud file (Decision 13); the original stays in iCloud.
+/// Guidance never acts: the rule is sized and points to where the user manages it (SPEC section 3).
+public enum CleanupAction: String, Codable, Sendable { case delete; case trash = "moveToTrash"; case tool; case evict; case guidance }
 
 /// A command a `.tool` rule runs, with a time limit. The executable and its arguments are fixed in the rule.
 public struct ToolCommand: Sendable, Hashable {
@@ -41,7 +43,7 @@ public struct ToolCommand: Sendable, Hashable {
 }
 /// Whether none, some or all of a category's items are chosen.
 public enum CategorySelectionState: Sendable { case unchecked, mixed, checked }
-public enum CatalogCategory: String, Codable, Sendable { case developer, browser, downloads, system, models, updaters, logs }
+public enum CatalogCategory: String, Codable, Sendable { case developer, browser, downloads, system, models, updaters, logs, icloud, files, managed }
 
 /// Who must be closed before a rule's data is touched.
 public struct RuleOwner: Sendable, Hashable {
@@ -127,14 +129,26 @@ public struct CleanupRule: Sendable, Identifiable {
     public let items: CatalogItems?
     /// Global protected extensions this rule may act inside, e.g. an app's own VM `.bundle`. Never `sparsebundle` lightly.
     public let unprotectedExtensions: Set<String>
+    /// How a `.guidance` rule is sized and where it is managed; nil for every other action.
+    public let guidance: Guidance?
+    /// Its locations are ones macOS protects (Safari's data): without Full Disk Access they're shown as not accessible.
+    public let requiresFullDiskAccess: Bool
+    /// macOS folder names (`com.apple.…`) this rule may act inside, such as Safari's own caches folder. Every other one stays protected.
+    public let unprotectedNames: Set<String>
+    /// Its items are single files from folders the user picked (`UserFiles`), never from its own locations. They're never
+    /// taken from the home folder's protected folders, and a git checkout above the picked folder counts too.
+    public let fromPickedFolders: Bool
     public init(id: String, category: CatalogCategory, title: String, detail: String, consequence: String, regen: RegenClass, action: CleanupAction, locations: [String], owner: RuleOwner?, protectedNames: [String] = [], tool: ToolCommand? = nil, protectedExtensions: [String] = [], contents: ContentsMatch? = nil, keepNewestVersions: Int? = nil, layoutOverrides: [LayoutOverride] = [], base: LocationBase = .home, copies: LeakedCopies? = nil, itemName: (@Sendable (String) -> String?)? = nil, items: CatalogItems? = nil, unprotectedExtensions: Set<String> = [],
-                itemOwner: (@Sendable (URL) -> RuleOwner?)? = nil, yieldsToOtherRules: Bool = false, protectedDepth: Int = 1) {
+                itemOwner: (@Sendable (URL) -> RuleOwner?)? = nil, yieldsToOtherRules: Bool = false, protectedDepth: Int = 1, requiresFullDiskAccess: Bool = false, guidance: Guidance? = nil,
+                unprotectedNames: Set<String> = [], fromPickedFolders: Bool = false) {
         self.id = id; self.category = category; self.title = title; self.detail = detail; self.consequence = consequence
         self.regen = regen; self.action = action; self.locations = locations; self.owner = owner; self.protectedNames = protectedNames; self.tool = tool
         self.protectedExtensions = protectedExtensions; self.contents = contents; self.keepNewestVersions = keepNewestVersions; self.layoutOverrides = layoutOverrides
         self.base = base; self.copies = copies
         self.itemName = itemName; self.items = items; self.unprotectedExtensions = unprotectedExtensions
         self.itemOwner = itemOwner; self.yieldsToOtherRules = yieldsToOtherRules; self.protectedDepth = protectedDepth
+        self.requiresFullDiskAccess = requiresFullDiskAccess; self.unprotectedNames = unprotectedNames
+        self.guidance = guidance; self.fromPickedFolders = fromPickedFolders
     }
 }
 
@@ -143,7 +157,7 @@ public enum BuiltInCatalog {
     /// The catalog as the app uses it, with installed apps found through LaunchServices.
     public static let rules: [CleanupRule] = rules(apps: SystemAppLookup())
     /// The catalog with installed apps found by `apps`. Tests pass a fake, so they never depend on this Mac's apps.
-    public static func rules(apps: any AppLookup) -> [CleanupRule] { fixedRules + BrowserCaches.rules + AppCaches.rules(apps: apps) }
+    public static func rules(apps: any AppLookup) -> [CleanupRule] { fixedRules + BrowserCaches.rules + AppCaches.rules(apps: apps) + dockerRules + guidanceRules }
     private static let fixedRules: [CleanupRule] = [
         CleanupRule(id: "npm-cache", category: .developer, title: "npm cache",
                     detail: "Packages npm downloaded for your projects.",
@@ -227,7 +241,7 @@ public enum BuiltInCatalog {
                     detail: "Downloads of 500 MB or more not opened in 90 days.",
                     consequence: "Moved to Trash. The space stays used until you empty the Trash; you can restore them from the Trash in Finder.",
                     regen: .userFile, action: .trash, locations: ["Downloads"], owner: nil,
-                    protectedExtensions: downloadsProtectedExtensions, contents: ContentsMatch(minimumBytes: 500_000_000, unusedDays: 90)),
+                    protectedExtensions: downloadsProtectedExtensions, contents: ContentsMatch(minimumBytes: UserFiles.largeBytes, unusedDays: UserFiles.unusedDays)),
         // Field note section 3: Chrome copies itself for code-sign checks and never removes the copies.
         CleanupRule(id: "chrome-code-sign-clones", category: .browser, title: "Chrome code-sign copies",
                     detail: "Copies of Google Chrome it made to check its signature and never removed. The copy Chrome is using and the newest copy are kept.",
@@ -237,6 +251,9 @@ public enum BuiltInCatalog {
         huggingFaceModels,
         ollamaModels,
         appVMImages,
+        iCloudLocalCopies,
+        // Its items come only from folders the user picked (`UserFiles.candidates`); it has no locations of its own.
+        UserFiles.rule,
     ]
     /// Kept from the Downloads-era policy: libraries and databases are never moved, even inside Downloads.
     static let downloadsProtectedExtensions = ["dsym", "library", "db", "sqlite", "sqlite3"]
@@ -321,23 +338,42 @@ public struct Catalog: Sendable {
     /// `/private/var/folders` entry appear only when `userFolder` is given (`Catalog.currentUserFolder()` in the app).
     /// Absolute paths in a rule's layout overrides are read under `systemRoot`.
     public func discover(home: URL, userFolder: URL? = nil, exclusions: ExclusionPolicy = ExclusionPolicy(), inUse: any InUseChecking = SystemInUseChecker(), sizer: KnownLocationSizer = KnownLocationSizer(), now: Date = Date(), locateTool: (ToolCommand) -> URL? = ToolCommand.installed,
-                         systemRoot: URL = URL(fileURLWithPath: "/")) -> [Candidate] {
-        discovery(home: home, userFolder: userFolder, exclusions: exclusions, inUse: inUse, sizer: sizer, now: now, locateTool: locateTool, systemRoot: systemRoot).candidates
+                         systemRoot: URL = URL(fileURLWithPath: "/"), cloud: any UbiquitousItemAccess = SystemUbiquitousItems()) -> [Candidate] {
+        discovery(home: home, userFolder: userFolder, exclusions: exclusions, inUse: inUse, sizer: sizer, now: now, locateTool: locateTool, systemRoot: systemRoot, cloud: cloud).candidates
     }
 
     /// `discover`, plus notes on rules that kept items back, such as copies kept because their use couldn't be checked.
+    /// A rule that needs Full Disk Access Still doesn't have (`access`) is never read; it comes back in `notAccessible`.
     public func discovery(home: URL, userFolder: URL? = nil, exclusions: ExclusionPolicy = ExclusionPolicy(), inUse: any InUseChecking = SystemInUseChecker(), sizer: KnownLocationSizer = KnownLocationSizer(), now: Date = Date(), locateTool: (ToolCommand) -> URL? = ToolCommand.installed,
-                          systemRoot: URL = URL(fileURLWithPath: "/")) -> CatalogDiscovery {
+                          systemRoot: URL = URL(fileURLWithPath: "/"), cloud: any UbiquitousItemAccess = SystemUbiquitousItems(), access: FullDiskAccessStatus = .unknown) -> CatalogDiscovery {
+        // Guidance rules report their own access (`guidance(home:)`).
+        let notAccessible = rules.filter { $0.action != .guidance && $0.access(given: access) == .needsFullDiskAccess }
         let homeBase = home.resolvingSymlinksInPath(), userBase = userFolder
         var seen = Set<String>()
         var notes: [CatalogNote] = []
+        var scanned: [String] = []
+        var notMeasured: [String: Set<String>] = [:]
+        // `docker system df` runs once per scan for every Docker rule, whenever the CLI is installed: without its folder
+        // nothing is offered, but a daemon that doesn't answer is still shown.
+        var dockerUsage: [String: Result<[DockerStorageCategory], ToolPreviewError>] = [:]
         let overridden = Set(overriddenRules(home: home, systemRoot: systemRoot).map(\.id))
         let candidates = rules.flatMap { rule -> [Candidate] in
-            guard !overridden.contains(rule.id), let base = rule.base == .home ? homeBase : userBase else { return [] }
+            // Guidance rules are sized by `guidance(home:)` and never become candidates.
+            guard rule.action != .guidance, !overridden.contains(rule.id), let base = rule.base == .home ? homeBase : userBase else { return [] }
+            // Looked at but not read: What grew records it as not measured, so access granted later is coverage, not growth.
+            if notAccessible.contains(where: { $0.id == rule.id }) { scanned.append(rule.id); return [] }
             // What an earlier cleanup left half-deleted comes back under the same rule, even if its tool is gone.
             let leftovers = leftovers(of: rule, in: base, sizer: sizer)
             let toolURL = rule.tool.flatMap(locateTool)
             guard rule.action != .tool || toolURL != nil else { return leftovers.map { $0.found(under: base) } }
+            scanned.append(rule.id)
+            for location in rule.locations where Self.cantRead(location, under: base) { notMeasured[rule.id, default: []].insert(location) }
+            if case .docker = rule.items, let toolURL {
+                let usage = dockerUsage[toolURL.path] ?? DockerDiskUsage.read(toolURL)
+                if dockerUsage[toolURL.path] == nil, case .failure(let error) = usage { notes.append(CatalogNote(ruleID: rule.id, text: DockerDiskUsage.notice(error))) }
+                dockerUsage[toolURL.path] = usage
+                if case .failure = usage { notMeasured[rule.id, default: []].formUnion(rule.locations); return leftovers.map { $0.found(under: base) } }
+            }
             // A trailing `/*` offers each folder inside (DeviceSupport versions); a `*` inside the path names a profile.
             let found = rule.locations.flatMap { location -> [(URL, String?)] in
                 // A pattern as the last component (`models--*`) also offers each matching folder.
@@ -351,8 +387,13 @@ public struct Catalog: Sendable {
                     notes += note.map { [$0] } ?? []
                     return found
                 }
+                if rule.action == .evict { return cloudCandidates(in: url, rule: rule, cloud: cloud, exclusions: exclusions) }
                 if let contents = rule.contents { return files(in: url, matching: contents, rule: rule, now: now) }
                 if rule.items == .ollamaModels { return ollamaModels(in: url, rule: rule, toolURL: toolURL) }
+                if case .docker(let kind) = rule.items, let toolURL {
+                    guard case .success(let rows)? = dockerUsage[toolURL.path] else { return [] }
+                    return dockerCandidate(kind, at: url, rule: rule, toolURL: toolURL, usage: rows).map { [$0] } ?? []
+                }
                 var info = stat()
                 guard lstat(url.path, &info) == 0, info.st_uid == geteuid(),
                       [S_IFDIR, S_IFREG].contains(info.st_mode & S_IFMT) else { return [] }
@@ -380,9 +421,24 @@ public struct Catalog: Sendable {
             // Excluded items are never candidates (SPEC section 2); the check refuses them again just before acting.
             // With exclusions set, an item whose volume can't be read can't be cleared of them, so it is left out too.
             if !exclusions.rules.isEmpty, candidate.volumeID.map({ exclusions.covers(candidate.url, volumeID: $0) }) ?? true { return false }
-            return seen.insert(candidate.resourceID).inserted
+            return seen.insert(spaceKey(of: candidate)).inserted
         }
-        return CatalogDiscovery(candidates: candidates, notes: notes)
+        return CatalogDiscovery(candidates: candidates, notes: notes, scannedRuleIDs: scanned, notAccessible: notAccessible, notMeasured: notMeasured)
+    }
+
+    /// Whether a location exists but can't be listed (macOS privacy protection, permissions): the folder it names, or
+    /// the one its first `*` part is matched in. Nothing found there is then a measurement of 0.
+    static func cantRead(_ location: String, under base: URL) -> Bool {
+        let fixed = location.split(separator: "/").prefix { !$0.contains("*") }.joined(separator: "/")
+        let url = fixed.isEmpty ? base : base.appendingPathComponent(fixed)
+        var info = stat()
+        guard lstat(url.path, &info) == 0, info.st_mode & S_IFMT == S_IFDIR else { return false }
+        return !isReadable(url, info)
+    }
+
+    /// What a candidate's space is keyed on, so the same space is offered once (`SpaceKey`).
+    func spaceKey(of candidate: Candidate) -> String {
+        SpaceKey.of(resourceID: candidate.resourceID, ruleID: candidate.ruleID, action: candidate.action)
     }
 
     /// Whether another rule's location is this item, holds it, or exists inside it, whether or not that rule offers it now.
@@ -431,29 +487,25 @@ public struct Catalog: Sendable {
     /// Regular files under `root` that match. Never follows symlinks, crosses volumes or enters packages and protected folders.
     private func files(in root: URL, matching match: ContentsMatch, rule: CleanupRule, now: Date) -> [Candidate] {
         let protection = Protection(rule)
-        let path = strdup(root.path)
-        defer { free(path) }
-        var paths: [UnsafeMutablePointer<CChar>?] = [path, nil]
-        guard let tree = fts_open(&paths, FTS_PHYSICAL | FTS_XDEV | FTS_NOCHDIR, nil) else { return [] }
-        defer { fts_close(tree) }
         var found: [Candidate] = []
-        while let entry = fts_read(tree) {
+        FileTree.walk(root) { entry in
             let kind = Int32(entry.pointee.fts_info)
-            guard let info = entry.pointee.fts_statp?.pointee, kind == FTS_D || kind == FTS_F else { continue }
+            guard let info = entry.pointee.fts_statp?.pointee, kind == FTS_D || kind == FTS_F else { return .continue }
             let url = URL(fileURLWithPath: String(cString: entry.pointee.fts_path))
             let name = url.lastPathComponent, ext = url.pathExtension.lowercased()
             if kind == FTS_D {
                 let package = (try? url.resourceValues(forKeys: [.isPackageKey]).isPackage) == true
-                if entry.pointee.fts_level > 0, package || protection.protects(name) { fts_set(tree, entry, FTS_SKIP) }
-                continue
+                // A git working tree is live work: nothing inside it is offered (the check refuses it too).
+                return GitCheckout.isRoot(url) || (entry.pointee.fts_level > 0 && (package || protection.protects(name))) ? .skip : .continue
             }
-            guard info.st_uid == geteuid(), !protection.protects(name), info.st_flags & UInt32(SF_DATALESS) == 0 else { continue }
-            if !match.extensions.isEmpty, !match.extensions.contains(ext) { continue }
-            if let minimum = match.minimumBytes, Int64(info.st_size) < minimum { continue }
-            if match.besideCompressedSource, !Self.hasCompressedSource(url, size: Int64(info.st_size)) { continue }
+            guard info.st_uid == geteuid(), !protection.protects(name), info.st_flags & UInt32(SF_DATALESS) == 0 else { return .continue }
+            if !match.extensions.isEmpty, !match.extensions.contains(ext) { return .continue }
+            if let minimum = match.minimumBytes, Int64(info.st_size) < minimum { return .continue }
+            if match.besideCompressedSource, !Self.hasCompressedSource(url, size: Int64(info.st_size)) { return .continue }
             let lastUsed = Self.lastUsed(url, info)
-            if let days = match.unusedDays, lastUsed > now.addingTimeInterval(-Double(days) * 86_400) { continue }
+            if let days = match.unusedDays, lastUsed > now.addingTimeInterval(-Double(days) * 86_400) { return .continue }
             found.append(candidate(rule, url, info, logical: Int64(info.st_size), allocated: Int64(info.st_blocks) * 512, complete: true, lastUsed: lastUsed))
+            return .continue
         }
         return found
     }

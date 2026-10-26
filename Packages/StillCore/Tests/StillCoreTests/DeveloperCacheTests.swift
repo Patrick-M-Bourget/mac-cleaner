@@ -96,7 +96,7 @@ private func fakeTool(_ home: URL, _ script: String) throws -> URL {
     defer { try? FileManager.default.removeItem(at: home) }
     let catalog = Catalog(rules: fixtureRules)
     let brew = try fakeTool(home, "exit 0")
-    let installed: @Sendable (ToolCommand) -> URL? = { _ in brew }
+    let installed = onlyTool("brew", brew)
     #expect(catalog.discover(fixture: home, locateTool: installed).isEmpty)
     try makeFolder(home, "Library/Caches/Homebrew", bytes: 2000)
     #expect(catalog.discover(fixture: home, locateTool: { _ in nil }).isEmpty)
@@ -131,7 +131,7 @@ private func homebrewRun(_ home: URL, script: String, timeout: TimeInterval? = n
                                    tool: ToolCommand(executables: tool.executables, arguments: tool.arguments, timeout: timeout, deletesLocationAfter: tool.deletesLocationAfter))
     }
     let catalog = Catalog(rules: rules)
-    let candidate = try #require(catalog.discover(fixture: home, locateTool: { _ in brew }).first)
+    let candidate = try #require(catalog.discover(fixture: home, locateTool: onlyTool("brew", brew)).first)
     let journal = try SQLiteCleanupJournal(url: home.appendingPathComponent("journal.sqlite"))
     let run = CleanupExecutor(journal: journal, check: CandidateCheck(catalog: catalog, running: NothingRunning()), measure: volume.read, trash: TrashNeverUsed())
     return await run.execute(CatalogApproval(candidates: [candidate], previewOnly: previewOnly))

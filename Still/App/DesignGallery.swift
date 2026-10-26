@@ -69,6 +69,7 @@ struct DesignGallery: View {
                     LocalRecordsDiagnosticsEntry(action: {})
                     Text("Synthetic optional folder access · Inert Gallery guidance").font(.headline)
                     LocationAccessGuide(expanded: .constant(true))
+                    NotAccessibleRow(title: "Safari cache")
                     CategoryPrerequisite(title: "Not scanned", detail: "Scan the included Downloads locations before choosing files.", actionTitle: "Scan Downloads…", enabled: true, action: {})
                     CategoryPrerequisite(title: "No eligible files", detail: "No eligible files in this inspected location.", actionTitle: "Scan Downloads again", enabled: true, action: {})
                     ExplorerInspector(name: "Camera guide.pdf", close: {}) {

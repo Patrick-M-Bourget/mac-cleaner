@@ -45,18 +45,21 @@ Decision 3 sets the main split: regenerable data is deleted permanently; user fi
 | Models | Hugging Face models | Move to Trash | Restore from Trash, or download again |
 | Ollama models | Each model, removed with `ollama rm <model>` | Run a tool | Download again (`ollama pull`) |
 | VM and disk images | e.g. an unpacked image next to its compressed source | Move to Trash | Restore from Trash, or the app unpacks or downloads again |
+| Docker | Unused images, build cache, stopped containers: each its own choice. Volumes never | Run a tool | Pulled or built again |
 
 Other actions:
 
-- **Run a tool**, with a time limit: `brew cleanup -s` (plus the Homebrew cache folder), `xcrun simctl delete unavailable`, `ollama rm <model>`, `pnpm store prune`. Every other cache is cleaned by deleting its folder, not with the tool's own purge command. The tool's output and the measured freed space appear in the results. A tool that isn't installed means its rule doesn't appear; Still never installs anything.
-- **Evict local iCloud copy** (after M1): removes only the local download; the original stays in iCloud. Pinned, not-yet-uploaded and conflicted files are skipped. This is never a delete.
-- **Guidance only**: Still shows the size and tells the user where to manage it. It never changes these: iOS backups, Mail and Messages attachments, Photos, Time Machine local snapshots, Xcode release archives, purchased content such as audio plug-ins ("reinstall through the vendor", owner's call).
+- **Run a tool**, with a time limit: `brew cleanup -s` (plus the Homebrew cache folder), `xcrun simctl delete unavailable`, `ollama rm <model>`, `pnpm store prune`, `docker image prune -a -f`, `docker builder prune -a -f`, `docker container prune -f`. Every other cache is cleaned by deleting its folder, not with the tool's own purge command. The tool's output and the measured freed space appear in the results. A tool that isn't installed means its rule doesn't appear; Still never installs anything.
+- **Evict local iCloud copy** (#111): removes only the local download (`evictUbiquitousItem`); the original stays in iCloud and downloads again when opened. Items are the files and folders at the top of iCloud Drive; a folder evicts each qualifying file inside it, and a package counts as one file. Files set to Keep Downloaded (pinned), not yet uploaded, in conflict, or whose state can't be read are never offered, and the check just before acting refuses them. No public API reports Keep Downloaded, so Still reads the `com.apple.fileprovider.pinned#PX` attribute on the file and its folders; when it can't be read the file counts as pinned. Scanning reads metadata only, with placeholder downloads blocked for the scanning thread. This is never a delete.
+- **Guidance only**: Still shows the size and tells the user where to manage it. It never changes these: iOS backups, Mail and Messages attachments, Photos, Time Machine local snapshots, Xcode release archives, purchased content such as audio plug-ins ("reinstall through the vendor", owner's call). (#114) They are catalog rules with the guidance action: sized from metadata only (never file contents), never candidates, and refused by the check if one ever reaches the executor. A location macOS won't let Still read shows as not accessible, never 0. Local snapshots show their count from `tmutil listlocalsnapshots /` with size unknown, since macOS reports no size per snapshot. Each has an "Open …" button: the owning app (Finder for device backups, Mail, Messages, Photos, Xcode), Storage settings for snapshots, or the plug-in folder in Finder.
 
 Notes per category:
 
 - **Browsers** (Chrome, Safari, Firefox, Arc, Edge): cache folders only, per profile, only while that browser is closed. Sizes show per browser and per profile. Review says caches are permanently removed, will refill, and pages may load slower at first.
+- **Safari** (#117): only WebKit's HTTP cache, `~/Library/Caches/com.apple.Safari/WebKit/NetworkCache`. The rest of that folder (CacheStorage, HSTS), history, bookmarks, cookies and website data are protected. Safari's container and per-profile caches aren't offered until their layout is confirmed. macOS protects Safari's data, so without Full Disk Access the row says not accessible, with the explanation, and nothing there is read.
 - **Chrome code-sign clones** live in the user's own folder under `/private/var/folders`. The copy the running browser has open and the newest copy are always kept.
 - **Xcode**: whole DerivedData project folders, only while Xcode and its build processes aren't running. Archives are never candidates.
+- **Docker**: sizes are the reclaimable estimates from one `docker system df` per scan, with a short time limit. Docker must be running, the inverse of other owners; when its daemon doesn't answer, a notice says so and no size is shown, never 0. Volumes hold databases and app data, so they are never pruned.
 - **Ollama**: shared blobs make per-file Trash unsafe, so models are removed with `ollama rm` (an exception to Decision 3).
 - **Per-app caches**: only while the owning app isn't running.
 - **Models and VM images** show their size and last-used date so the user can judge.
@@ -120,11 +123,12 @@ In M1 (tickets #97–#105):
 
 After M1 (#92), in rough order:
 
-- iCloud local eviction;
+- iCloud local eviction (#111, section 3);
 - Docker: `docker system df`, then a chosen prune;
 - large and old files explorer (Trash only);
 - guidance-only categories (section 3);
-- What grew and storage alerts: the code stays in the tree, unwired, and is rewired only if still wanted (Decision 12);
+- What grew (#119): each completed catalog scan records the size per catalog category and per scanned rule location. The first scan records a baseline; later scans show net growth against the previous one. Only a location measured in both scans counts. A location newly readable or unreadable (Full Disk Access, unreadable folders), or newly scanned or no longer scanned, is shown as a coverage change, never as growth. A change in exclusions starts a new baseline. History keeps at most 30 scans over 90 days and 250 MB, on this Mac;
+- storage alerts: the code stays in the tree, unwired, and is rewired only if still wanted (Decision 12);
 - the optional Full Disk Access onboarding flow;
 - signing, notarization and a DMG for a shareable build.
 

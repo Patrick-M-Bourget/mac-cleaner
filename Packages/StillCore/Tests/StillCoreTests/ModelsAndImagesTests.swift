@@ -140,7 +140,7 @@ private func fakeOllama(_ home: URL, _ script: String = "echo \"$@\" >> \"$(dirn
 
     let catalog = Catalog(rules: fixtureRules)
     #expect(catalog.discover(fixture: home, locateTool: { _ in nil }).isEmpty)
-    let candidates = catalog.discover(fixture: home, locateTool: { _ in ollama })
+    let candidates = catalog.discover(fixture: home, locateTool: onlyTool("ollama", ollama))
     #expect(candidates.allSatisfy { $0.ruleID == "ollama-models" && $0.action == .tool && !$0.isDirectory && $0.toolURL == ollama })
     let found = Dictionary(uniqueKeysWithValues: candidates.map { ($0.itemName ?? "", $0) })
     #expect(Set(found.keys) == ["llama3:latest", "llama3:8b", "someone/tuned:v2", "hf.co/org/repo:Q4_K_M"])
@@ -162,7 +162,7 @@ private func fakeOllama(_ home: URL, _ script: String = "echo \"$@\" >> \"$(dirn
     let ollama = try fakeOllama(home)
     try ollamaModel(home, "registry.ollama.ai/library/llama3/latest", layers: [("weights1", 4000)])
     let catalog = Catalog(rules: fixtureRules)
-    let candidates = catalog.discover(fixture: home, locateTool: { _ in ollama })
+    let candidates = catalog.discover(fixture: home, locateTool: onlyTool("ollama", ollama))
     let overview = CatalogOverview(catalog: catalog, candidates: candidates.filter { $0.ruleID == "ollama-models" })
     #expect(overview.rows.map(\.estimate) == [.about(4010)])
     #expect(overview.recommended == .about(4010))
@@ -177,7 +177,7 @@ private func fakeOllama(_ home: URL, _ script: String = "echo \"$@\" >> \"$(dirn
     let ollama = try fakeOllama(home)
     try ollamaModel(home, "registry.ollama.ai/library/llama3/latest", layers: [("weights1", 4000)])
     try ollamaModel(home, "registry.ollama.ai/someone/tuned/v2", layers: [("weights2", 3000)])
-    let candidates = Catalog(rules: fixtureRules).discover(fixture: home, locateTool: { _ in ollama })
+    let candidates = Catalog(rules: fixtureRules).discover(fixture: home, locateTool: onlyTool("ollama", ollama))
     let chosen = try #require(candidates.first { $0.itemName == "someone/tuned:v2" })
 
     let preview = try await run(home, [chosen], previewOnly: true)
@@ -197,7 +197,7 @@ private func fakeOllama(_ home: URL, _ script: String = "echo \"$@\" >> \"$(dirn
     defer { try? FileManager.default.removeItem(at: home) }
     let ollama = try fakeOllama(home, "echo 'Error: could not connect to ollama app, is it running?'; exit 1")
     let manifest = try ollamaModel(home, "registry.ollama.ai/library/llama3/latest", layers: [("weights1", 4000)])
-    let chosen = try #require(Catalog(rules: fixtureRules).discover(fixture: home, locateTool: { _ in ollama }).first)
+    let chosen = try #require(Catalog(rules: fixtureRules).discover(fixture: home, locateTool: onlyTool("ollama", ollama)).first)
     let record = try #require(try await run(home, [chosen]).records.first)
     #expect(record.state == .failed, "\(record.message)")
     #expect(record.toolOutput == "Error: could not connect to ollama app, is it running?")

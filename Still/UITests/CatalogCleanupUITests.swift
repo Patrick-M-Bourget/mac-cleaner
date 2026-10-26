@@ -14,6 +14,14 @@ import XCTest
     return home
 }
 
+/// Writes an executable stand-in tool into the fixture home's `.still-test-tools`. The sandboxed runner quarantines every
+/// file it writes and can't clear that; the app clears it on stand-ins it finds there (debug test seam), so they can run.
+@MainActor func writeStandInTool(_ script: String, to tool: URL) throws {
+    try FileManager.default.createDirectory(at: tool.deletingLastPathComponent(), withIntermediateDirectories: true)
+    try script.write(to: tool, atomically: true, encoding: .utf8)
+    try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: tool.path)
+}
+
 /// Adds developer caches and a stand-in `brew` that would leave a marker if it ever ran.
 @MainActor func addDeveloperCaches(_ home: URL, folders: [String]) throws -> URL {
     for folder in folders {
@@ -23,9 +31,7 @@ import XCTest
     }
     let marker = home.appendingPathComponent("brew-ran")
     let brew = home.appendingPathComponent(".still-test-tools/brew")
-    try FileManager.default.createDirectory(at: brew.deletingLastPathComponent(), withIntermediateDirectories: true)
-    try "#!/bin/sh\ntouch '\(marker.path)'\n".write(to: brew, atomically: true, encoding: .utf8)
-    try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: brew.path)
+    try writeStandInTool("#!/bin/sh\ntouch '\(marker.path)'\n", to: brew)
     return marker
 }
 
@@ -121,8 +127,7 @@ final class CatalogCleanupUITests: XCTestCase {
                                                    "Library/Developer/CoreSimulator/Devices/0A1B2C3D-0000-0000-0000-000000000000"])
         let marker = home.appendingPathComponent("simctl-ran")
         let simctl = home.appendingPathComponent(".still-test-tools/simctl")
-        try "#!/bin/sh\ntouch '\(marker.path)'\n".write(to: simctl, atomically: true, encoding: .utf8)
-        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: simctl.path)
+        try writeStandInTool("#!/bin/sh\ntouch '\(marker.path)'\n", to: simctl)
         defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
         app.launch()
 
@@ -316,6 +321,56 @@ final class CatalogCleanupUITests: XCTestCase {
         for file in files { XCTAssertTrue(FileManager.default.fileExists(atPath: file.path), file.path) }
     }
 
+    /// #117: without Full Disk Access (the fixture's Safari folder refuses to open), Safari's cache is listed as not
+    /// accessible with the explanation, never sized as 0. With access, only its cache folder is offered, and a preview
+    /// leaves the cache and Safari's history in place.
+    @MainActor func testSafariCacheIsNotAccessibleWithoutFullDiskAccessAndOfferedWithIt() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        let state = try configureIsolatedState(app)
+        let home = try configureCatalogHome(app)
+        let safari = home.appendingPathComponent("Library/Safari")
+        let history = safari.appendingPathComponent("History.db")
+        let cache = home.appendingPathComponent("Library/Caches/com.apple.Safari/WebKit/NetworkCache/Version 17/Records/AB/Resource/0123")
+        for (file, bytes) in [(history, 1_000), (cache, 250_000)] {
+            try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try Data(repeating: 4, count: bytes).write(to: file)
+        }
+        try FileManager.default.setAttributes([.posixPermissions: 0], ofItemAtPath: safari.path)
+        defer {
+            app.terminate(); try? FileManager.default.removeItem(at: state)
+            try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: safari.path); try? FileManager.default.removeItem(at: home)
+        }
+        app.launch()
+
+        XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
+        let denied = app.descendants(matching: .any)["overviewNotAccessible-safari-cache"]
+        XCTAssertTrue(denied.waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["Not accessible"].exists)
+        XCTAssertFalse(app.descendants(matching: .any)["overviewCategory-browser"].exists, "Nothing found, so no 0-byte browser row")
+        revealAndClick(denied.links["fullDiskAccessLink"], in: app)
+        XCTAssertTrue(app.staticTexts["Full Disk Access is optional"].waitForExistence(timeout: 5))
+        app.buttons["closeFullDiskAccess"].click() // Never "Open System Settings".
+        app.terminate()
+
+        // Granted: the Safari folder opens.
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: safari.path)
+        app.launch()
+        let row = app.buttons["overviewCategory-browser"]
+        XCTAssertTrue(row.waitForExistence(timeout: 10))
+        XCTAssertFalse(app.descendants(matching: .any)["overviewNotAccessible-safari-cache"].exists)
+        revealAndClick(row, in: app)
+        let rule = app.checkBoxes["planRule-safari-cache"]
+        XCTAssertTrue(rule.waitForExistence(timeout: 5))
+        revealAndClick(rule, in: app)
+        XCTAssertEqual(app.checkBoxes["previewOnlyToggle"].value as? Int, 1)
+        app.buttons["Review cleanup"].click()
+        XCTAssertTrue(app.staticTexts["Clear Safari cache"].waitForExistence(timeout: 5))
+        app.buttons["Run preview"].click()
+        XCTAssertTrue(app.staticTexts["catalogPreviewNotice"].waitForExistence(timeout: 10))
+        for file in [history, cache] { XCTAssertTrue(FileManager.default.fileExists(atPath: file.path), file.path) }
+    }
+
     /// Updater downloads and logs show as their own Overview categories. A log folder holding a git checkout never appears,
     /// and a preview run leaves every fixture file in place. Per-app caches need an installed app, so unit tests cover them.
     @MainActor func testUpdaterDownloadsAndLogsAreTheirOwnCategoriesAndPreviewLeavesThemInPlace() throws {
@@ -355,5 +410,229 @@ final class CatalogCleanupUITests: XCTestCase {
 
         XCTAssertTrue(app.staticTexts["catalogPreviewNotice"].waitForExistence(timeout: 10))
         for file in files { XCTAssertTrue(FileManager.default.fileExists(atPath: file.path), file.path) }
+    }
+
+    /// A stand-in `docker` in the fixture: `system df` prints `df` (or fails, as with no daemon); anything else leaves a marker.
+    @MainActor private func addDocker(_ home: URL, daemonAnswers: Bool) throws -> URL {
+        try FileManager.default.createDirectory(at: home.appendingPathComponent(".docker"), withIntermediateDirectories: true)
+        let marker = home.appendingPathComponent("docker-pruned")
+        let docker = home.appendingPathComponent(".still-test-tools/docker")
+        let df = daemonAnswers
+            ? #"echo '{"Active":"1","Reclaimable":"2.5GB (62%)","Size":"4GB","TotalCount":"5","Type":"Images"}'; echo '{"Active":"0","Reclaimable":"1.2GB","Size":"1.2GB","TotalCount":"9","Type":"Build Cache"}'"#
+            : "echo 'Cannot connect to the Docker daemon' >&2; exit 1"
+        try writeStandInTool("#!/bin/sh\nif test \"$*\" = 'system df --format json'; then \(df); else touch '\(marker.path)'; fi\n", to: docker)
+        return marker
+    }
+
+    @MainActor func testDockerPruneKindsAreSeparateChoicesAndPreviewNeverPrunes() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        let state = try configureIsolatedState(app)
+        let home = try configureCatalogHome(app)
+        let marker = try addDocker(home, daemonAnswers: true)
+        defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
+        app.launch()
+
+        XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
+        let row = app.buttons["overviewCategory-developer"]
+        XCTAssertTrue(row.waitForExistence(timeout: 10))
+        revealAndClick(row, in: app)
+
+        // Each prune kind is its own choice, none preselected; nothing is offered for volumes.
+        for rule in ["docker-images", "docker-build-cache"] {
+            let header = app.checkBoxes["planRule-" + rule]
+            XCTAssertTrue(header.waitForExistence(timeout: 5), rule)
+            XCTAssertEqual(header.value as? Int, 0, rule)
+        }
+        XCTAssertFalse(app.checkBoxes["planRule-docker-containers"].exists)
+        revealAndClick(app.checkBoxes["planRule-docker-build-cache"], in: app)
+        XCTAssertEqual(app.checkBoxes["planRule-docker-images"].value as? Int, 0)
+        XCTAssertEqual(app.checkBoxes["previewOnlyToggle"].value as? Int, 1)
+        app.buttons["Review cleanup"].click()
+
+        XCTAssertTrue(app.staticTexts["Clear Docker build cache"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.staticTexts["Clear Docker images"].exists)
+        app.buttons["Run preview"].click()
+
+        XCTAssertTrue(app.staticTexts["catalogPreviewNotice"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "value CONTAINS 'would run docker builder prune -a -f'")).firstMatch.exists)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: marker.path))
+    }
+
+    @MainActor func testDockerShowsANoticeInsteadOfRowsWhenItsDaemonIsntRunning() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        let state = try configureIsolatedState(app)
+        let home = try configureCatalogHome(app)
+        let marker = try addDocker(home, daemonAnswers: false)
+        defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
+        app.launch()
+
+        XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
+        let row = app.buttons["overviewCategory-developer"]
+        XCTAssertTrue(row.waitForExistence(timeout: 10))
+        revealAndClick(row, in: app)
+
+        XCTAssertTrue(app.staticTexts["planNote-docker-images"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "value BEGINSWITH 'Docker isn’t running'")).firstMatch.exists)
+        XCTAssertFalse(app.checkBoxes["planRule-docker-images"].exists)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: marker.path))
+    }
+}
+
+final class ICloudCleanupUITests: XCTestCase {
+    /// Two iCloud Drive files in the fixture home, one set to Keep Downloaded. Their iCloud states come from the
+    /// debug fixture file, so the test never reads or evicts anything in real iCloud Drive.
+    @MainActor private func addICloudFiles(_ home: URL) throws {
+        let drive = "Library/Mobile Documents/com~apple~CloudDocs"
+        for name in ["Report.pdf", "Pinned.pdf"] {
+            let file = home.appendingPathComponent(drive + "/" + name)
+            try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try Data(repeating: 4, count: 150_000).write(to: file)
+        }
+        let states = [drive + "/Report.pdf": "ready", drive + "/Pinned.pdf": "pinned"]
+        try JSONEncoder().encode(states).write(to: home.appendingPathComponent(".still-test-icloud.json"))
+    }
+
+    @MainActor func testLocalCopiesAreChosenAndPreviewEvictsNothing() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        let state = try configureIsolatedState(app)
+        let home = try configureCatalogHome(app)
+        try addICloudFiles(home)
+        defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
+        app.launch()
+
+        XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
+        let row = app.buttons["overviewCategory-icloud"]
+        XCTAssertTrue(row.waitForExistence(timeout: 10))
+        XCTAssertFalse(app.descendants(matching: .any)["overviewCloudFinding"].exists, "The catalog row replaces the inventory row")
+        revealAndClick(row, in: app)
+
+        let header = app.checkBoxes["planRule-icloud-local-copies"]
+        XCTAssertTrue(header.waitForExistence(timeout: 5))
+        XCTAssertEqual(header.value as? Int, 0)
+        let item = app.checkBoxes["planItem-Report.pdf"]
+        if !item.waitForExistence(timeout: 2) { expandDisclosures(in: app) }
+        XCTAssertTrue(item.waitForExistence(timeout: 5))
+        XCTAssertFalse(app.checkBoxes["planItem-Pinned.pdf"].exists, "Keep Downloaded files are never offered")
+        revealAndClick(item, in: app)
+        XCTAssertEqual(app.checkBoxes["previewOnlyToggle"].value as? Int, 1)
+        app.buttons["Review cleanup"].click()
+
+        XCTAssertTrue(app.staticTexts["Remove local copies: Downloaded iCloud Drive files"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "value CONTAINS 'stay in iCloud and download again when you open them'")).firstMatch.exists)
+        app.buttons["Run preview"].click()
+
+        XCTAssertTrue(app.staticTexts["catalogPreviewNotice"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["Would remove local copy"].exists)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: home.appendingPathComponent(".still-test-icloud-evicted").path))
+    }
+}
+
+/// Large and old files explorer (#113): a picked fixture folder, chosen file by file, previewed, left in place.
+extension CatalogCleanupUITests {
+    @MainActor func testPickedFolderListsOldFilesUnchosenAndPreviewLeavesThemInPlace() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        let state = try configureIsolatedState(app)
+        let home = try configureCatalogHome(app)
+        let folder = FileManager.default.temporaryDirectory.resolvingSymlinksInPath().appendingPathComponent("StillPicked-" + UUID().uuidString)
+        defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home); try? FileManager.default.removeItem(at: folder) }
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        // Not .txt: Spotlight reads new text files in the runner's container to index them, which makes the old one recent.
+        let old = folder.appendingPathComponent("old-archive.zip"), recent = folder.appendingPathComponent("recent.zip")
+        try Data(repeating: 1, count: 4_000).write(to: old)
+        try Data(repeating: 2, count: 4_000).write(to: recent)
+        let then = Date().addingTimeInterval(-200 * 86_400)
+        try FileManager.default.setAttributes([.creationDate: then, .modificationDate: then], ofItemAtPath: old.path)
+        var times = [timeval(tv_sec: Int(then.timeIntervalSince1970), tv_usec: 0), timeval(tv_sec: Int(then.timeIntervalSince1970), tv_usec: 0)]
+        XCTAssertEqual(utimes(old.path, &times), 0)
+        app.launch()
+
+        XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
+        app.links["Choose a folder…"].click()
+        let panel = app.sheets.firstMatch.exists ? app.sheets.firstMatch : app.dialogs.firstMatch
+        XCTAssertTrue(panel.waitForExistence(timeout: 5))
+        panel.typeKey("g", modifierFlags: [.command, .shift])
+        app.typeText(folder.path + "\n")
+        panel.buttons["Scan folder"].click()
+
+        let explore = app.links["Explore storage"]
+        XCTAssertTrue(explore.waitForExistence(timeout: 20))
+        explore.click()
+        // A segmented picker is a radio group to accessibility.
+        let mode = app.radioGroups["explorerMode"]
+        XCTAssertTrue(mode.waitForExistence(timeout: 10))
+        mode.radioButtons["Large and old files"].click()
+
+        // Only the old file is listed, and nothing is preselected.
+        let item = app.checkBoxes["explorerChoose-old-archive.zip"]
+        XCTAssertTrue(item.waitForExistence(timeout: 5))
+        XCTAssertFalse(app.checkBoxes["explorerChoose-recent.zip"].exists)
+        XCTAssertEqual(item.value as? Int, 0)
+        item.click()
+        XCTAssertEqual(item.value as? Int, 1)
+        app.buttons["View cleanup plan"].click()
+
+        XCTAssertEqual(app.checkBoxes["previewOnlyToggle"].value as? Int, 1)
+        app.buttons["Review cleanup"].click()
+        XCTAssertTrue(app.staticTexts["Move to Trash: Large and old files"].waitForExistence(timeout: 5))
+        app.buttons["Run preview"].click()
+
+        XCTAssertTrue(app.staticTexts["catalogPreviewNotice"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["Would move to Trash"].exists)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: old.path))
+    }
+}
+
+final class GuidanceUITests: XCTestCase {
+    /// A Photos library, Xcode archives, unreadable Messages attachments and two local snapshots in the fixture home.
+    /// The snapshot count comes from a debug fixture file, so tmutil never runs, and opening is a debug no-op.
+    @MainActor private func addGuidanceData(_ home: URL) throws -> URL {
+        for path in ["Pictures/Photos Library.photoslibrary/originals/a.heic", "Library/Developer/Xcode/Archives/2026-10-26/App.xcarchive/Info.plist",
+                     "Library/Messages/Attachments/ab/photo.jpg"] {
+            let file = home.appendingPathComponent(path)
+            try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try Data(repeating: 5, count: 90_000).write(to: file)
+        }
+        try "2".write(to: home.appendingPathComponent(".still-test-snapshots"), atomically: true, encoding: .utf8)
+        let locked = home.appendingPathComponent("Library/Messages/Attachments")
+        try FileManager.default.setAttributes([.posixPermissions: 0], ofItemAtPath: locked.path)
+        return locked
+    }
+
+    @MainActor func testGuidanceCategoriesShowSizeOrNotAccessibleAndNeverJoinThePlan() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        let state = try configureIsolatedState(app)
+        let home = try configureCatalogHome(app)
+        let locked = try addGuidanceData(home)
+        defer {
+            app.terminate(); try? FileManager.default.removeItem(at: state)
+            try? FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: locked.path)
+            try? FileManager.default.removeItem(at: home)
+        }
+        app.launch()
+
+        XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
+        let photos = app.buttons["guidance-photos-library"]
+        XCTAssertTrue(photos.waitForExistence(timeout: 10))
+        XCTAssertTrue((photos.value as? String)?.contains("Open Photos") == true)
+        XCTAssertTrue((app.buttons["guidance-messages-attachments"].value as? String)?.contains("Not accessible") == true)
+        XCTAssertTrue(app.descendants(matching: .any)["guidanceAccess-messages-attachments"].exists)
+        XCTAssertFalse(app.descendants(matching: .any)["guidanceAccess-time-machine-snapshots"].exists)
+        XCTAssertTrue((app.buttons["guidance-time-machine-snapshots"].value as? String)?.contains("2 snapshots · Size unknown") == true)
+        XCTAssertTrue(app.buttons["guidance-xcode-archives"].exists)
+        revealAndClick(photos, in: app)
+        XCTAssertTrue(app.staticTexts["guidanceStatus"].waitForExistence(timeout: 5))
+        XCTAssertEqual(app.staticTexts["guidanceStatus"].value as? String, "Test run: would open Photos.")
+
+        revealAndClick(app.buttons["overviewCategory-developer"], in: app)
+        XCTAssertTrue(app.descendants(matching: .any)["planRule-npm-cache"].waitForExistence(timeout: 5))
+        for id in ["photos-library", "xcode-archives", "messages-attachments", "time-machine-snapshots"] {
+            XCTAssertFalse(app.descendants(matching: .any)["planRule-" + id].exists, id)
+        }
+        XCTAssertTrue(FileManager.default.fileExists(atPath: home.appendingPathComponent("Pictures/Photos Library.photoslibrary/originals/a.heic").path))
     }
 }

@@ -7,11 +7,13 @@ enum StillDesign {
     enum Space { static let xs: CGFloat = 4; static let sm: CGFloat = 8; static let md: CGFloat = 12; static let lg: CGFloat = 16; static let xl: CGFloat = 24; static let page: CGFloat = 32 }
     enum Radius { static let row: CGFloat = 8; static let surface: CGFloat = 12 }
     /// Fixed sizes: the capacity bar's heights (sidebar, card, prominent card) and the device card's icon tile.
-    enum Size { static let meterCompact: CGFloat = 4; static let meter: CGFloat = 8; static let meterProminent: CGFloat = 12; static let deviceIcon: CGFloat = 44 }
+    enum Size { static let meterCompact: CGFloat = 4; static let meter: CGFloat = 8; static let meterProminent: CGFloat = 12; static let deviceIcon: CGFloat = 44; static let sheetNarrow: CGFloat = 480 }
     enum TypeStyle {
         static let page = Font.system(size: 26, weight: .medium); static let value = Font.system(size: 22, weight: .medium); static let section = Font.system(size: 13, weight: .medium)
         /// The symbol in the device card's icon tile.
         static let deviceIcon = Font.system(size: 16, weight: .light)
+        /// A list row's name, explanations under a heading, captions and secondary lines, and command or tool output.
+        static let rowTitle = Font.body.weight(.medium); static let note = Font.callout; static let caption = Font.caption; static let code = Font.caption.monospaced()
     }
     /// Reference colours belong here, never in individual screens. Keep system text/focus colours.
     static func adaptive(light: UInt32, dark: UInt32) -> Color {
@@ -36,9 +38,10 @@ enum StillDesign {
     static var separator: Color { Color(nsColor: .separatorColor) }
 }
 enum StorageCategory {
-    case cloud, developer, downloads, browser, managed
-    var color: Color { switch self { case .cloud: StillDesign.blue; case .developer: StillDesign.purple; case .downloads: StillDesign.orange; case .browser: StillDesign.teal; case .managed: .indigo } }
-    var symbol: String { switch self { case .cloud: "icloud"; case .developer: "hammer"; case .downloads: "shippingbox"; case .browser: "globe"; case .managed: "square.stack.3d.up" } }
+    /// `files`: files from folders the user picked, shown as the prototype shows a chosen folder.
+    case cloud, developer, downloads, browser, managed, files
+    var color: Color { switch self { case .cloud, .files: StillDesign.blue; case .developer: StillDesign.purple; case .downloads: StillDesign.orange; case .browser: StillDesign.teal; case .managed: .indigo } }
+    var symbol: String { switch self { case .cloud: "icloud"; case .developer: "hammer"; case .downloads: "shippingbox"; case .browser: "globe"; case .managed: "square.stack.3d.up"; case .files: "folder" } }
 }
 private struct OpaqueChromeKey: EnvironmentKey { static let defaultValue = false }
 extension EnvironmentValues {
@@ -116,16 +119,20 @@ enum StatusRole {
     case neutral, success, caution, failure
     var color: Color { switch self { case .neutral: .secondary; case .success: .green; case .caution: .orange; case .failure: .red } }
 }
-/// A disclosure group whose title is an action ("Choose items", "Show files"). On macOS only a DisclosureGroup's chevron
-/// toggles it, so the title toggles it too.
+/// A disclosure group whose title opens it too ("Choose items", "Show files", "About folder access"). On macOS only a
+/// DisclosureGroup's chevron toggles it. `isExpanded` lets the owner keep the state; otherwise the group keeps its own.
 struct ActionDisclosureGroup<Content: View>: View {
     let title: String
+    var isExpanded: Binding<Bool>?
     @ViewBuilder var content: () -> Content
     @State private var expanded = false
-    init(_ title: String, @ViewBuilder content: @escaping () -> Content) { self.title = title; self.content = content }
+    init(_ title: String, isExpanded: Binding<Bool>? = nil, @ViewBuilder content: @escaping () -> Content) {
+        self.title = title; self.isExpanded = isExpanded; self.content = content
+    }
     var body: some View {
-        DisclosureGroup(isExpanded: $expanded, content: content) {
-            Button(title) { expanded.toggle() }.buttonStyle(.plain)
+        let expanded = isExpanded ?? $expanded
+        DisclosureGroup(isExpanded: expanded, content: content) {
+            Button(title) { expanded.wrappedValue.toggle() }.buttonStyle(.plain)
         }
     }
 }

@@ -4,9 +4,9 @@ import Foundation
 /// the profile's own data (logins, cookies, history, site storage, sessions, settings) is never a location,
 /// and its names are protected in case a cache folder ever holds or sits under one.
 ///
-/// Only layouts confirmed from the browser's own documentation or source are listed. Safari, Arc and Edge are not:
-/// Apple, The Browser Company and Microsoft don't document where their macOS caches live. Arc and Edge are Chromium,
-/// so once their data folder is confirmed each is one `chromium(...)` line.
+/// Only layouts confirmed from the browser's own documentation or source are listed. Arc and Edge are not:
+/// The Browser Company and Microsoft don't document where their macOS caches live. Arc and Edge are Chromium,
+/// so once their data folder is confirmed each is one `chromium(...)` line. Safari's layout comes from WebKit's source (#117).
 public enum BrowserCaches {
     static let consequence = "Permanently removed. Logins, cookies, history, site data and settings are kept. The cache refills as you browse; pages may load more slowly at first."
 
@@ -44,6 +44,25 @@ public enum BrowserCaches {
                                      "formhistory.sqlite", "permissions.sqlite", "webappsstore.sqlite", "prefs.js", "user.js",
                                      "sessionstore.jsonlz4", "sessionstore-backups", "storage", "extensions", "bookmarkbackups"]
 
+    /// What Safari keeps besides its HTTP cache: history, bookmarks, cookies, website data and the rest of its
+    /// profile folder (`Safari`). WebKit also keeps the Cache API's storage (`CacheStorage`) and HSTS state in the
+    /// same caches folder as the HTTP cache; both are site data, so they are protected too.
+    static let safariData = ["Safari", "History.db", "Bookmarks.plist", "Cookies", "Cookies.binarycookies", "LocalStorage", "Databases",
+                             "WebsiteData", "WebsiteDataStore", "CacheStorage", "HSTS", "IndexedDB", "ResourceLoadStatistics"]
+
+    /// Safari is not sandboxed, so WebKit keeps its default data store's HTTP cache in
+    /// `~/Library/Caches/com.apple.Safari/WebKit/NetworkCache` (WebKit source, WebsiteDataStoreCocoa.mm:
+    /// `defaultNetworkCacheDirectory` under `cacheDirectoryFileSystemRepresentation`: the user's Caches folder, the app's
+    /// bundle identifier when it has no container, then `WebKit`). Not offered, because neither Apple nor WebKit confirms
+    /// that Safari uses them: the whole `com.apple.Safari` caches folder (it also holds CacheStorage and HSTS), a
+    /// `~/Library/Containers/com.apple.Safari` caches folder, and per-profile stores under `~/Library/WebKit/com.apple.Safari/WebsiteDataStore`.
+    /// macOS protects Safari's data, so the rule needs Full Disk Access.
+    static let safari = CleanupRule(id: "safari-cache", category: .browser, title: "Safari cache",
+                                    detail: "Cached images, files and scripts.", consequence: consequence,
+                                    regen: .cache, action: .delete, locations: ["Library/Caches/com.apple.Safari/WebKit/NetworkCache"],
+                                    owner: RuleOwner(name: "Safari", bundleIDs: ["com.apple.Safari"], executables: ["Safari"]),
+                                    protectedNames: safariData, requiresFullDiskAccess: true, unprotectedNames: ["com.apple.Safari"])
+
     public static let rules: [CleanupRule] = [
         chromium(id: "chrome-cache", name: "Google Chrome", dataDir: "Google/Chrome", bundleIDs: ["com.google.Chrome"],
                  executables: ["Google Chrome", "Google Chrome Helper*"]),
@@ -60,5 +79,6 @@ public enum BrowserCaches {
                     layoutOverrides: ["prefs.js", "user.js"].map {
                         .text(file: "Library/Application Support/Firefox/Profiles/*/\($0)", contains: "browser.cache.disk.parent_directory")
                     }),
+        safari,
     ]
 }

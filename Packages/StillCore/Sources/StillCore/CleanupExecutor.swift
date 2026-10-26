@@ -71,7 +71,7 @@ public actor CleanupExecutor {
 
     public func execute(_ approval: CatalogApproval, progress: @Sendable (CleanupExecutionProgress) async -> Void = { _ in }) async -> CatalogExecutionResult {
         var seen = Set<String>()
-        let estimate = approval.candidates.filter { seen.insert($0.resourceID).inserted }.reduce(Int64(0)) { $0 + $1.estimatedBytes }
+        let estimate = approval.candidates.filter { seen.insert(check.catalog.spaceKey(of: $0)).inserted }.reduce(Int64(0)) { $0 + $1.estimatedBytes }
         func result(_ records: [CleanupRecord], replay: Bool = false, failure: String? = nil) -> CatalogExecutionResult {
             CatalogExecutionResult(batchID: approval.id, records: records, previewOnly: approval.previewOnly, rejectedReplay: replay, journalFailure: failure, estimatedBytes: estimate)
         }
@@ -110,6 +110,8 @@ public actor CleanupExecutor {
         let verb = switch candidate.action {
         case .delete: "delete"
         case .trash: "move to Trash"
+        case .evict: "remove the local copy"
+        case .guidance: "change nothing (guidance only)"
         case .tool: "run " + (command?.commandLine(for: candidate.itemName) ?? "its tool") + (command?.deletesLocationAfter == true ? ", then delete the folder" : "")
         }
         if let refusal = check.check(candidate) {
@@ -128,6 +130,9 @@ public actor CleanupExecutor {
         case .delete: delete(candidate, into: &record)
         case .trash: trash(candidate, into: &record)
         case .tool: await runTool(candidate, command, into: &record)
+        case .evict: evict(candidate, into: &record)
+        // The check refuses guidance first; this stays a refusal if it ever doesn't.
+        case .guidance: record.state = .skipped; record.message = CheckRefusal.guidanceOnly.reason
         }
         if record.state == .succeeded, let before, let after = measure(candidate.url.deletingLastPathComponent()) {
             record.itemCapacity = CleanupCapacityObservation(beforeAvailable: before.available, afterAvailable: after.available, beforeTotal: before.total, afterTotal: after.total, beforeVolumeID: before.volumeID, afterVolumeID: after.volumeID, beforeMetric: before.metric.rawValue, afterMetric: after.metric.rawValue, beforeDate: before.date, afterDate: after.date)
@@ -232,6 +237,30 @@ public actor CleanupExecutor {
         } catch {
             record.state = unchanged() ? .failed : .unknown
             record.message = record.state == .failed ? "Couldn’t move it to Trash. Left unchanged." : "Move to Trash may be incomplete. Review it before cleaning again."
+        }
+    }
+
+    /// Removes only local copies: the file or package itself, or each qualifying file in a folder, each read again
+    /// just before it is evicted. The originals stay in iCloud. Downloads stay blocked throughout.
+    private func evict(_ candidate: Candidate, into record: inout CleanupRecord) {
+        let cloud = check.cloud
+        guard let rule = check.catalog.rule(candidate.ruleID) else { record.state = .skipped; record.message = CheckRefusal.changed.reason; return }
+        let units = candidate.isDirectory && (try? candidate.url.resourceValues(forKeys: [.isPackageKey]).isPackage) != true
+            ? Catalog.cloudCopies(in: candidate.url, rule: rule, cloud: cloud, exclusions: check.exclusions, volumeID: candidate.volumeID).units
+            : [candidate.url]
+        var removed = 0, failed = 0, lastRefusal: CheckRefusal?
+        Catalog.withoutDownloads {
+            for unit in units {
+                if let refusal = cloud.metadata(unit).evictionRefusal { lastRefusal = refusal; continue }
+                do { try cloud.evict(unit); removed += 1 } catch { failed += 1 }
+            }
+        }
+        let originals = units.count == 1 ? " The original stays in iCloud." : " The originals stay in iCloud."
+        switch (removed, failed) {
+        case (0, 0): record.state = .skipped; record.message = (lastRefusal ?? .notDownloaded).reason
+        case (0, _): record.state = .failed; record.message = "Couldn’t remove the local copy. Nothing was changed."
+        case (_, 0): record.state = .succeeded; record.message = units.count == 1 ? "Removed local copy." + originals : "Removed local copies of \(removed) files." + originals
+        default: record.state = .failed; record.partlyRemoved = true; record.message = "Removed local copies of \(removed) files; couldn’t remove \(failed)." + originals
         }
     }
 }

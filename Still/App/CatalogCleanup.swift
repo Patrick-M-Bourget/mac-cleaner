@@ -7,7 +7,24 @@ import SwiftUI
 /// The catalog's categories in the app. Nothing here knows a specific rule; rules are data in StillCore.
 @MainActor @Observable final class CatalogCleanupModel {
     let catalog = Catalog(rules: BuiltInCatalog.rules)
-    private(set) var candidates: [Candidate] = []
+    /// What the catalog's known locations hold.
+    private(set) var discovered: [Candidate] = [] { didSet { indexPickedFiles() } }
+    /// Large and old files in each folder the user picked and scanned, keyed by that folder (`UserFiles`).
+    private(set) var pickedFiles: [URL: [Candidate]] = [:] { didSet { indexPickedFiles() } }
+    /// The picked folders' files the plan offers, by "dev:ino". A file a catalog rule already offers is left to that rule.
+    private(set) var pickedByResource: [String: Candidate] = [:]
+    /// Everything the plan can offer.
+    var candidates: [Candidate] { discovered + pickedCandidates }
+    /// The large and old files offered from picked folders, largest first.
+    var pickedCandidates: [Candidate] { pickedByResource.values.sorted { $0.estimatedBytes != $1.estimatedBytes ? $0.estimatedBytes > $1.estimatedBytes : $0.url.path < $1.url.path } }
+    private func indexPickedFiles() {
+        let known = Set(discovered.map(\.resourceID))
+        var index: [String: Candidate] = [:]
+        for file in pickedFiles.keys.sorted(by: { $0.path < $1.path }).flatMap({ pickedFiles[$0] ?? [] }) where !known.contains(file.resourceID) && index[file.resourceID] == nil {
+            index[file.resourceID] = file
+        }
+        pickedByResource = index
+    }
     private(set) var isScanning = false
     private(set) var hasScanned = false
     /// Chosen candidate ids. Nothing is preselected.
@@ -18,8 +35,14 @@ import SwiftUI
     private(set) var message: String?
     /// Why a rule kept items back, such as copies whose use couldn't be checked.
     private(set) var notes: [CatalogNote] = []
+    /// Guidance-only categories found at the last scan. Never candidates, never in a plan. Set only by the guidance
+    /// scan (`CatalogCleanupModel+Guidance.swift`), which lives in its own file and so can't use a private setter.
+    var guidance: [GuidanceFinding] = []
+    var guidanceStatus: String?
     /// Rules whose owner keeps its data elsewhere by a setting; they offer nothing.
     private(set) var overriddenRules: [CleanupRule] = []
+    /// Rules Still can't read without Full Disk Access (Safari's cache): shown as not accessible, never as 0.
+    private(set) var notAccessibleRules: [CleanupRule] = []
     /// Names of owners that were running at the last scan. Their items stay choosable; the checks refuse them.
     private(set) var runningOwners: Set<String> = []
     /// Each candidate's owner name at the last scan, so views never look owners up while drawing.
@@ -55,6 +78,10 @@ import SwiftUI
         return FileManager.default.homeDirectoryForCurrentUser
     }
 
+    /// The home folder the check protects: the catalog's, or with none (a debug test run without a fixture home) the real
+    /// one, so its protected folders are still never taken from a picked folder.
+    static var checkHome: URL { home ?? FileManager.default.homeDirectoryForCurrentUser }
+
     /// The user's own `/private/var/folders` entry, for rules based there (Chrome's code-sign copies).
     /// A debug test home stands one in at `<home>/.still-test-user-folder`, so a UI test never reads the real one.
     static var userFolder: URL? {
@@ -68,14 +95,17 @@ import SwiftUI
     }
 
     /// Where a tool rule's executable is found. A debug test home only ever finds stand-ins inside
-    /// `<home>/.still-test-tools`, so a UI test never runs a real tool.
+    /// `<home>/.still-test-tools`, so a UI test never runs a real tool. The sandboxed UI test runner quarantines the
+    /// stand-ins it writes, and macOS won't run a quarantined script, so the attribute is cleared here.
     static var locateTool: @Sendable (ToolCommand) -> URL? {
         #if DEBUG
         if LocalStateLocation.isDisposableTest {
             guard let home else { return { _ in nil } }
             return { command in
-                command.executables.lazy.map { home.appendingPathComponent(".still-test-tools/" + URL(fileURLWithPath: $0).lastPathComponent) }
+                let tool = command.executables.lazy.map { home.appendingPathComponent(".still-test-tools/" + URL(fileURLWithPath: $0).lastPathComponent) }
                     .first { FileManager.default.isExecutableFile(atPath: $0.path) }
+                if let tool { removexattr(tool.path, "com.apple.quarantine", 0) }
+                return tool
             }
         }
         #endif
@@ -91,8 +121,17 @@ import SwiftUI
         return URL(fileURLWithPath: "/")
     }
 
+    /// iCloud as the catalog reads it. A debug test home stands in a fixture whose states come from
+    /// `<home>/.still-test-icloud.json`, so a UI test never reads or evicts anything in real iCloud Drive.
+    static var cloud: any UbiquitousItemAccess {
+        #if DEBUG
+        if LocalStateLocation.isDisposableTest { return FixtureUbiquitousItems(home: home) }
+        #endif
+        return SystemUbiquitousItems()
+    }
+
     /// Overview's summary; nil until the first scan of the known locations has finished.
-    var overview: CatalogOverview? { hasScanned ? CatalogOverview(catalog: catalog, candidates: candidates) : nil }
+    var overview: CatalogOverview? { hasScanned ? CatalogOverview(catalog: catalog, candidates: discovered) : nil }
     /// Owners of the rule's items that were running at the last scan, in name order.
     func runningOwnerNames(for rule: CleanupRule) -> [String] {
         Set(candidates(for: rule).compactMap { ownerNames[$0.id] }).intersection(runningOwners).sorted()
@@ -122,26 +161,55 @@ import SwiftUI
         guard canEdit else { return }
         isScanning = true; message = nil
         defer { isScanning = false; hasScanned = true }
-        guard let home = Self.home else { candidates = []; notes = []; overriddenRules = []; runningOwners = []; ownerNames = [:]; return }
+        guard let home = Self.home else { discovered = []; notes = []; overriddenRules = []; notAccessibleRules = []; runningOwners = []; ownerNames = [:]; return }
         // Excluded items are never offered (SPEC section 2); without the settings nothing can be offered safely.
         guard let exclusions = try? await ExclusionsModel.shared.policyForScan() else {
-            candidates = []; notes = []; overriddenRules = []; runningOwners = []; ownerNames = [:]
+            discovered = []; notes = []; overriddenRules = []; notAccessibleRules = []; runningOwners = []; ownerNames = [:]
             message = "Exclusion settings are unavailable, so nothing can be checked. Try again."; return
         }
         let catalog = catalog
         let locate = Self.locateTool, system = Self.systemRoot
-        let userFolder = Self.userFolder
-        let scanned = await Task.detached(priority: .userInitiated) { () -> (CatalogDiscovery, [CleanupRule], Set<String>, [String: String]) in
-            let discovered = catalog.discovery(home: home, userFolder: userFolder, exclusions: exclusions, locateTool: locate, systemRoot: system)
+        let userFolder = Self.userFolder, cloud = Self.cloud
+        // What grew records each completed catalog scan (#119).
+        let growth = await GrowthHistoryModel.shared.beginCatalog(home: home, exclusionFingerprint: exclusions.fingerprint)
+        let scanned = await Task.detached(priority: .userInitiated) { () -> (CatalogDiscovery, [CleanupRule], Set<String>, [String: String], FullDiskAccessStatus) in
+            // Probed once per scan, at launch too, and shared with the guidance scan: it only opens a protected folder
+            // and never prompts (#117).
+            let access = FullDiskAccessProbe(home: home).status()
+            let discovered = catalog.discovery(home: home, userFolder: userFolder, exclusions: exclusions, locateTool: locate, systemRoot: system, cloud: cloud,
+                                               access: access)
             var owners: [String: RuleOwner] = [:], names: [String: String] = [:]
             for candidate in discovered.candidates { if let owner = catalog.owner(for: candidate) { owners[owner.name] = owner; names[candidate.id] = owner.name } }
             let running = SystemRunningAppChecker()
-            return (discovered, catalog.overriddenRules(home: home, systemRoot: system), Set(owners.values.filter { running.isRunning($0) == true }.map(\.name)), names)
+            return (discovered, catalog.overriddenRules(home: home, systemRoot: system), Set(owners.values.filter { running.isRunning($0) == true }.map(\.name)), names,
+                    access)
         }.value
-        candidates = scanned.0.candidates; notes = scanned.0.notes; overriddenRules = scanned.1; runningOwners = scanned.2; ownerNames = scanned.3
+        await GrowthHistoryModel.shared.completeCatalog(scanned.0, catalog: catalog, fullDiskAccess: scanned.4, token: growth)
+        discovered = scanned.0.candidates; notes = scanned.0.notes; notAccessibleRules = scanned.0.notAccessible; overriddenRules = scanned.1; runningOwners = scanned.2; ownerNames = scanned.3
+        keepOnlyCurrentChoices()
+        await scanGuidance(home: home, fullDiskAccess: scanned.4)
+    }
+    /// Drops chosen items that are no longer offered, and says so.
+    private func keepOnlyCurrentChoices() {
         let found = Set(candidates.map(\.id))
         if !selectedIDs.isSubset(of: found) { selectedIDs.formIntersection(found); message = "Some items changed or are no longer on this Mac and were removed from your plan." }
         selectionRevision &+= 1
+    }
+
+    /// Lists a picked folder's large and old files from its finished scan. Read-only; nothing is chosen.
+    func showPickedFiles(_ scan: ScanResult) async {
+        guard !isRunning, let exclusions = try? await ExclusionsModel.shared.policyForScan() else { return }
+        let home = Self.checkHome
+        let found = await Task.detached(priority: .userInitiated) { UserFiles.candidates(in: scan, exclusions: exclusions, home: home) }.value
+        guard !isRunning else { return }
+        pickedFiles[scan.scope.standardizedFileURL] = found
+        keepOnlyCurrentChoices()
+    }
+    /// A picked folder was forgotten, lost access or must be scanned again: its files are no longer offered.
+    func forgetPickedFiles(_ scope: URL? = nil) {
+        guard !isRunning else { return }
+        if let scope { pickedFiles[scope.standardizedFileURL] = nil } else { pickedFiles = [:] }
+        keepOnlyCurrentChoices()
     }
     /// Chooses or clears every item the rule found.
     func setSelected(_ rule: CleanupRule, _ selected: Bool) {
@@ -173,16 +241,17 @@ import SwiftUI
             let run = CleanupExecutor(journal: try CleanupJournalLocation.writer(), check: check, cancellation: cancellation)
             executor = run
             result = await run.execute(approval)
-            selectedIDs = []; candidates = []; hasScanned = false; selectionRevision &+= 1
+            selectedIDs = []; discovered = []; pickedFiles = [:]; hasScanned = false; selectionRevision &+= 1
         } catch { message = "The cleanup journal is unavailable. Nothing was changed." }
     }
     func cancel() { executor?.cancel() }
     func endSession() {
         guard !isRunning else { return }
-        selectedIDs = []; result = nil; message = nil; selectionRevision &+= 1
+        selectedIDs = []; pickedFiles = [:]; result = nil; message = nil; selectionRevision &+= 1
     }
     private func currentCheck() async -> CandidateCheck? {
-        do { return CandidateCheck(catalog: catalog, running: SystemRunningAppChecker(), exclusions: try await ExclusionsModel.shared.policyForScan()) }
+        do { return CandidateCheck(catalog: catalog, running: SystemRunningAppChecker(), exclusions: try await ExclusionsModel.shared.policyForScan(), cloud: Self.cloud,
+                                    home: Self.checkHome) }
         catch { message = "Exclusion settings are unavailable, so nothing can be checked. Try again."; return nil }
     }
 }
@@ -197,9 +266,11 @@ extension CatalogCategory {
     var storageCategory: StorageCategory {
         switch self {
         case .developer: .developer
+        case .icloud: .cloud
         case .browser: .browser
         case .downloads: .downloads
-        case .system, .models, .updaters, .logs: .managed
+        case .files: .files
+        case .system, .models, .updaters, .logs, .managed: .managed
         }
     }
     /// Overview's row title for a category; the rows themselves come from what the catalog found.
@@ -212,6 +283,9 @@ extension CatalogCategory {
         case .models: "Models and disk images"
         case .updaters: "App update downloads"
         case .logs: "Logs and crash reports"
+        case .icloud: "Downloaded iCloud files"
+        case .files: "Large and old files"
+        case .managed: "App-managed storage"
         }
     }
 }
@@ -234,12 +308,12 @@ extension CatalogOverview.Row {
         if case .measured(let bytes) = estimate, rules.contains(where: \.estimateIsUpperBound) { return catalogBytes(bytes, upperBound: true) }
         return estimate.text
     }
-    /// What happens and to what, e.g. "Clear npm cache, Yarn cache · Move Installers to Trash".
+    /// What happens and to what, e.g. "Clear npm cache, Yarn cache · Move Installers to Trash" (`ActionWording`).
     var detail: String {
-        let cleared = rules.filter { $0.action != .trash }.map(\.title)
-        let trashed = rules.filter { $0.action == .trash }.map(\.title)
-        return ([cleared.isEmpty ? nil : "Clear " + Self.list(cleared), trashed.isEmpty ? nil : "Move " + Self.list(trashed) + " to Trash"]
-            .compactMap { $0 }).joined(separator: " · ")
+        let groups = Dictionary(grouping: rules) { $0.action.wording.overviewGroup }
+        return groups.keys.sorted().compactMap { key in
+            groups[key].flatMap { rules in rules.first.map { $0.action.wording.overview(Self.list(rules.map(\.title))) } }
+        }.joined(separator: " · ")
     }
     private static func list(_ titles: [String]) -> String {
         titles.count <= 3 ? titles.joined(separator: ", ") : titles.prefix(2).joined(separator: ", ") + " and \(titles.count - 2) more"
@@ -255,7 +329,11 @@ func catalogBytes(_ value: Int64, complete: Bool = true, upperBound: Bool = fals
 
 extension CleanupRule {
     /// Rules whose items the user chooses one by one: single Downloads files, and each model or disk image.
-    var choosesItems: Bool { contents != nil || regen == .model }
+    var choosesItems: Bool { contents != nil || regen == .model || action == .evict || fromPickedFolders }
+    /// Whether every item the rule offers is a single file.
+    var offersFiles: Bool { contents != nil || fromPickedFolders }
+    /// How the review names what happens, e.g. "Move to Trash: Installers in Downloads".
+    var reviewTitle: String { action.wording.reviewPrefix + title }
 }
 
 extension Candidate {
@@ -272,7 +350,7 @@ struct PreviewOnlyToggle: View {
             Toggle("Preview only (don’t change anything)", isOn: $model.previewOnly)
                 .toggleStyle(.checkbox).disabled(!model.canEdit).accessibilityIdentifier("previewOnlyToggle")
             Text(model.previewOnly ? "Still checks each item and records what it would do. Nothing on disk changes." : "Confirmed cleanups change files on disk.")
-                .font(.caption).foregroundStyle(.secondary)
+                .font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary)
         }
     }
 }
@@ -301,6 +379,7 @@ struct CatalogPlanSection: View {
                 StatusRow(text: "\(rule.owner?.name ?? rule.title) keeps its data in a custom location set in its settings, so Still leaves it alone.",
                           symbol: "info.circle", role: .neutral, identifier: "planOverridden-" + rule.id)
             }
+            ForEach(model.notAccessibleRules) { rule in NotAccessibleRow(title: rule.title).accessibilityIdentifier("planNotAccessible-" + rule.id) }
             ForEach(model.notes, id: \.ruleID) { note in StatusRow(text: note.text, symbol: "info.circle", role: .neutral, identifier: "planNote-" + note.ruleID) }
             if model.isScanning { ProgressView("Checking known locations…") }
             if !model.rulesFound.isEmpty || model.result != nil { PreviewOnlyToggle(model: model).padding(.leading, StillDesign.Space.xl) }
@@ -337,7 +416,7 @@ struct CatalogItemChooser: View {
     let rule: CleanupRule
     var body: some View {
         let items = model.candidates(for: rule).sorted { $0.displayName.localizedStandardCompare($1.displayName) == .orderedAscending }
-        ActionDisclosureGroup((rule.contents != nil ? StillDesign.files(items.count) : StillDesign.items(items.count)) + " · Choose items") {
+        ActionDisclosureGroup((rule.offersFiles ? StillDesign.files(items.count) : StillDesign.items(items.count)) + " · Choose items") {
             LazyVStack(alignment: .leading, spacing: 0) {
                 ForEach(items) { item in
                     InspectableItemRow(name: item.displayName, detail: detail(item), size: catalogBytes(item.estimatedBytes, estimate: item.sizeIsEstimate),
@@ -352,6 +431,7 @@ struct CatalogItemChooser: View {
     }
     private func detail(_ item: Candidate) -> String {
         let folder = item.url.deletingLastPathComponent().path.replacingOccurrences(of: FileManager.default.homeDirectoryForCurrentUser.path, with: "~")
+            .replacingOccurrences(of: "~/" + BuiltInCatalog.iCloudDrivePath, with: "iCloud Drive")
         return item.lastUsed.map { folder + " · Last used " + $0.formatted(date: .abbreviated, time: .omitted) } ?? folder
     }
 }
@@ -369,17 +449,17 @@ struct CatalogConfirmationSection: View {
                 VStack(alignment: .leading, spacing: StillDesign.Space.sm) {
                     HStack {
                         CategoryBadge(category: rule.category.storageCategory)
-                        Text((rule.action == .trash ? "Move to Trash: " : "Clear ") + rule.title).font(StillDesign.TypeStyle.section)
+                        Text(rule.reviewTitle).font(StillDesign.TypeStyle.section)
                         Spacer()
                         Text(catalogBytes(items.reduce(0) { $0 + $1.estimatedBytes }, complete: items.allSatisfy(\.sizeComplete), upperBound: rule.estimateIsUpperBound,
                                           estimate: items.contains(where: \.sizeIsEstimate))).monospacedDigit()
                     }
-                    Text(rule.consequence).font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                    Text(rule.consequence).font(StillDesign.TypeStyle.note).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                     ActionDisclosureGroup(StillDesign.items(items.count) + " · Show files") {
                         VStack(alignment: .leading, spacing: StillDesign.Space.xs) {
                             ForEach(items) { item in
-                                // A tool item shows the exact command, e.g. `ollama rm llama3:latest`.
-                                Text(rule.tool.flatMap { $0.itemPlaceholder == nil ? nil : $0.commandLine(for: item.itemName) } ?? item.url.path).font(.caption).textSelection(.enabled)
+                                // A tool that leaves its folder in place shows the exact command, e.g. `ollama rm llama3:latest` or `docker builder prune -a -f`.
+                                Text(rule.tool.flatMap { $0.deletesLocationAfter ? nil : $0.commandLine(for: item.itemName) } ?? item.url.path).font(StillDesign.TypeStyle.caption).textSelection(.enabled)
                                 if let refusal = review.refusals[item.id] { StatusRow(text: "Will be skipped: " + refusal.reason, symbol: "exclamationmark.circle", role: .caution) }
                             }
                         }.padding(.top, StillDesign.Space.sm)
@@ -387,7 +467,7 @@ struct CatalogConfirmationSection: View {
                 }
             }
             Text("Each item is checked again just before Still acts on it. Changed items, or items whose app is running, are skipped and reported.")
-                .font(.caption).foregroundStyle(.secondary)
+                .font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary)
         }
     }
 }
@@ -414,19 +494,19 @@ struct CatalogResultsSection: View {
                     Image(systemName: record.state == .succeeded ? "checkmark.circle" : wouldAct ? "eye" : "exclamationmark.circle")
                         .foregroundStyle(record.state == .succeeded ? StatusRole.success.color : wouldAct ? StatusRole.neutral.color : StatusRole.caution.color)
                     VStack(alignment: .leading, spacing: StillDesign.Space.xs) {
-                        Text(record.ruleID.flatMap { catalog.rule($0)?.title } ?? record.originalURL.lastPathComponent).font(.body.weight(.medium))
-                        Text(record.originalURL.path).font(.caption).foregroundStyle(.secondary).textSelection(.enabled)
-                        Text(record.message).font(.caption).foregroundStyle(.secondary)
+                        Text(record.ruleID.flatMap { catalog.rule($0)?.title } ?? record.originalURL.lastPathComponent).font(StillDesign.TypeStyle.rowTitle)
+                        Text(record.originalURL.path).font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary).textSelection(.enabled)
+                        Text(record.message).font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary)
                         if let output = record.toolOutput {
                             DisclosureGroup("Tool output") {
-                                Text(output).font(.caption.monospaced()).foregroundStyle(.secondary).textSelection(.enabled)
+                                Text(output).font(StillDesign.TypeStyle.code).foregroundStyle(.secondary).textSelection(.enabled)
                                     .frame(maxWidth: .infinity, alignment: .leading)
-                            }.font(.caption).accessibilityIdentifier("toolOutput-" + (record.ruleID ?? ""))
+                            }.font(StillDesign.TypeStyle.caption).accessibilityIdentifier("toolOutput-" + (record.ruleID ?? ""))
                         }
                     }
                     Spacer()
                     VStack(alignment: .trailing, spacing: StillDesign.Space.xs) {
-                        Text(record.outcomeTitle).font(.callout)
+                        Text(record.outcomeTitle).font(StillDesign.TypeStyle.note)
                         if record.state == .succeeded, let trashed = record.trashURL {
                             Button("Reveal in Trash") { NSWorkspace.shared.activateFileViewerSelecting([trashed]) }
                                 .accessibilityLabel("Reveal \(record.originalURL.lastPathComponent) in Trash")
@@ -439,13 +519,13 @@ struct CatalogResultsSection: View {
                 StatusRow(text: "Items moved to Trash still use space until you empty the Trash. Still never empties it.", symbol: "trash", role: .neutral, identifier: "catalogTrashNotice")
             }
             Text("Measured freed space is the change in available space read right before and after each item. Downloads, snapshots and other activity can affect it, and it may differ from the estimate.")
-                .font(.caption).foregroundStyle(.secondary)
+                .font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary)
         }
     }
     private func metric(_ value: String, _ label: String) -> some View {
         VStack(alignment: .leading, spacing: StillDesign.Space.xs) {
             Text(value).font(StillDesign.TypeStyle.value).monospacedDigit()
-            Text(label).font(.caption).foregroundStyle(.secondary)
+            Text(label).font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary)
         }
     }
 }

@@ -16,6 +16,10 @@ import SwiftUI
     var allowedScopes: Set<URL>?
     var downloadsScopes: Set<URL>?
     var downloadsOnly = false
+    /// Lists the large and old files offered from picked folders instead of the folder's contents.
+    var showsLargeAndOld = false
+    enum FileOrder: String, CaseIterable, Identifiable { case size = "Largest first", lastUsed = "Oldest first"; var id: Self { self } }
+    var fileOrder = FileOrder.size
     var position = Position()
     private var history: [Position] = []
     var canGoBack: Bool { !history.isEmpty }
@@ -186,13 +190,28 @@ struct StorageExplorerView: View {
                     .accessibilityIdentifier("explorerSearch")
                 Text("Search covers this folder and its scanned descendants only.").font(.caption).foregroundStyle(.secondary)
             }
+            if !selection.catalog.pickedByResource.isEmpty && !context.downloadsOnly {
+                HStack {
+                    Picker("Show", selection: $context.showsLargeAndOld) {
+                        Text("Folders").tag(false)
+                        Text("Large and old files").tag(true)
+                    }.pickerStyle(.segmented).fixedSize().accessibilityIdentifier("explorerMode")
+                    if context.showsLargeAndOld {
+                        Picker("Sort", selection: $context.fileOrder) {
+                            ForEach(StorageExplorerContext.FileOrder.allCases) { Text($0.rawValue).tag($0) }
+                        }.fixedSize().accessibilityIdentifier("explorerFileOrder")
+                    }
+                }
+            }
         }
     }
     private var list: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
                 ExplorerViewport(context: context).frame(height: 0)
-                if context.position.folder == nil {
+                if showsLargeAndOld {
+                    largeAndOldFiles
+                } else if context.position.folder == nil {
                     if scans.isEmpty { EmptyState(title: "No scanned locations", detail: "Run a manual scan from Cleanup plan or Overview. Browsing never starts a scan.", symbol: "folder") }
                     ForEach(scans, id: \.scope) { scan in
                         VStack(alignment: .leading, spacing: StillDesign.Space.sm) {
@@ -222,7 +241,8 @@ struct StorageExplorerView: View {
     private func row(_ entry: Entry) -> some View {
         let item = entry.item
         return HStack(spacing: StillDesign.Space.md) {
-            Image(systemName: item.kind == .folder ? "folder" : "doc").foregroundStyle(.secondary).frame(width: 20).accessibilityLabel("Browse only")
+            if let offered = offered(item) { planToggle(offered) }
+            Image(systemName: item.kind == .folder ? "folder" : "doc").foregroundStyle(.secondary).frame(width: 20).accessibilityLabel(offered(item) == nil ? "Browse only" : "Large or old file")
             Button {
                 if item.kind == .folder { context.enter(item.url) } else { context.inspect(item) }
             } label: {
@@ -243,10 +263,17 @@ struct StorageExplorerView: View {
             inspectorField("Location", entry.item.url.path)
             inspectorField("Observed scope", entry.scan.scope.path)
             inspectorField("Observed", entry.scan.observedAt.formatted(date: .abbreviated, time: .shortened))
-            inspectorField("Why listed", "Observed during your manual scan of this location. Browsing uses saved metadata only.")
+            let offered = offered(entry.item)
+            inspectorField("Why listed", offered.map(whyListed) ?? "Observed during your manual scan of this location. Browsing uses saved metadata only.")
             Text("On disk: " + (entry.item.kind == .folder ? folderAllocation(entry.item.url) : bytes(entry.item.allocatedBytes)))
             Text("Logical size: " + (entry.item.kind == .folder ? folderSubtotal(entry.item.url, logical: true) : bytes(entry.item.logicalBytes)))
-            inspectorField("Cleanup action", "Inspection only. Downloads installers and old large files are offered in the cleanup plan.")
+            if let offered {
+                inspectorField("Cleanup action", UserFiles.rule.consequence)
+                Toggle("Add to cleanup plan", isOn: Binding(get: { selection.catalog.isSelected(offered) }, set: { selection.catalog.setSelected(offered, $0) }))
+                    .toggleStyle(.checkbox).disabled(!selection.catalog.canEdit).accessibilityIdentifier("explorerInspectorChoose")
+            } else {
+                inspectorField("Cleanup action", "Inspection only. Large and old files, and Downloads installers, can be added to the cleanup plan.")
+            }
             Text("Observed allocation is not reclaimable space. Trash may retain storage until emptied.").font(.caption).foregroundStyle(.secondary)
             if entry.item.isDuplicateResource { Text("Shared resource · allocation counts once within a total.") }
             if entry.item.kind == .package || entry.item.kind == .symbolicLink { Text("Protected boundary · contents not inspected.") }
@@ -256,6 +283,55 @@ struct StorageExplorerView: View {
                 Button("Reveal in Finder") { model.reveal(entry.item) }
             }
         }
+    }
+    /// The large or old file the explorer offers for this observation, if any.
+    private func offered(_ item: FileObservation) -> Candidate? {
+        item.kind == .file ? selection.catalog.pickedByResource[item.resourceID] : nil
+    }
+    private var showsLargeAndOld: Bool { context.showsLargeAndOld && !context.downloadsOnly && !selection.catalog.pickedByResource.isEmpty }
+    /// Files offered from picked folders, under the current folder, in the chosen order. Nothing is preselected.
+    /// Only files observed in the explorer's selected locations are listed, each with its observation.
+    private var offeredHere: [(file: Candidate, entry: Entry)] {
+        let observed = Dictionary(entries.map { ($0.item.resourceID, $0) }, uniquingKeysWith: { first, _ in first })
+        let all = selection.catalog.pickedCandidates.compactMap { file -> (file: Candidate, entry: Entry)? in
+            guard let entry = observed[file.resourceID] else { return nil }
+            if let folder = context.position.folder, !entry.item.url.pathComponents.starts(with: folder.pathComponents) { return nil }
+            return (file, entry)
+        }
+        switch context.fileOrder {
+        case .size: return all
+        case .lastUsed: return all.sorted { ($0.file.lastUsed ?? .distantFuture) < ($1.file.lastUsed ?? .distantFuture) }
+        }
+    }
+    private var largeAndOldFiles: some View {
+        let files = offeredHere
+        return VStack(alignment: .leading, spacing: 0) {
+            Text("Files of 500 MB or more, or not opened in 90 days. Choose the ones to move to Trash, then review them in the cleanup plan.")
+                .font(.caption).foregroundStyle(.secondary).padding(.bottom, StillDesign.Space.sm)
+            if files.isEmpty { EmptyState(title: "No large or old files here", detail: "Nothing in this folder is 500 MB or more or unopened for 90 days. Protected files and git checkouts are never listed.", symbol: "doc") }
+            LazyVStack(alignment: .leading, spacing: 0) {
+                ForEach(files, id: \.file.id) { file, entry in
+                    InspectableItemRow(name: file.displayName, detail: fileDetail(file), size: catalogBytes(file.estimatedBytes), symbol: "doc",
+                                       inspected: context.position.inspectedID == entry.item.id,
+                                       inspect: { context.inspect(entry.item) }) { planToggle(file) }
+                    Divider()
+                }
+            }
+            if files.count == UserFiles.listLimit { Text("Showing the \(UserFiles.listLimit) largest. Pick a smaller folder to see more.").font(.caption).foregroundStyle(.secondary) }
+        }.accessibilityIdentifier("explorerLargeAndOld")
+    }
+    private func planToggle(_ file: Candidate) -> some View {
+        Toggle("Select " + file.displayName, isOn: Binding(get: { selection.catalog.isSelected(file) }, set: { selection.catalog.setSelected(file, $0) }))
+            .labelsHidden().toggleStyle(.checkbox).disabled(!selection.catalog.canEdit).accessibilityIdentifier("explorerChoose-" + file.displayName)
+    }
+    private func fileDetail(_ file: Candidate) -> String {
+        let folder = file.url.deletingLastPathComponent().path.replacingOccurrences(of: FileManager.default.homeDirectoryForCurrentUser.path, with: "~")
+        return file.lastUsed.map { folder + " · Last used " + $0.formatted(date: .abbreviated, time: .omitted) } ?? folder
+    }
+    private func whyListed(_ file: Candidate) -> String {
+        let large = file.logicalBytes >= UserFiles.largeBytes ? "500 MB or more" : nil
+        let old = file.lastUsed.flatMap { $0 < Date().addingTimeInterval(-Double(UserFiles.unusedDays) * 86_400) ? "not opened since " + $0.formatted(date: .abbreviated, time: .omitted) : nil }
+        return ([large, old].compactMap { $0 }.joined(separator: " and ") + ".").capitalizedFirst + " Age and size don’t mean it’s unwanted; you decide."
     }
     private func inspectorField(_ title: String, _ value: String) -> some View {
         VStack(alignment: .leading, spacing: StillDesign.Space.xs) {
@@ -331,4 +407,8 @@ private struct ExplorerViewport: NSViewRepresentable {
         }
         deinit { NotificationCenter.default.removeObserver(self) }
     }
+}
+
+private extension String {
+    var capitalizedFirst: String { prefix(1).uppercased() + dropFirst() }
 }

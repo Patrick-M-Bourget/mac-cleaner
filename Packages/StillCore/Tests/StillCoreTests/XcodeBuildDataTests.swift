@@ -124,7 +124,7 @@ private let devices = "Library/Developer/CoreSimulator/Devices"
     let simctl = try fakeSimctl(home, "exit 0")
     try makeFolder(home, devices + "/0A1B2C3D-0000-0000-0000-000000000000/data", bytes: 5000)
     #expect(catalog.discover(fixture: home, locateTool: { _ in nil }).isEmpty)
-    let candidate = try #require(catalog.discover(fixture: home, locateTool: { _ in simctl }).first)
+    let candidate = try #require(catalog.discover(fixture: home, locateTool: onlyTool("simctl", simctl)).first)
     #expect(candidate.ruleID == "xcode-simulators")
     #expect(candidate.action == .tool)
     // simctl removes only the unavailable devices, so the folder's total isn't what it frees.
@@ -141,7 +141,7 @@ private let devices = "Library/Developer/CoreSimulator/Devices"
     let marker = home.appendingPathComponent("ran")
     let simctl = try fakeSimctl(home, "echo \"$@\" > '\(marker.path)'\necho 'Deleted: iPhone 12 (0A1B2C3D)'")
     let catalog = Catalog(rules: fixtureRules)
-    let candidate = try #require(catalog.discover(fixture: home, locateTool: { _ in simctl }).first)
+    let candidate = try #require(catalog.discover(fixture: home, locateTool: onlyTool("simctl", simctl)).first)
     let journal = try SQLiteCleanupJournal(url: home.appendingPathComponent("journal.sqlite"))
     let check = CandidateCheck(catalog: catalog, running: NothingRunning())
 

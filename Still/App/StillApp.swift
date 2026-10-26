@@ -64,7 +64,6 @@ enum Destination: String, CaseIterable, Identifiable {
     var historyExpandedRuns: Set<UUID> = []
     var historyOffset: CGPoint?
     var growthOffset: CGPoint?
-    var growthFromHistory = false
     var planReturnsToGrowth = false
     var routeGeneration = UUID()
     var overviewOffset: CGPoint?
@@ -95,7 +94,6 @@ private struct WorkspaceView: View {
     @State private var managedStorageVisible = false
     @State private var managedStorage = ManagedStorageModel()
     @State private var pipVisible = false
-    @State private var dockerVisible = false
     @State private var exclusionsVisible = false
     private var diagnosticsVisible: Bool { get { navigationState.diagnosticsVisible } nonmutating set { navigationState.diagnosticsVisible = newValue } }
     @State private var overviewCloudExpanded = false
@@ -109,7 +107,7 @@ private struct WorkspaceView: View {
     @State private var locationToForget: RememberedScope?
     @State private var capacity = AppLifecycleController.shared.capacity
     private var startupCapacity: StartupCapacityReading? { capacity.reading }
-    private var showsPlan: Bool { destination == .plan && !navigationState.localRecordsVisible && !recoveryVisible && !nativeInspectionVisible && !homebrewVisible && !pipVisible && !dockerVisible && !managedStorageVisible && !diagnosticsVisible && !exclusionsVisible }
+    private var showsPlan: Bool { destination == .plan && !navigationState.localRecordsVisible && !recoveryVisible && !nativeInspectionVisible && !homebrewVisible && !pipVisible && !managedStorageVisible && !diagnosticsVisible && !exclusionsVisible }
     private var contextLabel: String {
         if selection.workspaceRunning { return "Running approved cleanup" }
         if navigationState.localRecordsVisible && !recoveryVisible { return "Local records · Explicit maintenance only" }
@@ -120,7 +118,6 @@ private struct WorkspaceView: View {
         if managedStorageVisible { return "App-managed inventory · selected objects only" }
         if homebrewVisible { return "Read-only Homebrew inventory" }
         if pipVisible { return "Read-only pip inventory" }
-        if dockerVisible { return "Read-only Docker inventory" }
         if exclusionsVisible { return "Custom scan exclusions" }
         switch destination {
         case .overview: return "On-demand storage review"
@@ -137,8 +134,8 @@ private struct WorkspaceView: View {
             VStack(alignment: .leading, spacing: StillDesign.Space.sm) {
                 AppBrand().padding(.horizontal, StillDesign.Space.sm).padding(.bottom, StillDesign.Space.xl)
                 Text("Storage").font(.caption).foregroundStyle(.secondary).padding(.horizontal, StillDesign.Space.sm)
-                // What grew and Storage alerts stay unwired until after M1 (Decision 12).
-                ForEach(Destination.allCases.filter { $0 != .locations && $0 != .alerts && $0 != .growth }) { navigation($0) }
+                // Storage alerts stay unwired until after M1 (Decision 12); What grew is back (#119).
+                ForEach(Destination.allCases.filter { $0 != .locations && $0 != .alerts }) { navigation($0) }
                 Text("Settings").font(.caption).foregroundStyle(.secondary).padding(.horizontal, StillDesign.Space.sm).padding(.top, StillDesign.Space.xl)
                 navigation(.locations)
                 Spacer()
@@ -192,8 +189,6 @@ private struct WorkspaceView: View {
                             DiagnosticsView(model: diagnostics)
                         } else if managedStorageVisible {
                             ManagedStorageView(model: managedStorage) { managedStorageVisible = false; destination = .overview }
-                        } else if dockerVisible {
-                            DockerInspectionView { dockerVisible = false; destination = .overview }
                         } else if pipVisible {
                             PipInspectionView { pipVisible = false; destination = .overview }
                         } else if homebrewVisible {
@@ -204,9 +199,7 @@ private struct WorkspaceView: View {
                         else {
                             switch destination {
                             case .alerts: StorageAlertsView(controller: alerts, capacity: capacity, configureOnEntry: navigationState.configureAlertsOnEntry)
-                            case .growth: GrowthHistoryView(model: GrowthHistoryModel.shared,
-                                reviewTitle: growthReviewTitle, review: { Task { await reviewGrowthLocation() } },
-                                scanHistorical: { Task { await scanHistoricalGrowthLocation() } }, actionsEnabled: canStartGrowthScan)
+                            case .growth: GrowthHistoryView(model: GrowthHistoryModel.shared, catalog: selection.catalog)
                             case .overview: overview
                             case .plan: EmptyView()
                             case .history: history
@@ -219,7 +212,7 @@ private struct WorkspaceView: View {
                                 DestinationViewport(offset: $navigationState.diagnosticsOffset).frame(width: 0, height: 0)
                             } else if navigationState.localRecordsVisible && !recoveryVisible {
                                 DestinationViewport(offset: $navigationState.localRecordsOffset).frame(width: 0, height: 0)
-                            } else if !recoveryVisible && !diagnosticsVisible && !exclusionsVisible && !managedStorageVisible && !dockerVisible && !pipVisible && !homebrewVisible {
+                            } else if !recoveryVisible && !diagnosticsVisible && !exclusionsVisible && !managedStorageVisible && !pipVisible && !homebrewVisible {
                                 if destination == .history {
                                     DestinationViewport(offset: $navigationState.historyOffset).frame(width: 0, height: 0)
                                 } else if destination == .growth {
@@ -274,27 +267,11 @@ private struct WorkspaceView: View {
                             Button("View cleanup plan") { nativeInspectionVisible = false; destination = .plan }.buttonStyle(.borderedProminent)
                         }
                     } else if destination == .growth {
-                        if navigationState.growthFromHistory {
-                            ActionStrip(message: "Recorded observation · Current files and cleanup choices stay unchanged.") {
-                                Button("Back to History") { navigate(.history) }
-                                if folderInspection.isScanning {
-                                    Button("Stop scan") { folderInspection.cancel() }.buttonStyle(.borderedProminent)
-                                } else if !GrowthHistoryModel.shared.isHistorical {
-                                    Button(GrowthHistoryModel.shared.scanTitle) { Task { await scanGrowthLocation() } }.buttonStyle(.borderedProminent).disabled(!canStartGrowthScan || GrowthHistoryModel.shared.isResolving || GrowthHistoryModel.shared.authorityChecking)
-                                }
-                            }
-                        } else {
-                            ActionStrip(message: "Two compatible completed observations reveal net changes.") {
-                                if folderInspection.isScanning {
-                                    Button("Stop scan") { folderInspection.cancel() }.buttonStyle(.borderedProminent)
-                                } else {
-                                    if GrowthHistoryModel.shared.comparison?.current != nil {
-                                        Button("Choose another location…") { chooseNewGrowthLocation() }.disabled(!canStartGrowthScan)
-                                    }
-                                    Button(GrowthHistoryModel.shared.scanTitle) { Task { await scanGrowthLocation() } }
-                                        .buttonStyle(.borderedProminent).disabled(!canStartGrowthScan || GrowthHistoryModel.shared.isResolving || GrowthHistoryModel.shared.authorityChecking)
-                                }
-                            }
+                        ActionStrip(message: GrowthHistoryModel.shared.comparison?.state == .compared ? "Two completed scans · Coverage changes aren’t counted as growth. No continuous monitoring required." : "Each completed scan of the known locations is recorded. No continuous monitoring required.") {
+                            Button("Scan again", action: scanAgain).disabled(selection.catalog.isScanning || folderInspection.isScanning || selection.workspaceRunning || !selection.catalog.canEdit)
+                                .accessibilityIdentifier("growthScanAgain")
+                            Button("Review options") { navigate(.plan); navigationState.planReturnsToGrowth = true }.buttonStyle(.borderedProminent)
+                                .accessibilityIdentifier("growthReviewOptions")
                         }
                     } else if showsPlan {
                         ActionStrip(message: "Nothing changes until you confirm the next step.") { Button("Review cleanup") {}.disabled(true) }
@@ -312,7 +289,7 @@ private struct WorkspaceView: View {
             explorerContext.downloadsScopes = Set(locationsModel.includedDownloads.map { URL(fileURLWithPath: $0.path).standardizedFileURL })
         }
         .onAppear { AppLifecycleController.shared.openWorkspace = { openWindow(id: "workspace") } }
-        .onReceive(NotificationCenter.default.publisher(for: .stillAlertOpened)) { _ in destination = .overview; navigationState.localRecordsVisible = false; exclusionsVisible = false; diagnosticsVisible = false; recoveryVisible = false; nativeInspectionVisible = false; homebrewVisible = false; pipVisible = false; dockerVisible = false; managedStorageVisible = false }
+        .onReceive(NotificationCenter.default.publisher(for: .stillAlertOpened)) { _ in destination = .overview; navigationState.localRecordsVisible = false; exclusionsVisible = false; diagnosticsVisible = false; recoveryVisible = false; nativeInspectionVisible = false; homebrewVisible = false; pipVisible = false; managedStorageVisible = false }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in Task { await alerts.activated() } }
         .onReceive(NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.didWakeNotification)) { _ in Task { await alerts.activated() } }
         .toolbar {
@@ -343,7 +320,7 @@ private struct WorkspaceView: View {
     }
 
     private var scanReturnAction: (() -> Void)? {
-        let atOrigin = destination == scanOrigin && !navigationState.localRecordsVisible && !nativeInspectionVisible && !diagnosticsVisible && !exclusionsVisible && !recoveryVisible && !homebrewVisible && !pipVisible && !dockerVisible && !managedStorageVisible
+        let atOrigin = destination == scanOrigin && !navigationState.localRecordsVisible && !nativeInspectionVisible && !diagnosticsVisible && !exclusionsVisible && !recoveryVisible && !homebrewVisible && !pipVisible && !managedStorageVisible
         if atOrigin { return nil }
         return { returnToScanOrigin() }
     }
@@ -353,14 +330,12 @@ private struct WorkspaceView: View {
         navigationState.localRecordsVisible = false
         nativeInspectionVisible = false; diagnosticsVisible = false
         exclusionsVisible = false; recoveryVisible = false; homebrewVisible = false
-        pipVisible = false; dockerVisible = false; managedStorageVisible = false
+        pipVisible = false; managedStorageVisible = false
         planReturnsToExplorer = false
     }
 
     private func navigate(_ value: Destination, configureAlerts: Bool = true) {
         navigationState.routeGeneration = UUID()
-        if navigationState.growthFromHistory { GrowthHistoryModel.shared.endHistoricalRequest() }
-        navigationState.growthFromHistory = false
         navigationState.planReturnsToGrowth = false
         navigationState.configureAlertsOnEntry = configureAlerts
         destination = value
@@ -369,7 +344,7 @@ private struct WorkspaceView: View {
         navigationState.localRecordsVisible = false
         diagnosticsVisible = false; exclusionsVisible = false
         recoveryVisible = false; navigationState.recoveryCaller = .overview; nativeInspectionVisible = false; homebrewVisible = false
-        pipVisible = false; dockerVisible = false; managedStorageVisible = false
+        pipVisible = false; managedStorageVisible = false
     }
 
     private func navigation(_ value: Destination) -> some View {
@@ -444,27 +419,40 @@ private struct WorkspaceView: View {
                         .font(.caption).foregroundStyle(.secondary).monospacedDigit().accessibilityIdentifier("overviewRecommendedTotal")
                 }
                 RecommendationGroup {
-                    overviewCloudRow
-                    if overviewCloudExpanded, let report = overviewObservation?.cloudInventory { CloudInventoryView(report: report).padding(StillDesign.Space.md) }
+                    // iCloud keeps its first place: the catalog's local copies once found, else the scanned location's inventory.
+                    if let cloud = summary?.rows.first(where: { $0.category == .icloud }) { catalogRow(cloud) } else {
+                        overviewCloudRow
+                        if overviewCloudExpanded, let report = overviewObservation?.cloudInventory { CloudInventoryView(report: report).padding(StillDesign.Space.md) }
+                    }
                     Divider().padding(.horizontal, StillDesign.Space.lg)
                     if summary == nil && catalog.isScanning {
                         ProgressView("Checking known locations…").font(.caption).padding(StillDesign.Space.lg).frame(maxWidth: .infinity, alignment: .leading)
                         Divider().padding(.horizontal, StillDesign.Space.lg)
                     }
                     // One row per catalog category that found something; categories are data in StillCore.
-                    ForEach(summary?.rows ?? []) { row in
-                        let inPlan = row.rules.contains { catalog.isSelected($0) }
-                        StorageReviewRow(category: row.category.storageCategory, title: row.category.overviewTitle, detail: row.detail,
-                            value: row.valueText,
-                            meaning: row.estimate == .unknown ? "Couldn’t be measured" : inPlan ? "In cleanup plan" : row.rules.allSatisfy { $0.action == .delete } ? "Rebuildable" : "Review files",
-                            actionTitle: "Review \(row.category.overviewTitle) in the cleanup plan",
-                            action: { destination = .plan },
-                            identifier: "overviewCategory-" + row.id)
+                    ForEach(summary?.rows.filter { $0.category != .icloud } ?? []) { row in
+                        catalogRow(row)
+                        Divider().padding(.horizontal, StillDesign.Space.lg)
+                    }
+                    // Places macOS protects (Safari's cache) without Full Disk Access: not accessible, never 0.
+                    ForEach(catalog.notAccessibleRules) { rule in
+                        NotAccessibleRow(title: rule.title).padding(StillDesign.Space.lg).accessibilityIdentifier("overviewNotAccessible-" + rule.id)
                         Divider().padding(.horizontal, StillDesign.Space.lg)
                     }
                 }
                 Text(trashFootnote(summary?.proposedForTrash)).font(.caption).foregroundStyle(.secondary)
+                GuidanceSection(model: catalog)
             }
+    }
+    private func catalogRow(_ row: CatalogOverview.Row) -> some View {
+        let inPlan = row.rules.contains { selection.catalog.isSelected($0) }
+        return StorageReviewRow(category: row.category.storageCategory, title: row.category.overviewTitle, detail: row.detail,
+            value: row.valueText,
+            meaning: row.estimate == .unknown ? "Couldn’t be measured" : inPlan ? "In cleanup plan"
+                : row.rules.allSatisfy { $0.action == .delete } ? "Rebuildable" : row.rules.allSatisfy { $0.action == .evict } ? "Local copies" : "Review files",
+            actionTitle: "Review \(row.category.overviewTitle) in the cleanup plan",
+            action: { destination = .plan },
+            identifier: "overviewCategory-" + row.id)
     }
     /// SPEC section 6: an estimate, and an upper bound because clones share blocks.
     private func recommendedText(_ estimate: SizeEstimate) -> String {
@@ -586,70 +574,6 @@ private struct WorkspaceView: View {
     private func didResetLocalRecords() {
         nativeInspectionVisible = false
         diagnosticsVisible = false; diagnostics = DiagnosticsModel(); exclusionsVisible = false
-    }
-
-    private var canStartGrowthScan: Bool {
-        !folderInspection.isScanning && !selection.workspaceRunning && !selection.isRefreshing && !AppLifecycleController.shared.maintenanceInProgress
-    }
-    private var growthReviewTitle: String? {
-        let model = GrowthHistoryModel.shared
-        guard model.reviewSnapshot != nil else { return nil }
-        if model.authorityChecking { return "Checking location…" }
-        guard let url = model.resolvedURL else { return "Locate folder…" }
-        guard selection.scans[url.standardizedFileURL] != nil, !selection.unavailableScopes.contains(url.standardizedFileURL) else { return "Scan to review" }
-        return "Explore folder"
-    }
-    private func chooseNewGrowthLocation() {
-        guard canStartGrowthScan else { return }
-        guard let url = FolderInspection.chooseFolder(), locationsModel.remember(url, downloads: isDownloadsLocation(url)) else { return }
-        GrowthHistoryModel.shared.selectNextLocation = true
-        scanOrigin = .growth; folderInspection.scan(url)
-    }
-    private func scanGrowthLocation(locate: Bool = false, fromHistorical: Bool = false) async {
-        let model = GrowthHistoryModel.shared
-        guard canStartGrowthScan, !model.isResolving else { return }
-        guard let snapshot = model.reviewSnapshot else { chooseNewGrowthLocation(); return }
-        let route = navigationState.routeGeneration
-        model.isResolving = true
-        defer { model.isResolving = false }
-        if !locate && !model.needsLocationAccess, let lease = await model.leaseForSelection() {
-            guard canStartGrowthScan, destination == .growth, navigationState.routeGeneration == route, model.reviewSnapshot?.id == snapshot.id else { lease.close(); return }
-            model.accessNotice = nil; model.needsLocationAccess = false
-            if fromHistorical { model.moveHistoricalToCurrent() }
-            scanOrigin = .growth
-            folderInspection.scanAgain(scopes: [lease.url], leases: [lease]); return
-        }
-        guard locate || model.needsLocationAccess else {
-            model.accessNotice = "This location is not currently authorized or available. Locate the original folder to reconnect before scanning or reviewing. Retained observations stay readable."
-            model.needsLocationAccess = true; return
-        }
-        guard let url = FolderInspection.chooseFolder() else { return }
-        guard await model.matches(url, snapshot: snapshot), model.reviewSnapshot?.id == snapshot.id else {
-            model.accessNotice = "That folder does not match the recorded location’s root and volume identity. Nothing was scanned or rebound."; return
-        }
-        guard canStartGrowthScan, locationsModel.remember(url, downloads: isDownloadsLocation(url)) else { return }
-        guard let lease = await model.leaseForSelection() else { model.accessNotice = "Access could not be renewed. Nothing was scanned."; return }
-        guard canStartGrowthScan, destination == .growth, navigationState.routeGeneration == route, model.reviewSnapshot?.id == snapshot.id else { lease.close(); return }
-        model.accessNotice = nil; model.needsLocationAccess = false
-        if fromHistorical { model.moveHistoricalToCurrent() }
-        scanOrigin = .growth
-        folderInspection.scanAgain(scopes: [lease.url], leases: [lease])
-    }
-    private func reviewGrowthLocation() async {
-        let model = GrowthHistoryModel.shared
-        guard canStartGrowthScan, !model.isResolving else { return }
-        let route = navigationState.routeGeneration, snapshot = model.reviewSnapshot?.id
-        let resolved = await model.leaseForSelection()
-        guard canStartGrowthScan, destination == .growth, navigationState.routeGeneration == route, model.reviewSnapshot?.id == snapshot else { resolved?.close(); return }
-        guard let lease = resolved else { await scanGrowthLocation(locate: true, fromHistorical: model.isHistorical); return }
-        let url = lease.url.standardizedFileURL; lease.close()
-        guard selection.scans[url] != nil, !selection.unavailableScopes.contains(url) else { await scanGrowthLocation(fromHistorical: model.isHistorical); return }
-        openExplorer(downloads: false, caller: .growth)
-        explorerContext.openLocation(url)
-    }
-    private func scanHistoricalGrowthLocation() async {
-        guard canStartGrowthScan else { return }
-        await scanGrowthLocation(fromHistorical: true)
     }
 
     private var history: some View {
