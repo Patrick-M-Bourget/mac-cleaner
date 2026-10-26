@@ -31,7 +31,7 @@ import StillCore
             guard proc_pidpath(pid, &bytes, UInt32(bytes.count)) > 0 else { continue }
             let path = String(decoding: bytes.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }, as: UTF8.self)
             let selected = path.hasPrefix(bundle.path + "/")
-            guard selected || path.hasSuffix("/Contents/MacOS/Google Chrome") || path.contains("/Google Chrome Framework.framework/") else { continue }
+            guard selected else { continue }
             var details = proc_bsdinfo()
             let size = Int32(MemoryLayout<proc_bsdinfo>.size)
             let observed = proc_pidinfo(pid, PROC_PIDTBSDINFO, 0, &details, size) == size
@@ -120,6 +120,7 @@ import StillCore
                let data = try? JSONEncoder().encode(running.activity),
                let diagnostic = try? JSONSerialization.jsonObject(with: data) {
                 output["activityDiagnostic"] = diagnostic
+                output["activityDiagnosticScope"] = "verified bundle only; an empty result is not evidence of inactivity"
             }
             if let data = try? JSONSerialization.data(withJSONObject: output, options: [.sortedKeys]) { FileHandle.standardOutput.write(data); FileHandle.standardOutput.write(Data("\n".utf8)) }
             exit(1)
