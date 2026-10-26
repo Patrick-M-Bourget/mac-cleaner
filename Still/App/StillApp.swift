@@ -47,15 +47,6 @@ struct StillApp: App {
                 Button("Show Still") { lifecycle.openWorkspace?() }
             }
         }
-        MenuBarExtra("Still storage alerts", systemImage: "internaldrive", isInserted: Binding(get: { StorageAlertsController.futureEnabled && alerts.effectiveMonitoring }, set: { inserted in
-            // SwiftUI can echo false while the extra is initially hidden or authorization is pending.
-            // Only removal of effective monitoring is a user opt-out.
-            if !inserted && alerts.requested && alerts.effectiveMonitoring {
-                Task { await alerts.setEnabled(false) }
-            }
-        })) {
-            StillStatusMenu(alerts: lifecycle.alerts)
-        }
     }
 }
 
@@ -149,7 +140,6 @@ private struct WorkspaceView: View {
     @State private var exclusionsVisible = false
     private var diagnosticsVisible: Bool { get { navigationState.diagnosticsVisible } nonmutating set { navigationState.diagnosticsVisible = newValue } }
     @State private var overviewCloudExpanded = false
-    @State private var moreToolsExpanded = false
     private var diagnostics: DiagnosticsModel { get { navigationState.diagnosticsModel } nonmutating set { navigationState.diagnosticsModel = newValue } }
     @State private var locationsModel = AppLifecycleController.shared.locations
     private var explorerContext: StorageExplorerContext { navigationState.downloadsExplorerActive ? AppLifecycleController.shared.downloadsExplorer : AppLifecycleController.shared.locationsExplorer }
@@ -160,9 +150,6 @@ private struct WorkspaceView: View {
     @State private var locationToForget: RememberedScope?
     @State private var capacity = AppLifecycleController.shared.capacity
     private var startupCapacity: StartupCapacityReading? { capacity.reading }
-    #if DEBUG
-    @State private var injectedAlertOpen = false
-    #endif
     private var fixtureMode: Bool {
         #if DEBUG
         ProcessInfo.processInfo.arguments.contains("--fixture-workspace")
@@ -202,10 +189,10 @@ private struct WorkspaceView: View {
             VStack(alignment: .leading, spacing: StillDesign.Space.sm) {
                 AppBrand().padding(.horizontal, StillDesign.Space.sm).padding(.bottom, StillDesign.Space.xl)
                 Text("Storage").font(.caption).foregroundStyle(.secondary).padding(.horizontal, StillDesign.Space.sm)
-                ForEach(Destination.allCases.filter { $0 != .locations && $0 != .alerts && ($0 != .growth || GrowthHistoryModel.enabled) }) { navigation($0) }
+                // What grew and Storage alerts stay unwired until after M1 (Decision 12).
+                ForEach(Destination.allCases.filter { $0 != .locations && $0 != .alerts && $0 != .growth }) { navigation($0) }
                 Text("Settings").font(.caption).foregroundStyle(.secondary).padding(.horizontal, StillDesign.Space.sm).padding(.top, StillDesign.Space.xl)
                 navigation(.locations)
-                if StorageAlertsController.futureEnabled { navigation(.alerts) }
                 Spacer()
                 VStack(alignment: .leading, spacing: StillDesign.Space.md) {
                     Label("This Mac", systemImage: "laptopcomputer").font(.callout)
@@ -216,9 +203,6 @@ private struct WorkspaceView: View {
                         .accessibilityIdentifier("sidebarCapacityObservation")
                     Text(capacity.statusText.isEmpty ? " " : capacity.statusText).font(.caption2).foregroundStyle(.secondary)
                         .frame(height: 14, alignment: .leading)
-                    Divider()
-                    MonitoringFooter(state: StorageAlertsController.futureEnabled ? alerts.shellState : .off,
-                        openDetails: { navigate(.alerts, configureAlerts: false) })
                 }.padding(.horizontal, StillDesign.Space.sm)
 
             }
@@ -254,8 +238,7 @@ private struct WorkspaceView: View {
                         if recoveryVisible {
                             CleanupRecoveryView(model: recovery)
                         } else if navigationState.localRecordsVisible {
-                            LocalRecordsView(model: navigationState.historyModel, showRecovery: { openRecovery(caller: navigationState.localRecordsCaller) }, didReset: didResetLocalRecords,
-                                reviewDiagnostics: StorageAlertsController.futureEnabled ? { openDiagnostics(caller: navigationState.localRecordsCaller) } : nil)
+                            LocalRecordsView(model: navigationState.historyModel, showRecovery: { openRecovery(caller: navigationState.localRecordsCaller) }, didReset: didResetLocalRecords, reviewDiagnostics: nil)
                         } else if exclusionsVisible {
                             ExclusionsView(model: ExclusionsModel.shared)
                         } else if diagnosticsVisible {
@@ -386,17 +369,6 @@ private struct WorkspaceView: View {
         .onChange(of: selection.chrome.isBusy) { previous, current in if previous && !current { capacity.request(.scanEnded) } }
         .onChange(of: selection.chrome.selectionRevision) { _, _ in AppLifecycleController.shared.hasPendingPlan = selection.hasPendingChoices }
         .onChange(of: selection.mutationVersion) { _, _ in AppLifecycleController.shared.hasPendingPlan = selection.hasPendingChoices }
-        .task {
-            #if DEBUG
-            if !injectedAlertOpen, LocalStateLocation.isDisposableTest, StorageAlertsController.futureEnabled,
-               let _ = try? LocalStateLocation.root(create: false),
-               let fixture = ProcessInfo.processInfo.environment["STILL_TEST_ALERT_OPEN"] {
-                injectedAlertOpen = true
-                let payload: [AnyHashable: Any] = fixture == "dated" ? ["Still.observedAt": 1_000_000.0] : fixture == "malformed" ? ["Still.observedAt": "invalid"] : [:]
-                alerts.openAlert(context: AlertOpenContext(notificationUserInfo: payload))
-            }
-            #endif
-        }
         .task { if await recovery.loadOnce() { openRecovery(caller: .overview, refresh: false) } }
         .task { locationsModel.load() }
         .onChange(of: locationsModel.scopes) { _, _ in
@@ -532,29 +504,6 @@ private struct WorkspaceView: View {
             }
             scannedLocations
             overviewRecommendations
-            if StorageAlertsController.futureEnabled {
-                Button { moreToolsExpanded.toggle() } label: {
-                    Label("More tools", systemImage: moreToolsExpanded ? "chevron.down" : "chevron.right")
-                        .frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
-                }.buttonStyle(.plain).accessibilityValue(moreToolsExpanded ? "Expanded" : "Collapsed")
-                if moreToolsExpanded {
-                FindingRow(category: .managed, title: "Diagnostics", detail: "Review a redacted snapshot and save locally") {
-                    Button("Review diagnostics") { openDiagnostics(caller: .overview) }
-                }
-                FindingRow(category: .managed, title: "App-managed storage", detail: "Libraries, backups and system storage guidance") {
-                    Button("Review app-managed storage") { managedStorageVisible = true; homebrewVisible = false; pipVisible = false; dockerVisible = false; nativeInspectionVisible = false; inspecting = false }
-                }
-                FindingRow(category: .developer, title: "Docker storage", detail: "Review runtime and disk-image measurements") {
-                    Button("Review Docker storage") { dockerVisible = true; pipVisible = false; homebrewVisible = false; managedStorageVisible = false; nativeInspectionVisible = false; inspecting = false }
-                }
-                FindingRow(category: .developer, title: "Homebrew opportunities", detail: "Explicit cache inventory; vendor cleanup remains unavailable") {
-                    Button("Review Homebrew opportunities") { homebrewVisible = true; pipVisible = false; dockerVisible = false; managedStorageVisible = false; nativeInspectionVisible = false; inspecting = false }
-                }
-                FindingRow(category: .developer, title: "Pip cache opportunities", detail: "Review selected cache provenance") {
-                    Button("Review pip cache opportunities") { pipVisible = true; homebrewVisible = false; dockerVisible = false; managedStorageVisible = false; nativeInspectionVisible = false; inspecting = false }
-                }
-                }
-            }
         }
     }
 
@@ -737,17 +686,6 @@ private struct WorkspaceView: View {
         if refresh { Task { await recovery.refresh() } }
     }
 
-    private func openDiagnostics(caller: Destination) {
-        guard StorageAlertsController.futureEnabled else { return }
-        diagnostics.review(selection: selection, inspection: folderInspection, recovery: recovery)
-        navigationState.diagnosticsCaller = caller
-        navigationState.diagnosticsOffset = nil
-        navigationState.localRecordsVisible = false
-        diagnosticsVisible = true; recoveryVisible = false; managedStorageVisible = false
-        dockerVisible = false; pipVisible = false; homebrewVisible = false
-        nativeInspectionVisible = false; inspecting = false; destination = caller
-    }
-
     private func openLocalRecords(caller: Destination) {
         navigationState.localRecordsCaller = caller
         navigationState.localRecordsOffset = nil
@@ -829,20 +767,9 @@ private struct WorkspaceView: View {
         await scanGrowthLocation(fromHistorical: true)
     }
 
-    private func openHistoricalGrowth(_ id: UUID) {
-        guard GrowthHistoryModel.enabled else { return }
-        navigate(.growth)
-        navigationState.growthFromHistory = true; navigationState.growthOffset = nil
-        GrowthHistoryModel.shared.requestHistorical(id)
-    }
-
-    private var historicalGrowthAction: ((UUID) -> Void)? {
-        guard GrowthHistoryModel.enabled else { return nil }
-        return { id in openHistoricalGrowth(id) }
-    }
     private var history: some View {
         CleanupHistoryView(model: navigationState.historyModel, expandedRuns: $navigationState.historyExpandedRuns,
-            showRecovery: { openRecovery(caller: .history) }, manageLocalRecords: { openLocalRecords(caller: .history) }, goOverview: { navigate(.overview) }, viewPlan: { navigate(.plan) }, showGrowth: historicalGrowthAction)
+            showRecovery: { openRecovery(caller: .history) }, manageLocalRecords: { openLocalRecords(caller: .history) }, goOverview: { navigate(.overview) }, viewPlan: { navigate(.plan) }, showGrowth: nil)
     }
 
     private var locations: some View {
@@ -890,11 +817,6 @@ private struct WorkspaceView: View {
             Text("Downloads files support cleanup. Other folders are inspection only. Access is rechecked for each manual scan; no files are scanned at launch.").font(.caption).foregroundStyle(.secondary)
             LocationAccessGuide(expanded: $navigationState.accessGuideExpanded)
             LocalRecordsEntry { openLocalRecords(caller: .locations) }
-            if GrowthHistoryModel.enabled {
-                SettingsRow(title: "Custom exclusions", detail: "Explicit path rules reduce scan coverage; fixed protections stay active.") {
-                    Button("Manage exclusions") { exclusionsVisible = true }.accessibilityIdentifier("manageExclusions")
-                }
-            }
         }.confirmationDialog("Forget location?", isPresented: Binding(get: { locationToForget != nil }, set: { if !$0 { locationToForget = nil } }), titleVisibility: .visible) {
             if let scope = locationToForget {
                 Button("Forget location", role: .destructive) { if locationsModel.forget(scope) { selection.suspendScope(URL(fileURLWithPath: scope.path), forget: true) }; locationToForget = nil }

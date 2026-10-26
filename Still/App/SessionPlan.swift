@@ -432,16 +432,13 @@ import SwiftUI
             let scanner = FolderScanner()
             var reports: [ScanResult] = [], failed: [URL] = []
             var stoppedRoot: URL?
-            var baselineIDs: [String: UUID] = [:]
+            let baselineIDs: [String: UUID] = [:]
             for scope in scopes {
                 if cancellation.isCancellationRequested { break }
                 let access = scope.startAccessingSecurityScopedResource()
-                let growth = await GrowthHistoryModel.shared.begin(scope, exclusionFingerprint: policy.fingerprint)
                 do {
                     let scan = try await scanner.scan(scope, cancellation: cancellation, exclusions: policy)
                     reports.append(scan)
-                    await GrowthHistoryModel.shared.complete(scan, token: growth)
-                    baselineIDs[scope.standardizedFileURL.path] = await MainActor.run { GrowthHistoryModel.shared.retainedBaseline(for: scan) }
                 } catch {
                     if cancellation.isCancellationRequested { stoppedRoot = scope }
                     else { failed.append(scope) }

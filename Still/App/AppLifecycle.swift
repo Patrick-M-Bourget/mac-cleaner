@@ -78,11 +78,9 @@ import StillCore
         try alerts.resetPreferences()
     }
     func refreshLogin() {
-        guard StorageAlertsController.futureEnabled else { return }
         registration.refresh(); loginStatus = registration.status
     }
     func chooseLogin(_ enabled: Bool) {
-        guard StorageAlertsController.futureEnabled else { return }
         do { try registration.choose(enabled); loginError = nil }
         catch { loginError = "Login registration could not be changed. You can continue using Still on demand." }
         loginIntent = registration.intent; loginStatus = registration.status

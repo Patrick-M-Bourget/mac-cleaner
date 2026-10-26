@@ -4,7 +4,6 @@ import StillCore
 
 @MainActor @Observable final class GrowthHistoryModel {
     static let shared = GrowthHistoryModel()
-    static var enabled: Bool { ProcessInfo.processInfo.arguments.contains("--future-milestones") }
     private var session: GrowthHistorySession?
     private var archive: GrowthHistoryStore?
     private var openingError: String?
@@ -59,7 +58,6 @@ import StillCore
         session = value; openingError = nil; return value
     }
     func load() async {
-        guard Self.enabled else { return }
         let request = UUID(); displayRequest = request
         if let requestedObservation {
             historicalBusy = true
@@ -120,7 +118,6 @@ import StillCore
         return current.id
     }
     func begin(_ scope: URL, exclusionFingerprint: String = "none") async -> GrowthScanToken? {
-        guard Self.enabled else { return nil }
         outcomeNotice = nil
         do { return await (try open()).begin(scope, exclusionFingerprint: exclusionFingerprint) }
         catch { openingError = "Scope or volume identity could not be verified. This scan cannot establish a comparison baseline."; return nil }
@@ -149,7 +146,7 @@ import StillCore
             archiveUnavailable = true; openingError = "Comparison history is unavailable. Current scan results remain usable."; liveComparison = nil
         }
     }
-    func invalidateCoverage() async throws { guard Self.enabled else { return }; try await open().invalidateCoverage() }
+    func invalidateCoverage() async throws { try await open().invalidateCoverage() }
     func clearCompletedHistory() async throws {
         displayRequest = UUID(); try await open().clearCompletedHistory(); selectedObservationID = nil; selectedIdentity = nil; liveComparison = session?.comparison; resolvedURL = nil
     }
@@ -157,7 +154,6 @@ import StillCore
         displayRequest = UUID(); try await open().resetHistory(); selectedScopeID = nil; selectedObservationID = nil; selectedIdentity = nil; liveComparison = session?.comparison; resolvedURL = nil
     }
     func failed() {
-        guard Self.enabled else { return }
         outcomeNotice = GrowthPresentation.failed
         Task { await self.load() }
     }
