@@ -154,6 +154,8 @@ final class FolderInspection {
                 isScanningCurrent = false
                 if scanAgainTask == nil { AppLifecycleController.shared.capacity.request(.scanEnded) }
                 activity?.observe(observed, baselineID: nil)
+                // Large and old files are listed for the explorer once the scan shows; nothing is chosen.
+                await selection.catalog.showPickedFiles(observed)
                 if !grouped { await finishActivity() }
             } catch {
                 guard token == generation else { return }

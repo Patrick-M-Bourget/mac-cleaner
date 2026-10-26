@@ -7,7 +7,24 @@ import SwiftUI
 /// The catalog's categories in the app. Nothing here knows a specific rule; rules are data in StillCore.
 @MainActor @Observable final class CatalogCleanupModel {
     let catalog = Catalog(rules: BuiltInCatalog.rules)
-    private(set) var candidates: [Candidate] = []
+    /// What the catalog's known locations hold.
+    private(set) var discovered: [Candidate] = [] { didSet { indexPickedFiles() } }
+    /// Large and old files in each folder the user picked and scanned, keyed by that folder (`UserFiles`).
+    private(set) var pickedFiles: [URL: [Candidate]] = [:] { didSet { indexPickedFiles() } }
+    /// The picked folders' files the plan offers, by "dev:ino". A file a catalog rule already offers is left to that rule.
+    private(set) var pickedByResource: [String: Candidate] = [:]
+    /// Everything the plan can offer.
+    var candidates: [Candidate] { discovered + pickedCandidates }
+    /// The large and old files offered from picked folders, largest first.
+    var pickedCandidates: [Candidate] { pickedByResource.values.sorted { $0.estimatedBytes != $1.estimatedBytes ? $0.estimatedBytes > $1.estimatedBytes : $0.url.path < $1.url.path } }
+    private func indexPickedFiles() {
+        let known = Set(discovered.map(\.resourceID))
+        var index: [String: Candidate] = [:]
+        for file in pickedFiles.keys.sorted(by: { $0.path < $1.path }).flatMap({ pickedFiles[$0] ?? [] }) where !known.contains(file.resourceID) && index[file.resourceID] == nil {
+            index[file.resourceID] = file
+        }
+        pickedByResource = index
+    }
     private(set) var isScanning = false
     private(set) var hasScanned = false
     /// Chosen candidate ids. Nothing is preselected.
@@ -92,7 +109,7 @@ import SwiftUI
     }
 
     /// Overview's summary; nil until the first scan of the known locations has finished.
-    var overview: CatalogOverview? { hasScanned ? CatalogOverview(catalog: catalog, candidates: candidates) : nil }
+    var overview: CatalogOverview? { hasScanned ? CatalogOverview(catalog: catalog, candidates: discovered) : nil }
     /// Owners of the rule's items that were running at the last scan, in name order.
     func runningOwnerNames(for rule: CleanupRule) -> [String] {
         Set(candidates(for: rule).compactMap { ownerNames[$0.id] }).intersection(runningOwners).sorted()
@@ -122,10 +139,10 @@ import SwiftUI
         guard canEdit else { return }
         isScanning = true; message = nil
         defer { isScanning = false; hasScanned = true }
-        guard let home = Self.home else { candidates = []; notes = []; overriddenRules = []; runningOwners = []; ownerNames = [:]; return }
+        guard let home = Self.home else { discovered = []; notes = []; overriddenRules = []; runningOwners = []; ownerNames = [:]; return }
         // Excluded items are never offered (SPEC section 2); without the settings nothing can be offered safely.
         guard let exclusions = try? await ExclusionsModel.shared.policyForScan() else {
-            candidates = []; notes = []; overriddenRules = []; runningOwners = []; ownerNames = [:]
+            discovered = []; notes = []; overriddenRules = []; runningOwners = []; ownerNames = [:]
             message = "Exclusion settings are unavailable, so nothing can be checked. Try again."; return
         }
         let catalog = catalog
@@ -138,10 +155,29 @@ import SwiftUI
             let running = SystemRunningAppChecker()
             return (discovered, catalog.overriddenRules(home: home, systemRoot: system), Set(owners.values.filter { running.isRunning($0) == true }.map(\.name)), names)
         }.value
-        candidates = scanned.0.candidates; notes = scanned.0.notes; overriddenRules = scanned.1; runningOwners = scanned.2; ownerNames = scanned.3
+        discovered = scanned.0.candidates; notes = scanned.0.notes; overriddenRules = scanned.1; runningOwners = scanned.2; ownerNames = scanned.3
+        keepOnlyCurrentChoices()
+    }
+    /// Drops chosen items that are no longer offered, and says so.
+    private func keepOnlyCurrentChoices() {
         let found = Set(candidates.map(\.id))
         if !selectedIDs.isSubset(of: found) { selectedIDs.formIntersection(found); message = "Some items changed or are no longer on this Mac and were removed from your plan." }
         selectionRevision &+= 1
+    }
+
+    /// Lists a picked folder's large and old files from its finished scan. Read-only; nothing is chosen.
+    func showPickedFiles(_ scan: ScanResult) async {
+        guard !isRunning, let exclusions = try? await ExclusionsModel.shared.policyForScan() else { return }
+        let found = await Task.detached(priority: .userInitiated) { UserFiles.candidates(in: scan, exclusions: exclusions) }.value
+        guard !isRunning else { return }
+        pickedFiles[scan.scope.standardizedFileURL] = found
+        keepOnlyCurrentChoices()
+    }
+    /// A picked folder was forgotten, lost access or must be scanned again: its files are no longer offered.
+    func forgetPickedFiles(_ scope: URL? = nil) {
+        guard !isRunning else { return }
+        if let scope { pickedFiles[scope.standardizedFileURL] = nil } else { pickedFiles = [:] }
+        keepOnlyCurrentChoices()
     }
     /// Chooses or clears every item the rule found.
     func setSelected(_ rule: CleanupRule, _ selected: Bool) {
@@ -173,13 +209,13 @@ import SwiftUI
             let run = CleanupExecutor(journal: try CleanupJournalLocation.writer(), check: check, cancellation: cancellation)
             executor = run
             result = await run.execute(approval)
-            selectedIDs = []; candidates = []; hasScanned = false; selectionRevision &+= 1
+            selectedIDs = []; discovered = []; pickedFiles = [:]; hasScanned = false; selectionRevision &+= 1
         } catch { message = "The cleanup journal is unavailable. Nothing was changed." }
     }
     func cancel() { executor?.cancel() }
     func endSession() {
         guard !isRunning else { return }
-        selectedIDs = []; result = nil; message = nil; selectionRevision &+= 1
+        selectedIDs = []; pickedFiles = [:]; result = nil; message = nil; selectionRevision &+= 1
     }
     private func currentCheck() async -> CandidateCheck? {
         do { return CandidateCheck(catalog: catalog, running: SystemRunningAppChecker(), exclusions: try await ExclusionsModel.shared.policyForScan()) }
@@ -257,7 +293,9 @@ func catalogBytes(_ value: Int64, complete: Bool = true, upperBound: Bool = fals
 
 extension CleanupRule {
     /// Rules whose items the user chooses one by one: single Downloads files, and each model or disk image.
-    var choosesItems: Bool { contents != nil || regen == .model }
+    var choosesItems: Bool { contents != nil || regen == .model || id == UserFiles.ruleID }
+    /// Whether every item the rule offers is a single file.
+    var offersFiles: Bool { contents != nil || id == UserFiles.ruleID }
 }
 
 extension Candidate {
@@ -352,7 +390,7 @@ struct CatalogItemChooser: View {
                 }
             }.padding(.top, StillDesign.Space.sm)
         } label: {
-            Text((rule.contents != nil ? StillDesign.files(items.count) : StillDesign.items(items.count)) + " · Choose items")
+            Text((rule.offersFiles ? StillDesign.files(items.count) : StillDesign.items(items.count)) + " · Choose items")
         }
     }
     private func detail(_ item: Candidate) -> String {
