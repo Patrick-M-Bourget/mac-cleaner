@@ -113,7 +113,7 @@ extension ChromeCacheService {
                     guard try !environment.browserIsRunning(bundleURL: authority.access.applicationURL) else { throw ChromeCacheFailure("Chrome or a helper became active. Unstarted entries were preserved.") }
                     bytes += try opened.remove(leaf); removed += 1
                 }
-            } catch { status = .failed; reason = String(describing: error) }
+            } catch { status = .failed; reason = (error as? ChromeCacheFailure)?.description ?? "Chrome metadata or access changed; unstarted work was preserved." }
             run.groups[groupIndex] = .init(profileIdentifier: group.profileIdentifier, status: status, removedFiles: removed, removedBytes: bytes, reason: reason)
             run.unresolved = false; archive[archive.count - 1] = run
             do { try persist(archive) } catch {

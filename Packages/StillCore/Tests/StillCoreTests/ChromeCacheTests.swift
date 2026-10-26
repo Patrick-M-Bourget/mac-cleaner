@@ -192,3 +192,21 @@ private final class ChromeActivitySequence: ChromeCacheEnvironment, @unchecked S
     #expect(scan.availability == .denied)
     #expect(scan.groups.isEmpty)
 }
+
+@Test func chromeKnownProviderLocationsStayUnavailableAndQualifiedSecondProfileIsRecognized() async throws {
+    let (root, original) = try chromeFixture(); defer { try? FileManager.default.removeItem(at: root) }
+    let provider = root.appendingPathComponent("Library/CloudStorage/OwnedChrome")
+    try FileManager.default.createDirectory(at: provider.deletingLastPathComponent(), withIntermediateDirectories: true)
+    try FileManager.default.moveItem(at: original.dataRootURL, to: provider)
+    let access = ChromeCacheAccess(applicationURL: original.applicationURL, dataRootURL: provider, cacheRootURL: provider, customLocation: true)
+    let service = ChromeCacheService(environment: ChromeEnvironmentFixture(running: false), journalURL: root.appendingPathComponent("journal.json"))
+    let blocked = await service.inspect(access)
+    #expect(blocked.availability == .unsupported)
+    #expect(blocked.groups.isEmpty)
+    try FileManager.default.moveItem(at: provider, to: original.dataRootURL)
+    try FileManager.default.moveItem(at: original.dataRootURL.appendingPathComponent("Default"), to: original.dataRootURL.appendingPathComponent("Profile 1"))
+    try Data(#"{"profile":{"info_cache":{"Profile 1":{}}}}"#.utf8).write(to: original.dataRootURL.appendingPathComponent("Local State"))
+    let local = await service.inspect(original)
+    #expect(local.groups.first?.profileIdentifier == "Profile 1")
+    #expect(local.groups.first?.estimatedBytes == 5)
+}

@@ -9,8 +9,8 @@ public struct ChromeCacheAccess: Sendable {
     public let cacheRootURL: URL
     public let customLocation: Bool
     public init(applicationURL: URL, dataRootURL: URL, cacheRootURL: URL, customLocation: Bool) {
-        self.applicationURL = applicationURL; self.dataRootURL = dataRootURL
-        self.cacheRootURL = cacheRootURL; self.customLocation = customLocation
+        self.applicationURL = applicationURL.standardizedFileURL; self.dataRootURL = dataRootURL.standardizedFileURL
+        self.cacheRootURL = cacheRootURL.standardizedFileURL; self.customLocation = customLocation
     }
 }
 /// OS/browser identity and activity boundary. Production never uses fixture observations.
@@ -24,6 +24,9 @@ public struct NativeChromeCacheEnvironment: ChromeCacheEnvironment {
     public func now() -> Date { Date() }
     public func validateInstallation(at url: URL) throws {
         guard url.isFileURL, url.resolvingSymlinksInPath().path == url.path else { throw ChromeCacheFailure("Chrome application location is unsupported.") }
+        try verifyChromeLocalLocation(url)
+        try verifyChromeLocalLocation(url.appendingPathComponent("Contents/Info.plist"))
+        try verifyChromeLocalLocation(url.appendingPathComponent("Contents/MacOS/Google Chrome"))
         let os = ProcessInfo.processInfo.operatingSystemVersion
         var machine = utsname(); uname(&machine)
         let architecture = withUnsafeBytes(of: machine.machine) { String(decoding: $0.prefix { $0 != 0 }, as: UTF8.self) }
@@ -43,7 +46,14 @@ public struct NativeChromeCacheEnvironment: ChromeCacheEnvironment {
             throw ChromeCacheFailure("This Chrome executable has not been qualified.")
         }
         let home = FileManager.default.homeDirectoryForCurrentUser
-        for path in [home.appendingPathComponent("Library/Preferences/com.google.Chrome.plist"), home.appendingPathComponent("Library/Managed Preferences/com.google.Chrome.plist"), URL(fileURLWithPath: "/Library/Managed Preferences/com.google.Chrome.plist"), URL(fileURLWithPath: "/Library/Preferences/com.google.Chrome.plist")] {
+        // Query only layout-policy keys; ordinary macOS window preferences are
+        // neither management evidence nor reason to block supported users.
+        for key in ["DiskCacheDir", "UserDataDir"] {
+            guard CFPreferencesCopyAppValue(key as CFString, "com.google.Chrome" as CFString) == nil else {
+                throw ChromeCacheFailure("Chrome cache or user-data directory overrides are unsupported.")
+            }
+        }
+        for path in [home.appendingPathComponent("Library/Managed Preferences/com.google.Chrome.plist"), URL(fileURLWithPath: "/Library/Managed Preferences/com.google.Chrome.plist"), URL(fileURLWithPath: "/Library/Preferences/com.google.Chrome.plist")] {
             var info = stat()
             guard lstat(path.path, &info) != 0 && errno == ENOENT else { throw ChromeCacheFailure("Managed Chrome layouts are not supported.") }
         }
@@ -144,6 +154,7 @@ public actor ChromeCacheService {
             try environment.validateInstallation(at: access.applicationURL)
             guard try !environment.browserIsRunning(bundleURL: access.applicationURL) else { throw ChromeCacheFailure("Quit Chrome and its helpers, then check again.", .running) }
             try validateMapping(access)
+            _ = try directoryChain([access.dataRootURL, access.cacheRootURL])
             let ownership = try readChromeOwnership(access.dataRootURL.appendingPathComponent("Local State"))
             guard !ownership.hasOverride, ownership.identifiers.count <= 100 else {
                 throw ChromeCacheFailure("Chrome profile ownership or cache configuration is unsupported.")
@@ -171,7 +182,7 @@ public actor ChromeCacheService {
             return .init(groups: authorities.values.map(\.group).sorted { $0.profileIdentifier < $1.profileIdentifier }, unavailableReason: nil, availability: authorities.isEmpty ? .empty : .eligible, observedAt: observedAt)
         } catch {
             authorities = [:]
-            return .init(groups: [], unavailableReason: String(describing: error), availability: (error as? ChromeCacheFailure)?.availability ?? .unknown, observedAt: observedAt)
+            return .init(groups: [], unavailableReason: (error as? ChromeCacheFailure)?.description ?? "Chrome metadata or access could not be verified.", availability: (error as? ChromeCacheFailure)?.availability ?? .unknown, observedAt: observedAt)
         }
     }
     public func approve(groupIDs: Set<String>) throws -> ChromeCacheApproval {
@@ -222,6 +233,7 @@ struct ChromeProfileOwnership: Decodable {
     }
 }
 func readChromeOwnership(_ url: URL) throws -> ChromeProfileOwnership {
+    try verifyChromeLocalLocation(url)
     var info = stat()
     guard url.isFileURL, url.resolvingSymlinksInPath().path == url.path, lstat(url.path, &info) == 0, info.st_mode & S_IFMT == S_IFREG, info.st_uid == getuid(), info.st_nlink == 1,
           info.st_size <= 5 * 1024 * 1024 else { throw ChromeCacheFailure("Chrome metadata is inaccessible or unsupported.") }
@@ -236,6 +248,7 @@ func readChromeOwnership(_ url: URL) throws -> ChromeProfileOwnership {
 func directoryChain(_ urls: [URL]) throws -> [ChromeDirectory] {
     var result: [ChromeDirectory] = []
     for url in urls {
+        try verifyChromeLocalLocation(url)
         var info = stat()
         guard url.isFileURL, url.resolvingSymlinksInPath().path == url.path, lstat(url.path, &info) == 0,
               info.st_mode & S_IFMT == S_IFDIR, info.st_uid == getuid(), info.st_mode & 0o022 == 0 else {
@@ -247,10 +260,31 @@ func directoryChain(_ urls: [URL]) throws -> [ChromeDirectory] {
 }
 
 func verifyChromeProfileMetadata(_ url: URL) throws {
+    try verifyChromeLocalLocation(url)
     var info = stat()
     guard url.isFileURL, url.resolvingSymlinksInPath().path == url.path,
           lstat(url.path, &info) == 0, info.st_mode & S_IFMT == S_IFREG,
           info.st_uid == getuid(), info.st_nlink == 1 else {
         throw ChromeCacheFailure("Profile metadata identity is inaccessible or unsupported.")
+    }
+}
+
+/// Resource facts only: never request a download or open a cloud placeholder.
+func verifyChromeLocalLocation(_ url: URL) throws {
+    let path = url.standardizedFileURL.path
+    guard url.isFileURL, url.resolvingSymlinksInPath().path == path,
+          !path.contains("/Library/CloudStorage/"), !path.contains("/Library/Mobile Documents/") else {
+        throw ChromeCacheFailure("Cloud, redirected or provider Chrome locations are not supported.")
+    }
+    var info = stat()
+    guard lstat(path, &info) == 0 else {
+        throw ChromeCacheFailure("Local Chrome location could not be verified.", (errno == EACCES || errno == EPERM) ? .denied : .unknown)
+    }
+    guard info.st_flags & UInt32(SF_DATALESS) == 0 else {
+        throw ChromeCacheFailure("Cloud placeholders are not eligible for Chrome cleanup.")
+    }
+    let values = try url.resourceValues(forKeys: [.isUbiquitousItemKey, .volumeIsLocalKey])
+    guard values.isUbiquitousItem != true, !FileManager.default.isUbiquitousItem(at: url), values.volumeIsLocal == true else {
+        throw ChromeCacheFailure("Chrome cleanup requires a verified local, non-cloud location.")
     }
 }

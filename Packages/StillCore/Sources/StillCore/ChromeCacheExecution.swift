@@ -44,7 +44,7 @@ final class ChromeOpenGroup {
     func leaf(_ fd: Int32, _ name: String) throws -> ChromeCacheLeaf {
         var info = stat()
         guard fstatat(fd, name, &info, AT_SYMLINK_NOFOLLOW) == 0,
-              info.st_mode & S_IFMT == S_IFREG, info.st_uid == getuid(), info.st_nlink == 1 else {
+              info.st_mode & S_IFMT == S_IFREG, info.st_flags & UInt32(SF_DATALESS) == 0, info.st_uid == getuid(), info.st_nlink == 1 else {
             throw ChromeCacheFailure("An unexpected or changed cache entry requires a recheck.")
         }
         return .init(descriptor: fd, name: name, bytes: info.st_size)
