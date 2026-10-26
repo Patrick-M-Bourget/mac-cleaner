@@ -62,7 +62,7 @@ private struct TrashLine: View {
     }
 }
 
-/// Overview: "Trash holds X · Open Trash", only when the Trash isn't empty; unknown when it can't be read.
+/// Overview: "Trash holds X · Open Trash", only when its size is known and not 0.
 struct TrashNote: View {
     private var model = TrashModel.shared
     var body: some View {

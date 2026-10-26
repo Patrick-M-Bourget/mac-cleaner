@@ -71,10 +71,10 @@ private func write(_ url: URL, bytes: Int) throws {
     #expect(try FileManager.default.attributesOfItem(atPath: file.path)[.modificationDate] as? Date == before)
 }
 
-@Test func overviewSaysWhatTheTrashHoldsOnlyWhenItIsNotEmpty() {
+@Test func overviewSaysWhatTheTrashHoldsOnlyWhenItIsKnownAndNotEmpty() {
     #expect(TrashContents.empty.overviewText == nil)
     #expect(TrashContents.holds(2_400_000_000).overviewText == "Trash holds 2.4 GB")
-    #expect(TrashContents.unknown.overviewText == "Trash size unknown")
+    #expect(TrashContents.unknown.overviewText == nil)
 }
 
 @Test func resultsSayHowMuchEmptyingTheTrashWouldFree() {

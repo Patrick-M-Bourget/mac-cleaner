@@ -40,13 +40,11 @@ extension TrashSpace {
 }
 
 extension TrashContents {
-    /// Overview's quiet line, e.g. "Trash holds 2.4 GB"; nil when the Trash is empty.
+    /// Overview's quiet line, e.g. "Trash holds 2.4 GB"; nil when the Trash is empty or can't be read. Without Full Disk
+    /// Access the Trash is usually unreadable, so an unknown line would be permanent noise (Decision 25).
     public var overviewText: String? {
-        switch self {
-        case .empty: nil
-        case .holds(let bytes): "Trash holds " + Self.bytes(bytes)
-        case .unknown: "Trash size unknown"
-        }
+        guard case .holds(let bytes) = self else { return nil }
+        return "Trash holds " + Self.bytes(bytes)
     }
     /// The results line after a run moved `movedBytes` to the Trash; nil when it moved nothing. With the Trash
     /// unreadable, what the run moved is a lower bound.
