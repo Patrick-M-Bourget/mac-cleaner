@@ -158,3 +158,14 @@ private func clone(_ origin: URL, to folder: URL) throws {
             == "3 workspaces · 2 have uncommitted changes · 1 has unpushed commits · 1 couldn’t be checked")
     #expect(AgentWorkspaces(count: 2, uncommitted: 0, unpushed: 0, unchecked: 2).summary == "2 workspaces · 2 couldn’t be checked")
 }
+
+@Test func aWorkspaceWithNoCommitsYetHasOnlyUncommittedChanges() throws {
+    let home = try fixtureHome()
+    defer { try? FileManager.default.removeItem(at: home) }
+    let fresh = home.appendingPathComponent(".codex/worktrees/a1b2/app")
+    try FileManager.default.createDirectory(at: fresh, withIntermediateDirectories: true)
+    try git(["init", "-q"], in: fresh)
+    try write(fresh, "draft.swift")
+    let finding = try #require(Catalog(rules: fixtureRules).guidance(fixture: home).first { $0.ruleID == "agent-workspaces" })
+    #expect(finding.workspaces == AgentWorkspaces(count: 1, uncommitted: 1, unpushed: 0, unchecked: 0))
+}

@@ -65,8 +65,13 @@ enum WorkspaceGit {
             (try? BoundedTool.run(executable: git, arguments: base + arguments, timeout: timeout, environment: environment))
                 .flatMap { Int($0.trimmingCharacters(in: .whitespacesAndNewlines)) }
         }
-        // Without an upstream, commits that are on no remote at all are not pushed anywhere.
-        guard let ahead = count(["rev-list", "--count", "@{u}..HEAD"]) ?? count(["rev-list", "--count", "HEAD", "--not", "--remotes"]) else { return nil }
+        // Without an upstream, commits that are on no remote at all are not pushed anywhere. With no commit yet, none are.
+        func unborn() -> Bool {
+            (try? BoundedTool.capture(executable: git, arguments: base + ["rev-parse", "--verify", "-q", "HEAD"], timeout: timeout,
+                                      environment: environment)).map { $0.status != 0 } ?? false
+        }
+        guard let ahead = count(["rev-list", "--count", "@{u}..HEAD"]) ?? count(["rev-list", "--count", "HEAD", "--not", "--remotes"])
+                ?? (unborn() ? 0 : nil) else { return nil }
         return (!changes.output.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, ahead > 0)
     }
 
