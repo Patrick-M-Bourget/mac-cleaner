@@ -1,4 +1,4 @@
-> Historical revision 0.8 reference. Preserve feature detail, but implementation scope and interaction rules are superseded by [SPEC](../SPEC.md), [design handoff](../DESIGN-HANDOFF.md), and [milestones](../MILESTONES.md), revision 0.9. In particular, staged item drafts, clearing selections on rescan, persistent plans and installer-only selection are obsolete.
+> Historical revision 0.8 reference: keep for feature detail. Scope and decisions now live in [RESET.md](../RESET.md). Codex-era docs are at tag [`archive/codex-era`](https://github.com/Patrick-M-Bourget/mac-cleaner/tree/archive/codex-era/docs).
 
 # macOS storage cleanup: research and product recommendations
 

@@ -1,19 +1,10 @@
-# Still — macOS storage companion
+# Still: macOS storage cleaner
 
-A native, local-first macOS app for understanding storage, reviewing cleanup actions and tracking available space. Still is a working name; implementation has not started.
+A native, local-first macOS app. It finds space you can reclaim on your Mac and cleans what you choose. Still is a working name.
 
-- [Handoff guide and repository setup](docs/README.md)
-- [Implementation specification](docs/SPEC.md)
-- [Design and interaction handoff](docs/DESIGN-HANDOFF.md)
+- **Plan and decisions:** [docs/RESET.md](docs/RESET.md); work is tracked in issue #75.
+- **UI reference:** the [interactive prototype](docs/visual/README.md), full mode.
+- **Background:** [PRD](docs/reference/macos-cleaner-prd.md), [storage research](docs/reference/macos-cleaner-research.md), [competitors](docs/reference/macos-cleaner-competitors.md).
+- **Build and test:** see [CLAUDE.md](CLAUDE.md).
 
-Revision 0.9. Supporting research, detailed specifications and UI contracts are in [docs/reference](docs/reference/). Native integrations remain subject to the documented validation gates.
-
-- [Full feature roadmap and milestones](docs/MILESTONES.md)
-- [Approved product decisions](docs/DECISIONS.md)
-- [Portable visual reference](docs/visual/README.md)
-
-## Native development
-
-The M0 fixture workspace is runnable in Xcode. See [build and test instructions](docs/DEVELOPMENT.md).
-
-Native UI contributors: follow the [mandatory design system](docs/DESIGN-SYSTEM.md) before changing screens or resuming checkpointed UI.
+The Codex-era docs, validation reports and screenshots are archived at tag [`archive/codex-era`](https://github.com/Patrick-M-Bourget/mac-cleaner/tree/archive/codex-era).

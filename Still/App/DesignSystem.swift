@@ -2,7 +2,7 @@ import AppKit
 import SwiftUI
 import StillCore
 
-/// Shared native presentation vocabulary. See docs/DESIGN-SYSTEM.md before adding UI.
+/// Shared native presentation vocabulary. Reuse these components and tokens before adding UI; docs/visual/preview.html is the visual reference.
 enum StillDesign {
     enum Space { static let xs: CGFloat = 4; static let sm: CGFloat = 8; static let md: CGFloat = 12; static let lg: CGFloat = 16; static let xl: CGFloat = 24; static let page: CGFloat = 32 }
     enum Radius { static let row: CGFloat = 8; static let surface: CGFloat = 12 }
