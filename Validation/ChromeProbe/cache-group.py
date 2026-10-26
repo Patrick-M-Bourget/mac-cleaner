@@ -3,7 +3,7 @@
 Group approval is directory identity, never authority for personal-file cleanup.
 Process observations and descriptor traversal do not eliminate final-unlink races.
 """
-import json, os, pathlib, re, stat, subprocess, sys
+import argparse, json, os, pathlib, re, stat, subprocess, sys, time
 FLAGS = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
 
 def identity(info): return [info.st_dev, info.st_ino, info.st_uid]
@@ -21,11 +21,12 @@ def activity(bundle, root):
     else:
         if os.environ.get('GITHUB_ACTIONS') != 'true' or os.environ.get('RUNNER_ENVIRONMENT') != 'github-hosted': raise ValueError('real process observation is hosted-only')
         output = subprocess.check_output(['/bin/ps', '-axo', 'pid=,command='], text=True, timeout=5)
-    if not output.strip(): raise ValueError('process observation unavailable')
+    if not isinstance(output, str) or not output.strip(): raise ValueError('process observation unavailable')
     # Browser and helpers execute inside the verified bundle. A process whose
     # argument merely mentions it causes conservative refusal, never permission.
     for line in output.splitlines():
-        pid, _, command = line.strip().partition(' ')
+        pid, separator, command = line.strip().partition(' ')
+        if not pid.isdigit() or not separator or not command.strip(): raise ValueError('process observation malformed')
         if int(pid) not in (os.getpid(), os.getppid()) and bundle + '/' in command:
             raise ValueError('browser or helper activity observed')
 
@@ -44,6 +45,11 @@ def open_chain(root, cache):
 
 def run():
     root, cache, bundle = map(pathlib.Path, sys.argv[1:4]); command = sys.argv[4]
+    options = argparse.ArgumentParser(description='Disposable qualification pacing; not production performance evidence')
+    options.add_argument('--progress', action='store_true')
+    options.add_argument('--pace-ms', type=int, default=0)
+    settings = options.parse_args(sys.argv[5:])
+    if not 0 <= settings.pace_ms <= 1000: raise ValueError('qualification pace must be 0–1000 ms')
     if not root.is_absolute() or not root.name.startswith('StillChromeProbe-') or root != root.resolve(): raise ValueError('owned canonical disposable root required')
     if not cache.is_absolute() or cache.name != 'Cache_Data' or cache.parent.name != 'Cache': raise ValueError('explicit asset cache group required')
     if not bundle.is_absolute(): raise ValueError('explicit browser bundle required')
@@ -89,6 +95,8 @@ def run():
                 info = os.stat(name, dir_fd=fd, follow_symlinks=False)
                 if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1 or info.st_uid != os.getuid(): raise ValueError('cache leaf changed')
                 os.unlink(name, dir_fd=fd); removed += 1
+                if settings.progress: print(json.dumps({'event':'removed', 'count':removed}), file=sys.stderr, flush=True)
+                if settings.pace_ms: time.sleep(settings.pace_ms / 1000)
             print(json.dumps({'removed': removed, 'status': 'completed', 'residualFinalUnlinkRace': True}))
         except Exception as error:
             print(json.dumps({'removed': locals().get('removed', 0), 'status': 'stopped', 'reason': str(error)}))
