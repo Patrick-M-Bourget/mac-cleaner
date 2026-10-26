@@ -316,3 +316,54 @@ final class CatalogCleanupUITests: XCTestCase {
         for file in files { XCTAssertTrue(FileManager.default.fileExists(atPath: file.path), file.path) }
     }
 }
+
+final class ICloudCleanupUITests: XCTestCase {
+    /// Two iCloud Drive files in the fixture home, one set to Keep Downloaded. Their iCloud states come from the
+    /// debug fixture file, so the test never reads or evicts anything in real iCloud Drive.
+    @MainActor private func addICloudFiles(_ home: URL) throws {
+        let drive = "Library/Mobile Documents/com~apple~CloudDocs"
+        for name in ["Report.pdf", "Pinned.pdf"] {
+            let file = home.appendingPathComponent(drive + "/" + name)
+            try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try Data(repeating: 4, count: 150_000).write(to: file)
+        }
+        let states = [drive + "/Report.pdf": "ready", drive + "/Pinned.pdf": "pinned"]
+        try JSONEncoder().encode(states).write(to: home.appendingPathComponent(".still-test-icloud.json"))
+    }
+
+    @MainActor func testLocalCopiesAreChosenAndPreviewEvictsNothing() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        let state = try configureIsolatedState(app)
+        let home = try configureCatalogHome(app)
+        try addICloudFiles(home)
+        defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
+        app.launchArguments = ["-ApplePersistenceIgnoreState", "YES"]
+        app.launch()
+
+        XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
+        let row = app.buttons["overviewCategory-icloud"]
+        XCTAssertTrue(row.waitForExistence(timeout: 10))
+        XCTAssertFalse(app.buttons["overviewCloudFinding"].exists)
+        row.click()
+
+        let header = app.checkBoxes["planRule-icloud-local-copies"]
+        XCTAssertTrue(header.waitForExistence(timeout: 5))
+        XCTAssertEqual(header.value as? Int, 0)
+        let item = app.checkBoxes["planItem-Report.pdf"]
+        if !item.waitForExistence(timeout: 2) { app.disclosureTriangles.allElementsBoundByIndex.forEach { $0.click() } }
+        XCTAssertTrue(item.waitForExistence(timeout: 5))
+        XCTAssertFalse(app.checkBoxes["planItem-Pinned.pdf"].exists, "Keep Downloaded files are never offered")
+        item.click()
+        XCTAssertEqual(app.checkBoxes["previewOnlyToggle"].value as? Int, 1)
+        app.buttons["Review cleanup"].click()
+
+        XCTAssertTrue(app.staticTexts["Remove local copies: Downloaded iCloud Drive files"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS 'stay in iCloud and download again when you open them'")).firstMatch.exists)
+        app.buttons["Run preview"].click()
+
+        XCTAssertTrue(app.staticTexts["catalogPreviewNotice"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["Would remove local copy"].exists)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: home.appendingPathComponent(".still-test-icloud-evicted").path))
+    }
+}
