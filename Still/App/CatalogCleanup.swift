@@ -7,7 +7,24 @@ import SwiftUI
 /// The catalog's categories in the app. Nothing here knows a specific rule; rules are data in StillCore.
 @MainActor @Observable final class CatalogCleanupModel {
     let catalog = Catalog(rules: BuiltInCatalog.rules)
-    private(set) var candidates: [Candidate] = []
+    /// What the catalog's known locations hold.
+    private(set) var discovered: [Candidate] = [] { didSet { indexPickedFiles() } }
+    /// Large and old files in each folder the user picked and scanned, keyed by that folder (`UserFiles`).
+    private(set) var pickedFiles: [URL: [Candidate]] = [:] { didSet { indexPickedFiles() } }
+    /// The picked folders' files the plan offers, by "dev:ino". A file a catalog rule already offers is left to that rule.
+    private(set) var pickedByResource: [String: Candidate] = [:]
+    /// Everything the plan can offer.
+    var candidates: [Candidate] { discovered + pickedCandidates }
+    /// The large and old files offered from picked folders, largest first.
+    var pickedCandidates: [Candidate] { pickedByResource.values.sorted { $0.estimatedBytes != $1.estimatedBytes ? $0.estimatedBytes > $1.estimatedBytes : $0.url.path < $1.url.path } }
+    private func indexPickedFiles() {
+        let known = Set(discovered.map(\.resourceID))
+        var index: [String: Candidate] = [:]
+        for file in pickedFiles.keys.sorted(by: { $0.path < $1.path }).flatMap({ pickedFiles[$0] ?? [] }) where !known.contains(file.resourceID) && index[file.resourceID] == nil {
+            index[file.resourceID] = file
+        }
+        pickedByResource = index
+    }
     private(set) var isScanning = false
     private(set) var hasScanned = false
     /// Chosen candidate ids. Nothing is preselected.
@@ -18,6 +35,9 @@ import SwiftUI
     private(set) var message: String?
     /// Why a rule kept items back, such as copies whose use couldn't be checked.
     private(set) var notes: [CatalogNote] = []
+    /// Guidance-only categories found at the last scan. Never candidates, never in a plan.
+    fileprivate(set) var guidance: [GuidanceFinding] = []
+    fileprivate(set) var guidanceStatus: String?
     /// Rules whose owner keeps its data elsewhere by a setting; they offer nothing.
     private(set) var overriddenRules: [CleanupRule] = []
     /// Names of owners that were running at the last scan. Their items stay choosable; the checks refuse them.
@@ -101,7 +121,7 @@ import SwiftUI
     }
 
     /// Overview's summary; nil until the first scan of the known locations has finished.
-    var overview: CatalogOverview? { hasScanned ? CatalogOverview(catalog: catalog, candidates: candidates) : nil }
+    var overview: CatalogOverview? { hasScanned ? CatalogOverview(catalog: catalog, candidates: discovered) : nil }
     /// Owners of the rule's items that were running at the last scan, in name order.
     func runningOwnerNames(for rule: CleanupRule) -> [String] {
         Set(candidates(for: rule).compactMap { ownerNames[$0.id] }).intersection(runningOwners).sorted()
@@ -131,10 +151,10 @@ import SwiftUI
         guard canEdit else { return }
         isScanning = true; message = nil
         defer { isScanning = false; hasScanned = true }
-        guard let home = Self.home else { candidates = []; notes = []; overriddenRules = []; runningOwners = []; ownerNames = [:]; return }
+        guard let home = Self.home else { discovered = []; notes = []; overriddenRules = []; runningOwners = []; ownerNames = [:]; return }
         // Excluded items are never offered (SPEC section 2); without the settings nothing can be offered safely.
         guard let exclusions = try? await ExclusionsModel.shared.policyForScan() else {
-            candidates = []; notes = []; overriddenRules = []; runningOwners = []; ownerNames = [:]
+            discovered = []; notes = []; overriddenRules = []; runningOwners = []; ownerNames = [:]
             message = "Exclusion settings are unavailable, so nothing can be checked. Try again."; return
         }
         let catalog = catalog
@@ -151,10 +171,30 @@ import SwiftUI
                     FullDiskAccessProbe(home: home).status())
         }.value
         await GrowthHistoryModel.shared.completeCatalog(scanned.0, catalog: catalog, fullDiskAccess: scanned.4, token: growth)
-        candidates = scanned.0.candidates; notes = scanned.0.notes; overriddenRules = scanned.1; runningOwners = scanned.2; ownerNames = scanned.3
+        discovered = scanned.0.candidates; notes = scanned.0.notes; overriddenRules = scanned.1; runningOwners = scanned.2; ownerNames = scanned.3
+        keepOnlyCurrentChoices()
+        await scanGuidance(home: home)
+    }
+    /// Drops chosen items that are no longer offered, and says so.
+    private func keepOnlyCurrentChoices() {
         let found = Set(candidates.map(\.id))
         if !selectedIDs.isSubset(of: found) { selectedIDs.formIntersection(found); message = "Some items changed or are no longer on this Mac and were removed from your plan." }
         selectionRevision &+= 1
+    }
+
+    /// Lists a picked folder's large and old files from its finished scan. Read-only; nothing is chosen.
+    func showPickedFiles(_ scan: ScanResult) async {
+        guard !isRunning, let exclusions = try? await ExclusionsModel.shared.policyForScan() else { return }
+        let found = await Task.detached(priority: .userInitiated) { UserFiles.candidates(in: scan, exclusions: exclusions) }.value
+        guard !isRunning else { return }
+        pickedFiles[scan.scope.standardizedFileURL] = found
+        keepOnlyCurrentChoices()
+    }
+    /// A picked folder was forgotten, lost access or must be scanned again: its files are no longer offered.
+    func forgetPickedFiles(_ scope: URL? = nil) {
+        guard !isRunning else { return }
+        if let scope { pickedFiles[scope.standardizedFileURL] = nil } else { pickedFiles = [:] }
+        keepOnlyCurrentChoices()
     }
     /// Chooses or clears every item the rule found.
     func setSelected(_ rule: CleanupRule, _ selected: Bool) {
@@ -186,13 +226,13 @@ import SwiftUI
             let run = CleanupExecutor(journal: try CleanupJournalLocation.writer(), check: check, cancellation: cancellation)
             executor = run
             result = await run.execute(approval)
-            selectedIDs = []; candidates = []; hasScanned = false; selectionRevision &+= 1
+            selectedIDs = []; discovered = []; pickedFiles = [:]; hasScanned = false; selectionRevision &+= 1
         } catch { message = "The cleanup journal is unavailable. Nothing was changed." }
     }
     func cancel() { executor?.cancel() }
     func endSession() {
         guard !isRunning else { return }
-        selectedIDs = []; result = nil; message = nil; selectionRevision &+= 1
+        selectedIDs = []; pickedFiles = [:]; result = nil; message = nil; selectionRevision &+= 1
     }
     private func currentCheck() async -> CandidateCheck? {
         do { return CandidateCheck(catalog: catalog, running: SystemRunningAppChecker(), exclusions: try await ExclusionsModel.shared.policyForScan(), cloud: Self.cloud) }
@@ -213,7 +253,8 @@ extension CatalogCategory {
         case .icloud: .cloud
         case .browser: .browser
         case .downloads: .downloads
-        case .system, .models, .updaters, .logs: .managed
+        case .files: .downloads
+        case .system, .models, .updaters, .logs, .managed: .managed
         }
     }
     /// Overview's row title for a category; the rows themselves come from what the catalog found.
@@ -227,6 +268,8 @@ extension CatalogCategory {
         case .updaters: "App update downloads"
         case .logs: "Logs and crash reports"
         case .icloud: "Downloaded iCloud files"
+        case .files: "Large and old files"
+        case .managed: "App-managed storage"
         }
     }
 }
@@ -272,13 +315,16 @@ func catalogBytes(_ value: Int64, complete: Bool = true, upperBound: Bool = fals
 
 extension CleanupRule {
     /// Rules whose items the user chooses one by one: single Downloads files, and each model or disk image.
-    var choosesItems: Bool { contents != nil || regen == .model || action == .evict }
+    var choosesItems: Bool { contents != nil || regen == .model || action == .evict || id == UserFiles.ruleID }
+    /// Whether every item the rule offers is a single file.
+    var offersFiles: Bool { contents != nil || id == UserFiles.ruleID }
     /// How the review names what happens, e.g. "Move to Trash: Installers in Downloads".
     var reviewTitle: String {
         switch action {
         case .trash: "Move to Trash: " + title
         case .evict: "Remove local copies: " + title
         case .delete, .tool: "Clear " + title
+        case .guidance: "Guidance only: " + title
         }
     }
 }
@@ -375,7 +421,7 @@ struct CatalogItemChooser: View {
                 }
             }.padding(.top, StillDesign.Space.sm)
         } label: {
-            Text((rule.contents != nil ? StillDesign.files(items.count) : StillDesign.items(items.count)) + " · Choose items")
+            Text((rule.offersFiles ? StillDesign.files(items.count) : StillDesign.items(items.count)) + " · Choose items")
         }
     }
     private func detail(_ item: Candidate) -> String {
@@ -496,6 +542,113 @@ struct FixtureUbiquitousItems: UbiquitousItemAccess {
         let log = home.appendingPathComponent(".still-test-icloud-evicted")
         let previous = (try? String(contentsOf: log, encoding: .utf8)) ?? ""
         try (previous + url.path + "\n").write(to: log, atomically: true, encoding: .utf8)
+    }
+}
+#endif
+
+/// Guidance-only categories (SPEC section 3): sized and shown with where to manage them, never in a plan.
+extension CatalogCleanupModel {
+    func guidanceRule(_ finding: GuidanceFinding) -> CleanupRule? { catalog.rule(finding.ruleID) }
+    /// Sizes the guidance rules from metadata only. Read-only. A short budget keeps a large Photos library
+    /// from holding up the scan; a size cut short reads "At least".
+    func scanGuidance(home: URL) async {
+        let catalog = catalog, system = Self.systemRoot, snapshots = Self.snapshots
+        guidance = await Task.detached(priority: .utility) {
+            catalog.guidance(home: home, systemRoot: system, sizer: KnownLocationSizer(timeBudget: 10), snapshots: snapshots,
+                             fullDiskAccess: FullDiskAccessProbe(home: home).status())
+        }.value
+    }
+    /// Opens where the finding is managed: its app, a System Settings pane, or the folder in Finder.
+    func open(_ finding: GuidanceFinding) async {
+        let name = guidanceRule(finding)?.guidance?.placeName ?? "it"
+        guidanceStatus = await catalog.open(finding, using: Self.guidanceOpener) ? Self.openedStatus(name) : "Couldn’t open \(name)."
+    }
+    private static func openedStatus(_ name: String) -> String? {
+        #if DEBUG
+        if LocalStateLocation.isDisposableTest { return "Test run: would open \(name)." }
+        #endif
+        return nil
+    }
+    /// What opens guidance places. A debug test run opens nothing.
+    static var guidanceOpener: any GuidanceOpening {
+        #if DEBUG
+        if LocalStateLocation.isDisposableTest { return NothingOpens() }
+        #endif
+        return WorkspaceGuidanceOpener()
+    }
+    /// Time Machine local snapshots. A debug test home reads a count from `<home>/.still-test-snapshots`, never tmutil.
+    static var snapshots: any LocalSnapshotListing {
+        #if DEBUG
+        if LocalStateLocation.isDisposableTest { return FixtureSnapshotCount(home: home) }
+        #endif
+        return TmutilSnapshots()
+    }
+}
+
+/// Opens guidance places with NSWorkspace.
+struct WorkspaceGuidanceOpener: GuidanceOpening {
+    @MainActor func open(_ target: GuidanceTarget) async -> Bool {
+        switch target {
+        case .folder(let url): return NSWorkspace.shared.open(url)
+        case .url(let url): return NSWorkspace.shared.open(url)
+        case .app(let bundleID):
+            guard let app = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID) else { return false }
+            return (try? await NSWorkspace.shared.openApplication(at: app, configuration: NSWorkspace.OpenConfiguration())) != nil
+        }
+    }
+}
+
+/// Overview's guidance section: each category's size, or "Not accessible", with an "Open …" button.
+struct GuidanceSection: View {
+    @Bindable var model: CatalogCleanupModel
+    @State private var expanded = true
+    var body: some View {
+        if !model.guidance.isEmpty {
+            DisclosureGroup(isExpanded: $expanded) {
+                VStack(alignment: .leading, spacing: StillDesign.Space.md) {
+                    Text("Review these where they are managed. Still shows their size and never changes them.").font(.callout).foregroundStyle(.secondary)
+                    RecommendationGroup {
+                        ForEach(model.guidance) { finding in
+                            if let rule = model.guidanceRule(finding), let guidance = rule.guidance {
+                                StorageReviewRow(category: .managed, title: rule.title, detail: rule.detail, value: finding.size.text,
+                                                 meaning: "Guidance only · " + guidance.openTitle, actionTitle: guidance.openTitle,
+                                                 action: { Task { await model.open(finding) } }, identifier: "guidance-" + finding.id)
+                                if finding.id != model.guidance.last?.id { Divider().padding(.horizontal, StillDesign.Space.lg) }
+                            }
+                        }
+                    }
+                    if model.guidance.contains(where: { $0.size == .notAccessible }) { FullDiskAccessLink(title: "Review access options") }
+                    if let status = model.guidanceStatus { StatusRow(text: status, symbol: "info.circle", identifier: "guidanceStatus") }
+                }.padding(.top, StillDesign.Space.sm)
+            } label: {
+                Text("App-managed storage").font(StillDesign.TypeStyle.section)
+            }.accessibilityIdentifier("guidanceSection")
+        }
+    }
+}
+
+extension GuidanceSize {
+    /// Unknown is never 0 (SPEC section 1).
+    var text: String {
+        switch self {
+        case .estimate(let estimate): estimate.text
+        case .notAccessible: "Not accessible"
+        case .snapshots(let count): (count == 1 ? "1 snapshot" : "\(count) snapshots") + " · Size unknown"
+        }
+    }
+}
+
+#if DEBUG
+/// A debug test run opens nothing.
+struct NothingOpens: GuidanceOpening {
+    func open(_ target: GuidanceTarget) async -> Bool { true }
+}
+/// A UI test's snapshot count, from `<home>/.still-test-snapshots`; none when it's missing.
+struct FixtureSnapshotCount: LocalSnapshotListing {
+    let home: URL?
+    func count() -> Int? {
+        guard let home, let text = try? String(contentsOf: home.appendingPathComponent(".still-test-snapshots"), encoding: .utf8) else { return 0 }
+        return Int(text.trimmingCharacters(in: .whitespacesAndNewlines))
     }
 }
 #endif

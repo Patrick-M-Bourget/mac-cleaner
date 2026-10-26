@@ -438,3 +438,108 @@ final class ICloudCleanupUITests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: home.appendingPathComponent(".still-test-icloud-evicted").path))
     }
 }
+
+/// Large and old files explorer (#113): a picked fixture folder, chosen file by file, previewed, left in place.
+extension CatalogCleanupUITests {
+    @MainActor func testPickedFolderListsOldFilesUnchosenAndPreviewLeavesThemInPlace() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        let state = try configureIsolatedState(app)
+        let home = try configureCatalogHome(app)
+        let folder = FileManager.default.temporaryDirectory.resolvingSymlinksInPath().appendingPathComponent("StillPicked-" + UUID().uuidString)
+        defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home); try? FileManager.default.removeItem(at: folder) }
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let old = folder.appendingPathComponent("old-notes.txt"), recent = folder.appendingPathComponent("recent.txt")
+        try Data(repeating: 1, count: 4_000).write(to: old)
+        try Data(repeating: 2, count: 4_000).write(to: recent)
+        let then = Date().addingTimeInterval(-200 * 86_400)
+        try FileManager.default.setAttributes([.creationDate: then, .modificationDate: then], ofItemAtPath: old.path)
+        var times = [timeval(tv_sec: Int(then.timeIntervalSince1970), tv_usec: 0), timeval(tv_sec: Int(then.timeIntervalSince1970), tv_usec: 0)]
+        XCTAssertEqual(utimes(old.path, &times), 0)
+        app.launchArguments = ["-ApplePersistenceIgnoreState", "YES"]
+        app.launch()
+
+        XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
+        app.buttons["Choose a folder…"].click()
+        let panel = app.sheets.firstMatch.exists ? app.sheets.firstMatch : app.dialogs.firstMatch
+        XCTAssertTrue(panel.waitForExistence(timeout: 5))
+        panel.typeKey("g", modifierFlags: [.command, .shift])
+        app.typeText(folder.path + "\n")
+        panel.buttons["Scan folder"].click()
+
+        let explore = app.buttons["Explore storage"]
+        XCTAssertTrue(explore.waitForExistence(timeout: 20))
+        explore.click()
+        let mode = app.segmentedControls["explorerMode"]
+        XCTAssertTrue(mode.waitForExistence(timeout: 10))
+        mode.buttons["Large and old files"].click()
+
+        // Only the old file is listed, and nothing is preselected.
+        let item = app.checkBoxes["explorerChoose-old-notes.txt"]
+        XCTAssertTrue(item.waitForExistence(timeout: 5))
+        XCTAssertFalse(app.checkBoxes["explorerChoose-recent.txt"].exists)
+        XCTAssertEqual(item.value as? Int, 0)
+        item.click()
+        XCTAssertEqual(item.value as? Int, 1)
+        app.buttons["View cleanup plan"].click()
+
+        XCTAssertEqual(app.checkBoxes["previewOnlyToggle"].value as? Int, 1)
+        app.buttons["Review cleanup"].click()
+        XCTAssertTrue(app.staticTexts["Move to Trash: Large and old files"].waitForExistence(timeout: 5))
+        app.buttons["Run preview"].click()
+
+        XCTAssertTrue(app.staticTexts["catalogPreviewNotice"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["Would move to Trash"].exists)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: old.path))
+    }
+}
+
+final class GuidanceUITests: XCTestCase {
+    /// A Photos library, Xcode archives, unreadable Messages attachments and two local snapshots in the fixture home.
+    /// The snapshot count comes from a debug fixture file, so tmutil never runs, and opening is a debug no-op.
+    @MainActor private func addGuidanceData(_ home: URL) throws -> URL {
+        for path in ["Pictures/Photos Library.photoslibrary/originals/a.heic", "Library/Developer/Xcode/Archives/2026-10-26/App.xcarchive/Info.plist",
+                     "Library/Messages/Attachments/ab/photo.jpg"] {
+            let file = home.appendingPathComponent(path)
+            try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try Data(repeating: 5, count: 90_000).write(to: file)
+        }
+        try "2".write(to: home.appendingPathComponent(".still-test-snapshots"), atomically: true, encoding: .utf8)
+        let locked = home.appendingPathComponent("Library/Messages/Attachments")
+        try FileManager.default.setAttributes([.posixPermissions: 0], ofItemAtPath: locked.path)
+        return locked
+    }
+
+    @MainActor func testGuidanceCategoriesShowSizeOrNotAccessibleAndNeverJoinThePlan() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        let state = try configureIsolatedState(app)
+        let home = try configureCatalogHome(app)
+        let locked = try addGuidanceData(home)
+        defer {
+            app.terminate(); try? FileManager.default.removeItem(at: state)
+            try? FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: locked.path)
+            try? FileManager.default.removeItem(at: home)
+        }
+        app.launchArguments = ["-ApplePersistenceIgnoreState", "YES"]
+        app.launch()
+
+        XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
+        let photos = app.buttons["guidance-photos-library"]
+        XCTAssertTrue(photos.waitForExistence(timeout: 10))
+        XCTAssertTrue((photos.value as? String)?.contains("Open Photos") == true)
+        XCTAssertTrue((app.buttons["guidance-messages-attachments"].value as? String)?.contains("Not accessible") == true)
+        XCTAssertTrue((app.buttons["guidance-time-machine-snapshots"].value as? String)?.contains("2 snapshots · Size unknown") == true)
+        XCTAssertTrue(app.buttons["guidance-xcode-archives"].exists)
+        photos.click()
+        XCTAssertTrue(app.staticTexts["guidanceStatus"].waitForExistence(timeout: 5))
+        XCTAssertEqual(app.staticTexts["guidanceStatus"].label, "Test run: would open Photos.")
+
+        app.buttons["overviewCategory-developer"].click()
+        XCTAssertTrue(app.descendants(matching: .any)["planRule-npm-cache"].waitForExistence(timeout: 5))
+        for id in ["photos-library", "xcode-archives", "messages-attachments", "time-machine-snapshots"] {
+            XCTAssertFalse(app.descendants(matching: .any)["planRule-" + id].exists, id)
+        }
+        XCTAssertTrue(FileManager.default.fileExists(atPath: home.appendingPathComponent("Pictures/Photos Library.photoslibrary/originals/a.heic").path))
+    }
+}

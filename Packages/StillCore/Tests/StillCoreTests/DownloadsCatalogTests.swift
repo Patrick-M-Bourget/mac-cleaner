@@ -128,3 +128,12 @@ private func trashExecutor(_ home: URL, trash: FixtureTrash) throws -> (CleanupE
     #expect(FileManager.default.fileExists(atPath: installer.path))
     #expect(!FileManager.default.fileExists(atPath: home.appendingPathComponent("FixtureTrash").path))
 }
+
+@Test func aDownloadsFileInsideAGitCheckoutIsNotOffered() throws {
+    let (home, downloads) = try downloadsHome()
+    defer { try? FileManager.default.removeItem(at: home) }
+    try file(downloads, "repo/.git/HEAD", now: Date())
+    try file(downloads, "repo/dist/Setup.dmg", now: Date())
+    try file(downloads, "Other.dmg", now: Date())
+    #expect(Catalog(rules: fixtureRules).discover(fixture: home).map(\.url.lastPathComponent) == ["Other.dmg"])
+}

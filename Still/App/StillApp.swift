@@ -434,6 +434,7 @@ private struct WorkspaceView: View {
                     }
                 }
                 Text(trashFootnote(summary?.proposedForTrash)).font(.caption).foregroundStyle(.secondary)
+                GuidanceSection(model: catalog)
             }
     }
     private func catalogRow(_ row: CatalogOverview.Row) -> some View {

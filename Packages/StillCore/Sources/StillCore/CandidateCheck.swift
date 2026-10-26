@@ -11,6 +11,7 @@ public enum CheckRefusal: Sendable, Equatable {
     case missing, changed, ownerRunning(String), ownerUnknown(String), protected(String), excluded, notPermitted, cloud
     case inUse(String), inUseUnknown(String)
     case keptDownloaded, notUploaded, conflicted, notDownloaded, cloudUnknown
+    case guidanceOnly
     public var reason: String {
         switch self {
         case .missing: "No longer exists."
@@ -28,6 +29,7 @@ public enum CheckRefusal: Sendable, Equatable {
         case .conflicted: "Has an iCloud conflict to resolve. Its local copy stays."
         case .notDownloaded: "No local copy to remove."
         case .cloudUnknown: "Couldn’t read its iCloud status. Its local copy stays."
+        case .guidanceOnly: "Guidance only. Still never changes it; manage it in its own app."
         }
     }
 }
@@ -41,6 +43,8 @@ public struct CandidateCheck: Sendable {
     public let inUse: any InUseChecking
     /// iCloud state, for evict candidates.
     public let cloud: any UbiquitousItemAccess
+    /// The home folder whose protected folders a picked folder's files are never taken from (`UserFiles`).
+    public var home = URL(fileURLWithPath: NSHomeDirectory())
     /// At most this many entries are looked at; a deeper search that would need more refuses the folder.
     static let protectedSearchLimit = 200_000
 
@@ -87,6 +91,8 @@ public struct CandidateCheck: Sendable {
         self.catalog = catalog; self.running = running; self.exclusions = exclusions; self.inUse = inUse; self.cloud = cloud
     }
     public func check(_ candidate: Candidate) -> CheckRefusal? {
+        // Guidance-only data is never acted on, whatever the candidate or its rule says (SPEC section 3).
+        if candidate.action == .guidance || catalog.rule(candidate.ruleID)?.action == .guidance { return .guidanceOnly }
         guard let rule = catalog.rule(candidate.ruleID),
               rule.action == candidate.action || (candidate.isLeftover && rule.deletesItems && candidate.action == .delete) else { return .changed }
         let ownership = Catalog.ownership(of: candidate.url, under: rule)
@@ -109,6 +115,8 @@ public struct CandidateCheck: Sendable {
         // The same folder moved out of scope and reached through a symlink keeps its identity, so containment is checked too.
         guard let root = candidate.scopeRoot, ScopeContainment.contains(candidate.url, in: root) else { return .changed }
         if let part = Protection(rule).protectedComponent(of: candidate.url, below: root) { return .protected(part) }
+        if rule.id == UserFiles.ruleID, let folder = UserFiles.protectedFolder(of: candidate.url, home: home) { return .protected(folder) }
+        if !candidate.isDirectory, Protection.insideGitCheckout(candidate.url, upTo: root) { return .protected(".git") }
         if !candidate.isDirectory {
             // Files must be byte-for-byte the observed version; cache folders churn, so folders keep identity only.
             guard Int64(info.st_size) == candidate.fileBytes ?? candidate.logicalBytes, Int64(info.st_mtimespec.tv_sec) == candidate.modifiedSeconds,

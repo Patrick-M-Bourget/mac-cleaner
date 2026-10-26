@@ -7,7 +7,8 @@ public enum RegenClass: String, Codable, Sendable { case cache, build, updaterDo
 /// Decision 3: regenerable data is deleted; user files go to Trash. A few rules run the tool's own command (Decision 21).
 /// Trash keeps the "moveToTrash" string that Downloads-era journal records use.
 /// Evict removes only the local copy of an iCloud file (Decision 13); the original stays in iCloud.
-public enum CleanupAction: String, Codable, Sendable { case delete; case trash = "moveToTrash"; case tool; case evict }
+/// Guidance never acts: the rule is sized and points to where the user manages it (SPEC section 3).
+public enum CleanupAction: String, Codable, Sendable { case delete; case trash = "moveToTrash"; case tool; case evict; case guidance }
 
 /// A command a `.tool` rule runs, with a time limit. The executable and its arguments are fixed in the rule.
 public struct ToolCommand: Sendable, Hashable {
@@ -42,7 +43,7 @@ public struct ToolCommand: Sendable, Hashable {
 }
 /// Whether none, some or all of a category's items are chosen.
 public enum CategorySelectionState: Sendable { case unchecked, mixed, checked }
-public enum CatalogCategory: String, Codable, Sendable { case developer, browser, downloads, system, models, updaters, logs, icloud }
+public enum CatalogCategory: String, Codable, Sendable { case developer, browser, downloads, system, models, updaters, logs, icloud, files, managed }
 
 /// Who must be closed before a rule's data is touched.
 public struct RuleOwner: Sendable, Hashable {
@@ -128,10 +129,12 @@ public struct CleanupRule: Sendable, Identifiable {
     public let items: CatalogItems?
     /// Global protected extensions this rule may act inside, e.g. an app's own VM `.bundle`. Never `sparsebundle` lightly.
     public let unprotectedExtensions: Set<String>
+    /// How a `.guidance` rule is sized and where it is managed; nil for every other action.
+    public let guidance: Guidance?
     /// Its locations are ones macOS protects (Safari's data): without Full Disk Access they're shown as not accessible.
     public let requiresFullDiskAccess: Bool
     public init(id: String, category: CatalogCategory, title: String, detail: String, consequence: String, regen: RegenClass, action: CleanupAction, locations: [String], owner: RuleOwner?, protectedNames: [String] = [], tool: ToolCommand? = nil, protectedExtensions: [String] = [], contents: ContentsMatch? = nil, keepNewestVersions: Int? = nil, layoutOverrides: [LayoutOverride] = [], base: LocationBase = .home, copies: LeakedCopies? = nil, itemName: (@Sendable (String) -> String?)? = nil, items: CatalogItems? = nil, unprotectedExtensions: Set<String> = [],
-                itemOwner: (@Sendable (URL) -> RuleOwner?)? = nil, yieldsToOtherRules: Bool = false, protectedDepth: Int = 1, requiresFullDiskAccess: Bool = false) {
+                itemOwner: (@Sendable (URL) -> RuleOwner?)? = nil, yieldsToOtherRules: Bool = false, protectedDepth: Int = 1, requiresFullDiskAccess: Bool = false, guidance: Guidance? = nil) {
         self.id = id; self.category = category; self.title = title; self.detail = detail; self.consequence = consequence
         self.regen = regen; self.action = action; self.locations = locations; self.owner = owner; self.protectedNames = protectedNames; self.tool = tool
         self.protectedExtensions = protectedExtensions; self.contents = contents; self.keepNewestVersions = keepNewestVersions; self.layoutOverrides = layoutOverrides
@@ -139,6 +142,7 @@ public struct CleanupRule: Sendable, Identifiable {
         self.itemName = itemName; self.items = items; self.unprotectedExtensions = unprotectedExtensions
         self.itemOwner = itemOwner; self.yieldsToOtherRules = yieldsToOtherRules; self.protectedDepth = protectedDepth
         self.requiresFullDiskAccess = requiresFullDiskAccess
+        self.guidance = guidance
     }
 }
 
@@ -147,7 +151,7 @@ public enum BuiltInCatalog {
     /// The catalog as the app uses it, with installed apps found through LaunchServices.
     public static let rules: [CleanupRule] = rules(apps: SystemAppLookup())
     /// The catalog with installed apps found by `apps`. Tests pass a fake, so they never depend on this Mac's apps.
-    public static func rules(apps: any AppLookup) -> [CleanupRule] { fixedRules + BrowserCaches.rules + AppCaches.rules(apps: apps) + dockerRules }
+    public static func rules(apps: any AppLookup) -> [CleanupRule] { fixedRules + BrowserCaches.rules + AppCaches.rules(apps: apps) + dockerRules + guidanceRules }
     private static let fixedRules: [CleanupRule] = [
         CleanupRule(id: "npm-cache", category: .developer, title: "npm cache",
                     detail: "Packages npm downloaded for your projects.",
@@ -231,7 +235,7 @@ public enum BuiltInCatalog {
                     detail: "Downloads of 500 MB or more not opened in 90 days.",
                     consequence: "Moved to Trash. The space stays used until you empty the Trash; you can restore them from the Trash in Finder.",
                     regen: .userFile, action: .trash, locations: ["Downloads"], owner: nil,
-                    protectedExtensions: downloadsProtectedExtensions, contents: ContentsMatch(minimumBytes: 500_000_000, unusedDays: 90)),
+                    protectedExtensions: downloadsProtectedExtensions, contents: ContentsMatch(minimumBytes: UserFiles.largeBytes, unusedDays: UserFiles.unusedDays)),
         // Field note section 3: Chrome copies itself for code-sign checks and never removes the copies.
         CleanupRule(id: "chrome-code-sign-clones", category: .browser, title: "Chrome code-sign copies",
                     detail: "Copies of Google Chrome it made to check its signature and never removed. The copy Chrome is using and the newest copy are kept.",
@@ -242,6 +246,8 @@ public enum BuiltInCatalog {
         ollamaModels,
         appVMImages,
         iCloudLocalCopies,
+        // Its items come only from folders the user picked (`UserFiles.candidates`); it has no locations of its own.
+        UserFiles.rule,
     ]
     /// Kept from the Downloads-era policy: libraries and databases are never moved, even inside Downloads.
     static let downloadsProtectedExtensions = ["dsym", "library", "db", "sqlite", "sqlite3"]
@@ -341,7 +347,8 @@ public struct Catalog: Sendable {
         var dockerUsage: [String: Result<[DockerStorageCategory], ToolPreviewError>] = [:]
         let overridden = Set(overriddenRules(home: home, systemRoot: systemRoot).map(\.id))
         let candidates = rules.flatMap { rule -> [Candidate] in
-            guard !overridden.contains(rule.id), let base = rule.base == .home ? homeBase : userBase else { return [] }
+            // Guidance rules are sized by `guidance(home:)` and never become candidates.
+            guard rule.action != .guidance, !overridden.contains(rule.id), let base = rule.base == .home ? homeBase : userBase else { return [] }
             // What an earlier cleanup left half-deleted comes back under the same rule, even if its tool is gone.
             let leftovers = leftovers(of: rule, in: base, sizer: sizer)
             let toolURL = rule.tool.flatMap(locateTool)
@@ -467,7 +474,10 @@ public struct Catalog: Sendable {
             let name = url.lastPathComponent, ext = url.pathExtension.lowercased()
             if kind == FTS_D {
                 let package = (try? url.resourceValues(forKeys: [.isPackageKey]).isPackage) == true
-                if entry.pointee.fts_level > 0, package || protection.protects(name) { fts_set(tree, entry, FTS_SKIP) }
+                // A git working tree is live work: nothing inside it is offered (the check refuses it too).
+                var git = stat()
+                let checkout = lstat(url.appendingPathComponent(".git").path, &git) == 0
+                if checkout || (entry.pointee.fts_level > 0 && (package || protection.protects(name))) { fts_set(tree, entry, FTS_SKIP) }
                 continue
             }
             guard info.st_uid == geteuid(), !protection.protects(name), info.st_flags & UInt32(SF_DATALESS) == 0 else { continue }
