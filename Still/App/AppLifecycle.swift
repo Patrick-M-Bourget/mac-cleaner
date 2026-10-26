@@ -67,7 +67,7 @@ import StillCore
     func chooseAppearance(_ choice: AppearanceChoice) { appearance.choose(choice); applyAppearance() }
     func resetAppearancePreference() throws { try appearance.reset(); applyAppearance() }
     func resetPreferences() throws {
-        guard !operationInProgress, !selection.execution.isRunning else { throw CleanupJournalError.unavailable }
+        guard !operationInProgress, !selection.workspaceRunning else { throw CleanupJournalError.unavailable }
         if !LocalStateLocation.isDisposableTest {
             registration.refresh()
             if registration.status == .enabled || registration.status == .requiresApproval { try registration.choose(false) }

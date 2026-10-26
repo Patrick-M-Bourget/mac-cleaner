@@ -44,7 +44,7 @@ final class FolderInspection {
         picker.canChooseDirectories = true
         picker.allowsMultipleSelection = false
         picker.treatsFilePackagesAsDirectories = false
-        picker.message = "Scans inspect metadata only. Cleanup currently supports files in Downloads; other folders are inspection only."
+        picker.message = "Scans inspect metadata only. Cleanup choices come from the cleanup plan."
         if downloads { picker.directoryURL = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask).first }
         picker.prompt = remembering ? "Remember folder" : "Scan folder"
         if remembering { picker.message = "Remember this location for future manual scans. Adding it does not start a scan." }
@@ -53,14 +53,14 @@ final class FolderInspection {
 
     func scan(_ url: URL) {
         guard !AppLifecycleController.shared.operationInProgress, !AppLifecycleController.shared.maintenanceInProgress else { return }
-        guard !selection.execution.isRunning else { return }
+        guard !selection.workspaceRunning else { return }
         cancel()
         startScan(url)
     }
 
     /// Refresh the existing explicit scopes without replacing live choices or choosing a new scope.
     func scanAgain(scopes explicitScopes: [URL]? = nil, leases: [ScopeAccessLease] = [], unavailable: [URL] = []) {
-        guard !AppLifecycleController.shared.operationInProgress, !AppLifecycleController.shared.maintenanceInProgress, !selection.execution.isRunning, !isScanning else { return }
+        guard !AppLifecycleController.shared.operationInProgress, !AppLifecycleController.shared.maintenanceInProgress, !selection.workspaceRunning, !isScanning else { return }
         let focusedScope = scope?.standardizedFileURL
         let roots = Set((explicitScopes ?? (scopeReports.map { $0.current.scope } + selection.refreshScopes + [scope].compactMap { $0 })).map(\.standardizedFileURL)).sorted { $0.path < $1.path }
         guard !roots.isEmpty || !unavailable.isEmpty else { return }
@@ -289,15 +289,12 @@ struct FolderInspectionView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: StillDesign.Space.xl) {
             Button("Back to Overview", systemImage: "chevron.left", action: back)
-            PageHeader(title: "Folder inspection", subtitle: "Inspect names and evidence. Checkboxes update your live cleanup plan.")
+            PageHeader(title: "Folder inspection", subtitle: "Inspect names and evidence. Cleanup choices are made in the cleanup plan.")
             ScanHistoryRecordingNotice()
-            CleanupScopeNotice(enabled: !model.isScanning && !selection.execution.isRunning) {
-                if let url = FolderInspection.chooseFolder(downloads: true) { selection.leaveRetryMode(); model.scan(url) }
-            }
             if let scope = model.scope { Text(scope.path).foregroundStyle(.secondary).textSelection(.enabled) }
             HStack {
                 Button("Recheck folder") { if let scope = model.scope { model.scan(scope) } }.disabled(model.isScanning)
-                Button("Choose folder again…") { if let url = FolderInspection.chooseFolder() { selection.leaveRetryMode(); model.scan(url) } }.disabled(model.isScanning)
+                Button("Choose folder again…") { if let url = FolderInspection.chooseFolder() { model.scan(url) } }.disabled(model.isScanning)
             }
             if model.scopeReports.count > 1 {
                 Text("Selected locations").font(.headline)
@@ -348,11 +345,7 @@ struct FolderInspectionView: View {
                 LazyVStack(spacing: 0) {
                     ForEach(result.observations.filter { search.isEmpty || $0.url.path.localizedCaseInsensitiveContains(search) }) { item in
                         InspectableItemRow(name: item.url.lastPathComponent, detail: relative(item.url, to: result.scope), size: item.kind == .file ? bytes(item.logicalBytes) : item.kind.rawValue, symbol: item.kind == .file ? "doc" : "folder", inspected: model.selected?.id == item.id, inspect: { model.selected = item }) {
-                            if selection.eligible(item, in: result) {
-                                Toggle("Select \(item.url.lastPathComponent)", isOn: Binding(get: { selection.draft.contains(item) }, set: { selection.set(item, in: result, selected: $0) })).labelsHidden().disabled(selection.isPreparing || selection.execution.isRunning || (model.isScanning && !selection.draft.contains(item)))
-                            } else {
-                                Image(systemName: "lock").foregroundStyle(.secondary).help("Browse only · outside eligible Downloads or protected/unknown target").accessibilityLabel("Browse only · protected or ineligible target")
-                            }
+                            Image(systemName: "eye").foregroundStyle(.secondary).help("Inspection only").accessibilityLabel("Inspection only")
                         }
                         Divider()
                     }
@@ -387,7 +380,6 @@ struct FolderInspectionView: View {
                     }
                 }
                 CloudInventoryView(report: result.cloudInventory)
-                Text("\(StillDesign.files(selection.draft.selectedCount)) selected").accessibilityIdentifier("inspectionSelectionSummary")
 
             }
         }.quickLookPreview($model.previewURL)

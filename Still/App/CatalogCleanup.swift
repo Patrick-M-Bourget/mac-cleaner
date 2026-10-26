@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import Observation
 import StillCore
@@ -9,7 +10,8 @@ import SwiftUI
     private(set) var candidates: [Candidate] = []
     private(set) var isScanning = false
     private(set) var hasScanned = false
-    private(set) var selectedRuleIDs: Set<String> = []
+    /// Chosen candidate ids. Nothing is preselected.
+    private(set) var selectedIDs: Set<String> = []
     private(set) var selectionRevision: UInt64 = 0
     private(set) var isRunning = false
     private(set) var result: CatalogExecutionResult?
@@ -49,12 +51,19 @@ import SwiftUI
     func candidates(for rule: CleanupRule) -> [Candidate] { candidates.filter { $0.ruleID == rule.id } }
     func estimatedBytes(for rule: CleanupRule) -> Int64 { candidates(for: rule).reduce(0) { $0 + ($1.allocatedBytes ?? $1.logicalBytes) } }
     func sizeComplete(for rule: CleanupRule) -> Bool { candidates(for: rule).allSatisfy(\.sizeComplete) }
-    var selectedCandidates: [Candidate] { candidates.filter { selectedRuleIDs.contains($0.ruleID) } }
+    var selectedCandidates: [Candidate] { candidates.filter { selectedIDs.contains($0.id) } }
+    /// Rules with at least one chosen item.
+    var selectedRuleCount: Int { Set(selectedCandidates.map(\.ruleID)).count }
     var selectedCount: Int { selectedCandidates.count }
     var estimatedBytes: Int64 { selectedCandidates.reduce(0) { $0 + ($1.allocatedBytes ?? $1.logicalBytes) } }
     var canEdit: Bool { !isScanning && !isRunning && !AppLifecycleController.shared.operationInProgress && !AppLifecycleController.shared.maintenanceInProgress }
     var canReview: Bool { canEdit && selectedCount > 0 }
-    func isSelected(_ rule: CleanupRule) -> Bool { selectedRuleIDs.contains(rule.id) }
+    func isSelected(_ rule: CleanupRule) -> Bool { candidates(for: rule).contains { selectedIDs.contains($0.id) } }
+    func isSelected(_ candidate: Candidate) -> Bool { selectedIDs.contains(candidate.id) }
+    func selectionState(for rule: CleanupRule) -> CategorySelectionState {
+        let items = candidates(for: rule), chosen = items.filter { selectedIDs.contains($0.id) }.count
+        return chosen == 0 ? .unchecked : chosen == items.count ? .checked : .mixed
+    }
 
     func scanIfNeeded() async { if !hasScanned { await scan() } }
     /// Read-only sizing of the catalog's known locations.
@@ -65,13 +74,20 @@ import SwiftUI
         guard let home = Self.home else { candidates = []; return }
         let catalog = catalog
         candidates = await Task.detached(priority: .userInitiated) { catalog.discover(home: home) }.value
-        let found = Set(candidates.map(\.ruleID))
-        if !selectedRuleIDs.isSubset(of: found) { selectedRuleIDs.formIntersection(found); message = "Some categories are no longer on this Mac and were removed from your plan." }
+        let found = Set(candidates.map(\.id))
+        if !selectedIDs.isSubset(of: found) { selectedIDs.formIntersection(found); message = "Some items changed or are no longer on this Mac and were removed from your plan." }
         selectionRevision &+= 1
     }
+    /// Chooses or clears every item the rule found.
     func setSelected(_ rule: CleanupRule, _ selected: Bool) {
-        guard canEdit, !candidates(for: rule).isEmpty else { return }
-        if selected { selectedRuleIDs.insert(rule.id) } else { selectedRuleIDs.remove(rule.id) }
+        let ids = candidates(for: rule).map(\.id)
+        guard canEdit, !ids.isEmpty else { return }
+        if selected { selectedIDs.formUnion(ids) } else { selectedIDs.subtract(ids) }
+        selectionRevision &+= 1
+    }
+    func setSelected(_ candidate: Candidate, _ selected: Bool) {
+        guard canEdit, candidates.contains(candidate) else { return }
+        if selected { selectedIDs.insert(candidate.id) } else { selectedIDs.remove(candidate.id) }
         selectionRevision &+= 1
     }
 
@@ -92,13 +108,13 @@ import SwiftUI
             let run = CleanupExecutor(journal: try CleanupJournalLocation.writer(), check: check, cancellation: cancellation)
             executor = run
             result = await run.execute(approval)
-            selectedRuleIDs = []; candidates = []; hasScanned = false; selectionRevision &+= 1
+            selectedIDs = []; candidates = []; hasScanned = false; selectionRevision &+= 1
         } catch { message = "The cleanup journal is unavailable. Nothing was changed." }
     }
     func cancel() { executor?.cancel() }
     func endSession() {
         guard !isRunning else { return }
-        selectedRuleIDs = []; result = nil; message = nil; selectionRevision &+= 1
+        selectedIDs = []; result = nil; message = nil; selectionRevision &+= 1
     }
     private func currentCheck() async -> CandidateCheck? {
         do { return CandidateCheck(catalog: catalog, running: SystemRunningAppChecker(), exclusions: try await ExclusionsModel.shared.policyForScan()) }
@@ -145,15 +161,44 @@ struct CatalogPlanSection: View {
     var body: some View {
         VStack(alignment: .leading, spacing: StillDesign.Space.lg) {
             ForEach(model.rulesFound) { rule in
-                CategorySelectionHeader(category: rule.category.storageCategory, state: model.isSelected(rule) ? .checked : .unchecked,
+                CategorySelectionHeader(category: rule.category.storageCategory, state: model.selectionState(for: rule),
                     title: rule.title, detail: rule.detail + " " + rule.consequence,
                     size: catalogBytes(model.estimatedBytes(for: rule), complete: model.sizeComplete(for: rule)),
-                    enabled: model.canEdit, identifier: "planRule-" + rule.id) { model.setSelected(rule, !model.isSelected(rule)) }
+                    enabled: model.canEdit, identifier: "planRule-" + rule.id) { model.setSelected(rule, model.selectionState(for: rule) != .checked) }
+                if rule.contents != nil { CatalogItemChooser(model: model, rule: rule).padding(.leading, StillDesign.Space.xl) }
             }
             if model.isScanning { ProgressView("Checking known locations…") }
             if !model.rulesFound.isEmpty || model.result != nil { PreviewOnlyToggle(model: model).padding(.leading, StillDesign.Space.xl) }
             if let message = model.message { StatusRow(text: message, symbol: "info.circle", role: .caution) }
+        }.task { await model.scanIfNeeded() }
+    }
+}
+
+/// Single files a rule found (Downloads), each chosen on its own.
+struct CatalogItemChooser: View {
+    @Bindable var model: CatalogCleanupModel
+    let rule: CleanupRule
+    @State private var expanded = false
+    var body: some View {
+        let items = model.candidates(for: rule).sorted { $0.url.path.localizedStandardCompare($1.url.path) == .orderedAscending }
+        DisclosureGroup(isExpanded: $expanded) {
+            LazyVStack(alignment: .leading, spacing: 0) {
+                ForEach(items) { item in
+                    InspectableItemRow(name: item.url.lastPathComponent, detail: detail(item), size: catalogBytes(item.allocatedBytes ?? item.logicalBytes),
+                                       symbol: "doc", inspected: false, inspect: { NSWorkspace.shared.activateFileViewerSelecting([item.url]) }) {
+                        Toggle("Select " + item.url.lastPathComponent, isOn: Binding(get: { model.isSelected(item) }, set: { model.setSelected(item, $0) }))
+                            .labelsHidden().disabled(!model.canEdit).accessibilityIdentifier("planItem-" + item.url.lastPathComponent)
+                    }
+                    Divider()
+                }
+            }.padding(.top, StillDesign.Space.sm)
+        } label: {
+            Text(items.count == 1 ? "1 file · Choose items" : "\(items.count) files · Choose items")
         }
+    }
+    private func detail(_ item: Candidate) -> String {
+        let folder = item.url.deletingLastPathComponent().path.replacingOccurrences(of: FileManager.default.homeDirectoryForCurrentUser.path, with: "~")
+        return item.lastUsed.map { folder + " · Last used " + $0.formatted(date: .abbreviated, time: .omitted) } ?? folder
     }
 }
 
@@ -208,7 +253,7 @@ struct CatalogResultsSection: View {
             }
             ForEach(result.records) { record in
                 HStack(alignment: .top, spacing: StillDesign.Space.md) {
-                    let wouldAct = record.previewOnly == true && record.state == .skipped && record.message.hasPrefix("Preview")
+                    let wouldAct = record.wasPreviewed
                     Image(systemName: record.state == .succeeded ? "checkmark.circle" : wouldAct ? "eye" : "exclamationmark.circle")
                         .foregroundStyle(record.state == .succeeded ? StatusRole.success.color : wouldAct ? StatusRole.neutral.color : StatusRole.caution.color)
                     VStack(alignment: .leading, spacing: StillDesign.Space.xs) {
@@ -217,10 +262,19 @@ struct CatalogResultsSection: View {
                         Text(record.message).font(.caption).foregroundStyle(.secondary)
                     }
                     Spacer()
-                    Text(outcome(record)).font(.callout)
+                    VStack(alignment: .trailing, spacing: StillDesign.Space.xs) {
+                        Text(record.outcomeTitle).font(.callout)
+                        if record.state == .succeeded, let trashed = record.trashURL {
+                            Button("Reveal in Trash") { NSWorkspace.shared.activateFileViewerSelecting([trashed]) }
+                                .accessibilityLabel("Reveal \(record.originalURL.lastPathComponent) in Trash")
+                        }
+                    }
                 }
             }
             if let failure = result.journalFailure { StatusRow(text: failure, symbol: "exclamationmark.triangle", role: .caution) }
+            if result.movedToTrashBytes > 0 {
+                StatusRow(text: "Items moved to Trash still use space until you empty the Trash. Still never empties it.", symbol: "trash", role: .neutral, identifier: "catalogTrashNotice")
+            }
             Text("Measured freed space is the change in available space read right before and after each item. Downloads, snapshots and other activity can affect it, and it may differ from the estimate.")
                 .font(.caption).foregroundStyle(.secondary)
         }
@@ -229,16 +283,6 @@ struct CatalogResultsSection: View {
         VStack(alignment: .leading, spacing: StillDesign.Space.xs) {
             Text(value).font(StillDesign.TypeStyle.value).monospacedDigit()
             Text(label).font(.caption).foregroundStyle(.secondary)
-        }
-    }
-    private func outcome(_ record: CleanupRecord) -> String {
-        if record.previewOnly == true, record.state == .skipped, record.message.hasPrefix("Preview") { return record.action == "delete" ? "Would delete" : "Would move to Trash" }
-        switch record.state {
-        case .succeeded: return record.action == "delete" ? "Deleted" : "Moved to Trash"
-        case .skipped: return "Skipped"
-        case .failed: return "Failed"
-        case .cancelled: return "Not started"
-        case .unknown, .intent, .pending: return "Unresolved"
         }
     }
 }

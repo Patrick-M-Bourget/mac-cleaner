@@ -4,7 +4,7 @@ import StillCore
 import SwiftUI
 
 extension AppLifecycleController: HistoryMaintenanceLifecycle {
-    var operationActive: Bool { operationInProgress || selection.execution.isRunning }
+    var operationActive: Bool { operationInProgress || selection.workspaceRunning }
     var maintenanceActive: Bool { get { maintenanceInProgress } set { maintenanceInProgress = newValue } }
 }
 
@@ -72,7 +72,7 @@ private enum HistoryActivityItem: Identifiable {
 
     func clear() async {
         let lifecycle = AppLifecycleController.shared
-        guard !busy, !lifecycle.maintenanceInProgress, !lifecycle.operationInProgress, !lifecycle.selection.execution.isRunning else { message = "Wait for the current cleanup to finish."; return }
+        guard !busy, !lifecycle.maintenanceInProgress, !lifecycle.operationInProgress, !lifecycle.selection.workspaceRunning else { message = "Wait for the current cleanup to finish."; return }
         busy = true; defer { busy = false }
         lifecycle.maintenanceInProgress = true; defer { lifecycle.maintenanceInProgress = false }
         var clearedRuns: Int?
@@ -121,7 +121,7 @@ private enum HistoryActivityItem: Identifiable {
     }
     func reset() async -> Bool {
         let lifecycle = AppLifecycleController.shared
-        guard !busy, !lifecycle.maintenanceInProgress, !lifecycle.operationInProgress, !lifecycle.selection.execution.isRunning else { message = "Reset is blocked while cleanup is running. Stop and review its results first."; return false }
+        guard !busy, !lifecycle.maintenanceInProgress, !lifecycle.operationInProgress, !lifecycle.selection.workspaceRunning else { message = "Reset is blocked while cleanup is running. Stop and review its results first."; return false }
         busy = true; lifecycle.maintenanceInProgress = true
         defer { busy = false; lifecycle.maintenanceInProgress = false }
         enum ResetStage { case journal, chromeInspection, appearance, remainingPreferences }
@@ -149,7 +149,7 @@ private enum HistoryActivityItem: Identifiable {
             try lifecycle.locations.reset()
             try await GrowthHistoryModel.shared.resetHistory()
             try await ExclusionsModel.shared.reset()
-            lifecycle.selection.endSession(); lifecycle.selection.execution.clear()
+            lifecycle.selection.endSession()
             await lifecycle.inspection.resetSession()
             lifecycle.planPresentation.reset()
             lifecycle.downloadsExplorer.openDownloads(); lifecycle.locationsExplorer.openLocations()
