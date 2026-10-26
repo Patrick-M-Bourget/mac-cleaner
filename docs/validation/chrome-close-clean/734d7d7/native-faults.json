@@ -1,0 +1,23 @@
+{
+  "scope": "owned disposable synthetic cache only",
+  "pacing": "1000ms widens observation interval; not arbitrary race exclusion",
+  "checks": {
+    "indexSwap": {
+      "removed": 1,
+      "status": "stopped",
+      "reason": "cache index directory changed"
+    },
+    "actualModeDenial": {
+      "removed": 0,
+      "status": "stopped",
+      "reason": "[Errno 13] Permission denied: '0123456789abcdef_0'"
+    },
+    "nativeBetweenWorkReopen": {
+      "removed": 1,
+      "status": "stopped",
+      "reason": "browser or helper activity observed"
+    },
+    "actualHelperAssociation": true,
+    "activeBrowserRefused": true
+  }
+}

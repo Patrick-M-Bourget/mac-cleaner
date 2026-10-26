@@ -135,3 +135,51 @@ Local process checks use an explicit owned fixture; real process observation/bro
 [Bounded result and original reports](../../docs/validation/chrome-close-clean.md): actual Stable156.0.8078.48 passes the recorded two-profile experiment; final controlled partial-stop test is separate from native before-clean active/reopen evidence. Remaining native/standard-profile/protected-semantic requirements are explicit. #18 remains open, #19 blocked and the production allowlist empty. Residual ordinary-use races are accepted/documented; no exclusive-lease proof or adversarial same-user guarantee is claimed.
 
 Final protected-semantic extension27c1db6 additionally passes genuine synthetic HttpOnly website-session retention, service-worker offline navigation after online target setup, and2/2 restored tabs/persisted back history in both profiles. [Final evidence](../../docs/validation/chrome-close-clean.md#final-protected-semantic-qualification-27c1db6) preserves the earlier incomplete setup observation. Saved-password/autofill, cold-start offline launch, download-history UI and standard/shared ownership remain unqualified.
+
+## Remaining Stable qualification — native final suite
+
+`chrome-stable-final` runs only on fresh GitHub-hosted macOS. It independently
+exercises (1) browser-reported standard Default profile/cache association,
+shared helper cleanup and regrowth; (2) ordinary headed password/address UI and
+post-clean password fill/saved-address retrieval plus visible download history; and (3) native during-work reopen,
+index replacement and actual mode denial. A failed lane stays failed; artifacts
+retain its observations. This is not the production cleaner or a personal-data
+inspection tool.
+
+`standard-profile.py` refuses existing standard roots, managed/preferences or
+existing owners before launch. Its version observation uses Google's documented
+[headless chrome:// option](https://developer.chrome.com/docs/automation-and-testing/headless-cli).
+Only after actual browser-reported Default mapping does it create a same-run
+proof. `cache-group.py --standard-proof` independently checks that proof's exact
+canonical standard paths, identities, source/run and verified vendor provenance,
+then uses the existing descriptor-relative algorithm. It refuses a process
+fixture in this mode. The proof is trusted experiment output, not a cryptographic
+or adversarial same-user guarantee. This opt-in never applies to personal roots
+or production; normal helper usage retains its owned temporary-root guard.
+The standard check compares all bounded browser-created profile files around
+cleanup, then requires a real asset re-request and cache regeneration.
+
+`headed.mjs` uses synthetic credentials/addresses saved through Chrome UI, normal
+rendered controls/input and real relaunch; no direct DB/preferences/Keychain
+manipulation. It never supplies test autofill records through a private service.
+A normal settings Edit baseline must show the exact synthetic saved address
+before deletion; the same record is read after relaunch and Web Data bytes are
+compared around cleanup. Earlier native form-suggestion preview did not commit
+through the automation before cleanup; that failure stays recorded and is not
+claimed as form-fill support. Saved-address record retention is the bounded
+protection requirement evaluated here. `native-faults.py` widens its
+observation interval with explicit 1000ms pacing; this proves detected conflicts,
+not arbitrary race exclusion. Completed cases are saved incrementally.
+
+Additional browser-free checks:
+
+```sh
+python3 Validation/ChromeProbe/test_standard_proof.py
+python3 -m py_compile Validation/ChromeProbe/standard-profile.py Validation/ChromeProbe/native-faults.py
+node --check Validation/ChromeProbe/headed.mjs
+```
+
+See [source-bound results](../../docs/validation/chrome-close-clean.md) before
+making any capability claim. Shared/managed/redirected and unknown layouts remain
+unavailable, never silently attributed by profile basename. No GPU/code-cache,
+broader OS/CPU/browser support or personal-file policy change is included.

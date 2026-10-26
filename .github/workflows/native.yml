@@ -104,12 +104,20 @@ on:
           - alerts-native
           - filesystem
           - chrome-stable-probe
+          - chrome-stable-final
           - chrome-probe
+      chromeFinalLane:
+        description: Chrome final qualification lane (only chrome-stable-final)
+        type: choice
+        default: all
+        options:
+          - all
+          - headed
 permissions:
   contents: read
 jobs:
   native:
-    if: github.event_name != 'workflow_dispatch' || (inputs.suite != 'benchmark' && inputs.suite != 'filesystem' && inputs.suite != 'chrome-probe' && inputs.suite != 'chrome-stable-probe' && inputs.suite != 'alerts-native')
+    if: github.event_name != 'workflow_dispatch' || (inputs.suite != 'benchmark' && inputs.suite != 'filesystem' && inputs.suite != 'chrome-probe' && inputs.suite != 'chrome-stable-probe' && inputs.suite != 'chrome-stable-final' && inputs.suite != 'alerts-native')
     runs-on: macos-26
     steps:
       - uses: actions/checkout@v4
@@ -653,4 +661,40 @@ jobs:
         with:
           name: stable-chrome-close-clean-evidence
           path: ${{ runner.temp }}/chrome-stable-probe/evidence/
+          if-no-files-found: error
+
+  stable-chrome-final:
+    if: github.event_name == 'workflow_dispatch' && inputs.suite == 'chrome-stable-final'
+    runs-on: macos-26
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check disposable qualification syntax and public policy fixtures
+        run: |
+          node --check Validation/ChromeProbe/headed.mjs
+          python3 -m py_compile Validation/ChromeProbe/standard-profile.py Validation/ChromeProbe/native-faults.py
+          python3 Validation/ChromeProbe/test_standard_proof.py
+          python3 Validation/ChromeProbe/test_cache_group.py
+          python3 Validation/ChromeProbe/test_owned_cache.py
+      - name: Extract vendor-signed Stable without installing
+        run: python3 Validation/ChromeProbe/provision-stable.py "$RUNNER_TEMP/chrome-stable-final"
+      - name: Genuine standard-root split-cache mapping, cleanup and regeneration
+        if: always() && inputs.chromeFinalLane != 'headed'
+        run: python3 Validation/ChromeProbe/standard-profile.py "$RUNNER_TEMP/chrome-stable-final/evidence/provision.json" "$RUNNER_TEMP/chrome-stable-final/evidence/standard-profile"
+      - name: Genuine headed password, address and download-history semantics
+        if: always()
+        run: node Validation/ChromeProbe/headed.mjs "$RUNNER_TEMP/chrome-stable-final/evidence/provision.json" "$RUNNER_TEMP/chrome-stable-final/evidence/headed.json"
+      - name: Native activity, index-directory and denied-access observations
+        if: always() && inputs.chromeFinalLane != 'headed'
+        run: |
+          BUNDLE=$(python3 -c 'import json,os; print(json.load(open(os.environ["RUNNER_TEMP"]+"/chrome-stable-final/evidence/provision.json"))["bundle"])')
+          python3 Validation/ChromeProbe/native-faults.py --bundle "$BUNDLE" --output "$RUNNER_TEMP/chrome-stable-final/evidence/native-faults.json"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: stable-chrome-final-evidence
+          path: ${{ runner.temp }}/chrome-stable-final/evidence/
           if-no-files-found: error
