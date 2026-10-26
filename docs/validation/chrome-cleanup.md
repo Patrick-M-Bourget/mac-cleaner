@@ -1,0 +1,31 @@
+# Chrome cleanup #19 — implementation and qualification checkpoint
+
+#19 remains pending final native UI, visual review and integration. This report records bounded positive evidence and the exact source each result covers; it does not promote all browsers, versions, layouts or M3/M8.
+
+## Production Swift adapter, source23e2219
+
+[Focused workflow40264317079](https://github.com/Patrick-M-Bourget/mac-cleaner/actions/runs/40264317079) fully succeeds, including the [Chrome qualification job](https://github.com/Patrick-M-Bourget/mac-cleaner/actions/runs/40264317079/job/121383244803). The runner builds the actual Swift cache module and runs its public fixture tests, extracts the genuine vendor-signed Chrome Stable artifact, and routes genuine browser experiments through that production Swift service rather than the Python prototype helper. [Original report](chrome-cleanup/23e2219/report.json), [headed report](chrome-cleanup/23e2219/headed.json) and [provision](chrome-cleanup/23e2219/provision.json) are retained unchanged.
+
+Verified Chrome156.0.8078.48, executable SHA256 `4f71e9dbe725fec1110977b6a6dd0708fb32fbde9c905b4b461cef880ac08288`, macOS26.6.2 (browser-reported build25G83), arm64. JSON `os:25.6.0` is Darwin kernel release, not macOS product version. Vendor bundle/executable/framework verification and post-run signature verification pass. No production activity policy was weakened to obtain this result.
+
+Both owned custom profiles Default/Profile1 refuse active/reopened Chrome, remove five genuine asset-cache leaves each, regenerate caches after relaunch, preserve checked protected-file bytes and actual downloaded files, preserve HttpOnly website authentication and service-worker offline navigation, restore2/2 fixture tabs and traverse persisted history. This headless portion does not prove saved passwords/addresses; its explicit limits remain in the original report.
+
+The independent headed fixture uses Chrome's normal Add/Save and Edit UI without mock Keychain or automation flags. Production Swift removal succeeds; saved username/password fills afterward, exact saved-address records survive, Web Data bytes remain identical around removal, and download-history UI/file contents remain intact. Address website suggestion commitment remains unqualified; settings-record preservation is the proven boundary. Both original before/after saved-address screenshots remain in the workflow artifact; they are browser-fixture evidence, not Still app visual qualification.
+
+This run uses owned custom roots. The prior [#18 standard split-root removal/regrowth and native faults](chrome-close-clean.md) remain independently source-bound evidence using the qualification Python helper, not production Swift split-root removal. This workflow does not re-run every standard-root/permission/race experiment; its genuine Swift deletion evidence is custom-root only. Neither browser fixture accesses personal profiles/accounts, installs Chrome or establishes an exclusive lease. Ordinary-use residual reopen/write/final-name-operation races remain accepted only for this bounded cache-group model.
+
+## App integration and review corrections
+
+The approved Overview → browser/profile review → shared plan → consequence-specific confirmation → per-group results/History flow is implemented. Inspection is explicit and remembered intent never scans on launch. Exact Downloads approvals/executor remain separate from opaque cache-group approvals. Recognized new groups stay unchecked; failed/running/unknown access invalidates affected choices with an explanation. Unknown size never becomes zero.
+
+Sourcec91b78b shares one latched cancellation request from final approval across capacity sampling, Downloads and Chrome phases. Stop during the first phase must not start later cache removal; completed mutations are not rolled back. This corrects the source review's original mixed-phase cancellation finding and still requires its final native UI regression.
+
+Sourcesfa60edb/2228508 add90-day completed Chrome retention and a20,000,000-byte component ceiling within the existing250,000,000-byte combined completed-cleanup payload budget. One lifecycle maintenance lock coordinates the stores; unreadable Chrome storage makes the other store read-only rather than guessing zero. Unresolved claims do not expire or count toward completed-history eviction and survive Clear; they block Reset and automatic replay. The20MB archive safety bound may refuse further writes rather than discard protected unresolved facts.
+
+Sourcee8e94ab records committed Chrome-clear counts separately and distinguishes inspection-preference reset failures from appearance/remaining-preference failures. Partial Clear/Reset feedback identifies completed effects without claiming untouched preferences were reset. Original files and macOS access grants remain unchanged by local-data maintenance.
+
+## Remaining #19 gates
+
+Final app/test candidate isfe83162, following the cancellation and precise-maintenance fixes. Local build-for-testing is green; that build alone is not native journey or visual acceptance.
+
+Final focused native UI journeys, affected Downloads/History regressions, reviewed original Still Light/Dark captures at initial/minimum sizes, and final source review/integration are pending. DEBUG disposable UI fixtures qualify public journeys only; they do not substitute for genuine Chrome compatibility proof. Source23e2219's successful adapter qualification does not certify later UI/cancellation/maintenance edits. No full-suite, comprehensive accessibility/localization, additional OS/CPU, Safari/GPU/code-cache, shared/managed/redirected-layout or commercial-signing qualification is claimed.
