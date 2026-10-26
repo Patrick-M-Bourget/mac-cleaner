@@ -66,9 +66,13 @@ public struct CleanupRule: Sendable, Identifiable {
     public let protectedNames: [String]
     /// The command a `.tool` rule runs; nil for every other action.
     public let tool: ToolCommand?
-    public init(id: String, category: CatalogCategory, title: String, detail: String, consequence: String, regen: RegenClass, action: CleanupAction, locations: [String], owner: RuleOwner?, protectedNames: [String] = [], tool: ToolCommand? = nil) {
+    /// For `*` locations named by version (DeviceSupport): keep this many newest versions in each folder.
+    /// Children whose name has no version are then never offered.
+    public let keepNewestVersions: Int?
+    public init(id: String, category: CatalogCategory, title: String, detail: String, consequence: String, regen: RegenClass, action: CleanupAction, locations: [String], owner: RuleOwner?, protectedNames: [String] = [], tool: ToolCommand? = nil, keepNewestVersions: Int? = nil) {
         self.id = id; self.category = category; self.title = title; self.detail = detail; self.consequence = consequence
         self.regen = regen; self.action = action; self.locations = locations; self.owner = owner; self.protectedNames = protectedNames; self.tool = tool
+        self.keepNewestVersions = keepNewestVersions
     }
 }
 
@@ -125,6 +129,12 @@ public enum BuiltInCatalog {
                     consequence: "Permanently removed. Xcode rebuilds them; the next build and indexing take longer. Archives and your projects are not touched.",
                     regen: .build, action: .delete, locations: ["Library/Developer/Xcode/DerivedData/*"],
                     owner: xcode),
+        CleanupRule(id: "xcode-device-support", category: .developer, title: "Old device support files",
+                    detail: "Debug symbols Xcode copied from each OS version of your devices. The 2 newest versions per platform are kept.",
+                    consequence: "Permanently removed. Xcode copies them again if you connect a device running one of those versions.",
+                    regen: .build, action: .delete,
+                    locations: ["iOS", "watchOS", "tvOS", "visionOS", "macOS"].map { "Library/Developer/Xcode/\($0) DeviceSupport/*" },
+                    owner: xcode, keepNewestVersions: 2),
     ]
 
     /// Xcode and the build processes that write into DerivedData, including command-line builds.
@@ -168,7 +178,7 @@ public struct Catalog: Sendable {
         return rules.flatMap { rule -> [Candidate] in
             let toolURL = rule.tool.flatMap(locateTool)
             guard rule.action != .tool || toolURL != nil else { return [] }
-            return rule.locations.flatMap { Self.expand($0, in: base) }.compactMap { relative -> Candidate? in
+            return rule.locations.flatMap { Self.expand($0, in: base, keepNewestVersions: rule.keepNewestVersions) }.compactMap { relative -> Candidate? in
                 guard Self.neverOffered.isDisjoint(with: relative.split(separator: "/").map(String.init)) else { return nil }
                 let url = base.appendingPathComponent(relative)
                 var info = stat()
@@ -187,7 +197,7 @@ public struct Catalog: Sendable {
     /// At most this many children of a `*` location are offered.
     static let childLimit = 1_000
     /// A plain location as is; a `parent/*` location as each real folder directly inside `parent`.
-    static func expand(_ relative: String, in base: URL) -> [String] {
+    static func expand(_ relative: String, in base: URL, keepNewestVersions keep: Int? = nil) -> [String] {
         guard relative.hasSuffix("/*") else { return [relative] }
         let parent = String(relative.dropLast(2))
         var info = stat()
@@ -197,6 +207,21 @@ public struct Catalog: Sendable {
             var child = stat()
             return !name.hasPrefix(".") && lstat(base.appendingPathComponent(parent + "/" + name).path, &child) == 0 && child.st_mode & S_IFMT == S_IFDIR
         }
-        return folders.sorted().prefix(childLimit).map { parent + "/" + $0 }
+        var offered = folders
+        if let keep {
+            let versions = Dictionary(uniqueKeysWithValues: folders.compactMap { name in version(in: name).map { (name, $0) } })
+            let kept = Set(versions.values).sorted { $0.lexicographicallyPrecedes($1) }.suffix(keep)
+            offered = folders.filter { versions[$0].map { !kept.contains($0) } ?? false }
+        }
+        return offered.sorted().prefix(childLimit).map { parent + "/" + $0 }
+    }
+
+    /// The version in a DeviceSupport folder name: "17.0 (21A329)" or "iPhone15,2 17.0.1 (21A340)" give [17, 0] and [17, 0, 1].
+    static func version(in name: String) -> [Int]? {
+        for word in name.split(separator: " ") where word.first?.isNumber == true {
+            let parts = word.split(separator: ".", omittingEmptySubsequences: false).map { Int($0) }
+            if !parts.contains(nil) { return parts.compactMap { $0 } }
+        }
+        return nil
     }
 }

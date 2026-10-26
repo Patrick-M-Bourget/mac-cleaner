@@ -88,3 +88,20 @@ private struct Processes: RunningAppChecking {
     #expect(!FileManager.default.fileExists(atPath: home.appendingPathComponent(derivedData + "/Still-abc").path))
     #expect(FileManager.default.fileExists(atPath: home.appendingPathComponent(derivedData).path))
 }
+
+@Test func deviceSupportKeepsTheTwoNewestVersionsOfEachPlatform() throws {
+    let home = try fixtureHome()
+    defer { try? FileManager.default.removeItem(at: home) }
+    let ios = "Library/Developer/Xcode/iOS DeviceSupport/"
+    // Older Xcode names folders "<version> (<build>)"; newer ones prefix the device model.
+    for name in ["16.4 (20E247)", "17.0 (21A329)", "iPhone15,2 17.0.1 (21A340)", "17.5 (21F79)", "iPhone15,2 18.1 (22B83)", "iPhone16,1 18.1 (22B83)", "Unknown"] {
+        try makeFolder(home, ios + name)
+    }
+    try makeFolder(home, "Library/Developer/Xcode/watchOS DeviceSupport/Watch6,1 10.0 (21R356)")
+    try makeFolder(home, "Library/Developer/Xcode/watchOS DeviceSupport/Watch6,1 9.6 (20U73)")
+    try makeFolder(home, "Library/Developer/Xcode/watchOS DeviceSupport/Watch6,1 9.1 (20S75)")
+    let found = Catalog(rules: BuiltInCatalog.rules).discover(home: home)
+    #expect(found.allSatisfy { $0.ruleID == "xcode-device-support" && $0.action == .delete })
+    // 18.1 and 17.5 stay for iOS, 10.0 and 9.6 for watchOS; a name without a version is never offered.
+    #expect(Set(found.map(\.url.lastPathComponent)) == ["16.4 (20E247)", "17.0 (21A329)", "iPhone15,2 17.0.1 (21A340)", "Watch6,1 9.1 (20S75)"])
+}
