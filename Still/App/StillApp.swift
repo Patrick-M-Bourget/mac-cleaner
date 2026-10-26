@@ -76,6 +76,8 @@ enum Destination: String, CaseIterable, Identifiable {
     var diagnosticsOffset: CGPoint?
     var diagnosticsModel = DiagnosticsModel()
     var accessGuideExpanded = false
+    /// Overview's App-managed storage page (Decision 25).
+    var appManagedVisible = false
 }
 
 private struct WorkspaceView: View {
@@ -118,6 +120,7 @@ private struct WorkspaceView: View {
         if homebrewVisible { return "Read-only Homebrew inventory" }
         if pipVisible { return "Read-only pip inventory" }
         if exclusionsVisible { return "Custom scan exclusions" }
+        if navigationState.appManagedVisible { return nil }
         switch destination {
         case .overview: return nil
         case .plan: return "Choose files, then review"
@@ -186,6 +189,8 @@ private struct WorkspaceView: View {
                             ExclusionsView(model: ExclusionsModel.shared)
                         } else if diagnosticsVisible {
                             DiagnosticsView(model: diagnostics)
+                        } else if navigationState.appManagedVisible {
+                            AppManagedStorageView(model: selection.catalog) { navigationState.appManagedVisible = false }
                         } else if pipVisible {
                             PipInspectionView { pipVisible = false; destination = .overview }
                         } else if homebrewVisible {
@@ -209,7 +214,7 @@ private struct WorkspaceView: View {
                                 DestinationViewport(offset: $navigationState.diagnosticsOffset).frame(width: 0, height: 0)
                             } else if navigationState.localRecordsVisible && !recoveryVisible {
                                 DestinationViewport(offset: $navigationState.localRecordsOffset).frame(width: 0, height: 0)
-                            } else if !recoveryVisible && !diagnosticsVisible && !exclusionsVisible && !pipVisible && !homebrewVisible {
+                            } else if !recoveryVisible && !diagnosticsVisible && !exclusionsVisible && !pipVisible && !homebrewVisible && !navigationState.appManagedVisible {
                                 if destination == .history {
                                     DestinationViewport(offset: $navigationState.historyOffset).frame(width: 0, height: 0)
                                 } else if destination == .growth {
@@ -221,7 +226,7 @@ private struct WorkspaceView: View {
                                 }
                             }
                         }
-                }.id(recoveryVisible ? "recovery" : diagnosticsVisible ? "diagnostics" : navigationState.localRecordsVisible ? "local-records" : destination.rawValue)
+                }.id(recoveryVisible ? "recovery" : diagnosticsVisible ? "diagnostics" : navigationState.localRecordsVisible ? "local-records" : navigationState.appManagedVisible ? "app-managed" : destination.rawValue)
 
                 Group {
                     if exclusionsVisible {
@@ -286,7 +291,7 @@ private struct WorkspaceView: View {
             explorerContext.downloadsScopes = Set(locationsModel.includedDownloads.map { URL(fileURLWithPath: $0.path).standardizedFileURL })
         }
         .onAppear { AppLifecycleController.shared.openWorkspace = { openWindow(id: "workspace") } }
-        .onReceive(NotificationCenter.default.publisher(for: .stillAlertOpened)) { _ in destination = .overview; navigationState.localRecordsVisible = false; exclusionsVisible = false; diagnosticsVisible = false; recoveryVisible = false; nativeInspectionVisible = false; homebrewVisible = false; pipVisible = false }
+        .onReceive(NotificationCenter.default.publisher(for: .stillAlertOpened)) { _ in destination = .overview; navigationState.localRecordsVisible = false; navigationState.appManagedVisible = false; exclusionsVisible = false; diagnosticsVisible = false; recoveryVisible = false; nativeInspectionVisible = false; homebrewVisible = false; pipVisible = false }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in Task { await alerts.activated() } }
         .onReceive(NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.didWakeNotification)) { _ in Task { await alerts.activated() } }
         .toolbar {
@@ -317,14 +322,14 @@ private struct WorkspaceView: View {
     }
 
     private var scanReturnAction: (() -> Void)? {
-        let atOrigin = destination == scanOrigin && !navigationState.localRecordsVisible && !nativeInspectionVisible && !diagnosticsVisible && !exclusionsVisible && !recoveryVisible && !homebrewVisible && !pipVisible
+        let atOrigin = destination == scanOrigin && !navigationState.localRecordsVisible && !navigationState.appManagedVisible && !nativeInspectionVisible && !diagnosticsVisible && !exclusionsVisible && !recoveryVisible && !homebrewVisible && !pipVisible
         if atOrigin { return nil }
         return { returnToScanOrigin() }
     }
 
     private func returnToScanOrigin() {
         destination = scanOrigin
-        navigationState.localRecordsVisible = false
+        navigationState.localRecordsVisible = false; navigationState.appManagedVisible = false
         nativeInspectionVisible = false; diagnosticsVisible = false
         exclusionsVisible = false; recoveryVisible = false; homebrewVisible = false
         pipVisible = false
@@ -338,7 +343,7 @@ private struct WorkspaceView: View {
         destination = value
         planReturnsToExplorer = false
         if value == .plan && selection.hasWorkspaceResult { startNewPlan() }
-        navigationState.localRecordsVisible = false
+        navigationState.localRecordsVisible = false; navigationState.appManagedVisible = false
         diagnosticsVisible = false; exclusionsVisible = false
         recoveryVisible = false; navigationState.recoveryCaller = .overview; nativeInspectionVisible = false; homebrewVisible = false
         pipVisible = false
@@ -454,7 +459,13 @@ private struct WorkspaceView: View {
                 if let trash = summary?.proposedForTrash, trash != .measured(0) {
                     Text("Estimated release excludes " + trash.text + " proposed for Trash.").font(.caption).foregroundStyle(.secondary)
                 }
-                GuidanceSection(model: catalog)
+                if !catalog.guidance.isEmpty {
+                    RecommendationGroup {
+                        StorageReviewRow(category: .managed, title: "App-managed storage", detail: "", value: StillDesign.items(catalog.guidance.count),
+                                         actionTitle: "Review app-managed storage", action: { navigationState.appManagedVisible = true },
+                                         identifier: "overviewAppManaged", mutedValue: true)
+                    }
+                }
             }
     }
     private func catalogRow(_ row: CatalogOverview.Row) -> some View {

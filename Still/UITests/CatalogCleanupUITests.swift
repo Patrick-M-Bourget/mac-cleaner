@@ -616,18 +616,25 @@ final class GuidanceUITests: XCTestCase {
         app.launch()
 
         XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
+        // One Overview row leads to the App-managed storage page.
+        let entry = app.buttons["overviewAppManaged"]
+        XCTAssertTrue(entry.waitForExistence(timeout: 10))
+        XCTAssertFalse(app.buttons["guidance-photos-library"].exists)
+        revealAndClick(entry, in: app)
         let photos = app.buttons["guidance-photos-library"]
         XCTAssertTrue(photos.waitForExistence(timeout: 10))
-        XCTAssertTrue((photos.value as? String)?.contains("Open Photos") == true)
-        XCTAssertTrue((app.buttons["guidance-messages-attachments"].value as? String)?.contains("Not accessible") == true)
-        XCTAssertTrue(app.descendants(matching: .any)["guidanceAccess-messages-attachments"].exists)
-        XCTAssertFalse(app.descendants(matching: .any)["guidanceAccess-time-machine-snapshots"].exists)
+        XCTAssertEqual(photos.label, "Open Photos")
+        XCTAssertTrue((app.buttons["guidance-messages-attachments"].value as? String)?.contains("Needs access") == true)
+        // One access note for the page; Messages is the only protected place the fixture can't read.
+        XCTAssertTrue(app.descendants(matching: .any)["guidanceAccess"].exists)
+        XCTAssertTrue(app.staticTexts["1 location needs Full Disk Access ·"].exists)
         XCTAssertTrue((app.buttons["guidance-time-machine-snapshots"].value as? String)?.contains("2 snapshots · Size unknown") == true)
         XCTAssertTrue(app.buttons["guidance-xcode-archives"].exists)
         revealAndClick(photos, in: app)
         XCTAssertTrue(app.staticTexts["guidanceStatus"].waitForExistence(timeout: 5))
         XCTAssertEqual(app.staticTexts["guidanceStatus"].value as? String, "Test run: would open Photos.")
 
+        app.buttons["appManagedBack"].click()
         revealAndClick(app.buttons["overviewCategory-developer"], in: app)
         XCTAssertTrue(app.descendants(matching: .any)["planRule-npm-cache"].waitForExistence(timeout: 5))
         for id in ["photos-library", "xcode-archives", "messages-attachments", "time-machine-snapshots"] {
