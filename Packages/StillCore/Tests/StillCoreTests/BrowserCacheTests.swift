@@ -129,3 +129,54 @@ private let firefoxProfileData = ["cookies.sqlite", "places.sqlite", "logins.jso
     #expect(owner.matches(["/Applications/Firefox Nightly.app/Contents/MacOS/firefox", "-foreground"]))
     #expect(owner.matches(["/Applications/Firefox.app/Contents/MacOS/plugin-container.app/Contents/MacOS/plugin-container", "-isForBrowser"]))
 }
+
+private func writeText(_ root: URL, _ relative: String, _ text: String) throws {
+    let file = root.appendingPathComponent(relative)
+    try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
+    try Data(text.utf8).write(to: file)
+}
+
+@Test func aBrowserWhoseCacheLocationIsOverriddenIsLeftAlone() throws {
+    let catalog = Catalog(rules: BuiltInCatalog.rules)
+    let overrides: [(String, String, String)] = [
+        // Chrome's disk cache folder set in its Local State, in user preferences, or by an administrator.
+        ("home", "Library/Application Support/Google/Chrome/Local State", #"{"browser":{"disk_cache_dir":"/Volumes/Fast/ChromeCache"}}"#),
+        ("home", "Library/Preferences/com.google.Chrome.plist", plist(["DiskCacheDir": "/tmp/c"])),
+        ("system", "Library/Managed Preferences/com.google.Chrome.plist", plist(["UserDataDir": "/Users/Shared/Chrome"])),
+        ("system", "Library/Managed Preferences/\(NSUserName())/com.google.Chrome.plist", plist(["DiskCacheDir": "/tmp/c"])),
+        ("system", "Library/Preferences/com.google.Chrome.plist", plist(["DiskCacheDir": "/tmp/c"])),
+    ]
+    for (base, relative, contents) in overrides {
+        let home = try fixtureHome(), system = try fixtureHome()
+        defer { try? FileManager.default.removeItem(at: home); try? FileManager.default.removeItem(at: system) }
+        try makeChrome(home, profiles: ["Default": 100])
+        #expect(catalog.discover(home: home, systemRoot: system).count == 2)
+        try writeText(base == "home" ? home : system, relative, contents)
+        #expect(catalog.discover(home: home, systemRoot: system).isEmpty, "\(relative)")
+        #expect(catalog.overriddenRules(home: home, systemRoot: system).map(\.id) == ["chrome-cache"], "\(relative)")
+    }
+    // Unrelated settings in the same files change nothing.
+    let home = try fixtureHome(), system = try fixtureHome()
+    defer { try? FileManager.default.removeItem(at: home); try? FileManager.default.removeItem(at: system) }
+    try makeChrome(home, profiles: ["Default": 100])
+    try writeText(home, "Library/Application Support/Google/Chrome/Local State", #"{"browser":{"enabled_labs_experiments":[]}}"#)
+    try writeText(system, "Library/Managed Preferences/com.google.Chrome.plist", plist(["HomepageLocation": "https://example.com"]))
+    #expect(catalog.discover(home: home, systemRoot: system).count == 2)
+    #expect(catalog.overriddenRules(home: home, systemRoot: system).isEmpty)
+}
+
+@Test func firefoxWithAMovedCacheIsLeftAlone() throws {
+    let home = try fixtureHome()
+    defer { try? FileManager.default.removeItem(at: home) }
+    try write(home, "Library/Caches/Firefox/Profiles/ab12.default-release/cache2/entries/0A1B")
+    try writeText(home, "Library/Application Support/Firefox/Profiles/ab12.default-release/prefs.js", #"user_pref("browser.startup.page", 3);"#)
+    let catalog = Catalog(rules: BuiltInCatalog.rules)
+    #expect(catalog.discover(home: home, systemRoot: home).map(\.ruleID) == ["firefox-cache"])
+    try writeText(home, "Library/Application Support/Firefox/Profiles/ab12.default-release/user.js",
+                  #"user_pref("browser.cache.disk.parent_directory", "/Volumes/Fast/ff");"#)
+    #expect(catalog.discover(home: home, systemRoot: home).isEmpty)
+}
+
+private func plist(_ values: [String: String]) -> String {
+    String(decoding: try! PropertyListSerialization.data(fromPropertyList: values, format: .xml, options: 0), as: UTF8.self)
+}

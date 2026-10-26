@@ -84,12 +84,14 @@ public struct CleanupRule: Sendable, Identifiable {
     public let tool: ToolCommand?
     /// Extensions never acted on as the item or an ancestor, on top of the global ones.
     public let protectedExtensions: [String]
+    /// Settings that move the owner's data elsewhere. When one is set the rule offers nothing.
+    public let layoutOverrides: [LayoutOverride]
     /// When set, candidates are the matching files inside each location, not the location.
     public let contents: ContentsMatch?
-    public init(id: String, category: CatalogCategory, title: String, detail: String, consequence: String, regen: RegenClass, action: CleanupAction, locations: [String], owner: RuleOwner?, protectedNames: [String] = [], tool: ToolCommand? = nil, protectedExtensions: [String] = [], contents: ContentsMatch? = nil) {
+    public init(id: String, category: CatalogCategory, title: String, detail: String, consequence: String, regen: RegenClass, action: CleanupAction, locations: [String], owner: RuleOwner?, protectedNames: [String] = [], tool: ToolCommand? = nil, protectedExtensions: [String] = [], contents: ContentsMatch? = nil, layoutOverrides: [LayoutOverride] = []) {
         self.id = id; self.category = category; self.title = title; self.detail = detail; self.consequence = consequence
         self.regen = regen; self.action = action; self.locations = locations; self.owner = owner; self.protectedNames = protectedNames; self.tool = tool
-        self.protectedExtensions = protectedExtensions; self.contents = contents
+        self.protectedExtensions = protectedExtensions; self.contents = contents; self.layoutOverrides = layoutOverrides
     }
 }
 
@@ -198,10 +200,14 @@ public struct Catalog: Sendable {
 
     /// Sizes only the rules' known locations under `home`. Read-only. An item two rules match is offered once, by the first.
     /// A `.tool` rule appears only when `locateTool` finds its executable.
-    public func discover(home: URL, sizer: KnownLocationSizer = KnownLocationSizer(), now: Date = Date(), locateTool: (ToolCommand) -> URL? = ToolCommand.installed) -> [Candidate] {
+    /// Absolute paths in a rule's layout overrides are read under `systemRoot`.
+    public func discover(home: URL, sizer: KnownLocationSizer = KnownLocationSizer(), now: Date = Date(), locateTool: (ToolCommand) -> URL? = ToolCommand.installed,
+                         systemRoot: URL = URL(fileURLWithPath: "/")) -> [Candidate] {
         let base = home.resolvingSymlinksInPath()
         var seen = Set<String>()
+        let overridden = Set(overriddenRules(home: home, systemRoot: systemRoot).map(\.id))
         return rules.flatMap { rule -> [Candidate] in
+            guard !overridden.contains(rule.id) else { return [] }
             let toolURL = rule.tool.flatMap(locateTool)
             guard rule.action != .tool || toolURL != nil else { return [] }
             return rule.locations.flatMap { Self.expand(base, $0) }.flatMap { url, matched -> [Candidate] in
