@@ -80,7 +80,8 @@ public struct CatalogExecutionResult: Sendable {
 }
 
 extension CleanupRecord {
-    init(batchID: UUID, approvedAt: Date, candidate: Candidate, previewOnly: Bool) {
+    /// A pending record for one approved candidate, written when a run claims its batch.
+    public init(batchID: UUID, approvedAt: Date, candidate: Candidate, previewOnly: Bool) {
         id = batchID.uuidString + "|" + candidate.id; self.batchID = batchID; originalURL = candidate.url
         resourceID = candidate.resourceID; logicalBytes = candidate.logicalBytes; allocatedBytes = candidate.allocatedBytes
         state = .pending; trashURL = nil; message = "Approved; not started"; observedAt = candidate.observedAt
