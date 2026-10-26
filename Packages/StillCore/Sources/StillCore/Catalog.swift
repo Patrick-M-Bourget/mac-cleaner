@@ -115,12 +115,15 @@ public struct Catalog: Sendable {
     public let rules: [CleanupRule]
     public init(rules: [CleanupRule]) { self.rules = rules }
     public func rule(_ id: String) -> CleanupRule? { rules.first { $0.id == id } }
+    /// Load-bearing caches that are never offered, whatever a rule says (spec section 2).
+    public static let neverOffered: Set<String> = ["ccache", ".ccache", "sccache"]
 
     /// Sizes only the rules' known locations under `home`. Read-only.
     public func discover(home: URL, sizer: KnownLocationSizer = KnownLocationSizer()) -> [Candidate] {
         let base = home.resolvingSymlinksInPath()
         return rules.flatMap { rule in
             rule.locations.compactMap { relative -> Candidate? in
+                guard Self.neverOffered.isDisjoint(with: relative.split(separator: "/").map(String.init)) else { return nil }
                 let url = base.appendingPathComponent(relative)
                 var info = stat()
                 guard lstat(url.path, &info) == 0, info.st_uid == geteuid(),

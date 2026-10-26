@@ -59,3 +59,25 @@ private func owner(_ id: String) throws -> RuleOwner { try #require(BuiltInCatal
         for argv in unrelated { #expect(!owner.matches(argv), "\(rule) should ignore \(argv)") }
     }
 }
+
+@Test func ccacheIsNeverACandidateEvenWhenARuleNamesIt() throws {
+    let home = try fixtureHome()
+    defer { try? FileManager.default.removeItem(at: home) }
+    for folder in ["Library/Caches/ccache", ".ccache", ".cache/ccache", "Library/Caches/Yarn"] { try makeFolder(home, folder) }
+    #expect(Catalog(rules: BuiltInCatalog.rules).discover(home: home).map(\.ruleID) == ["yarn-cache"])
+    let greedy = Catalog(rules: [CleanupRule(id: "greedy", category: .developer, title: "Caches", detail: "", consequence: "", regen: .cache, action: .delete,
+                                             locations: ["Library/Caches/ccache", ".ccache", ".cache/ccache", "Library/Caches/Yarn"], owner: nil)])
+    #expect(greedy.discover(home: home).map(\.url.lastPathComponent) == ["Yarn"])
+}
+
+private struct NothingRunning: RunningAppChecking { func isRunning(_ owner: RuleOwner) -> Bool? { false } }
+
+@Test func aFolderHoldingACcacheStoreIsRefusedJustBeforeActing() throws {
+    let home = try fixtureHome()
+    defer { try? FileManager.default.removeItem(at: home) }
+    try makeFolder(home, ".cache/uv")
+    let catalog = Catalog(rules: BuiltInCatalog.rules)
+    let candidate = try #require(catalog.discover(home: home).first)
+    try makeFolder(home, ".cache/uv/ccache")
+    #expect(CandidateCheck(catalog: catalog, running: NothingRunning()).check(candidate) == .protected("ccache"))
+}
