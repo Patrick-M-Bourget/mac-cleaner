@@ -141,7 +141,7 @@ Final protected-semantic extension27c1db6 additionally passes genuine synthetic 
 `chrome-stable-final` runs only on fresh GitHub-hosted macOS. It independently
 exercises (1) browser-reported standard Default profile/cache association,
 shared helper cleanup and regrowth; (2) ordinary headed password/address UI and
-post-clean fill plus visible download history; and (3) native during-work reopen,
+post-clean password fill/saved-address retrieval plus visible download history; and (3) native during-work reopen,
 index replacement and actual mode denial. A failed lane stays failed; artifacts
 retain its observations. This is not the production cleaner or a personal-data
 inspection tool.
@@ -162,8 +162,12 @@ cleanup, then requires a real asset re-request and cache regeneration.
 `headed.mjs` uses synthetic credentials/addresses saved through Chrome UI, normal
 rendered controls/input and real relaunch; no direct DB/preferences/Keychain
 manipulation. It never supplies test autofill records through a private service.
-An address-fill baseline must pass before deletion, distinguishing a fixture
-interaction failure from a preservation failure. `native-faults.py` widens its
+A normal settings Edit baseline must show the exact synthetic saved address
+before deletion; the same record is read after relaunch and Web Data bytes are
+compared around cleanup. Earlier native form-suggestion preview did not commit
+through the automation before cleanup; that failure stays recorded and is not
+claimed as form-fill support. Saved-address record retention is the bounded
+protection requirement evaluated here. `native-faults.py` widens its
 observation interval with explicit 1000ms pacing; this proves detected conflicts,
 not arbitrary race exclusion. Completed cases are saved incrementally.
 
