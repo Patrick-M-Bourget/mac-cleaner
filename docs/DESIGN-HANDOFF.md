@@ -103,7 +103,7 @@ Results distinguish succeeded, failed, skipped, cancelled and unknown outcomes. 
 
 ### Browser review
 
-For the revised Chrome-only contract, selection/confirmation names the verified profile and downloaded-asset cache group, with observed estimate/time and a warning that eligible contents can change before execution. It does not promise a frozen file list. New profiles/groups stay unchecked; detected activity or conflicting scope changes stop unstarted work. All personal-file/Downloads exact-target controls above remain unchanged. #18 capability qualification is complete; #19 now implements this composition with final native UI and visual review pending. Browser probes alone do not qualify the Still screen.
+For the revised Chrome-only contract, selection/confirmation names the verified profile and downloaded-asset cache group, with observed estimate/time and a warning that eligible contents can change before execution. It does not promise a frozen file list. New profiles/groups stay unchecked; detected activity or conflicting scope changes stop unstarted work. All personal-file/Downloads exact-target controls above remain unchanged. #18 capability qualification is complete; #19 implements this composition with qualified native UI and visual evidence recorded in validation/chrome-cleanup.md. Browser probes alone do not qualify the Still screen.
 
 Group by verified browser/profile or explicitly shared cache group. Show running, denied, unknown mapping, unsupported version and empty states. Close-browser guidance never force-quits the browser. Rescan refreshes eligibility; newly eligible groups stay unchecked. A selected group that becomes ineligible is removed with an explanation. Review and inline plan controls ultimately apply to the same committed targets.
 
@@ -149,7 +149,7 @@ Keep selected identities visible as pending during refresh; disable execution. A
 
 Initial success means useful understanding, confident approval and observed capacity after real personal sessions. Evaluate recurrence in a later manual session; no background metric collection is implied.
 
-For Downloads-only selection, the summary headline is **Selected for Trash**, with an explicit statement that space remains occupied until Finder empties Trash. When any Chrome cache group is selected, including Chrome-only selection, use **Selected for cleanup** and identify Downloads file and Chrome group counts separately. Explain permanent cache removal/regrowth alongside Trash-held space; no combined estimate promises released disk space. Source9ba40be implements the shared title distinction, with final native presentation verification pending.
+For Downloads-only selection, the summary headline is **Selected for Trash**, with an explicit statement that space remains occupied until Finder empties Trash. When any Chrome cache group is selected, including Chrome-only selection, use **Selected for cleanup** and identify Downloads file and Chrome group counts separately. Explain permanent cache removal/regrowth alongside Trash-held space; no combined estimate promises released disk space. Source9ba40be implements the shared title distinction; final native presentation is qualified atceec55f as recorded in validation/chrome-cleanup.md.
 
 ## Implemented session lifecycle — #7
 
@@ -307,3 +307,8 @@ The plan summary uses **Selected for cleanup** whenever Chrome groups are select
 
 
 Source345d723 adds the shared results hierarchy and Chrome-only initial/minimum public journey/captures; native presentation and original-image acceptance remain pending. It changes presentation and coverage, not approval, mutation or compatibility scope.
+
+
+## Xcode flow lock — grilling #16/#17
+
+The user confirmed Q1–Q3 in [XCODE-CLEANUP](XCODE-CLEANUP.md): remaining qualification must lead to the complete developer cleanup journey; initial targets are verified project-specific generated intermediates; inspection may run while Xcode is open, but cleanup requires closed owners. Other generated categories remain future scope. The remaining decision frontier is open, #17 remains blocked by #16, and no new cleanup capability is enabled. Preserve the approved shared plan/confirmation/results design and exact personal-file protections.

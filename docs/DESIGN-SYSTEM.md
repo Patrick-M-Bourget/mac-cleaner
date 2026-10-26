@@ -274,3 +274,8 @@ Chrome review uses PageHeader, SummarySurface, CategoryBadge, StatusRow and the 
 
 
 For any active or completed workspace that includes Chrome, the parent composes one shared PageHeader: **Running cleanup** during execution and **Cleanup results** afterward, with the separate permanent-cache and Downloads-to-Trash consequences. `CleanupExecutionView.showsHeader` defaults to `true` to preserve the existing Downloads-only page; the mixed parent suppresses that child header to avoid making a browser-only or mixed result appear to be a Trash-only operation. `ChromeResultsSection` remains its own labelled per-group section beneath the shared header. Review both the top-level hierarchy and the lower browser results viewport in original captures. Source345d723 implements this presentation; its native presentation verification is pending.
+
+
+## Xcode shared-component scope — grilling #16/#17
+
+The user confirmed Q1–Q3 in [XCODE-CLEANUP](XCODE-CLEANUP.md): remaining qualification must lead to the complete developer cleanup journey; initial targets are verified project-specific generated intermediates; inspection may run while Xcode is open, but cleanup requires closed owners. Other generated categories remain future scope. The remaining decision frontier is open, #17 remains blocked by #16, and no new cleanup capability is enabled. Preserve the approved shared plan/confirmation/results design and exact personal-file protections.
