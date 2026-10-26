@@ -45,7 +45,7 @@ extension CleanupRule {
         case "photos-library": .photos
         case "time-machine-snapshots": .timeMachine
         case "xcode-archives": .xcodeArchives
-        case "audio-plug-ins": .audioPlugIns
+        case "audio-plug-ins", "rack-extensions": .audioPlugIns
         default: .managed
         }
     }

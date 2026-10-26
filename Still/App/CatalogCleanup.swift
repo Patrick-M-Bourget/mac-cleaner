@@ -27,6 +27,8 @@ import SwiftUI
     }
     private(set) var isScanning = false
     private(set) var hasScanned = false
+    /// The running catalog scan's progress, one location at a time (#128); nil when no scan is running.
+    private(set) var scanProgress: CatalogScanProgress?
     /// Watches for Full Disk Access being granted while Still was away (#124, `rescanIfFullDiskAccessGranted`).
     var fullDiskAccessRescan = FullDiskAccessRescan()
     /// Chosen candidate ids. Nothing is preselected unless the user asks for the recommended plan (Decision 28).
@@ -144,8 +146,17 @@ import SwiftUI
         return SystemUbiquitousItems()
     }
 
-    /// Overview's summary; nil until the first scan of the known locations has finished.
-    var overview: CatalogOverview? { hasScanned ? CatalogOverview(catalog: catalog, candidates: discovered) : nil }
+    /// Overview's summary. While the first scan runs it covers the locations finished so far, so rows and the total fill in
+    /// as each one completes (#128); nil until the first one has.
+    var overview: CatalogOverview? {
+        if hasScanned { return CatalogOverview(catalog: catalog, candidates: discovered) }
+        return scanProgress.flatMap { $0.finished > 0 ? CatalogOverview(catalog: catalog, candidates: $0.found) : nil }
+    }
+    /// "Checking Xcode DerivedData… 4 of 31": one quiet line while the catalog scan runs (Decision 25).
+    var scanProgressText: String {
+        guard let progress = scanProgress, progress.total > 0 else { return "Checking known locations…" }
+        return "Checking \(progress.title)… \(progress.number) of \(progress.total)"
+    }
     /// Owners of the rule's items that were running at the last scan, in name order.
     func runningOwnerNames(for rule: CleanupRule) -> [String] {
         Set(candidates(for: rule).compactMap { ownerNames[$0.id] }).intersection(runningOwners).sorted()
@@ -224,8 +235,8 @@ import SwiftUI
     /// Read-only sizing of the catalog's known locations.
     func scan() async {
         guard canEdit else { return }
-        isScanning = true; message = nil
-        defer { isScanning = false; hasScanned = true }
+        isScanning = true; message = nil; scanProgress = CatalogScanProgress()
+        defer { isScanning = false; hasScanned = true; scanProgress = nil }
         guard let home = Self.home else { discovered = []; notes = []; overriddenRules = []; notAccessibleRules = []; setRunning([:], open: []); ownerNames = [:]; return }
         // Excluded items are never offered (SPEC section 2); without the settings nothing can be offered safely.
         guard let exclusions = try? await ExclusionsModel.shared.policyForScan() else {
@@ -238,16 +249,26 @@ import SwiftUI
         // What grew records each completed catalog scan (#119).
         let growth = await GrowthHistoryModel.shared.beginCatalog(home: home, exclusionFingerprint: exclusions.fingerprint)
         let quitter = Self.quitter
+        // Discovery reports each location as it goes; the steps reach the main actor in order (#128).
+        let (steps, reporter) = AsyncStream.makeStream(of: CatalogDiscoveryProgress.self)
+        let progress = Task { for await step in steps { scanProgress?.apply(step) } }
         let scanned = await Task.detached(priority: .userInitiated) { () -> (CatalogDiscovery, [CleanupRule], ([String: RuleOwner], Set<String>), [String: String], FullDiskAccessStatus) in
             // Probed once per scan, at launch too, and shared with the guidance scan: it only opens a protected folder
             // and never prompts (#117).
             let access = FullDiskAccessProbe(home: home).status()
             let discovered = catalog.discovery(home: home, userFolder: userFolder, exclusions: exclusions, locateTool: locate, systemRoot: system, cloud: cloud,
-                                               access: access)
+                                               access: access, progress: { step in
+                                                   reporter.yield(step)
+                                                   #if DEBUG
+                                                   if case .finished = step { Self.pauseForTests() }
+                                                   #endif
+                                               })
+            reporter.finish()
             var owners: [String: RuleOwner] = [:], names: [String: String] = [:]
             for candidate in discovered.candidates { if let owner = catalog.owner(for: candidate) { owners[owner.name] = owner; names[candidate.id] = owner.name } }
             return (discovered, catalog.overriddenRules(home: home, systemRoot: system), Self.running(owners, quitter: quitter), names, access)
         }.value
+        await progress.value
         await GrowthHistoryModel.shared.completeCatalog(scanned.0, catalog: catalog, fullDiskAccess: scanned.4, token: growth, afterCleanup: rescanFollowsCleanup)
         rescanFollowsCleanup = false
         fullDiskAccessRescan.scanned(scanned.4)
@@ -255,6 +276,14 @@ import SwiftUI
         keepOnlyCurrentChoices()
         await scanGuidance(home: home, fullDiskAccess: scanned.4)
     }
+    #if DEBUG
+    /// A disposable test run can slow discovery down (`STILL_TEST_DISCOVERY_PAUSE`, seconds after each location), so a UI journey sees
+    /// Overview fill in while the fixture scan runs. Never set outside tests.
+    nonisolated private static func pauseForTests() {
+        guard LocalStateLocation.isDisposableTest, let pause = ProcessInfo.processInfo.environment["STILL_TEST_DISCOVERY_PAUSE"].flatMap(Double.init), pause > 0 else { return }
+        Thread.sleep(forTimeInterval: min(pause, 2))
+    }
+    #endif
     /// Drops chosen items that are no longer offered, and says so.
     private func keepOnlyCurrentChoices() {
         let found = Set(candidates.map(\.id))
@@ -450,6 +479,33 @@ extension Candidate {
     var group: String? { appName ?? profile }
 }
 
+/// How far the catalog scan is: the location being checked, its number, and what the finished ones found.
+struct CatalogScanProgress {
+    var title = ""
+    var number = 0
+    var total = 0
+    var finished = 0
+    var found: [Candidate] = []
+    mutating func apply(_ step: CatalogDiscoveryProgress) {
+        switch step {
+        case .checking(_, let title, let number, let total): self.title = title; self.number = number; self.total = total
+        case .finished(_, let number, _, let found): finished = number; self.found += found
+        }
+    }
+}
+
+/// The catalog scan's progress as one quiet line: a small spinner and "Checking <location>… 4 of 31" (Decision 25).
+struct CatalogScanProgressLine: View {
+    let model: CatalogCleanupModel
+    var body: some View {
+        HStack(spacing: StillDesign.Space.sm) {
+            ProgressView().controlSize(.small).accessibilityHidden(true)
+            Text(model.scanProgressText).font(.caption).foregroundStyle(.secondary).monospacedDigit().lineLimit(1).truncationMode(.middle)
+                .accessibilityIdentifier("catalogScanProgress")
+        }
+    }
+}
+
 /// The Settings dry run. Off by default (Decision 27).
 struct DryRunToggle: View {
     @Bindable var model: CatalogCleanupModel
@@ -485,7 +541,7 @@ struct CatalogPlanSection: View {
                 }
             }
             ForEach(model.notes, id: \.ruleID) { note in StatusRow(text: note.text, symbol: "info.circle", role: .neutral, identifier: "planNote-" + note.ruleID) }
-            if model.isScanning { ProgressView("Checking known locations…") }
+            if model.isScanning { CatalogScanProgressLine(model: model) }
             if let message = model.message { StatusRow(text: message, symbol: "info.circle", role: .caution) }
         }.task { await model.scanIfNeeded() }
     }

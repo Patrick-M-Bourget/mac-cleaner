@@ -67,7 +67,7 @@ private func catalogWith(_ apps: Apps) -> Catalog {
     #expect(refusal == .ownerRunning("Editor"))
     #expect(CandidateCheck(catalog: catalog, running: Running()).check(cache) == nil)
     // Uninstalled since the scan: the owner can no longer be determined, so the cache is refused.
-    #expect(CandidateCheck(catalog: catalogWith(Apps()), running: Running()).check(cache) == .ownerUnknown("com.example.Editor"))
+    #expect(CandidateCheck(catalog: catalogWith(Apps()), running: Running()).check(cache) == .ownerUnknown("Editor"))
 }
 
 @Test func aCacheWhoseOwnerCantBeDeterminedIsNeverOffered() throws {

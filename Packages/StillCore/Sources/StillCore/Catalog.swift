@@ -160,7 +160,7 @@ public enum BuiltInCatalog {
     /// The catalog as the app uses it, with installed apps found through LaunchServices.
     public static let rules: [CleanupRule] = rules(apps: SystemAppLookup())
     /// The catalog with installed apps found by `apps`. Tests pass a fake, so they never depend on this Mac's apps.
-    public static func rules(apps: any AppLookup) -> [CleanupRule] { fixedRules + BrowserCaches.rules + AppCaches.rules(apps: apps) + dockerRules + developerDeviceRules + guidanceRules
+    public static func rules(apps: any AppLookup) -> [CleanupRule] { fixedRules + BrowserCaches.rules + AppDataCaches.rules(apps: apps) + AppCaches.rules(apps: apps) + dockerRules + developerDeviceRules + guidanceRules
         + TemporaryFiles.rules(apps: apps) }
     private static let fixedRules: [CleanupRule] = [
         CleanupRule(id: "npm-cache", category: .developer, title: "npm cache",
@@ -358,7 +358,8 @@ public struct Catalog: Sendable {
     /// `discover`, plus notes on rules that kept items back, such as copies kept because their use couldn't be checked.
     /// A rule that needs Full Disk Access Still doesn't have (`access`) is never read; it comes back in `notAccessible`.
     public func discovery(home: URL, userFolder: URL? = nil, exclusions: ExclusionPolicy = ExclusionPolicy(), inUse: any InUseChecking = SystemInUseChecker(), sizer: KnownLocationSizer = KnownLocationSizer(), now: Date = Date(), locateTool: (ToolCommand) -> URL? = ToolCommand.installed,
-                          systemRoot: URL = URL(fileURLWithPath: "/"), cloud: any UbiquitousItemAccess = SystemUbiquitousItems(), access: FullDiskAccessStatus = .unknown) -> CatalogDiscovery {
+                          systemRoot: URL = URL(fileURLWithPath: "/"), cloud: any UbiquitousItemAccess = SystemUbiquitousItems(), access: FullDiskAccessStatus = .unknown,
+                          progress: (CatalogDiscoveryProgress) -> Void = { _ in }) -> CatalogDiscovery {
         // Guidance rules report their own access (`guidance(home:)`).
         let notAccessible = rules.filter { $0.action != .guidance && $0.access(given: access) == .needsFullDiskAccess }
         let homeBase = home.resolvingSymlinksInPath(), userBase = userFolder
@@ -374,9 +375,10 @@ public struct Catalog: Sendable {
         // simctl's lists are read once per scan for both simulator rules (#134).
         var simulators: [String: Result<SimulatorInventory, ToolPreviewError>] = [:]
         let overridden = Set(overriddenRules(home: home, systemRoot: systemRoot).map(\.id))
-        let candidates = rules.flatMap { rule -> [Candidate] in
-            // Guidance rules are sized by `guidance(home:)` and never become candidates.
-            guard rule.action != .guidance, !overridden.contains(rule.id), let base = rule.base == .home ? homeBase : userBase else { return [] }
+        // Guidance rules are sized by `guidance(home:)` and never become candidates.
+        let checked = rules.filter { $0.action != .guidance && !overridden.contains($0.id) && ($0.base == .home || userBase != nil) }
+        func offered(by rule: CleanupRule) -> [Candidate] {
+            guard let base = rule.base == .home ? homeBase : userBase else { return [] }
             // Looked at but not read: What grew records it as not measured, so access granted later is coverage, not growth.
             if notAccessible.contains(where: { $0.id == rule.id }) { scanned.append(rule.id); return [] }
             // What an earlier cleanup left half-deleted comes back under the same rule, even if its tool is gone.
@@ -453,11 +455,19 @@ public struct Catalog: Sendable {
                 return [found]
             }
             return (found + leftovers).map { $0.found(under: base) }
-        }.filter { candidate in
-            // Excluded items are never candidates (SPEC section 2); the check refuses them again just before acting.
-            // With exclusions set, an item whose volume can't be read can't be cleared of them, so it is left out too.
-            if !exclusions.rules.isEmpty, candidate.volumeID.map({ exclusions.covers(candidate.url, volumeID: $0) }) ?? true { return false }
-            return seen.insert(spaceKey(of: candidate)).inserted
+        }
+        var candidates: [Candidate] = []
+        // One rule at a time, in catalog order, so progress can report each as it finishes (#128).
+        for (index, rule) in checked.enumerated() {
+            progress(.checking(ruleID: rule.id, title: rule.title, number: index + 1, total: checked.count))
+            let kept = offered(by: rule).filter { candidate in
+                // Excluded items are never candidates (SPEC section 2); the check refuses them again just before acting.
+                // With exclusions set, an item whose volume can't be read can't be cleared of them, so it is left out too.
+                if !exclusions.rules.isEmpty, candidate.volumeID.map({ exclusions.covers(candidate.url, volumeID: $0) }) ?? true { return false }
+                return seen.insert(spaceKey(of: candidate)).inserted
+            }
+            candidates += kept
+            progress(.finished(ruleID: rule.id, number: index + 1, total: checked.count, found: kept))
         }
         return CatalogDiscovery(candidates: candidates, notes: notes, scannedRuleIDs: scanned, notAccessible: notAccessible, notMeasured: notMeasured)
     }

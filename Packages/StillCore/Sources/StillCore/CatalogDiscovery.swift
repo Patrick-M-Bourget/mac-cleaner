@@ -20,3 +20,12 @@ public struct CatalogDiscovery: Sendable {
     /// location of a rule whose tool didn't answer (Docker's daemon down). What grew records them as coverage, never as 0.
     public var notMeasured: [String: Set<String>] = [:]
 }
+
+/// Discovery's progress, one rule at a time in catalog order, so a first scan can show what it is checking and fill in as it goes.
+/// Only rules discovery looks at count: not guidance, not overridden by a setting, and with their base folder present.
+public enum CatalogDiscoveryProgress: Sendable {
+    /// The rule `number` of `total` is being checked; `title` names its location for display.
+    case checking(ruleID: String, title: String, number: Int, total: Int)
+    /// The rule is done. `found` is what it added to the discovery's candidates, after exclusions and space another rule already offered.
+    case finished(ruleID: String, number: Int, total: Int, found: [Candidate])
+}
