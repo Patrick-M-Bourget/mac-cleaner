@@ -21,7 +21,7 @@ private func makeFolder(_ home: URL, _ relative: String, bytes: Int = 100) throw
     #expect(catalog.discover(home: home).isEmpty)
     let folders = [
         "Library/Caches/Yarn": "yarn-cache", ".yarn/berry/cache": "yarn-cache",
-        "Library/pnpm/store": "pnpm-store", "Library/Caches/pnpm": "pnpm-store",
+        "Library/Caches/pnpm": "pnpm-cache",
         ".cache/uv": "uv-cache", "Library/Caches/pip": "pip-cache",
         ".cargo/registry": "cargo-cache", ".cargo/git": "cargo-cache",
         ".gradle/caches": "gradle-cache", "Library/Caches/CocoaPods": "cocoapods-cache",
@@ -194,4 +194,44 @@ private func homebrewRun(_ home: URL, script: String, timeout: TimeInterval? = n
     #expect(record.message.contains("exited with status 1"))
     #expect(record.toolOutput == "Error: permission denied")
     #expect(FileManager.default.fileExists(atPath: home.appendingPathComponent("Library/Caches/Homebrew/entry").path))
+}
+
+/// Projects can link into the pnpm store (global virtual store), so the store is only pruned, never deleted.
+@Test func pnpmStoreIsPrunedWithItsOwnCommandAndTheFolderKept() async throws {
+    let home = try fixtureHome()
+    defer { try? FileManager.default.removeItem(at: home) }
+    try makeFolder(home, "Library/pnpm/store", bytes: 3000)
+    try makeFolder(home, "Library/Caches/pnpm", bytes: 500)
+    let marker = home.appendingPathComponent("ran")
+    let pnpm = try fakeTool(home, "echo \"$@\" > '\(marker.path)'")
+    let catalog = Catalog(rules: BuiltInCatalog.rules)
+    let found = catalog.discover(home: home, locateTool: { $0.arguments.first == "store" ? pnpm : nil })
+    let store = try #require(found.first { $0.url.lastPathComponent == "store" })
+    #expect(store.ruleID == "pnpm-store")
+    #expect(store.action == .tool)
+    #expect(catalog.rule("pnpm-store")?.tool?.commandLine == "pnpm store prune")
+    #expect(catalog.rule("pnpm-store")?.tool?.deletesLocationAfter == false)
+    // pnpm's metadata cache holds no packages projects link to; deleting it stays a plain delete.
+    let metadata = try #require(found.first { $0.url.path.hasSuffix("Library/Caches/pnpm") })
+    #expect(metadata.ruleID == "pnpm-cache" && metadata.action == .delete)
+
+    let journal = try SQLiteCleanupJournal(url: home.appendingPathComponent("journal.sqlite"))
+    let run = CleanupExecutor(journal: journal, check: CandidateCheck(catalog: catalog, running: NothingRunning()), measure: FakeVolume().read)
+    let result = await run.execute(CatalogApproval(candidates: [store], previewOnly: false))
+    #expect(result.records.first?.state == .succeeded)
+    #expect(try String(contentsOf: marker, encoding: .utf8) == "store prune\n")
+    #expect(FileManager.default.fileExists(atPath: home.appendingPathComponent("Library/pnpm/store").path))
+}
+
+/// Tools installed as `#!/usr/bin/env node` scripts need their own folder on PATH to find node.
+@Test func aToolRunsWithItsOwnFolderOnThePath() async throws {
+    let home = try fixtureHome()
+    defer { try? FileManager.default.removeItem(at: home) }
+    try makeFolder(home, "Library/Caches/Homebrew")
+    let marker = home.appendingPathComponent("path")
+    let result = try await homebrewRun(home, script: "echo \"$PATH\" > '\(marker.path)'")
+    #expect(result.records.first?.state == .succeeded)
+    let path = try String(contentsOf: marker, encoding: .utf8)
+    #expect(path.hasPrefix(home.appendingPathComponent("tools").path + ":"))
+    #expect(path.contains("/usr/bin"))
 }
