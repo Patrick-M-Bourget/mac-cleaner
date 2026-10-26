@@ -44,3 +44,42 @@ private func found(_ catalog: Catalog, _ home: URL, now: Date = Date()) -> [Stri
     #expect(CandidateCheck(catalog: catalog, running: Running(bundleIDs: ["com.exafunction.windsurf"])).check(windsurf) == .ownerRunning("Windsurf"))
     #expect(CandidateCheck(catalog: catalog, running: Running()).check(windsurf) == nil)
 }
+
+// MARK: Transcripts and logs
+
+/// A file last opened, changed and created `days` ago.
+private func aged(_ home: URL, _ relative: String, days: Double, now: Date) throws {
+    try write(home, relative)
+    let url = home.appendingPathComponent(relative), date = now.addingTimeInterval(-days * 86_400)
+    try FileManager.default.setAttributes([.creationDate: date, .modificationDate: date], ofItemAtPath: url.path)
+    var times = [timeval(tv_sec: Int(date.timeIntervalSince1970), tv_usec: 0), timeval(tv_sec: Int(date.timeIntervalSince1970), tv_usec: 0)]
+    #expect(utimes(url.path, &times) == 0)
+}
+
+@Test func onlyTranscriptsAndLogsOlderThan90DaysGoToTrashNeverSettingsCredentialsOrMemory() throws {
+    let home = try fixtureHome()
+    defer { try? FileManager.default.removeItem(at: home) }
+    let now = Date()
+    let offered = [
+        ".claude/projects/-Users-me-app/1b2c.jsonl": "claude-code-transcripts",
+        ".claude/projects/-Users-me-app/1b2c/subagents/agent-1.jsonl": "claude-code-transcripts",
+        ".codex/sessions/2026/01/02/rollout-2026-01-02T10-00-00-abc.jsonl": "codex-transcripts",
+        ".codex/archived_sessions/rollout-2025-12-01T10-00-00-def.jsonl": "codex-transcripts",
+        ".codex/log/codex-tui.log": "codex-transcripts",
+    ]
+    for path in offered.keys { try aged(home, path, days: 120, now: now) }
+    // Old, but settings, credentials, project memory and prompt history are never offered.
+    for kept in [".claude/settings.json", ".claude/.credentials.json", ".claude/CLAUDE.md", ".claude/projects/-Users-me-app/memory/MEMORY.md",
+                 ".claude/projects/-Users-me-app/memory/notes.jsonl", ".codex/config.toml", ".codex/auth.json", ".codex/history.jsonl", ".codex/AGENTS.md"] {
+        try aged(home, kept, days: 400, now: now)
+    }
+    // Newer than 90 days: kept.
+    try aged(home, ".claude/projects/-Users-me-app/recent.jsonl", days: 30, now: now)
+    try aged(home, ".codex/sessions/2026/09/30/rollout-recent.jsonl", days: 30, now: now)
+    let catalog = Catalog(rules: fixtureRules)
+    #expect(found(catalog, home, now: now) == offered)
+    for id in ["claude-code-transcripts", "codex-transcripts"] {
+        let rule = try #require(catalog.rule(id))
+        #expect(rule.action == .trash && rule.category == .logs && rule.regen == .log)
+    }
+}

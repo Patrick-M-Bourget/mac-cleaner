@@ -41,6 +41,7 @@ Decision 3 sets the main split: regenerable data is deleted permanently; user fi
 | Updater downloads | Sparkle and vendor updater caches | Delete permanently | Downloaded by the next update |
 | Leaked app copies | Chrome `code_sign_clone` copies | Delete permanently, except the copy in use and the newest | Not needed again |
 | Logs | User logs and crash reports | Delete permanently | Written again as apps run |
+| AI tool transcripts | Claude Code and Codex transcripts and logs not opened in 90 days (#140) | Move to Trash | Restore from Trash in Finder |
 | Installers and old files | `.dmg`, `.pkg`, `.zip` in Downloads at any age; files of 500 MB or more not opened in 90 days; iPhone, iPad and iPod update files (`.ipsw`) in `~/Library/iTunes/*Software Updates` (#135) | Move to Trash | Restore from Trash in Finder |
 | Models | Hugging Face models; LM Studio models (each model folder; refused while LM Studio runs) | Move to Trash | Restore from Trash, or download again |
 | Ollama models | Each model, removed with `ollama rm <model>` | Run a tool | Download again (`ollama pull`) |
@@ -68,6 +69,8 @@ Notes per category:
   - JetBrains: `~/Library/Caches/JetBrains/<product><version>` of older versions only; the newest version of each IDE, and products Still doesn't know, are never offered. Refused while any version of that IDE runs.
   - Adobe: `Media Cache Files` and `Media Cache` in `~/Library/Application Support/Adobe/Common`, refused while an Adobe video app runs.
   - Sandboxed apps: only `~/Library/Containers/<bundle id>/Data/Library/Caches`, never other container data or group containers; the app must be installed and closed. Reading containers can make macOS ask for access, so without Full Disk Access the rule shows as not accessible and nothing there is read.
+- **AI coding tools** (#140):
+  - Claude Code: `*.jsonl` transcripts under `~/.claude/projects`, never its `memory` folders; Codex: `*.jsonl` sessions under `~/.codex/sessions` and `~/.codex/archived_sessions`, and `~/.codex/log`. Only files not opened, changed or added in 90 days, to Trash. Settings, credentials, project memory and prompt history are never offered.
 - **Models and VM images** show their size and last-used date so the user can judge.
 - **A cleanup rule appears only when its tool or folder exists** on this Mac.
 - **Overview** shows one row per category that found something. Its storage bar is the whole disk, used against available, as in the prototype's full mode; it never splits the bar by category.
