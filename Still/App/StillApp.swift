@@ -108,7 +108,7 @@ private struct WorkspaceView: View {
     private var showsPlan: Bool { destination == .plan && !navigationState.localRecordsVisible && !recoveryVisible && !nativeInspectionVisible && !homebrewVisible && !pipVisible && !diagnosticsVisible && !exclusionsVisible }
     private var contextLabel: String {
         if selection.workspaceRunning { return "Running approved cleanup" }
-        if navigationState.localRecordsVisible && !recoveryVisible { return "Local records · Explicit maintenance only" }
+        if navigationState.localRecordsVisible && !recoveryVisible { return "" }
         if diagnosticsVisible { return "Redacted diagnostics · Explicit local Save" }
         if recoveryVisible { return "Recovery review · Recorded facts only" }
         if selection.hasWorkspaceResult && showsPlan { return "Cleanup results · individual outcomes" }
@@ -119,10 +119,9 @@ private struct WorkspaceView: View {
         switch destination {
         case .overview: return "On-demand storage review"
         case .plan: return "Choose files, then review"
-        case .history: return "Recorded scan and cleanup activity"
-        case .locations: return "Scan locations and access"
+        case .history, .locations: return "" // Decision 25: no toolbar subtitles
         case .alerts: return "Capacity checks only"
-        case .growth: return "Observed storage changes"
+        case .growth: return ""
         }
     }
 
@@ -247,7 +246,7 @@ private struct WorkspaceView: View {
                             }.buttonStyle(.borderedProminent)
                         }
                     } else if navigationState.localRecordsVisible {
-                        ActionStrip(message: "These controls manage Still’s records, not your original files.") {
+                        ActionStrip(message: nil) {
                             Button("Back to " + navigationState.localRecordsCaller.rawValue) {
                                 navigationState.localRecordsVisible = false
                                 destination = navigationState.localRecordsCaller
