@@ -1,0 +1,54 @@
+{
+  "schema": 1,
+  "qualification": "fresh standard split-root close-and-clean",
+  "productionMutationSupported": false,
+  "githubSHA": "8f610f7244fe26e300f684103b2243e99511d1fa",
+  "githubRunID": "40258676877",
+  "version": "156.0.8078.48",
+  "executableSHA256": "4f71e9dbe725fec1110977b6a6dd0708fb32fbde9c905b4b461cef880ac08288",
+  "dataRoot": "/Users/runner/Library/Application Support/Google/Chrome",
+  "cacheRoot": "/Users/runner/Library/Caches/Google/Chrome",
+  "cleanupExercised": true,
+  "personalFilesInspected": false,
+  "initialRootsAbsent": true,
+  "verifiedProvision": "/Users/runner/work/_temp/chrome-stable-final/evidence/provision.json",
+  "explicitFreshStandardUserDataDir": true,
+  "limitations": [
+    "headless explicitly selects fresh standard data root; not unflagged headed startup",
+    "no saved-password/address semantics in this check",
+    "managed/custom disk-cache/shared layouts unsupported",
+    "hosted fresh-root qualification authority only; no production adapter"
+  ],
+  "browserProfilePathMatched": true,
+  "actualProfilePath": "/Users/runner/Library/Application Support/Google/Chrome/Default",
+  "actualBrowserCommandLine": "/Users/runner/work/_temp/chrome-stable-final/expanded/GoogleChrome.pkg/Payload/Google Chrome.app/Contents/MacOS/Google Chrome --headless=new --no-first-run --no-default-browser-check --profile-directory=Default --user-data-dir=/Users/runner/Library/Application Support/Google/Chrome --dump-dom --allow-chrome-scheme-url --noerrdialogs --flag-switches-begin --flag-switches-end --disable-lazy-loading chrome://version",
+  "incognitoObserved": false,
+  "browserRequestedAsset": true,
+  "cacheGroup": "/Users/runner/Library/Caches/Google/Chrome/Default/Cache/Cache_Data",
+  "groupIdentity": [
+    16777228,
+    2981499,
+    501
+  ],
+  "dataRootIdentity": [
+    16777228,
+    2980659,
+    501
+  ],
+  "cacheRootIdentity": [
+    16777228,
+    2981496,
+    501
+  ],
+  "immediateCacheEntryCount": 5,
+  "result": "passed standard split-root close-and-clean",
+  "cleanup": {
+    "removed": 5,
+    "status": "completed",
+    "residualFinalUnlinkRace": true
+  },
+  "protectedProfileUnchanged": true,
+  "protectedObjectCount": 177,
+  "assetRequestedAgainAfterCleanup": true,
+  "cacheRegenerated": true
+}
