@@ -136,6 +136,7 @@ struct DesignGallery: View {
                     }
 
                     SelectionSummary(value: "3 files", detail: "Example selection · No action will run", consequence: "Space stays occupied until Finder empties Trash.")
+                    SelectionSummary(value: "Synthetic mixed selection", detail: "Downloads and Chrome groups · No action will run", consequence: "Chrome caches are permanently removed; Downloads go to Trash.", title: "Selected for cleanup")
                     HStack(spacing: StillDesign.Space.lg) {
                         ForEach(0..<5) { index in CategoryBadge(category: [StorageCategory.cloud, .developer, .downloads, .browser, .managed][index]) }
                     }

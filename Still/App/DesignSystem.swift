@@ -88,12 +88,13 @@ struct SelectionSummary: View {
     let detail: String
     var identifier = ""
     var consequence: String? = nil
+    var title = "Selected for Trash"
     var body: some View {
         VStack(alignment: .leading, spacing: StillDesign.Space.md) {
         SummarySurface {
             HStack(alignment: .center) {
                 VStack(alignment: .leading, spacing: StillDesign.Space.sm) {
-                    Text("Selected for Trash").font(.caption).foregroundStyle(.secondary)
+                    Text(title).font(.caption).foregroundStyle(.secondary)
                     Text(value).font(StillDesign.TypeStyle.value).monospacedDigit()
                 }
                 Spacer(minLength: StillDesign.Space.lg)

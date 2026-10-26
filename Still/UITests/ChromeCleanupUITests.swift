@@ -53,6 +53,8 @@ final class ChromeCleanupUITests: XCTestCase {
         XCTAssertTrue(app.buttons["Review cleanup"].waitForExistence(timeout: 5))
         for theme in ["Light", "Dark"] {
             app.popUpButtons["Appearance"].click(); app.menuItems[theme].click()
+            XCTAssertTrue(app.staticTexts["Selected for cleanup"].exists)
+            XCTAssertFalse(app.staticTexts["Selected for Trash"].exists)
             capture(app, name: "chrome-mixed-plan-" + (minimum ? "minimum-" : "initial-") + theme)
             app.buttons["Review cleanup"].click()
             XCTAssertTrue(app.sheets.buttons["Run cleanup"].waitForExistence(timeout: 5))
