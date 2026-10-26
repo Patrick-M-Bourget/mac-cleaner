@@ -41,6 +41,8 @@ extension BuiltInCatalog {
 public enum CatalogItems: Sendable, Equatable {
     /// One item per model manifest under Ollama's `models/manifests`; Ollama itself is never run to list them.
     case ollamaModels
+    /// One item per prune kind, sized by what `docker system df` says Docker can reclaim.
+    case docker(DockerPruneKind)
 }
 
 private struct OllamaManifest: Decodable {

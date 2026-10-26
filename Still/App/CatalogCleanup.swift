@@ -108,6 +108,15 @@ import SwiftUI
         return URL(fileURLWithPath: "/")
     }
 
+    /// iCloud as the catalog reads it. A debug test home stands in a fixture whose states come from
+    /// `<home>/.still-test-icloud.json`, so a UI test never reads or evicts anything in real iCloud Drive.
+    static var cloud: any UbiquitousItemAccess {
+        #if DEBUG
+        if LocalStateLocation.isDisposableTest { return FixtureUbiquitousItems(home: home) }
+        #endif
+        return SystemUbiquitousItems()
+    }
+
     /// Overview's summary; nil until the first scan of the known locations has finished.
     var overview: CatalogOverview? { hasScanned ? CatalogOverview(catalog: catalog, candidates: discovered) : nil }
     /// Owners of the rule's items that were running at the last scan, in name order.
@@ -147,9 +156,9 @@ import SwiftUI
         }
         let catalog = catalog
         let locate = Self.locateTool, system = Self.systemRoot
-        let userFolder = Self.userFolder
+        let userFolder = Self.userFolder, cloud = Self.cloud
         let scanned = await Task.detached(priority: .userInitiated) { () -> (CatalogDiscovery, [CleanupRule], Set<String>, [String: String]) in
-            let discovered = catalog.discovery(home: home, userFolder: userFolder, exclusions: exclusions, locateTool: locate, systemRoot: system)
+            let discovered = catalog.discovery(home: home, userFolder: userFolder, exclusions: exclusions, locateTool: locate, systemRoot: system, cloud: cloud)
             var owners: [String: RuleOwner] = [:], names: [String: String] = [:]
             for candidate in discovered.candidates { if let owner = catalog.owner(for: candidate) { owners[owner.name] = owner; names[candidate.id] = owner.name } }
             let running = SystemRunningAppChecker()
@@ -218,7 +227,7 @@ import SwiftUI
         selectedIDs = []; pickedFiles = [:]; result = nil; message = nil; selectionRevision &+= 1
     }
     private func currentCheck() async -> CandidateCheck? {
-        do { return CandidateCheck(catalog: catalog, running: SystemRunningAppChecker(), exclusions: try await ExclusionsModel.shared.policyForScan()) }
+        do { return CandidateCheck(catalog: catalog, running: SystemRunningAppChecker(), exclusions: try await ExclusionsModel.shared.policyForScan(), cloud: Self.cloud) }
         catch { message = "Exclusion settings are unavailable, so nothing can be checked. Try again."; return nil }
     }
 }
@@ -233,6 +242,7 @@ extension CatalogCategory {
     var storageCategory: StorageCategory {
         switch self {
         case .developer: .developer
+        case .icloud: .cloud
         case .browser: .browser
         case .downloads: .downloads
         case .files: .downloads
@@ -249,6 +259,7 @@ extension CatalogCategory {
         case .models: "Models and disk images"
         case .updaters: "App update downloads"
         case .logs: "Logs and crash reports"
+        case .icloud: "Downloaded iCloud files"
         case .files: "Large and old files"
         }
     }
@@ -274,9 +285,11 @@ extension CatalogOverview.Row {
     }
     /// What happens and to what, e.g. "Clear npm cache, Yarn cache · Move Installers to Trash".
     var detail: String {
-        let cleared = rules.filter { $0.action != .trash }.map(\.title)
+        let cleared = rules.filter { $0.action != .trash && $0.action != .evict }.map(\.title)
         let trashed = rules.filter { $0.action == .trash }.map(\.title)
-        return ([cleared.isEmpty ? nil : "Clear " + Self.list(cleared), trashed.isEmpty ? nil : "Move " + Self.list(trashed) + " to Trash"]
+        let evicted = rules.contains { $0.action == .evict }
+        return ([cleared.isEmpty ? nil : "Clear " + Self.list(cleared), trashed.isEmpty ? nil : "Move " + Self.list(trashed) + " to Trash",
+                 evicted ? "Remove local copies · Originals stay in iCloud" : nil]
             .compactMap { $0 }).joined(separator: " · ")
     }
     private static func list(_ titles: [String]) -> String {
@@ -293,9 +306,17 @@ func catalogBytes(_ value: Int64, complete: Bool = true, upperBound: Bool = fals
 
 extension CleanupRule {
     /// Rules whose items the user chooses one by one: single Downloads files, and each model or disk image.
-    var choosesItems: Bool { contents != nil || regen == .model || id == UserFiles.ruleID }
+    var choosesItems: Bool { contents != nil || regen == .model || action == .evict || id == UserFiles.ruleID }
     /// Whether every item the rule offers is a single file.
     var offersFiles: Bool { contents != nil || id == UserFiles.ruleID }
+    /// How the review names what happens, e.g. "Move to Trash: Installers in Downloads".
+    var reviewTitle: String {
+        switch action {
+        case .trash: "Move to Trash: " + title
+        case .evict: "Remove local copies: " + title
+        case .delete, .tool: "Clear " + title
+        }
+    }
 }
 
 extension Candidate {
@@ -395,6 +416,7 @@ struct CatalogItemChooser: View {
     }
     private func detail(_ item: Candidate) -> String {
         let folder = item.url.deletingLastPathComponent().path.replacingOccurrences(of: FileManager.default.homeDirectoryForCurrentUser.path, with: "~")
+            .replacingOccurrences(of: "~/Library/Mobile Documents/com~apple~CloudDocs", with: "iCloud Drive")
         return item.lastUsed.map { folder + " · Last used " + $0.formatted(date: .abbreviated, time: .omitted) } ?? folder
     }
 }
@@ -412,7 +434,7 @@ struct CatalogConfirmationSection: View {
                 VStack(alignment: .leading, spacing: StillDesign.Space.sm) {
                     HStack {
                         CategoryBadge(category: rule.category.storageCategory)
-                        Text((rule.action == .trash ? "Move to Trash: " : "Clear ") + rule.title).font(StillDesign.TypeStyle.section)
+                        Text(rule.reviewTitle).font(StillDesign.TypeStyle.section)
                         Spacer()
                         Text(catalogBytes(items.reduce(0) { $0 + $1.estimatedBytes }, complete: items.allSatisfy(\.sizeComplete), upperBound: rule.estimateIsUpperBound,
                                           estimate: items.contains(where: \.sizeIsEstimate))).monospacedDigit()
@@ -421,8 +443,8 @@ struct CatalogConfirmationSection: View {
                     DisclosureGroup(StillDesign.items(items.count) + " · Show files") {
                         VStack(alignment: .leading, spacing: StillDesign.Space.xs) {
                             ForEach(items) { item in
-                                // A tool item shows the exact command, e.g. `ollama rm llama3:latest`.
-                                Text(rule.tool.flatMap { $0.itemPlaceholder == nil ? nil : $0.commandLine(for: item.itemName) } ?? item.url.path).font(.caption).textSelection(.enabled)
+                                // A tool that leaves its folder in place shows the exact command, e.g. `ollama rm llama3:latest` or `docker builder prune -f`.
+                                Text(rule.tool.flatMap { $0.deletesLocationAfter ? nil : $0.commandLine(for: item.itemName) } ?? item.url.path).font(.caption).textSelection(.enabled)
                                 if let refusal = review.refusals[item.id] { StatusRow(text: "Will be skipped: " + refusal.reason, symbol: "exclamationmark.circle", role: .caution) }
                             }
                         }.padding(.top, StillDesign.Space.sm)
@@ -492,3 +514,24 @@ struct CatalogResultsSection: View {
         }
     }
 }
+
+#if DEBUG
+/// iCloud states for a UI test's fixture home: `.still-test-icloud.json` maps paths relative to the home to
+/// "ready", "pinned", "notUploaded" or "conflicted". Evicting only records the path in `.still-test-icloud-evicted`.
+struct FixtureUbiquitousItems: UbiquitousItemAccess {
+    let home: URL?
+    func metadata(_ url: URL) -> CloudMetadata {
+        guard let home, let data = try? Data(contentsOf: home.appendingPathComponent(".still-test-icloud.json")),
+              let states = try? JSONDecoder().decode([String: String].self, from: data),
+              url.path.hasPrefix(home.path + "/"), let state = states[String(url.path.dropFirst(home.path.count + 1))] else { return .unknown }
+        return CloudMetadata(membership: true, downloadState: .current, uploaded: state != "notUploaded", uploading: false, downloading: false,
+                             conflicts: state == "conflicted", pinned: state == "pinned")
+    }
+    func evict(_ url: URL) throws {
+        guard let home else { throw CocoaError(.fileWriteNoPermission) }
+        let log = home.appendingPathComponent(".still-test-icloud-evicted")
+        let previous = (try? String(contentsOf: log, encoding: .utf8)) ?? ""
+        try (previous + url.path + "\n").write(to: log, atomically: true, encoding: .utf8)
+    }
+}
+#endif

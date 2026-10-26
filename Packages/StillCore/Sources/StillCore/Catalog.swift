@@ -3,10 +3,11 @@ import Darwin
 import CoreServices
 
 /// What kind of data a rule covers; it decides how the data comes back.
-public enum RegenClass: String, Codable, Sendable { case cache, build, updaterDownload, leakedCopy, log, installer, model, userFile }
+public enum RegenClass: String, Codable, Sendable { case cache, build, updaterDownload, leakedCopy, log, installer, model, userFile, cloudCopy }
 /// Decision 3: regenerable data is deleted; user files go to Trash. A few rules run the tool's own command (Decision 21).
 /// Trash keeps the "moveToTrash" string that Downloads-era journal records use.
-public enum CleanupAction: String, Codable, Sendable { case delete; case trash = "moveToTrash"; case tool }
+/// Evict removes only the local copy of an iCloud file (Decision 13); the original stays in iCloud.
+public enum CleanupAction: String, Codable, Sendable { case delete; case trash = "moveToTrash"; case tool; case evict }
 
 /// A command a `.tool` rule runs, with a time limit. The executable and its arguments are fixed in the rule.
 public struct ToolCommand: Sendable, Hashable {
@@ -41,7 +42,7 @@ public struct ToolCommand: Sendable, Hashable {
 }
 /// Whether none, some or all of a category's items are chosen.
 public enum CategorySelectionState: Sendable { case unchecked, mixed, checked }
-public enum CatalogCategory: String, Codable, Sendable { case developer, browser, downloads, system, models, updaters, logs, files }
+public enum CatalogCategory: String, Codable, Sendable { case developer, browser, downloads, system, models, updaters, logs, icloud, files }
 
 /// Who must be closed before a rule's data is touched.
 public struct RuleOwner: Sendable, Hashable {
@@ -127,14 +128,17 @@ public struct CleanupRule: Sendable, Identifiable {
     public let items: CatalogItems?
     /// Global protected extensions this rule may act inside, e.g. an app's own VM `.bundle`. Never `sparsebundle` lightly.
     public let unprotectedExtensions: Set<String>
+    /// Its locations are ones macOS protects (Safari's data): without Full Disk Access they're shown as not accessible.
+    public let requiresFullDiskAccess: Bool
     public init(id: String, category: CatalogCategory, title: String, detail: String, consequence: String, regen: RegenClass, action: CleanupAction, locations: [String], owner: RuleOwner?, protectedNames: [String] = [], tool: ToolCommand? = nil, protectedExtensions: [String] = [], contents: ContentsMatch? = nil, keepNewestVersions: Int? = nil, layoutOverrides: [LayoutOverride] = [], base: LocationBase = .home, copies: LeakedCopies? = nil, itemName: (@Sendable (String) -> String?)? = nil, items: CatalogItems? = nil, unprotectedExtensions: Set<String> = [],
-                itemOwner: (@Sendable (URL) -> RuleOwner?)? = nil, yieldsToOtherRules: Bool = false, protectedDepth: Int = 1) {
+                itemOwner: (@Sendable (URL) -> RuleOwner?)? = nil, yieldsToOtherRules: Bool = false, protectedDepth: Int = 1, requiresFullDiskAccess: Bool = false) {
         self.id = id; self.category = category; self.title = title; self.detail = detail; self.consequence = consequence
         self.regen = regen; self.action = action; self.locations = locations; self.owner = owner; self.protectedNames = protectedNames; self.tool = tool
         self.protectedExtensions = protectedExtensions; self.contents = contents; self.keepNewestVersions = keepNewestVersions; self.layoutOverrides = layoutOverrides
         self.base = base; self.copies = copies
         self.itemName = itemName; self.items = items; self.unprotectedExtensions = unprotectedExtensions
         self.itemOwner = itemOwner; self.yieldsToOtherRules = yieldsToOtherRules; self.protectedDepth = protectedDepth
+        self.requiresFullDiskAccess = requiresFullDiskAccess
     }
 }
 
@@ -143,7 +147,7 @@ public enum BuiltInCatalog {
     /// The catalog as the app uses it, with installed apps found through LaunchServices.
     public static let rules: [CleanupRule] = rules(apps: SystemAppLookup())
     /// The catalog with installed apps found by `apps`. Tests pass a fake, so they never depend on this Mac's apps.
-    public static func rules(apps: any AppLookup) -> [CleanupRule] { fixedRules + BrowserCaches.rules + AppCaches.rules(apps: apps) }
+    public static func rules(apps: any AppLookup) -> [CleanupRule] { fixedRules + BrowserCaches.rules + AppCaches.rules(apps: apps) + dockerRules }
     private static let fixedRules: [CleanupRule] = [
         CleanupRule(id: "npm-cache", category: .developer, title: "npm cache",
                     detail: "Packages npm downloaded for your projects.",
@@ -237,6 +241,7 @@ public enum BuiltInCatalog {
         huggingFaceModels,
         ollamaModels,
         appVMImages,
+        iCloudLocalCopies,
         // Its items come only from folders the user picked (`UserFiles.candidates`); it has no locations of its own.
         UserFiles.rule,
     ]
@@ -323,16 +328,18 @@ public struct Catalog: Sendable {
     /// `/private/var/folders` entry appear only when `userFolder` is given (`Catalog.currentUserFolder()` in the app).
     /// Absolute paths in a rule's layout overrides are read under `systemRoot`.
     public func discover(home: URL, userFolder: URL? = nil, exclusions: ExclusionPolicy = ExclusionPolicy(), inUse: any InUseChecking = SystemInUseChecker(), sizer: KnownLocationSizer = KnownLocationSizer(), now: Date = Date(), locateTool: (ToolCommand) -> URL? = ToolCommand.installed,
-                         systemRoot: URL = URL(fileURLWithPath: "/")) -> [Candidate] {
-        discovery(home: home, userFolder: userFolder, exclusions: exclusions, inUse: inUse, sizer: sizer, now: now, locateTool: locateTool, systemRoot: systemRoot).candidates
+                         systemRoot: URL = URL(fileURLWithPath: "/"), cloud: any UbiquitousItemAccess = SystemUbiquitousItems()) -> [Candidate] {
+        discovery(home: home, userFolder: userFolder, exclusions: exclusions, inUse: inUse, sizer: sizer, now: now, locateTool: locateTool, systemRoot: systemRoot, cloud: cloud).candidates
     }
 
     /// `discover`, plus notes on rules that kept items back, such as copies kept because their use couldn't be checked.
     public func discovery(home: URL, userFolder: URL? = nil, exclusions: ExclusionPolicy = ExclusionPolicy(), inUse: any InUseChecking = SystemInUseChecker(), sizer: KnownLocationSizer = KnownLocationSizer(), now: Date = Date(), locateTool: (ToolCommand) -> URL? = ToolCommand.installed,
-                          systemRoot: URL = URL(fileURLWithPath: "/")) -> CatalogDiscovery {
+                          systemRoot: URL = URL(fileURLWithPath: "/"), cloud: any UbiquitousItemAccess = SystemUbiquitousItems()) -> CatalogDiscovery {
         let homeBase = home.resolvingSymlinksInPath(), userBase = userFolder
         var seen = Set<String>()
         var notes: [CatalogNote] = []
+        // `docker system df` runs once per scan, for every Docker rule, and only once a rule's folder exists.
+        var dockerUsage: [String: Result<[DockerStorageCategory], ToolPreviewError>] = [:]
         let overridden = Set(overriddenRules(home: home, systemRoot: systemRoot).map(\.id))
         let candidates = rules.flatMap { rule -> [Candidate] in
             guard !overridden.contains(rule.id), let base = rule.base == .home ? homeBase : userBase else { return [] }
@@ -353,8 +360,16 @@ public struct Catalog: Sendable {
                     notes += note.map { [$0] } ?? []
                     return found
                 }
+                if rule.action == .evict { return cloudCandidates(in: url, rule: rule, cloud: cloud, exclusions: exclusions) }
                 if let contents = rule.contents { return files(in: url, matching: contents, rule: rule, now: now) }
                 if rule.items == .ollamaModels { return ollamaModels(in: url, rule: rule, toolURL: toolURL) }
+                if case .docker(let kind) = rule.items, let toolURL {
+                    let usage = dockerUsage[toolURL.path] ?? DockerDiskUsage.read(toolURL)
+                    if dockerUsage[toolURL.path] == nil, case .failure(let error) = usage { notes.append(CatalogNote(ruleID: rule.id, text: DockerDiskUsage.notice(error))) }
+                    dockerUsage[toolURL.path] = usage
+                    guard case .success(let rows) = usage else { return [] }
+                    return dockerCandidate(kind, at: url, rule: rule, toolURL: toolURL, usage: rows).map { [$0] } ?? []
+                }
                 var info = stat()
                 guard lstat(url.path, &info) == 0, info.st_uid == geteuid(),
                       [S_IFDIR, S_IFREG].contains(info.st_mode & S_IFMT) else { return [] }
@@ -382,9 +397,15 @@ public struct Catalog: Sendable {
             // Excluded items are never candidates (SPEC section 2); the check refuses them again just before acting.
             // With exclusions set, an item whose volume can't be read can't be cleared of them, so it is left out too.
             if !exclusions.rules.isEmpty, candidate.volumeID.map({ exclusions.covers(candidate.url, volumeID: $0) }) ?? true { return false }
-            return seen.insert(candidate.resourceID).inserted
+            return seen.insert(spaceKey(of: candidate)).inserted
         }
         return CatalogDiscovery(candidates: candidates, notes: notes)
+    }
+
+    /// What a candidate's space is keyed on, so the same space is offered and counted once: the item itself, or for a tool
+    /// that leaves its folder in place (Docker, `pnpm store prune`), the command, since the folder only anchors it.
+    func spaceKey(of candidate: Candidate) -> String {
+        rule(candidate.ruleID)?.tool?.deletesLocationAfter == false ? candidate.id : candidate.resourceID
     }
 
     /// Whether another rule's location is this item, holds it, or exists inside it, whether or not that rule offers it now.

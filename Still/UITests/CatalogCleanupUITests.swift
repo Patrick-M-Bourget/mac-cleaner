@@ -315,6 +315,128 @@ final class CatalogCleanupUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["catalogPreviewNotice"].waitForExistence(timeout: 10))
         for file in files { XCTAssertTrue(FileManager.default.fileExists(atPath: file.path), file.path) }
     }
+
+    /// A stand-in `docker` in the fixture: `system df` prints `df` (or fails, as with no daemon); anything else leaves a marker.
+    @MainActor private func addDocker(_ home: URL, daemonAnswers: Bool) throws -> URL {
+        try FileManager.default.createDirectory(at: home.appendingPathComponent(".docker"), withIntermediateDirectories: true)
+        let marker = home.appendingPathComponent("docker-pruned")
+        let docker = home.appendingPathComponent(".still-test-tools/docker")
+        try FileManager.default.createDirectory(at: docker.deletingLastPathComponent(), withIntermediateDirectories: true)
+        let df = daemonAnswers
+            ? #"echo '{"Active":"1","Reclaimable":"2.5GB (62%)","Size":"4GB","TotalCount":"5","Type":"Images"}'; echo '{"Active":"0","Reclaimable":"1.2GB","Size":"1.2GB","TotalCount":"9","Type":"Build Cache"}'"#
+            : "echo 'Cannot connect to the Docker daemon' >&2; exit 1"
+        try "#!/bin/sh\nif test \"$*\" = 'system df --format json'; then \(df); else touch '\(marker.path)'; fi\n".write(to: docker, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: docker.path)
+        return marker
+    }
+
+    @MainActor func testDockerPruneKindsAreSeparateChoicesAndPreviewNeverPrunes() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        let state = try configureIsolatedState(app)
+        let home = try configureCatalogHome(app)
+        let marker = try addDocker(home, daemonAnswers: true)
+        defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
+        app.launchArguments = ["-ApplePersistenceIgnoreState", "YES"]
+        app.launch()
+
+        XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
+        let row = app.buttons["overviewCategory-developer"]
+        XCTAssertTrue(row.waitForExistence(timeout: 10))
+        row.click()
+
+        // Each prune kind is its own choice, none preselected; nothing is offered for volumes.
+        for rule in ["docker-images", "docker-build-cache"] {
+            let header = app.checkBoxes["planRule-" + rule]
+            XCTAssertTrue(header.waitForExistence(timeout: 5), rule)
+            XCTAssertEqual(header.value as? Int, 0, rule)
+        }
+        XCTAssertFalse(app.checkBoxes["planRule-docker-containers"].exists)
+        app.checkBoxes["planRule-docker-build-cache"].click()
+        XCTAssertEqual(app.checkBoxes["planRule-docker-images"].value as? Int, 0)
+        XCTAssertEqual(app.checkBoxes["previewOnlyToggle"].value as? Int, 1)
+        app.buttons["Review cleanup"].click()
+
+        XCTAssertTrue(app.staticTexts["Clear Docker build cache"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.staticTexts["Clear Docker images"].exists)
+        app.buttons["Run preview"].click()
+
+        XCTAssertTrue(app.staticTexts["catalogPreviewNotice"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS 'would run docker builder prune -a -f'")).firstMatch.exists)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: marker.path))
+    }
+
+    @MainActor func testDockerShowsANoticeInsteadOfRowsWhenItsDaemonIsntRunning() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        let state = try configureIsolatedState(app)
+        let home = try configureCatalogHome(app)
+        let marker = try addDocker(home, daemonAnswers: false)
+        defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
+        app.launchArguments = ["-ApplePersistenceIgnoreState", "YES"]
+        app.launch()
+
+        XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
+        let row = app.buttons["overviewCategory-developer"]
+        XCTAssertTrue(row.waitForExistence(timeout: 10))
+        row.click()
+
+        XCTAssertTrue(app.staticTexts["planNote-docker-images"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH 'Docker isn’t running'")).firstMatch.exists)
+        XCTAssertFalse(app.checkBoxes["planRule-docker-images"].exists)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: marker.path))
+    }
+}
+
+final class ICloudCleanupUITests: XCTestCase {
+    /// Two iCloud Drive files in the fixture home, one set to Keep Downloaded. Their iCloud states come from the
+    /// debug fixture file, so the test never reads or evicts anything in real iCloud Drive.
+    @MainActor private func addICloudFiles(_ home: URL) throws {
+        let drive = "Library/Mobile Documents/com~apple~CloudDocs"
+        for name in ["Report.pdf", "Pinned.pdf"] {
+            let file = home.appendingPathComponent(drive + "/" + name)
+            try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try Data(repeating: 4, count: 150_000).write(to: file)
+        }
+        let states = [drive + "/Report.pdf": "ready", drive + "/Pinned.pdf": "pinned"]
+        try JSONEncoder().encode(states).write(to: home.appendingPathComponent(".still-test-icloud.json"))
+    }
+
+    @MainActor func testLocalCopiesAreChosenAndPreviewEvictsNothing() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        let state = try configureIsolatedState(app)
+        let home = try configureCatalogHome(app)
+        try addICloudFiles(home)
+        defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
+        app.launchArguments = ["-ApplePersistenceIgnoreState", "YES"]
+        app.launch()
+
+        XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
+        let row = app.buttons["overviewCategory-icloud"]
+        XCTAssertTrue(row.waitForExistence(timeout: 10))
+        XCTAssertFalse(app.buttons["overviewCloudFinding"].exists)
+        row.click()
+
+        let header = app.checkBoxes["planRule-icloud-local-copies"]
+        XCTAssertTrue(header.waitForExistence(timeout: 5))
+        XCTAssertEqual(header.value as? Int, 0)
+        let item = app.checkBoxes["planItem-Report.pdf"]
+        if !item.waitForExistence(timeout: 2) { app.disclosureTriangles.allElementsBoundByIndex.forEach { $0.click() } }
+        XCTAssertTrue(item.waitForExistence(timeout: 5))
+        XCTAssertFalse(app.checkBoxes["planItem-Pinned.pdf"].exists, "Keep Downloaded files are never offered")
+        item.click()
+        XCTAssertEqual(app.checkBoxes["previewOnlyToggle"].value as? Int, 1)
+        app.buttons["Review cleanup"].click()
+
+        XCTAssertTrue(app.staticTexts["Remove local copies: Downloaded iCloud Drive files"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS 'stay in iCloud and download again when you open them'")).firstMatch.exists)
+        app.buttons["Run preview"].click()
+
+        XCTAssertTrue(app.staticTexts["catalogPreviewNotice"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["Would remove local copy"].exists)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: home.appendingPathComponent(".still-test-icloud-evicted").path))
+    }
 }
 
 /// Large and old files explorer (#113): a picked fixture folder, chosen file by file, previewed, left in place.
