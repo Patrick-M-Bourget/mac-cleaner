@@ -248,3 +248,12 @@ private func dockerRun(_ home: URL, docker: URL, choose ruleIDs: Set<String>, vo
     #expect(found.notes.map(\.text) == ["Docker isn’t running, so its space isn’t shown. Open Docker, then scan again."])
     #expect(found.notMeasured["docker-images"] == [".docker"])
 }
+
+@Test func everyToolRuleShowsTheExactCommandItRuns() {
+    for rule in fixtureRules where rule.action == .tool {
+        // A command run per item names the item last (`ollama rm <model>`); its text names the command without it.
+        let command = rule.tool.map { $0.itemPlaceholder == nil ? $0.commandLine : $0.commandLine(for: "").trimmingCharacters(in: .whitespaces) } ?? ""
+        #expect(rule.consequence.contains("`" + command + "`"), "\(rule.id): \(command)")
+    }
+    #expect(fixtureRules.first { $0.id == "docker-build-cache" }?.consequence.hasPrefix("Runs `docker builder prune -a -f`") == true)
+}

@@ -465,7 +465,7 @@ struct CatalogConfirmationSection: View {
                     DisclosureGroup(StillDesign.items(items.count) + " · Show files") {
                         VStack(alignment: .leading, spacing: StillDesign.Space.xs) {
                             ForEach(items) { item in
-                                // A tool that leaves its folder in place shows the exact command, e.g. `ollama rm llama3:latest` or `docker builder prune -f`.
+                                // A tool that leaves its folder in place shows the exact command, e.g. `ollama rm llama3:latest` or `docker builder prune -a -f`.
                                 Text(rule.tool.flatMap { $0.deletesLocationAfter ? nil : $0.commandLine(for: item.itemName) } ?? item.url.path).font(.caption).textSelection(.enabled)
                                 if let refusal = review.refusals[item.id] { StatusRow(text: "Will be skipped: " + refusal.reason, symbol: "exclamationmark.circle", role: .caution) }
                             }
