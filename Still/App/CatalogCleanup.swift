@@ -31,8 +31,10 @@ import SwiftUI
     private(set) var scanProgress: CatalogScanProgress?
     /// Watches for Full Disk Access being granted while Still was away (#124, `rescanIfFullDiskAccessGranted`).
     var fullDiskAccessRescan = FullDiskAccessRescan()
-    /// Chosen candidate ids. Nothing is preselected unless the user asks for the recommended plan (Decision 28).
-    private(set) var selectedIDs: Set<String> = []
+    /// The Cleanup plan's selection and Smart clean's, kept apart (#141).
+    private(set) var selections = CleanupSelections()
+    /// The Cleanup plan's chosen candidate ids. Nothing is preselected (Decision 28).
+    private(set) var selectedIDs: Set<String> { get { selections.plan } set { selections.plan = newValue } }
     private(set) var selectionRevision: UInt64 = 0
     private(set) var isRunning = false
     /// A cleanup changed files since the last catalog scan, so the next one is recorded as a post-cleanup rescan (#126).
@@ -334,26 +336,37 @@ import SwiftUI
         let items = recommendedCandidates
         return SizeEstimate(sum: items.map(SizeEstimate.init)).text(upperBound: items.contains { catalog.rule($0.ruleID)?.estimateIsUpperBound == true })
     }
-    /// Replaces the selection with the recommended plan, checked now. Nothing is preselected unless the user asks for this (Decision 28).
-    func chooseRecommendedPlan() async -> Bool {
-        guard canEdit, let check = await currentCheck()?.snapshotted() else { return false }
-        let catalog = catalog, found = discovered
-        let ids = await Task.detached { Set(RecommendedPlan(catalog: catalog, candidates: found, check: check.check).candidates.map(\.id)) }.value
-        guard canEdit, discovered == found else { return false }
-        guard !ids.isEmpty else { message = "Nothing in the recommended plan can be cleaned right now. Scan again, or choose items below."; return false }
-        selectedIDs = ids; message = nil; selectionRevision &+= 1
-        return true
+    /// Smart clean's ticked items as the last scan sees them; the Cleanup plan's selection never changes them (#141).
+    var smartCleanCandidates: [Candidate] { recommendedCandidates.filter(selections.isInSmartClean) }
+    func isInSmartClean(_ candidate: Candidate) -> Bool { selections.isInSmartClean(candidate) }
+    func setSmartClean(_ items: [Candidate], _ included: Bool) {
+        guard canEdit, !items.isEmpty else { return }
+        selections.setSmartClean(items, included: included); selectionRevision &+= 1
+    }
+    /// Smart clean's selection checked now: the recommended plan with the full checks, minus what was unticked.
+    /// Nil when nothing could be checked or the scan changed meanwhile. Never touches the Cleanup plan's selection.
+    func smartCleanCheckedNow() async -> [Candidate]? {
+        guard canEdit, let check = await currentCheck()?.snapshotted() else { return nil }
+        let catalog = catalog, found = discovered, selections = selections
+        let items = await Task.detached { selections.smartClean(catalog: catalog, found: found, check: check.check) }.value
+        guard canEdit, discovered == found else { return nil }
+        return items
     }
 
-    /// Freezes the chosen candidates and checks them once so the review can show what would be refused.
+    /// Freezes the Cleanup plan's chosen candidates and checks them once so the review can show what would be refused.
     func prepareReview() async -> CatalogReview? {
         guard canReview else { return nil }
-        let approval = CatalogApproval(candidates: selectedCandidates, previewOnly: dryRun)
+        return await prepareReview(of: selectedCandidates)
+    }
+    /// Freezes `candidates`, from either selection, and checks them once (#141: one review path).
+    func prepareReview(of candidates: [Candidate]) async -> CatalogReview? {
+        guard canEdit, !candidates.isEmpty else { return nil }
+        let approval = CatalogApproval(candidates: candidates, previewOnly: dryRun)
         guard let check = await currentCheck()?.snapshotted() else { return nil }
         let refusals = await Task.detached { Dictionary(uniqueKeysWithValues: approval.candidates.compactMap { c in check.check(c).map { (c.id, $0) } }) }.value
         return CatalogReview(approval: approval, refusals: refusals)
     }
-    func execute(_ approval: CatalogApproval, cancellation: CleanupCancellation) async {
+    func execute(_ approval: CatalogApproval, from source: CleanupSelections.Source, cancellation: CleanupCancellation) async {
         guard !isRunning else { return }
         isRunning = true
         defer { isRunning = false; executor = nil }
@@ -365,10 +378,15 @@ import SwiftUI
             result = outcome
             if !approval.previewOnly { rescanFollowsCleanup = true }
             // Picked folders keep the large and old files this run didn't act on (#125).
-            selectedIDs = []; discovered = []; pickedFiles = pickedFiles.mapValues { UserFiles.remaining($0, after: outcome) }; hasScanned = false; selectionRevision &+= 1
+            selections.finishRun(from: source); discovered = []; pickedFiles = pickedFiles.mapValues { UserFiles.remaining($0, after: outcome) }; hasScanned = false; selectionRevision &+= 1
         } catch { message = "The cleanup journal is unavailable. Nothing was changed." }
     }
     func cancel() { executor?.cancel() }
+    /// Leaves a finished run's results without starting a new plan: both selections are kept.
+    func dismissResult() {
+        guard !isRunning else { return }
+        result = nil; message = nil
+    }
     func endSession() {
         guard !isRunning else { return }
         selectedIDs = []; pickedFiles = [:]; result = nil; message = nil; selectionRevision &+= 1

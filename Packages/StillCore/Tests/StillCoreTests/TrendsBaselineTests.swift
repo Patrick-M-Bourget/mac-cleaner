@@ -81,3 +81,51 @@ private func record(_ snapshots: [GrowthSnapshot]) async throws -> (GrowthHistor
     let snapshot = try JSONDecoder().decode(GrowthSnapshot.self, from: data)
     #expect(snapshot.afterCleanup == false)
 }
+
+// MARK: Retention (#146)
+
+@Test func manyRescansWithinAnHourNeverPushOutYesterdaysBaseline() async throws {
+    // ⌘R, the Full Disk Access rescan and post-cleanup rescans: 40 scans within an hour, a day after the last one.
+    let rescans = (0..<40).map { scan(24 + Double($0) * 1.5 / 60, 200 + Int64($0), afterCleanup: $0 % 3 == 0) }
+    let (store, result, directory) = try await record([scan(0, 100)] + rescans)
+    defer { try? FileManager.default.removeItem(at: directory) }
+    #expect(result.state == .compared)
+    #expect(result.from == Date(timeIntervalSince1970: 1_000_000))
+    let now = Date(timeIntervalSince1970: 1_000_000 + 25 * hour)
+    #expect(try await store.snapshots(now: now).count <= 30)
+    #expect(try await store.latest(now: now).from == Date(timeIntervalSince1970: 1_000_000))
+}
+
+@Test func olderHistoryThinsToOneScanADay() async throws {
+    // Three scans a day for 15 days: 45 scans, more than the 30 kept.
+    let days = 15
+    let scans = (0..<days).flatMap { day in [8.0, 12, 18].map { scan(Double(day) * 24 + $0, 100) } }
+    let (store, _, directory) = try await record(scans)
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let kept = try await store.snapshots(now: try #require(scans.last).observedAt)
+    #expect(kept.count <= 30)
+    // Every day still has a scan, and the newest few are all kept.
+    let calendar = Calendar.current
+    #expect(Set(kept.map { calendar.startOfDay(for: $0.observedAt) }) == Set(scans.map { calendar.startOfDay(for: $0.observedAt) }))
+    #expect(kept.suffix(5).map(\.observedAt) == scans.suffix(5).map(\.observedAt))
+}
+
+@Test func scansOlderThan90DaysAreStillDropped() async throws {
+    let (store, result, directory) = try await record([scan(0, 100), scan(91 * 24, 200)])
+    defer { try? FileManager.default.removeItem(at: directory) }
+    #expect(try await store.snapshots(now: Date(timeIntervalSince1970: 1_000_000 + 91 * 24 * hour)).count == 1)
+    #expect(result.state == .missingBaseline || result.state == .firstBaseline)
+}
+
+@Test func theHistoryStillFitsItsSizeLimit() async throws {
+    let directory = FileManager.default.temporaryDirectory.appendingPathComponent("StillTrends-" + UUID().uuidString)
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let store = GrowthHistoryStore(directory: directory, policy: GrowthRetention(bytes: 4_000))
+    for index in 0..<20 {
+        let snapshot = scan(Double(index) * 24, 100)
+        _ = try await store.record(snapshot, now: snapshot.observedAt, expectedEpoch: try await store.recordingEpoch())
+    }
+    let size = try #require(try FileManager.default.attributesOfItem(atPath: directory.appendingPathComponent("aggregates-v1.json").path)[.size] as? Int)
+    #expect(size <= 4_000)
+    #expect(try await store.snapshots(now: Date(timeIntervalSince1970: 1_000_000 + 19 * 24 * hour)).count < 20)
+}
