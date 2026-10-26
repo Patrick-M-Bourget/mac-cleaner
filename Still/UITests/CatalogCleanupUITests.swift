@@ -728,3 +728,30 @@ final class GuidanceUITests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: home.appendingPathComponent("Pictures/Photos Library.photoslibrary/originals/a.heic").path))
     }
 }
+
+final class TrashSpaceUITests: XCTestCase {
+    /// #129: Overview says what the fixture Trash holds, and Open Trash opens it (the debug opener records it instead of Finder).
+    @MainActor func testOverviewShowsWhatTheTrashHoldsAndOpenTrashOpensIt() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        let state = try configureIsolatedState(app)
+        let home = try configureCatalogHome(app)
+        defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
+        let trashed = home.appendingPathComponent(".Trash/Old installer.dmg")
+        try FileManager.default.createDirectory(at: trashed.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Data(repeating: 5, count: 300_000).write(to: trashed)
+        app.launch()
+
+        XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
+        let line = app.staticTexts["overviewTrash"]
+        XCTAssertTrue(line.waitForExistence(timeout: 10))
+        let text = [line.label, line.value as? String ?? ""].first { !$0.isEmpty } ?? ""
+        XCTAssertTrue(text.hasPrefix("Trash holds "), "label: \(line.label), value: \(String(describing: line.value))")
+        revealAndClick(app.links["overviewTrashOpen"], in: app)
+        let marker = home.appendingPathComponent(".still-test-opened-trash")
+        let deadline = Date().addingTimeInterval(5)
+        while !FileManager.default.fileExists(atPath: marker.path), Date() < deadline { RunLoop.current.run(until: Date().addingTimeInterval(0.2)) }
+        XCTAssertEqual(try String(contentsOf: marker, encoding: .utf8), home.appendingPathComponent(".Trash").path)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: trashed.path), "Opening the Trash changes nothing in it")
+    }
+}

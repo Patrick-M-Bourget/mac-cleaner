@@ -624,6 +624,7 @@ struct CatalogResultsSection: View {
                 }
                 Text("Measured from the change in available space around each item. Other activity on this Mac can affect it.")
                     .font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary)
+                if result.movedToTrashBytes > 0 { TrashEmptyHint(movedBytes: result.movedToTrashBytes) }
             }
             VStack(alignment: .leading, spacing: 0) {
                 HStack {
