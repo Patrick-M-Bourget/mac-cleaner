@@ -232,7 +232,7 @@ import SwiftUI
     func prepareReview() async -> CatalogReview? {
         guard canReview else { return nil }
         let approval = CatalogApproval(candidates: selectedCandidates, previewOnly: previewOnly)
-        guard let check = await currentCheck() else { return nil }
+        guard let check = await currentCheck()?.snapshotted() else { return nil }
         let refusals = await Task.detached { Dictionary(uniqueKeysWithValues: approval.candidates.compactMap { c in check.check(c).map { (c.id, $0) } }) }.value
         return CatalogReview(approval: approval, refusals: refusals)
     }

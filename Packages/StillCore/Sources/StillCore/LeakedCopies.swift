@@ -15,6 +15,11 @@ public struct LeakedCopies: Sendable {
 public protocol InUseChecking: Sendable {
     /// The paths of `folders` in use by `owner`'s processes, or nil when that can't be determined.
     func inUse(_ folders: [URL], by owner: RuleOwner) -> Set<String>?
+    /// A checker that lists processes once and keeps what it reads, for one discovery or one cleanup run.
+    func snapshot() -> any InUseChecking
+}
+extension InUseChecking {
+    public func snapshot() -> any InUseChecking { self }
 }
 
 extension CleanupRule {

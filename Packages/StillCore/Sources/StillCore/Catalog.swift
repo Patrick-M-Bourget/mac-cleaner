@@ -138,9 +138,11 @@ public struct CleanupRule: Sendable, Identifiable {
     /// Its items are single files from folders the user picked (`UserFiles`), never from its own locations. They're never
     /// taken from the home folder's protected folders, and a git checkout above the picked folder counts too.
     public let fromPickedFolders: Bool
+    /// When set, each item inside a location is offered only when old and unused by any process (`TemporaryFiles`).
+    public let unused: UnusedItems?
     public init(id: String, category: CatalogCategory, title: String, detail: String, consequence: String, regen: RegenClass, action: CleanupAction, locations: [String], owner: RuleOwner?, protectedNames: [String] = [], tool: ToolCommand? = nil, protectedExtensions: [String] = [], contents: ContentsMatch? = nil, keepNewestVersions: Int? = nil, layoutOverrides: [LayoutOverride] = [], base: LocationBase = .home, copies: LeakedCopies? = nil, itemName: (@Sendable (String) -> String?)? = nil, items: CatalogItems? = nil, unprotectedExtensions: Set<String> = [],
                 itemOwner: (@Sendable (URL) -> RuleOwner?)? = nil, yieldsToOtherRules: Bool = false, protectedDepth: Int = 1, requiresFullDiskAccess: Bool = false, guidance: Guidance? = nil,
-                unprotectedNames: Set<String> = [], fromPickedFolders: Bool = false) {
+                unprotectedNames: Set<String> = [], fromPickedFolders: Bool = false, unused: UnusedItems? = nil) {
         self.id = id; self.category = category; self.title = title; self.detail = detail; self.consequence = consequence
         self.regen = regen; self.action = action; self.locations = locations; self.owner = owner; self.protectedNames = protectedNames; self.tool = tool
         self.protectedExtensions = protectedExtensions; self.contents = contents; self.keepNewestVersions = keepNewestVersions; self.layoutOverrides = layoutOverrides
@@ -149,6 +151,7 @@ public struct CleanupRule: Sendable, Identifiable {
         self.itemOwner = itemOwner; self.yieldsToOtherRules = yieldsToOtherRules; self.protectedDepth = protectedDepth
         self.requiresFullDiskAccess = requiresFullDiskAccess; self.unprotectedNames = unprotectedNames
         self.guidance = guidance; self.fromPickedFolders = fromPickedFolders
+        self.unused = unused
     }
 }
 
@@ -157,7 +160,8 @@ public enum BuiltInCatalog {
     /// The catalog as the app uses it, with installed apps found through LaunchServices.
     public static let rules: [CleanupRule] = rules(apps: SystemAppLookup())
     /// The catalog with installed apps found by `apps`. Tests pass a fake, so they never depend on this Mac's apps.
-    public static func rules(apps: any AppLookup) -> [CleanupRule] { fixedRules + BrowserCaches.rules + AppCaches.rules(apps: apps) + dockerRules + guidanceRules }
+    public static func rules(apps: any AppLookup) -> [CleanupRule] { fixedRules + BrowserCaches.rules + AppCaches.rules(apps: apps) + dockerRules + guidanceRules
+        + TemporaryFiles.rules(apps: apps) }
     private static let fixedRules: [CleanupRule] = [
         CleanupRule(id: "npm-cache", category: .developer, title: "npm cache",
                     detail: "Packages npm downloaded for your projects.",
@@ -326,6 +330,7 @@ public struct Catalog: Sendable {
     /// but a leaked copy's app may still have one open.
     static func ownership(of url: URL, under rule: CleanupRule) -> Ownership {
         if let copies = rule.copies { return .mustNotUse(copies.owner) }
+        if rule.unused != nil, rule.itemOwner == nil { return .mustNotUse(.anyApp) }
         if Catalog.isLeftover(url.lastPathComponent, of: rule.id) { return .none }
         if let itemOwner = rule.itemOwner { return itemOwner(url).map(Ownership.mustBeClosed) ?? .unknown }
         return rule.owner.map(Ownership.mustBeClosed) ?? .none
@@ -349,6 +354,8 @@ public struct Catalog: Sendable {
         // Guidance rules report their own access (`guidance(home:)`).
         let notAccessible = rules.filter { $0.action != .guidance && $0.access(given: access) == .needsFullDiskAccess }
         let homeBase = home.resolvingSymlinksInPath(), userBase = userFolder
+        // One reading of the process table for every rule that asks what is in use.
+        let inUse = inUse.snapshot()
         var seen = Set<String>()
         var notes: [CatalogNote] = []
         var scanned: [String] = []
@@ -384,6 +391,11 @@ public struct Catalog: Sendable {
                 guard Protection(rule).protectedComponent(of: url, below: base) == nil, ScopeContainment.contains(url, in: base) else { return [] }
                 if let copies = rule.copies {
                     let (found, note) = leakedCopies(rule, copies, in: url, sizer: sizer, inUse: inUse)
+                    notes += note.map { [$0] } ?? []
+                    return found
+                }
+                if let unused = rule.unused {
+                    let (found, note) = unusedItems(rule, unused, in: url, base: base, now: now, sizer: sizer, inUse: inUse)
                     notes += note.map { [$0] } ?? []
                     return found
                 }
