@@ -14,6 +14,18 @@ import XCTest
     return home
 }
 
+/// Turns on the Settings dry run for this launch through the DEBUG-only test seam, for journeys that assert nothing changed.
+@MainActor func turnOnDryRun(_ app: XCUIApplication) {
+    app.launchEnvironment["STILL_TEST_DRY_RUN"] = "1"
+}
+
+/// The review sheet has two buttons, Cancel and Clean up, and no preview mode.
+@MainActor func cleanUpFromReview(_ app: XCUIApplication) {
+    XCTAssertTrue(app.buttons["Cancel"].exists)
+    XCTAssertFalse(app.buttons["Run preview"].exists)
+    app.buttons["Clean up"].click()
+}
+
 /// Writes an executable stand-in tool into the fixture home's `.still-test-tools`. The sandboxed runner quarantines every
 /// file it writes and can't clear that; the app clears it on stand-ins it finds there (debug test seam), so they can run.
 @MainActor func writeStandInTool(_ script: String, to tool: URL) throws {
@@ -79,11 +91,12 @@ import XCTest
 }
 
 final class CatalogCleanupUITests: XCTestCase {
-    @MainActor func testDeveloperCachesShowOnlyWhenPresentAndPreviewNeverRunsTheTool() throws {
+    @MainActor func testDeveloperCachesShowOnlyWhenPresentAndADryRunNeverRunsTheTool() throws {
         continueAfterFailure = false
         let app = XCUIApplication()
         let state = try configureIsolatedState(app)
         let home = try configureCatalogHome(app)
+        turnOnDryRun(app)
         let marker = try addDeveloperCaches(home, folders: ["Library/Caches/Yarn", ".cargo/registry", ".gradle/caches", "Library/Caches/Homebrew", "Library/Caches/ccache"])
         defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
         app.launch()
@@ -104,11 +117,10 @@ final class CatalogCleanupUITests: XCTestCase {
         XCTAssertEqual(homebrew.value as? Int, 0)
         revealAndClick(homebrew, in: app)
         XCTAssertEqual(homebrew.value as? Int, 1)
-        XCTAssertEqual(app.checkBoxes["previewOnlyToggle"].value as? Int, 1)
         app.buttons["Review cleanup"].click()
 
         XCTAssertTrue(reviewLine(app, "commandsRun", "developer").waitForExistence(timeout: 5))
-        app.buttons["Run preview"].click()
+        cleanUpFromReview(app)
 
         XCTAssertTrue(app.staticTexts["catalogPreviewNotice"].waitForExistence(timeout: 10))
         XCTAssertTrue(app.staticTexts["Would run"].exists)
@@ -118,12 +130,13 @@ final class CatalogCleanupUITests: XCTestCase {
 
 
     /// Xcode build data in a fixture home. The journey itself runs under xcodebuild or Xcode, so
-    /// DerivedData must show as refused with its reason; the stand-in simctl must never run in preview.
-    @MainActor func testXcodeBuildDataIsRefusedWhileXcodeRunsAndPreviewNeverRunsSimctl() throws {
+    /// DerivedData must show as refused with its reason; the stand-in simctl must never run in a dry run.
+    @MainActor func testXcodeBuildDataIsRefusedWhileXcodeRunsAndADryRunNeverRunsSimctl() throws {
         continueAfterFailure = false
         let app = XCUIApplication()
         let state = try configureIsolatedState(app)
         let home = try configureCatalogHome(app)
+        turnOnDryRun(app)
         _ = try addDeveloperCaches(home, folders: ["Library/Developer/Xcode/DerivedData/Still-abc/Build/Products/Debug/Still.app",
                                                    "Library/Developer/Xcode/Archives/2026-10-01/Still.xcarchive",
                                                    "Library/Developer/Xcode/iOS DeviceSupport/16.4 (20E247)",
@@ -152,12 +165,11 @@ final class CatalogCleanupUITests: XCTestCase {
         let running = app.staticTexts["planRunning-xcode-derived-data"]
         XCTAssertTrue(running.waitForExistence(timeout: 5))
         XCTAssertTrue((running.value as? String ?? "").contains("Xcode is running"), running.debugDescription)
-        XCTAssertEqual(app.checkBoxes["previewOnlyToggle"].value as? Int, 1)
         app.buttons["Review cleanup"].click()
 
         XCTAssertTrue(reviewLine(app, "permanentlyRemoved", "developer").waitForExistence(timeout: 5))
         XCTAssertTrue(reviewLine(app, "commandsRun", "developer").exists)
-        app.buttons["Run preview"].click()
+        cleanUpFromReview(app)
 
         XCTAssertTrue(app.staticTexts["catalogPreviewNotice"].waitForExistence(timeout: 10))
         XCTAssertTrue(app.staticTexts["Would run"].exists)
@@ -166,7 +178,8 @@ final class CatalogCleanupUITests: XCTestCase {
     }
 
 
-    @MainActor func testPreviewOnlyCleanupOfAFixtureCategoryReachesResultsAndChangesNothing() throws {
+    /// Dry run is off by default, so Clean up really deletes the fixture npm cache. It lives in a temp fixture home, never the real disk.
+    @MainActor func testCleanUpOfAFixtureCategoryDeletesItAndReachesResults() throws {
         continueAfterFailure = false
         let app = XCUIApplication()
         let state = try configureIsolatedState(app)
@@ -186,9 +199,8 @@ final class CatalogCleanupUITests: XCTestCase {
         XCTAssertEqual(category.value as? Int, 0)
         revealAndClick(category, in: app)
 
-        let preview = app.checkBoxes["previewOnlyToggle"]
-        XCTAssertTrue(preview.waitForExistence(timeout: 5))
-        XCTAssertEqual(preview.value as? Int, 1)
+        // The plan's bottom bar has only Review cleanup.
+        XCTAssertFalse(app.descendants(matching: .any)["previewOnlyToggle"].exists)
         let review = app.buttons["Review cleanup"]
         XCTAssertTrue(review.waitForExistence(timeout: 5))
         XCTAssertTrue(review.isEnabled)
@@ -196,14 +208,16 @@ final class CatalogCleanupUITests: XCTestCase {
 
         XCTAssertTrue(reviewLine(app, "permanentlyRemoved", "developer").waitForExistence(timeout: 5))
         XCTAssertFalse(reviewLine(app, "commandsRun", "developer").exists)
-        app.buttons["Run preview"].click()
+        XCTAssertFalse(app.staticTexts["reviewPreviewNotice"].exists)
+        cleanUpFromReview(app)
 
-        XCTAssertTrue(app.staticTexts["catalogPreviewNotice"].waitForExistence(timeout: 10))
-        XCTAssertTrue(app.staticTexts["Would delete"].exists)
-        XCTAssertTrue(FileManager.default.fileExists(atPath: home.appendingPathComponent(".npm/_cacache/content-v2/sha512/ab/blob").path))
+        XCTAssertTrue(app.staticTexts["Deleted"].waitForExistence(timeout: 10))
+        XCTAssertFalse(app.staticTexts["catalogPreviewNotice"].exists)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: home.appendingPathComponent(".npm/_cacache").path))
     }
 
-    @MainActor func testPreviewOnlyDownloadsInstallerIsChosenOnItsOwnAndStaysInPlace() throws {
+    /// The dry run lives in Settings, off by default. Turned on there, the whole flow runs and the installer stays in place.
+    @MainActor func testDryRunFromSettingsLeavesTheChosenDownloadsInstallerInPlace() throws {
         continueAfterFailure = false
         let app = XCUIApplication()
         let state = try configureIsolatedState(app)
@@ -212,6 +226,14 @@ final class CatalogCleanupUITests: XCTestCase {
         app.launch()
 
         XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
+        app.typeKey(",", modifierFlags: .command)
+        let dryRun = app.descendants(matching: .any)["dryRunToggle"]
+        XCTAssertTrue(dryRun.waitForExistence(timeout: 5))
+        XCTAssertEqual(dryRun.value as? Int, 0)
+        dryRun.click()
+        XCTAssertEqual(dryRun.value as? Int, 1)
+        app.typeKey("w", modifierFlags: .command)
+        XCTAssertTrue(dryRun.waitForNonExistence(timeout: 5))
         let row = app.buttons["overviewCategory-downloads"]
         XCTAssertTrue(row.waitForExistence(timeout: 10))
         revealAndClick(row, in: app)
@@ -226,11 +248,11 @@ final class CatalogCleanupUITests: XCTestCase {
         XCTAssertEqual(item.value as? Int, 0)
         revealAndClick(item, in: app)
         XCTAssertEqual(item.value as? Int, 1)
-        XCTAssertEqual(app.checkBoxes["previewOnlyToggle"].value as? Int, 1)
         app.buttons["Review cleanup"].click()
 
         XCTAssertTrue(reviewLine(app, "movedToTrash", "downloads").waitForExistence(timeout: 5))
-        app.buttons["Run preview"].click()
+        XCTAssertTrue(app.staticTexts["reviewPreviewNotice"].exists)
+        cleanUpFromReview(app)
 
         XCTAssertTrue(app.staticTexts["catalogPreviewNotice"].waitForExistence(timeout: 10))
         XCTAssertTrue(app.staticTexts["Would move to Trash"].exists)
@@ -242,6 +264,7 @@ final class CatalogCleanupUITests: XCTestCase {
         let app = XCUIApplication()
         let state = try configureIsolatedState(app)
         let home = try configureCatalogHome(app)
+        turnOnDryRun(app)
         defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
         // A stand-in for the user's /private/var/folders entry, read through the same DEBUG-only home seam.
         let clones = home.appendingPathComponent(".still-test-user-folder/X/com.google.Chrome.code_sign_clone")
@@ -263,7 +286,6 @@ final class CatalogCleanupUITests: XCTestCase {
         XCTAssertEqual(rule.value as? Int, 0)
         XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "value BEGINSWITH 'Up to '")).firstMatch.exists)
         revealAndClick(rule, in: app)
-        XCTAssertEqual(app.checkBoxes["previewOnlyToggle"].value as? Int, 1)
         app.buttons["Review cleanup"].click()
 
         XCTAssertTrue(reviewLine(app, "permanentlyRemoved", "browser").waitForExistence(timeout: 5))
@@ -271,12 +293,12 @@ final class CatalogCleanupUITests: XCTestCase {
         revealAndClick(app.disclosureTriangles.matching(NSPredicate(format: "label ENDSWITH 'Show files'")).firstMatch, in: app)
         XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "value CONTAINS 'code_sign_clone.old'")).firstMatch.exists)
         XCTAssertFalse(app.staticTexts.matching(NSPredicate(format: "value CONTAINS 'code_sign_clone.new'")).firstMatch.exists)
-        app.buttons["Run preview"].click()
+        cleanUpFromReview(app)
 
         XCTAssertTrue(app.staticTexts["catalogPreviewNotice"].waitForExistence(timeout: 10))
         XCTAssertTrue(app.staticTexts["Would delete"].exists)
-        // A preview reports one line; the copies share disk space, so it is an upper bound.
-        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "value BEGINSWITH 'Preview · Nothing changed · Up to '")).firstMatch.exists)
+        // A dry run reports one line; the copies share disk space, so it is an upper bound.
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "value BEGINSWITH 'Dry run · Nothing changed · Up to '")).firstMatch.exists)
         XCTAssertFalse(app.staticTexts["Measured freed space"].exists)
         XCTAssertTrue(FileManager.default.fileExists(atPath: clones.appendingPathComponent("code_sign_clone.old").path))
         XCTAssertTrue(FileManager.default.fileExists(atPath: clones.appendingPathComponent("code_sign_clone.new").path))
@@ -284,11 +306,12 @@ final class CatalogCleanupUITests: XCTestCase {
 
     /// Chrome's caches are listed per profile with sizes; its profile data never appears and is never touched.
     /// A Chrome running on this Mac makes the review skip the caches, which the journey also accepts.
-    @MainActor func testBrowserCachesShowPerProfileSizesAndPreviewLeavesProfilesAlone() throws {
+    @MainActor func testBrowserCachesShowPerProfileSizesAndADryRunLeavesProfilesAlone() throws {
         continueAfterFailure = false
         let app = XCUIApplication()
         let state = try configureIsolatedState(app)
         let home = try configureCatalogHome(app)
+        turnOnDryRun(app)
         defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
         let cookies = home.appendingPathComponent("Library/Application Support/Google/Chrome/Default/Cookies")
         var files = [cookies, home.appendingPathComponent("Library/Application Support/Google/Chrome/Default/Local Storage/leveldb/LOG")]
@@ -318,11 +341,10 @@ final class CatalogCleanupUITests: XCTestCase {
         XCTAssertFalse(app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS 'Cookies' OR label CONTAINS 'Local Storage' OR value CONTAINS 'Cookies' OR value CONTAINS 'Local Storage'")).firstMatch.exists)
         XCTAssertEqual(profile.value as? Int, 0)
         revealAndClick(profile, in: app)
-        XCTAssertEqual(app.checkBoxes["previewOnlyToggle"].value as? Int, 1)
         app.buttons["Review cleanup"].click()
 
         XCTAssertTrue(reviewLine(app, "permanentlyRemoved", "browser").waitForExistence(timeout: 5))
-        app.buttons["Run preview"].click()
+        cleanUpFromReview(app)
 
         XCTAssertTrue(app.staticTexts["catalogPreviewNotice"].waitForExistence(timeout: 10))
         XCTAssertTrue(app.staticTexts["Would delete"].exists || app.staticTexts["Skipped"].exists)
@@ -330,13 +352,14 @@ final class CatalogCleanupUITests: XCTestCase {
     }
 
     /// #117: without Full Disk Access (the fixture's Safari folder refuses to open), Safari's cache is listed as not
-    /// accessible with the explanation, never sized as 0. With access, only its cache folder is offered, and a preview
+    /// accessible with the explanation, never sized as 0. With access, only its cache folder is offered, and a dry run
     /// leaves the cache and Safari's history in place.
     @MainActor func testSafariCacheIsNotAccessibleWithoutFullDiskAccessAndOfferedWithIt() throws {
         continueAfterFailure = false
         let app = XCUIApplication()
         let state = try configureIsolatedState(app)
         let home = try configureCatalogHome(app)
+        turnOnDryRun(app)
         let safari = home.appendingPathComponent("Library/Safari")
         let history = safari.appendingPathComponent("History.db")
         let cache = home.appendingPathComponent("Library/Caches/com.apple.Safari/WebKit/NetworkCache/Version 17/Records/AB/Resource/0123")
@@ -371,21 +394,21 @@ final class CatalogCleanupUITests: XCTestCase {
         let rule = app.checkBoxes["planRule-safari-cache"]
         XCTAssertTrue(rule.waitForExistence(timeout: 5))
         revealAndClick(rule, in: app)
-        XCTAssertEqual(app.checkBoxes["previewOnlyToggle"].value as? Int, 1)
         app.buttons["Review cleanup"].click()
         XCTAssertTrue(reviewLine(app, "permanentlyRemoved", "browser").waitForExistence(timeout: 5))
-        app.buttons["Run preview"].click()
+        cleanUpFromReview(app)
         XCTAssertTrue(app.staticTexts["catalogPreviewNotice"].waitForExistence(timeout: 10))
         for file in [history, cache] { XCTAssertTrue(FileManager.default.fileExists(atPath: file.path), file.path) }
     }
 
     /// Updater downloads and logs show as their own Overview categories. A log folder holding a git checkout never appears,
-    /// and a preview run leaves every fixture file in place. Per-app caches need an installed app, so unit tests cover them.
-    @MainActor func testUpdaterDownloadsAndLogsAreTheirOwnCategoriesAndPreviewLeavesThemInPlace() throws {
+    /// and a dry run leaves every fixture file in place. Per-app caches need an installed app, so unit tests cover them.
+    @MainActor func testUpdaterDownloadsAndLogsAreTheirOwnCategoriesAndADryRunLeavesThemInPlace() throws {
         continueAfterFailure = false
         let app = XCUIApplication()
         let state = try configureIsolatedState(app)
         let home = try configureCatalogHome(app)
+        turnOnDryRun(app)
         defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
         let files = ["Library/Caches/com.example.StillFixture/org.sparkle-project.Sparkle/Installation/a/Fixture.tar.xz",
                      "Library/Logs/DiagnosticReports/Fixture-2026-10-26.ips", "Library/Logs/FixtureApp/main.log",
@@ -412,12 +435,11 @@ final class CatalogCleanupUITests: XCTestCase {
         XCTAssertFalse(app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS 'FixtureAgent' OR value CONTAINS 'FixtureAgent' OR identifier CONTAINS 'FixtureAgent'")).firstMatch.exists)
         revealAndClick(update, in: app)
         revealAndClick(app.checkBoxes["planRule-crash-reports"], in: app)
-        XCTAssertEqual(app.checkBoxes["previewOnlyToggle"].value as? Int, 1)
         app.buttons["Review cleanup"].click()
 
         XCTAssertTrue(reviewLine(app, "permanentlyRemoved", "updaters").waitForExistence(timeout: 5))
         XCTAssertTrue(reviewLine(app, "permanentlyRemoved", "logs").exists)
-        app.buttons["Run preview"].click()
+        cleanUpFromReview(app)
 
         XCTAssertTrue(app.staticTexts["catalogPreviewNotice"].waitForExistence(timeout: 10))
         for file in files { XCTAssertTrue(FileManager.default.fileExists(atPath: file.path), file.path) }
@@ -435,11 +457,12 @@ final class CatalogCleanupUITests: XCTestCase {
         return marker
     }
 
-    @MainActor func testDockerPruneKindsAreSeparateChoicesAndPreviewNeverPrunes() throws {
+    @MainActor func testDockerPruneKindsAreSeparateChoicesAndADryRunNeverPrunes() throws {
         continueAfterFailure = false
         let app = XCUIApplication()
         let state = try configureIsolatedState(app)
         let home = try configureCatalogHome(app)
+        turnOnDryRun(app)
         let marker = try addDocker(home, daemonAnswers: true)
         defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
         app.launch()
@@ -458,7 +481,6 @@ final class CatalogCleanupUITests: XCTestCase {
         XCTAssertFalse(app.checkBoxes["planRule-docker-containers"].exists)
         revealAndClick(app.checkBoxes["planRule-docker-build-cache"], in: app)
         XCTAssertEqual(app.checkBoxes["planRule-docker-images"].value as? Int, 0)
-        XCTAssertEqual(app.checkBoxes["previewOnlyToggle"].value as? Int, 1)
         app.buttons["Review cleanup"].click()
 
         XCTAssertTrue(reviewLine(app, "commandsRun", "developer").waitForExistence(timeout: 5))
@@ -466,7 +488,7 @@ final class CatalogCleanupUITests: XCTestCase {
         revealAndClick(app.disclosureTriangles.matching(NSPredicate(format: "label ENDSWITH 'Show files'")).firstMatch, in: app)
         XCTAssertTrue(app.staticTexts["docker builder prune -a -f"].waitForExistence(timeout: 5))
         XCTAssertFalse(app.staticTexts["docker image prune -a -f"].exists)
-        app.buttons["Run preview"].click()
+        cleanUpFromReview(app)
 
         XCTAssertTrue(app.staticTexts["catalogPreviewNotice"].waitForExistence(timeout: 10))
         // Messages show on demand.
@@ -511,11 +533,12 @@ final class ICloudCleanupUITests: XCTestCase {
         try JSONEncoder().encode(states).write(to: home.appendingPathComponent(".still-test-icloud.json"))
     }
 
-    @MainActor func testLocalCopiesAreChosenAndPreviewEvictsNothing() throws {
+    @MainActor func testLocalCopiesAreChosenAndADryRunEvictsNothing() throws {
         continueAfterFailure = false
         let app = XCUIApplication()
         let state = try configureIsolatedState(app)
         let home = try configureCatalogHome(app)
+        turnOnDryRun(app)
         try addICloudFiles(home)
         defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
         app.launch()
@@ -534,12 +557,11 @@ final class ICloudCleanupUITests: XCTestCase {
         XCTAssertTrue(item.waitForExistence(timeout: 5))
         XCTAssertFalse(app.checkBoxes["planItem-Pinned.pdf"].exists, "Keep Downloaded files are never offered")
         revealAndClick(item, in: app)
-        XCTAssertEqual(app.checkBoxes["previewOnlyToggle"].value as? Int, 1)
         app.buttons["Review cleanup"].click()
 
         XCTAssertTrue(reviewLine(app, "localCopiesRemoved", "icloud").waitForExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "value CONTAINS 'stay in iCloud and download again when you open them'")).firstMatch.exists)
-        app.buttons["Run preview"].click()
+        cleanUpFromReview(app)
 
         XCTAssertTrue(app.staticTexts["catalogPreviewNotice"].waitForExistence(timeout: 10))
         XCTAssertTrue(app.staticTexts["Would remove local copy"].exists)
@@ -547,13 +569,14 @@ final class ICloudCleanupUITests: XCTestCase {
     }
 }
 
-/// Large and old files explorer (#113): a picked fixture folder, chosen file by file, previewed, left in place.
+/// Large and old files explorer (#113): a picked fixture folder, chosen file by file, dry-run, left in place.
 extension CatalogCleanupUITests {
-    @MainActor func testPickedFolderListsOldFilesUnchosenAndPreviewLeavesThemInPlace() throws {
+    @MainActor func testPickedFolderListsOldFilesUnchosenAndADryRunLeavesThemInPlace() throws {
         continueAfterFailure = false
         let app = XCUIApplication()
         let state = try configureIsolatedState(app)
         let home = try configureCatalogHome(app)
+        turnOnDryRun(app)
         let folder = FileManager.default.temporaryDirectory.resolvingSymlinksInPath().appendingPathComponent("StillPicked-" + UUID().uuidString)
         defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home); try? FileManager.default.removeItem(at: folder) }
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
@@ -592,10 +615,9 @@ extension CatalogCleanupUITests {
         XCTAssertEqual(item.value as? Int, 1)
         app.buttons["View cleanup plan"].click()
 
-        XCTAssertEqual(app.checkBoxes["previewOnlyToggle"].value as? Int, 1)
         app.buttons["Review cleanup"].click()
         XCTAssertTrue(reviewLine(app, "movedToTrash", "files").waitForExistence(timeout: 5))
-        app.buttons["Run preview"].click()
+        cleanUpFromReview(app)
 
         XCTAssertTrue(app.staticTexts["catalogPreviewNotice"].waitForExistence(timeout: 10))
         XCTAssertTrue(app.staticTexts["Would move to Trash"].exists)

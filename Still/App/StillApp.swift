@@ -20,7 +20,7 @@ struct StillApp: App {
                 Button("Show Still") { lifecycle.openWorkspace?() }
             }
         }
-        Settings { AppearanceSettingsView() }
+        Settings { StillSettingsView() }
     }
 }
 
@@ -275,7 +275,7 @@ private struct WorkspaceView: View {
                                 .accessibilityIdentifier("growthReviewOptions")
                         }
                     } else if showsPlan {
-                        ActionStrip(leading: { PreviewOnlyToggle(model: selection.catalog) }) { Button("Review cleanup") {}.disabled(true) }
+                        ActionStrip(message: nil) { Button("Review cleanup") {}.disabled(true) }
                     }
                 }
                 }

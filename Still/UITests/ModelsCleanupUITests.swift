@@ -15,12 +15,13 @@ final class ModelsCleanupUITests: XCTestCase {
         return marker
     }
 
-    @MainActor func testModelsAreChosenOneByOneAndPreviewNeitherTrashesNorRunsOllama() throws {
+    @MainActor func testModelsAreChosenOneByOneAndADryRunNeitherTrashesNorRunsOllama() throws {
         continueAfterFailure = false
         let app = XCUIApplication()
         let state = try configureIsolatedState(app)
         let home = try configureCatalogHome(app)
         let marker = try addModels(home)
+        turnOnDryRun(app)
         defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
         app.launch()
 
@@ -45,12 +46,11 @@ final class ModelsCleanupUITests: XCTestCase {
             revealAndClick(item, in: app)
         }
         XCTAssertTrue(app.buttons.matching(NSPredicate(format: "label == 'Inspect org/tiny' AND value CONTAINS 'Last used'")).firstMatch.exists)
-        XCTAssertEqual(app.checkBoxes["previewOnlyToggle"].value as? Int, 1)
         app.buttons["Review cleanup"].click()
 
         XCTAssertTrue(reviewLine(app, "movedToTrash", "models").waitForExistence(timeout: 5))
         XCTAssertTrue(reviewLine(app, "commandsRun", "models").exists)
-        app.buttons["Run preview"].click()
+        cleanUpFromReview(app)
 
         XCTAssertTrue(app.staticTexts["catalogPreviewNotice"].waitForExistence(timeout: 10))
         XCTAssertFalse(FileManager.default.fileExists(atPath: marker.path))

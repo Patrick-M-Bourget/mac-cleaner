@@ -48,18 +48,22 @@ import SwiftUI
     /// Each candidate's owner name at the last scan, so views never look owners up while drawing.
     private var ownerNames: [String: String] = [:]
     private var executor: CleanupExecutor?
-    private static let previewKey = "StillPreviewOnly"
-    /// Decision 16: on by default; with it on, the whole flow runs and nothing changes on disk.
-    var previewOnly: Bool {
+    private static let dryRunKey = "StillDryRun"
+    /// The Settings dry run, off by default: with it on, the whole flow runs and nothing changes on disk (Decision 26).
+    var dryRun: Bool {
         didSet {
             selectionRevision &+= 1
-            if !LocalStateLocation.isDisposableTest { UserDefaults.standard.set(previewOnly, forKey: Self.previewKey) }
+            if !LocalStateLocation.isDisposableTest { UserDefaults.standard.set(dryRun, forKey: Self.dryRunKey) }
         }
     }
 
     init() {
-        let stored = LocalStateLocation.isDisposableTest ? nil : UserDefaults.standard.object(forKey: Self.previewKey) as? Bool
-        previewOnly = stored ?? true
+        if LocalStateLocation.isDisposableTest {
+            // A disposable test run starts with it off; a journey that asserts nothing changed turns it on (DEBUG seam).
+            dryRun = ProcessInfo.processInfo.environment["STILL_TEST_DRY_RUN"] == "1"
+        } else {
+            dryRun = UserDefaults.standard.bool(forKey: Self.dryRunKey)
+        }
     }
 
     /// The home folder whose known locations the catalog sizes. Debug UI tests inject a temp
@@ -231,7 +235,7 @@ import SwiftUI
     /// Freezes the chosen candidates and checks them once so the review can show what would be refused.
     func prepareReview() async -> CatalogReview? {
         guard canReview else { return nil }
-        let approval = CatalogApproval(candidates: selectedCandidates, previewOnly: previewOnly)
+        let approval = CatalogApproval(candidates: selectedCandidates, previewOnly: dryRun)
         guard let check = await currentCheck() else { return nil }
         let refusals = await Task.detached { Dictionary(uniqueKeysWithValues: approval.candidates.compactMap { c in check.check(c).map { (c.id, $0) } }) }.value
         return CatalogReview(approval: approval, refusals: refusals)
@@ -350,13 +354,12 @@ extension Candidate {
     var group: String? { appName ?? profile }
 }
 
-/// The plan's Preview only state, in its bottom bar. On by default (Decision 16).
-struct PreviewOnlyToggle: View {
+/// The Settings dry run. Off by default (Decision 26).
+struct DryRunToggle: View {
     @Bindable var model: CatalogCleanupModel
     var body: some View {
-        Toggle("Preview only (don’t change anything)", isOn: $model.previewOnly)
-            .toggleStyle(.checkbox).disabled(!model.canEdit).accessibilityIdentifier("previewOnlyToggle")
-            .help(model.previewOnly ? "Still checks each item and records what it would do. Nothing on disk changes." : "Confirmed cleanups change files on disk.")
+        Toggle("Dry run (nothing changes)", isOn: $model.dryRun)
+            .disabled(!model.canEdit).accessibilityIdentifier("dryRunToggle")
     }
 }
 
@@ -499,7 +502,7 @@ struct CatalogConfirmationSection: View {
     var body: some View {
         VStack(alignment: .leading, spacing: StillDesign.Space.lg) {
             if review.approval.previewOnly {
-                StatusRow(text: "Preview only is on. Nothing on disk changes.", symbol: "eye", role: .neutral, identifier: "reviewPreviewNotice")
+                StatusRow(text: "Dry run is on. Nothing on disk changes.", symbol: "eye", role: .neutral, identifier: "reviewPreviewNotice")
             }
             ForEach(ReviewGroup.groups(catalog: catalog, candidates: review.approval.candidates)) { group in
                 VStack(alignment: .leading, spacing: StillDesign.Space.sm) {
@@ -559,7 +562,7 @@ struct CatalogResultsSection: View {
         VStack(alignment: .leading, spacing: StillDesign.Space.lg) {
             if result.previewOnly {
                 let previewed = result.records.filter(\.wasPreviewed)
-                StatusRow(text: "Preview · Nothing changed · " + catalogBytes(previewed.reduce(0) { $0 + $1.recordedBytes }, upperBound: upperBound(previewed)) + " would be affected",
+                StatusRow(text: "Dry run · Nothing changed · " + catalogBytes(previewed.reduce(0) { $0 + $1.recordedBytes }, upperBound: upperBound(previewed)) + " would be affected",
                           symbol: "eye", role: .neutral, identifier: "catalogPreviewNotice")
             } else {
                 // SPEC section 6: measured and estimated, reported separately; Trash is never counted as freed.

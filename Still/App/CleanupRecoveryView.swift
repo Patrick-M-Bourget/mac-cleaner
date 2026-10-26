@@ -61,7 +61,7 @@ struct CleanupRecoveryView: View {
                                 DisclosureGroup("Recorded details") {
                                     VStack(alignment: .leading, spacing: StillDesign.Space.sm) {
                                         Text("Scope: " + record.scopeURL.path)
-                                        Text("Action: " + record.actionTitle + (record.previewOnly == true ? " · Preview only" : "") + " · Policy \(record.policyVersion)")
+                                        Text("Action: " + record.actionTitle + (record.previewOnly == true ? " · Dry run" : "") + " · Policy \(record.policyVersion)")
                                         Text("Resource identity at approval: " + record.resourceID)
                                     }.font(.caption).foregroundStyle(.secondary).textSelection(.enabled)
                                 }

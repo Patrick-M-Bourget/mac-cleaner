@@ -262,7 +262,7 @@ struct ActionStrip<Leading: View, Actions: View>: View {
     }
 }
 extension ActionStrip where Leading == ActionStripMessage {
-    /// Only for notes that report state, such as Preview only (Decision 25); nil leaves the actions alone.
+    /// Only for notes that report state, such as a running cleanup (Decision 25); nil leaves the actions alone.
     init(message: String?, @ViewBuilder actions: @escaping () -> Actions) { self.init(leading: { ActionStripMessage(text: message) }, actions: actions) }
 }
 /// A bottom bar's note; nothing when there is none.

@@ -206,7 +206,7 @@ struct CleanupHistoryView: View {
                    identifier: "cleanupRun:" + run.id.uuidString) {
             if run.usesApprovalDate { note("Approval date shown; outcome time was not recorded by this version.") }
             if run.isPreview {
-                note("Preview only · Nothing on disk changed. No space was freed.")
+                note("Dry run · Nothing on disk changed. No space was freed.")
             } else {
                 if run.records.contains(where: { $0.cleanupAction == .trash }) {
                     note("In Trash until you empty it: " + (run.trashHeldAllocatedBytes.map(bytes) ?? "Unknown"))
@@ -219,7 +219,7 @@ struct CleanupHistoryView: View {
                         Text(record.originalURL.lastPathComponent + " · " + PathDisplay.shortLocation(of: record.originalURL.path))
                             .lineLimit(1).truncationMode(.middle).help(record.originalURL.path)
                         Text(record.outcomeTitle + " · " + record.message).font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary)
-                            .fixedSize(horizontal: false, vertical: true).help("Action: " + record.actionTitle + (record.previewOnly == true ? " · Preview only" : ""))
+                            .fixedSize(horizontal: false, vertical: true).help("Action: " + record.actionTitle + (record.previewOnly == true ? " · Dry run" : ""))
                     }.frame(maxWidth: .infinity, alignment: .leading)
                     if let trash = record.trashURL {
                         Button("Show in Finder") { NSWorkspace.shared.activateFileViewerSelecting([trash]) }.controlSize(.small).help(trash.path)
