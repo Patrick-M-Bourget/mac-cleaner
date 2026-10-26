@@ -35,4 +35,6 @@ No personal projects, default DerivedData or source/symbol contents are inspecte
 
 ## Qualification and test boundaries
 
+The [source-bound qualification ledger](validation/xcode-intermediates.md) separates retained experiments from the remaining standard-root/native-owner/reusable-executor gate. Pending entries do not certify support or unblock #17.
+
 Reuse the previously user-approved public adapter/protected-fixture boundary for classification, mapping, owner state and target eligibility; approved-plan execution/durable recovery records for exact target mutation, cancellation and crashes; and public app journeys for navigation, selection, confirmation and recovery when #17 is unblocked. Tests observe public behavior with disposable files/controlled OS-boundary inputs, not private implementation. Real Xcode ownership/layout observations are separate qualification evidence and run only on disposable projects. No additional personal-data inspection is authorized. New test boundaries, if genuinely needed, require their own agreement.

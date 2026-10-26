@@ -8,6 +8,7 @@ from pathlib import Path
 import plistlib
 import stat
 import subprocess
+import struct
 import sys
 import tempfile
 import time
@@ -83,12 +84,30 @@ def main():
         while cursor != home.parent:
             identity(cursor)
             cursor = cursor.parent
-        # Custom Xcode preferences make a default-location experiment ambiguous.
-        for candidate in [home / 'Library/Preferences/com.apple.dt.Xcode.plist',
-                          home / 'Library/Managed Preferences/com.apple.dt.Xcode.plist',
+        # Presence of ordinary window/UI preferences is not a custom-layout signal.
+        # Read only a bounded fresh-host plist, retain layout-related fields only.
+        preference = home / 'Library/Preferences/com.apple.dt.Xcode.plist'
+        for candidate in [home / 'Library/Managed Preferences/com.apple.dt.Xcode.plist',
                           Path('/Library/Managed Preferences/com.apple.dt.Xcode.plist')]:
             if os.path.lexists(candidate):
-                raise RuntimeError('Preexisting Xcode preferences; fresh default configuration required')
+                raise RuntimeError('Managed Xcode configuration unsupported')
+        layout_preferences = {}
+        if os.path.lexists(preference):
+            pref_identity = identity(preference)
+            if not stat.S_ISREG(pref_identity['mode']) or pref_identity['size'] > 1024 * 1024:
+                raise RuntimeError('Unknown Xcode preference metadata shape')
+            prefs = plistlib.loads(preference.read_bytes())
+            if not isinstance(prefs, dict):
+                raise RuntimeError('Unknown Xcode preference dictionary')
+            terms = ('deriveddata', 'buildlocation', 'buildproducts', 'intermediate')
+            layout_preferences = {key: value for key, value in prefs.items()
+                                  if isinstance(key, str) and any(term in key.lower() for term in terms)}
+            report['freshHostedLayoutPreferences'] = layout_preferences
+            # No undocumented value is silently normalized into a supported layout.
+            if layout_preferences:
+                raise RuntimeError('Explicit layout preferences need native interpretation; values retained')
+        else:
+            report['freshHostedLayoutPreferences'] = {}
         report.update(source=os.environ.get('GITHUB_SHA'), runID=os.environ['GITHUB_RUN_ID'],
                       os=command(['/usr/bin/sw_vers'], output / 'os.txt'),
                       architecture=os.uname().machine,
@@ -104,6 +123,23 @@ def main():
         (root / 'Sources/helper.c').write_text('int helper(void) { return 0; }\n')
         protected = {str(p.relative_to(root)): hashlib.sha256(p.read_bytes()).hexdigest()
                      for p in (root / 'Sources').rglob('*') if p.is_file()}
+        runner_package = Path(__file__).resolve().parents[2] / 'XcodeQualificationRunner'
+        runner_bin = command(['/usr/bin/xcrun', 'swift', 'build', '--show-bin-path',
+                              '--package-path', str(runner_package)], output / 'runner-bin.txt').strip()
+        runner_binary = Path(runner_bin) / 'XcodeQualificationRunner'
+        if not runner_binary.is_file():
+            raise RuntimeError('Build the public native qualification runner before discovery')
+        owner_readings = []
+        report['publicNativeOwnerReadings'] = owner_readings
+
+        def observe_owners(phase, child=None):
+            record = json.loads(command([str(runner_binary), 'owners'],
+                                output / ('owners-' + str(len(owner_readings)) + '.json'), timeout=15))
+            owner_readings.append(dict(phase=phase,
+                                       ownedBuildStillRunning=child is not None and child.poll() is None,
+                                       publicObservation=record))
+
+        observe_owners('before-owned-build')
         invocation = ['/usr/bin/xcodebuild', '-project', str(project), '-scheme', 'Probe',
                       '-configuration', 'Debug', '-destination', 'platform=macOS',
                       '-disableAutomaticPackageResolution', 'CODE_SIGNING_ALLOWED=NO']
@@ -112,6 +148,7 @@ def main():
         with (output / 'build.log').open('wb') as log:
             child = subprocess.Popen(invocation + ['build'], stdout=log, stderr=subprocess.STDOUT)
             deadline = time.monotonic() + 120
+            observe_owners('during-owned-build', child)
             while child.poll() is None:
                 for row in descendants(child.pid):
                     observations[row['pid']] = row
@@ -135,6 +172,7 @@ def main():
                     remaining.append(dict(pid=int(fields[0]), parent=int(fields[1]),
                                           state=fields[2], executableBasename=Path(fields[3]).name))
             lifecycle.append(dict(secondsAfterPreviousObservation=delay, capturedPIDRows=remaining))
+            observe_owners('after-owned-build-' + str(delay))
         report['capturedHelperLifetimeAfterBuild'] = lifecycle
         identity(standard)
         groups = []
@@ -180,7 +218,15 @@ def main():
                     item = identity(path)
                     if not stat.S_ISREG(item['mode']):
                         raise RuntimeError('Nonregular generated object')
-                    objects.append(dict(relativePath=str(path.relative_to(derived)), identity=item))
+                    with path.open('rb') as stream:
+                        header = stream.read(32)
+                    header_observation = dict(first32BytesHex=header.hex())
+                    if len(header) == 32:
+                        fields = struct.unpack('<8I', header)
+                        header_observation.update(littleEndianMagic=fields[0], cpuType=fields[1],
+                                                  cpuSubtype=fields[2], fileType=fields[3])
+                    objects.append(dict(relativePath=str(path.relative_to(derived)), identity=item,
+                                        nativeObjectHeader=header_observation))
         report['nativeObjectLeaves'] = objects
         if len(objects) != 2 or {Path(o['relativePath']).name for o in objects} != {'main.o', 'helper.o'}:
             raise RuntimeError('Owned compiler object layout differs from known recipe')
