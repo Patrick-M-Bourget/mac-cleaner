@@ -216,16 +216,22 @@ public actor CleanupExecutor {
         return text.isEmpty ? nil : text
     }
 
-    /// Renames the checked item aside atomically, confirms it is the same item, then removes it.
+    /// Renames the checked item aside atomically, confirms it is the same item, then removes it. The rename goes
+    /// through a descriptor for the parent opened from the scope root without following symlinks, so a folder
+    /// swapped for a symlink after the check is never renamed.
     private func delete(_ candidate: Candidate, into record: inout CleanupRecord) {
-        let parent = candidate.url.deletingLastPathComponent()
-        let aside = parent.appendingPathComponent(".still-deleting-" + UUID().uuidString)
-        guard rename(candidate.url.path, aside.path) == 0 else {
+        let parent = candidate.url.deletingLastPathComponent(), name = candidate.url.lastPathComponent
+        let asideName = ".still-deleting-" + UUID().uuidString
+        let aside = parent.appendingPathComponent(asideName)
+        let parentFD = candidate.scopeRoot.map { ScopeContainment.openParent(of: candidate.url, in: $0) } ?? -1
+        guard parentFD >= 0 else { record.state = .skipped; record.message = CheckRefusal.changed.reason; return }
+        defer { close(parentFD) }
+        guard renameat(parentFD, name, parentFD, asideName) == 0 else {
             record.state = .failed; record.message = "Couldn’t remove it (\(String(cString: strerror(errno)))). Left unchanged."; return
         }
         var info = stat()
-        guard lstat(aside.path, &info) == 0, "\(info.st_dev):\(info.st_ino)" == candidate.resourceID else {
-            if rename(aside.path, candidate.url.path) == 0 { record.state = .skipped; record.message = CheckRefusal.changed.reason }
+        guard fstatat(parentFD, asideName, &info, AT_SYMLINK_NOFOLLOW) == 0, "\(info.st_dev):\(info.st_ino)" == candidate.resourceID else {
+            if renameat(parentFD, asideName, parentFD, name) == 0 { record.state = .skipped; record.message = CheckRefusal.changed.reason }
             else { record.state = .unknown; record.message = "Changed while starting; left at \(aside.path). Review it before cleaning again." }
             return
         }

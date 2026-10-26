@@ -274,6 +274,8 @@ public struct Candidate: Sendable, Identifiable, Hashable {
     public internal(set) var sizeIsEstimate = false
     /// The file's own size when `logicalBytes` sizes something else (an Ollama manifest stands for its model).
     public internal(set) var fileBytes: Int64? = nil
+    /// The base folder the item was found under (home or the user's folder); the check refuses an item without one.
+    public internal(set) var scopeRoot: URL? = nil
 }
 
 public struct Catalog: Sendable {
@@ -316,7 +318,8 @@ public struct Catalog: Sendable {
                     ? Self.expand(location, in: base, keepNewestVersions: rule.keepNewestVersions).map { (base.appendingPathComponent($0), nil) }
                     : Self.expand(base, location).map { ($0.0, $0.1.isEmpty ? nil : $0.1.joined(separator: "/")) }
             }.flatMap { url, profile -> [Candidate] in
-                guard Self.neverOffered.isDisjoint(with: url.pathComponents.dropFirst(base.pathComponents.count)) else { return [] }
+                guard Self.neverOffered.isDisjoint(with: url.pathComponents.dropFirst(base.pathComponents.count)),
+                      ScopeContainment.contains(url, in: base) else { return [] }
                 if let copies = rule.copies {
                     let (found, note) = leakedCopies(rule, copies, in: url, sizer: sizer, inUse: inUse)
                     notes += note.map { [$0] } ?? []
@@ -344,6 +347,10 @@ public struct Catalog: Sendable {
                                       profile: profile)
                 found.itemName = rule.itemName?(url.lastPathComponent)
                 return [found]
+            }.map { found in
+                var found = found
+                found.scopeRoot = base
+                return found
             }
         }.filter { seen.insert($0.resourceID).inserted }
         return CatalogDiscovery(candidates: candidates, notes: notes)
