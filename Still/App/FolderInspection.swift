@@ -12,11 +12,7 @@ final class FolderInspection {
     private let selection: SessionPlan
     init(selection: SessionPlan) {
         self.selection = selection
-        #if DEBUG
-        scanner = FolderScanner(supplement: RefreshFixtureMetadata())
-        #else
         scanner = FolderScanner()
-        #endif
         session = InspectionSession(scanner: scanner)
     }
     private var task: Task<Void, Never>?
@@ -408,42 +404,3 @@ struct FolderInspectionView: View {
     }
 }
 
-#if DEBUG
-/// Controlled latency at the public metadata boundary, only for explicitly picked disposable UI fixtures.
-private struct RefreshFixtureMetadata: MetadataSupplementReading {
-    func read(_ url: URL) throws -> MetadataSupplement {
-        if ProcessInfo.processInfo.arguments.contains("--ui-test-slow-refresh"),
-           let path = ProcessInfo.processInfo.environment["STILL_TEST_DOWNLOADS_ROOT"] {
-            let root = URL(fileURLWithPath: path).standardizedFileURL
-            if root.lastPathComponent.hasPrefix("StillSelectionUI-"), url.standardizedFileURL.pathComponents.starts(with: root.pathComponents) {
-                Thread.sleep(forTimeInterval: 0.02)
-                if ProcessInfo.processInfo.arguments.contains("--ui-test-directory-instability"), url.lastPathComponent == "trigger.txt", Self.isBoundOwnedTemporaryRoot(root) {
-                    try FileManager.default.setAttributes([.modificationDate: Date()], ofItemAtPath: root.path)
-                }
-            }
-        }
-        let metadata = try FoundationMetadataSupplement().read(url)
-        if ProcessInfo.processInfo.arguments.contains("--ui-test-cloud-unknown"),
-           url.lastPathComponent == "unknown-cloud-metadata.txt",
-           let path = ProcessInfo.processInfo.environment["STILL_TEST_DOWNLOADS_ROOT"] {
-            let root = URL(fileURLWithPath: path).standardizedFileURL
-            if Self.isBoundOwnedTemporaryRoot(root), url.standardizedFileURL.pathComponents.starts(with: root.pathComponents),
-               try url.resourceValues(forKeys: [.fileSizeKey]).fileSize == 0 {
-                return MetadataSupplement(allocatedBytes: metadata.allocatedBytes, locality: metadata.locality, cloud: .unknown)
-            }
-        }
-        return metadata
-    }
-    private static func isBoundOwnedTemporaryRoot(_ root: URL) -> Bool {
-        let prefix = "StillSelectionUI-"
-        guard root.lastPathComponent.hasPrefix(prefix), UUID(uuidString: String(root.lastPathComponent.dropFirst(prefix.count))) != nil,
-              root.path == root.resolvingSymlinksInPath().path,
-              let expected = ProcessInfo.processInfo.environment["STILL_TEST_DOWNLOADS_ID"] else { return false }
-        let runner = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Containers/com.patrickbourget.StillUITests.xctrunner/Data/tmp")
-        let parents = [runner, FileManager.default.temporaryDirectory, URL(fileURLWithPath: "/private/tmp")].map { $0.resolvingSymlinksInPath().path }
-        var info = stat()
-        return parents.contains(root.deletingLastPathComponent().path) && lstat(root.path, &info) == 0
-            && info.st_mode & S_IFMT == S_IFDIR && info.st_uid == geteuid() && "\(info.st_dev):\(info.st_ino)" == expected
-    }
-}
-#endif

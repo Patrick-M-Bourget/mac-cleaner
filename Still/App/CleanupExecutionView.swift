@@ -44,14 +44,6 @@ import SwiftUI
         } catch { self.error = "The local operation journal is unavailable. No files were moved. Recheck and create a new plan." }
     }
     private func executionOperation(_ batch: CleanupApproval) -> any TrashOperating {
-        #if DEBUG
-        if ProcessInfo.processInfo.arguments.contains("--ui-test-slow-trash"),
-           let requested = ProcessInfo.processInfo.environment["STILL_TEST_DOWNLOADS_ROOT"],
-           let root = try? DownloadsRoot(url: URL(fileURLWithPath: requested)), root.url.lastPathComponent.hasPrefix("StillSelectionUI-"),
-           batch.targets.allSatisfy({ $0.downloadsRoot.url == root.url && $0.downloadsRoot.resourceID == root.resourceID }) {
-            return SlowFixtureTrash(root: root.url)
-        }
-        #endif
         return NativeTrashOperation()
     }
     var observedChange: Int64? {
@@ -159,14 +151,3 @@ struct CleanupOutcomeSummary: View {
     private func files(_ count: Int) -> String { "\(count) " + (count == 1 ? "file" : "files") }
 }
 
-#if DEBUG
-/// Delays only an explicitly configured, chooser-bound owned fixture. Still calls the real native adapter.
-private struct SlowFixtureTrash: TrashOperating {
-    let root: URL
-    func trash(_ target: PlannedTarget) throws -> URL? {
-        guard target.downloadsRoot.url == root, root.lastPathComponent.hasPrefix("StillSelectionUI-") else { throw CleanupValidationError.changedOrProtected }
-        Thread.sleep(forTimeInterval: 5)
-        return try NativeTrashOperation().trash(target)
-    }
-}
-#endif

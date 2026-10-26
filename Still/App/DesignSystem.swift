@@ -508,95 +508,27 @@ struct InspectableItemRow<Selection: View>: View {
 
 /// Enforce the outer-window minimum independently of a destination's intrinsic content size.
 struct NativeWindowContract: NSViewRepresentable {
-    #if DEBUG
-    var onCaptureFit: (() -> Void)? = nil
-    #endif
-    func makeNSView(context: Context) -> ContractView {
-        let view = ContractView()
-        #if DEBUG
-        view.onCaptureFit = onCaptureFit
-        #endif
-        return view
-    }
+    func makeNSView(context: Context) -> ContractView { ContractView() }
     func updateNSView(_ nsView: ContractView, context: Context) {}
     @MainActor final class ContractView: NSView {
         private var applied = false
-        #if DEBUG
-        var onCaptureFit: (() -> Void)?
-        private weak var captureWindow: NSWindow?
-        @objc private func captureWindowUpdated(_ notification: Notification) {
-            guard !applied, let window = captureWindow,
-                  notification.object as? NSWindow === window,
-                  NSApp.isActive, window.isKeyWindow, window.isVisible else { return }
-            // Remove before setFrame: fitting can itself generate native update events.
-            NotificationCenter.default.removeObserver(self, name: NSWindow.didUpdateNotification, object: window)
-            captureWindow = nil
-            applied = true
-            fit(window)
-        }
-        #endif
         override func viewDidMoveToWindow() {
             super.viewDidMoveToWindow()
             guard let window, !applied else { return }
-            #if DEBUG
-            if ProcessInfo.processInfo.arguments.contains(where: {
-                ["--design-minimum", "--design-initial-size"].contains($0)
-            }) {
-                if captureWindow !== window {
-                    if let previous = captureWindow {
-                        NotificationCenter.default.removeObserver(self, name: NSWindow.didUpdateNotification, object: previous)
-                    }
-                    captureWindow = window
-                    NotificationCenter.default.addObserver(self, selector: #selector(captureWindowUpdated(_:)), name: NSWindow.didUpdateNotification, object: window)
-                }
-                return
-            }
-            #endif
             applied = true
             DispatchQueue.main.async { self.fit(window) }
         }
         private func fit(_ window: NSWindow) {
             guard let screen = window.screen ?? NSScreen.main else { return }
-            var visible = screen.visibleFrame
-            var requested = window.frame
-            #if DEBUG
-            // Inject only an available-frame boundary; never change macOS display settings.
-            if ProcessInfo.processInfo.arguments.contains("--design-constrained-screen") {
-                visible.size.width = min(visible.width, 1024)
-                visible.size.height = min(visible.height, 720)
-            }
-            if ProcessInfo.processInfo.arguments.contains("--design-minimum") {
-                requested.size = NSSize(width: 900, height: 640)
-            } else if ProcessInfo.processInfo.arguments.contains("--design-initial-size") {
-                // Use approved capture presets rather than a fluctuating maximum height.
-                // The normal production fit below continues to use the actual window frame.
-                requested.size = NSSize(width: 1120, height: visible.height >= 760 ? 760 : 640)
-            }
-            #endif
+            let visible = screen.visibleFrame
+            let requested = window.frame
             let minimum = NSSize(width: min(900, visible.width), height: min(640, visible.height))
             window.minSize = minimum
             let size = NSSize(width: max(minimum.width, min(requested.width, visible.width)), height: max(minimum.height, min(requested.height, visible.height)))
-            var origin = NSPoint(x: min(max(requested.minX, visible.minX), visible.maxX - size.width), y: min(max(requested.minY, visible.minY), visible.maxY - size.height))
-            #if DEBUG
-            // Explicit captures use the visible top-left corner, independent of native
-            // restored/cascaded positions. Ordinary launches retain their fitted origin.
-            if ProcessInfo.processInfo.arguments.contains(where: {
-                ["--design-minimum", "--design-initial-size"].contains($0)
-            }) { origin = NSPoint(x: visible.minX, y: visible.maxY - size.height) }
-            #endif
+            let origin = NSPoint(x: min(max(requested.minX, visible.minX), visible.maxX - size.width), y: min(max(requested.minY, visible.minY), visible.maxY - size.height))
             let fitted = NSRect(origin: origin, size: size)
             if window.frame != fitted { window.setFrame(fitted, display: true) }
-            #if DEBUG
-            // Capture controls become visible only after this launch's explicit fit.
-            // Their layout was retained while hidden; ordinary launches are unaffected.
-            if ProcessInfo.processInfo.arguments.contains(where: {
-                ["--design-minimum", "--design-initial-size"].contains($0)
-            }) { self.onCaptureFit?() }
-            #endif
         }
-        #if DEBUG
-        deinit { NotificationCenter.default.removeObserver(self) }
-        #endif
     }
 }
 

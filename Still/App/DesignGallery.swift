@@ -220,14 +220,3 @@ private struct ShellAppearanceGalleryExamples: View {
 }
 
 #endif
-
-/// Explicit debug-only review settings do not alter macOS accessibility preferences.
-struct DesignAccessibilityPreview: ViewModifier {
-    func body(content: Content) -> some View {
-        #if DEBUG
-        content.environment(\.stillOpaqueChrome, ProcessInfo.processInfo.arguments.contains("--design-opaque-chrome"))
-        #else
-        content
-        #endif
-    }
-}

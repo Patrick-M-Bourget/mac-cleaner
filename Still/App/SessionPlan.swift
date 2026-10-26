@@ -5,12 +5,7 @@ import SwiftUI
 
 @MainActor @Observable final class SessionPlan {
     let execution = CleanupExecutionModel()
-    let chrome: ChromeCleanupModel = {
-        #if DEBUG
-        if let fixture = ChromeCleanupFixture.makeModel() { return fixture }
-        #endif
-        return ChromeCleanupModel()
-    }()
+    let chrome = ChromeCleanupModel()
     private(set) var workspaceRunning = false
     private(set) var workspaceFinished = false
     private(set) var workspaceStopRequested = false
@@ -121,18 +116,9 @@ import SwiftUI
         AppLifecycleController.shared.hasPendingPlan = draft.selectedCount > 0
     }
     private var downloads: DownloadsRoot?
-    #if DEBUG
-    private var requestedFixture: URL?
-    #endif
     init() {
         let root = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask).first
         downloads = root.flatMap { try? DownloadsRoot(url: $0) }
-        #if DEBUG
-        if ProcessInfo.processInfo.arguments.contains("--ui-test-downloads-root"),
-           let path = ProcessInfo.processInfo.environment["STILL_TEST_DOWNLOADS_ROOT"] {
-            requestedFixture = URL(fileURLWithPath: path)
-        }
-        #endif
     }
     struct Row: Identifiable {
         let item: FileObservation
@@ -234,18 +220,6 @@ import SwiftUI
         if isRetryRechecking { stopRetryRecheck(); retryGeneration = UUID(); isPreparing = false; isRetryRechecking = false }
         execution.clear()
         if let newer = scans[scan.scope], newer.observedAt > scan.observedAt { return }
-        #if DEBUG
-        // Bind only after NSOpenPanel selected the exact fixture; never probe runner data at launch.
-        if let requestedFixture, requestedFixture.standardizedFileURL.path == scan.scope.standardizedFileURL.path,
-           let fixture = try? DownloadsRoot(url: scan.scope), fixture.url.lastPathComponent.hasPrefix("StillSelectionUI-") {
-            let runnerTemp = FileManager.default.homeDirectoryForCurrentUser
-                .appendingPathComponent("Library/Containers/com.patrickbourget.StillUITests.xctrunner/Data/tmp")
-            let canonicalRunnerTemp: String? = runnerTemp.path
-            let canonicalAppTemp = (try? DownloadsRoot(url: FileManager.default.temporaryDirectory))?.url.path
-            let parent = fixture.url.deletingLastPathComponent().path
-            if [canonicalRunnerTemp, canonicalAppTemp, "/private/tmp", "/tmp"].compactMap({ $0 }).contains(parent) { downloads = fixture }
-        }
-        #endif
         invalidateReview()
         unavailableScopes.remove(scan.scope.standardizedFileURL)
         scans[scan.scope] = scan

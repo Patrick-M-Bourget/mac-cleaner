@@ -11,31 +11,6 @@ import StillCore
     @Published private(set) var status = "Choose Homebrew and its cache explicitly. No installed code, configuration or personal cache is probed automatically."
     @Published private(set) var inspecting = false
     @Published private(set) var isExample = false
-    init() {
-#if DEBUG
-        if ProcessInfo.processInfo.arguments.contains("--homebrew-inventory-fixture"),
-           let path = ProcessInfo.processInfo.environment["STILL_TEST_HOMEBREW_ROOT"],
-           let expectedID = ProcessInfo.processInfo.environment["STILL_TEST_HOMEBREW_ROOT_ID"] {
-            let selected = URL(fileURLWithPath: path).standardizedFileURL.resolvingSymlinksInPath()
-            let temporary = FileManager.default.temporaryDirectory.standardizedFileURL.resolvingSymlinksInPath()
-            let runnerTemporary = FileManager.default.homeDirectoryForCurrentUser
-                .appendingPathComponent("Library/Containers/com.patrickbourget.StillUITests.xctrunner/Data/tmp")
-                .standardizedFileURL.resolvingSymlinksInPath()
-            var information = stat()
-            if [temporary, runnerTemporary].contains(selected.deletingLastPathComponent()),
-               selected.lastPathComponent.hasPrefix("StillHomebrewUI-"),
-               UUID(uuidString: String(selected.lastPathComponent.dropFirst("StillHomebrewUI-".count))) != nil,
-               lstat(selected.path, &information) == 0, information.st_mode & S_IFMT == S_IFDIR, information.st_uid == geteuid(),
-               "\(information.st_dev):\(information.st_ino)" == expectedID {
-                executable = selected.appendingPathComponent("source/bin/brew")
-                cache = selected.appendingPathComponent("cache")
-                status = "Disposable source and cache selected. Inspect explicitly; installed code is never executed."
-            } else {
-                status = "Disposable fixture rejected: canonical temporary scope or resource identity did not match."
-            }
-        }
-#endif
-    }
     func chooseExecutable(isCache: Bool = false) {
         let panel = NSOpenPanel()
         panel.title = isCache ? "Choose Homebrew cache folder" : "Choose Homebrew executable"

@@ -7,41 +7,12 @@ struct StillApp: App {
     @NSApplicationDelegateAdaptor(StillApplicationDelegate.self) private var delegate
     @StateObject private var lifecycle = AppLifecycleController.shared
     @StateObject private var alerts = AppLifecycleController.shared.alerts
-    #if DEBUG
-    @State private var capturePresented = !ProcessInfo.processInfo.arguments.contains(where: {
-        ["--design-minimum", "--design-initial-size"].contains($0)
-    })
-    #endif
-    private var initialSize: CGSize {
-        #if DEBUG
-        if ProcessInfo.processInfo.arguments.contains("--design-minimum") { return CGSize(width: 900, height: 640) }
-        #endif
-        return CGSize(width: 1120, height: 760)
-    }
     var body: some Scene {
         Window("Still", id: "workspace") {
-            Group {
-                #if DEBUG
-                if ProcessInfo.processInfo.arguments.contains("--design-gallery") { DesignGallery() }
-                else { WorkspaceView(alerts: lifecycle.alerts) }
-                #else
-                WorkspaceView(alerts: lifecycle.alerts)
-                #endif
-            }
-            #if DEBUG
-            .opacity(capturePresented ? 1 : 0)
-            .accessibilityHidden(!capturePresented)
-            .allowsHitTesting(capturePresented)
-            #endif
-            .frame(minWidth: 900).background {
-                #if DEBUG
-                NativeWindowContract(onCaptureFit: { capturePresented = true })
-                #else
-                NativeWindowContract()
-                #endif
-            }.modifier(DesignAccessibilityPreview())
+            WorkspaceView(alerts: lifecycle.alerts)
+                .frame(minWidth: 900).background { NativeWindowContract() }
         }
-        .defaultSize(width: initialSize.width, height: initialSize.height)
+        .defaultSize(width: 1120, height: 760)
         .commands {
             CommandGroup(after: .windowArrangement) {
                 Button("Show Still") { lifecycle.openWorkspace?() }
@@ -106,25 +77,11 @@ enum Destination: String, CaseIterable, Identifiable {
     var accessGuideExpanded = false
 }
 
-private struct FixtureItem: Identifiable {
-    let id: String
-    let name: String
-    let path: String
-    let size: String
-    static let downloads = [
-        FixtureItem(id: "trip", name: "Summer trip.mov", path: "Downloads/Trips/Summer trip.mov", size: "1.6 GB"),
-        FixtureItem(id: "installer", name: "Editor installer.dmg", path: "Downloads/Editor installer.dmg", size: "420 MB"),
-        FixtureItem(id: "guide", name: "Camera guide.pdf", path: "Downloads/Camera guide.pdf", size: "8 MB")
-    ]
-}
-
 private struct WorkspaceView: View {
     @Environment(\.openWindow) private var openWindow
     @ObservedObject var alerts: StorageAlertsController
     @State private var navigationState = AppLifecycleController.shared.workspaceNavigation
     private var destination: Destination { get { navigationState.destination } nonmutating set { navigationState.destination = newValue } }
-    @State private var inspecting = false
-    @State private var inspected = FixtureItem.downloads[0]
     @State private var appearance = AppLifecycleController.shared.appearance
     @State private var expanded = false
     @State private var folderInspection = AppLifecycleController.shared.inspection
@@ -150,15 +107,8 @@ private struct WorkspaceView: View {
     @State private var locationToForget: RememberedScope?
     @State private var capacity = AppLifecycleController.shared.capacity
     private var startupCapacity: StartupCapacityReading? { capacity.reading }
-    private var fixtureMode: Bool {
-        #if DEBUG
-        ProcessInfo.processInfo.arguments.contains("--fixture-workspace")
-        #else
-        false
-        #endif
-    }
-    private var showsPlan: Bool { destination == .plan && !navigationState.localRecordsVisible && !recoveryVisible && !inspecting && !nativeInspectionVisible && !homebrewVisible && !pipVisible && !dockerVisible && !managedStorageVisible && !diagnosticsVisible && !exclusionsVisible }
-    private var inspectionVisible: Bool { inspecting || nativeInspectionVisible }
+    private var showsPlan: Bool { destination == .plan && !navigationState.localRecordsVisible && !recoveryVisible && !nativeInspectionVisible && !homebrewVisible && !pipVisible && !dockerVisible && !managedStorageVisible && !diagnosticsVisible && !exclusionsVisible }
+    private var inspectionVisible: Bool { nativeInspectionVisible }
     private var contextLabel: String {
         if selection.chrome.isRunning { return "Clearing approved Chrome caches" }
         if selection.execution.isRunning { return "Moving approved files to Trash" }
@@ -167,13 +117,12 @@ private struct WorkspaceView: View {
         if diagnosticsVisible { return "Redacted diagnostics · Explicit local Save" }
         if recoveryVisible { return "Recovery review · Recorded facts only" }
         if selection.hasWorkspaceResult && showsPlan { return "Cleanup results · individual outcomes" }
-        if nativeInspectionVisible || inspecting { return "Read-only storage inspection" }
+        if nativeInspectionVisible { return "Read-only storage inspection" }
         if managedStorageVisible { return "App-managed inventory · selected objects only" }
         if homebrewVisible { return "Read-only Homebrew inventory" }
         if pipVisible { return "Read-only pip inventory" }
         if dockerVisible { return "Read-only Docker inventory" }
         if exclusionsVisible { return "Custom scan exclusions" }
-        if fixtureMode { return "Synthetic data — no personal files accessed" }
         switch destination {
         case .overview: return "On-demand storage review"
         case .plan: return "Choose files, then review"
@@ -254,7 +203,6 @@ private struct WorkspaceView: View {
                         } else if nativeInspectionVisible {
                             FolderInspectionView(model: folderInspection, selection: selection, viewPlan: { nativeInspectionVisible = false; destination = .plan }) { nativeInspectionVisible = false; destination = .overview }
                         }
-                        else if inspecting { inspection }
                         else {
                             switch destination {
                             case .alerts: StorageAlertsView(controller: alerts, capacity: capacity, configureOnEntry: navigationState.configureAlertsOnEntry)
@@ -273,7 +221,7 @@ private struct WorkspaceView: View {
                                 DestinationViewport(offset: $navigationState.diagnosticsOffset).frame(width: 0, height: 0)
                             } else if navigationState.localRecordsVisible && !recoveryVisible {
                                 DestinationViewport(offset: $navigationState.localRecordsOffset).frame(width: 0, height: 0)
-                            } else if !recoveryVisible && !diagnosticsVisible && !exclusionsVisible && !managedStorageVisible && !dockerVisible && !pipVisible && !homebrewVisible && !inspecting {
+                            } else if !recoveryVisible && !diagnosticsVisible && !exclusionsVisible && !managedStorageVisible && !dockerVisible && !pipVisible && !homebrewVisible {
                                 if destination == .history {
                                     DestinationViewport(offset: $navigationState.historyOffset).frame(width: 0, height: 0)
                                 } else if destination == .growth {
@@ -325,7 +273,7 @@ private struct WorkspaceView: View {
                         }
                     } else if inspectionVisible {
                         ActionStrip(message: nativeInspectionVisible ? "\(StillDesign.files(selection.draft.selectedCount)) selected" : "Nothing selected") {
-                            Button("View cleanup plan") { nativeInspectionVisible = false; inspecting = false; destination = .plan }.buttonStyle(.borderedProminent)
+                            Button("View cleanup plan") { nativeInspectionVisible = false; destination = .plan }.buttonStyle(.borderedProminent)
                         }
                     } else if destination == .growth {
                         if navigationState.growthFromHistory {
@@ -376,7 +324,7 @@ private struct WorkspaceView: View {
             explorerContext.downloadsScopes = Set(locationsModel.includedDownloads.map { URL(fileURLWithPath: $0.path).standardizedFileURL })
         }
         .onAppear { AppLifecycleController.shared.openWorkspace = { openWindow(id: "workspace") } }
-        .onReceive(NotificationCenter.default.publisher(for: .stillAlertOpened)) { _ in destination = .overview; navigationState.localRecordsVisible = false; exclusionsVisible = false; diagnosticsVisible = false; recoveryVisible = false; inspecting = false; nativeInspectionVisible = false; homebrewVisible = false; pipVisible = false; dockerVisible = false; managedStorageVisible = false }
+        .onReceive(NotificationCenter.default.publisher(for: .stillAlertOpened)) { _ in destination = .overview; navigationState.localRecordsVisible = false; exclusionsVisible = false; diagnosticsVisible = false; recoveryVisible = false; nativeInspectionVisible = false; homebrewVisible = false; pipVisible = false; dockerVisible = false; managedStorageVisible = false }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in Task { await alerts.activated() } }
         .onReceive(NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.didWakeNotification)) { _ in Task { await alerts.activated() } }
         .toolbar {
@@ -407,7 +355,7 @@ private struct WorkspaceView: View {
     }
 
     private var scanReturnAction: (() -> Void)? {
-        let atOrigin = destination == scanOrigin && !navigationState.localRecordsVisible && !nativeInspectionVisible && !inspecting && !diagnosticsVisible && !exclusionsVisible && !recoveryVisible && !homebrewVisible && !pipVisible && !dockerVisible && !managedStorageVisible
+        let atOrigin = destination == scanOrigin && !navigationState.localRecordsVisible && !nativeInspectionVisible && !diagnosticsVisible && !exclusionsVisible && !recoveryVisible && !homebrewVisible && !pipVisible && !dockerVisible && !managedStorageVisible
         if atOrigin { return nil }
         return { returnToScanOrigin() }
     }
@@ -415,7 +363,7 @@ private struct WorkspaceView: View {
     private func returnToScanOrigin() {
         destination = scanOrigin
         navigationState.localRecordsVisible = false
-        nativeInspectionVisible = false; inspecting = false; diagnosticsVisible = false
+        nativeInspectionVisible = false; diagnosticsVisible = false
         exclusionsVisible = false; recoveryVisible = false; homebrewVisible = false
         pipVisible = false; dockerVisible = false; managedStorageVisible = false
         planReturnsToExplorer = false
@@ -432,7 +380,7 @@ private struct WorkspaceView: View {
         if value == .plan && selection.hasWorkspaceResult { startNewPlan() }
         navigationState.localRecordsVisible = false
         diagnosticsVisible = false; exclusionsVisible = false
-        recoveryVisible = false; navigationState.recoveryCaller = .overview; inspecting = false; nativeInspectionVisible = false; homebrewVisible = false
+        recoveryVisible = false; navigationState.recoveryCaller = .overview; nativeInspectionVisible = false; homebrewVisible = false
         pipVisible = false; dockerVisible = false; managedStorageVisible = false
     }
 
@@ -489,19 +437,10 @@ private struct WorkspaceView: View {
                     }
                 }
             }
-            if !fixtureMode {
-                VolumeSummary(available: startupCapacity?.available, total: startupCapacity?.total,
-                              observation: capacity.observationText, status: capacity.statusText,
-                              refreshTitle: capacity.failed ? "Try again" : "Refresh capacity", refreshing: capacity.isRefreshing,
-                              refresh: { capacity.request(.manual) })
-            } else if folderInspection.scope == nil {
-                SummarySurface {
-                    VStack(alignment: .leading, spacing: StillDesign.Space.md) {
-                        CapacityMeter(available: 42_800_000_000, total: 512_000_000_000)
-                        Text("Synthetic startup volume · Fixture observation").font(.caption).foregroundStyle(.secondary)
-                    }
-                }
-            }
+            VolumeSummary(available: startupCapacity?.available, total: startupCapacity?.total,
+                          observation: capacity.observationText, status: capacity.statusText,
+                          refreshTitle: capacity.failed ? "Try again" : "Refresh capacity", refreshing: capacity.isRefreshing,
+                          refresh: { capacity.request(.manual) })
             scannedLocations
             overviewRecommendations
         }
@@ -535,9 +474,6 @@ private struct WorkspaceView: View {
     private var overviewDownloadsRow: some View {
         if selection.retryTargetIDs != nil {
             return StorageReviewRow(category: .downloads, title: "Downloads to review", detail: "A retry includes only unfinished files. Scan again to choose from all observed Downloads files.", value: overviewBytes(selection.overviewDownloadsLogicalBytes), meaning: "Observed logical size", actionTitle: "Scan again to review all files", action: folderInspection.isScanning || selection.execution.isRunning ? nil : { scanKnownLocations() }, identifier: "overviewDownloadsFinding")
-        }
-        if fixtureMode && folderInspection.scope == nil {
-            return StorageReviewRow(category: .downloads, title: "Downloads to review", detail: "Synthetic example · 3 files · Nothing selected automatically.", value: "2.028 GB", meaning: "Synthetic logical size", actionTitle: "Review Downloads", action: { inspecting = true }, identifier: "overviewDownloadsFinding")
         }
         let rows = selection.overviewDownloadRows
         let action: (() -> Void)? = rows.isEmpty || folderInspection.isScanning || selection.execution.isRunning ? nil : { reviewDownloads() }
@@ -606,38 +542,7 @@ private struct WorkspaceView: View {
         }
     }
 
-    private var inspection: some View {
-        VStack(alignment: .leading, spacing: StillDesign.Space.xl) {
-            Button("Back to Overview", systemImage: "chevron.left") { inspecting = false; destination = .overview }
-            heading("Downloads inspection", "Synthetic files · Names inspect without selecting.")
-            ForEach(FixtureItem.downloads) { item in
-                HStack {
-                    Button { inspected = item } label: {
-                        Label(item.name, systemImage: "doc").frame(maxWidth: .infinity, alignment: .leading)
-                    }.buttonStyle(.plain).accessibilityLabel("Inspect \(item.name)")
-                    Text(item.size).monospacedDigit().foregroundStyle(.secondary)
-                }.padding(.vertical, StillDesign.Space.sm)
-                Divider()
-            }
-            VStack(alignment: .leading, spacing: StillDesign.Space.md) {
-                Text(inspected.name).font(.headline)
-                Text(inspected.path).textSelection(.enabled)
-                Text("Logical size: \(inspected.size)")
-                Text("Example ordinary file · Proposed action: Move to Trash. No action is enabled in this fixture workspace.")
-                    .foregroundStyle(.secondary)
-            }.padding(StillDesign.Space.lg).frame(maxWidth: .infinity, alignment: .leading)
-                .background(StillDesign.summary, in: RoundedRectangle(cornerRadius: StillDesign.Radius.surface))
-
-        }
-    }
-
     private func isDownloadsLocation(_ url: URL) -> Bool {
-        #if DEBUG
-        if ProcessInfo.processInfo.arguments.contains("--ui-test-downloads-root"),
-           let path = ProcessInfo.processInfo.environment["STILL_TEST_DOWNLOADS_ROOT"],
-           URL(fileURLWithPath: path).lastPathComponent.hasPrefix("StillSelectionUI-"),
-           url.standardizedFileURL.pathComponents.starts(with: URL(fileURLWithPath: path).standardizedFileURL.pathComponents) { return true }
-        #endif
         guard let root = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask).first else { return false }
         return url.standardizedFileURL.pathComponents.starts(with: root.standardizedFileURL.pathComponents)
     }
@@ -695,7 +600,7 @@ private struct WorkspaceView: View {
     }
 
     private func didResetLocalRecords() {
-        nativeInspectionVisible = false; inspecting = false
+        nativeInspectionVisible = false
         diagnosticsVisible = false; diagnostics = DiagnosticsModel(); exclusionsVisible = false
     }
 
@@ -846,10 +751,6 @@ private struct WorkspaceView: View {
             return scan.isComplete ? "Observed · " + scan.observedAt.formatted(date: .omitted, time: .shortened) : "Partial coverage · Uninspected bytes unknown"
         }
         return "Not scanned"
-    }
-
-    private func heading(_ title: String, _ subtitle: String) -> some View {
-        PageHeader(title: title, subtitle: subtitle)
     }
 }
 
