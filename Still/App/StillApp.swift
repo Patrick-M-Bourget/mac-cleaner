@@ -7,6 +7,8 @@ struct StillApp: App {
     @NSApplicationDelegateAdaptor(StillApplicationDelegate.self) private var delegate
     @StateObject private var lifecycle = AppLifecycleController.shared
     @StateObject private var alerts = AppLifecycleController.shared.alerts
+    /// Runs before AppKit finishes launching, so saved window state is ignored before it can be restored.
+    init() { AppLaunchPolicy.registerDefaults() }
     var body: some Scene {
         Window("Still", id: "workspace") {
             WorkspaceView(alerts: lifecycle.alerts)

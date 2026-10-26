@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 @testable import StorageAlerts
 
@@ -50,4 +51,13 @@ import Testing
 
 @Test func pendingPlanSurvivesWindowCloseWithoutAlertPolling() {
     #expect(AppLifecyclePolicy.shouldKeepRunning(effectiveAlerts: false, operationInProgress: false, hasPendingPlan: true))
+}
+
+/// #110: saved window state must never stop the main window from opening at launch.
+@Test func launchDefaultsIgnoreSavedWindowState() throws {
+    let suite = "StillLaunchDefaultsTest-" + UUID().uuidString
+    let defaults = try #require(UserDefaults(suiteName: suite))
+    defer { defaults.removePersistentDomain(forName: suite) }
+    AppLaunchPolicy.registerDefaults(in: defaults)
+    #expect(defaults.bool(forKey: "ApplePersistenceIgnoreState"))
 }
