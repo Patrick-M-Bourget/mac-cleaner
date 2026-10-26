@@ -36,7 +36,7 @@ Decision 3 sets the main split: regenerable data is deleted permanently; user fi
 
 | Kind | Examples | Action | How it comes back |
 |---|---|---|---|
-| Cache | npm, Yarn, pnpm, uv, pip, Cargo, Gradle, CocoaPods, Homebrew cache; browser cache folders; per-app `~/Library/Caches` | Delete permanently | Downloaded or rebuilt on next use |
+| Cache | npm, Yarn, pnpm metadata, uv, pip, Cargo, Gradle, CocoaPods, Homebrew cache; browser cache folders; per-app `~/Library/Caches` | Delete permanently | Downloaded or rebuilt on next use |
 | Build output | Xcode DerivedData project folders (products and dSYMs included), iOS DeviceSupport except the 2 newest versions per platform | Delete permanently | Rebuilt; next build is slower |
 | Updater downloads | Sparkle and vendor updater caches | Delete permanently | Downloaded by the next update |
 | Leaked app copies | Chrome `code_sign_clone` copies | Delete permanently, except the copy in use and the newest | Not needed again |
@@ -48,7 +48,7 @@ Decision 3 sets the main split: regenerable data is deleted permanently; user fi
 
 Other actions:
 
-- **Run a tool**, with a time limit: `brew cleanup -s` (plus the Homebrew cache folder), `xcrun simctl delete unavailable`, `ollama rm <model>`. Every other cache is cleaned by deleting its folder, not with the tool's own purge command. The tool's output and the measured freed space appear in the results. A tool that isn't installed means its rule doesn't appear; Still never installs anything.
+- **Run a tool**, with a time limit: `brew cleanup -s` (plus the Homebrew cache folder), `xcrun simctl delete unavailable`, `ollama rm <model>`, `pnpm store prune`. Every other cache is cleaned by deleting its folder, not with the tool's own purge command. The tool's output and the measured freed space appear in the results. A tool that isn't installed means its rule doesn't appear; Still never installs anything.
 - **Evict local iCloud copy** (after M1): removes only the local download; the original stays in iCloud. Pinned, not-yet-uploaded and conflicted files are skipped. This is never a delete.
 - **Guidance only**: Still shows the size and tells the user where to manage it. It never changes these: iOS backups, Mail and Messages attachments, Photos, Time Machine local snapshots, Xcode release archives, purchased content such as audio plug-ins ("reinstall through the vendor", owner's call).
 

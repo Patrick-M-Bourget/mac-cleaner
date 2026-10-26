@@ -2,13 +2,15 @@ import Foundation
 import Testing
 import StillCore
 
-private func recoveryApproval(_ root: URL) async throws -> CleanupApproval {
-    let scan = try await FolderScanner().scan(root)
-    var plan = PlanDraft()
-    let downloads = try DownloadsRoot(url: root)
-    _ = plan.selectAll(in: [scan], downloads: downloads)
-    return try plan.approve(plan.review())
+/// A Downloads-style Trash batch over the files in `root`, as the executor would claim it.
+private struct FixtureBatch { let id: UUID; let records: [CleanupRecord] }
+private func fixtureBatch(_ root: URL) -> FixtureBatch {
+    let rule = CleanupRule(id: "fixture-files", category: .downloads, title: "Files", detail: "", consequence: "", regen: .userFile, action: .trash, locations: [""], owner: nil, contents: ContentsMatch())
+    let id = UUID()
+    let candidates = Catalog(rules: [rule]).discover(home: root).sorted { $0.url.path < $1.url.path }
+    return FixtureBatch(id: id, records: candidates.map { CleanupRecord(batchID: id, approvedAt: Date(), candidate: $0, previewOnly: false) })
 }
+private func recoveryApproval(_ root: URL) async throws -> FixtureBatch { fixtureBatch(root) }
 @Test func reopeningIntentWithMissingOriginalRemainsUnresolvedAndReadOnly() async throws {
     let root = FileManager.default.temporaryDirectory.appendingPathComponent("StillRecovery-" + UUID().uuidString)
     try FileManager.default.createDirectory(at: root, withIntermediateDirectories: false)
@@ -19,8 +21,8 @@ private func recoveryApproval(_ root: URL) async throws -> CleanupApproval {
     let url = root.appendingPathComponent("journal.sqlite")
     do {
         let journal = try SQLiteCleanupJournal(url: url)
-        #expect(try journal.claim(approval))
-        var record = CleanupRecord(batch: approval, target: try #require(approval.targets.first))
+        #expect(try journal.claim(batchID: approval.id, records: approval.records))
+        var record = try #require(approval.records.first)
         record.state = .intent; record.message = "Intent committed"
         try journal.intent(record)
     }
@@ -47,10 +49,10 @@ private func recoveryApproval(_ root: URL) async throws -> CleanupApproval {
     let url = root.appendingPathComponent("journal.sqlite")
     do {
         let journal = try SQLiteCleanupJournal(url: url)
-        #expect(try journal.claim(approval))
+        #expect(try journal.claim(batchID: approval.id, records: approval.records))
         let states: [CleanupTargetState] = [.succeeded, .failed, .skipped, .cancelled, .pending, .intent, .unknown]
-        for (target, state) in zip(approval.targets, states) {
-            var record = CleanupRecord(batch: approval, target: target)
+        for (target, state) in zip(approval.records, states) {
+            var record = target
             record.state = state
             try journal.outcome(record)
         }
@@ -63,7 +65,7 @@ private func recoveryApproval(_ root: URL) async throws -> CleanupApproval {
     #expect(snapshot.knownResultCount == 4)
     #expect(snapshot.interruptedBatches.first?.records.map(\.state) == [.succeeded, .failed, .skipped, .cancelled, .pending, .intent, .unknown])
     #expect(snapshot.interruptedBatches.first?.records.allSatisfy { $0.trashURL == nil } == true)
-    #expect(try reopened.claim(approval) == false)
+    #expect(try reopened.claim(batchID: approval.id, records: approval.records) == false)
 }
 
 @Test func readOnlyRecoveryOpenCannotCreateOrClaimAndPreservesRecords() async throws {
@@ -75,10 +77,10 @@ private func recoveryApproval(_ root: URL) async throws -> CleanupApproval {
     let url = root.appendingPathComponent("journal.sqlite")
     #expect(throws: CleanupJournalError.self) { try SQLiteCleanupJournal(url: url, readOnly: true) }
     #expect(!FileManager.default.fileExists(atPath: url.path))
-    do { let writer = try SQLiteCleanupJournal(url: url); #expect(try writer.claim(approval)) }
+    do { let writer = try SQLiteCleanupJournal(url: url); #expect(try writer.claim(batchID: approval.id, records: approval.records)) }
     let reader = try SQLiteCleanupJournal(url: url, readOnly: true)
     #expect(try CleanupRecoverySnapshot(journal: reader).pendingCount == 1)
-    #expect(throws: CleanupJournalError.self) { try reader.claim(approval) }
+    #expect(throws: CleanupJournalError.self) { try reader.claim(batchID: approval.id, records: approval.records) }
     var changed = try #require(try reader.records().first)
     changed.state = .succeeded
     #expect(throws: CleanupJournalError.self) { try reader.outcome(changed) }
@@ -105,8 +107,8 @@ private func recoveryApproval(_ root: URL) async throws -> CleanupApproval {
     let url = root.appendingPathComponent("journal.sqlite")
     let journal = try SQLiteCleanupJournal(url: url)
     #expect(try CleanupRecoverySnapshot(journal: journal).interruptedBatches.isEmpty)
-    #expect(try journal.claim(approval))
-    var record = CleanupRecord(batch: approval, target: try #require(approval.targets.first))
+    #expect(try journal.claim(batchID: approval.id, records: approval.records))
+    var record = try #require(approval.records.first)
     record.state = .succeeded; record.message = "Recorded success; current location not inspected"
     record.trashURL = root.appendingPathComponent("missing-returned-location")
     try journal.outcome(record)

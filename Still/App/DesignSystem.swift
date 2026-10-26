@@ -24,6 +24,7 @@ enum StillDesign {
     static var teal: Color { adaptive(light: 0x349A9B, dark: 0x61C3C2) }
     static var orange: Color { adaptive(light: 0xBD7527, dark: 0xE2A35E) }
     static func files(_ count: Int) -> String { "\(count) \(count == 1 ? "file" : "files")" }
+    static func items(_ count: Int) -> String { "\(count) \(count == 1 ? "item" : "items")" }
     static var capacityFill: Color { adaptive(light: 0x969BA7, dark: 0x858997) }
     static var capacityTrack: Color { adaptive(light: 0xECEEF2, dark: 0x33343D) }
     static var separator: Color { Color(nsColor: .separatorColor) }
@@ -566,27 +567,6 @@ struct ScanProgressSummary: View {
 }
 
 /// Shared current-build scope guidance; the shortcut still requires native folder approval.
-struct CleanupScopeNotice: View {
-    var enabled = true
-    var compact = false
-    let chooseDownloads: () -> Void
-    var body: some View {
-        if compact {
-            HStack(spacing: StillDesign.Space.md) {
-                Text("Cleanup currently supports files in Downloads only. Other folders are inspection only.")
-                    .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-                    .frame(maxWidth: .infinity, alignment: .leading).accessibilityIdentifier("cleanupScopeNotice")
-                Button("Choose Downloads…", action: chooseDownloads).disabled(!enabled)
-            }
-        } else {
-            VStack(alignment: .leading, spacing: StillDesign.Space.sm) {
-                StatusRow(text: "Cleanup currently supports files in Downloads only. Other folders are inspection only.", symbol: "info.circle", identifier: "cleanupScopeNotice")
-                Button("Choose Downloads…", action: chooseDownloads).disabled(!enabled)
-            }
-        }
-    }
-}
-
 /// A category remains recognizable before it has usable scan evidence.
 struct CategoryPrerequisite: View {
     let title: String

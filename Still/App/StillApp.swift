@@ -111,7 +111,6 @@ private struct WorkspaceView: View {
     private var inspectionVisible: Bool { nativeInspectionVisible }
     private var contextLabel: String {
         if selection.chrome.isRunning { return "Clearing approved Chrome caches" }
-        if selection.execution.isRunning { return "Moving approved files to Trash" }
         if selection.workspaceRunning { return "Running approved cleanup" }
         if navigationState.localRecordsVisible && !recoveryVisible { return "Local records · Explicit maintenance only" }
         if diagnosticsVisible { return "Redacted diagnostics · Explicit local Save" }
@@ -166,7 +165,7 @@ private struct WorkspaceView: View {
                 if nativeInspectionVisible {
                     StorageExplorerView(model: folderInspection, selection: selection, context: explorerContext,
                         backTitle: "Back to " + explorerCaller.rawValue, back: { nativeInspectionVisible = false; destination = explorerCaller })
-                    ActionStrip(message: "\(StillDesign.files(selection.draft.selectedCount)) · \(selection.chrome.selectedCount) Chrome groups selected · Nothing changes before confirmation.") {
+                    ActionStrip(message: "Inspection only · \(StillDesign.items(selection.workspaceSelectedCount)) in the cleanup plan · Nothing changes before confirmation.") {
                         Button("View cleanup plan") {
                             nativeInspectionVisible = false
                             planReturnsToExplorer = explorerCaller != .plan
@@ -174,13 +173,12 @@ private struct WorkspaceView: View {
                         }.buttonStyle(.borderedProminent)
                     }
                 } else if showsPlan {
-                    LiveCleanupPlanView(selection: selection, recheck: { scope in scanLocations(locationsModel.included.filter { $0.path == scope.path }) }, stopRefresh: { folderInspection.cancel() }, chooseDownloads: scanDownloads,
-                        exploreDownloads: { openExplorer(downloads: true, caller: .plan) },
+                    LiveCleanupPlanView(selection: selection,
                         viewHistory: { destination = .history }, newPlan: startNewPlan,
                         reviewRecovery: { openRecovery(caller: .plan) },
                         backToExplorer: navigationState.planReturnsToGrowth ? { navigationState.planReturnsToGrowth = false; destination = .growth } : planReturnsToExplorer ? { nativeInspectionVisible = true; planReturnsToExplorer = false } : nil,
                         backToExplorerTitle: navigationState.planReturnsToGrowth ? "Back to What grew" : "Back to Explorer",
-                        manageLocations: { destination = .locations }, scopeMessage: locationsModel.message ?? folderInspection.message, presentation: planPresentation)
+                        presentation: planPresentation)
                 } else {
                 ScrollView {
                     VStack(alignment: .leading, spacing: StillDesign.Space.xl) {
@@ -272,7 +270,7 @@ private struct WorkspaceView: View {
                             Button("Stop scan") { folderInspection.cancel() }.buttonStyle(.borderedProminent)
                         }
                     } else if inspectionVisible {
-                        ActionStrip(message: nativeInspectionVisible ? "\(StillDesign.files(selection.draft.selectedCount)) selected" : "Nothing selected") {
+                        ActionStrip(message: "Inspection only · \(StillDesign.items(selection.workspaceSelectedCount)) in the cleanup plan") {
                             Button("View cleanup plan") { nativeInspectionVisible = false; destination = .plan }.buttonStyle(.borderedProminent)
                         }
                     } else if destination == .growth {
@@ -309,7 +307,6 @@ private struct WorkspaceView: View {
         .onChange(of: selection.chrome.isBusy) { previous, current in if previous && !current { capacity.request(.scanEnded) } }
         .onChange(of: selection.chrome.selectionRevision) { _, _ in AppLifecycleController.shared.hasPendingPlan = selection.hasPendingChoices }
         .onChange(of: selection.catalog.selectionRevision) { _, _ in AppLifecycleController.shared.hasPendingPlan = selection.hasPendingChoices }
-        .onChange(of: selection.mutationVersion) { _, _ in AppLifecycleController.shared.hasPendingPlan = selection.hasPendingChoices }
         .task { if await recovery.loadOnce() { openRecovery(caller: .overview, refresh: false) } }
         .task { locationsModel.load() }
         .onChange(of: locationsModel.scopes) { _, _ in
@@ -336,7 +333,7 @@ private struct WorkspaceView: View {
         }
     }
     @ViewBuilder private var contextToolbarLabel: some View {
-        if selection.execution.isRunning {
+        if selection.workspaceRunning {
             Text(contextLabel).font(.caption).foregroundStyle(.secondary).lineLimit(1)
         } else if folderInspection.isScanning {
             ToolbarScanStatus(location: folderInspection.scope?.lastPathComponent ?? "selected locations",
@@ -388,7 +385,6 @@ private struct WorkspaceView: View {
     private func chooseFolderForScan() {
         if let url = FolderInspection.chooseFolder() {
             alerts.dismissOpenedAlert()
-            selection.leaveRetryMode()
             let isDownloads = isDownloadsLocation(url)
             if locationsModel.remember(url, downloads: isDownloads) {
                 scanOrigin = destination
@@ -406,7 +402,7 @@ private struct WorkspaceView: View {
             HStack(alignment: .top) {
                 PageHeader(title: "Storage overview", subtitle: "A clearer picture of what’s on your Mac.")
                 Spacer(minLength: StillDesign.Space.md)
-                Button("Scan again", action: scanAgain).disabled(folderInspection.isScanning || selection.execution.isRunning || !selection.catalog.canEdit)
+                Button("Scan again", action: scanAgain).disabled(folderInspection.isScanning || selection.workspaceRunning || !selection.catalog.canEdit)
             }
             ScanHistoryRecordingNotice()
             if let context = alerts.openedAlertContext {
@@ -416,7 +412,7 @@ private struct WorkspaceView: View {
                         Text("This alert is an earlier observation. Choose a folder for a fresh scan; nothing runs automatically.").font(.callout).foregroundStyle(.secondary)
                         HStack {
                             Button("Choose a folder to scan…", action: chooseFolderForScan)
-                                .disabled(folderInspection.isScanning || selection.execution.isRunning)
+                                .disabled(folderInspection.isScanning || selection.workspaceRunning)
                             Button("Dismiss alert", action: alerts.dismissOpenedAlert)
                         }
                     }
@@ -468,7 +464,6 @@ private struct WorkspaceView: View {
                             identifier: "overviewCategory-" + row.id)
                         Divider().padding(.horizontal, StillDesign.Space.lg)
                     }
-                    overviewDownloadsRow
                 }
                 Text(trashFootnote(summary?.proposedForTrash)).font(.caption).foregroundStyle(.secondary)
             }
@@ -494,36 +489,6 @@ private struct WorkspaceView: View {
         } ?? "Not inspected"
         return StorageReviewRow(category: .cloud, title: "Downloaded iCloud files", detail: "Local copies in this location · Cleanup unavailable.", value: value, meaning: "Local allocation · Unknown metadata stays unknown", actionTitle: overviewCloudExpanded ? "Hide iCloud inventory" : "Review iCloud inventory", action: action, identifier: "overviewCloudFinding")
     }
-    private var overviewDownloadsRow: some View {
-        if selection.retryTargetIDs != nil {
-            return StorageReviewRow(category: .downloads, title: "Downloads to review", detail: "A retry includes only unfinished files. Scan again to choose from all observed Downloads files.", value: overviewBytes(selection.overviewDownloadsLogicalBytes), meaning: "Observed logical size", actionTitle: "Scan again to review all files", action: folderInspection.isScanning || selection.execution.isRunning ? nil : { scanKnownLocations() }, identifier: "overviewDownloadsFinding")
-        }
-        let rows = selection.overviewDownloadRows
-        let action: (() -> Void)? = rows.isEmpty || folderInspection.isScanning || selection.execution.isRunning ? nil : { reviewDownloads() }
-        let detail: String
-        let value: String
-        if !rows.isEmpty {
-            detail = selection.overviewDownloadsCoverage == .incomplete ? "\(StillDesign.files(rows.count)) eligible observed · Other contents remain uninspected." : "\(StillDesign.files(rows.count)) eligible across scanned Downloads locations · Move to Trash after review."
-            value = overviewBytes(selection.overviewDownloadsLogicalBytes)
-        } else {
-            switch selection.overviewDownloadsCoverage {
-            case .notInspected:
-                detail = "Choose Downloads to inspect its files. Other folders are inspection only."
-                value = "Not inspected"
-                if !folderInspection.isScanning && !selection.execution.isRunning {
-                    return StorageReviewRow(category: .downloads, title: "Downloads to review", detail: detail, value: value, meaning: "Logical file size · Not freed space", actionTitle: "Choose Downloads…", action: { chooseDownloads() }, identifier: "overviewDownloadsFinding")
-                }
-            case .incomplete:
-                detail = "Downloads coverage is incomplete. Recheck before choosing files."
-                value = "Unknown"
-            case .complete:
-                detail = "No eligible files in the scanned Downloads locations."
-                value = "No eligible files"
-            }
-        }
-        return StorageReviewRow(category: .downloads, title: "Downloads to review", detail: detail, value: value, meaning: "Logical file size · Not freed space", actionTitle: "Review files", action: action, identifier: "overviewDownloadsFinding")
-    }
-
     private func overviewBytes(_ bytes: Int64?) -> String {
         bytes.map { ByteCountFormatter.string(fromByteCount: $0, countStyle: .decimal) } ?? "Unknown"
     }
@@ -536,9 +501,6 @@ private struct WorkspaceView: View {
         Task { await selection.catalog.scan() }
         if !locationsModel.included.isEmpty { scanKnownLocations() }
     }
-    private func reviewDownloads() {
-        openExplorer(downloads: true, caller: .overview)
-    }
     private var scannedLocations: some View {
         VStack(alignment: .leading, spacing: StillDesign.Space.sm) {
             HStack(alignment: .firstTextBaseline, spacing: StillDesign.Space.sm) {
@@ -546,9 +508,9 @@ private struct WorkspaceView: View {
                 Text(scannedSummary).font(.caption).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
                     .help(overviewObservation?.scope.path ?? "").accessibilityIdentifier("overviewScopeCoverage")
                 if overviewObservation != nil {
-                    Button("Explore storage") { openExplorer(downloads: false, caller: .overview) }.buttonStyle(.link).font(.caption).disabled(selection.execution.isRunning)
+                    Button("Explore storage") { openExplorer(downloads: false, caller: .overview) }.buttonStyle(.link).font(.caption).disabled(selection.workspaceRunning)
                 } else {
-                    Button("Choose a folder…", action: chooseFolderForScan).buttonStyle(.link).font(.caption).disabled(folderInspection.isScanning || selection.execution.isRunning)
+                    Button("Choose a folder…", action: chooseFolderForScan).buttonStyle(.link).font(.caption).disabled(folderInspection.isScanning || selection.workspaceRunning)
                 }
                 Spacer(minLength: 0)
             }
@@ -582,21 +544,8 @@ private struct WorkspaceView: View {
         guard let root = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask).first else { return false }
         return url.standardizedFileURL.pathComponents.starts(with: root.standardizedFileURL.pathComponents)
     }
-    private func chooseDownloads() { scanDownloads() }
-    private func scanDownloads() {
-        guard !folderInspection.isScanning, !selection.execution.isRunning else { return }
-        if !locationsModel.includedDownloads.isEmpty { scanLocations(locationsModel.includedDownloads); return }
-        guard let url = FolderInspection.chooseFolder(downloads: true) else { return }
-        guard isDownloadsLocation(url) else {
-            locationsModel.message = "Choose Downloads or a folder inside it. Add other folders in Locations & access for inspection."
-            return
-        }
-        guard locationsModel.remember(url, downloads: true) else { return }
-        selection.leaveRetryMode(); scanOrigin = destination
-        folderInspection.scan(url)
-    }
     private func scanLocations(_ scopes: [RememberedScope]) {
-        guard !folderInspection.isScanning, !selection.execution.isRunning else { return }
+        guard !folderInspection.isScanning, !selection.workspaceRunning else { return }
         let leases = scopes.compactMap { locationsModel.resolve($0) }
         let resolved = Set(leases.map { $0.url.standardizedFileURL.path })
         for scope in scopes where !resolved.contains(scope.path) {
@@ -604,7 +553,7 @@ private struct WorkspaceView: View {
             selection.suspendScope(url); folderInspection.markUnavailable(url)
         }
         guard !scopes.isEmpty else { return }
-        selection.leaveRetryMode(); scanOrigin = destination
+        scanOrigin = destination
         let unavailable = scopes.filter { !resolved.contains($0.path) }.map { URL(fileURLWithPath: $0.path) }
         folderInspection.scanAgain(scopes: leases.map(\.url), leases: leases, unavailable: unavailable)
     }
@@ -641,7 +590,7 @@ private struct WorkspaceView: View {
     }
 
     private var canStartGrowthScan: Bool {
-        !folderInspection.isScanning && !selection.execution.isRunning && !selection.isRefreshing && !selection.isPreparing && !AppLifecycleController.shared.maintenanceInProgress
+        !folderInspection.isScanning && !selection.workspaceRunning && !selection.isRefreshing && !AppLifecycleController.shared.maintenanceInProgress
     }
     private var growthReviewTitle: String? {
         let model = GrowthHistoryModel.shared
@@ -649,13 +598,13 @@ private struct WorkspaceView: View {
         if model.authorityChecking { return "Checking location…" }
         guard let url = model.resolvedURL else { return "Locate folder…" }
         guard selection.scans[url.standardizedFileURL] != nil, !selection.unavailableScopes.contains(url.standardizedFileURL) else { return "Scan to review" }
-        return isDownloadsLocation(url) ? "Review Downloads" : "Explore folder"
+        return "Explore folder"
     }
     private func chooseNewGrowthLocation() {
         guard canStartGrowthScan else { return }
         guard let url = FolderInspection.chooseFolder(), locationsModel.remember(url, downloads: isDownloadsLocation(url)) else { return }
         GrowthHistoryModel.shared.selectNextLocation = true
-        selection.leaveRetryMode(); scanOrigin = .growth; folderInspection.scan(url)
+        scanOrigin = .growth; folderInspection.scan(url)
     }
     private func scanGrowthLocation(locate: Bool = false, fromHistorical: Bool = false) async {
         let model = GrowthHistoryModel.shared
@@ -668,7 +617,7 @@ private struct WorkspaceView: View {
             guard canStartGrowthScan, destination == .growth, navigationState.routeGeneration == route, model.reviewSnapshot?.id == snapshot.id else { lease.close(); return }
             model.accessNotice = nil; model.needsLocationAccess = false
             if fromHistorical { model.moveHistoricalToCurrent() }
-            selection.leaveRetryMode(); scanOrigin = .growth
+            scanOrigin = .growth
             folderInspection.scanAgain(scopes: [lease.url], leases: [lease]); return
         }
         guard locate || model.needsLocationAccess else {
@@ -684,7 +633,7 @@ private struct WorkspaceView: View {
         guard canStartGrowthScan, destination == .growth, navigationState.routeGeneration == route, model.reviewSnapshot?.id == snapshot.id else { lease.close(); return }
         model.accessNotice = nil; model.needsLocationAccess = false
         if fromHistorical { model.moveHistoricalToCurrent() }
-        selection.leaveRetryMode(); scanOrigin = .growth
+        scanOrigin = .growth
         folderInspection.scanAgain(scopes: [lease.url], leases: [lease])
     }
     private func reviewGrowthLocation() async {
@@ -696,12 +645,8 @@ private struct WorkspaceView: View {
         guard let lease = resolved else { await scanGrowthLocation(locate: true, fromHistorical: model.isHistorical); return }
         let url = lease.url.standardizedFileURL; lease.close()
         guard selection.scans[url] != nil, !selection.unavailableScopes.contains(url) else { await scanGrowthLocation(fromHistorical: model.isHistorical); return }
-        if isDownloadsLocation(url) {
-            navigationState.planReturnsToGrowth = true; planReturnsToExplorer = false; destination = .plan
-        } else {
-            openExplorer(downloads: false, caller: .growth)
-            explorerContext.openLocation(url)
-        }
+        openExplorer(downloads: false, caller: .growth)
+        explorerContext.openLocation(url)
     }
     private func scanHistoricalGrowthLocation() async {
         guard canStartGrowthScan else { return }
@@ -720,16 +665,16 @@ private struct WorkspaceView: View {
             HStack {
                 Button("Add folder…") {
                     if let url = FolderInspection.chooseFolder(remembering: true) { _ = locationsModel.remember(url, downloads: isDownloadsLocation(url)) }
-                }.disabled(folderInspection.isScanning || selection.execution.isRunning)
+                }.disabled(folderInspection.isScanning || selection.workspaceRunning)
                 Button("Scan selected locations") { scanLocations(locationsModel.included) }
-                    .disabled(locationsModel.included.isEmpty || folderInspection.isScanning || selection.execution.isRunning)
+                    .disabled(locationsModel.included.isEmpty || folderInspection.isScanning || selection.workspaceRunning)
             }
             if locationsModel.scopes.isEmpty { EmptyState(title: "No locations yet", detail: "Add a folder, then run a manual scan. Adding a location never starts scanning.", symbol: "folder.badge.plus") }
             ForEach(locationsModel.scopes) { scope in
                 LocationScopeRow(name: URL(fileURLWithPath: scope.path).lastPathComponent, path: scope.path,
                     status: locationStatus(scope), overlap: locationOverlap(scope), included: Binding(get: { scope.isIncluded }, set: { included in
                         if locationsModel.setIncluded(included, scope: scope) { selection.suspendScope(URL(fileURLWithPath: scope.path)) }
-                    }), enabled: !folderInspection.isScanning && !selection.execution.isRunning) {
+                    }), enabled: !folderInspection.isScanning && !selection.workspaceRunning) {
                     HStack {
                         if locationsModel.statuses[scope.id]?.needsRecovery == true {
                             Button("Choose again…") {
@@ -741,10 +686,7 @@ private struct WorkspaceView: View {
                             Button("Reconnect and recheck") { scanLocations([scope]) }.disabled(!scope.isIncluded)
                         }
                         Menu("More") {
-                            Button("Forget location") {
-                                let count = selection.dependentSelectionCount(for: URL(fileURLWithPath: scope.path))
-                                if count > 0 { locationToForget = scope } else { if locationsModel.forget(scope) { selection.suspendScope(URL(fileURLWithPath: scope.path), forget: true) } }
-                            }
+                            Button("Forget location") { locationToForget = scope }
                         }.accessibilityIdentifier("locationActions:" + scope.path)
                     }
                 }
@@ -755,18 +697,17 @@ private struct WorkspaceView: View {
                 Divider()
             }
             if let message = locationsModel.message { StatusRow(text: message, symbol: "info.circle") }
-            Text("Downloads files support cleanup. Other folders are inspection only. Access is rechecked for each manual scan; no files are scanned at launch.").font(.caption).foregroundStyle(.secondary)
+            Text("Scanned folders are for inspection. Cleanup choices, Downloads included, come from the cleanup plan. Access is rechecked for each manual scan; no files are scanned at launch.").font(.caption).foregroundStyle(.secondary)
             LocationAccessGuide(expanded: $navigationState.accessGuideExpanded)
             LocalRecordsEntry { openLocalRecords(caller: .locations) }
         }.confirmationDialog("Forget location?", isPresented: Binding(get: { locationToForget != nil }, set: { if !$0 { locationToForget = nil } }), titleVisibility: .visible) {
             if let scope = locationToForget {
-                Button("Forget location", role: .destructive) { if locationsModel.forget(scope) { selection.suspendScope(URL(fileURLWithPath: scope.path), forget: true) }; locationToForget = nil }
+                Button("Forget location", role: .destructive) { if locationsModel.forget(scope) { selection.suspendScope(URL(fileURLWithPath: scope.path)) }; locationToForget = nil }
                 Button("Cancel", role: .cancel) { locationToForget = nil }
             }
         } message: {
             if let scope = locationToForget {
-                let count = selection.dependentSelectionCount(for: URL(fileURLWithPath: scope.path))
-                Text("Forget " + URL(fileURLWithPath: scope.path).lastPathComponent + " and remove \(count) dependent " + (count == 1 ? "choice" : "choices") + "? No files will be deleted.")
+                Text("Forget " + URL(fileURLWithPath: scope.path).lastPathComponent + "? Still stops scanning it. No files will be deleted.")
             }
         }
     }

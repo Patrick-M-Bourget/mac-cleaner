@@ -30,7 +30,7 @@ import StillCore
         catch { self.error = "Exclusion settings could not be read. Scanning is blocked until these settings are available; fixed protections remain active." }
     }
     var editingBlocked: Bool {
-        busy || AppLifecycleController.shared.maintenanceInProgress || AppLifecycleController.shared.selection.execution.isRunning
+        busy || AppLifecycleController.shared.maintenanceInProgress || AppLifecycleController.shared.selection.workspaceRunning
     }
     func choose() async {
         guard !editingBlocked else { return }

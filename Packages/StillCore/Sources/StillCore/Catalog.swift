@@ -1,10 +1,12 @@
 import Foundation
 import Darwin
+import CoreServices
 
 /// What kind of data a rule covers; it decides how the data comes back.
 public enum RegenClass: String, Codable, Sendable { case cache, build, updaterDownload, leakedCopy, log, installer, model, userFile }
 /// Decision 3: regenerable data is deleted; user files go to Trash. A few rules run the tool's own command (Decision 21).
-public enum CleanupAction: String, Codable, Sendable { case delete, trash, tool }
+/// Trash keeps the "moveToTrash" string that Downloads-era journal records use.
+public enum CleanupAction: String, Codable, Sendable { case delete; case trash = "moveToTrash"; case tool }
 
 /// A command a `.tool` rule runs, with a time limit. The executable and its arguments are fixed in the rule.
 public struct ToolCommand: Sendable, Hashable {
@@ -26,6 +28,8 @@ public struct ToolCommand: Sendable, Hashable {
         command.executables.lazy.map { URL(fileURLWithPath: $0) }.first { FileManager.default.isExecutableFile(atPath: $0.path) }
     }
 }
+/// Whether none, some or all of a category's items are chosen.
+public enum CategorySelectionState: Sendable { case unchecked, mixed, checked }
 public enum CatalogCategory: String, Codable, Sendable { case developer, browser, downloads, system, models }
 
 /// Who must be closed before a rule's data is touched.
@@ -43,6 +47,20 @@ public struct RuleOwner: Sendable, Hashable {
     public let arguments: [String]
     public init(name: String, bundleIDs: [String] = [], executables: [String] = [], scripts: [String] = [], arguments: [String] = []) {
         self.name = name; self.bundleIDs = bundleIDs; self.executables = executables; self.scripts = scripts; self.arguments = arguments
+    }
+}
+
+/// Picks single files inside a rule's location instead of the location itself (Downloads).
+/// A file matches when it meets every condition that is set.
+public struct ContentsMatch: Sendable {
+    /// Lowercased extensions the file must have; empty means any.
+    public let extensions: Set<String>
+    /// At least this many logical bytes.
+    public let minimumBytes: Int64?
+    /// Not opened, changed or added for this many days.
+    public let unusedDays: Int?
+    public init(extensions: Set<String> = [], minimumBytes: Int64? = nil, unusedDays: Int? = nil) {
+        self.extensions = extensions; self.minimumBytes = minimumBytes; self.unusedDays = unusedDays
     }
 }
 
@@ -64,13 +82,19 @@ public struct CleanupRule: Sendable, Identifiable {
     public let protectedNames: [String]
     /// The command a `.tool` rule runs; nil for every other action.
     public let tool: ToolCommand?
-    public init(id: String, category: CatalogCategory, title: String, detail: String, consequence: String, regen: RegenClass, action: CleanupAction, locations: [String], owner: RuleOwner?, protectedNames: [String] = [], tool: ToolCommand? = nil) {
+    /// Extensions never acted on as the item or an ancestor, on top of the global ones.
+    public let protectedExtensions: [String]
+    /// When set, candidates are the matching files inside each location, not the location.
+    public let contents: ContentsMatch?
+    public init(id: String, category: CatalogCategory, title: String, detail: String, consequence: String, regen: RegenClass, action: CleanupAction, locations: [String], owner: RuleOwner?, protectedNames: [String] = [], tool: ToolCommand? = nil, protectedExtensions: [String] = [], contents: ContentsMatch? = nil) {
         self.id = id; self.category = category; self.title = title; self.detail = detail; self.consequence = consequence
         self.regen = regen; self.action = action; self.locations = locations; self.owner = owner; self.protectedNames = protectedNames; self.tool = tool
+        self.protectedExtensions = protectedExtensions; self.contents = contents
     }
 }
 
 public enum BuiltInCatalog {
+    private static let pnpmOwner = RuleOwner(name: "pnpm", executables: ["pnpm", "pnpx"], scripts: ["pnpm", "pnpx", "pnpm.js", "pnpm.cjs", "pnpx.js", "pnpx.cjs"])
     public static let rules: [CleanupRule] = [
         CleanupRule(id: "npm-cache", category: .developer, title: "npm cache",
                     detail: "Packages npm downloaded for your projects.",
@@ -83,10 +107,16 @@ public enum BuiltInCatalog {
                     regen: .cache, action: .delete, locations: ["Library/Caches/Yarn", ".yarn/berry/cache"],
                     owner: RuleOwner(name: "Yarn", executables: ["yarn", "yarnpkg"], scripts: ["yarn", "yarnpkg", "yarn.js", "yarn.cjs", "yarn-*.cjs", "yarn-*.js"])),
         CleanupRule(id: "pnpm-store", category: .developer, title: "pnpm store",
-                    detail: "Packages pnpm downloaded for your projects.",
-                    consequence: "Permanently removed. pnpm downloads packages again as needed; the next install may take longer.",
-                    regen: .cache, action: .delete, locations: ["Library/pnpm/store", "Library/Caches/pnpm"],
-                    owner: RuleOwner(name: "pnpm", executables: ["pnpm", "pnpx"], scripts: ["pnpm", "pnpx", "pnpm.js", "pnpm.cjs", "pnpx.js", "pnpx.cjs"])),
+                    detail: "Packages pnpm downloaded that no project uses any more.",
+                    consequence: "Runs `pnpm store prune`, which permanently removes only packages no project references. Projects that link into the store keep working.",
+                    regen: .cache, action: .tool, locations: ["Library/pnpm/store"],
+                    owner: pnpmOwner,
+                    tool: ToolCommand(executables: ["/opt/homebrew/bin/pnpm", "/usr/local/bin/pnpm", NSHomeDirectory() + "/Library/pnpm/pnpm"], arguments: ["store", "prune"], timeout: 300)),
+        CleanupRule(id: "pnpm-cache", category: .developer, title: "pnpm metadata cache",
+                    detail: "Package metadata pnpm downloaded.",
+                    consequence: "Permanently removed. pnpm downloads metadata again as needed.",
+                    regen: .cache, action: .delete, locations: ["Library/Caches/pnpm"],
+                    owner: pnpmOwner),
         CleanupRule(id: "uv-cache", category: .developer, title: "uv cache",
                     detail: "Python packages uv downloaded and built.",
                     consequence: "Permanently removed. uv downloads or builds packages again as needed; the next install may take longer.",
@@ -118,7 +148,20 @@ public enum BuiltInCatalog {
                     regen: .cache, action: .tool, locations: ["Library/Caches/Homebrew"],
                     owner: RuleOwner(name: "Homebrew", executables: ["brew"], scripts: ["brew", "brew.sh", "brew.rb"]),
                     tool: ToolCommand(executables: ["/opt/homebrew/bin/brew", "/usr/local/bin/brew"], arguments: ["cleanup", "-s"], timeout: 300, deletesLocationAfter: true)),
+        // RESET Decision 18. Installers come first so a large old installer is listed once, as an installer.
+        CleanupRule(id: "downloads-installers", category: .downloads, title: "Installers in Downloads",
+                    detail: "Disk images, packages and archives you downloaded, at any age.",
+                    consequence: "Moved to Trash. The space stays used until you empty the Trash; you can restore them from the Trash in Finder.",
+                    regen: .installer, action: .trash, locations: ["Downloads"], owner: nil,
+                    protectedExtensions: downloadsProtectedExtensions, contents: ContentsMatch(extensions: ["dmg", "pkg", "zip"])),
+        CleanupRule(id: "downloads-old-large", category: .downloads, title: "Large files not opened lately",
+                    detail: "Downloads of 500 MB or more not opened in 90 days.",
+                    consequence: "Moved to Trash. The space stays used until you empty the Trash; you can restore them from the Trash in Finder.",
+                    regen: .userFile, action: .trash, locations: ["Downloads"], owner: nil,
+                    protectedExtensions: downloadsProtectedExtensions, contents: ContentsMatch(minimumBytes: 500_000_000, unusedDays: 90)),
     ] + BrowserCaches.rules
+    /// Kept from the Downloads-era policy: libraries and databases are never moved, even inside Downloads.
+    static let downloadsProtectedExtensions = ["dsym", "library", "db", "sqlite", "sqlite3"]
 }
 
 /// A concrete item a rule found, with the identity it had when sized.
@@ -139,6 +182,8 @@ public struct Candidate: Sendable, Identifiable, Hashable {
     public let allocatedBytes: Int64?
     /// False when sizing stopped early; the size is then a lower bound.
     public let sizeComplete: Bool
+    /// Most recent of last opened (Spotlight), accessed, changed and added. Files only.
+    public let lastUsed: Date?
     public let observedAt: Date
     /// What a `*` in the rule's location matched, such as a browser profile folder; nil for a fixed location.
     public let profile: String?
@@ -151,27 +196,33 @@ public struct Catalog: Sendable {
     /// Load-bearing caches that are never offered, whatever a rule says (spec section 2).
     public static let neverOffered: Set<String> = ["ccache", ".ccache", "sccache"]
 
-    /// Sizes only the rules' known locations under `home`. Read-only.
+    /// Sizes only the rules' known locations under `home`. Read-only. An item two rules match is offered once, by the first.
     /// A `.tool` rule appears only when `locateTool` finds its executable.
-    public func discover(home: URL, sizer: KnownLocationSizer = KnownLocationSizer(), locateTool: (ToolCommand) -> URL? = ToolCommand.installed) -> [Candidate] {
+    public func discover(home: URL, sizer: KnownLocationSizer = KnownLocationSizer(), now: Date = Date(), locateTool: (ToolCommand) -> URL? = ToolCommand.installed) -> [Candidate] {
         let base = home.resolvingSymlinksInPath()
+        var seen = Set<String>()
         return rules.flatMap { rule -> [Candidate] in
             let toolURL = rule.tool.flatMap(locateTool)
             guard rule.action != .tool || toolURL != nil else { return [] }
-            return rule.locations.flatMap { Self.expand(base, $0) }.compactMap { url, matched -> Candidate? in
-                guard Self.neverOffered.isDisjoint(with: url.pathComponents.dropFirst(base.pathComponents.count)) else { return nil }
+            return rule.locations.flatMap { Self.expand(base, $0) }.flatMap { url, matched -> [Candidate] in
+                guard Self.neverOffered.isDisjoint(with: url.pathComponents.dropFirst(base.pathComponents.count)) else { return [] }
+                if let contents = rule.contents { return files(in: url, matching: contents, rule: rule, now: now) }
                 var info = stat()
                 guard lstat(url.path, &info) == 0, info.st_uid == geteuid(),
-                      [S_IFDIR, S_IFREG].contains(info.st_mode & S_IFMT) else { return nil }
+                      [S_IFDIR, S_IFREG].contains(info.st_mode & S_IFMT) else { return [] }
                 let size = sizer.size(url)
-                let volume = try? url.resourceValues(forKeys: [.volumeUUIDStringKey]).volumeUUIDString
-                return Candidate(ruleID: rule.id, action: rule.action, url: url, resourceID: "\(info.st_dev):\(info.st_ino)",
-                                 isDirectory: info.st_mode & S_IFMT == S_IFDIR, toolURL: toolURL, volumeID: volume,
-                                 modifiedSeconds: Int64(info.st_mtimespec.tv_sec), modifiedNanoseconds: Int64(info.st_mtimespec.tv_nsec),
-                                 logicalBytes: size.logicalBytes, allocatedBytes: size.allocatedBytes, sizeComplete: size.complete, observedAt: Date(),
-                                 profile: matched.isEmpty ? nil : matched.joined(separator: "/"))
+                return [candidate(rule, url, info, logical: size.logicalBytes, allocated: size.allocatedBytes, complete: size.complete, lastUsed: nil, toolURL: toolURL,
+                                  profile: matched.isEmpty ? nil : matched.joined(separator: "/"))]
             }
-        }
+        }.filter { seen.insert($0.resourceID).inserted }
+    }
+
+    private func candidate(_ rule: CleanupRule, _ url: URL, _ info: stat, logical: Int64, allocated: Int64?, complete: Bool, lastUsed: Date?, toolURL: URL? = nil, profile: String? = nil) -> Candidate {
+        let volume = try? url.resourceValues(forKeys: [.volumeUUIDStringKey]).volumeUUIDString
+        return Candidate(ruleID: rule.id, action: rule.action, url: url, resourceID: "\(info.st_dev):\(info.st_ino)",
+                         isDirectory: info.st_mode & S_IFMT == S_IFDIR, toolURL: toolURL, volumeID: volume,
+                         modifiedSeconds: Int64(info.st_mtimespec.tv_sec), modifiedNanoseconds: Int64(info.st_mtimespec.tv_nsec),
+                         logicalBytes: logical, allocatedBytes: allocated, sizeComplete: complete, lastUsed: lastUsed, observedAt: Date(), profile: profile)
     }
 
     /// The paths a location names under `base`. A `*` component matches each visible folder at that level
@@ -188,5 +239,43 @@ public struct Catalog: Sendable {
                 }
             }
         }
+    }
+
+    /// Regular files under `root` that match. Never follows symlinks, crosses volumes or enters packages and protected folders.
+    private func files(in root: URL, matching match: ContentsMatch, rule: CleanupRule, now: Date) -> [Candidate] {
+        let protectedNames = CandidateCheck.protectedNames.union(rule.protectedNames)
+        let protectedExtensions = CandidateCheck.protectedExtensions.union(rule.protectedExtensions)
+        let path = strdup(root.path)
+        defer { free(path) }
+        var paths: [UnsafeMutablePointer<CChar>?] = [path, nil]
+        guard let tree = fts_open(&paths, FTS_PHYSICAL | FTS_XDEV | FTS_NOCHDIR, nil) else { return [] }
+        defer { fts_close(tree) }
+        var found: [Candidate] = []
+        while let entry = fts_read(tree) {
+            let kind = Int32(entry.pointee.fts_info)
+            guard let info = entry.pointee.fts_statp?.pointee, kind == FTS_D || kind == FTS_F else { continue }
+            let url = URL(fileURLWithPath: String(cString: entry.pointee.fts_path))
+            let name = url.lastPathComponent, ext = url.pathExtension.lowercased()
+            if kind == FTS_D {
+                let package = (try? url.resourceValues(forKeys: [.isPackageKey]).isPackage) == true
+                if entry.pointee.fts_level > 0, package || protectedNames.contains(name) || protectedExtensions.contains(ext) { fts_set(tree, entry, FTS_SKIP) }
+                continue
+            }
+            guard info.st_uid == geteuid(), !protectedExtensions.contains(ext), info.st_flags & UInt32(SF_DATALESS) == 0 else { continue }
+            if !match.extensions.isEmpty, !match.extensions.contains(ext) { continue }
+            if let minimum = match.minimumBytes, Int64(info.st_size) < minimum { continue }
+            let lastUsed = Self.lastUsed(url, info)
+            if let days = match.unusedDays, lastUsed > now.addingTimeInterval(-Double(days) * 86_400) { continue }
+            found.append(candidate(rule, url, info, logical: Int64(info.st_size), allocated: Int64(info.st_blocks) * 512, complete: true, lastUsed: lastUsed))
+        }
+        return found
+    }
+
+    /// Conservative "last used": the latest of Spotlight's last-opened date, access, change and creation times.
+    static func lastUsed(_ url: URL, _ info: stat) -> Date {
+        func date(_ time: timespec) -> Date { Date(timeIntervalSince1970: Double(time.tv_sec) + Double(time.tv_nsec) / 1e9) }
+        var dates = [date(info.st_atimespec), date(info.st_mtimespec), date(info.st_birthtimespec)]
+        if let item = MDItemCreateWithURL(nil, url as CFURL), let opened = MDItemCopyAttribute(item, kMDItemLastUsedDate) as? Date { dates.append(opened) }
+        return dates.max()!
     }
 }
