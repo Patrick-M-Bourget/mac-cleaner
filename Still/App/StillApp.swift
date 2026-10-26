@@ -469,7 +469,7 @@ private struct WorkspaceView: View {
             meaning: row.estimate == .unknown ? "Couldn’t be measured" : inPlan ? "In cleanup plan"
                 : row.rules.allSatisfy { $0.action == .delete } ? "Rebuildable" : row.rules.allSatisfy { $0.action == .evict } ? "Local copies" : "Review files",
             actionTitle: "Review \(row.category.overviewTitle) in the cleanup plan",
-            action: { planPresentation.expandedCategories.insert(row.category); destination = .plan },
+            action: { navigate(.plan); planPresentation.expandedCategories.insert(row.category) },
             identifier: "overviewCategory-" + row.id)
     }
     /// SPEC section 6: an estimate, and an upper bound because clones share blocks.
