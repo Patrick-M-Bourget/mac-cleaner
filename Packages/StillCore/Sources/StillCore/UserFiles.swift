@@ -20,7 +20,7 @@ public enum UserFiles {
 
     /// The scan's files that are large or old, largest first. Read-only.
     public static func candidates(in scan: ScanResult, rule: CleanupRule = rule, exclusions: ExclusionPolicy = ExclusionPolicy(),
-                                  home: URL = URL(fileURLWithPath: NSHomeDirectory()), now: Date = Date()) -> [Candidate] {
+                                  home: URL, now: Date = Date()) -> [Candidate] {
         // The scope and its items in canonical form, so containment holds for `/var` against `/private/var`.
         guard let scopePath = realPath(scan.scope.path) else { return [] }
         let catalog = Catalog(rules: [rule]), scope = URL(fileURLWithPath: scopePath, isDirectory: true)

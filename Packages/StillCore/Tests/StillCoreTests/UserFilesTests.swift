@@ -26,7 +26,7 @@ private func file(_ folder: URL, _ path: String, size: Int64 = 10, age: TimeInte
 /// The picked folder's files as the explorer offers them, relative to the folder.
 private func offered(_ folder: URL, now: Date, rule: CleanupRule = UserFiles.rule, exclusions: ExclusionPolicy = ExclusionPolicy()) async throws -> [String: Candidate] {
     let scan = try await FolderScanner().scan(folder)
-    let found = UserFiles.candidates(in: scan, rule: rule, exclusions: exclusions, now: now)
+    let found = UserFiles.candidates(in: scan, rule: rule, exclusions: exclusions, home: fixtureNoHome, now: now)
     return Dictionary(uniqueKeysWithValues: found.map { (String($0.url.path.dropFirst(folder.path.count + 1)), $0) })
 }
 
@@ -145,8 +145,7 @@ private func executor(trash: URL) -> CleanupExecutor {
 
     // A candidate from before the rule applied is refused just before acting.
     let fromEarlierScan = try #require(UserFiles.candidates(in: scan, home: trash, now: Date()).first { $0.url == cookies })
-    var check = CandidateCheck(catalog: Catalog(rules: fixtureRules), running: AlwaysClosed())
-    check.home = home
+    let check = CandidateCheck(catalog: Catalog(rules: fixtureRules), running: AlwaysClosed(), home: home)
     #expect(check.check(fromEarlierScan) == .protected("Library"))
 }
 

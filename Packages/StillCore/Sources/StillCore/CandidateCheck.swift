@@ -43,8 +43,9 @@ public struct CandidateCheck: Sendable {
     public let inUse: any InUseChecking
     /// iCloud state, for evict candidates.
     public let cloud: any UbiquitousItemAccess
-    /// The home folder whose protected folders a picked folder's files are never taken from (`UserFiles`).
-    public var home = URL(fileURLWithPath: NSHomeDirectory())
+    /// The home folder the catalog was scanned under: a picked folder's files are never taken from its protected
+    /// folders (`UserFiles`), and a git repository in it doesn't make what it holds live work (`GitCheckout`).
+    public let home: URL
     /// At most this many entries are looked at; a deeper search that would need more refuses the folder.
     static let protectedSearchLimit = 200_000
 
@@ -87,8 +88,8 @@ public struct CandidateCheck: Sendable {
         return nil
     }
     public init(catalog: Catalog, running: any RunningAppChecking, exclusions: ExclusionPolicy = ExclusionPolicy(), inUse: any InUseChecking = SystemInUseChecker(),
-                cloud: any UbiquitousItemAccess = SystemUbiquitousItems()) {
-        self.catalog = catalog; self.running = running; self.exclusions = exclusions; self.inUse = inUse; self.cloud = cloud
+                cloud: any UbiquitousItemAccess = SystemUbiquitousItems(), home: URL) {
+        self.catalog = catalog; self.running = running; self.exclusions = exclusions; self.inUse = inUse; self.cloud = cloud; self.home = home
     }
     public func check(_ candidate: Candidate) -> CheckRefusal? {
         // Guidance-only data is never acted on, whatever the candidate or its rule says (SPEC section 3).

@@ -77,6 +77,10 @@ import SwiftUI
         return FileManager.default.homeDirectoryForCurrentUser
     }
 
+    /// The home folder the check protects: the catalog's, or with none (a debug test run without a fixture home) the real
+    /// one, so its protected folders are still never taken from a picked folder.
+    static var checkHome: URL { home ?? FileManager.default.homeDirectoryForCurrentUser }
+
     /// The user's own `/private/var/folders` entry, for rules based there (Chrome's code-sign copies).
     /// A debug test home stands one in at `<home>/.still-test-user-folder`, so a UI test never reads the real one.
     static var userFolder: URL? {
@@ -190,7 +194,8 @@ import SwiftUI
     /// Lists a picked folder's large and old files from its finished scan. Read-only; nothing is chosen.
     func showPickedFiles(_ scan: ScanResult) async {
         guard !isRunning, let exclusions = try? await ExclusionsModel.shared.policyForScan() else { return }
-        let found = await Task.detached(priority: .userInitiated) { UserFiles.candidates(in: scan, exclusions: exclusions) }.value
+        let home = Self.checkHome
+        let found = await Task.detached(priority: .userInitiated) { UserFiles.candidates(in: scan, exclusions: exclusions, home: home) }.value
         guard !isRunning else { return }
         pickedFiles[scan.scope.standardizedFileURL] = found
         keepOnlyCurrentChoices()
@@ -240,7 +245,8 @@ import SwiftUI
         selectedIDs = []; pickedFiles = [:]; result = nil; message = nil; selectionRevision &+= 1
     }
     private func currentCheck() async -> CandidateCheck? {
-        do { return CandidateCheck(catalog: catalog, running: SystemRunningAppChecker(), exclusions: try await ExclusionsModel.shared.policyForScan(), cloud: Self.cloud) }
+        do { return CandidateCheck(catalog: catalog, running: SystemRunningAppChecker(), exclusions: try await ExclusionsModel.shared.policyForScan(), cloud: Self.cloud,
+                                    home: Self.checkHome) }
         catch { message = "Exclusion settings are unavailable, so nothing can be checked. Try again."; return nil }
     }
 }

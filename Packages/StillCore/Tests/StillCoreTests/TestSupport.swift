@@ -81,3 +81,14 @@ extension Catalog {
         guidance(home: home, systemRoot: home, snapshots: FixtureSnapshots(snapshots: snapshots))
     }
 }
+
+/// A home folder that doesn't exist, for tests whose home doesn't matter: never the real one.
+let fixtureNoHome = FileManager.default.temporaryDirectory.appendingPathComponent("StillNoHome-\(UUID())")
+
+extension CandidateCheck {
+    /// The check as tests run it when the home folder doesn't matter.
+    init(catalog: Catalog, running: any RunningAppChecking, exclusions: ExclusionPolicy = ExclusionPolicy(), inUse: any InUseChecking = SystemInUseChecker(),
+         cloud: any UbiquitousItemAccess = SystemUbiquitousItems()) {
+        self.init(catalog: catalog, running: running, exclusions: exclusions, inUse: inUse, cloud: cloud, home: fixtureNoHome)
+    }
+}
