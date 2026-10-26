@@ -411,10 +411,9 @@ struct CatalogProfileRows: View {
 struct CatalogItemChooser: View {
     @Bindable var model: CatalogCleanupModel
     let rule: CleanupRule
-    @State private var expanded = false
     var body: some View {
         let items = model.candidates(for: rule).sorted { $0.displayName.localizedStandardCompare($1.displayName) == .orderedAscending }
-        DisclosureGroup(isExpanded: $expanded) {
+        ActionDisclosureGroup((rule.offersFiles ? StillDesign.files(items.count) : StillDesign.items(items.count)) + " · Choose items") {
             LazyVStack(alignment: .leading, spacing: 0) {
                 ForEach(items) { item in
                     InspectableItemRow(name: item.displayName, detail: detail(item), size: catalogBytes(item.estimatedBytes, estimate: item.sizeIsEstimate),
@@ -425,8 +424,6 @@ struct CatalogItemChooser: View {
                     Divider()
                 }
             }.padding(.top, StillDesign.Space.sm)
-        } label: {
-            Text((rule.offersFiles ? StillDesign.files(items.count) : StillDesign.items(items.count)) + " · Choose items")
         }
     }
     private func detail(_ item: Candidate) -> String {
@@ -455,7 +452,7 @@ struct CatalogConfirmationSection: View {
                                           estimate: items.contains(where: \.sizeIsEstimate))).monospacedDigit()
                     }
                     Text(rule.consequence).font(StillDesign.TypeStyle.note).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-                    DisclosureGroup(StillDesign.items(items.count) + " · Show files") {
+                    ActionDisclosureGroup(StillDesign.items(items.count) + " · Show files") {
                         VStack(alignment: .leading, spacing: StillDesign.Space.xs) {
                             ForEach(items) { item in
                                 // A tool that leaves its folder in place shows the exact command, e.g. `ollama rm llama3:latest` or `docker builder prune -a -f`.

@@ -24,13 +24,12 @@ final class ModelsCleanupUITests: XCTestCase {
         let home = try configureCatalogHome(app)
         let marker = try addModels(home)
         defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
-        app.launchArguments = ["-ApplePersistenceIgnoreState", "YES"]
         app.launch()
 
         XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
         let row = app.buttons["overviewCategory-models"]
         XCTAssertTrue(row.waitForExistence(timeout: 10))
-        row.click()
+        revealAndClick(row, in: app)
 
         // Nothing is preselected; each model is chosen on its own and shows when it was last used.
         for rule in ["planRule-huggingface-models", "planRule-ollama-models"] {
@@ -40,12 +39,12 @@ final class ModelsCleanupUITests: XCTestCase {
         }
         for name in ["org/tiny", "llama3:latest"] {
             let item = app.checkBoxes["planItem-" + name]
-            if !item.waitForExistence(timeout: 2) { app.disclosureTriangles.allElementsBoundByIndex.forEach { $0.click() } }
+            if !item.waitForExistence(timeout: 2) { expandDisclosures(in: app) }
             XCTAssertTrue(item.waitForExistence(timeout: 5), name)
             XCTAssertEqual(item.value as? Int, 0, name)
-            item.click()
+            revealAndClick(item, in: app)
         }
-        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS 'Last used'")).firstMatch.exists)
+        XCTAssertTrue(app.buttons.matching(NSPredicate(format: "label == 'Inspect org/tiny' AND value CONTAINS 'Last used'")).firstMatch.exists)
         XCTAssertEqual(app.checkBoxes["previewOnlyToggle"].value as? Int, 1)
         app.buttons["Review cleanup"].click()
 

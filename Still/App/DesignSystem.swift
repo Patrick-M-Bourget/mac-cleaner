@@ -119,6 +119,19 @@ enum StatusRole {
     case neutral, success, caution, failure
     var color: Color { switch self { case .neutral: .secondary; case .success: .green; case .caution: .orange; case .failure: .red } }
 }
+/// A disclosure group whose title is an action ("Choose items", "Show files"). On macOS only a DisclosureGroup's chevron
+/// toggles it, so the title toggles it too.
+struct ActionDisclosureGroup<Content: View>: View {
+    let title: String
+    @ViewBuilder var content: () -> Content
+    @State private var expanded = false
+    init(_ title: String, @ViewBuilder content: @escaping () -> Content) { self.title = title; self.content = content }
+    var body: some View {
+        DisclosureGroup(isExpanded: $expanded, content: content) {
+            Button(title) { expanded.toggle() }.buttonStyle(.plain)
+        }
+    }
+}
 struct StatusRow: View {
     let text: String
     var symbol = "info.circle"
@@ -523,6 +536,8 @@ struct InspectableItemRow<Selection: View>: View {
                     Text(size).font(.callout).monospacedDigit().foregroundStyle(.secondary)
                 }.contentShape(Rectangle())
             }.buttonStyle(.plain).accessibilityLabel("Inspect " + name)
+                // The button hides its texts from accessibility; keep the detail (e.g. when it was last used) and size readable.
+                .accessibilityValue(detail + ", " + size)
         }.padding(StillDesign.Space.md)
             .background(inspected ? Color.accentColor.opacity(0.06) : .clear, in: RoundedRectangle(cornerRadius: StillDesign.Radius.row))
     }
