@@ -1,4 +1,4 @@
-# Chrome Stable qualification #18 — bounded blocker decision
+# Chrome Stable qualification #18 — historical stronger-contract decision
 
 October25,2026. Locked [CHROME-CLEANUP](../CHROME-CLEANUP.md) Q1–Q6. This pass completed the first remaining prerequisite investigation; it did not complete #18 or qualify a Stable build.
 
@@ -23,3 +23,7 @@ Once a concrete mechanism is established, qualify one genuine Stable release/pro
 Independent [Spec](chrome-stable-qualification/spec-review.md) and [Standards](chrome-stable-qualification/standards-review.md) reviews found no blocking findings. Follow-up wording says “did not establish” rather than implying impossibility; the integrity-analyzer source link is pinned and its identity constants were checked. No executable behavior changed, so no test/native pass is claimed.
 
 Integrated through PR69 at `a068ec3`; #18 remains open/#19 blocked. Temporary merged worktree/branch retired, evidence retained in main.
+
+## Superseding approval
+
+The user subsequently approved bounded native close-and-clean in CHROME-CLEANUP.md rules5–7. The historical exclusive-lease finding above is not a prerequisite for that model. [New genuine Stable evidence](chrome-close-clean.md) records progress and precise remaining acceptance; personal-file exact-target protections remain unchanged.

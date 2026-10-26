@@ -117,3 +117,21 @@ Provisioning is hosted-only and refuses an existing output directory. Download t
 Flags follow [Google’s Chrome launcher reference](https://github.com/GoogleChrome/chrome-launcher/blob/main/docs/chrome-flags-for-tools.md) and [Chromium’s macOS development instructions](https://chromium.googlesource.com/chromium/src/+/HEAD/docs/mac_build_instructions.md); these describe test switches rather than a production cleanup contract.
 
 The official 156.0.8078.47 mac-arm64 archive was independently downloaded over HTTPS and observed as **194,932,023 bytes**, SHA-256 **`ad7f2b49a4dc679af286b1b1b386670d93ca7868079f69012d21ba0ac8293df3`**. Both are required before extraction/execution. This is a reproducibility pin derived from our download, not a Google-published checksum. The ZIP has 673 members and no CodeResources. First hosted attempt [40003124836](https://github.com/Patrick-M-Bourget/mac-cleaner/actions/runs/40003124836) stopped before browser launch at strict bundle verification; the refined experiment preserves that failure prominently while permitting only this exact unchanged vendor artifact on ephemeral GitHub-hosted runners. Both provisioning and runtime require `RUNNER_ENVIRONMENT=github-hosted`; self-hosted runners are refused. Production vendor trust and distribution qualification remain separate gates.
+
+## Revised native close-and-clean Stable experiment — October25
+
+The user-approved bounded group model is in [CHROME-CLEANUP](../../docs/CHROME-CLEANUP.md), rules5–7. `chrome-stable-probe` is the manual hosted-only workflow suite. `provision-stable.py` extracts an official moving Stable PKG into runner temp without installation, verifies Google/Apple signature requirements and records actual hashes/version; it never substitutes CfT. `genuine.mjs` uses Stable mode only with that verified owned artifact. `cache-group.py` approves directory identities, allows later recognized entries inside the same group, observes activity before/between targets and reports partial stop. It is disposable-only, not a production executor. The earlier exact-leaf helper remains unchanged.
+
+Browser-free local public helper checks:
+
+```sh
+python3 Validation/ChromeProbe/test_cache_group.py
+python3 Validation/ChromeProbe/test_owned_cache.py
+node --check Validation/ChromeProbe/genuine.mjs
+```
+
+Local process checks use an explicit owned fixture; real process observation/browser runs require the hosted guard. Never run the genuine Stable experiment against an installed/personal browser, provide personal profile paths, bypass signatures/quarantine or use the helper as a cleanup utility.
+
+[Bounded result and original reports](../../docs/validation/chrome-close-clean.md): actual Stable156.0.8078.48 passes the recorded two-profile experiment; final controlled partial-stop test is separate from native before-clean active/reopen evidence. Remaining native/standard-profile/protected-semantic requirements are explicit. #18 remains open, #19 blocked and the production allowlist empty. Residual ordinary-use races are accepted/documented; no exclusive-lease proof or adversarial same-user guarantee is claimed.
+
+Final protected-semantic extension27c1db6 additionally passes genuine synthetic HttpOnly website-session retention, service-worker offline navigation after online target setup, and2/2 restored tabs/persisted back history in both profiles. [Final evidence](../../docs/validation/chrome-close-clean.md#final-protected-semantic-qualification-27c1db6) preserves the earlier incomplete setup observation. Saved-password/autofill, cold-start offline launch, download-history UI and standard/shared ownership remain unqualified.
