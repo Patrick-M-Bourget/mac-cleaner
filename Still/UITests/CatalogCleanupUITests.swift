@@ -512,12 +512,12 @@ final class ICloudCleanupUITests: XCTestCase {
     /// debug fixture file, so the test never reads or evicts anything in real iCloud Drive.
     @MainActor private func addICloudFiles(_ home: URL) throws {
         let drive = "Library/Mobile Documents/com~apple~CloudDocs"
-        for name in ["Report.pdf", "Pinned.pdf"] {
+        for name in ["Report.pdf", "Notes.pdf", "Pinned.pdf"] {
             let file = home.appendingPathComponent(drive + "/" + name)
             try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
             try Data(repeating: 4, count: 150_000).write(to: file)
         }
-        let states = [drive + "/Report.pdf": "ready", drive + "/Pinned.pdf": "pinned"]
+        let states = [drive + "/Report.pdf": "ready", drive + "/Notes.pdf": "ready", drive + "/Pinned.pdf": "pinned"]
         try JSONEncoder().encode(states).write(to: home.appendingPathComponent(".still-test-icloud.json"))
     }
 
@@ -536,13 +536,15 @@ final class ICloudCleanupUITests: XCTestCase {
         XCTAssertFalse(app.descendants(matching: .any)["overviewCloudFinding"].exists, "The catalog row replaces the inventory row")
         revealAndClick(row, in: app)
 
-        let header = app.checkBoxes["planRule-icloud-local-copies"]
+        // Two local copies are offered, so they are listed without a rule row.
+        let header = app.checkBoxes["planCategory-icloud"]
         XCTAssertTrue(header.waitForExistence(timeout: 5))
         XCTAssertEqual(header.value as? Int, 0)
         let item = app.checkBoxes["planItem-Report.pdf"]
         if !item.waitForExistence(timeout: 2) { expandDisclosures(in: app) }
         XCTAssertTrue(item.waitForExistence(timeout: 5))
         XCTAssertFalse(app.checkBoxes["planItem-Pinned.pdf"].exists, "Keep Downloaded files are never offered")
+        XCTAssertFalse(app.checkBoxes["planRule-icloud-local-copies"].exists)
         revealAndClick(item, in: app)
         XCTAssertEqual(app.checkBoxes["previewOnlyToggle"].value as? Int, 1)
         app.buttons["Review cleanup"].click()
@@ -663,7 +665,7 @@ final class GuidanceUITests: XCTestCase {
 
         app.buttons["appManagedBack"].click()
         revealAndClick(app.buttons["overviewCategory-developer"], in: app)
-        XCTAssertTrue(app.descendants(matching: .any)["planRule-npm-cache"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.descendants(matching: .any)["planCategory-developer"].waitForExistence(timeout: 5))
         for id in ["photos-library", "xcode-archives", "messages-attachments", "time-machine-snapshots"] {
             XCTAssertFalse(app.descendants(matching: .any)["planRule-" + id].exists, id)
         }
