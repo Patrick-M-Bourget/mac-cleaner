@@ -32,6 +32,8 @@ import StillCore
     let locationsExplorer = StorageExplorerContext()
     lazy var inspection = FolderInspection(selection: selection)
     var openWorkspace: (() -> Void)?
+    /// The workspace's Scan again, for the ⌘R menu command (#127).
+    var scanAgain: (() -> Void)?
     @Published private(set) var loginIntent: Bool
     @Published private(set) var loginStatus: LoginStatus
     @Published private(set) var loginError: String?

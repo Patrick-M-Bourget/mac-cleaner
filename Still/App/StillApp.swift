@@ -19,6 +19,9 @@ struct StillApp: App {
             CommandGroup(after: .windowArrangement) {
                 Button("Show Still") { lifecycle.openWorkspace?() }
             }
+            CommandGroup(after: .toolbar) {
+                Button("Scan again") { lifecycle.scanAgain?() }.keyboardShortcut("r")
+            }
         }
         Settings { StillSettingsView() }
     }
@@ -26,16 +29,17 @@ struct StillApp: App {
 
 enum Destination: String, CaseIterable, Identifiable {
     case alerts = "Storage alerts"
-    case overview = "Overview", growth = "What grew", plan = "Cleanup plan", history = "History", locations = "Locations & access"
+    case overview = "Overview", plan = "Cleanup plan", growth = "Storage trends", history = "History", locations = "Locations & access"
     var id: String { rawValue }
+    /// ⌘1–⌘5 follow the sidebar order (#127). Storage alerts is not in the sidebar (Decision 12).
     var shortcut: KeyEquivalent {
         switch self {
-        case .growth: "6"
-        case .alerts: "5"
         case .overview: "1"
         case .plan: "2"
-        case .history: "3"
-        case .locations: "4"
+        case .growth: "3"
+        case .history: "4"
+        case .locations: "5"
+        case .alerts: "6"
         }
     }
     var symbol: String {
@@ -135,7 +139,7 @@ private struct WorkspaceView: View {
             VStack(alignment: .leading, spacing: StillDesign.Space.sm) {
                 AppBrand().padding(.horizontal, StillDesign.Space.sm).padding(.bottom, StillDesign.Space.xl)
                 Text("Storage").font(.caption).foregroundStyle(.secondary).padding(.horizontal, StillDesign.Space.sm)
-                // Storage alerts stay unwired until after M1 (Decision 12); What grew is back (#119).
+                // Storage alerts stay unwired until after M1 (Decision 12); Storage trends (formerly What grew) is back (#119, #127).
                 ForEach(Destination.allCases.filter { $0 != .locations && $0 != .alerts }) { navigation($0) }
                 Text("Settings").font(.caption).foregroundStyle(.secondary).padding(.horizontal, StillDesign.Space.sm).padding(.top, StillDesign.Space.xl)
                 navigation(.locations)
@@ -175,7 +179,7 @@ private struct WorkspaceView: View {
                         viewHistory: { destination = .history }, newPlan: startNewPlan,
                         reviewRecovery: { openRecovery(caller: .plan) },
                         backToExplorer: navigationState.planReturnsToGrowth ? { navigationState.planReturnsToGrowth = false; destination = .growth } : planReturnsToExplorer ? { nativeInspectionVisible = true; planReturnsToExplorer = false } : nil,
-                        backToExplorerTitle: navigationState.planReturnsToGrowth ? "Back to What grew" : "Back to Explorer",
+                        backToExplorerTitle: navigationState.planReturnsToGrowth ? "Back to Storage trends" : "Back to Explorer",
                         presentation: planPresentation)
                 } else {
                 ScrollView {
@@ -286,9 +290,13 @@ private struct WorkspaceView: View {
             explorerContext.allowedScopes = Set(locationsModel.included.map { URL(fileURLWithPath: $0.path).standardizedFileURL })
             explorerContext.downloadsScopes = Set(locationsModel.includedDownloads.map { URL(fileURLWithPath: $0.path).standardizedFileURL })
         }
-        .onAppear { AppLifecycleController.shared.openWorkspace = { openWindow(id: "workspace") } }
+        .onAppear {
+            AppLifecycleController.shared.openWorkspace = { openWindow(id: "workspace") }
+            AppLifecycleController.shared.scanAgain = { if canScanAgain { scanAgain() } }
+        }
         .onReceive(NotificationCenter.default.publisher(for: .stillAlertOpened)) { _ in destination = .overview; navigationState.localRecordsVisible = false; navigationState.appManagedVisible = false; exclusionsVisible = false; diagnosticsVisible = false; recoveryVisible = false; nativeInspectionVisible = false; homebrewVisible = false; pipVisible = false }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in Task { await alerts.activated() } }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in Task { await selection.catalog.rescanIfFullDiskAccessGranted() } }
         .onReceive(NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.didWakeNotification)) { _ in Task { await alerts.activated() } }
         .toolbar { contextToolbar }
     }
@@ -368,7 +376,7 @@ private struct WorkspaceView: View {
             HStack(alignment: .top) {
                 PageHeader(title: "Storage overview", subtitle: "A clearer picture of what’s on your Mac.")
                 Spacer(minLength: StillDesign.Space.md)
-                Button("Scan again", action: scanAgain).disabled(folderInspection.isScanning || selection.workspaceRunning || !selection.catalog.canEdit)
+                Button("Scan again", action: scanAgain).disabled(!canScanAgain)
             }
             ScanHistoryRecordingNotice()
             if let context = alerts.openedAlertContext {
@@ -494,6 +502,8 @@ private struct WorkspaceView: View {
         scanLocations(locationsModel.included)
     }
     /// Rechecks capacity, the catalog's known locations and any included folders. Read-only.
+    /// The same conditions that enable the Overview's Scan again button.
+    private var canScanAgain: Bool { !folderInspection.isScanning && !selection.workspaceRunning && selection.catalog.canEdit }
     private func scanAgain() {
         capacity.request(.manual)
         Task { await selection.catalog.scan() }

@@ -27,6 +27,8 @@ import SwiftUI
     }
     private(set) var isScanning = false
     private(set) var hasScanned = false
+    /// Watches for Full Disk Access being granted while Still was away (#124, `rescanIfFullDiskAccessGranted`).
+    var fullDiskAccessRescan = FullDiskAccessRescan()
     /// Chosen candidate ids. Nothing is preselected.
     private(set) var selectedIDs: Set<String> = []
     private(set) var selectionRevision: UInt64 = 0
@@ -49,7 +51,7 @@ import SwiftUI
     private var ownerNames: [String: String] = [:]
     private var executor: CleanupExecutor?
     private static let dryRunKey = "StillDryRun"
-    /// The Settings dry run, off by default: with it on, the whole flow runs and nothing changes on disk (Decision 26).
+    /// The Settings dry run, off by default: with it on, the whole flow runs and nothing changes on disk (Decision 27).
     var dryRun: Bool {
         didSet {
             selectionRevision &+= 1
@@ -196,6 +198,7 @@ import SwiftUI
                     access)
         }.value
         await GrowthHistoryModel.shared.completeCatalog(scanned.0, catalog: catalog, fullDiskAccess: scanned.4, token: growth)
+        fullDiskAccessRescan.scanned(scanned.4)
         discovered = scanned.0.candidates; notes = scanned.0.notes; notAccessibleRules = scanned.0.notAccessible; overriddenRules = scanned.1; runningOwners = scanned.2; ownerNames = scanned.3
         keepOnlyCurrentChoices()
         await scanGuidance(home: home, fullDiskAccess: scanned.4)
@@ -368,7 +371,7 @@ extension Candidate {
     var group: String? { appName ?? profile }
 }
 
-/// The Settings dry run. Off by default (Decision 26).
+/// The Settings dry run. Off by default (Decision 27).
 struct DryRunToggle: View {
     @Bindable var model: CatalogCleanupModel
     var body: some View {

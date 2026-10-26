@@ -83,7 +83,7 @@ An item that fails any check is skipped, and the results say which check failed.
 
 ## 5. Dry-run switch
 
-- The review sheet is the preview: it lists exactly what will happen, and **Clean up** runs it for real (Decision 26). The plan has no preview mode.
+- The review sheet is the preview: it lists exactly what will happen, and **Clean up** runs it for real (Decision 27). The plan has no preview mode.
 - The dry run is a switch in the Settings window, **Dry run (nothing changes)**, off by default and meant for testing. While it's on, the review sheet says so in one line.
 - With dry run on, the whole flow runs as normal: scan, plan, review, confirm, per-item checks, results.
 - Instead of acting, Still logs each action it would take (item, action, size, check outcome) and changes nothing on disk. Tool actions are not run; the command is logged.
@@ -129,7 +129,7 @@ After M1 (#92), in rough order:
 - Docker: `docker system df`, then a chosen prune;
 - large and old files explorer (Trash only): it lists files of 500 MB or more OR not opened in 90 days, and you choose each file. Downloads keeps AND (Decision 24);
 - guidance-only categories (section 3);
-- What grew (#119): each completed catalog scan records the size per catalog category and per scanned rule location. The first scan records a baseline; later scans show net growth against the previous one. Only a location measured in both scans counts. A location newly readable or unreadable (Full Disk Access, unreadable folders), or newly scanned or no longer scanned, is shown as a coverage change, never as growth. A change in exclusions starts a new baseline. History keeps at most 30 scans over 90 days and 250 MB, on this Mac;
+- Storage trends (formerly What grew, #119, #127): each completed catalog scan records the size per catalog category and per scanned rule location. The first scan records a baseline; later scans show net growth against the previous one. Only a location measured in both scans counts. A location newly readable or unreadable (Full Disk Access, unreadable folders), or newly scanned or no longer scanned, is shown as a coverage change, never as growth. A change in exclusions starts a new baseline. History keeps at most 30 scans over 90 days and 250 MB, on this Mac;
 - storage alerts: the code stays in the tree, unwired, and is rewired only if still wanted (Decision 12);
 - the optional Full Disk Access onboarding flow;
 - signing, notarization and a DMG for a shareable build.

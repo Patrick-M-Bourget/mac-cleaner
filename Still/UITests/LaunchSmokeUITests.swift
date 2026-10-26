@@ -25,7 +25,7 @@ final class LaunchSmokeUITests: XCTestCase {
         app.launch()
         XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
         XCTAssertTrue(app.buttons["Cleanup plan"].exists || app.staticTexts["Cleanup plan"].exists)
-        XCTAssertTrue(app.staticTexts["What grew"].exists || app.buttons["What grew"].exists, "What grew is in the sidebar (#119)")
+        XCTAssertTrue(app.staticTexts["Storage trends"].exists || app.buttons["Storage trends"].exists, "Storage trends is in the sidebar (#119, #127)")
         XCTAssertFalse(app.staticTexts["Storage alerts"].exists)
     }
 
@@ -73,6 +73,32 @@ final class LaunchSmokeUITests: XCTestCase {
         app.buttons["closeFullDiskAccess"].click()
         XCTAssertFalse(app.staticTexts["Full Disk Access is optional"].waitForExistence(timeout: 2))
     }
+
+    /// #124: Full Disk Access granted while Still was away: coming back rescans once, and the "needs Full Disk Access"
+    /// line goes away without Scan again. The fixture's Safari folder opening again stands in for the grant.
+    @MainActor func testGrantingFullDiskAccessRescansWhenStillBecomesActive() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        let state = try configureIsolatedState(app)
+        let home = try configureCatalogHome(app)
+        let safari = home.appendingPathComponent("Library/Safari")
+        try FileManager.default.createDirectory(at: safari, withIntermediateDirectories: true)
+        try FileManager.default.setAttributes([.posixPermissions: 0], ofItemAtPath: safari.path)
+        defer {
+            app.terminate(); try? FileManager.default.removeItem(at: state)
+            try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: safari.path); try? FileManager.default.removeItem(at: home)
+        }
+        app.launch()
+        let denied = app.descendants(matching: .any)["overviewNotAccessible"]
+        XCTAssertTrue(denied.waitForExistence(timeout: 10))
+
+        let finder = XCUIApplication(bundleIdentifier: "com.apple.finder")
+        finder.activate()
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: safari.path)
+        app.activate()
+        let gone = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"), object: denied)
+        XCTAssertEqual(XCTWaiter.wait(for: [gone], timeout: 15), .completed, "Becoming active after the grant rescanned")
+    }
 }
 
 /// #119: the first catalog scan records a baseline; the next shows growth per category and location.
@@ -86,7 +112,7 @@ final class WhatGrewUITests: XCTestCase {
         app.launch()
         XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
 
-        app.buttons["What grew"].click()
+        app.buttons["Storage trends"].click()
         XCTAssertTrue(app.staticTexts["Baseline recorded"].waitForExistence(timeout: 15))
 
         let grown = home.appendingPathComponent(".npm/_cacache/content-v2/sha512/cd/blob")
@@ -101,7 +127,7 @@ final class WhatGrewUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "value BEGINSWITH '~/.npm/_cacache'")).firstMatch.waitForExistence(timeout: 5))
 
         app.buttons["growthReviewOptions"].click()
-        XCTAssertTrue(app.buttons["Back to What grew"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["Back to Storage trends"].waitForExistence(timeout: 5))
     }
 }
 
@@ -119,5 +145,40 @@ final class AppearanceSettingsUITests: XCTestCase {
         let picker = app.popUpButtons["Appearance"]
         XCTAssertTrue(picker.waitForExistence(timeout: 5))
         XCTAssertEqual(picker.value as? String, "System")
+    }
+}
+
+/// #127: ⌘1–⌘5 follow the sidebar order, and ⌘R scans again from any screen.
+final class KeyboardShortcutsUITests: XCTestCase {
+    @MainActor func testShortcutsFollowTheSidebarAndCommandRScansAgain() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        let state = try configureIsolatedState(app)
+        let home = try configureCatalogHome(app)
+        defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
+        app.launch()
+        XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
+
+        let sidebar = ["Overview", "Cleanup plan", "Storage trends", "History", "Locations & access"]
+        let rows = sidebar.map { app.buttons[$0].frame.minY }
+        XCTAssertEqual(rows, rows.sorted(), "The sidebar lists \(sidebar.joined(separator: ", ")) from the top")
+        for (index, title) in sidebar.enumerated().reversed() {
+            app.typeKey(String(index + 1), modifierFlags: .command)
+            let row = app.buttons[title]
+            XCTAssertTrue(row.waitForExistence(timeout: 5))
+            let selected = NSPredicate(format: "isSelected == true")
+            XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: selected, object: row)], timeout: 5), .completed, "⌘\(index + 1) opens \(title)")
+        }
+
+        app.typeKey("3", modifierFlags: .command)
+        XCTAssertTrue(app.staticTexts["Baseline recorded"].waitForExistence(timeout: 15))
+        let grown = home.appendingPathComponent(".npm/_cacache/content-v2/sha512/cd/blob")
+        try FileManager.default.createDirectory(at: grown.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Data(repeating: 9, count: 5_000_000).write(to: grown)
+        app.typeKey("4", modifierFlags: .command)
+        XCTAssertTrue(app.menuBars.menuItems["Scan again"].exists, "Scan again is a menu command")
+        app.typeKey("r", modifierFlags: .command)
+        app.typeKey("3", modifierFlags: .command)
+        XCTAssertTrue(app.staticTexts["growthNetChange"].waitForExistence(timeout: 15), "⌘R from History scanned again")
     }
 }
