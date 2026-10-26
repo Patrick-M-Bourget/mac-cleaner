@@ -3,7 +3,8 @@ import Darwin
 
 /// Old items in the user's own temp (`T`) and cache (`C`) folders under `/private/var/folders` (#132). Each visible
 /// file or folder directly inside a location is one item. It is offered only when the user owns everything in it,
-/// nothing in it changed for `unusedDays`, and no process of the user's has a file in it open or mapped.
+/// nothing in it changed for `unusedDays`, and no process of the user's has a file in it open or mapped
+/// (on top of any `itemOwner`, which must also be closed).
 public struct UnusedItems: Sendable {
     /// Days since anything inside last changed (modified or its metadata changed).
     public let unusedDays: Int
@@ -16,13 +17,24 @@ extension RuleOwner {
 }
 
 public enum TemporaryFiles {
-    /// Field note sections 3 and 6: temp and cache files apps left behind. `X` is never a location; only the Chrome rule acts there.
-    static let rule = CleanupRule(
-        id: "temporary-files", category: .system, title: "Old temporary files",
-        detail: "Temp and cache files apps left in your temporary folder, unchanged for 3 days.",
-        consequence: "Permanently removed. Nothing open or recently changed is offered; an app that wants one again recreates it.",
-        regen: .cache, action: .delete, locations: ["T", "C"], owner: nil, base: .userFolder,
-        yieldsToOtherRules: true, protectedDepth: AppCaches.liveWorkDepth, unused: UnusedItems(unusedDays: 3))
+    /// Field note sections 3 and 6: what apps left in the user's own temp and cache folders. `X` is never a location;
+    /// only the Chrome rule acts there. In `C`, only folders named after an installed app's bundle identifier are offered,
+    /// with that app closed: the rest belong to macOS's own daemons (`assessmentagent`, `clang`'s module cache).
+    public static func rules(apps: any AppLookup) -> [CleanupRule] {
+        [
+            CleanupRule(id: "temporary-files", category: .system, title: "Old temporary files",
+                        detail: "Temporary files apps left in your temporary folder, unchanged for 3 days.",
+                        consequence: "Permanently removed. Nothing open or recently changed is offered; an app that wants one again recreates it.",
+                        regen: .cache, action: .delete, locations: ["T"], owner: nil, base: .userFolder,
+                        yieldsToOtherRules: true, protectedDepth: AppCaches.liveWorkDepth, unused: UnusedItems(unusedDays: 3)),
+            CleanupRule(id: "temporary-app-caches", category: .system, title: "Old temporary app caches",
+                        detail: "Caches your apps keep in your temporary folder, unchanged for 3 days.",
+                        consequence: "Permanently removed. Each app rebuilds its cache as you use it. An app must be closed first; Still never quits it for you.",
+                        regen: .cache, action: .delete, locations: ["C"], owner: nil, base: .userFolder,
+                        itemOwner: { AppCaches.installedOwner($0.lastPathComponent, apps: apps) },
+                        yieldsToOtherRules: true, protectedDepth: AppCaches.liveWorkDepth, unused: UnusedItems(unusedDays: 3)),
+        ]
+    }
 }
 
 extension Catalog {
@@ -41,6 +53,8 @@ extension Catalog {
                   [S_IFDIR, S_IFREG].contains(info.st_mode & S_IFMT) else { return nil }
             guard let changed = Self.lastChange(in: url), changed < cutoff, !claimedByAnotherRule(url, besides: rule, base: base) else { return nil }
             if info.st_mode & S_IFMT == S_IFDIR, CandidateCheck.protectedEntry(in: url, rule: rule) != nil { return nil }
+            // An item whose app can't be found isn't offered; the check refuses it while its app is running.
+            if case .unknown = Self.ownership(of: url, under: rule) { return nil }
             let size = sizer.size(url)
             // Nothing to free: empty folders and lock files stay out of the plan.
             guard (size.allocatedBytes ?? 0) > 0 else { return nil }
@@ -51,7 +65,9 @@ extension Catalog {
             return ([], CatalogNote(ruleID: rule.id, text: "\(rule.title): kept all, because Still couldn’t tell which ones apps are using."))
         }
         return (found.filter { !used.contains($0.0.path) }.map { url, info, size in
-            candidate(rule, url, info, logical: size.logicalBytes, allocated: size.allocatedBytes, complete: size.complete, lastUsed: nil)
+            var found = candidate(rule, url, info, logical: size.logicalBytes, allocated: size.allocatedBytes, complete: size.complete, lastUsed: nil)
+            if rule.itemOwner != nil, case .mustBeClosed(let owner) = Self.ownership(of: url, under: rule) { found.appName = owner.name }
+            return found
         }, nil)
     }
 

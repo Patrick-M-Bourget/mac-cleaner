@@ -86,6 +86,10 @@ public struct CandidateCheck: Sendable {
                 cloud: any UbiquitousItemAccess = SystemUbiquitousItems(), home: URL) {
         self.catalog = catalog; self.running = running; self.exclusions = exclusions; self.inUse = inUse; self.cloud = cloud; self.home = home
     }
+    /// This check with one reading of the process table, for checking many items together (a review or a cleanup run).
+    public func snapshotted() -> CandidateCheck {
+        CandidateCheck(catalog: catalog, running: running, exclusions: exclusions, inUse: inUse.snapshot(), cloud: cloud, home: home)
+    }
     public func check(_ candidate: Candidate) -> CheckRefusal? {
         // Guidance-only data is never acted on, whatever the candidate or its rule says (SPEC section 3).
         if candidate.action == .guidance || catalog.rule(candidate.ruleID)?.action == .guidance { return .guidanceOnly }
@@ -123,6 +127,11 @@ public struct CandidateCheck: Sendable {
         if case .mustNotUse(let owner) = ownership {
             guard let used = inUse.inUse([candidate.url], by: owner) else { return .inUseUnknown(owner.name) }
             if !used.isEmpty { return .inUse(owner.name) }
+        }
+        // An old temporary item with an app of its own must also not be open in any process.
+        if rule.unused != nil, rule.itemOwner != nil {
+            guard let used = inUse.inUse([candidate.url], by: .anyApp) else { return .inUseUnknown(RuleOwner.anyApp.name) }
+            if !used.isEmpty { return .inUse(RuleOwner.anyApp.name) }
         }
         // An old temporary item that anything inside changed in since the scan is in use again (`TemporaryFiles`).
         if rule.unused != nil, !candidate.isLeftover, Catalog.lastChange(in: candidate.url).map({ $0 > candidate.observedAt }) ?? true { return .changed }

@@ -38,18 +38,25 @@ private struct FakeInUse: InUseChecking {
     }
 }
 private struct NothingRunning: RunningAppChecking { func isRunning(_ owner: RuleOwner) -> Bool? { false } }
-private let catalog = Catalog(rules: fixtureRules)
+/// One installed app, so a `C` folder named after it has an owner.
+private struct OneApp: AppLookup {
+    func app(bundleID: String) -> InstalledApp? {
+        bundleID == "com.example.editor" ? InstalledApp(name: "Editor", bundleID: bundleID, path: "/Applications/Editor-\(UUID()).app") : nil
+    }
+    func app(updaterCacheDirName name: String) -> InstalledApp? { nil }
+}
+private let catalog = Catalog(rules: BuiltInCatalog.rules(apps: OneApp()))
 private func fixtureHome() -> URL { FileManager.default.temporaryDirectory.appendingPathComponent("StillCatalog-\(UUID())") }
 private func temporaryFiles(_ candidates: [Candidate]) -> [String] {
-    candidates.filter { $0.ruleID == "temporary-files" }.map(\.url.path).sorted()
+    candidates.filter { $0.ruleID.hasPrefix("temporary-") }.map(\.url.path).sorted()
 }
 
 @Test func oldItemsInTheTempAndCacheFoldersAreOfferedButNotRecentOrMacOSOnes() throws {
     let folder = try fixtureUserFolder()
     defer { try? FileManager.default.removeItem(at: folder) }
     let oldFile = try writeFile("T/old-download.tmp", in: folder, modified: daysAgo(30))
-    try writeFile("C/old.cache/blob", in: folder, modified: daysAgo(30))
-    try age("C/old.cache", in: folder, to: daysAgo(30))
+    try writeFile("T/old.session/blob", in: folder, modified: daysAgo(30))
+    try age("T/old.session", in: folder, to: daysAgo(30))
     try writeFile("T/recent.tmp", in: folder, modified: daysAgo(1))
     try writeFile("T/com.apple.something/blob", in: folder, modified: daysAgo(30))
     try age("T/com.apple.something", in: folder, to: daysAgo(30))
@@ -58,17 +65,41 @@ private func temporaryFiles(_ candidates: [Candidate]) -> [String] {
     try writeFile("X/other/blob", in: folder, modified: daysAgo(30))
     try age("X/other", in: folder, to: daysAgo(30))
     let candidates = catalog.discover(fixture: fixtureHome(), userFolder: folder, now: now)
-    #expect(temporaryFiles(candidates) == [folder.appendingPathComponent("C/old.cache").path, oldFile.path])
+    #expect(temporaryFiles(candidates) == [oldFile.path, folder.appendingPathComponent("T/old.session").path])
     let rule = try #require(catalog.rule("temporary-files"))
     #expect(rule.category == .system && rule.action == .delete && rule.base == .userFolder)
     #expect(candidates.filter { $0.ruleID == "temporary-files" }.allSatisfy { ($0.allocatedBytes ?? 0) >= 8192 })
+}
+
+@Test func inTheCacheFolderOnlyAnInstalledAppsOldCacheIsOffered() throws {
+    let folder = try fixtureUserFolder()
+    defer { try? FileManager.default.removeItem(at: folder) }
+    for name in ["com.example.editor", "com.example.uninstalled", "assessmentagent", "clang", "com.apple.metal", "AudioComponentRegistrar"] {
+        try writeFile("C/\(name)/blob", in: folder, modified: daysAgo(30))
+        try age("C/" + name, in: folder, to: daysAgo(30))
+    }
+    let candidates = catalog.discover(fixture: fixtureHome(), userFolder: folder, now: now)
+    #expect(temporaryFiles(candidates) == [folder.appendingPathComponent("C/com.example.editor").path])
+    let found = try #require(candidates.first { $0.ruleID == "temporary-app-caches" })
+    #expect(found.appName == "Editor")
+    // Its app must be closed, as for any app cache; a running or unknown one refuses it.
+    struct Running: RunningAppChecking { let answer: Bool?; func isRunning(_ owner: RuleOwner) -> Bool? { owner.name == "Editor" ? answer : false } }
+    let home = fixtureHome()
+    #expect(CandidateCheck(catalog: catalog, running: Running(answer: false), inUse: FakeInUse(), home: home).check(found) == nil)
+    #expect(CandidateCheck(catalog: catalog, running: Running(answer: true), inUse: FakeInUse(), home: home).check(found) == .ownerRunning("Editor"))
+    #expect(CandidateCheck(catalog: catalog, running: Running(answer: nil), inUse: FakeInUse(), home: home).check(found) == .ownerUnknown("Editor"))
+    // Closed, but another process has a file in it open.
+    #expect(CandidateCheck(catalog: catalog, running: Running(answer: false), inUse: FakeInUse(open: [found.url.path]), home: home).check(found) == .inUse("An app"))
+    // A recent one is never offered.
+    try writeFile("C/com.example.editor/fresh", in: folder, modified: daysAgo(1))
+    #expect(temporaryFiles(catalog.discover(fixture: fixtureHome(), userFolder: folder, now: now)).isEmpty)
 }
 
 @Test func anItemAProcessHasOpenIsNeverOfferedAndWhenUseCantBeCheckedNothingIs() throws {
     let folder = try fixtureUserFolder()
     defer { try? FileManager.default.removeItem(at: folder) }
     let open = try writeFile("T/open.tmp", in: folder, modified: daysAgo(30))
-    let idle = try writeFile("C/idle.bin", in: folder, modified: daysAgo(30))
+    let idle = try writeFile("T/idle.bin", in: folder, modified: daysAgo(30))
     #expect(temporaryFiles(catalog.discover(fixture: fixtureHome(), userFolder: folder, inUse: FakeInUse(open: [open.path]), now: now)) == [idle.path])
     let discovery = catalog.discovery(fixture: fixtureHome(), userFolder: folder, inUse: FakeInUse(unknown: true), now: now)
     #expect(temporaryFiles(discovery.candidates).isEmpty)
@@ -133,10 +164,10 @@ private final class FakeVolume: @unchecked Sendable {
     let folder = try fixtureUserFolder()
     defer { try? FileManager.default.removeItem(at: folder) }
     let file = try writeFile("T/old.tmp", in: folder, modified: daysAgo(30))
-    try writeFile("C/old.cache/blob", in: folder, modified: daysAgo(30))
-    try age("C/old.cache", in: folder, to: daysAgo(30))
+    try writeFile("C/com.example.editor/blob", in: folder, modified: daysAgo(30))
+    try age("C/com.example.editor", in: folder, to: daysAgo(30))
     let recent = try writeFile("T/recent.tmp", in: folder, modified: daysAgo(1))
-    let candidates = catalog.discover(fixture: fixtureHome(), userFolder: folder, now: now).filter { $0.ruleID == "temporary-files" }
+    let candidates = catalog.discover(fixture: fixtureHome(), userFolder: folder, now: now).filter { $0.ruleID.hasPrefix("temporary-") }
     #expect(candidates.count == 2)
     let volume = FakeVolume()
     volume.freedPerRead = [0, 8192, 0, 12_288]
@@ -146,7 +177,7 @@ private final class FakeVolume: @unchecked Sendable {
     let result = await run.execute(CatalogApproval(candidates: candidates, previewOnly: false))
     #expect(result.records.map(\.state) == [.succeeded, .succeeded])
     #expect(result.measuredFreedBytes == 20_480)
-    #expect(!FileManager.default.fileExists(atPath: file.path) && !FileManager.default.fileExists(atPath: folder.appendingPathComponent("C/old.cache").path))
+    #expect(!FileManager.default.fileExists(atPath: file.path) && !FileManager.default.fileExists(atPath: folder.appendingPathComponent("C/com.example.editor").path))
     #expect(FileManager.default.fileExists(atPath: recent.path))
 }
 
@@ -163,4 +194,46 @@ private final class FakeVolume: @unchecked Sendable {
     let used = SystemInUseChecker().inUse([opened, mapped, idle], by: .anyApp)
     #expect(used == [opened.path, mapped.path])
     #expect(mapping.count == 8192)
+}
+
+/// Counts how often the process table would be read: once per snapshot.
+private final class CountingInUse: InUseChecking, @unchecked Sendable {
+    private let lock = NSLock()
+    private var taken = 0
+    var snapshots: Int { lock.lock(); defer { lock.unlock() }; return taken }
+    func inUse(_ folders: [URL], by owner: RuleOwner) -> Set<String>? { [] }
+    func snapshot() -> any InUseChecking { lock.lock(); taken += 1; lock.unlock(); return self }
+}
+
+@Test func aDiscoveryAndACleanupRunEachReadWhatIsInUseOnce() async throws {
+    let folder = try fixtureUserFolder()
+    defer { try? FileManager.default.removeItem(at: folder) }
+    for name in ["a", "b", "c"] { try writeFile("T/\(name).tmp", in: folder, modified: daysAgo(30)) }
+    let clone = folder.appendingPathComponent("X/com.google.Chrome.code_sign_clone/code_sign_clone.old/blob")
+    try FileManager.default.createDirectory(at: clone.deletingLastPathComponent(), withIntermediateDirectories: true)
+    try Data(repeating: 1, count: 4096).write(to: clone)
+    let counting = CountingInUse()
+    let candidates = catalog.discover(fixture: fixtureHome(), userFolder: folder, inUse: counting, now: now)
+    #expect(temporaryFiles(candidates).count == 3)
+    #expect(counting.snapshots == 1)
+    let journal = try SQLiteCleanupJournal(url: folder.appendingPathComponent("journal.sqlite"))
+    let run = CleanupExecutor(journal: journal, check: CandidateCheck(catalog: catalog, running: NothingRunning(), inUse: counting, home: fixtureHome()),
+                              measure: { _ in nil }, trash: TrashNeverUsed())
+    let result = await run.execute(CatalogApproval(candidates: candidates.filter { $0.ruleID.hasPrefix("temporary-") }, previewOnly: true))
+    #expect(result.records.count == 3)
+    #expect(counting.snapshots == 2)
+}
+
+@Test func aSystemSnapshotAnswersForManyItemsAndOwners() throws {
+    let folder = try fixtureUserFolder()
+    defer { try? FileManager.default.removeItem(at: folder) }
+    let opened = try writeFile("T/open.tmp", in: folder, modified: daysAgo(30))
+    let idle = try writeFile("T/idle.tmp", in: folder, modified: daysAgo(30))
+    let descriptor = Darwin.open(opened.path, O_RDONLY)
+    #expect(descriptor >= 0)
+    defer { close(descriptor) }
+    let snapshot = SystemInUseChecker().snapshot()
+    #expect(snapshot.inUse([opened], by: .anyApp) == [opened.path])
+    #expect(snapshot.inUse([idle], by: .anyApp) == [])
+    #expect(snapshot.inUse([opened, idle], by: RuleOwner(name: "Nobody", executables: ["no-such-process-\(UUID())"])) == [])
 }

@@ -160,7 +160,8 @@ public enum BuiltInCatalog {
     /// The catalog as the app uses it, with installed apps found through LaunchServices.
     public static let rules: [CleanupRule] = rules(apps: SystemAppLookup())
     /// The catalog with installed apps found by `apps`. Tests pass a fake, so they never depend on this Mac's apps.
-    public static func rules(apps: any AppLookup) -> [CleanupRule] { fixedRules + BrowserCaches.rules + AppCaches.rules(apps: apps) + dockerRules + guidanceRules }
+    public static func rules(apps: any AppLookup) -> [CleanupRule] { fixedRules + BrowserCaches.rules + AppCaches.rules(apps: apps) + dockerRules + guidanceRules
+        + TemporaryFiles.rules(apps: apps) }
     private static let fixedRules: [CleanupRule] = [
         CleanupRule(id: "npm-cache", category: .developer, title: "npm cache",
                     detail: "Packages npm downloaded for your projects.",
@@ -257,7 +258,6 @@ public enum BuiltInCatalog {
         iCloudLocalCopies,
         // Its items come only from folders the user picked (`UserFiles.candidates`); it has no locations of its own.
         UserFiles.rule,
-        TemporaryFiles.rule,
     ]
     /// Kept from the Downloads-era policy: libraries and databases are never moved, even inside Downloads.
     static let downloadsProtectedExtensions = ["dsym", "library", "db", "sqlite", "sqlite3"]
@@ -330,7 +330,7 @@ public struct Catalog: Sendable {
     /// but a leaked copy's app may still have one open.
     static func ownership(of url: URL, under rule: CleanupRule) -> Ownership {
         if let copies = rule.copies { return .mustNotUse(copies.owner) }
-        if rule.unused != nil { return .mustNotUse(.anyApp) }
+        if rule.unused != nil, rule.itemOwner == nil { return .mustNotUse(.anyApp) }
         if Catalog.isLeftover(url.lastPathComponent, of: rule.id) { return .none }
         if let itemOwner = rule.itemOwner { return itemOwner(url).map(Ownership.mustBeClosed) ?? .unknown }
         return rule.owner.map(Ownership.mustBeClosed) ?? .none
@@ -354,6 +354,8 @@ public struct Catalog: Sendable {
         // Guidance rules report their own access (`guidance(home:)`).
         let notAccessible = rules.filter { $0.action != .guidance && $0.access(given: access) == .needsFullDiskAccess }
         let homeBase = home.resolvingSymlinksInPath(), userBase = userFolder
+        // One reading of the process table for every rule that asks what is in use.
+        let inUse = inUse.snapshot()
         var seen = Set<String>()
         var notes: [CatalogNote] = []
         var scanned: [String] = []
