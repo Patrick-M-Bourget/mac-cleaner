@@ -84,7 +84,7 @@ def main():
     save()
     # These flags affect presentation/first-run only; no sandbox/signature/security bypass.
     flags = [str(binary), '--headless=new', '--no-first-run', '--no-default-browser-check',
-             '--dump-dom']
+             '--profile-directory=Default', '--dump-dom']
     def launch(url, name):
         result = subprocess.run(flags + [url], capture_output=True, text=True, timeout=45)
         (evidence / (name + '.html')).write_text(result.stdout)
