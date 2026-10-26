@@ -237,3 +237,14 @@ private func dockerRun(_ home: URL, docker: URL, choose ruleIDs: Set<String>, vo
     #expect(running.groups.first { $0.id == "category:developer" }?.logicalDelta ?? 0 == 0)
     #expect(running.coverageChanges.count == 3 && Set(running.coverageChanges.map(\.kind)) == [.newlyReadable])
 }
+
+@Test func dockerIsntRunningIsShownEvenWithoutItsFolder() throws {
+    let home = try fixtureHome()
+    defer { try? FileManager.default.removeItem(at: home) }
+    try FileManager.default.removeItem(at: home.appendingPathComponent(".docker"))
+    let docker = try fakeDocker(home, df: "echo 'Cannot connect to the Docker daemon' >&2; exit 1")
+    let found = Catalog(rules: fixtureRules).discovery(fixture: home, locateTool: { $0.executables.contains("/usr/local/bin/docker") ? docker : nil })
+    #expect(!found.candidates.contains { $0.ruleID.hasPrefix("docker-") })
+    #expect(found.notes.map(\.text) == ["Docker isn’t running, so its space isn’t shown. Open Docker, then scan again."])
+    #expect(found.notMeasured["docker-images"] == [".docker"])
+}

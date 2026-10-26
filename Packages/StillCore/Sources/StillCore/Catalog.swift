@@ -350,7 +350,8 @@ public struct Catalog: Sendable {
         var notes: [CatalogNote] = []
         var scanned: [String] = []
         var notMeasured: [String: Set<String>] = [:]
-        // `docker system df` runs once per scan, for every Docker rule, and only once a rule's folder exists.
+        // `docker system df` runs once per scan for every Docker rule, whenever the CLI is installed: without its folder
+        // nothing is offered, but a daemon that doesn't answer is still shown.
         var dockerUsage: [String: Result<[DockerStorageCategory], ToolPreviewError>] = [:]
         let overridden = Set(overriddenRules(home: home, systemRoot: systemRoot).map(\.id))
         let candidates = rules.flatMap { rule -> [Candidate] in
@@ -364,6 +365,12 @@ public struct Catalog: Sendable {
             guard rule.action != .tool || toolURL != nil else { return leftovers.map { $0.found(under: base) } }
             scanned.append(rule.id)
             for location in rule.locations where Self.cantRead(location, under: base) { notMeasured[rule.id, default: []].insert(location) }
+            if case .docker = rule.items, let toolURL {
+                let usage = dockerUsage[toolURL.path] ?? DockerDiskUsage.read(toolURL)
+                if dockerUsage[toolURL.path] == nil, case .failure(let error) = usage { notes.append(CatalogNote(ruleID: rule.id, text: DockerDiskUsage.notice(error))) }
+                dockerUsage[toolURL.path] = usage
+                if case .failure = usage { notMeasured[rule.id, default: []].formUnion(rule.locations); return leftovers.map { $0.found(under: base) } }
+            }
             // A trailing `/*` offers each folder inside (DeviceSupport versions); a `*` inside the path names a profile.
             let found = rule.locations.flatMap { location -> [(URL, String?)] in
                 // A pattern as the last component (`models--*`) also offers each matching folder.
@@ -381,10 +388,7 @@ public struct Catalog: Sendable {
                 if let contents = rule.contents { return files(in: url, matching: contents, rule: rule, now: now) }
                 if rule.items == .ollamaModels { return ollamaModels(in: url, rule: rule, toolURL: toolURL) }
                 if case .docker(let kind) = rule.items, let toolURL {
-                    let usage = dockerUsage[toolURL.path] ?? DockerDiskUsage.read(toolURL)
-                    if dockerUsage[toolURL.path] == nil, case .failure(let error) = usage { notes.append(CatalogNote(ruleID: rule.id, text: DockerDiskUsage.notice(error))) }
-                    dockerUsage[toolURL.path] = usage
-                    guard case .success(let rows) = usage else { notMeasured[rule.id, default: []].formUnion(rule.locations); return [] }
+                    guard case .success(let rows)? = dockerUsage[toolURL.path] else { return [] }
                     return dockerCandidate(kind, at: url, rule: rule, toolURL: toolURL, usage: rows).map { [$0] } ?? []
                 }
                 var info = stat()

@@ -92,3 +92,9 @@ extension CandidateCheck {
         self.init(catalog: catalog, running: running, exclusions: exclusions, inUse: inUse, cloud: cloud, home: fixtureNoHome)
     }
 }
+
+/// Finds `stand-in` only for the tool named `name` (`brew`, `ollama`), so a test never runs its stand-in as another
+/// tool, such as Docker's `system df` during discovery.
+func onlyTool(_ name: String, _ standIn: URL) -> @Sendable (ToolCommand) -> URL? {
+    { command in command.executables.contains { URL(fileURLWithPath: $0).lastPathComponent == name } ? standIn : nil }
+}
