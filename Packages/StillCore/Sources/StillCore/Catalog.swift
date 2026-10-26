@@ -331,9 +331,8 @@ public struct Catalog: Sendable {
                 guard lstat(url.path, &info) == 0, info.st_uid == geteuid(),
                       [S_IFDIR, S_IFREG].contains(info.st_mode & S_IFMT) else { return [] }
                 if rule.yieldsToOtherRules, claimedByAnotherRule(url, besides: rule, base: base) { return [] }
-                // Rules that look deeper for live work leave such folders out of the plan; the check refuses them either way.
-                if rule.protectedDepth > 1, info.st_mode & S_IFMT == S_IFDIR,
-                   CandidateCheck.protectedEntry(in: url, names: CandidateCheck.protectedNames(for: rule), depth: rule.protectedDepth) != nil { return [] }
+                // Folders holding live work (a git checkout, protected data) are left out of the plan; the check refuses them either way.
+                if info.st_mode & S_IFMT == S_IFDIR, CandidateCheck.protectedEntry(in: url, rule: rule) != nil { return [] }
                 var profile = profile
                 if let itemOwner = rule.itemOwner {
                     guard let owner = itemOwner(url) else { return [] }

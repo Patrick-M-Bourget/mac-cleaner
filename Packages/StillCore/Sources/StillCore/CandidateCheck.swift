@@ -40,6 +40,18 @@ public struct CandidateCheck: Sendable {
     /// At most this many entries are looked at; a deeper search that would need more refuses the folder.
     static let protectedSearchLimit = 200_000
 
+    /// Levels a folder candidate of any rule is searched for a git working tree. A path under a cache folder doesn't
+    /// prove a folder is disposable: Cargo's git checkouts and agents' worktrees sit a few levels down.
+    static let gitSearchDepth = 4
+
+    /// The first protected entry inside a folder candidate: the rule's protected names to its own depth, and
+    /// `.git` to `gitSearchDepth` whatever the rule. Discovery leaves such folders out; the check refuses them.
+    static func protectedEntry(in folder: URL, rule: CleanupRule) -> String? {
+        let names = protectedNames(for: rule)
+        if let found = protectedEntry(in: folder, names: names, depth: rule.protectedDepth) { return found }
+        return rule.protectedDepth >= gitSearchDepth ? nil : protectedEntry(in: folder, names: [".git"], depth: gitSearchDepth)
+    }
+
     /// The first protected name among the entries up to `depth` levels inside `folder`, never following symlinks or crossing volumes.
     /// A folder that can't be fully searched answers with the reason, so it is refused rather than guessed at.
     static func protectedEntry(in folder: URL, names: Set<String>, depth: Int) -> String? {
@@ -108,7 +120,7 @@ public struct CandidateCheck: Sendable {
         for part in candidate.url.pathComponents {
             if names.contains(part) || extensions.contains(URL(fileURLWithPath: part).pathExtension.lowercased()) { return .protected(part) }
         }
-        if candidate.isDirectory, let name = Self.protectedEntry(in: candidate.url, names: names, depth: rule.protectedDepth) { return .protected(name) }
+        if candidate.isDirectory, let name = Self.protectedEntry(in: candidate.url, rule: rule) { return .protected(name) }
         if exclusions.covers(candidate.url, volumeID: volume) { return .excluded }
         return nil
     }

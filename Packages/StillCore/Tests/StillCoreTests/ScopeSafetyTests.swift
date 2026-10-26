@@ -47,3 +47,14 @@ private let cargoOnly = Catalog(rules: BuiltInCatalog.rules.filter { $0.id == "c
     let exclusions = ExclusionPolicy(rules: try [".cargo/registry", ".cargo/git/db", "Downloads/setup.dmg"].map { try ExclusionRule.capture(home.appendingPathComponent($0)) })
     #expect(catalog.discover(home: home, exclusions: exclusions).isEmpty)
 }
+
+@Test func aGitCheckoutFourLevelsDownIsNeverOfferedAndRefusedIfItAppears() throws {
+    let home = try fixtureFolder("StillScopeHome")
+    defer { try? FileManager.default.removeItem(at: home) }
+    try write(home, ".cargo/git/checkouts/x/y/.git/HEAD")
+    try write(home, ".cargo/registry/index/entry")
+    #expect(cargoOnly.discover(home: home).map(\.url.lastPathComponent) == ["registry"])
+    let registry = try #require(cargoOnly.discover(home: home).first)
+    try write(home, ".cargo/registry/src/crate/v1/.git/HEAD")
+    #expect(CandidateCheck(catalog: cargoOnly, running: NothingRunning()).check(registry) == .protected(".git"))
+}

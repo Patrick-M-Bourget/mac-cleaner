@@ -50,7 +50,8 @@ private func rule(_ id: String, _ category: CatalogCategory, _ action: CleanupAc
 @Test func aPartlyMeasuredCategoryIsALowerBound() throws {
     let home = try overviewHome()
     try write(8192, at: "open/f", in: home)
-    let locked = home.appendingPathComponent("open/locked")
+    // Deeper than the git search goes, so only sizing meets the unreadable folder.
+    let locked = home.appendingPathComponent("open/a/b/c/d/locked")
     try FileManager.default.createDirectory(at: locked, withIntermediateDirectories: true)
     try FileManager.default.setAttributes([.posixPermissions: 0], ofItemAtPath: locked.path)
     defer {

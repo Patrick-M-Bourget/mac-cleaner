@@ -80,8 +80,9 @@ private func npmCandidate(_ home: URL) throws -> Candidate {
     let home = try fixtureHome()
     defer { try? FileManager.default.removeItem(at: home) }
     let cache = try writeNpmCache(in: home)
-    try FileManager.default.createDirectory(at: cache.appendingPathComponent(".git"), withIntermediateDirectories: true)
     let candidate = try npmCandidate(home)
+    try FileManager.default.createDirectory(at: cache.appendingPathComponent(".git"), withIntermediateDirectories: true)
+    #expect(Catalog(rules: BuiltInCatalog.rules).discover(home: home).isEmpty)
     #expect(CandidateCheck(catalog: Catalog(rules: BuiltInCatalog.rules), running: FakeRunning()).check(candidate) == .protected(".git"))
 }
 
