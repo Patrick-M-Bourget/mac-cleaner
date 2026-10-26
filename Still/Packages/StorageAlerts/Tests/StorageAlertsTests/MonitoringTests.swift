@@ -536,3 +536,19 @@ import StorageAlerts
     #expect(!alerts.requested)
     #expect(system.permissionRequests == 0)
 }
+
+/// #131: alerts start off, and notification permission is asked for only when you turn them on.
+@Test @MainActor func alertsStartOffAndAskForPermissionOnlyWhenTurnedOn() async {
+    let system = ControlledAlertSystem()
+    system.permission = .unknown
+    let alerts = AlertMonitoringController(system: system)
+    alerts.configure()
+    await alerts.activated()
+    #expect(!alerts.requested)
+    #expect(!alerts.effectiveMonitoring)
+    #expect(system.pollers.isEmpty)
+    #expect(system.permissionRequests == 0)
+    await alerts.setEnabled(true)
+    #expect(alerts.requested)
+    #expect(system.permissionRequests == 1)
+}

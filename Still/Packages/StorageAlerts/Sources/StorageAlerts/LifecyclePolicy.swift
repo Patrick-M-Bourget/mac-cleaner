@@ -1,8 +1,8 @@
 import Foundation
 
 public enum AppLifecyclePolicy {
-    public static func shouldKeepRunning(effectiveAlerts: Bool, operationInProgress: Bool, hasPendingPlan: Bool = false) -> Bool {
-        effectiveAlerts || operationInProgress || hasPendingPlan
+    public static func shouldKeepRunning(effectiveAlerts: Bool, operationInProgress: Bool, hasPendingPlan: Bool = false, menuBarItemShown: Bool = false) -> Bool {
+        effectiveAlerts || operationInProgress || hasPendingPlan || menuBarItemShown
     }
     public static func mayQuit(operationInProgress: Bool) -> Bool { !operationInProgress }
 
@@ -61,5 +61,30 @@ public enum LoginStatus: String, Sendable { case enabled, requiresApproval, disa
         intent = enabled
         defer { refresh() }
         if enabled { try service.register() } else { try service.unregister() }
+    }
+}
+
+/// The menu bar item (#131): free space in a short form, and the menu's item titles.
+public enum MenuBarStatus {
+    /// "38 GB free": whole gigabytes from 10 GB, one decimal below that, terabytes from 1,000 GB. Decimal units,
+    /// as Finder shows them. Nil when capacity is unknown, so the item shows only its symbol.
+    public static func freeSpaceTitle(available: Int64?, locale: Locale = .current) -> String? {
+        guard let available, available >= 0 else { return nil }
+        let gigabytes = Double(available) / 1_000_000_000
+        let (value, unit, digits) = gigabytes >= 1_000 ? (gigabytes / 1_000, "TB", 1) : gigabytes >= 10 ? (gigabytes, "GB", 0) : (gigabytes, "GB", 1)
+        return value.formatted(.number.precision(.fractionLength(digits)).locale(locale)) + " " + unit + " free"
+    }
+
+    public enum Item: Equatable, Sendable {
+        case openStill, scanAgain, reviewRecommendedPlan, settings, quit
+        public var title: String {
+            switch self {
+            case .openStill: "Open Still"
+            case .scanAgain: "Scan again"
+            case .reviewRecommendedPlan: "Review recommended plan…"
+            case .settings: "Settings…"
+            case .quit: "Quit Still"
+            }
+        }
     }
 }

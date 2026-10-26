@@ -29,6 +29,34 @@ final class LaunchSmokeUITests: XCTestCase {
         XCTAssertFalse(app.staticTexts["Storage alerts"].exists)
     }
 
+    /// #131: the menu bar item shows free space and keeps Still running after its window closes.
+    /// Low-space alerts are off by default, in the Settings window. Nothing here changes either preference.
+    @MainActor func testMenuBarItemShowsFreeSpaceAndAlertsStartOff() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        let state = try configureIsolatedState(app)
+        defer { app.terminate(); try? FileManager.default.removeItem(at: state) }
+        app.launch()
+        XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
+        let item = app.statusItems.firstMatch
+        XCTAssertTrue(item.waitForExistence(timeout: 10))
+        XCTAssertTrue(NSPredicate(format: "SELF MATCHES %@", "^[0-9.,]+ (GB|TB) free$").evaluate(with: item.title), "Got \(item.title)")
+
+        app.typeKey("w", modifierFlags: .command)
+        XCTAssertFalse(app.staticTexts["Storage overview"].waitForExistence(timeout: 2))
+        // The menu is checked, not clicked: on a crowded menu bar (the notch, or a menu bar manager) the item can be
+        // hidden, and XCUITest can't open it. Open Still from the menu is a hand smoke test.
+        for title in ["Open Still", "Scan again", "Settings…", "Quit Still"] { XCTAssertTrue(app.menuItems[title].exists, title) }
+        XCTAssertEqual(app.state, .runningForeground, "Closing the window keeps Still running with its menu bar item")
+
+        app.typeKey(",", modifierFlags: .command)
+        let alerts = app.descendants(matching: .any)["lowSpaceAlertsToggle"]
+        XCTAssertTrue(alerts.waitForExistence(timeout: 5))
+        XCTAssertEqual(alerts.value as? Int, 0, "Alerts are off by default")
+        XCTAssertEqual(app.descendants(matching: .any)["menuBarItemToggle"].value as? Int, 1, "The menu bar item is shown by default")
+        XCTAssertFalse(app.descendants(matching: .any)["lowSpaceThreshold"].exists, "The threshold appears only once alerts are on")
+    }
+
     /// A relaunch after a previous session must still open the main window, whatever state macOS saved.
     @MainActor func testRelaunchShowsMainWindow() throws {
         continueAfterFailure = false

@@ -9,8 +9,8 @@ extension Notification.Name {
 }
 
 @MainActor private final class NativeAlertMonitoringSystem: AlertMonitoringSystem {
-    /// Alerts stay unwired until after M1 (docs/RESET.md, Decision 12).
-    var available: Bool { false }
+    /// Wired in the Settings window (#131, RESET Decision 30). Off until you turn them on.
+    var available: Bool { true }
     var allowsNotificationChanges: Bool { !LocalStateLocation.isDisposableTest }
     var now: Date { Date() }
     private var store: AlertStateStore { get throws { AlertStateStore(url: try LocalStateLocation.root(create: true).appendingPathComponent("StorageAlerts/episode-state.json")) } }
@@ -40,7 +40,7 @@ extension Notification.Name {
     func submitLowSpaceNotification(identifier: String, observedAt: Date) async throws {
         let content = UNMutableNotificationContent()
         content.title = "Your Mac is running low on space"
-        content.body = "Capacity checked at \(observedAt.formatted(date: .omitted, time: .shortened)). Open Still to review storage and choose whether to scan."
+        content.body = "Open Still to see what you can clean up."
         content.sound = .default; content.categoryIdentifier = "Still.capacity"
         content.userInfo = AlertOpenContext(observedAt: observedAt).notificationUserInfo
         try await center.add(UNNotificationRequest(identifier: identifier, content: content, trigger: nil))
@@ -53,7 +53,7 @@ extension Notification.Name {
     init() {
         super.init(system: NativeAlertMonitoringSystem())
     }
-    /// Registers notification handling. Not called while alerts are unwired (Decision 12).
+    /// Registers notification handling at launch, so an alert's Open Still and Remind me later work (#131).
     func configureNotifications() {
         let center = UNUserNotificationCenter.current()
         center.delegate = self
@@ -81,111 +81,151 @@ extension Notification.Name {
     nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification) async -> UNNotificationPresentationOptions { [.banner, .sound] }
 }
 
-/// Pure shared threshold presentation. The caller supplies current validation evidence;
-/// editing never changes the applied monitoring preference.
+/// The alert threshold, edited as a draft and applied explicitly. The caller supplies current validation evidence;
+/// editing never changes the applied preference.
 struct AlertThresholdEditor: View {
     @Binding var draft: String
-    let appliedBytes: Int64
-    let hasCurrentTotal: Bool
     let canApply: Bool
     var invalidDraft = false
     let apply: () -> Void
     var body: some View {
-        SettingsRow(title: "Minimum available space", detail: "Applied threshold: " + ByteCountFormatter.string(fromByteCount: appliedBytes, countStyle: .decimal)) {
+        LabeledContent("Alert below") {
             HStack(spacing: StillDesign.Space.sm) {
-                TextField("Minimum available space (GB)", text: $draft).frame(width: 120)
-                Text("GB · decimal units").foregroundStyle(.secondary)
-                Spacer(minLength: StillDesign.Space.sm)
-                Button("Apply threshold", action: apply).disabled(!canApply)
+                TextField("Alert below", text: $draft).labelsHidden().frame(width: StillDesign.Size.numberField)
+                    .multilineTextAlignment(.trailing).onSubmit { if canApply { apply() } }
+                    .accessibilityIdentifier("lowSpaceThreshold")
+                Text("GB").foregroundStyle(.secondary)
+                Button("Apply", action: apply).disabled(!canApply)
             }
-            if invalidDraft && hasCurrentTotal {
-                StatusRow(text: "Enter a number of at least 1 GB and below startup-volume capacity. Your applied threshold is unchanged.", symbol: "exclamationmark.circle")
-            }
-            Text(hasCurrentTotal ? "At least 1 GB and below startup-volume capacity. Suggested: 40 GB. Edits take effect only after Apply." : "Refresh capacity to validate changes. Your applied threshold is preserved.")
-                .font(.caption).foregroundStyle(.secondary)
+        }
+        if invalidDraft {
+            StatusRow(text: "Enter at least 1 GB, below this Mac’s capacity.", symbol: "exclamationmark.circle")
         }
     }
 }
 
-/// Read-only authorization evidence with an explicit native Settings action.
+/// Shown only when notifications for Still are blocked; permission is asked for only when alerts are turned on.
 struct AlertPermissionDetails: View {
     let authorization: AlertPolicy.Authorization
     let checked: Bool
     var settingsFeedback = ""
     let openSettings: () -> Void
-    private var title: String {
-        guard checked else { return "Checking notification permission…" }
-        switch authorization {
-        case .allowed: return "Notifications allowed"
-        case .denied: return "Notifications blocked"
-        case .unknown: return "Notification permission not requested"
-        }
-    }
     var body: some View {
-        SettingsRow(title: "Notification permission", detail: "Permission is requested only when you turn alerts on.") {
-            Text(title).accessibilityIdentifier("notificationPermissionStatus")
-            if checked && authorization == .denied {
-                Text("Monitoring is stopped. In System Settings → Notifications → Still, allow notifications. Returning here checks permission again.")
-                    .font(.caption).foregroundStyle(.secondary)
+        if checked && authorization == .denied {
+            LabeledContent {
                 Button("Open System Settings", action: openSettings)
-            }
+            } label: {
+                Text("Notifications are off for Still")
+                Text("Allow them in System Settings › Notifications.")
+            }.accessibilityIdentifier("notificationPermissionStatus")
             if !settingsFeedback.isEmpty { StatusRow(text: settingsFeedback, symbol: "info.circle") }
         }
     }
 }
 
-struct QuietAlertExplanation: View {
-    @Binding var expanded: Bool
-    var body: some View {
-        DisclosureGroup("How reminders stay quiet", isExpanded: $expanded) {
-            Text("One alert is sent per low-space episode. Alerts rearm after available space reaches the applied threshold plus 5 GB, capped at startup-volume capacity. Remind me later snoozes for 24 hours. macOS notification and Focus settings can silence delivery.")
-            Text("Capacity-only checks need no folder access and run about every 15 minutes while awake. Closing the window keeps Still running only while monitoring or other active work needs it; Quit stops checks. Start at Login is independent. Opening an alert offers a scan; it never starts one.")
-        }.font(.caption).foregroundStyle(.secondary)
-    }
-}
-
-struct StorageAlertsView: View {
+/// Low-space alerts in the Settings window (#131). Off by default. Turning them on asks for notification
+/// permission, only then. Capacity checks only: nothing is scanned or cleaned in the background.
+struct LowSpaceAlertsSettings: View {
     @ObservedObject var controller: StorageAlertsController
-    let capacity: CapacityRefreshController
-    var configureOnEntry = true
-    @State private var quietExpanded = false
+    @State private var capacity = AppLifecycleController.shared.capacity
     @State private var settingsFeedback = ""
     private var currentTotal: Int64? { capacity.failed || capacity.isRefreshing ? nil : capacity.reading?.total }
     var body: some View {
-        VStack(alignment: .leading, spacing: StillDesign.Space.xl) {
-            PageHeader(title: "Storage alerts", subtitle: "Choose when Still reminds you to review storage.")
-            VolumeSummary(available: capacity.reading?.available, total: capacity.reading?.total,
-                          observation: capacity.observationText, status: capacity.statusText,
-                          refreshTitle: capacity.failed ? "Retry capacity refresh" : "Refresh capacity",
-                          refreshing: capacity.isRefreshing, refresh: { capacity.request(.manual) })
-            Text("Current display only · Refreshing capacity does not run an alert check.").font(.caption).foregroundStyle(.secondary)
-            AlertPermissionDetails(authorization: controller.authorization, checked: controller.authorizationChecked,
-                                   settingsFeedback: settingsFeedback) {
-                Task {
-                    let opened = await WorkspaceGuidanceOpener().open(.app(bundleID: "com.apple.systempreferences"))
-                    settingsFeedback = opened ? "System Settings opened. Permission has not been confirmed; return to Still to check again." : "System Settings could not be opened. Open it from the Apple menu, then Notifications → Still."
-                }
-            }
-            AlertThresholdEditor(draft: $controller.thresholdGB, appliedBytes: controller.appliedThresholdBytes,
-                                 hasCurrentTotal: currentTotal != nil,
-                                 canApply: controller.thresholdChanged && controller.thresholdValid(for: currentTotal),
-                                 invalidDraft: controller.thresholdChanged && !controller.thresholdValid(for: currentTotal)) {
-                Task { await controller.applyThreshold(validatingTotal: currentTotal) }
-            }
+        Section {
             Toggle("Notify me when space is low", isOn: Binding(get: { controller.requested }, set: { enabled in Task { await controller.setEnabled(enabled) } }))
                 .disabled(!controller.requested && !AlertPolicy.validThreshold(controller.appliedThresholdBytes, total: controller.total))
-            MonitoringDetails(state: controller.shellState, effective: controller.effectiveMonitoring)
-            Text(controller.lastMonitoringCheck.map { "Last monitoring check: " + $0.formatted() } ?? "No monitoring capacity check this session.")
-                .font(.caption).foregroundStyle(.secondary).accessibilityIdentifier("lastMonitoringCheck")
-            StatusRow(text: controller.status, symbol: controller.effectiveMonitoring ? "bell.badge" : "bell.slash", identifier: "storageAlertStatus")
-            Button("Remind me later · 24 hours") { controller.remindLater() }.disabled(!controller.requested)
-            Divider()
-            LoginSettingsView()
-            QuietAlertExplanation(expanded: $quietExpanded)
-            Text("Development capability · Capacity checks never scan folders or clean files.").font(.caption).foregroundStyle(.secondary)
-        }.task {
-            if configureOnEntry { controller.configure() }
-            if !controller.requested { await controller.activated() }
+                .accessibilityIdentifier("lowSpaceAlertsToggle")
+            if controller.requested {
+                AlertThresholdEditor(draft: $controller.thresholdGB,
+                                     canApply: controller.thresholdChanged && controller.thresholdValid(for: currentTotal),
+                                     invalidDraft: controller.thresholdChanged && currentTotal != nil && !controller.thresholdValid(for: currentTotal)) {
+                    Task { await controller.applyThreshold(validatingTotal: currentTotal) }
+                }
+                AlertPermissionDetails(authorization: controller.authorization, checked: controller.authorizationChecked,
+                                       settingsFeedback: settingsFeedback) {
+                    Task {
+                        let opened = await WorkspaceGuidanceOpener().open(.app(bundleID: "com.apple.systempreferences"))
+                        settingsFeedback = opened ? "" : "System Settings couldn’t be opened. Open it from the Apple menu, then Notifications › Still."
+                    }
+                }
+                LabeledContent {
+                    Button("Snooze 24 hours") { controller.remindLater() }
+                        .disabled(!controller.requested).accessibilityIdentifier("snoozeLowSpaceAlerts")
+                } label: {
+                    Text(LowSpaceAlertsPresentation.status(controller.shellState)).accessibilityIdentifier("storageAlertStatus")
+                }
+            }
+        } header: {
+            Text("Low-space alerts")
+        } footer: {
+            Text("Still checks free space about every 15 minutes while it’s open. It never scans or cleans in the background.")
+                .font(.caption).foregroundStyle(.secondary)
+        }
+        .task {
+            controller.configure()
+            await controller.activated()
         }
     }
+}
+
+/// One short status line per alert state (Decision 25: one line of detail).
+enum LowSpaceAlertsPresentation {
+    static func status(_ state: AlertShellState) -> String {
+        switch state {
+        case .off: "Off"
+        case .checking: "Checking…"
+        case .on: "On"
+        case .snoozed(let until): "Snoozed until " + until.formatted(date: .omitted, time: .shortened)
+        case .attention(let reason):
+            switch reason {
+            case .notificationsUnavailable: "Waiting for notification permission"
+            case .capacityUnavailable: "Free space couldn’t be read · Paused"
+            case .invalidThreshold: "Choose a threshold below this Mac’s capacity"
+            case .submissionFailed: "The last alert couldn’t be sent · Will retry"
+            case .savedStateUnavailable, .saveFailed: "Alert settings couldn’t be saved · Paused"
+            }
+        }
+    }
+}
+
+/// The menu bar item (#131): free space in a short, calm form. Shown by default; Settings can hide it.
+struct StillMenuBarLabel: View {
+    let capacity: CapacityRefreshController
+    var body: some View {
+        if let title = MenuBarStatus.freeSpaceTitle(available: capacity.reading?.available) {
+            Label(title, systemImage: "internaldrive").labelStyle(.titleAndIcon)
+        } else {
+            Image(systemName: "internaldrive").accessibilityLabel("Still")
+        }
+    }
+}
+
+/// The menu bar item's menu: Open Still, Scan again, the recommended plan when there is one, Settings… and Quit.
+struct StillMenuBarMenu: View {
+    @Environment(\.openWindow) private var openWindow
+    let lifecycle: AppLifecycleController
+    private var hasRecommendedPlan: Bool {
+        let catalog = lifecycle.selection.catalog
+        return catalog.hasScanned && catalog.canEdit && !lifecycle.selection.workspaceRunning && !catalog.recommendedCandidates.isEmpty
+    }
+    var body: some View {
+        Button(MenuBarStatus.Item.openStill.title, action: openStill)
+        Button(MenuBarStatus.Item.scanAgain.title) { openStill(); lifecycle.scanAgain?() }
+        if hasRecommendedPlan {
+            Button(MenuBarStatus.Item.reviewRecommendedPlan.title) { openStill(); lifecycle.reviewRecommendedPlan?() }
+        }
+        Divider()
+        SettingsLink { Text(MenuBarStatus.Item.settings.title) }.keyboardShortcut(",")
+        Divider()
+        Button(MenuBarStatus.Item.quit.title) { NSApp.terminate(nil) }.keyboardShortcut("q")
+    }
+    private func openStill() {
+        openWindow(id: "workspace")
+        NSApp.activate(ignoringOtherApps: true)
+    }
+}
+
+/// The Settings toggle for the menu bar item. Stored with the other app preferences; shown unless turned off.
+enum MenuBarItemPreference {
+    static let key = "Still.showsMenuBarItem"
 }

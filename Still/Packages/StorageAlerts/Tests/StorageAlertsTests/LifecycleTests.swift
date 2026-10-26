@@ -82,3 +82,9 @@ import Testing
     #expect(stop.confirm(stopCleanup: { stops += 1 }) == true)
     #expect(stops == 1)
 }
+
+/// #131: closing the window keeps Still running while its menu bar item is shown, so the item stays.
+@Test func windowCloseKeepsRunningWhileTheMenuBarItemIsShown() {
+    #expect(AppLifecyclePolicy.shouldKeepRunning(effectiveAlerts: false, operationInProgress: false, menuBarItemShown: true))
+    #expect(!AppLifecyclePolicy.shouldKeepRunning(effectiveAlerts: false, operationInProgress: false, menuBarItemShown: false))
+}
