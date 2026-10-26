@@ -32,6 +32,12 @@ That workflow ended unsuccessfully because stderr destination warnings preceded 
 
 The new object classifier reads only a bounded32-byte format header of a candidate generated object after local/materialized/no-follow checks. It requires the qualified arm64 Mach-O object format, in addition to verified project association, exact standard intermediate layout and identity. This is a small generated-file format read, not a claim that every observation uses metadata APIs alone. Qualification hashes complete owned disposable protected fixtures to verify preservation; no personal source or symbol contents are inspected.
 
+## Reusable Core checkpoint
+
+At `56c157b`, all192 Core tests pass locally, and the final native app build succeeds. Seventeen public Xcode test methods (ten Core, four owner and three mapping) exercise exact approvals, valid new-leaf exclusion, regenerated identities, protected artifacts and links, unknown associations, metadata swaps, local/provider refusal, user Stop versus safety stops, journal conflicts and replay refusal. Separate standards and spec reviews report no actionable findings; native acceptance remains independent.
+
+[Run40335032639](https://github.com/Patrick-M-Bourget/mac-cleaner/actions/runs/40335032639) at that source retained genuine arm64 Mach-O object headers matching the candidate recipe, standard mapping/settings and owner observations. Its public Core action worker timed out after60seconds without returning an outcome. No successful mutation, preservation, durable recovery or zero-mutation conclusion is inferred. The worker's journal was outside the uploaded evidence folder, so this run cannot resolve its action outcome after runner disposal. #16 remains open and #17 blocked. The follow-up preserves bounded journals and captured timeout output, adds stage diagnostics and investigates installation-validation cost rather than silently extending the deadline or relaxing target protections.
+
 ## App delivery boundary
 
 #17 remains blocked. Once #16 passes, it consumes the same opaque exact-file approval for the approved Overview → project/file review → shared plan → permanent confirmation → results/History journey. The shared design system and locked navigation remain authoritative. Mixed-run safety stops must stop every remaining action and remain distinct from user cancellation. No app screens or personal-file authority change in this qualification slice.

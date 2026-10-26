@@ -1,6 +1,7 @@
 import Foundation
 import Darwin
 import StillCore
+import Security
 
 private struct GuardIdentity: Decodable {
     let device: Int32
@@ -24,13 +25,29 @@ private struct QualificationError: Error, CustomStringConvertible {
     init(_ description: String) { self.description = description }
 }
 
+/// Qualification-only timing around the existing public environment boundary.
+private struct TimedEnvironment: XcodeBuildEnvironment {
+    let native: NativeXcodeBuildEnvironment
+    private func measure<T>(_ stage: String, _ action: () throws -> T) rethrows -> T {
+        let start = ProcessInfo.processInfo.systemUptime
+        FileHandle.standardError.write(Data("[XCODE16-QUAL] begin \(stage)\n".utf8))
+        defer { FileHandle.standardError.write(Data("[XCODE16-QUAL] end \(stage) \(ProcessInfo.processInfo.systemUptime - start)s\n".utf8)) }
+        return try action()
+    }
+    func now() -> Date { native.now() }
+    func validateInstallation() throws { try measure("validateInstallation") { try native.validateInstallation() } }
+    func standardDerivedDataURL() throws -> URL { try measure("standardRoot") { try native.standardDerivedDataURL() } }
+    func projects(in root: URL) throws -> XcodeProjectMapping { try measure("projects") { try native.projects(in: root) } }
+    func ownerObservation() throws -> XcodeOwnerObservation { try measure("owners") { try native.ownerObservation() } }
+}
+
 /// A worker-only crash at a public owner boundary, never a production execution hook.
 private final class CrashEnvironment: XcodeBuildEnvironment, @unchecked Sendable {
-    let native: NativeXcodeBuildEnvironment
+    let native: any XcodeBuildEnvironment
     private let lock = NSLock()
     private var armed = false
     private var observations = 0
-    init(_ native: NativeXcodeBuildEnvironment) { self.native = native }
+    init(_ native: any XcodeBuildEnvironment) { self.native = native }
     func arm() { lock.lock(); armed = true; observations = 0; lock.unlock() }
     func now() -> Date { native.now() }
     func validateInstallation() throws { try native.validateInstallation() }
@@ -126,6 +143,42 @@ private final class CrashEnvironment: XcodeBuildEnvironment, @unchecked Sendable
         let command = arguments[0]
         let application = try selectedApplication()
         let native = NativeXcodeBuildEnvironment(applicationURL: application)
+        if command == "installation-full" {
+            try require(arguments.count == 1, "Installation diagnosis accepts no paths")
+            FileHandle.standardError.write(Data("[XCODE16-QUAL] begin installation-full\n".utf8))
+            let observed = try native.installationObservation()
+            try emit(["command": command, "source": source, "runID": run, "version": observed.version, "build": observed.build,
+                      "elapsedSeconds": ProcessInfo.processInfo.systemUptime - started])
+            return
+        }
+        if command == "installation-fast" {
+            try require(arguments.count == 1, "Installation diagnosis accepts no paths")
+            FileHandle.standardError.write(Data("[XCODE16-QUAL] begin installation-fast\n".utf8))
+            var code: SecStaticCode?; var requirement: SecRequirement?
+            try require(SecStaticCodeCreateWithPath(application as CFURL, [], &code) == errSecSuccess, "Diagnostic code object unavailable")
+            guard let code else { throw QualificationError("Diagnostic code object missing") }
+            try require(SecRequirementCreateWithString("anchor apple and identifier \"com.apple.dt.Xcode\"" as CFString, [], &requirement) == errSecSuccess, "Diagnostic requirement unavailable")
+            let flags = SecCSFlags(rawValue: kSecCSStrictValidate | kSecCSDoNotValidateResources)
+            try require(SecStaticCodeCheckValidity(code, flags, requirement) == errSecSuccess, "Diagnostic executable/signature check refused")
+            var dictionary: CFDictionary?
+            try require(SecCodeCopySigningInformation(code, SecCSFlags(rawValue: kSecCSSigningInformation), &dictionary) == errSecSuccess,
+                        "Diagnostic signed information unavailable")
+            guard let information = dictionary as? [String: Any], let secured = information[kSecCodeInfoPList as String] as? [String: Any],
+                  let unique = information[kSecCodeInfoUnique as String] as? Data else { throw QualificationError("Diagnostic secured metadata unavailable") }
+            let keys = ["CFBundleIdentifier", "CFBundleShortVersionString", "CFBundleVersion", "DTXcodeBuild"]
+            let metadata = Dictionary(uniqueKeysWithValues: keys.compactMap { key in (secured[key] as? String).map { (key, $0) } })
+            guard let executable = information[kSecCodeInfoMainExecutable as String] as? URL else { throw QualificationError("Diagnostic signed executable missing") }
+            var identity = stat()
+            try require(lstat(executable.path, &identity) == 0 && identity.st_mode & S_IFMT == S_IFREG, "Diagnostic executable identity unavailable")
+            let mainIdentity: [String: Any] = ["device": identity.st_dev, "inode": identity.st_ino, "owner": identity.st_uid, "size": identity.st_size,
+                "modifiedSeconds": identity.st_mtimespec.tv_sec, "modifiedNanos": identity.st_mtimespec.tv_nsec]
+            try emit(["command": command, "source": source, "runID": run, "signedInfo": metadata, "mainIdentity": mainIdentity,
+                      "cdHash": unique.map { String(format: "%02x", $0) }.joined(), "identifier": information[kSecCodeInfoIdentifier as String] ?? NSNull(),
+                      "mainExecutable": (information[kSecCodeInfoMainExecutable as String] as? URL)?.path ?? "unavailable",
+                      "validation": "Apple anchor + identifier + native executable + strict structure; bundle resources intentionally not validated",
+                      "productionPolicyChanged": false, "elapsedSeconds": ProcessInfo.processInfo.systemUptime - started])
+            return
+        }
         if command == "owners" {
             try require(arguments.count == 1, "Owners accepts no paths")
             let observed = try native.ownerObservation()
@@ -135,22 +188,27 @@ private final class CrashEnvironment: XcodeBuildEnvironment, @unchecked Sendable
         }
         try require(arguments.count == 2 && ["action", "crash", "records", "replay"].contains(command), "Known manifest-bound command required")
         let (proof, owned) = try manifest(arguments[1], source: source, run: run)
-        let crash = CrashEnvironment(native)
+        let timed = TimedEnvironment(native: native)
+        let crash = CrashEnvironment(timed)
         let journal = owned.appendingPathComponent(command == "action" ? "action-journal.json" : "crash-journal.json")
-        let module = XcodeIntermediates(environment: command == "crash" ? crash : native, journalURL: journal)
+        let module = XcodeIntermediates(environment: command == "crash" ? crash : timed, journalURL: journal)
         if command == "records" {
             let records = try await module.records()
             try require(records.count == 1 && records[0].unresolved && records[0].artifacts.contains { $0.status == .unknown }, "Public unresolved intent required after worker crash")
             try emit(["command": command, "source": source, "runID": run, "records": try object(records), "qualificationPassed": true])
             return
         }
+        FileHandle.standardError.write(Data("[XCODE16-QUAL] begin inspect\n".utf8))
         let inspection = await module.inspectStandardDerivedData()
+        FileHandle.standardError.write(Data("[XCODE16-QUAL] end inspect\n".utf8))
         let findings = inspection.projects.filter { $0.projectURL.path == proof.project }
         try require(inspection.unavailableReason == nil && inspection.owner.activity == .closed && findings.count == 1 && findings[0].unavailableReason == nil,
                     "Expected owned project's native inspection must be closed and available")
         let artifacts = findings[0].artifacts.sorted { $0.relativePath < $1.relativePath }
         try require(artifacts.count == 2 && Set(artifacts.map { URL(fileURLWithPath: $0.relativePath).lastPathComponent }) == ["main.o", "helper.o"], "Exactly two generated native artifacts required")
+        FileHandle.standardError.write(Data("[XCODE16-QUAL] begin approve\n".utf8))
         let approval = try await module.approve(artifactIDs: Set(artifacts.map(\.id)))
+        FileHandle.standardError.write(Data("[XCODE16-QUAL] end approve\n".utf8))
         if command == "crash" {
             crash.arm()
             let outcome = await module.execute(approval, cancellation: CleanupCancellation())
@@ -173,7 +231,9 @@ private final class CrashEnvironment: XcodeBuildEnvironment, @unchecked Sendable
         try require(rename(temporary.path, replaced.path) == 0, "Atomic owned replacement failed")
         let late = replaced.deletingLastPathComponent().appendingPathComponent("Still-late-unapproved.o")
         try original.write(to: late, options: .withoutOverwriting)
+        FileHandle.standardError.write(Data("[XCODE16-QUAL] begin execute\n".utf8))
         let outcome = await module.execute(approval, cancellation: CleanupCancellation())
+        FileHandle.standardError.write(Data("[XCODE16-QUAL] end execute\n".utf8))
         let reloaded = XcodeIntermediates(environment: native, journalURL: journal)
         let records = try await reloaded.records()
         let replay = await module.execute(approval, cancellation: CleanupCancellation())

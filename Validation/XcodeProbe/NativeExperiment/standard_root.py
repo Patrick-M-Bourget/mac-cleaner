@@ -28,8 +28,14 @@ def identity(path):
 
 
 def command(args, output, timeout=60, stderr_output=None):
-    result = subprocess.run(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE if stderr_output else subprocess.STDOUT,
-                            timeout=timeout, check=False)
+    try:
+        result = subprocess.run(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE if stderr_output else subprocess.STDOUT,
+                                timeout=timeout, check=False)
+    except subprocess.TimeoutExpired as error:
+        output.write_bytes(error.stdout or b'')
+        if stderr_output is not None:
+            stderr_output.write_bytes(error.stderr or b'')
+        raise
     output.write_bytes(result.stdout)
     if stderr_output is not None:
         stderr_output.write_bytes(result.stderr)
@@ -64,6 +70,8 @@ def main():
                   productionMutationQualified=False, cleanupExercised=False,
                   noOwnerTermination=True, standardRootInitiallyAbsent=False)
     output = None
+    root = None
+    protected_snapshot = None
     try:
         if (sys.platform != 'darwin' or os.environ.get('GITHUB_ACTIONS') != 'true'
                 or os.environ.get('RUNNER_ENVIRONMENT') != 'github-hosted'
@@ -264,6 +272,8 @@ def main():
             return result
 
         before_action = protected_snapshot()
+        report['protectedActionBefore'] = before_action
+        report['coreActionStarted'] = True
         action = json.loads(command([str(runner_binary), 'action', str(manifest)],
                                     output / 'core-action.json', stderr_output=output / 'core-action.stderr.log'))
         report['publicCoreAction'] = action
@@ -306,6 +316,40 @@ def main():
                       limits='One generated C project on recorded configuration; no personal/default-existing roots, arbitrary workspaces, custom outputs or universal owner exclusion qualified. Prior archive/Swift experiments remain separate. Fixture outputs retained for runner disposal.')
     except Exception as error:
         report.update(completed=False, reason=str(error))
+        if report.get('coreActionStarted') and 'publicCoreAction' not in report:
+            report['coreActionOutcome'] = 'Unknown: worker did not return a completed public result; inspect retained durable records.'
+    finally:
+        # Preserve bounded exact owned journal bytes even when a worker timed out.
+        # Presence/absence is recorded independently and never implies mutation success.
+        if output is not None and output.is_dir() and root is not None:
+            retained = {}
+            for name in ['action-journal.json', 'crash-journal.json']:
+                path = root / name
+                if not os.path.lexists(path):
+                    retained[name] = 'absent'
+                    continue
+                try:
+                    item = identity(path)
+                    if not stat.S_ISREG(item['mode']) or item['size'] > 20 * 1024 * 1024:
+                        raise RuntimeError('Journal evidence is not a bounded owned regular file')
+                    fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
+                    with os.fdopen(fd, 'rb') as stream:
+                        opened = os.fstat(stream.fileno())
+                        if (opened.st_dev, opened.st_ino) != (item['device'], item['inode']):
+                            raise RuntimeError('Journal evidence changed before retention')
+                        data = stream.read(20 * 1024 * 1024 + 1)
+                    if len(data) > 20 * 1024 * 1024:
+                        raise RuntimeError('Journal evidence exceeded retention bound')
+                    (output / ('retained-' + name)).write_bytes(data)
+                    retained[name] = dict(bytes=len(data), sha256=hashlib.sha256(data).hexdigest())
+                except Exception as retention_error:
+                    retained[name] = dict(retentionFailure=str(retention_error))
+            report['ownedJournalEvidence'] = retained
+            if protected_snapshot is not None:
+                try:
+                    report['protectedSnapshotAtExit'] = protected_snapshot()
+                except Exception as snapshot_error:
+                    report['protectedSnapshotAtExitError'] = str(snapshot_error)
     if output is not None and output.is_dir():
         (output / 'report.json').write_text(json.dumps(report, indent=2))
     print(json.dumps(report, indent=2))
