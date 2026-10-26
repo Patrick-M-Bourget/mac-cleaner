@@ -86,10 +86,15 @@ public struct CleanupRule: Sendable, Identifiable {
     public let protectedExtensions: [String]
     /// When set, candidates are the matching files inside each location, not the location.
     public let contents: ContentsMatch?
-    public init(id: String, category: CatalogCategory, title: String, detail: String, consequence: String, regen: RegenClass, action: CleanupAction, locations: [String], owner: RuleOwner?, protectedNames: [String] = [], tool: ToolCommand? = nil, protectedExtensions: [String] = [], contents: ContentsMatch? = nil) {
+    /// What `locations` are relative to; the home folder unless set.
+    public let base: LocationBase
+    /// When set, each folder inside a location is a leaked copy, and the in-use and newest copies are kept.
+    public let copies: LeakedCopies?
+    public init(id: String, category: CatalogCategory, title: String, detail: String, consequence: String, regen: RegenClass, action: CleanupAction, locations: [String], owner: RuleOwner?, protectedNames: [String] = [], tool: ToolCommand? = nil, protectedExtensions: [String] = [], contents: ContentsMatch? = nil, base: LocationBase = .home, copies: LeakedCopies? = nil) {
         self.id = id; self.category = category; self.title = title; self.detail = detail; self.consequence = consequence
         self.regen = regen; self.action = action; self.locations = locations; self.owner = owner; self.protectedNames = protectedNames; self.tool = tool
         self.protectedExtensions = protectedExtensions; self.contents = contents
+        self.base = base; self.copies = copies
     }
 }
 
@@ -159,6 +164,12 @@ public enum BuiltInCatalog {
                     consequence: "Moved to Trash. The space stays used until you empty the Trash; you can restore them from the Trash in Finder.",
                     regen: .userFile, action: .trash, locations: ["Downloads"], owner: nil,
                     protectedExtensions: downloadsProtectedExtensions, contents: ContentsMatch(minimumBytes: 500_000_000, unusedDays: 90)),
+        // Field note section 3: Chrome copies itself for code-sign checks and never removes the copies.
+        CleanupRule(id: "chrome-code-sign-clones", category: .browser, title: "Chrome code-sign copies",
+                    detail: "Copies of Google Chrome it made to check its signature and never removed. The copy Chrome is using and the newest copy are kept.",
+                    consequence: "Permanently removed. Chrome doesn’t need them again. They share disk space with Chrome, so less space may come back than estimated; the results show what was freed.",
+                    regen: .leakedCopy, action: .delete, locations: ["X/com.google.Chrome.code_sign_clone"], owner: nil,
+                    base: .userFolder, copies: LeakedCopies(owner: RuleOwner(name: "Google Chrome", bundleIDs: ["com.google.Chrome"], executables: ["Google Chrome", "Google Chrome Helper*"]))),
     ]
     /// Kept from the Downloads-era policy: libraries and databases are never moved, even inside Downloads.
     static let downloadsProtectedExtensions = ["dsym", "library", "db", "sqlite", "sqlite3"]
@@ -195,16 +206,29 @@ public struct Catalog: Sendable {
     public static let neverOffered: Set<String> = ["ccache", ".ccache", "sccache"]
 
     /// Sizes only the rules' known locations under `home`. Read-only. An item two rules match is offered once, by the first.
-    /// A `.tool` rule appears only when `locateTool` finds its executable.
-    public func discover(home: URL, sizer: KnownLocationSizer = KnownLocationSizer(), now: Date = Date(), locateTool: (ToolCommand) -> URL? = ToolCommand.installed) -> [Candidate] {
-        let base = home.resolvingSymlinksInPath()
+    /// A `.tool` rule appears only when `locateTool` finds its executable. Rules based in the user's
+    /// `/private/var/folders` entry appear only when `userFolder` is given (`Catalog.currentUserFolder()` in the app).
+    public func discover(home: URL, userFolder: URL? = nil, inUse: any InUseChecking = SystemInUseChecker(), sizer: KnownLocationSizer = KnownLocationSizer(), now: Date = Date(), locateTool: (ToolCommand) -> URL? = ToolCommand.installed) -> [Candidate] {
+        discovery(home: home, userFolder: userFolder, inUse: inUse, sizer: sizer, now: now, locateTool: locateTool).candidates
+    }
+
+    /// `discover`, plus notes on rules that kept items back, such as copies kept because their use couldn't be checked.
+    public func discovery(home: URL, userFolder: URL? = nil, inUse: any InUseChecking = SystemInUseChecker(), sizer: KnownLocationSizer = KnownLocationSizer(), now: Date = Date(), locateTool: (ToolCommand) -> URL? = ToolCommand.installed) -> CatalogDiscovery {
+        let homeBase = home.resolvingSymlinksInPath(), userBase = userFolder
         var seen = Set<String>()
-        return rules.flatMap { rule -> [Candidate] in
+        var notes: [CatalogNote] = []
+        let candidates = rules.flatMap { rule -> [Candidate] in
             let toolURL = rule.tool.flatMap(locateTool)
             guard rule.action != .tool || toolURL != nil else { return [] }
+            guard let base = rule.base == .home ? homeBase : userBase else { return [] }
             return rule.locations.flatMap { relative -> [Candidate] in
                 guard Self.neverOffered.isDisjoint(with: relative.split(separator: "/").map(String.init)) else { return [] }
                 let url = base.appendingPathComponent(relative)
+                if let copies = rule.copies {
+                    let (found, note) = leakedCopies(rule, copies, in: url, sizer: sizer, inUse: inUse)
+                    notes += note.map { [$0] } ?? []
+                    return found
+                }
                 if let contents = rule.contents { return files(in: url, matching: contents, rule: rule, now: now) }
                 var info = stat()
                 guard lstat(url.path, &info) == 0, info.st_uid == geteuid(),
@@ -213,9 +237,10 @@ public struct Catalog: Sendable {
                 return [candidate(rule, url, info, logical: size.logicalBytes, allocated: size.allocatedBytes, complete: size.complete, lastUsed: nil, toolURL: toolURL)]
             }
         }.filter { seen.insert($0.resourceID).inserted }
+        return CatalogDiscovery(candidates: candidates, notes: notes)
     }
 
-    private func candidate(_ rule: CleanupRule, _ url: URL, _ info: stat, logical: Int64, allocated: Int64?, complete: Bool, lastUsed: Date?, toolURL: URL? = nil) -> Candidate {
+    func candidate(_ rule: CleanupRule, _ url: URL, _ info: stat, logical: Int64, allocated: Int64?, complete: Bool, lastUsed: Date?, toolURL: URL? = nil) -> Candidate {
         let volume = try? url.resourceValues(forKeys: [.volumeUUIDStringKey]).volumeUUIDString
         return Candidate(ruleID: rule.id, action: rule.action, url: url, resourceID: "\(info.st_dev):\(info.st_ino)",
                          isDirectory: info.st_mode & S_IFMT == S_IFDIR, toolURL: toolURL, volumeID: volume,
