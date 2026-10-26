@@ -79,7 +79,7 @@ When the user confirms, Still freezes the plan. Then, for each item in turn, rig
 
 An item that fails any check is skipped, and the results say which check failed. The rest of the plan continues. Skipped items can be reviewed again after a fresh scan; Still never silently repeats a completed action or widens a plan after a rescan.
 
-**Cancel** stops new items from starting. The item in progress finishes or reports its failure. Every item's outcome (done, skipped, failed, not started) goes into the cleanup journal. If Still quits in the middle of a run, it recovers the journal on next launch and reports what happened.
+**Cancel** stops new items from starting. The item in progress finishes or reports its failure. Every item's outcome (done, skipped, failed, not started) goes into the cleanup journal. Quitting during a run asks first, "A cleanup is running. Stop after this item and quit?", with Cancel as the default; confirming cancels as above and quits once the current item finishes (#130). If Still quits in the middle of a run anyway, it recovers the journal on next launch and reports what happened.
 
 ## 5. Dry-run switch
 
