@@ -9,36 +9,20 @@ struct RefreshRequest: Sendable {
     let scope: URL
 }
 
-/// The session's cleanup plan: catalog categories (Downloads included) and Chrome caches.
+/// The session's cleanup plan: catalog categories (Downloads and browser caches included).
 /// Folder scans are kept for inspection only; they never authorize cleanup.
 @MainActor @Observable final class SessionPlan {
-    let chrome = ChromeCleanupModel()
     let catalog = CatalogCleanupModel()
     private(set) var workspaceRunning = false
     private(set) var workspaceFinished = false
     private(set) var workspaceStopRequested = false
     private var workspaceCancellation: CleanupCancellation?
-    private(set) var workspaceBefore: StartupVolumeCapacity?
-    private(set) var workspaceAfter: StartupVolumeCapacity?
-    var hasWorkspaceResult: Bool { workspaceFinished || chrome.result != nil || catalog.result != nil }
-    var hasPendingChoices: Bool { chrome.selectedCount > 0 || catalog.selectedCount > 0 }
-    var workspaceSelectedCount: Int { chrome.selectedCount + catalog.selectedCount }
+    var hasWorkspaceResult: Bool { workspaceFinished || catalog.result != nil }
+    var hasPendingChoices: Bool { catalog.selectedCount > 0 }
+    var workspaceSelectedCount: Int { catalog.selectedCount }
     var workspaceSelectedSize: String {
         if !hasPendingChoices { return "—" }
-        var total = catalog.estimatedBytes
-        if chrome.selectedCount > 0 {
-            guard let cache = chrome.estimatedBytes else { return "Unknown" }
-            let sum = total.addingReportingOverflow(cache)
-            guard !sum.overflow else { return "Unknown" }
-            total = sum.partialValue
-        }
-        return ByteCountFormatter.string(fromByteCount: total, countStyle: .decimal)
-    }
-    var workspaceObservedChange: Int64? {
-        guard let before = workspaceBefore, let after = workspaceAfter, let id = before.volumeID,
-              id == after.volumeID, before.total == after.total, before.metric == after.metric,
-              let first = before.available, let last = after.available else { return nil }
-        return last - first
+        return ByteCountFormatter.string(fromByteCount: catalog.estimatedBytes, countStyle: .decimal)
     }
     /// The last run left records whose outcome is unknown; they must be reviewed before another plan.
     var requiresRecoveryReview: Bool {
@@ -49,14 +33,13 @@ struct RefreshRequest: Sendable {
     private(set) var message: String?
     private(set) var unavailableScopes: Set<URL> = []
     var canReview: Bool {
-        !AppLifecycleController.shared.maintenanceInProgress && !workspaceRunning && !chrome.isBusy && !chrome.isRunning
-        && (chrome.selectedCount == 0 || chrome.canReview)
+        !AppLifecycleController.shared.maintenanceInProgress && !workspaceRunning
         && (catalog.selectedCount == 0 || catalog.canReview) && hasPendingChoices
     }
     /// Categories with live, reviewable choices, for the sidebar badge.
     var actionableSelectedCategoryCount: Int {
         guard canReview else { return 0 }
-        return catalog.selectedRuleCount + (chrome.canReview ? 1 : 0)
+        return catalog.selectedRuleCount
     }
     private var expectedExclusionFingerprint = "none"
     func invalidateCoverage() {
@@ -107,37 +90,32 @@ struct RefreshRequest: Sendable {
         scans = scans.filter { $0.key.standardizedFileURL.path != scope.standardizedFileURL.path }
     }
     func startNewPlan() {
-        guard !workspaceRunning, !chrome.isRunning, !catalog.isRunning else { return }
-        endSession(); workspaceFinished = false; workspaceStopRequested = false; workspaceCancellation = nil; workspaceBefore = nil; workspaceAfter = nil; unavailableScopes.removeAll()
+        guard !workspaceRunning, !catalog.isRunning else { return }
+        endSession(); workspaceFinished = false; workspaceStopRequested = false; workspaceCancellation = nil; unavailableScopes.removeAll()
     }
     func prepareWorkspaceReview() async throws -> WorkspaceCleanupReview {
         guard canReview else { throw PlanReviewError.changed }
-        let chromeVersion = chrome.selectionRevision, catalogVersion = catalog.selectionRevision
-        let groups = chrome.selectedCount > 0 ? await chrome.prepareReview() : nil
+        let catalogVersion = catalog.selectionRevision
         let items = catalog.selectedCount > 0 ? await catalog.prepareReview() : nil
-        guard canReview, chrome.selectionRevision == chromeVersion, catalog.selectionRevision == catalogVersion,
-              chrome.selectedCount == 0 || groups != nil, catalog.selectedCount == 0 || items != nil else { throw PlanReviewError.changed }
-        return WorkspaceCleanupReview(chrome: groups, catalog: items, chromeVersion: chromeVersion, catalogVersion: catalogVersion)
+        guard canReview, catalog.selectionRevision == catalogVersion, catalog.selectedCount == 0 || items != nil else { throw PlanReviewError.changed }
+        return WorkspaceCleanupReview(catalog: items, catalogVersion: catalogVersion)
     }
     func executeWorkspace(_ review: WorkspaceCleanupReview) async throws {
-        guard canReview, chrome.selectionRevision == review.chromeVersion, catalog.selectionRevision == review.catalogVersion else { throw PlanReviewError.changed }
+        guard canReview, catalog.selectionRevision == review.catalogVersion else { throw PlanReviewError.changed }
         let cancellation = CleanupCancellation()
         workspaceCancellation = cancellation; workspaceStopRequested = false
         workspaceRunning = true; workspaceFinished = false
         let lifecycle = AppLifecycleController.shared
         lifecycle.operationInProgress = true
         defer { workspaceRunning = false; workspaceCancellation = nil; lifecycle.operationInProgress = false; lifecycle.hasPendingPlan = hasPendingChoices }
-        workspaceBefore = await Task.detached { StartupVolumeCapacity.read() }.value
-        if let caches = review.chrome { await chrome.execute(caches, cancellation: cancellation) }
         if let items = review.catalog { await catalog.execute(items.approval, cancellation: cancellation) }
-        workspaceAfter = await Task.detached { StartupVolumeCapacity.read() }.value
         workspaceFinished = true
         lifecycle.capacity.request(.cleanupEnded)
     }
-    func cancelWorkspace() { workspaceStopRequested = true; workspaceCancellation?.cancel(); chrome.cancel(); catalog.cancel() }
+    func cancelWorkspace() { workspaceStopRequested = true; workspaceCancellation?.cancel(); catalog.cancel() }
     func endSession() {
-        guard !workspaceRunning && !chrome.isRunning && !catalog.isRunning else { return }
-        chrome.endSession(); catalog.endSession(); scans.removeAll(); unavailableScopes.removeAll()
+        guard !workspaceRunning && !catalog.isRunning else { return }
+        catalog.endSession(); scans.removeAll(); unavailableScopes.removeAll()
         isRefreshingBatch = false; refreshRequests.removeAll(); AppLifecycleController.shared.hasPendingPlan = false
     }
 }
@@ -172,14 +150,6 @@ struct LiveCleanupPlanView: View {
                 if selection.catalog.isRunning { ProgressView(selection.catalog.previewOnly ? "Checking selected items…" : "Cleaning selected items…") }
                 if let result = selection.catalog.result { CatalogResultsSection(result: result, catalog: selection.catalog.catalog) }
                 if let message = selection.catalog.message { StatusRow(text: message, symbol: "exclamationmark.triangle", role: .caution) }
-                if selection.chrome.isRunning { ProgressView("Clearing selected Chrome cache groups…") }
-                if let result = selection.chrome.result { ChromeResultsSection(result: result) }
-                if selection.chrome.result != nil || selection.chrome.isRunning {
-                    SummarySurface {
-                        Text("Observed available-space change: " + (selection.workspaceObservedChange.map { ($0 >= 0 ? "+" : "−") + ByteCountFormatter.string(fromByteCount: abs($0), countStyle: .decimal) } ?? "Unknown"))
-                        Text("Capacity is sampled separately and may change for other reasons. Cache removal is permanent; Downloads sent to Trash still occupy space.").font(.caption).foregroundStyle(.secondary)
-                    }
-                }
             }.padding(StillDesign.Space.page)
         } else {
         VStack(alignment: .leading, spacing: StillDesign.Space.lg) {
@@ -187,10 +157,10 @@ struct LiveCleanupPlanView: View {
             PageHeader(title: "Cleanup plan", subtitle: "Choose categories, adjust items if needed, then review the changes.")
                 .padding(.bottom, StillDesign.Space.sm)
             ScanHistoryRecordingNotice()
-            let removesCaches = selection.chrome.selectedCount > 0 || selection.catalog.selectedCandidates.contains { $0.action == .delete }
+            let removesCaches = selection.catalog.selectedCandidates.contains { $0.action == .delete }
             let trashes = selection.catalog.selectedCandidates.contains { $0.action == .trash }
             SelectionSummary(value: selection.workspaceSelectedSize,
-                             detail: ((selection.chrome.selectedCount > 0 ? ["\(selection.chrome.selectedCount) Chrome groups"] : []) + [StillDesign.items(selection.catalog.selectedCount)]).joined(separator: " · ") + " selected",
+                             detail: StillDesign.items(selection.catalog.selectedCount) + " selected",
                              identifier: "liveSelectionSummary",
                              consequence: removesCaches && trashes ? "Caches are permanently removed and may regrow. Files moved to Trash use space until you empty it." : removesCaches ? "Caches are permanently removed and may regrow." : trashes ? "Files moved to Trash use space until you empty it. Nothing changes before final confirmation." : "Nothing changes before final confirmation.",
                              title: trashes && !removesCaches ? "Selected for Trash" : "Selected for cleanup")
@@ -227,7 +197,6 @@ struct LiveCleanupPlanView: View {
                 Task { do { try await selection.executeWorkspace(snapshot) } catch { approvalError = "The plan changed. Review the latest items before approving." } }
             }
         }
-        .onChange(of: selection.chrome.selectionRevision) { _, _ in if review != nil { review = nil } }
         .onChange(of: selection.catalog.selectionRevision) { _, _ in if review != nil { review = nil } }
     }
 }
@@ -235,9 +204,7 @@ struct LiveCleanupPlanView: View {
 /// Distinct immutable approvals share presentation, never target authority.
 struct WorkspaceCleanupReview: Identifiable {
     let id = UUID()
-    let chrome: ChromeCacheApproval?
     let catalog: CatalogReview?
-    let chromeVersion: UInt64
     let catalogVersion: UInt64
 }
 private struct WorkspaceCleanupConfirmationView: View {
@@ -245,13 +212,12 @@ private struct WorkspaceCleanupConfirmationView: View {
     let cancel: () -> Void
     let approve: () -> Void
     /// Only catalog actions are selected and Preview only is on, so nothing will change.
-    private var previewOnlyRun: Bool { review.catalog?.approval.previewOnly == true && review.chrome == nil }
+    private var previewOnlyRun: Bool { review.catalog?.approval.previewOnly == true }
     var body: some View {
         VStack(alignment: .leading, spacing: StillDesign.Space.lg) {
             PageHeader(title: "Review your changes", subtitle: "Check what each action does. You can go back and change your selection.")
             ScrollView {
                 VStack(alignment: .leading, spacing: StillDesign.Space.xl) {
-                    if let groups = review.chrome { ChromeConfirmationSection(approval: groups); Divider() }
                     if let items = review.catalog { CatalogConfirmationSection(review: items, catalog: Catalog(rules: BuiltInCatalog.rules)) }
                 }.frame(maxWidth: .infinity, alignment: .leading)
             }

@@ -110,7 +110,6 @@ private struct WorkspaceView: View {
     private var showsPlan: Bool { destination == .plan && !navigationState.localRecordsVisible && !recoveryVisible && !nativeInspectionVisible && !homebrewVisible && !pipVisible && !dockerVisible && !managedStorageVisible && !diagnosticsVisible && !exclusionsVisible }
     private var inspectionVisible: Bool { nativeInspectionVisible }
     private var contextLabel: String {
-        if selection.chrome.isRunning { return "Clearing approved Chrome caches" }
         if selection.workspaceRunning { return "Running approved cleanup" }
         if navigationState.localRecordsVisible && !recoveryVisible { return "Local records · Explicit maintenance only" }
         if diagnosticsVisible { return "Redacted diagnostics · Explicit local Save" }
@@ -304,8 +303,6 @@ private struct WorkspaceView: View {
             }.frame(maxWidth: .infinity, maxHeight: .infinity)
                 .background(StillDesign.reading)
         }
-        .onChange(of: selection.chrome.isBusy) { previous, current in if previous && !current { capacity.request(.scanEnded) } }
-        .onChange(of: selection.chrome.selectionRevision) { _, _ in AppLifecycleController.shared.hasPendingPlan = selection.hasPendingChoices }
         .onChange(of: selection.catalog.selectionRevision) { _, _ in AppLifecycleController.shared.hasPendingPlan = selection.hasPendingChoices }
         .task { if await recovery.loadOnce() { openRecovery(caller: .overview, refresh: false) } }
         .task { locationsModel.load() }
