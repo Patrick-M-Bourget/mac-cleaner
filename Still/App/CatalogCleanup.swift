@@ -150,8 +150,10 @@ import SwiftUI
     var canReview: Bool { canEdit && selectedCount > 0 }
     func isSelected(_ rule: CleanupRule) -> Bool { candidates(for: rule).contains { selectedIDs.contains($0.id) } }
     func isSelected(_ candidate: Candidate) -> Bool { selectedIDs.contains(candidate.id) }
-    func selectionState(for rule: CleanupRule) -> CategorySelectionState {
-        let items = candidates(for: rule), chosen = items.filter { selectedIDs.contains($0.id) }.count
+    /// The plan's categories, grouped as Overview groups them, picked folders' files included.
+    var planCategories: [CatalogOverview.Row] { CatalogOverview(catalog: catalog, candidates: candidates).rows }
+    func selectionState(for rules: [CleanupRule]) -> CategorySelectionState {
+        let items = rules.flatMap(candidates(for:)), chosen = items.filter { selectedIDs.contains($0.id) }.count
         return chosen == 0 ? .unchecked : chosen == items.count ? .checked : .mixed
     }
 
@@ -212,8 +214,10 @@ import SwiftUI
         keepOnlyCurrentChoices()
     }
     /// Chooses or clears every item the rule found.
-    func setSelected(_ rule: CleanupRule, _ selected: Bool) {
-        let ids = candidates(for: rule).map(\.id)
+    func setSelected(_ rule: CleanupRule, _ selected: Bool) { setSelected([rule], selected) }
+    /// Chooses or clears every item the rules found, such as a whole category.
+    func setSelected(_ rules: [CleanupRule], _ selected: Bool) {
+        let ids = rules.flatMap(candidates(for:)).map(\.id)
         guard canEdit, !ids.isEmpty else { return }
         if selected { selectedIDs.formUnion(ids) } else { selectedIDs.subtract(ids) }
         selectionRevision &+= 1
@@ -302,12 +306,17 @@ extension SizeEstimate {
     }
 }
 
+extension SizeEstimate {
+    /// "Up to" when part of it is copies that share disk blocks (SPEC section 6).
+    func text(upperBound: Bool) -> String {
+        if upperBound, case .measured(let bytes) = self { return catalogBytes(bytes, upperBound: true) }
+        return text
+    }
+}
+
 extension CatalogOverview.Row {
     /// The row's size; "Up to" when part of it is copies that share disk blocks.
-    var valueText: String {
-        if case .measured(let bytes) = estimate, rules.contains(where: \.estimateIsUpperBound) { return catalogBytes(bytes, upperBound: true) }
-        return estimate.text
-    }
+    var valueText: String { estimate.text(upperBound: rules.contains(where: \.estimateIsUpperBound)) }
     /// What happens and to what, e.g. "Clear npm cache, Yarn cache · Move Installers to Trash" (`ActionWording`).
     var detail: String {
         let groups = Dictionary(grouping: rules) { $0.action.wording.overviewGroup }
@@ -343,48 +352,90 @@ extension Candidate {
     var group: String? { appName ?? profile }
 }
 
+/// The plan's Preview only state, in its bottom bar. On by default (Decision 16).
 struct PreviewOnlyToggle: View {
     @Bindable var model: CatalogCleanupModel
     var body: some View {
-        VStack(alignment: .leading, spacing: StillDesign.Space.xs) {
-            Toggle("Preview only (don’t change anything)", isOn: $model.previewOnly)
-                .toggleStyle(.checkbox).disabled(!model.canEdit).accessibilityIdentifier("previewOnlyToggle")
-            Text(model.previewOnly ? "Still checks each item and records what it would do. Nothing on disk changes." : "Confirmed cleanups change files on disk.")
-                .font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary)
+        Toggle("Preview only (don’t change anything)", isOn: $model.previewOnly)
+            .toggleStyle(.checkbox).disabled(!model.canEdit).accessibilityIdentifier("previewOnlyToggle")
+            .help(model.previewOnly ? "Still checks each item and records what it would do. Nothing on disk changes." : "Confirmed cleanups change files on disk.")
+    }
+}
+
+/// The cleanup plan: one row per catalog category, as Overview groups them, with its rules and items under "Choose items".
+struct CatalogPlanSection: View {
+    @Bindable var model: CatalogCleanupModel
+    @Binding var expanded: Set<CatalogCategory>
+    var body: some View {
+        VStack(alignment: .leading, spacing: StillDesign.Space.lg) {
+            VStack(alignment: .leading, spacing: 0) {
+                ForEach(model.planCategories) { row in
+                    PlanCategoryRow(model: model, row: row, expanded: Binding(get: { expanded.contains(row.category) },
+                                                                             set: { if $0 { expanded.insert(row.category) } else { expanded.remove(row.category) } }))
+                    Divider().padding(.vertical, StillDesign.Space.md)
+                }
+            }
+            ForEach(model.overriddenRules) { rule in
+                StatusRow(text: "\(rule.owner?.name ?? rule.title) keeps its data in a custom location, so Still leaves it alone.",
+                          symbol: "info.circle", role: .neutral, identifier: "planOverridden-" + rule.id)
+            }
+            if !model.notAccessibleRules.isEmpty {
+                HStack(spacing: StillDesign.Space.sm) {
+                    StatusRow(text: ListFormatter.localizedString(byJoining: model.notAccessibleRules.map(\.title)) + " needs Full Disk Access.", symbol: "lock",
+                              identifier: "planNotAccessible").fixedSize()
+                    FullDiskAccessLink(title: "Learn more")
+                    Spacer(minLength: 0)
+                }
+            }
+            ForEach(model.notes, id: \.ruleID) { note in StatusRow(text: note.text, symbol: "info.circle", role: .neutral, identifier: "planNote-" + note.ruleID) }
+            if model.isScanning { ProgressView("Checking known locations…") }
+            if let message = model.message { StatusRow(text: message, symbol: "info.circle", role: .caution) }
+        }.task { await model.scanIfNeeded() }
+    }
+}
+
+/// A category: tri-state checkbox, badge, title, one short line and size, with "Choose items" inside.
+private struct PlanCategoryRow: View {
+    @Bindable var model: CatalogCleanupModel
+    let row: CatalogOverview.Row
+    @Binding var expanded: Bool
+    var body: some View {
+        let state = model.selectionState(for: row.rules)
+        VStack(alignment: .leading, spacing: StillDesign.Space.sm) {
+            CategorySelectionHeader(category: row.category.storageCategory, state: state, title: row.category.overviewTitle, detail: row.detail,
+                                    size: row.valueText, enabled: model.canEdit, identifier: "planCategory-" + row.id) { model.setSelected(row.rules, state != .checked) }
+            ActionDisclosureGroup("Choose items · \(row.rules.reduce(0) { $0 + model.candidates(for: $1).count })", isExpanded: $expanded) {
+                VStack(alignment: .leading, spacing: 0) {
+                    ForEach(row.rules) { rule in PlanRuleRows(model: model, rule: rule) }
+                }.padding(.top, StillDesign.Space.sm)
+            }.padding(.leading, StillDesign.Size.categoryContentIndent)
         }
     }
 }
 
-/// One header per catalog category in the Cleanup plan.
-struct CatalogPlanSection: View {
+/// A rule inside its category, then the items it lets you choose one by one (Downloads files, models, profiles).
+private struct PlanRuleRows: View {
     @Bindable var model: CatalogCleanupModel
+    let rule: CleanupRule
     var body: some View {
-        VStack(alignment: .leading, spacing: StillDesign.Space.lg) {
-            ForEach(model.rulesFound) { rule in
-                CategorySelectionHeader(category: rule.category.storageCategory, state: model.selectionState(for: rule),
-                    title: rule.title, detail: rule.detail + " " + rule.consequence,
-                    size: catalogBytes(model.estimatedBytes(for: rule), complete: model.sizeComplete(for: rule), upperBound: rule.estimateIsUpperBound,
-                                       estimate: model.sizeIsEstimate(for: rule)),
-                    enabled: model.canEdit, identifier: "planRule-" + rule.id) { model.setSelected(rule, model.selectionState(for: rule) != .checked) }
-                if rule.choosesItems { CatalogItemChooser(model: model, rule: rule).padding(.leading, StillDesign.Space.xl) }
-                if model.candidates(for: rule).contains(where: { $0.group != nil }) {
-                    CatalogProfileRows(model: model, rule: rule).padding(.leading, StillDesign.Space.xl)
-                }
-                ForEach(model.runningOwnerNames(for: rule), id: \.self) { name in
-                    StatusRow(text: CheckRefusal.ownerRunning(name).reason + " Still won’t close it for you.", symbol: "exclamationmark.circle", role: .caution,
-                              identifier: "planRunning-" + rule.id).padding(.leading, StillDesign.Space.xl)
-                }
+        let items = model.candidates(for: rule), state = model.selectionState(for: [rule])
+        VStack(alignment: .leading, spacing: 0) {
+            InspectableItemRow(name: rule.title, detail: rule.detail,
+                               size: catalogBytes(model.estimatedBytes(for: rule), complete: model.sizeComplete(for: rule), upperBound: rule.estimateIsUpperBound,
+                                                  estimate: model.sizeIsEstimate(for: rule)),
+                               symbol: rule.offersFiles ? "doc.on.doc" : "folder", inspected: false,
+                               inspect: { NSWorkspace.shared.activateFileViewerSelecting(items.map(\.url)) }, detailLineLimit: 1) {
+                MacroCategoryCheckbox(state: state, label: rule.title, enabled: model.canEdit, action: { model.setSelected(rule, state != .checked) },
+                                      identifier: "planRule-" + rule.id, showsTitle: false).fixedSize()
             }
-            ForEach(model.overriddenRules) { rule in
-                StatusRow(text: "\(rule.owner?.name ?? rule.title) keeps its data in a custom location set in its settings, so Still leaves it alone.",
-                          symbol: "info.circle", role: .neutral, identifier: "planOverridden-" + rule.id)
+            ForEach(model.runningOwnerNames(for: rule), id: \.self) { name in
+                StatusRow(text: CheckRefusal.ownerRunning(name).reason, symbol: "exclamationmark.circle", role: .caution, identifier: "planRunning-" + rule.id)
+                    .font(StillDesign.TypeStyle.caption).padding(.leading, StillDesign.Space.xl).padding(.bottom, StillDesign.Space.sm)
             }
-            ForEach(model.notAccessibleRules) { rule in NotAccessibleRow(title: rule.title).accessibilityIdentifier("planNotAccessible-" + rule.id) }
-            ForEach(model.notes, id: \.ruleID) { note in StatusRow(text: note.text, symbol: "info.circle", role: .neutral, identifier: "planNote-" + note.ruleID) }
-            if model.isScanning { ProgressView("Checking known locations…") }
-            if !model.rulesFound.isEmpty || model.result != nil { PreviewOnlyToggle(model: model).padding(.leading, StillDesign.Space.xl) }
-            if let message = model.message { StatusRow(text: message, symbol: "info.circle", role: .caution) }
-        }.task { await model.scanIfNeeded() }
+            if rule.choosesItems { CatalogItemRows(model: model, rule: rule).padding(.leading, StillDesign.Space.xl) }
+            if items.contains(where: { $0.group != nil }) { CatalogProfileRows(model: model, rule: rule).padding(.leading, StillDesign.Space.xl) }
+            Divider()
+        }
     }
 }
 
@@ -400,38 +451,34 @@ struct CatalogProfileRows: View {
                 InspectableItemRow(name: profile, detail: items.map(\.url.lastPathComponent).sorted().joined(separator: ", "),
                                    size: catalogBytes(items.reduce(0) { $0 + $1.estimatedBytes }, complete: items.allSatisfy(\.sizeComplete)),
                                    symbol: items.contains { $0.appName != nil } ? "app" : "person.crop.circle", inspected: false,
-                                   inspect: { NSWorkspace.shared.activateFileViewerSelecting(items.map(\.url)) }) {
+                                   inspect: { NSWorkspace.shared.activateFileViewerSelecting(items.map(\.url)) }, detailLineLimit: 1) {
                     Toggle("Select " + profile, isOn: Binding(get: { items.allSatisfy(model.isSelected) }, set: { on in items.forEach { model.setSelected($0, on) } }))
                         .labelsHidden().disabled(!model.canEdit).accessibilityIdentifier("planProfile-\(rule.id)-\(profile)")
-                }
-                Divider()
+                }.help(items.map(\.url.path).sorted().joined(separator: "\n"))
             }
         }
     }
 }
 
 /// Single items a rule found (Downloads files, models, disk images), each chosen on its own. Nothing is preselected.
-struct CatalogItemChooser: View {
+struct CatalogItemRows: View {
     @Bindable var model: CatalogCleanupModel
     let rule: CleanupRule
     var body: some View {
         let items = model.candidates(for: rule).sorted { $0.displayName.localizedStandardCompare($1.displayName) == .orderedAscending }
-        ActionDisclosureGroup((rule.offersFiles ? StillDesign.files(items.count) : StillDesign.items(items.count)) + " · Choose items") {
-            LazyVStack(alignment: .leading, spacing: 0) {
-                ForEach(items) { item in
-                    InspectableItemRow(name: item.displayName, detail: detail(item), size: catalogBytes(item.estimatedBytes, estimate: item.sizeIsEstimate),
-                                       symbol: item.isDirectory ? "folder" : "doc", inspected: false, inspect: { NSWorkspace.shared.activateFileViewerSelecting([item.url]) }) {
-                        Toggle("Select " + item.displayName, isOn: Binding(get: { model.isSelected(item) }, set: { model.setSelected(item, $0) }))
-                            .labelsHidden().disabled(!model.canEdit).accessibilityIdentifier("planItem-" + item.displayName)
-                    }
-                    Divider()
-                }
-            }.padding(.top, StillDesign.Space.sm)
+        LazyVStack(alignment: .leading, spacing: 0) {
+            ForEach(items) { item in
+                InspectableItemRow(name: item.displayName, detail: detail(item), size: catalogBytes(item.estimatedBytes, estimate: item.sizeIsEstimate),
+                                   symbol: item.isDirectory ? "folder" : "doc", inspected: false, inspect: { NSWorkspace.shared.activateFileViewerSelecting([item.url]) },
+                                   detailLineLimit: 1) {
+                    Toggle("Select " + item.displayName, isOn: Binding(get: { model.isSelected(item) }, set: { model.setSelected(item, $0) }))
+                        .labelsHidden().disabled(!model.canEdit).accessibilityIdentifier("planItem-" + item.displayName)
+                }.help(item.url.path)
+            }
         }
     }
     private func detail(_ item: Candidate) -> String {
-        let folder = item.url.deletingLastPathComponent().path.replacingOccurrences(of: FileManager.default.homeDirectoryForCurrentUser.path, with: "~")
-            .replacingOccurrences(of: "~/" + BuiltInCatalog.iCloudDrivePath, with: "iCloud Drive")
+        let folder = PathDisplay.shortLocation(of: item.url, home: CatalogCleanupModel.checkHome)
         return item.lastUsed.map { folder + " · Last used " + $0.formatted(date: .abbreviated, time: .omitted) } ?? folder
     }
 }

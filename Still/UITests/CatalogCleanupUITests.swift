@@ -396,7 +396,10 @@ final class CatalogCleanupUITests: XCTestCase {
 
         let update = app.checkBoxes["planProfile-updater-downloads-com.example.StillFixture"]
         XCTAssertTrue(update.waitForExistence(timeout: 5))
-        XCTAssertTrue(app.checkBoxes["planRule-crash-reports"].exists)
+        // Overview opened Updates; Logs is its own category, still closed.
+        XCTAssertFalse(app.checkBoxes["planRule-crash-reports"].exists)
+        expandDisclosures(in: app)
+        XCTAssertTrue(app.checkBoxes["planRule-crash-reports"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.checkBoxes["planRule-app-logs"].exists)
         XCTAssertFalse(app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS 'FixtureAgent' OR value CONTAINS 'FixtureAgent' OR identifier CONTAINS 'FixtureAgent'")).firstMatch.exists)
         revealAndClick(update, in: app)

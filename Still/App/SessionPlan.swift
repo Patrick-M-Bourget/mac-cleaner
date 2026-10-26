@@ -128,7 +128,9 @@ enum PlanReviewError: Error { case changed }
     var choosingItems = false
     var inspected: FileObservation?
     var offset: CGPoint?
-    func reset() { search = ""; choosingItems = false; inspected = nil; offset = nil }
+    /// Categories whose "Choose items" is open; opening a category from Overview opens it.
+    var expandedCategories: Set<CatalogCategory> = []
+    func reset() { search = ""; choosingItems = false; inspected = nil; offset = nil; expandedCategories = [] }
 }
 
 struct LiveCleanupPlanView: View {
@@ -159,18 +161,12 @@ struct LiveCleanupPlanView: View {
             PageHeader(title: "Cleanup plan", subtitle: "Choose categories, adjust items if needed, then review the changes.")
                 .padding(.bottom, StillDesign.Space.sm)
             ScanHistoryRecordingNotice()
-            let removesCaches = selection.catalog.selectedCandidates.contains { $0.action == .delete }
-            let trashes = selection.catalog.selectedCandidates.contains { $0.action == .trash }
             SelectionSummary(value: selection.workspaceSelectedSize,
                              detail: StillDesign.items(selection.catalog.selectedCount) + " selected",
-                             identifier: "liveSelectionSummary",
-                             consequence: removesCaches && trashes ? "Caches are permanently removed and may regrow. Files moved to Trash use space until you empty it." : removesCaches ? "Caches are permanently removed and may regrow." : trashes ? "Files moved to Trash use space until you empty it. Nothing changes before final confirmation." : "Nothing changes before final confirmation.",
-                             title: trashes && !removesCaches ? "Selected for Trash" : "Selected for cleanup")
-            CatalogPlanSection(model: selection.catalog)
-            if let approvalError { Text(approvalError).foregroundStyle(.secondary) }
-            DisclosureGroup("Size and selection details") {
-                Text("Sizes are estimates from the scan, not guaranteed space freed. Linked files count once. Each item is checked again just before Still acts on it.").font(.caption).foregroundStyle(.secondary)
-            }
+                             identifier: "liveSelectionSummary", title: "Potential space released")
+                .help("Sizes are estimates from the scan, not guaranteed space freed. Linked files count once. Each item is checked again just before Still acts on it.")
+            if let approvalError { StatusRow(text: approvalError, symbol: "exclamationmark.circle", role: .caution) }
+            CatalogPlanSection(model: selection.catalog, expanded: $presentation.expandedCategories)
         }.padding(StillDesign.Space.page).frame(maxWidth: .infinity, alignment: .leading)
             .background(alignment: .topLeading) { DestinationViewport(offset: $presentation.offset).frame(width: 0, height: 0) }
         }
@@ -186,7 +182,7 @@ struct LiveCleanupPlanView: View {
                 if let newPlan { Button("Start a new plan", action: newPlan).buttonStyle(.borderedProminent) }
             }
         } else {
-            ActionStrip(message: "Nothing changes until you confirm the next step.") {
+            ActionStrip(leading: { PreviewOnlyToggle(model: selection.catalog) }) {
                 ReviewCleanupButton(enabled: selection.canReview, focusRequest: reviewFocusRequest) {
                     Task { do { review = try await selection.prepareWorkspaceReview(); approvalError = nil } catch { approvalError = "Your choices changed. Review the latest items and try again." } }
                 }.fixedSize()
