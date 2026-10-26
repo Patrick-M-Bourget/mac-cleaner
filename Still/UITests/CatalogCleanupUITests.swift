@@ -37,7 +37,6 @@ final class CatalogCleanupUITests: XCTestCase {
         let home = try configureCatalogHome(app)
         let marker = try addDeveloperCaches(home, folders: ["Library/Caches/Yarn", ".cargo/registry", ".gradle/caches", "Library/Caches/Homebrew", "Library/Caches/ccache"])
         defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
-        app.launchArguments = ["-ApplePersistenceIgnoreState", "YES"]
         app.launch()
 
         XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
@@ -82,7 +81,6 @@ final class CatalogCleanupUITests: XCTestCase {
         try "#!/bin/sh\ntouch '\(marker.path)'\n".write(to: simctl, atomically: true, encoding: .utf8)
         try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: simctl.path)
         defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
-        app.launchArguments = ["-ApplePersistenceIgnoreState", "YES"]
         app.launch()
 
         XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
@@ -117,7 +115,6 @@ final class CatalogCleanupUITests: XCTestCase {
         let state = try configureIsolatedState(app)
         let home = try configureCatalogHome(app)
         defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
-        app.launchArguments = ["-ApplePersistenceIgnoreState", "YES"]
         app.launch()
 
         XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
@@ -154,7 +151,6 @@ final class CatalogCleanupUITests: XCTestCase {
         let state = try configureIsolatedState(app)
         let home = try configureCatalogHome(app)
         defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
-        app.launchArguments = ["-ApplePersistenceIgnoreState", "YES"]
         app.launch()
 
         XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
@@ -197,7 +193,6 @@ final class CatalogCleanupUITests: XCTestCase {
             try Data(repeating: 1, count: 150_000).write(to: executable)
             try FileManager.default.setAttributes([.creationDate: Date().addingTimeInterval(age)], ofItemAtPath: clones.appendingPathComponent(name).path)
         }
-        app.launchArguments = ["-ApplePersistenceIgnoreState", "YES"]
         app.launch()
 
         XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
@@ -248,7 +243,6 @@ final class CatalogCleanupUITests: XCTestCase {
             try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
             try Data(repeating: 9, count: 1_000).write(to: file)
         }
-        app.launchArguments = ["-ApplePersistenceIgnoreState", "YES"]
         app.launch()
 
         XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
@@ -289,7 +283,6 @@ final class CatalogCleanupUITests: XCTestCase {
             try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
             try Data(repeating: 4, count: 60_000).write(to: file)
         }
-        app.launchArguments = ["-ApplePersistenceIgnoreState", "YES"]
         app.launch()
 
         XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))

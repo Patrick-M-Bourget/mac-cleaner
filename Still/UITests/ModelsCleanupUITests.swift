@@ -24,7 +24,6 @@ final class ModelsCleanupUITests: XCTestCase {
         let home = try configureCatalogHome(app)
         let marker = try addModels(home)
         defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
-        app.launchArguments = ["-ApplePersistenceIgnoreState", "YES"]
         app.launch()
 
         XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
