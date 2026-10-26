@@ -310,16 +310,17 @@ public struct Catalog: Sendable {
                          logicalBytes: logical, allocatedBytes: allocated, sizeComplete: complete, lastUsed: lastUsed, observedAt: Date(), profile: profile)
     }
 
-    /// The paths a location names under `base`. A `*` component matches each visible folder at that level
+    /// The paths a location names under `base`. A `*` component matches each visible folder at that level, and a
+    /// component such as `*.ShipIt` each visible folder whose name matches it
     /// (a browser profile, say), never a symlink; the matched names come back with the path.
     static func expand(_ base: URL, _ relative: String) -> [(URL, [String])] {
         relative.split(separator: "/").map(String.init).reduce([(base, [String]())]) { paths, part in
-            guard part == "*" else { return paths.map { ($0.0.appendingPathComponent(part), $0.1) } }
+            guard part.contains("*") else { return paths.map { ($0.0.appendingPathComponent(part), $0.1) } }
             return paths.flatMap { url, matched in
                 ((try? FileManager.default.contentsOfDirectory(atPath: url.path)) ?? []).sorted().compactMap { name -> (URL, [String])? in
                     var info = stat()
                     let child = url.appendingPathComponent(name)
-                    guard !name.hasPrefix("."), lstat(child.path, &info) == 0, info.st_mode & S_IFMT == S_IFDIR else { return nil }
+                    guard !name.hasPrefix("."), fnmatch(part, name, 0) == 0, lstat(child.path, &info) == 0, info.st_mode & S_IFMT == S_IFDIR else { return nil }
                     return (child, matched + [name])
                 }
             }

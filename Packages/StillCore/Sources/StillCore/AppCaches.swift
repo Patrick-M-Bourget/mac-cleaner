@@ -27,8 +27,34 @@ public enum AppCaches {
         return RuleOwner(name: app.name, bundleIDs: [folder], paths: [app.path])
     }
 
+    /// Who an updater download belongs to, from how each updater names its folder; nil when that can't be determined.
+    /// A process run from inside the download folder (Sparkle's installer) also counts as the owner.
+    static func updaterOwner(_ url: URL, apps: any AppLookup) -> RuleOwner? {
+        let name = url.lastPathComponent
+        // Sparkle: ~/Library/Caches/<host bundle id>/org.sparkle-project.Sparkle. Squirrel.Mac: ~/Library/Caches/<bundle id>.ShipIt.
+        let bundleID = name == sparkleFolder ? url.deletingLastPathComponent().lastPathComponent
+            : name.hasSuffix(".ShipIt") ? String(name.dropLast(".ShipIt".count)) : nil
+        if let bundleID {
+            guard isBundleID(bundleID), !isExcluded(bundleID) else { return nil }
+            let app = apps.app(bundleID: bundleID)
+            // Squirrel's ShipIt is launched with its job label, `<bundle id>.ShipIt`.
+            return RuleOwner(name: app?.name ?? bundleID, bundleIDs: [bundleID], arguments: name == sparkleFolder ? [] : [name],
+                             paths: [app?.path, url.path].compactMap { $0 })
+        }
+        // electron-updater: ~/Library/Caches/<updaterCacheDirName>, named in the app's own app-update.yml.
+        guard name.hasSuffix("-updater"), let app = apps.app(updaterCacheDirName: name), !isExcluded(app.bundleID) else { return nil }
+        return RuleOwner(name: app.name, bundleIDs: [app.bundleID], paths: [app.path, url.path])
+    }
+    static let sparkleFolder = "org.sparkle-project.Sparkle"
+
     public static func rules(apps: any AppLookup) -> [CleanupRule] {
         [
+            CleanupRule(id: "updater-downloads", category: .updaters, title: "App update downloads",
+                        detail: "Updates apps downloaded through Sparkle, Squirrel or electron-updater, per app.",
+                        consequence: "Permanently removed. An update that wasn’t installed yet is downloaded again the next time the app updates. An app must be closed first.",
+                        regen: .updaterDownload, action: .delete,
+                        locations: ["Library/Caches/*/" + sparkleFolder, "Library/Caches/*.ShipIt", "Library/Caches/*-updater"], owner: nil,
+                        protectedNames: stillNames, itemOwner: { updaterOwner($0, apps: apps) }, protectedDepth: liveWorkDepth),
             CleanupRule(id: "app-caches", category: .system, title: "App caches",
                         detail: "Files apps keep in your Library to start and work faster, per app.",
                         consequence: "Permanently removed. Each app rebuilds its cache as you use it, so it may be slower at first. An app must be closed first; Still never quits it for you.",
@@ -52,6 +78,9 @@ public enum AppCaches {
 /// Finds installed apps. Injected so tests never depend on this Mac's apps.
 public protocol AppLookup: Sendable {
     func app(bundleID: String) -> InstalledApp?
+    /// The app whose electron-updater keeps its downloads in ~/Library/Caches/<name>, from the `updaterCacheDirName`
+    /// in its `app-update.yml`.
+    func app(updaterCacheDirName name: String) -> InstalledApp?
 }
 
 /// The apps LaunchServices knows on this Mac.
@@ -62,6 +91,32 @@ public struct SystemAppLookup: AppLookup {
         let name = (Bundle(url: url)?.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String)
             ?? FileManager.default.displayName(atPath: url.path).replacingOccurrences(of: ".app", with: "")
         return InstalledApp(name: name, bundleID: bundleID, path: url.resolvingSymlinksInPath().path)
+    }
+    public func app(updaterCacheDirName name: String) -> InstalledApp? {
+        let roots = ["/Applications", NSHomeDirectory() + "/Applications"].map { URL(fileURLWithPath: $0) }
+        let manager = FileManager.default
+        // Apps at the top of each Applications folder, or one folder down (a vendor's folder).
+        let apps = roots.flatMap { root in
+            ((try? manager.contentsOfDirectory(at: root, includingPropertiesForKeys: nil)) ?? []).flatMap { item in
+                item.pathExtension == "app" ? [item] : ((try? manager.contentsOfDirectory(at: item, includingPropertiesForKeys: nil)) ?? []).filter { $0.pathExtension == "app" }
+            }
+        }
+        for app in apps {
+            let config = app.appendingPathComponent("Contents/Resources/app-update.yml")
+            guard let size = try? config.resourceValues(forKeys: [.fileSizeKey]).fileSize, size < 64_000,
+                  let text = try? String(contentsOf: config, encoding: .utf8),
+                  text.split(separator: "\n").contains(where: { Self.yamlValue($0, key: "updaterCacheDirName") == name }),
+                  let bundleID = Bundle(url: app)?.bundleIdentifier else { continue }
+            return self.app(bundleID: bundleID).map { InstalledApp(name: $0.name, bundleID: bundleID, path: app.resolvingSymlinksInPath().path) }
+                ?? InstalledApp(name: app.deletingPathExtension().lastPathComponent, bundleID: bundleID, path: app.resolvingSymlinksInPath().path)
+        }
+        return nil
+    }
+    /// `key: value` on one line, with optional quotes.
+    static func yamlValue(_ line: Substring, key: String) -> String? {
+        let trimmed = line.trimmingCharacters(in: .whitespaces)
+        guard trimmed.hasPrefix(key + ":") else { return nil }
+        return trimmed.dropFirst(key.count + 1).trimmingCharacters(in: .whitespaces).trimmingCharacters(in: CharacterSet(charactersIn: "\"'"))
     }
 }
 

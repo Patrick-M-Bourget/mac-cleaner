@@ -33,13 +33,18 @@ private func write(_ home: URL, _ relative: String, bytes: Int = 100) throws {
 /// Installed apps as LaunchServices would report them; the real Mac's apps are never consulted.
 private struct Apps: AppLookup {
     var installed: [InstalledApp] = []
+    /// electron-updater cache folder names, as each app's `app-update.yml` names them.
+    var updaterFolders: [String: InstalledApp] = [:]
     func app(bundleID: String) -> InstalledApp? { installed.first { $0.bundleID == bundleID } }
+    func app(updaterCacheDirName name: String) -> InstalledApp? { updaterFolders[name] }
 }
 private let editor = InstalledApp(name: "Editor", bundleID: "com.example.Editor", path: "/Applications/Editor.app")
 
 private struct Running: RunningAppChecking {
     var bundleIDs: Set<String> = []
-    func isRunning(_ owner: RuleOwner) -> Bool? { !bundleIDs.isDisjoint(with: owner.bundleIDs) }
+    /// Command lines of other running processes.
+    var processes: [[String]] = []
+    func isRunning(_ owner: RuleOwner) -> Bool? { !bundleIDs.isDisjoint(with: owner.bundleIDs) || processes.contains(where: owner.matches) }
 }
 
 /// The built-in catalog with app lookups answered by the fixture.
@@ -137,4 +142,36 @@ private func catalogWith(_ apps: Apps) -> Catalog {
     let cache = try #require(found.first)
     try write(home, "Library/Caches/com.example.Editor/work/repo/.git/HEAD")
     #expect(CandidateCheck(catalog: catalog, running: Running()).check(cache) == .protected(".git"))
+}
+
+@Test func updaterDownloadsAreTheirOwnCategoryAndWaitForTheirApp() throws {
+    let home = try fixtureHome()
+    defer { try? FileManager.default.removeItem(at: home) }
+    try write(home, "Library/Caches/com.example.Editor/org.sparkle-project.Sparkle/Installation/abc/Editor 2.0.tar.xz", bytes: 9_000)
+    try write(home, "Library/Caches/com.example.Editor/Cache.db")
+    try write(home, "Library/Caches/com.example.Chat.ShipIt/update.Xyz/Chat.app/Contents/Info.plist", bytes: 7_000)
+    try write(home, "Library/Caches/nativeaccess2-updater/pending/installer.zip", bytes: 5_000)
+    try write(home, "Library/Caches/mystery-updater/pending/installer.zip")
+    let chat = InstalledApp(name: "Chat", bundleID: "com.example.Chat", path: "/Applications/Chat.app")
+    let access = InstalledApp(name: "Native Access", bundleID: "com.native-instruments.NativeAccess2", path: "/Applications/Native Access.app")
+    let catalog = catalogWith(Apps(installed: [editor, chat, access], updaterFolders: ["nativeaccess2-updater": access]))
+    let found = catalog.discover(home: home)
+    let caches = home.appendingPathComponent("Library/Caches").path
+    let sparkle = caches + "/com.example.Editor/org.sparkle-project.Sparkle"
+    // The Sparkle download is offered as an update; the rest of Editor's cache folder then stays with it, never offered twice.
+    #expect(Dictionary(found.map { ($0.url.path, $0.ruleID) }, uniquingKeysWith: { a, _ in a })
+            == [sparkle: "updater-downloads", caches + "/com.example.Chat.ShipIt": "updater-downloads", caches + "/nativeaccess2-updater": "updater-downloads"])
+    #expect(Set(found.compactMap(\.profile)) == ["Editor", "Chat", "Native Access"])
+    #expect(CatalogOverview(catalog: catalog, candidates: found).rows.map(\.category) == [.updaters])
+
+    let check = { (running: Running, path: String) in
+        CandidateCheck(catalog: catalog, running: running).check(try #require(found.first { $0.url.path == path }))
+    }
+    #expect(try check(Running(), sparkle) == nil)
+    #expect(try check(Running(bundleIDs: ["com.example.Editor"]), sparkle) == .ownerRunning("Editor"))
+    // Sparkle's installer runs on its own after the app quits, from inside the download folder.
+    #expect(try check(Running(processes: [[sparkle + "/Installation/abc/Autoupdate"]]), sparkle) == .ownerRunning("Editor"))
+    #expect(try check(Running(processes: [["/Users/me/Library/Caches/com.example.Chat.ShipIt/ShipIt", "com.example.Chat.ShipIt"]]),
+                      caches + "/com.example.Chat.ShipIt") == .ownerRunning("Chat"))
+    #expect(try check(Running(bundleIDs: ["com.native-instruments.NativeAccess2"]), caches + "/nativeaccess2-updater") == .ownerRunning("Native Access"))
 }
