@@ -278,17 +278,20 @@ func chromeNativeUnreapedExitedChildIsNotBrowserActivity() throws {
         }
         if !reaped { kill(child, SIGTERM); _ = waitpid(child, &status, 0) }
     }
-    var details = proc_bsdinfo()
-    let size = Int32(MemoryLayout<proc_bsdinfo>.size)
-    var observed = false
+    var exited = siginfo_t()
+    var exitObserved = false
     for _ in 0..<100 {
-        if proc_pidinfo(child, PROC_PIDTBSDINFO, 0, &details, size) == size && details.pbi_status == SZOMB { observed = true; break }
+        let result = waitid(P_PID, id_t(child), &exited, WEXITED | WNOWAIT | WNOHANG)
+        if result == 0, exited.si_pid == child { exitObserved = true; break }
         usleep(10_000)
     }
-    try #require(observed, "Disposable exited child must remain unreaped for this native observation")
+    try #require(exitObserved, "Owned child must be exited and explicitly unreaped (WNOWAIT)")
+    var details = proc_bsdinfo()
+    let size = Int32(MemoryLayout<proc_bsdinfo>.size)
+    let infoResult = proc_pidinfo(child, PROC_PIDTBSDINFO, 0, &details, size)
     var path = [CChar](repeating: 0, count: 4 * Int(MAXPATHLEN))
     let pathResult = proc_pidpath(child, &path, UInt32(path.count))
-    print("DISPOSABLE_CHILD_OBSERVATION pid=\(child) parent=\(details.pbi_ppid) uid=\(details.pbi_uid) state=\(details.pbi_status) pathLookupResult=\(pathResult)")
-    #expect(details.pbi_uid == getuid())
+    print("DISPOSABLE_CHILD_OBSERVATION pid=\(child) waitPID=\(exited.si_pid) exitCode=\(exited.si_code) procInfoResult=\(infoResult) expectedInfoSize=\(size) parent=\(details.pbi_ppid) uid=\(details.pbi_uid) state=\(details.pbi_status) pathLookupResult=\(pathResult)")
+    if infoResult == size { #expect(details.pbi_uid == getuid()) }
     #expect(try NativeChromeCacheEnvironment().browserIsRunning(bundleURL: URL(fileURLWithPath: "/__still_disposable_missing_browser__.app")) == false)
 }
