@@ -131,7 +131,10 @@ final class ChromeCleanupUITests: XCTestCase {
         }
         try Data("running".utf8).write(to: root.appendingPathComponent("environment.txt"))
         revealScrollElement(app, control: app.buttons["Recheck Chrome"], label: "Recheck Chrome"); app.buttons["Recheck Chrome"].click()
-        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "Running")).firstMatch.waitForExistence(timeout: 10))
+        let runningStatus = app.staticTexts["chromeInspectionStatus"]
+        XCTAssertTrue(runningStatus.waitForExistence(timeout: 10))
+        let running = expectation(for: NSPredicate(format: "value BEGINSWITH %@", "Running"), evaluatedWith: runningStatus)
+        wait(for: [running], timeout: 10)
         app.buttons["View cleanup plan"].click()
         XCTAssertTrue(app.buttons["Review cleanup"].waitForExistence(timeout: 5))
         XCTAssertFalse(app.buttons["Review cleanup"].isEnabled)
@@ -154,8 +157,10 @@ final class ChromeCleanupUITests: XCTestCase {
             app.launch()
             revealOverviewControl(app, label: "Review browser caches"); app.buttons["Review browser caches"].click()
             XCTAssertTrue(app.buttons["Enable Chrome inspection"].waitForExistence(timeout: 5)); app.buttons["Enable Chrome inspection"].click()
-            let status = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", expected)).firstMatch
+            let status = app.staticTexts["chromeInspectionStatus"]
             XCTAssertTrue(status.waitForExistence(timeout: 10), app.debugDescription)
+            let observed = expectation(for: NSPredicate(format: "value BEGINSWITH %@", expected), evaluatedWith: status)
+            wait(for: [observed], timeout: 10)
             for theme in ["Light", "Dark"] {
                 app.popUpButtons["Appearance"].click(); app.menuItems[theme].click()
                 revealScrollElement(app, control: status, label: "Chrome " + mode + " state")
