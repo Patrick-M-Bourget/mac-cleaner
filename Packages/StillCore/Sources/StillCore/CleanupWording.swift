@@ -10,7 +10,7 @@ extension CleanupRecord {
     private var isEvict: Bool { cleanupAction == .evict }
     /// Checked with Preview only on: every check passed and nothing changed.
     public var wasPreviewed: Bool { previewOnly == true && state == .skipped && message.hasPrefix(Self.previewPrefix) }
-    public var actionTitle: String { isDelete ? "Delete permanently" : isTrash ? "Move to Trash" : isTool ? "Run its cleanup command" : isEvict ? "Remove local copy" : action }
+    public var actionTitle: String { isDelete ? "Delete permanently" : isTrash ? "Move to Trash" : isTool ? "Run its cleanup command" : isEvict ? "Remove local copy" : cleanupAction == .guidance ? "Guidance only" : action }
     public var outcomeTitle: String {
         if wasPreviewed { return isDelete ? "Would delete" : isTrash ? "Would move to Trash" : isEvict ? "Would remove local copy" : "Would run" }
         switch state {

@@ -67,7 +67,8 @@ private func rule(requiringFullDiskAccess: Bool) -> CleanupRule {
 
 @Test func ordinaryRulesNeverWaitForFullDiskAccess() {
     #expect(rule(requiringFullDiskAccess: false).access(given: .notGranted) == .available)
-    #expect(fixtureRules.filter(\.requiresFullDiskAccess).map(\.id) == ["safari-cache"])
+    // Besides guidance rules (Mail, Messages, Photos, device backups), only Safari's cache needs it.
+    #expect(fixtureRules.filter { $0.action != .guidance && $0.requiresFullDiskAccess }.map(\.id) == ["safari-cache"])
 }
 
 @Test func theExplanationSaysFullDiskAccessIsBroadOptionalAndScansStayReadOnly() {
