@@ -1,6 +1,6 @@
 # Xcode generated-data cleanup — #16/#17
 
-Status: Q1–Q7 and the consolidated contract were explicitly confirmed by the user on October26,2026. Remaining #16 qualification is authorized; proceed to #17’s app journey only after the capability gate passes. Design approval alone does not enable cleanup. #16 is unblocked capability work; #17 remains blocked by #16. SPEC and DESIGN-HANDOFF remain the consolidated entry points.
+Status: Q1–Q7 and the consolidated contract were explicitly confirmed by the user on October26,2026. [Bounded Core qualification #16 passes](validation/xcode-intermediates.md) at `f937636`; #17 is now unblocked for the full app journey. That journey is not yet delivered, and design approval alone does not enable cleanup. SPEC and DESIGN-HANDOFF remain the consolidated entry points.
 
 ## Confirmed decisions
 
@@ -24,7 +24,7 @@ Confirmation uses the bounded shared sheet, exact targets and separate permanent
 
 No product-flow questions remain open. The user explicitly confirmed the consolidated Q1–Q7 contract and authorized implementation. Complete only the remaining #16 capability gaps and proceed to #17’s app journey when qualification passes. Existing evidence is reused; passing experiments are not repeated after documentation-only changes. A concrete preservation, scope or provenance failure stops qualification and is reported rather than bypassed.
 
-This contract does not complete #16 by itself. #17 remains blocked until the actual capability gate passes. No broader generated-data category, custom-root support, personal-file authority or commercialization milestone is promoted.
+This contract did not complete #16 by itself. The subsequent actual capability gate now passes within its recorded scope; #17 may proceed. No broader generated-data category, custom-root support, personal-file authority or commercialization milestone is promoted.
 
 ## Existing evidence and boundaries
 
@@ -34,5 +34,7 @@ No personal projects, default DerivedData or source/symbol contents are inspecte
 
 
 ## Qualification and test boundaries
+
+The [source-bound qualification ledger](validation/xcode-intermediates.md) separates retained experiments, unsuccessful runs and the final standard-root/native-owner/reusable-executor capability decision. Only the final recorded pass unblocks #17.
 
 Reuse the previously user-approved public adapter/protected-fixture boundary for classification, mapping, owner state and target eligibility; approved-plan execution/durable recovery records for exact target mutation, cancellation and crashes; and public app journeys for navigation, selection, confirmation and recovery when #17 is unblocked. Tests observe public behavior with disposable files/controlled OS-boundary inputs, not private implementation. Real Xcode ownership/layout observations are separate qualification evidence and run only on disposable projects. No additional personal-data inspection is authorized. New test boundaries, if genuinely needed, require their own agreement.

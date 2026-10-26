@@ -52,6 +52,8 @@ This is a starting structure, not a mandate to create a package for each type. K
 
 ## Validation boundary
 
+Latest Core checkpoint: [Xcode #16 qualification](validation/xcode-intermediates.md) passes at `f937636`, with192 Core tests, a successful app build and actual hosted exact-object/crash-recovery evidence. #17's approved app journey is unblocked but not yet implemented. [Session handoff](SESSION-HANDOFF.md) records the next step and compatibility limits.
+
 Native implementation and disposable-fixture validation are recorded in [DEVELOPMENT.md](DEVELOPMENT.md). Visual references and fixture interactions cannot certify native filesystem, persistence or permission behavior. [Visual review notes](visual/README.md) record exactly what has been exercised. Native implementation must pass SPEC.md and milestone-specific acceptance before capabilities ship.
 
 ## Approved decisions

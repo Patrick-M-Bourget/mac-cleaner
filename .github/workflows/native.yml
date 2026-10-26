@@ -113,6 +113,8 @@ on:
           - chrome-cleanup-chrome-only
           - chrome-swift-only
           - chrome-native-process-only
+          - xcode-standard
+          - xcode-installation
           - chrome-probe
       chromeFinalLane:
         description: Chrome final qualification lane (only chrome-stable-final)
@@ -125,7 +127,7 @@ permissions:
   contents: read
 jobs:
   native:
-    if: github.event_name != 'workflow_dispatch' || (inputs.suite != 'chrome-native-process-only' && inputs.suite != 'chrome-swift-only' && inputs.suite != 'benchmark' && inputs.suite != 'filesystem' && inputs.suite != 'chrome-probe' && inputs.suite != 'chrome-stable-probe' && inputs.suite != 'chrome-stable-final' && inputs.suite != 'alerts-native')
+    if: github.event_name != 'workflow_dispatch' || (inputs.suite != 'xcode-installation' && inputs.suite != 'xcode-standard' && inputs.suite != 'chrome-native-process-only' && inputs.suite != 'chrome-swift-only' && inputs.suite != 'benchmark' && inputs.suite != 'filesystem' && inputs.suite != 'chrome-probe' && inputs.suite != 'chrome-stable-probe' && inputs.suite != 'chrome-stable-final' && inputs.suite != 'alerts-native')
     runs-on: macos-26
     steps:
       - uses: actions/checkout@v4
@@ -775,4 +777,68 @@ jobs:
         with:
           name: chrome-native-process-evidence
           path: ${{ runner.temp }}/chrome-native-process.log
+          if-no-files-found: error
+
+  xcode-standard-mapping:
+    if: github.event_name == 'workflow_dispatch' && inputs.suite == 'xcode-standard'
+    runs-on: macos-26
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: '26.6'
+      - name: Build public native owner observation runner
+        run: xcrun swift build --package-path Validation/XcodeQualificationRunner
+      - name: Observe fresh standard layout and owned helper lifetime
+        run: python3 Validation/XcodeProbe/NativeExperiment/standard_root.py --output "$RUNNER_TEMP/xcode-standard-evidence"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: xcode-standard-evidence
+          path: ${{ runner.temp }}/xcode-standard-evidence
+          if-no-files-found: warn
+
+
+  xcode-installation-diagnostic:
+    if: github.event_name == 'workflow_dispatch' && inputs.suite == 'xcode-installation'
+    runs-on: macos-26
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: '26.6'
+      - name: Build existing public native qualification runner
+        run: xcrun swift build --package-path Validation/XcodeQualificationRunner
+      - name: Compare bounded installation validation without any project inspection or mutation
+        run: |
+          python3 - <<'PYDIAG'
+          import json, os, pathlib, subprocess, time
+          output = pathlib.Path(os.environ['RUNNER_TEMP']) / 'xcode-installation-evidence'
+          output.mkdir(mode=0o700)
+          binary = pathlib.Path('Validation/XcodeQualificationRunner/.build/debug/XcodeQualificationRunner').resolve()
+          readings = []
+          for mode in ['installation-full', 'installation-fast']:
+              started = time.monotonic()
+              try:
+                  result = subprocess.run([str(binary), mode], stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=15)
+                  stdout, stderr = result.stdout, result.stderr
+                  record = dict(mode=mode, returnCode=result.returncode, timedOut=False)
+              except subprocess.TimeoutExpired as error:
+                  stdout, stderr = error.stdout or b'', error.stderr or b''
+                  record = dict(mode=mode, timedOut=True, outcome='diagnostic worker exceeded 15 seconds; no project action occurred')
+              (output / (mode + '.stdout.json')).write_bytes(stdout)
+              (output / (mode + '.stderr.log')).write_bytes(stderr)
+              record['elapsedSeconds'] = time.monotonic() - started
+              readings.append(record)
+          (output / 'timings.json').write_text(json.dumps(dict(source=os.environ['GITHUB_SHA'], runID=os.environ['GITHUB_RUN_ID'],
+              projectInspected=False, mutationAttempted=False, productionPolicyChanged=False, observations=readings), indent=2))
+          print(json.dumps(readings, indent=2))
+          PYDIAG
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: xcode-installation-evidence
+          path: ${{ runner.temp }}/xcode-installation-evidence
           if-no-files-found: error

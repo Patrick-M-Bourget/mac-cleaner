@@ -1,0 +1,46 @@
+{
+  "source": "162b9aa98fd4c4d4217932784a47ef6f9fac6f8c",
+  "runID": "40336602521",
+  "projectInspected": false,
+  "mutationAttempted": false,
+  "productionPolicyChanged": false,
+  "observations": [
+    {
+      "mode": "installation-full",
+      "timedOut": true,
+      "outcome": "diagnostic worker exceeded 15 seconds; no project action occurred",
+      "elapsedSeconds": 15.019528957999995
+    },
+    {
+      "mode": "installation-fast",
+      "returnCode": 0,
+      "timedOut": false,
+      "elapsedSeconds": 0.07805212499999925
+    }
+  ],
+  "authenticatedFastObservation": {
+    "cdHash": "502eca5e95e1b8eaaf52e9b38617e8e7d23f46db",
+    "command": "installation-fast",
+    "elapsedSeconds": 0.0448599999999999,
+    "identifier": "com.apple.dt.Xcode",
+    "mainExecutable": "/Applications/Xcode_26.6.app/Contents/MacOS/Xcode",
+    "mainIdentity": {
+      "device": 16777228,
+      "inode": 2195639,
+      "modifiedNanos": 326538548,
+      "modifiedSeconds": 1791867560,
+      "owner": 501,
+      "size": 144704
+    },
+    "productionPolicyChanged": false,
+    "runID": "40336602521",
+    "signedInfo": {
+      "CFBundleIdentifier": "com.apple.dt.Xcode",
+      "CFBundleShortVersionString": "26.6",
+      "CFBundleVersion": "24959",
+      "DTXcodeBuild": "17F112"
+    },
+    "source": "162b9aa98fd4c4d4217932784a47ef6f9fac6f8c",
+    "validation": "Apple anchor + identifier + native executable + strict structure; bundle resources intentionally not validated"
+  }
+}

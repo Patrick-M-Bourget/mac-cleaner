@@ -1,0 +1,219 @@
+{
+  "schema": 1,
+  "experiment": "hosted-standard-deriveddata-mapping",
+  "productionMutationQualified": false,
+  "cleanupExercised": false,
+  "noOwnerTermination": true,
+  "standardRootInitiallyAbsent": true,
+  "freshHostedLayoutPreferences": {},
+  "source": "7f426dfdc3ec927b645b6d493d495d357660f025",
+  "runID": "40332490328",
+  "os": "ProductName:\t\tmacOS\nProductVersion:\t\t26.6.2\nBuildVersion:\t\t25G83\n",
+  "architecture": "arm64",
+  "toolchain": "Xcode 26.6\nBuild version 17F113\n",
+  "publicNativeOwnerReadings": [
+    {
+      "phase": "before-owned-build",
+      "ownedBuildStillRunning": false,
+      "publicObservation": {
+        "activity": "closed",
+        "runID": "40332490328",
+        "source": "7f426dfdc3ec927b645b6d493d495d357660f025"
+      }
+    },
+    {
+      "phase": "during-owned-build",
+      "ownedBuildStillRunning": true,
+      "publicObservation": {
+        "activity": "running",
+        "reason": "Xcode or a relevant build owner is still running. Close it normally, then recheck.",
+        "runID": "40332490328",
+        "source": "7f426dfdc3ec927b645b6d493d495d357660f025"
+      }
+    },
+    {
+      "phase": "after-owned-build-0",
+      "ownedBuildStillRunning": false,
+      "publicObservation": {
+        "activity": "closed",
+        "runID": "40332490328",
+        "source": "7f426dfdc3ec927b645b6d493d495d357660f025"
+      }
+    },
+    {
+      "phase": "after-owned-build-1",
+      "ownedBuildStillRunning": false,
+      "publicObservation": {
+        "activity": "closed",
+        "runID": "40332490328",
+        "source": "7f426dfdc3ec927b645b6d493d495d357660f025"
+      }
+    },
+    {
+      "phase": "after-owned-build-2",
+      "ownedBuildStillRunning": false,
+      "publicObservation": {
+        "activity": "closed",
+        "runID": "40332490328",
+        "source": "7f426dfdc3ec927b645b6d493d495d357660f025"
+      }
+    }
+  ],
+  "buildArguments": [
+    "/usr/bin/xcodebuild",
+    "-project",
+    "/Users/runner/work/_temp/StillXcodeStandard-ql3eog0s/Sources/Probe.xcodeproj",
+    "-scheme",
+    "Probe",
+    "-configuration",
+    "Debug",
+    "-destination",
+    "platform=macOS",
+    "-disableAutomaticPackageResolution",
+    "CODE_SIGNING_ALLOWED=NO",
+    "build"
+  ],
+  "ownedBuildDescendants": [
+    {
+      "pid": 2127,
+      "parent": 2100,
+      "executableBasename": "xcodebuild"
+    },
+    {
+      "pid": 2144,
+      "parent": 2127,
+      "executableBasename": "xcrun"
+    },
+    {
+      "pid": 2145,
+      "parent": 2127,
+      "executableBasename": "xcrun"
+    },
+    {
+      "pid": 2146,
+      "parent": 2144,
+      "executableBasename": "xcodebuild"
+    },
+    {
+      "pid": 2147,
+      "parent": 2145,
+      "executableBasename": "xcodebuild"
+    },
+    {
+      "pid": 2150,
+      "parent": 2145,
+      "executableBasename": "xcodebuild"
+    },
+    {
+      "pid": 2151,
+      "parent": 2144,
+      "executableBasename": "xcodebuild"
+    },
+    {
+      "pid": 2155,
+      "parent": 2144,
+      "executableBasename": "sh"
+    },
+    {
+      "pid": 2156,
+      "parent": 2155,
+      "executableBasename": "xcodebuild"
+    },
+    {
+      "pid": 2157,
+      "parent": 2145,
+      "executableBasename": "sh"
+    },
+    {
+      "pid": 2158,
+      "parent": 2157,
+      "executableBasename": "xcodebuild"
+    },
+    {
+      "pid": 2167,
+      "parent": 2127,
+      "executableBasename": "SWBBuildService"
+    },
+    {
+      "pid": 2177,
+      "parent": 2167,
+      "executableBasename": "clang-stat-cache"
+    },
+    {
+      "pid": 2400,
+      "parent": 2167,
+      "executableBasename": "(clang)"
+    },
+    {
+      "pid": 2401,
+      "parent": 2167,
+      "executableBasename": "(clang)"
+    },
+    {
+      "pid": 2406,
+      "parent": 2400,
+      "executableBasename": "(clang)"
+    },
+    {
+      "pid": 2407,
+      "parent": 2401,
+      "executableBasename": "(clang)"
+    }
+  ],
+  "capturedHelperLifetimeAfterBuild": [
+    {
+      "secondsAfterPreviousObservation": 0,
+      "capturedPIDRows": []
+    },
+    {
+      "secondsAfterPreviousObservation": 1,
+      "capturedPIDRows": []
+    },
+    {
+      "secondsAfterPreviousObservation": 2,
+      "capturedPIDRows": []
+    }
+  ],
+  "nativeProjectMetadata": [
+    {
+      "folder": "Probe-ghbvhwuwauajlsagxghklnnrnpdn",
+      "rootIdentity": {
+        "device": 16777227,
+        "inode": 2987299,
+        "owner": 501,
+        "mode": 16877,
+        "size": 192
+      },
+      "metadataIdentity": {
+        "device": 16777227,
+        "inode": 2987436,
+        "owner": 501,
+        "mode": 33188,
+        "size": 373
+      },
+      "keys": {
+        "LastAccessedDate": "datetime",
+        "WorkspacePath": "str"
+      },
+      "workspacePath": "/Users/runner/work/_temp/StillXcodeStandard-ql3eog0s/Sources/Probe.xcodeproj",
+      "knownOwnedAssociation": true
+    }
+  ],
+  "completed": false,
+  "reason": "Expecting value: line 1 column 1 (char 0)",
+  "recoveredSettingsObservation": {
+    "originalCombinedOutputPreserved": true,
+    "separatelyParsedFromRetainedOriginal": true,
+    "ownedProjectSettings": [
+      {
+        "PROJECT_FILE_PATH": "/Users/runner/work/_temp/StillXcodeStandard-ql3eog0s/Sources/Probe.xcodeproj",
+        "PROJECT_TEMP_DIR": "/Users/runner/Library/Developer/Xcode/DerivedData/Probe-ghbvhwuwauajlsagxghklnnrnpdn/Build/Intermediates.noindex/Probe.build",
+        "TARGET_TEMP_DIR": "/Users/runner/Library/Developer/Xcode/DerivedData/Probe-ghbvhwuwauajlsagxghklnnrnpdn/Build/Intermediates.noindex/Probe.build/Debug/Probe.build",
+        "OBJROOT": "/Users/runner/Library/Developer/Xcode/DerivedData/Probe-ghbvhwuwauajlsagxghklnnrnpdn/Build/Intermediates.noindex",
+        "OBJECT_FILE_DIR_normal": "/Users/runner/Library/Developer/Xcode/DerivedData/Probe-ghbvhwuwauajlsagxghklnnrnpdn/Build/Intermediates.noindex/Probe.build/Debug/Probe.build/Objects-normal",
+        "SYMROOT": "/Users/runner/Library/Developer/Xcode/DerivedData/Probe-ghbvhwuwauajlsagxghklnnrnpdn/Build/Products",
+        "BUILT_PRODUCTS_DIR": "/Users/runner/Library/Developer/Xcode/DerivedData/Probe-ghbvhwuwauajlsagxghklnnrnpdn/Build/Products/Debug"
+      }
+    ]
+  }
+}
