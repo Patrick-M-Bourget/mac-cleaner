@@ -433,10 +433,9 @@ public struct Catalog: Sendable {
         return !isReadable(url, info)
     }
 
-    /// What a candidate's space is keyed on, so the same space is offered and counted once: the item itself, or for a tool
-    /// that leaves its folder in place (Docker, `pnpm store prune`), the command, since the folder only anchors it.
+    /// What a candidate's space is keyed on, so the same space is offered once (`SpaceKey`).
     func spaceKey(of candidate: Candidate) -> String {
-        rule(candidate.ruleID)?.tool?.deletesLocationAfter == false ? candidate.id : candidate.resourceID
+        SpaceKey.of(resourceID: candidate.resourceID, ruleID: candidate.ruleID, action: candidate.action)
     }
 
     /// Whether another rule's location is this item, holds it, or exists inside it, whether or not that rule offers it now.

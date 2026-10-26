@@ -6,8 +6,8 @@ public struct CleanupHistoryRun: Sendable, Identifiable {
     public var capacity: CleanupCapacityObservation? { records.compactMap(\.capacityObservation).first }
     public var plannedLogicalBytes: Int64 {
         var seen = Set<String>()
-        // Keyed on the rule too: Docker's prunes share the folder that anchors them, but each is its own space.
-        return records.filter { seen.insert($0.resourceID + "|" + ($0.ruleID ?? "")).inserted }.reduce(0) { $0 + $1.logicalBytes }
+        // Docker's prunes share the folder that anchors them, but each is its own space (`SpaceKey`).
+        return records.filter { seen.insert(SpaceKey.of(resourceID: $0.resourceID, ruleID: $0.ruleID, action: $0.cleanupAction)).inserted }.reduce(0) { $0 + $1.logicalBytes }
     }
     public var trashHeldAllocatedBytes: Int64? {
         var seen = Set<String>()
