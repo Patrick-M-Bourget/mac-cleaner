@@ -16,8 +16,9 @@ public struct CleanupRecord: Codable, Sendable, Identifiable {
     public let scopeURL: URL
     public let scopeResourceID: String
     public let volumeID: String?
-    public let downloadsURL: URL
-    public let downloadsResourceID: String
+    /// Downloads-era records only; catalog records leave these empty.
+    public let downloadsURL: URL?
+    public let downloadsResourceID: String?
     public let modifiedSeconds: Int64
     public let modifiedNanoseconds: Int64
     public let action: String
@@ -25,6 +26,12 @@ public struct CleanupRecord: Codable, Sendable, Identifiable {
     public var capacityObservation: CleanupCapacityObservation?
     public var outcomeRecordedAt: Date?
     public let approvedAt: Date
+    /// Catalog records only. Optional so journals written before the catalog still decode.
+    public var ruleID: String? = nil
+    /// True when Preview only was on: the item was checked and nothing changed on disk.
+    public var previewOnly: Bool? = nil
+    /// Available space read right before and right after this item.
+    public var itemCapacity: CleanupCapacityObservation? = nil
     public init(batch: CleanupApproval, target: PlannedTarget) {
         id = batch.id.uuidString + "|" + target.id; batchID = batch.id; originalURL = target.url
         resourceID = target.resourceID; logicalBytes = target.logicalBytes; allocatedBytes = target.allocatedBytes
@@ -37,9 +44,14 @@ public struct CleanupRecord: Codable, Sendable, Identifiable {
 }
 public protocol CleanupJournaling: Sendable {
     func claim(_ batch: CleanupApproval) throws -> Bool
+    /// Writes every record as pending in one transaction; false when the batch was already claimed.
+    func claim(batchID: UUID, records: [CleanupRecord]) throws -> Bool
     func intent(_ record: CleanupRecord) throws
     func outcome(_ record: CleanupRecord) throws
     func records() throws -> [CleanupRecord]
+}
+extension CleanupJournaling {
+    public func claim(batchID: UUID, records: [CleanupRecord]) throws -> Bool { throw CleanupJournalError.unavailable }
 }
 public protocol TrashOperating: Sendable {
     /// Must preserve the source on failure; no permanent-delete fallback.

@@ -39,15 +39,17 @@ public final class SQLiteCleanupJournal: CleanupJournaling, @unchecked Sendable 
     }
     deinit { sqlite3_close(database) }
     public func claim(_ batch: CleanupApproval) throws -> Bool {
+        try claim(batchID: batch.id, records: batch.targets.map { CleanupRecord(batch: batch, target: $0) })
+    }
+    public func claim(batchID: UUID, records: [CleanupRecord]) throws -> Bool {
         guard !isReadOnly else { throw CleanupJournalError.unavailable }
         lock.lock(); defer { lock.unlock() }
         try run("BEGIN IMMEDIATE")
         do {
-            try run("INSERT OR IGNORE INTO batches VALUES(?)", values: [Data(batch.id.uuidString.utf8)])
+            try run("INSERT OR IGNORE INTO batches VALUES(?)", values: [Data(batchID.uuidString.utf8)])
             let claimed = sqlite3_changes(database) == 1
             if claimed {
-                for target in batch.targets {
-                    let record = CleanupRecord(batch: batch, target: target)
+                for record in records {
                     try run("INSERT INTO records(payload,id) VALUES(?,?)", values: [try JSONEncoder().encode(record), Data(record.id.utf8)])
                 }
             }
