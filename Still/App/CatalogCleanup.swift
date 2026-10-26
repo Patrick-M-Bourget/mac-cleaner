@@ -400,7 +400,7 @@ struct CatalogPlanSection: View {
                 HStack(spacing: StillDesign.Space.sm) {
                     StatusRow(text: ListFormatter.localizedString(byJoining: model.notAccessibleRules.map(\.title)) + " needs Full Disk Access.", symbol: "lock",
                               identifier: "planNotAccessible").fixedSize()
-                    FullDiskAccessLink(title: "Learn more")
+                    FullDiskAccessLink(title: "Learn more", symbol: nil)
                     Spacer(minLength: 0)
                 }
             }
