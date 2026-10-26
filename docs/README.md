@@ -60,7 +60,7 @@ Current authorized feature: [#27 Storage alerts settings](STORAGE-ALERTS.md). Q1
 
 Current qualification work: [#18/#19 Chrome contract](CHROME-CLEANUP.md), Q1–Q6 locked. #18 remaining disposable Stable capability work authorized; #19 remains blocked.
 
-#18 bounded ownership investigation is recorded in [Chrome Stable qualification](validation/chrome-stable-qualification.md); cleanup stays disabled, #18 open/#19 blocked pending an enforceable coordination design.
+Historical #18 ownership investigation is recorded in [Chrome Stable qualification](validation/chrome-stable-qualification.md). The revised close-and-clean contract below supersedes the former exclusive-lease prerequisite.
 
 Current Chrome authority: revised native close-and-clean rules5–7 in CHROME-CLEANUP.md, superseding the stronger cache-only exact-file/lease requirement. #18 qualification resumed; personal-file protections unchanged.
 

@@ -67,7 +67,7 @@ The user-locked #49 capacity-refresh slice is implemented under [CAPACITY-REFRES
 
 #18/#19 Chrome contract is locked under [CHROME-CLEANUP](CHROME-CLEANUP.md). Remaining Stable/ownership/protection qualification proceeds under #18; no production cleanup or broader browser support is promoted. GPU/code caches, other browsers/versions and full feature scope remain retained.
 
-#18 ownership prerequisite reached the locked stop rule; [decision/evidence](validation/chrome-stable-qualification.md). No externally enforceable coordination established, no Stable action qualified. #18 open/#19 blocked; all browser features retained for later resolution, not silently dropped.
+Historical ownership investigation: [decision/evidence](validation/chrome-stable-qualification.md) did not establish the former exclusive-lease guarantee. The revision below supersedes that prerequisite; all browser features remain preserved.
 
 ## Chrome native close-and-clean revision — October25
 

@@ -279,7 +279,7 @@ Q1–Q7 in [STORAGE-ALERTS](STORAGE-ALERTS.md) have bounded settings implementat
 
 Q1–Q6 in [CHROME-CLEANUP](CHROME-CLEANUP.md) are user-confirmed. #18 now targets remaining qualification for one verified Chrome Stable release and downloaded asset caches; existing CfT evidence is supporting only. #19 retains the approved browser/profile → shared plan → permanent confirmation/results journey, explicit authorized inspection, exact reviewed targets and explicit recheck on reopen/uncertainty/change. Preserve protected browsing data; GPU/code caches and broader compatibility remain future scope. Disposable synthetic environments only. No new guidance-only screen or production capability is implied: if ownership/concurrent-write protections cannot be established, record the specific blocker and leave cleanup disabled. #19 stays blocked; M3/M8 and other milestone gates remain.
 
-#18 qualification checkpoint: [source-bound blocker decision](validation/chrome-stable-qualification.md) did not establish a supported external ownership lease and retains the experimental final-check/removal race. Apply Q6 stop rule: #18 open, #19 blocked, positive allowlist empty; no new native UI/action or Stable qualification is claimed. Resume only with a concrete enforceable coordination/isolation mechanism or separately approved contract; do not repeat broad cache probes.
+Historical qualification checkpoint: [source-bound lease investigation](validation/chrome-stable-qualification.md) did not establish the former exclusive-lease guarantee. Its stop rule is superseded by the user-approved native close-and-clean contract below; it is not a current lease prerequisite.
 
 ## Chrome native close-and-clean revision — October25
 
