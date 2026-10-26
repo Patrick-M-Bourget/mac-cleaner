@@ -90,6 +90,11 @@ public struct CandidateCheck: Sendable {
     public func snapshotted() -> CandidateCheck {
         CandidateCheck(catalog: catalog, running: running, exclusions: exclusions, inUse: inUse.snapshot(), cloud: cloud, home: home)
     }
+    /// Whether checking this candidate asks what processes have open: leaked copies and old temporary items.
+    public func needsInUseCheck(_ candidate: Candidate) -> Bool {
+        guard let rule = catalog.rule(candidate.ruleID) else { return false }
+        return rule.copies != nil || rule.unused != nil
+    }
     public func check(_ candidate: Candidate) -> CheckRefusal? {
         // Guidance-only data is never acted on, whatever the candidate or its rule says (SPEC section 3).
         if candidate.action == .guidance || catalog.rule(candidate.ruleID)?.action == .guidance { return .guidanceOnly }
@@ -139,6 +144,9 @@ public struct CandidateCheck: Sendable {
         if rule.items == .androidSystemImages, AndroidSDK.referencedImages(home: home).map({ $0.contains(AndroidSDK.key(candidate.url)) }) ?? true {
             return .inUse("An Android virtual device")
         }
+        // A simulator booted, or a runtime a device started using, since the scan is kept (#143).
+        if rule.items == .simulatorDevices || rule.items == .simulatorRuntimes, let items = rule.items,
+           let refusal = SimulatorInventory.refusal(for: candidate, items: items) { return refusal }
         // An old temporary item that anything inside changed in since the scan is in use again (`TemporaryFiles`).
         if rule.unused != nil, !candidate.isLeftover, Catalog.lastChange(in: candidate.url).map({ $0 > candidate.observedAt }) ?? true { return .changed }
         guard info.st_uid == geteuid(),
