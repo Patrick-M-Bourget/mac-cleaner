@@ -45,6 +45,8 @@ import StillCore
         didSet { if !maintenanceInProgress, quitPending, !operationInProgress { NSApp.terminate(nil) } }
     }
     var quitPending = false
+    /// #130: asked before quitting stops a running cleanup.
+    let quitDuringCleanup = QuitDuringCleanupPrompt(ask: QuitDuringCleanupAlert.ask)
     var isTerminating = false
     private var monitoringSubscription: AnyCancellable?
     private let registration: LoginRegistration
@@ -101,22 +103,38 @@ import StillCore
     }
 }
 
+/// The standard alert for #130, with Cancel as the default button.
+@MainActor enum QuitDuringCleanupAlert {
+    static func ask() -> QuitDuringCleanupPrompt.Answer {
+        let alert = NSAlert()
+        alert.messageText = QuitDuringCleanupPrompt.message
+        for title in QuitDuringCleanupPrompt.buttons { alert.addButton(withTitle: title) }
+        alert.buttons.last?.hasDestructiveAction = true
+        return alert.runModal() == .alertSecondButtonReturn ? .stopAndQuit : .keepRunning
+    }
+}
+
 @MainActor final class StillApplicationDelegate: NSObject, NSApplicationDelegate {
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
         let lifecycle = AppLifecycleController.shared
         return !AppLifecyclePolicy.shouldKeepRunning(effectiveAlerts: lifecycle.alerts.effectiveMonitoring, operationInProgress: lifecycle.operationInProgress || lifecycle.maintenanceInProgress, hasPendingPlan: lifecycle.hasPendingPlan)
     }
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
-        if AppLifecycleController.shared.maintenanceInProgress {
-            AppLifecycleController.shared.quitPending = true
+        let lifecycle = AppLifecycleController.shared
+        switch AppLifecyclePolicy.quitDecision(cleanupRunning: lifecycle.operationInProgress, maintenanceInProgress: lifecycle.maintenanceInProgress, stopConfirmed: lifecycle.quitPending) {
+        case .quitNow: break
+        case .waitForCurrentItem:
+            // Quit completes on its own once the current item finishes (operationInProgress/maintenanceInProgress didSet).
+            lifecycle.quitPending = true
             return .terminateCancel
-        }
-        // Future executor must report its safe-operation boundary before requesting termination again.
-        guard AppLifecyclePolicy.mayQuit(operationInProgress: AppLifecycleController.shared.operationInProgress) else {
-            AppLifecycleController.shared.quitPending = true
-            AppLifecycleController.shared.selection.cancelWorkspace()
-            AppLifecycleController.shared.alerts.stopForTermination()
-            return .terminateCancel
+        case .askToStopCleanup:
+            let confirmed = lifecycle.quitDuringCleanup.confirm {
+                lifecycle.quitPending = true
+                lifecycle.selection.cancelWorkspace()
+                lifecycle.alerts.stopForTermination()
+            }
+            // The cleanup can finish while the alert is open; a confirmed quit then completes now.
+            guard confirmed, !lifecycle.operationInProgress, !lifecycle.maintenanceInProgress else { return .terminateCancel }
         }
         AppLifecycleController.shared.selection.endSession()
         AppLifecycleController.shared.isTerminating = true
