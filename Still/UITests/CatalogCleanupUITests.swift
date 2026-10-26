@@ -316,3 +316,58 @@ final class CatalogCleanupUITests: XCTestCase {
         for file in files { XCTAssertTrue(FileManager.default.fileExists(atPath: file.path), file.path) }
     }
 }
+
+/// Large and old files explorer (#113): a picked fixture folder, chosen file by file, previewed, left in place.
+extension CatalogCleanupUITests {
+    @MainActor func testPickedFolderListsOldFilesUnchosenAndPreviewLeavesThemInPlace() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        let state = try configureIsolatedState(app)
+        let home = try configureCatalogHome(app)
+        let folder = FileManager.default.temporaryDirectory.resolvingSymlinksInPath().appendingPathComponent("StillPicked-" + UUID().uuidString)
+        defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home); try? FileManager.default.removeItem(at: folder) }
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let old = folder.appendingPathComponent("old-notes.txt"), recent = folder.appendingPathComponent("recent.txt")
+        try Data(repeating: 1, count: 4_000).write(to: old)
+        try Data(repeating: 2, count: 4_000).write(to: recent)
+        let then = Date().addingTimeInterval(-200 * 86_400)
+        try FileManager.default.setAttributes([.creationDate: then, .modificationDate: then], ofItemAtPath: old.path)
+        var times = [timeval(tv_sec: Int(then.timeIntervalSince1970), tv_usec: 0), timeval(tv_sec: Int(then.timeIntervalSince1970), tv_usec: 0)]
+        XCTAssertEqual(utimes(old.path, &times), 0)
+        app.launchArguments = ["-ApplePersistenceIgnoreState", "YES"]
+        app.launch()
+
+        XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
+        app.buttons["Choose a folder…"].click()
+        let panel = app.sheets.firstMatch.exists ? app.sheets.firstMatch : app.dialogs.firstMatch
+        XCTAssertTrue(panel.waitForExistence(timeout: 5))
+        panel.typeKey("g", modifierFlags: [.command, .shift])
+        app.typeText(folder.path + "\n")
+        panel.buttons["Scan folder"].click()
+
+        let explore = app.buttons["Explore storage"]
+        XCTAssertTrue(explore.waitForExistence(timeout: 20))
+        explore.click()
+        let mode = app.segmentedControls["explorerMode"]
+        XCTAssertTrue(mode.waitForExistence(timeout: 10))
+        mode.buttons["Large and old files"].click()
+
+        // Only the old file is listed, and nothing is preselected.
+        let item = app.checkBoxes["explorerChoose-old-notes.txt"]
+        XCTAssertTrue(item.waitForExistence(timeout: 5))
+        XCTAssertFalse(app.checkBoxes["explorerChoose-recent.txt"].exists)
+        XCTAssertEqual(item.value as? Int, 0)
+        item.click()
+        XCTAssertEqual(item.value as? Int, 1)
+        app.buttons["View cleanup plan"].click()
+
+        XCTAssertEqual(app.checkBoxes["previewOnlyToggle"].value as? Int, 1)
+        app.buttons["Review cleanup"].click()
+        XCTAssertTrue(app.staticTexts["Move to Trash: Large and old files"].waitForExistence(timeout: 5))
+        app.buttons["Run preview"].click()
+
+        XCTAssertTrue(app.staticTexts["catalogPreviewNotice"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["Would move to Trash"].exists)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: old.path))
+    }
+}
