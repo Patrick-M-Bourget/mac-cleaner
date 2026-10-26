@@ -137,7 +137,7 @@ public actor GrowthHistoryStore {
             let origin: GrowthComparisonState = value.cleared ? .clearedBaseline
                 : hasLocationHistory ? .missingBaseline : .firstBaseline
             value.entries.append(Entry(snapshot: snapshot, origin: origin)); value.hadHistory = true; value.cleared = false
-            if value.entries.count > policy.baselines { value.entries.removeFirst(value.entries.count - policy.baselines) }
+            value.entries = thinned(value.entries)
             try trim(&value, now: now)
             try save(value)
             return value.entries.contains(where: { $0.snapshot.id == snapshot.id }) ? comparison(in: value, id: snapshot.id) : GrowthComparison(state: .unknown, current: snapshot, from: nil, groups: [])
@@ -169,12 +169,9 @@ public actor GrowthHistoryStore {
             return GrowthComparison(state: value.cleared ? .clearedBaseline : value.hadHistory ? .missingBaseline : .firstBaseline, current: nil, from: nil, groups: [])
         }
         let current = value.entries[index].snapshot
-        let earlier = value.entries[..<index].map(\.snapshot).filter { $0.fingerprint.scopeID == current.fingerprint.scopeID }
-        // The newest scan at least about a day older that isn't a rescan right after a cleanup, unless the settings
-        // changed since: then this scan starts a new baseline.
-        guard let previous = earlier.last(where: { $0.fingerprint != current.fingerprint
-                || (!$0.afterCleanup && current.observedAt.timeIntervalSince($0.observedAt) >= baselineAge) }) else {
-            return GrowthComparison(state: earlier.isEmpty ? value.entries[index].origin : .waitingForBaseline, current: current, from: nil, groups: [])
+        guard let previous = baselineIndex(in: value.entries, for: index).map({ value.entries[$0].snapshot }) else {
+            let earlier = value.entries[..<index].contains { $0.snapshot.fingerprint.scopeID == current.fingerprint.scopeID }
+            return GrowthComparison(state: earlier ? .waitingForBaseline : value.entries[index].origin, current: current, from: nil, groups: [])
         }
         guard current.fingerprint == previous.fingerprint else { return GrowthComparison(state: .coverageChanged, current: current, from: previous.observedAt, groups: []) }
         if (current.groups + previous.groups).contains(where: { $0.dimension == .location }) { return Self.catalogComparison(previous, current) }
@@ -183,6 +180,38 @@ public actor GrowthHistoryStore {
         let changes = Set(older.keys).union(newer.keys).map { key in GrowthChange(id: key, label: newer[key]?.label ?? older[key]!.label, logicalDelta: (newer[key]?.logicalBytes ?? 0) - (older[key]?.logicalBytes ?? 0), dimension: newer[key]?.dimension ?? older[key]!.dimension) }.sorted { $0.id < $1.id }
         return GrowthComparison(state: .compared, current: current, from: previous.observedAt, groups: changes)
     }
+    /// The scan the one at `index` compares with: the newest earlier scan of the same location at least about a day
+    /// older that isn't a rescan right after a cleanup, unless the settings changed since: then that scan starts a new
+    /// baseline.
+    private func baselineIndex(in entries: [Entry], for index: Int) -> Int? {
+        let current = entries[index].snapshot
+        return entries[..<index].lastIndex { entry in
+            let earlier = entry.snapshot
+            return earlier.fingerprint.scopeID == current.fingerprint.scopeID && (earlier.fingerprint != current.fingerprint
+                || (!earlier.afterCleanup && current.observedAt.timeIntervalSince(earlier.observedAt) >= baselineAge))
+        }
+    }
+    /// How many of the newest scans are always kept, however close together.
+    static let recentScansKept = 5
+    /// At most `policy.baselines` scans, kept in this order (#146): the newest scan and the baseline it compares with;
+    /// the few newest scans and the baseline of each location's newest scan; one scan per day and location, the
+    /// newest that can be a baseline; then the newest of the rest. Frequent rescans can't push out every baseline.
+    private func thinned(_ entries: [Entry]) -> [Entry] {
+        guard entries.count > policy.baselines else { return entries }
+        var rank = [Int](repeating: 3, count: entries.count)
+        func keep(_ index: Int?, _ tier: Int) { if let index { rank[index] = min(rank[index], tier) } }
+        let last = entries.count - 1
+        keep(last, 0); keep(baselineIndex(in: entries, for: last), 0)
+        for index in entries.indices.suffix(Self.recentScansKept) { keep(index, 1) }
+        let newestPerLocation = Dictionary(entries.indices.map { (entries[$0].snapshot.fingerprint.scopeID, $0) }, uniquingKeysWith: max)
+        for index in newestPerLocation.values { keep(baselineIndex(in: entries, for: index), 1) }
+        let calendar = Calendar.current
+        let days = Dictionary(grouping: entries.indices) { DayKey(scope: entries[$0].snapshot.fingerprint.scopeID, day: calendar.startOfDay(for: entries[$0].snapshot.observedAt)) }
+        for indices in days.values { keep(indices.last { !entries[$0].snapshot.afterCleanup } ?? indices.last, 2) }
+        let kept = Set(entries.indices.sorted { (rank[$0], -$0) < (rank[$1], -$1) }.prefix(policy.baselines))
+        return entries.indices.filter(kept.contains).map { entries[$0] }
+    }
+    private struct DayKey: Hashable { let scope: String; let day: Date }
     /// Compares catalog scans location by location. Only a location measured in both scans counts toward growth,
     /// per location and in its category; any other difference is a coverage change.
     static func catalogComparison(_ previous: GrowthSnapshot, _ current: GrowthSnapshot) -> GrowthComparison {
