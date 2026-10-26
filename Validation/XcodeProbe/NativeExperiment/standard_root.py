@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
-"""Hosted-only native mapping observation; never removes generated artifacts."""
+"""Hosted-only native mapping and public Core exact-artifact qualification."""
 import argparse
 import hashlib
 import json
 import os
 from pathlib import Path
 import plistlib
+import signal
 import stat
 import subprocess
 import struct
@@ -26,10 +27,12 @@ def identity(path):
                 mode=item.st_mode, size=item.st_size)
 
 
-def command(args, output, timeout=60):
-    result = subprocess.run(args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+def command(args, output, timeout=60, stderr_output=None):
+    result = subprocess.run(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE if stderr_output else subprocess.STDOUT,
                             timeout=timeout, check=False)
     output.write_bytes(result.stdout)
+    if stderr_output is not None:
+        stderr_output.write_bytes(result.stderr)
     if result.returncode:
         raise RuntimeError('Native command failed; original output retained')
     return result.stdout.decode('utf-8')
@@ -202,13 +205,6 @@ def main():
         if len(matched) != 1:
             raise RuntimeError('Native plist did not uniquely associate the owned project; schema remains unsupported')
         derived = standard / matched[0]['folder']
-        settings_text = command(invocation + ['-showBuildSettings', '-json'], output / 'settings.json')
-        settings = json.loads(settings_text)
-        relevant = [{key: entry['buildSettings'].get(key) for key in
-                     ['PROJECT_FILE_PATH', 'PROJECT_TEMP_DIR', 'TARGET_TEMP_DIR', 'OBJROOT',
-                      'OBJECT_FILE_DIR_normal', 'SYMROOT', 'BUILT_PRODUCTS_DIR']}
-                    for entry in settings if entry.get('target') == 'Probe']
-        report['nativeOwnedBuildSettings'] = relevant
         objects = []
         for directory, dirs, files in os.walk(derived / 'Build/Intermediates.noindex', followlinks=False):
             dirs[:] = [name for name in dirs if not (Path(directory) / name).is_symlink()]
@@ -230,6 +226,13 @@ def main():
         report['nativeObjectLeaves'] = objects
         if len(objects) != 2 or {Path(o['relativePath']).name for o in objects} != {'main.o', 'helper.o'}:
             raise RuntimeError('Owned compiler object layout differs from known recipe')
+        settings_text = command(invocation + ['-showBuildSettings', '-json'], output / 'settings.json', stderr_output=output / 'settings.stderr.log')
+        settings = json.loads(settings_text)
+        relevant = [{key: entry['buildSettings'].get(key) for key in
+                     ['PROJECT_FILE_PATH', 'PROJECT_TEMP_DIR', 'TARGET_TEMP_DIR', 'OBJROOT',
+                      'OBJECT_FILE_DIR_normal', 'SYMROOT', 'BUILT_PRODUCTS_DIR']}
+                    for entry in settings if entry.get('target') == 'Probe']
+        report['nativeOwnedBuildSettings'] = relevant
         if len(relevant) != 1 or Path(relevant[0]['OBJROOT']).resolve() != derived / 'Build/Intermediates.noindex':
             raise RuntimeError('Native settings do not independently match standard intermediates')
         report['protectedSourcesUnchanged'] = all(
@@ -237,8 +240,70 @@ def main():
             for name, digest in protected.items())
         if not report['protectedSourcesUnchanged']:
             raise RuntimeError('Protected owned source changed')
-        report.update(mappingObserved=True, completed=True,
-                      limits='Discovery only; no deletion, production Core, owner-inactivity guarantee, archive or crash replay claim. Fixture outputs retained for runner disposal.')
+        report['mappingObserved'] = True
+        proof = dict(schema=1, source=os.environ['GITHUB_SHA'], runID=os.environ['GITHUB_RUN_ID'],
+                     standardRootInitiallyAbsent=True, ownedRoot=str(root), project=str(project),
+                     derivedData=str(derived), projectMetadata=[str(derived / 'info.plist')],
+                     standardRootIdentity=identity(standard), ownedRootIdentity=identity(root))
+        manifest = output / 'guard-manifest.json'
+        manifest.write_text(json.dumps(proof, indent=2))
+
+        def protected_snapshot():
+            result = {}
+            for label, location in [('sources', root / 'Sources'), ('products', derived / 'Build/Products')]:
+                for directory, dirs, files in os.walk(location, followlinks=False):
+                    for name in dirs + files:
+                        path = Path(directory) / name
+                        relative = label + '/' + str(path.relative_to(location))
+                        item = path.lstat()
+                        if stat.S_ISLNK(item.st_mode):
+                            result[relative] = dict(link=os.readlink(path))
+                        elif stat.S_ISREG(item.st_mode):
+                            result[relative] = dict(sha256=hashlib.sha256(path.read_bytes()).hexdigest(),
+                                                    size=item.st_size, mode=item.st_mode)
+            return result
+
+        before_action = protected_snapshot()
+        action = json.loads(command([str(runner_binary), 'action', str(manifest)],
+                                    output / 'core-action.json', stderr_output=output / 'core-action.stderr.log'))
+        report['publicCoreAction'] = action
+        report['cleanupExercised'] = True
+        after_action = protected_snapshot()
+        report['protectedActionBefore'] = before_action
+        report['protectedActionAfter'] = after_action
+        if before_action != after_action:
+            raise RuntimeError('Protected source/product changed during Core action')
+        late = Path(action['lateFile'])
+        expected_parent = derived / Path(objects[0]['relativePath']).parent
+        if late.name != 'Still-late-unapproved.o' or late.parent != expected_parent or not late.is_file() or late.is_symlink():
+            raise RuntimeError('Unexpected synthetic late fixture path; refusing fixture removal')
+        # Remove only the exact generated unapproved fixture, after Core proved preservation.
+        late.unlink()
+        command(invocation + ['build'], output / 'rebuild.log', timeout=120)
+        report['removedObjectsRegenerated'] = all((derived / obj['relativePath']).is_file() for obj in objects)
+        if not report['removedObjectsRegenerated']:
+            raise RuntimeError('Actual rebuild did not regenerate approved object leaves')
+        before_crash = protected_snapshot()
+        crashed = subprocess.run([str(runner_binary), 'crash', str(manifest)],
+                                 stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=60)
+        (output / 'core-crash.stdout.log').write_bytes(crashed.stdout)
+        (output / 'core-crash.stderr.log').write_bytes(crashed.stderr)
+        report['ownedWorkerReturnCode'] = crashed.returncode
+        if crashed.returncode != -signal.SIGKILL:
+            raise RuntimeError('Owned Core crash worker did not exit with actual SIGKILL; original evidence retained')
+        records = json.loads(command([str(runner_binary), 'records', str(manifest)],
+                                     output / 'core-records.json', stderr_output=output / 'core-records.stderr.log'))
+        report['publicCrashRecords'] = records
+        replay = json.loads(command([str(runner_binary), 'replay', str(manifest)],
+                                    output / 'core-replay.json', stderr_output=output / 'core-replay.stderr.log'))
+        report['publicCrashReplay'] = replay
+        after_crash = protected_snapshot()
+        report['protectedCrashBefore'] = before_crash
+        report['protectedCrashAfter'] = after_crash
+        if before_crash != after_crash:
+            raise RuntimeError('Protected source/product changed during crash/recovery observation')
+        report.update(completed=True,
+                      limits='One generated C project on recorded configuration; no personal/default-existing roots, arbitrary workspaces, custom outputs or universal owner exclusion qualified. Prior archive/Swift experiments remain separate. Fixture outputs retained for runner disposal.')
     except Exception as error:
         report.update(completed=False, reason=str(error))
     if output is not None and output.is_dir():

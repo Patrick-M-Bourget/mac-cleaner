@@ -36,7 +36,7 @@ private struct OwnedXcodeSnapshot: XcodeOwnerSnapshotReading {
 
 @Test func nativeXcodeObservationRefusesInconsistentCandidateAndUnqualifiedInstallation() throws {
     let changed = XcodeProcessRecord(pid: 60, uid: 501, shortName: "xcodebuild", executable: "/Applications/Xcode.app/Contents/Developer/usr/bin/xcodebuild", started: 5, consistent: false)
-    let environment = NativeXcodeBuildEnvironment(ownerReader: OwnedXcodeSnapshot(value: .init(currentUID: 501, records: [changed], complete: true)))
+    let environment = NativeXcodeBuildEnvironment(ownerReader: OwnedXcodeSnapshot(value: .init(currentUID: 501, records: [changed], complete: true)), applicationURL: URL(fileURLWithPath: "/never-probe-Xcode.app"))
     #expect(try environment.ownerObservation().activity == .unknown)
     #expect(throws: (any Error).self) { try environment.validateInstallation() }
     #expect(throws: (any Error).self) { try environment.projects(in: URL(fileURLWithPath: "/never-inspected")) }

@@ -33,7 +33,7 @@ public struct XcodeInstallationObservation: Sendable {
     public let developerURL: URL
 }
 
-/// Explicit native calls only. Default mutation eligibility is unavailable until #16 evidence pins it.
+/// Explicit native calls only, bounded to the observed #16 toolchain/layout; app delivery stays gated.
 public struct NativeXcodeBuildEnvironment: XcodeBuildEnvironment {
     private let ownerReader: any XcodeOwnerSnapshotReading
     private let applicationURL: URL
@@ -45,24 +45,34 @@ public struct NativeXcodeBuildEnvironment: XcodeBuildEnvironment {
         FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Developer/Xcode/DerivedData", isDirectory: true)
     }
     public func validateInstallation() throws {
-        throw NativeXcodeObservationFailure("Xcode cleanup qualification is pending; no native version or project mapping is enabled.")
+        let os = ProcessInfo.processInfo.operatingSystemVersion
+        var machine = utsname(); uname(&machine)
+        let architecture = withUnsafeBytes(of: machine.machine) { String(decoding: $0.prefix { $0 != 0 }, as: UTF8.self) }
+        guard os.majorVersion == 26, os.minorVersion == 6, os.patchVersion == 2, architecture == "arm64" else {
+            throw NativeXcodeObservationFailure("This macOS version or architecture has not been qualified for Xcode cleanup.")
+        }
+        let installation = try installationObservation()
+        guard installation.version == "26.6", installation.build == "17F113" else {
+            throw NativeXcodeObservationFailure("This Xcode version/build has not been qualified for intermediate cleanup.")
+        }
     }
-    public func projects(in root: URL) throws -> [XcodeProjectAssociation] {
-        throw NativeXcodeObservationFailure("Standard DerivedData project mapping has not yet been qualified.")
+    public func projects(in root: URL) throws -> XcodeProjectMapping {
+        try XcodeDerivedDataMapping.projects(in: root)
     }
     /// Toolchain facts are observations, not an allowlist or cleanup authority.
     public func installationObservation() throws -> XcodeInstallationObservation {
-        guard applicationURL.isFileURL, applicationURL.resolvingSymlinksInPath().path == applicationURL.path else {
+        let application = applicationURL.resolvingSymlinksInPath()
+        guard applicationURL.isFileURL, application.isFileURL else {
             throw NativeXcodeObservationFailure("Xcode application location is not canonical.")
         }
         var code: SecStaticCode?; var requirement: SecRequirement?
-        guard SecStaticCodeCreateWithPath(applicationURL as CFURL, [], &code) == errSecSuccess, let code,
+        guard SecStaticCodeCreateWithPath(application as CFURL, [], &code) == errSecSuccess, let code,
               SecRequirementCreateWithString("anchor apple and identifier \"com.apple.dt.Xcode\"" as CFString, [], &requirement) == errSecSuccess,
               SecStaticCodeCheckValidity(code, SecCSFlags(rawValue: kSecCSStrictValidate), requirement) == errSecSuccess else {
             throw NativeXcodeObservationFailure("The Xcode installation signature could not be verified.")
         }
         func plist(_ relative: String) throws -> [String: Any] {
-            let file = applicationURL.appendingPathComponent(relative)
+            let file = application.appendingPathComponent(relative)
             var info = stat()
             guard file.resolvingSymlinksInPath().path == file.path, lstat(file.path, &info) == 0,
                   info.st_mode & S_IFMT == S_IFREG, info.st_size <= 1_000_000 else {
@@ -84,7 +94,7 @@ public struct NativeXcodeBuildEnvironment: XcodeBuildEnvironment {
               let build = version["ProductBuildVersion"] as? String else {
             throw NativeXcodeObservationFailure("Xcode version/build could not be observed.")
         }
-        return .init(version: number, build: build, developerURL: applicationURL.appendingPathComponent("Contents/Developer", isDirectory: true))
+        return .init(version: number, build: build, developerURL: application.appendingPathComponent("Contents/Developer", isDirectory: true))
     }
     public func ownerObservation() throws -> XcodeOwnerObservation {
         let snapshot: XcodeOwnerSnapshot
@@ -109,10 +119,11 @@ public struct NativeXcodeBuildEnvironment: XcodeBuildEnvironment {
             || name.hasPrefix("SWBBuildService") || name.hasPrefix("XCBBuildService")
     }
     private func recognizedDeveloperPath(_ path: String, name: String) -> Bool {
-        if name == "Xcode" { return path == applicationURL.appendingPathComponent("Contents/MacOS/Xcode").path }
+        let selected = Set([applicationURL.path, applicationURL.resolvingSymlinksInPath().path])
+        if name == "Xcode" { return selected.contains { path == $0 + "/Contents/MacOS/Xcode" } }
         if name == "xcodebuild", path == "/usr/bin/xcodebuild" { return true }
-        return ["Contents/Developer/", "Contents/SharedFrameworks/", "Contents/Frameworks/"].contains {
-            path.hasPrefix(applicationURL.path + "/" + $0)
+        return selected.contains { root in
+            ["Contents/Developer/", "Contents/SharedFrameworks/", "Contents/Frameworks/"].contains { path.hasPrefix(root + "/" + $0) }
         } || path.hasPrefix("/Library/Developer/CommandLineTools/")
     }
 }
