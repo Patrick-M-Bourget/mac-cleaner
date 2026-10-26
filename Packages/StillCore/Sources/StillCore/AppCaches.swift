@@ -21,6 +21,9 @@ public enum AppCaches {
         let id = bundleID.lowercased()
         return id.hasPrefix("com.apple.") || id.hasPrefix("com.patrickbourget.still")
     }
+    /// A folder of macOS's own or of Still's, by bundle identifier or name. Never offered under any rule,
+    /// so logs and every other location leave them alone as app caches do.
+    static func isMacOSOrStill(_ name: String) -> Bool { isExcluded(name) || stillNames.contains(name) }
     /// The installed app a folder named by bundle identifier belongs to, or nil when that can't be determined.
     static func installedOwner(_ folder: String, apps: any AppLookup) -> RuleOwner? {
         guard isBundleID(folder), !isExcluded(folder), let app = apps.app(bundleID: folder) else { return nil }

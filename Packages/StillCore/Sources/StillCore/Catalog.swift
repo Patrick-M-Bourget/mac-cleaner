@@ -320,7 +320,8 @@ public struct Catalog: Sendable {
                     ? Self.expand(location, in: base, keepNewestVersions: rule.keepNewestVersions).map { (base.appendingPathComponent($0), nil) }
                     : Self.expand(base, location).map { ($0.0, $0.1.isEmpty ? nil : $0.1.joined(separator: "/")) }
             }.flatMap { url, profile -> [Candidate] in
-                guard Self.neverOffered.isDisjoint(with: url.pathComponents.dropFirst(base.pathComponents.count)),
+                let below = url.pathComponents.dropFirst(base.pathComponents.count)
+                guard Self.neverOffered.isDisjoint(with: below), !below.contains(where: AppCaches.isMacOSOrStill),
                       ScopeContainment.contains(url, in: base) else { return [] }
                 if let copies = rule.copies {
                     let (found, note) = leakedCopies(rule, copies, in: url, sizer: sizer, inUse: inUse)

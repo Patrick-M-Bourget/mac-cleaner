@@ -135,3 +135,12 @@ private final class RecordingTrash: TrashMoving, @unchecked Sendable {
     #expect(record.state == .skipped)
     #expect(record.message == CheckRefusal.changed.reason)
 }
+
+@Test func logsOfMacOSAndStillAreNeverOffered() throws {
+    let home = try fixtureFolder("StillScopeHome")
+    defer { try? FileManager.default.removeItem(at: home) }
+    for folder in ["com.apple.xpc.launchd", "com.apple.Safari", "Still", "com.patrickbourget.Still", "Editor"] { try write(home, "Library/Logs/\(folder)/log.txt") }
+    let catalog = Catalog(rules: BuiltInCatalog.rules.filter { $0.id == "app-logs" })
+    let found = catalog.discover(home: home)
+    #expect(found.map(\.url.lastPathComponent) == ["Editor"])
+}
