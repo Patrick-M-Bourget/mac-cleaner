@@ -22,7 +22,7 @@ struct AppManagedStorageView: View {
                     if let rule = model.guidanceRule(finding), let guidance = rule.guidance {
                         if index > 0 { Divider().padding(.horizontal, StillDesign.Space.lg) }
                         let needsAccess = finding.size == .notAccessible
-                        StorageReviewRow(category: rule.managedCategory, title: rule.title, detail: rule.detail.firstSentence,
+                        StorageReviewRow(category: rule.managedCategory, title: rule.title, detail: finding.workspaces?.summary ?? rule.detail.firstSentence,
                                          value: needsAccess ? "Needs access" : finding.size.text,
                                          actionTitle: guidance.openTitle, action: { Task { await model.open(finding) } },
                                          identifier: "guidance-" + finding.id, mutedValue: needsAccess)

@@ -83,3 +83,78 @@ private func aged(_ home: URL, _ relative: String, days: Double, now: Date) thro
         #expect(rule.action == .trash && rule.category == .logs && rule.regen == .log)
     }
 }
+
+// MARK: Agent workspaces
+
+/// Runs git on a fixture repository only, with no user or system config.
+@discardableResult
+private func git(_ arguments: [String], in folder: URL) throws -> String {
+    let process = Process(), pipe = Pipe()
+    process.executableURL = URL(fileURLWithPath: "/usr/bin/git")
+    process.arguments = ["-c", "user.name=Still Test", "-c", "user.email=test@example.com", "-c", "commit.gpgsign=false", "-c", "init.defaultBranch=main"] + arguments
+    process.currentDirectoryURL = folder
+    process.environment = ["PATH": "/usr/bin:/bin", "HOME": folder.path, "GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": "/dev/null",
+                           "DEVELOPER_DIR": ProcessInfo.processInfo.environment["DEVELOPER_DIR"] ?? ""].filter { !$0.value.isEmpty }
+    process.standardOutput = pipe; process.standardError = pipe
+    try process.run(); process.waitUntilExit()
+    let output = String(decoding: pipe.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
+    if process.terminationStatus != 0 { Issue.record("git \(arguments.joined(separator: " ")) failed: \(output)") }
+    return output
+}
+private func clone(_ origin: URL, to folder: URL) throws {
+    try FileManager.default.createDirectory(at: folder.deletingLastPathComponent(), withIntermediateDirectories: true)
+    try git(["clone", "-q", origin.path, folder.path], in: folder.deletingLastPathComponent())
+}
+
+@Test func agentWorkspacesAreGuidanceWithTheirSizeAndGitStatusNeverCandidates() throws {
+    let home = try fixtureHome(), origin = try fixtureHome().appendingPathComponent("origin.git")
+    defer { try? FileManager.default.removeItem(at: home); try? FileManager.default.removeItem(at: origin.deletingLastPathComponent()) }
+    // A shared origin with one pushed commit.
+    try FileManager.default.createDirectory(at: origin, withIntermediateDirectories: true)
+    try git(["init", "-q", "--bare"], in: origin)
+    let seed = origin.deletingLastPathComponent().appendingPathComponent("seed")
+    try clone(origin, to: seed)
+    try write(seed, "README.md")
+    try git(["add", "."], in: seed); try git(["commit", "-qm", "seed"], in: seed); try git(["push", "-q", "origin", "HEAD:main"], in: seed)
+
+    // Clean and pushed.
+    let pushed = home.appendingPathComponent(".codex/worktrees/a1b2/app")
+    try clone(origin, to: pushed)
+    // Uncommitted changes.
+    let edited = home.appendingPathComponent(".codex/worktrees/c3d4/app")
+    try clone(origin, to: edited)
+    try write(edited, "README.md", bytes: 300)
+    // A commit not pushed to its upstream.
+    let ahead = home.appendingPathComponent("Library/Caches/Codex/checkouts/app")
+    try clone(origin, to: ahead)
+    try write(ahead, "new.swift"); try git(["add", "."], in: ahead); try git(["commit", "-qm", "local"], in: ahead)
+    // No remote at all: not pushed anywhere.
+    let local = home.appendingPathComponent("private/tmp/claude-\(getuid())/-Users-me-app/session/scratchpad/build")
+    try FileManager.default.createDirectory(at: local, withIntermediateDirectories: true)
+    try git(["init", "-q"], in: local)
+    try write(local, "a.txt"); try git(["add", "."], in: local); try git(["commit", "-qm", "local"], in: local)
+    // A detached worktree at a pushed commit: no upstream, but nothing unpushed.
+    try git(["worktree", "add", "-q", "--detach", home.appendingPathComponent(".codex/worktrees/e5f6/app").path], in: pushed)
+    let index = edited.appendingPathComponent(".git/index")
+    let indexBefore = try Data(contentsOf: index), indexDate = try FileManager.default.attributesOfItem(atPath: index.path)[.modificationDate] as? Date
+
+    let catalog = Catalog(rules: fixtureRules)
+    let finding = try #require(catalog.guidance(fixture: home).first { $0.ruleID == "agent-workspaces" })
+    #expect(finding.workspaces == AgentWorkspaces(count: 5, uncommitted: 1, unpushed: 2, unchecked: 0))
+    #expect(finding.workspaces?.summary == "5 workspaces · 1 has uncommitted changes · 2 have unpushed commits")
+    guard case .estimate(.measured(let bytes)) = finding.size else { Issue.record("not measured: \(finding.size)"); return }
+    #expect(bytes > 0)
+    #expect(catalog.target(for: finding) == .folder(home.appendingPathComponent(".codex/worktrees")))
+    // Read only: git refreshed nothing, and none of it is ever offered, even the clean ones.
+    #expect(try Data(contentsOf: index) == indexBefore)
+    #expect(try FileManager.default.attributesOfItem(atPath: index.path)[.modificationDate] as? Date == indexDate)
+    #expect(catalog.discover(fixture: home).isEmpty)
+    #expect(catalog.rule("agent-workspaces")?.action == .guidance)
+}
+
+@Test func workspaceSummaryCountsOnlyWhatIsThere() {
+    #expect(AgentWorkspaces(count: 1, uncommitted: 0, unpushed: 0, unchecked: 0).summary == "1 workspace · all committed and pushed")
+    #expect(AgentWorkspaces(count: 3, uncommitted: 2, unpushed: 1, unchecked: 1).summary
+            == "3 workspaces · 2 have uncommitted changes · 1 has unpushed commits · 1 couldn’t be checked")
+    #expect(AgentWorkspaces(count: 2, uncommitted: 0, unpushed: 0, unchecked: 2).summary == "2 workspaces · 2 couldn’t be checked")
+}

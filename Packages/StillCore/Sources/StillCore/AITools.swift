@@ -26,5 +26,16 @@ public enum AITools {
         regen: .log, action: .trash, locations: [".codex/sessions", ".codex/archived_sessions", ".codex/log"], owner: nil,
         contents: ContentsMatch(extensions: ["jsonl", "log"], unusedDays: transcriptDays))
 
-    public static let rules: [CleanupRule] = [claudeCodeTranscripts, codexTranscripts]
+    /// Where agents keep workspaces of their own: the Codex app's worktrees in ~/.codex/worktrees (Codex docs, "Worktrees"),
+    /// Codex's checkouts in ~/Library/Caches/Codex, and Claude Code's per-user scratch folder, `/private/tmp/claude-<uid>`,
+    /// where it builds and keeps scratch checkouts. Guidance only: work there may exist nowhere else.
+    static let agentWorkspaces = CleanupRule(
+        id: "agent-workspaces", category: .managed, title: "AI agent workspaces",
+        detail: "Checkouts and build scratch AI coding agents keep in their own folders. Review them before removing any; work there may not be pushed.",
+        consequence: "Guidance only. Still shows the size and where they are, and never changes them.",
+        regen: .userFile, action: .guidance,
+        locations: [".codex/worktrees", "Library/Caches/Codex", "/private/tmp/claude-\(getuid())"], owner: nil,
+        guidance: Guidance(sizing: .agentWorkspaces, place: .folder, placeName: "in Finder"))
+
+    public static let rules: [CleanupRule] = [claudeCodeTranscripts, codexTranscripts, agentWorkspaces]
 }
