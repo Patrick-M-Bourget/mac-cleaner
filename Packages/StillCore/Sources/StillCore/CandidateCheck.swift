@@ -90,6 +90,11 @@ public struct CandidateCheck: Sendable {
     public func snapshotted() -> CandidateCheck {
         CandidateCheck(catalog: catalog, running: running, exclusions: exclusions, inUse: inUse.snapshot(), cloud: cloud, home: home)
     }
+    /// Whether checking this candidate asks what processes have open: leaked copies and old temporary items.
+    public func needsInUseCheck(_ candidate: Candidate) -> Bool {
+        guard let rule = catalog.rule(candidate.ruleID) else { return false }
+        return rule.copies != nil || rule.unused != nil
+    }
     public func check(_ candidate: Candidate) -> CheckRefusal? {
         // Guidance-only data is never acted on, whatever the candidate or its rule says (SPEC section 3).
         if candidate.action == .guidance || catalog.rule(candidate.ruleID)?.action == .guidance { return .guidanceOnly }
