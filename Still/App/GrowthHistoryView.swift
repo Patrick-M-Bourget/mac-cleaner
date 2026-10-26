@@ -95,8 +95,8 @@ struct GrowthChangeRow: View {
     var body: some View {
         HStack(alignment: .center, spacing: StillDesign.Space.lg) {
             VStack(alignment: .leading, spacing: StillDesign.Space.xs) {
-                Text(label).font(.body.weight(.medium)).fixedSize(horizontal: false, vertical: true)
-                if let detail { Text(detail).font(.caption).foregroundStyle(.secondary).lineLimit(1) }
+                Text(label).font(StillDesign.TypeStyle.rowTitle).fixedSize(horizontal: false, vertical: true)
+                if let detail { Text(detail).font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary).lineLimit(1) }
             }.frame(maxWidth: .infinity, alignment: .leading)
             GeometryReader { geometry in
                 Capsule().fill(StillDesign.capacityTrack)
@@ -139,7 +139,7 @@ struct GrowthHistoryView: View {
         HStack(alignment: .top) {
             PageHeader(title: "What grew", subtitle: "Changes in your known locations since " + from.formatted(date: .long, time: .omitted) + ".")
             Spacer(minLength: StillDesign.Space.md)
-            Text(days == 1 ? "Past day" : "Past \(days) days").font(.caption).foregroundStyle(.secondary)
+            Text(days == 1 ? "Past day" : "Past \(days) days").font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary)
         }
         HStack(alignment: .firstTextBaseline, spacing: StillDesign.Space.sm) {
             Text(GrowthPresentation.signed(comparison.logicalDelta ?? 0)).font(StillDesign.TypeStyle.page).monospacedDigit().accessibilityIdentifier("growthNetChange")
@@ -167,8 +167,8 @@ struct GrowthHistoryView: View {
                 HStack(alignment: .top, spacing: StillDesign.Space.md) {
                     CategoryBadge(category: GrowthPresentation.storageCategory(top.category))
                     VStack(alignment: .leading, spacing: StillDesign.Space.xs) {
-                        Text("Most growth is in " + GrowthPresentation.categoryTitle(top.category).lowercased() + ".").font(.body.weight(.medium))
-                        Text("Review options shows what can be cleaned there now.").font(.callout).foregroundStyle(.secondary)
+                        Text("Most growth is in " + GrowthPresentation.categoryTitle(top.category).lowercased() + ".").font(StillDesign.TypeStyle.rowTitle)
+                        Text("Review options shows what can be cleaned there now.").font(StillDesign.TypeStyle.note).foregroundStyle(.secondary)
                     }
                 }
             }
@@ -203,7 +203,7 @@ struct GrowthHistoryView: View {
 struct GrowthGalleryExamples: View {
     var body: some View {
         VStack(alignment: .leading, spacing: StillDesign.Space.md) {
-            Text("Synthetic growth examples · Inert, no scans or archive access").font(.caption).foregroundStyle(.secondary)
+            Text("Synthetic growth examples · Inert, no scans or archive access").font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary)
             GrowthChangeRow(label: "Downloaded iCloud files", detail: "iCloud Drive local copies", delta: 14_200_000_000, maximum: 14_200_000_000)
             GrowthChangeRow(label: "Developer caches and build files", detail: "Xcode build data", delta: 6_700_000_000, maximum: 14_200_000_000)
             GrowthChangeRow(label: "Browser caches", detail: "Chrome cache", delta: -1_000_000_000, maximum: 14_200_000_000)

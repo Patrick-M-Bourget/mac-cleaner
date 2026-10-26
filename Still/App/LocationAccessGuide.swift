@@ -44,7 +44,7 @@ struct FullDiskAccessSetting: View {
             StatusRow(text: "Full Disk Access · " + (model.status.map(FullDiskAccessGuide.statusText) ?? "Checking…"),
                       symbol: "lock.shield", role: model.status == .granted ? .success : .neutral, identifier: "fullDiskAccessStatus")
             Text("Optional. Broad access can include sensitive Mail and Messages data.")
-                .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                .font(StillDesign.TypeStyle.note).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             FullDiskAccessLink(model: model)
         }.task { await model.refresh() }
     }
@@ -58,11 +58,11 @@ struct NotAccessibleRow: View {
     var body: some View {
         VStack(alignment: .leading, spacing: StillDesign.Space.xs) {
             HStack {
-                Text(title).font(.headline)
+                Text(title).font(StillDesign.TypeStyle.section)
                 Spacer()
-                Text("Not accessible").font(.callout).foregroundStyle(.secondary)
+                Text("Not accessible").font(StillDesign.TypeStyle.note).foregroundStyle(.secondary)
             }
-            Text(detail).font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            Text(detail).font(StillDesign.TypeStyle.note).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             FullDiskAccessLink(title: "Review access options")
         }.accessibilityElement(children: .contain)
     }
@@ -94,7 +94,7 @@ struct FullDiskAccessSheet: View {
                       symbol: "lock.shield", role: model.status == .granted ? .success : .neutral, identifier: "fullDiskAccessSheetStatus")
             if model.status != .granted {
                 Text("In System Settings, turn on Still under Privacy & Security → Full Disk Access. If Still still shows Not granted, quit and reopen it.")
-                    .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                    .font(StillDesign.TypeStyle.note).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             }
             Divider()
             HStack {

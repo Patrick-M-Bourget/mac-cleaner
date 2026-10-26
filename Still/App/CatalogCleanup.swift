@@ -346,7 +346,7 @@ struct PreviewOnlyToggle: View {
             Toggle("Preview only (don’t change anything)", isOn: $model.previewOnly)
                 .toggleStyle(.checkbox).disabled(!model.canEdit).accessibilityIdentifier("previewOnlyToggle")
             Text(model.previewOnly ? "Still checks each item and records what it would do. Nothing on disk changes." : "Confirmed cleanups change files on disk.")
-                .font(.caption).foregroundStyle(.secondary)
+                .font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary)
         }
     }
 }
@@ -453,12 +453,12 @@ struct CatalogConfirmationSection: View {
                         Text(catalogBytes(items.reduce(0) { $0 + $1.estimatedBytes }, complete: items.allSatisfy(\.sizeComplete), upperBound: rule.estimateIsUpperBound,
                                           estimate: items.contains(where: \.sizeIsEstimate))).monospacedDigit()
                     }
-                    Text(rule.consequence).font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                    Text(rule.consequence).font(StillDesign.TypeStyle.note).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                     DisclosureGroup(StillDesign.items(items.count) + " · Show files") {
                         VStack(alignment: .leading, spacing: StillDesign.Space.xs) {
                             ForEach(items) { item in
                                 // A tool that leaves its folder in place shows the exact command, e.g. `ollama rm llama3:latest` or `docker builder prune -a -f`.
-                                Text(rule.tool.flatMap { $0.deletesLocationAfter ? nil : $0.commandLine(for: item.itemName) } ?? item.url.path).font(.caption).textSelection(.enabled)
+                                Text(rule.tool.flatMap { $0.deletesLocationAfter ? nil : $0.commandLine(for: item.itemName) } ?? item.url.path).font(StillDesign.TypeStyle.caption).textSelection(.enabled)
                                 if let refusal = review.refusals[item.id] { StatusRow(text: "Will be skipped: " + refusal.reason, symbol: "exclamationmark.circle", role: .caution) }
                             }
                         }.padding(.top, StillDesign.Space.sm)
@@ -466,7 +466,7 @@ struct CatalogConfirmationSection: View {
                 }
             }
             Text("Each item is checked again just before Still acts on it. Changed items, or items whose app is running, are skipped and reported.")
-                .font(.caption).foregroundStyle(.secondary)
+                .font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary)
         }
     }
 }
@@ -493,19 +493,19 @@ struct CatalogResultsSection: View {
                     Image(systemName: record.state == .succeeded ? "checkmark.circle" : wouldAct ? "eye" : "exclamationmark.circle")
                         .foregroundStyle(record.state == .succeeded ? StatusRole.success.color : wouldAct ? StatusRole.neutral.color : StatusRole.caution.color)
                     VStack(alignment: .leading, spacing: StillDesign.Space.xs) {
-                        Text(record.ruleID.flatMap { catalog.rule($0)?.title } ?? record.originalURL.lastPathComponent).font(.body.weight(.medium))
-                        Text(record.originalURL.path).font(.caption).foregroundStyle(.secondary).textSelection(.enabled)
-                        Text(record.message).font(.caption).foregroundStyle(.secondary)
+                        Text(record.ruleID.flatMap { catalog.rule($0)?.title } ?? record.originalURL.lastPathComponent).font(StillDesign.TypeStyle.rowTitle)
+                        Text(record.originalURL.path).font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary).textSelection(.enabled)
+                        Text(record.message).font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary)
                         if let output = record.toolOutput {
                             DisclosureGroup("Tool output") {
-                                Text(output).font(.caption.monospaced()).foregroundStyle(.secondary).textSelection(.enabled)
+                                Text(output).font(StillDesign.TypeStyle.code).foregroundStyle(.secondary).textSelection(.enabled)
                                     .frame(maxWidth: .infinity, alignment: .leading)
-                            }.font(.caption).accessibilityIdentifier("toolOutput-" + (record.ruleID ?? ""))
+                            }.font(StillDesign.TypeStyle.caption).accessibilityIdentifier("toolOutput-" + (record.ruleID ?? ""))
                         }
                     }
                     Spacer()
                     VStack(alignment: .trailing, spacing: StillDesign.Space.xs) {
-                        Text(record.outcomeTitle).font(.callout)
+                        Text(record.outcomeTitle).font(StillDesign.TypeStyle.note)
                         if record.state == .succeeded, let trashed = record.trashURL {
                             Button("Reveal in Trash") { NSWorkspace.shared.activateFileViewerSelecting([trashed]) }
                                 .accessibilityLabel("Reveal \(record.originalURL.lastPathComponent) in Trash")
@@ -518,13 +518,13 @@ struct CatalogResultsSection: View {
                 StatusRow(text: "Items moved to Trash still use space until you empty the Trash. Still never empties it.", symbol: "trash", role: .neutral, identifier: "catalogTrashNotice")
             }
             Text("Measured freed space is the change in available space read right before and after each item. Downloads, snapshots and other activity can affect it, and it may differ from the estimate.")
-                .font(.caption).foregroundStyle(.secondary)
+                .font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary)
         }
     }
     private func metric(_ value: String, _ label: String) -> some View {
         VStack(alignment: .leading, spacing: StillDesign.Space.xs) {
             Text(value).font(StillDesign.TypeStyle.value).monospacedDigit()
-            Text(label).font(.caption).foregroundStyle(.secondary)
+            Text(label).font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary)
         }
     }
 }
@@ -612,7 +612,7 @@ struct GuidanceSection: View {
         if !model.guidance.isEmpty {
             DisclosureGroup(isExpanded: $expanded) {
                 VStack(alignment: .leading, spacing: StillDesign.Space.md) {
-                    Text("Review these where they are managed. Still shows their size and never changes them.").font(.callout).foregroundStyle(.secondary)
+                    Text("Review these where they are managed. Still shows their size and never changes them.").font(StillDesign.TypeStyle.note).foregroundStyle(.secondary)
                     RecommendationGroup {
                         ForEach(model.guidance) { finding in
                             if let rule = model.guidanceRule(finding), let guidance = rule.guidance {
