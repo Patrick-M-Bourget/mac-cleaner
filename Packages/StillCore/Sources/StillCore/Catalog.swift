@@ -118,7 +118,7 @@ public enum BuiltInCatalog {
                     regen: .cache, action: .tool, locations: ["Library/Caches/Homebrew"],
                     owner: RuleOwner(name: "Homebrew", executables: ["brew"], scripts: ["brew", "brew.sh", "brew.rb"]),
                     tool: ToolCommand(executables: ["/opt/homebrew/bin/brew", "/usr/local/bin/brew"], arguments: ["cleanup", "-s"], timeout: 300, deletesLocationAfter: true)),
-    ]
+    ] + BrowserCaches.rules
 }
 
 /// A concrete item a rule found, with the identity it had when sized.
@@ -140,6 +140,8 @@ public struct Candidate: Sendable, Identifiable, Hashable {
     /// False when sizing stopped early; the size is then a lower bound.
     public let sizeComplete: Bool
     public let observedAt: Date
+    /// What a `*` in the rule's location matched, such as a browser profile folder; nil for a fixed location.
+    public let profile: String?
 }
 
 public struct Catalog: Sendable {
@@ -156,9 +158,8 @@ public struct Catalog: Sendable {
         return rules.flatMap { rule -> [Candidate] in
             let toolURL = rule.tool.flatMap(locateTool)
             guard rule.action != .tool || toolURL != nil else { return [] }
-            return rule.locations.compactMap { relative -> Candidate? in
-                guard Self.neverOffered.isDisjoint(with: relative.split(separator: "/").map(String.init)) else { return nil }
-                let url = base.appendingPathComponent(relative)
+            return rule.locations.flatMap { Self.expand(base, $0) }.compactMap { url, matched -> Candidate? in
+                guard Self.neverOffered.isDisjoint(with: url.pathComponents.dropFirst(base.pathComponents.count)) else { return nil }
                 var info = stat()
                 guard lstat(url.path, &info) == 0, info.st_uid == geteuid(),
                       [S_IFDIR, S_IFREG].contains(info.st_mode & S_IFMT) else { return nil }
@@ -167,7 +168,24 @@ public struct Catalog: Sendable {
                 return Candidate(ruleID: rule.id, action: rule.action, url: url, resourceID: "\(info.st_dev):\(info.st_ino)",
                                  isDirectory: info.st_mode & S_IFMT == S_IFDIR, toolURL: toolURL, volumeID: volume,
                                  modifiedSeconds: Int64(info.st_mtimespec.tv_sec), modifiedNanoseconds: Int64(info.st_mtimespec.tv_nsec),
-                                 logicalBytes: size.logicalBytes, allocatedBytes: size.allocatedBytes, sizeComplete: size.complete, observedAt: Date())
+                                 logicalBytes: size.logicalBytes, allocatedBytes: size.allocatedBytes, sizeComplete: size.complete, observedAt: Date(),
+                                 profile: matched.isEmpty ? nil : matched.joined(separator: "/"))
+            }
+        }
+    }
+
+    /// The paths a location names under `base`. A `*` component matches each visible folder at that level
+    /// (a browser profile, say), never a symlink; the matched names come back with the path.
+    static func expand(_ base: URL, _ relative: String) -> [(URL, [String])] {
+        relative.split(separator: "/").map(String.init).reduce([(base, [String]())]) { paths, part in
+            guard part == "*" else { return paths.map { ($0.0.appendingPathComponent(part), $0.1) } }
+            return paths.flatMap { url, matched in
+                ((try? FileManager.default.contentsOfDirectory(atPath: url.path)) ?? []).sorted().compactMap { name -> (URL, [String])? in
+                    var info = stat()
+                    let child = url.appendingPathComponent(name)
+                    guard !name.hasPrefix("."), lstat(child.path, &info) == 0, info.st_mode & S_IFMT == S_IFDIR else { return nil }
+                    return (child, matched + [name])
+                }
             }
         }
     }
