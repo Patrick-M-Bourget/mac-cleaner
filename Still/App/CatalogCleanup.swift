@@ -304,14 +304,12 @@ extension CatalogOverview.Row {
         if case .measured(let bytes) = estimate, rules.contains(where: \.estimateIsUpperBound) { return catalogBytes(bytes, upperBound: true) }
         return estimate.text
     }
-    /// What happens and to what, e.g. "Clear npm cache, Yarn cache · Move Installers to Trash".
+    /// What happens and to what, e.g. "Clear npm cache, Yarn cache · Move Installers to Trash" (`ActionWording`).
     var detail: String {
-        let cleared = rules.filter { $0.action != .trash && $0.action != .evict }.map(\.title)
-        let trashed = rules.filter { $0.action == .trash }.map(\.title)
-        let evicted = rules.contains { $0.action == .evict }
-        return ([cleared.isEmpty ? nil : "Clear " + Self.list(cleared), trashed.isEmpty ? nil : "Move " + Self.list(trashed) + " to Trash",
-                 evicted ? "Remove local copies · Originals stay in iCloud" : nil]
-            .compactMap { $0 }).joined(separator: " · ")
+        let groups = Dictionary(grouping: rules) { $0.action.wording.overviewGroup }
+        return groups.keys.sorted().compactMap { key in
+            groups[key].flatMap { rules in rules.first.map { $0.action.wording.overview(Self.list(rules.map(\.title))) } }
+        }.joined(separator: " · ")
     }
     private static func list(_ titles: [String]) -> String {
         titles.count <= 3 ? titles.joined(separator: ", ") : titles.prefix(2).joined(separator: ", ") + " and \(titles.count - 2) more"
@@ -331,14 +329,7 @@ extension CleanupRule {
     /// Whether every item the rule offers is a single file.
     var offersFiles: Bool { contents != nil || id == UserFiles.ruleID }
     /// How the review names what happens, e.g. "Move to Trash: Installers in Downloads".
-    var reviewTitle: String {
-        switch action {
-        case .trash: "Move to Trash: " + title
-        case .evict: "Remove local copies: " + title
-        case .delete, .tool: "Clear " + title
-        case .guidance: "Guidance only: " + title
-        }
-    }
+    var reviewTitle: String { action.wording.reviewPrefix + title }
 }
 
 extension Candidate {
