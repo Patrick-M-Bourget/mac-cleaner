@@ -98,12 +98,15 @@ public struct CleanupRule: Sendable, Identifiable {
     /// For rules whose owner differs per item (an app's own cache folder): the item's owner, or nil when it
     /// can't be determined. Such an item is never offered, and is refused if its owner can't be found later.
     public let itemOwner: (@Sendable (URL) -> RuleOwner?)?
+    /// A broad rule (every app's cache) offers nothing another rule's location names, holds or sits inside,
+    /// so no folder is offered twice and no other rule's data goes with a parent folder.
+    public let yieldsToOtherRules: Bool
     public init(id: String, category: CatalogCategory, title: String, detail: String, consequence: String, regen: RegenClass, action: CleanupAction, locations: [String], owner: RuleOwner?, protectedNames: [String] = [], tool: ToolCommand? = nil, protectedExtensions: [String] = [], contents: ContentsMatch? = nil, keepNewestVersions: Int? = nil, layoutOverrides: [LayoutOverride] = [],
-                itemOwner: (@Sendable (URL) -> RuleOwner?)? = nil) {
+                itemOwner: (@Sendable (URL) -> RuleOwner?)? = nil, yieldsToOtherRules: Bool = false) {
         self.id = id; self.category = category; self.title = title; self.detail = detail; self.consequence = consequence
         self.regen = regen; self.action = action; self.locations = locations; self.owner = owner; self.protectedNames = protectedNames; self.tool = tool
         self.protectedExtensions = protectedExtensions; self.contents = contents; self.keepNewestVersions = keepNewestVersions; self.layoutOverrides = layoutOverrides
-        self.itemOwner = itemOwner
+        self.itemOwner = itemOwner; self.yieldsToOtherRules = yieldsToOtherRules
     }
 }
 
@@ -262,6 +265,7 @@ public struct Catalog: Sendable {
                 var info = stat()
                 guard lstat(url.path, &info) == 0, info.st_uid == geteuid(),
                       [S_IFDIR, S_IFREG].contains(info.st_mode & S_IFMT) else { return [] }
+                if rule.yieldsToOtherRules, claimedByAnotherRule(url, besides: rule, base: base) { return [] }
                 var profile = profile
                 if let itemOwner = rule.itemOwner {
                     guard let owner = itemOwner(url) else { return [] }
@@ -273,6 +277,23 @@ public struct Catalog: Sendable {
                                   profile: profile)]
             }
         }.filter { seen.insert($0.resourceID).inserted }
+    }
+
+    /// Whether another rule's location is this item, holds it, or exists inside it, whether or not that rule offers it now.
+    func claimedByAnotherRule(_ url: URL, besides rule: CleanupRule, base: URL) -> Bool {
+        let parts = Array(url.pathComponents.dropFirst(base.pathComponents.count))
+        return rules.contains { other in
+            other.id != rule.id && other.locations.contains { location in
+                let pattern = location.split(separator: "/").map(String.init)
+                let shared = min(pattern.count, parts.count)
+                guard zip(pattern.prefix(shared), parts.prefix(shared)).allSatisfy({ fnmatch($0, $1, 0) == 0 }) else { return false }
+                if pattern.count <= parts.count { return true }
+                return Self.expand(url, pattern.dropFirst(shared).joined(separator: "/")).contains { found, _ in
+                    var info = stat()
+                    return lstat(found.path, &info) == 0
+                }
+            }
+        }
     }
 
     private func candidate(_ rule: CleanupRule, _ url: URL, _ info: stat, logical: Int64, allocated: Int64?, complete: Bool, lastUsed: Date?, toolURL: URL? = nil, profile: String? = nil) -> Candidate {
