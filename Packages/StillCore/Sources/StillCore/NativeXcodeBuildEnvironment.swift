@@ -29,7 +29,9 @@ public protocol XcodeOwnerSnapshotReading: Sendable {
 }
 public struct XcodeInstallationObservation: Sendable {
     public let version: String
+    /// Authenticated CFBundleVersion, not the separately distributed version.plist ProductBuildVersion.
     public let build: String
+    public let codeDirectoryHash: String
     public let developerURL: URL
 }
 
@@ -52,7 +54,8 @@ public struct NativeXcodeBuildEnvironment: XcodeBuildEnvironment {
             throw NativeXcodeObservationFailure("This macOS version or architecture has not been qualified for Xcode cleanup.")
         }
         let installation = try installationObservation()
-        guard installation.version == "26.6", installation.build == "17F113" else {
+        guard installation.version == "26.6", installation.build == "24959",
+              installation.codeDirectoryHash == "502eca5e95e1b8eaaf52e9b38617e8e7d23f46db" else {
             throw NativeXcodeObservationFailure("This Xcode version/build has not been qualified for intermediate cleanup.")
         }
     }
@@ -68,33 +71,28 @@ public struct NativeXcodeBuildEnvironment: XcodeBuildEnvironment {
         var code: SecStaticCode?; var requirement: SecRequirement?
         guard SecStaticCodeCreateWithPath(application as CFURL, [], &code) == errSecSuccess, let code,
               SecRequirementCreateWithString("anchor apple and identifier \"com.apple.dt.Xcode\"" as CFString, [], &requirement) == errSecSuccess,
-              SecStaticCodeCheckValidity(code, SecCSFlags(rawValue: kSecCSStrictValidate), requirement) == errSecSuccess else {
+              SecStaticCodeCheckValidity(code, SecCSFlags(rawValue: kSecCSStrictValidate | kSecCSDoNotValidateResources), requirement) == errSecSuccess else {
             throw NativeXcodeObservationFailure("The Xcode installation signature could not be verified.")
         }
-        func plist(_ relative: String) throws -> [String: Any] {
-            let file = application.appendingPathComponent(relative)
-            var info = stat()
-            guard file.resolvingSymlinksInPath().path == file.path, lstat(file.path, &info) == 0,
-                  info.st_mode & S_IFMT == S_IFREG, info.st_size <= 1_000_000 else {
-                throw NativeXcodeObservationFailure("Xcode installation metadata is unavailable.")
-            }
-            let fd = open(file.path, O_RDONLY | O_NOFOLLOW)
-            guard fd >= 0 else { throw NativeXcodeObservationFailure("Xcode installation metadata could not be opened.") }
-            defer { close(fd) }
-            let data = try FileHandle(fileDescriptor: fd, closeOnDealloc: false).read(upToCount: 1_000_001) ?? Data()
-            guard data.count <= 1_000_000,
-                  let value = try PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any] else {
-                throw NativeXcodeObservationFailure("Xcode installation metadata is unsupported.")
-            }
-            return value
-        }
-        let info = try plist("Contents/Info.plist"), version = try plist("Contents/version.plist")
-        guard info["CFBundleIdentifier"] as? String == "com.apple.dt.Xcode",
+        // Resource traversal is deliberately excluded: the native executable,
+        // CodeDirectory, secured Info.plist and strict bundle structure remain checked.
+        // ProductBuildVersion from version.plist is not authenticated by this policy.
+        var signingDictionary: CFDictionary?
+        guard SecCodeCopySigningInformation(code, SecCSFlags(rawValue: kSecCSSigningInformation), &signingDictionary) == errSecSuccess,
+              let signing = signingDictionary as? [String: Any],
+              signing[kSecCodeInfoIdentifier as String] as? String == "com.apple.dt.Xcode",
+              let info = signing[kSecCodeInfoPList as String] as? [String: Any],
+              info["CFBundleIdentifier"] as? String == "com.apple.dt.Xcode",
               let number = info["CFBundleShortVersionString"] as? String,
-              let build = version["ProductBuildVersion"] as? String else {
-            throw NativeXcodeObservationFailure("Xcode version/build could not be observed.")
+              let build = info["CFBundleVersion"] as? String,
+              let unique = signing[kSecCodeInfoUnique as String] as? Data,
+              let executable = signing[kSecCodeInfoMainExecutable as String] as? URL,
+              executable.path == application.appendingPathComponent("Contents/MacOS/Xcode").path else {
+            throw NativeXcodeObservationFailure("Authenticated Xcode version/build/code identity could not be observed.")
         }
-        return .init(version: number, build: build, developerURL: application.appendingPathComponent("Contents/Developer", isDirectory: true))
+        return .init(version: number, build: build,
+                     codeDirectoryHash: unique.map { String(format: "%02x", $0) }.joined(),
+                     developerURL: application.appendingPathComponent("Contents/Developer", isDirectory: true))
     }
     public func ownerObservation() throws -> XcodeOwnerObservation {
         let snapshot: XcodeOwnerSnapshot

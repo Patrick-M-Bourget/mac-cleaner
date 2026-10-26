@@ -146,8 +146,14 @@ private final class CrashEnvironment: XcodeBuildEnvironment, @unchecked Sendable
         if command == "installation-full" {
             try require(arguments.count == 1, "Installation diagnosis accepts no paths")
             FileHandle.standardError.write(Data("[XCODE16-QUAL] begin installation-full\n".utf8))
-            let observed = try native.installationObservation()
-            try emit(["command": command, "source": source, "runID": run, "version": observed.version, "build": observed.build,
+            // Preserve the expensive SDK comparator as a diagnostic only even
+            // after the actual native gate uses bounded executable validation.
+            var fullCode: SecStaticCode?; var fullRequirement: SecRequirement?
+            try require(SecStaticCodeCreateWithPath(application as CFURL, [], &fullCode) == errSecSuccess, "Full diagnostic object unavailable")
+            guard let fullCode else { throw QualificationError("Full diagnostic object missing") }
+            try require(SecRequirementCreateWithString("anchor apple and identifier \"com.apple.dt.Xcode\"" as CFString, [], &fullRequirement) == errSecSuccess, "Full diagnostic requirement unavailable")
+            try require(SecStaticCodeCheckValidity(fullCode, SecCSFlags(rawValue: kSecCSStrictValidate), fullRequirement) == errSecSuccess, "Full SDK diagnostic refused")
+            try emit(["command": command, "source": source, "runID": run, "validation": "full SDK resource comparator only; not production gate",
                       "elapsedSeconds": ProcessInfo.processInfo.systemUptime - started])
             return
         }
