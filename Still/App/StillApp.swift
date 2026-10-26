@@ -302,7 +302,7 @@ private struct WorkspaceView: View {
                         if folderInspection.isScanning {
                             ActionStrip(message: "Manual scan running · No cleanup is running") { EmptyView() }
                         } else {
-                        ActionStrip(message: "\(StillDesign.files(selection.draft.selectedCount)) · \(selection.chrome.selectedCount) Chrome groups selected · Nothing changes before confirmation.") {
+                        ActionStrip(message: "\(StillDesign.files(selection.draft.selectedCount)) · \(selection.chrome.selectedCount) Chrome groups · \(selection.catalog.selectedCount == 1 ? "1 cache folder" : "\(selection.catalog.selectedCount) cache folders") selected · Nothing changes before confirmation.") {
                             Button("Review cleanup plan") { destination = .plan }.buttonStyle(.borderedProminent).disabled(selection.scans.isEmpty && !selection.hasPendingChoices)
                         }
                         }
@@ -316,6 +316,7 @@ private struct WorkspaceView: View {
         }
         .onChange(of: selection.chrome.isBusy) { previous, current in if previous && !current { capacity.request(.scanEnded) } }
         .onChange(of: selection.chrome.selectionRevision) { _, _ in AppLifecycleController.shared.hasPendingPlan = selection.hasPendingChoices }
+        .onChange(of: selection.catalog.selectionRevision) { _, _ in AppLifecycleController.shared.hasPendingPlan = selection.hasPendingChoices }
         .onChange(of: selection.mutationVersion) { _, _ in AppLifecycleController.shared.hasPendingPlan = selection.hasPendingChoices }
         .task { if await recovery.loadOnce() { openRecovery(caller: .overview, refresh: false) } }
         .task { locationsModel.load() }
@@ -443,7 +444,7 @@ private struct WorkspaceView: View {
                           refresh: { capacity.request(.manual) })
             scannedLocations
             overviewRecommendations
-        }
+        }.task { await selection.catalog.scanIfNeeded() }
     }
 
     private var overviewRecommendations: some View {
@@ -455,6 +456,16 @@ private struct WorkspaceView: View {
                     Divider().padding(.horizontal, StillDesign.Space.lg)
                     StorageReviewRow(category: .developer, title: "Xcode build files", detail: "Build-file cleanup isn’t available yet.", value: "Not inspected", meaning: "Unavailable")
                     Divider().padding(.horizontal, StillDesign.Space.lg)
+                    ForEach(selection.catalog.rulesFound) { rule in
+                        let catalog = selection.catalog
+                        StorageReviewRow(category: rule.category.storageCategory, title: rule.title, detail: rule.detail,
+                            value: catalogBytes(catalog.estimatedBytes(for: rule), complete: catalog.sizeComplete(for: rule)),
+                            meaning: catalog.isSelected(rule) ? "Estimated · In cleanup plan" : "Estimated",
+                            actionTitle: "Add \(rule.title) to the cleanup plan",
+                            action: catalog.canEdit ? { catalog.setSelected(rule, true); destination = .plan } : nil,
+                            identifier: "overviewRule-" + rule.id)
+                        Divider().padding(.horizontal, StillDesign.Space.lg)
+                    }
                     overviewDownloadsRow
                     Divider().padding(.horizontal, StillDesign.Space.lg)
                     StorageReviewRow(category: .browser, title: "Browser caches", detail: "Browser cache cleanup isn’t available yet.", value: "Not inspected", meaning: "Unavailable")

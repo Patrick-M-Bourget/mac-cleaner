@@ -6,21 +6,24 @@ import SwiftUI
 @MainActor @Observable final class SessionPlan {
     let execution = CleanupExecutionModel()
     let chrome = ChromeCleanupModel()
+    let catalog = CatalogCleanupModel()
     private(set) var workspaceRunning = false
     private(set) var workspaceFinished = false
     private(set) var workspaceStopRequested = false
     private var workspaceCancellation: CleanupCancellation?
     private(set) var workspaceBefore: StartupVolumeCapacity?
     private(set) var workspaceAfter: StartupVolumeCapacity?
-    var hasWorkspaceResult: Bool { workspaceFinished || execution.result != nil || execution.error != nil || chrome.result != nil }
-    var hasPendingChoices: Bool { draft.selectedCount > 0 || chrome.selectedCount > 0 }
-    var workspaceSelectedCount: Int { draft.selectedCount + chrome.selectedCount }
+    var hasWorkspaceResult: Bool { workspaceFinished || execution.result != nil || execution.error != nil || chrome.result != nil || catalog.result != nil }
+    var hasPendingChoices: Bool { draft.selectedCount > 0 || chrome.selectedCount > 0 || catalog.selectedCount > 0 }
+    var workspaceSelectedCount: Int { draft.selectedCount + chrome.selectedCount + catalog.selectedCount }
     var workspaceSelectedSize: String {
         if !hasPendingChoices { return "—" }
-        if chrome.selectedCount == 0 { return ByteCountFormatter.string(fromByteCount: draft.logicalBytes, countStyle: .decimal) }
-        guard let cache = chrome.estimatedBytes else { return "Unknown" }
-        let sum = draft.logicalBytes.addingReportingOverflow(cache)
-        return sum.overflow ? "Unknown" : ByteCountFormatter.string(fromByteCount: sum.partialValue, countStyle: .decimal)
+        var total = draft.logicalBytes.addingReportingOverflow(catalog.estimatedBytes)
+        if chrome.selectedCount > 0 {
+            guard let cache = chrome.estimatedBytes, !total.overflow else { return "Unknown" }
+            total = total.partialValue.addingReportingOverflow(cache)
+        }
+        return total.overflow ? "Unknown" : ByteCountFormatter.string(fromByteCount: total.partialValue, countStyle: .decimal)
     }
     var workspaceObservedChange: Int64? {
         guard let before = workspaceBefore, let after = workspaceAfter, let id = before.volumeID,
@@ -43,7 +46,8 @@ import SwiftUI
     var canReview: Bool {
         !AppLifecycleController.shared.maintenanceInProgress && !isPreparing && !execution.isRunning && !workspaceRunning && !chrome.isBusy && !chrome.isRunning && !isRefreshing
         && (draft.selectedCount == 0 || refresh.canReview(draft))
-        && (chrome.selectedCount == 0 || chrome.canReview) && hasPendingChoices
+        && (chrome.selectedCount == 0 || chrome.canReview)
+        && (catalog.selectedCount == 0 || catalog.canReview) && hasPendingChoices
     }
     /// Downloads is the only currently actionable cleanup category. Count live
     /// reviewable membership, never retained suspended choices or consumed results.
@@ -371,7 +375,7 @@ import SwiftUI
         for target in draft.selected where refresh.requiresRefresh(target.id) || unavailableSelected.contains(where: { $0.id == target.id }) { remove(target) }
     }
     func startNewPlan() {
-        guard !workspaceRunning, !chrome.isRunning else { return }; endSession(); execution.clear(); chrome.endSession(); workspaceFinished = false; workspaceStopRequested = false; workspaceCancellation = nil; workspaceBefore = nil; workspaceAfter = nil; unavailableScopes.removeAll()
+        guard !workspaceRunning, !chrome.isRunning, !catalog.isRunning else { return }; endSession(); execution.clear(); chrome.endSession(); catalog.endSession(); workspaceFinished = false; workspaceStopRequested = false; workspaceCancellation = nil; workspaceBefore = nil; workspaceAfter = nil; unavailableScopes.removeAll()
     }
     func leaveRetryMode() {
         guard !isRetryRechecking && !execution.isRunning else { return }
@@ -445,15 +449,16 @@ import SwiftUI
     }
     func prepareWorkspaceReview() async throws -> WorkspaceCleanupReview {
         guard canReview else { throw PlanSelectionError.ineligible }
-        let downloadsVersion = mutationVersion, chromeVersion = chrome.selectionRevision
+        let downloadsVersion = mutationVersion, chromeVersion = chrome.selectionRevision, catalogVersion = catalog.selectionRevision
         let files = draft.selectedCount > 0 ? try draft.review() : nil
         let groups = chrome.selectedCount > 0 ? await chrome.prepareReview() : nil
-        guard canReview, mutationVersion == downloadsVersion, chrome.selectionRevision == chromeVersion,
-              chrome.selectedCount == 0 || groups != nil else { throw PlanSelectionError.ineligible }
-        return WorkspaceCleanupReview(downloads: files, chrome: groups, downloadsVersion: downloadsVersion, chromeVersion: chromeVersion)
+        let caches = catalog.selectedCount > 0 ? await catalog.prepareReview() : nil
+        guard canReview, mutationVersion == downloadsVersion, chrome.selectionRevision == chromeVersion, catalog.selectionRevision == catalogVersion,
+              chrome.selectedCount == 0 || groups != nil, catalog.selectedCount == 0 || caches != nil else { throw PlanSelectionError.ineligible }
+        return WorkspaceCleanupReview(downloads: files, chrome: groups, catalog: caches, downloadsVersion: downloadsVersion, chromeVersion: chromeVersion, catalogVersion: catalogVersion)
     }
     func executeWorkspace(_ review: WorkspaceCleanupReview) async throws {
-        guard canReview, mutationVersion == review.downloadsVersion, chrome.selectionRevision == review.chromeVersion else { throw PlanSelectionError.ineligible }
+        guard canReview, mutationVersion == review.downloadsVersion, chrome.selectionRevision == review.chromeVersion, catalog.selectionRevision == review.catalogVersion else { throw PlanSelectionError.ineligible }
         if let files = review.downloads { try approve(files) }
         let cancellation = CleanupCancellation()
         workspaceCancellation = cancellation; workspaceStopRequested = false
@@ -468,12 +473,13 @@ import SwiftUI
             guard draft.selectedCount == 0 else { return }
         }
         if let caches = review.chrome { await chrome.execute(caches, cancellation: cancellation) }
+        if let caches = review.catalog { await catalog.execute(caches.approval, cancellation: cancellation) }
         workspaceAfter = await Task.detached { StartupVolumeCapacity.read() }.value
         workspaceFinished = true
         lifecycle.capacity.request(.cleanupEnded)
     }
-    func cancelWorkspace() { workspaceStopRequested = true; workspaceCancellation?.cancel(); execution.cancel(); chrome.cancel() }
-    func endSession() { guard !execution.isRunning && !workspaceRunning && !chrome.isRunning else { return }; chrome.endSession(); retryCancellation?.cancel(); retryGeneration = UUID(); retryCancellation = nil; isRetryRechecking = false; isPreparing = false; retryTargetIDs = nil; retryExcludedURLs = []; draft.clear(); scans.removeAll(); unavailableScopes.removeAll(); isRefreshingBatch = false; refresh = RefreshChoices(); refreshRequests.removeAll(); approvedBatch = nil; AppLifecycleController.shared.hasPendingPlan = false }
+    func cancelWorkspace() { workspaceStopRequested = true; workspaceCancellation?.cancel(); execution.cancel(); chrome.cancel(); catalog.cancel() }
+    func endSession() { guard !execution.isRunning && !workspaceRunning && !chrome.isRunning && !catalog.isRunning else { return }; chrome.endSession(); catalog.endSession(); retryCancellation?.cancel(); retryGeneration = UUID(); retryCancellation = nil; isRetryRechecking = false; isPreparing = false; retryTargetIDs = nil; retryExcludedURLs = []; draft.clear(); scans.removeAll(); unavailableScopes.removeAll(); isRefreshingBatch = false; refresh = RefreshChoices(); refreshRequests.removeAll(); approvedBatch = nil; AppLifecycleController.shared.hasPendingPlan = false }
 }
 
 @MainActor @Observable final class CleanupPlanPresentation {
@@ -507,10 +513,14 @@ struct LiveCleanupPlanView: View {
         if selection.workspaceRunning || selection.hasWorkspaceResult {
             VStack(alignment: .leading, spacing: StillDesign.Space.xl) {
                 let includesChrome = selection.chrome.selectedCount > 0 || selection.chrome.isRunning || selection.chrome.result != nil
-                if includesChrome {
-                    PageHeader(title: selection.workspaceRunning ? "Running cleanup" : "Cleanup results", subtitle: "Review each action's recorded outcome. Chrome caches are permanently removed; Downloads go to Trash.")
+                let includesCatalog = selection.catalog.isRunning || selection.catalog.result != nil
+                if includesChrome || includesCatalog {
+                    PageHeader(title: selection.workspaceRunning ? "Running cleanup" : selection.catalog.result?.previewOnly == true ? "Preview results" : "Cleanup results", subtitle: "Review each action’s recorded outcome. Caches are permanently removed; Downloads go to Trash.")
                 }
-                if selection.execution.isRunning || selection.execution.result != nil || selection.execution.error != nil { CleanupExecutionView(model: selection.execution, retryMessage: selection.message, showsHeader: !includesChrome) }
+                if selection.execution.isRunning || selection.execution.result != nil || selection.execution.error != nil { CleanupExecutionView(model: selection.execution, retryMessage: selection.message, showsHeader: !includesChrome && !includesCatalog) }
+                if selection.catalog.isRunning { ProgressView(selection.catalog.previewOnly ? "Checking selected items…" : "Clearing selected caches…") }
+                if let result = selection.catalog.result { CatalogResultsSection(result: result, catalog: selection.catalog.catalog) }
+                if let message = selection.catalog.message { StatusRow(text: message, symbol: "exclamationmark.triangle", role: .caution) }
                 if selection.chrome.isRunning { ProgressView("Clearing selected Chrome cache groups…") }
                 if let result = selection.chrome.result { ChromeResultsSection(result: result) }
                 if selection.chrome.result != nil || selection.chrome.isRunning {
@@ -526,7 +536,9 @@ struct LiveCleanupPlanView: View {
             PageHeader(title: "Cleanup plan", subtitle: selection.retryTargetIDs == nil ? "Choose categories, adjust items if needed, then review the changes." : "Only rechecked unfinished files are included. Completed successes and new discoveries stay excluded.")
                 .padding(.bottom, StillDesign.Space.sm)
             ScanHistoryRecordingNotice()
-            SelectionSummary(value: selection.workspaceSelectedSize, detail: selection.chrome.selectedCount == 0 ? "\(StillDesign.files(selection.draft.selectedCount)) selected" : "\(StillDesign.files(selection.draft.selectedCount)) · \(selection.chrome.selectedCount) Chrome groups selected", identifier: "liveSelectionSummary", consequence: selection.chrome.selectedCount == 0 ? "Space stays occupied until Finder empties Trash. Nothing changes before final confirmation." : "Chrome caches are permanently removed and may regrow. Downloads stay occupied in Trash.", title: selection.chrome.selectedCount == 0 ? "Selected for Trash" : "Selected for cleanup")
+            let removesCaches = selection.chrome.selectedCount > 0 || selection.catalog.selectedCount > 0
+            SelectionSummary(value: selection.workspaceSelectedSize, detail: ([StillDesign.files(selection.draft.selectedCount)] + (selection.chrome.selectedCount > 0 ? ["\(selection.chrome.selectedCount) Chrome groups"] : []) + (selection.catalog.selectedCount > 0 ? [selection.catalog.selectedCount == 1 ? "1 cache folder" : "\(selection.catalog.selectedCount) cache folders"] : [])).joined(separator: " · ") + " selected", identifier: "liveSelectionSummary", consequence: removesCaches ? "Caches are permanently removed and may regrow. Downloads stay occupied in Trash." : "Space stays occupied until Finder empties Trash. Nothing changes before final confirmation.", title: removesCaches ? "Selected for cleanup" : "Selected for Trash")
+            CatalogPlanSection(model: selection.catalog)
             if selection.pendingCount > 0 {
                 StatusRow(text: "Refresh required · Previous choices retained for \(StillDesign.files(selection.pendingCount)).", symbol: "arrow.clockwise", role: .caution)
                 Button("Deselect unavailable files") { selection.deselectUnavailable() }
@@ -648,6 +660,7 @@ ReviewCleanupButton(enabled: selection.canReview, focusRequest: reviewFocusReque
         .onChange(of: selection.isRefreshing) { _, refreshing in if !refreshing { reconcileInspector() } }
         .onChange(of: selection.scans.values.map(\.observedAt).sorted()) { _, _ in reconcileInspector() }
         .onChange(of: selection.chrome.selectionRevision) { _, _ in if review != nil { review = nil } }
+        .onChange(of: selection.catalog.selectionRevision) { _, _ in if review != nil { review = nil } }
         .onChange(of: selection.mutationVersion) { _, _ in if review != nil { review = nil } }
     }
     private func reconcileInspector() {
@@ -703,19 +716,23 @@ struct WorkspaceCleanupReview: Identifiable {
     let id = UUID()
     let downloads: CleanupReview?
     let chrome: ChromeCacheApproval?
+    let catalog: CatalogReview?
     let downloadsVersion: UInt64
     let chromeVersion: UInt64
+    let catalogVersion: UInt64
 }
 private struct WorkspaceCleanupConfirmationView: View {
     let review: WorkspaceCleanupReview
     let cancel: () -> Void
     let approve: () -> Void
+    /// Only catalog actions are selected and Preview only is on, so nothing will change.
+    private var previewOnlyRun: Bool { review.catalog?.approval.previewOnly == true && review.downloads == nil && review.chrome == nil }
     var body: some View {
-        if review.chrome == nil, let files = review.downloads {
+        if review.chrome == nil, review.catalog == nil, let files = review.downloads {
             CleanupConfirmationView(review: files, cancel: cancel, approve: approve)
         } else {
             VStack(alignment: .leading, spacing: StillDesign.Space.lg) {
-                PageHeader(title: "Review cleanup", subtitle: "Review each action before making changes.")
+                PageHeader(title: "Review your changes", subtitle: "Check what each action does. You can go back and change your selection.")
                 ScrollView {
                     VStack(alignment: .leading, spacing: StillDesign.Space.xl) {
                         if let files = review.downloads {
@@ -724,11 +741,12 @@ private struct WorkspaceCleanupConfirmationView: View {
                             ForEach(files.targets) { Text($0.url.path).font(.caption).textSelection(.enabled) }
                             Divider()
                         }
-                        if let groups = review.chrome { ChromeConfirmationSection(approval: groups) }
+                        if let groups = review.chrome { ChromeConfirmationSection(approval: groups); Divider() }
+                        if let caches = review.catalog { CatalogConfirmationSection(review: caches, catalog: Catalog(rules: BuiltInCatalog.rules)) }
                     }.frame(maxWidth: .infinity, alignment: .leading)
                 }
                 Divider()
-                HStack { Button("Cancel", action: cancel).keyboardShortcut(.cancelAction); Spacer(); Button("Run cleanup", action: approve).buttonStyle(.borderedProminent) }
+                HStack { Button("Cancel", action: cancel).keyboardShortcut(.cancelAction); Spacer(); Button(previewOnlyRun ? "Run preview" : "Run cleanup", action: approve).buttonStyle(.borderedProminent) }
             }.padding(StillDesign.Space.xl).frame(width: 640, height: 520).background(StillDesign.reading)
         }
     }
