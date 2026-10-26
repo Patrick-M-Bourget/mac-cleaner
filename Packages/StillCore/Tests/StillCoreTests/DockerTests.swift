@@ -213,3 +213,27 @@ private func dockerRun(_ home: URL, docker: URL, choose ruleIDs: Set<String>, vo
     let run = try #require(CleanupHistorySnapshot(records: result.records).completedRuns.first)
     #expect(run.plannedLogicalBytes == 2_500_000_000 + 120_000_000)
 }
+
+@Test func dockerGoingDownThenUpIsCoverageNeverGrowth() async throws {
+    let home = try fixtureHome(), store = FileManager.default.temporaryDirectory.appendingPathComponent("StillDockerGrowth-\(UUID())")
+    defer { try? FileManager.default.removeItem(at: home); try? FileManager.default.removeItem(at: store) }
+    let down = home.appendingPathComponent("tools/down")
+    let docker = try fakeDocker(home, df: "if test -f \"$(dirname \"$0\")/down\"; then echo 'Cannot connect to the Docker daemon' >&2; exit 1; fi; cat \"$(dirname \"$0\")/df.json\"")
+    let catalog = Catalog(rules: fixtureRules), recorder = GrowthScanRecorder(store: GrowthHistoryStore(directory: store))
+    func scan() async throws -> GrowthComparison {
+        let token = try await recorder.beginCatalog(home: home, exclusionFingerprint: ExclusionPolicy().fingerprint)
+        let discovery = catalog.discovery(fixture: home, locateTool: { $0.executables.contains("/usr/local/bin/docker") ? docker : nil })
+        return try await recorder.completeCatalog(discovery, catalog: catalog, fullDiskAccess: .granted, token: token)
+    }
+    _ = try await scan()
+    try Data().write(to: down)
+    let stopped = try await scan()
+    #expect(stopped.current?.groups.filter { $0.ruleID?.hasPrefix("docker-") == true }.allSatisfy { $0.measured == false } == true)
+    #expect(stopped.logicalDelta == 0)
+    #expect(Set(stopped.coverageChanges.map(\.kind)) == [.newlyUnreadable])
+    try FileManager.default.removeItem(at: down)
+    let running = try await scan()
+    #expect(running.logicalDelta == 0)
+    #expect(running.groups.first { $0.id == "category:developer" }?.logicalDelta ?? 0 == 0)
+    #expect(running.coverageChanges.count == 3 && Set(running.coverageChanges.map(\.kind)) == [.newlyReadable])
+}

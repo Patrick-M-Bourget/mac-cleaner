@@ -3,7 +3,8 @@ import Darwin
 
 /// What a completed catalog scan records for What grew: one group per scanned rule location, with its category,
 /// its size and whether it could be read. Every scanned location is recorded, found or not, so a location that
-/// appears later is growth, while one the scan starts or stops covering is a coverage change.
+/// appears later is growth, while one the scan starts or stops covering is a coverage change. A location Still
+/// couldn't read, or whose tool didn't answer, is recorded as not measured, never as 0.
 public enum CatalogGrowth {
     public static func groups(_ discovery: CatalogDiscovery, catalog: Catalog, fullDiskAccess: FullDiskAccessStatus) -> [GrowthAggregate] {
         struct Group { let rule: CleanupRule; let location: String; var bytes: Int64 = 0; var measured: Bool }
@@ -12,7 +13,8 @@ public enum CatalogGrowth {
             guard let rule = catalog.rule(id) else { continue }
             let readable = rule.access(given: fullDiskAccess) == .available
             for location in rule.locations where groups[key(rule, location)] == nil {
-                groups[key(rule, location)] = Group(rule: rule, location: location, measured: readable)
+                let measured = readable && discovery.notMeasured[rule.id]?.contains(location) != true
+                groups[key(rule, location)] = Group(rule: rule, location: location, measured: measured)
                 order.append(key(rule, location))
             }
         }

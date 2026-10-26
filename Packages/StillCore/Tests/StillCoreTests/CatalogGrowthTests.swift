@@ -156,3 +156,35 @@ private func recordCatalogScan(_ catalog: Catalog, home: URL, recorder: GrowthSc
     let widest = GrowthRetention(days: 365, baselines: 100, bytes: .max)
     #expect(widest.days == 90 && widest.baselines == 30 && widest.bytes == 250_000_000)
 }
+
+@Test func aLocationThatExistsButCantBeReadIsCoverageNeverGrowth() async throws {
+    let home = try fixtureHome(), (store, directory) = growthStore()
+    let folders = ["Library/FixtureCache", "Library/FixtureCaches", "FixtureDownloads"].map { home.appendingPathComponent($0) }
+    defer { folders.forEach { chmod($0.path, 0o755) }; try? FileManager.default.removeItem(at: home); try? FileManager.default.removeItem(at: directory) }
+    // A plain folder, each folder inside one, and single files inside one.
+    let rules = [
+        CleanupRule(id: "fixture-cache", category: .developer, title: "Fixture cache", detail: "", consequence: "", regen: .cache, action: .delete,
+                    locations: ["Library/FixtureCache"], owner: nil),
+        CleanupRule(id: "fixture-caches", category: .developer, title: "Fixture caches", detail: "", consequence: "", regen: .cache, action: .delete,
+                    locations: ["Library/FixtureCaches/*"], owner: nil),
+        CleanupRule(id: "fixture-downloads", category: .downloads, title: "Fixture downloads", detail: "", consequence: "", regen: .installer, action: .trash,
+                    locations: ["FixtureDownloads"], owner: nil, contents: ContentsMatch(extensions: ["dmg"])),
+    ]
+    let catalog = Catalog(rules: rules), recorder = GrowthScanRecorder(store: store)
+    try write(3_000_000, at: "Library/FixtureCache/blob", in: home)
+    try write(2_000_000, at: "Library/FixtureCaches/one/blob", in: home)
+    try write(1_000_000, at: "FixtureDownloads/app.dmg", in: home)
+    _ = try await recordCatalogScan(catalog, home: home, recorder: recorder)
+
+    for folder in folders { #expect(chmod(folder.path, 0) == 0) }
+    let unreadable = try await recordCatalogScan(catalog, home: home, recorder: recorder)
+    #expect(unreadable.current?.groups.map(\.measured) == [false, false, false])
+    #expect(unreadable.logicalDelta == 0)
+    #expect(unreadable.coverageChanges.map(\.kind) == [.newlyUnreadable, .newlyUnreadable, .newlyUnreadable])
+
+    for folder in folders { #expect(chmod(folder.path, 0o755) == 0) }
+    let readable = try await recordCatalogScan(catalog, home: home, recorder: recorder)
+    #expect(readable.logicalDelta == 0)
+    #expect(readable.groups.filter { $0.dimension == .category }.allSatisfy { $0.logicalDelta == 0 })
+    #expect(readable.coverageChanges.map(\.kind) == [.newlyReadable, .newlyReadable, .newlyReadable])
+}

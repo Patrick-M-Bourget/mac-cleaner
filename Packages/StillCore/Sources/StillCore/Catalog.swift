@@ -349,6 +349,7 @@ public struct Catalog: Sendable {
         var seen = Set<String>()
         var notes: [CatalogNote] = []
         var scanned: [String] = []
+        var notMeasured: [String: Set<String>] = [:]
         // `docker system df` runs once per scan, for every Docker rule, and only once a rule's folder exists.
         var dockerUsage: [String: Result<[DockerStorageCategory], ToolPreviewError>] = [:]
         let overridden = Set(overriddenRules(home: home, systemRoot: systemRoot).map(\.id))
@@ -362,6 +363,7 @@ public struct Catalog: Sendable {
             let toolURL = rule.tool.flatMap(locateTool)
             guard rule.action != .tool || toolURL != nil else { return leftovers.map { $0.found(under: base) } }
             scanned.append(rule.id)
+            for location in rule.locations where Self.cantRead(location, under: base) { notMeasured[rule.id, default: []].insert(location) }
             // A trailing `/*` offers each folder inside (DeviceSupport versions); a `*` inside the path names a profile.
             let found = rule.locations.flatMap { location -> [(URL, String?)] in
                 // A pattern as the last component (`models--*`) also offers each matching folder.
@@ -382,7 +384,7 @@ public struct Catalog: Sendable {
                     let usage = dockerUsage[toolURL.path] ?? DockerDiskUsage.read(toolURL)
                     if dockerUsage[toolURL.path] == nil, case .failure(let error) = usage { notes.append(CatalogNote(ruleID: rule.id, text: DockerDiskUsage.notice(error))) }
                     dockerUsage[toolURL.path] = usage
-                    guard case .success(let rows) = usage else { return [] }
+                    guard case .success(let rows) = usage else { notMeasured[rule.id, default: []].formUnion(rule.locations); return [] }
                     return dockerCandidate(kind, at: url, rule: rule, toolURL: toolURL, usage: rows).map { [$0] } ?? []
                 }
                 var info = stat()
@@ -414,7 +416,17 @@ public struct Catalog: Sendable {
             if !exclusions.rules.isEmpty, candidate.volumeID.map({ exclusions.covers(candidate.url, volumeID: $0) }) ?? true { return false }
             return seen.insert(spaceKey(of: candidate)).inserted
         }
-        return CatalogDiscovery(candidates: candidates, notes: notes, scannedRuleIDs: scanned, notAccessible: notAccessible)
+        return CatalogDiscovery(candidates: candidates, notes: notes, scannedRuleIDs: scanned, notAccessible: notAccessible, notMeasured: notMeasured)
+    }
+
+    /// Whether a location exists but can't be listed (macOS privacy protection, permissions): the folder it names, or
+    /// the one its first `*` part is matched in. Nothing found there is then a measurement of 0.
+    static func cantRead(_ location: String, under base: URL) -> Bool {
+        let fixed = location.split(separator: "/").prefix { !$0.contains("*") }.joined(separator: "/")
+        let url = fixed.isEmpty ? base : base.appendingPathComponent(fixed)
+        var info = stat()
+        guard lstat(url.path, &info) == 0, info.st_mode & S_IFMT == S_IFDIR else { return false }
+        return !isReadable(url, info)
     }
 
     /// What a candidate's space is keyed on, so the same space is offered and counted once: the item itself, or for a tool
