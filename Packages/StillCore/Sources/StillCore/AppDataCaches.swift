@@ -76,6 +76,20 @@ public enum AppDataCaches {
                          executables: ["Adobe Premiere*", "After Effects", "Adobe After Effects*", "Adobe Media Encoder*", "Adobe Audition*",
                                        "Adobe Character Animator*", "Adobe Prelude*", "dynamiclinkmanager"]))
 
+    // MARK: Audio production (#139)
+
+    /// Ableton Live's cache folder, by default ~/Library/Caches/Ableton/Cache (Ableton Help, "The file could not be read.
+    /// It may be corrupt or not licensed", help.ableton.com/hc/en-us/articles/209774325). Live keeps the WAV files it
+    /// decodes from compressed samples in its Decoding subfolder and decodes them again when needed (Live 12 manual,
+    /// "Managing Files and Sets": Decoding Cache). A cache folder moved in Settings > File & Folder isn't found. The
+    /// bundle identifier and executable are from Live 12's Info.plist (`com.ableton.live`, `Live`).
+    static let abletonCache = CleanupRule(
+        id: "ableton-cache", category: .system, title: "Ableton Live cache",
+        detail: "WAV files Live decoded from your MP3, AAC and other compressed samples.",
+        consequence: "Permanently removed. Your Sets, samples and Packs are not touched. Live decodes compressed samples again when it next plays them.",
+        regen: .cache, action: .delete, locations: ["Library/Caches/Ableton/Cache"],
+        owner: RuleOwner(name: "Ableton Live", bundleIDs: ["com.ableton.live"], executables: ["Live"]))
+
     // MARK: Sandboxed apps
 
     /// A sandboxed app's caches folder, `~/Library/Containers/<bundle id>/Data/Library/Caches`: its own ~/Library/Caches
@@ -102,6 +116,7 @@ public enum AppDataCaches {
         [
             jetBrains,
             adobeMediaCache,
+            abletonCache,
             sandboxedCaches(apps: apps),
             vsCode(id: "vscode-cache", name: "Visual Studio Code", nameShort: "Code", bundleID: "com.microsoft.VSCode"),
             vsCode(id: "vscodium-cache", name: "VSCodium", nameShort: "VSCodium", bundleID: "com.vscodium"),

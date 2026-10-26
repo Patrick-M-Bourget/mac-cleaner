@@ -204,3 +204,21 @@ private let editor = InstalledApp(name: "Editor", bundleID: "com.example.Editor"
     let rule = try #require(catalog.rule("rack-extensions"))
     #expect(rule.category == .managed && rule.action == .guidance && rule.guidance?.openTitle == "Open in Finder")
 }
+
+// MARK: Audio production (#139)
+
+@Test func abletonsDecodingCacheIsOfferedAndRefusedWhileLiveRuns() throws {
+    let home = try fixtureHome()
+    defer { try? FileManager.default.removeItem(at: home) }
+    try write(home, "Library/Caches/Ableton/Cache/Decoding/loop.mp3.wav", bytes: 8_192)
+    // The User Library and Packs are the user's content, never a cache.
+    for kept in ["Music/Ableton/User Library/Presets/a.adv", "Music/Ableton/Factory Packs/Core Library/b.wav"] { try write(home, kept) }
+    let catalog = Catalog(rules: fixtureRules)
+    #expect(found(catalog, home) == ["Library/Caches/Ableton/Cache": "ableton-cache"])
+    let rule = try #require(catalog.rule("ableton-cache"))
+    #expect(rule.action == .delete && rule.regen == .cache)
+    let cache = try #require(catalog.discover(fixture: home).first)
+    #expect(CandidateCheck(catalog: catalog, running: Running(bundleIDs: ["com.ableton.live"])).check(cache) == .ownerRunning("Ableton Live"))
+    #expect(CandidateCheck(catalog: catalog, running: Running(processes: [["/Applications/Ableton Live 12 Suite.app/Contents/MacOS/Live"]])).check(cache) == .ownerRunning("Ableton Live"))
+    #expect(CandidateCheck(catalog: catalog, running: Running()).check(cache) == nil)
+}
