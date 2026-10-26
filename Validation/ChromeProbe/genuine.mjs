@@ -7,6 +7,7 @@ import { tmpdir, release, arch } from 'node:os';
 import { join, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import assert from 'node:assert/strict';
+import {crashpadBaseline,captureOwnedCrashpad,closeOwnedCrashpad} from './owned-crashpad.mjs';
 
 // Hosted-only: no installed browser, personal profile, OS settings or permissions.
 assert.equal(process.env.GITHUB_ACTIONS, 'true', 'Run on an ephemeral GitHub-hosted macOS runner only');
@@ -115,6 +116,7 @@ async function launch(profile, restore = false) {
   await unlink(portFile).catch(e => { if (e.code !== 'ENOENT') throw e; });
   const args = ['--enable-automation', '--headless=new', '--no-first-run', '--no-default-browser-check', '--disable-background-networking', '--disable-component-update', '--disable-sync', '--disable-extensions', '--disable-default-apps', '--metrics-recording-only', '--password-store=basic', '--use-mock-keychain', '--remote-debugging-address=127.0.0.1', '--remote-debugging-port=0', `--user-data-dir=${userData}`, `--profile-directory=${profile}`, 'about:blank'];
   if (restore) args.splice(-1, 0, '--restore-last-session');
+  const priorCrashpad = process.env.STILL_CHROME_SWIFT_RUNNER ? crashpadBaseline(bundle) : null;
   const child = spawn(browser, args, { detached: true, stdio: ['ignore', 'ignore', 'pipe'] });
   owned = { child, pid: child.pid, stderr: '' };
   child.stderr.on('data', b => { owned && (owned.stderr = (owned.stderr + b.toString()).slice(-8000)); });
@@ -128,6 +130,7 @@ async function launch(profile, restore = false) {
   const ws = new WebSocket(endpoint);
   await new Promise((resolve, reject) => { ws.addEventListener('open', resolve, { once: true }); ws.addEventListener('error', reject, { once: true }); });
   const cdp = new CDP(ws);
+  if (priorCrashpad) owned.crashpadOwnership = await captureOwnedCrashpad(bundle,userData,priorCrashpad);
   if (restore) {
     let targets = [];
     for (let i = 0; i < 50; i++) {
@@ -189,6 +192,10 @@ async function closeOwned() {
   try { process.kill(-current.pid, 0); } catch (e) { if (e.code === 'ESRCH') groupExists = false; else throw e; }
   if (groupExists) { process.kill(-current.pid, 'SIGTERM'); await sleep(1000); }
   try { process.kill(-current.pid, 0); throw new Error('Owned browser/helper group remains active'); } catch (e) { if (e.code !== 'ESRCH') throw e; }
+  if (current.crashpadOwnership) {
+    const outcomes = await closeOwnedCrashpad(current.crashpadOwnership);
+    (report.fixtureHelperTeardown ??= []).push(...outcomes);
+  }
   current.ws?.close(); owned = undefined;
 }
 async function leaves(directory) {
