@@ -4,6 +4,14 @@ import StillCore
 /// User-visible browser-cache journeys with real files under the app's guarded disposable state.
 final class ChromeCleanupUITests: XCTestCase {
     @MainActor func testChromeSelectionCancelAndPermanentCleanupPreservePersonalData() throws {
+        try runCleanupJourney(minimum: false)
+    }
+
+    @MainActor func testMinimumChromeSelectionCancelAndPermanentCleanupPreservePersonalData() throws {
+        try runCleanupJourney(minimum: true)
+    }
+
+    @MainActor private func runCleanupJourney(minimum: Bool) throws {
         continueAfterFailure = false
         let app = XCUIApplication()
         let state = try configureIsolatedJourneyState(app)
@@ -14,7 +22,7 @@ final class ChromeCleanupUITests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: downloads) }
         let ordinaryFile = downloads.appendingPathComponent("owned-review.pdf")
         try Data("owned personal-file fixture".utf8).write(to: ordinaryFile)
-        app.launchArguments = ["--chrome-cleanup-fixture", "--ui-test-downloads-root", "--design-initial-size"]
+        app.launchArguments = ["--chrome-cleanup-fixture", "--ui-test-downloads-root", minimum ? "--design-minimum" : "--design-initial-size"]
         app.launchEnvironment["STILL_TEST_DOWNLOADS_ROOT"] = downloads.path
         app.launch()
         XCTAssertTrue(app.buttons["Choose folder…"].waitForExistence(timeout: 5)); app.buttons["Choose folder…"].click()
@@ -37,16 +45,21 @@ final class ChromeCleanupUITests: XCTestCase {
         for theme in ["Light", "Dark"] {
             app.popUpButtons["Appearance"].click(); app.menuItems[theme].click()
             let capture = XCTAttachment(screenshot: app.windows.firstMatch.screenshot())
-            capture.name = "chrome-review-initial-" + theme; capture.lifetime = .keepAlways; add(capture)
+            capture.name = "chrome-review-" + (minimum ? "minimum-" : "initial-") + theme; capture.lifetime = .keepAlways; add(capture)
         }
         group.click()
         XCTAssertEqual(app.windows.firstMatch.frame, bounds)
         app.buttons["View cleanup plan"].click()
         XCTAssertTrue(app.buttons["Review cleanup"].waitForExistence(timeout: 5))
-        app.buttons["Review cleanup"].click()
-        XCTAssertTrue(app.sheets.buttons["Run cleanup"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.staticTexts["Permanently clear Chrome asset caches"].exists)
-        app.sheets.buttons["Cancel"].click()
+        for theme in ["Light", "Dark"] {
+            app.popUpButtons["Appearance"].click(); app.menuItems[theme].click()
+            capture(app, name: "chrome-mixed-plan-" + (minimum ? "minimum-" : "initial-") + theme)
+            app.buttons["Review cleanup"].click()
+            XCTAssertTrue(app.sheets.buttons["Run cleanup"].waitForExistence(timeout: 5))
+            XCTAssertTrue(app.staticTexts["Permanently clear Chrome asset caches"].exists)
+            capture(app, name: "chrome-mixed-confirmation-" + (minimum ? "minimum-" : "initial-") + theme)
+            app.sheets.buttons["Cancel"].click()
+        }
         XCTAssertTrue(FileManager.default.fileExists(atPath: ordinaryFile.path))
         XCTAssertTrue(FileManager.default.fileExists(atPath: root.appendingPathComponent("Default/Cache/Cache_Data/0123456789abcdef_0").path))
         app.typeKey(" ", modifierFlags: [])
@@ -58,6 +71,36 @@ final class ChromeCleanupUITests: XCTestCase {
         XCTAssertEqual(try Data(contentsOf: root.appendingPathComponent("Default/Cookies")), Data("protected-cookie".utf8))
         XCTAssertEqual(try Data(contentsOf: root.appendingPathComponent("Default/Web Data")), Data("protected-autofill".utf8))
         XCTAssertEqual(app.windows.firstMatch.frame, bounds)
+        for theme in ["Light", "Dark"] {
+            app.popUpButtons["Appearance"].click(); app.menuItems[theme].click()
+            capture(app, name: "chrome-mixed-results-" + (minimum ? "minimum-" : "initial-") + theme)
+        }
+    }
+
+    @MainActor func testChromeGalleryExamplesAtInitialAndMinimumSizes() throws {
+        continueAfterFailure = false
+        for minimum in [false, true] {
+            let app = XCUIApplication()
+            let state = try configureIsolatedJourneyState(app)
+            defer { app.terminate(); try? FileManager.default.removeItem(at: state) }
+            app.launchArguments = ["--design-gallery", minimum ? "--design-minimum" : "--design-initial-size"]
+            app.launch()
+            let examples = app.disclosureTriangles["Synthetic browser cache groups"]
+            revealScrollElement(app, control: examples, label: "Browser cache gallery")
+            examples.coordinate(withNormalizedOffset: CGVector(dx: 0, dy: 0.5)).withOffset(CGVector(dx: 26, dy: 0)).click()
+            XCTAssertEqual(examples.value as? Int, 1)
+            for theme in ["Light", "Dark"] {
+                app.popUpButtons["Appearance"].click(); app.menuItems[theme].click()
+                revealScrollElement(app, control: app.staticTexts["These cache files do not go to Trash and cannot be restored by Still. Caches may refill. Downloads and other personal files keep their separate Trash confirmation."], label: "Cache permanence notice")
+                capture(app, name: "chrome-gallery-" + (minimum ? "minimum-" : "initial-") + theme)
+            }
+            app.terminate()
+        }
+    }
+
+    @MainActor private func capture(_ app: XCUIApplication, name: String) {
+        let attachment = XCTAttachment(screenshot: app.windows.firstMatch.screenshot())
+        attachment.name = name; attachment.lifetime = .keepAlways; add(attachment)
     }
 
     @MainActor func testStoppingDownloadsPreventsStartingChrome() throws {
