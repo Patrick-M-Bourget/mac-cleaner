@@ -9,6 +9,7 @@ public protocol RunningAppChecking: Sendable {
 /// Why a candidate was not acted on. Shown in results and recorded in the journal.
 public enum CheckRefusal: Sendable, Equatable {
     case missing, changed, ownerRunning(String), ownerUnknown(String), protected(String), excluded, notPermitted, cloud
+    case inUse(String), inUseUnknown(String)
     public var reason: String {
         switch self {
         case .missing: "No longer exists."
@@ -19,6 +20,8 @@ public enum CheckRefusal: Sendable, Equatable {
         case .excluded: "Excluded in Settings."
         case .notPermitted: "Still can’t change it without admin rights."
         case .cloud: "Stored in iCloud."
+        case .inUse(let name): "\(name) is using it. It is kept."
+        case .inUseUnknown(let name): "Couldn’t check whether \(name) is using it, so it is kept."
         }
     }
 }
@@ -28,6 +31,8 @@ public struct CandidateCheck: Sendable {
     public let catalog: Catalog
     public let running: any RunningAppChecking
     public let exclusions: ExclusionPolicy
+    /// Whether a leaked copy is in use now (rules with `copies`).
+    public let inUse: any InUseChecking
     /// Never candidates, as the item, an ancestor or a top-level entry inside it (git work, Trash, backups).
     static let protectedNames: Set<String> = [".git", ".Trash", "Backups.backupdb"]
     static let protectedExtensions: Set<String> = ["app", "bundle", "framework", "xcarchive", "photoslibrary", "photolibrary", "musiclibrary", "backupbundle", "sparsebundle", "band", "logicx"]
@@ -62,8 +67,8 @@ public struct CandidateCheck: Sendable {
         }
         return nil
     }
-    public init(catalog: Catalog, running: any RunningAppChecking, exclusions: ExclusionPolicy = ExclusionPolicy()) {
-        self.catalog = catalog; self.running = running; self.exclusions = exclusions
+    public init(catalog: Catalog, running: any RunningAppChecking, exclusions: ExclusionPolicy = ExclusionPolicy(), inUse: any InUseChecking = SystemInUseChecker()) {
+        self.catalog = catalog; self.running = running; self.exclusions = exclusions; self.inUse = inUse
     }
     public func check(_ candidate: Candidate) -> CheckRefusal? {
         guard let rule = catalog.rule(candidate.ruleID), rule.action == candidate.action else { return .changed }
@@ -83,8 +88,12 @@ public struct CandidateCheck: Sendable {
         guard type == (candidate.isDirectory ? S_IFDIR : S_IFREG), "\(info.st_dev):\(info.st_ino)" == candidate.resourceID else { return .changed }
         if !candidate.isDirectory {
             // Files must be byte-for-byte the observed version; cache folders churn, so folders keep identity only.
-            guard Int64(info.st_size) == candidate.logicalBytes, Int64(info.st_mtimespec.tv_sec) == candidate.modifiedSeconds,
+            guard Int64(info.st_size) == candidate.fileBytes ?? candidate.logicalBytes, Int64(info.st_mtimespec.tv_sec) == candidate.modifiedSeconds,
                   Int64(info.st_mtimespec.tv_nsec) == candidate.modifiedNanoseconds else { return .changed }
+        }
+        if let copies = rule.copies {
+            guard let used = inUse.inUse([candidate.url], by: copies.owner) else { return .inUseUnknown(copies.owner.name) }
+            if !used.isEmpty { return .inUse(copies.owner.name) }
         }
         guard info.st_uid == geteuid(),
               info.st_flags & UInt32(UF_IMMUTABLE | SF_IMMUTABLE | UF_APPEND | SF_APPEND) == 0,
@@ -93,7 +102,7 @@ public struct CandidateCheck: Sendable {
         if values?.isUbiquitousItem == true || info.st_flags & UInt32(SF_DATALESS) != 0 { return .cloud }
         guard let volume = values?.volumeUUIDString, volume == candidate.volumeID else { return .changed }
         let names = Self.protectedNames(for: rule)
-        let extensions = Self.protectedExtensions.union(rule.protectedExtensions)
+        let extensions = Self.protectedExtensions.subtracting(rule.unprotectedExtensions).union(rule.protectedExtensions)
         for part in candidate.url.pathComponents {
             if names.contains(part) || extensions.contains(URL(fileURLWithPath: part).pathExtension.lowercased()) { return .protected(part) }
         }

@@ -150,7 +150,7 @@ public actor CleanupExecutor {
         let verb = switch candidate.action {
         case .delete: "delete"
         case .trash: "move to Trash"
-        case .tool: "run " + (command?.commandLine ?? "its tool") + (command?.deletesLocationAfter == true ? ", then delete the folder" : "")
+        case .tool: "run " + (command?.commandLine(for: candidate.itemName) ?? "its tool") + (command?.deletesLocationAfter == true ? ", then delete the folder" : "")
         }
         if let refusal = check.check(candidate) {
             record.state = .skipped; record.message = refusal.reason
@@ -178,18 +178,20 @@ public actor CleanupExecutor {
 
     /// Runs the rule's fixed command off the actor with its time limit, then deletes the folder if the rule says so.
     private func runTool(_ candidate: Candidate, _ command: ToolCommand?, into record: inout CleanupRecord) async {
-        guard let command, let executable = candidate.toolURL else { record.state = .skipped; record.message = CheckRefusal.changed.reason; return }
+        guard let command, let executable = candidate.toolURL, let arguments = command.arguments(for: candidate.itemName) else {
+            record.state = .skipped; record.message = CheckRefusal.changed.reason; return
+        }
         let outcome = await Task.detached(priority: .userInitiated) {
             // The tool's own folder goes first on PATH, so `#!/usr/bin/env node` tools such as pnpm find their runtime.
             var environment = BoundedTool.defaultEnvironment
             environment["PATH"] = executable.deletingLastPathComponent().path + ":" + (environment["PATH"] ?? "")
-            return Result { try BoundedTool.capture(executable: executable, arguments: command.arguments, timeout: command.timeout, environment: environment) }
+            return Result { try BoundedTool.capture(executable: executable, arguments: arguments, timeout: command.timeout, environment: environment) }
         }.value
-        let name = command.commandLine
+        let name = command.commandLine(for: candidate.itemName)
         switch outcome {
         case .success(let (status, output)):
             record.toolOutput = Self.trimmed(output)
-            guard status == 0 else { record.state = .failed; record.message = "\(name) exited with status \(status). The folder was left in place."; return }
+            guard status == 0 else { record.state = .failed; record.message = "\(name) exited with status \(status)." + (candidate.isDirectory ? " The folder was left in place." : ""); return }
             guard command.deletesLocationAfter else { record.state = .succeeded; record.message = "Ran \(name)"; return }
             var info = stat()
             if lstat(candidate.url.path, &info) != 0, errno == ENOENT { record.state = .succeeded; record.message = "Ran \(name); it removed the folder itself"; return }
@@ -199,7 +201,7 @@ public actor CleanupExecutor {
         case .failure(let error as ToolTimeout):
             record.toolOutput = Self.trimmed(error.output)
             record.state = .failed
-            record.message = "Stopped at the \(Int(command.timeout.rounded(.up)))-second time limit. \(name) may have cleaned part of it; the folder was left in place."
+            record.message = "Stopped at the \(Int(command.timeout.rounded(.up)))-second time limit. \(name) may have cleaned part of it" + (candidate.isDirectory ? "; the folder was left in place." : ".")
         case .failure(ToolPreviewError.unavailable):
             record.state = .skipped; record.message = "\(name) is no longer installed."
         case .failure:

@@ -454,7 +454,7 @@ private struct WorkspaceView: View {
                     ForEach(summary?.rows ?? []) { row in
                         let inPlan = row.rules.contains { catalog.isSelected($0) }
                         StorageReviewRow(category: row.category.storageCategory, title: row.category.overviewTitle, detail: row.detail,
-                            value: row.estimate.text,
+                            value: row.valueText,
                             meaning: row.estimate == .unknown ? "Couldn’t be measured" : inPlan ? "In cleanup plan" : row.rules.allSatisfy { $0.action == .delete } ? "Rebuildable" : "Review files",
                             actionTitle: "Review \(row.category.overviewTitle) in the cleanup plan",
                             action: { destination = .plan },
