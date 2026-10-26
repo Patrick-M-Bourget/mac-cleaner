@@ -12,6 +12,7 @@ struct DesignGallery: View {
     @State private var growthExamplesExpanded = false
     @State private var archiveExamplesExpanded = false
     @State private var alertExamplesExpanded = false
+    @State private var chromeExamplesExpanded = false
     var body: some View {
         VStack(spacing: 0) {
             HStack {
@@ -56,6 +57,17 @@ struct DesignGallery: View {
                         AlertPermissionDetails(authorization: .unknown, checked: true, openSettings: {})
                         AlertPermissionDetails(authorization: .denied, checked: true, settingsFeedback: "System Settings could not be opened.", openSettings: {})
                         QuietAlertExplanation(expanded: .constant(true))
+                    }
+                    DisclosureGroup("Synthetic browser cache groups", isExpanded: $chromeExamplesExpanded) {
+                        ChromeCacheProtectionNotice()
+                        ChromeCacheGroupRows(rows: [
+                            .init(id: "synthetic-ready", profile: "Default", estimatedBytes: 420_000_000, observedAt: Date(timeIntervalSince1970: 1_790_000_000), availability: .eligible, selected: true),
+                            .init(id: "synthetic-running", profile: "Profile 1", estimatedBytes: nil, observedAt: Date(timeIntervalSince1970: 1_790_000_000), availability: .running),
+                            .init(id: "synthetic-empty", profile: "Profile 2", estimatedBytes: 0, observedAt: Date(timeIntervalSince1970: 1_790_000_000), availability: .empty),
+                            .init(id: "synthetic-denied", profile: "Profile 3", estimatedBytes: nil, observedAt: Date(timeIntervalSince1970: 1_790_000_000), availability: .denied),
+                            .init(id: "synthetic-unknown", profile: "Profile 4", estimatedBytes: nil, observedAt: Date(timeIntervalSince1970: 1_790_000_000), availability: .unknown),
+                            .init(id: "synthetic-unsupported", profile: "Profile 5", estimatedBytes: nil, observedAt: Date(timeIntervalSince1970: 1_790_000_000), availability: .unsupported)
+                        ], select: { _, _ in })
                     }
                     CapacityGalleryExamples()
                     Text("Synthetic cleanup outcome examples").font(.headline)
