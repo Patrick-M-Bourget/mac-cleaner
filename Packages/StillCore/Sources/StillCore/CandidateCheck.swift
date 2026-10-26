@@ -109,9 +109,7 @@ public struct CandidateCheck: Sendable {
             if names.contains(part) || extensions.contains(URL(fileURLWithPath: part).pathExtension.lowercased()) { return .protected(part) }
         }
         if candidate.isDirectory, let name = Self.protectedEntry(in: candidate.url, names: names, depth: rule.protectedDepth) { return .protected(name) }
-        if exclusions.matches(candidate.url, volumeID: volume) { return .excluded }
-        let parts = candidate.url.standardizedFileURL.pathComponents
-        if exclusions.rules.contains(where: { $0.volumeID == volume && URL(fileURLWithPath: $0.path).pathComponents.starts(with: parts) }) { return .excluded }
+        if exclusions.covers(candidate.url, volumeID: volume) { return .excluded }
         return nil
     }
 }

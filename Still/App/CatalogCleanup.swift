@@ -123,11 +123,16 @@ import SwiftUI
         isScanning = true; message = nil
         defer { isScanning = false; hasScanned = true }
         guard let home = Self.home else { candidates = []; notes = []; overriddenRules = []; runningOwners = []; ownerNames = [:]; return }
+        // Excluded items are never offered (SPEC section 2); without the settings nothing can be offered safely.
+        guard let exclusions = try? await ExclusionsModel.shared.policyForScan() else {
+            candidates = []; notes = []; overriddenRules = []; runningOwners = []; ownerNames = [:]
+            message = "Exclusion settings are unavailable, so nothing can be checked. Try again."; return
+        }
         let catalog = catalog
         let locate = Self.locateTool, system = Self.systemRoot
         let userFolder = Self.userFolder
         let scanned = await Task.detached(priority: .userInitiated) { () -> (CatalogDiscovery, [CleanupRule], Set<String>, [String: String]) in
-            let discovered = catalog.discovery(home: home, userFolder: userFolder, locateTool: locate, systemRoot: system)
+            let discovered = catalog.discovery(home: home, userFolder: userFolder, exclusions: exclusions, locateTool: locate, systemRoot: system)
             var owners: [String: RuleOwner] = [:], names: [String: String] = [:]
             for candidate in discovered.candidates { if let owner = catalog.owner(for: candidate) { owners[owner.name] = owner; names[candidate.id] = owner.name } }
             let running = SystemRunningAppChecker()

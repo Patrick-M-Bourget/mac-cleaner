@@ -294,13 +294,13 @@ public struct Catalog: Sendable {
     /// A `.tool` rule appears only when `locateTool` finds its executable. Rules based in the user's
     /// `/private/var/folders` entry appear only when `userFolder` is given (`Catalog.currentUserFolder()` in the app).
     /// Absolute paths in a rule's layout overrides are read under `systemRoot`.
-    public func discover(home: URL, userFolder: URL? = nil, inUse: any InUseChecking = SystemInUseChecker(), sizer: KnownLocationSizer = KnownLocationSizer(), now: Date = Date(), locateTool: (ToolCommand) -> URL? = ToolCommand.installed,
+    public func discover(home: URL, userFolder: URL? = nil, exclusions: ExclusionPolicy = ExclusionPolicy(), inUse: any InUseChecking = SystemInUseChecker(), sizer: KnownLocationSizer = KnownLocationSizer(), now: Date = Date(), locateTool: (ToolCommand) -> URL? = ToolCommand.installed,
                          systemRoot: URL = URL(fileURLWithPath: "/")) -> [Candidate] {
-        discovery(home: home, userFolder: userFolder, inUse: inUse, sizer: sizer, now: now, locateTool: locateTool, systemRoot: systemRoot).candidates
+        discovery(home: home, userFolder: userFolder, exclusions: exclusions, inUse: inUse, sizer: sizer, now: now, locateTool: locateTool, systemRoot: systemRoot).candidates
     }
 
     /// `discover`, plus notes on rules that kept items back, such as copies kept because their use couldn't be checked.
-    public func discovery(home: URL, userFolder: URL? = nil, inUse: any InUseChecking = SystemInUseChecker(), sizer: KnownLocationSizer = KnownLocationSizer(), now: Date = Date(), locateTool: (ToolCommand) -> URL? = ToolCommand.installed,
+    public func discovery(home: URL, userFolder: URL? = nil, exclusions: ExclusionPolicy = ExclusionPolicy(), inUse: any InUseChecking = SystemInUseChecker(), sizer: KnownLocationSizer = KnownLocationSizer(), now: Date = Date(), locateTool: (ToolCommand) -> URL? = ToolCommand.installed,
                           systemRoot: URL = URL(fileURLWithPath: "/")) -> CatalogDiscovery {
         let homeBase = home.resolvingSymlinksInPath(), userBase = userFolder
         var seen = Set<String>()
@@ -352,7 +352,12 @@ public struct Catalog: Sendable {
                 found.scopeRoot = base
                 return found
             }
-        }.filter { seen.insert($0.resourceID).inserted }
+        }.filter { candidate in
+            // Excluded items are never candidates (SPEC section 2); the check refuses them again just before acting.
+            // With exclusions set, an item whose volume can't be read can't be cleared of them, so it is left out too.
+            if !exclusions.rules.isEmpty, candidate.volumeID.map({ exclusions.covers(candidate.url, volumeID: $0) }) ?? true { return false }
+            return seen.insert(candidate.resourceID).inserted
+        }
         return CatalogDiscovery(candidates: candidates, notes: notes)
     }
 

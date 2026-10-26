@@ -34,3 +34,16 @@ private let cargoOnly = Catalog(rules: BuiltInCatalog.rules.filter { $0.id == "c
     try FileManager.default.createSymbolicLink(at: home.appendingPathComponent(".cargo"), withDestinationURL: outside.appendingPathComponent("cargo"))
     #expect(CandidateCheck(catalog: cargoOnly, running: NothingRunning()).check(candidate) == .changed)
 }
+
+@Test func excludedItemsAreNeverCandidates() throws {
+    let home = try fixtureFolder("StillScopeHome")
+    defer { try? FileManager.default.removeItem(at: home) }
+    try write(home, ".cargo/registry/index/entry")
+    try write(home, ".cargo/git/db/entry")
+    try write(home, "Downloads/setup.dmg")
+    let catalog = Catalog(rules: BuiltInCatalog.rules.filter { ["cargo-cache", "downloads-installers"].contains($0.id) })
+    #expect(catalog.discover(home: home).count == 3)
+    // An excluded folder, a folder holding an exclusion, and an excluded file.
+    let exclusions = ExclusionPolicy(rules: try [".cargo/registry", ".cargo/git/db", "Downloads/setup.dmg"].map { try ExclusionRule.capture(home.appendingPathComponent($0)) })
+    #expect(catalog.discover(home: home, exclusions: exclusions).isEmpty)
+}
