@@ -20,14 +20,14 @@ private func write(_ home: URL, _ relative: String, bytes: Int = 100) throws {
     try write(home, "Library/Logs/DiagnosticReports/Editor-2026-10-01.ips", bytes: 300)
     try write(home, "Library/Logs/Editor/main.log", bytes: 200)
     try write(home, "Library/Logs/JetBrains/idea.log")
-    let found = Catalog(rules: BuiltInCatalog.rules).discover(home: home)
+    let found = Catalog(rules: fixtureRules).discover(fixture: home)
     let logs = home.appendingPathComponent("Library/Logs").path
     #expect(Dictionary(found.map { ($0.url.path, $0.ruleID) }, uniquingKeysWith: { a, _ in a })
             == [logs + "/DiagnosticReports": "crash-reports", logs + "/Editor": "app-logs", logs + "/JetBrains": "app-logs"])
     #expect(found.allSatisfy { $0.action == .delete })
-    let categories = Set(found.compactMap { c in BuiltInCatalog.rules.first { $0.id == c.ruleID }?.category })
+    let categories = Set(found.compactMap { c in fixtureRules.first { $0.id == c.ruleID }?.category })
     #expect(categories == [.logs])
-    #expect(CatalogOverview(catalog: Catalog(rules: BuiltInCatalog.rules), candidates: found).rows.map(\.category) == [.logs])
+    #expect(CatalogOverview(catalog: Catalog(rules: fixtureRules), candidates: found).rows.map(\.category) == [.logs])
 }
 
 /// Installed apps as LaunchServices would report them; the real Mac's apps are never consulted.
@@ -49,8 +49,7 @@ private struct Running: RunningAppChecking {
 
 /// The built-in catalog with app lookups answered by the fixture.
 private func catalogWith(_ apps: Apps) -> Catalog {
-    let ids = Set(AppCaches.rules(apps: apps).map(\.id))
-    return Catalog(rules: BuiltInCatalog.rules.filter { !ids.contains($0.id) } + AppCaches.rules(apps: apps))
+    Catalog(rules: BuiltInCatalog.rules(apps: apps))
 }
 
 @Test func anAppCacheIsRefusedWhileItsOwningAppRuns() throws {
@@ -58,7 +57,7 @@ private func catalogWith(_ apps: Apps) -> Catalog {
     defer { try? FileManager.default.removeItem(at: home) }
     try write(home, "Library/Caches/com.example.Editor/Cache.db", bytes: 4_096)
     let catalog = catalogWith(Apps(installed: [editor]))
-    let found = catalog.discover(home: home)
+    let found = catalog.discover(fixture: home)
     #expect(found.map(\.url.path) == [home.appendingPathComponent("Library/Caches/com.example.Editor").path])
     let cache = try #require(found.first)
     #expect(cache.ruleID == "app-caches" && cache.action == .delete && cache.profile == "Editor")
@@ -79,7 +78,7 @@ private func catalogWith(_ apps: Apps) -> Catalog {
     }
     let installed = ["com.example.Uninstalled2", "com.apple.Safari", "com.apple.bird", "com.patrickbourget.Still"]
         .map { InstalledApp(name: $0, bundleID: $0, path: "/Applications/\($0).app") }
-    #expect(catalogWith(Apps(installed: installed)).discover(home: home).isEmpty)
+    #expect(catalogWith(Apps(installed: installed)).discover(fixture: home).isEmpty)
 }
 
 @Test func anAppsHelpersCountAsTheAppRunning() throws {
@@ -106,7 +105,7 @@ private func catalogWith(_ apps: Apps) -> Catalog {
                                   rule("tool", ["Library/Caches/com.example.Packed"], action: .tool,
                                        tool: ToolCommand(executables: ["/nonexistent/packer"], arguments: ["prune"], timeout: 1))]
                           + AppCaches.rules(apps: apps))
-    let found = catalog.discover(home: home)
+    let found = catalog.discover(fixture: home)
     let caches = home.appendingPathComponent("Library/Caches").path
     #expect(Dictionary(found.map { ($0.url.path, $0.ruleID) }, uniquingKeysWith: { a, _ in a })
             == [caches + "/com.example.Tool": "whole", caches + "/com.example.Editor/Cache.noindex": "inner", caches + "/com.example.Viewer": "app-caches"])
@@ -121,7 +120,7 @@ private func catalogWith(_ apps: Apps) -> Catalog {
     // Even if each of these folder names were an installed app's, the per-app rule leaves them to their own rules.
     let names = ["Yarn", "pip", "CocoaPods", "pnpm", "Homebrew", "Google", "Firefox", "ccache"]
     let apps = Apps(installed: names.map { InstalledApp(name: $0, bundleID: $0, path: "/Applications/\($0).app") })
-    #expect(!catalogWith(apps).discover(home: home, locateTool: { _ in URL(fileURLWithPath: "/bin/echo") }).contains { $0.ruleID == "app-caches" })
+    #expect(!catalogWith(apps).discover(fixture: home, locateTool: { _ in URL(fileURLWithPath: "/bin/echo") }).contains { $0.ruleID == "app-caches" })
 }
 
 @Test func aGitWorkingTreeInsideACacheFolderIsNeverACandidate() throws {
@@ -135,7 +134,7 @@ private func catalogWith(_ apps: Apps) -> Catalog {
     try write(home, "Library/Caches/com.example.Editor/Cache.db")
     let apps = Apps(installed: [editor] + ["com.example.Agent", "com.example.Worker"].map { InstalledApp(name: $0, bundleID: $0, path: "/Applications/\($0).app") })
     let catalog = catalogWith(apps)
-    let found = catalog.discover(home: home)
+    let found = catalog.discover(fixture: home)
     #expect(found.map(\.url.lastPathComponent) == ["com.example.Editor"])
 
     // A checkout that appears after the scan is refused just before acting.
@@ -155,7 +154,7 @@ private func catalogWith(_ apps: Apps) -> Catalog {
     let chat = InstalledApp(name: "Chat", bundleID: "com.example.Chat", path: "/Applications/Chat.app")
     let access = InstalledApp(name: "Native Access", bundleID: "com.native-instruments.NativeAccess2", path: "/Applications/Native Access.app")
     let catalog = catalogWith(Apps(installed: [editor, chat, access], updaterFolders: ["nativeaccess2-updater": access]))
-    let found = catalog.discover(home: home)
+    let found = catalog.discover(fixture: home)
     let caches = home.appendingPathComponent("Library/Caches").path
     let sparkle = caches + "/com.example.Editor/org.sparkle-project.Sparkle"
     // The Sparkle download is offered as an update; the rest of Editor's cache folder then stays with it, never offered twice.

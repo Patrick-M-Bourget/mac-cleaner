@@ -22,7 +22,7 @@ private func writeNpmCache(in home: URL, files: [String: Int] = ["index-v5/aa/on
     let home = try fixtureHome()
     defer { try? FileManager.default.removeItem(at: home) }
     let cache = try writeNpmCache(in: home)
-    let candidates = Catalog(rules: BuiltInCatalog.rules).discover(home: home)
+    let candidates = Catalog(rules: fixtureRules).discover(fixture: home)
     #expect(candidates.count == 1)
     let candidate = try #require(candidates.first)
     #expect(candidate.ruleID == "npm-cache")
@@ -36,7 +36,7 @@ private func writeNpmCache(in home: URL, files: [String: Int] = ["index-v5/aa/on
 @Test func aRuleWhoseFolderIsMissingOffersNothing() throws {
     let home = try fixtureHome()
     defer { try? FileManager.default.removeItem(at: home) }
-    #expect(Catalog(rules: BuiltInCatalog.rules).discover(home: home).isEmpty)
+    #expect(Catalog(rules: fixtureRules).discover(fixture: home).isEmpty)
 }
 
 private struct FakeRunning: RunningAppChecking {
@@ -45,7 +45,7 @@ private struct FakeRunning: RunningAppChecking {
     func isRunning(_ owner: RuleOwner) -> Bool? { unknown ? nil : running.contains(owner.name) }
 }
 private func npmCandidate(_ home: URL) throws -> Candidate {
-    try #require(Catalog(rules: BuiltInCatalog.rules).discover(home: home).first)
+    try #require(Catalog(rules: fixtureRules).discover(fixture: home).first)
 }
 
 @Test func aCandidateWhoseOwnerIsRunningIsRefusedWithAReason() throws {
@@ -53,7 +53,7 @@ private func npmCandidate(_ home: URL) throws -> Candidate {
     defer { try? FileManager.default.removeItem(at: home) }
     _ = try writeNpmCache(in: home)
     let candidate = try npmCandidate(home)
-    let catalog = Catalog(rules: BuiltInCatalog.rules)
+    let catalog = Catalog(rules: fixtureRules)
     #expect(CandidateCheck(catalog: catalog, running: FakeRunning()).check(candidate) == nil)
     let refusal = CandidateCheck(catalog: catalog, running: FakeRunning(running: ["npm"])).check(candidate)
     #expect(refusal == .ownerRunning("npm"))
@@ -66,7 +66,7 @@ private func npmCandidate(_ home: URL) throws -> Candidate {
     defer { try? FileManager.default.removeItem(at: home) }
     let cache = try writeNpmCache(in: home)
     let candidate = try npmCandidate(home)
-    let check = CandidateCheck(catalog: Catalog(rules: BuiltInCatalog.rules), running: FakeRunning())
+    let check = CandidateCheck(catalog: Catalog(rules: fixtureRules), running: FakeRunning())
     try FileManager.default.moveItem(at: cache, to: home.appendingPathComponent(".npm/old"))
     #expect(check.check(candidate) == .missing)
     try FileManager.default.createDirectory(at: cache, withIntermediateDirectories: true)
@@ -82,8 +82,8 @@ private func npmCandidate(_ home: URL) throws -> Candidate {
     let cache = try writeNpmCache(in: home)
     let candidate = try npmCandidate(home)
     try FileManager.default.createDirectory(at: cache.appendingPathComponent(".git"), withIntermediateDirectories: true)
-    #expect(Catalog(rules: BuiltInCatalog.rules).discover(home: home).isEmpty)
-    #expect(CandidateCheck(catalog: Catalog(rules: BuiltInCatalog.rules), running: FakeRunning()).check(candidate) == .protected(".git"))
+    #expect(Catalog(rules: fixtureRules).discover(fixture: home).isEmpty)
+    #expect(CandidateCheck(catalog: Catalog(rules: fixtureRules), running: FakeRunning()).check(candidate) == .protected(".git"))
 }
 
 @Test func anExcludedCandidateOrOneHoldingAnExclusionIsRefused() throws {
@@ -91,7 +91,7 @@ private func npmCandidate(_ home: URL) throws -> Candidate {
     defer { try? FileManager.default.removeItem(at: home) }
     let cache = try writeNpmCache(in: home)
     let candidate = try npmCandidate(home)
-    let catalog = Catalog(rules: BuiltInCatalog.rules)
+    let catalog = Catalog(rules: fixtureRules)
     let outer = ExclusionPolicy(rules: [try ExclusionRule.capture(home.appendingPathComponent(".npm"))])
     #expect(CandidateCheck(catalog: catalog, running: FakeRunning(), exclusions: outer).check(candidate) == .excluded)
     let inner = ExclusionPolicy(rules: [try ExclusionRule.capture(cache.appendingPathComponent("index-v5"))])
@@ -99,7 +99,7 @@ private func npmCandidate(_ home: URL) throws -> Candidate {
 }
 
 @Test func npmIsMatchedByItsScriptNotByEveryNodeProcess() throws {
-    let npm = try #require(BuiltInCatalog.rules.first { $0.id == "npm-cache" }?.owner)
+    let npm = try #require(fixtureRules.first { $0.id == "npm-cache" }?.owner)
     #expect(npm.matches(["node", "/opt/homebrew/lib/node_modules/npm/bin/npm-cli.js", "install"]))
     #expect(npm.matches(["node", "/usr/local/bin/npm", "ci"]))
     #expect(npm.matches(["/usr/local/bin/node", "--max-old-space-size=4096", "/x/npx-cli.js"]))
@@ -136,9 +136,9 @@ private final class FakeVolume: @unchecked Sendable {
         return CapacitySample(available: available, total: 10_000_000, volumeID: "fake-volume", metric: "important", date: Date())
     }
 }
-private func executor(_ home: URL, running: FakeRunning = FakeRunning(), catalog: Catalog = Catalog(rules: BuiltInCatalog.rules), volume: FakeVolume = FakeVolume()) throws -> (CleanupExecutor, SQLiteCleanupJournal) {
+private func executor(_ home: URL, running: FakeRunning = FakeRunning(), catalog: Catalog = Catalog(rules: fixtureRules), volume: FakeVolume = FakeVolume()) throws -> (CleanupExecutor, SQLiteCleanupJournal) {
     let journal = try SQLiteCleanupJournal(url: home.appendingPathComponent("journal.sqlite"))
-    return (CleanupExecutor(journal: journal, check: CandidateCheck(catalog: catalog, running: running), measure: volume.read), journal)
+    return (CleanupExecutor(journal: journal, check: CandidateCheck(catalog: catalog, running: running), measure: volume.read, trash: TrashNeverUsed()), journal)
 }
 
 @Test func deletingTheNpmCacheRecordsMeasuredFreedSpaceApartFromTheEstimate() async throws {
@@ -208,7 +208,7 @@ private func snapshot(_ root: URL) throws -> [String: Data] {
         CleanupRule(id: "a", category: .developer, title: "A", detail: "", consequence: "", regen: .cache, action: .delete, locations: ["a/cache", "b/cache"], owner: nil),
         CleanupRule(id: "c", category: .developer, title: "C", detail: "", consequence: "", regen: .cache, action: .delete, locations: ["c/cache"], owner: RuleOwner(name: "Tool C", executables: ["toolc"])),
     ])
-    let candidates = catalog.discover(home: home)
+    let candidates = catalog.discover(fixture: home)
     #expect(candidates.map(\.ruleID) == ["a", "a", "c"])
     try FileManager.default.removeItem(at: home.appendingPathComponent("a/cache"))
     try FileManager.default.createDirectory(at: home.appendingPathComponent("a/cache"), withIntermediateDirectories: true)

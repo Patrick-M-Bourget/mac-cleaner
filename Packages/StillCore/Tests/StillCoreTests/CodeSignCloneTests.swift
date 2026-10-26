@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-import StillCore
+@testable import StillCore
 
 /// A temp stand-in for the user's own `/private/var/folders/<xx>/<id>` folder, with its `T`, `C` and `X` folders.
 private func fixtureUserFolder() throws -> URL {
@@ -27,7 +27,7 @@ private struct FakeInUse: InUseChecking {
     }
 }
 private struct NothingRunning: RunningAppChecking { func isRunning(_ owner: RuleOwner) -> Bool? { false } }
-private let catalog = Catalog(rules: BuiltInCatalog.rules)
+private let catalog = Catalog(rules: fixtureRules)
 private func day(_ n: Double) -> Date { Date(timeIntervalSince1970: 1_790_000_000 + n * 86_400) }
 
 @Test func everyCodeSignCopyIsOfferedExceptTheOneInUseAndTheNewest() throws {
@@ -38,7 +38,7 @@ private func day(_ n: Double) -> Date { Date(timeIntervalSince1970: 1_790_000_00
     let inUse = try writeClone("code_sign_clone.bbbbbb", in: folder, created: day(2))
     let middle = try writeClone("code_sign_clone.cccccc", in: folder, created: day(3))
     try writeClone("code_sign_clone.dddddd", in: folder, created: day(4))
-    let candidates = catalog.discover(home: home, userFolder: folder, inUse: FakeInUse(open: [inUse.path]))
+    let candidates = catalog.discover(fixture: home, userFolder: folder, inUse: FakeInUse(open: [inUse.path]))
     #expect(candidates.map(\.url.path).sorted() == [oldest.path, middle.path])
     #expect(candidates.allSatisfy { $0.ruleID == "chrome-code-sign-clones" && $0.action == .delete && $0.isDirectory })
     #expect(candidates.allSatisfy { ($0.allocatedBytes ?? 0) >= 4096 })
@@ -49,7 +49,7 @@ private func day(_ n: Double) -> Date { Date(timeIntervalSince1970: 1_790_000_00
     let folder = try fixtureUserFolder()
     defer { try? FileManager.default.removeItem(at: folder) }
     for (index, name) in ["a", "b", "c"].enumerated() { try writeClone("code_sign_clone." + name, in: folder, created: day(Double(index))) }
-    let discovery = catalog.discovery(home: home, userFolder: folder, inUse: FakeInUse(unknown: true))
+    let discovery = catalog.discovery(fixture: home, userFolder: folder, inUse: FakeInUse(unknown: true))
     #expect(discovery.candidates.isEmpty)
     #expect(discovery.notes == [CatalogNote(ruleID: "chrome-code-sign-clones",
                                             text: "Chrome code-sign copies: kept all 3 copies, because Still couldn’t tell which one Google Chrome is using.")])
@@ -61,8 +61,8 @@ private func day(_ n: Double) -> Date { Date(timeIntervalSince1970: 1_790_000_00
     defer { try? FileManager.default.removeItem(at: folder) }
     try writeClone("code_sign_clone.a", in: folder, created: day(1))
     try writeClone("code_sign_clone.b", in: folder, created: day(2))
-    #expect(catalog.discover(home: home, inUse: FakeInUse()).isEmpty)
-    #expect(catalog.discover(home: home, userFolder: folder, inUse: FakeInUse()).count == 1)
+    #expect(catalog.discover(fixture: home, inUse: FakeInUse()).isEmpty)
+    #expect(catalog.discover(fixture: home, userFolder: folder, inUse: FakeInUse()).count == 1)
 }
 
 @Test func theSystemCheckerSeesCopiesThisProcessHasOpenOrMapped() throws {
@@ -84,11 +84,13 @@ private func day(_ n: Double) -> Date { Date(timeIntervalSince1970: 1_790_000_00
     #expect(SystemInUseChecker().inUse([idle], by: RuleOwner(name: "Nobody", executables: ["no-such-process-\(UUID())"])) == [])
 }
 
-@Test func theUserFolderIsTheCurrentUsersOwnEntryUnderVarFolders() throws {
-    let folder = try #require(Catalog.currentUserFolder())
-    #expect(folder.path.hasPrefix("/private/var/folders/"), "\(folder.path)")
-    var info = stat()
-    #expect(lstat(folder.path, &info) == 0 && info.st_uid == geteuid())
+@Test func theUserFolderIsTheOwnedFolderHoldingTheTempFolder() throws {
+    let folder = try fixtureUserFolder()
+    defer { try? FileManager.default.removeItem(at: folder) }
+    try FileManager.default.createDirectory(at: folder.appendingPathComponent("T"), withIntermediateDirectories: true)
+    let found = try #require(Catalog.userFolder(holding: folder.appendingPathComponent("T").path + "/"))
+    #expect(found.path == realpath(folder.path, nil).map { defer { free($0) }; return String(cString: $0) })
+    #expect(Catalog.userFolder(holding: folder.appendingPathComponent("missing/T").path) == nil)
 }
 
 @Test func aCopyThatCameIntoUseSinceTheScanIsRefusedJustBeforeActing() throws {
@@ -97,7 +99,7 @@ private func day(_ n: Double) -> Date { Date(timeIntervalSince1970: 1_790_000_00
     defer { try? FileManager.default.removeItem(at: folder) }
     let old = try writeClone("code_sign_clone.a", in: folder, created: day(1))
     try writeClone("code_sign_clone.b", in: folder, created: day(2))
-    let candidate = try #require(catalog.discover(home: home, userFolder: folder, inUse: FakeInUse()).first)
+    let candidate = try #require(catalog.discover(fixture: home, userFolder: folder, inUse: FakeInUse()).first)
     #expect(CandidateCheck(catalog: catalog, running: NothingRunning(), inUse: FakeInUse()).check(candidate) == nil)
     let refusal = CandidateCheck(catalog: catalog, running: NothingRunning(), inUse: FakeInUse(open: [old.path])).check(candidate)
     #expect(refusal == .inUse("Google Chrome"))
@@ -124,7 +126,7 @@ private final class FakeVolume: @unchecked Sendable {
     let old = try writeClone("code_sign_clone.a", in: folder, created: day(1))
     let older = try writeClone("code_sign_clone.b", in: folder, created: day(0))
     let newest = try writeClone("code_sign_clone.c", in: folder, created: day(2))
-    let candidates = catalog.discover(home: home, userFolder: folder, inUse: FakeInUse())
+    let candidates = catalog.discover(fixture: home, userFolder: folder, inUse: FakeInUse())
     #expect(Set(candidates.map(\.url.path)) == [old.path, older.path])
     #expect(catalog.rule("chrome-code-sign-clones")?.estimateIsUpperBound == true)
     #expect(catalog.rule("npm-cache")?.estimateIsUpperBound == false)
@@ -132,7 +134,7 @@ private final class FakeVolume: @unchecked Sendable {
     let volume = FakeVolume()
     volume.freedPerRead = [0, 100, 0, 200]
     let journal = try SQLiteCleanupJournal(url: folder.appendingPathComponent("journal.sqlite"))
-    let run = CleanupExecutor(journal: journal, check: CandidateCheck(catalog: catalog, running: NothingRunning(), inUse: FakeInUse()), measure: volume.read)
+    let run = CleanupExecutor(journal: journal, check: CandidateCheck(catalog: catalog, running: NothingRunning(), inUse: FakeInUse()), measure: volume.read, trash: TrashNeverUsed())
     let result = await run.execute(CatalogApproval(candidates: candidates, previewOnly: false))
     #expect(result.records.map(\.state) == [.succeeded, .succeeded])
     #expect(result.measuredFreedBytes == 300)

@@ -7,7 +7,7 @@ private struct FixtureBatch { let id: UUID; let records: [CleanupRecord] }
 private func fixtureBatch(_ root: URL) -> FixtureBatch {
     let rule = CleanupRule(id: "fixture-files", category: .downloads, title: "Files", detail: "", consequence: "", regen: .userFile, action: .trash, locations: [""], owner: nil, contents: ContentsMatch())
     let id = UUID()
-    let candidates = Catalog(rules: [rule]).discover(home: root).sorted { $0.url.path < $1.url.path }
+    let candidates = Catalog(rules: [rule]).discover(fixture: root).sorted { $0.url.path < $1.url.path }
     return FixtureBatch(id: id, records: candidates.map { CleanupRecord(batchID: id, approvedAt: Date(), candidate: $0, previewOnly: false) })
 }
 private func historyApproval(_ root: URL, names: [String]) async throws -> FixtureBatch {

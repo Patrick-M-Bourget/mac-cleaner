@@ -25,7 +25,7 @@ private func rule(_ id: String, _ category: CatalogCategory, _ action: CleanupAc
     try write(8192, at: "b/f", in: home)
     try write(16384, at: "c/f", in: home)
     let catalog = Catalog(rules: [rule("b", .browser), rule("a", .developer), rule("c", .browser), rule("missing", .models)])
-    let overview = CatalogOverview(catalog: catalog, candidates: catalog.discover(home: home))
+    let overview = CatalogOverview(catalog: catalog, candidates: catalog.discover(fixture: home))
 
     #expect(overview.rows.map(\.category) == [.browser, .developer])
     #expect(overview.rows.map { $0.rules.map(\.id) } == [["b", "c"], ["a"]])
@@ -43,7 +43,7 @@ private func rule(_ id: String, _ category: CatalogCategory, _ action: CleanupAc
         try? FileManager.default.removeItem(at: home)
     }
     let catalog = Catalog(rules: [rule("locked", .developer)])
-    let overview = CatalogOverview(catalog: catalog, candidates: catalog.discover(home: home))
+    let overview = CatalogOverview(catalog: catalog, candidates: catalog.discover(fixture: home))
     #expect(overview.rows.map(\.estimate) == [.unknown])
 }
 
@@ -59,7 +59,7 @@ private func rule(_ id: String, _ category: CatalogCategory, _ action: CleanupAc
         try? FileManager.default.removeItem(at: home)
     }
     let catalog = Catalog(rules: [rule("open", .developer)])
-    let overview = CatalogOverview(catalog: catalog, candidates: catalog.discover(home: home))
+    let overview = CatalogOverview(catalog: catalog, candidates: catalog.discover(fixture: home))
     #expect(overview.rows.map(\.estimate) == [.atLeast(8192)])
 }
 
@@ -70,7 +70,7 @@ private func rule(_ id: String, _ category: CatalogCategory, _ action: CleanupAc
     try write(12288, at: "build/f", in: home)
     try write(4096, at: "installers/f", in: home)
     let catalog = Catalog(rules: [rule("cache", .browser), rule("build", .developer), rule("installers", .downloads, .trash)])
-    let overview = CatalogOverview(catalog: catalog, candidates: catalog.discover(home: home))
+    let overview = CatalogOverview(catalog: catalog, candidates: catalog.discover(fixture: home))
     #expect(overview.recommended == .measured(20480))
     #expect(overview.proposedForTrash == .measured(4096))
 }
@@ -86,7 +86,7 @@ private func rule(_ id: String, _ category: CatalogCategory, _ action: CleanupAc
         try? FileManager.default.removeItem(at: home)
     }
     let catalog = Catalog(rules: [rule("cache", .browser), rule("locked", .developer)])
-    let overview = CatalogOverview(catalog: catalog, candidates: catalog.discover(home: home))
+    let overview = CatalogOverview(catalog: catalog, candidates: catalog.discover(fixture: home))
     #expect(overview.recommended == .atLeast(8192))
     #expect(overview.proposedForTrash == .measured(0))
 }

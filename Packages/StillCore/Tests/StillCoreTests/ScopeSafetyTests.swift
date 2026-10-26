@@ -14,21 +14,21 @@ private func write(_ root: URL, _ relative: String, bytes: Int = 100) throws {
     try Data(repeating: 1, count: bytes).write(to: file)
 }
 private struct NothingRunning: RunningAppChecking { func isRunning(_ owner: RuleOwner) -> Bool? { false } }
-private let cargoOnly = Catalog(rules: BuiltInCatalog.rules.filter { $0.id == "cargo-cache" })
+private let cargoOnly = Catalog(rules: fixtureRules.filter { $0.id == "cargo-cache" })
 
 @Test func aCacheReachedThroughASymlinkOutOfHomeIsNeverOffered() throws {
     let home = try fixtureFolder("StillScopeHome"), outside = try fixtureFolder("StillScopeOutside")
     defer { try? FileManager.default.removeItem(at: home); try? FileManager.default.removeItem(at: outside) }
     try write(outside, "cargo/registry/index/entry")
     try FileManager.default.createSymbolicLink(at: home.appendingPathComponent(".cargo"), withDestinationURL: outside.appendingPathComponent("cargo"))
-    #expect(cargoOnly.discover(home: home).isEmpty)
+    #expect(cargoOnly.discover(fixture: home).isEmpty)
 }
 
 @Test func aSymlinkSwappedInAfterTheScanIsRefused() throws {
     let home = try fixtureFolder("StillScopeHome"), outside = try fixtureFolder("StillScopeOutside")
     defer { try? FileManager.default.removeItem(at: home); try? FileManager.default.removeItem(at: outside) }
     try write(home, ".cargo/registry/index/entry")
-    let candidate = try #require(cargoOnly.discover(home: home).first)
+    let candidate = try #require(cargoOnly.discover(fixture: home).first)
     // The same folder, moved out of home and reached through a symlink: identity alone would pass it.
     try FileManager.default.moveItem(at: home.appendingPathComponent(".cargo"), to: outside.appendingPathComponent("cargo"))
     try FileManager.default.createSymbolicLink(at: home.appendingPathComponent(".cargo"), withDestinationURL: outside.appendingPathComponent("cargo"))
@@ -41,11 +41,11 @@ private let cargoOnly = Catalog(rules: BuiltInCatalog.rules.filter { $0.id == "c
     try write(home, ".cargo/registry/index/entry")
     try write(home, ".cargo/git/db/entry")
     try write(home, "Downloads/setup.dmg")
-    let catalog = Catalog(rules: BuiltInCatalog.rules.filter { ["cargo-cache", "downloads-installers"].contains($0.id) })
-    #expect(catalog.discover(home: home).count == 3)
+    let catalog = Catalog(rules: fixtureRules.filter { ["cargo-cache", "downloads-installers"].contains($0.id) })
+    #expect(catalog.discover(fixture: home).count == 3)
     // An excluded folder, a folder holding an exclusion, and an excluded file.
     let exclusions = ExclusionPolicy(rules: try [".cargo/registry", ".cargo/git/db", "Downloads/setup.dmg"].map { try ExclusionRule.capture(home.appendingPathComponent($0)) })
-    #expect(catalog.discover(home: home, exclusions: exclusions).isEmpty)
+    #expect(catalog.discover(fixture: home, exclusions: exclusions).isEmpty)
 }
 
 @Test func aGitCheckoutFourLevelsDownIsNeverOfferedAndRefusedIfItAppears() throws {
@@ -53,8 +53,8 @@ private let cargoOnly = Catalog(rules: BuiltInCatalog.rules.filter { $0.id == "c
     defer { try? FileManager.default.removeItem(at: home) }
     try write(home, ".cargo/git/checkouts/x/y/.git/HEAD")
     try write(home, ".cargo/registry/index/entry")
-    #expect(cargoOnly.discover(home: home).map(\.url.lastPathComponent) == ["registry"])
-    let registry = try #require(cargoOnly.discover(home: home).first)
+    #expect(cargoOnly.discover(fixture: home).map(\.url.lastPathComponent) == ["registry"])
+    let registry = try #require(cargoOnly.discover(fixture: home).first)
     try write(home, ".cargo/registry/src/crate/v1/.git/HEAD")
     #expect(CandidateCheck(catalog: cargoOnly, running: NothingRunning()).check(registry) == .protected(".git"))
 }
@@ -68,10 +68,10 @@ private let cargoOnly = Catalog(rules: BuiltInCatalog.rules.filter { $0.id == "c
     }
     try write(home, ".cargo/registry/index/entry")
     try write(home, ".cargo/registry/locked/kept")
-    let candidate = try #require(cargoOnly.discover(home: home).first)
+    let candidate = try #require(cargoOnly.discover(fixture: home).first)
     try FileManager.default.setAttributes([.posixPermissions: 0o500], ofItemAtPath: locked.path)
     let journal = try SQLiteCleanupJournal(url: home.appendingPathComponent("journal.sqlite"))
-    let run = CleanupExecutor(journal: journal, check: CandidateCheck(catalog: cargoOnly, running: NothingRunning()), measure: { _ in nil })
+    let run = CleanupExecutor(journal: journal, check: CandidateCheck(catalog: cargoOnly, running: NothingRunning()), measure: { _ in nil }, trash: TrashNeverUsed())
     let record = try #require(await run.execute(CatalogApproval(candidates: [candidate], previewOnly: false)).records.first)
     #expect(record.state == .failed)
     #expect(record.partlyRemoved == true)
@@ -82,7 +82,7 @@ private let cargoOnly = Catalog(rules: BuiltInCatalog.rules.filter { $0.id == "c
     let leftovers = try FileManager.default.contentsOfDirectory(atPath: home.appendingPathComponent(".cargo").path).filter { $0.hasPrefix(".still-deleting-") }
     #expect(leftovers.count == 1)
     try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: home.appendingPathComponent(".cargo/" + leftovers[0] + "/locked").path)
-    let again = cargoOnly.discover(home: home)
+    let again = cargoOnly.discover(fixture: home)
     #expect(again.map(\.url.lastPathComponent) == leftovers)
     #expect(again.first?.ruleID == "cargo-cache" && again.first?.action == .delete)
     let second = await run.execute(CatalogApproval(candidates: again, previewOnly: false))
@@ -96,8 +96,8 @@ private let cargoOnly = Catalog(rules: BuiltInCatalog.rules.filter { $0.id == "c
     defer { try? FileManager.default.removeItem(at: home) }
     try write(home, "Library/Caches/.still-deleting-homebrew-\(UUID().uuidString)/downloads/x")
     try write(home, "Library/Caches/.still-deleting-pip-cache-\(UUID().uuidString)/http/x")
-    let catalog = Catalog(rules: BuiltInCatalog.rules.filter { ["homebrew", "pip-cache"].contains($0.id) })
-    let found = catalog.discover(home: home, locateTool: { _ in URL(fileURLWithPath: "/usr/bin/true") })
+    let catalog = Catalog(rules: fixtureRules.filter { ["homebrew", "pip-cache"].contains($0.id) })
+    let found = catalog.discover(fixture: home, locateTool: { _ in URL(fileURLWithPath: "/usr/bin/true") })
     #expect(Set(found.map(\.ruleID)) == ["homebrew", "pip-cache"])
     #expect(found.allSatisfy { $0.action == .delete })
     for leftover in found {
@@ -118,8 +118,8 @@ private final class RecordingTrash: TrashMoving, @unchecked Sendable {
     let home = try fixtureFolder("StillScopeHome")
     defer { try? FileManager.default.removeItem(at: home) }
     try write(home, "Downloads/setup.dmg")
-    let catalog = Catalog(rules: BuiltInCatalog.rules.filter { $0.id == "downloads-installers" })
-    let candidate = try #require(catalog.discover(home: home).first)
+    let catalog = Catalog(rules: fixtureRules.filter { $0.id == "downloads-installers" })
+    let candidate = try #require(catalog.discover(fixture: home).first)
     let file = candidate.url
     // The space reading runs after the check and before the move: swap the file there.
     let swap: @Sendable (URL) -> CapacitySample? = { _ in
@@ -140,13 +140,13 @@ private final class RecordingTrash: TrashMoving, @unchecked Sendable {
     let home = try fixtureFolder("StillScopeHome")
     defer { try? FileManager.default.removeItem(at: home) }
     for folder in ["com.apple.xpc.launchd", "com.apple.Safari", "Still", "com.patrickbourget.Still", "Editor"] { try write(home, "Library/Logs/\(folder)/log.txt") }
-    let catalog = Catalog(rules: BuiltInCatalog.rules.filter { $0.id == "app-logs" })
-    let found = catalog.discover(home: home)
+    let catalog = Catalog(rules: fixtureRules.filter { $0.id == "app-logs" })
+    let found = catalog.discover(fixture: home)
     #expect(found.map(\.url.lastPathComponent) == ["Editor"])
 }
 
 @Test func huggingFaceCLIIsMatchedWhenItRunsAsAPythonScript() throws {
-    let owner = try #require(BuiltInCatalog.rules.first { $0.id == "huggingface-models" }?.owner)
+    let owner = try #require(fixtureRules.first { $0.id == "huggingface-models" }?.owner)
     #expect(owner.matches(["/opt/homebrew/bin/python3.12", "/opt/homebrew/bin/hf", "download", "org/model"]))
     #expect(owner.matches(["/usr/bin/python3", "/Users/me/.local/bin/huggingface-cli", "login"]))
     #expect(owner.matches(["/Users/me/.local/bin/hf", "cache", "scan"]))

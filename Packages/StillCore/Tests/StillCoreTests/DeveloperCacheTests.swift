@@ -17,8 +17,8 @@ private func makeFolder(_ home: URL, _ relative: String, bytes: Int = 100) throw
 @Test func eachDeveloperCacheIsACandidateOnlyWhenItsFolderExists() throws {
     let home = try fixtureHome()
     defer { try? FileManager.default.removeItem(at: home) }
-    let catalog = Catalog(rules: BuiltInCatalog.rules)
-    #expect(catalog.discover(home: home).isEmpty)
+    let catalog = Catalog(rules: fixtureRules)
+    #expect(catalog.discover(fixture: home).isEmpty)
     let folders = [
         "Library/Caches/Yarn": "yarn-cache", ".yarn/berry/cache": "yarn-cache",
         "Library/Caches/pnpm": "pnpm-cache",
@@ -27,7 +27,7 @@ private func makeFolder(_ home: URL, _ relative: String, bytes: Int = 100) throw
         ".gradle/caches": "gradle-cache", "Library/Caches/CocoaPods": "cocoapods-cache",
     ]
     for folder in folders.keys { try makeFolder(home, folder) }
-    let found = catalog.discover(home: home)
+    let found = catalog.discover(fixture: home)
     #expect(Dictionary(found.map { ($0.url.path, $0.ruleID) }, uniquingKeysWith: { a, _ in a })
             == Dictionary(uniqueKeysWithValues: folders.map { (home.appendingPathComponent($0.key).path, $0.value) }))
     #expect(found.allSatisfy { $0.action == .delete && $0.logicalBytes == 100 })
@@ -35,7 +35,7 @@ private func makeFolder(_ home: URL, _ relative: String, bytes: Int = 100) throw
     #expect(!found.contains { $0.url.path.hasPrefix(home.appendingPathComponent(".cargo/bin").path) })
 }
 
-private func owner(_ id: String) throws -> RuleOwner { try #require(BuiltInCatalog.rules.first { $0.id == id }?.owner) }
+private func owner(_ id: String) throws -> RuleOwner { try #require(fixtureRules.first { $0.id == id }?.owner) }
 
 @Test func eachCommandLineCacheIsRefusedOnlyWhileItsOwnToolRuns() throws {
     let cases: [(String, [[String]], [[String]])] = [
@@ -64,10 +64,10 @@ private func owner(_ id: String) throws -> RuleOwner { try #require(BuiltInCatal
     let home = try fixtureHome()
     defer { try? FileManager.default.removeItem(at: home) }
     for folder in ["Library/Caches/ccache", ".ccache", ".cache/ccache", "Library/Caches/Yarn"] { try makeFolder(home, folder) }
-    #expect(Catalog(rules: BuiltInCatalog.rules).discover(home: home).map(\.ruleID) == ["yarn-cache"])
+    #expect(Catalog(rules: fixtureRules).discover(fixture: home).map(\.ruleID) == ["yarn-cache"])
     let greedy = Catalog(rules: [CleanupRule(id: "greedy", category: .developer, title: "Caches", detail: "", consequence: "", regen: .cache, action: .delete,
                                              locations: ["Library/Caches/ccache", ".ccache", ".cache/ccache", "Library/Caches/Yarn"], owner: nil)])
-    #expect(greedy.discover(home: home).map(\.url.lastPathComponent) == ["Yarn"])
+    #expect(greedy.discover(fixture: home).map(\.url.lastPathComponent) == ["Yarn"])
 }
 
 private struct NothingRunning: RunningAppChecking { func isRunning(_ owner: RuleOwner) -> Bool? { false } }
@@ -76,8 +76,8 @@ private struct NothingRunning: RunningAppChecking { func isRunning(_ owner: Rule
     let home = try fixtureHome()
     defer { try? FileManager.default.removeItem(at: home) }
     try makeFolder(home, ".cache/uv")
-    let catalog = Catalog(rules: BuiltInCatalog.rules)
-    let candidate = try #require(catalog.discover(home: home).first)
+    let catalog = Catalog(rules: fixtureRules)
+    let candidate = try #require(catalog.discover(fixture: home).first)
     try makeFolder(home, ".cache/uv/ccache")
     #expect(CandidateCheck(catalog: catalog, running: NothingRunning()).check(candidate) == .protected("ccache"))
 }
@@ -94,13 +94,13 @@ private func fakeTool(_ home: URL, _ script: String) throws -> URL {
 @Test func homebrewAppearsOnlyWhenBrewIsInstalledAndItsCacheExists() throws {
     let home = try fixtureHome()
     defer { try? FileManager.default.removeItem(at: home) }
-    let catalog = Catalog(rules: BuiltInCatalog.rules)
+    let catalog = Catalog(rules: fixtureRules)
     let brew = try fakeTool(home, "exit 0")
     let installed: @Sendable (ToolCommand) -> URL? = { _ in brew }
-    #expect(catalog.discover(home: home, locateTool: installed).isEmpty)
+    #expect(catalog.discover(fixture: home, locateTool: installed).isEmpty)
     try makeFolder(home, "Library/Caches/Homebrew", bytes: 2000)
-    #expect(catalog.discover(home: home, locateTool: { _ in nil }).isEmpty)
-    let candidate = try #require(catalog.discover(home: home, locateTool: installed).first)
+    #expect(catalog.discover(fixture: home, locateTool: { _ in nil }).isEmpty)
+    let candidate = try #require(catalog.discover(fixture: home, locateTool: installed).first)
     #expect(candidate.ruleID == "homebrew")
     #expect(candidate.action == .tool)
     #expect(candidate.toolURL == brew)
@@ -124,16 +124,16 @@ private final class FakeVolume: @unchecked Sendable {
 /// The Homebrew rule pointed at a fake brew, optionally with a shorter time limit.
 private func homebrewRun(_ home: URL, script: String, timeout: TimeInterval? = nil, volume: FakeVolume = FakeVolume(), previewOnly: Bool = false) async throws -> CatalogExecutionResult {
     let brew = try fakeTool(home, script)
-    var rules = BuiltInCatalog.rules
+    var rules = fixtureRules
     if let timeout, let index = rules.firstIndex(where: { $0.id == "homebrew" }) {
         let rule = rules[index], tool = try #require(rule.tool)
         rules[index] = CleanupRule(id: rule.id, category: rule.category, title: rule.title, detail: rule.detail, consequence: rule.consequence, regen: rule.regen, action: rule.action, locations: rule.locations, owner: rule.owner,
                                    tool: ToolCommand(executables: tool.executables, arguments: tool.arguments, timeout: timeout, deletesLocationAfter: tool.deletesLocationAfter))
     }
     let catalog = Catalog(rules: rules)
-    let candidate = try #require(catalog.discover(home: home, locateTool: { _ in brew }).first)
+    let candidate = try #require(catalog.discover(fixture: home, locateTool: { _ in brew }).first)
     let journal = try SQLiteCleanupJournal(url: home.appendingPathComponent("journal.sqlite"))
-    let run = CleanupExecutor(journal: journal, check: CandidateCheck(catalog: catalog, running: NothingRunning()), measure: volume.read)
+    let run = CleanupExecutor(journal: journal, check: CandidateCheck(catalog: catalog, running: NothingRunning()), measure: volume.read, trash: TrashNeverUsed())
     return await run.execute(CatalogApproval(candidates: [candidate], previewOnly: previewOnly))
 }
 
@@ -205,8 +205,8 @@ private func homebrewRun(_ home: URL, script: String, timeout: TimeInterval? = n
     try makeFolder(home, "Library/Caches/pnpm", bytes: 500)
     let marker = home.appendingPathComponent("ran")
     let pnpm = try fakeTool(home, "echo \"$@\" > '\(marker.path)'")
-    let catalog = Catalog(rules: BuiltInCatalog.rules)
-    let found = catalog.discover(home: home, locateTool: { $0.arguments.first == "store" ? pnpm : nil })
+    let catalog = Catalog(rules: fixtureRules)
+    let found = catalog.discover(fixture: home, locateTool: { $0.arguments.first == "store" ? pnpm : nil })
     let store = try #require(found.first { $0.url.lastPathComponent == "store" })
     #expect(store.ruleID == "pnpm-store")
     #expect(store.action == .tool)
@@ -217,7 +217,7 @@ private func homebrewRun(_ home: URL, script: String, timeout: TimeInterval? = n
     #expect(metadata.ruleID == "pnpm-cache" && metadata.action == .delete)
 
     let journal = try SQLiteCleanupJournal(url: home.appendingPathComponent("journal.sqlite"))
-    let run = CleanupExecutor(journal: journal, check: CandidateCheck(catalog: catalog, running: NothingRunning()), measure: FakeVolume().read)
+    let run = CleanupExecutor(journal: journal, check: CandidateCheck(catalog: catalog, running: NothingRunning()), measure: FakeVolume().read, trash: TrashNeverUsed())
     let result = await run.execute(CatalogApproval(candidates: [store], previewOnly: false))
     #expect(result.records.first?.state == .succeeded)
     #expect(try String(contentsOf: marker, encoding: .utf8) == "store prune\n")

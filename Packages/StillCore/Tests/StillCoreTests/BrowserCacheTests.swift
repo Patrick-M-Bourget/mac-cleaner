@@ -34,7 +34,7 @@ private func makeChrome(_ home: URL, profiles: [String: Int]) throws {
     let home = try fixtureHome()
     defer { try? FileManager.default.removeItem(at: home) }
     try makeChrome(home, profiles: ["Default": 4_096, "Profile 1": 8_192])
-    let found = Catalog(rules: BuiltInCatalog.rules).discover(home: home)
+    let found = Catalog(rules: fixtureRules).discover(fixture: home)
     let caches = home.appendingPathComponent("Library/Caches/Google/Chrome").path
     #expect(Set(found.map(\.url.path)) == [caches + "/Default/Cache", caches + "/Default/Code Cache",
                                            caches + "/Profile 1/Cache", caches + "/Profile 1/Code Cache"])
@@ -59,8 +59,8 @@ private struct Running: RunningAppChecking {
     try FileManager.default.createDirectory(at: caches.appendingPathComponent("Moved"), withIntermediateDirectories: true)
     try FileManager.default.createSymbolicLink(at: caches.appendingPathComponent("Moved/Cache"),
                                                withDestinationURL: home.appendingPathComponent("Library/Application Support/Google/Chrome/Default"))
-    let catalog = Catalog(rules: BuiltInCatalog.rules)
-    let found = catalog.discover(home: home)
+    let catalog = Catalog(rules: fixtureRules)
+    let found = catalog.discover(fixture: home)
     #expect(Set(found.map(\.profile)) == ["Default"])
     let data = home.appendingPathComponent("Library/Application Support").path
     #expect(!found.contains { $0.url.path.hasPrefix(data) })
@@ -78,8 +78,8 @@ private struct Running: RunningAppChecking {
     let home = try fixtureHome()
     defer { try? FileManager.default.removeItem(at: home) }
     try makeChrome(home, profiles: ["Default": 100])
-    let catalog = Catalog(rules: BuiltInCatalog.rules)
-    let cache = try #require(catalog.discover(home: home).first)
+    let catalog = Catalog(rules: fixtureRules)
+    let cache = try #require(catalog.discover(fixture: home).first)
     let refusal = CandidateCheck(catalog: catalog, running: Running(names: ["Google Chrome"])).check(cache)
     #expect(refusal == .ownerRunning("Google Chrome"))
     #expect(refusal?.reason == "Google Chrome is running. Quit it, then scan again.")
@@ -88,7 +88,7 @@ private struct Running: RunningAppChecking {
 }
 
 @Test func chromeIsRecognizedByItsAppAndHelperProcesses() throws {
-    let owner = try #require(BuiltInCatalog.rules.first { $0.id == "chrome-cache" }?.owner)
+    let owner = try #require(fixtureRules.first { $0.id == "chrome-cache" }?.owner)
     #expect(owner.bundleIDs == ["com.google.Chrome"])
     #expect(owner.matches(["/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"]))
     #expect(owner.matches(["/Applications/Google Chrome.app/Contents/Frameworks/Google Chrome Framework.framework/Helpers/Google Chrome Helper (Renderer).app/Contents/MacOS/Google Chrome Helper (Renderer)", "--type=renderer"]))
@@ -109,8 +109,8 @@ private let firefoxProfileData = ["cookies.sqlite", "places.sqlite", "logins.jso
         try write(home, "Library/Caches/Firefox/Profiles/\(profile)/startupCache/startupCache.8.little")
         try write(home, "Library/Caches/Firefox/Profiles/\(profile)/safebrowsing/google4/goog-phish-proto.vlpset")
     }
-    let catalog = Catalog(rules: BuiltInCatalog.rules)
-    let found = catalog.discover(home: home)
+    let catalog = Catalog(rules: fixtureRules)
+    let found = catalog.discover(fixture: home)
     let profiles = home.appendingPathComponent("Library/Caches/Firefox/Profiles").path
     #expect(Set(found.map(\.url.path)) == [profiles + "/ab12cd34.default-release/cache2", profiles + "/ef56gh78.work/cache2"])
     #expect(found.allSatisfy { $0.ruleID == "firefox-cache" && $0.action == .delete && $0.logicalBytes == 2_048 })
@@ -123,7 +123,7 @@ private let firefoxProfileData = ["cookies.sqlite", "places.sqlite", "logins.jso
 }
 
 @Test func everyFirefoxChannelCountsAsRunning() throws {
-    let owner = try #require(BuiltInCatalog.rules.first { $0.id == "firefox-cache" }?.owner)
+    let owner = try #require(fixtureRules.first { $0.id == "firefox-cache" }?.owner)
     // Release, Developer Edition and Nightly share the same Profiles folder.
     #expect(Set(owner.bundleIDs) == ["org.mozilla.firefox", "org.mozilla.firefoxdeveloperedition", "org.mozilla.nightly"])
     #expect(owner.matches(["/Applications/Firefox Nightly.app/Contents/MacOS/firefox", "-foreground"]))
@@ -137,7 +137,7 @@ private func writeText(_ root: URL, _ relative: String, _ text: String) throws {
 }
 
 @Test func aBrowserWhoseCacheLocationIsOverriddenIsLeftAlone() throws {
-    let catalog = Catalog(rules: BuiltInCatalog.rules)
+    let catalog = Catalog(rules: fixtureRules)
     let overrides: [(String, String, String)] = [
         // Chrome's disk cache folder set in its Local State, in user preferences, or by an administrator.
         ("home", "Library/Application Support/Google/Chrome/Local State", #"{"browser":{"disk_cache_dir":"/Volumes/Fast/ChromeCache"}}"#),
@@ -150,9 +150,9 @@ private func writeText(_ root: URL, _ relative: String, _ text: String) throws {
         let home = try fixtureHome(), system = try fixtureHome()
         defer { try? FileManager.default.removeItem(at: home); try? FileManager.default.removeItem(at: system) }
         try makeChrome(home, profiles: ["Default": 100])
-        #expect(catalog.discover(home: home, systemRoot: system).count == 2)
+        #expect(catalog.discover(fixture: home, systemRoot: system).count == 2)
         try writeText(base == "home" ? home : system, relative, contents)
-        #expect(catalog.discover(home: home, systemRoot: system).isEmpty, "\(relative)")
+        #expect(catalog.discover(fixture: home, systemRoot: system).isEmpty, "\(relative)")
         #expect(catalog.overriddenRules(home: home, systemRoot: system).map(\.id) == ["chrome-cache"], "\(relative)")
     }
     // Unrelated settings in the same files change nothing.
@@ -161,7 +161,7 @@ private func writeText(_ root: URL, _ relative: String, _ text: String) throws {
     try makeChrome(home, profiles: ["Default": 100])
     try writeText(home, "Library/Application Support/Google/Chrome/Local State", #"{"browser":{"enabled_labs_experiments":[]}}"#)
     try writeText(system, "Library/Managed Preferences/com.google.Chrome.plist", plist(["HomepageLocation": "https://example.com"]))
-    #expect(catalog.discover(home: home, systemRoot: system).count == 2)
+    #expect(catalog.discover(fixture: home, systemRoot: system).count == 2)
     #expect(catalog.overriddenRules(home: home, systemRoot: system).isEmpty)
 }
 
@@ -170,11 +170,11 @@ private func writeText(_ root: URL, _ relative: String, _ text: String) throws {
     defer { try? FileManager.default.removeItem(at: home) }
     try write(home, "Library/Caches/Firefox/Profiles/ab12.default-release/cache2/entries/0A1B")
     try writeText(home, "Library/Application Support/Firefox/Profiles/ab12.default-release/prefs.js", #"user_pref("browser.startup.page", 3);"#)
-    let catalog = Catalog(rules: BuiltInCatalog.rules)
-    #expect(catalog.discover(home: home, systemRoot: home).map(\.ruleID) == ["firefox-cache"])
+    let catalog = Catalog(rules: fixtureRules)
+    #expect(catalog.discover(fixture: home, systemRoot: home).map(\.ruleID) == ["firefox-cache"])
     try writeText(home, "Library/Application Support/Firefox/Profiles/ab12.default-release/user.js",
                   #"user_pref("browser.cache.disk.parent_directory", "/Volumes/Fast/ff");"#)
-    #expect(catalog.discover(home: home, systemRoot: home).isEmpty)
+    #expect(catalog.discover(fixture: home, systemRoot: home).isEmpty)
 }
 
 private func plist(_ values: [String: String]) -> String {

@@ -143,7 +143,11 @@ public struct CleanupRule: Sendable, Identifiable {
 
 public enum BuiltInCatalog {
     private static let pnpmOwner = RuleOwner(name: "pnpm", executables: ["pnpm", "pnpx"], scripts: ["pnpm", "pnpx", "pnpm.js", "pnpm.cjs", "pnpx.js", "pnpx.cjs"])
-    public static let rules: [CleanupRule] = [
+    /// The catalog as the app uses it, with installed apps found through LaunchServices.
+    public static let rules: [CleanupRule] = rules(apps: SystemAppLookup())
+    /// The catalog with installed apps found by `apps`. Tests pass a fake, so they never depend on this Mac's apps.
+    public static func rules(apps: any AppLookup) -> [CleanupRule] { fixedRules + BrowserCaches.rules + AppCaches.rules(apps: apps) }
+    private static let fixedRules: [CleanupRule] = [
         CleanupRule(id: "npm-cache", category: .developer, title: "npm cache",
                     detail: "Packages npm downloaded for your projects.",
                     consequence: "Permanently removed. npm downloads packages again as needed; the next install may take longer.",
@@ -236,7 +240,7 @@ public enum BuiltInCatalog {
         huggingFaceModels,
         ollamaModels,
         appVMImages,
-    ] + BrowserCaches.rules + AppCaches.rules(apps: SystemAppLookup())
+    ]
     /// Kept from the Downloads-era policy: libraries and databases are never moved, even inside Downloads.
     static let downloadsProtectedExtensions = ["dsym", "library", "db", "sqlite", "sqlite3"]
     /// Xcode and the build processes that write into DerivedData, including command-line builds.

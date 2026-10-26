@@ -50,14 +50,19 @@ extension Catalog {
             let length = confstr(name, nil, 0)
             guard length > 0 else { continue }
             var buffer = [CChar](repeating: 0, count: length)
-            guard confstr(name, &buffer, length) > 0 else { continue }
-            guard let leaf = realPath(String(cString: buffer)) else { continue }
-            let folder = URL(fileURLWithPath: leaf, isDirectory: true).deletingLastPathComponent()
-            var info = stat()
-            guard lstat(folder.path, &info) == 0, info.st_uid == geteuid(), info.st_mode & S_IFMT == S_IFDIR else { continue }
+            guard confstr(name, &buffer, length) > 0, let folder = userFolder(holding: String(cString: buffer)) else { continue }
             return folder
         }
         return nil
+    }
+
+    /// The folder holding the per-user `T` or `C` folder at `leaf`, by real path, when the current user owns it.
+    static func userFolder(holding leaf: String) -> URL? {
+        guard let leaf = realPath(leaf) else { return nil }
+        let folder = URL(fileURLWithPath: leaf, isDirectory: true).deletingLastPathComponent()
+        var info = stat()
+        guard lstat(folder.path, &info) == 0, info.st_uid == geteuid(), info.st_mode & S_IFMT == S_IFDIR else { return nil }
+        return folder
     }
 
     /// Every copy inside `root` except the ones in use and the newest. When in-use status can't be

@@ -14,7 +14,7 @@ private func fixtureDownloads() throws -> (home: URL, downloads: URL) {
     let (home, downloads) = try fixtureDownloads()
     defer { try? FileManager.default.removeItem(at: home) }
     for name in ["a.dmg", "b.pkg"] { try Data([1, 2]).write(to: downloads.appendingPathComponent(name)) }
-    let candidates = Catalog(rules: BuiltInCatalog.rules).discover(home: home).sorted { $0.url.path < $1.url.path }
+    let candidates = Catalog(rules: fixtureRules).discover(fixture: home).sorted { $0.url.path < $1.url.path }
     let approval = CatalogApproval(candidates: candidates, previewOnly: false)
     let url = home.appendingPathComponent("cleanup.sqlite")
     do {
@@ -78,7 +78,7 @@ private struct FailOutcomeJournal: CleanupJournaling {
 private func twoInstallers() throws -> (URL, [Candidate]) {
     let (home, downloads) = try fixtureDownloads()
     for name in ["a.dmg", "b.dmg"] { try Data([1]).write(to: downloads.appendingPathComponent(name)) }
-    return (home, Catalog(rules: BuiltInCatalog.rules).discover(home: home).sorted { $0.url.path < $1.url.path })
+    return (home, Catalog(rules: fixtureRules).discover(fixture: home).sorted { $0.url.path < $1.url.path })
 }
 
 @Test func anOutcomeThatCannotBeRecordedLeavesADurableIntentAndStopsTheNextItem() async throws {
@@ -86,7 +86,7 @@ private func twoInstallers() throws -> (URL, [Candidate]) {
     defer { try? FileManager.default.removeItem(at: home) }
     let url = home.appendingPathComponent("journal.sqlite")
     let journal = try SQLiteCleanupJournal(url: url)
-    let check = CandidateCheck(catalog: Catalog(rules: BuiltInCatalog.rules), running: Closed())
+    let check = CandidateCheck(catalog: Catalog(rules: fixtureRules), running: Closed())
     let result = await CleanupExecutor(journal: FailOutcomeJournal(base: journal), check: check, measure: { _ in nil }, trash: RefusingTrash())
         .execute(CatalogApproval(candidates: candidates, previewOnly: false))
     #expect(result.records.map(\.state) == [.unknown, .cancelled])
@@ -101,7 +101,7 @@ private func twoInstallers() throws -> (URL, [Candidate]) {
     defer { try? FileManager.default.removeItem(at: home) }
     let journal = try SQLiteCleanupJournal(url: home.appendingPathComponent("journal.sqlite"))
     let cancellation = CleanupCancellation()
-    let check = CandidateCheck(catalog: Catalog(rules: BuiltInCatalog.rules), running: Closed())
+    let check = CandidateCheck(catalog: Catalog(rules: fixtureRules), running: Closed())
     let result = await CleanupExecutor(journal: journal, check: check, measure: { _ in nil }, trash: RefusingTrash(cancellation: cancellation), cancellation: cancellation)
         .execute(CatalogApproval(candidates: candidates, previewOnly: false))
     #expect(result.records.map(\.state) == [.failed, .cancelled])

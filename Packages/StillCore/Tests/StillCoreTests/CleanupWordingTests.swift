@@ -11,7 +11,7 @@ private func records(_ actions: [CleanupAction], previewOnly: Bool = false) thro
                                  tool: action == .tool ? ToolCommand(executables: ["/usr/bin/true"], arguments: [], timeout: 1) : nil))
     }
     let batch = UUID()
-    let made = Catalog(rules: rules).discover(home: home).map { CleanupRecord(batchID: batch, approvedAt: Date(), candidate: $0, previewOnly: previewOnly) }
+    let made = Catalog(rules: rules).discover(fixture: home, locateTool: { _ in home.appendingPathComponent("tool") }).map { CleanupRecord(batchID: batch, approvedAt: Date(), candidate: $0, previewOnly: previewOnly) }
     return (home, made)
 }
 
@@ -57,9 +57,9 @@ private func records(_ actions: [CleanupAction], previewOnly: Bool = false) thro
         CleanupRule(id: "r0", category: .developer, title: "R", detail: "", consequence: "", regen: .cache, action: .delete, locations: ["item0"], owner: nil),
         CleanupRule(id: "r1", category: .developer, title: "R", detail: "", consequence: "", regen: .cache, action: .trash, locations: ["item1"], owner: nil),
     ])
-    let candidates = catalog.discover(home: home)
+    let candidates = catalog.discover(fixture: home)
     #expect(candidates.count == made.count)
-    let result = await CleanupExecutor(journal: journal, check: CandidateCheck(catalog: catalog, running: Closed()), measure: { _ in nil })
+    let result = await CleanupExecutor(journal: journal, check: CandidateCheck(catalog: catalog, running: Closed()), measure: { _ in nil }, trash: TrashNeverUsed())
         .execute(CatalogApproval(candidates: candidates, previewOnly: true))
     #expect(result.records.map(\.outcomeTitle) == ["Would delete", "Would move to Trash"])
     let run = try #require(try journal.completedHistory().completedRuns.first)

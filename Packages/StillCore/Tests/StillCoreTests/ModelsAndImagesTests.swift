@@ -48,7 +48,7 @@ private let hub = ".cache/huggingface/hub"
     try file(home, hub + "/.locks/models--meta-llama--Llama-3-8B/aaa.lock")
     try file(home, hub + "/version.txt")
 
-    let candidates = Catalog(rules: BuiltInCatalog.rules).discover(home: home, locateTool: { _ in nil })
+    let candidates = Catalog(rules: fixtureRules).discover(fixture: home, locateTool: { _ in nil })
     #expect(candidates.allSatisfy { $0.ruleID == "huggingface-models" && $0.action == .trash && $0.isDirectory })
     let found = Dictionary(uniqueKeysWithValues: candidates.map { ($0.url.lastPathComponent, $0) })
     #expect(Set(found.keys) == ["models--meta-llama--Llama-3-8B", "models--openai--whisper-small"])
@@ -60,7 +60,7 @@ private let hub = ".cache/huggingface/hub"
     #expect(abs(llamaUsed.timeIntervalSinceNow + 200 * day) < 5)
     let whisperUsed = try #require(found["models--openai--whisper-small"]?.lastUsed)
     #expect(abs(whisperUsed.timeIntervalSinceNow + 3 * day) < 5)
-    let rule = try #require(Catalog(rules: BuiltInCatalog.rules).rule("huggingface-models"))
+    let rule = try #require(Catalog(rules: fixtureRules).rule("huggingface-models"))
     #expect(rule.category == .models)
     #expect(rule.regen == .model)
 }
@@ -81,7 +81,7 @@ private struct Running: RunningAppChecking {
 }
 private func run(_ home: URL, _ candidates: [Candidate], running: Running = Running(), previewOnly: Bool = false) async throws -> CatalogExecutionResult {
     let journal = try SQLiteCleanupJournal(url: home.appendingPathComponent("journal.sqlite"))
-    let check = CandidateCheck(catalog: Catalog(rules: BuiltInCatalog.rules), running: running)
+    let check = CandidateCheck(catalog: Catalog(rules: fixtureRules), running: running)
     let executor = CleanupExecutor(journal: journal, check: check, measure: { _ in nil }, trash: FixtureTrash(folder: home.appendingPathComponent("FixtureTrash")))
     return await executor.execute(CatalogApproval(candidates: candidates, previewOnly: previewOnly))
 }
@@ -91,7 +91,7 @@ private func run(_ home: URL, _ candidates: [Candidate], running: Running = Runn
     defer { try? FileManager.default.removeItem(at: home) }
     try file(home, hub + "/models--org--chosen/blobs/aaa", size: 3000)
     let kept = try file(home, hub + "/models--org--kept/blobs/bbb", size: 3000)
-    let candidates = Catalog(rules: BuiltInCatalog.rules).discover(home: home, locateTool: { _ in nil })
+    let candidates = Catalog(rules: fixtureRules).discover(fixture: home, locateTool: { _ in nil })
     let chosen = try #require(candidates.first { $0.itemName == "org/chosen" })
     let result = try await run(home, [chosen])
     let record = try #require(result.records.first)
@@ -138,9 +138,9 @@ private func fakeOllama(_ home: URL, _ script: String = "echo \"$@\" >> \"$(dirn
     try file(home, manifests + "/registry.ollama.ai/library/broken/latest", contents: Data("not json".utf8))
     try ollamaModel(home, "registry.ollama.ai/library/-rf/latest", layers: [("weights4", 100)])
 
-    let catalog = Catalog(rules: BuiltInCatalog.rules)
-    #expect(catalog.discover(home: home, locateTool: { _ in nil }).isEmpty)
-    let candidates = catalog.discover(home: home, locateTool: { _ in ollama })
+    let catalog = Catalog(rules: fixtureRules)
+    #expect(catalog.discover(fixture: home, locateTool: { _ in nil }).isEmpty)
+    let candidates = catalog.discover(fixture: home, locateTool: { _ in ollama })
     #expect(candidates.allSatisfy { $0.ruleID == "ollama-models" && $0.action == .tool && !$0.isDirectory && $0.toolURL == ollama })
     let found = Dictionary(uniqueKeysWithValues: candidates.map { ($0.itemName ?? "", $0) })
     #expect(Set(found.keys) == ["llama3:latest", "llama3:8b", "someone/tuned:v2", "hf.co/org/repo:Q4_K_M"])
@@ -162,7 +162,7 @@ private func fakeOllama(_ home: URL, _ script: String = "echo \"$@\" >> \"$(dirn
     let ollama = try fakeOllama(home)
     try ollamaModel(home, "registry.ollama.ai/library/llama3/latest", layers: [("weights1", 4000)])
     try ollamaModel(home, "registry.ollama.ai/someone/tuned/v2", layers: [("weights2", 3000)])
-    let candidates = Catalog(rules: BuiltInCatalog.rules).discover(home: home, locateTool: { _ in ollama })
+    let candidates = Catalog(rules: fixtureRules).discover(fixture: home, locateTool: { _ in ollama })
     let chosen = try #require(candidates.first { $0.itemName == "someone/tuned:v2" })
 
     let preview = try await run(home, [chosen], previewOnly: true)
@@ -182,7 +182,7 @@ private func fakeOllama(_ home: URL, _ script: String = "echo \"$@\" >> \"$(dirn
     defer { try? FileManager.default.removeItem(at: home) }
     let ollama = try fakeOllama(home, "echo 'Error: could not connect to ollama app, is it running?'; exit 1")
     let manifest = try ollamaModel(home, "registry.ollama.ai/library/llama3/latest", layers: [("weights1", 4000)])
-    let chosen = try #require(Catalog(rules: BuiltInCatalog.rules).discover(home: home, locateTool: { _ in ollama }).first)
+    let chosen = try #require(Catalog(rules: fixtureRules).discover(fixture: home, locateTool: { _ in ollama }).first)
     let record = try #require(try await run(home, [chosen]).records.first)
     #expect(record.state == .failed, "\(record.message)")
     #expect(record.toolOutput == "Error: could not connect to ollama app, is it running?")
@@ -221,8 +221,8 @@ private func sparse(_ home: URL, _ relative: String, size: Int, age: TimeInterva
     try sparse(home, "Documents/rootfs.img", size: 800 * megabyte)
     try file(home, "Documents/rootfs.img.zst", size: 100)
 
-    let catalog = Catalog(rules: BuiltInCatalog.rules)
-    let candidates = catalog.discover(home: home, locateTool: { _ in nil })
+    let catalog = Catalog(rules: fixtureRules)
+    let candidates = catalog.discover(fixture: home, locateTool: { _ in nil })
     #expect(candidates.map(\.url.path) == [image.path])
     let candidate = try #require(candidates.first)
     #expect(candidate.ruleID == "app-vm-images")
@@ -247,10 +247,10 @@ private func sparse(_ home: URL, _ relative: String, size: Int, age: TimeInterva
     defer { try? FileManager.default.removeItem(at: home) }
     try sparse(home, vmBundles + "/claudevm.bundle/rootfs.img", size: 800 * megabyte)
     try file(home, vmBundles + "/claudevm.bundle/rootfs.img.zst", size: 100)
-    let candidate = try #require(Catalog(rules: BuiltInCatalog.rules).discover(home: home, locateTool: { _ in nil }).first)
+    let candidate = try #require(Catalog(rules: fixtureRules).discover(fixture: home, locateTool: { _ in nil }).first)
     // A rule that doesn't lift the bundle protection refuses the same item.
-    let others = BuiltInCatalog.rules.filter { $0.id != "app-vm-images" }
-    let strict = try #require(BuiltInCatalog.rules.first { $0.id == "app-vm-images" })
+    let others = fixtureRules.filter { $0.id != "app-vm-images" }
+    let strict = try #require(fixtureRules.first { $0.id == "app-vm-images" })
     let plain = CleanupRule(id: strict.id, category: strict.category, title: strict.title, detail: strict.detail, consequence: strict.consequence,
                             regen: strict.regen, action: strict.action, locations: strict.locations, owner: strict.owner, contents: strict.contents)
     let check = CandidateCheck(catalog: Catalog(rules: others + [plain]), running: Running())
