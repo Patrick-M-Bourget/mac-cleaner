@@ -5,6 +5,43 @@ import StillCore
 
 @main struct ChromeCleanupRunner {
     struct Refusal: Error, CustomStringConvertible { let description: String }
+    struct Activity: Codable, Sendable {
+        let pid: Int32
+        let parentPID: UInt32?
+        let uid: UInt32?
+        let status: UInt32?
+        let executableBasename: String
+        let selectedBundle: Bool
+    }
+    struct RunningRefusal: Error, CustomStringConvertible {
+        let description: String
+        let activity: [Activity]
+    }
+    /// Hosted diagnostic only, invoked after verified same-run provenance and a
+    /// real public .running result. Never records arguments or private paths.
+    static func activityDiagnostics(_ bundle: URL) -> [Activity] {
+        let capacity = proc_listallpids(nil, 0)
+        guard capacity > 0 else { return [] }
+        var pids = [pid_t](repeating: 0, count: Int(capacity) + 128)
+        let count = pids.withUnsafeMutableBytes { proc_listallpids($0.baseAddress, Int32($0.count)) }
+        guard count > 0, Int(count) < pids.count else { return [] }
+        var matching: [Activity] = []
+        for pid in pids.prefix(Int(count)) where pid > 0 {
+            var bytes = [CChar](repeating: 0, count: 4 * Int(MAXPATHLEN))
+            guard proc_pidpath(pid, &bytes, UInt32(bytes.count)) > 0 else { continue }
+            let path = String(decoding: bytes.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }, as: UTF8.self)
+            let selected = path.hasPrefix(bundle.path + "/")
+            guard selected || path.hasSuffix("/Contents/MacOS/Google Chrome") || path.contains("/Google Chrome Framework.framework/") else { continue }
+            var details = proc_bsdinfo()
+            let size = Int32(MemoryLayout<proc_bsdinfo>.size)
+            let observed = proc_pidinfo(pid, PROC_PIDTBSDINFO, 0, &details, size) == size
+            matching.append(.init(pid: pid, parentPID: observed ? details.pbi_ppid : nil,
+                                  uid: observed ? details.pbi_uid : nil, status: observed ? details.pbi_status : nil,
+                                  executableBasename: URL(fileURLWithPath: path).lastPathComponent,
+                                  selectedBundle: selected))
+        }
+        return matching
+    }
     static func require(_ condition: Bool, _ message: String) throws {
         if !condition { throw Refusal(description: message) }
     }
@@ -63,6 +100,9 @@ import StillCore
             let service = ChromeCacheService(journalURL: journal)
             let inspected = await service.inspect(.init(applicationURL: bundle, dataRootURL: data, cacheRootURL: data, customLocation: true))
             guard let group = inspected.groups.first(where: { $0.profileIdentifier == profile && $0.availability == .eligible }) else {
+                if inspected.availability == .running {
+                    throw RunningRefusal(description: inspected.unavailableReason ?? "Browser activity observed", activity: activityDiagnostics(bundle))
+                }
                 throw Refusal(description: inspected.unavailableReason ?? "Requested generated cache group is unavailable")
             }
             let approval = try await service.approve(groupIDs: [group.id])
@@ -75,7 +115,12 @@ import StillCore
             FileHandle.standardOutput.write(output); FileHandle.standardOutput.write(Data("\n".utf8))
             if !completed { exit(1) }
         } catch {
-            let output: [String: Any] = ["removed": 0, "status": "stopped", "reason": String(describing: error), "productionSwiftAdapter": true]
+            var output: [String: Any] = ["removed": 0, "status": "stopped", "reason": String(describing: error), "productionSwiftAdapter": true]
+            if let running = error as? RunningRefusal,
+               let data = try? JSONEncoder().encode(running.activity),
+               let diagnostic = try? JSONSerialization.jsonObject(with: data) {
+                output["activityDiagnostic"] = diagnostic
+            }
             if let data = try? JSONSerialization.data(withJSONObject: output, options: [.sortedKeys]) { FileHandle.standardOutput.write(data); FileHandle.standardOutput.write(Data("\n".utf8)) }
             exit(1)
         }
