@@ -149,8 +149,7 @@ struct LiveCleanupPlanView: View {
         ScrollView {
         if selection.workspaceRunning || selection.hasWorkspaceResult {
             VStack(alignment: .leading, spacing: StillDesign.Space.xl) {
-                PageHeader(title: selection.workspaceRunning ? "Running cleanup" : selection.catalog.result?.previewOnly == true ? "Preview results" : "Cleanup results",
-                           subtitle: "Review each item’s recorded outcome. Caches are permanently removed; Downloads go to Trash.")
+                PageHeader(title: selection.workspaceRunning ? "Running cleanup" : selection.catalog.result?.previewOnly == true ? "Preview results" : "Cleanup results")
                 if selection.catalog.isRunning { ProgressView(selection.catalog.previewOnly ? "Checking selected items…" : "Cleaning selected items…") }
                 if let result = selection.catalog.result { CatalogResultsSection(result: result, catalog: selection.catalog.catalog) }
                 if let message = selection.catalog.message { StatusRow(text: message, symbol: "exclamationmark.triangle", role: .caution) }
@@ -176,7 +175,7 @@ struct LiveCleanupPlanView: View {
                 Button(selection.workspaceStopRequested ? "Stop requested" : "Stop after current item") { selection.cancelWorkspace() }.disabled(selection.workspaceStopRequested)
             }
         } else if selection.hasWorkspaceResult {
-            ActionStrip(message: selection.requiresRecoveryReview ? "Review unresolved records before making another plan." : "This run has ended. A new plan starts from a fresh scan.") {
+            ActionStrip(message: selection.requiresRecoveryReview ? "Review unresolved records before making another plan." : "") {
                 if let viewHistory { Button("View history", action: viewHistory) }
                 if selection.requiresRecoveryReview, let reviewRecovery { Button("Review recovery", action: reviewRecovery) }
                 if let newPlan { Button("Start a new plan", action: newPlan).buttonStyle(.borderedProminent) }

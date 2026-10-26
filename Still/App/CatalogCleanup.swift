@@ -549,60 +549,85 @@ struct CatalogConfirmationSection: View {
     }
 }
 
+/// Results: outcomes first (skipped and failed items on top, with their reason), details on demand.
 struct CatalogResultsSection: View {
     let result: CatalogExecutionResult
     let catalog: Catalog
     var body: some View {
         VStack(alignment: .leading, spacing: StillDesign.Space.lg) {
             if result.previewOnly {
-                StatusRow(text: "Preview only · Nothing on disk changed and no space was freed. Below is what Still would have done.", symbol: "eye", role: .neutral, identifier: "catalogPreviewNotice")
-            }
-            SummarySurface {
-                HStack(alignment: .top, spacing: StillDesign.Space.xl) {
-                    metric(result.previewOnly ? "—" : result.measuredFreedBytes.map { catalogBytes($0) } ?? SizeEstimate.unknown.text, "Measured freed space")
-                    let upperBound = result.records.contains { $0.ruleID.flatMap { catalog.rule($0)?.estimateIsUpperBound } == true }
-                    metric(catalogBytes(result.estimatedBytes, upperBound: upperBound), upperBound ? "Estimated before cleanup · Upper bound" : "Estimated before cleanup")
-                    if result.movedToTrashBytes > 0 { metric(catalogBytes(result.movedToTrashBytes), "Moved to Trash · Not yet freed") }
+                let previewed = result.records.filter(\.wasPreviewed)
+                StatusRow(text: "Preview · Nothing changed · " + catalogBytes(previewed.reduce(0) { $0 + $1.recordedBytes }, upperBound: upperBound(previewed)) + " would be affected",
+                          symbol: "eye", role: .neutral, identifier: "catalogPreviewNotice")
+            } else {
+                // SPEC section 6: measured and estimated, reported separately; Trash is never counted as freed.
+                SummarySurface {
+                    HStack(alignment: .top, spacing: StillDesign.Space.xl) {
+                        metric(result.measuredFreedBytes.map { catalogBytes($0) } ?? SizeEstimate.unknown.text, "Measured freed space")
+                        let upperBound = upperBound(result.records)
+                        metric(catalogBytes(result.estimatedBytes, upperBound: upperBound), upperBound ? "Estimated before cleanup · Upper bound" : "Estimated before cleanup")
+                        if result.movedToTrashBytes > 0 { metric(catalogBytes(result.movedToTrashBytes), "Moved to Trash · Not yet freed") }
+                    }
                 }
+                Text("Measured from the change in available space around each item. Other activity on this Mac can affect it.")
+                    .font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary)
             }
-            ForEach(result.records) { record in
-                HStack(alignment: .top, spacing: StillDesign.Space.md) {
-                    let wouldAct = record.wasPreviewed
-                    Image(systemName: record.state == .succeeded ? "checkmark.circle" : wouldAct ? "eye" : "exclamationmark.circle")
-                        .foregroundStyle(record.state == .succeeded ? StatusRole.success.color : wouldAct ? StatusRole.neutral.color : StatusRole.caution.color)
-                    VStack(alignment: .leading, spacing: StillDesign.Space.xs) {
-                        Text(record.ruleID.flatMap { catalog.rule($0)?.title } ?? record.originalURL.lastPathComponent).font(StillDesign.TypeStyle.rowTitle)
-                        Text(record.originalURL.path).font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary).textSelection(.enabled)
-                        Text(record.message).font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary)
-                        if let output = record.toolOutput {
-                            DisclosureGroup("Tool output") {
-                                Text(output).font(StillDesign.TypeStyle.code).foregroundStyle(.secondary).textSelection(.enabled)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                            }.font(StillDesign.TypeStyle.caption).accessibilityIdentifier("toolOutput-" + (record.ruleID ?? ""))
-                        }
-                    }
-                    Spacer()
-                    VStack(alignment: .trailing, spacing: StillDesign.Space.xs) {
-                        Text(record.outcomeTitle).font(StillDesign.TypeStyle.note)
-                        if record.state == .succeeded, let trashed = record.trashURL {
-                            Button("Reveal in Trash") { NSWorkspace.shared.activateFileViewerSelecting([trashed]) }
-                                .accessibilityLabel("Reveal \(record.originalURL.lastPathComponent) in Trash")
-                        }
-                    }
+            VStack(alignment: .leading, spacing: 0) {
+                ForEach(result.records.attentionFirst) { record in
+                    CatalogResultRow(record: record, rule: record.ruleID.flatMap { catalog.rule($0) })
+                    Divider()
                 }
             }
             if let failure = result.journalFailure { StatusRow(text: failure, symbol: "exclamationmark.triangle", role: .caution) }
-            if result.movedToTrashBytes > 0 {
-                StatusRow(text: "Items moved to Trash still use space until you empty the Trash. Still never empties it.", symbol: "trash", role: .neutral, identifier: "catalogTrashNotice")
-            }
-            Text("Measured freed space is the change in available space read right before and after each item. Downloads, snapshots and other activity can affect it, and it may differ from the estimate.")
-                .font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary)
         }
     }
+    private func upperBound(_ records: [CleanupRecord]) -> Bool { records.contains { $0.ruleID.flatMap { catalog.rule($0)?.estimateIsUpperBound } == true } }
     private func metric(_ value: String, _ label: String) -> some View {
         VStack(alignment: .leading, spacing: StillDesign.Space.xs) {
             Text(value).font(StillDesign.TypeStyle.value).monospacedDigit()
             Text(label).font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary)
         }
+    }
+}
+
+/// One result: name and short location, outcome and size; its reason when it needs attention; path and messages on demand.
+private struct CatalogResultRow: View {
+    let record: CleanupRecord
+    let rule: CleanupRule?
+    private var name: String {
+        let file = record.originalURL.lastPathComponent
+        return rule?.itemName?(file) ?? (rule?.choosesItems == true ? file : rule?.title ?? file)
+    }
+    var body: some View {
+        let role: StatusRole = record.state == .succeeded ? .success : record.wasPreviewed ? .neutral : .caution
+        VStack(alignment: .leading, spacing: StillDesign.Space.xs) {
+            HStack(alignment: .firstTextBaseline, spacing: StillDesign.Space.md) {
+                Image(systemName: record.state == .succeeded ? "checkmark.circle" : record.wasPreviewed ? "eye" : "exclamationmark.circle").foregroundStyle(role.color)
+                    .frame(width: StillDesign.Space.lg)
+                (Text(name).font(StillDesign.TypeStyle.rowTitle)
+                    + Text(" · " + PathDisplay.shortLocation(of: record.originalURL, home: CatalogCleanupModel.checkHome)).foregroundStyle(.secondary))
+                    .lineLimit(1).help(record.originalURL.path)
+                Spacer(minLength: StillDesign.Space.md)
+                if record.state == .succeeded, let trashed = record.trashURL {
+                    Button("Reveal in Trash") { NSWorkspace.shared.activateFileViewerSelecting([trashed]) }.buttonStyle(.link)
+                        .accessibilityLabel("Reveal \(record.originalURL.lastPathComponent) in Trash")
+                }
+                Text(record.outcomeTitle).font(StillDesign.TypeStyle.note)
+                Text(catalogBytes(record.recordedBytes)).font(StillDesign.TypeStyle.note).monospacedDigit().foregroundStyle(.secondary)
+            }
+            VStack(alignment: .leading, spacing: StillDesign.Space.xs) {
+                if record.needsAttention { Text(record.message).font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true) }
+                ActionDisclosureGroup("Details") {
+                    VStack(alignment: .leading, spacing: StillDesign.Space.xs) {
+                        Text(record.originalURL.path).font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary).textSelection(.enabled)
+                        if !record.needsAttention { Text(record.message).font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary) }
+                        if let output = record.toolOutput {
+                            Text(output).font(StillDesign.TypeStyle.code).foregroundStyle(.secondary).textSelection(.enabled)
+                                .frame(maxWidth: .infinity, alignment: .leading).accessibilityIdentifier("toolOutput-" + (record.ruleID ?? ""))
+                        }
+                    }.padding(.top, StillDesign.Space.xs)
+                }.font(StillDesign.TypeStyle.caption).accessibilityIdentifier("resultDetails-" + record.id)
+            }.padding(.leading, StillDesign.Space.lg + StillDesign.Space.md)
+        }.padding(.vertical, StillDesign.Space.md)
     }
 }

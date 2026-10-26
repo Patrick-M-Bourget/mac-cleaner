@@ -275,8 +275,9 @@ final class CatalogCleanupUITests: XCTestCase {
 
         XCTAssertTrue(app.staticTexts["catalogPreviewNotice"].waitForExistence(timeout: 10))
         XCTAssertTrue(app.staticTexts["Would delete"].exists)
-        XCTAssertTrue(app.staticTexts["Estimated before cleanup · Upper bound"].exists)
-        XCTAssertTrue(app.staticTexts["Measured freed space"].exists)
+        // A preview reports one line; the copies share disk space, so it is an upper bound.
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "value BEGINSWITH 'Preview · Nothing changed · Up to '")).firstMatch.exists)
+        XCTAssertFalse(app.staticTexts["Measured freed space"].exists)
         XCTAssertTrue(FileManager.default.fileExists(atPath: clones.appendingPathComponent("code_sign_clone.old").path))
         XCTAssertTrue(FileManager.default.fileExists(atPath: clones.appendingPathComponent("code_sign_clone.new").path))
     }
@@ -468,7 +469,8 @@ final class CatalogCleanupUITests: XCTestCase {
         app.buttons["Run preview"].click()
 
         XCTAssertTrue(app.staticTexts["catalogPreviewNotice"].waitForExistence(timeout: 10))
-        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "value CONTAINS 'would run docker builder prune -a -f'")).firstMatch.exists)
+        expandDisclosures(in: app)
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "value CONTAINS 'would run docker builder prune -a -f'")).firstMatch.waitForExistence(timeout: 5))
         XCTAssertFalse(FileManager.default.fileExists(atPath: marker.path))
     }
 
