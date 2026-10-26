@@ -464,7 +464,7 @@ private struct WorkspaceView: View {
     }
     private func catalogRow(_ row: CatalogOverview.Row) -> some View {
         let inPlan = row.rules.contains { selection.catalog.isSelected($0) }
-        return StorageReviewRow(category: row.category.storageCategory, title: row.category.overviewTitle, detail: row.detail,
+        return StorageReviewRow(category: row.category.storageCategory, title: row.category.overviewTitle, detail: row.category.overviewDetail,
             value: row.valueText,
             meaning: row.estimate == .unknown ? "Couldn’t be measured" : inPlan ? "In cleanup plan"
                 : row.rules.allSatisfy { $0.action == .delete } ? "Rebuildable" : row.rules.allSatisfy { $0.action == .evict } ? "Local copies" : "Review files",

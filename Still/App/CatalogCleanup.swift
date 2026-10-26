@@ -296,6 +296,21 @@ extension CatalogCategory {
         case .managed: "App-managed storage"
         }
     }
+    /// Overview's one short line under the title, written per category rather than built from rule names.
+    var overviewDetail: String {
+        switch self {
+        case .developer: "Package caches and build files that tools rebuild"
+        case .browser: "Cached pages and images browsers fetch again"
+        case .downloads: "Installers and large files you haven’t opened lately"
+        case .system: "Caches apps rebuild when they need them"
+        case .models: "AI models and disk images you can download again"
+        case .updaters: "Updates apps downloaded and kept"
+        case .logs: "Logs and crash reports apps wrote"
+        case .icloud: "Local copies of files that stay in iCloud"
+        case .files: "Large files you haven’t opened in a while"
+        case .managed: "Data the apps that own it look after"
+        }
+    }
 }
 
 extension SizeEstimate {
