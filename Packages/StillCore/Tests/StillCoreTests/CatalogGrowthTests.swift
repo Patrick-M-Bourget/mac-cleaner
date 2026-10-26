@@ -4,7 +4,7 @@ import StillCore
 
 private func growthStore() -> (GrowthHistoryStore, URL) {
     let directory = FileManager.default.temporaryDirectory.appendingPathComponent("StillCatalogGrowth-" + UUID().uuidString)
-    return (GrowthHistoryStore(directory: directory), directory)
+    return (GrowthHistoryStore(directory: directory, minimumBaselineAge: 0), directory)
 }
 private let catalogFingerprint = GrowthFingerprint(scopeID: "catalog", rootID: "home", volumeID: "volume", access: "per-location", rules: "catalog", exclusions: "none", classification: "catalog")
 private func location(_ id: String, _ category: CatalogCategory, _ bytes: Int64, measured: Bool = true) -> GrowthAggregate {

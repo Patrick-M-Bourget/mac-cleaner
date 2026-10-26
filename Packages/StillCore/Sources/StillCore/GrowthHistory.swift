@@ -36,13 +36,20 @@ public struct GrowthSnapshot: Codable, Sendable, Identifiable {
     public let observedAt: Date
     public let groups: [GrowthAggregate]
     public let coverage: GrowthCoverage
-    public init(fingerprint: GrowthFingerprint, scopeLabel: String, observedAt: Date, groups: [GrowthAggregate], coverage: GrowthCoverage = .complete) {
+    /// A rescan right after a cleanup (#126). It can be the latest scan, but never the baseline a later scan compares with.
+    /// Nil in records made before this was tracked.
+    private let cleanup: Bool?
+    public var afterCleanup: Bool { cleanup == true }
+    public init(fingerprint: GrowthFingerprint, scopeLabel: String, observedAt: Date, groups: [GrowthAggregate], coverage: GrowthCoverage = .complete, afterCleanup: Bool = false) {
         id = UUID(); self.fingerprint = fingerprint; self.scopeLabel = scopeLabel
-        self.observedAt = observedAt; self.groups = groups; self.coverage = coverage
+        self.observedAt = observedAt; self.groups = groups; self.coverage = coverage; cleanup = afterCleanup
     }
     public var logicalBytes: Int64 { groups.filter { $0.dimension != .category && $0.isMeasured }.reduce(0) { $0 + $1.logicalBytes } }
 }
-public enum GrowthComparisonState: String, Codable, Sendable { case firstBaseline, clearedBaseline, missingBaseline, coverageChanged, unknown, compared }
+public enum GrowthComparisonState: String, Codable, Sendable { case firstBaseline, clearedBaseline, missingBaseline, coverageChanged, unknown, compared
+    /// Earlier scans exist, but none is old enough (or each is a rescan right after a cleanup): check back tomorrow.
+    case waitingForBaseline
+}
 public struct GrowthChange: Sendable, Identifiable {
     public let id, label: String
     public let logicalDelta: Int64
@@ -79,9 +86,16 @@ public struct GrowthRetention: Sendable {
 public actor GrowthHistoryStore {
     private struct Entry: Codable { let snapshot: GrowthSnapshot; let origin: GrowthComparisonState }
     private struct Archive: Codable { var version = 1; var entries: [Entry] = []; var hadHistory = false; var cleared = false; var activities: [ScanActivity]? = nil }
+    /// How much older a scan must be to serve as the baseline: about a day, a little under 24 h so a check at about
+    /// the same time each day compares with the day before (#126).
+    public static let minimumBaselineAge: TimeInterval = 20 * 3_600
     private let directory: URL
     private let policy: GrowthRetention
-    public init(directory: URL, policy: GrowthRetention = GrowthRetention()) { self.directory = directory; self.policy = policy }
+    private let baselineAge: TimeInterval
+    /// `minimumBaselineAge` is a test seam; the app always uses the default.
+    public init(directory: URL, policy: GrowthRetention = GrowthRetention(), minimumBaselineAge: TimeInterval = GrowthHistoryStore.minimumBaselineAge) {
+        self.directory = directory; self.policy = policy; baselineAge = max(0, minimumBaselineAge)
+    }
     public func activities(now: Date = Date(), maintain: Bool = true) throws -> [ScanActivity] {
         try withStoreLock {
             var value = try load()
@@ -155,8 +169,12 @@ public actor GrowthHistoryStore {
             return GrowthComparison(state: value.cleared ? .clearedBaseline : value.hadHistory ? .missingBaseline : .firstBaseline, current: nil, from: nil, groups: [])
         }
         let current = value.entries[index].snapshot
-        guard let previous = value.entries[..<index].last(where: { $0.snapshot.fingerprint.scopeID == current.fingerprint.scopeID })?.snapshot else {
-            return GrowthComparison(state: value.entries[index].origin, current: current, from: nil, groups: [])
+        let earlier = value.entries[..<index].map(\.snapshot).filter { $0.fingerprint.scopeID == current.fingerprint.scopeID }
+        // The newest scan at least about a day older that isn't a rescan right after a cleanup, unless the settings
+        // changed since: then this scan starts a new baseline.
+        guard let previous = earlier.last(where: { $0.fingerprint != current.fingerprint
+                || (!$0.afterCleanup && current.observedAt.timeIntervalSince($0.observedAt) >= baselineAge) }) else {
+            return GrowthComparison(state: earlier.isEmpty ? value.entries[index].origin : .waitingForBaseline, current: current, from: nil, groups: [])
         }
         guard current.fingerprint == previous.fingerprint else { return GrowthComparison(state: .coverageChanged, current: current, from: previous.observedAt, groups: []) }
         if (current.groups + previous.groups).contains(where: { $0.dimension == .location }) { return Self.catalogComparison(previous, current) }
