@@ -144,3 +144,12 @@ private final class RecordingTrash: TrashMoving, @unchecked Sendable {
     let found = catalog.discover(home: home)
     #expect(found.map(\.url.lastPathComponent) == ["Editor"])
 }
+
+@Test func huggingFaceCLIIsMatchedWhenItRunsAsAPythonScript() throws {
+    let owner = try #require(BuiltInCatalog.rules.first { $0.id == "huggingface-models" }?.owner)
+    #expect(owner.matches(["/opt/homebrew/bin/python3.12", "/opt/homebrew/bin/hf", "download", "org/model"]))
+    #expect(owner.matches(["/usr/bin/python3", "/Users/me/.local/bin/huggingface-cli", "login"]))
+    #expect(owner.matches(["/Users/me/.local/bin/hf", "cache", "scan"]))
+    #expect(!owner.matches(["/usr/bin/python3", "train.py", "hf"]))
+    #expect(!owner.matches(["/usr/bin/python3", "/p/serve.py"]))
+}

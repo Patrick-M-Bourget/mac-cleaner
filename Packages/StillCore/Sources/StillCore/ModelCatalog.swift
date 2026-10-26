@@ -9,7 +9,8 @@ extension BuiltInCatalog {
         detail: "Models downloaded to the Hugging Face cache. Check when each was last used.",
         consequence: "Moved to Trash. You can restore them from the Trash; otherwise they download again the next time a project uses them.",
         regen: .model, action: .trash, locations: [".cache/huggingface/hub/models--*"],
-        owner: RuleOwner(name: "Hugging Face CLI", executables: ["huggingface-cli", "hf"]),
+        // Installed by pip, both run as `python …/bin/hf`, so the script is matched as well as the executable.
+        owner: RuleOwner(name: "Hugging Face CLI", executables: ["huggingface-cli", "hf"], scripts: ["huggingface-cli", "hf"]),
         itemName: { name in
             guard name.hasPrefix("models--") else { return nil }
             return name.dropFirst("models--".count).replacingOccurrences(of: "--", with: "/")
