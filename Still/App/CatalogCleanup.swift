@@ -553,13 +553,14 @@ struct FixtureUbiquitousItems: UbiquitousItemAccess {
 /// Guidance-only categories (SPEC section 3): sized and shown with where to manage them, never in a plan.
 extension CatalogCleanupModel {
     func guidanceRule(_ finding: GuidanceFinding) -> CleanupRule? { catalog.rule(finding.ruleID) }
-    /// Sizes the guidance rules from metadata only. Read-only. A short budget keeps a large Photos library
-    /// from holding up the scan; a size cut short reads "At least".
+    /// Seconds each guidance location is sized for: short, so a large Photos library doesn't hold up the scan.
+    nonisolated static let guidanceTimeBudget: TimeInterval = 10
+    /// Sizes the guidance rules from metadata only. Read-only. A size cut short by `guidanceTimeBudget` reads "At least".
     /// `fullDiskAccess` is the catalog scan's own probe, so one scan never probes twice.
     func scanGuidance(home: URL, fullDiskAccess: FullDiskAccessStatus) async {
         let catalog = catalog, system = Self.systemRoot, snapshots = Self.snapshots
         guidance = await Task.detached(priority: .utility) {
-            catalog.guidance(home: home, systemRoot: system, sizer: KnownLocationSizer(timeBudget: 10), snapshots: snapshots,
+            catalog.guidance(home: home, systemRoot: system, sizer: KnownLocationSizer(timeBudget: Self.guidanceTimeBudget), snapshots: snapshots,
                              fullDiskAccess: fullDiskAccess)
         }.value
     }
