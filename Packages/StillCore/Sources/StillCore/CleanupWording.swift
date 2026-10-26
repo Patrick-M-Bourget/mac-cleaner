@@ -15,7 +15,7 @@ extension CleanupRecord {
         switch state {
         case .succeeded: return isDelete ? "Deleted" : isTrash ? "Moved to Trash" : isTool ? "Cleaned" : "Done"
         case .skipped: return "Skipped"
-        case .failed: return "Failed"
+        case .failed: return partlyRemoved == true ? "Partly removed" : "Failed"
         case .cancelled, .pending: return "Not started"
         case .intent, .unknown: return "Unresolved"
         }
@@ -25,7 +25,7 @@ extension CleanupRecord {
         case .pending: return "Not started · Nothing was changed"
         case .intent, .unknown: return isDelete || isTool ? "Unresolved · It may be partly deleted" : isTrash ? "Unresolved · It may or may not be in the Trash" : "Unresolved · Outcome unknown"
         case .succeeded: return "Recorded success · " + outcomeTitle
-        case .failed: return "Recorded failure · Not changed"
+        case .failed: return partlyRemoved == true ? "Recorded failure · It may be partly deleted" : "Recorded failure · Not changed"
         case .skipped: return wasPreviewed ? "Preview · " + outcomeTitle : "Recorded skip · Not changed"
         case .cancelled: return "Recorded cancellation · Not started"
         }
@@ -44,7 +44,7 @@ extension CleanupHistoryRun {
         case (true, true): return "Cleanup · Deleted and moved to Trash"
         case (true, false): return "Cleanup · Deleted"
         case (false, true): return "Cleanup · Moved to Trash"
-        case (false, false): return "Cleanup · Nothing changed"
+        case (false, false): return records.contains { $0.partlyRemoved == true } ? "Cleanup · Partly deleted" : "Cleanup · Nothing changed"
         }
     }
 }

@@ -34,6 +34,8 @@ public struct CleanupRecord: Codable, Sendable, Identifiable {
     public var itemCapacity: CleanupCapacityObservation? = nil
     /// The end of a tool action's output, shown in results.
     public var toolOutput: String? = nil
+    /// True when a delete or tool action failed after it may have removed part of the item.
+    public var partlyRemoved: Bool? = nil
 }
 public protocol CleanupJournaling: Sendable {
     /// Writes every record as pending in one transaction; false when the batch was already claimed.

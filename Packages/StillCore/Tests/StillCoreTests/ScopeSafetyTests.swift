@@ -58,3 +58,50 @@ private let cargoOnly = Catalog(rules: BuiltInCatalog.rules.filter { $0.id == "c
     try write(home, ".cargo/registry/src/crate/v1/.git/HEAD")
     #expect(CandidateCheck(catalog: cargoOnly, running: NothingRunning()).check(registry) == .protected(".git"))
 }
+
+@Test func aDeleteThatFailsPartwayIsRecordedAsPartlyRemovedAndOfferedAgain() async throws {
+    let home = try fixtureFolder("StillScopeHome")
+    let locked = home.appendingPathComponent(".cargo/registry/locked")
+    defer {
+        try? FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: locked.path)
+        try? FileManager.default.removeItem(at: home)
+    }
+    try write(home, ".cargo/registry/index/entry")
+    try write(home, ".cargo/registry/locked/kept")
+    let candidate = try #require(cargoOnly.discover(home: home).first)
+    try FileManager.default.setAttributes([.posixPermissions: 0o500], ofItemAtPath: locked.path)
+    let journal = try SQLiteCleanupJournal(url: home.appendingPathComponent("journal.sqlite"))
+    let run = CleanupExecutor(journal: journal, check: CandidateCheck(catalog: cargoOnly, running: NothingRunning()), measure: { _ in nil })
+    let record = try #require(await run.execute(CatalogApproval(candidates: [candidate], previewOnly: false)).records.first)
+    #expect(record.state == .failed)
+    #expect(record.partlyRemoved == true)
+    #expect(record.outcomeTitle == "Partly removed")
+    #expect(!record.recoveryStateText.contains("Not changed"))
+
+    // The rest is offered again under the same rule, and the next cleanup finishes it.
+    let leftovers = try FileManager.default.contentsOfDirectory(atPath: home.appendingPathComponent(".cargo").path).filter { $0.hasPrefix(".still-deleting-") }
+    #expect(leftovers.count == 1)
+    try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: home.appendingPathComponent(".cargo/" + leftovers[0] + "/locked").path)
+    let again = cargoOnly.discover(home: home)
+    #expect(again.map(\.url.lastPathComponent) == leftovers)
+    #expect(again.first?.ruleID == "cargo-cache" && again.first?.action == .delete)
+    let second = await run.execute(CatalogApproval(candidates: again, previewOnly: false))
+    #expect(second.records.map(\.state) == [.succeeded])
+    #expect(try FileManager.default.contentsOfDirectory(atPath: home.appendingPathComponent(".cargo").path).isEmpty)
+}
+
+/// Homebrew's `brew cleanup -s` runs as a tool; what it leaves half-deleted comes back as a plain delete.
+@Test func aLeftoverFromAToolRuleIsOfferedAsADelete() throws {
+    let home = try fixtureFolder("StillScopeHome")
+    defer { try? FileManager.default.removeItem(at: home) }
+    try write(home, "Library/Caches/.still-deleting-homebrew-\(UUID().uuidString)/downloads/x")
+    try write(home, "Library/Caches/.still-deleting-pip-cache-\(UUID().uuidString)/http/x")
+    let catalog = Catalog(rules: BuiltInCatalog.rules.filter { ["homebrew", "pip-cache"].contains($0.id) })
+    let found = catalog.discover(home: home, locateTool: { _ in URL(fileURLWithPath: "/usr/bin/true") })
+    #expect(Set(found.map(\.ruleID)) == ["homebrew", "pip-cache"])
+    #expect(found.allSatisfy { $0.action == .delete })
+    for leftover in found {
+        #expect(catalog.owner(for: leftover) == nil)
+        #expect(CandidateCheck(catalog: catalog, running: NothingRunning()).check(leftover) == nil)
+    }
+}

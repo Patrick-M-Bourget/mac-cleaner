@@ -283,8 +283,9 @@ public struct Catalog: Sendable {
     public init(rules: [CleanupRule]) { self.rules = rules }
     public func rule(_ id: String) -> CleanupRule? { rules.first { $0.id == id } }
     /// Who must be closed before the candidate is touched: the rule's owner, or the item's own when it has one.
+    /// A leftover from an earlier delete has no owner to close: no app uses a folder renamed aside.
     public func owner(for candidate: Candidate) -> RuleOwner? {
-        guard let rule = rule(candidate.ruleID) else { return nil }
+        guard let rule = rule(candidate.ruleID), !candidate.isLeftover else { return nil }
         return rule.itemOwner.map { $0(candidate.url) } ?? rule.owner
     }
     /// Load-bearing caches that are never offered, whatever a rule says (spec section 2).
@@ -307,12 +308,13 @@ public struct Catalog: Sendable {
         var notes: [CatalogNote] = []
         let overridden = Set(overriddenRules(home: home, systemRoot: systemRoot).map(\.id))
         let candidates = rules.flatMap { rule -> [Candidate] in
-            guard !overridden.contains(rule.id) else { return [] }
+            guard !overridden.contains(rule.id), let base = rule.base == .home ? homeBase : userBase else { return [] }
+            // What an earlier cleanup left half-deleted comes back under the same rule, even if its tool is gone.
+            let leftovers = leftovers(of: rule, in: base, sizer: sizer)
             let toolURL = rule.tool.flatMap(locateTool)
-            guard rule.action != .tool || toolURL != nil else { return [] }
-            guard let base = rule.base == .home ? homeBase : userBase else { return [] }
+            guard rule.action != .tool || toolURL != nil else { return leftovers.map { $0.found(under: base) } }
             // A trailing `/*` offers each folder inside (DeviceSupport versions); a `*` inside the path names a profile.
-            return rule.locations.flatMap { location -> [(URL, String?)] in
+            let found = rule.locations.flatMap { location -> [(URL, String?)] in
                 // A pattern as the last component (`models--*`) also offers each matching folder.
                 (location as NSString).lastPathComponent.contains("*")
                     ? Self.expand(location, in: base, keepNewestVersions: rule.keepNewestVersions).map { (base.appendingPathComponent($0), nil) }
@@ -346,11 +348,8 @@ public struct Catalog: Sendable {
                                       profile: profile)
                 found.itemName = rule.itemName?(url.lastPathComponent)
                 return [found]
-            }.map { found in
-                var found = found
-                found.scopeRoot = base
-                return found
             }
+            return (found + leftovers).map { $0.found(under: base) }
         }.filter { candidate in
             // Excluded items are never candidates (SPEC section 2); the check refuses them again just before acting.
             // With exclusions set, an item whose volume can't be read can't be cleared of them, so it is left out too.
@@ -377,9 +376,10 @@ public struct Catalog: Sendable {
         }
     }
 
-    func candidate(_ rule: CleanupRule, _ url: URL, _ info: stat, logical: Int64, allocated: Int64?, complete: Bool, lastUsed: Date?, toolURL: URL? = nil, profile: String? = nil) -> Candidate {
+    func candidate(_ rule: CleanupRule, _ url: URL, _ info: stat, logical: Int64, allocated: Int64?, complete: Bool, lastUsed: Date?, toolURL: URL? = nil, profile: String? = nil,
+                   action: CleanupAction? = nil) -> Candidate {
         let volume = try? url.resourceValues(forKeys: [.volumeUUIDStringKey]).volumeUUIDString
-        return Candidate(ruleID: rule.id, action: rule.action, url: url, resourceID: "\(info.st_dev):\(info.st_ino)",
+        return Candidate(ruleID: rule.id, action: action ?? rule.action, url: url, resourceID: "\(info.st_dev):\(info.st_ino)",
                          isDirectory: info.st_mode & S_IFMT == S_IFDIR, toolURL: toolURL, volumeID: volume,
                          modifiedSeconds: Int64(info.st_mtimespec.tv_sec), modifiedNanoseconds: Int64(info.st_mtimespec.tv_nsec),
                          logicalBytes: logical, allocatedBytes: allocated, sizeComplete: complete, lastUsed: lastUsed, observedAt: Date(), profile: profile)

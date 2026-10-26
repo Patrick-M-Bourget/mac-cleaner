@@ -180,6 +180,7 @@ private func homebrewRun(_ home: URL, script: String, timeout: TimeInterval? = n
     let record = try #require(result.records.first)
     #expect(record.state == .failed)
     #expect(record.message.contains("time limit"))
+    #expect(record.partlyRemoved == true)
     #expect(record.toolOutput == "started")
     #expect(FileManager.default.fileExists(atPath: home.appendingPathComponent("Library/Caches/Homebrew/entry").path))
 }

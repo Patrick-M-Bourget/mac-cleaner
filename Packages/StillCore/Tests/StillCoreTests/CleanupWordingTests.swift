@@ -98,3 +98,18 @@ private struct ArrayJournal: CleanupJournaling {
     #expect(try notice([trash]) == "A missing original does not prove it reached the Trash. Current file locations have not been inspected.")
     #expect(try notice([delete, trash]).hasPrefix("A missing original may have reached the Trash or been permanently deleted"))
 }
+
+@Test func aPartlyRemovedRecordNeverReadsAsNotChanged() throws {
+    let (home, made) = try records([.delete, .tool])
+    defer { try? FileManager.default.removeItem(at: home) }
+    var delete = made[0], tool = made[1]
+    delete.state = .failed; delete.partlyRemoved = true
+    tool.state = .failed; tool.partlyRemoved = true
+    #expect(delete.outcomeTitle == "Partly removed")
+    #expect(delete.recoveryStateText == "Recorded failure · It may be partly deleted")
+    #expect(tool.outcomeTitle == "Partly removed")
+    #expect(tool.recoveryStateText == "Recorded failure · It may be partly deleted")
+    #expect(CleanupHistorySnapshot(records: [delete, tool]).completedRuns.first?.title == "Cleanup · Partly deleted")
+    delete.partlyRemoved = nil
+    #expect(delete.recoveryStateText == "Recorded failure · Not changed")
+}

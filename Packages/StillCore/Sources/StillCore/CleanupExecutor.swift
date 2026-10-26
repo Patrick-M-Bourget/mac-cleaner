@@ -191,7 +191,11 @@ public actor CleanupExecutor {
         switch outcome {
         case .success(let (status, output)):
             record.toolOutput = Self.trimmed(output)
-            guard status == 0 else { record.state = .failed; record.message = "\(name) exited with status \(status)." + (candidate.isDirectory ? " The folder was left in place." : ""); return }
+            guard status == 0 else {
+                // The tool may have removed some files before it failed.
+                record.state = .failed; record.partlyRemoved = true
+                record.message = "\(name) exited with status \(status). It may have cleaned part of it" + (candidate.isDirectory ? "; the folder was left in place." : "."); return
+            }
             guard command.deletesLocationAfter else { record.state = .succeeded; record.message = "Ran \(name)"; return }
             var info = stat()
             if lstat(candidate.url.path, &info) != 0, errno == ENOENT { record.state = .succeeded; record.message = "Ran \(name); it removed the folder itself"; return }
@@ -200,7 +204,7 @@ public actor CleanupExecutor {
             else { record.message = "Ran \(name). " + record.message }
         case .failure(let error as ToolTimeout):
             record.toolOutput = Self.trimmed(error.output)
-            record.state = .failed
+            record.state = .failed; record.partlyRemoved = true
             record.message = "Stopped at the \(Int(command.timeout.rounded(.up)))-second time limit. \(name) may have cleaned part of it" + (candidate.isDirectory ? "; the folder was left in place." : ".")
         case .failure(ToolPreviewError.unavailable):
             record.state = .skipped; record.message = "\(name) is no longer installed."
@@ -221,7 +225,7 @@ public actor CleanupExecutor {
     /// swapped for a symlink after the check is never renamed.
     private func delete(_ candidate: Candidate, into record: inout CleanupRecord) {
         let parent = candidate.url.deletingLastPathComponent(), name = candidate.url.lastPathComponent
-        let asideName = ".still-deleting-" + UUID().uuidString
+        let asideName = Catalog.leftoverName(for: candidate.ruleID)
         let aside = parent.appendingPathComponent(asideName)
         let parentFD = candidate.scopeRoot.map { ScopeContainment.openParent(of: candidate.url, in: $0) } ?? -1
         guard parentFD >= 0 else { record.state = .skipped; record.message = CheckRefusal.changed.reason; return }
@@ -239,7 +243,9 @@ public actor CleanupExecutor {
             try FileManager.default.removeItem(at: aside)
             record.state = .succeeded; record.message = "Permanently removed"
         } catch {
-            record.state = .failed; record.message = "Removed in part. The rest is at \(aside.path)."
+            // Never "not changed": part of it is gone. The rest is offered again on the next scan, under the same rule.
+            record.state = .failed; record.partlyRemoved = true
+            record.message = "Partly removed. The rest is at \(aside.path); Still offers it again on the next scan."
         }
     }
 

@@ -83,9 +83,10 @@ public struct CandidateCheck: Sendable {
         self.catalog = catalog; self.running = running; self.exclusions = exclusions; self.inUse = inUse
     }
     public func check(_ candidate: Candidate) -> CheckRefusal? {
-        guard let rule = catalog.rule(candidate.ruleID), rule.action == candidate.action else { return .changed }
+        guard let rule = catalog.rule(candidate.ruleID),
+              rule.action == candidate.action || (candidate.isLeftover && rule.deletesItems && candidate.action == .delete) else { return .changed }
         // An item whose own owner can't be found any more (the app was removed) is refused, never guessed.
-        if rule.itemOwner != nil, catalog.owner(for: candidate) == nil { return .ownerUnknown(candidate.url.lastPathComponent) }
+        if rule.itemOwner != nil, !candidate.isLeftover, catalog.owner(for: candidate) == nil { return .ownerUnknown(candidate.url.lastPathComponent) }
         if let owner = catalog.owner(for: candidate) {
             switch running.isRunning(owner) {
             case nil: return .ownerUnknown(owner.name)
