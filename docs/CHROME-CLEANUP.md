@@ -20,4 +20,4 @@ Parity B01–B03/P10 and CACHE-01–04. Profile/shared groups count ownership on
 
 ## Status
 
-Revised contract locked; native close-and-clean qualification in progress. #18 remains open/#19 blocked pending evidence. Earlier stronger-guarantee blocker is historical: validation/chrome-stable-qualification.md. Positive production allowlist remains empty; Downloads/personal-file exact-target protections remain strict.
+Revised contract locked; [bounded genuine Stable qualification](validation/chrome-close-clean.md) now passes for two owned custom profiles. Remaining native/standard-profile/semantic acceptance is explicit. #18 remains open/#19 blocked pending evidence. Earlier stronger-guarantee blocker is historical: validation/chrome-stable-qualification.md. Positive production allowlist remains empty; Downloads/personal-file exact-target protections remain strict.

@@ -63,3 +63,5 @@ Current qualification work: [#18/#19 Chrome contract](CHROME-CLEANUP.md), Q1–Q
 #18 bounded ownership investigation is recorded in [Chrome Stable qualification](validation/chrome-stable-qualification.md); cleanup stays disabled, #18 open/#19 blocked pending an enforceable coordination design.
 
 Current Chrome authority: revised native close-and-clean rules5–7 in CHROME-CLEANUP.md, superseding the stronger cache-only exact-file/lease requirement. #18 qualification resumed; personal-file protections unchanged.
+
+Latest Chrome progress: [genuine Stable close-and-clean qualification](validation/chrome-close-clean.md), with exact supported experimental scope and remaining #18 criteria. #19 stays blocked; no personal-file or UI behavior changed.
