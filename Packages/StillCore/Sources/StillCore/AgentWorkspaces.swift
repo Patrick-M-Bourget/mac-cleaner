@@ -39,8 +39,16 @@ enum WorkspaceGit {
     /// At most this many checkouts per scan.
     static let limit = 200
     static let timeout: TimeInterval = 5
-    /// No prompts, and no index refresh or other optional lock: git only reads.
-    static let environment = BoundedTool.defaultEnvironment.merging(["GIT_TERMINAL_PROMPT": "0", "GIT_OPTIONAL_LOCKS": "0"]) { $1 }
+    /// No prompts, no index refresh or other optional lock, and no fetching of objects a partial clone lacks (#147).
+    static let environment = BoundedTool.defaultEnvironment.merging(["GIT_TERMINAL_PROMPT": "0", "GIT_OPTIONAL_LOCKS": "0", "GIT_NO_LAZY_FETCH": "1"]) { $1 }
+    /// Before every command (#147): no optional locks, and none of the repository's commands that can be turned off:
+    /// no fsmonitor hook, and no hooks at all.
+    static func baseArguments(_ checkout: URL) -> [String] {
+        ["--no-optional-locks", "-c", "core.fsmonitor=false", "-c", "core.hooksPath=/dev/null", "-C", checkout.path]
+    }
+    /// Submodules are never entered (git would run in each with its config): only a submodule moved to another commit
+    /// counts, not changes inside it. Untracked files count as uncommitted work. No rename detection.
+    static let statusArguments = ["status", "--porcelain", "--ignore-submodules=dirty", "--untracked-files=normal", "--no-renames"]
 
     /// The checkouts in `roots`: each folder holding a `.git` entry (a working tree or a linked worktree), never looked inside.
     static func checkouts(in roots: [URL]) -> [URL] {
@@ -58,8 +66,8 @@ enum WorkspaceGit {
 
     /// Whether the checkout has uncommitted changes and unpushed commits; nil when git can't tell in time.
     static func status(of checkout: URL, git: URL) -> (uncommitted: Bool, unpushed: Bool)? {
-        let base = ["--no-optional-locks", "-c", "core.fsmonitor=false", "-C", checkout.path]
-        guard let changes = try? BoundedTool.capture(executable: git, arguments: base + ["status", "--porcelain"], timeout: timeout, outputLimit: 1_024,
+        let base = baseArguments(checkout)
+        guard let changes = try? BoundedTool.capture(executable: git, arguments: base + statusArguments, timeout: timeout, outputLimit: 1_024,
                                                      environment: environment), changes.status == 0 else { return nil }
         func count(_ arguments: [String]) -> Int? {
             (try? BoundedTool.run(executable: git, arguments: base + arguments, timeout: timeout, environment: environment))
