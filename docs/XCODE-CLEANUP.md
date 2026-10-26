@@ -1,6 +1,6 @@
 # Xcode generated-data cleanup — #16/#17
 
-Status: grilling in progress. Q1–Q3 were confirmed by the user on October26,2026. Remaining decisions are not locked; this document does not authorize implementation or enable cleanup. #16 is unblocked capability work; #17 remains blocked by #16. SPEC and DESIGN-HANDOFF remain the consolidated entry points.
+Status: grilling in progress. Q1–Q6 were confirmed by the user on October26,2026. Remaining decisions are not locked; this document does not authorize implementation or enable cleanup. #16 is unblocked capability work; #17 remains blocked by #16. SPEC and DESIGN-HANDOFF remain the consolidated entry points.
 
 ## Confirmed decisions
 
@@ -8,15 +8,23 @@ Status: grilling in progress. Q1–Q3 were confirmed by the user on October26,20
 2. **Initial artifact scope.** Start with verified, project-specific generated build intermediates, not whole DerivedData folders. Preserve source, archives, dSYMs, build products, package checkouts, indexes and module caches. Additional generated-data categories remain future scope until independently qualified. A familiar filename or path alone does not establish eligibility.
 3. **Owner activity.** Read-only inspection may run with Xcode open. Cleanup requires Xcode and relevant build processes closed. Explain blocked/unknown states, offer explicit manual recheck, never terminate owners or remove locks, and stop unstarted work if activity appears.
 
+4. **Practical close-and-clean guarantee.** Verify closed owners, authorized scope and exact approved file identities; use descriptor-relative no-follow operations and stop affected unstarted work on observed activity/conflicts. An external exclusive lease across every possible builder is not a prerequisite. Record ordinary-use residual races without promising atomic exclusion or protection against adversarial same-user changes. This revision applies only to qualified Xcode generated intermediates; personal-file protections remain unchanged. Unlike Chrome cache-group approval, the Xcode manifest remains frozen and new files never join it.
+5. **Project-based review.** Group findings by verified project, showing eligible size, a project checkbox and expandable eligible-file details. The developer category selects all currently eligible exact files; project/file controls refine the same live plan. Unknown project associations are unavailable with an explanation. Reuse Overview → review → shared plan, with caller-aware return and no additional sidebar destination.
+6. **Explicit standard-root discovery.** Enable manual inspection of the standard DerivedData location explicitly. Remember inspection intent without scanning on launch or in the background, and avoid per-project pickers. Custom build locations remain retained future scope until separately qualified.
+
+## Inherited shared contracts
+
+Refresh retains pending choices while evidence is checked and suspends Review for selected unavailable targets. Valid unchanged identities survive; new or regenerated files stay unchecked. Explain invalidated identities and offer explicit deselection. Unknown coverage/size is not zero. A failed unselected scope does not block independently valid choices.
+
+Confirmation uses the bounded shared sheet, exact targets and separate permanent-build/Chrome/Trash consequences. Cancel preserves the plan and restores focus. Explain rebuild cost without predicting a duration; no automatic rebuild runs. Results and History retain per-file recorded outcomes, grouped by project for review, with planned estimates and independent observed capacity kept separate. No Trash recovery or universal Undo is offered for permanent build cleanup. Unresolved records never imply success or trigger replay; recheck and fresh approval are required. Stop and Quit cancel unstarted work across the complete workspace; completed mutations are not rolled back.
+
 ## Remaining decision frontier
 
-- Define practical concurrency/race guarantees without silently importing Chrome’s group-approval exception or the historical universal-exclusive-access prerequisite.
-- Choose project/group refinement and how it maps to exact approved artifacts.
-- Define explicit inspection enablement and initial standard/custom-root scope.
-- Resolve downstream refresh, stale selections, confirmation, partial outcomes and recovery differences where existing shared contracts do not already settle them.
+- Resolve whether Xcode owner activity detected during execution stops only its affected targets or the entire mixed-category run. Individual changed/missing targets already follow the shared skip-and-continue rule; explicit Stop/Quit already stop the whole run.
+- After resolving that distinction, confirm the consolidated contract before implementation.
 
 ## Existing evidence and boundaries
 
-[Fixture policy](../Validation/XcodeProbe/README.md), [genuine owned-project experiment](../Validation/XcodeProbe/NativeExperiment/README.md) and [Swift/package/custom-output follow-up](../Validation/XcodeProbe/NativeExperiment/SWIFT-SESSION.md) establish bounded generated-object removal/regeneration and protected owned sentinels. They do not establish arbitrary production project mapping or general build-owner coordination. Historical exclusive-access language is not superseded until the user confirms a revised Xcode contract.
+[Fixture policy](../Validation/XcodeProbe/README.md), [genuine owned-project experiment](../Validation/XcodeProbe/NativeExperiment/README.md) and [Swift/package/custom-output follow-up](../Validation/XcodeProbe/NativeExperiment/SWIFT-SESSION.md) establish bounded generated-object removal/regeneration and protected owned sentinels. They do not establish arbitrary production project mapping or general build-owner coordination. Q4 supersedes the historical universal-exclusive-access prerequisite only for this qualified Xcode exact-artifact model. Existing experiments remain bounded evidence, not production qualification or permission to relax any other adapter.
 
 No personal projects, default DerivedData or source/symbol contents are inspected by grilling or ordinary verification. Qualification remains disposable. Downloads and all personal-file protections are unchanged. Release-archive guidance remains separate under #54. Broader developer/browser support and M8 commercialization remain preserved.
