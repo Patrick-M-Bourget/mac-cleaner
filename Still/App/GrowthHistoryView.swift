@@ -82,7 +82,8 @@ enum GrowthPresentation {
         default: "Scan again later to see what grew."
         }
     }
-    static let retention = "History is stored on this Mac: sizes per category and location only, at most \(GrowthRetention().baselines) scans over \(GrowthRetention().days) days."
+    static let retention = "History is stored on this Mac: sizes per category and location only, at most \(GrowthRetention().baselines) scans over \(GrowthRetention().days) days, "
+        + "and no more than \(ByteCountFormatter.string(fromByteCount: Int64(GrowthRetention().bytes), countStyle: .decimal))."
 }
 
 /// A growth row as in the prototype: name, what it is, a bar relative to the largest change, and the signed change.
