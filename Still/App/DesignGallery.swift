@@ -39,12 +39,9 @@ struct DesignGallery: View {
                     }
                     DisclosureGroup("Synthetic Storage trends examples", isExpanded: $growthExamplesExpanded) { GrowthGalleryExamples() }
                     DisclosureGroup("Synthetic storage alert settings", isExpanded: $alertExamplesExpanded) {
-                        AlertThresholdEditor(draft: .constant("60"), appliedBytes: 40_000_000_000, hasCurrentTotal: true, canApply: true, apply: {})
-                        AlertThresholdEditor(draft: .constant("invalid"), appliedBytes: 40_000_000_000, hasCurrentTotal: true, canApply: false, invalidDraft: true, apply: {})
-                        AlertThresholdEditor(draft: .constant("invalid"), appliedBytes: 40_000_000_000, hasCurrentTotal: false, canApply: false, apply: {})
-                        AlertPermissionDetails(authorization: .unknown, checked: true, openSettings: {})
+                        AlertThresholdEditor(draft: .constant("60"), canApply: true, apply: {})
+                        AlertThresholdEditor(draft: .constant("invalid"), canApply: false, invalidDraft: true, apply: {})
                         AlertPermissionDetails(authorization: .denied, checked: true, settingsFeedback: "System Settings could not be opened.", openSettings: {})
-                        QuietAlertExplanation(expanded: .constant(true))
                     }
                     CapacityGalleryExamples()
                     Text("Synthetic Local records entry · Inert example").font(.headline)

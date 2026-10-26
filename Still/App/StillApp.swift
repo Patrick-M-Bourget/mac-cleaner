@@ -7,6 +7,7 @@ struct StillApp: App {
     @NSApplicationDelegateAdaptor(StillApplicationDelegate.self) private var delegate
     @StateObject private var lifecycle = AppLifecycleController.shared
     @StateObject private var alerts = AppLifecycleController.shared.alerts
+    @AppStorage(MenuBarItemPreference.key) private var showsMenuBarItem = true
     /// Runs before AppKit finishes launching, so saved window state is ignored before it can be restored.
     init() { AppLaunchPolicy.registerDefaults() }
     var body: some Scene {
@@ -24,14 +25,19 @@ struct StillApp: App {
             }
         }
         Settings { StillSettingsView() }
+        // #131: free space in the menu bar, shown unless turned off in Settings.
+        // The binding ignores no-op writes: MenuBarExtra writes it back on every update, and an unconditional
+        // UserDefaults write re-renders the App, which loops.
+        MenuBarExtra(isInserted: Binding(get: { showsMenuBarItem }, set: { if $0 != showsMenuBarItem { showsMenuBarItem = $0 } })) {
+            StillMenuBarMenu(lifecycle: lifecycle)
+        } label: { StillMenuBarLabel(capacity: lifecycle.capacity) }
     }
 }
 
 enum Destination: String, CaseIterable, Identifiable {
-    case alerts = "Storage alerts"
     case overview = "Overview", plan = "Cleanup plan", growth = "Storage trends", history = "History", locations = "Locations & access"
     var id: String { rawValue }
-    /// ⌘1–⌘5 follow the sidebar order (#127). Storage alerts is not in the sidebar (Decision 12).
+    /// ⌘1–⌘5 follow the sidebar order (#127). Low-space alerts live in the Settings window (#131).
     var shortcut: KeyEquivalent {
         switch self {
         case .overview: "1"
@@ -39,13 +45,11 @@ enum Destination: String, CaseIterable, Identifiable {
         case .growth: "3"
         case .history: "4"
         case .locations: "5"
-        case .alerts: "6"
         }
     }
     var symbol: String {
         switch self {
         case .growth: "chart.line.uptrend.xyaxis"
-        case .alerts: "bell"
         case .overview: "internaldrive"
         case .plan: "checklist"
         case .history: "clock"
@@ -57,7 +61,6 @@ enum Destination: String, CaseIterable, Identifiable {
 /// Window restoration within this process never restores cleanup authority after Quit.
 @MainActor @Observable final class WorkspaceNavigation {
     var destination = Destination.overview
-    var configureAlertsOnEntry = true
     var explorerVisible = false
     var explorerCaller = Destination.overview
     var planReturnsToExplorer = false
@@ -129,7 +132,6 @@ private struct WorkspaceView: View {
         case .overview: return nil
         case .plan: return nil
         case .history, .locations: return "" // Decision 25: no toolbar subtitles
-        case .alerts: return "Capacity checks only"
         case .growth: return ""
         }
     }
@@ -139,8 +141,7 @@ private struct WorkspaceView: View {
             VStack(alignment: .leading, spacing: StillDesign.Space.sm) {
                 AppBrand().padding(.horizontal, StillDesign.Space.sm).padding(.bottom, StillDesign.Space.xl)
                 Text("Storage").font(.caption).foregroundStyle(.secondary).padding(.horizontal, StillDesign.Space.sm)
-                // Storage alerts stay unwired until after M1 (Decision 12); Storage trends (formerly What grew) is back (#119, #127).
-                ForEach(Destination.allCases.filter { $0 != .locations && $0 != .alerts }) { navigation($0) }
+                ForEach(Destination.allCases.filter { $0 != .locations }) { navigation($0) }
                 Text("Settings").font(.caption).foregroundStyle(.secondary).padding(.horizontal, StillDesign.Space.sm).padding(.top, StillDesign.Space.xl)
                 navigation(.locations)
                 Spacer()
@@ -200,7 +201,6 @@ private struct WorkspaceView: View {
                             HomebrewInspectionView { homebrewVisible = false; destination = .overview }
                         } else {
                             switch destination {
-                            case .alerts: StorageAlertsView(controller: alerts, capacity: capacity, configureOnEntry: navigationState.configureAlertsOnEntry)
                             case .growth: GrowthHistoryView(model: GrowthHistoryModel.shared, catalog: selection.catalog)
                             case .overview: overview
                             case .plan: EmptyView()
@@ -293,6 +293,7 @@ private struct WorkspaceView: View {
         .onAppear {
             AppLifecycleController.shared.openWorkspace = { openWindow(id: "workspace") }
             AppLifecycleController.shared.scanAgain = { if canScanAgain { scanAgain() } }
+            AppLifecycleController.shared.reviewRecommendedPlan = { openRecommendedPlan() }
             selection.catalog.scanRememberedFolders = { scanRememberedFolders() }
         }
         .onReceive(NotificationCenter.default.publisher(for: .stillAlertOpened)) { _ in destination = .overview; navigationState.localRecordsVisible = false; navigationState.appManagedVisible = false; exclusionsVisible = false; diagnosticsVisible = false; recoveryVisible = false; nativeInspectionVisible = false; homebrewVisible = false; pipVisible = false }
@@ -336,10 +337,9 @@ private struct WorkspaceView: View {
         planReturnsToExplorer = false
     }
 
-    private func navigate(_ value: Destination, configureAlerts: Bool = true) {
+    private func navigate(_ value: Destination) {
         navigationState.routeGeneration = UUID()
         navigationState.planReturnsToGrowth = false
-        navigationState.configureAlertsOnEntry = configureAlerts
         destination = value
         planReturnsToExplorer = false
         if value == .plan && selection.hasWorkspaceResult { startNewPlan() }
@@ -383,12 +383,10 @@ private struct WorkspaceView: View {
             if let context = alerts.openedAlertContext {
                 SummarySurface {
                     VStack(alignment: .leading, spacing: StillDesign.Space.md) {
-                        StatusRow(text: context.observedAt.map { "Alert checked \($0.formatted(date: .abbreviated, time: .shortened))" } ?? "Alert check time unavailable", symbol: "bell", identifier: "openedStorageAlert")
-                        Text("This alert is an earlier observation. Choose a folder for a fresh scan; nothing runs automatically.").font(.callout).foregroundStyle(.secondary)
+                        StatusRow(text: context.observedAt.map { "Space was low at \($0.formatted(date: .omitted, time: .shortened))" } ?? "Space was low", symbol: "bell", identifier: "openedStorageAlert")
                         HStack {
-                            Button("Choose a folder to scan…", action: chooseFolderForScan)
-                                .disabled(folderInspection.isScanning || selection.workspaceRunning)
-                            Button("Dismiss alert", action: alerts.dismissOpenedAlert)
+                            Button("Scan again") { alerts.dismissOpenedAlert(); scanAgain() }.disabled(!canScanAgain)
+                            Button("Dismiss", action: alerts.dismissOpenedAlert)
                         }
                     }
                 }
@@ -691,21 +689,5 @@ private struct WorkspaceView: View {
             return scan.isComplete ? "Observed · " + scan.observedAt.formatted(date: .omitted, time: .shortened) : "Partial coverage · Uninspected bytes unknown"
         }
         return "Not scanned"
-    }
-}
-
-private struct StillStatusMenu: View {
-    @ObservedObject var alerts: StorageAlertsController
-    @Environment(\.openWindow) private var openWindow
-    var body: some View {
-        Text("Storage alerts active")
-        Text(alerts.status)
-        Button("Open Still") {
-            openWindow(id: "workspace")
-            NSApp.activate(ignoringOtherApps: true)
-            NotificationCenter.default.post(name: .stillAlertOpened, object: nil)
-        }
-        Divider()
-        Button("Quit Still") { NSApp.terminate(nil) }.keyboardShortcut("q")
     }
 }
