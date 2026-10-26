@@ -96,3 +96,30 @@ private func npmCandidate(_ home: URL) throws -> Candidate {
     let inner = ExclusionPolicy(rules: [try ExclusionRule.capture(cache.appendingPathComponent("index-v5"))])
     #expect(CandidateCheck(catalog: catalog, running: FakeRunning(), exclusions: inner).check(candidate) == .excluded)
 }
+
+@Test func npmIsMatchedByItsScriptNotByEveryNodeProcess() throws {
+    let npm = try #require(BuiltInCatalog.rules.first { $0.id == "npm-cache" }?.owner)
+    #expect(npm.matches(["node", "/opt/homebrew/lib/node_modules/npm/bin/npm-cli.js", "install"]))
+    #expect(npm.matches(["node", "/usr/local/bin/npm", "ci"]))
+    #expect(npm.matches(["/usr/local/bin/node", "--max-old-space-size=4096", "/x/npx-cli.js"]))
+    #expect(!npm.matches(["node", "/Users/me/.vscode/extensions/tsserver.js"]))
+    #expect(!npm.matches(["node", "server.js", "npm"]))
+    #expect(!npm.matches(["/Applications/Visual Studio Code.app/Contents/MacOS/Electron"]))
+}
+
+@Test func theSystemCheckerFindsALiveProcessRunningTheOwnersScript() throws {
+    let folder = try fixtureHome()
+    defer { try? FileManager.default.removeItem(at: folder) }
+    let script = folder.appendingPathComponent("still-fake-tool-\(UUID().uuidString.prefix(8)).sh")
+    try "sleep 30\n".write(to: script, atomically: true, encoding: .utf8)
+    let owner = RuleOwner(name: "fake tool", scripts: [script.lastPathComponent])
+    let checker = SystemRunningAppChecker()
+    #expect(checker.isRunning(owner) == false)
+    let process = Process()
+    process.executableURL = URL(fileURLWithPath: "/bin/sh")
+    process.arguments = [script.path]
+    try process.run()
+    defer { process.terminate() }
+    Thread.sleep(forTimeInterval: 0.2)
+    #expect(checker.isRunning(owner) == true)
+}
