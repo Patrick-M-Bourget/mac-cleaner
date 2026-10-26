@@ -1,6 +1,6 @@
 # Xcode generated-data cleanup — #16/#17
 
-Status: grilling in progress. Q1–Q6 were confirmed by the user on October26,2026. Remaining decisions are not locked; this document does not authorize implementation or enable cleanup. #16 is unblocked capability work; #17 remains blocked by #16. SPEC and DESIGN-HANDOFF remain the consolidated entry points.
+Status: Q1–Q7 were confirmed by the user on October26,2026. The decision frontier is resolved; final consolidated contract confirmation is pending. This document does not yet authorize implementation or enable cleanup. #16 is unblocked capability work; #17 remains blocked by #16. SPEC and DESIGN-HANDOFF remain the consolidated entry points.
 
 ## Confirmed decisions
 
@@ -12,16 +12,19 @@ Status: grilling in progress. Q1–Q6 were confirmed by the user on October26,20
 5. **Project-based review.** Group findings by verified project, showing eligible size, a project checkbox and expandable eligible-file details. The developer category selects all currently eligible exact files; project/file controls refine the same live plan. Unknown project associations are unavailable with an explanation. Reuse Overview → review → shared plan, with caller-aware return and no additional sidebar destination.
 6. **Explicit standard-root discovery.** Enable manual inspection of the standard DerivedData location explicitly. Remember inspection intent without scanning on launch or in the background, and avoid per-project pickers. Custom build locations remain retained future scope until separately qualified.
 
+7. **Safety stops in a mixed run.** If Xcode/build activity appears, or the Xcode cleanup scope becomes uncertain, stop the remainder of the entire approved workspace run, including later browser actions. Keep completed outcomes, mark remaining actions Not started with the reason and require explicit manual recheck and fresh approval. Do not label a safety stop as a user cancellation or automatically resume. An individually changed/missing artifact still follows the shared skip-and-continue rule while ownership and scope remain verified.
+
 ## Inherited shared contracts
 
 Refresh retains pending choices while evidence is checked and suspends Review for selected unavailable targets. Valid unchanged identities survive; new or regenerated files stay unchecked. Explain invalidated identities and offer explicit deselection. Unknown coverage/size is not zero. A failed unselected scope does not block independently valid choices.
 
 Confirmation uses the bounded shared sheet, exact targets and separate permanent-build/Chrome/Trash consequences. Cancel preserves the plan and restores focus. Explain rebuild cost without predicting a duration; no automatic rebuild runs. Results and History retain per-file recorded outcomes, grouped by project for review, with planned estimates and independent observed capacity kept separate. No Trash recovery or universal Undo is offered for permanent build cleanup. Unresolved records never imply success or trigger replay; recheck and fresh approval are required. Stop and Quit cancel unstarted work across the complete workspace; completed mutations are not rolled back.
 
-## Remaining decision frontier
+## Final confirmation
 
-- Resolve whether Xcode owner activity detected during execution stops only its affected targets or the entire mixed-category run. Individual changed/missing targets already follow the shared skip-and-continue rule; explicit Stop/Quit already stop the whole run.
-- After resolving that distinction, confirm the consolidated contract before implementation.
+No product-flow questions remain open. Confirm this consolidated Q1–Q7 contract before implementation. Then lock it into #16/#17, complete only the remaining #16 capability gaps and proceed to #17’s app journey when qualification passes. Existing evidence is reused; passing experiments are not repeated after documentation-only changes. A concrete preservation, scope or provenance failure stops qualification and is reported rather than bypassed.
+
+This contract does not complete #16 by itself. #17 remains blocked until the actual capability gate passes. No broader generated-data category, custom-root support, personal-file authority or commercialization milestone is promoted.
 
 ## Existing evidence and boundaries
 

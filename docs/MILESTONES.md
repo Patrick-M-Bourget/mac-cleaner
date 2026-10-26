@@ -83,3 +83,8 @@ Remaining #18 qualification is complete within the [recorded compatibility bound
 ## Chrome #19 qualified delivery
 
 The approved browser/profile → shared plan → consequence-specific confirmation → per-group results/History journey is implemented and qualified through PR72. The [source-bound report](validation/chrome-cleanup.md) records the unchanged production Swift adapter’s full genuine Chrome pass, 11 distinct scoped public UI methods and 47 individually reviewed originals. This delivers one bounded M3 adapter; it does not complete all M3, enable Safari/GPU/code caches or expand Downloads/personal-file authority. All retained future features and M8 deferral remain unchanged.
+
+
+## Xcode #16/#17 scope refinement — confirmation pending
+
+The user confirmed Q1–Q7 in [XCODE-CLEANUP](XCODE-CLEANUP.md). Initial cleanup is limited to verified project-specific generated build intermediates under explicitly enabled standard DerivedData, with project/file refinement and exact frozen approvals. Source, archives, dSYMs, products, package checkouts, indexes and module caches stay protected from this initial action. Additional generated-data categories and custom build roots are retained M3 future scope requiring separate qualification; they have not been removed from the roadmap. #16’s remaining qualification precedes #17’s full app journey. Final contract confirmation is pending; no capability or M8 work is enabled by this scope record.
