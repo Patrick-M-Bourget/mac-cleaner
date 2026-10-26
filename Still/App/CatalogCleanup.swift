@@ -202,9 +202,6 @@ extension CatalogCategory {
         case .system, .models, .updaters, .logs: .managed
         }
     }
-}
-
-extension CatalogCategory {
     /// Overview's row title for a category; the rows themselves come from what the catalog found.
     var overviewTitle: String {
         switch self {

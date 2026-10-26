@@ -108,7 +108,6 @@ private struct WorkspaceView: View {
     @State private var capacity = AppLifecycleController.shared.capacity
     private var startupCapacity: StartupCapacityReading? { capacity.reading }
     private var showsPlan: Bool { destination == .plan && !navigationState.localRecordsVisible && !recoveryVisible && !nativeInspectionVisible && !homebrewVisible && !pipVisible && !dockerVisible && !managedStorageVisible && !diagnosticsVisible && !exclusionsVisible }
-    private var inspectionVisible: Bool { nativeInspectionVisible }
     private var contextLabel: String {
         if selection.workspaceRunning { return "Running approved cleanup" }
         if navigationState.localRecordsVisible && !recoveryVisible { return "Local records · Explicit maintenance only" }
@@ -268,7 +267,7 @@ private struct WorkspaceView: View {
                         ActionStrip(message: "Preliminary observations · No cleanup is running") {
                             Button("Stop scan") { folderInspection.cancel() }.buttonStyle(.borderedProminent)
                         }
-                    } else if inspectionVisible {
+                    } else if nativeInspectionVisible {
                         ActionStrip(message: "Inspection only · \(StillDesign.items(selection.workspaceSelectedCount)) in the cleanup plan") {
                             Button("View cleanup plan") { nativeInspectionVisible = false; destination = .plan }.buttonStyle(.borderedProminent)
                         }

@@ -575,8 +575,7 @@ struct ScanProgressSummary: View {
     }
 }
 
-/// Shared current-build scope guidance; the shortcut still requires native folder approval.
-/// A category remains recognizable before it has usable scan evidence.
+/// A category before it has usable scan evidence: still recognizable, with the action that gets the evidence.
 struct CategoryPrerequisite: View {
     let title: String
     let detail: String
