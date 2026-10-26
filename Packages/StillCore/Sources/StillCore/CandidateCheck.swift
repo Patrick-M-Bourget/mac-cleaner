@@ -33,6 +33,8 @@ public struct CandidateCheck: Sendable {
     public let exclusions: ExclusionPolicy
     /// Whether a leaked copy is in use now (rules with `copies`).
     public let inUse: any InUseChecking
+    /// The home folder whose protected folders a picked folder's files are never taken from (`UserFiles`).
+    public var home = URL(fileURLWithPath: NSHomeDirectory())
     /// At most this many entries are looked at; a deeper search that would need more refuses the folder.
     static let protectedSearchLimit = 200_000
 
@@ -100,6 +102,7 @@ public struct CandidateCheck: Sendable {
         // The same folder moved out of scope and reached through a symlink keeps its identity, so containment is checked too.
         guard let root = candidate.scopeRoot, ScopeContainment.contains(candidate.url, in: root) else { return .changed }
         if let part = Protection(rule).protectedComponent(of: candidate.url, below: root) { return .protected(part) }
+        if rule.id == UserFiles.ruleID, let folder = UserFiles.protectedFolder(of: candidate.url, home: home) { return .protected(folder) }
         if !candidate.isDirectory, Protection.insideGitCheckout(candidate.url, upTo: root) { return .protected(".git") }
         if !candidate.isDirectory {
             // Files must be byte-for-byte the observed version; cache folders churn, so folders keep identity only.

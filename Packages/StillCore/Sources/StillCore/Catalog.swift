@@ -41,7 +41,7 @@ public struct ToolCommand: Sendable, Hashable {
 }
 /// Whether none, some or all of a category's items are chosen.
 public enum CategorySelectionState: Sendable { case unchecked, mixed, checked }
-public enum CatalogCategory: String, Codable, Sendable { case developer, browser, downloads, system, models, updaters, logs }
+public enum CatalogCategory: String, Codable, Sendable { case developer, browser, downloads, system, models, updaters, logs, files }
 
 /// Who must be closed before a rule's data is touched.
 public struct RuleOwner: Sendable, Hashable {
@@ -227,7 +227,7 @@ public enum BuiltInCatalog {
                     detail: "Downloads of 500 MB or more not opened in 90 days.",
                     consequence: "Moved to Trash. The space stays used until you empty the Trash; you can restore them from the Trash in Finder.",
                     regen: .userFile, action: .trash, locations: ["Downloads"], owner: nil,
-                    protectedExtensions: downloadsProtectedExtensions, contents: ContentsMatch(minimumBytes: 500_000_000, unusedDays: 90)),
+                    protectedExtensions: downloadsProtectedExtensions, contents: ContentsMatch(minimumBytes: UserFiles.largeBytes, unusedDays: UserFiles.unusedDays)),
         // Field note section 3: Chrome copies itself for code-sign checks and never removes the copies.
         CleanupRule(id: "chrome-code-sign-clones", category: .browser, title: "Chrome code-sign copies",
                     detail: "Copies of Google Chrome it made to check its signature and never removed. The copy Chrome is using and the newest copy are kept.",
@@ -237,6 +237,8 @@ public enum BuiltInCatalog {
         huggingFaceModels,
         ollamaModels,
         appVMImages,
+        // Its items come only from folders the user picked (`UserFiles.candidates`); it has no locations of its own.
+        UserFiles.rule,
     ]
     /// Kept from the Downloads-era policy: libraries and databases are never moved, even inside Downloads.
     static let downloadsProtectedExtensions = ["dsym", "library", "db", "sqlite", "sqlite3"]
