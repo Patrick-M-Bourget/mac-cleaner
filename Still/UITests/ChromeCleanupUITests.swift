@@ -8,8 +8,23 @@ final class ChromeCleanupUITests: XCTestCase {
         let state = try configureIsolatedJourneyState(app)
         defer { app.terminate(); try? FileManager.default.removeItem(at: state) }
         let root = try makeChromeFixture(state)
-        app.launchArguments = ["--chrome-cleanup-fixture", "--design-initial-size"]
+        let downloads = FileManager.default.temporaryDirectory.resolvingSymlinksInPath().appendingPathComponent("StillSelectionUI-" + UUID().uuidString)
+        try FileManager.default.createDirectory(at: downloads, withIntermediateDirectories: false)
+        defer { try? FileManager.default.removeItem(at: downloads) }
+        let ordinaryFile = downloads.appendingPathComponent("owned-review.pdf")
+        try Data("owned personal-file fixture".utf8).write(to: ordinaryFile)
+        app.launchArguments = ["--chrome-cleanup-fixture", "--ui-test-downloads-root", "--design-initial-size"]
+        app.launchEnvironment["STILL_TEST_DOWNLOADS_ROOT"] = downloads.path
         app.launch()
+        XCTAssertTrue(app.buttons["Choose folder…"].waitForExistence(timeout: 5)); app.buttons["Choose folder…"].click()
+        app.typeKey("g", modifierFlags: [.command, .shift])
+        XCTAssertTrue(app.textFields.firstMatch.waitForExistence(timeout: 5)); app.textFields.firstMatch.typeText(downloads.path)
+        app.typeKey(.return, modifierFlags: []); app.dialogs.buttons["Scan folder"].click()
+        waitForOverviewScan(app, timeout: 10)
+        app.typeKey("2", modifierFlags: .command)
+        let downloadsCategory = app.checkBoxes["downloadsCategorySelection"]
+        XCTAssertTrue(downloadsCategory.waitForExistence(timeout: 5)); downloadsCategory.click()
+        app.typeKey("1", modifierFlags: .command)
         revealOverviewControl(app, label: "Review browser caches")
         app.buttons["Review browser caches"].click()
         XCTAssertTrue(app.buttons["Enable Chrome inspection"].waitForExistence(timeout: 5))
@@ -29,12 +44,15 @@ final class ChromeCleanupUITests: XCTestCase {
         XCTAssertTrue(app.buttons["Review cleanup"].waitForExistence(timeout: 5))
         app.buttons["Review cleanup"].click()
         XCTAssertTrue(app.sheets.buttons["Run cleanup"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Permanently clear Chrome asset caches"].exists)
         app.sheets.buttons["Cancel"].click()
+        XCTAssertTrue(FileManager.default.fileExists(atPath: ordinaryFile.path))
         XCTAssertTrue(FileManager.default.fileExists(atPath: root.appendingPathComponent("Default/Cache/Cache_Data/0123456789abcdef_0").path))
         app.typeKey(" ", modifierFlags: [])
         XCTAssertTrue(app.sheets.buttons["Run cleanup"].waitForExistence(timeout: 5), "Cancel returns focus to Review cleanup")
         app.sheets.buttons["Run cleanup"].click()
         XCTAssertTrue(app.staticTexts["Chrome cache results"].waitForExistence(timeout: 15))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: ordinaryFile.path), "The separately approved ordinary file moves to Trash")
         XCTAssertFalse(FileManager.default.fileExists(atPath: root.appendingPathComponent("Default/Cache/Cache_Data/0123456789abcdef_0").path))
         XCTAssertEqual(try Data(contentsOf: root.appendingPathComponent("Default/Cookies")), Data("protected-cookie".utf8))
         XCTAssertEqual(try Data(contentsOf: root.appendingPathComponent("Default/Web Data")), Data("protected-autofill".utf8))
