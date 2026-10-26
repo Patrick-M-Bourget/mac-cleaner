@@ -213,8 +213,10 @@ extension CatalogOverview.Row {
     }
 }
 
+/// An incomplete size of 0 is unknown, as in `SizeEstimate`.
 func catalogBytes(_ value: Int64, complete: Bool = true) -> String {
-    (complete ? "" : "At least ") + ByteCountFormatter.string(fromByteCount: value, countStyle: .decimal)
+    if !complete && value == 0 { return SizeEstimate.unknown.text }
+    return (complete ? "" : "At least ") + ByteCountFormatter.string(fromByteCount: value, countStyle: .decimal)
 }
 
 struct PreviewOnlyToggle: View {
