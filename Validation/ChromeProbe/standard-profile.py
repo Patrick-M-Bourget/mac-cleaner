@@ -86,7 +86,9 @@ def main():
     flags = [str(binary), '--headless=new', '--no-first-run', '--no-default-browser-check',
              '--profile-directory=Default', '--dump-dom']
     def launch(url, name):
-        result = subprocess.run(flags + [url], capture_output=True, text=True, timeout=45)
+        # Chrome documents chrome:// access as an explicit headless opt-in since123.
+        scheme_access = ['--allow-chrome-scheme-url'] if url == 'chrome://version' else []
+        result = subprocess.run(flags + scheme_access + [url], capture_output=True, text=True, timeout=45)
         (evidence / (name + '.html')).write_text(result.stdout)
         (evidence / (name + '.stderr')).write_text(result.stderr)
         if result.returncode:
