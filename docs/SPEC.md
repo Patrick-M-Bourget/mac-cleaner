@@ -63,6 +63,8 @@ Explore storage opens existing inspection. During a targeted retry, Overview des
 
 ## Selection and navigation contract
 
+**Action-specific approval:** the exact-file rules below remain strict for Downloads and all ordinary personal-file actions. Future qualified Chrome close-and-clean is a narrowly scoped exception under [CHROME-CLEANUP](CHROME-CLEANUP.md) rules5–7: an immutable approval identifies the verified profile/cache group and action, not a frozen cache-leaf manifest. It may include eligible entries generated inside that same approved group; new groups/profiles never join approval. #19 must represent this as a distinct typed group action, not weaken file-target validation or reinterpret a personal-file target. This qualification slice does not change the production plan/executor.
+
 There is one live, session-only PlanDraft keyed by the exact observed directory-entry path, resource identity and action. Every checkbox in every view updates it immediately. Repeated appearances of the same entry share membership and count once. Distinct hardlink directory entries remain distinct exact targets; choosing one never silently substitutes its alias. Storage-byte totals deduplicate shared resource identities, separately from the selected path count. File names inspect; folder names enter their observed folder, with a separate folder-info inspection action. Neither changes selection. Back and Cancel preserve selections. The item-review CTA is “View cleanup plan”; there is no staged apply step or inspector exclusion control.
 
 Category selection materializes exact eligible IDs from the current scan. Downloads has the same unchecked/mixed/checked control, labelled with eligible count and bytes. It selects ordinary files, including ZIPs, PDFs, videos and installers within the scanned Downloads tree. It never targets the Downloads folder or other directories. Protected packages, managed libraries and unavailable files remain excluded. Show relative paths for nested files; record original and resulting Trash locations, without promising preserved directory structure or automatic restoration.
@@ -84,7 +86,7 @@ Directory identity/modification evidence is checked around enumeration. One chan
 - Journal intent and outcome per target. Cancellation stops new work; no all-or-nothing rollback claim. Reconcile interrupted operations without blindly retrying them.
 - Trash failure leaves the original untouched. Cloud eviction never uses ordinary deletion. Permanent cache/tool cleanup requires explicit consequence disclosure.
 - Protect system files, app bundles, release archives, backups and user databases from generic rules.
-- Browser allowlists exclude cookies, credentials, history, site/offline storage, sessions/tabs, autofill and downloads. Unknown versions/layouts or uncertain inactivity fail closed.
+- Browser allowlists exclude cookies, credentials, history, site/offline storage, sessions/tabs, autofill and downloads. Unknown versions/layouts or unavailable/ambiguous activity evidence fail closed. Chrome close-and-clean uses documented before/during activity observations rather than claiming an exclusive lease; its residual races are explicit under CHROME-CLEANUP.md.
 
 ## Permissions and lifecycle
 

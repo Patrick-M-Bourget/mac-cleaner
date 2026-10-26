@@ -103,6 +103,8 @@ Results distinguish succeeded, failed, skipped, cancelled and unknown outcomes. 
 
 ### Browser review
 
+For the revised Chrome-only contract, selection/confirmation names the verified profile and downloaded-asset cache group, with observed estimate/time and a warning that eligible contents can change before execution. It does not promise a frozen file list. New profiles/groups stay unchecked; detected activity or conflicting scope changes stop unstarted work. All personal-file/Downloads exact-target controls above remain unchanged. This future #19 composition is gated by #18 qualification; no new screen is delivered by the probe.
+
 Group by verified browser/profile or explicitly shared cache group. Show running, denied, unknown mapping, unsupported version and empty states. Close-browser guidance never force-quits the browser. Rescan refreshes eligibility; newly eligible groups stay unchecked. A selected group that becomes ineligible is removed with an explanation. Review and inline plan controls ultimately apply to the same committed targets.
 
 ### What grew and History
