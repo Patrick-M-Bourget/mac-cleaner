@@ -101,7 +101,8 @@ final class LaunchSmokeUITests: XCTestCase {
     }
 }
 
-/// #119: the first catalog scan records a baseline; the next shows growth per category and location.
+/// #119: the first catalog scan records a baseline; a later one shows growth per category and location.
+/// #126: a scan minutes after the baseline waits for a day-old one ("Check back tomorrow").
 final class WhatGrewUITests: XCTestCase {
     @MainActor func testFirstScanRecordsABaselineAndTheNextShowsWhatGrew() throws {
         continueAfterFailure = false
@@ -115,10 +116,24 @@ final class WhatGrewUITests: XCTestCase {
         app.buttons["Storage trends"].click()
         XCTAssertTrue(app.staticTexts["Baseline recorded"].waitForExistence(timeout: 15))
 
-        let grown = home.appendingPathComponent(".npm/_cacache/content-v2/sha512/cd/blob")
-        try FileManager.default.createDirectory(at: grown.deletingLastPathComponent(), withIntermediateDirectories: true)
-        try Data(repeating: 9, count: 5_000_000).write(to: grown)
+        func grow(_ name: String) throws {
+            let grown = home.appendingPathComponent(".npm/_cacache/content-v2/sha512/" + name + "/blob")
+            try FileManager.default.createDirectory(at: grown.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try Data(repeating: 9, count: 5_000_000).write(to: grown)
+        }
+        try grow("cd")
         app.buttons["growthScanAgain"].click()
+        let checkBack = app.staticTexts["Check back tomorrow to see trends."]
+        XCTAssertTrue(checkBack.waitForExistence(timeout: 15), "A scan minutes after the baseline isn't compared")
+        XCTAssertFalse(app.staticTexts["growthNetChange"].exists)
+
+        // A day later (the test shortens the baseline age), the launch scan compares with the earlier one.
+        app.terminate()
+        try grow("ef")
+        app.launchEnvironment["STILL_TEST_TRENDS_BASELINE_AGE"] = "0"
+        app.launch()
+        XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
+        app.buttons["Storage trends"].click()
         XCTAssertTrue(app.staticTexts["growthNetChange"].waitForExistence(timeout: 15))
         // Each change row reads as one element: its title, the rules that grew and the change.
         XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "value BEGINSWITH 'Developer caches and build files'")).firstMatch.exists)
@@ -155,6 +170,7 @@ final class KeyboardShortcutsUITests: XCTestCase {
         let app = XCUIApplication()
         let state = try configureIsolatedState(app)
         let home = try configureCatalogHome(app)
+        app.launchEnvironment["STILL_TEST_TRENDS_BASELINE_AGE"] = "0"
         defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
         app.launch()
         XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))

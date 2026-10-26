@@ -2,8 +2,8 @@ import SwiftUI
 import Observation
 import StillCore
 
-/// Storage trends (formerly What grew): compares the last two completed catalog scans of the known locations (SPEC, RESET Decision 12 revisited in #119).
-/// Each catalog scan records a baseline; nothing scans in the background.
+/// Storage trends (formerly What grew): compares the latest catalog scan of the known locations with the newest one about a day
+/// older that isn't a rescan right after a cleanup (SPEC, #119, #126). Each catalog scan is recorded; nothing scans in the background.
 @MainActor @Observable final class GrowthHistoryModel {
     static let shared = GrowthHistoryModel()
     private var archive: GrowthHistoryStore?
@@ -17,7 +17,12 @@ import StillCore
 
     private func store() throws -> GrowthHistoryStore {
         if let archive { return archive }
-        let value = GrowthHistoryStore(directory: try LocalStateLocation.root(create: true).appendingPathComponent("Growth", isDirectory: true))
+        var baselineAge = GrowthHistoryStore.minimumBaselineAge
+        #if DEBUG
+        // UI tests can't wait a day between scans; a disposable test run may shorten the baseline age.
+        if LocalStateLocation.isDisposableTest, let age = ProcessInfo.processInfo.environment["STILL_TEST_TRENDS_BASELINE_AGE"].flatMap(TimeInterval.init) { baselineAge = age }
+        #endif
+        let value = GrowthHistoryStore(directory: try LocalStateLocation.root(create: true).appendingPathComponent("Growth", isDirectory: true), minimumBaselineAge: baselineAge)
         archive = value; return value
     }
 
@@ -44,11 +49,13 @@ import StillCore
     }
 
     /// After a completed catalog scan: records it per category and location and shows the new comparison.
-    func completeCatalog(_ discovery: CatalogDiscovery, catalog: Catalog, fullDiskAccess: FullDiskAccessStatus, token: GrowthScanToken?) async {
+    /// `afterCleanup` marks the rescan right after a cleanup, which never becomes a baseline.
+    func completeCatalog(_ discovery: CatalogDiscovery, catalog: Catalog, fullDiskAccess: FullDiskAccessStatus, token: GrowthScanToken?, afterCleanup: Bool = false) async {
         guard let token else { return }
         request = UUID()
         do {
-            let result = try await GrowthScanRecorder(store: store()).completeCatalog(discovery, catalog: catalog, fullDiskAccess: fullDiskAccess, token: token)
+            let result = try await GrowthScanRecorder(store: store()).completeCatalog(discovery, catalog: catalog, fullDiskAccess: fullDiskAccess, token: token,
+                                                                                 afterCleanup: afterCleanup)
             if result.state != .unknown { comparison = result }
             error = nil
         } catch { self.error = "This scan couldn’t be saved to Storage trends. Current results are still usable." }
@@ -76,12 +83,13 @@ enum GrowthPresentation {
     }
     static func baseline(_ state: GrowthComparisonState) -> String {
         switch state {
-        case .clearedBaseline: "History was cleared. Scan again later to see what grew."
-        case .missingBaseline: "The earlier scan is no longer kept. Scan again later to see what grew."
-        case .coverageChanged: "Scan settings changed, such as exclusions, so this scan starts a new baseline. Scan again later to see what grew."
-        default: "Scan again later to see what grew."
+        case .clearedBaseline: "History was cleared. " + checkBack
+        case .missingBaseline: "The earlier scan is no longer kept. " + checkBack
+        case .coverageChanged: "Scan settings changed, such as exclusions, so a new baseline starts. " + checkBack
+        default: checkBack
         }
     }
+    static let checkBack = "Check back tomorrow to see trends."
     static let retention = "History is stored on this Mac: sizes per category and location only, at most \(GrowthRetention().baselines) scans over \(GrowthRetention().days) days, "
         + "and no more than \(ByteCountFormatter.string(fromByteCount: Int64(GrowthRetention().bytes), countStyle: .decimal))."
 }
@@ -121,13 +129,13 @@ struct GrowthHistoryView: View {
                     compared(comparison, from: from, to: current.observedAt)
                 } else {
                     PageHeader(title: "Storage trends", subtitle: "Changes in your known locations between two completed scans.")
-                    EmptyState(title: "Baseline recorded", detail: "Recorded " + current.observedAt.formatted(date: .abbreviated, time: .shortened) + ". " + GrowthPresentation.baseline(comparison.state),
+                    EmptyState(title: "Baseline recorded", detail: GrowthPresentation.baseline(comparison.state),
                                symbol: "chart.line.uptrend.xyaxis").accessibilityIdentifier("growthBaselineRecorded")
                 }
             } else if !model.loading {
                 PageHeader(title: "Storage trends", subtitle: "Changes in your known locations between two completed scans.")
                 EmptyState(title: catalog.isScanning ? "Scanning known locations…" : "No scan recorded yet",
-                           detail: "The first completed scan records a baseline. The next one shows what grew. Nothing scans in the background.", symbol: "chart.line.uptrend.xyaxis")
+                           detail: "The first completed scan records a baseline. Check back a day later to see trends. Nothing scans in the background.", symbol: "chart.line.uptrend.xyaxis")
             }
             if let error = model.error, model.comparison != nil { StatusRow(text: error, symbol: "exclamationmark.circle", role: .caution) }
             Text(GrowthPresentation.retention).font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)

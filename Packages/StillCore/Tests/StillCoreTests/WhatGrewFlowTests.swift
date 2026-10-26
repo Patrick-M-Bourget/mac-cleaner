@@ -5,7 +5,7 @@ import Testing
 @Test func firstObservationOfAnotherLocationDoesNotCompareUnrelatedScopes() async throws {
     let directory = FileManager.default.temporaryDirectory.appendingPathComponent("StillWhatGrew-" + UUID().uuidString)
     defer { try? FileManager.default.removeItem(at: directory) }
-    let store = GrowthHistoryStore(directory: directory)
+    let store = GrowthHistoryStore(directory: directory, minimumBaselineAge: 0)
     func observation(_ scope: String, _ time: Double, _ bytes: Int64) -> GrowthSnapshot {
         GrowthSnapshot(fingerprint: .init(scopeID: scope, rootID: scope, volumeID: "volume", access: "complete", rules: "one", exclusions: "none", classification: "one"), scopeLabel: "Same name", observedAt: Date(timeIntervalSince1970: time), groups: [.init(id: "root", label: "Root files", logicalBytes: bytes)])
     }
