@@ -135,4 +135,47 @@ final class CatalogCleanupUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Would move to Trash"].exists)
         XCTAssertTrue(FileManager.default.fileExists(atPath: home.appendingPathComponent("Downloads/Setup.dmg").path))
     }
+
+    @MainActor func testChromeCodeSignCopiesAreOfferedAsAnUpperBoundAndTheNewestIsKept() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        let state = try configureIsolatedState(app)
+        let home = try configureCatalogHome(app)
+        defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
+        // A stand-in for the user's /private/var/folders entry, read through the same DEBUG-only home seam.
+        let clones = home.appendingPathComponent(".still-test-user-folder/X/com.google.Chrome.code_sign_clone")
+        for (name, age) in [("code_sign_clone.old", -86_400.0), ("code_sign_clone.new", 0)] {
+            let executable = clones.appendingPathComponent(name + "/Google Chrome.app/Contents/MacOS/Google Chrome")
+            try FileManager.default.createDirectory(at: executable.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try Data(repeating: 1, count: 150_000).write(to: executable)
+            try FileManager.default.setAttributes([.creationDate: Date().addingTimeInterval(age)], ofItemAtPath: clones.appendingPathComponent(name).path)
+        }
+        app.launchArguments = ["-ApplePersistenceIgnoreState", "YES"]
+        app.launch()
+
+        XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
+        let row = app.buttons["overviewCategory-browser"]
+        XCTAssertTrue(row.waitForExistence(timeout: 10))
+        row.click()
+
+        let rule = app.checkBoxes["planRule-chrome-code-sign-clones"]
+        XCTAssertTrue(rule.waitForExistence(timeout: 5))
+        XCTAssertEqual(rule.value as? Int, 0)
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH 'Up to '")).firstMatch.exists)
+        rule.click()
+        XCTAssertEqual(app.checkBoxes["previewOnlyToggle"].value as? Int, 1)
+        app.buttons["Review cleanup"].click()
+
+        XCTAssertTrue(app.staticTexts["Clear Chrome code-sign copies"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS 'code_sign_clone.old'")).firstMatch.exists)
+        XCTAssertFalse(app.staticTexts.matching(NSPredicate(format: "label CONTAINS 'code_sign_clone.new'")).firstMatch.exists)
+        app.buttons["Run preview"].click()
+
+        XCTAssertTrue(app.staticTexts["catalogPreviewNotice"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["Would delete"].exists)
+        XCTAssertTrue(app.staticTexts["Estimated before cleanup · Upper bound"].exists)
+        XCTAssertTrue(app.staticTexts["Measured freed space"].exists)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: clones.appendingPathComponent("code_sign_clone.old").path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: clones.appendingPathComponent("code_sign_clone.new").path))
+    }
 }
