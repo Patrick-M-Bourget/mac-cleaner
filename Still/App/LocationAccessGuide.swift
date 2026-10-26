@@ -18,8 +18,8 @@ struct LocationAccessGuide: View {
     }
 }
 
-/// Full Disk Access state for the app. It is checked only when an access surface is shown, never at launch,
-/// and checking never asks for access (`FullDiskAccessProbe`).
+/// Full Disk Access state for an access surface, checked when it is shown. Catalog scans probe too, the one at
+/// launch included (`CatalogCleanupModel.scan`). Checking never asks for access (`FullDiskAccessProbe`).
 @MainActor @Observable final class FullDiskAccessModel {
     /// Nil until the first check.
     private(set) var status: FullDiskAccessStatus?

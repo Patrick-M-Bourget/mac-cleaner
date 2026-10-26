@@ -169,7 +169,8 @@ import SwiftUI
         // What grew records each completed catalog scan (#119).
         let growth = await GrowthHistoryModel.shared.beginCatalog(home: home, exclusionFingerprint: exclusions.fingerprint)
         let scanned = await Task.detached(priority: .userInitiated) { () -> (CatalogDiscovery, [CleanupRule], Set<String>, [String: String], FullDiskAccessStatus) in
-            // Probed on every scan, at launch too: it only opens a protected folder and never prompts (#117).
+            // Probed once per scan, at launch too, and shared with the guidance scan: it only opens a protected folder
+            // and never prompts (#117).
             let access = FullDiskAccessProbe(home: home).status()
             let discovered = catalog.discovery(home: home, userFolder: userFolder, exclusions: exclusions, locateTool: locate, systemRoot: system, cloud: cloud,
                                                access: access)
@@ -182,7 +183,7 @@ import SwiftUI
         await GrowthHistoryModel.shared.completeCatalog(scanned.0, catalog: catalog, fullDiskAccess: scanned.4, token: growth)
         discovered = scanned.0.candidates; notes = scanned.0.notes; notAccessibleRules = scanned.0.notAccessible; overriddenRules = scanned.1; runningOwners = scanned.2; ownerNames = scanned.3
         keepOnlyCurrentChoices()
-        await scanGuidance(home: home)
+        await scanGuidance(home: home, fullDiskAccess: scanned.4)
     }
     /// Drops chosen items that are no longer offered, and says so.
     private func keepOnlyCurrentChoices() {
@@ -563,11 +564,12 @@ extension CatalogCleanupModel {
     func guidanceRule(_ finding: GuidanceFinding) -> CleanupRule? { catalog.rule(finding.ruleID) }
     /// Sizes the guidance rules from metadata only. Read-only. A short budget keeps a large Photos library
     /// from holding up the scan; a size cut short reads "At least".
-    func scanGuidance(home: URL) async {
+    /// `fullDiskAccess` is the catalog scan's own probe, so one scan never probes twice.
+    func scanGuidance(home: URL, fullDiskAccess: FullDiskAccessStatus) async {
         let catalog = catalog, system = Self.systemRoot, snapshots = Self.snapshots
         guidance = await Task.detached(priority: .utility) {
             catalog.guidance(home: home, systemRoot: system, sizer: KnownLocationSizer(timeBudget: 10), snapshots: snapshots,
-                             fullDiskAccess: FullDiskAccessProbe(home: home).status())
+                             fullDiskAccess: fullDiskAccess)
         }.value
     }
     /// Opens where the finding is managed: its app, a System Settings pane, or the folder in Finder.
