@@ -1,9 +1,0 @@
-{
-  "sourceCommit": "6e5cbdb6d0c90b4108bb5b50f5b53a05085ae706",
-  "runURL": "https://github.com/Patrick-M-Bourget/mac-cleaner/actions/runs/39997624851",
-  "architecture": "arm64",
-  "os": "ProductName:\t\tmacOS\nProductVersion:\t\t26.6.2\nBuildVersion:\t\t25G83\n",
-  "xcode": "Xcode 26.6\nBuild version 17F113\n",
-  "hardware": "hw.model: VirtualMac2,1\nhw.memsize: 7516192768\nhw.ncpu: 3\n",
-  "reference512GBHost": false
-}

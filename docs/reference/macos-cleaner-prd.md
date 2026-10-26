@@ -1,10 +1,10 @@
-> Historical revision 0.8 reference. Preserve feature detail, but implementation scope and interaction rules are superseded by [SPEC](../SPEC.md), [design handoff](../DESIGN-HANDOFF.md), and [milestones](../MILESTONES.md), revision 0.9. In particular, staged item drafts, clearing selections on rescan, persistent plans and installer-only selection are obsolete.
+> Historical revision 0.8 reference: keep for feature detail. Scope and decisions now live in [RESET.md](../RESET.md). Codex-era docs are at tag [`archive/codex-era`](https://github.com/Patrick-M-Bourget/mac-cleaner/tree/archive/codex-era/docs).
 
 # macOS Storage Companion — Preliminary PRD
 
 Version 0.8 • October 22, 2026 • Working name, not a branding decision
 
-Status: proposal for a personal-first macOS application, with a path to a commercial release. Scope and targets are preliminary. Companion: [Technical specification](macos-cleaner-technical-spec.md). Background: [Storage research](macos-cleaner-research.md), [Competitor research](macos-cleaner-competitors.md).
+Status: proposal for a personal-first macOS application, with a path to a commercial release. Scope and targets are preliminary. Companion: [Technical specification](https://github.com/Patrick-M-Bourget/mac-cleaner/blob/archive/codex-era/docs/reference/macos-cleaner-technical-spec.md). Background: [Storage research](macos-cleaner-research.md), [Competitor research](macos-cleaner-competitors.md).
 
 ## Product decision
 
@@ -174,25 +174,25 @@ No calendar estimate is committed before the feasibility stage. A native macOS a
 
 ## Design synchronization — revision 0.8
 
-Canonical interactive design: `storage-companion-direct.html` (conversation preview; sample data and simulated OS permissions). See [Design/spec contract](macos-cleaner-design-contract.md) for the shared defaults and acceptance matrix. Earlier design iterations are historical.
+Canonical interactive design: `storage-companion-direct.html` (conversation preview; sample data and simulated OS permissions). See [Design/spec contract](https://github.com/Patrick-M-Bourget/mac-cleaner/blob/archive/codex-era/docs/reference/macos-cleaner-design-contract.md) for the shared defaults and acceptance matrix. Earlier design iterations are historical.
 
 The current design also specifies a scoped storage browser with a wider inspector; checkbox selection distinct from item inspection; consequence-first grouped confirmation; progress/cancellation; separate Trash totals; targeted rescanning of skipped items; first-baseline and changed-coverage comparison states. These are MVP requirements. The preview is not an implementation of native file operations or system permissions.
 
 ### UI refinement — revision 0.8
 
-Overview separates potentially releasable estimates from Trash-held allocations and qualifies eligibility. App-managed storage guidance remains secondary to actionable findings. Manual scan location copy includes recognized caches. See [UI handoff review](macos-cleaner-ui-handoff-review.md) for explicit design coverage and remaining v1 flows; these gaps do not remove existing requirements.
+Overview separates potentially releasable estimates from Trash-held allocations and qualifies eligibility. App-managed storage guidance remains secondary to actionable findings. Manual scan location copy includes recognized caches. See [UI handoff review](https://github.com/Patrick-M-Bourget/mac-cleaner/blob/archive/codex-era/docs/reference/macos-cleaner-ui-handoff-review.md) for explicit design coverage and remaining v1 flows; these gaps do not remove existing requirements.
 
 ### Empty and blocked state requirements — revision 0.8
 
-The [UI state contract](macos-cleaner-ui-state-matrix.md) is the shared acceptance reference for SCAN, ACCESS, CAP, PLAN, HIST, FILES, CACHE, CLOUD and RESULT states. Discovery scopes include an explicit recognized-browser-caches choice. Empty states explain how to proceed; blocked states name the affected location/group and preserve unaffected work. No scan selection is cleanup consent. Completed results reflect selected accessible coverage, and require another compatible completed scan before reporting growth. Unknown storage is not zero.
+The [UI state contract](https://github.com/Patrick-M-Bourget/mac-cleaner/blob/archive/codex-era/docs/reference/macos-cleaner-ui-state-matrix.md) is the shared acceptance reference for SCAN, ACCESS, CAP, PLAN, HIST, FILES, CACHE, CLOUD and RESULT states. Discovery scopes include an explicit recognized-browser-caches choice. Empty states explain how to proceed; blocked states name the affected location/group and preserve unaffected work. No scan selection is cleanup consent. Completed results reflect selected accessible coverage, and require another compatible completed scan before reporting growth. Unknown storage is not zero.
 
 ## Window stability — revision 0.8
 
-Screen changes, scan states, disclosures and permission messages must not resize or reposition the app window. The user controls resizing. Preserve scroll, focus and selection across incremental updates. Follow the [window and interaction stability contract](macos-cleaner-layout-contract.md).
+Screen changes, scan states, disclosures and permission messages must not resize or reposition the app window. The user controls resizing. Preserve scroll, focus and selection across incremental updates. Follow the [window and interaction stability contract](https://github.com/Patrick-M-Bourget/mac-cleaner/blob/archive/codex-era/docs/reference/macos-cleaner-layout-contract.md).
 
 ## Direct planning flow — revision 0.8
 
-Cleanup Plan remains useful with zero selections: show category checkboxes, eligible counts/sizes, inline item/profile disclosures and a disabled Review cleanup button. Reserve a full empty state for no completed scan or no eligible findings. Categories select exact eligible targets from the current scan; partial selections show mixed state. A rescan never silently extends a prior selection. Scan again uses existing locations directly; scope editing remains in settings. A finished cleanup invalidates the old general plan, while a targeted retry reviews only newly revalidated skipped targets. See the [flow audit](macos-cleaner-flow-audit.md).
+Cleanup Plan remains useful with zero selections: show category checkboxes, eligible counts/sizes, inline item/profile disclosures and a disabled Review cleanup button. Reserve a full empty state for no completed scan or no eligible findings. Categories select exact eligible targets from the current scan; partial selections show mixed state. A rescan never silently extends a prior selection. Scan again uses existing locations directly; scope editing remains in settings. A finished cleanup invalidates the old general plan, while a targeted retry reviews only newly revalidated skipped targets. See the [flow audit](https://github.com/Patrick-M-Bourget/mac-cleaner/blob/archive/codex-era/docs/reference/macos-cleaner-flow-audit.md).
 
 ## Review routes and selection — revision 0.8
 

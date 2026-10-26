@@ -1,5 +1,0 @@
-# Final shared History Gallery
-
-App source f062ca6; test-onlycc9bd73; run40136783626 passes initial228.652s/minimum204.470s. All48 original PNGs individually reviewed:24 Light by Standards reviewer,24 Dark by Spec reviewer. Per-file reports preserve dimensions, state mapping and concrete caveats. Twelve meaningful state families at1024×640/900×640 accepted for visible target content. Long roots wrap fully at the consistent leading inset; stopped/multi-location examples show both roots. Unknown totals, qualified subtotal/reasons, independent reload warnings, filter-specific empties and retention/maintenance feedback remain readable. Cropped neighboring examples are explicitly outside each image’s acceptance.
-
-These are inert synthetic component examples. Actual flow/activation proof is in the public native journeys, not inferred from Gallery pixels. Unmodified manifest and every explicit original preserved; full raw result/export outsideGit artifacts/history51-gallery-final and history51-gallery-final-export.

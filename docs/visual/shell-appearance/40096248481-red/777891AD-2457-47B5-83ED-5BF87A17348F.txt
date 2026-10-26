@@ -1,9 +1,0 @@
-[DEBUG-shell53-hit] hit-monitor.installed
-[DEBUG-shell53-hit] write.enter
-[DEBUG-shell53-hit] write.complete
-[DEBUG-shell53-hit] write.enter
-[DEBUG-shell53-hit] write.error domain=NSCocoaErrorDomain code=257
-[DEBUG-shell53-hit] write.enter
-[DEBUG-shell53-hit] write.error domain=NSCocoaErrorDomain code=257
-[DEBUG-shell53-hit] event=1 key=true active=true modal=false noticePoint={645, 12} noticeBounds={{0, 0}, {645, 24}} hit=NSClipView>SwiftUI.HostingScrollView>_TtCC7SwiftUI17HostingScrollView17PlatformContainer>_TtGC7SwiftUIP10$1c235ffac23AppKitWindowHostingViewGVS_15ModifiedContentVS_7AnyViewVS_12RootModifier__>NSThemeFrame
-[DEBUG-shell53-hit] event=2 key=true active=true modal=false noticePoint={645, 12} noticeBounds={{0, 0}, {645, 24}} hit=NSClipView>SwiftUI.HostingScrollView>_TtCC7SwiftUI17HostingScrollView17PlatformContainer>_TtGC7SwiftUIP10$1c235ffac23AppKitWindowHostingViewGVS_15ModifiedContentVS_7AnyViewVS_12RootModifier__>NSThemeFrame

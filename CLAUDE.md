@@ -2,7 +2,7 @@
 
 A native SwiftUI storage cleaner for macOS. It finds space you can reclaim and cleans what you choose. The project is being reset after the Codex era. `docs/RESET.md` is the current plan, and its **Decisions** section overrides any older doc. The UI authority is the prototype `docs/visual/preview.html` in full mode, not M1 mode.
 
-The Codex-era control docs (SPEC, DESIGN-HANDOFF, MILESTONES, PROTOTYPE-PARITY, FLOW-LOCK, `docs/validation/`, and the rest) are scheduled for removal in reset Phase 1. Read them for history only. Never treat them as scope or gates.
+The Codex-era control docs, validation reports and screenshots are archived at tag `archive/codex-era`. Read them for history only. Never treat them as scope or gates.
 
 GitHub account: `Patrick-M-Bourget`. Run `gh auth status` before any `git push`.
 
