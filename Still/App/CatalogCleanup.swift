@@ -37,6 +37,8 @@ import SwiftUI
     private(set) var notes: [CatalogNote] = []
     /// Rules whose owner keeps its data elsewhere by a setting; they offer nothing.
     private(set) var overriddenRules: [CleanupRule] = []
+    /// Rules Still can't read without Full Disk Access (Safari's cache): shown as not accessible, never as 0.
+    private(set) var notAccessibleRules: [CleanupRule] = []
     /// Names of owners that were running at the last scan. Their items stay choosable; the checks refuse them.
     private(set) var runningOwners: Set<String> = []
     /// Each candidate's owner name at the last scan, so views never look owners up while drawing.
@@ -148,23 +150,25 @@ import SwiftUI
         guard canEdit else { return }
         isScanning = true; message = nil
         defer { isScanning = false; hasScanned = true }
-        guard let home = Self.home else { discovered = []; notes = []; overriddenRules = []; runningOwners = []; ownerNames = [:]; return }
+        guard let home = Self.home else { discovered = []; notes = []; overriddenRules = []; notAccessibleRules = []; runningOwners = []; ownerNames = [:]; return }
         // Excluded items are never offered (SPEC section 2); without the settings nothing can be offered safely.
         guard let exclusions = try? await ExclusionsModel.shared.policyForScan() else {
-            discovered = []; notes = []; overriddenRules = []; runningOwners = []; ownerNames = [:]
+            discovered = []; notes = []; overriddenRules = []; notAccessibleRules = []; runningOwners = []; ownerNames = [:]
             message = "Exclusion settings are unavailable, so nothing can be checked. Try again."; return
         }
         let catalog = catalog
         let locate = Self.locateTool, system = Self.systemRoot
         let userFolder = Self.userFolder, cloud = Self.cloud
         let scanned = await Task.detached(priority: .userInitiated) { () -> (CatalogDiscovery, [CleanupRule], Set<String>, [String: String]) in
-            let discovered = catalog.discovery(home: home, userFolder: userFolder, exclusions: exclusions, locateTool: locate, systemRoot: system, cloud: cloud)
+            // The probe only opens a protected folder and never asks for access; a debug test's fixture home stands in for the real one.
+            let discovered = catalog.discovery(home: home, userFolder: userFolder, exclusions: exclusions, locateTool: locate, systemRoot: system, cloud: cloud,
+                                               access: FullDiskAccessProbe(home: home).status())
             var owners: [String: RuleOwner] = [:], names: [String: String] = [:]
             for candidate in discovered.candidates { if let owner = catalog.owner(for: candidate) { owners[owner.name] = owner; names[candidate.id] = owner.name } }
             let running = SystemRunningAppChecker()
             return (discovered, catalog.overriddenRules(home: home, systemRoot: system), Set(owners.values.filter { running.isRunning($0) == true }.map(\.name)), names)
         }.value
-        discovered = scanned.0.candidates; notes = scanned.0.notes; overriddenRules = scanned.1; runningOwners = scanned.2; ownerNames = scanned.3
+        discovered = scanned.0.candidates; notes = scanned.0.notes; notAccessibleRules = scanned.0.notAccessible; overriddenRules = scanned.1; runningOwners = scanned.2; ownerNames = scanned.3
         keepOnlyCurrentChoices()
     }
     /// Drops chosen items that are no longer offered, and says so.
@@ -362,6 +366,7 @@ struct CatalogPlanSection: View {
                 StatusRow(text: "\(rule.owner?.name ?? rule.title) keeps its data in a custom location set in its settings, so Still leaves it alone.",
                           symbol: "info.circle", role: .neutral, identifier: "planOverridden-" + rule.id)
             }
+            ForEach(model.notAccessibleRules) { rule in NotAccessibleRow(title: rule.title).accessibilityIdentifier("planNotAccessible-" + rule.id) }
             ForEach(model.notes, id: \.ruleID) { note in StatusRow(text: note.text, symbol: "info.circle", role: .neutral, identifier: "planNote-" + note.ruleID) }
             if model.isScanning { ProgressView("Checking known locations…") }
             if !model.rulesFound.isEmpty || model.result != nil { PreviewOnlyToggle(model: model).padding(.leading, StillDesign.Space.xl) }

@@ -453,6 +453,11 @@ private struct WorkspaceView: View {
                         catalogRow(row)
                         Divider().padding(.horizontal, StillDesign.Space.lg)
                     }
+                    // Places macOS protects (Safari's cache) without Full Disk Access: not accessible, never 0.
+                    ForEach(catalog.notAccessibleRules) { rule in
+                        NotAccessibleRow(title: rule.title).padding(StillDesign.Space.lg).accessibilityIdentifier("overviewNotAccessible-" + rule.id)
+                        Divider().padding(.horizontal, StillDesign.Space.lg)
+                    }
                 }
                 Text(trashFootnote(summary?.proposedForTrash)).font(.caption).foregroundStyle(.secondary)
             }
