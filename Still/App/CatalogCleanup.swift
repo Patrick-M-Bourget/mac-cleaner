@@ -45,6 +45,21 @@ import SwiftUI
         return FileManager.default.homeDirectoryForCurrentUser
     }
 
+    /// Where a tool rule's executable is found. A debug test home only ever finds stand-ins inside
+    /// `<home>/.still-test-tools`, so a UI test never runs a real tool.
+    static var locateTool: @Sendable (ToolCommand) -> URL? {
+        #if DEBUG
+        if LocalStateLocation.isDisposableTest {
+            guard let home else { return { _ in nil } }
+            return { command in
+                command.executables.lazy.map { home.appendingPathComponent(".still-test-tools/" + URL(fileURLWithPath: $0).lastPathComponent) }
+                    .first { FileManager.default.isExecutableFile(atPath: $0.path) }
+            }
+        }
+        #endif
+        return ToolCommand.installed
+    }
+
     var rulesFound: [CleanupRule] { catalog.rules.filter { rule in candidates.contains { $0.ruleID == rule.id } } }
     func candidates(for rule: CleanupRule) -> [Candidate] { candidates.filter { $0.ruleID == rule.id } }
     func estimatedBytes(for rule: CleanupRule) -> Int64 { candidates(for: rule).reduce(0) { $0 + ($1.allocatedBytes ?? $1.logicalBytes) } }
@@ -64,7 +79,8 @@ import SwiftUI
         defer { isScanning = false; hasScanned = true }
         guard let home = Self.home else { candidates = []; return }
         let catalog = catalog
-        candidates = await Task.detached(priority: .userInitiated) { catalog.discover(home: home) }.value
+        let locate = Self.locateTool
+        candidates = await Task.detached(priority: .userInitiated) { catalog.discover(home: home, locateTool: locate) }.value
         let found = Set(candidates.map(\.ruleID))
         if !selectedRuleIDs.isSubset(of: found) { selectedRuleIDs.formIntersection(found); message = "Some categories are no longer on this Mac and were removed from your plan." }
         selectionRevision &+= 1
@@ -170,7 +186,7 @@ struct CatalogConfirmationSection: View {
                 VStack(alignment: .leading, spacing: StillDesign.Space.sm) {
                     HStack {
                         CategoryBadge(category: rule.category.storageCategory)
-                        Text((rule.action == .delete ? "Clear " : "Move to Trash: ") + rule.title).font(StillDesign.TypeStyle.section)
+                        Text((rule.action == .trash ? "Move to Trash: " : "Clear ") + rule.title).font(StillDesign.TypeStyle.section)
                         Spacer()
                         Text(catalogBytes(items.reduce(0) { $0 + ($1.allocatedBytes ?? $1.logicalBytes) }, complete: items.allSatisfy(\.sizeComplete))).monospacedDigit()
                     }
@@ -215,6 +231,12 @@ struct CatalogResultsSection: View {
                         Text(record.ruleID.flatMap { catalog.rule($0)?.title } ?? record.originalURL.lastPathComponent).font(.body.weight(.medium))
                         Text(record.originalURL.path).font(.caption).foregroundStyle(.secondary).textSelection(.enabled)
                         Text(record.message).font(.caption).foregroundStyle(.secondary)
+                        if let output = record.toolOutput {
+                            DisclosureGroup("Tool output") {
+                                Text(output).font(.caption.monospaced()).foregroundStyle(.secondary).textSelection(.enabled)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                            }.font(.caption).accessibilityIdentifier("toolOutput-" + (record.ruleID ?? ""))
+                        }
                     }
                     Spacer()
                     Text(outcome(record)).font(.callout)
@@ -232,9 +254,12 @@ struct CatalogResultsSection: View {
         }
     }
     private func outcome(_ record: CleanupRecord) -> String {
-        if record.previewOnly == true, record.state == .skipped, record.message.hasPrefix("Preview") { return record.action == "delete" ? "Would delete" : "Would move to Trash" }
+        let action = CleanupAction(rawValue: record.action)
+        if record.previewOnly == true, record.state == .skipped, record.message.hasPrefix("Preview") {
+            return action == .trash ? "Would move to Trash" : action == .tool ? "Would run" : "Would delete"
+        }
         switch record.state {
-        case .succeeded: return record.action == "delete" ? "Deleted" : "Moved to Trash"
+        case .succeeded: return action == .trash ? "Moved to Trash" : action == .tool ? "Cleaned" : "Deleted"
         case .skipped: return "Skipped"
         case .failed: return "Failed"
         case .cancelled: return "Not started"
