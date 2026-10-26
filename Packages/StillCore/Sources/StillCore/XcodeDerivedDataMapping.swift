@@ -1,7 +1,7 @@
 import Foundation
 import Darwin
 
-/// Observed Xcode26.6/17F113 standard unique-project layout, not a public plist schema.
+/// Xcode's standard unique-project DerivedData layout, not a public plist schema.
 /// This resolver supplies metadata evidence only; installation/owner/exact-file approval
 /// remain separate requirements before mutation.
 enum XcodeDerivedDataMapping {
@@ -37,18 +37,19 @@ enum XcodeDerivedDataMapping {
         let metadata = derived.appendingPathComponent("info.plist")
         let (bytes, observedIdentity) = try readMetadata(metadata)
         guard let dictionary = try PropertyListSerialization.propertyList(from: bytes, options: [], format: nil) as? [String: Any],
-              Set(dictionary.keys) == Set(["WorkspacePath", "LastAccessedDate"]),
+              Set(dictionary.keys).isSuperset(of: ["WorkspacePath", "LastAccessedDate"]),
               dictionary["LastAccessedDate"] is Date,
               let path = dictionary["WorkspacePath"] as? String,
               path.hasPrefix("/"), !path.contains("\0") else {
             throw XcodeIntermediateFailure("Project association metadata is missing or has an unsupported schema.")
         }
         let project = URL(fileURLWithPath: path)
-        guard project.path == path, !project.pathComponents.contains(".."), !project.pathComponents.contains("."), project.pathExtension == "xcodeproj" else {
-            throw XcodeIntermediateFailure("This project/workspace association has not been qualified.")
+        guard project.path == path, !project.pathComponents.contains(".."), !project.pathComponents.contains("."),
+              let metadataName = ["xcodeproj": "project.pbxproj", "xcworkspace": "contents.xcworkspacedata"][project.pathExtension] else {
+            throw XcodeIntermediateFailure("This association is not an Xcode project or workspace.")
         }
         try directory(project)
-        let projectMetadata = project.appendingPathComponent("project.pbxproj")
+        let projectMetadata = project.appendingPathComponent(metadataName)
         _ = try regular(projectMetadata, maximumSize: 32 * 1_024 * 1_024)
         let intermediate = derived.appendingPathComponent("Build/Intermediates.noindex", isDirectory: true)
         try directory(intermediate)

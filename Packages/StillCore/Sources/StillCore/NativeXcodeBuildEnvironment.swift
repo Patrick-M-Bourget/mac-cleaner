@@ -35,7 +35,7 @@ public struct XcodeInstallationObservation: Sendable {
     public let developerURL: URL
 }
 
-/// Explicit native calls only, bounded to the observed #16 toolchain/layout; app delivery stays gated.
+/// Explicit native calls only. Xcode cleanup is not wired to the UI.
 public struct NativeXcodeBuildEnvironment: XcodeBuildEnvironment {
     private let ownerReader: any XcodeOwnerSnapshotReading
     private let applicationURL: URL
@@ -46,18 +46,9 @@ public struct NativeXcodeBuildEnvironment: XcodeBuildEnvironment {
     public func standardDerivedDataURL() throws -> URL {
         FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Developer/Xcode/DerivedData", isDirectory: true)
     }
+    /// Any Apple-signed Xcode is accepted; there is no version allowlist.
     public func validateInstallation() throws {
-        let os = ProcessInfo.processInfo.operatingSystemVersion
-        var machine = utsname(); uname(&machine)
-        let architecture = withUnsafeBytes(of: machine.machine) { String(decoding: $0.prefix { $0 != 0 }, as: UTF8.self) }
-        guard os.majorVersion == 26, os.minorVersion == 6, os.patchVersion == 2, architecture == "arm64" else {
-            throw NativeXcodeObservationFailure("This macOS version or architecture has not been qualified for Xcode cleanup.")
-        }
-        let installation = try installationObservation()
-        guard installation.version == "26.6", installation.build == "24959",
-              installation.codeDirectoryHash == "502eca5e95e1b8eaaf52e9b38617e8e7d23f46db" else {
-            throw NativeXcodeObservationFailure("This Xcode version/build has not been qualified for intermediate cleanup.")
-        }
+        _ = try installationObservation()
     }
     public func projects(in root: URL) throws -> XcodeProjectMapping {
         try XcodeDerivedDataMapping.projects(in: root)

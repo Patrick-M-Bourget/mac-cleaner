@@ -28,6 +28,26 @@ import StillCore
     #expect(result.unavailable.first?.derivedDataURL.path == unknown.path)
 }
 
+@Test func nativeXcodeMappingAcceptsWorkspacesAndNewerMetadataKeys() throws {
+    let fm = FileManager.default
+    let canonical = realpath(fm.temporaryDirectory.path, nil)!
+    defer { free(canonical) }
+    let root = URL(fileURLWithPath: String(cString: canonical)).appendingPathComponent("StillXcodeMapping-" + UUID().uuidString)
+    try fm.createDirectory(at: root, withIntermediateDirectories: true)
+    defer { try? fm.removeItem(at: root) }
+    let workspace = root.appendingPathComponent("Owned.xcworkspace")
+    try fm.createDirectory(at: workspace, withIntermediateDirectories: true)
+    try Data("<Workspace/>".utf8).write(to: workspace.appendingPathComponent("contents.xcworkspacedata"))
+    let derived = root.appendingPathComponent("DerivedData")
+    let folder = derived.appendingPathComponent("Owned-opaque")
+    try fm.createDirectory(at: folder.appendingPathComponent("Build/Intermediates.noindex"), withIntermediateDirectories: true)
+    let data = try PropertyListSerialization.data(fromPropertyList: ["WorkspacePath": workspace.path, "LastAccessedDate": Date(), "LastBuildSystem": "fixture"], format: .xml, options: 0)
+    try data.write(to: folder.appendingPathComponent("info.plist"))
+    let result = try NativeXcodeBuildEnvironment().projects(in: derived)
+    #expect(result.associations.first?.projectURL.path == workspace.path, "Unavailable: \(result.unavailable.map(\.reason))")
+    #expect(result.associations.first?.projectMetadataURLs == [workspace.appendingPathComponent("contents.xcworkspacedata")])
+}
+
 @Test func nativeXcodeMappingRefusesLinkedAndDuplicateProjectAssociationsWithoutReadingSource() throws {
     let fm = FileManager.default
     let canonical = realpath(fm.temporaryDirectory.path, nil)!
