@@ -9,6 +9,9 @@ def main():
     assert os.environ.get('GITHUB_ACTIONS') == 'true' and os.environ.get('RUNNER_ENVIRONMENT') == 'github-hosted', 'native faults hosted only'
     assert bundle.name == 'Google Chrome.app' and (bundle/'Contents/MacOS/Google Chrome').is_file()
     report = {'scope':'owned disposable synthetic cache only', 'pacing':'1000ms widens observation interval; not arbitrary race exclusion', 'checks':{}}
+    def save():
+        pathlib.Path(args.output).write_text(json.dumps(report, indent=2)+'\n')
+    save()
     with tempfile.TemporaryDirectory(prefix='StillChromeProbe-', dir=os.environ['RUNNER_TEMP']) as temporary:
         root = pathlib.Path(temporary).resolve(); cache = root/'Default/Cache/Cache_Data'; cache.mkdir(parents=True)
         protected = root/'Default/Cookies'; protected.write_bytes(b'protected synthetic sentinel')
@@ -38,6 +41,7 @@ def main():
         assert (cache/'retained-index/the-real-index').read_bytes() == b'index'
         assert (cache/'index-dir/the-real-index').read_bytes() == b'replacement protected'
         report['checks']['indexSwap'] = outcome
+        save()
         (cache/'retained-index/the-real-index').unlink(); (cache/'retained-index').rmdir()
         populate(); approval = observe(); cache.chmod(0o500)
         try:
@@ -45,6 +49,7 @@ def main():
             assert result.returncode != 0 and json.loads(result.stdout)['removed'] == 0 and 'Permission denied' in result.stdout, (result.stdout,result.stderr)
             assert (cache/'0123456789abcdef_0').read_bytes() == b'cache'
             report['checks']['actualModeDenial'] = json.loads(result.stdout)
+            save()
         finally: cache.chmod(0o700)
         approval = observe(); browser = None
         def launch():
@@ -53,6 +58,7 @@ def main():
         try:
             outcome = partial(approval, launch); assert 'activity observed' in outcome['reason'], outcome
             report['checks']['nativeBetweenWorkReopen'] = outcome
+            save()
             deadline = time.monotonic() + 5
             while True:
                 processes = subprocess.check_output(['/bin/ps','-axo','pid=,command='], text=True)
@@ -63,6 +69,7 @@ def main():
             result = subprocess.run(cli+['observe'], text=True, capture_output=True, timeout=10)
             assert result.returncode != 0 and 'activity observed' in result.stderr
             report['checks']['activeBrowserRefused'] = True
+            save()
         finally:
             if browser:
                 browser.terminate()
@@ -73,6 +80,7 @@ def main():
                     if time.monotonic() >= deadline: raise AssertionError('owned helpers remained active')
                     time.sleep(0.1)
         assert protected.read_bytes() == b'protected synthetic sentinel'
-    pathlib.Path(args.output).write_text(json.dumps(report, indent=2)+'\n')
+    report['completed'] = True
+    save()
     print(json.dumps(report))
 if __name__ == '__main__': main()
