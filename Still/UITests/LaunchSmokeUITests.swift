@@ -25,7 +25,7 @@ final class LaunchSmokeUITests: XCTestCase {
         app.launch()
         XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
         XCTAssertTrue(app.buttons["Cleanup plan"].exists || app.staticTexts["Cleanup plan"].exists)
-        XCTAssertTrue(app.staticTexts["What grew"].exists || app.buttons["What grew"].exists, "What grew is in the sidebar (#119)")
+        XCTAssertTrue(app.staticTexts["Storage trends"].exists || app.buttons["Storage trends"].exists, "Storage trends is in the sidebar (#119, #127)")
         XCTAssertFalse(app.staticTexts["Storage alerts"].exists)
     }
 
@@ -86,7 +86,7 @@ final class WhatGrewUITests: XCTestCase {
         app.launch()
         XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
 
-        app.buttons["What grew"].click()
+        app.buttons["Storage trends"].click()
         XCTAssertTrue(app.staticTexts["Baseline recorded"].waitForExistence(timeout: 15))
 
         let grown = home.appendingPathComponent(".npm/_cacache/content-v2/sha512/cd/blob")
@@ -101,7 +101,7 @@ final class WhatGrewUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "value BEGINSWITH '~/.npm/_cacache'")).firstMatch.waitForExistence(timeout: 5))
 
         app.buttons["growthReviewOptions"].click()
-        XCTAssertTrue(app.buttons["Back to What grew"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["Back to Storage trends"].waitForExistence(timeout: 5))
     }
 }
 
@@ -133,7 +133,7 @@ final class KeyboardShortcutsUITests: XCTestCase {
         app.launch()
         XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
 
-        let sidebar = ["Overview", "Cleanup plan", "What grew", "History", "Locations & access"]
+        let sidebar = ["Overview", "Cleanup plan", "Storage trends", "History", "Locations & access"]
         let rows = sidebar.map { app.buttons[$0].frame.minY }
         XCTAssertEqual(rows, rows.sorted(), "The sidebar lists \(sidebar.joined(separator: ", ")) from the top")
         for (index, title) in sidebar.enumerated().reversed() {

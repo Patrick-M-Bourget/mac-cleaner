@@ -148,4 +148,5 @@ Phase 0 → 1 → 2 → Tier A (2–3 sessions) → Overview/onboarding → Tier
     - History is a compact list, and local records live only in Locations & access;
     - Full Disk Access is one settings row;
     - appearance follows the system, with an override in a Settings window;
-    - What grew keeps only its retention footnote.
+    - Storage trends keeps only its retention footnote.
+26. **Storage trends (2026-10-26, #127).** The growth page is named Storage trends and sits third in the sidebar.

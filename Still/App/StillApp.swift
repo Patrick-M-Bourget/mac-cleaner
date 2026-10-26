@@ -29,7 +29,7 @@ struct StillApp: App {
 
 enum Destination: String, CaseIterable, Identifiable {
     case alerts = "Storage alerts"
-    case overview = "Overview", plan = "Cleanup plan", growth = "What grew", history = "History", locations = "Locations & access"
+    case overview = "Overview", plan = "Cleanup plan", growth = "Storage trends", history = "History", locations = "Locations & access"
     var id: String { rawValue }
     /// ⌘1–⌘5 follow the sidebar order (#127). Storage alerts is not in the sidebar (Decision 12).
     var shortcut: KeyEquivalent {
@@ -139,7 +139,7 @@ private struct WorkspaceView: View {
             VStack(alignment: .leading, spacing: StillDesign.Space.sm) {
                 AppBrand().padding(.horizontal, StillDesign.Space.sm).padding(.bottom, StillDesign.Space.xl)
                 Text("Storage").font(.caption).foregroundStyle(.secondary).padding(.horizontal, StillDesign.Space.sm)
-                // Storage alerts stay unwired until after M1 (Decision 12); What grew is back (#119).
+                // Storage alerts stay unwired until after M1 (Decision 12); Storage trends (formerly What grew) is back (#119, #127).
                 ForEach(Destination.allCases.filter { $0 != .locations && $0 != .alerts }) { navigation($0) }
                 Text("Settings").font(.caption).foregroundStyle(.secondary).padding(.horizontal, StillDesign.Space.sm).padding(.top, StillDesign.Space.xl)
                 navigation(.locations)
@@ -179,7 +179,7 @@ private struct WorkspaceView: View {
                         viewHistory: { destination = .history }, newPlan: startNewPlan,
                         reviewRecovery: { openRecovery(caller: .plan) },
                         backToExplorer: navigationState.planReturnsToGrowth ? { navigationState.planReturnsToGrowth = false; destination = .growth } : planReturnsToExplorer ? { nativeInspectionVisible = true; planReturnsToExplorer = false } : nil,
-                        backToExplorerTitle: navigationState.planReturnsToGrowth ? "Back to What grew" : "Back to Explorer",
+                        backToExplorerTitle: navigationState.planReturnsToGrowth ? "Back to Storage trends" : "Back to Explorer",
                         presentation: planPresentation)
                 } else {
                 ScrollView {
