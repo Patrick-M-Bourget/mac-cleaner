@@ -188,6 +188,66 @@ private let nothingRunning = Running(names: [])
     #expect(CandidateCheck(catalog: catalog, running: nothingRunning).check(device) == .changed)
 }
 
+/// The stand-in simctl's device list with one more device, on `runtime`.
+private func devicesJSON(adding udid: String, on runtime: String, available: Bool) -> String {
+    devicesJSON.replacingOccurrences(of: "\"\(runtime)\" : []", with: """
+    "\(runtime)" : [ { "udid" : "\(udid)", "isAvailable" : \(available), "state" : "Shutdown", "name" : "Apple Watch" } ]
+    """)
+}
+private let watchRuntime = "com.apple.CoreSimulator.SimRuntime.watchOS-11-0"
+private let watchUDID = "44444444-4444-4444-8444-444444444444"
+
+@Test func aSimulatorBootedOrRemovedAfterTheScanIsRefusedJustBeforeActing() throws {
+    let home = try fixtureHome()
+    defer { try? FileManager.default.removeItem(at: home) }
+    try makeDevice(home, shutdownUDID)
+    let simctl = try standInSimctl(home)
+    let catalog = Catalog(rules: fixtureRules)
+    let device = try #require(catalog.discover(fixture: home, locateTool: onlyTool("simctl", simctl)).first { $0.ruleID == "simulator-devices" })
+    let check = CandidateCheck(catalog: catalog, running: nothingRunning)
+    #expect(check.check(device) == nil)
+    try write(home, "fixture/devices.json", text: devicesJSON.replacingOccurrences(of: #""state" : "Shutdown", "name" : "iPhone 16""#, with: #""state" : "Booted", "name" : "iPhone 16""#))
+    #expect(check.check(device) == .ownerRunning("This simulator"))
+    try write(home, "fixture/devices.json", text: #"{ "devices" : {} }"#)
+    #expect(check.check(device) == .missing)
+    try write(home, "fixture/devices.json", text: "not json")
+    #expect(check.check(device) == .inUseUnknown("a simulator"))
+    #expect(simctlLog(home).isEmpty)
+}
+
+@Test func aRuntimeADeviceStartedUsingAfterTheScanIsRefusedJustBeforeActing() throws {
+    let home = try fixtureHome()
+    defer { try? FileManager.default.removeItem(at: home) }
+    try makeDevice(home, shutdownUDID)
+    let simctl = try standInSimctl(home)
+    let catalog = Catalog(rules: fixtureRules)
+    let runtime = try #require(catalog.discover(fixture: home, locateTool: onlyTool("simctl", simctl)).first { $0.ruleID == "simulator-runtimes" })
+    let check = CandidateCheck(catalog: catalog, running: nothingRunning)
+    #expect(check.check(runtime) == nil)
+    try write(home, "fixture/devices.json", text: devicesJSON(adding: watchUDID, on: watchRuntime, available: true))
+    #expect(check.check(runtime) == .inUse("A simulator"))
+    #expect(check.check(runtime)?.reason == "A simulator is using it. It is kept.")
+    try write(home, "fixture/devices.json", text: devicesJSON)
+    try write(home, "fixture/runtimes.json", text: runtimesJSON.replacingOccurrences(of: #""identifier" : "\#(unusedRuntime)""#, with: #""identifier" : "\#(bundledRuntime)x""#))
+    #expect(check.check(runtime) == .missing)
+}
+
+@Test func aRuntimeAnUnavailableDeviceUsesCountsAsUsed() throws {
+    let home = try fixtureHome()
+    defer { try? FileManager.default.removeItem(at: home) }
+    try makeDevice(home, shutdownUDID)
+    let catalog = Catalog(rules: fixtureRules)
+    // Before the scan: never offered.
+    let unavailable = devicesJSON(adding: watchUDID, on: watchRuntime, available: false)
+    var simctl = try standInSimctl(home, devices: unavailable)
+    #expect(!catalog.discover(fixture: home, locateTool: onlyTool("simctl", simctl)).contains { $0.ruleID == "simulator-runtimes" })
+    // After the scan: refused.
+    simctl = try standInSimctl(home)
+    let runtime = try #require(catalog.discover(fixture: home, locateTool: onlyTool("simctl", simctl)).first { $0.ruleID == "simulator-runtimes" })
+    try write(home, "fixture/devices.json", text: unavailable)
+    #expect(CandidateCheck(catalog: catalog, running: nothingRunning).check(runtime) == .inUse("A simulator"))
+}
+
 // MARK: Android
 
 private let avdHome = ".android/avd"

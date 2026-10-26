@@ -11,7 +11,7 @@ extension BuiltInCatalog {
     static let simulatorOwner = RuleOwner(name: "Simulator or Xcode", bundleIDs: ["com.apple.iphonesimulator", "com.apple.dt.Xcode"], executables: ["Simulator", "Xcode"])
     static let simulatorRuntimes = CleanupRule(
         id: "simulator-runtimes", category: .developer, title: "Simulator runtimes",
-        detail: "Simulator OS versions no available simulator uses.",
+        detail: "Simulator OS versions no simulator uses.",
         consequence: "Runs `simctl runtime delete` for each runtime, which permanently removes it. Xcode downloads it again when you need it.",
         // The user's CoreSimulator folder anchors the rule in the home folder; the runtimes themselves live outside it.
         regen: .build, action: .tool, locations: ["Library/Developer/CoreSimulator"], owner: simulatorOwner,
@@ -51,7 +51,7 @@ extension CatalogItems {
     }
 }
 
-/// What `simctl list devices -j` and `simctl runtime list -j` say. Read once per scan.
+/// What `simctl list devices -j` and `simctl runtime list -j` say. Read once per scan, and again just before acting on each simulator item.
 struct SimulatorInventory: Sendable {
     struct Device: Decodable, Sendable {
         let udid: String
@@ -93,8 +93,23 @@ struct SimulatorInventory: Sendable {
     }
     static let notice = "Couldn’t read the simulator list, so simulators aren’t shown. Scan again."
 
-    /// Runtimes some available device runs.
-    var usedRuntimeIdentifiers: Set<String> { Set(devices.filter { $0.value.contains { $0.isAvailable == true } }.keys) }
+    /// Runtimes any device runs, available or not.
+    var usedRuntimeIdentifiers: Set<String> { Set(devices.filter { !$0.value.isEmpty }.keys) }
+
+    /// Why a simulator device or runtime can't be acted on now, from simctl's lists read again just before acting (#143);
+    /// nil when it still can. A list that can't be read refuses.
+    static func refusal(for candidate: Candidate, items: CatalogItems) -> CheckRefusal? {
+        guard let simctl = candidate.toolURL, let item = candidate.toolItem else { return .changed }
+        guard case .success(let inventory) = read(simctl) else { return .inUseUnknown("a simulator") }
+        if items == .simulatorDevices {
+            guard let device = inventory.devices.values.joined().first(where: { $0.udid == item }) else { return .missing }
+            guard device.isAvailable == true else { return .changed }
+            return device.state == "Shutdown" ? nil : .ownerRunning("This simulator")
+        }
+        guard let runtime = inventory.runtimes.first(where: { $0.identifier == item }) else { return .missing }
+        guard runtime.deletable == true, let identifier = runtime.runtimeIdentifier else { return .changed }
+        return inventory.usedRuntimeIdentifiers.contains(identifier) ? .inUse("A simulator") : nil
+    }
 
     /// "iOS 18.0" from `com.apple.CoreSimulator.SimRuntime.iOS-18-0`; nil when it isn't one.
     static func runtimeName(_ identifier: String, version: String? = nil) -> String? {
@@ -142,7 +157,7 @@ extension Catalog {
         }
     }
 
-    /// Each deletable runtime no available simulator uses, anchored on the user's CoreSimulator folder, sized as simctl reports it.
+    /// Each deletable runtime no simulator uses, anchored on the user's CoreSimulator folder, sized as simctl reports it.
     func simulatorRuntimes(anchor: URL, rule: CleanupRule, toolURL: URL?, inventory: SimulatorInventory) -> [Candidate] {
         var info = stat()
         guard lstat(anchor.path, &info) == 0, info.st_uid == geteuid(), info.st_mode & S_IFMT == S_IFDIR else { return [] }
