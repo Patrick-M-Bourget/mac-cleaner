@@ -230,7 +230,8 @@ final class CatalogCleanupUITests: XCTestCase {
         let row = app.buttons["overviewCategory-developer"]
         XCTAssertTrue(row.waitForExistence(timeout: 10))
         revealAndClick(row, in: app)
-        let rule = app.checkBoxes["planRule-npm-cache"]
+        // One rule with one item: the category checkbox is the choice.
+        let rule = app.checkBoxes["planCategory-developer"]
         XCTAssertTrue(rule.waitForExistence(timeout: 5))
         revealAndClick(rule, in: app)
         app.buttons["Review cleanup"].click()
