@@ -63,8 +63,7 @@ final class LaunchSmokeUITests: XCTestCase {
         XCTAssertFalse(app.sheets.firstMatch.exists, "Nothing asks for access at launch")
 
         app.staticTexts["Locations & access"].firstMatch.click()
-        let guide = app.disclosureTriangles["About folder access"].firstMatch
-        if guide.waitForExistence(timeout: 5) { guide.click() } else { app.staticTexts["About folder access"].firstMatch.click() }
+        revealAndClick(app.disclosureTriangles["About folder access"].firstMatch, in: app)
         let status = app.staticTexts["fullDiskAccessStatus"]
         XCTAssertTrue(status.waitForExistence(timeout: 5))
         XCTAssertTrue((status.value as? String ?? status.label).contains("Not granted"))

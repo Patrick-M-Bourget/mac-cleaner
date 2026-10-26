@@ -119,16 +119,20 @@ enum StatusRole {
     case neutral, success, caution, failure
     var color: Color { switch self { case .neutral: .secondary; case .success: .green; case .caution: .orange; case .failure: .red } }
 }
-/// A disclosure group whose title is an action ("Choose items", "Show files"). On macOS only a DisclosureGroup's chevron
-/// toggles it, so the title toggles it too.
+/// A disclosure group whose title opens it too ("Choose items", "Show files", "About folder access"). On macOS only a
+/// DisclosureGroup's chevron toggles it. `isExpanded` lets the owner keep the state; otherwise the group keeps its own.
 struct ActionDisclosureGroup<Content: View>: View {
     let title: String
+    var isExpanded: Binding<Bool>?
     @ViewBuilder var content: () -> Content
     @State private var expanded = false
-    init(_ title: String, @ViewBuilder content: @escaping () -> Content) { self.title = title; self.content = content }
+    init(_ title: String, isExpanded: Binding<Bool>? = nil, @ViewBuilder content: @escaping () -> Content) {
+        self.title = title; self.isExpanded = isExpanded; self.content = content
+    }
     var body: some View {
-        DisclosureGroup(isExpanded: $expanded, content: content) {
-            Button(title) { expanded.toggle() }.buttonStyle(.plain)
+        let expanded = isExpanded ?? $expanded
+        DisclosureGroup(isExpanded: expanded, content: content) {
+            Button(title) { expanded.wrappedValue.toggle() }.buttonStyle(.plain)
         }
     }
 }
