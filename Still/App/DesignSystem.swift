@@ -533,6 +533,8 @@ struct InspectableItemRow<Selection: View>: View {
                     Text(size).font(.callout).monospacedDigit().foregroundStyle(.secondary)
                 }.contentShape(Rectangle())
             }.buttonStyle(.plain).accessibilityLabel("Inspect " + name)
+                // The button hides its texts from accessibility; keep the detail (e.g. when it was last used) and size readable.
+                .accessibilityValue(detail + ", " + size)
         }.padding(StillDesign.Space.md)
             .background(inspected ? Color.accentColor.opacity(0.06) : .clear, in: RoundedRectangle(cornerRadius: StillDesign.Radius.row))
     }

@@ -44,7 +44,7 @@ final class ModelsCleanupUITests: XCTestCase {
             XCTAssertEqual(item.value as? Int, 0, name)
             revealAndClick(item, in: app)
         }
-        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS 'Last used'")).firstMatch.exists)
+        XCTAssertTrue(app.buttons.matching(NSPredicate(format: "label == 'Inspect org/tiny' AND value CONTAINS 'Last used'")).firstMatch.exists)
         XCTAssertEqual(app.checkBoxes["previewOnlyToggle"].value as? Int, 1)
         app.buttons["Review cleanup"].click()
 
