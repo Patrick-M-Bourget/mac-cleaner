@@ -12,14 +12,17 @@ public struct CloudMetadata: Sendable {
     public let uploading: Bool?
     public let downloading: Bool?
     public let conflicts: Bool?
+    /// Set to Keep Downloaded. Nil when it couldn't be read, which counts as kept.
+    public let pinned: Bool?
     public init(membership: Bool?, downloadState: CloudDownloadState = .unknown,
-                uploaded: Bool? = nil, uploading: Bool? = nil, downloading: Bool? = nil, conflicts: Bool? = nil) {
+                uploaded: Bool? = nil, uploading: Bool? = nil, downloading: Bool? = nil, conflicts: Bool? = nil, pinned: Bool? = nil) {
         self.membership = membership
         self.downloadState = downloadState
         self.uploaded = uploaded
         self.uploading = uploading
         self.downloading = downloading
         self.conflicts = conflicts
+        self.pinned = pinned
     }
     public static let unknown = CloudMetadata(membership: nil)
 }

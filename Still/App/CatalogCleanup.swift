@@ -197,6 +197,7 @@ extension CatalogCategory {
     var storageCategory: StorageCategory {
         switch self {
         case .developer: .developer
+        case .icloud: .cloud
         case .browser: .browser
         case .downloads: .downloads
         case .system, .models, .updaters, .logs: .managed
@@ -212,6 +213,7 @@ extension CatalogCategory {
         case .models: "Models and disk images"
         case .updaters: "App update downloads"
         case .logs: "Logs and crash reports"
+        case .icloud: "Downloaded iCloud files"
         }
     }
 }

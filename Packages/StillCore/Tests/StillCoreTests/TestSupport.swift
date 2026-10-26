@@ -29,11 +29,40 @@ extension Catalog {
     /// no tool is installed unless `locateTool` finds a stand-in, there's no user folder unless one is given,
     /// and no copy is in use.
     func discover(fixture home: URL, userFolder: URL? = nil, exclusions: ExclusionPolicy = ExclusionPolicy(), inUse: any InUseChecking = FixtureNothingInUse(),
-                  now: Date = Date(), locateTool: (ToolCommand) -> URL? = { _ in nil }, systemRoot: URL? = nil) -> [Candidate] {
-        discovery(fixture: home, userFolder: userFolder, exclusions: exclusions, inUse: inUse, now: now, locateTool: locateTool, systemRoot: systemRoot).candidates
+                  now: Date = Date(), locateTool: (ToolCommand) -> URL? = { _ in nil }, systemRoot: URL? = nil, cloud: any UbiquitousItemAccess = FakeCloud()) -> [Candidate] {
+        discovery(fixture: home, userFolder: userFolder, exclusions: exclusions, inUse: inUse, now: now, locateTool: locateTool, systemRoot: systemRoot, cloud: cloud).candidates
     }
     func discovery(fixture home: URL, userFolder: URL? = nil, exclusions: ExclusionPolicy = ExclusionPolicy(), inUse: any InUseChecking = FixtureNothingInUse(),
-                   now: Date = Date(), locateTool: (ToolCommand) -> URL? = { _ in nil }, systemRoot: URL? = nil) -> CatalogDiscovery {
-        discovery(home: home, userFolder: userFolder, exclusions: exclusions, inUse: inUse, now: now, locateTool: locateTool, systemRoot: systemRoot ?? home)
+                   now: Date = Date(), locateTool: (ToolCommand) -> URL? = { _ in nil }, systemRoot: URL? = nil, cloud: any UbiquitousItemAccess = FakeCloud()) -> CatalogDiscovery {
+        discovery(home: home, userFolder: userFolder, exclusions: exclusions, inUse: inUse, now: now, locateTool: locateTool, systemRoot: systemRoot ?? home, cloud: cloud)
+    }
+}
+
+/// iCloud as tests see it: each fixture path's state is set by the test, so tests never touch real iCloud Drive.
+/// Unlisted paths read as unknown. It records every eviction, and whether each read ran with downloads blocked.
+final class FakeCloud: UbiquitousItemAccess, @unchecked Sendable {
+    private let lock = NSLock()
+    private var states: [String: CloudMetadata] = [:]
+    private var evictedPaths: [String] = []
+    private var readsAllowingDownload: [String] = []
+    var evictionError: (any Error)?
+    init(_ states: [URL: CloudMetadata] = [:]) { for (url, state) in states { self.states[url.path] = state } }
+    /// A local copy that is uploaded, settled and not set to Keep Downloaded.
+    static let ready = CloudMetadata(membership: true, downloadState: .current, uploaded: true, uploading: false, downloading: false, conflicts: false, pinned: false)
+    func set(_ url: URL, _ state: CloudMetadata) { lock.lock(); states[url.path] = state; lock.unlock() }
+    var evicted: [String] { lock.lock(); defer { lock.unlock() }; return evictedPaths }
+    /// Paths read while the thread could still download a placeholder.
+    var downloadableReads: [String] { lock.lock(); defer { lock.unlock() }; return readsAllowingDownload }
+    func metadata(_ url: URL) -> CloudMetadata {
+        let policy = getiopolicy_np(IOPOL_TYPE_VFS_MATERIALIZE_DATALESS_FILES, IOPOL_SCOPE_THREAD)
+        lock.lock(); defer { lock.unlock() }
+        if policy != IOPOL_MATERIALIZE_DATALESS_FILES_OFF { readsAllowingDownload.append(url.path) }
+        return states[url.path] ?? .unknown
+    }
+    func evict(_ url: URL) throws {
+        if let evictionError { throw evictionError }
+        lock.lock(); evictedPaths.append(url.path)
+        states[url.path] = states[url.path].map { CloudMetadata(membership: $0.membership, downloadState: .notDownloaded, uploaded: $0.uploaded, uploading: false, downloading: false, conflicts: $0.conflicts, pinned: $0.pinned) }
+        lock.unlock()
     }
 }

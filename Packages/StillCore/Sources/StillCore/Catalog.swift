@@ -3,10 +3,11 @@ import Darwin
 import CoreServices
 
 /// What kind of data a rule covers; it decides how the data comes back.
-public enum RegenClass: String, Codable, Sendable { case cache, build, updaterDownload, leakedCopy, log, installer, model, userFile }
+public enum RegenClass: String, Codable, Sendable { case cache, build, updaterDownload, leakedCopy, log, installer, model, userFile, cloudCopy }
 /// Decision 3: regenerable data is deleted; user files go to Trash. A few rules run the tool's own command (Decision 21).
 /// Trash keeps the "moveToTrash" string that Downloads-era journal records use.
-public enum CleanupAction: String, Codable, Sendable { case delete; case trash = "moveToTrash"; case tool }
+/// Evict removes only the local copy of an iCloud file (Decision 13); the original stays in iCloud.
+public enum CleanupAction: String, Codable, Sendable { case delete; case trash = "moveToTrash"; case tool; case evict }
 
 /// A command a `.tool` rule runs, with a time limit. The executable and its arguments are fixed in the rule.
 public struct ToolCommand: Sendable, Hashable {
@@ -41,7 +42,7 @@ public struct ToolCommand: Sendable, Hashable {
 }
 /// Whether none, some or all of a category's items are chosen.
 public enum CategorySelectionState: Sendable { case unchecked, mixed, checked }
-public enum CatalogCategory: String, Codable, Sendable { case developer, browser, downloads, system, models, updaters, logs }
+public enum CatalogCategory: String, Codable, Sendable { case developer, browser, downloads, system, models, updaters, logs, icloud }
 
 /// Who must be closed before a rule's data is touched.
 public struct RuleOwner: Sendable, Hashable {
@@ -237,6 +238,7 @@ public enum BuiltInCatalog {
         huggingFaceModels,
         ollamaModels,
         appVMImages,
+        iCloudLocalCopies,
     ]
     /// Kept from the Downloads-era policy: libraries and databases are never moved, even inside Downloads.
     static let downloadsProtectedExtensions = ["dsym", "library", "db", "sqlite", "sqlite3"]
@@ -321,13 +323,13 @@ public struct Catalog: Sendable {
     /// `/private/var/folders` entry appear only when `userFolder` is given (`Catalog.currentUserFolder()` in the app).
     /// Absolute paths in a rule's layout overrides are read under `systemRoot`.
     public func discover(home: URL, userFolder: URL? = nil, exclusions: ExclusionPolicy = ExclusionPolicy(), inUse: any InUseChecking = SystemInUseChecker(), sizer: KnownLocationSizer = KnownLocationSizer(), now: Date = Date(), locateTool: (ToolCommand) -> URL? = ToolCommand.installed,
-                         systemRoot: URL = URL(fileURLWithPath: "/")) -> [Candidate] {
-        discovery(home: home, userFolder: userFolder, exclusions: exclusions, inUse: inUse, sizer: sizer, now: now, locateTool: locateTool, systemRoot: systemRoot).candidates
+                         systemRoot: URL = URL(fileURLWithPath: "/"), cloud: any UbiquitousItemAccess = SystemUbiquitousItems()) -> [Candidate] {
+        discovery(home: home, userFolder: userFolder, exclusions: exclusions, inUse: inUse, sizer: sizer, now: now, locateTool: locateTool, systemRoot: systemRoot, cloud: cloud).candidates
     }
 
     /// `discover`, plus notes on rules that kept items back, such as copies kept because their use couldn't be checked.
     public func discovery(home: URL, userFolder: URL? = nil, exclusions: ExclusionPolicy = ExclusionPolicy(), inUse: any InUseChecking = SystemInUseChecker(), sizer: KnownLocationSizer = KnownLocationSizer(), now: Date = Date(), locateTool: (ToolCommand) -> URL? = ToolCommand.installed,
-                          systemRoot: URL = URL(fileURLWithPath: "/")) -> CatalogDiscovery {
+                          systemRoot: URL = URL(fileURLWithPath: "/"), cloud: any UbiquitousItemAccess = SystemUbiquitousItems()) -> CatalogDiscovery {
         let homeBase = home.resolvingSymlinksInPath(), userBase = userFolder
         var seen = Set<String>()
         var notes: [CatalogNote] = []
@@ -351,6 +353,7 @@ public struct Catalog: Sendable {
                     notes += note.map { [$0] } ?? []
                     return found
                 }
+                if rule.action == .evict { return cloudCandidates(in: url, rule: rule, cloud: cloud, exclusions: exclusions) }
                 if let contents = rule.contents { return files(in: url, matching: contents, rule: rule, now: now) }
                 if rule.items == .ollamaModels { return ollamaModels(in: url, rule: rule, toolURL: toolURL) }
                 var info = stat()
