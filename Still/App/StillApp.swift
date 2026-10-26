@@ -194,10 +194,7 @@ private struct WorkspaceView: View {
                             PipInspectionView { pipVisible = false; destination = .overview }
                         } else if homebrewVisible {
                             HomebrewInspectionView { homebrewVisible = false; destination = .overview }
-                        } else if nativeInspectionVisible {
-                            FolderInspectionView(model: folderInspection, selection: selection, viewPlan: { nativeInspectionVisible = false; destination = .plan }) { nativeInspectionVisible = false; destination = .overview }
-                        }
-                        else {
+                        } else {
                             switch destination {
                             case .alerts: StorageAlertsView(controller: alerts, capacity: capacity, configureOnEntry: navigationState.configureAlertsOnEntry)
                             case .growth: GrowthHistoryView(model: GrowthHistoryModel.shared, catalog: selection.catalog)
