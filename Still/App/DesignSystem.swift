@@ -40,8 +40,40 @@ enum StillDesign {
 enum StorageCategory {
     /// `files`: files from folders the user picked, shown as the prototype shows a chosen folder.
     case cloud, developer, downloads, browser, managed, files
-    var color: Color { switch self { case .cloud, .files: StillDesign.blue; case .developer: StillDesign.purple; case .downloads: StillDesign.orange; case .browser: StillDesign.teal; case .managed: .indigo } }
-    var symbol: String { switch self { case .cloud: "icloud"; case .developer: "hammer"; case .downloads: "shippingbox"; case .browser: "globe"; case .managed: "square.stack.3d.up"; case .files: "folder" } }
+    /// Catalog categories that share the app-managed colour but each have their own symbol.
+    case appCaches, models, appUpdates, logs
+    /// App-managed storage rows (SPEC section 3): each place keeps the app-managed colour with its own symbol.
+    case deviceBackups, mail, messages, photos, timeMachine, xcodeArchives, audioPlugIns
+    var color: Color {
+        switch self {
+        case .cloud, .files: StillDesign.blue
+        case .developer: StillDesign.purple
+        case .downloads: StillDesign.orange
+        case .browser: StillDesign.teal
+        case .managed, .appCaches, .models, .appUpdates, .logs, .deviceBackups, .mail, .messages, .photos, .timeMachine, .xcodeArchives, .audioPlugIns: .indigo
+        }
+    }
+    var symbol: String {
+        switch self {
+        case .cloud: "icloud"
+        case .developer: "hammer"
+        case .downloads: "shippingbox"
+        case .browser: "globe"
+        case .managed: "square.stack.3d.up"
+        case .files: "folder"
+        case .appCaches: "app.dashed"
+        case .models: "cpu"
+        case .appUpdates: "arrow.down.app"
+        case .logs: "doc.text"
+        case .deviceBackups: "iphone"
+        case .mail: "envelope"
+        case .messages: "message"
+        case .photos: "photo.on.rectangle"
+        case .timeMachine: "clock.arrow.circlepath"
+        case .xcodeArchives: "archivebox"
+        case .audioPlugIns: "pianokeys"
+        }
+    }
 }
 private struct OpaqueChromeKey: EnvironmentKey { static let defaultValue = false }
 extension EnvironmentValues {
@@ -103,6 +135,7 @@ struct SelectionSummary: View {
     var identifier = ""
     var consequence: String? = nil
     var title = "Selected for Trash"
+    var consequenceIdentifier = ""
     var body: some View {
         VStack(alignment: .leading, spacing: StillDesign.Space.md) {
         SummarySurface {
@@ -115,7 +148,7 @@ struct SelectionSummary: View {
                 Text(detail).font(.caption).foregroundStyle(.secondary).multilineTextAlignment(.trailing).accessibilityIdentifier(identifier)
             }
         }
-        if let consequence { Text(consequence).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true) }
+        if let consequence { Text(consequence).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true).accessibilityIdentifier(consequenceIdentifier) }
         }
     }
 }

@@ -24,6 +24,10 @@ struct RefreshRequest: Sendable {
         if !hasPendingChoices { return "—" }
         return ByteCountFormatter.string(fromByteCount: catalog.estimatedBytes, countStyle: .decimal)
     }
+    /// "X of this goes to Trash", only when the selection includes Trash-bound items (that space stays used until Trash is emptied).
+    var workspaceTrashNote: String? {
+        catalog.selectedTrashBytes.map { ByteCountFormatter.string(fromByteCount: $0, countStyle: .decimal) + " of this goes to Trash" }
+    }
     /// The last run left records whose outcome is unknown; they must be reviewed before another plan.
     var requiresRecoveryReview: Bool {
         guard let result = catalog.result else { return false }
@@ -162,7 +166,8 @@ struct LiveCleanupPlanView: View {
             ScanHistoryRecordingNotice()
             SelectionSummary(value: selection.workspaceSelectedSize,
                              detail: StillDesign.items(selection.catalog.selectedCount) + " selected",
-                             identifier: "liveSelectionSummary", title: "Potential space released")
+                             identifier: "liveSelectionSummary", consequence: selection.workspaceTrashNote, title: "Potential space released",
+                             consequenceIdentifier: "liveSelectionTrash")
                 .help("Sizes are estimates from the scan, not guaranteed space freed. Linked files count once. Each item is checked again just before Still acts on it.")
             if let approvalError { StatusRow(text: approvalError, symbol: "exclamationmark.circle", role: .caution) }
             CatalogPlanSection(model: selection.catalog, expanded: $presentation.expandedCategories)

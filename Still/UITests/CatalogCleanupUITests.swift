@@ -193,8 +193,8 @@ final class CatalogCleanupUITests: XCTestCase {
         XCTAssertFalse(app.staticTexts["0 bytes"].exists)
         revealAndClick(row, in: app)
 
-        // Opening a category from Overview never preselects it.
-        let category = app.checkBoxes["planRule-npm-cache"]
+        // Opening a category from Overview never preselects it. One rule with one item: the category checkbox is the choice.
+        let category = app.checkBoxes["planCategory-developer"]
         XCTAssertTrue(category.waitForExistence(timeout: 5))
         XCTAssertEqual(category.value as? Int, 0)
         revealAndClick(category, in: app)
@@ -216,6 +216,39 @@ final class CatalogCleanupUITests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: home.appendingPathComponent(".npm/_cacache").path))
     }
 
+    /// #123: after a cleanup, an Overview category opens a fresh plan, not the last run's results.
+    @MainActor func testOverviewCategoryAfterACleanupOpensAFreshPlanWithThatCategoryOpen() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        let state = try configureIsolatedState(app)
+        let home = try configureCatalogHome(app)
+        turnOnDryRun(app)
+        defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
+        app.launch()
+
+        XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
+        let row = app.buttons["overviewCategory-developer"]
+        XCTAssertTrue(row.waitForExistence(timeout: 10))
+        revealAndClick(row, in: app)
+        let rule = app.checkBoxes["planRule-npm-cache"]
+        XCTAssertTrue(rule.waitForExistence(timeout: 5))
+        revealAndClick(rule, in: app)
+        app.buttons["Review cleanup"].click()
+        XCTAssertTrue(reviewLine(app, "permanentlyRemoved", "developer").waitForExistence(timeout: 5))
+        cleanUpFromReview(app)
+        XCTAssertTrue(app.staticTexts["catalogPreviewNotice"].waitForExistence(timeout: 10))
+
+        app.typeKey("1", modifierFlags: .command)
+        XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
+        XCTAssertTrue(row.waitForExistence(timeout: 10))
+        revealAndClick(row, in: app)
+
+        // A fresh plan: the category is open and nothing is ticked.
+        XCTAssertTrue(rule.waitForExistence(timeout: 5), "The category opened from Overview shows its items")
+        XCTAssertFalse(app.staticTexts["catalogPreviewNotice"].exists, "The last run's results are gone")
+        XCTAssertEqual(rule.value as? Int, 0)
+    }
+
     /// The dry run lives in Settings, off by default. Turned on there, the whole flow runs and the installer stays in place.
     @MainActor func testDryRunFromSettingsLeavesTheChosenDownloadsInstallerInPlace() throws {
         continueAfterFailure = false
@@ -223,6 +256,8 @@ final class CatalogCleanupUITests: XCTestCase {
         let state = try configureIsolatedState(app)
         let home = try configureCatalogHome(app)
         defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
+        // A second installer, so the plan lists the items to choose from.
+        try Data(repeating: 5, count: 90_000).write(to: home.appendingPathComponent("Downloads/Other.pkg"))
         app.launch()
 
         XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
@@ -239,15 +274,20 @@ final class CatalogCleanupUITests: XCTestCase {
         revealAndClick(row, in: app)
 
         // Nothing is preselected; the installer is chosen on its own.
-        let category = app.checkBoxes["planRule-downloads-installers"]
+        let category = app.checkBoxes["planCategory-downloads"]
         XCTAssertTrue(category.waitForExistence(timeout: 5))
         XCTAssertEqual(category.value as? Int, 0)
         let item = app.checkBoxes["planItem-Setup.dmg"]
         if !item.waitForExistence(timeout: 2) { expandDisclosures(in: app) }
         XCTAssertTrue(item.waitForExistence(timeout: 5))
         XCTAssertEqual(item.value as? Int, 0)
+        XCTAssertFalse(app.staticTexts["liveSelectionTrash"].exists)
         revealAndClick(item, in: app)
         XCTAssertEqual(item.value as? Int, 1)
+        XCTAssertEqual(app.checkBoxes["planItem-Other.pkg"].value as? Int, 0)
+        // The installer goes to Trash, so the summary says how much of the total does.
+        XCTAssertTrue(app.staticTexts["liveSelectionTrash"].waitForExistence(timeout: 5))
+        XCTAssertTrue((app.staticTexts["liveSelectionTrash"].value as? String)?.hasSuffix(" of this goes to Trash") == true)
         app.buttons["Review cleanup"].click()
 
         XCTAssertTrue(reviewLine(app, "movedToTrash", "downloads").waitForExistence(timeout: 5))
@@ -281,7 +321,8 @@ final class CatalogCleanupUITests: XCTestCase {
         XCTAssertTrue(row.waitForExistence(timeout: 10))
         revealAndClick(row, in: app)
 
-        let rule = app.checkBoxes["planRule-chrome-code-sign-clones"]
+        // One copy is offered (the newest is kept), so the category checkbox is the choice.
+        let rule = app.checkBoxes["planCategory-browser"]
         XCTAssertTrue(rule.waitForExistence(timeout: 5))
         XCTAssertEqual(rule.value as? Int, 0)
         XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "value BEGINSWITH 'Up to '")).firstMatch.exists)
@@ -334,7 +375,9 @@ final class CatalogCleanupUITests: XCTestCase {
         XCTAssertTrue(row.waitForExistence(timeout: 10))
         revealAndClick(row, in: app)
 
-        XCTAssertTrue(app.checkBoxes["planRule-chrome-cache"].waitForExistence(timeout: 5))
+        // One rule with several items: its profiles are listed without a rule row.
+        XCTAssertTrue(app.checkBoxes["planCategory-browser"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.checkBoxes["planRule-chrome-cache"].exists)
         let profile = app.checkBoxes["planProfile-chrome-cache-Default"]
         XCTAssertTrue(profile.exists)
         XCTAssertTrue(app.checkBoxes["planProfile-chrome-cache-Profile 1"].exists)
@@ -391,7 +434,7 @@ final class CatalogCleanupUITests: XCTestCase {
         XCTAssertTrue(row.waitForExistence(timeout: 10))
         XCTAssertFalse(app.descendants(matching: .any)["overviewNotAccessible"].exists)
         revealAndClick(row, in: app)
-        let rule = app.checkBoxes["planRule-safari-cache"]
+        let rule = app.checkBoxes["planCategory-browser"]
         XCTAssertTrue(rule.waitForExistence(timeout: 5))
         revealAndClick(rule, in: app)
         app.buttons["Review cleanup"].click()
@@ -425,7 +468,7 @@ final class CatalogCleanupUITests: XCTestCase {
         XCTAssertTrue(app.buttons["overviewCategory-logs"].exists)
         revealAndClick(updaters, in: app)
 
-        let update = app.checkBoxes["planProfile-updater-downloads-com.example.StillFixture"]
+        let update = app.checkBoxes["planCategory-updaters"]
         XCTAssertTrue(update.waitForExistence(timeout: 5))
         // Overview opened Updates; Logs is its own category, still closed.
         XCTAssertFalse(app.checkBoxes["planRule-crash-reports"].exists)
@@ -524,12 +567,12 @@ final class ICloudCleanupUITests: XCTestCase {
     /// debug fixture file, so the test never reads or evicts anything in real iCloud Drive.
     @MainActor private func addICloudFiles(_ home: URL) throws {
         let drive = "Library/Mobile Documents/com~apple~CloudDocs"
-        for name in ["Report.pdf", "Pinned.pdf"] {
+        for name in ["Report.pdf", "Notes.pdf", "Pinned.pdf"] {
             let file = home.appendingPathComponent(drive + "/" + name)
             try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
             try Data(repeating: 4, count: 150_000).write(to: file)
         }
-        let states = [drive + "/Report.pdf": "ready", drive + "/Pinned.pdf": "pinned"]
+        let states = [drive + "/Report.pdf": "ready", drive + "/Notes.pdf": "ready", drive + "/Pinned.pdf": "pinned"]
         try JSONEncoder().encode(states).write(to: home.appendingPathComponent(".still-test-icloud.json"))
     }
 
@@ -549,13 +592,15 @@ final class ICloudCleanupUITests: XCTestCase {
         XCTAssertFalse(app.descendants(matching: .any)["overviewCloudFinding"].exists, "The catalog row replaces the inventory row")
         revealAndClick(row, in: app)
 
-        let header = app.checkBoxes["planRule-icloud-local-copies"]
+        // Two local copies are offered, so they are listed without a rule row.
+        let header = app.checkBoxes["planCategory-icloud"]
         XCTAssertTrue(header.waitForExistence(timeout: 5))
         XCTAssertEqual(header.value as? Int, 0)
         let item = app.checkBoxes["planItem-Report.pdf"]
         if !item.waitForExistence(timeout: 2) { expandDisclosures(in: app) }
         XCTAssertTrue(item.waitForExistence(timeout: 5))
         XCTAssertFalse(app.checkBoxes["planItem-Pinned.pdf"].exists, "Keep Downloaded files are never offered")
+        XCTAssertFalse(app.checkBoxes["planRule-icloud-local-copies"].exists)
         revealAndClick(item, in: app)
         app.buttons["Review cleanup"].click()
 
@@ -675,7 +720,7 @@ final class GuidanceUITests: XCTestCase {
 
         app.buttons["appManagedBack"].click()
         revealAndClick(app.buttons["overviewCategory-developer"], in: app)
-        XCTAssertTrue(app.descendants(matching: .any)["planRule-npm-cache"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.descendants(matching: .any)["planCategory-developer"].waitForExistence(timeout: 5))
         for id in ["photos-library", "xcode-archives", "messages-attachments", "time-machine-snapshots"] {
             XCTAssertFalse(app.descendants(matching: .any)["planRule-" + id].exists, id)
         }

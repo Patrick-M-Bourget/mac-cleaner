@@ -84,6 +84,8 @@ public actor CleanupExecutor {
         do { guard try journal.claim(batchID: approval.id, records: pending) else { return result([], replay: true) } }
         catch { return result([], failure: "Could not record the cleanup. Nothing was changed.") }
         var records: [CleanupRecord] = [], failure: String?
+        // One reading of what processes have open for the whole run, not one per item.
+        let check = self.check.snapshotted()
         for (candidate, initial) in zip(approval.candidates, pending) {
             await Task.yield()
             var record = initial
@@ -95,7 +97,7 @@ public actor CleanupExecutor {
             record.state = .intent; record.message = "Started; outcome not yet recorded"
             do { try journal.intent(record) }
             catch { record.state = .cancelled; record.message = "Could not record the start; not changed"; failure = record.message; records.append(record); await progress(.init(resolved: records.count, total: total, last: record)); continue }
-            await perform(candidate, previewOnly: approval.previewOnly, into: &record)
+            await perform(candidate, check: check, previewOnly: approval.previewOnly, into: &record)
             do { try journal.outcome(record) }
             catch { record.state = .unknown; record.message = "Outcome could not be recorded. Review recovery; do not repeat automatically."; failure = record.message }
             if record.state == .unknown { failure = record.message }
@@ -105,7 +107,7 @@ public actor CleanupExecutor {
         return result(records, failure: failure)
     }
 
-    private func perform(_ candidate: Candidate, previewOnly: Bool, into record: inout CleanupRecord) async {
+    private func perform(_ candidate: Candidate, check: CandidateCheck, previewOnly: Bool, into record: inout CleanupRecord) async {
         let command = check.catalog.rule(candidate.ruleID)?.tool
         let verb = switch candidate.action {
         case .delete: "delete"
