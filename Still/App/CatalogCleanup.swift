@@ -549,7 +549,10 @@ extension CatalogCleanupModel {
     /// from holding up the scan; a size cut short reads "At least".
     func scanGuidance(home: URL) async {
         let catalog = catalog, system = Self.systemRoot, snapshots = Self.snapshots
-        guidance = await Task.detached(priority: .utility) { catalog.guidance(home: home, systemRoot: system, sizer: KnownLocationSizer(timeBudget: 10), snapshots: snapshots) }.value
+        guidance = await Task.detached(priority: .utility) {
+            catalog.guidance(home: home, systemRoot: system, sizer: KnownLocationSizer(timeBudget: 10), snapshots: snapshots,
+                             fullDiskAccess: FullDiskAccessProbe(home: home).status())
+        }.value
     }
     /// Opens where the finding is managed: its app, a System Settings pane, or the folder in Finder.
     func open(_ finding: GuidanceFinding) async {
@@ -610,6 +613,7 @@ struct GuidanceSection: View {
                             }
                         }
                     }
+                    if model.guidance.contains(where: { $0.size == .notAccessible }) { FullDiskAccessLink(title: "Review access options") }
                     if let status = model.guidanceStatus { StatusRow(text: status, symbol: "info.circle", identifier: "guidanceStatus") }
                 }.padding(.top, StillDesign.Space.sm)
             } label: {

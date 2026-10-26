@@ -77,28 +77,28 @@ public struct TmutilSnapshots: LocalSnapshotListing {
 }
 
 extension BuiltInCatalog {
-    private static func guidanceRule(_ id: String, _ title: String, detail: String, locations: [String], _ guidance: Guidance) -> CleanupRule {
+    private static func guidanceRule(_ id: String, _ title: String, detail: String, locations: [String], protected: Bool = false, _ guidance: Guidance) -> CleanupRule {
         CleanupRule(id: id, category: .managed, title: title, detail: detail,
                     consequence: "Guidance only. Still shows the size and where to manage it, and never changes it.",
-                    regen: .userFile, action: .guidance, locations: locations, owner: nil, guidance: guidance)
+                    regen: .userFile, action: .guidance, locations: locations, owner: nil, requiresFullDiskAccess: protected, guidance: guidance)
     }
     /// SPEC section 3, "Guidance only". Locations starting with `/` are read under the system root.
     static let guidanceRules: [CleanupRule] = [
         guidanceRule("device-backups", "iPhone and iPad backups",
                      detail: "Backups of your devices. Manage them in Finder: select a connected device, then Manage Backups.",
-                     locations: ["Library/Application Support/MobileSync/Backup"],
+                     locations: ["Library/Application Support/MobileSync/Backup"], protected: true,
                      Guidance(place: .app(bundleID: "com.apple.finder"), placeName: "Finder")),
         guidanceRule("mail-attachments", "Mail attachments",
                      detail: "Attachments Mail downloaded. Remove large messages or attachments in Mail.",
-                     locations: ["Library/Mail", "Library/Containers/com.apple.mail/Data/Library/Mail Downloads"],
+                     locations: ["Library/Mail", "Library/Containers/com.apple.mail/Data/Library/Mail Downloads"], protected: true,
                      Guidance(sizing: .foldersNamed("Attachments"), place: .app(bundleID: "com.apple.mail"), placeName: "Mail")),
         guidanceRule("messages-attachments", "Messages attachments",
                      detail: "Photos, videos and files from your conversations. Review them in Messages, or in System Settings → General → Storage.",
-                     locations: ["Library/Messages/Attachments"],
+                     locations: ["Library/Messages/Attachments"], protected: true,
                      Guidance(place: .app(bundleID: "com.apple.MobileSMS"), placeName: "Messages")),
         guidanceRule("photos-library", "Photos library",
                      detail: "Your Photos library. Photos manages it; with iCloud Photos, Optimize Mac Storage keeps smaller copies on this Mac.",
-                     locations: ["Pictures/Photos Library.photoslibrary"],
+                     locations: ["Pictures/Photos Library.photoslibrary"], protected: true,
                      Guidance(place: .app(bundleID: "com.apple.Photos"), placeName: "Photos")),
         guidanceRule("time-machine-snapshots", "Time Machine local snapshots",
                      detail: "macOS keeps these and removes them on its own when space runs low. Their size isn’t reported.",
@@ -118,10 +118,12 @@ extension BuiltInCatalog {
 extension Catalog {
     /// Sizes the guidance-only rules (SPEC section 3). Reads metadata only, through `sizer`; never file contents.
     /// A rule appears when one of its locations exists; one Still can't read is `.notAccessible`, never 0.
+    /// Without Full Disk Access, a rule that needs it is `.notAccessible` without being touched, so no privacy prompt appears.
     public func guidance(home: URL, systemRoot: URL = URL(fileURLWithPath: "/"), sizer: KnownLocationSizer = KnownLocationSizer(),
-                         snapshots: any LocalSnapshotListing = TmutilSnapshots()) -> [GuidanceFinding] {
+                         snapshots: any LocalSnapshotListing = TmutilSnapshots(), fullDiskAccess: FullDiskAccessStatus = .unknown) -> [GuidanceFinding] {
         rules.compactMap { rule -> GuidanceFinding? in
             guard rule.action == .guidance, let guidance = rule.guidance else { return nil }
+            if rule.access(given: fullDiskAccess) == .needsFullDiskAccess { return GuidanceFinding(ruleID: rule.id, size: .notAccessible, folder: nil) }
             if guidance.sizing == .localSnapshots {
                 guard let count = snapshots.count() else { return GuidanceFinding(ruleID: rule.id, size: .notAccessible, folder: nil) }
                 return count > 0 ? GuidanceFinding(ruleID: rule.id, size: .snapshots(count), folder: nil) : nil

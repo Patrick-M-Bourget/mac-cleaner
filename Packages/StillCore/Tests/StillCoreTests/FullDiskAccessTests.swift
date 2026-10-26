@@ -67,7 +67,8 @@ private func rule(requiringFullDiskAccess: Bool) -> CleanupRule {
 
 @Test func ordinaryRulesNeverWaitForFullDiskAccess() {
     #expect(rule(requiringFullDiskAccess: false).access(given: .notGranted) == .available)
-    #expect(fixtureRules.allSatisfy { !$0.requiresFullDiskAccess })
+    // Only guidance rules (Mail, Messages, Photos, device backups) need it; no cleanup rule waits for it.
+    #expect(fixtureRules.filter { $0.action != .guidance }.allSatisfy { !$0.requiresFullDiskAccess })
 }
 
 @Test func theExplanationSaysFullDiskAccessIsBroadOptionalAndScansStayReadOnly() {

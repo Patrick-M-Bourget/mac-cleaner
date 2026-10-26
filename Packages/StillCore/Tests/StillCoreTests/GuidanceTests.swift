@@ -144,3 +144,16 @@ private actor RecordingOpener: GuidanceOpening {
         #expect(rule.guidance?.openTitle.hasPrefix("Open ") == true)
     }
 }
+
+@Test func withoutFullDiskAccessProtectedGuidanceIsNotAccessibleWithoutBeingRead() throws {
+    let home = try guidanceHome()
+    defer { try? FileManager.default.removeItem(at: home) }
+    try write(4096, at: "Library/Mail/V10/acct/Attachments/1/a.pdf", in: home)
+    try write(4096, at: "Library/Developer/Xcode/Archives/a/b", in: home)
+    let catalog = Catalog(rules: fixtureRules)
+    let findings = catalog.guidance(home: home, systemRoot: home, snapshots: FixtureSnapshots(), fullDiskAccess: .notGranted)
+    // Protected places aren't touched at all, so no privacy prompt can appear; each is listed as not accessible.
+    #expect(Set(findings.filter { $0.size == .notAccessible }.map(\.ruleID)) == ["device-backups", "mail-attachments", "messages-attachments", "photos-library"])
+    #expect(findings.first { $0.ruleID == "xcode-archives" }.map { $0.size != .notAccessible } == true)
+    #expect(catalog.guidance(home: home, systemRoot: home, snapshots: FixtureSnapshots(), fullDiskAccess: .granted).first { $0.ruleID == "mail-attachments" }?.size != .notAccessible)
+}
