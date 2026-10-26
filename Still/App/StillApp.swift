@@ -106,18 +106,19 @@ private struct WorkspaceView: View {
     @State private var capacity = AppLifecycleController.shared.capacity
     private var startupCapacity: StartupCapacityReading? { capacity.reading }
     private var showsPlan: Bool { destination == .plan && !navigationState.localRecordsVisible && !recoveryVisible && !nativeInspectionVisible && !homebrewVisible && !pipVisible && !diagnosticsVisible && !exclusionsVisible }
-    private var contextLabel: String {
+    /// The toolbar's note, which only reports state (Decision 25: no toolbar subtitles). A screen returns nil to show none.
+    private var contextLabel: String? {
         if selection.workspaceRunning { return "Running approved cleanup" }
         if navigationState.localRecordsVisible && !recoveryVisible { return "Local records · Explicit maintenance only" }
         if diagnosticsVisible { return "Redacted diagnostics · Explicit local Save" }
         if recoveryVisible { return "Recovery review · Recorded facts only" }
         if selection.hasWorkspaceResult && showsPlan { return "Cleanup results · individual outcomes" }
-        if nativeInspectionVisible { return "Read-only storage inspection" }
+        if nativeInspectionVisible { return nil }
         if homebrewVisible { return "Read-only Homebrew inventory" }
         if pipVisible { return "Read-only pip inventory" }
         if exclusionsVisible { return "Custom scan exclusions" }
         switch destination {
-        case .overview: return "On-demand storage review"
+        case .overview: return nil
         case .plan: return "Choose files, then review"
         case .history: return "Recorded scan and cleanup activity"
         case .locations: return "Scan locations and access"
@@ -303,7 +304,7 @@ private struct WorkspaceView: View {
         }
     }
     @ViewBuilder private var contextToolbarLabel: some View {
-        if selection.workspaceRunning {
+        if selection.workspaceRunning, let contextLabel {
             Text(contextLabel).font(.caption).foregroundStyle(.secondary).lineLimit(1)
         } else if folderInspection.isScanning {
             ToolbarScanStatus(location: folderInspection.scope?.lastPathComponent ?? "selected locations",
@@ -311,7 +312,7 @@ private struct WorkspaceView: View {
                 inspectedEntries: folderInspection.progress?.visitedEntries,
                 returnToScan: scanReturnAction,
                 stop: { folderInspection.cancel() })
-        } else { Text(contextLabel).font(.caption).foregroundStyle(.secondary).lineLimit(1) }
+        } else if let contextLabel { Text(contextLabel).font(.caption).foregroundStyle(.secondary).lineLimit(1) }
     }
 
     private var scanReturnAction: (() -> Void)? {
