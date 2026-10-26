@@ -274,6 +274,57 @@ final class CatalogCleanupUITests: XCTestCase {
         for file in files { XCTAssertTrue(FileManager.default.fileExists(atPath: file.path), file.path) }
     }
 
+    /// #117: without Full Disk Access (the fixture's Safari folder refuses to open), Safari's cache is listed as not
+    /// accessible with the explanation, never sized as 0. With access, only its cache folder is offered, and a preview
+    /// leaves the cache and Safari's history in place.
+    @MainActor func testSafariCacheIsNotAccessibleWithoutFullDiskAccessAndOfferedWithIt() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        let state = try configureIsolatedState(app)
+        let home = try configureCatalogHome(app)
+        let safari = home.appendingPathComponent("Library/Safari")
+        let history = safari.appendingPathComponent("History.db")
+        let cache = home.appendingPathComponent("Library/Caches/com.apple.Safari/WebKit/NetworkCache/Version 17/Records/AB/Resource/0123")
+        for (file, bytes) in [(history, 1_000), (cache, 250_000)] {
+            try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try Data(repeating: 4, count: bytes).write(to: file)
+        }
+        try FileManager.default.setAttributes([.posixPermissions: 0], ofItemAtPath: safari.path)
+        defer {
+            app.terminate(); try? FileManager.default.removeItem(at: state)
+            try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: safari.path); try? FileManager.default.removeItem(at: home)
+        }
+        app.launchArguments = ["-ApplePersistenceIgnoreState", "YES"]
+        app.launch()
+
+        XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
+        let denied = app.descendants(matching: .any)["overviewNotAccessible-safari-cache"]
+        XCTAssertTrue(denied.waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["Not accessible"].exists)
+        XCTAssertFalse(app.descendants(matching: .any)["overviewCategory-browser"].exists, "Nothing found, so no 0-byte browser row")
+        denied.buttons["fullDiskAccessLink"].click()
+        XCTAssertTrue(app.staticTexts["Full Disk Access is optional"].waitForExistence(timeout: 5))
+        app.buttons["closeFullDiskAccess"].click() // Never "Open System Settings".
+        app.terminate()
+
+        // Granted: the Safari folder opens.
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: safari.path)
+        app.launch()
+        let row = app.buttons["overviewCategory-browser"]
+        XCTAssertTrue(row.waitForExistence(timeout: 10))
+        XCTAssertFalse(app.descendants(matching: .any)["overviewNotAccessible-safari-cache"].exists)
+        row.click()
+        let rule = app.checkBoxes["planRule-safari-cache"]
+        XCTAssertTrue(rule.waitForExistence(timeout: 5))
+        rule.click()
+        XCTAssertEqual(app.checkBoxes["previewOnlyToggle"].value as? Int, 1)
+        app.buttons["Review cleanup"].click()
+        XCTAssertTrue(app.staticTexts["Clear Safari cache"].waitForExistence(timeout: 5))
+        app.buttons["Run preview"].click()
+        XCTAssertTrue(app.staticTexts["catalogPreviewNotice"].waitForExistence(timeout: 10))
+        for file in [history, cache] { XCTAssertTrue(FileManager.default.fileExists(atPath: file.path), file.path) }
+    }
+
     /// Updater downloads and logs show as their own Overview categories. A log folder holding a git checkout never appears,
     /// and a preview run leaves every fixture file in place. Per-app caches need an installed app, so unit tests cover them.
     @MainActor func testUpdaterDownloadsAndLogsAreTheirOwnCategoriesAndPreviewLeavesThemInPlace() throws {
