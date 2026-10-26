@@ -1,4 +1,6 @@
-# Still: reset plan (draft to grill)
+# Still: reset plan
+
+Execution order is the tickets in #75. The phase sections below are background; the **Decisions** section at the end is binding.
 
 ## Context
 Codex has worked on Still for 4 days. The result:
