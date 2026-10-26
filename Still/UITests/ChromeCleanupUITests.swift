@@ -59,6 +59,45 @@ final class ChromeCleanupUITests: XCTestCase {
         XCTAssertEqual(app.windows.firstMatch.frame, bounds)
     }
 
+    @MainActor func testStoppingDownloadsPreventsStartingChrome() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        let state = try configureIsolatedJourneyState(app)
+        defer { app.terminate(); try? FileManager.default.removeItem(at: state) }
+        let root = try makeChromeFixture(state)
+        let downloads = FileManager.default.temporaryDirectory.resolvingSymlinksInPath().appendingPathComponent("StillSelectionUI-" + UUID().uuidString)
+        try FileManager.default.createDirectory(at: downloads, withIntermediateDirectories: false)
+        defer { try? FileManager.default.removeItem(at: downloads) }
+        try Data("owned personal file".utf8).write(to: downloads.appendingPathComponent("stop-review.pdf"))
+        app.launchArguments = ["--chrome-cleanup-fixture", "--ui-test-downloads-root", "--ui-test-slow-trash", "--design-initial-size"]
+        app.launchEnvironment["STILL_TEST_DOWNLOADS_ROOT"] = downloads.path
+        app.launch()
+        XCTAssertTrue(app.buttons["Choose folder…"].waitForExistence(timeout: 5)); app.buttons["Choose folder…"].click()
+        app.typeKey("g", modifierFlags: [.command, .shift])
+        XCTAssertTrue(app.textFields.firstMatch.waitForExistence(timeout: 5)); app.textFields.firstMatch.typeText(downloads.path)
+        app.typeKey(.return, modifierFlags: []); app.dialogs.buttons["Scan folder"].click()
+        waitForOverviewScan(app, timeout: 10)
+        app.typeKey("2", modifierFlags: .command)
+        let category = app.checkBoxes["downloadsCategorySelection"]
+        XCTAssertTrue(category.waitForExistence(timeout: 5)); category.click()
+        app.typeKey("1", modifierFlags: .command)
+        revealOverviewControl(app, label: "Review browser caches"); app.buttons["Review browser caches"].click()
+        XCTAssertTrue(app.buttons["Enable Chrome inspection"].waitForExistence(timeout: 5)); app.buttons["Enable Chrome inspection"].click()
+        let group = app.checkBoxes["chromeGroupSelection-Default"]
+        XCTAssertTrue(group.waitForExistence(timeout: 10)); group.click()
+        app.buttons["View cleanup plan"].click()
+        XCTAssertTrue(app.buttons["Review cleanup"].waitForExistence(timeout: 5)); app.buttons["Review cleanup"].click()
+        XCTAssertTrue(app.sheets.buttons["Run cleanup"].waitForExistence(timeout: 5)); app.sheets.buttons["Run cleanup"].click()
+        let stop = app.buttons["Stop after current file"]
+        XCTAssertTrue(stop.waitForExistence(timeout: 5)); stop.click()
+        XCTAssertTrue(app.staticTexts["Chrome cache results"].waitForExistence(timeout: 20))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: root.appendingPathComponent("Default/Cache/Cache_Data/0123456789abcdef_0").path), "Stopping the mixed run must preserve the unstarted Chrome stage")
+        revealScrollElement(app, control: app.staticTexts["Cancelled"].firstMatch, label: "Cancelled browser group")
+        XCTAssertTrue(app.staticTexts["Cancelled"].exists)
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "0 cache files permanently removed")).firstMatch.exists)
+        XCTAssertEqual(try Data(contentsOf: root.appendingPathComponent("Default/Web Data")), Data("protected-autofill".utf8))
+    }
+
     @MainActor func testChromeRescanKeepsNewGroupsUncheckedAndRunningInvalidatesSelection() throws {
         continueAfterFailure = false
         let app = XCUIApplication()
