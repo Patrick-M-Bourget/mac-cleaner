@@ -1,0 +1,56 @@
+{
+  "sourceURL": "https://dl.google.com/chrome/mac/stable/accept_tos%3Dhttps%253A%252F%252Fwww.google.com%252Fintl%252Fen_ph%252Fchrome%252Fterms%252F%26_and_accept_tos%3Dhttps%253A%252F%252Fpolicies.google.com%252Fterms/googlechrome.pkg",
+  "retrievedUTC": "2026-10-26T02:04:03.753331+00:00",
+  "githubSHA": "734d7d79eb3dfd20995b9092c79d75de7ca22e98",
+  "githubRunID": "40257224518",
+  "os": "macOS-26.6.2-arm64-arm-64bit-Mach-O",
+  "productionMutationSupported": false,
+  "effectiveURL": "https://dl.google.com/chrome/mac/stable/accept_tos%3Dhttps%253A%252F%252Fwww.google.com%252Fintl%252Fen_ph%252Fchrome%252Fterms%252F%26_and_accept_tos%3Dhttps%253A%252F%252Fpolicies.google.com%252Fterms/googlechrome.pkg",
+  "responseHeaders": {
+    "Accept-Ranges": "bytes",
+    "Content-Disposition": "attachment",
+    "Content-Security-Policy": "default-src 'none'",
+    "Server": "downloads",
+    "X-Content-Type-Options": "nosniff",
+    "X-Frame-Options": "SAMEORIGIN",
+    "X-Identity-Content-Length": "268364334",
+    "X-Xss-Protection": "0",
+    "Date": "Mon, 26 Oct 2026 02:04:04 GMT",
+    "Cache-Control": "no-transform,public,max-age=0",
+    "Last-Modified": "Fri, 23 Oct 2026 16:10:44 GMT",
+    "ETag": "\"6fb22fe\"",
+    "Content-Type": "application/vnd.apple.installer+xml",
+    "Vary": "Accept-Encoding",
+    "Content-Length": "268364334",
+    "Age": "0",
+    "Alt-Svc": "h3=\":443\"; ma=2592000,h3-29=\":443\"; ma=2592000",
+    "Connection": "close"
+  },
+  "archiveSHA256": "53edc513a6706607e77ae781f476368f6098421e000e2e586033a597c1c49651",
+  "archiveBytes": 268364334,
+  "digestMeaning": "observed moving Stable artifact, not publisher checksum",
+  "bundleIdentifier": "com.google.Chrome",
+  "version": "156.0.8078.48",
+  "bundle": "/Users/runner/work/_temp/chrome-stable-final/expanded/GoogleChrome.pkg/Payload/Google Chrome.app",
+  "executableSHA256": "4f71e9dbe725fec1110977b6a6dd0708fb32fbde9c905b4b461cef880ac08288",
+  "signatureVerification": {
+    "bundle": {
+      "status": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    "executable": {
+      "status": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    "framework": {
+      "status": 0,
+      "stdout": "",
+      "stderr": ""
+    }
+  },
+  "signatureMetadata": "Executable=/Users/runner/work/_temp/chrome-stable-final/expanded/GoogleChrome.pkg/Payload/Google Chrome.app/Contents/MacOS/Google Chrome\nIdentifier=com.google.Chrome\nFormat=app bundle with Mach-O universal (x86_64 arm64)\nCodeDirectory v=20500 size=765 flags=0x12a00(kill,restrict,library-validation,runtime) hashes=13+7 location=embedded\nSignature size=8991\nAuthority=Developer ID Application: Google LLC (EQHXZ8M8AV)\nAuthority=Developer ID Certification Authority\nAuthority=Apple Root CA\nTimestamp=Oct 20, 2026 at 2:23:41\u202fAM\nNotarization Ticket=stapled\nInfo.plist entries=44\nTeamIdentifier=EQHXZ8M8AV\nRuntime Version=26.5.0\nSealed Resources version=2 rules=13 files=63\nInternal requirements count=1 size=288\n",
+  "sealedBundleVerified": true,
+  "provisioningComplete": true
+}
