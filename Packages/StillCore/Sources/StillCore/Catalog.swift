@@ -102,21 +102,28 @@ public struct CleanupRule: Sendable, Identifiable {
     public let tool: ToolCommand?
     /// Extensions never acted on as the item or an ancestor, on top of the global ones.
     public let protectedExtensions: [String]
+    /// Settings that move the owner's data elsewhere. When one is set the rule offers nothing.
+    public let layoutOverrides: [LayoutOverride]
     /// When set, candidates are the matching files inside each location, not the location.
     public let contents: ContentsMatch?
     /// For `*` locations named by version (DeviceSupport): keep this many newest versions in each folder.
     /// Children whose name has no version are then never offered.
     public let keepNewestVersions: Int?
+    /// What `locations` are relative to; the home folder unless set.
+    public let base: LocationBase
+    /// When set, each folder inside a location is a leaked copy, and the in-use and newest copies are kept.
+    public let copies: LeakedCopies?
     /// The name shown for a folder or file the rule found, from its file name; nil shows the file name.
     public let itemName: (@Sendable (String) -> String?)?
     /// When set, candidates are items a tool's own records on disk list, not the location.
     public let items: CatalogItems?
     /// Global protected extensions this rule may act inside, e.g. an app's own VM `.bundle`. Never `sparsebundle` lightly.
     public let unprotectedExtensions: Set<String>
-    public init(id: String, category: CatalogCategory, title: String, detail: String, consequence: String, regen: RegenClass, action: CleanupAction, locations: [String], owner: RuleOwner?, protectedNames: [String] = [], tool: ToolCommand? = nil, protectedExtensions: [String] = [], contents: ContentsMatch? = nil, keepNewestVersions: Int? = nil, itemName: (@Sendable (String) -> String?)? = nil, items: CatalogItems? = nil, unprotectedExtensions: Set<String> = []) {
+    public init(id: String, category: CatalogCategory, title: String, detail: String, consequence: String, regen: RegenClass, action: CleanupAction, locations: [String], owner: RuleOwner?, protectedNames: [String] = [], tool: ToolCommand? = nil, protectedExtensions: [String] = [], contents: ContentsMatch? = nil, keepNewestVersions: Int? = nil, layoutOverrides: [LayoutOverride] = [], base: LocationBase = .home, copies: LeakedCopies? = nil, itemName: (@Sendable (String) -> String?)? = nil, items: CatalogItems? = nil, unprotectedExtensions: Set<String> = []) {
         self.id = id; self.category = category; self.title = title; self.detail = detail; self.consequence = consequence
         self.regen = regen; self.action = action; self.locations = locations; self.owner = owner; self.protectedNames = protectedNames; self.tool = tool
-        self.protectedExtensions = protectedExtensions; self.contents = contents; self.keepNewestVersions = keepNewestVersions
+        self.protectedExtensions = protectedExtensions; self.contents = contents; self.keepNewestVersions = keepNewestVersions; self.layoutOverrides = layoutOverrides
+        self.base = base; self.copies = copies
         self.itemName = itemName; self.items = items; self.unprotectedExtensions = unprotectedExtensions
     }
 }
@@ -207,10 +214,16 @@ public enum BuiltInCatalog {
                     consequence: "Moved to Trash. The space stays used until you empty the Trash; you can restore them from the Trash in Finder.",
                     regen: .userFile, action: .trash, locations: ["Downloads"], owner: nil,
                     protectedExtensions: downloadsProtectedExtensions, contents: ContentsMatch(minimumBytes: 500_000_000, unusedDays: 90)),
+        // Field note section 3: Chrome copies itself for code-sign checks and never removes the copies.
+        CleanupRule(id: "chrome-code-sign-clones", category: .browser, title: "Chrome code-sign copies",
+                    detail: "Copies of Google Chrome it made to check its signature and never removed. The copy Chrome is using and the newest copy are kept.",
+                    consequence: "Permanently removed. Chrome doesn’t need them again. They share disk space with Chrome, so less space may come back than estimated; the results show what was freed.",
+                    regen: .leakedCopy, action: .delete, locations: ["X/com.google.Chrome.code_sign_clone"], owner: nil,
+                    base: .userFolder, copies: LeakedCopies(owner: RuleOwner(name: "Google Chrome", bundleIDs: ["com.google.Chrome"], executables: ["Google Chrome", "Google Chrome Helper*"]))),
         huggingFaceModels,
         ollamaModels,
         appVMImages,
-    ]
+    ] + BrowserCaches.rules
     /// Kept from the Downloads-era policy: libraries and databases are never moved, even inside Downloads.
     static let downloadsProtectedExtensions = ["dsym", "library", "db", "sqlite", "sqlite3"]
     /// Xcode and the build processes that write into DerivedData, including command-line builds.
@@ -240,6 +253,8 @@ public struct Candidate: Sendable, Identifiable, Hashable {
     /// Most recent of last opened (Spotlight), accessed, changed and added. Files only.
     public let lastUsed: Date?
     public let observedAt: Date
+    /// What a `*` in the rule's location matched, such as a browser profile folder; nil for a fixed location.
+    public let profile: String?
     /// What the item is called, e.g. a model's name; nil means its file name.
     public internal(set) var itemName: String? = nil
     /// The size is an estimate rather than a measurement (an Ollama model's own, unshared blobs).
@@ -256,16 +271,39 @@ public struct Catalog: Sendable {
     public static let neverOffered: Set<String> = ["ccache", ".ccache", "sccache"]
 
     /// Sizes only the rules' known locations under `home`. Read-only. An item two rules match is offered once, by the first.
-    /// A `.tool` rule appears only when `locateTool` finds its executable.
-    public func discover(home: URL, sizer: KnownLocationSizer = KnownLocationSizer(), now: Date = Date(), locateTool: (ToolCommand) -> URL? = ToolCommand.installed) -> [Candidate] {
-        let base = home.resolvingSymlinksInPath()
+    /// A `.tool` rule appears only when `locateTool` finds its executable. Rules based in the user's
+    /// `/private/var/folders` entry appear only when `userFolder` is given (`Catalog.currentUserFolder()` in the app).
+    /// Absolute paths in a rule's layout overrides are read under `systemRoot`.
+    public func discover(home: URL, userFolder: URL? = nil, inUse: any InUseChecking = SystemInUseChecker(), sizer: KnownLocationSizer = KnownLocationSizer(), now: Date = Date(), locateTool: (ToolCommand) -> URL? = ToolCommand.installed,
+                         systemRoot: URL = URL(fileURLWithPath: "/")) -> [Candidate] {
+        discovery(home: home, userFolder: userFolder, inUse: inUse, sizer: sizer, now: now, locateTool: locateTool, systemRoot: systemRoot).candidates
+    }
+
+    /// `discover`, plus notes on rules that kept items back, such as copies kept because their use couldn't be checked.
+    public func discovery(home: URL, userFolder: URL? = nil, inUse: any InUseChecking = SystemInUseChecker(), sizer: KnownLocationSizer = KnownLocationSizer(), now: Date = Date(), locateTool: (ToolCommand) -> URL? = ToolCommand.installed,
+                          systemRoot: URL = URL(fileURLWithPath: "/")) -> CatalogDiscovery {
+        let homeBase = home.resolvingSymlinksInPath(), userBase = userFolder
         var seen = Set<String>()
-        return rules.flatMap { rule -> [Candidate] in
+        var notes: [CatalogNote] = []
+        let overridden = Set(overriddenRules(home: home, systemRoot: systemRoot).map(\.id))
+        let candidates = rules.flatMap { rule -> [Candidate] in
+            guard !overridden.contains(rule.id) else { return [] }
             let toolURL = rule.tool.flatMap(locateTool)
             guard rule.action != .tool || toolURL != nil else { return [] }
-            return rule.locations.flatMap { Self.expand($0, in: base, keepNewestVersions: rule.keepNewestVersions) }.flatMap { relative -> [Candidate] in
-                guard Self.neverOffered.isDisjoint(with: relative.split(separator: "/").map(String.init)) else { return [] }
-                let url = base.appendingPathComponent(relative)
+            guard let base = rule.base == .home ? homeBase : userBase else { return [] }
+            // A trailing `/*` offers each folder inside (DeviceSupport versions); a `*` inside the path names a profile.
+            return rule.locations.flatMap { location -> [(URL, String?)] in
+                // A pattern as the last component (`models--*`) also offers each matching folder.
+                (location as NSString).lastPathComponent.contains("*")
+                    ? Self.expand(location, in: base, keepNewestVersions: rule.keepNewestVersions).map { (base.appendingPathComponent($0), nil) }
+                    : Self.expand(base, location).map { ($0.0, $0.1.isEmpty ? nil : $0.1.joined(separator: "/")) }
+            }.flatMap { url, profile -> [Candidate] in
+                guard Self.neverOffered.isDisjoint(with: url.pathComponents.dropFirst(base.pathComponents.count)) else { return [] }
+                if let copies = rule.copies {
+                    let (found, note) = leakedCopies(rule, copies, in: url, sizer: sizer, inUse: inUse)
+                    notes += note.map { [$0] } ?? []
+                    return found
+                }
                 if let contents = rule.contents { return files(in: url, matching: contents, rule: rule, now: now) }
                 if rule.items == .ollamaModels { return ollamaModels(in: url, rule: rule, toolURL: toolURL) }
                 var info = stat()
@@ -275,19 +313,37 @@ public struct Catalog: Sendable {
                 let size = rule.tool?.deletesLocationAfter == false ? ItemSize(logicalBytes: 0, allocatedBytes: nil, entries: 0, complete: false) : sizer.size(url)
                 // Models and disk images show when they were last used, so the user can judge (SPEC section 3).
                 let lastUsed = rule.regen == .model ? Self.lastUsedInside(url, info) : nil
-                var found = candidate(rule, url, info, logical: size.logicalBytes, allocated: size.allocatedBytes, complete: size.complete, lastUsed: lastUsed, toolURL: toolURL)
+                var found = candidate(rule, url, info, logical: size.logicalBytes, allocated: size.allocatedBytes, complete: size.complete, lastUsed: lastUsed, toolURL: toolURL,
+                                      profile: profile)
                 found.itemName = rule.itemName?(url.lastPathComponent)
                 return [found]
             }
         }.filter { seen.insert($0.resourceID).inserted }
+        return CatalogDiscovery(candidates: candidates, notes: notes)
     }
 
-    func candidate(_ rule: CleanupRule, _ url: URL, _ info: stat, logical: Int64, allocated: Int64?, complete: Bool, lastUsed: Date?, toolURL: URL? = nil) -> Candidate {
+    func candidate(_ rule: CleanupRule, _ url: URL, _ info: stat, logical: Int64, allocated: Int64?, complete: Bool, lastUsed: Date?, toolURL: URL? = nil, profile: String? = nil) -> Candidate {
         let volume = try? url.resourceValues(forKeys: [.volumeUUIDStringKey]).volumeUUIDString
         return Candidate(ruleID: rule.id, action: rule.action, url: url, resourceID: "\(info.st_dev):\(info.st_ino)",
                          isDirectory: info.st_mode & S_IFMT == S_IFDIR, toolURL: toolURL, volumeID: volume,
                          modifiedSeconds: Int64(info.st_mtimespec.tv_sec), modifiedNanoseconds: Int64(info.st_mtimespec.tv_nsec),
-                         logicalBytes: logical, allocatedBytes: allocated, sizeComplete: complete, lastUsed: lastUsed, observedAt: Date())
+                         logicalBytes: logical, allocatedBytes: allocated, sizeComplete: complete, lastUsed: lastUsed, observedAt: Date(), profile: profile)
+    }
+
+    /// The paths a location names under `base`. A `*` component matches each visible folder at that level
+    /// (a browser profile, say), never a symlink; the matched names come back with the path.
+    static func expand(_ base: URL, _ relative: String) -> [(URL, [String])] {
+        relative.split(separator: "/").map(String.init).reduce([(base, [String]())]) { paths, part in
+            guard part == "*" else { return paths.map { ($0.0.appendingPathComponent(part), $0.1) } }
+            return paths.flatMap { url, matched in
+                ((try? FileManager.default.contentsOfDirectory(atPath: url.path)) ?? []).sorted().compactMap { name -> (URL, [String])? in
+                    var info = stat()
+                    let child = url.appendingPathComponent(name)
+                    guard !name.hasPrefix("."), lstat(child.path, &info) == 0, info.st_mode & S_IFMT == S_IFDIR else { return nil }
+                    return (child, matched + [name])
+                }
+            }
+        }
     }
 
     /// Regular files under `root` that match. Never follows symlinks, crosses volumes or enters packages and protected folders.

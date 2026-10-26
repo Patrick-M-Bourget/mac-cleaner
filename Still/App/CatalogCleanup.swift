@@ -16,6 +16,12 @@ import SwiftUI
     private(set) var isRunning = false
     private(set) var result: CatalogExecutionResult?
     private(set) var message: String?
+    /// Why a rule kept items back, such as copies whose use couldn't be checked.
+    private(set) var notes: [CatalogNote] = []
+    /// Rules whose owner keeps its data elsewhere by a setting; they offer nothing.
+    private(set) var overriddenRules: [CleanupRule] = []
+    /// Names of owners that were running at the last scan. Their items stay choosable; the checks refuse them.
+    private(set) var runningOwners: Set<String> = []
     private var executor: CleanupExecutor?
     private static let previewKey = "StillPreviewOnly"
     /// Decision 16: on by default; with it on, the whole flow runs and nothing changes on disk.
@@ -47,6 +53,18 @@ import SwiftUI
         return FileManager.default.homeDirectoryForCurrentUser
     }
 
+    /// The user's own `/private/var/folders` entry, for rules based there (Chrome's code-sign copies).
+    /// A debug test home stands one in at `<home>/.still-test-user-folder`, so a UI test never reads the real one.
+    static var userFolder: URL? {
+        #if DEBUG
+        if LocalStateLocation.isDisposableTest {
+            guard let folder = home?.appendingPathComponent(".still-test-user-folder"), FileManager.default.fileExists(atPath: folder.path) else { return nil }
+            return folder
+        }
+        #endif
+        return Catalog.currentUserFolder()
+    }
+
     /// Where a tool rule's executable is found. A debug test home only ever finds stand-ins inside
     /// `<home>/.still-test-tools`, so a UI test never runs a real tool.
     static var locateTool: @Sendable (ToolCommand) -> URL? {
@@ -60,6 +78,15 @@ import SwiftUI
         }
         #endif
         return ToolCommand.installed
+    }
+
+    /// Where system-wide settings (administrator and managed browser policies) are read. A debug test home
+    /// stands in for it, so a UI test never depends on this Mac's policies.
+    static var systemRoot: URL {
+        #if DEBUG
+        if LocalStateLocation.isDisposableTest, let home { return home }
+        #endif
+        return URL(fileURLWithPath: "/")
     }
 
     /// Overview's summary; nil until the first scan of the known locations has finished.
@@ -89,10 +116,17 @@ import SwiftUI
         guard canEdit else { return }
         isScanning = true; message = nil
         defer { isScanning = false; hasScanned = true }
-        guard let home = Self.home else { candidates = []; return }
+        guard let home = Self.home else { candidates = []; notes = []; overriddenRules = []; runningOwners = []; return }
         let catalog = catalog
-        let locate = Self.locateTool
-        candidates = await Task.detached(priority: .userInitiated) { catalog.discover(home: home, locateTool: locate) }.value
+        let locate = Self.locateTool, system = Self.systemRoot
+        let userFolder = Self.userFolder
+        let scanned = await Task.detached(priority: .userInitiated) { () -> (CatalogDiscovery, [CleanupRule], Set<String>) in
+            let discovered = catalog.discovery(home: home, userFolder: userFolder, locateTool: locate, systemRoot: system)
+            let owners = catalog.rules.filter { rule in discovered.candidates.contains { $0.ruleID == rule.id } }.compactMap(\.owner)
+            let running = SystemRunningAppChecker()
+            return (discovered, catalog.overriddenRules(home: home, systemRoot: system), Set(owners.filter { running.isRunning($0) == true }.map(\.name)))
+        }.value
+        candidates = scanned.0.candidates; notes = scanned.0.notes; overriddenRules = scanned.1; runningOwners = scanned.2
         let found = Set(candidates.map(\.id))
         if !selectedIDs.isSubset(of: found) { selectedIDs.formIntersection(found); message = "Some items changed or are no longer on this Mac and were removed from your plan." }
         selectionRevision &+= 1
@@ -183,6 +217,11 @@ extension SizeEstimate {
 }
 
 extension CatalogOverview.Row {
+    /// The row's size; "Up to" when part of it is copies that share disk blocks.
+    var valueText: String {
+        if case .measured(let bytes) = estimate, rules.contains(where: \.estimateIsUpperBound) { return catalogBytes(bytes, upperBound: true) }
+        return estimate.text
+    }
     /// What happens and to what, e.g. "Clear npm cache, Yarn cache · Move Installers to Trash".
     var detail: String {
         let cleared = rules.filter { $0.action != .trash }.map(\.title)
@@ -195,10 +234,11 @@ extension CatalogOverview.Row {
     }
 }
 
-/// An incomplete size of 0 is unknown, as in `SizeEstimate`. An estimate reads "About".
-func catalogBytes(_ value: Int64, complete: Bool = true, estimate: Bool = false) -> String {
+/// A size as text. An incomplete size of 0 is unknown, as in `SizeEstimate`.
+/// `upperBound` is for copies that share disk blocks (SPEC section 6): less may come back. An estimate reads "About".
+func catalogBytes(_ value: Int64, complete: Bool = true, upperBound: Bool = false, estimate: Bool = false) -> String {
     if !complete && value == 0 { return SizeEstimate.unknown.text }
-    return (complete ? estimate ? "About " : "" : "At least ") + ByteCountFormatter.string(fromByteCount: value, countStyle: .decimal)
+    return (!complete ? "At least " : upperBound ? "Up to " : estimate ? "About " : "") + ByteCountFormatter.string(fromByteCount: value, countStyle: .decimal)
 }
 
 extension CleanupRule {
@@ -231,14 +271,49 @@ struct CatalogPlanSection: View {
             ForEach(model.rulesFound) { rule in
                 CategorySelectionHeader(category: rule.category.storageCategory, state: model.selectionState(for: rule),
                     title: rule.title, detail: rule.detail + " " + rule.consequence,
-                    size: catalogBytes(model.estimatedBytes(for: rule), complete: model.sizeComplete(for: rule), estimate: model.sizeIsEstimate(for: rule)),
+                    size: catalogBytes(model.estimatedBytes(for: rule), complete: model.sizeComplete(for: rule), upperBound: rule.estimateIsUpperBound,
+                                       estimate: model.sizeIsEstimate(for: rule)),
                     enabled: model.canEdit, identifier: "planRule-" + rule.id) { model.setSelected(rule, model.selectionState(for: rule) != .checked) }
                 if rule.choosesItems { CatalogItemChooser(model: model, rule: rule).padding(.leading, StillDesign.Space.xl) }
+                if model.candidates(for: rule).contains(where: { $0.profile != nil }) {
+                    CatalogProfileRows(model: model, rule: rule).padding(.leading, StillDesign.Space.xl)
+                }
+                if let owner = rule.owner, model.runningOwners.contains(owner.name) {
+                    StatusRow(text: CheckRefusal.ownerRunning(owner.name).reason + " Still won’t close it for you.", symbol: "exclamationmark.circle", role: .caution,
+                              identifier: "planRunning-" + rule.id).padding(.leading, StillDesign.Space.xl)
+                }
             }
+            ForEach(model.overriddenRules) { rule in
+                StatusRow(text: "\(rule.owner?.name ?? rule.title) keeps its data in a custom location set in its settings, so Still leaves it alone.",
+                          symbol: "info.circle", role: .neutral, identifier: "planOverridden-" + rule.id)
+            }
+            ForEach(model.notes, id: \.ruleID) { note in StatusRow(text: note.text, symbol: "info.circle", role: .neutral, identifier: "planNote-" + note.ruleID) }
             if model.isScanning { ProgressView("Checking known locations…") }
             if !model.rulesFound.isEmpty || model.result != nil { PreviewOnlyToggle(model: model).padding(.leading, StillDesign.Space.xl) }
             if let message = model.message { StatusRow(text: message, symbol: "info.circle", role: .caution) }
         }.task { await model.scanIfNeeded() }
+    }
+}
+
+/// One row per profile with that profile's cache size; choosing a profile chooses all of its cache folders.
+struct CatalogProfileRows: View {
+    @Bindable var model: CatalogCleanupModel
+    let rule: CleanupRule
+    var body: some View {
+        let groups = Dictionary(grouping: model.candidates(for: rule)) { $0.profile ?? "" }
+        VStack(alignment: .leading, spacing: 0) {
+            ForEach(groups.keys.sorted { $0.localizedStandardCompare($1) == .orderedAscending }, id: \.self) { profile in
+                let items = groups[profile] ?? []
+                InspectableItemRow(name: profile, detail: items.map(\.url.lastPathComponent).sorted().joined(separator: ", "),
+                                   size: catalogBytes(items.reduce(0) { $0 + ($1.allocatedBytes ?? $1.logicalBytes) }, complete: items.allSatisfy(\.sizeComplete)),
+                                   symbol: "person.crop.circle", inspected: false,
+                                   inspect: { NSWorkspace.shared.activateFileViewerSelecting(items.map(\.url)) }) {
+                    Toggle("Select " + profile, isOn: Binding(get: { items.allSatisfy(model.isSelected) }, set: { on in items.forEach { model.setSelected($0, on) } }))
+                        .labelsHidden().disabled(!model.canEdit).accessibilityIdentifier("planProfile-\(rule.id)-\(profile)")
+                }
+                Divider()
+            }
+        }
     }
 }
 
@@ -286,7 +361,8 @@ struct CatalogConfirmationSection: View {
                         CategoryBadge(category: rule.category.storageCategory)
                         Text((rule.action == .trash ? "Move to Trash: " : "Clear ") + rule.title).font(StillDesign.TypeStyle.section)
                         Spacer()
-                        Text(catalogBytes(items.reduce(0) { $0 + ($1.allocatedBytes ?? $1.logicalBytes) }, complete: items.allSatisfy(\.sizeComplete), estimate: items.contains(where: \.sizeIsEstimate))).monospacedDigit()
+                        Text(catalogBytes(items.reduce(0) { $0 + ($1.allocatedBytes ?? $1.logicalBytes) }, complete: items.allSatisfy(\.sizeComplete), upperBound: rule.estimateIsUpperBound,
+                                          estimate: items.contains(where: \.sizeIsEstimate))).monospacedDigit()
                     }
                     Text(rule.consequence).font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                     DisclosureGroup(items.count == 1 ? "1 item · Show files" : "\(items.count) items · Show files") {
@@ -317,7 +393,8 @@ struct CatalogResultsSection: View {
             SummarySurface {
                 HStack(alignment: .top, spacing: StillDesign.Space.xl) {
                     metric(result.previewOnly ? "—" : result.measuredFreedBytes.map { catalogBytes($0) } ?? "Unknown", "Measured freed space")
-                    metric(catalogBytes(result.estimatedBytes), "Estimated before cleanup")
+                    let upperBound = result.records.contains { $0.ruleID.flatMap { catalog.rule($0)?.estimateIsUpperBound } == true }
+                    metric(catalogBytes(result.estimatedBytes, upperBound: upperBound), upperBound ? "Estimated before cleanup · Upper bound" : "Estimated before cleanup")
                     if result.movedToTrashBytes > 0 { metric(catalogBytes(result.movedToTrashBytes), "Moved to Trash · Not yet freed") }
                 }
             }
