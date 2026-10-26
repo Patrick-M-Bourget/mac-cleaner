@@ -249,11 +249,16 @@ public actor CleanupExecutor {
         }
     }
 
-    /// Moves the checked item to the Trash, then confirms the item that landed there is the one approved.
+    /// Confirms the item is still the approved one, inside its scope, just before moving it to the Trash, then
+    /// confirms the item that landed in the Trash is the one approved. A swap in the moment between that last check
+    /// and `trashItem` is an accepted race: the Trash is recoverable, and the check after the move reports it.
     private func trash(_ candidate: Candidate, into record: inout CleanupRecord) {
         func unchanged() -> Bool {
             var info = stat()
             return lstat(candidate.url.path, &info) == 0 && "\(info.st_dev):\(info.st_ino)" == candidate.resourceID
+        }
+        guard unchanged(), let root = candidate.scopeRoot, ScopeContainment.contains(candidate.url, in: root) else {
+            record.state = .skipped; record.message = CheckRefusal.changed.reason; return
         }
         do {
             let resulting = try trashMover.moveToTrash(candidate.url)

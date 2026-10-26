@@ -105,3 +105,33 @@ private let cargoOnly = Catalog(rules: BuiltInCatalog.rules.filter { $0.id == "c
         #expect(CandidateCheck(catalog: catalog, running: NothingRunning()).check(leftover) == nil)
     }
 }
+
+/// Records what it was asked to move; the real Trash is never touched.
+private final class RecordingTrash: TrashMoving, @unchecked Sendable {
+    private let lock = NSLock()
+    private var moved: [URL] = []
+    var calls: [URL] { lock.lock(); defer { lock.unlock() }; return moved }
+    func moveToTrash(_ url: URL) throws -> URL? { lock.lock(); moved.append(url); lock.unlock(); return nil }
+}
+
+@Test func aFileSwappedJustBeforeTheMoveToTrashIsNotMoved() async throws {
+    let home = try fixtureFolder("StillScopeHome")
+    defer { try? FileManager.default.removeItem(at: home) }
+    try write(home, "Downloads/setup.dmg")
+    let catalog = Catalog(rules: BuiltInCatalog.rules.filter { $0.id == "downloads-installers" })
+    let candidate = try #require(catalog.discover(home: home).first)
+    let file = candidate.url
+    // The space reading runs after the check and before the move: swap the file there.
+    let swap: @Sendable (URL) -> CapacitySample? = { _ in
+        try? FileManager.default.removeItem(at: file)
+        try? Data(repeating: 2, count: 100).write(to: file)
+        return nil
+    }
+    let trash = RecordingTrash()
+    let journal = try SQLiteCleanupJournal(url: home.appendingPathComponent("journal.sqlite"))
+    let run = CleanupExecutor(journal: journal, check: CandidateCheck(catalog: catalog, running: NothingRunning()), measure: swap, trash: trash)
+    let record = try #require(await run.execute(CatalogApproval(candidates: [candidate], previewOnly: false)).records.first)
+    #expect(trash.calls.isEmpty)
+    #expect(record.state == .skipped)
+    #expect(record.message == CheckRefusal.changed.reason)
+}
