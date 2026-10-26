@@ -544,7 +544,8 @@ extension CatalogCleanupUITests {
         let folder = FileManager.default.temporaryDirectory.resolvingSymlinksInPath().appendingPathComponent("StillPicked-" + UUID().uuidString)
         defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home); try? FileManager.default.removeItem(at: folder) }
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-        let old = folder.appendingPathComponent("old-notes.txt"), recent = folder.appendingPathComponent("recent.txt")
+        // Not .txt: Spotlight reads new text files in the runner's container to index them, which makes the old one recent.
+        let old = folder.appendingPathComponent("old-archive.zip"), recent = folder.appendingPathComponent("recent.zip")
         try Data(repeating: 1, count: 4_000).write(to: old)
         try Data(repeating: 2, count: 4_000).write(to: recent)
         let then = Date().addingTimeInterval(-200 * 86_400)
@@ -570,9 +571,9 @@ extension CatalogCleanupUITests {
         mode.buttons["Large and old files"].click()
 
         // Only the old file is listed, and nothing is preselected.
-        let item = app.checkBoxes["explorerChoose-old-notes.txt"]
+        let item = app.checkBoxes["explorerChoose-old-archive.zip"]
         XCTAssertTrue(item.waitForExistence(timeout: 5))
-        XCTAssertFalse(app.checkBoxes["explorerChoose-recent.txt"].exists)
+        XCTAssertFalse(app.checkBoxes["explorerChoose-recent.zip"].exists)
         XCTAssertEqual(item.value as? Int, 0)
         item.click()
         XCTAssertEqual(item.value as? Int, 1)
