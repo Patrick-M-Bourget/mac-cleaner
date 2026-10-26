@@ -13,7 +13,11 @@ def activity(bundle, root):
     if fixture:
         path = pathlib.Path(fixture)
         if path != root/'process-fixture.json' or path.is_symlink(): raise ValueError('owned process fixture required')
-        output = json.loads(path.read_text())['psOutput']
+        observation = json.loads(path.read_text())
+        output = observation['psOutput']
+        if isinstance(output, list):
+            if not output: raise ValueError('controlled process observations exhausted')
+            current = output.pop(0); path.write_text(json.dumps(observation)); output = current
     else:
         if os.environ.get('GITHUB_ACTIONS') != 'true' or os.environ.get('RUNNER_ENVIRONMENT') != 'github-hosted': raise ValueError('real process observation is hosted-only')
         output = subprocess.check_output(['/bin/ps', '-axo', 'pid=,command='], text=True, timeout=5)
