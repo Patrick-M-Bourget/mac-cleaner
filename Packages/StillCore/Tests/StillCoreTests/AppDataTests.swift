@@ -115,3 +115,24 @@ private func found(_ catalog: Catalog, _ home: URL, access: FullDiskAccessStatus
     try FileManager.default.removeItem(at: home.appendingPathComponent("Library/Caches/JetBrains/IntelliJIdea2024.2"))
     #expect(CandidateCheck(catalog: catalog, running: Running()).check(old) != nil)
 }
+
+// MARK: Adobe
+
+@Test func adobesMediaCacheIsOfferedAndTheRestOfCommonIsKept() throws {
+    let home = try fixtureHome()
+    defer { try? FileManager.default.removeItem(at: home) }
+    let common = "Library/Application Support/Adobe/Common/"
+    try write(home, common + "Media Cache Files/clip.mov 48000.cfa", bytes: 8_192)
+    try write(home, common + "Media Cache/Media Cache Database/db")
+    for kept in ["Plug-ins/7.0/MediaCore/effect.bundle/x", "LUTs/look.cube"] { try write(home, common + kept) }
+    let catalog = Catalog(rules: fixtureRules)
+    #expect(found(catalog, home) == [common + "Media Cache Files": "adobe-media-cache", common + "Media Cache": "adobe-media-cache"])
+    let cache = try #require(catalog.discover(fixture: home).first)
+    // Every Adobe video app shares it: Premiere, After Effects, Media Encoder, Audition.
+    for process in [["/Applications/Adobe Premiere Pro 2025/Adobe Premiere Pro 2025.app/Contents/MacOS/Adobe Premiere Pro 2025"],
+                    ["/Applications/Adobe After Effects 2025/Adobe After Effects 2025.app/Contents/MacOS/After Effects"],
+                    ["/Applications/Adobe Media Encoder 2025/Adobe Media Encoder 2025.app/Contents/MacOS/Adobe Media Encoder 2025"]] {
+        #expect(CandidateCheck(catalog: catalog, running: Running(processes: [process])).check(cache) == .ownerRunning("Adobe video apps"))
+    }
+    #expect(CandidateCheck(catalog: catalog, running: Running(processes: [["/Applications/Adobe Photoshop 2025/Adobe Photoshop 2025.app/Contents/MacOS/Adobe Photoshop 2025"]])).check(cache) == nil)
+}

@@ -60,9 +60,26 @@ public enum AppDataCaches {
                                        regen: .cache, action: .delete, locations: ["Library/Caches/JetBrains/*"], owner: nil,
                                        itemOwner: jetBrainsOwner, protectedDepth: AppCaches.liveWorkDepth)
 
+    // MARK: Adobe
+
+    /// Adobe's video apps share one media cache, by default in ~/Library/Application Support/Adobe/Common (Adobe Help,
+    /// "Delete media cache files manually": quit the app, then delete the files there): conformed audio, peak and
+    /// index files in `Media Cache Files`, and the database that links them in `Media Cache`. A cache moved in
+    /// Preferences > Media Cache isn't found; what stays in the default folder is still cache.
+    static let adobeMediaCache = CleanupRule(
+        id: "adobe-media-cache", category: .system, title: "Adobe media cache",
+        detail: "Conformed audio, peak and index files Premiere, After Effects and Media Encoder made from your media.",
+        consequence: "Permanently removed. Your projects and media are not touched. Adobe apps rebuild these files when you open a project, which takes a while at first.",
+        regen: .cache, action: .delete,
+        locations: ["Library/Application Support/Adobe/Common/Media Cache Files", "Library/Application Support/Adobe/Common/Media Cache"],
+        owner: RuleOwner(name: "Adobe video apps",
+                         executables: ["Adobe Premiere*", "After Effects", "Adobe After Effects*", "Adobe Media Encoder*", "Adobe Audition*",
+                                       "Adobe Character Animator*", "Adobe Prelude*", "dynamiclinkmanager"]))
+
     public static func rules(apps: any AppLookup) -> [CleanupRule] {
         [
             jetBrains,
+            adobeMediaCache,
             vsCode(id: "vscode-cache", name: "Visual Studio Code", nameShort: "Code", bundleID: "com.microsoft.VSCode"),
             vsCode(id: "vscodium-cache", name: "VSCodium", nameShort: "VSCodium", bundleID: "com.vscodium"),
         ]
