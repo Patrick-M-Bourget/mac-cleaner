@@ -104,6 +104,58 @@ private func run(_ home: URL, _ candidates: [Candidate], running: Running = Runn
     #expect(FileManager.default.fileExists(atPath: kept.path))
 }
 
+// MARK: LM Studio (#135)
+
+private let lmstudio = ".lmstudio/models"
+
+@Test func eachLMStudioModelFolderIsATrashCandidateWithItsSizeAndLastUse() throws {
+    let home = try modelsHome()
+    defer { try? FileManager.default.removeItem(at: home) }
+    try file(home, lmstudio + "/infra-ai/ocelot-v1/ocelot-v1-instruct-q4_0.gguf", size: 5000, age: 120 * day)
+    try file(home, lmstudio + "/lmstudio-community/Qwen-7B-GGUF/Qwen-7B-Q4_K_M.gguf", size: 3000, age: 4 * day)
+    try file(home, lmstudio + "/lmstudio-community/Qwen-7B-GGUF/mmproj.gguf", size: 300, age: 4 * day)
+    try ageTree(home.appendingPathComponent(lmstudio + "/infra-ai"), 120 * day)
+    try ageTree(home.appendingPathComponent(lmstudio + "/lmstudio-community"), 200 * day)
+    try setTimes(home.appendingPathComponent(lmstudio + "/lmstudio-community/Qwen-7B-GGUF/Qwen-7B-Q4_K_M.gguf"), 4 * day)
+    // A loose file in a publisher folder is not a model folder.
+    try file(home, lmstudio + "/infra-ai/README.md")
+
+    let candidates = Catalog(rules: fixtureRules).discover(fixture: home, locateTool: { _ in nil })
+    #expect(candidates.allSatisfy { $0.ruleID == "lmstudio-models" && $0.action == .trash && $0.isDirectory })
+    let found = Dictionary(uniqueKeysWithValues: candidates.map { ($0.url.lastPathComponent, $0) })
+    #expect(Set(found.keys) == ["ocelot-v1", "Qwen-7B-GGUF"])
+    #expect(found["ocelot-v1"]?.logicalBytes == 5000)
+    #expect(found["Qwen-7B-GGUF"]?.logicalBytes == 3300)
+    let ocelotUsed = try #require(found["ocelot-v1"]?.lastUsed)
+    #expect(abs(ocelotUsed.timeIntervalSinceNow + 120 * day) < 5)
+    let qwenUsed = try #require(found["Qwen-7B-GGUF"]?.lastUsed)
+    #expect(abs(qwenUsed.timeIntervalSinceNow + 4 * day) < 5)
+    let rule = try #require(Catalog(rules: fixtureRules).rule("lmstudio-models"))
+    #expect(rule.category == .models)
+    #expect(rule.regen == .model)
+}
+
+@Test func aChosenLMStudioModelGoesToTrashAndIsRefusedWhileLMStudioRuns() async throws {
+    let home = try modelsHome()
+    defer { try? FileManager.default.removeItem(at: home) }
+    try file(home, lmstudio + "/infra-ai/ocelot-v1/ocelot-v1.gguf", size: 5000)
+    let kept = try file(home, lmstudio + "/infra-ai/kept-v2/kept-v2.gguf", size: 5000)
+    let catalog = Catalog(rules: fixtureRules)
+    let chosen = try #require(catalog.discover(fixture: home, locateTool: { _ in nil }).first { $0.url.lastPathComponent == "ocelot-v1" })
+    #expect(catalog.rule("lmstudio-models")?.owner?.bundleIDs == ["ai.elementlabs.lmstudio"])
+
+    #expect(CandidateCheck(catalog: catalog, running: Running(names: ["LM Studio"])).check(chosen) == .ownerRunning("LM Studio"))
+    let refused = try #require(try await run(home, [chosen], running: Running(names: ["LM Studio"])).records.first)
+    #expect(refused.state == .skipped)
+    #expect(FileManager.default.fileExists(atPath: chosen.url.path))
+
+    let record = try #require(try await run(home, [chosen]).records.first)
+    #expect(record.state == .succeeded)
+    #expect(record.action == "moveToTrash")
+    #expect(!FileManager.default.fileExists(atPath: chosen.url.path))
+    #expect(FileManager.default.fileExists(atPath: kept.path))
+}
+
 // MARK: Ollama
 
 private let manifests = ".ollama/models/manifests"

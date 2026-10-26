@@ -253,6 +253,7 @@ public enum BuiltInCatalog {
                     regen: .leakedCopy, action: .delete, locations: ["X/com.google.Chrome.code_sign_clone"], owner: nil,
                     base: .userFolder, copies: LeakedCopies(owner: RuleOwner(name: "Google Chrome", bundleIDs: ["com.google.Chrome"], executables: ["Google Chrome", "Google Chrome Helper*"]))),
         huggingFaceModels,
+        lmStudioModels,
         ollamaModels,
         appVMImages,
         iCloudLocalCopies,
@@ -538,6 +539,14 @@ public struct Catalog: Sendable {
         let pattern = (relative as NSString).lastPathComponent
         guard pattern.contains("*") else { return [relative] }
         let parent = (relative as NSString).deletingLastPathComponent
+        // A `*` above the last component (`models/*/*`: each publisher's models) expands to each matching folder first.
+        if parent.contains("*") {
+            return pathsMatching(parent, under: base).flatMap { _, names -> [String] in
+                var matched = names.makeIterator()
+                let expanded = parent.split(separator: "/").map { $0.contains("*") ? matched.next() ?? "" : String($0) }.joined(separator: "/")
+                return childFolders(of: expanded + "/" + pattern, in: base, keepNewestVersions: keep)
+            }
+        }
         var info = stat()
         guard lstat(base.appendingPathComponent(parent).path, &info) == 0, info.st_mode & S_IFMT == S_IFDIR,
               let names = try? FileManager.default.contentsOfDirectory(atPath: base.appendingPathComponent(parent).path) else { return [] }
