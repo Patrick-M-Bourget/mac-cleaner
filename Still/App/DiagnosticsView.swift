@@ -15,11 +15,11 @@ import UniformTypeIdentifiers
         var codes = Set<DiagnosticsCode>()
         let scan: DiagnosticsScanStatus = inspection.isScanning ? .scanning : inspection.result.map { $0.isComplete ? .complete : .partial } ?? .notInspected
         if scan == .partial { codes.insert(.scanIncomplete) }
-        let result = selection.execution.result
-        let unknown = selection.execution.error != nil || result?.journalFailure != nil || result?.rejectedReplay == true || result?.targets.contains { $0.state == .unknown || $0.state == .intent } == true
-        let cleanup: DiagnosticsCleanupStatus = selection.execution.isRunning ? .running : unknown ? .unknown : result.map { $0.targets.contains { $0.state != .succeeded } ? .partial : .complete } ?? .idle
+        let result = selection.catalog.result
+        let unknown = selection.requiresRecoveryReview
+        let cleanup: DiagnosticsCleanupStatus = selection.workspaceRunning ? .running : unknown ? .unknown : result.map { $0.records.contains { $0.state != .succeeded && !$0.wasPreviewed } ? .partial : .complete } ?? .idle
         if unknown { codes.insert(.outcomeUnknown) }
-        if recovery.error != nil || selection.execution.error != nil { codes.insert(.journalUnavailable) }
+        if recovery.error != nil { codes.insert(.journalUnavailable) }
         let recoveryStatus: DiagnosticsRecoveryStatus = recovery.error != nil ? .unavailable : !recovery.loaded ? .notLoaded : recovery.requiresReview ? .requiresReview : .clear
         #if arch(arm64)
         let architecture = DiagnosticsArchitecture.arm64
@@ -33,7 +33,7 @@ import UniformTypeIdentifiers
                                                  build: Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String,
                                                  system: ProcessInfo.processInfo.operatingSystemVersion, architecture: architecture,
                                                  scopeCount: selection.scans.count, observedCount: inspection.result?.observations.count ?? 0,
-                                                 selectedCount: selection.draft.selectedCount, scan: scan, cleanup: cleanup, recovery: recoveryStatus, errors: codes)
+                                                 selectedCount: selection.workspaceSelectedCount, scan: scan, cleanup: cleanup, recovery: recoveryStatus, errors: codes)
             let protectedRoot = try? LocalStateLocation.root(create: false)
             stateProtectionAvailable = protectedRoot != nil
             export = DiagnosticsExport(review: snapshot, protectedDirectory: protectedRoot); unavailable = false

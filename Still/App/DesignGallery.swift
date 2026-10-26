@@ -71,16 +71,6 @@ struct DesignGallery: View {
                         ], select: { _, _ in })
                     }
                     CapacityGalleryExamples()
-                    Text("Synthetic cleanup outcome examples").font(.headline)
-                    Text("Presentation fixtures only · These examples are not native executor or OS failure evidence.").foregroundStyle(.secondary)
-                    CleanupOutcomeSummary(states: [.succeeded], detailIdentifier: "outcomeDetail-0")
-                    CleanupOutcomeSummary(states: [.succeeded, .cancelled], detailIdentifier: "outcomeDetail-1")
-                    CleanupOutcomeSummary(states: [.skipped], detailIdentifier: "outcomeDetail-2")
-                    CleanupOutcomeSummary(states: [.failed], detailIdentifier: "outcomeDetail-3")
-                    CleanupOutcomeSummary(states: [.cancelled], detailIdentifier: "outcomeDetail-4")
-                    CleanupOutcomeSummary(states: [.unknown, .cancelled], journalFailure: "Synthetic unresolved record", detailIdentifier: "outcomeDetail-5")
-                    CleanupOutcomeSummary(states: [], journalFailure: "Synthetic claim failure", detailIdentifier: "outcomeDetail-6")
-                    CleanupOutcomeSummary(states: [], rejectedReplay: true, detailIdentifier: "outcomeDetail-7")
                     Text("Synthetic Local records entry · Inert example").font(.headline)
                     LocalRecordsEntry(action: {})
                     Text("Synthetic Local records controls · Inert enabled example").font(.headline)
@@ -124,9 +114,6 @@ struct DesignGallery: View {
                     LocationScopeRow(name: "Omitted Downloads", path: "/Example/Downloads/Omitted", status: "Omitted from the next scan", included: .constant(false), enabled: false) {
                         Menu("More") { Button("Forget location") {} }
                     }
-                    CleanupScopeNotice(chooseDownloads: {})
-                    CleanupScopeNotice(enabled: false, chooseDownloads: {})
-                    CleanupScopeNotice(compact: true, chooseDownloads: {})
                     RecommendationGroup {
                         StorageReviewRow(category: .downloads, title: "Downloads", detail: "Example only · Review exact files before moving to Trash.", value: "128 MB", meaning: "Logical files", actionTitle: "Review files", action: {})
                         Divider()

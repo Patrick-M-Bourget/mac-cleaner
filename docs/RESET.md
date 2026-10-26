@@ -132,3 +132,4 @@ Phase 0 → 1 → 2 → Tier A (2–3 sessions) → Overview/onboarding → Tier
 20. A command-line tool's cache is refused while that tool's process is running (process-name check).
 21. Caches are cleaned by deleting their folder. Tool commands are used only for Homebrew, simulators and Ollama.
 22. Everything inside Xcode DerivedData, products and dSYMs included, is regenerable. Only Archives and anything outside DerivedData are protected.
+23. The pnpm store is cleaned with `pnpm store prune` (tool action), never deleted: with pnpm's global virtual store, projects link into it. pnpm's metadata cache is still deleted.

@@ -4,7 +4,7 @@ import StillCore
 import SwiftUI
 
 extension AppLifecycleController: HistoryMaintenanceLifecycle {
-    var operationActive: Bool { operationInProgress || selection.execution.isRunning }
+    var operationActive: Bool { operationInProgress || selection.workspaceRunning }
     var maintenanceActive: Bool { get { maintenanceInProgress } set { maintenanceInProgress = newValue } }
 }
 
@@ -72,7 +72,7 @@ private enum HistoryActivityItem: Identifiable {
 
     func clear() async {
         let lifecycle = AppLifecycleController.shared
-        guard !busy, !lifecycle.maintenanceInProgress, !lifecycle.operationInProgress, !lifecycle.selection.execution.isRunning else { message = "Wait for the current cleanup to finish."; return }
+        guard !busy, !lifecycle.maintenanceInProgress, !lifecycle.operationInProgress, !lifecycle.selection.workspaceRunning else { message = "Wait for the current cleanup to finish."; return }
         busy = true; defer { busy = false }
         lifecycle.maintenanceInProgress = true; defer { lifecycle.maintenanceInProgress = false }
         var clearedRuns: Int?
@@ -97,7 +97,7 @@ private enum HistoryActivityItem: Identifiable {
             await ScanActivityHistory.shared.load(maintain: false)
             let noun = result.0.removedRuns == 1 ? "run" : "runs"
             if let chromeClearedRuns, chromeClearedRuns > 0 {
-                message = "Cleared \(result.0.removedRuns) completed Downloads cleanup \(noun) and \(chromeClearedRuns) completed Chrome cleanup \(chromeClearedRuns == 1 ? "run" : "runs"), scan activity and growth baselines. Recovery facts retained." + compactionMessage(compactionCompleted)
+                message = "Cleared \(result.0.removedRuns) completed cleanup \(noun) and \(chromeClearedRuns) completed Chrome cleanup \(chromeClearedRuns == 1 ? "run" : "runs"), scan activity and growth baselines. Recovery facts retained." + compactionMessage(compactionCompleted)
             } else {
                 message = "Cleared \(result.0.removedRuns) completed cleanup \(noun), scan activity and growth baselines. Recovery facts retained." + compactionMessage(compactionCompleted)
             }
@@ -105,12 +105,12 @@ private enum HistoryActivityItem: Identifiable {
             if let clearedRuns {
                 let noun = clearedRuns == 1 ? "run" : "runs"
                 if let chromeClearedRuns, chromeClearedRuns > 0 {
-                    message = "Cleared \(clearedRuns) completed Downloads cleanup \(noun) and \(chromeClearedRuns) completed Chrome cleanup \(chromeClearedRuns == 1 ? "run" : "runs"). Scan activity and growth baseline clearing could not be confirmed. Recovery facts remain protected." + compactionMessage(compactionCompleted)
+                    message = "Cleared \(clearedRuns) completed cleanup \(noun) and \(chromeClearedRuns) completed Chrome cleanup \(chromeClearedRuns == 1 ? "run" : "runs"). Scan activity and growth baseline clearing could not be confirmed. Recovery facts remain protected." + compactionMessage(compactionCompleted)
                 } else {
                     message = "Cleared \(clearedRuns) completed cleanup \(noun). Scan activity and growth baseline clearing could not be confirmed. Recovery facts remain protected." + compactionMessage(compactionCompleted)
                 }
             } else if let chromeClearedRuns {
-                message = "Cleared \(chromeClearedRuns) completed Chrome cleanup \(chromeClearedRuns == 1 ? "run" : "runs"). Downloads cleanup history clearing could not be confirmed. Scan activity and growth baselines were not cleared. Recovery facts remain protected."
+                message = "Cleared \(chromeClearedRuns) completed Chrome cleanup \(chromeClearedRuns == 1 ? "run" : "runs"). Cleanup history clearing could not be confirmed. Scan activity and growth baselines were not cleared. Recovery facts remain protected."
             } else {
                 message = "Cleanup history clearing could not be confirmed. Scan activity and growth baselines were not cleared. Recovery facts remain protected."
             }
@@ -121,7 +121,7 @@ private enum HistoryActivityItem: Identifiable {
     }
     func reset() async -> Bool {
         let lifecycle = AppLifecycleController.shared
-        guard !busy, !lifecycle.maintenanceInProgress, !lifecycle.operationInProgress, !lifecycle.selection.execution.isRunning else { message = "Reset is blocked while cleanup is running. Stop and review its results first."; return false }
+        guard !busy, !lifecycle.maintenanceInProgress, !lifecycle.operationInProgress, !lifecycle.selection.workspaceRunning else { message = "Reset is blocked while cleanup is running. Stop and review its results first."; return false }
         busy = true; lifecycle.maintenanceInProgress = true
         defer { busy = false; lifecycle.maintenanceInProgress = false }
         enum ResetStage { case journal, chromeInspection, appearance, remainingPreferences }
@@ -149,7 +149,7 @@ private enum HistoryActivityItem: Identifiable {
             try lifecycle.locations.reset()
             try await GrowthHistoryModel.shared.resetHistory()
             try await ExclusionsModel.shared.reset()
-            lifecycle.selection.endSession(); lifecycle.selection.execution.clear()
+            lifecycle.selection.endSession()
             await lifecycle.inspection.resetSession()
             lifecycle.planPresentation.reset()
             lifecycle.downloadsExplorer.openDownloads(); lifecycle.locationsExplorer.openLocations()
@@ -178,7 +178,7 @@ private enum HistoryActivityItem: Identifiable {
             message = (message ?? "Reset did not finish.") + " Completed Chrome cleanup runs cleared: \(chromeClearedRuns)."
         }
         if let downloadsClearedRuns, downloadsClearedRuns > 0 {
-            message = (message ?? "Reset did not finish.") + " Completed Downloads cleanup runs cleared: \(downloadsClearedRuns)."
+            message = (message ?? "Reset did not finish.") + " Completed cleanup runs cleared: \(downloadsClearedRuns)."
         }
         return false
     }
@@ -266,23 +266,29 @@ struct CleanupHistoryView: View {
     private func cleanup(_ run: CleanupHistoryRun) -> some View {
                     SummarySurface {
                         VStack(alignment: .leading, spacing: StillDesign.Space.md) {
-                            Label("Cleanup run", systemImage: "checklist").font(StillDesign.TypeStyle.section)
+                            Label(run.title, systemImage: run.isPreview ? "eye" : "checklist").font(StillDesign.TypeStyle.section)
                             Text(run.date.formatted(date: .abbreviated, time: .shortened)).font(StillDesign.TypeStyle.section)
                             if run.usesApprovalDate { Text("Approval date shown; outcome time was not recorded by this version.").font(.caption).foregroundStyle(.secondary) }
-                            Text("Recorded file results: \(run.records.count)").font(.callout)
-                            Text("Planned logical size: " + bytes(run.plannedLogicalBytes)).font(.callout)
-                            Text("Planned allocation retained in Trash: " + (run.trashHeldAllocatedBytes.map(bytes) ?? "Unknown"))
-                            Text("Observed startup-volume capacity change: " + (run.capacity?.observedChange.map { ($0 >= 0 ? "+" : "−") + bytes(abs($0)) } ?? "Unknown"))
-                            Text("Capacity samples are independent and can change for other reasons. Allocation is an estimate, not an exclusive-space promise.").font(.caption).foregroundStyle(.secondary)
-                            DisclosureGroup("Per-file results", isExpanded: Binding(
+                            Text("Recorded results: \(run.records.count)").font(.callout)
+                            Text("Estimated size: " + bytes(run.plannedLogicalBytes)).font(.callout)
+                            if run.isPreview {
+                                Text("Preview only · Each item was checked and nothing on disk changed. No space was freed.").font(.callout).foregroundStyle(.secondary)
+                            } else {
+                                if run.records.contains(where: { $0.action == CleanupAction.trash.rawValue }) {
+                                    Text("Moved to Trash, still using space until the Trash is emptied: " + (run.trashHeldAllocatedBytes.map(bytes) ?? "Unknown"))
+                                }
+                                Text("Observed startup-volume capacity change: " + (run.capacity?.observedChange.map { ($0 >= 0 ? "+" : "−") + bytes(abs($0)) } ?? "Unknown"))
+                                Text("Capacity samples are independent and can change for other reasons. Allocation is an estimate, not an exclusive-space promise.").font(.caption).foregroundStyle(.secondary)
+                            }
+                            DisclosureGroup("Per-item results", isExpanded: Binding(
                                 get: { expandedRuns.contains(run.id) },
                                 set: { if $0 { expandedRuns.insert(run.id) } else { expandedRuns.remove(run.id) } }
                             )) {
                                 VStack(alignment: .leading, spacing: StillDesign.Space.lg) {
                                     ForEach(run.records) { record in
                                         SettingsRow(title: record.originalURL.lastPathComponent, detail: record.originalURL.path) {
-                                            StatusRow(text: "\(record.state.rawValue.capitalized) · \(record.message)", symbol: record.state == .succeeded ? "checkmark.circle" : "info.circle")
-                                            Text("Action: \(record.action) · Policy \(record.policyVersion)").font(.caption).foregroundStyle(.secondary)
+                                            StatusRow(text: "\(record.outcomeTitle) · \(record.message)", symbol: record.state == .succeeded ? "checkmark.circle" : record.wasPreviewed ? "eye" : "info.circle")
+                                            Text("Action: \(record.actionTitle)" + (record.previewOnly == true ? " · Preview only" : "")).font(.caption).foregroundStyle(.secondary)
                                             if let trash = record.trashURL {
                                                 Text("Recorded resulting location: " + trash.path).font(.caption).textSelection(.enabled)
                                                 Button("Reveal recorded location") { NSWorkspace.shared.activateFileViewerSelecting([trash]) }
