@@ -19,6 +19,7 @@ import StillCore
             guard let parent = realpath(url.deletingLastPathComponent().path, nil) else { throw Refusal(description: "Existing canonical parent required") }
             defer { free(parent) }
             try require(String(cString: parent) + "/" + url.lastPathComponent == string, "Canonical parent and leaf required")
+            return URL(fileURLWithPath: String(cString: parent), isDirectory: true).standardizedFileURL.appendingPathComponent(url.lastPathComponent)
         }
         return url.standardizedFileURL
     }
