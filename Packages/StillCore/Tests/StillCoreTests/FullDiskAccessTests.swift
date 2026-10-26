@@ -67,7 +67,7 @@ private func rule(requiringFullDiskAccess: Bool) -> CleanupRule {
 
 @Test func ordinaryRulesNeverWaitForFullDiskAccess() {
     #expect(rule(requiringFullDiskAccess: false).access(given: .notGranted) == .available)
-    #expect(fixtureRules.allSatisfy { !$0.requiresFullDiskAccess })
+    #expect(fixtureRules.filter(\.requiresFullDiskAccess).map(\.id) == ["safari-cache"])
 }
 
 @Test func theExplanationSaysFullDiskAccessIsBroadOptionalAndScansStayReadOnly() {
@@ -87,4 +87,22 @@ private func rule(requiringFullDiskAccess: Bool) -> CleanupRule {
     #expect(FullDiskAccessGuide.statusText(.granted) == "Granted")
     #expect(FullDiskAccessGuide.statusText(.notGranted) == "Not granted")
     #expect(FullDiskAccessGuide.statusText(.unknown) == "Couldn’t check")
+}
+
+@Test func withoutFullDiskAccessSafarisCacheIsNotAccessibleNeverZeroAndIsNotRead() throws {
+    let home = FileManager.default.temporaryDirectory.appendingPathComponent("StillSafariAccess-\(UUID())").resolvingSymlinksInPath()
+    defer { try? FileManager.default.removeItem(at: home) }
+    let cache = home.appendingPathComponent("Library/Caches/com.apple.Safari/WebKit/NetworkCache/Version 17/Records/AB")
+    try FileManager.default.createDirectory(at: cache, withIntermediateDirectories: true)
+    try Data(repeating: 1, count: 2_048).write(to: cache.appendingPathComponent("0123"))
+    let catalog = Catalog(rules: fixtureRules)
+
+    let denied = catalog.discovery(fixture: home, access: .notGranted)
+    #expect(denied.notAccessible.map(\.id) == ["safari-cache"])
+    // Not offered and not sized, so Overview can't show it as 0: it's listed as not accessible instead.
+    #expect(!denied.candidates.contains { $0.ruleID == "safari-cache" })
+
+    let granted = catalog.discovery(fixture: home, access: .granted)
+    #expect(granted.notAccessible.isEmpty)
+    #expect(granted.candidates.filter { $0.ruleID == "safari-cache" }.map(\.logicalBytes) == [2_048])
 }

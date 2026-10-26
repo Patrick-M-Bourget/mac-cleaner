@@ -180,3 +180,44 @@ private func writeText(_ root: URL, _ relative: String, _ text: String) throws {
 private func plist(_ values: [String: String]) -> String {
     String(decoding: try! PropertyListSerialization.data(fromPropertyList: values, format: .xml, options: 0), as: UTF8.self)
 }
+
+/// Safari's data as macOS and WebKit lay it out: history and bookmarks under ~/Library/Safari, cookies under
+/// ~/Library/Cookies, website data under ~/Library/WebKit, and WebKit's caches folder for the default data store.
+/// Only that store's NetworkCache (WebKit's HTTP cache) is a cache; CacheStorage (the Cache API) and HSTS are site data.
+private let safariData = ["Library/Safari/History.db", "Library/Safari/Bookmarks.plist", "Library/Safari/LocalStorage/https_example.com_0.localstorage",
+                          "Library/Safari/Databases/Databases.db", "Library/Cookies/Cookies.binarycookies",
+                          "Library/WebKit/com.apple.Safari/WebsiteData/Default/salt", "Library/WebKit/com.apple.Safari/WebsiteData/LocalStorage/StorageTracker.db",
+                          "Library/Caches/com.apple.Safari/WebKit/CacheStorage/salt", "Library/Caches/com.apple.Safari/WebKit/HSTS/HSTS.plist",
+                          "Library/Containers/com.apple.Safari/Data/Library/Safari/History.db"]
+private let safariCache = "Library/Caches/com.apple.Safari/WebKit/NetworkCache"
+
+@Test func safariOffersOnlyItsWebKitNetworkCache() throws {
+    let home = try fixtureHome()
+    defer { try? FileManager.default.removeItem(at: home) }
+    for item in safariData { try write(home, item) }
+    try write(home, safariCache + "/Version 17/Records/ABCD/Resource/0123", bytes: 4_096)
+    let catalog = Catalog(rules: fixtureRules)
+    let found = catalog.discover(fixture: home)
+    #expect(found.map(\.url.path) == [home.appendingPathComponent(safariCache).path])
+    let cache = try #require(found.first)
+    #expect(cache.ruleID == "safari-cache" && cache.action == .delete && cache.isDirectory && cache.logicalBytes == 4_096)
+    #expect(catalog.rule("safari-cache")?.category == .browser)
+}
+
+@Test func safarisCacheIsRefusedWhileSafariRunsOrOnceItHoldsSafariData() throws {
+    let home = try fixtureHome()
+    defer { try? FileManager.default.removeItem(at: home) }
+    try write(home, safariCache + "/Version 17/Records/ABCD/Resource/0123")
+    let catalog = Catalog(rules: fixtureRules)
+    let cache = try #require(catalog.discover(fixture: home).first)
+    let owner = try #require(catalog.owner(for: cache))
+    #expect(owner.bundleIDs == ["com.apple.Safari"])
+    #expect(owner.matches(["/Applications/Safari.app/Contents/MacOS/Safari"]))
+    #expect(CandidateCheck(catalog: catalog, running: Running(names: ["Safari"])).check(cache) == .ownerRunning("Safari"))
+    #expect(CandidateCheck(catalog: catalog, running: Running(names: [])).check(cache) == nil)
+    for item in ["Cookies.binarycookies", "LocalStorage", "CacheStorage", "History.db"] {
+        try write(home, safariCache + "/" + item + "/x")
+        #expect(CandidateCheck(catalog: catalog, running: Running(names: [])).check(cache) == .protected(item))
+        try FileManager.default.removeItem(at: home.appendingPathComponent(safariCache + "/" + item))
+    }
+}

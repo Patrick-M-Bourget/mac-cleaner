@@ -33,8 +33,10 @@ extension Catalog {
         discovery(fixture: home, userFolder: userFolder, exclusions: exclusions, inUse: inUse, now: now, locateTool: locateTool, systemRoot: systemRoot, cloud: cloud).candidates
     }
     func discovery(fixture home: URL, userFolder: URL? = nil, exclusions: ExclusionPolicy = ExclusionPolicy(), inUse: any InUseChecking = FixtureNothingInUse(),
-                   now: Date = Date(), locateTool: (ToolCommand) -> URL? = { _ in nil }, systemRoot: URL? = nil, cloud: any UbiquitousItemAccess = FakeCloud()) -> CatalogDiscovery {
-        discovery(home: home, userFolder: userFolder, exclusions: exclusions, inUse: inUse, now: now, locateTool: locateTool, systemRoot: systemRoot ?? home, cloud: cloud)
+                   now: Date = Date(), locateTool: (ToolCommand) -> URL? = { _ in nil }, systemRoot: URL? = nil, cloud: any UbiquitousItemAccess = FakeCloud(),
+                   access: FullDiskAccessStatus = .granted) -> CatalogDiscovery {
+        discovery(home: home, userFolder: userFolder, exclusions: exclusions, inUse: inUse, now: now, locateTool: locateTool, systemRoot: systemRoot ?? home, cloud: cloud,
+                  access: access)
     }
 }
 

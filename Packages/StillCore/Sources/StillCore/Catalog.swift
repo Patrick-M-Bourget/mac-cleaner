@@ -130,15 +130,17 @@ public struct CleanupRule: Sendable, Identifiable {
     public let unprotectedExtensions: Set<String>
     /// Its locations are ones macOS protects (Safari's data): without Full Disk Access they're shown as not accessible.
     public let requiresFullDiskAccess: Bool
+    /// macOS folder names (`com.apple.…`) this rule may act inside, such as Safari's own caches folder. Every other one stays protected.
+    public let unprotectedNames: Set<String>
     public init(id: String, category: CatalogCategory, title: String, detail: String, consequence: String, regen: RegenClass, action: CleanupAction, locations: [String], owner: RuleOwner?, protectedNames: [String] = [], tool: ToolCommand? = nil, protectedExtensions: [String] = [], contents: ContentsMatch? = nil, keepNewestVersions: Int? = nil, layoutOverrides: [LayoutOverride] = [], base: LocationBase = .home, copies: LeakedCopies? = nil, itemName: (@Sendable (String) -> String?)? = nil, items: CatalogItems? = nil, unprotectedExtensions: Set<String> = [],
-                itemOwner: (@Sendable (URL) -> RuleOwner?)? = nil, yieldsToOtherRules: Bool = false, protectedDepth: Int = 1, requiresFullDiskAccess: Bool = false) {
+                itemOwner: (@Sendable (URL) -> RuleOwner?)? = nil, yieldsToOtherRules: Bool = false, protectedDepth: Int = 1, requiresFullDiskAccess: Bool = false, unprotectedNames: Set<String> = []) {
         self.id = id; self.category = category; self.title = title; self.detail = detail; self.consequence = consequence
         self.regen = regen; self.action = action; self.locations = locations; self.owner = owner; self.protectedNames = protectedNames; self.tool = tool
         self.protectedExtensions = protectedExtensions; self.contents = contents; self.keepNewestVersions = keepNewestVersions; self.layoutOverrides = layoutOverrides
         self.base = base; self.copies = copies
         self.itemName = itemName; self.items = items; self.unprotectedExtensions = unprotectedExtensions
         self.itemOwner = itemOwner; self.yieldsToOtherRules = yieldsToOtherRules; self.protectedDepth = protectedDepth
-        self.requiresFullDiskAccess = requiresFullDiskAccess
+        self.requiresFullDiskAccess = requiresFullDiskAccess; self.unprotectedNames = unprotectedNames
     }
 }
 
@@ -333,8 +335,10 @@ public struct Catalog: Sendable {
     }
 
     /// `discover`, plus notes on rules that kept items back, such as copies kept because their use couldn't be checked.
+    /// A rule that needs Full Disk Access Still doesn't have (`access`) is never read; it comes back in `notAccessible`.
     public func discovery(home: URL, userFolder: URL? = nil, exclusions: ExclusionPolicy = ExclusionPolicy(), inUse: any InUseChecking = SystemInUseChecker(), sizer: KnownLocationSizer = KnownLocationSizer(), now: Date = Date(), locateTool: (ToolCommand) -> URL? = ToolCommand.installed,
-                          systemRoot: URL = URL(fileURLWithPath: "/"), cloud: any UbiquitousItemAccess = SystemUbiquitousItems()) -> CatalogDiscovery {
+                          systemRoot: URL = URL(fileURLWithPath: "/"), cloud: any UbiquitousItemAccess = SystemUbiquitousItems(), access: FullDiskAccessStatus = .unknown) -> CatalogDiscovery {
+        let notAccessible = rules.filter { $0.access(given: access) == .needsFullDiskAccess }
         let homeBase = home.resolvingSymlinksInPath(), userBase = userFolder
         var seen = Set<String>()
         var notes: [CatalogNote] = []
@@ -342,7 +346,7 @@ public struct Catalog: Sendable {
         var dockerUsage: [String: Result<[DockerStorageCategory], ToolPreviewError>] = [:]
         let overridden = Set(overriddenRules(home: home, systemRoot: systemRoot).map(\.id))
         let candidates = rules.flatMap { rule -> [Candidate] in
-            guard !overridden.contains(rule.id), let base = rule.base == .home ? homeBase : userBase else { return [] }
+            guard !overridden.contains(rule.id), !notAccessible.contains(where: { $0.id == rule.id }), let base = rule.base == .home ? homeBase : userBase else { return [] }
             // What an earlier cleanup left half-deleted comes back under the same rule, even if its tool is gone.
             let leftovers = leftovers(of: rule, in: base, sizer: sizer)
             let toolURL = rule.tool.flatMap(locateTool)
@@ -399,7 +403,7 @@ public struct Catalog: Sendable {
             if !exclusions.rules.isEmpty, candidate.volumeID.map({ exclusions.covers(candidate.url, volumeID: $0) }) ?? true { return false }
             return seen.insert(spaceKey(of: candidate)).inserted
         }
-        return CatalogDiscovery(candidates: candidates, notes: notes)
+        return CatalogDiscovery(candidates: candidates, notes: notes, notAccessible: notAccessible)
     }
 
     /// What a candidate's space is keyed on, so the same space is offered and counted once: the item itself, or for a tool
