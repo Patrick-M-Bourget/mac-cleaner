@@ -23,7 +23,7 @@ extension Catalog {
             ((try? FileManager.default.contentsOfDirectory(atPath: folder.path)) ?? []).sorted().filter { Self.isLeftover($0, of: rule.id) }.compactMap { name -> Candidate? in
                 let url = folder.appendingPathComponent(name)
                 var info = stat()
-                guard ScopeContainment.contains(url, in: base), lstat(url.path, &info) == 0, info.st_uid == geteuid(),
+                guard Protection(rule).protectedComponent(of: url, below: base) == nil, ScopeContainment.contains(url, in: base), lstat(url.path, &info) == 0, info.st_uid == geteuid(),
                       [S_IFDIR, S_IFREG].contains(info.st_mode & S_IFMT) else { return nil }
                 if info.st_mode & S_IFMT == S_IFDIR, CandidateCheck.protectedEntry(in: url, rule: rule) != nil { return nil }
                 let size = sizer.size(url)

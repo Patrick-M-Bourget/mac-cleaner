@@ -70,11 +70,11 @@ extension Catalog {
     func leakedCopies(_ rule: CleanupRule, _ copies: LeakedCopies, in root: URL, sizer: KnownLocationSizer, inUse checker: any InUseChecking) -> ([Candidate], CatalogNote?) {
         var rootInfo = stat()
         guard lstat(root.path, &rootInfo) == 0, rootInfo.st_mode & S_IFMT == S_IFDIR, rootInfo.st_uid == geteuid() else { return ([], nil) }
-        let protectedExtensions = CandidateCheck.protectedExtensions.union(rule.protectedExtensions)
+        let protection = Protection(rule)
         let found = ((try? FileManager.default.contentsOfDirectory(atPath: root.path)) ?? []).compactMap { name -> (URL, stat)? in
             var info = stat()
             let url = root.appendingPathComponent(name)
-            guard !name.hasPrefix("."), !protectedExtensions.contains(url.pathExtension.lowercased()),
+            guard !name.hasPrefix("."), !protection.protects(name),
                   lstat(url.path, &info) == 0, info.st_mode & S_IFMT == S_IFDIR, info.st_uid == geteuid() else { return nil }
             return (url, info)
         }

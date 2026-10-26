@@ -33,10 +33,6 @@ public struct CandidateCheck: Sendable {
     public let exclusions: ExclusionPolicy
     /// Whether a leaked copy is in use now (rules with `copies`).
     public let inUse: any InUseChecking
-    /// Never candidates, as the item, an ancestor or a top-level entry inside it (git work, Trash, backups).
-    static let protectedNames: Set<String> = [".git", ".Trash", "Backups.backupdb"]
-    static let protectedExtensions: Set<String> = ["app", "bundle", "framework", "xcarchive", "photoslibrary", "photolibrary", "musiclibrary", "backupbundle", "sparsebundle", "band", "logicx"]
-    static func protectedNames(for rule: CleanupRule) -> Set<String> { protectedNames.union(Catalog.neverOffered).union(rule.protectedNames) }
     /// At most this many entries are looked at; a deeper search that would need more refuses the folder.
     static let protectedSearchLimit = 200_000
 
@@ -47,8 +43,7 @@ public struct CandidateCheck: Sendable {
     /// The first protected entry inside a folder candidate: the rule's protected names to its own depth, and
     /// `.git` to `gitSearchDepth` whatever the rule. Discovery leaves such folders out; the check refuses them.
     static func protectedEntry(in folder: URL, rule: CleanupRule) -> String? {
-        let names = protectedNames(for: rule)
-        if let found = protectedEntry(in: folder, names: names, depth: rule.protectedDepth) { return found }
+        if let found = protectedEntry(in: folder, names: Protection(rule).names, depth: rule.protectedDepth) { return found }
         return rule.protectedDepth >= gitSearchDepth ? nil : protectedEntry(in: folder, names: [".git"], depth: gitSearchDepth)
     }
 
@@ -101,7 +96,7 @@ public struct CandidateCheck: Sendable {
         guard type == (candidate.isDirectory ? S_IFDIR : S_IFREG), "\(info.st_dev):\(info.st_ino)" == candidate.resourceID else { return .changed }
         // The same folder moved out of scope and reached through a symlink keeps its identity, so containment is checked too.
         guard let root = candidate.scopeRoot, ScopeContainment.contains(candidate.url, in: root) else { return .changed }
-        if let part = candidate.url.pathComponents.dropFirst(root.pathComponents.count).first(where: AppCaches.isMacOSOrStill) { return .protected(part) }
+        if let part = Protection(rule).protectedComponent(of: candidate.url, below: root) { return .protected(part) }
         if !candidate.isDirectory {
             // Files must be byte-for-byte the observed version; cache folders churn, so folders keep identity only.
             guard Int64(info.st_size) == candidate.fileBytes ?? candidate.logicalBytes, Int64(info.st_mtimespec.tv_sec) == candidate.modifiedSeconds,
@@ -117,11 +112,6 @@ public struct CandidateCheck: Sendable {
         let values = try? candidate.url.resourceValues(forKeys: [.volumeUUIDStringKey, .isUbiquitousItemKey])
         if values?.isUbiquitousItem == true || info.st_flags & UInt32(SF_DATALESS) != 0 { return .cloud }
         guard let volume = values?.volumeUUIDString, volume == candidate.volumeID else { return .changed }
-        let names = Self.protectedNames(for: rule)
-        let extensions = Self.protectedExtensions.subtracting(rule.unprotectedExtensions).union(rule.protectedExtensions)
-        for part in candidate.url.pathComponents {
-            if names.contains(part) || extensions.contains(URL(fileURLWithPath: part).pathExtension.lowercased()) { return .protected(part) }
-        }
         if candidate.isDirectory, let name = Self.protectedEntry(in: candidate.url, rule: rule) { return .protected(name) }
         if exclusions.covers(candidate.url, volumeID: volume) { return .excluded }
         return nil

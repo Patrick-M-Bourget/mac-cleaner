@@ -153,3 +153,15 @@ private final class RecordingTrash: TrashMoving, @unchecked Sendable {
     #expect(!owner.matches(["/usr/bin/python3", "train.py", "hf"]))
     #expect(!owner.matches(["/usr/bin/python3", "/p/serve.py"]))
 }
+
+@Test func aScanNeverOffersWhatTheCheckRefuses() throws {
+    let home = try fixtureFolder("StillScopeHome")
+    defer { try? FileManager.default.removeItem(at: home) }
+    for file in ["Downloads/ccache/setup.dmg", "Downloads/Still/setup.dmg", "Downloads/com.apple.Thing/setup.zip", "Downloads/kept.dmg",
+                 "Library/Logs/Editor/log.txt", "Library/Logs/com.apple.xpc/log.txt", ".cargo/registry/index/entry"] { try write(home, file) }
+    let catalog = Catalog(rules: fixtureRules)
+    let found = catalog.discover(fixture: home)
+    #expect(Set(found.map(\.url.lastPathComponent)) == ["kept.dmg", "Editor", "registry"])
+    let check = CandidateCheck(catalog: catalog, running: NothingRunning())
+    for candidate in found { #expect(check.check(candidate) == nil, "\(candidate.url.path)") }
+}

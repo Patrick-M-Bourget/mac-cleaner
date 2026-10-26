@@ -3,7 +3,7 @@ import Foundation
 
 /// Updater downloads, per-app caches and the user's logs (#103).
 public enum AppCaches {
-    /// Still's own folders are never offered, whatever their name.
+    /// Still's own folders, never offered under any rule (`Protection`).
     static let stillNames = ["Still", "com.patrickbourget.Still", "com.patrickbourget.StillUITests"]
 
     /// Levels searched for a git checkout or other protected name inside a cache or log folder. A path under Caches
@@ -57,23 +57,23 @@ public enum AppCaches {
                         consequence: "Permanently removed. An update that wasn’t installed yet is downloaded again the next time the app updates. An app must be closed first.",
                         regen: .updaterDownload, action: .delete,
                         locations: ["Library/Caches/*/" + sparkleFolder, "Library/Caches/*.ShipIt", "Library/Caches/*-updater"], owner: nil,
-                        protectedNames: stillNames, itemOwner: { updaterOwner($0, apps: apps) }, protectedDepth: liveWorkDepth),
+                        itemOwner: { updaterOwner($0, apps: apps) }, protectedDepth: liveWorkDepth),
             CleanupRule(id: "app-caches", category: .system, title: "App caches",
                         detail: "Files apps keep in your Library to start and work faster, per app.",
                         consequence: "Permanently removed. Each app rebuilds its cache as you use it, so it may be slower at first. An app must be closed first; Still never quits it for you.",
                         regen: .cache, action: .delete, locations: ["Library/Caches/*"], owner: nil,
-                        protectedNames: stillNames, itemOwner: { installedOwner($0.lastPathComponent, apps: apps) }, yieldsToOtherRules: true, protectedDepth: liveWorkDepth),
+                        itemOwner: { installedOwner($0.lastPathComponent, apps: apps) }, yieldsToOtherRules: true, protectedDepth: liveWorkDepth),
             // Crash reports first, so ~/Library/Logs/DiagnosticReports is listed once, as crash reports.
             CleanupRule(id: "crash-reports", category: .logs, title: "Crash reports",
                         detail: "Reports macOS wrote when your apps crashed or stopped responding.",
                         consequence: "Permanently removed. They can no longer be sent to a developer; macOS writes new ones if an app crashes again.",
                         regen: .log, action: .delete, locations: ["Library/Logs/DiagnosticReports"], owner: nil,
-                        protectedNames: stillNames, protectedDepth: liveWorkDepth),
+                        protectedDepth: liveWorkDepth),
             CleanupRule(id: "app-logs", category: .logs, title: "App logs",
                         detail: "Logs apps keep in your Library, per app.",
                         consequence: "Permanently removed. Apps write new logs as they run; past logs are no longer available for troubleshooting.",
                         regen: .log, action: .delete, locations: ["Library/Logs/*"], owner: nil,
-                        protectedNames: stillNames, yieldsToOtherRules: true, protectedDepth: liveWorkDepth),
+                        yieldsToOtherRules: true, protectedDepth: liveWorkDepth),
         ]
     }
 }

@@ -324,9 +324,7 @@ public struct Catalog: Sendable {
                     ? Self.expand(location, in: base, keepNewestVersions: rule.keepNewestVersions).map { (base.appendingPathComponent($0), nil) }
                     : Self.expand(base, location).map { ($0.0, $0.1.isEmpty ? nil : $0.1.joined(separator: "/")) }
             }.flatMap { url, profile -> [Candidate] in
-                let below = url.pathComponents.dropFirst(base.pathComponents.count)
-                guard Self.neverOffered.isDisjoint(with: below), !below.contains(where: AppCaches.isMacOSOrStill),
-                      ScopeContainment.contains(url, in: base) else { return [] }
+                guard Protection(rule).protectedComponent(of: url, below: base) == nil, ScopeContainment.contains(url, in: base) else { return [] }
                 if let copies = rule.copies {
                     let (found, note) = leakedCopies(rule, copies, in: url, sizer: sizer, inUse: inUse)
                     notes += note.map { [$0] } ?? []
@@ -409,8 +407,7 @@ public struct Catalog: Sendable {
 
     /// Regular files under `root` that match. Never follows symlinks, crosses volumes or enters packages and protected folders.
     private func files(in root: URL, matching match: ContentsMatch, rule: CleanupRule, now: Date) -> [Candidate] {
-        let protectedNames = CandidateCheck.protectedNames.union(rule.protectedNames)
-        let protectedExtensions = CandidateCheck.protectedExtensions.subtracting(rule.unprotectedExtensions).union(rule.protectedExtensions)
+        let protection = Protection(rule)
         let path = strdup(root.path)
         defer { free(path) }
         var paths: [UnsafeMutablePointer<CChar>?] = [path, nil]
@@ -424,10 +421,10 @@ public struct Catalog: Sendable {
             let name = url.lastPathComponent, ext = url.pathExtension.lowercased()
             if kind == FTS_D {
                 let package = (try? url.resourceValues(forKeys: [.isPackageKey]).isPackage) == true
-                if entry.pointee.fts_level > 0, package || protectedNames.contains(name) || protectedExtensions.contains(ext) { fts_set(tree, entry, FTS_SKIP) }
+                if entry.pointee.fts_level > 0, package || protection.protects(name) { fts_set(tree, entry, FTS_SKIP) }
                 continue
             }
-            guard info.st_uid == geteuid(), !protectedExtensions.contains(ext), info.st_flags & UInt32(SF_DATALESS) == 0 else { continue }
+            guard info.st_uid == geteuid(), !protection.protects(name), info.st_flags & UInt32(SF_DATALESS) == 0 else { continue }
             if !match.extensions.isEmpty, !match.extensions.contains(ext) { continue }
             if let minimum = match.minimumBytes, Int64(info.st_size) < minimum { continue }
             if match.besideCompressedSource, !Self.hasCompressedSource(url, size: Int64(info.st_size)) { continue }
