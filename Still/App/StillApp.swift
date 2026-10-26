@@ -427,6 +427,13 @@ private struct WorkspaceView: View {
                     Text(summary.map { recommendedText($0.recommended) } ?? (catalog.isScanning ? "Checking known locations…" : "Not measured yet"))
                         .font(.caption).foregroundStyle(.secondary).monospacedDigit().accessibilityIdentifier("overviewRecommendedTotal")
                 }
+                if summary != nil, !catalog.recommendedCandidates.isEmpty {
+                    // The one way anything is preselected: rebuildable data only, then straight to the review (#137, Decision 28).
+                    Button("Recommended plan · " + catalog.recommendedSizeText + " · Review", action: openRecommendedPlan)
+                        .buttonStyle(.borderedProminent).controlSize(.small).disabled(!catalog.canEdit || selection.workspaceRunning)
+                        .help("Caches, build data, update downloads, logs and leftover app copies that rebuild themselves. You see every item before anything changes.")
+                        .accessibilityIdentifier("overviewRecommendedPlan")
+                }
                 if showsCloudInventory || checking || !shown.isEmpty {
                     RecommendationGroup {
                         if showsCloudInventory {
@@ -478,6 +485,11 @@ private struct WorkspaceView: View {
             actionTitle: "Review \(row.category.overviewTitle) in the cleanup plan",
             action: { navigate(.plan); planPresentation.expandedCategories.insert(row.category) },
             identifier: "overviewCategory-" + row.id)
+    }
+    /// Chooses the recommended plan and opens its review: Clean up there runs it, two clicks from Overview.
+    private func openRecommendedPlan() {
+        navigate(.plan)
+        Task { if await selection.catalog.chooseRecommendedPlan() { planPresentation.opensReview = true } }
     }
     /// SPEC section 6: an estimate, and an upper bound because clones share blocks.
     private func recommendedText(_ estimate: SizeEstimate) -> String {

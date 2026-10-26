@@ -755,3 +755,36 @@ final class TrashSpaceUITests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: trashed.path), "Opening the Trash changes nothing in it")
     }
 }
+
+extension CatalogCleanupUITests {
+    /// #137: Overview's recommended plan preselects only data that rebuilds itself and opens the review directly;
+    /// Clean up runs it, two clicks from Overview. The installer (Trash) and Homebrew (a tool) stay out of it.
+    @MainActor func testRecommendedPlanReviewsOnlyRebuildableItemsAndCleansUpInTwoClicks() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        let state = try configureIsolatedState(app)
+        let home = try configureCatalogHome(app)
+        turnOnDryRun(app)
+        let marker = try addDeveloperCaches(home, folders: ["Library/Caches/Homebrew"])
+        defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
+        app.launch()
+
+        let recommended = app.buttons["overviewRecommendedPlan"]
+        XCTAssertTrue(recommended.waitForExistence(timeout: 10))
+        XCTAssertTrue(recommended.label.hasPrefix("Recommended plan · "), recommended.label)
+        revealAndClick(recommended, in: app)
+
+        // The review opens on its own and lists only the npm cache.
+        XCTAssertTrue(reviewLine(app, "permanentlyRemoved", "developer").waitForExistence(timeout: 10))
+        XCTAssertFalse(reviewLine(app, "movedToTrash", "downloads").exists)
+        XCTAssertFalse(reviewLine(app, "commandsRun", "developer").exists)
+        XCTAssertTrue(app.descendants(matching: .any).matching(NSPredicate(format: "label == '1 item · Show files'")).firstMatch.exists)
+        cleanUpFromReview(app)
+
+        XCTAssertTrue(app.staticTexts["catalogPreviewNotice"].waitForExistence(timeout: 10))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: marker.path))
+        for kept in [".npm/_cacache/content-v2/sha512/ab/blob", "Downloads/Setup.dmg", "Library/Caches/Homebrew/entry"] {
+            XCTAssertTrue(FileManager.default.fileExists(atPath: home.appendingPathComponent(kept).path), kept)
+        }
+    }
+}
