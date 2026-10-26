@@ -21,7 +21,7 @@ Use `StillDesign.Space` (`xs`, `sm`, `md`, `lg`, `xl`, `page`) for the 4/8/12/16
 
 `StillDesign.adaptive` centralizes the approved reference palette as sRGB light/dark pairs. Reading planes are white / `#171719`, summary surfaces `#F7F8FA` / `#232328`, and the dark sidebar `#242428`. Sidebar selection uses a quiet `#E5EDFA` / `#353E51` gradient, rather than a saturated flat accent wash. Keep system text, disabled, focus and separator semantics. The light sidebar stays white. `AppBrand` owns the restrained blue-to-lilac mark; do not recreate it in screens.
 
-Page titles retain the 26-point medium hierarchy with restrained tracking; summary values use 22-point medium and section labels explicit 13-point medium. `SelectionSummary.consequence` groups a wrapped caption with its value rather than adding another full-height page section.
+Page titles retain the 26-point medium hierarchy with restrained tracking; summary values use 22-point medium and section labels explicit 13-point medium. `SelectionSummary.consequence` groups a wrapped caption with its value rather than adding another full-height page section. Its optional `title` defaults to **Selected for Trash** for Downloads-only selection. If any Chrome group is selected, the live plan passes **Selected for cleanup**, including Chrome-only selection; permanent cache actions must never be described as going to Trash. Keep category counts and each action’s consequence explicit. The inert Gallery includes both title variants. Source9ba40be implements this distinction; final native presentation verification remains pending.
 
 `StorageCategory` supplies a local badge accent and SF Symbol: cloud blue, developer purple, Downloads orange, browser teal, managed indigo. These identify categories; they do not indicate risk, selection or eligibility. `StatusRole` supplies neutral/success/caution/failure icon treatment with an explicit text explanation. Never make meaning depend on color alone.
 
@@ -32,7 +32,7 @@ The app target owns these internal SwiftUI components; they are presentation pri
 | Component | Role |
 |---|---|
 | `PageHeader` | Quiet page title and optional single explanatory subtitle |
-| `SummarySurface`, `SelectionSummary`, `VolumeSummary` | Subdued grouped evidence, selected-for-Trash value/detail/consequence and observed startup-volume capacity |
+| `SummarySurface`, `SelectionSummary`, `VolumeSummary` | Subdued grouped evidence, action-appropriate selection title/value/detail/consequence and observed startup-volume capacity |
 | `RecommendationGroup`, `StorageReviewRow` | Bordered reading-plane category group with shared dividers; badge/title/consequence and trailing amount/meaning; active rows expose action, category, consequence and amount through accessibility, unavailable rows have no dead affordance |
 | `FindingRow`, `CategoryBadge` | Category hierarchy, consequence and explicit accessory action |
 | `InspectableItemRow` | Separate selection control from filename inspection; size aligned at trailing edge |
