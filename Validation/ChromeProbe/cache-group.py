@@ -3,7 +3,7 @@
 Group approval is directory identity, never authority for personal-file cleanup.
 Process observations and descriptor traversal do not eliminate final-unlink races.
 """
-import argparse, json, os, pathlib, re, stat, subprocess, sys, time
+import argparse, hashlib, json, os, pathlib, platform, re, stat, subprocess, sys, time
 FLAGS = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
 
 def identity(info): return [info.st_dev, info.st_ino, info.st_uid]
@@ -43,20 +43,75 @@ def open_chain(root, cache):
         for fd in opened: os.close(fd)
         raise
 
+def standard_scope(proof_path, root, cache, bundle):
+    # Qualification authority only: same fresh hosted run, never production or a
+    # process-fixture escape hatch. Default owned-root behavior stays unchanged.
+    if (os.environ.get('GITHUB_ACTIONS') != 'true' or
+            os.environ.get('RUNNER_ENVIRONMENT') != 'github-hosted' or
+            platform.system() != 'Darwin' or
+            os.environ.get('STILL_CHROME_PROBE_PROCESS_FIXTURE')):
+        raise ValueError('hosted standard proof required')
+    try:
+        runner = pathlib.Path(os.environ['RUNNER_TEMP']).resolve(strict=True)
+        root.relative_to(runner)
+        proof_file = pathlib.Path(proof_path)
+        if proof_file.is_symlink() or proof_file.resolve(strict=True) != proof_file:
+            raise ValueError('noncanonical proof')
+        proof_file.relative_to(runner)
+        proof = json.loads(proof_file.read_text())
+        if (proof.get('schema') != 1 or proof.get('githubRunID') != os.environ['GITHUB_RUN_ID'] or
+                proof.get('githubSHA') != os.environ['GITHUB_SHA'] or
+                proof.get('initialRootsAbsent') is not True or
+                proof.get('browserProfilePathMatched') is not True or
+                proof.get('result') != 'passed mapping observation'):
+            raise ValueError('missing fresh same-run mapping')
+        expected_data = pathlib.Path.home()/'Library/Application Support/Google/Chrome'
+        expected_cache = pathlib.Path.home()/'Library/Caches/Google/Chrome'
+        if (proof.get('dataRoot') != str(expected_data) or proof.get('cacheRoot') != str(expected_cache) or
+                proof.get('actualProfilePath') != str(expected_data/'Default') or
+                proof.get('cacheGroup') != str(cache) or cache != expected_cache/'Default/Cache/Cache_Data'):
+            raise ValueError('unmatched standard scope')
+        for key, path in [('dataRootIdentity', expected_data), ('cacheRootIdentity', expected_cache),
+                          ('groupIdentity', cache)]:
+            if path.is_symlink() or path.resolve(strict=True) != path or identity(path.stat()) != proof.get(key):
+                raise ValueError('standard root identity changed')
+        provenance_path = pathlib.Path(proof['verifiedProvision'])
+        if provenance_path.is_symlink() or provenance_path.resolve(strict=True) != provenance_path:
+            raise ValueError('invalid provision path')
+        provenance_path.relative_to(runner)
+        vendor = json.loads(provenance_path.read_text())
+        if (vendor.get('githubRunID') != os.environ['GITHUB_RUN_ID'] or
+                vendor.get('githubSHA') != os.environ['GITHUB_SHA'] or
+                vendor.get('provisioningComplete') is not True or
+                vendor.get('sealedBundleVerified') is not True or vendor.get('bundle') != str(bundle)):
+            raise ValueError('unmatched verified vendor')
+        bundle.resolve(strict=True).relative_to(runner)
+        binary = bundle/'Contents/MacOS/Google Chrome'
+        if hashlib.sha256(binary.read_bytes()).hexdigest() != vendor['executableSHA256']:
+            raise ValueError('vendor executable changed')
+        requirement = 'anchor apple generic and identifier "com.google.Chrome" and certificate leaf[subject.OU] = "EQHXZ8M8AV"'
+        subprocess.run(['/usr/bin/codesign','--verify','--deep','--strict','-R='+requirement,str(bundle)],
+                       check=True, capture_output=True, timeout=90)
+        return expected_cache
+    except Exception as error:
+        raise ValueError('invalid standard proof: '+str(error)) from error
+
 def run():
     root, cache, bundle = map(pathlib.Path, sys.argv[1:4]); command = sys.argv[4]
     options = argparse.ArgumentParser(description='Disposable qualification pacing; not production performance evidence')
     options.add_argument('--progress', action='store_true')
+    options.add_argument('--standard-proof')
     options.add_argument('--pace-ms', type=int, default=0)
     settings = options.parse_args(sys.argv[5:])
     if not 0 <= settings.pace_ms <= 1000: raise ValueError('qualification pace must be 0–1000 ms')
     if not root.is_absolute() or not root.name.startswith('StillChromeProbe-') or root != root.resolve(): raise ValueError('owned canonical disposable root required')
     if not cache.is_absolute() or cache.name != 'Cache_Data' or cache.parent.name != 'Cache': raise ValueError('explicit asset cache group required')
     if not bundle.is_absolute(): raise ValueError('explicit browser bundle required')
-    relative = cache.relative_to(root)
+    traversal_root = standard_scope(settings.standard_proof, root, cache, bundle) if settings.standard_proof else root
+    relative = cache.relative_to(traversal_root)
     if any(p in ('', '.', '..') for p in relative.parts): raise ValueError('invalid group path')
     activity(str(bundle), root)
-    opened = open_chain(root, cache)
+    opened = open_chain(traversal_root, cache)
     try:
         observed = {'schema': 1, 'relativeGroup': str(relative), 'directories': [identity(os.fstat(fd)) for fd in opened]}
         if command == 'observe': print(json.dumps(observed)); return
@@ -84,7 +139,7 @@ def run():
                 activity(str(bundle), root)
                 # Reopen the path to detect a replaced group or ancestor between
                 # operations, while deletion stays anchored to held descriptors.
-                fresh = open_chain(root, cache)
+                fresh = open_chain(traversal_root, cache)
                 try:
                     if [identity(os.fstat(x)) for x in fresh] != observed['directories']: raise ValueError('group changed during cleanup')
                 finally:

@@ -2,9 +2,11 @@
 """Hosted-only default Stable split-root observation; never cleans personal files.
 
 Usage: standard-profile.py VERIFIED_PROVISION_JSON NEW_EVIDENCE_DIRECTORY
-No CDP, preference/DB seeding, installer, or default-root cleanup capability.
+No CDP, preference/DB seeding or installer; same-run fresh roots only.
 """
 import hashlib
+import html
+import stat
 import http.server
 import json
 import os
@@ -70,16 +72,17 @@ def main():
         raise ValueError('fresh absolute evidence destination required')
     evidence.parent.resolve(strict=True).relative_to(runner)
     evidence.mkdir(mode=0o700)
-    report = {'schema': 1, 'qualification': 'standard default-root mapping only',
+    report = {'schema': 1, 'qualification': 'fresh standard split-root close-and-clean',
               'productionMutationSupported': False, 'githubSHA': os.environ['GITHUB_SHA'],
               'githubRunID': os.environ['GITHUB_RUN_ID'], 'version': provenance['version'],
               'executableSHA256': provenance['executableSHA256'],
               'dataRoot': str(data), 'cacheRoot': str(cache),
               'cleanupExercised': False, 'personalFilesInspected': False,
+              'initialRootsAbsent': True, 'verifiedProvision': str(provenance_path),
               'limitations': ['headless browser-created default profile, not headed daily use',
                              'no saved-password/address semantics in this check',
                              'managed/custom disk-cache/shared layouts unsupported',
-                             'no split-root deletion authority introduced']}
+                             'hosted fresh-root qualification authority only; no production adapter']}
     save = lambda: (evidence / 'report.json').write_text(json.dumps(report, indent=2) + '\n')
     save()
     # These flags affect presentation/first-run only; no sandbox/signature/security bypass.
@@ -114,9 +117,11 @@ def main():
     try:
         dom = launch('chrome://version', 'browser-version')
         expected_profile = data / 'Default'
-        if str(expected_profile) not in dom:
+        match = re.search(r'id=[\"\']profile_path[\"\'][^>]*>(.*?)</td>', dom, re.S)
+        actual_profile = html.unescape(re.sub('<[^>]+>', '', match.group(1))).strip() if match else None
+        if actual_profile != str(expected_profile):
             raise ValueError('browser-owned Profile Path does not identify standard Default')
-        report['browserProfilePathMatched'] = True
+        report.update(browserProfilePathMatched=True, actualProfilePath=actual_profile)
         launch('http://127.0.0.1:' + str(server.server_port) + '/', 'loopback')
         if '/asset.js' not in requests:
             raise ValueError('browser did not request synthetic downloaded asset')
@@ -132,7 +137,60 @@ def main():
             raise ValueError('browser-created group empty')
         report.update(browserRequestedAsset=True, cacheGroup=str(group),
                       groupIdentity=[group_info.st_dev, group_info.st_ino, group_info.st_uid],
+                      dataRootIdentity=[data.stat().st_dev, data.stat().st_ino, data.stat().st_uid],
+                      cacheRootIdentity=[cache.stat().st_dev, cache.stat().st_ino, cache.stat().st_uid],
                       immediateCacheEntryCount=len(leaves), result='passed mapping observation')
+        save()  # Proof is usable only after actual browser-reported mapping.
+        owned = runner / 'StillChromeProbe-Standard'
+        owned.mkdir(mode=0o700)  # existing sandbox means this is not a fresh experiment
+        def protected_snapshot():
+            snapshot = {}
+            total = 0
+            for directory, directories, files in os.walk(data, followlinks=False):
+                for name in directories + files:
+                    target = pathlib.Path(directory) / name
+                    item = target.lstat()
+                    key = str(target.relative_to(data))
+                    if stat.S_ISLNK(item.st_mode):
+                        snapshot[key] = ['link', os.readlink(target)]
+                    elif stat.S_ISREG(item.st_mode):
+                        total += item.st_size
+                        if total > 500 * 1024**2:
+                            raise ValueError('bounded protected-data snapshot exceeded')
+                        snapshot[key] = ['file', item.st_size, hashlib.sha256(target.read_bytes()).hexdigest()]
+                    elif not stat.S_ISDIR(item.st_mode):
+                        raise ValueError('unexpected protected profile object')
+            return snapshot
+        protected = protected_snapshot()
+        if not protected:
+            raise ValueError('no browser-created protected profile data')
+        helper = pathlib.Path(__file__).with_name('cache-group.py')
+        args = [sys.executable, str(helper), str(owned), str(group), str(bundle)]
+        option = ['--standard-proof', str(evidence / 'report.json')]
+        observe = subprocess.run(args + ['observe'] + option, capture_output=True, text=True, timeout=120)
+        (evidence / 'observe.stdout').write_text(observe.stdout)
+        (evidence / 'observe.stderr').write_text(observe.stderr)
+        if observe.returncode:
+            raise ValueError('standard group observation refused')
+        clean = subprocess.run(args + ['clean'] + option, input=observe.stdout,
+                               capture_output=True, text=True, timeout=120)
+        (evidence / 'cleanup.stdout').write_text(clean.stdout)
+        (evidence / 'cleanup.stderr').write_text(clean.stderr)
+        if clean.returncode:
+            raise ValueError('standard group cleanup refused or stopped')
+        outcome = json.loads(clean.stdout)
+        if outcome.get('status') != 'completed' or outcome.get('removed', 0) <= 0:
+            raise ValueError('standard cleanup removed no eligible entries')
+        if protected_snapshot() != protected:
+            raise ValueError('protected browser-created profile changed during cache cleanup')
+        report.update(cleanupExercised=True, cleanup=outcome, protectedProfileUnchanged=True,
+                      protectedObjectCount=len(protected))
+        # Regrowth may legitimately update profile databases; compare them before reopening.
+        launch('http://127.0.0.1:' + str(server.server_port) + '/', 'regrowth')
+        if not any(re.fullmatch(r'[0-9a-f]{16}_[0-9]+', item.name) and item.is_file()
+                   for item in group.iterdir()):
+            raise ValueError('standard asset cache did not regenerate')
+        report.update(cacheRegenerated=True, result='passed standard split-root close-and-clean')
         if digest() != provenance['executableSHA256']:
             raise ValueError('executable changed during observation')
         subprocess.run(['/usr/bin/codesign', '--verify', '--deep', '--strict',
