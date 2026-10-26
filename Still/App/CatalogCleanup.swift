@@ -27,6 +27,8 @@ import SwiftUI
     }
     private(set) var isScanning = false
     private(set) var hasScanned = false
+    /// Watches for Full Disk Access being granted while Still was away (#124, `rescanIfFullDiskAccessGranted`).
+    var fullDiskAccessRescan = FullDiskAccessRescan()
     /// Chosen candidate ids. Nothing is preselected.
     private(set) var selectedIDs: Set<String> = []
     private(set) var selectionRevision: UInt64 = 0
@@ -187,6 +189,7 @@ import SwiftUI
                     access)
         }.value
         await GrowthHistoryModel.shared.completeCatalog(scanned.0, catalog: catalog, fullDiskAccess: scanned.4, token: growth)
+        fullDiskAccessRescan.scanned(scanned.4)
         discovered = scanned.0.candidates; notes = scanned.0.notes; notAccessibleRules = scanned.0.notAccessible; overriddenRules = scanned.1; runningOwners = scanned.2; ownerNames = scanned.3
         keepOnlyCurrentChoices()
         await scanGuidance(home: home, fullDiskAccess: scanned.4)

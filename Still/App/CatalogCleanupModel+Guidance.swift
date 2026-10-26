@@ -15,6 +15,13 @@ extension CatalogCleanupModel {
                              fullDiskAccess: fullDiskAccess)
         }.value
     }
+    /// Still became active: if Full Disk Access was granted while it was away, rescan the catalog and guidance once,
+    /// so "needs Full Disk Access" lines go away without Scan again (#124). Probing never asks for access.
+    func rescanIfFullDiskAccessGranted() async {
+        guard canEdit, !isScanning, let home = Self.home else { return }
+        guard fullDiskAccessRescan.activated(probing: FullDiskAccessProbe(home: home)) else { return }
+        await scan()
+    }
     /// Opens where the finding is managed: its app, a System Settings pane, or the folder in Finder.
     func open(_ finding: GuidanceFinding) async {
         let name = guidanceRule(finding)?.guidance?.placeName ?? "it"

@@ -73,6 +73,32 @@ final class LaunchSmokeUITests: XCTestCase {
         app.buttons["closeFullDiskAccess"].click()
         XCTAssertFalse(app.staticTexts["Full Disk Access is optional"].waitForExistence(timeout: 2))
     }
+
+    /// #124: Full Disk Access granted while Still was away: coming back rescans once, and the "needs Full Disk Access"
+    /// line goes away without Scan again. The fixture's Safari folder opening again stands in for the grant.
+    @MainActor func testGrantingFullDiskAccessRescansWhenStillBecomesActive() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        let state = try configureIsolatedState(app)
+        let home = try configureCatalogHome(app)
+        let safari = home.appendingPathComponent("Library/Safari")
+        try FileManager.default.createDirectory(at: safari, withIntermediateDirectories: true)
+        try FileManager.default.setAttributes([.posixPermissions: 0], ofItemAtPath: safari.path)
+        defer {
+            app.terminate(); try? FileManager.default.removeItem(at: state)
+            try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: safari.path); try? FileManager.default.removeItem(at: home)
+        }
+        app.launch()
+        let denied = app.descendants(matching: .any)["overviewNotAccessible"]
+        XCTAssertTrue(denied.waitForExistence(timeout: 10))
+
+        let finder = XCUIApplication(bundleIdentifier: "com.apple.finder")
+        finder.activate()
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: safari.path)
+        app.activate()
+        let gone = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"), object: denied)
+        XCTAssertEqual(XCTWaiter.wait(for: [gone], timeout: 15), .completed, "Becoming active after the grant rescanned")
+    }
 }
 
 /// #119: the first catalog scan records a baseline; the next shows growth per category and location.
