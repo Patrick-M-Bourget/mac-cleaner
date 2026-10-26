@@ -62,3 +62,49 @@ private let legacyRecord = #"{"action":"moveToTrash","allocatedBytes":4096,"appr
     #expect(record.downloadsURL?.path == "/private/tmp/StillLegacy")
     #expect(try CleanupRecoverySnapshot(journal: reader).unresolvedCount == 1)
 }
+
+private struct Closed: RunningAppChecking { func isRunning(_ owner: RuleOwner) -> Bool? { false } }
+private struct RefusingTrash: TrashMoving {
+    var cancellation: CleanupCancellation?
+    func moveToTrash(_ url: URL) throws -> URL? { cancellation?.cancel(); throw CocoaError(.fileWriteNoPermission) }
+}
+private struct FailOutcomeJournal: CleanupJournaling {
+    let base: SQLiteCleanupJournal
+    func claim(batchID: UUID, records: [CleanupRecord]) throws -> Bool { try base.claim(batchID: batchID, records: records) }
+    func intent(_ record: CleanupRecord) throws { try base.intent(record) }
+    func outcome(_ record: CleanupRecord) throws { throw CleanupJournalError.unavailable }
+    func records() throws -> [CleanupRecord] { try base.records() }
+}
+private func twoInstallers() throws -> (URL, [Candidate]) {
+    let (home, downloads) = try fixtureDownloads()
+    for name in ["a.dmg", "b.dmg"] { try Data([1]).write(to: downloads.appendingPathComponent(name)) }
+    return (home, Catalog(rules: BuiltInCatalog.rules).discover(home: home).sorted { $0.url.path < $1.url.path })
+}
+
+@Test func anOutcomeThatCannotBeRecordedLeavesADurableIntentAndStopsTheNextItem() async throws {
+    let (home, candidates) = try twoInstallers()
+    defer { try? FileManager.default.removeItem(at: home) }
+    let url = home.appendingPathComponent("journal.sqlite")
+    let journal = try SQLiteCleanupJournal(url: url)
+    let check = CandidateCheck(catalog: Catalog(rules: BuiltInCatalog.rules), running: Closed())
+    let result = await CleanupExecutor(journal: FailOutcomeJournal(base: journal), check: check, measure: { _ in nil }, trash: RefusingTrash())
+        .execute(CatalogApproval(candidates: candidates, previewOnly: false))
+    #expect(result.records.map(\.state) == [.unknown, .cancelled])
+    #expect(result.journalFailure != nil)
+    let recovered = try SQLiteCleanupJournal(url: url).records()
+    #expect(recovered.map(\.state) == [.intent, .pending])
+    #expect(try CleanupRecoverySnapshot(journal: SQLiteCleanupJournal(url: url, readOnly: true)).unresolvedCount == 1)
+}
+
+@Test func cancellingATrashRunRecordsTheRestAsNotStarted() async throws {
+    let (home, candidates) = try twoInstallers()
+    defer { try? FileManager.default.removeItem(at: home) }
+    let journal = try SQLiteCleanupJournal(url: home.appendingPathComponent("journal.sqlite"))
+    let cancellation = CleanupCancellation()
+    let check = CandidateCheck(catalog: Catalog(rules: BuiltInCatalog.rules), running: Closed())
+    let result = await CleanupExecutor(journal: journal, check: check, measure: { _ in nil }, trash: RefusingTrash(cancellation: cancellation), cancellation: cancellation)
+        .execute(CatalogApproval(candidates: candidates, previewOnly: false))
+    #expect(result.records.map(\.state) == [.failed, .cancelled])
+    #expect(try journal.records().map(\.state) == [.failed, .cancelled])
+    #expect(try CleanupRecoverySnapshot(journal: journal).interruptedBatches.isEmpty)
+}

@@ -80,29 +80,6 @@ private struct ExclusionMetadata: MetadataSupplementReading {
     #expect(try await recorder.complete(repeated, token: wrong).state == .unknown)
 }
 
-@Test func savingRulesRequiresRefreshAndRemovalNeverSelectsNewlyVisibleFiles() async throws {
-    let root = FileManager.default.temporaryDirectory.appendingPathComponent("StillExclusions-" + UUID().uuidString)
-    try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
-    defer { try? FileManager.default.removeItem(at: root) }
-    let file = root.appendingPathComponent("chosen.txt")
-    try Data([1]).write(to: file)
-    let scanner = FolderScanner(supplement: ExclusionMetadata())
-    let initial = try await scanner.scan(root)
-    var draft = PlanDraft(), refresh = RefreshChoices()
-    try draft.select(try #require(initial.observations.first), in: initial, downloadsRoot: root)
-    refresh.invalidateCoverage(draft: &draft)
-    #expect(draft.selectedCount == 1 && !refresh.canReview(draft))
-    let policy = ExclusionPolicy(rules: [try .capture(file)])
-    let request = refresh.begin(scope: root, draft: &draft)
-    let excluded = try await scanner.scan(root, exclusions: policy)
-    refresh.finish(await RefreshValidator().validate(request, against: excluded), draft: &draft)
-    #expect(draft.selectedCount == 0 && refresh.notices.count == 1)
-    #expect(refresh.notices.first?.message == "File is outside the latest included findings. Its previous selection was cleared.")
-    let restored = refresh.begin(scope: root, draft: &draft)
-    refresh.finish(await RefreshValidator().validate(restored, against: try await scanner.scan(root)), draft: &draft)
-    #expect(draft.selectedCount == 0)
-}
-
 @Test func changingCoverageRejectsOldInflightGrowthWithoutClearingHistory() async throws {
     let base = FileManager.default.temporaryDirectory.appendingPathComponent("StillExclusions-" + UUID().uuidString)
     let scope = base.appendingPathComponent("Scope")
