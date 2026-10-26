@@ -269,6 +269,8 @@ public struct Candidate: Sendable, Identifiable, Hashable {
     public let observedAt: Date
     /// What a `*` in the rule's location matched, such as a browser profile folder; nil for a fixed location.
     public let profile: String?
+    /// The app an item belongs to, for rules whose owner differs per item (an app's own cache folder).
+    public internal(set) var appName: String? = nil
     /// What the item is called, e.g. a model's name; nil means its file name.
     public internal(set) var itemName: String? = nil
     /// The size is an estimate rather than a measurement (an Ollama model's own, unshared blobs).
@@ -357,10 +359,10 @@ public struct Catalog: Sendable {
                 if rule.yieldsToOtherRules, claimedByAnotherRule(url, besides: rule, base: base) { return [] }
                 // Folders holding live work (a git checkout, protected data) are left out of the plan; the check refuses them either way.
                 if info.st_mode & S_IFMT == S_IFDIR, CandidateCheck.protectedEntry(in: url, rule: rule) != nil { return [] }
-                var profile = profile
+                var appName: String?
                 switch Self.ownership(of: url, under: rule) {
                 case .unknown: return []
-                case .mustBeClosed(let owner) where rule.itemOwner != nil: profile = owner.name
+                case .mustBeClosed(let owner) where rule.itemOwner != nil: appName = owner.name
                 default: break
                 }
                 // A tool that cleans only part of its folder frees an unknown amount; the folder's total would overstate it.
@@ -370,6 +372,7 @@ public struct Catalog: Sendable {
                 var found = candidate(rule, url, info, logical: size.logicalBytes, allocated: size.allocatedBytes, complete: size.complete, lastUsed: lastUsed, toolURL: toolURL,
                                       profile: profile)
                 found.itemName = rule.itemName?(url.lastPathComponent)
+                found.appName = appName
                 return [found]
             }
             return (found + leftovers).map { $0.found(under: base) }

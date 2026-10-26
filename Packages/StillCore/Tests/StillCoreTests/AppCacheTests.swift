@@ -60,7 +60,7 @@ private func catalogWith(_ apps: Apps) -> Catalog {
     let found = catalog.discover(fixture: home)
     #expect(found.map(\.url.path) == [home.appendingPathComponent("Library/Caches/com.example.Editor").path])
     let cache = try #require(found.first)
-    #expect(cache.ruleID == "app-caches" && cache.action == .delete && cache.profile == "Editor")
+    #expect(cache.ruleID == "app-caches" && cache.action == .delete && cache.appName == "Editor" && cache.profile == nil)
     #expect(catalog.owner(for: cache)?.bundleIDs == ["com.example.Editor"])
 
     let refusal = CandidateCheck(catalog: catalog, running: Running(bundleIDs: ["com.example.Editor"])).check(cache)
@@ -160,7 +160,7 @@ private func catalogWith(_ apps: Apps) -> Catalog {
     // The Sparkle download is offered as an update; the rest of Editor's cache folder then stays with it, never offered twice.
     #expect(Dictionary(found.map { ($0.url.path, $0.ruleID) }, uniquingKeysWith: { a, _ in a })
             == [sparkle: "updater-downloads", caches + "/com.example.Chat.ShipIt": "updater-downloads", caches + "/nativeaccess2-updater": "updater-downloads"])
-    #expect(Set(found.compactMap(\.profile)) == ["Editor", "Chat", "Native Access"])
+    #expect(Set(found.compactMap(\.appName)) == ["Editor", "Chat", "Native Access"])
     #expect(CatalogOverview(catalog: catalog, candidates: found).rows.map(\.category) == [.updaters])
 
     let check = { (running: Running, path: String) in

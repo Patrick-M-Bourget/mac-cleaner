@@ -263,6 +263,8 @@ extension CleanupRule {
 extension Candidate {
     /// The name the plan shows, e.g. a model's name rather than its folder or manifest.
     var displayName: String { itemName ?? url.lastPathComponent }
+    /// The row the plan groups the item under: the app it belongs to, or its browser profile.
+    var group: String? { appName ?? profile }
 }
 
 struct PreviewOnlyToggle: View {
@@ -289,7 +291,7 @@ struct CatalogPlanSection: View {
                                        estimate: model.sizeIsEstimate(for: rule)),
                     enabled: model.canEdit, identifier: "planRule-" + rule.id) { model.setSelected(rule, model.selectionState(for: rule) != .checked) }
                 if rule.choosesItems { CatalogItemChooser(model: model, rule: rule).padding(.leading, StillDesign.Space.xl) }
-                if model.candidates(for: rule).contains(where: { $0.profile != nil }) {
+                if model.candidates(for: rule).contains(where: { $0.group != nil }) {
                     CatalogProfileRows(model: model, rule: rule).padding(.leading, StillDesign.Space.xl)
                 }
                 ForEach(model.runningOwnerNames(for: rule), id: \.self) { name in
@@ -309,18 +311,18 @@ struct CatalogPlanSection: View {
     }
 }
 
-/// One row per profile with that profile's cache size; choosing a profile chooses all of its cache folders.
+/// One row per profile or app with its cache size; choosing a row chooses all of its folders.
 struct CatalogProfileRows: View {
     @Bindable var model: CatalogCleanupModel
     let rule: CleanupRule
     var body: some View {
-        let groups = Dictionary(grouping: model.candidates(for: rule)) { $0.profile ?? "" }
+        let groups = Dictionary(grouping: model.candidates(for: rule)) { $0.group ?? "" }
         VStack(alignment: .leading, spacing: 0) {
             ForEach(groups.keys.sorted { $0.localizedStandardCompare($1) == .orderedAscending }, id: \.self) { profile in
                 let items = groups[profile] ?? []
                 InspectableItemRow(name: profile, detail: items.map(\.url.lastPathComponent).sorted().joined(separator: ", "),
                                    size: catalogBytes(items.reduce(0) { $0 + $1.estimatedBytes }, complete: items.allSatisfy(\.sizeComplete)),
-                                   symbol: "person.crop.circle", inspected: false,
+                                   symbol: items.contains { $0.appName != nil } ? "app" : "person.crop.circle", inspected: false,
                                    inspect: { NSWorkspace.shared.activateFileViewerSelecting(items.map(\.url)) }) {
                     Toggle("Select " + profile, isOn: Binding(get: { items.allSatisfy(model.isSelected) }, set: { on in items.forEach { model.setSelected($0, on) } }))
                         .labelsHidden().disabled(!model.canEdit).accessibilityIdentifier("planProfile-\(rule.id)-\(profile)")
