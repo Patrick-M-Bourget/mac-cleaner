@@ -41,8 +41,8 @@ Decision 3 sets the main split: regenerable data is deleted permanently; user fi
 | Updater downloads | Sparkle and vendor updater caches | Delete permanently | Downloaded by the next update |
 | Leaked app copies | Chrome `code_sign_clone` copies | Delete permanently, except the copy in use and the newest | Not needed again |
 | Logs | User logs and crash reports | Delete permanently | Written again as apps run |
-| Installers and old files | `.dmg`, `.pkg`, `.zip` in Downloads at any age; files of 500 MB or more not opened in 90 days | Move to Trash | Restore from Trash in Finder |
-| Models | Hugging Face models | Move to Trash | Restore from Trash, or download again |
+| Installers and old files | `.dmg`, `.pkg`, `.zip` in Downloads at any age; files of 500 MB or more not opened in 90 days; iPhone, iPad and iPod update files (`.ipsw`) in `~/Library/iTunes/*Software Updates` (#135) | Move to Trash | Restore from Trash in Finder |
+| Models | Hugging Face models; LM Studio models (each model folder; refused while LM Studio runs) | Move to Trash | Restore from Trash, or download again |
 | Ollama models | Each model, removed with `ollama rm <model>` | Run a tool | Download again (`ollama pull`) |
 | VM and disk images | e.g. an unpacked image next to its compressed source | Move to Trash | Restore from Trash, or the app unpacks or downloads again |
 | Docker | Unused images, build cache, stopped containers: each its own choice. Volumes never | Run a tool | Pulled or built again |

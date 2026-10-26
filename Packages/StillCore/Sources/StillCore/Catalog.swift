@@ -246,6 +246,13 @@ public enum BuiltInCatalog {
                     consequence: "Moved to Trash. The space stays used until you empty the Trash; you can restore them from the Trash in Finder.",
                     regen: .userFile, action: .trash, locations: ["Downloads"], owner: nil,
                     protectedExtensions: downloadsProtectedExtensions, contents: ContentsMatch(minimumBytes: UserFiles.largeBytes, unusedDays: UserFiles.unusedDays)),
+        // #135: restore images Finder (formerly iTunes) downloaded to update or restore a device.
+        CleanupRule(id: "ios-software-updates", category: .updaters, title: "Old iOS update files",
+                    detail: "iPhone, iPad and iPod software updates downloaded to update or restore a device.",
+                    consequence: "Moved to Trash. You can restore them from the Trash; otherwise Finder downloads the update again when a device needs it.",
+                    regen: .installer, action: .trash,
+                    locations: ["iPhone", "iPad", "iPod"].map { "Library/iTunes/\($0) Software Updates" }, owner: nil,
+                    contents: ContentsMatch(extensions: ["ipsw"])),
         // Field note section 3: Chrome copies itself for code-sign checks and never removes the copies.
         CleanupRule(id: "chrome-code-sign-clones", category: .browser, title: "Chrome code-sign copies",
                     detail: "Copies of Google Chrome it made to check its signature and never removed. The copy Chrome is using and the newest copy are kept.",
@@ -253,6 +260,7 @@ public enum BuiltInCatalog {
                     regen: .leakedCopy, action: .delete, locations: ["X/com.google.Chrome.code_sign_clone"], owner: nil,
                     base: .userFolder, copies: LeakedCopies(owner: RuleOwner(name: "Google Chrome", bundleIDs: ["com.google.Chrome"], executables: ["Google Chrome", "Google Chrome Helper*"]))),
         huggingFaceModels,
+        lmStudioModels,
         ollamaModels,
         appVMImages,
         iCloudLocalCopies,
@@ -538,6 +546,14 @@ public struct Catalog: Sendable {
         let pattern = (relative as NSString).lastPathComponent
         guard pattern.contains("*") else { return [relative] }
         let parent = (relative as NSString).deletingLastPathComponent
+        // A `*` above the last component (`models/*/*`: each publisher's models) expands to each matching folder first.
+        if parent.contains("*") {
+            return pathsMatching(parent, under: base).flatMap { _, names -> [String] in
+                var matched = names.makeIterator()
+                let expanded = parent.split(separator: "/").map { $0.contains("*") ? matched.next() ?? "" : String($0) }.joined(separator: "/")
+                return childFolders(of: expanded + "/" + pattern, in: base, keepNewestVersions: keep)
+            }
+        }
         var info = stat()
         guard lstat(base.appendingPathComponent(parent).path, &info) == 0, info.st_mode & S_IFMT == S_IFDIR,
               let names = try? FileManager.default.contentsOfDirectory(atPath: base.appendingPathComponent(parent).path) else { return [] }
