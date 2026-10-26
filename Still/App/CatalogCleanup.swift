@@ -301,7 +301,7 @@ extension CatalogCategory {
         case .managed: "App-managed storage"
         }
     }
-    /// Overview's one short line under the title, written per category rather than built from rule names.
+    /// The one short line under a category's title on Overview and in the plan, written per category rather than built from rule names.
     var overviewDetail: String {
         switch self {
         case .developer: "Package caches and build files that tools rebuild"
@@ -341,16 +341,6 @@ extension SizeEstimate {
 extension CatalogOverview.Row {
     /// The row's size; "Up to" when part of it is copies that share disk blocks.
     var valueText: String { estimate.text(upperBound: rules.contains(where: \.estimateIsUpperBound)) }
-    /// What happens and to what, e.g. "Clear npm cache, Yarn cache · Move Installers to Trash" (`ActionWording`).
-    var detail: String {
-        let groups = Dictionary(grouping: rules) { $0.action.wording.overviewGroup }
-        return groups.keys.sorted().compactMap { key in
-            groups[key].flatMap { rules in rules.first.map { $0.action.wording.overview(Self.list(rules.map(\.title))) } }
-        }.joined(separator: " · ")
-    }
-    private static func list(_ titles: [String]) -> String {
-        titles.count <= 3 ? titles.joined(separator: ", ") : titles.prefix(2).joined(separator: ", ") + " and \(titles.count - 2) more"
-    }
 }
 
 /// A size as text. An incomplete size of 0 is unknown, as in `SizeEstimate`.
@@ -424,7 +414,7 @@ private struct PlanCategoryRow: View {
     var body: some View {
         let state = model.selectionState(for: row.rules)
         VStack(alignment: .leading, spacing: StillDesign.Space.sm) {
-            CategorySelectionHeader(category: row.category.storageCategory, state: state, title: row.category.overviewTitle, detail: row.detail,
+            CategorySelectionHeader(category: row.category.storageCategory, state: state, title: row.category.overviewTitle, detail: row.category.overviewDetail,
                                     size: row.valueText, enabled: model.canEdit, identifier: "planCategory-" + row.id) { model.setSelected(row.rules, state != .checked) }
             switch row.planLayout {
             case .ruleRows:
