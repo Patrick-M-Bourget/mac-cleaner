@@ -125,3 +125,10 @@ Phase 0 → 1 → 2 → Tier A (2–3 sessions) → Overview/onboarding → Tier
 13. iCloud is inventory only in M1; eviction comes right after.
 14. Workflow: push branch → PR → CI → user smoke-tests → Claude merges.
 15. Delete the 14 Codex-era UI test files and replace them with about 5 smoke journeys. Adapt the unit tests.
+16. The dry run is a visible "Preview only (don't change anything)" setting, on by default in M1 builds.
+17. "Matches `df`" means within 10% or 1 GB (whichever is larger) of the `df` change measured around the whole run.
+18. "Old": Downloads installers at any age; other Downloads files at 500 MB or more and not opened in 90 days. iOS DeviceSupport keeps the 2 newest versions per platform.
+19. Ollama models are removed with `ollama rm` (tool action), an exception to Decision 3. Hugging Face models still go to Trash.
+20. A command-line tool's cache is refused while that tool's process is running (process-name check).
+21. Caches are cleaned by deleting their folder. Tool commands are used only for Homebrew, simulators and Ollama.
+22. Everything inside Xcode DerivedData, products and dSYMs included, is regenerable. Only Archives and anything outside DerivedData are protected.

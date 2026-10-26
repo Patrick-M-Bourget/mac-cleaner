@@ -20,7 +20,7 @@ These hold for every category, in every milestone.
 
 - **User files go to Trash.** Still never empties the Trash, and never deletes anything from it.
 - **Never touched:** browser logins, cookies, history, passwords, autofill, site data (IndexedDB, Local Storage, service-worker data), sessions and profile settings; the Photos, Mail and Messages databases; app binaries and signed bundles (except Chrome's leaked code-sign copies, section 3); other users' data; system files.
-- **Protected rules in the catalog.** Codex's protected-data lists become catalog rules that no cleanup rule can override: Chrome logins, cookies, history and profiles; Xcode source, archives, dSYMs and build products.
+- **Protected rules in the catalog.** Codex's protected-data lists become catalog rules that no cleanup rule can override: Chrome logins, cookies, history and profiles; Xcode Archives and anything outside DerivedData (project source). Everything inside DerivedData, built products and dSYMs included, is regenerable build output.
 - **A cache folder can hold live work.** A git working tree inside a cache folder is never a candidate. Known load-bearing caches (such as ccache) and Still's own tools are never offered.
 - **Owning app must be closed.** If the app that owns a candidate is running, that candidate is refused with a reason. Still never force-quits or asks for Accessibility to quit an app. The user closes the app and rescans.
 - **No admin rights.** Still never asks for an administrator password and never installs a helper. An item it can't change as the user is skipped and reported.
@@ -37,17 +37,18 @@ Decision 3 sets the main split: regenerable data is deleted permanently; user fi
 | Kind | Examples | Action | How it comes back |
 |---|---|---|---|
 | Cache | npm, Yarn, pnpm, uv, pip, Cargo, Gradle, CocoaPods, Homebrew cache; browser cache folders; per-app `~/Library/Caches` | Delete permanently | Downloaded or rebuilt on next use |
-| Build output | Xcode DerivedData project folders, old iOS DeviceSupport | Delete permanently | Rebuilt; next build is slower |
+| Build output | Xcode DerivedData project folders (products and dSYMs included), iOS DeviceSupport except the 2 newest versions per platform | Delete permanently | Rebuilt; next build is slower |
 | Updater downloads | Sparkle and vendor updater caches | Delete permanently | Downloaded by the next update |
 | Leaked app copies | Chrome `code_sign_clone` copies | Delete permanently, except the copy in use and the newest | Not needed again |
 | Logs | User logs and crash reports | Delete permanently | Written again as apps run |
-| Installers and old files | `.dmg`, `.pkg`, `.zip` and old large files in Downloads | Move to Trash | Restore from Trash in Finder |
-| Models | Hugging Face and Ollama models | Move to Trash | Restore from Trash, or download again |
+| Installers and old files | `.dmg`, `.pkg`, `.zip` in Downloads at any age; files of 500 MB or more not opened in 90 days | Move to Trash | Restore from Trash in Finder |
+| Models | Hugging Face models | Move to Trash | Restore from Trash, or download again |
+| Ollama models | Each model, removed with `ollama rm <model>` | Run a tool | Download again (`ollama pull`) |
 | VM and disk images | e.g. an unpacked image next to its compressed source | Move to Trash | Restore from Trash, or the app unpacks or downloads again |
 
 Other actions:
 
-- **Run a tool**, with a time limit: `brew cleanup -s` (plus the Homebrew cache folder), `xcrun simctl delete unavailable`. The tool's output and the measured freed space appear in the results. A tool that isn't installed means its rule doesn't appear; Still never installs anything.
+- **Run a tool**, with a time limit: `brew cleanup -s` (plus the Homebrew cache folder), `xcrun simctl delete unavailable`, `ollama rm <model>`. Every other cache is cleaned by deleting its folder, not with the tool's own purge command. The tool's output and the measured freed space appear in the results. A tool that isn't installed means its rule doesn't appear; Still never installs anything.
 - **Evict local iCloud copy** (after M1): removes only the local download; the original stays in iCloud. Pinned, not-yet-uploaded and conflicted files are skipped. This is never a delete.
 - **Guidance only**: Still shows the size and tells the user where to manage it. It never changes these: iOS backups, Mail and Messages attachments, Photos, Time Machine local snapshots, Xcode release archives, purchased content such as audio plug-ins ("reinstall through the vendor", owner's call).
 
@@ -55,7 +56,8 @@ Notes per category:
 
 - **Browsers** (Chrome, Safari, Firefox, Arc, Edge): cache folders only, per profile, only while that browser is closed. Sizes show per browser and per profile. Review says caches are permanently removed, will refill, and pages may load slower at first.
 - **Chrome code-sign clones** live in the user's own folder under `/private/var/folders`. The copy the running browser has open and the newest copy are always kept.
-- **Xcode**: whole DerivedData project folders, only while Xcode isn't running. Archives and dSYMs are never candidates.
+- **Xcode**: whole DerivedData project folders, only while Xcode and its build processes aren't running. Archives are never candidates.
+- **Ollama**: shared blobs make per-file Trash unsafe, so models are removed with `ollama rm` (an exception to Decision 3).
 - **Per-app caches**: only while the owning app isn't running.
 - **Models and VM images** show their size and last-used date so the user can judge.
 - **A cleanup rule appears only when its tool or folder exists** on this Mac.
@@ -66,7 +68,7 @@ When the user confirms, Still freezes the plan. Then, for each item in turn, rig
 
 1. the item still exists;
 2. it is unchanged since the scan (same file identity, not modified);
-3. its owning app is not running;
+3. its owning app is not running, or for a command-line tool's cache (npm, pip, Cargo and the like), no process of that tool is running;
 4. it is not excluded and doesn't match a protected rule;
 5. Still can act on it as the current user, without admin rights.
 
@@ -76,7 +78,7 @@ An item that fails any check is skipped, and the results say which check failed.
 
 ## 5. Dry-run switch
 
-- A dry-run switch is used for the first real cleanup passes on the user's Mac (Decision 8).
+- A visible setting, **Preview only (don't change anything)**. It's on by default in M1 builds; the user turns it off after the first pass (Decision 8). Whether it stays visible in a shareable build is decided later.
 - With dry run on, the whole flow runs as normal: scan, plan, review, confirm, per-item checks, results.
 - Instead of acting, Still logs each action it would take (item, action, size, check outcome) and changes nothing on disk. Tool actions are not run; the command is logged.
 - Results make clear it was a dry run. No freed space is reported, because none was freed.
@@ -89,7 +91,7 @@ An item that fails any check is skipped, and the results say which check failed.
 - **Why both:** on APFS, clones share disk blocks. Deleting a clone frees only the blocks no other file uses. Chrome's code-sign copies showed 52 GB but freed about 2 GB. For categories made of clones, the estimate is labeled as an upper bound.
 - **Why measure per item:** on a nearly full disk, macOS releases purgeable space on its own, so a single before/after reading for the whole run overstates what Still freed.
 - Measured space is an observation. Downloads, snapshots and other activity can affect it, and the results say so.
-- **Pass bar for M1:** on the user's Mac, the freed space Still reports matches `df`.
+- **Pass bar for M1:** on the user's Mac, the freed space Still reports is within 10% or 1 GB (whichever is larger) of the `df` change measured around the whole run.
 
 ## 7. Access: user-owned scope
 
@@ -137,9 +139,4 @@ After M1 (#92), in rough order:
 
 ## Open questions
 
-1. **Dry-run switch in the shipped app.** Is it a visible setting for users, or a developer-only switch for the first passes? What is its default?
-2. **"Matches `df`" tolerance.** How close must Still's reported freed space be to `df` for M1 to pass, given purgeable space and background activity?
-3. **What counts as "old".** Thresholds for "old large files" in Downloads and "old" iOS DeviceSupport are not set anywhere.
-4. **Ollama models to Trash.** Ollama stores models as shared blobs plus manifests, and the research recommends `ollama rm`. Decision 3 says models go to Trash. Which files does Trashing one model move, and is `ollama rm` acceptable instead?
-5. **Running check for command-line caches.** npm, pip, Cargo and similar have no app to be "running". Should Still refuse while the tool's process is running (for example, during an `npm install`), or skip the running check for these?
-6. **Tool caches: delete the folder or use the tool's own command?** RESET says delete cache folders; the research recommends `pip cache purge`, `pnpm store prune` and similar. This spec follows RESET. Confirm.
+None. The first six were answered on 2026-10-26 and are folded in above (RESET Decisions 16–22).
