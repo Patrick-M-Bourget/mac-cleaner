@@ -134,3 +134,16 @@ Phase 0 → 1 → 2 → Tier A (2–3 sessions) → Overview/onboarding → Tier
 22. Everything inside Xcode DerivedData, products and dSYMs included, is regenerable. Only Archives and anything outside DerivedData are protected.
 23. The pnpm store is cleaned with `pnpm store prune` (tool action), never deleted: with pnpm's global virtual store, projects link into it. pnpm's metadata cache is still deleted.
 24. The large and old files explorer lists files of 500 MB or more OR not opened in 90 days (you choose each file); Downloads keeps AND (Decision 18).
+25. **Calm design pass (2026-10-26).** Still should feel simple and elegant, not overbearing. Rules for every screen:
+    - one explanation per screen: no toolbar subtitles and no bottom-bar footnotes, except notes that report state such as Preview only;
+    - no long paths in rows: name plus a short location, full path in the inspector or a tooltip;
+    - one short line of detail per row; consequences appear once, in the review sheet;
+    - the cleanup plan groups rules by catalog category, matching Overview, with "Choose items" inside;
+    - Overview hides 0-byte categories, shows the 5 largest with "Show N more", and folds not-accessible locations into one "needs Full Disk Access · Learn more" line;
+    - App-managed storage is one Overview row that leads to its own quiet page;
+    - the review sheet is grouped by consequence;
+    - results show outcomes first, with details on demand;
+    - History is a compact list, and local records live only in Locations & access;
+    - Full Disk Access is one settings row;
+    - appearance follows the system, with an override in a Settings window;
+    - What grew keeps only its retention footnote.
