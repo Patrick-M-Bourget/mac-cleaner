@@ -188,3 +188,33 @@ private func recordCatalogScan(_ catalog: Catalog, home: URL, recorder: GrowthSc
     #expect(readable.groups.filter { $0.dimension == .category }.allSatisfy { $0.logicalDelta == 0 })
     #expect(readable.coverageChanges.map(\.kind) == [.newlyReadable, .newlyReadable, .newlyReadable])
 }
+
+@Test func clearAndResetRejectAnEarlierCatalogScanEvenThroughAnotherStoreInstance() async throws {
+    let home = try fixtureHome(), (store, directory) = growthStore()
+    defer { try? FileManager.default.removeItem(at: home); try? FileManager.default.removeItem(at: directory) }
+    let catalog = Catalog(rules: fixtureRules), recorder = GrowthScanRecorder(store: store)
+    try write(10_000, at: ".npm/_cacache/content-v2/one", in: home)
+    for reset in [false, true] {
+        let token = try await recorder.beginCatalog(home: home, exclusionFingerprint: ExclusionPolicy().fingerprint)
+        let discovery = catalog.discovery(fixture: home, access: .granted)
+        let maintenance = GrowthHistoryStore(directory: directory)
+        if reset { try await maintenance.resetHistory() } else { try await maintenance.clearCompletedHistory() }
+        #expect(try await recorder.completeCatalog(discovery, catalog: catalog, fullDiskAccess: .granted, token: token).state == .unknown)
+        let reopened = GrowthHistoryStore(directory: directory)
+        #expect(try await reopened.snapshots().isEmpty)
+        #expect(try await reopened.latest().state == (reset ? .firstBaseline : .clearedBaseline))
+    }
+}
+
+@Test func changingCoverageRejectsAnInflightCatalogScanWithoutClearingHistory() async throws {
+    let home = try fixtureHome(), (store, directory) = growthStore()
+    defer { try? FileManager.default.removeItem(at: home); try? FileManager.default.removeItem(at: directory) }
+    let catalog = Catalog(rules: fixtureRules), recorder = GrowthScanRecorder(store: store)
+    try write(10_000, at: ".npm/_cacache/content-v2/one", in: home)
+    #expect(try await recordCatalogScan(catalog, home: home, recorder: recorder).state == .firstBaseline)
+    let stale = try await recorder.beginCatalog(home: home, exclusionFingerprint: ExclusionPolicy().fingerprint)
+    let discovery = catalog.discovery(fixture: home, access: .granted)
+    try await store.invalidateCoverage()
+    #expect(try await recorder.completeCatalog(discovery, catalog: catalog, fullDiskAccess: .granted, token: stale).state == .unknown)
+    #expect(try await store.snapshots().count == 1)
+}

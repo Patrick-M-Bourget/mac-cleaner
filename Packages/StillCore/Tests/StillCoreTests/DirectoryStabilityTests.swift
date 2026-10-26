@@ -39,19 +39,15 @@ private final class StabilityProgress: @unchecked Sendable {
     #expect(progress.rechecks == 1)
 }
 
-@Test func repeatedDirectoryChangesStayPartialAndCannotEstablishGrowthBaseline() async throws {
+@Test func repeatedDirectoryChangesStayPartialAndUnmeasured() async throws {
     let root = FileManager.default.temporaryDirectory.appendingPathComponent("StillStability-" + UUID().uuidString)
     let scope = root.appendingPathComponent("Selected")
     try FileManager.default.createDirectory(at: scope, withIntermediateDirectories: true)
     defer { try? FileManager.default.removeItem(at: root) }
     try Data([1]).write(to: scope.appendingPathComponent("trigger.txt"))
-    let store = GrowthHistoryStore(directory: root.appendingPathComponent("History")), recorder = GrowthScanRecorder(store: store)
-    let token = try await recorder.begin(scope: scope)
     let result = try await FolderScanner(supplement: MutatingDirectoryMetadata(scope, repeated: true)).scan(scope)
     #expect(!result.isComplete && result.totalLogicalBytes == nil)
     #expect(result.issues.contains { $0.reason == .directoryChanged })
-    #expect(try await recorder.complete(result, token: token).state == .unknown)
-    #expect(try await store.snapshots().isEmpty)
 }
 
 private final class ReplacingScopeMetadata: MetadataSupplementReading, @unchecked Sendable {

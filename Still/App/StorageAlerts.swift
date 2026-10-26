@@ -162,7 +162,7 @@ struct StorageAlertsView: View {
             AlertPermissionDetails(authorization: controller.authorization, checked: controller.authorizationChecked,
                                    settingsFeedback: settingsFeedback) {
                 Task {
-                    let opened = await NativeManagedAppLauncher().open(identifiers: ["com.apple.systempreferences"])
+                    let opened = await WorkspaceGuidanceOpener().open(.app(bundleID: "com.apple.systempreferences"))
                     settingsFeedback = opened ? "System Settings opened. Permission has not been confirmed; return to Still to check again." : "System Settings could not be opened. Open it from the Apple menu, then Notifications → Still."
                 }
             }

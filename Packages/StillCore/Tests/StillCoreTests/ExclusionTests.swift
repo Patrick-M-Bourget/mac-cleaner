@@ -55,48 +55,6 @@ private struct ExclusionMetadata: MetadataSupplementReading {
     #expect(!excludedRoot.isComplete && excludedRoot.totalLogicalBytes == nil)
 }
 
-@Test func changedExclusionCoverageRequiresANewCompatibleGrowthBaseline() async throws {
-    let base = FileManager.default.temporaryDirectory.appendingPathComponent("StillExclusions-" + UUID().uuidString)
-    let scope = base.appendingPathComponent("Scope")
-    try FileManager.default.createDirectory(at: scope, withIntermediateDirectories: true)
-    defer { try? FileManager.default.removeItem(at: base) }
-    try Data([1, 2, 3]).write(to: scope.appendingPathComponent("keep.txt"))
-    let hidden = scope.appendingPathComponent("hidden.txt")
-    try Data([1, 2, 3, 4]).write(to: hidden)
-    let store = GrowthHistoryStore(directory: base.appendingPathComponent("Growth"))
-    let recorder = GrowthScanRecorder(store: store)
-    let first = try await recorder.begin(scope: scope)
-    let full = try await FolderScanner(supplement: ExclusionMetadata()).scan(scope)
-    #expect(try await recorder.complete(full, token: first).state == .firstBaseline)
-    let policy = ExclusionPolicy(rules: [try .capture(hidden)])
-    let token = try await recorder.begin(scope: scope, exclusionFingerprint: policy.fingerprint)
-    let included = try await FolderScanner(supplement: ExclusionMetadata()).scan(scope, exclusions: policy)
-    #expect(included.includedLogicalBytes == 3 && included.totalLogicalBytes == nil)
-    #expect(try await recorder.complete(included, token: token).state == .coverageChanged)
-    let second = try await recorder.begin(scope: scope, exclusionFingerprint: policy.fingerprint)
-    let repeated = try await FolderScanner(supplement: ExclusionMetadata()).scan(scope, exclusions: policy)
-    #expect(try await recorder.complete(repeated, token: second).state == .compared)
-    let wrong = try await recorder.begin(scope: scope)
-    #expect(try await recorder.complete(repeated, token: wrong).state == .unknown)
-}
-
-@Test func changingCoverageRejectsOldInflightGrowthWithoutClearingHistory() async throws {
-    let base = FileManager.default.temporaryDirectory.appendingPathComponent("StillExclusions-" + UUID().uuidString)
-    let scope = base.appendingPathComponent("Scope")
-    try FileManager.default.createDirectory(at: scope, withIntermediateDirectories: true)
-    defer { try? FileManager.default.removeItem(at: base) }
-    try Data([1]).write(to: scope.appendingPathComponent("one.txt"))
-    let store = GrowthHistoryStore(directory: base.appendingPathComponent("Growth")), scanner = FolderScanner(supplement: ExclusionMetadata())
-    let recorder = GrowthScanRecorder(store: store)
-    let initial = try await recorder.begin(scope: scope)
-    _ = try await recorder.complete(scanner.scan(scope), token: initial)
-    let stale = try await recorder.begin(scope: scope)
-    let observation = try await scanner.scan(scope)
-    try await store.invalidateCoverage()
-    #expect(try await recorder.complete(observation, token: stale).state == .unknown)
-    #expect(try await store.snapshots().count == 1)
-}
-
 @Test func corruptExclusionSettingsNeverBecomeAnEmptyPolicy() async throws {
     let base = FileManager.default.temporaryDirectory.appendingPathComponent("StillExclusions-" + UUID().uuidString)
     try FileManager.default.createDirectory(at: base, withIntermediateDirectories: true)
