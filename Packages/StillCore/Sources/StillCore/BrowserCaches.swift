@@ -55,12 +55,12 @@ public enum BrowserCaches {
     /// Chromium on macOS keeps a profile's caches under ~/Library/Caches, at the profile's path relative to
     /// ~/Library/Application Support (docs/user_data_dir.md; `chrome::GetUserCacheDirectory`). The HTTP cache is
     /// `<profile>/Cache` and generated code is `<profile>/Code Cache` (`kCacheDirname`, StoragePartitionImpl).
-    static func chromium(id: String, title: String, dataDir: String, bundleIDs: [String], executables: [String]) -> CleanupRule {
-        CleanupRule(id: id, category: .browser, title: title,
+    static func chromium(id: String, name: String, dataDir: String, bundleIDs: [String], executables: [String]) -> CleanupRule {
+        CleanupRule(id: id, category: .browser, title: name + " cache",
                     detail: "Cached images, files and scripts, per profile.", consequence: consequence,
                     regen: .cache, action: .delete,
                     locations: ["Library/Caches/\(dataDir)/*/Cache", "Library/Caches/\(dataDir)/*/Code Cache"],
-                    owner: RuleOwner(name: title, bundleIDs: bundleIDs, executables: executables),
+                    owner: RuleOwner(name: name, bundleIDs: bundleIDs, executables: executables),
                     protectedNames: chromiumProfileData, layoutOverrides: chromiumOverrides(dataDir: dataDir, domain: bundleIDs[0]))
     }
 
@@ -87,12 +87,12 @@ public enum BrowserCaches {
                                      "sessionstore.jsonlz4", "sessionstore-backups", "storage", "extensions", "bookmarkbackups"]
 
     public static let rules: [CleanupRule] = [
-        chromium(id: "chrome-cache", title: "Google Chrome", dataDir: "Google/Chrome", bundleIDs: ["com.google.Chrome"],
+        chromium(id: "chrome-cache", name: "Google Chrome", dataDir: "Google/Chrome", bundleIDs: ["com.google.Chrome"],
                  executables: ["Google Chrome", "Google Chrome Helper*"]),
         // Firefox puts each profile's local folder under ~/Library/Caches/Firefox/Profiles (nsXREDirProvider, the
         // Caches folder on macOS) and its HTTP cache in `<profile>/cache2` (Firefox source docs, networking/cache2).
         // Release, Developer Edition and Nightly share that folder, and every channel's binary is `firefox`.
-        CleanupRule(id: "firefox-cache", category: .browser, title: "Firefox",
+        CleanupRule(id: "firefox-cache", category: .browser, title: "Firefox cache",
                     detail: "Cached images, files and scripts, per profile.", consequence: consequence,
                     regen: .cache, action: .delete, locations: ["Library/Caches/Firefox/Profiles/*/cache2"],
                     owner: RuleOwner(name: "Firefox", bundleIDs: ["org.mozilla.firefox", "org.mozilla.firefoxdeveloperedition", "org.mozilla.nightly"],

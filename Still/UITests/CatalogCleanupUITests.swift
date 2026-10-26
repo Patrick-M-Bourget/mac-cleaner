@@ -135,4 +135,52 @@ final class CatalogCleanupUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Would move to Trash"].exists)
         XCTAssertTrue(FileManager.default.fileExists(atPath: home.appendingPathComponent("Downloads/Setup.dmg").path))
     }
+
+    /// Chrome's caches are listed per profile with sizes; its profile data never appears and is never touched.
+    /// A Chrome running on this Mac makes the review skip the caches, which the journey also accepts.
+    @MainActor func testBrowserCachesShowPerProfileSizesAndPreviewLeavesProfilesAlone() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        let state = try configureIsolatedState(app)
+        let home = try configureCatalogHome(app)
+        defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
+        let cookies = home.appendingPathComponent("Library/Application Support/Google/Chrome/Default/Cookies")
+        var files = [cookies, home.appendingPathComponent("Library/Application Support/Google/Chrome/Default/Local Storage/leveldb/LOG")]
+        for (profile, bytes) in [("Default", 300_000), ("Profile 1", 80_000)] {
+            files.append(home.appendingPathComponent("Library/Caches/Google/Chrome/\(profile)/Cache/Cache_Data/index"))
+            files.append(home.appendingPathComponent("Library/Caches/Google/Chrome/\(profile)/Code Cache/js/index"))
+            for file in files.suffix(2) {
+                try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
+                try Data(repeating: 5, count: bytes).write(to: file)
+            }
+        }
+        for file in files.prefix(2) {
+            try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try Data(repeating: 9, count: 1_000).write(to: file)
+        }
+        app.launchArguments = ["-ApplePersistenceIgnoreState", "YES"]
+        app.launch()
+
+        XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
+        let row = app.buttons["overviewCategory-browser"]
+        XCTAssertTrue(row.waitForExistence(timeout: 10))
+        row.click()
+
+        XCTAssertTrue(app.checkBoxes["planRule-chrome-cache"].waitForExistence(timeout: 5))
+        let profile = app.checkBoxes["planProfile-chrome-cache-Default"]
+        XCTAssertTrue(profile.exists)
+        XCTAssertTrue(app.checkBoxes["planProfile-chrome-cache-Profile 1"].exists)
+        XCTAssertFalse(app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS 'Cookies' OR label CONTAINS 'Local Storage'")).firstMatch.exists)
+        XCTAssertEqual(profile.value as? Int, 0)
+        profile.click()
+        XCTAssertEqual(app.checkBoxes["previewOnlyToggle"].value as? Int, 1)
+        app.buttons["Review cleanup"].click()
+
+        XCTAssertTrue(app.staticTexts["Clear Google Chrome cache"].waitForExistence(timeout: 5))
+        app.buttons["Run preview"].click()
+
+        XCTAssertTrue(app.staticTexts["catalogPreviewNotice"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["Would delete"].exists || app.staticTexts["Skipped"].exists)
+        for file in files { XCTAssertTrue(FileManager.default.fileExists(atPath: file.path), file.path) }
+    }
 }
