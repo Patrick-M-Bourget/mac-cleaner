@@ -239,13 +239,14 @@ struct EmptyState: View {
     }
 }
 struct ActionStrip<Actions: View>: View {
-    let message: String
+    /// Only for notes that report state, such as Preview only (Decision 25); nil leaves the actions alone.
+    let message: String?
     @ViewBuilder var actions: () -> Actions
     var body: some View {
         VStack(spacing: 0) {
             Divider()
             HStack(spacing: StillDesign.Space.lg) {
-                Text(message).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                if let message { Text(message).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true) }
                 Spacer(minLength: StillDesign.Space.sm)
                 actions()
             }.padding(.horizontal, StillDesign.Space.page).padding(.vertical, StillDesign.Space.lg)

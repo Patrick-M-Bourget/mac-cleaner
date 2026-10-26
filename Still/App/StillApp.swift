@@ -261,7 +261,7 @@ private struct WorkspaceView: View {
                             Button("View cleanup plan") { nativeInspectionVisible = false; destination = .plan }.buttonStyle(.borderedProminent)
                         }
                     } else if destination == .growth {
-                        ActionStrip(message: GrowthHistoryModel.shared.comparison?.state == .compared ? "Two completed scans · Coverage changes aren’t counted as growth. No continuous monitoring required." : "Each completed scan of the known locations is recorded. No continuous monitoring required.") {
+                        ActionStrip(message: nil) {
                             Button("Scan again", action: scanAgain).disabled(selection.catalog.isScanning || folderInspection.isScanning || selection.workspaceRunning || !selection.catalog.canEdit)
                                 .accessibilityIdentifier("growthScanAgain")
                             Button("Review options") { navigate(.plan); navigationState.planReturnsToGrowth = true }.buttonStyle(.borderedProminent)
