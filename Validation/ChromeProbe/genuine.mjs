@@ -210,6 +210,7 @@ async function clearCache(cache) {
     try { return JSON.parse(execFileSync(process.env.STILL_CHROME_SWIFT_RUNNER, args, {encoding:'utf8', timeout:60000})); }
     catch (error) {
       const observed = JSON.parse(error.stdout?.toString() || '{}');
+      report.lastSwiftFailure = observed;
       if (observed.reason?.includes('Quit Chrome')) throw new Error('browser or helper activity observed: ' + observed.reason);
       throw new Error(observed.reason || String(error));
     }
