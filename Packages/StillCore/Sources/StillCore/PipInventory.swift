@@ -52,7 +52,8 @@ public struct PipCacheReport: Sendable {
     }
 }
 public enum PipInventoryInspector {
-    public static func inspectSelected(python: URL, cache: URL) throws -> PipCacheReport {
+    /// `toolTimeout` limits each pip command; tests that run the real bundled pip under load raise it.
+    public static func inspectSelected(python: URL, cache: URL, toolTimeout: TimeInterval = 5) throws -> PipCacheReport {
         guard python.isFileURL, cache.isFileURL, FileManager.default.isExecutableFile(atPath: python.path),
               (try? cache.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true else { throw ToolPreviewError.unavailable }
         let executable = URL(fileURLWithPath: "/Library/Developer/CommandLineTools/usr/bin/python3")
@@ -72,7 +73,7 @@ public enum PipInventoryInspector {
         let environment = ["PATH": "/usr/bin:/bin:/usr/sbin:/sbin", "HOME": "/var/empty", "TMPDIR": "/var/empty", "LANG": "C", "LC_ALL": "C", "PIP_CONFIG_FILE": "/dev/null", "PIP_DISABLE_PIP_VERSION_CHECK": "1", "PIP_NO_INDEX": "1", "PYTHONDONTWRITEBYTECODE": "1"]
         let launcher = "import sys,runpy; wheel=sys.argv.pop(1); sys.path.insert(0,wheel); sys.argv[0]='pip'; runpy.run_module('pip',run_name='__main__')"
         func command(_ args: [String]) throws -> String {
-            try BoundedTool.run(executable: executable, arguments: ["-I", "-S", "-B", "-c", launcher, wheel.path, "--disable-pip-version-check", "--cache-dir", selectedCache.path] + args, environment: environment).trimmingCharacters(in: .whitespacesAndNewlines)
+            try BoundedTool.run(executable: executable, arguments: ["-I", "-S", "-B", "-c", launcher, wheel.path, "--disable-pip-version-check", "--cache-dir", selectedCache.path] + args, timeout: toolTimeout, environment: environment).trimmingCharacters(in: .whitespacesAndNewlines)
         }
         return try collect(cache: selectedCache, command: command)
     }

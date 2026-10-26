@@ -85,7 +85,8 @@ private func ownedSnapshot(_ root: URL) throws -> [String: Data] {
     try manager.createDirectory(at: wheel.deletingLastPathComponent(), withIntermediateDirectories: true)
     try Data("disposable-inventory-sentinel".utf8).write(to: wheel)
     let before = try ownedSnapshot(root)
-    let report = try PipInventoryInspector.inspectSelected(python: URL(fileURLWithPath: "/Library/Developer/CommandLineTools/usr/bin/python3"), cache: cache)
+    // The real bundled pip starts slowly when the machine is busy; the 5-second production limit made this flaky.
+    let report = try PipInventoryInspector.inspectSelected(python: URL(fileURLWithPath: "/Library/Developer/CommandLineTools/usr/bin/python3"), cache: cache, toolTimeout: 60)
     #expect(report.inventory.supported)
     #expect(URL(fileURLWithPath: report.inventory.cache).resolvingSymlinksInPath() == cache.resolvingSymlinksInPath())
     #expect(report.wheels.count == 1)
@@ -121,7 +122,7 @@ private func ownedSnapshot(_ root: URL) throws -> [String: Data] {
     try Data("#!/bin/sh\ntouch '\(marker.path)'\n".utf8).write(to: executable)
     try manager.setAttributes([.posixPermissions: 0o700], ofItemAtPath: executable.path)
     let before = try ownedSnapshot(root)
-    let report = try PipInventoryInspector.inspectSelected(python: executable, cache: root)
+    let report = try PipInventoryInspector.inspectSelected(python: executable, cache: root, toolTimeout: 60)
     #expect(!report.inventory.supported)
     #expect(!manager.fileExists(atPath: marker.path))
     #expect(try ownedSnapshot(root) == before)
