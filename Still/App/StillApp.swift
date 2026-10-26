@@ -175,11 +175,13 @@ private struct WorkspaceView: View {
     private var showsPlan: Bool { destination == .plan && !navigationState.browserReviewVisible && !navigationState.localRecordsVisible && !recoveryVisible && !inspecting && !nativeInspectionVisible && !homebrewVisible && !pipVisible && !dockerVisible && !managedStorageVisible && !diagnosticsVisible && !exclusionsVisible }
     private var inspectionVisible: Bool { inspecting || nativeInspectionVisible }
     private var contextLabel: String {
+        if selection.chrome.isRunning { return "Clearing approved Chrome caches" }
         if selection.execution.isRunning { return "Moving approved files to Trash" }
+        if selection.workspaceRunning { return "Running approved cleanup" }
         if navigationState.localRecordsVisible && !recoveryVisible { return "Local records · Explicit maintenance only" }
         if diagnosticsVisible { return "Redacted diagnostics · Explicit local Save" }
         if recoveryVisible { return "Recovery review · Recorded facts only" }
-        if selection.execution.result != nil && showsPlan { return "Cleanup results · individual outcomes" }
+        if selection.hasWorkspaceResult && showsPlan { return "Cleanup results · individual outcomes" }
         if nativeInspectionVisible || inspecting { return "Read-only storage inspection" }
         if managedStorageVisible { return "App-managed inventory · selected objects only" }
         if homebrewVisible { return "Read-only Homebrew inventory" }

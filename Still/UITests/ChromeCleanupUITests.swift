@@ -101,6 +101,7 @@ final class ChromeCleanupUITests: XCTestCase {
             app.sheets.buttons["Run cleanup"].click()
             XCTAssertTrue(app.staticTexts["Chrome cache results"].waitForExistence(timeout: 15))
             XCTAssertTrue(app.staticTexts["Cleanup results"].exists)
+            XCTAssertTrue(app.staticTexts["Cleanup results · individual outcomes"].exists)
             XCTAssertFalse(app.staticTexts["Selected files moved to Trash"].exists)
             XCTAssertFalse(FileManager.default.fileExists(atPath: root.appendingPathComponent("Default/Cache/Cache_Data/0123456789abcdef_0").path))
             XCTAssertEqual(try Data(contentsOf: root.appendingPathComponent("Default/Cookies")), Data("protected-cookie".utf8))
