@@ -97,3 +97,70 @@ private final class RecordingOpener: TrashOpening, @unchecked Sendable {
     #expect(TrashSpace.open(home: home, with: opener))
     #expect(opener.opened == [home.appendingPathComponent(".Trash", isDirectory: true)])
 }
+
+// SPEC section 2: Still never empties the Trash and never deletes anything from it. Every path that could act on an
+// item goes through discovery or a picked folder's listing, and then the check; each is held to that here.
+
+/// A home whose Trash holds what rules would otherwise take: an old installer, a large file and a cache folder.
+private func homeWithAFullTrash(now: Date) throws -> URL {
+    let home = try trashHome()
+    let old = now.addingTimeInterval(-400 * 86_400)
+    for (path, bytes) in [("Setup.dmg", 10), ("movie.mov", 10), ("_cacache/content-v2/blob", 5_000), ("Caches/com.example/data", 5_000)] {
+        let url = home.appendingPathComponent(".Trash/" + path)
+        try write(url, bytes: bytes)
+        try FileManager.default.setAttributes([.creationDate: old, .modificationDate: old], ofItemAtPath: url.path)
+        var times = [timeval(tv_sec: Int(old.timeIntervalSince1970), tv_usec: 0), timeval(tv_sec: Int(old.timeIntervalSince1970), tv_usec: 0)]
+        utimes(url.path, &times)
+    }
+    let movie = home.appendingPathComponent(".Trash/movie.mov")
+    let handle = try FileHandle(forWritingTo: movie); try handle.truncate(atOffset: 600_000_000); try handle.close()
+    return home
+}
+private func inTrash(_ url: URL, _ home: URL) -> Bool { url.standardizedFileURL.path.hasPrefix(home.appendingPathComponent(".Trash").path + "/") }
+
+@Test func noCatalogRuleOffersAnythingInTheTrash() throws {
+    let home = try homeWithAFullTrash(now: Date())
+    defer { try? FileManager.default.removeItem(at: home) }
+    let found = Catalog(rules: fixtureRules).discover(fixture: home)
+    #expect(!found.contains { inTrash($0.url, home) })
+}
+
+@Test func aPickedFolderOffersNothingInTheTrashEvenWhenTheTrashIsThePickedFolder() async throws {
+    let home = try homeWithAFullTrash(now: Date())
+    defer { try? FileManager.default.removeItem(at: home) }
+    for picked in [home, home.appendingPathComponent(".Trash"), home.appendingPathComponent(".Trash/_cacache")] {
+        let scan = try await FolderScanner().scan(picked)
+        let offered = UserFiles.candidates(in: scan, home: home)
+        #expect(offered.isEmpty, "offered from \(picked.lastPathComponent): \(offered.map(\.url.lastPathComponent))")
+    }
+}
+
+@Test func theCheckRefusesAnyItemInTheTrashSoNoRunEverActsOnIt() async throws {
+    let now = Date()
+    let home = try homeWithAFullTrash(now: now)
+    defer { try? FileManager.default.removeItem(at: home) }
+    let trash = home.appendingPathComponent(".Trash")
+    let catalog = Catalog(rules: fixtureRules + [UserFiles.rule])
+    let npm = try #require(catalog.rule("npm-cache"))
+    func forged(_ rule: CleanupRule, _ path: String, under root: URL) -> Candidate {
+        let url = trash.appendingPathComponent(path)
+        var info = stat(); lstat(url.path, &info)
+        return catalog.candidate(rule, url, info, logical: Int64(info.st_size), allocated: nil, complete: true, lastUsed: nil).found(under: root)
+    }
+    // Items a picked Trash folder, or one inside it, would hold; and a cache folder a rule might be pointed at.
+    let candidates = [forged(UserFiles.rule, "movie.mov", under: trash), forged(UserFiles.rule, "Setup.dmg", under: trash),
+                      forged(npm, "_cacache", under: trash.appendingPathComponent("_cacache")), forged(npm, "_cacache", under: home)]
+    let check = CandidateCheck(catalog: catalog, running: FakeNothingRunning(), inUse: FixtureNothingInUse(), cloud: FakeCloud())
+    for candidate in candidates {
+        #expect(check.check(candidate) == .protected(".Trash"), "\(candidate.ruleID) \(candidate.url.lastPathComponent)")
+    }
+    let journal = try SQLiteCleanupJournal(url: home.appendingPathComponent("journal.sqlite"))
+    let result = await CleanupExecutor(journal: journal, check: check, measure: { _ in nil }, trash: TrashNeverUsed())
+        .execute(CatalogApproval(candidates: candidates, previewOnly: false))
+    #expect(result.records.allSatisfy { $0.state == .skipped })
+    for path in ["movie.mov", "Setup.dmg", "_cacache/content-v2/blob"] { #expect(FileManager.default.fileExists(atPath: trash.appendingPathComponent(path).path)) }
+}
+
+private struct FakeNothingRunning: RunningAppChecking {
+    func isRunning(_ owner: RuleOwner) -> Bool? { false }
+}

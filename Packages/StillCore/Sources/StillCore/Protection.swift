@@ -5,7 +5,7 @@ import Foundation
 /// what the check would refuse.
 struct Protection {
     /// Never acted on: git work, the Trash, backups (spec section 2).
-    static let names: Set<String> = [".git", ".Trash", "Backups.backupdb"]
+    static let names: Set<String> = [".git", ".Trash", ".Trashes", "Backups.backupdb"]
     /// Packages and libraries that are never acted on, whatever folder holds them.
     static let extensions: Set<String> = ["app", "bundle", "framework", "xcarchive", "photoslibrary", "photolibrary", "musiclibrary", "backupbundle", "sparsebundle", "band", "logicx"]
 
@@ -27,8 +27,14 @@ struct Protection {
         names.contains(name) || extensions.contains((name as NSString).pathExtension.lowercased()) || (AppCaches.isMacOSOrStill(name) && !macOSNamesAllowed.contains(name))
     }
 
-    /// The first protected component of `url` below `base`, the item itself included.
+    /// The Trash, the user's and a volume's: never acted on wherever it lies on the path, the base included,
+    /// so a picked `~/.Trash` or a folder inside it offers nothing (#129).
+    static let trashNames: Set<String> = [".Trash", ".Trashes"]
+
+    /// The first protected component of `url` below `base`, the item itself included; a Trash anywhere on the path.
     func protectedComponent(of url: URL, below base: URL) -> String? {
-        url.standardizedFileURL.pathComponents.dropFirst(base.standardizedFileURL.pathComponents.count).first(where: protects)
+        let components = url.standardizedFileURL.pathComponents
+        if let trash = components.first(where: Self.trashNames.contains) { return trash }
+        return components.dropFirst(base.standardizedFileURL.pathComponents.count).first(where: protects)
     }
 }
