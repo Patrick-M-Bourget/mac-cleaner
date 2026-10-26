@@ -75,7 +75,6 @@ enum Destination: String, CaseIterable, Identifiable {
     var diagnosticsCaller = Destination.overview
     var diagnosticsOffset: CGPoint?
     var diagnosticsModel = DiagnosticsModel()
-    var accessGuideExpanded = false
 }
 
 private struct WorkspaceView: View {
@@ -615,8 +614,7 @@ private struct WorkspaceView: View {
                 Divider()
             }
             if let message = locationsModel.message { StatusRow(text: message, symbol: "info.circle") }
-            Text("Scanned folders are for inspection. Cleanup choices, Downloads included, come from the cleanup plan. Access is rechecked for each manual scan; no files are scanned at launch.").font(.caption).foregroundStyle(.secondary)
-            LocationAccessGuide(expanded: $navigationState.accessGuideExpanded)
+            FullDiskAccessSetting()
             LocalRecordsEntry { openLocalRecords(caller: .locations) }
         }.confirmationDialog("Forget location?", isPresented: Binding(get: { locationToForget != nil }, set: { if !$0 { locationToForget = nil } }), titleVisibility: .visible) {
             if let scope = locationToForget {

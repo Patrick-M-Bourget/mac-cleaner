@@ -646,8 +646,7 @@ struct LocationScopeRow<Actions: View>: View {
     private var identity: some View {
         VStack(alignment: .leading, spacing: StillDesign.Space.sm) {
             Label(name, systemImage: "folder").font(StillDesign.TypeStyle.section)
-            Text(path).font(.caption).foregroundStyle(.secondary).lineLimit(2).textSelection(.enabled).help(path)
-            StatusRow(text: status, symbol: "info.circle")
+            Text(PathDisplay.shortLocation(of: path) + " · " + status).font(.caption).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle).help(path)
             if let overlap { Text(overlap).font(.caption).foregroundStyle(.secondary) }
         }.frame(maxWidth: .infinity, alignment: .leading)
     }
