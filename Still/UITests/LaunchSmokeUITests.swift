@@ -121,3 +121,36 @@ final class AppearanceSettingsUITests: XCTestCase {
         XCTAssertEqual(picker.value as? String, "System")
     }
 }
+
+/// #127: ⌘1–⌘5 follow the sidebar order, and ⌘R scans again from any screen.
+final class KeyboardShortcutsUITests: XCTestCase {
+    @MainActor func testShortcutsFollowTheSidebarAndCommandRScansAgain() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        let state = try configureIsolatedState(app)
+        let home = try configureCatalogHome(app)
+        defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
+        app.launch()
+        XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
+
+        let sidebar = ["Overview", "What grew", "Cleanup plan", "History", "Locations & access"]
+        for (index, title) in sidebar.enumerated().reversed() {
+            app.typeKey(String(index + 1), modifierFlags: .command)
+            let row = app.buttons[title]
+            XCTAssertTrue(row.waitForExistence(timeout: 5))
+            let selected = NSPredicate(format: "isSelected == true")
+            XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: selected, object: row)], timeout: 5), .completed, "⌘\(index + 1) opens \(title)")
+        }
+
+        app.typeKey("2", modifierFlags: .command)
+        XCTAssertTrue(app.staticTexts["Baseline recorded"].waitForExistence(timeout: 15))
+        let grown = home.appendingPathComponent(".npm/_cacache/content-v2/sha512/cd/blob")
+        try FileManager.default.createDirectory(at: grown.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Data(repeating: 9, count: 5_000_000).write(to: grown)
+        app.typeKey("4", modifierFlags: .command)
+        XCTAssertTrue(app.menuBars.menuItems["Scan again"].exists, "Scan again is a menu command")
+        app.typeKey("r", modifierFlags: .command)
+        app.typeKey("2", modifierFlags: .command)
+        XCTAssertTrue(app.staticTexts["growthNetChange"].waitForExistence(timeout: 15), "⌘R from History scanned again")
+    }
+}
