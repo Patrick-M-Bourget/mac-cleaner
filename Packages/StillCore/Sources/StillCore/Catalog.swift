@@ -73,8 +73,10 @@ public struct ContentsMatch: Sendable {
     public let minimumBytes: Int64?
     /// Not opened, changed or added for this many days.
     public let unusedDays: Int?
-    public init(extensions: Set<String> = [], minimumBytes: Int64? = nil, unusedDays: Int? = nil) {
-        self.extensions = extensions; self.minimumBytes = minimumBytes; self.unusedDays = unusedDays
+    /// Only an unpacked copy: a file with a smaller compressed source beside it (`rootfs.img` next to `rootfs.img.zst`).
+    public let besideCompressedSource: Bool
+    public init(extensions: Set<String> = [], minimumBytes: Int64? = nil, unusedDays: Int? = nil, besideCompressedSource: Bool = false) {
+        self.extensions = extensions; self.minimumBytes = minimumBytes; self.unusedDays = unusedDays; self.besideCompressedSource = besideCompressedSource
     }
 }
 
@@ -109,11 +111,13 @@ public struct CleanupRule: Sendable, Identifiable {
     public let itemName: (@Sendable (String) -> String?)?
     /// When set, candidates are items a tool's own records on disk list, not the location.
     public let items: CatalogItems?
-    public init(id: String, category: CatalogCategory, title: String, detail: String, consequence: String, regen: RegenClass, action: CleanupAction, locations: [String], owner: RuleOwner?, protectedNames: [String] = [], tool: ToolCommand? = nil, protectedExtensions: [String] = [], contents: ContentsMatch? = nil, keepNewestVersions: Int? = nil, itemName: (@Sendable (String) -> String?)? = nil, items: CatalogItems? = nil) {
+    /// Global protected extensions this rule may act inside, e.g. an app's own VM `.bundle`. Never `sparsebundle` lightly.
+    public let unprotectedExtensions: Set<String>
+    public init(id: String, category: CatalogCategory, title: String, detail: String, consequence: String, regen: RegenClass, action: CleanupAction, locations: [String], owner: RuleOwner?, protectedNames: [String] = [], tool: ToolCommand? = nil, protectedExtensions: [String] = [], contents: ContentsMatch? = nil, keepNewestVersions: Int? = nil, itemName: (@Sendable (String) -> String?)? = nil, items: CatalogItems? = nil, unprotectedExtensions: Set<String> = []) {
         self.id = id; self.category = category; self.title = title; self.detail = detail; self.consequence = consequence
         self.regen = regen; self.action = action; self.locations = locations; self.owner = owner; self.protectedNames = protectedNames; self.tool = tool
         self.protectedExtensions = protectedExtensions; self.contents = contents; self.keepNewestVersions = keepNewestVersions
-        self.itemName = itemName; self.items = items
+        self.itemName = itemName; self.items = items; self.unprotectedExtensions = unprotectedExtensions
     }
 }
 
@@ -205,6 +209,7 @@ public enum BuiltInCatalog {
                     protectedExtensions: downloadsProtectedExtensions, contents: ContentsMatch(minimumBytes: 500_000_000, unusedDays: 90)),
         huggingFaceModels,
         ollamaModels,
+        appVMImages,
     ]
     /// Kept from the Downloads-era policy: libraries and databases are never moved, even inside Downloads.
     static let downloadsProtectedExtensions = ["dsym", "library", "db", "sqlite", "sqlite3"]
@@ -288,7 +293,7 @@ public struct Catalog: Sendable {
     /// Regular files under `root` that match. Never follows symlinks, crosses volumes or enters packages and protected folders.
     private func files(in root: URL, matching match: ContentsMatch, rule: CleanupRule, now: Date) -> [Candidate] {
         let protectedNames = CandidateCheck.protectedNames.union(rule.protectedNames)
-        let protectedExtensions = CandidateCheck.protectedExtensions.union(rule.protectedExtensions)
+        let protectedExtensions = CandidateCheck.protectedExtensions.subtracting(rule.unprotectedExtensions).union(rule.protectedExtensions)
         let path = strdup(root.path)
         defer { free(path) }
         var paths: [UnsafeMutablePointer<CChar>?] = [path, nil]
@@ -308,6 +313,7 @@ public struct Catalog: Sendable {
             guard info.st_uid == geteuid(), !protectedExtensions.contains(ext), info.st_flags & UInt32(SF_DATALESS) == 0 else { continue }
             if !match.extensions.isEmpty, !match.extensions.contains(ext) { continue }
             if let minimum = match.minimumBytes, Int64(info.st_size) < minimum { continue }
+            if match.besideCompressedSource, !Self.hasCompressedSource(url, size: Int64(info.st_size)) { continue }
             let lastUsed = Self.lastUsed(url, info)
             if let days = match.unusedDays, lastUsed > now.addingTimeInterval(-Double(days) * 86_400) { continue }
             found.append(candidate(rule, url, info, logical: Int64(info.st_size), allocated: Int64(info.st_blocks) * 512, complete: true, lastUsed: lastUsed))

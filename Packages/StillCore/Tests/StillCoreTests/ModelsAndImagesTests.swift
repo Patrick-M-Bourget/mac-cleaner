@@ -188,3 +188,73 @@ private func fakeOllama(_ home: URL, _ script: String = "echo \"$@\" >> \"$(dirn
     #expect(record.toolOutput == "Error: could not connect to ollama app, is it running?")
     #expect(FileManager.default.fileExists(atPath: manifest.path))
 }
+
+// MARK: VM and disk images
+
+private let vmBundles = "Library/Application Support/Claude/vm_bundles"
+private let megabyte = 1_000_000
+/// A sparse file of `size` logical bytes, so large images cost no real disk space in tests.
+@discardableResult
+private func sparse(_ home: URL, _ relative: String, size: Int, age: TimeInterval = 30 * day) throws -> URL {
+    let url = try file(home, relative, size: 1, age: age)
+    let handle = try FileHandle(forWritingTo: url)
+    try handle.truncate(atOffset: UInt64(size))
+    try handle.close()
+    try setTimes(url, age)
+    return url
+}
+
+@Test func anUnpackedVMImageBesideItsCompressedSourceIsOfferedForTrashOnlyWhileTheAppIsClosed() async throws {
+    let home = try modelsHome()
+    defer { try? FileManager.default.removeItem(at: home) }
+    let image = try sparse(home, vmBundles + "/claudevm.bundle/rootfs.img", size: 800 * megabyte, age: 5 * day)
+    try file(home, vmBundles + "/claudevm.bundle/rootfs.img.zst", size: 1000)
+    // Not offered: no compressed source, too small to matter, a source larger than the image, or inside a sparse bundle.
+    try sparse(home, vmBundles + "/claudevm.bundle/data.img", size: 800 * megabyte)
+    try sparse(home, vmBundles + "/claudevm.bundle/efi.img", size: 50 * megabyte)
+    try file(home, vmBundles + "/claudevm.bundle/efi.img.gz", size: 100)
+    try file(home, vmBundles + "/claudevm.bundle/odd.img", size: 100)
+    try sparse(home, vmBundles + "/claudevm.bundle/odd.img.xz", size: 200 * megabyte)
+    try sparse(home, vmBundles + "/claudevm.bundle/disk.sparsebundle/bands/0", size: 800 * megabyte)
+    try file(home, vmBundles + "/claudevm.bundle/disk.sparsebundle/bands/0.zst", size: 100)
+    // The same pair outside a known app's VM folder is not offered.
+    try sparse(home, "Documents/rootfs.img", size: 800 * megabyte)
+    try file(home, "Documents/rootfs.img.zst", size: 100)
+
+    let catalog = Catalog(rules: BuiltInCatalog.rules)
+    let candidates = catalog.discover(home: home, locateTool: { _ in nil })
+    #expect(candidates.map(\.url.path) == [image.path])
+    let candidate = try #require(candidates.first)
+    #expect(candidate.ruleID == "app-vm-images")
+    #expect(candidate.action == .trash)
+    #expect(candidate.logicalBytes == Int64(800 * megabyte))
+    let used = try #require(candidate.lastUsed)
+    #expect(abs(used.timeIntervalSinceNow + 5 * day) < 5)
+    let rule = try #require(catalog.rule("app-vm-images"))
+    #expect(rule.category == .models)
+
+    #expect(CandidateCheck(catalog: catalog, running: Running(names: ["Claude"])).check(candidate) == .ownerRunning("Claude"))
+    #expect(CandidateCheck(catalog: catalog, running: Running()).check(candidate) == nil)
+    let record = try #require(try await run(home, [candidate]).records.first)
+    #expect(record.state == .succeeded)
+    #expect(record.message == "Moved to Trash")
+    #expect(!FileManager.default.fileExists(atPath: image.path))
+    #expect(FileManager.default.fileExists(atPath: image.path + ".zst"))
+}
+
+@Test func sparseBundlesStayProtectedOutsideTheVMImageRule() throws {
+    let home = try modelsHome()
+    defer { try? FileManager.default.removeItem(at: home) }
+    try sparse(home, vmBundles + "/claudevm.bundle/rootfs.img", size: 800 * megabyte)
+    try file(home, vmBundles + "/claudevm.bundle/rootfs.img.zst", size: 100)
+    let candidate = try #require(Catalog(rules: BuiltInCatalog.rules).discover(home: home, locateTool: { _ in nil }).first)
+    // A rule that doesn't lift the bundle protection refuses the same item.
+    let others = BuiltInCatalog.rules.filter { $0.id != "app-vm-images" }
+    let strict = try #require(BuiltInCatalog.rules.first { $0.id == "app-vm-images" })
+    let plain = CleanupRule(id: strict.id, category: strict.category, title: strict.title, detail: strict.detail, consequence: strict.consequence,
+                            regen: strict.regen, action: strict.action, locations: strict.locations, owner: strict.owner, contents: strict.contents)
+    let check = CandidateCheck(catalog: Catalog(rules: others + [plain]), running: Running())
+    #expect(check.check(candidate) == .protected("claudevm.bundle"))
+    // Only the app's own `.bundle` folder is lifted; sparse bundles and other protected kinds stay protected.
+    #expect(strict.unprotectedExtensions == ["bundle"])
+}

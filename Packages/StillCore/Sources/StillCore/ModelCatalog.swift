@@ -23,6 +23,17 @@ extension BuiltInCatalog {
         tool: ToolCommand(executables: ["/usr/local/bin/ollama", "/opt/homebrew/bin/ollama", "/Applications/Ollama.app/Contents/Resources/ollama"],
                           arguments: ["rm", "<model>"], timeout: 120, itemPlaceholder: "<model>"),
         items: .ollamaModels)
+    /// Field note section 6: Claude's VM keeps `rootfs.img` (10 GB) unpacked beside `rootfs.img.zst` (1.1 GB).
+    /// Only that unpacked copy is offered, only in the app's own VM folder, and only while the app is closed.
+    /// The rule may act inside the app's `.bundle` folder; sparse bundles and every other protected kind stay protected.
+    static let appVMImages = CleanupRule(
+        id: "app-vm-images", category: .models, title: "Unpacked VM disk images",
+        detail: "Disk images an app unpacked from a compressed copy it keeps beside them. Check when each was last used.",
+        consequence: "Moved to Trash. The compressed copy stays, and the app unpacks or downloads the image again when it next needs it. Quit the app first.",
+        regen: .model, action: .trash, locations: ["Library/Application Support/Claude/vm_bundles/*"],
+        owner: RuleOwner(name: "Claude", bundleIDs: ["com.anthropic.claudefordesktop"]),
+        contents: ContentsMatch(minimumBytes: 100_000_000, besideCompressedSource: true),
+        unprotectedExtensions: ["bundle"])
 }
 
 /// Where a rule's items come from when they aren't folders or files matched by name.
@@ -38,6 +49,15 @@ private struct OllamaManifest: Decodable {
 }
 
 extension Catalog {
+    static let compressedSourceExtensions = ["zst", "gz", "xz", "lz4", "bz2"]
+    /// Whether a smaller regular file of ours named `<file>.<compression>` sits beside `url`.
+    static func hasCompressedSource(_ url: URL, size: Int64) -> Bool {
+        compressedSourceExtensions.contains { ext in
+            var info = stat()
+            return lstat(url.path + "." + ext, &info) == 0 && info.st_mode & S_IFMT == S_IFREG && info.st_uid == geteuid() && Int64(info.st_size) < size
+        }
+    }
+
     /// One candidate per model manifest (`<host>/<namespace>/<model>/<tag>`). The size is an estimate: only blobs
     /// no other manifest references, since `ollama rm` keeps shared ones.
     func ollamaModels(in manifests: URL, rule: CleanupRule, toolURL: URL?) -> [Candidate] {
