@@ -1,6 +1,6 @@
 # Chrome native close-and-clean — bounded Stable evidence
 
-October25,2026 (native job UTC October26). Contract: revised [CHROME-CLEANUP](../CHROME-CLEANUP.md) rules5–7. Native/helper source `d069c517f264ede5bf8106c95e404d1de9230eba`; final `66e1f83` adds only a controlled observation sequence/partial-stop test, with `dd12044` fixing workflow routing. Real process/removal behavior is unchanged. This advances #18; it does not close #18, unblock #19 or enable a production allowlist.
+October25,2026 (native job UTC October26). Contract: revised [CHROME-CLEANUP](../CHROME-CLEANUP.md) rules5–7. Native/helper source `d069c517f264ede5bf8106c95e404d1de9230eba`; controlled follow-up `66e1f83` adds an observation sequence/partial-stop test, with `dd12044` fixing workflow routing. Real process/removal behavior is unchanged. This advances #18; it does not close #18, unblock #19 or enable a production allowlist.
 
 ## Genuine Stable result
 
@@ -21,8 +21,21 @@ Real process enumeration is hosted-only; local tests use an explicit owned proce
 
 ## Remaining acceptance and supported scope
 
-Still unqualified: native between-work reopen/partial stop; index-directory swap and actual access denial; standard-root mapping, shared/ambiguous ownership and enterprise/helper association; saved-password/autofill persistence, download-history UI, history traversal/restored tabs and genuine service-worker offline-app launch. Headless/mock-keychain/custom-root evidence does not certify real Keychain, headed standard-profile behavior, minimum OS or Intel. Additional OS/CPU and unsupported cache groups are retained future scope, not an excuse to demand an exclusive lease for this model.
+Still unqualified: native between-work reopen/partial stop; index-directory swap and actual access denial; standard-root mapping, shared/ambiguous ownership and enterprise/helper association; saved-password/autofill persistence, download-history UI and cold-start offline-app launch. Final27c1db6 now establishes bounded restored tabs/history traversal, authenticated website-session preservation and online-initiated service-worker offline navigation as recorded below. Headless/mock-keychain/custom-root evidence does not certify real Keychain, headed standard-profile behavior, minimum OS or Intel. Additional OS/CPU and unsupported cache groups are retained future scope, not an excuse to demand an exclusive lease for this model.
 
 Production support remains disabled pending the remaining accepted capability requirements. No #19 UI/executor or generic plan refactor is included. Prototype browser/profile → shared plan → permanent confirmation/results remains the design target.
 
 The accepted residual boundary is ordinary-use best-effort detection: process observations before and between targets are not a lease, and descriptor-relative checks do not eliminate every final-name-operation race. Do not claim adversarial same-user protection. Owned process-group termination in experiment teardown is limited to that disposable group; it does not qualify graceful production browser shutdown or authorize force-quit. The earlier exclusive-lease finding is historical to the stronger superseded model, not a blocker reintroduced here.
+
+## Final protected-semantic qualification —27c1db6
+
+[Final focused workflow40255923214](https://github.com/Patrick-M-Bourget/mac-cleaner/actions/runs/40255923214) fully succeeds; Chrome job121357620359 completes in56 seconds. Actual Stable156.0.8078.48 artifact/executable hashes match the first recorded pass, with untouched vendor signatures before/after. Both owned custom profiles pass:
+
+- A synthetic HttpOnly-authenticated website session works after genuine relaunch without another login; this is not saved-password-manager/Keychain qualification.
+- A previously installed service worker serves the offline shell after fresh-process relaunch, with CDP network disabled, correct synthetic content and no additional shell request to the fixture server. Initial target setup uses an online-controlled page; cold-start offline launch is not qualified.
+- Both genuinely created tabs restore (2/2) before the harness creates inspection targets. An existing persisted history stack actually navigates back. No preferences, browser database seeding or replacement tabs manufacture restoration.
+- Existing protected-file/site-state checks and actual downloaded-file survival pass again. Download-history UI, saved passwords and autofill remain unqualified.
+
+[Final original report](chrome-close-clean/27c1db6/report.json), [provenance](chrome-close-clean/27c1db6/provision.json) and [semantic note](chrome-close-clean/semantic-note.md) retain exact facts. Earlier58b0fdf [report](chrome-close-clean/58b0fdf/report.json) is preserved: auth/offline/back traversal passed but only1/2 tabs were observed. It lacked a pre-close second-tab navigation-complete wait. The nine-line27c1db6 correction waits for actual completion; final2/2 does not retroactively alter the earlier observation or establish that it was data loss. No restore flag or browser preference changed to obtain the result.
+
+Both review axes accepted the semantic fixture diff; root separately reviewed the narrow pre-close completion correction. This is the final genuine source for this slice. Three controlled group methods plus two unchanged exact-leaf methods retain their prior pass; this is not a new whole-app suite. #18 remains open for the specific remaining required native/profile/semantic acceptance above; additional OS/CPU and unsupported groups stay future scope. #19 remains blocked, positive production allowlist empty, personal-file exact-target policy unchanged.

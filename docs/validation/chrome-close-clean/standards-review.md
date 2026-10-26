@@ -13,3 +13,11 @@ DESIGN-SYSTEM requires changed native screens to reuse components and undergo Li
 Fowler heuristics were considered as judgement, not invented repository mandates. Existing monolithic disposable harness structure and compact Python style do not justify an architectural refactor for this small experiment. Duplicated Stable/CfT startup assertions are modest and preserve distinct qualification conditions; no speculative abstraction is requested.
 
 Limits: this is a source/standards review, not native qualification or proof of semantic preservation. Existing declared credentials/autofill/history/session and platform qualification gaps must remain visible in the final capability decision.
+
+## Narrow follow-up — protected semantics
+
+Read-only review of `66e1f83..58b0fdf`, limited to genuine.mjs fixture additions; no tests run. **No new blocking standards findings.** Same repository authority and judgement criteria apply.
+
+The added authentication cookie, service worker, offline shell, navigation history and restored-tab probes stay inside the generated loopback origin and disposable profile root. Credentials are random synthetic tokens; persisted evidence records booleans/counts rather than token values. No preferences/database edits, personal profile discovery or installed-browser access were introduced. CDP calls retain the existing 15-second timeout; navigation/readiness loops have explicit iteration bounds, and offline emulation resets in `finally`. Failed mandatory assertions remain fatal; restored-tab/history unavailability is recorded separately instead of being silently promoted to a passing preservation claim.
+
+No new architectural abstraction is warranted for these experiment fixtures. The report still explicitly states “No saved password/autofill or download-history UI qualification”; synthetic HttpOnly authentication is correctly distinct from saved-password qualification. Native execution evidence must determine which semantic assertions actually pass, and cannot convert the partial report into production permission.
