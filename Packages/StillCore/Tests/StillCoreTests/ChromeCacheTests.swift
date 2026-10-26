@@ -1,4 +1,5 @@
 import Foundation
+import Darwin
 import Testing
 import StillCore
 
@@ -249,4 +250,45 @@ private final class ChromeActivitySequence: ChromeCacheEnvironment, @unchecked S
     let retained = try await service.records()
     #expect(Set(retained.map(\.id)) == [newest.id, claimID])
     #expect(retained.first(where: { $0.id == claimID })?.unresolved == true)
+}
+
+
+@Test(.enabled(if: ProcessInfo.processInfo.environment["GITHUB_ACTIONS"] == "true" && ProcessInfo.processInfo.environment["RUNNER_ENVIRONMENT"] == "github-hosted"))
+func chromeNativeUnreapedExitedChildIsNotBrowserActivity() throws {
+    // Hosted-only system boundary: no personal browser or process observation.
+    // Swift forbids fork(); supported posix_spawn owns an immediate-exit child
+    // without Foundation.Process's automatic reaper. Keep it unreaped below.
+    var child: pid_t = 0
+    let binary = try #require(strdup("/usr/bin/true"))
+    defer { free(binary) }
+    var arguments: [UnsafeMutablePointer<CChar>?] = [binary, nil]
+    var environment: [UnsafeMutablePointer<CChar>?] = [nil]
+    let spawned = arguments.withUnsafeMutableBufferPointer { args in
+        environment.withUnsafeMutableBufferPointer { env in
+            posix_spawn(&child, "/usr/bin/true", nil, nil, args.baseAddress!, env.baseAddress!)
+        }
+    }
+    try #require(spawned == 0 && child > 0)
+    defer {
+        var status: Int32 = 0
+        var reaped = false
+        for _ in 0..<100 {
+            if waitpid(child, &status, WNOHANG) == child { reaped = true; break }
+            usleep(10_000)
+        }
+        if !reaped { kill(child, SIGTERM); _ = waitpid(child, &status, 0) }
+    }
+    var details = proc_bsdinfo()
+    let size = Int32(MemoryLayout<proc_bsdinfo>.size)
+    var observed = false
+    for _ in 0..<100 {
+        if proc_pidinfo(child, PROC_PIDTBSDINFO, 0, &details, size) == size && details.pbi_status == SZOMB { observed = true; break }
+        usleep(10_000)
+    }
+    try #require(observed, "Disposable exited child must remain unreaped for this native observation")
+    var path = [CChar](repeating: 0, count: 4 * Int(MAXPATHLEN))
+    let pathResult = proc_pidpath(child, &path, UInt32(path.count))
+    print("DISPOSABLE_CHILD_OBSERVATION pid=\(child) parent=\(details.pbi_ppid) uid=\(details.pbi_uid) state=\(details.pbi_status) pathLookupResult=\(pathResult)")
+    #expect(details.pbi_uid == getuid())
+    #expect(try NativeChromeCacheEnvironment().browserIsRunning(bundleURL: URL(fileURLWithPath: "/__still_disposable_missing_browser__.app")) == false)
 }

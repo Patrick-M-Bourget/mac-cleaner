@@ -42,6 +42,35 @@ import StillCore
         }
         return matching
     }
+    struct UnidentifiedActivity: Codable, Sendable {
+        let pid: Int32
+        let parentPID: UInt32
+        let uid: UInt32
+        let status: UInt32
+        let pathLookupFailed: Bool
+    }
+    struct UnknownRefusal: Error, CustomStringConvertible {
+        let description: String
+        let activity: [UnidentifiedActivity]
+    }
+    static func unidentifiedDiagnostics() -> [UnidentifiedActivity] {
+        let capacity = proc_listallpids(nil, 0)
+        guard capacity > 0 else { return [] }
+        var pids = [pid_t](repeating: 0, count: Int(capacity) + 128)
+        let count = pids.withUnsafeMutableBytes { proc_listallpids($0.baseAddress, Int32($0.count)) }
+        guard count > 0, Int(count) < pids.count else { return [] }
+        var matching: [UnidentifiedActivity] = []
+        for pid in pids.prefix(Int(count)) where pid > 0 {
+            var bytes = [CChar](repeating: 0, count: 4 * Int(MAXPATHLEN))
+            guard proc_pidpath(pid, &bytes, UInt32(bytes.count)) <= 0 else { continue }
+            var details = proc_bsdinfo()
+            let size = Int32(MemoryLayout<proc_bsdinfo>.size)
+            guard proc_pidinfo(pid, PROC_PIDTBSDINFO, 0, &details, size) == size, details.pbi_uid == getuid() else { continue }
+            matching.append(.init(pid: pid, parentPID: details.pbi_ppid, uid: details.pbi_uid,
+                                  status: details.pbi_status, pathLookupFailed: true))
+        }
+        return matching
+    }
     static func require(_ condition: Bool, _ message: String) throws {
         if !condition { throw Refusal(description: message) }
     }
@@ -103,6 +132,9 @@ import StillCore
                 if inspected.availability == .running {
                     throw RunningRefusal(description: inspected.unavailableReason ?? "Browser activity observed", activity: activityDiagnostics(bundle))
                 }
+                if inspected.availability == .unknown, inspected.unavailableReason == "A current-user process could not be identified." {
+                    throw UnknownRefusal(description: inspected.unavailableReason!, activity: unidentifiedDiagnostics())
+                }
                 throw Refusal(description: inspected.unavailableReason ?? "Requested generated cache group is unavailable")
             }
             let approval = try await service.approve(groupIDs: [group.id])
@@ -121,6 +153,12 @@ import StillCore
                let diagnostic = try? JSONSerialization.jsonObject(with: data) {
                 output["activityDiagnostic"] = diagnostic
                 output["activityDiagnosticScope"] = "verified bundle only; an empty result is not evidence of inactivity"
+            }
+            if let unknown = error as? UnknownRefusal,
+               let data = try? JSONEncoder().encode(unknown.activity),
+               let diagnostic = try? JSONSerialization.jsonObject(with: data) {
+                output["unknownProcessDiagnostic"] = diagnostic
+                output["unknownProcessDiagnosticScope"] = "current-uid path-lookup failures observed AFTER refusal; not guaranteed to include the exact failed PID"
             }
             if let data = try? JSONSerialization.data(withJSONObject: output, options: [.sortedKeys]) { FileHandle.standardOutput.write(data); FileHandle.standardOutput.write(Data("\n".utf8)) }
             exit(1)

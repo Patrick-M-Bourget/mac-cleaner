@@ -112,6 +112,7 @@ on:
           - chrome-cleanup-gallery
           - chrome-cleanup-chrome-only
           - chrome-swift-only
+          - chrome-native-process-only
           - chrome-probe
       chromeFinalLane:
         description: Chrome final qualification lane (only chrome-stable-final)
@@ -124,7 +125,7 @@ permissions:
   contents: read
 jobs:
   native:
-    if: github.event_name != 'workflow_dispatch' || (inputs.suite != 'chrome-swift-only' && inputs.suite != 'benchmark' && inputs.suite != 'filesystem' && inputs.suite != 'chrome-probe' && inputs.suite != 'chrome-stable-probe' && inputs.suite != 'chrome-stable-final' && inputs.suite != 'alerts-native')
+    if: github.event_name != 'workflow_dispatch' || (inputs.suite != 'chrome-native-process-only' && inputs.suite != 'chrome-swift-only' && inputs.suite != 'benchmark' && inputs.suite != 'filesystem' && inputs.suite != 'chrome-probe' && inputs.suite != 'chrome-stable-probe' && inputs.suite != 'chrome-stable-final' && inputs.suite != 'alerts-native')
     runs-on: macos-26
     steps:
       - uses: actions/checkout@v4
@@ -752,4 +753,24 @@ jobs:
         with:
           name: chrome-swift-evidence
           path: ${{ runner.temp }}/chrome-swift/evidence/
+          if-no-files-found: error
+
+  chrome-native-process:
+    if: github.event_name == 'workflow_dispatch' && inputs.suite == 'chrome-native-process-only'
+    runs-on: macos-26
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: '26.6'
+      - name: Observe only the controlled exited child at the public native process boundary
+        run: |
+          set -o pipefail
+          xcrun swift test --package-path Packages/StillCore --filter chromeNativeUnreapedExitedChildIsNotBrowserActivity 2>&1 | tee "$RUNNER_TEMP/chrome-native-process.log"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: chrome-native-process-evidence
+          path: ${{ runner.temp }}/chrome-native-process.log
           if-no-files-found: error
