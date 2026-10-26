@@ -701,3 +701,39 @@ jobs:
           name: stable-chrome-final-evidence
           path: ${{ runner.temp }}/chrome-stable-final/evidence/
           if-no-files-found: error
+
+  chrome-swift-qualification:
+    if: github.event_name == 'workflow_dispatch' && inputs.suite == 'chrome-cleanup'
+    runs-on: macos-26
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: '26.6'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Build actual Swift cache module and qualify public fixture behavior
+        run: |
+          xcrun swift test --package-path Packages/StillCore --filter ChromeCache
+          xcrun swift build --package-path Validation/ChromeCleanupRunner
+          node --check Validation/ChromeProbe/genuine.mjs
+          node --check Validation/ChromeProbe/headed.mjs
+      - name: Extract and verify regular vendor Stable without installing
+        run: python3 Validation/ChromeProbe/provision-stable.py "$RUNNER_TEMP/chrome-swift"
+      - name: Genuine Stable protected semantics through production Swift cleanup
+        env:
+          STILL_CHROME_STABLE_PROBE: '1'
+        run: |
+          export STILL_CHROME_SWIFT_RUNNER="$GITHUB_WORKSPACE/Validation/ChromeCleanupRunner/.build/debug/ChromeCleanupRunner"
+          export STILL_CHROME_SWIFT_PROVISION="$RUNNER_TEMP/chrome-swift/evidence/provision.json"
+          BROWSER=$(python3 -c 'import json,os; print(json.load(open(os.environ["STILL_CHROME_SWIFT_PROVISION"]))["bundle"]+"/Contents/MacOS/Google Chrome")')
+          node Validation/ChromeProbe/genuine.mjs "$BROWSER" "$RUNNER_TEMP/chrome-swift/evidence/report.json"
+          node Validation/ChromeProbe/headed.mjs "$STILL_CHROME_SWIFT_PROVISION" "$RUNNER_TEMP/chrome-swift/evidence/headed.json"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: chrome-swift-evidence
+          path: ${{ runner.temp }}/chrome-swift/evidence/
+          if-no-files-found: error

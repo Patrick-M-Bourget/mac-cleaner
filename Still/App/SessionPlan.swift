@@ -316,7 +316,7 @@ import SwiftUI
         if !holdingOperationLock { AppLifecycleController.shared.operationInProgress = false }
     }
     func toggleAll() async {
-        guard !isPreparing && !isRefreshing && !execution.isRunning else { return }
+        guard !isPreparing && !isRefreshing && !execution.isRunning && !workspaceRunning && !chrome.isRunning else { return }
         if categoryState == .checked { draft.clear(); approvedBatch = nil; AppLifecycleController.shared.hasPendingPlan = false; return }
         guard let downloads else { return }
         var leases: [ScopeAccessLease] = []
@@ -341,7 +341,7 @@ import SwiftUI
         AppLifecycleController.shared.hasPendingPlan = draft.selectedCount > 0
     }
     func set(_ item: FileObservation, in scan: ScanResult, selected: Bool) {
-        guard !isPreparing && !execution.isRunning else { return }
+        guard !isPreparing && !execution.isRunning && !workspaceRunning && !chrome.isRunning else { return }
         approvedBatch = nil
         if !selected { draft.remove(item.url.path + "|" + item.resourceID + "|moveToTrash") }
         else {
@@ -357,7 +357,7 @@ import SwiftUI
         AppLifecycleController.shared.hasPendingPlan = draft.selectedCount > 0
     }
     func remove(_ target: PlannedTarget) {
-        guard !isPreparing && !execution.isRunning else { return }
+        guard !isPreparing && !execution.isRunning && !workspaceRunning && !chrome.isRunning else { return }
         approvedBatch = nil
         draft.remove(target.id)
         AppLifecycleController.shared.hasPendingPlan = draft.selectedCount > 0

@@ -88,7 +88,7 @@ const server = createServer((req, res) => {
 await new Promise(r => server.listen(0, '127.0.0.1', r));
 const origin = `http://127.0.0.1:${server.address().port}`;
 const sleep = ms => new Promise(r => setTimeout(r, ms));
-const report = { schema: 1, sealedBundleVerified: provisioning.sealedBundleVerified, signatureVerification: provisioning.signatureVerification, nativeCodeSignatureObservations: provisioning.nativeCodeSignatureObservations, browserVersion: version, executableSHA256: digest(await readFile(browser)), node: process.version, githubSHA: process.env.GITHUB_SHA, githubRunID: process.env.GITHUB_RUN_ID, os: release(), architecture: arch(), sourceURL: provisioning.sourceURL, profiles: [], productionMutationSupported: false, limitations: ['No production inactivity or reopen-race closure', 'No saved password/autofill or download-history UI qualification; restored-tab/history result reported separately; offline navigation starts from online-controlled page', 'No enterprise policy, shared cache, minimum OS or Intel qualification', 'Background-network flags are not a network trace; no network absence claim'] };
+const report = { productionSwiftAdapter: !!process.env.STILL_CHROME_SWIFT_RUNNER, schema: 1, sealedBundleVerified: provisioning.sealedBundleVerified, signatureVerification: provisioning.signatureVerification, nativeCodeSignatureObservations: provisioning.nativeCodeSignatureObservations, browserVersion: version, executableSHA256: digest(await readFile(browser)), node: process.version, githubSHA: process.env.GITHUB_SHA, githubRunID: process.env.GITHUB_RUN_ID, os: release(), architecture: arch(), sourceURL: provisioning.sourceURL, profiles: [], productionMutationSupported: false, limitations: ['No production inactivity or reopen-race closure', 'No saved password/autofill or download-history UI qualification; restored-tab/history result reported separately; offline navigation starts from online-controlled page', 'No enterprise policy, shared cache, minimum OS or Intel qualification', 'Background-network flags are not a network trace; no network absence claim'] };
 let owned;
 class CDP {
   constructor(ws) {
@@ -202,6 +202,18 @@ async function leaves(directory) {
   return result;
 }
 async function clearCache(cache) {
+  if (process.env.STILL_CHROME_SWIFT_RUNNER) {
+    assert(stable, 'Swift qualification requires actual Stable');
+    const profile = cache.slice(userData.length + 1).split('/')[0];
+    const args = ['--root', root, '--data', userData, '--bundle', bundle, '--profile', profile,
+      '--journal', join(root, 'swift-journal-' + profile.replaceAll(' ', '-') + '.json')];
+    try { return JSON.parse(execFileSync(process.env.STILL_CHROME_SWIFT_RUNNER, args, {encoding:'utf8', timeout:60000})); }
+    catch (error) {
+      const observed = JSON.parse(error.stdout?.toString() || '{}');
+      if (observed.reason?.includes('Quit Chrome')) throw new Error('browser or helper activity observed: ' + observed.reason);
+      throw new Error(observed.reason || String(error));
+    }
+  }
   if (stable) {
     const args = [join(dirname(fileURLToPath(import.meta.url)), 'cache-group.py'), root, cache, bundle];
     const approval = execFileSync('python3', [...args, 'observe'], { encoding: 'utf8', timeout: 15000 });

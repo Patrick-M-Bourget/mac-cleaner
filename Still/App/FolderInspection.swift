@@ -56,7 +56,7 @@ final class FolderInspection {
     }
 
     func scan(_ url: URL) {
-        guard !AppLifecycleController.shared.maintenanceInProgress else { return }
+        guard !AppLifecycleController.shared.operationInProgress, !AppLifecycleController.shared.maintenanceInProgress else { return }
         guard !selection.execution.isRunning else { return }
         cancel()
         startScan(url)
@@ -64,7 +64,7 @@ final class FolderInspection {
 
     /// Refresh the existing explicit scopes without replacing live choices or choosing a new scope.
     func scanAgain(scopes explicitScopes: [URL]? = nil, leases: [ScopeAccessLease] = [], unavailable: [URL] = []) {
-        guard !AppLifecycleController.shared.maintenanceInProgress, !selection.execution.isRunning, !isScanning else { return }
+        guard !AppLifecycleController.shared.operationInProgress, !AppLifecycleController.shared.maintenanceInProgress, !selection.execution.isRunning, !isScanning else { return }
         let focusedScope = scope?.standardizedFileURL
         let roots = Set((explicitScopes ?? (scopeReports.map { $0.current.scope } + selection.refreshScopes + [scope].compactMap { $0 })).map(\.standardizedFileURL)).sorted { $0.path < $1.path }
         guard !roots.isEmpty || !unavailable.isEmpty else { return }
