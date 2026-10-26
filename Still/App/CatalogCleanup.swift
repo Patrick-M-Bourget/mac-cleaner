@@ -20,6 +20,8 @@ import SwiftUI
     private(set) var overriddenRules: [CleanupRule] = []
     /// Names of owners that were running at the last scan. Their items stay choosable; the checks refuse them.
     private(set) var runningOwners: Set<String> = []
+    /// Each candidate's owner name at the last scan, so views never look owners up while drawing.
+    private var ownerNames: [String: String] = [:]
     private var executor: CleanupExecutor?
     private static let previewKey = "StillPreviewOnly"
     /// Decision 16: on by default; with it on, the whole flow runs and nothing changes on disk.
@@ -77,6 +79,10 @@ import SwiftUI
 
     /// Overview's summary; nil until the first scan of the known locations has finished.
     var overview: CatalogOverview? { hasScanned ? CatalogOverview(catalog: catalog, candidates: candidates) : nil }
+    /// Owners of the rule's items that were running at the last scan, in name order.
+    func runningOwnerNames(for rule: CleanupRule) -> [String] {
+        Set(candidates(for: rule).compactMap { ownerNames[$0.id] }).intersection(runningOwners).sorted()
+    }
     var rulesFound: [CleanupRule] { catalog.rules.filter { rule in candidates.contains { $0.ruleID == rule.id } } }
     func candidates(for rule: CleanupRule) -> [Candidate] { candidates.filter { $0.ruleID == rule.id } }
     func estimatedBytes(for rule: CleanupRule) -> Int64 { candidates(for: rule).reduce(0) { $0 + ($1.allocatedBytes ?? $1.logicalBytes) } }
@@ -101,16 +107,17 @@ import SwiftUI
         guard canEdit else { return }
         isScanning = true; message = nil
         defer { isScanning = false; hasScanned = true }
-        guard let home = Self.home else { candidates = []; overriddenRules = []; runningOwners = []; return }
+        guard let home = Self.home else { candidates = []; overriddenRules = []; runningOwners = []; ownerNames = [:]; return }
         let catalog = catalog
         let locate = Self.locateTool, system = Self.systemRoot
-        let scanned = await Task.detached(priority: .userInitiated) { () -> ([Candidate], [CleanupRule], Set<String>) in
+        let scanned = await Task.detached(priority: .userInitiated) { () -> ([Candidate], [CleanupRule], Set<String>, [String: String]) in
             let candidates = catalog.discover(home: home, locateTool: locate, systemRoot: system)
-            let owners = catalog.rules.filter { rule in candidates.contains { $0.ruleID == rule.id } }.compactMap(\.owner)
+            var owners: [String: RuleOwner] = [:], names: [String: String] = [:]
+            for candidate in candidates { if let owner = catalog.owner(for: candidate) { owners[owner.name] = owner; names[candidate.id] = owner.name } }
             let running = SystemRunningAppChecker()
-            return (candidates, catalog.overriddenRules(home: home, systemRoot: system), Set(owners.filter { running.isRunning($0) == true }.map(\.name)))
+            return (candidates, catalog.overriddenRules(home: home, systemRoot: system), Set(owners.values.filter { running.isRunning($0) == true }.map(\.name)), names)
         }.value
-        candidates = scanned.0; overriddenRules = scanned.1; runningOwners = scanned.2
+        candidates = scanned.0; overriddenRules = scanned.1; runningOwners = scanned.2; ownerNames = scanned.3
         let found = Set(candidates.map(\.id))
         if !selectedIDs.isSubset(of: found) { selectedIDs.formIntersection(found); message = "Some items changed or are no longer on this Mac and were removed from your plan." }
         selectionRevision &+= 1
@@ -247,8 +254,8 @@ struct CatalogPlanSection: View {
                 if model.candidates(for: rule).contains(where: { $0.profile != nil }) {
                     CatalogProfileRows(model: model, rule: rule).padding(.leading, StillDesign.Space.xl)
                 }
-                if let owner = rule.owner, model.runningOwners.contains(owner.name) {
-                    StatusRow(text: CheckRefusal.ownerRunning(owner.name).reason + " Still won’t close it for you.", symbol: "exclamationmark.circle", role: .caution,
+                ForEach(model.runningOwnerNames(for: rule), id: \.self) { name in
+                    StatusRow(text: CheckRefusal.ownerRunning(name).reason + " Still won’t close it for you.", symbol: "exclamationmark.circle", role: .caution,
                               identifier: "planRunning-" + rule.id).padding(.leading, StillDesign.Space.xl)
                 }
             }

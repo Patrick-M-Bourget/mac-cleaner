@@ -45,8 +45,10 @@ public struct RuleOwner: Sendable, Hashable {
     /// Any later argument, such as a JVM main class (the Gradle daemon runs as `java … org.gradle…`).
     /// All three lists take shell-style patterns (`pip3.*`, `yarn-*.cjs`).
     public let arguments: [String]
-    public init(name: String, bundleIDs: [String] = [], executables: [String] = [], scripts: [String] = [], arguments: [String] = []) {
-        self.name = name; self.bundleIDs = bundleIDs; self.executables = executables; self.scripts = scripts; self.arguments = arguments
+    /// Folders, such as an app bundle, any process run from inside of which belongs to the owner.
+    public let paths: [String]
+    public init(name: String, bundleIDs: [String] = [], executables: [String] = [], scripts: [String] = [], arguments: [String] = [], paths: [String] = []) {
+        self.name = name; self.bundleIDs = bundleIDs; self.executables = executables; self.scripts = scripts; self.arguments = arguments; self.paths = paths
     }
 }
 
@@ -93,10 +95,15 @@ public struct CleanupRule: Sendable, Identifiable {
     /// For `*` locations named by version (DeviceSupport): keep this many newest versions in each folder.
     /// Children whose name has no version are then never offered.
     public let keepNewestVersions: Int?
-    public init(id: String, category: CatalogCategory, title: String, detail: String, consequence: String, regen: RegenClass, action: CleanupAction, locations: [String], owner: RuleOwner?, protectedNames: [String] = [], tool: ToolCommand? = nil, protectedExtensions: [String] = [], contents: ContentsMatch? = nil, keepNewestVersions: Int? = nil, layoutOverrides: [LayoutOverride] = []) {
+    /// For rules whose owner differs per item (an app's own cache folder): the item's owner, or nil when it
+    /// can't be determined. Such an item is never offered, and is refused if its owner can't be found later.
+    public let itemOwner: (@Sendable (URL) -> RuleOwner?)?
+    public init(id: String, category: CatalogCategory, title: String, detail: String, consequence: String, regen: RegenClass, action: CleanupAction, locations: [String], owner: RuleOwner?, protectedNames: [String] = [], tool: ToolCommand? = nil, protectedExtensions: [String] = [], contents: ContentsMatch? = nil, keepNewestVersions: Int? = nil, layoutOverrides: [LayoutOverride] = [],
+                itemOwner: (@Sendable (URL) -> RuleOwner?)? = nil) {
         self.id = id; self.category = category; self.title = title; self.detail = detail; self.consequence = consequence
         self.regen = regen; self.action = action; self.locations = locations; self.owner = owner; self.protectedNames = protectedNames; self.tool = tool
         self.protectedExtensions = protectedExtensions; self.contents = contents; self.keepNewestVersions = keepNewestVersions; self.layoutOverrides = layoutOverrides
+        self.itemOwner = itemOwner
     }
 }
 
@@ -224,6 +231,11 @@ public struct Catalog: Sendable {
     public let rules: [CleanupRule]
     public init(rules: [CleanupRule]) { self.rules = rules }
     public func rule(_ id: String) -> CleanupRule? { rules.first { $0.id == id } }
+    /// Who must be closed before the candidate is touched: the rule's owner, or the item's own when it has one.
+    public func owner(for candidate: Candidate) -> RuleOwner? {
+        guard let rule = rule(candidate.ruleID) else { return nil }
+        return rule.itemOwner.map { $0(candidate.url) } ?? rule.owner
+    }
     /// Load-bearing caches that are never offered, whatever a rule says (spec section 2).
     public static let neverOffered: Set<String> = ["ccache", ".ccache", "sccache"]
 
@@ -250,6 +262,11 @@ public struct Catalog: Sendable {
                 var info = stat()
                 guard lstat(url.path, &info) == 0, info.st_uid == geteuid(),
                       [S_IFDIR, S_IFREG].contains(info.st_mode & S_IFMT) else { return [] }
+                var profile = profile
+                if let itemOwner = rule.itemOwner {
+                    guard let owner = itemOwner(url) else { return [] }
+                    profile = owner.name
+                }
                 // A tool that cleans only part of its folder frees an unknown amount; the folder's total would overstate it.
                 let size = rule.tool?.deletesLocationAfter == false ? ItemSize(logicalBytes: 0, allocatedBytes: nil, entries: 0, complete: false) : sizer.size(url)
                 return [candidate(rule, url, info, logical: size.logicalBytes, allocated: size.allocatedBytes, complete: size.complete, lastUsed: nil, toolURL: toolURL,
