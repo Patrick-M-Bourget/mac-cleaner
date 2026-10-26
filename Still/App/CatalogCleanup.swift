@@ -60,6 +60,8 @@ import SwiftUI
         return ToolCommand.installed
     }
 
+    /// Overview's summary; nil until the first scan of the known locations has finished.
+    var overview: CatalogOverview? { hasScanned ? CatalogOverview(catalog: catalog, candidates: candidates) : nil }
     var rulesFound: [CleanupRule] { catalog.rules.filter { rule in candidates.contains { $0.ruleID == rule.id } } }
     func candidates(for rule: CleanupRule) -> [Candidate] { candidates.filter { $0.ruleID == rule.id } }
     func estimatedBytes(for rule: CleanupRule) -> Int64 { candidates(for: rule).reduce(0) { $0 + ($1.allocatedBytes ?? $1.logicalBytes) } }
@@ -136,6 +138,43 @@ extension CatalogCategory {
         case .downloads: .downloads
         case .system, .models: .managed
         }
+    }
+}
+
+extension CatalogCategory {
+    /// Overview's row title for a category; the rows themselves come from what the catalog found.
+    var overviewTitle: String {
+        switch self {
+        case .developer: "Developer caches and build files"
+        case .browser: "Browser caches"
+        case .downloads: "Downloads to review"
+        case .system: "App caches and logs"
+        case .models: "Models and disk images"
+        }
+    }
+}
+
+extension SizeEstimate {
+    /// Unknown stays unknown, never 0 (SPEC section 1).
+    var text: String {
+        switch self {
+        case .measured(let bytes): catalogBytes(bytes)
+        case .atLeast(let bytes): catalogBytes(bytes, complete: false)
+        case .unknown: "Unknown"
+        }
+    }
+}
+
+extension CatalogOverview.Row {
+    /// What happens and to what, e.g. "Clear npm cache, Yarn cache · Move Installers to Trash".
+    var detail: String {
+        let cleared = rules.filter { $0.action == .delete }.map(\.title)
+        let trashed = rules.filter { $0.action == .trash }.map(\.title)
+        return ([cleared.isEmpty ? nil : "Clear " + Self.list(cleared), trashed.isEmpty ? nil : "Move " + Self.list(trashed) + " to Trash"]
+            .compactMap { $0 }).joined(separator: " · ")
+    }
+    private static func list(_ titles: [String]) -> String {
+        titles.count <= 3 ? titles.joined(separator: ", ") : titles.prefix(2).joined(separator: ", ") + " and \(titles.count - 2) more"
     }
 }
 

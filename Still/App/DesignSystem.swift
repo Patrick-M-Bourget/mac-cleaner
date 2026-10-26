@@ -230,6 +230,8 @@ struct CapacityMeter: View {
     let total: Int64?
     var compact = false
     var showsValue = true
+    /// The taller bar of the Overview device card.
+    var prominent = false
     private func bytes(_ value: Int64) -> String { ByteCountFormatter.string(fromByteCount: value, countStyle: .decimal) }
     private var validTotal: Int64? {
         guard let available, let total, total > 0, available >= 0, available <= total else { return nil }
@@ -255,12 +257,13 @@ struct CapacityMeter: View {
                         Capsule().fill(StillDesign.capacityFill).frame(width: geometry.size.width * CGFloat(Double(total - available) / Double(total)))
                     }
                 } else { Color.clear }
-            }.frame(height: compact ? 4 : 8).accessibilityElement(children: .ignore)
+            }.frame(height: compact ? 4 : prominent ? StillDesign.Space.md : 8).accessibilityElement(children: .ignore)
                 .accessibilityLabel(validTotal == nil ? "Capacity meter unavailable" : amountText)
         }
     }
 }
 
+/// The prototype's device card: the whole disk, used against available. Never attributes bytes to categories.
 struct VolumeSummary: View {
     let available: Int64?
     let total: Int64?
@@ -269,44 +272,49 @@ struct VolumeSummary: View {
     var refreshTitle = "Refresh capacity"
     var refreshing = false
     var refresh: (() -> Void)? = nil
+    var name = StartupVolumeCapacity.name ?? "This Mac"
+    private func bytes(_ value: Int64) -> String { ByteCountFormatter.string(fromByteCount: value, countStyle: .decimal) }
+    private var used: Int64? {
+        guard let available, let total, total > 0, available >= 0, available <= total else { return nil }
+        return total - available
+    }
     var body: some View {
         SummarySurface {
             VStack(alignment: .leading, spacing: StillDesign.Space.lg) {
-                HStack(spacing: StillDesign.Space.md) {
-                    Image(systemName: "internaldrive").font(.system(size: 24, weight: .light)).foregroundStyle(.secondary)
+                HStack(alignment: .top, spacing: StillDesign.Space.md) {
+                    Image(systemName: "internaldrive").font(.system(size: 16, weight: .light)).foregroundStyle(.secondary)
                         .frame(width: 44, height: 44).background(StillDesign.reading.gradient, in: RoundedRectangle(cornerRadius: StillDesign.Radius.row))
                         .overlay { RoundedRectangle(cornerRadius: StillDesign.Radius.row).strokeBorder(StillDesign.separator, lineWidth: 0.5) }
                         .accessibilityHidden(true)
-                    Text("This Mac · Startup volume").font(StillDesign.TypeStyle.section)
+                    VStack(alignment: .leading, spacing: StillDesign.Space.xs) {
+                        Text(name).font(StillDesign.TypeStyle.section)
+                        Text("Startup volume · " + (total.map(bytes) ?? "Total capacity unavailable")).font(.caption).foregroundStyle(.secondary)
+                    }.frame(height: 44)
                     Spacer(minLength: StillDesign.Space.sm)
-                    if let available, available >= 0 {
-                        VStack(alignment: .trailing, spacing: StillDesign.Space.xs) {
-                            Text(ByteCountFormatter.string(fromByteCount: available, countStyle: .decimal)).font(StillDesign.TypeStyle.value).monospacedDigit().accessibilityIdentifier("startupCapacityAmount")
-                            Text(total.map { "available of " + ByteCountFormatter.string(fromByteCount: $0, countStyle: .decimal) } ?? "Total capacity unavailable").font(.caption).foregroundStyle(.secondary)
-                        }
-                    } else {
-                        VStack(alignment: .trailing, spacing: StillDesign.Space.xs) {
+                    VStack(alignment: .trailing, spacing: StillDesign.Space.xs) {
+                        if let available, available >= 0 {
+                            Text(bytes(available)).font(StillDesign.TypeStyle.value).monospacedDigit().accessibilityIdentifier("startupCapacityAmount")
+                            Text("available").font(.caption).foregroundStyle(.secondary)
+                        } else {
                             Text("—").font(StillDesign.TypeStyle.value)
-                            Text(refreshing ? "Startup-volume measurement" : "Available space unavailable").font(.caption).foregroundStyle(.secondary)
+                            Text(refreshing ? "Checking capacity…" : "Available space unavailable").font(.caption).foregroundStyle(.secondary)
                         }
                     }
-                }.frame(height: 44)
-                CapacityMeter(available: available, total: total, showsValue: false)
-                HStack(alignment: .top, spacing: StillDesign.Space.md) {
-                    VStack(alignment: .leading, spacing: StillDesign.Space.xs) {
-                        Text(observation).font(.caption).foregroundStyle(.secondary).lineLimit(2)
-                            .frame(maxWidth: .infinity, alignment: .leading).frame(height: 28, alignment: .topLeading)
-                            .accessibilityIdentifier("capacityObservation")
-                        Text(status.isEmpty ? " " : status).font(.caption).foregroundStyle(.secondary)
-                            .accessibilityIdentifier("capacityRefreshStatus")
-                    }.frame(maxWidth: .infinity, alignment: .leading).frame(height: 48, alignment: .topLeading)
-                        .accessibilityElement(children: .contain).accessibilityIdentifier("capacityObservationRegion")
+                }
+                CapacityMeter(available: available, total: total, showsValue: false, prominent: true)
+                HStack(alignment: .firstTextBaseline, spacing: StillDesign.Space.md) {
+                    Text(used.map { bytes($0) + " used" } ?? "Used space unknown").font(.caption).foregroundStyle(.secondary).monospacedDigit()
                     Spacer(minLength: StillDesign.Space.sm)
-                    if let refresh {
-                        Button(refreshTitle, action: refresh).disabled(refreshing)
-                            .fixedSize(horizontal: true, vertical: true)
-                            .frame(minWidth: 144, alignment: .trailing)
-                            .accessibilityIdentifier("refreshCapacity")
+                    Text("Whole-disk capacity").font(.caption).foregroundStyle(.secondary)
+                        .help(observation).accessibilityValue(observation).accessibilityIdentifier("capacityObservation")
+                }
+                if !status.isEmpty {
+                    HStack(spacing: StillDesign.Space.md) {
+                        Text(status).font(.caption).foregroundStyle(.secondary).accessibilityIdentifier("capacityRefreshStatus")
+                        Spacer(minLength: StillDesign.Space.sm)
+                        if let refresh, !refreshing {
+                            Button(refreshTitle, action: refresh).accessibilityIdentifier("refreshCapacity")
+                        }
                     }
                 }
             }
