@@ -1,6 +1,6 @@
 # Chrome native close-and-clean — bounded Stable evidence
 
-October25,2026 (native job UTC October26). Contract: revised [CHROME-CLEANUP](../CHROME-CLEANUP.md) rules5–7. Native/helper source `d069c517f264ede5bf8106c95e404d1de9230eba`; controlled follow-up `66e1f83` adds an observation sequence/partial-stop test, with `dd12044` fixing workflow routing. Real process/removal behavior is unchanged. This advances #18; it does not close #18, unblock #19 or enable a production allowlist.
+October25,2026 (native job UTC October26). Contract: revised [CHROME-CLEANUP](../CHROME-CLEANUP.md) rules5–7. Native/helper source `d069c517f264ede5bf8106c95e404d1de9230eba`; controlled follow-up `66e1f83` adds an observation sequence/partial-stop test, with `dd12044` fixing workflow routing. Real process/removal behavior is unchanged. Historical slice details below retain their original source-bound limits. **Latest decision:** the remaining bounded #18 capability checks are complete across sources8f610f7 andfa8192d, plus the earlier two-profile27c1db6 evidence; see the final decision below. #19 implementation may proceed after integration. Production cleanup remains disabled until #19 is implemented and qualified.
 
 ## Genuine Stable result
 
@@ -19,7 +19,7 @@ Real process enumeration is hosted-only; local tests use an explicit owned proce
 
 [Spec](chrome-close-clean/spec-review.md) and [Standards](chrome-close-clean/standards-review.md) source reviews found no blockers for this bounded slice. Root separately reviewed the final fixture-only sequence and routing changes. No native app screen changed; no new screenshot, app-build, whole-suite or real-user qualification is claimed.
 
-## Remaining acceptance and supported scope
+## Historical remaining acceptance — before final checks
 
 Still unqualified: native between-work reopen/partial stop; index-directory swap and actual access denial; standard-root mapping, shared/ambiguous ownership and enterprise/helper association; saved-password/autofill persistence, download-history UI and cold-start offline-app launch. Final27c1db6 now establishes bounded restored tabs/history traversal, authenticated website-session preservation and online-initiated service-worker offline navigation as recorded below. Headless/mock-keychain/custom-root evidence does not certify real Keychain, headed standard-profile behavior, minimum OS or Intel. Additional OS/CPU and unsupported cache groups are retained future scope, not an excuse to demand an exclusive lease for this model.
 
@@ -69,3 +69,31 @@ MergedPR70 at `83453e6`; final executable probe source remains27c1db6, helper66e
 The actual **standard-root mapping/cleanup/regeneration step passes**. [Original standard report](chrome-close-clean/8f610f7/standard-mapping.json): the same actual signed Stable156.0.8078.48 reports the exact fresh standard Default Profile Path, with no incognito switch. It independently creates the split asset cache under Library/Caches; five eligible leaves are removed, all177 bounded protected profile objects remain unchanged around cleanup, the actual synthetic asset is requested again, and cache files regenerate. This headless fixture explicitly chooses the already-proven fresh standard user-data root; it does not certify unflagged headed startup. No pre-existing/personal root was inspected. The helper's narrow same-run proof mode and native source were reviewed before execution.
 
 [Native faults](chrome-close-clean/8f610f7/native-faults.json) pass again. [Provision](chrome-close-clean/8f610f7/provision.json) retains exact vendor/run/source provenance. The remaining saved-address requirement is **record preservation**, not every website's suggestion interaction: a separate normal settings Edit/read check and unchanged browser-managed Web Data bytes around cleanup will evaluate that requirement directly. The pre-clean native form interaction remains explicitly unqualified, never silently relabeled as a pass. #18 remains open until that evidence is assessed; #19 stays blocked and production allowlist empty.
+
+## Final saved-record evidence and #18 capability decision
+
+[Headed-only workflow40259148625](https://github.com/Patrick-M-Bourget/mac-cleaner/actions/runs/40259148625) fully succeeds at sourcefa8192d; standard/fault lanes are deliberately skipped because their unchanged source8f610f7 already passed those steps. Do not call the earlier combined workflow green. Final [original headed report](chrome-close-clean/fa8192d/headed.json) and [provision](chrome-close-clean/fa8192d/provision.json) show the same actual signed Google Chrome Stable156.0.8078.48/macOS26.6.2 arm64 artifact, all nine independent checks true, six real asset-cache leaves removed, genuine relaunch and:
+
+- Saved password created through normal Add/Save UI actually fills the synthetic username/password after cleanup.
+- The same five saved-address fields are read through normal Settings → Edit before and after cleanup/relaunch. Browser-managed Web Data SHA256 remains `5be2f0adb1236ae961d6867cbf32bdaa5a3b2316019a9cee3a77b6184dc2f213` around removal. No direct record seeding, repair, test autofill service or private browser API is used.
+- Actual synthetic download history is visible and downloaded file bytes survive.
+
+Root and implementing agent inspect the original [before](chrome-close-clean/fa8192d/headed.before-saved-address.png) and [after](chrome-close-clean/fa8192d/headed.after-saved-address.png) normal Edit screenshots individually. Name/street are visible; city/state/ZIP are below the screenshot viewport and established by the rendered Edit input values in the report, not a screenshot claim. Earlier native address suggestion preview did not commit via automation before cleanup; it remains unqualified. This check establishes **saved-address record preservation**, not universal website form-fill behavior. The accepted protection contract concerns retained autofill records; no form-support requirement is silently changed into a pass.
+
+### Supported capability decision
+
+#18's remaining bounded acceptance is met. #19 may implement the approved feature using this exact compatibility boundary; this decision does **not** enable an app action or a production allowlist.
+
+| Boundary | Decision |
+| --- | --- |
+| Actual Stable156.0.8078.48, recorded vendor hashes/signatures, macOS26.6.2 arm64 | Qualified experimental capability only; unknown versions/OS/CPU remain unavailable pending their own evidence |
+| Unmanaged, non-overridden standard Default split-root asset cache | Actual browser path association, guarded removal of5 leaves,177 protected profile objects unchanged, real asset re-request/regeneration pass at8f610f7 |
+| Explicit owned custom profiles Default/Profile1 with ordinary cache layout | Genuine generation/removal/regrowth and protected site/session/history/offline semantics pass at27c1db6; headed password/address/download semantics pass atfa8192d |
+| Shared, enterprise-managed, redirected/custom disk-cache or ambiguous ownership/layout | Unsupported/unavailable. Never infer ownership from basename, expand discovery to unknown roots or count unknown as zero. This is not a promise to support every configured root |
+| Activity, conflict and access | Actual active/helper refusal, before-clean reopen refusal, native between-work reopen stop, index replacement and real denial pass. Controlled unknown/malformed observations, replaced roots/symlinks and invalid standard proof refuse |
+| Ordinary-use residual races | Explicitly accepted under rules5–7; no exclusive lease, atomic global snapshot or adversarial same-user protection claimed |
+| Personal files / Downloads | Exact-target contract unchanged; no cache-group authority applies |
+
+Public helper verification:11 methods across standard-proof/group/unchanged exact-leaf tests pass locally and in the final hosted syntax/policy step. [Two-axis source review and resolution](chrome-close-clean/final-review/resolution.md) record the original review and narrowed follow-ups. Root additionally reviews fa8192d's public Edit retrieval and headed-only routing; spec follow-up accepts the saved-record boundary. No production Swift/UI file changed, so no new app build, gallery review or whole-app regression result is claimed.
+
+Remaining work belongs to **#19**: actual installed-browser capability discovery with explicit access, typed group approval separate from personal-file targets, sizes/statuses, approved browser/profile → shared plan → permanent confirmation/results journey, production owner/layout revalidation, conflict/partial outcomes and native app qualification. The production allowlist remains empty until that work passes. Additional versions, OS/CPU, GPU/code caches, shared/managed layouts and cold-start offline launch remain retained future coverage, not renewed exclusive-lease blockers. #27 notification and M8 release gates remain independent.
