@@ -69,3 +69,22 @@ private func rule(requiringFullDiskAccess: Bool) -> CleanupRule {
     #expect(rule(requiringFullDiskAccess: false).access(given: .notGranted) == .available)
     #expect(fixtureRules.allSatisfy { !$0.requiresFullDiskAccess })
 }
+
+@Test func theExplanationSaysFullDiskAccessIsBroadOptionalAndScansStayReadOnly() {
+    let copy = ([FullDiskAccessGuide.title, FullDiskAccessGuide.summary] + FullDiskAccessGuide.points).joined(separator: " ")
+    #expect(copy.contains("optional"))
+    #expect(copy.contains("broad read/write authority"))
+    #expect(copy.contains("scans stay read-only"))
+    #expect(copy.contains("Safari"))
+}
+
+@Test func theSettingsLinkOpensTheFullDiskAccessPane() {
+    // The Privacy & Security pane keeps the legacy id "com.apple.preference.security" and the "Privacy_AllFiles" anchor on macOS 14 and later.
+    #expect(FullDiskAccessGuide.settingsURL.absoluteString == "x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles")
+}
+
+@Test func eachStatusHasPlainWords() {
+    #expect(FullDiskAccessGuide.statusText(.granted) == "Granted")
+    #expect(FullDiskAccessGuide.statusText(.notGranted) == "Not granted")
+    #expect(FullDiskAccessGuide.statusText(.unknown) == "Couldn’t check")
+}
