@@ -91,10 +91,13 @@ public struct CleanupRule: Sendable, Identifiable {
     /// For `*` locations named by version (DeviceSupport): keep this many newest versions in each folder.
     /// Children whose name has no version are then never offered.
     public let keepNewestVersions: Int?
-    public init(id: String, category: CatalogCategory, title: String, detail: String, consequence: String, regen: RegenClass, action: CleanupAction, locations: [String], owner: RuleOwner?, protectedNames: [String] = [], tool: ToolCommand? = nil, protectedExtensions: [String] = [], contents: ContentsMatch? = nil, keepNewestVersions: Int? = nil) {
+    /// The name shown for a folder or file the rule found, from its file name; nil shows the file name.
+    public let itemName: (@Sendable (String) -> String?)?
+    public init(id: String, category: CatalogCategory, title: String, detail: String, consequence: String, regen: RegenClass, action: CleanupAction, locations: [String], owner: RuleOwner?, protectedNames: [String] = [], tool: ToolCommand? = nil, protectedExtensions: [String] = [], contents: ContentsMatch? = nil, keepNewestVersions: Int? = nil, itemName: (@Sendable (String) -> String?)? = nil) {
         self.id = id; self.category = category; self.title = title; self.detail = detail; self.consequence = consequence
         self.regen = regen; self.action = action; self.locations = locations; self.owner = owner; self.protectedNames = protectedNames; self.tool = tool
         self.protectedExtensions = protectedExtensions; self.contents = contents; self.keepNewestVersions = keepNewestVersions
+        self.itemName = itemName
     }
 }
 
@@ -184,6 +187,7 @@ public enum BuiltInCatalog {
                     consequence: "Moved to Trash. The space stays used until you empty the Trash; you can restore them from the Trash in Finder.",
                     regen: .userFile, action: .trash, locations: ["Downloads"], owner: nil,
                     protectedExtensions: downloadsProtectedExtensions, contents: ContentsMatch(minimumBytes: 500_000_000, unusedDays: 90)),
+        huggingFaceModels,
     ]
     /// Kept from the Downloads-era policy: libraries and databases are never moved, even inside Downloads.
     static let downloadsProtectedExtensions = ["dsym", "library", "db", "sqlite", "sqlite3"]
@@ -214,6 +218,8 @@ public struct Candidate: Sendable, Identifiable, Hashable {
     /// Most recent of last opened (Spotlight), accessed, changed and added. Files only.
     public let lastUsed: Date?
     public let observedAt: Date
+    /// What the item is called, e.g. a model's name; nil means its file name.
+    public internal(set) var itemName: String? = nil
 }
 
 public struct Catalog: Sendable {
@@ -240,7 +246,11 @@ public struct Catalog: Sendable {
                       [S_IFDIR, S_IFREG].contains(info.st_mode & S_IFMT) else { return [] }
                 // A tool that cleans only part of its folder frees an unknown amount; the folder's total would overstate it.
                 let size = rule.tool?.deletesLocationAfter == false ? ItemSize(logicalBytes: 0, allocatedBytes: nil, entries: 0, complete: false) : sizer.size(url)
-                return [candidate(rule, url, info, logical: size.logicalBytes, allocated: size.allocatedBytes, complete: size.complete, lastUsed: nil, toolURL: toolURL)]
+                // Models and disk images show when they were last used, so the user can judge (SPEC section 3).
+                let lastUsed = rule.regen == .model ? Self.lastUsedInside(url, info) : nil
+                var found = candidate(rule, url, info, logical: size.logicalBytes, allocated: size.allocatedBytes, complete: size.complete, lastUsed: lastUsed, toolURL: toolURL)
+                found.itemName = rule.itemName?(url.lastPathComponent)
+                return [found]
             }
         }.filter { seen.insert($0.resourceID).inserted }
     }
@@ -294,15 +304,17 @@ public struct Catalog: Sendable {
     /// At most this many children of a `*` location are offered.
     static let childLimit = 1_000
     /// A plain location as is; a `parent/*` location as each real folder directly inside `parent`.
+    /// The last component may be a shell pattern such as `models--*`.
     static func expand(_ relative: String, in base: URL, keepNewestVersions keep: Int? = nil) -> [String] {
-        guard relative.hasSuffix("/*") else { return [relative] }
-        let parent = String(relative.dropLast(2))
+        let pattern = (relative as NSString).lastPathComponent
+        guard pattern.contains("*") else { return [relative] }
+        let parent = (relative as NSString).deletingLastPathComponent
         var info = stat()
         guard lstat(base.appendingPathComponent(parent).path, &info) == 0, info.st_mode & S_IFMT == S_IFDIR,
               let names = try? FileManager.default.contentsOfDirectory(atPath: base.appendingPathComponent(parent).path) else { return [] }
         let folders = names.filter { name in
             var child = stat()
-            return !name.hasPrefix(".") && lstat(base.appendingPathComponent(parent + "/" + name).path, &child) == 0 && child.st_mode & S_IFMT == S_IFDIR
+            return !name.hasPrefix(".") && fnmatch(pattern, name, 0) == 0 && lstat(base.appendingPathComponent(parent + "/" + name).path, &child) == 0 && child.st_mode & S_IFMT == S_IFDIR
         }
         var offered = folders
         if let keep {
