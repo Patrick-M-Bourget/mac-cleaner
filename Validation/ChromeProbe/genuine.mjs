@@ -258,6 +258,15 @@ try {
     assert(beforeHistory.entries.some(item => item.url === origin + '/history-a'), 'Genuine page history must contain earlier fixture page');
     const second = await owned.cdp.call('Target.createTarget', { url: origin + '/session-second' });
     assert(second.targetId);
+    const { sessionId: secondSession } = await owned.cdp.call('Target.attachToTarget', { targetId: second.targetId, flatten: true });
+    let secondComplete = false;
+    for (let i = 0; i < 100; i++) {
+      const page = await owned.cdp.call('Runtime.evaluate', { expression: 'location.href + ":" + document.readyState', returnByValue: true }, secondSession).catch(() => null);
+      if (page?.result.value === origin + '/session-second:complete') { secondComplete = true; break; }
+      await sleep(100);
+    }
+    assert(secondComplete, 'Second session fixture tab must finish genuine navigation before browser close');
+    entry.secondSessionTabCompleteBeforeClose = true;
     entry.preCleanupNavigationHistoryCreated = true;
     await closeOwned();
     // Browser-created protected files only: snapshot immediately around our closed-cache removal.
