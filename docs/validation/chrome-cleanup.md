@@ -1,6 +1,6 @@
 # Chrome cleanup #19 — qualified delivery
 
-The bounded #19 feature is implemented and qualified for integration through [PR72](https://github.com/Patrick-M-Bourget/mac-cleaner/pull/72). The approved journey is Overview → browser/profile review → shared Cleanup plan → consequence-specific confirmation → separate outcomes/History. Final app presentation is `ceec55f`. Its production cache adapter is identical to the full successful `23e2219` genuine Chrome qualification: `git diff 23e2219..HEAD` is empty for ChromeCache.swift, ChromeCacheExecution.swift and ChromeCacheJournal.swift.
+The bounded #19 feature is implemented, qualified and integrated at `144b9a1` through [PR72](https://github.com/Patrick-M-Bourget/mac-cleaner/pull/72). The approved journey is Overview → browser/profile review → shared Cleanup plan → consequence-specific confirmation → separate outcomes/History. Final app presentation is `ceec55f`. Its production cache adapter is identical to the full successful `23e2219` genuine Chrome qualification: `git diff 23e2219..HEAD` is empty for ChromeCache.swift, ChromeCacheExecution.swift and ChromeCacheJournal.swift.
 
 This is one qualified Chrome adapter, not completion of all M3 or M8. Downloads retain their exact-target approval, identity checks and Trash executor. No personal Chrome/profile/account was inspected during qualification.
 

@@ -58,7 +58,7 @@ Native implementation and disposable-fixture validation are recorded in [DEVELOP
 
 See [decision record](DECISIONS.md) for the completed grilling rounds and [milestones](MILESTONES.md) for every retained feature. No feature is silently removed by narrowing M1.
 
-Current authorized feature: [#27 Storage alerts settings](STORAGE-ALERTS.md). Q1–Q7 bounded settings implemented/qualified; #27 retains its genuine notification authorization/delivery gate.
+Separate pending platform gate: [#27 Storage alerts settings](STORAGE-ALERTS.md). Q1–Q7 bounded settings implemented/qualified; #27 retains its genuine notification authorization/delivery gate.
 
 Current Chrome delivery: [#19 Chrome cleanup](CHROME-CLEANUP.md) is implemented and qualified within the recorded compatibility boundary, with synchronized [native/visual evidence](validation/chrome-cleanup.md). Broader browsers, versions and cache groups remain future scope.
 
@@ -67,3 +67,6 @@ Historical #18 ownership investigation is recorded in [Chrome Stable qualificati
 Current Chrome authority: revised native close-and-clean rules5–7 in CHROME-CLEANUP.md, superseding the stronger cache-only exact-file/lease requirement. #18 and bounded #19 are complete; personal-file protections remain unchanged.
 
 Latest Chrome decision: [bounded #18 qualification complete](validation/chrome-close-clean.md#final-saved-record-evidence-and-18-capability-decision), with exact compatibility/unsupported states. The subsequent [#19 delivery](validation/chrome-cleanup.md) enables only the qualified Chrome action; personal-file policy remains unchanged.
+
+
+Chrome integration checkpoint: PR72 merged at `144b9a1`; #19 is closed. Final app presentation remains `ceec55f`, the production cache implementation matches successful `23e2219`, and the bounded [qualification report](validation/chrome-cleanup.md) is authoritative. Main contains the synchronized feature/spec/design/parity and reviewed original evidence. The completed implementation branch is retired; all future milestones and separate notification/commercialization gates remain preserved.

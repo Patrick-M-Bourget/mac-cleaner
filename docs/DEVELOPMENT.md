@@ -2,7 +2,7 @@
 
 ## Current delivery checkpoint — October 26, 2026
 
-The completed baseline is consolidated in main through PR71; [PR72](https://github.com/Patrick-M-Bourget/mac-cleaner/pull/72) delivers bounded #19 Chrome cleanup. The [qualification report](validation/chrome-cleanup.md) maps the exact production adapter, app journeys, visual originals and limits. Chrome inspection is explicit; only the verified release/layouts can enter permanent cache cleanup. Downloads retain exact-target Trash approval. Historical slice notes below are development history, not the current feature ceiling.
+The completed baseline is consolidated in main through PR71; merged [PR72](https://github.com/Patrick-M-Bourget/mac-cleaner/pull/72) delivers bounded #19 Chrome cleanup at `144b9a1`. The [qualification report](validation/chrome-cleanup.md) maps the exact production adapter, app journeys, visual originals and limits. Chrome inspection is explicit; only the verified release/layouts can enter permanent cache cleanup. Downloads retain exact-target Trash approval. Historical slice notes below are development history, not the current feature ceiling.
 
 Review build: `/Users/bender/Library/Caches/Codex/mac-cleaner-implementation/artifacts/Still-ceec55f.app`. The final app presentation is `ceec55f`; no `--future-milestones` flag is needed for qualified Chrome review. Other future features retain their own gates, and M8 signing/commercialization remains deferred.
 
