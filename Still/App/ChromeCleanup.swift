@@ -20,10 +20,11 @@ import SwiftUI
     private var service: ChromeCacheService?
     private var access: ChromeCacheAccess?
     private let injectedAccess: Bool
+    private let initialAccess: ChromeCacheAccess?
     private var cancellation: CleanupCancellation?
 
     init(service: ChromeCacheService? = nil, access: ChromeCacheAccess? = nil) {
-        self.service = service; self.access = access; injectedAccess = access != nil
+        self.service = service; self.access = access; initialAccess = access; injectedAccess = access != nil
         do {
             let file = try intentURL(create: false)
             if try validIntentFile(file) { inspectionEnabled = try String(contentsOf: file, encoding: .utf8) == "enabled\n" }
@@ -39,7 +40,10 @@ import SwiftUI
         guard let inspection, inspection.availability == .eligible || inspection.availability == .empty else { return nil }
         return total(groups)
     }
-    var canReview: Bool { !isBusy && !isRunning && selectedCount > 0 && inspection?.availability == .eligible }
+    var canEdit: Bool {
+        !isBusy && !isRunning && !AppLifecycleController.shared.operationInProgress && !AppLifecycleController.shared.maintenanceInProgress
+    }
+    var canReview: Bool { canEdit && selectedCount > 0 && inspection?.availability == .eligible }
     var categoryState: CategorySelectionState {
         guard !eligibleGroups.isEmpty, selectedCount > 0 else { return .unchecked }
         return selectedCount == eligibleGroups.count ? .checked : .mixed
@@ -71,7 +75,7 @@ import SwiftUI
     }
 
     func enableInspection() async {
-        guard !isBusy && !isRunning else { return }
+        guard canEdit else { return }
         inspectionEnabled = true
         do {
             let file = try intentURL(create: true)
@@ -84,7 +88,7 @@ import SwiftUI
     }
 
     func manualScan() async {
-        guard inspectionEnabled, !isBusy, !isRunning else { return }
+        guard inspectionEnabled, canEdit else { return }
         isBusy = true; message = nil; result = nil; inspectionFailure = nil
         defer { isBusy = false }
         do {
@@ -108,12 +112,12 @@ import SwiftUI
     }
     func recheck() async { await manualScan() }
     func setSelected(_ id: String, selected: Bool) {
-        guard !isBusy, !isRunning, eligibleGroups.contains(where: { $0.id == id }) else { return }
+        guard canEdit, eligibleGroups.contains(where: { $0.id == id }) else { return }
         if selected { selectedGroupIDs.insert(id) } else { selectedGroupIDs.remove(id) }
         selectionRevision &+= 1
     }
     func toggleCategory() {
-        guard !isBusy, !isRunning else { return }
+        guard canEdit else { return }
         if selectedCount == eligibleGroups.count { selectedGroupIDs = [] }
         else { selectedGroupIDs = Set(eligibleGroups.map(\.id)) }
         selectionRevision &+= 1
@@ -140,15 +144,25 @@ import SwiftUI
         selectedGroupIDs = []; inspection = nil; result = nil; message = nil; inspectionFailure = nil; selectionRevision &+= 1
     }
 
+    /// Called only after the shared Reset flow has checked recovery and journal retention.
+    func resetInspectionPreference() throws {
+        guard !isBusy, !isRunning else { throw CocoaError(.fileWriteNoPermission) }
+        try LocalStateLocation.removeKnownFile("chrome-inspection-intent.txt")
+        inspectionEnabled = false
+        access = injectedAccess ? initialAccess : nil
+        intentFeedback = nil
+        endSession()
+    }
+
     /// Custom roots are always an explicit user choice and still require Core ownership validation.
     func chooseCustomLocation() async {
-        guard inspectionEnabled, !isBusy, !isRunning, !LocalStateLocation.isDisposableTest else { return }
+        guard inspectionEnabled, canEdit, !LocalStateLocation.isDisposableTest else { return }
         let panel = NSOpenPanel()
         panel.title = "Choose Chrome user-data folder"
         panel.message = "Choose the Chrome user-data folder containing Local State. Unknown, shared or redirected layouts remain unavailable."
         panel.canChooseDirectories = true; panel.canChooseFiles = false; panel.allowsMultipleSelection = false
         panel.prompt = "Inspect Chrome location"
-        guard panel.runModal() == .OK, let root = panel.url else { return }
+        guard panel.runModal() == .OK, let root = panel.url, canEdit else { return }
         guard let application = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.google.Chrome") else {
             intentFeedback = "Google Chrome could not be located. No folder was inspected."; return
         }
@@ -287,11 +301,11 @@ struct BrowserReviewView: View {
             }
             if !model.inspectionEnabled {
                 Text("Enable Chrome inspection to check recognized profile cache groups. This starts one manual check; Still will not close Chrome for you.").foregroundStyle(.secondary)
-                Button("Enable Chrome inspection") { Task { await model.enableInspection() } }.disabled(model.isBusy || model.isRunning)
+                Button("Enable Chrome inspection") { Task { await model.enableInspection() } }.disabled(!model.canEdit)
             } else {
                 HStack {
-                    Button("Recheck Chrome") { Task { await model.recheck() } }.disabled(model.isBusy || model.isRunning)
-                    Button("Choose another Chrome location…") { Task { await model.chooseCustomLocation() } }.disabled(model.isBusy || model.isRunning)
+                    Button("Recheck Chrome") { Task { await model.recheck() } }.disabled(!model.canEdit)
+                    Button("Choose another Chrome location…") { Task { await model.chooseCustomLocation() } }.disabled(!model.canEdit)
                 }
             }
             StatusRow(text: model.statusText, symbol: model.inspection?.unavailableReason == nil ? "info.circle" : "exclamationmark.triangle", role: model.inspection?.unavailableReason == nil ? .neutral : .caution, identifier: "chromeInspectionStatus")
@@ -299,7 +313,7 @@ struct BrowserReviewView: View {
             if let message = model.message { StatusRow(text: message, symbol: "info.circle", identifier: "chromeSelectionFeedback") }
             if let feedback = model.intentFeedback { StatusRow(text: feedback, symbol: "exclamationmark.triangle", role: .caution) }
             if !model.rows.isEmpty {
-                SummarySurface { ChromeCacheGroupRows(rows: model.rows, enabled: !model.isBusy && !model.isRunning, select: model.setSelected) }
+                SummarySurface { ChromeCacheGroupRows(rows: model.rows, enabled: model.canEdit, select: model.setSelected) }
             }
             DisclosureGroup("What gets removed?") {
                 Text("Only downloaded asset cache groups recognized by the qualified Chrome version and profile mapping. No whole-profile deletion, GPU or code caches. Estimates are observations; eligible contents in the approved group can change before execution. Close Chrome and its helpers, then recheck. Still never force-quits a browser.")
@@ -317,19 +331,19 @@ struct ChromePlanSection: View {
         VStack(alignment: .leading, spacing: StillDesign.Space.lg) {
             CategorySelectionHeader(category: .browser, state: model.categoryState, title: "Browser caches",
                 detail: "Permanently clear selected downloaded assets. Logins and browsing data stay protected; caches may refill.",
-                size: chromeBytes(model.availableBytes), enabled: !model.eligibleGroups.isEmpty && !model.isBusy && !model.isRunning, action: model.toggleCategory)
+                size: chromeBytes(model.availableBytes), enabled: !model.eligibleGroups.isEmpty && model.canEdit, action: model.toggleCategory)
             if model.rows.isEmpty {
                 StatusRow(text: model.statusText, symbol: "info.circle")
                 Button(model.inspectionEnabled ? "Review browser caches" : "Set up Chrome inspection", action: onReview)
-                    .disabled(model.isBusy || model.isRunning)
+                    .disabled(!model.canEdit)
             } else {
                 DisclosureGroup("Choose browsers & profiles", isExpanded: $expanded) {
-                    ChromeCacheGroupRows(rows: model.rows, enabled: !model.isBusy && !model.isRunning, select: model.setSelected)
+                    ChromeCacheGroupRows(rows: model.rows, enabled: model.canEdit, select: model.setSelected)
                         .padding(.top, StillDesign.Space.md)
                 }.padding(.leading, StillDesign.Space.xl)
                 HStack {
                     Button("Review browser caches", action: onReview)
-                    Button("Recheck Chrome") { Task { await model.recheck() } }.disabled(model.isBusy || model.isRunning)
+                    Button("Recheck Chrome") { Task { await model.recheck() } }.disabled(!model.canEdit)
                 }.padding(.leading, StillDesign.Space.xl)
             }
             if let message = model.message { StatusRow(text: message, symbol: "info.circle") }
