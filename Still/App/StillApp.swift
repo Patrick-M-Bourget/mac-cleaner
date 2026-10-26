@@ -115,7 +115,7 @@ private struct WorkspaceView: View {
         if navigationState.localRecordsVisible && !recoveryVisible { return "" }
         if diagnosticsVisible { return "Redacted diagnostics · Explicit local Save" }
         if recoveryVisible { return "Recovery review · Recorded facts only" }
-        if selection.hasWorkspaceResult && showsPlan { return "Cleanup results · individual outcomes" }
+        if selection.hasWorkspaceResult && showsPlan { return nil }
         if nativeInspectionVisible { return nil }
         if homebrewVisible { return "Read-only Homebrew inventory" }
         if pipVisible { return "Read-only pip inventory" }
@@ -123,7 +123,7 @@ private struct WorkspaceView: View {
         if navigationState.appManagedVisible { return nil }
         switch destination {
         case .overview: return nil
-        case .plan: return "Choose files, then review"
+        case .plan: return nil
         case .history, .locations: return "" // Decision 25: no toolbar subtitles
         case .alerts: return "Capacity checks only"
         case .growth: return ""
