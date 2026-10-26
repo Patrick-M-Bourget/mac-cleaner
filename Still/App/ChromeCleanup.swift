@@ -132,6 +132,7 @@ import SwiftUI
             selectedGroupIDs = []; inspection = nil; selectionRevision &+= 1
         } catch { message = "Chrome cleanup could not start: \(error). No automatic retry will run." }
     }
+    func records() async throws -> [ChromeCacheRun] { try await currentService().records() }
     func cancel() { cancellation?.cancel() }
     func invalidateReview() { selectionRevision &+= 1 }
     func endSession() {
