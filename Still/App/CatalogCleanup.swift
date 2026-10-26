@@ -209,7 +209,7 @@ extension CatalogCategory {
         case .icloud: .cloud
         case .browser: .browser
         case .downloads: .downloads
-        case .system, .models, .updaters, .logs: .managed
+        case .system, .models, .updaters, .logs, .managed: .managed
         }
     }
     /// Overview's row title for a category; the rows themselves come from what the catalog found.
@@ -223,6 +223,7 @@ extension CatalogCategory {
         case .updaters: "App update downloads"
         case .logs: "Logs and crash reports"
         case .icloud: "Downloaded iCloud files"
+        case .managed: "App-managed storage"
         }
     }
 }
@@ -275,6 +276,7 @@ extension CleanupRule {
         case .trash: "Move to Trash: " + title
         case .evict: "Remove local copies: " + title
         case .delete, .tool: "Clear " + title
+        case .guidance: "Guidance only: " + title
         }
     }
 }

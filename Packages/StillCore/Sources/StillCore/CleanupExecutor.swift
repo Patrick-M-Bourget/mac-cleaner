@@ -111,6 +111,7 @@ public actor CleanupExecutor {
         case .delete: "delete"
         case .trash: "move to Trash"
         case .evict: "remove the local copy"
+        case .guidance: "change nothing (guidance only)"
         case .tool: "run " + (command?.commandLine(for: candidate.itemName) ?? "its tool") + (command?.deletesLocationAfter == true ? ", then delete the folder" : "")
         }
         if let refusal = check.check(candidate) {
@@ -130,6 +131,8 @@ public actor CleanupExecutor {
         case .trash: trash(candidate, into: &record)
         case .tool: await runTool(candidate, command, into: &record)
         case .evict: evict(candidate, into: &record)
+        // The check refuses guidance first; this stays a refusal if it ever doesn't.
+        case .guidance: record.state = .skipped; record.message = CheckRefusal.guidanceOnly.reason
         }
         if record.state == .succeeded, let before, let after = measure(candidate.url.deletingLastPathComponent()) {
             record.itemCapacity = CleanupCapacityObservation(beforeAvailable: before.available, afterAvailable: after.available, beforeTotal: before.total, afterTotal: after.total, beforeVolumeID: before.volumeID, afterVolumeID: after.volumeID, beforeMetric: before.metric.rawValue, afterMetric: after.metric.rawValue, beforeDate: before.date, afterDate: after.date)
