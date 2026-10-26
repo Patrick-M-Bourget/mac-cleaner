@@ -22,9 +22,16 @@ final class CatalogCleanupUITests: XCTestCase {
         app.launch()
 
         XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
-        let row = app.buttons["overviewRule-npm-cache"]
+        let row = app.buttons["overviewCategory-developer"]
         XCTAssertTrue(row.waitForExistence(timeout: 10))
+        XCTAssertFalse(app.staticTexts["0 bytes"].exists)
         row.click()
+
+        // Opening a category from Overview never preselects it.
+        let category = app.checkBoxes["planRule-npm-cache"]
+        XCTAssertTrue(category.waitForExistence(timeout: 5))
+        XCTAssertEqual(category.value as? Int, 0)
+        category.click()
 
         let preview = app.checkBoxes["previewOnlyToggle"]
         XCTAssertTrue(preview.waitForExistence(timeout: 5))
