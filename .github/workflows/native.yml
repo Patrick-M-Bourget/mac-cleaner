@@ -105,6 +105,7 @@ on:
           - filesystem
           - chrome-stable-probe
           - chrome-stable-final
+          - chrome-cleanup
           - chrome-probe
       chromeFinalLane:
         description: Chrome final qualification lane (only chrome-stable-final)
@@ -152,6 +153,8 @@ jobs:
             scope=(-only-testing:StillUITests/StorageAlertsUITests/testAlertInvalidGalleryAtInitialSize -only-testing:StillUITests/StorageAlertsUITests/testAlertInvalidGalleryAtMinimumSize)
           elif [[ "$EVENT_NAME" == "workflow_dispatch" && "$REQUESTED_SUITE" == "storage-alerts-settings" ]]; then
             scope=(-only-testing:StillUITests/StorageAlertsUITests/testAlertSettingsAtInitialSize -only-testing:StillUITests/StorageAlertsUITests/testAlertSettingsAtMinimumSize)
+          elif [[ "$EVENT_NAME" == "workflow_dispatch" && "$REQUESTED_SUITE" == "chrome-cleanup" ]]; then
+            scope=(-only-testing:StillUITests/ChromeCleanupUITests -only-testing:StillUITests/WorkspaceUITests/testConnectedDownloadsJourneyPreservesContextAndConsumesPlan -only-testing:StillUITests/WorkspaceUITests/testMinimumConnectedDownloadsJourneyPreservesContextAndConsumesPlan)
           elif [[ "$EVENT_NAME" == "workflow_dispatch" && "$REQUESTED_SUITE" == "release-archives" ]]; then
             scope=(-only-testing:StillUITests/WorkspaceUITests/testReleaseArchiveGuidanceAtInitialSize -only-testing:StillUITests/WorkspaceUITests/testReleaseArchiveGuidanceAtMinimumSize)
           elif [[ "$EVENT_NAME" == "workflow_dispatch" && "$REQUESTED_SUITE" == "growth-history-final" ]]; then

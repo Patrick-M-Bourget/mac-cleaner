@@ -10,15 +10,17 @@ extension AppLifecycleController: HistoryMaintenanceLifecycle {
 
 enum HistoryActivityFilter: String, CaseIterable { case all = "All activity", scans = "Scans", cleanups = "Cleanups" }
 private enum HistoryActivityItem: Identifiable {
-    case scan(ScanActivity), cleanup(CleanupHistoryRun)
-    var id: String { switch self { case .scan(let value): "scan-" + value.id.uuidString; case .cleanup(let value): "cleanup-" + value.id.uuidString } }
-    var date: Date { switch self { case .scan(let value): value.completedAt; case .cleanup(let value): value.date } }
+    case scan(ScanActivity), cleanup(CleanupHistoryRun), chrome(ChromeCacheRun)
+    var id: String { switch self { case .scan(let value): "scan-" + value.id.uuidString; case .cleanup(let value): "cleanup-" + value.id.uuidString; case .chrome(let value): "chrome-" + value.id.uuidString } }
+    var date: Date { switch self { case .scan(let value): value.completedAt; case .cleanup(let value): value.date; case .chrome(let value): value.observedAt } }
 }
 
 @MainActor @Observable final class CleanupHistoryModel {
     var filter = HistoryActivityFilter.all
     var expandedScans: Set<UUID> = []
     let growthReturn = HistoryGrowthReturnContext()
+    var chromeRuns: [ChromeCacheRun]?
+    var chromeLoadError: String?
     var snapshot: CleanupHistorySnapshot?
     var message: String?
     var loadError: String?
@@ -45,6 +47,10 @@ private enum HistoryActivityItem: Identifiable {
             if loaded.1 { message = "Expired completed history was removed, but journal compaction did not finish. Disk reclamation is not confirmed." }
             blocked = false
         } catch { snapshot = nil; blocked = true; loadError = "Cleanup history is unavailable. The local journal cannot be read. Clear and reset are unavailable; keep its recovery records." }
+        do {
+            chromeRuns = try await AppLifecycleController.shared.selection.chrome.records()
+            chromeLoadError = nil
+        } catch { chromeRuns = nil; chromeLoadError = "Chrome cleanup history is unavailable. Its recovery records are retained; no cleanup resumes automatically." }
     }
     func clear() async {
         let lifecycle = AppLifecycleController.shared
@@ -54,6 +60,9 @@ private enum HistoryActivityItem: Identifiable {
         var clearedRuns: Int?
         var compactionCompleted = false
         do {
+            let chromeJournal = ChromeCacheService(journalURL: try LocalStateLocation.root(create: true).appendingPathComponent("chrome-cleanup.json"))
+            _ = try await chromeJournal.clearCompletedRecords()
+            chromeRuns = try await chromeJournal.records()
             let result = try await Task.detached {
                 let journal = try CleanupJournalLocation.writer()
                 let removed = try journal.clearCompletedRuns()
@@ -89,6 +98,9 @@ private enum HistoryActivityItem: Identifiable {
         enum ResetStage { case journal, appearance, remainingPreferences }
         var resetStage = ResetStage.journal
         do {
+            let chromeJournal = ChromeCacheService(journalURL: try LocalStateLocation.root(create: true).appendingPathComponent("chrome-cleanup.json"))
+            _ = try await chromeJournal.clearCompletedRecords(requireNoRecovery: true)
+            chromeRuns = try await chromeJournal.records()
             // This check is deliberately inside the write transaction, never based on cached UI.
             let result = try await Task.detached {
                 let journal = try CleanupJournalLocation.writer()
@@ -97,6 +109,7 @@ private enum HistoryActivityItem: Identifiable {
                 return (removed, compacted)
             }.value
             resetStage = .appearance
+            try lifecycle.selection.chrome.resetInspectionPreference()
             try lifecycle.resetAppearancePreference()
             resetStage = .remainingPreferences
             try lifecycle.resetPreferences()
@@ -142,10 +155,11 @@ struct CleanupHistoryView: View {
     private var items: [HistoryActivityItem] {
         let scanItems: [HistoryActivityItem] = model.filter == .cleanups ? [] : (scans.records ?? []).map(HistoryActivityItem.scan)
         let cleanupItems: [HistoryActivityItem] = model.filter == .scans ? [] : (model.snapshot?.completedRuns ?? []).map(HistoryActivityItem.cleanup)
-        return (scanItems + cleanupItems).sorted { $0.date == $1.date ? $0.id < $1.id : $0.date > $1.date }
+        let chromeItems: [HistoryActivityItem] = model.filter == .scans ? [] : (model.chromeRuns ?? []).map(HistoryActivityItem.chrome)
+        return (scanItems + cleanupItems + chromeItems).sorted { $0.date == $1.date ? $0.id < $1.id : $0.date > $1.date }
     }
     private var unavailable: Bool {
-        switch model.filter { case .all: scans.records == nil || model.snapshot == nil; case .scans: scans.records == nil; case .cleanups: model.snapshot == nil }
+        switch model.filter { case .all: scans.records == nil || model.snapshot == nil || model.chromeLoadError != nil; case .scans: scans.records == nil; case .cleanups: model.snapshot == nil || model.chromeLoadError != nil }
     }
     var body: some View {
         VStack(alignment: .leading, spacing: StillDesign.Space.xl) {
@@ -154,6 +168,7 @@ struct CleanupHistoryView: View {
             if let message = model.message {
                 StatusRow(text: message, symbol: model.blocked ? "exclamationmark.triangle" : "info.circle", role: model.blocked ? .caution : .neutral, identifier: "historyStatus")
             }
+            if let error = model.chromeLoadError { HistoryStoreFailure(message: error, retryTitle: "Try Chrome history again", enabled: !model.busy) { Task { await model.load() } } }
             ScanHistoryRecordingNotice()
             if let error = model.loadError {
                 HistoryStoreFailure(message: error, retryTitle: "Try cleanup history again", enabled: !model.busy) { Task { await model.load() } }
@@ -167,12 +182,23 @@ struct CleanupHistoryView: View {
                     Button("Open recovery review", action: showRecovery).accessibilityIdentifier("historyRecovery")
                 }
             }
+            if model.chromeRuns?.contains(where: \.unresolved) == true {
+                StatusRow(text: "Unresolved Chrome cache outcomes are protected. Review their recorded group results below. They will not resume or retry automatically; Reset stays blocked.", symbol: "exclamationmark.triangle", role: .caution)
+            }
             LocalRecordsEntry(action: manageLocalRecords)
             ForEach(items) { item in
                 switch item {
                 case .scan(let activity):
                     ScanActivitySummary(activity: activity, expanded: Binding(get: { model.expandedScans.contains(activity.id) }, set: { if $0 { model.expandedScans.insert(activity.id) } else { model.expandedScans.remove(activity.id) } }), showGrowth: showGrowth, growthReturn: model.growthReturn, growthFeedRevision: items.map(\.id))
                 case .cleanup(let run): cleanup(run)
+                case .chrome(let run):
+                    SummarySurface {
+                        VStack(alignment: .leading, spacing: StillDesign.Space.md) {
+                            Label("Chrome cache cleanup", systemImage: "globe").font(StillDesign.TypeStyle.section)
+                            Text(run.observedAt.formatted(date: .abbreviated, time: .shortened)).font(.caption).foregroundStyle(.secondary)
+                            ChromeResultsSection(result: run)
+                        }
+                    }
                 }
             }
             if items.isEmpty {

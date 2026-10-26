@@ -5,6 +5,32 @@ import SwiftUI
 
 @MainActor @Observable final class SessionPlan {
     let execution = CleanupExecutionModel()
+    let chrome: ChromeCleanupModel = {
+        #if DEBUG
+        if let fixture = ChromeCleanupFixture.makeModel() { return fixture }
+        #endif
+        return ChromeCleanupModel()
+    }()
+    private(set) var workspaceRunning = false
+    private(set) var workspaceFinished = false
+    private(set) var workspaceBefore: StartupVolumeCapacity?
+    private(set) var workspaceAfter: StartupVolumeCapacity?
+    var hasWorkspaceResult: Bool { workspaceFinished || execution.result != nil || execution.error != nil || chrome.result != nil }
+    var hasPendingChoices: Bool { draft.selectedCount > 0 || chrome.selectedCount > 0 }
+    var workspaceSelectedCount: Int { draft.selectedCount + chrome.selectedCount }
+    var workspaceSelectedSize: String {
+        if !hasPendingChoices { return "—" }
+        if chrome.selectedCount == 0 { return ByteCountFormatter.string(fromByteCount: draft.logicalBytes, countStyle: .decimal) }
+        guard let cache = chrome.estimatedBytes else { return "Unknown" }
+        let sum = draft.logicalBytes.addingReportingOverflow(cache)
+        return sum.overflow ? "Unknown" : ByteCountFormatter.string(fromByteCount: sum.partialValue, countStyle: .decimal)
+    }
+    var workspaceObservedChange: Int64? {
+        guard let before = workspaceBefore, let after = workspaceAfter, let id = before.volumeID,
+              id == after.volumeID, before.total == after.total, before.metric == after.metric,
+              let first = before.available, let last = after.available else { return nil }
+        return last - first
+    }
     private(set) var draft = PlanDraft()
     private(set) var scans: [URL: ScanResult] = [:]
     private(set) var message: String?
@@ -17,13 +43,17 @@ import SwiftUI
     private(set) var approvedBatch: CleanupApproval?
     private(set) var unavailableScopes: Set<URL> = []
     var mutationVersion: UInt64 { draft.mutationVersion }
-    var canReview: Bool { !AppLifecycleController.shared.maintenanceInProgress && !isPreparing && !execution.isRunning && !isRefreshing && refresh.canReview(draft) }
+    var canReview: Bool {
+        !AppLifecycleController.shared.maintenanceInProgress && !isPreparing && !execution.isRunning && !workspaceRunning && !chrome.isBusy && !chrome.isRunning && !isRefreshing
+        && (draft.selectedCount == 0 || refresh.canReview(draft))
+        && (chrome.selectedCount == 0 || chrome.canReview) && hasPendingChoices
+    }
     /// Downloads is the only currently actionable cleanup category. Count live
     /// reviewable membership, never retained suspended choices or consumed results.
     var actionableSelectedCategoryCount: Int {
         guard canReview else { return 0 }
         let selected = Set(draft.selected.map(\.id))
-        return rows.contains { selected.contains($0.id + "|moveToTrash") && !refresh.requiresRefresh($0.id + "|moveToTrash") } ? 1 : 0
+        return (rows.contains { selected.contains($0.id + "|moveToTrash") && !refresh.requiresRefresh($0.id + "|moveToTrash") } ? 1 : 0) + (chrome.canReview ? 1 : 0)
     }
     var categoryState: CategorySelectionState {
         guard let downloads else { return .unchecked }
@@ -267,8 +297,8 @@ import SwiftUI
         guard canReview else { throw PlanSelectionError.ineligible }
         approvedBatch = try draft.approve(review)
     }
-    func executeApproved() async {
-        guard canReview, let batch = approvedBatch else { return }
+    func executeApproved(holdingOperationLock: Bool = false) async {
+        guard (canReview || holdingOperationLock), let batch = approvedBatch else { return }
         let leases: [ScopeAccessLease]
         do { leases = try AppLifecycleController.shared.locations.leases(for: batch.targets.map(\.scope)) }
         catch {
@@ -280,10 +310,10 @@ import SwiftUI
         approvedBatch = nil
         draft.clear(); scans.removeAll()
         AppLifecycleController.shared.hasPendingPlan = false
-        AppLifecycleController.shared.operationInProgress = true
+        if !holdingOperationLock { AppLifecycleController.shared.operationInProgress = true }
         await execution.run(batch)
         AppLifecycleController.shared.capacity.request(.cleanupEnded)
-        AppLifecycleController.shared.operationInProgress = false
+        if !holdingOperationLock { AppLifecycleController.shared.operationInProgress = false }
     }
     func toggleAll() async {
         guard !isPreparing && !isRefreshing && !execution.isRunning else { return }
@@ -365,7 +395,7 @@ import SwiftUI
         for target in draft.selected where refresh.requiresRefresh(target.id) || unavailableSelected.contains(where: { $0.id == target.id }) { remove(target) }
     }
     func startNewPlan() {
-        endSession(); execution.clear(); unavailableScopes.removeAll()
+        guard !workspaceRunning, !chrome.isRunning else { return }; endSession(); execution.clear(); chrome.endSession(); workspaceFinished = false; workspaceBefore = nil; workspaceAfter = nil; unavailableScopes.removeAll()
     }
     func leaveRetryMode() {
         guard !isRetryRechecking && !execution.isRunning else { return }
@@ -440,7 +470,35 @@ import SwiftUI
         message = "Rechecked \(StillDesign.files(draft.selectedCount)) for a new approval. \(prepared.completedCount) completed and \(prepared.unavailableCount) changed or unavailable targets excluded."
         AppLifecycleController.shared.hasPendingPlan = true
     }
-    func endSession() { guard !execution.isRunning else { return }; retryCancellation?.cancel(); retryGeneration = UUID(); retryCancellation = nil; isRetryRechecking = false; isPreparing = false; retryTargetIDs = nil; retryExcludedURLs = []; draft.clear(); scans.removeAll(); unavailableScopes.removeAll(); isRefreshingBatch = false; refresh = RefreshChoices(); refreshRequests.removeAll(); approvedBatch = nil; AppLifecycleController.shared.hasPendingPlan = false }
+    func prepareWorkspaceReview() async throws -> WorkspaceCleanupReview {
+        guard canReview else { throw PlanSelectionError.ineligible }
+        let downloadsVersion = mutationVersion, chromeVersion = chrome.selectionRevision
+        let files = draft.selectedCount > 0 ? try draft.review() : nil
+        let groups = chrome.selectedCount > 0 ? await chrome.prepareReview() : nil
+        guard canReview, mutationVersion == downloadsVersion, chrome.selectionRevision == chromeVersion,
+              chrome.selectedCount == 0 || groups != nil else { throw PlanSelectionError.ineligible }
+        return WorkspaceCleanupReview(downloads: files, chrome: groups, downloadsVersion: downloadsVersion, chromeVersion: chromeVersion)
+    }
+    func executeWorkspace(_ review: WorkspaceCleanupReview) async throws {
+        guard canReview, mutationVersion == review.downloadsVersion, chrome.selectionRevision == review.chromeVersion else { throw PlanSelectionError.ineligible }
+        if let files = review.downloads { try approve(files) }
+        workspaceRunning = true; workspaceFinished = false
+        let lifecycle = AppLifecycleController.shared
+        lifecycle.operationInProgress = true
+        defer { workspaceRunning = false; lifecycle.operationInProgress = false; lifecycle.hasPendingPlan = hasPendingChoices }
+        workspaceBefore = await Task.detached { StartupVolumeCapacity.read() }.value
+        if review.downloads != nil {
+            await executeApproved(holdingOperationLock: true)
+            // Access failure leaves the exact file choices intact and starts neither action.
+            guard draft.selectedCount == 0 else { return }
+        }
+        if let caches = review.chrome { await chrome.execute(caches) }
+        workspaceAfter = await Task.detached { StartupVolumeCapacity.read() }.value
+        workspaceFinished = true
+        lifecycle.capacity.request(.cleanupEnded)
+    }
+    func cancelWorkspace() { execution.cancel(); chrome.cancel() }
+    func endSession() { guard !execution.isRunning && !workspaceRunning && !chrome.isRunning else { return }; chrome.endSession(); retryCancellation?.cancel(); retryGeneration = UUID(); retryCancellation = nil; isRetryRechecking = false; isPreparing = false; retryTargetIDs = nil; retryExcludedURLs = []; draft.clear(); scans.removeAll(); unavailableScopes.removeAll(); isRefreshingBatch = false; refresh = RefreshChoices(); refreshRequests.removeAll(); approvedBatch = nil; AppLifecycleController.shared.hasPendingPlan = false }
 }
 
 @MainActor @Observable final class CleanupPlanPresentation {
@@ -463,23 +521,34 @@ struct LiveCleanupPlanView: View {
     var backToExplorer: (() -> Void)? = nil
     var backToExplorerTitle = "Back to Explorer"
     var manageLocations: (() -> Void)? = nil
+    var reviewBrowsers: (() -> Void)? = nil
     var scopeMessage: String? = nil
     @Bindable var presentation: CleanupPlanPresentation
-    @State private var review: CleanupReview?
+    @State private var review: WorkspaceCleanupReview?
     @State private var approvalError: String?
     @State private var reviewFocusRequest = 0
     var body: some View {
         VStack(spacing: 0) {
         ScrollView {
-        if selection.execution.isRunning || selection.execution.result != nil || selection.execution.error != nil {
-            CleanupExecutionView(model: selection.execution, retryMessage: selection.message).padding(StillDesign.Space.page)
+        if selection.workspaceRunning || selection.hasWorkspaceResult {
+            VStack(alignment: .leading, spacing: StillDesign.Space.xl) {
+                if selection.execution.isRunning || selection.execution.result != nil || selection.execution.error != nil { CleanupExecutionView(model: selection.execution, retryMessage: selection.message) }
+                if selection.chrome.isRunning { ProgressView("Clearing selected Chrome cache groups…") }
+                if let result = selection.chrome.result { ChromeResultsSection(result: result) }
+                if selection.chrome.result != nil || selection.chrome.isRunning {
+                    SummarySurface {
+                        Text("Observed available-space change: " + (selection.workspaceObservedChange.map { ($0 >= 0 ? "+" : "−") + ByteCountFormatter.string(fromByteCount: abs($0), countStyle: .decimal) } ?? "Unknown"))
+                        Text("Capacity is sampled separately and may change for other reasons. Cache removal is permanent; Downloads sent to Trash still occupy space.").font(.caption).foregroundStyle(.secondary)
+                    }
+                }
+            }.padding(StillDesign.Space.page)
         } else {
         VStack(alignment: .leading, spacing: StillDesign.Space.lg) {
             if let backToExplorer { Button(backToExplorerTitle, systemImage: "chevron.left", action: backToExplorer) }
             PageHeader(title: "Cleanup plan", subtitle: selection.retryTargetIDs == nil ? "Choose categories, adjust items if needed, then review the changes." : "Only rechecked unfinished files are included. Completed successes and new discoveries stay excluded.")
                 .padding(.bottom, StillDesign.Space.sm)
             ScanHistoryRecordingNotice()
-            SelectionSummary(value: selection.draft.selectedCount == 0 ? "—" : ByteCountFormatter.string(fromByteCount: selection.draft.logicalBytes, countStyle: .decimal), detail: "\(StillDesign.files(selection.draft.selectedCount)) selected", identifier: "liveSelectionSummary", consequence: "Space stays occupied until Finder empties Trash. Nothing changes before final confirmation.")
+            SelectionSummary(value: selection.workspaceSelectedSize, detail: selection.chrome.selectedCount == 0 ? "\(StillDesign.files(selection.draft.selectedCount)) selected" : "\(StillDesign.files(selection.draft.selectedCount)) · \(selection.chrome.selectedCount) Chrome groups selected", identifier: "liveSelectionSummary", consequence: selection.chrome.selectedCount == 0 ? "Space stays occupied until Finder empties Trash. Nothing changes before final confirmation." : "Chrome caches are permanently removed and may regrow. Downloads stay occupied in Trash.")
             if selection.pendingCount > 0 {
                 StatusRow(text: "Refresh required · Previous choices retained for \(StillDesign.files(selection.pendingCount)).", symbol: "arrow.clockwise", role: .caution)
                 Button("Deselect unavailable files") { selection.deselectUnavailable() }
@@ -555,6 +624,7 @@ struct LiveCleanupPlanView: View {
             ForEach(selection.retryExcludedURLs, id: \.path) { url in
                 StatusRow(text: "\(url.lastPathComponent): changed or unavailable. Review it through a new scan from Overview.", symbol: "exclamationmark.circle", role: .caution).help(url.path)
             }
+            if selection.retryTargetIDs == nil { ChromePlanSection(model: selection.chrome, onReview: { reviewBrowsers?() }) }
             DisclosureGroup("Size and selection details") {
                 Text("Logical size describes the selected files, not guaranteed space freed. Linked files count once in the size total; each selected path is a separate target. Hidden search results keep their selections.").font(.caption).foregroundStyle(.secondary)
             }
@@ -568,11 +638,11 @@ struct LiveCleanupPlanView: View {
                 ProgressView().controlSize(.small)
                 Button("Stop recheck") { selection.stopRetryRecheck() }
             }
-        } else if selection.execution.isRunning {
+        } else if selection.workspaceRunning || selection.execution.isRunning {
             ActionStrip(message: "Stopping never rolls back files already moved to Trash.") {
-                Button(selection.execution.stopRequested ? "Stop requested" : "Stop after current file") { selection.execution.cancel() }.disabled(selection.execution.stopRequested)
+                Button(selection.execution.stopRequested ? "Stop requested" : "Stop after current file") { selection.cancelWorkspace() }.disabled(selection.execution.stopRequested)
             }
-        } else if selection.execution.result != nil || selection.execution.error != nil {
+        } else if selection.hasWorkspaceResult {
             ActionStrip(message: selection.execution.requiresRecoveryReview ? "Review unresolved records before making another plan." : "This run has ended. A new plan requires a fresh manual scan.") {
                 if let viewHistory { Button("View history", action: viewHistory) }
                 if selection.execution.requiresRecoveryReview, let reviewRecovery { Button("Review recovery", action: reviewRecovery) }
@@ -586,20 +656,21 @@ struct LiveCleanupPlanView: View {
         } else if selection.execution.result == nil && selection.execution.error == nil {
         ActionStrip(message: selection.isRefreshing ? "Review is paused while findings are rechecked." : selection.pendingCount > 0 ? "Refresh required before reviewing the selected files." : "Nothing changes until you confirm the next step.") {
 ReviewCleanupButton(enabled: selection.canReview, focusRequest: reviewFocusRequest) {
-                do { review = try selection.review(); approvalError = nil } catch { approvalError = "Recheck the selected targets before reviewing." }
+                Task { do { review = try await selection.prepareWorkspaceReview(); approvalError = nil } catch { approvalError = "Recheck the selected targets before reviewing." } }
             }.fixedSize()
         }
         }
         }
         .sheet(item: $review, onDismiss: { reviewFocusRequest += 1 }) { snapshot in
-            CleanupConfirmationView(review: snapshot, cancel: { review = nil }) {
-                do { try selection.approve(snapshot); review = nil; Task { await selection.executeApproved() } }
-                catch { approvalError = "The plan changed. Review the latest exact targets before approving."; review = nil }
+            WorkspaceCleanupConfirmationView(review: snapshot, cancel: { review = nil }) {
+                review = nil
+                Task { do { try await selection.executeWorkspace(snapshot) } catch { approvalError = "The plan changed. Review the latest targets before approving." } }
             }
         }
         .onAppear { reconcileInspector() }
         .onChange(of: selection.isRefreshing) { _, refreshing in if !refreshing { reconcileInspector() } }
         .onChange(of: selection.scans.values.map(\.observedAt).sorted()) { _, _ in reconcileInspector() }
+        .onChange(of: selection.chrome.selectionRevision) { _, _ in if review != nil { review = nil } }
         .onChange(of: selection.mutationVersion) { _, _ in if review != nil { review = nil } }
     }
     private func reconcileInspector() {
@@ -649,3 +720,39 @@ private struct CleanupConfirmationView: View {
 }
 
 
+
+/// Distinct immutable approvals share presentation, never target authority.
+struct WorkspaceCleanupReview: Identifiable {
+    let id = UUID()
+    let downloads: CleanupReview?
+    let chrome: ChromeCacheApproval?
+    let downloadsVersion: UInt64
+    let chromeVersion: UInt64
+}
+private struct WorkspaceCleanupConfirmationView: View {
+    let review: WorkspaceCleanupReview
+    let cancel: () -> Void
+    let approve: () -> Void
+    var body: some View {
+        if review.chrome == nil, let files = review.downloads {
+            CleanupConfirmationView(review: files, cancel: cancel, approve: approve)
+        } else {
+            VStack(alignment: .leading, spacing: StillDesign.Space.lg) {
+                PageHeader(title: "Review cleanup", subtitle: "Review each action before making changes.")
+                ScrollView {
+                    VStack(alignment: .leading, spacing: StillDesign.Space.xl) {
+                        if let files = review.downloads {
+                            Text("Move exact Downloads files to Trash").font(StillDesign.TypeStyle.section)
+                            Text("Space stays occupied until Finder empties Trash. No whole folders, new discoveries or permanent-delete fallback.").font(.callout).foregroundStyle(.secondary)
+                            ForEach(files.targets) { Text($0.url.path).font(.caption).textSelection(.enabled) }
+                            Divider()
+                        }
+                        if let groups = review.chrome { ChromeConfirmationSection(approval: groups) }
+                    }.frame(maxWidth: .infinity, alignment: .leading)
+                }
+                Divider()
+                HStack { Button("Cancel", action: cancel).keyboardShortcut(.cancelAction); Spacer(); Button("Run cleanup", action: approve).buttonStyle(.borderedProminent) }
+            }.padding(StillDesign.Space.xl).frame(width: 640, height: 520).background(StillDesign.reading)
+        }
+    }
+}
