@@ -226,9 +226,13 @@ final class CatalogCleanupUITests: XCTestCase {
         if !item.waitForExistence(timeout: 2) { expandDisclosures(in: app) }
         XCTAssertTrue(item.waitForExistence(timeout: 5))
         XCTAssertEqual(item.value as? Int, 0)
+        XCTAssertFalse(app.staticTexts["liveSelectionTrash"].exists)
         revealAndClick(item, in: app)
         XCTAssertEqual(item.value as? Int, 1)
         XCTAssertEqual(app.checkBoxes["planItem-Other.pkg"].value as? Int, 0)
+        // The installer goes to Trash, so the summary says how much of the total does.
+        XCTAssertTrue(app.staticTexts["liveSelectionTrash"].waitForExistence(timeout: 5))
+        XCTAssertTrue((app.staticTexts["liveSelectionTrash"].value as? String)?.hasSuffix(" of this goes to Trash") == true)
         XCTAssertEqual(app.checkBoxes["previewOnlyToggle"].value as? Int, 1)
         app.buttons["Review cleanup"].click()
 

@@ -135,6 +135,7 @@ struct SelectionSummary: View {
     var identifier = ""
     var consequence: String? = nil
     var title = "Selected for Trash"
+    var consequenceIdentifier = ""
     var body: some View {
         VStack(alignment: .leading, spacing: StillDesign.Space.md) {
         SummarySurface {
@@ -147,7 +148,7 @@ struct SelectionSummary: View {
                 Text(detail).font(.caption).foregroundStyle(.secondary).multilineTextAlignment(.trailing).accessibilityIdentifier(identifier)
             }
         }
-        if let consequence { Text(consequence).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true) }
+        if let consequence { Text(consequence).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true).accessibilityIdentifier(consequenceIdentifier) }
         }
     }
 }
