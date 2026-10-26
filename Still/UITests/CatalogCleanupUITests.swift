@@ -41,16 +41,16 @@ final class CatalogCleanupUITests: XCTestCase {
         app.launch()
 
         XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
-        let homebrew = app.buttons["overviewRule-homebrew"]
-        XCTAssertTrue(homebrew.waitForExistence(timeout: 10))
-        for present in ["npm-cache", "yarn-cache", "cargo-cache", "gradle-cache"] { XCTAssertTrue(app.buttons["overviewRule-" + present].exists, present) }
-        for absent in ["pnpm-store", "uv-cache", "pip-cache", "cocoapods-cache"] { XCTAssertFalse(app.buttons["overviewRule-" + absent].exists, absent) }
+        // Overview has one row per category; the plan lists the rules that found something.
+        let developer = app.buttons["overviewCategory-developer"]
+        XCTAssertTrue(developer.waitForExistence(timeout: 10))
         XCTAssertFalse(app.descendants(matching: .any).matching(NSPredicate(format: "identifier CONTAINS 'ccache'")).firstMatch.exists)
-        homebrew.click()
+        developer.click()
 
         XCTAssertTrue(app.descendants(matching: .any)["planRule-homebrew"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.descendants(matching: .any)["planRule-yarn-cache"].exists)
-        XCTAssertFalse(app.descendants(matching: .any)["planRule-pip-cache"].exists)
+        for present in ["npm-cache", "yarn-cache", "cargo-cache", "gradle-cache"] { XCTAssertTrue(app.descendants(matching: .any)["planRule-" + present].exists, present) }
+        for absent in ["pnpm-store", "uv-cache", "pip-cache", "cocoapods-cache"] { XCTAssertFalse(app.descendants(matching: .any)["planRule-" + absent].exists, absent) }
+        XCTAssertFalse(app.descendants(matching: .any).matching(NSPredicate(format: "identifier CONTAINS 'ccache'")).firstMatch.exists)
         XCTAssertEqual(app.checkBoxes["previewOnlyToggle"].value as? Int, 1)
         app.buttons["Review cleanup"].click()
 
@@ -86,12 +86,11 @@ final class CatalogCleanupUITests: XCTestCase {
         app.launch()
 
         XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
-        let derivedData = app.buttons["overviewRule-xcode-derived-data"]
-        XCTAssertTrue(derivedData.waitForExistence(timeout: 10))
-        XCTAssertTrue(app.buttons["overviewRule-xcode-device-support"].exists)
-        XCTAssertTrue(app.buttons["overviewRule-xcode-simulators"].exists)
+        let developer = app.buttons["overviewCategory-developer"]
+        XCTAssertTrue(developer.waitForExistence(timeout: 10))
         XCTAssertFalse(app.descendants(matching: .any).matching(NSPredicate(format: "identifier CONTAINS 'Archives'")).firstMatch.exists)
-        derivedData.click()
+        developer.click()
+        XCTAssertTrue(app.checkBoxes["planRule-xcode-device-support"].waitForExistence(timeout: 5))
 
         for rule in ["xcode-derived-data", "xcode-simulators"] {
             let box = app.checkBoxes["planRule-" + rule]
