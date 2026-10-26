@@ -21,6 +21,27 @@ public struct CapacitySample: Sendable {
     }
 }
 
+/// Moves one item to the Trash and returns where it landed. Never deletes as a fallback.
+public protocol TrashMoving: Sendable {
+    func moveToTrash(_ url: URL) throws -> URL?
+}
+/// The Finder Trash, through a coordinated write so other apps' file presenters see the move.
+public struct FinderTrash: TrashMoving {
+    public init() {}
+    public func moveToTrash(_ url: URL) throws -> URL? {
+        var coordinationError: NSError?, operationError: Error?, resulting: URL?
+        NSFileCoordinator(filePresenter: nil).coordinate(writingItemAt: url, options: .forDeleting, error: &coordinationError) { coordinated in
+            do {
+                var returned: NSURL?
+                try FileManager.default.trashItem(at: coordinated, resultingItemURL: &returned)
+                resulting = returned as URL?
+            } catch { operationError = error }
+        }
+        if let error = operationError ?? coordinationError { throw error }
+        return resulting
+    }
+}
+
 /// A confirmed, frozen set of catalog candidates.
 public struct CatalogApproval: Sendable, Identifiable {
     public let id: UUID
@@ -80,9 +101,10 @@ public actor CleanupExecutor {
     private let check: CandidateCheck
     private let measure: @Sendable (URL) -> CapacitySample?
     private let cancellation: CleanupCancellation
+    private let trashMover: any TrashMoving
     private var running = false
-    public init(journal: any CleanupJournaling, check: CandidateCheck, measure: @escaping @Sendable (URL) -> CapacitySample? = CapacitySample.read, cancellation: CleanupCancellation = CleanupCancellation()) {
-        self.journal = journal; self.check = check; self.measure = measure; self.cancellation = cancellation
+    public init(journal: any CleanupJournaling, check: CandidateCheck, measure: @escaping @Sendable (URL) -> CapacitySample? = CapacitySample.read, trash: any TrashMoving = FinderTrash(), cancellation: CleanupCancellation = CleanupCancellation()) {
+        self.journal = journal; self.check = check; self.measure = measure; self.trashMover = trash; self.cancellation = cancellation
     }
     public nonisolated func cancel() { cancellation.cancel() }
 
@@ -168,16 +190,24 @@ public actor CleanupExecutor {
         }
     }
 
+    /// Moves the checked item to the Trash, then confirms the item that landed there is the one approved.
     private func trash(_ candidate: Candidate, into record: inout CleanupRecord) {
-        var resulting: NSURL?
-        do {
-            try FileManager.default.trashItem(at: candidate.url, resultingItemURL: &resulting)
-            record.trashURL = resulting as URL?; record.state = .succeeded; record.message = "Moved to Trash"
-        } catch {
+        func unchanged() -> Bool {
             var info = stat()
-            let unchanged = lstat(candidate.url.path, &info) == 0 && "\(info.st_dev):\(info.st_ino)" == candidate.resourceID
-            record.state = unchanged ? .failed : .unknown
-            record.message = unchanged ? "Couldn’t move it to Trash. Left unchanged." : "Move to Trash may be incomplete. Review it before cleaning again."
+            return lstat(candidate.url.path, &info) == 0 && "\(info.st_dev):\(info.st_ino)" == candidate.resourceID
+        }
+        do {
+            let resulting = try trashMover.moveToTrash(candidate.url)
+            record.trashURL = resulting
+            var moved = stat()
+            if let resulting, lstat(resulting.path, &moved) != 0 || "\(moved.st_dev):\(moved.st_ino)" != candidate.resourceID {
+                record.state = .unknown; record.message = "The item in the Trash isn’t the one approved. Review it before cleaning again."
+                return
+            }
+            record.state = .succeeded; record.message = "Moved to Trash"
+        } catch {
+            record.state = unchanged() ? .failed : .unknown
+            record.message = record.state == .failed ? "Couldn’t move it to Trash. Left unchanged." : "Move to Trash may be incomplete. Review it before cleaning again."
         }
     }
 }

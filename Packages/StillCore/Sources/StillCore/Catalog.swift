@@ -5,7 +5,7 @@ import CoreServices
 /// What kind of data a rule covers; it decides how the data comes back.
 public enum RegenClass: String, Codable, Sendable { case cache, build, updaterDownload, leakedCopy, log, installer, model, userFile }
 /// Decision 3: regenerable data is deleted; user files go to Trash. Tool actions arrive with #99.
-public enum CleanupAction: String, Codable, Sendable { case delete, trash }
+public enum CleanupAction: String, Codable, Sendable { case delete; case trash = "moveToTrash" }
 public enum CatalogCategory: String, Codable, Sendable { case developer, browser, downloads, system, models }
 
 /// Who must be closed before a rule's data is touched.

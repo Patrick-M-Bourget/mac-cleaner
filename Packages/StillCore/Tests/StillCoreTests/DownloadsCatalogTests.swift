@@ -63,3 +63,68 @@ private let megabyte: Int64 = 1_000_000
     #expect(utimes(url.path, &times) == 0)
     #expect(Catalog(rules: BuiltInCatalog.rules).discover(home: home, now: now).isEmpty)
 }
+
+/// Stands in for the Finder Trash so tests never touch the user's real Trash.
+private struct FixtureTrash: TrashMoving {
+    let folder: URL
+    var substitute = false
+    func moveToTrash(_ url: URL) throws -> URL? {
+        let destination = folder.appendingPathComponent(url.lastPathComponent)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        try FileManager.default.moveItem(at: url, to: destination)
+        if substitute { try FileManager.default.removeItem(at: destination); try Data([9]).write(to: destination) }
+        return destination
+    }
+}
+private struct AlwaysClosed: RunningAppChecking { func isRunning(_ owner: RuleOwner) -> Bool? { false } }
+private func trashExecutor(_ home: URL, trash: FixtureTrash) throws -> (CleanupExecutor, SQLiteCleanupJournal) {
+    let journal = try SQLiteCleanupJournal(url: home.appendingPathComponent("journal.sqlite"))
+    let check = CandidateCheck(catalog: Catalog(rules: BuiltInCatalog.rules), running: AlwaysClosed())
+    return (CleanupExecutor(journal: journal, check: check, measure: { _ in nil }, trash: trash), journal)
+}
+
+@Test func chosenDownloadsGoToTrashAndCountAsHeldNotFreed() async throws {
+    let (home, downloads) = try downloadsHome()
+    defer { try? FileManager.default.removeItem(at: home) }
+    let installer = try file(downloads, "Setup.dmg", size: 2048, now: Date())
+    try file(downloads, "Other.pkg", now: Date())
+    let candidates = Catalog(rules: BuiltInCatalog.rules).discover(home: home)
+    let chosen = try #require(candidates.first { $0.url == installer })
+    let trash = FixtureTrash(folder: home.appendingPathComponent("FixtureTrash"))
+    let (run, journal) = try trashExecutor(home, trash: trash)
+    let result = await run.execute(CatalogApproval(candidates: [chosen], previewOnly: false))
+    let record = try #require(result.records.first)
+    #expect(record.state == .succeeded)
+    #expect(record.action == "moveToTrash")
+    #expect(record.message == "Moved to Trash")
+    #expect(record.trashURL == trash.folder.appendingPathComponent("Setup.dmg"))
+    #expect(!FileManager.default.fileExists(atPath: installer.path))
+    #expect(FileManager.default.fileExists(atPath: downloads.appendingPathComponent("Other.pkg").path))
+    #expect(result.movedToTrashBytes == chosen.allocatedBytes)
+    #expect(result.measuredFreedBytes == 0)
+    #expect(try journal.completedHistory().completedRuns.first?.trashHeldAllocatedBytes == chosen.allocatedBytes)
+}
+
+@Test func aTrashMoveThatLandsADifferentItemIsUnresolvedAndStopsTheRun() async throws {
+    let (home, downloads) = try downloadsHome()
+    defer { try? FileManager.default.removeItem(at: home) }
+    try file(downloads, "a.dmg", now: Date()); try file(downloads, "b.dmg", now: Date())
+    let candidates = Catalog(rules: BuiltInCatalog.rules).discover(home: home).sorted { $0.url.path < $1.url.path }
+    let (run, _) = try trashExecutor(home, trash: FixtureTrash(folder: home.appendingPathComponent("FixtureTrash"), substitute: true))
+    let result = await run.execute(CatalogApproval(candidates: candidates, previewOnly: false))
+    #expect(result.records.map(\.state) == [.unknown, .cancelled])
+    #expect(FileManager.default.fileExists(atPath: downloads.appendingPathComponent("b.dmg").path))
+}
+
+@Test func previewOnlyLeavesDownloadsInPlace() async throws {
+    let (home, downloads) = try downloadsHome()
+    defer { try? FileManager.default.removeItem(at: home) }
+    let installer = try file(downloads, "Setup.dmg", now: Date())
+    let (run, _) = try trashExecutor(home, trash: FixtureTrash(folder: home.appendingPathComponent("FixtureTrash")))
+    let result = await run.execute(CatalogApproval(candidates: Catalog(rules: BuiltInCatalog.rules).discover(home: home), previewOnly: true))
+    #expect(result.records.map(\.state) == [.skipped])
+    #expect(result.records.first?.message.hasPrefix("Preview only: would move to Trash") == true)
+    #expect(result.movedToTrashBytes == 0)
+    #expect(FileManager.default.fileExists(atPath: installer.path))
+    #expect(!FileManager.default.fileExists(atPath: home.appendingPathComponent("FixtureTrash").path))
+}
