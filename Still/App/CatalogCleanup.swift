@@ -553,6 +553,8 @@ struct CatalogConfirmationSection: View {
 struct CatalogResultsSection: View {
     let result: CatalogExecutionResult
     let catalog: Catalog
+    /// One switch for every row's path and messages, so the list stays one line per item until asked.
+    @State private var showsDetails = false
     var body: some View {
         VStack(alignment: .leading, spacing: StillDesign.Space.lg) {
             if result.previewOnly {
@@ -573,8 +575,13 @@ struct CatalogResultsSection: View {
                     .font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary)
             }
             VStack(alignment: .leading, spacing: 0) {
+                HStack {
+                    Spacer()
+                    Button(showsDetails ? "Hide paths and messages" : "Show paths and messages") { showsDetails.toggle() }
+                        .buttonStyle(.link).font(StillDesign.TypeStyle.caption).accessibilityIdentifier("resultsDetailsToggle")
+                }
                 ForEach(result.records.attentionFirst) { record in
-                    CatalogResultRow(record: record, rule: record.ruleID.flatMap { catalog.rule($0) })
+                    CatalogResultRow(record: record, rule: record.ruleID.flatMap { catalog.rule($0) }, showsDetails: showsDetails)
                     Divider()
                 }
             }
@@ -590,10 +597,11 @@ struct CatalogResultsSection: View {
     }
 }
 
-/// One result: name and short location, outcome and size; its reason when it needs attention; path and messages on demand.
+/// One result: name and short location, outcome and size; its reason when it needs attention; path and messages when shown.
 private struct CatalogResultRow: View {
     let record: CleanupRecord
     let rule: CleanupRule?
+    let showsDetails: Bool
     private var name: String {
         let file = record.originalURL.lastPathComponent
         return rule?.itemName?(file) ?? (rule?.choosesItems == true ? file : rule?.title ?? file)
@@ -617,16 +625,14 @@ private struct CatalogResultRow: View {
             }
             VStack(alignment: .leading, spacing: StillDesign.Space.xs) {
                 if record.needsAttention { Text(record.message).font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true) }
-                ActionDisclosureGroup("Details") {
-                    VStack(alignment: .leading, spacing: StillDesign.Space.xs) {
-                        Text(record.originalURL.path).font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary).textSelection(.enabled)
-                        if !record.needsAttention { Text(record.message).font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary) }
-                        if let output = record.toolOutput {
-                            Text(output).font(StillDesign.TypeStyle.code).foregroundStyle(.secondary).textSelection(.enabled)
-                                .frame(maxWidth: .infinity, alignment: .leading).accessibilityIdentifier("toolOutput-" + (record.ruleID ?? ""))
-                        }
-                    }.padding(.top, StillDesign.Space.xs)
-                }.font(StillDesign.TypeStyle.caption).accessibilityIdentifier("resultDetails-" + record.id)
+                if showsDetails {
+                    Text(record.originalURL.path).font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary).textSelection(.enabled)
+                    if !record.needsAttention { Text(record.message).font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary) }
+                    if let output = record.toolOutput {
+                        Text(output).font(StillDesign.TypeStyle.code).foregroundStyle(.secondary).textSelection(.enabled)
+                            .frame(maxWidth: .infinity, alignment: .leading).accessibilityIdentifier("toolOutput-" + (record.ruleID ?? ""))
+                    }
+                }
             }.padding(.leading, StillDesign.Space.lg + StillDesign.Space.md)
         }.padding(.vertical, StillDesign.Space.md)
     }

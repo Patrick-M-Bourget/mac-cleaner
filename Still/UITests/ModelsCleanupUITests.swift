@@ -35,7 +35,9 @@ final class ModelsCleanupUITests: XCTestCase {
             XCTAssertTrue(header.waitForExistence(timeout: 5), rule)
             XCTAssertEqual(header.value as? Int, 0, rule)
         }
-        for name in ["org/tiny", "llama3:latest"] {
+        for (rule, name) in [("huggingface-models", "org/tiny"), ("ollama-models", "llama3:latest")] {
+            // Items are drawn lazily: bring the rule's list into view first.
+            reveal(app.checkBoxes["planRule-" + rule], in: app, nearTop: true)
             let item = app.checkBoxes["planItem-" + name]
             if !item.waitForExistence(timeout: 2) { expandDisclosures(in: app) }
             XCTAssertTrue(item.waitForExistence(timeout: 5), name)
