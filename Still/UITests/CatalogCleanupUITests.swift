@@ -180,8 +180,8 @@ final class CatalogCleanupUITests: XCTestCase {
         XCTAssertFalse(app.staticTexts["0 bytes"].exists)
         revealAndClick(row, in: app)
 
-        // Opening a category from Overview never preselects it.
-        let category = app.checkBoxes["planRule-npm-cache"]
+        // Opening a category from Overview never preselects it. One rule with one item: the category checkbox is the choice.
+        let category = app.checkBoxes["planCategory-developer"]
         XCTAssertTrue(category.waitForExistence(timeout: 5))
         XCTAssertEqual(category.value as? Int, 0)
         revealAndClick(category, in: app)
@@ -209,6 +209,8 @@ final class CatalogCleanupUITests: XCTestCase {
         let state = try configureIsolatedState(app)
         let home = try configureCatalogHome(app)
         defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
+        // A second installer, so the plan lists the items to choose from.
+        try Data(repeating: 5, count: 90_000).write(to: home.appendingPathComponent("Downloads/Other.pkg"))
         app.launch()
 
         XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
@@ -217,7 +219,7 @@ final class CatalogCleanupUITests: XCTestCase {
         revealAndClick(row, in: app)
 
         // Nothing is preselected; the installer is chosen on its own.
-        let category = app.checkBoxes["planRule-downloads-installers"]
+        let category = app.checkBoxes["planCategory-downloads"]
         XCTAssertTrue(category.waitForExistence(timeout: 5))
         XCTAssertEqual(category.value as? Int, 0)
         let item = app.checkBoxes["planItem-Setup.dmg"]
@@ -226,6 +228,7 @@ final class CatalogCleanupUITests: XCTestCase {
         XCTAssertEqual(item.value as? Int, 0)
         revealAndClick(item, in: app)
         XCTAssertEqual(item.value as? Int, 1)
+        XCTAssertEqual(app.checkBoxes["planItem-Other.pkg"].value as? Int, 0)
         XCTAssertEqual(app.checkBoxes["previewOnlyToggle"].value as? Int, 1)
         app.buttons["Review cleanup"].click()
 
@@ -258,7 +261,8 @@ final class CatalogCleanupUITests: XCTestCase {
         XCTAssertTrue(row.waitForExistence(timeout: 10))
         revealAndClick(row, in: app)
 
-        let rule = app.checkBoxes["planRule-chrome-code-sign-clones"]
+        // One copy is offered (the newest is kept), so the category checkbox is the choice.
+        let rule = app.checkBoxes["planCategory-browser"]
         XCTAssertTrue(rule.waitForExistence(timeout: 5))
         XCTAssertEqual(rule.value as? Int, 0)
         XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "value BEGINSWITH 'Up to '")).firstMatch.exists)
@@ -311,7 +315,9 @@ final class CatalogCleanupUITests: XCTestCase {
         XCTAssertTrue(row.waitForExistence(timeout: 10))
         revealAndClick(row, in: app)
 
-        XCTAssertTrue(app.checkBoxes["planRule-chrome-cache"].waitForExistence(timeout: 5))
+        // One rule with several items: its profiles are listed without a rule row.
+        XCTAssertTrue(app.checkBoxes["planCategory-browser"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.checkBoxes["planRule-chrome-cache"].exists)
         let profile = app.checkBoxes["planProfile-chrome-cache-Default"]
         XCTAssertTrue(profile.exists)
         XCTAssertTrue(app.checkBoxes["planProfile-chrome-cache-Profile 1"].exists)
@@ -368,7 +374,7 @@ final class CatalogCleanupUITests: XCTestCase {
         XCTAssertTrue(row.waitForExistence(timeout: 10))
         XCTAssertFalse(app.descendants(matching: .any)["overviewNotAccessible"].exists)
         revealAndClick(row, in: app)
-        let rule = app.checkBoxes["planRule-safari-cache"]
+        let rule = app.checkBoxes["planCategory-browser"]
         XCTAssertTrue(rule.waitForExistence(timeout: 5))
         revealAndClick(rule, in: app)
         XCTAssertEqual(app.checkBoxes["previewOnlyToggle"].value as? Int, 1)
@@ -402,7 +408,7 @@ final class CatalogCleanupUITests: XCTestCase {
         XCTAssertTrue(app.buttons["overviewCategory-logs"].exists)
         revealAndClick(updaters, in: app)
 
-        let update = app.checkBoxes["planProfile-updater-downloads-com.example.StillFixture"]
+        let update = app.checkBoxes["planCategory-updaters"]
         XCTAssertTrue(update.waitForExistence(timeout: 5))
         // Overview opened Updates; Logs is its own category, still closed.
         XCTAssertFalse(app.checkBoxes["planRule-crash-reports"].exists)

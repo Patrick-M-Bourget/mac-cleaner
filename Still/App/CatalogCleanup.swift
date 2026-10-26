@@ -421,12 +421,46 @@ private struct PlanCategoryRow: View {
         VStack(alignment: .leading, spacing: StillDesign.Space.sm) {
             CategorySelectionHeader(category: row.category.storageCategory, state: state, title: row.category.overviewTitle, detail: row.detail,
                                     size: row.valueText, enabled: model.canEdit, identifier: "planCategory-" + row.id) { model.setSelected(row.rules, state != .checked) }
-            ActionDisclosureGroup("Choose items · \(row.rules.reduce(0) { $0 + model.candidates(for: $1).count })", isExpanded: $expanded) {
-                VStack(alignment: .leading, spacing: 0) {
-                    ForEach(row.rules) { rule in PlanRuleRows(model: model, rule: rule) }
-                }.padding(.top, StillDesign.Space.sm)
-            }.padding(.leading, StillDesign.Size.categoryContentIndent)
+            switch row.planLayout {
+            case .ruleRows:
+                ActionDisclosureGroup("Choose items · \(row.itemCount)", isExpanded: $expanded) {
+                    VStack(alignment: .leading, spacing: 0) {
+                        ForEach(row.rules) { rule in PlanRuleRows(model: model, rule: rule) }
+                    }.padding(.top, StillDesign.Space.sm)
+                }.padding(.leading, StillDesign.Size.categoryContentIndent)
+            case .items:
+                if let rule = row.rules.first {
+                    PlanRunningOwners(model: model, rule: rule).padding(.leading, StillDesign.Size.categoryContentIndent)
+                    ActionDisclosureGroup("Choose items · \(row.itemCount)", isExpanded: $expanded) {
+                        PlanRuleItems(model: model, rule: rule).padding(.top, StillDesign.Space.sm)
+                    }.padding(.leading, StillDesign.Size.categoryContentIndent)
+                }
+            case .categoryOnly:
+                if let rule = row.rules.first { PlanRunningOwners(model: model, rule: rule).padding(.leading, StillDesign.Size.categoryContentIndent) }
+            }
         }
+    }
+}
+
+/// Why a rule can't be cleaned right now: its owner is open.
+private struct PlanRunningOwners: View {
+    let model: CatalogCleanupModel
+    let rule: CleanupRule
+    var body: some View {
+        ForEach(model.runningOwnerNames(for: rule), id: \.self) { name in
+            StatusRow(text: CheckRefusal.ownerRunning(name).reason, symbol: "exclamationmark.circle", role: .caution, identifier: "planRunning-" + rule.id)
+                .font(StillDesign.TypeStyle.caption)
+        }
+    }
+}
+
+/// A rule's items, each chosen on its own: profiles or apps when it groups them, otherwise single items.
+private struct PlanRuleItems: View {
+    @Bindable var model: CatalogCleanupModel
+    let rule: CleanupRule
+    var body: some View {
+        if model.candidates(for: rule).contains(where: { $0.group != nil }) { CatalogProfileRows(model: model, rule: rule) }
+        else { CatalogItemRows(model: model, rule: rule) }
     }
 }
 
@@ -445,10 +479,7 @@ private struct PlanRuleRows: View {
                 MacroCategoryCheckbox(state: state, label: rule.title, enabled: model.canEdit, action: { model.setSelected(rule, state != .checked) },
                                       identifier: "planRule-" + rule.id, showsTitle: false).fixedSize()
             }
-            ForEach(model.runningOwnerNames(for: rule), id: \.self) { name in
-                StatusRow(text: CheckRefusal.ownerRunning(name).reason, symbol: "exclamationmark.circle", role: .caution, identifier: "planRunning-" + rule.id)
-                    .font(StillDesign.TypeStyle.caption).padding(.leading, StillDesign.Space.xl).padding(.bottom, StillDesign.Space.sm)
-            }
+            PlanRunningOwners(model: model, rule: rule).padding(.leading, StillDesign.Space.xl).padding(.bottom, StillDesign.Space.sm)
             if rule.choosesItems { CatalogItemRows(model: model, rule: rule).padding(.leading, StillDesign.Space.xl) }
             if items.contains(where: { $0.group != nil }) { CatalogProfileRows(model: model, rule: rule).padding(.leading, StillDesign.Space.xl) }
             Divider()
