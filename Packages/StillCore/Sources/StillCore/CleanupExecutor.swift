@@ -111,7 +111,7 @@ public actor CleanupExecutor {
 
     public func execute(_ approval: CatalogApproval, progress: @Sendable (CleanupExecutionProgress) async -> Void = { _ in }) async -> CatalogExecutionResult {
         var seen = Set<String>()
-        let estimate = approval.candidates.filter { seen.insert($0.resourceID).inserted }.reduce(Int64(0)) { $0 + ($1.allocatedBytes ?? $1.logicalBytes) }
+        let estimate = approval.candidates.filter { seen.insert($0.resourceID).inserted }.reduce(Int64(0)) { $0 + $1.estimatedBytes }
         func result(_ records: [CleanupRecord], replay: Bool = false, failure: String? = nil) -> CatalogExecutionResult {
             CatalogExecutionResult(batchID: approval.id, records: records, previewOnly: approval.previewOnly, rejectedReplay: replay, journalFailure: failure, estimatedBytes: estimate)
         }
@@ -158,7 +158,7 @@ public actor CleanupExecutor {
             return
         }
         if previewOnly {
-            let size = ByteCountFormatter.string(fromByteCount: candidate.allocatedBytes ?? candidate.logicalBytes, countStyle: .decimal)
+            let size = ByteCountFormatter.string(fromByteCount: candidate.estimatedBytes, countStyle: .decimal)
             record.state = .skipped; record.message = CleanupRecord.previewPrefix + " would \(verb) (\(size)). Checks passed; nothing changed."
             Self.log.info("Preview only: would \(verb, privacy: .public) \(candidate.url.path, privacy: .public), \(size, privacy: .public)")
             return

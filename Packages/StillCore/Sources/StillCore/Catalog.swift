@@ -278,6 +278,8 @@ public struct Candidate: Sendable, Identifiable, Hashable {
     public internal(set) var sizeIsEstimate = false
     /// The file's own size when `logicalBytes` sizes something else (an Ollama manifest stands for its model).
     public internal(set) var fileBytes: Int64? = nil
+    /// What the scan sized: allocated bytes where known, else logical bytes.
+    public var estimatedBytes: Int64 { allocatedBytes ?? logicalBytes }
     /// The base folder the item was found under (home or the user's folder); the check refuses an item without one.
     public internal(set) var scopeRoot: URL? = nil
 }

@@ -10,7 +10,7 @@ public enum SizeEstimate: Equatable, Sendable {
 
     /// A candidate's estimate, from allocated size where available. An incomplete size of 0 is unknown.
     public init(_ candidate: Candidate) {
-        let bytes = candidate.allocatedBytes ?? candidate.logicalBytes
+        let bytes = candidate.estimatedBytes
         self = candidate.sizeComplete ? .measured(bytes) : bytes > 0 ? .atLeast(bytes) : .unknown
     }
     /// The sum of estimates. Any unknown or lower-bound part makes the sum a lower bound.

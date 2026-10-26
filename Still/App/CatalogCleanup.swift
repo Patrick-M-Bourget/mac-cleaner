@@ -99,14 +99,14 @@ import SwiftUI
     }
     var rulesFound: [CleanupRule] { catalog.rules.filter { rule in candidates.contains { $0.ruleID == rule.id } } }
     func candidates(for rule: CleanupRule) -> [Candidate] { candidates.filter { $0.ruleID == rule.id } }
-    func estimatedBytes(for rule: CleanupRule) -> Int64 { candidates(for: rule).reduce(0) { $0 + ($1.allocatedBytes ?? $1.logicalBytes) } }
+    func estimatedBytes(for rule: CleanupRule) -> Int64 { candidates(for: rule).reduce(0) { $0 + $1.estimatedBytes } }
     func sizeComplete(for rule: CleanupRule) -> Bool { candidates(for: rule).allSatisfy(\.sizeComplete) }
     func sizeIsEstimate(for rule: CleanupRule) -> Bool { candidates(for: rule).contains(where: \.sizeIsEstimate) }
     var selectedCandidates: [Candidate] { candidates.filter { selectedIDs.contains($0.id) } }
     /// Rules with at least one chosen item.
     var selectedRuleCount: Int { Set(selectedCandidates.map(\.ruleID)).count }
     var selectedCount: Int { selectedCandidates.count }
-    var estimatedBytes: Int64 { selectedCandidates.reduce(0) { $0 + ($1.allocatedBytes ?? $1.logicalBytes) } }
+    var estimatedBytes: Int64 { selectedCandidates.reduce(0) { $0 + $1.estimatedBytes } }
     var canEdit: Bool { !isScanning && !isRunning && !AppLifecycleController.shared.operationInProgress && !AppLifecycleController.shared.maintenanceInProgress }
     var canReview: Bool { canEdit && selectedCount > 0 }
     func isSelected(_ rule: CleanupRule) -> Bool { candidates(for: rule).contains { selectedIDs.contains($0.id) } }
@@ -319,7 +319,7 @@ struct CatalogProfileRows: View {
             ForEach(groups.keys.sorted { $0.localizedStandardCompare($1) == .orderedAscending }, id: \.self) { profile in
                 let items = groups[profile] ?? []
                 InspectableItemRow(name: profile, detail: items.map(\.url.lastPathComponent).sorted().joined(separator: ", "),
-                                   size: catalogBytes(items.reduce(0) { $0 + ($1.allocatedBytes ?? $1.logicalBytes) }, complete: items.allSatisfy(\.sizeComplete)),
+                                   size: catalogBytes(items.reduce(0) { $0 + $1.estimatedBytes }, complete: items.allSatisfy(\.sizeComplete)),
                                    symbol: "person.crop.circle", inspected: false,
                                    inspect: { NSWorkspace.shared.activateFileViewerSelecting(items.map(\.url)) }) {
                     Toggle("Select " + profile, isOn: Binding(get: { items.allSatisfy(model.isSelected) }, set: { on in items.forEach { model.setSelected($0, on) } }))
@@ -341,7 +341,7 @@ struct CatalogItemChooser: View {
         DisclosureGroup(isExpanded: $expanded) {
             LazyVStack(alignment: .leading, spacing: 0) {
                 ForEach(items) { item in
-                    InspectableItemRow(name: item.displayName, detail: detail(item), size: catalogBytes(item.allocatedBytes ?? item.logicalBytes, estimate: item.sizeIsEstimate),
+                    InspectableItemRow(name: item.displayName, detail: detail(item), size: catalogBytes(item.estimatedBytes, estimate: item.sizeIsEstimate),
                                        symbol: item.isDirectory ? "folder" : "doc", inspected: false, inspect: { NSWorkspace.shared.activateFileViewerSelecting([item.url]) }) {
                         Toggle("Select " + item.displayName, isOn: Binding(get: { model.isSelected(item) }, set: { model.setSelected(item, $0) }))
                             .labelsHidden().disabled(!model.canEdit).accessibilityIdentifier("planItem-" + item.displayName)
@@ -375,7 +375,7 @@ struct CatalogConfirmationSection: View {
                         CategoryBadge(category: rule.category.storageCategory)
                         Text((rule.action == .trash ? "Move to Trash: " : "Clear ") + rule.title).font(StillDesign.TypeStyle.section)
                         Spacer()
-                        Text(catalogBytes(items.reduce(0) { $0 + ($1.allocatedBytes ?? $1.logicalBytes) }, complete: items.allSatisfy(\.sizeComplete), upperBound: rule.estimateIsUpperBound,
+                        Text(catalogBytes(items.reduce(0) { $0 + $1.estimatedBytes }, complete: items.allSatisfy(\.sizeComplete), upperBound: rule.estimateIsUpperBound,
                                           estimate: items.contains(where: \.sizeIsEstimate))).monospacedDigit()
                     }
                     Text(rule.consequence).font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
