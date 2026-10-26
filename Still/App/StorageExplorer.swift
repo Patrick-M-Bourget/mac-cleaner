@@ -210,7 +210,7 @@ struct StorageExplorerView: View {
                 if showsLargeAndOld {
                     largeAndOldFiles
                 } else if context.position.folder == nil {
-                    if scans.isEmpty { EmptyState(title: "No scanned locations", detail: "Run a manual scan from Cleanup plan or Overview. Browsing never starts a scan.", symbol: "folder") }
+                    if scans.isEmpty { EmptyState(title: "No scanned folders", detail: "Use Scan a folder on Overview to choose one. Browsing never starts a scan.", symbol: "folder") }
                     ForEach(scans, id: \.scope) { scan in
                         VStack(alignment: .leading, spacing: StillDesign.Space.sm) {
                             Button(scan.scope.lastPathComponent, systemImage: "folder") { context.enter(scan.scope) }
