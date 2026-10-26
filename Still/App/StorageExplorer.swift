@@ -119,9 +119,9 @@ struct StorageExplorerView: View {
         StorageExplorerObservations(scans: selection.scans, reports: model.scopeReports.map(\.current),
             allowedScopes: context.allowedScopes, downloadsOnly: context.downloadsOnly,
             downloadsScopes: context.downloadsScopes,
-            observedDownloadsScopes: Set(selection.overviewDownloadRows.map { $0.scan.scope.standardizedFileURL }),
+            observedDownloadsScopes: [],
             configuredDownloads: FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask).first?.standardizedFileURL,
-            eligible: { selection.eligible($0, in: $1) })
+            eligible: { _, _ in false })
     }
     private var scans: [ScanResult] { observations.scans }
     private var entries: [Entry] { observations.entries }
@@ -222,10 +222,7 @@ struct StorageExplorerView: View {
     private func row(_ entry: Entry) -> some View {
         let item = entry.item
         return HStack(spacing: StillDesign.Space.md) {
-            if selection.eligible(item, in: entry.scan) || selection.draft.contains(item) {
-                Toggle("Select " + item.url.lastPathComponent, isOn: Binding(get: { selection.draft.contains(item) }, set: { selection.set(item, in: entry.scan, selected: $0) }))
-                    .labelsHidden().disabled(selection.isPreparing || selection.execution.isRunning || ((model.isScanning || selection.isRefreshing) && !selection.draft.contains(item)))
-            } else { Image(systemName: item.kind == .folder ? "folder" : "lock").foregroundStyle(.secondary).frame(width: 20).accessibilityLabel("Browse only") }
+            Image(systemName: item.kind == .folder ? "folder" : "doc").foregroundStyle(.secondary).frame(width: 20).accessibilityLabel("Browse only")
             Button {
                 if item.kind == .folder { context.enter(item.url) } else { context.inspect(item) }
             } label: {
@@ -249,10 +246,7 @@ struct StorageExplorerView: View {
             inspectorField("Why listed", "Observed during your manual scan of this location. Browsing uses saved metadata only.")
             Text("On disk: " + (entry.item.kind == .folder ? folderAllocation(entry.item.url) : bytes(entry.item.allocatedBytes)))
             Text("Logical size: " + (entry.item.kind == .folder ? folderSubtotal(entry.item.url, logical: true) : bytes(entry.item.logicalBytes)))
-            inspectorField("Cleanup action", selection.inspectionRestriction(entry.item, in: entry.scan) ?? "Move this exact file to Trash after selection and confirmation.")
-            if selection.inspectionRestriction(entry.item, in: entry.scan) == nil {
-                Text("Selection is separate from inspection. Fresh checks run before review and execution; this observation is not a safety guarantee.").font(.caption).foregroundStyle(.secondary)
-            }
+            inspectorField("Cleanup action", "Inspection only. Downloads installers and old large files are offered in the cleanup plan.")
             Text("Observed allocation is not reclaimable space. Trash may retain storage until emptied.").font(.caption).foregroundStyle(.secondary)
             if entry.item.isDuplicateResource { Text("Shared resource · allocation counts once within a total.") }
             if entry.item.kind == .package || entry.item.kind == .symbolicLink { Text("Protected boundary · contents not inspected.") }

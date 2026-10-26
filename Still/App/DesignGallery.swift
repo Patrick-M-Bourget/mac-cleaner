@@ -12,7 +12,6 @@ struct DesignGallery: View {
     @State private var growthExamplesExpanded = false
     @State private var archiveExamplesExpanded = false
     @State private var alertExamplesExpanded = false
-    @State private var chromeExamplesExpanded = false
     var body: some View {
         VStack(spacing: 0) {
             HStack {
@@ -58,29 +57,7 @@ struct DesignGallery: View {
                         AlertPermissionDetails(authorization: .denied, checked: true, settingsFeedback: "System Settings could not be opened.", openSettings: {})
                         QuietAlertExplanation(expanded: .constant(true))
                     }
-                    DisclosureGroup("Synthetic browser cache groups", isExpanded: $chromeExamplesExpanded) {
-                        ChromeCacheProtectionNotice()
-                        ChromeCachePermanenceNotice()
-                        ChromeCacheGroupRows(rows: [
-                            .init(id: "synthetic-ready", profile: "Default", estimatedBytes: 420_000_000, observedAt: Date(timeIntervalSince1970: 1_790_000_000), availability: .eligible, selected: true),
-                            .init(id: "synthetic-running", profile: "Profile 1", estimatedBytes: nil, observedAt: Date(timeIntervalSince1970: 1_790_000_000), availability: .running),
-                            .init(id: "synthetic-empty", profile: "Profile 2", estimatedBytes: 0, observedAt: Date(timeIntervalSince1970: 1_790_000_000), availability: .empty),
-                            .init(id: "synthetic-denied", profile: "Profile 3", estimatedBytes: nil, observedAt: Date(timeIntervalSince1970: 1_790_000_000), availability: .denied),
-                            .init(id: "synthetic-unknown", profile: "Profile 4", estimatedBytes: nil, observedAt: Date(timeIntervalSince1970: 1_790_000_000), availability: .unknown),
-                            .init(id: "synthetic-unsupported", profile: "Profile 5", estimatedBytes: nil, observedAt: Date(timeIntervalSince1970: 1_790_000_000), availability: .unsupported)
-                        ], select: { _, _ in })
-                    }
                     CapacityGalleryExamples()
-                    Text("Synthetic cleanup outcome examples").font(.headline)
-                    Text("Presentation fixtures only · These examples are not native executor or OS failure evidence.").foregroundStyle(.secondary)
-                    CleanupOutcomeSummary(states: [.succeeded], detailIdentifier: "outcomeDetail-0")
-                    CleanupOutcomeSummary(states: [.succeeded, .cancelled], detailIdentifier: "outcomeDetail-1")
-                    CleanupOutcomeSummary(states: [.skipped], detailIdentifier: "outcomeDetail-2")
-                    CleanupOutcomeSummary(states: [.failed], detailIdentifier: "outcomeDetail-3")
-                    CleanupOutcomeSummary(states: [.cancelled], detailIdentifier: "outcomeDetail-4")
-                    CleanupOutcomeSummary(states: [.unknown, .cancelled], journalFailure: "Synthetic unresolved record", detailIdentifier: "outcomeDetail-5")
-                    CleanupOutcomeSummary(states: [], journalFailure: "Synthetic claim failure", detailIdentifier: "outcomeDetail-6")
-                    CleanupOutcomeSummary(states: [], rejectedReplay: true, detailIdentifier: "outcomeDetail-7")
                     Text("Synthetic Local records entry · Inert example").font(.headline)
                     LocalRecordsEntry(action: {})
                     Text("Synthetic Local records controls · Inert enabled example").font(.headline)
@@ -124,9 +101,6 @@ struct DesignGallery: View {
                     LocationScopeRow(name: "Omitted Downloads", path: "/Example/Downloads/Omitted", status: "Omitted from the next scan", included: .constant(false), enabled: false) {
                         Menu("More") { Button("Forget location") {} }
                     }
-                    CleanupScopeNotice(chooseDownloads: {})
-                    CleanupScopeNotice(enabled: false, chooseDownloads: {})
-                    CleanupScopeNotice(compact: true, chooseDownloads: {})
                     RecommendationGroup {
                         StorageReviewRow(category: .downloads, title: "Downloads", detail: "Example only · Review exact files before moving to Trash.", value: "128 MB", meaning: "Logical files", actionTitle: "Review files", action: {})
                         Divider()
@@ -136,7 +110,7 @@ struct DesignGallery: View {
                     }
 
                     SelectionSummary(value: "3 files", detail: "Example selection · No action will run", consequence: "Space stays occupied until Finder empties Trash.")
-                    SelectionSummary(value: "Synthetic mixed selection", detail: "Downloads and Chrome groups · No action will run", consequence: "Chrome caches are permanently removed; Downloads go to Trash.", title: "Selected for cleanup")
+                    SelectionSummary(value: "Synthetic mixed selection", detail: "Downloads and browser caches · No action will run", consequence: "Caches are permanently removed; Downloads go to Trash.", title: "Selected for cleanup")
                     HStack(spacing: StillDesign.Space.lg) {
                         ForEach(0..<5) { index in CategoryBadge(category: [StorageCategory.cloud, .developer, .downloads, .browser, .managed][index]) }
                     }
@@ -220,14 +194,3 @@ private struct ShellAppearanceGalleryExamples: View {
 }
 
 #endif
-
-/// Explicit debug-only review settings do not alter macOS accessibility preferences.
-struct DesignAccessibilityPreview: ViewModifier {
-    func body(content: Content) -> some View {
-        #if DEBUG
-        content.environment(\.stillOpaqueChrome, ProcessInfo.processInfo.arguments.contains("--design-opaque-chrome"))
-        #else
-        content
-        #endif
-    }
-}

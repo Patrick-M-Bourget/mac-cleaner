@@ -9,7 +9,8 @@ extension Notification.Name {
 }
 
 @MainActor private final class NativeAlertMonitoringSystem: AlertMonitoringSystem {
-    var available: Bool { StorageAlertsController.futureEnabled }
+    /// Alerts stay unwired until after M1 (docs/RESET.md, Decision 12).
+    var available: Bool { false }
     var allowsNotificationChanges: Bool { !LocalStateLocation.isDisposableTest }
     var now: Date { Date() }
     private var store: AlertStateStore { get throws { AlertStateStore(url: try LocalStateLocation.root(create: true).appendingPathComponent("StorageAlerts/episode-state.json")) } }
@@ -46,62 +47,19 @@ extension Notification.Name {
     }
 }
 
-#if DEBUG
-/// Controlled service boundary for one owned read-failure journey. No operation
-/// reaches notification APIs, creates a timer, or rewrites the fixture record.
-@MainActor private final class DisposableAlertMonitoringSystem: AlertMonitoringSystem {
-    let root: URL
-    init(root: URL) { self.root = root }
-    static func requested() -> DisposableAlertMonitoringSystem? {
-        guard StorageAlertsController.futureEnabled, LocalStateLocation.isDisposableTest,
-              ProcessInfo.processInfo.arguments.contains("--ui-test-alert-service"),
-              let root = try? LocalStateLocation.root(create: false) else { return nil }
-        return Self(root: root)
-    }
-    var available: Bool { true }
-    var allowsNotificationChanges: Bool { true }
-    var now: Date { Date() }
-    func authorization() async -> AlertPolicy.Authorization { .denied }
-    func requestAuthorization() async throws -> Bool { false }
-    func capacity() -> AlertCapacityReading { AlertCapacityReading(available: nil, total: nil, volumeID: nil, metric: "important") }
-    func load() throws -> AlertPolicy {
-        let folder = root.appendingPathComponent("StorageAlerts")
-        let file = folder.appendingPathComponent("episode-state.json")
-        var directory = stat(), item = stat()
-        guard lstat(folder.path, &directory) == 0, directory.st_mode & S_IFMT == S_IFDIR,
-              directory.st_uid == geteuid(), folder.path == folder.resolvingSymlinksInPath().path,
-              lstat(file.path, &item) == 0, item.st_mode & S_IFMT == S_IFREG,
-              item.st_uid == geteuid(), item.st_size <= 16_384,
-              file.path == file.resolvingSymlinksInPath().path else { throw CocoaError(.fileReadNoPermission) }
-        return try AlertStateStore(url: file).load()
-    }
-    func save(_ policy: AlertPolicy) throws { throw CocoaError(.fileWriteNoPermission) }
-    func reset() throws { throw CocoaError(.fileWriteNoPermission) }
-    func startPolling(_ sample: @escaping @MainActor () -> Void) -> () -> Void { {} }
-    func removePendingNotifications(identifiers: [String]) {}
-    func submitLowSpaceNotification(identifier: String, observedAt: Date) async throws { throw CocoaError(.featureUnsupported) }
-}
-#endif
 
 @MainActor final class StorageAlertsController: AlertMonitoringController, UNUserNotificationCenterDelegate {
     @Published private(set) var openedAlertContext: AlertOpenContext?
-    static var futureEnabled: Bool { ProcessInfo.processInfo.arguments.contains("--future-milestones") }
     init() {
-        #if DEBUG
-        let system: any AlertMonitoringSystem
-        if let fixture = DisposableAlertMonitoringSystem.requested() { system = fixture }
-        else { system = NativeAlertMonitoringSystem() }
-        super.init(system: system)
-        #else
         super.init(system: NativeAlertMonitoringSystem())
-        #endif
-        if Self.futureEnabled && !LocalStateLocation.isDisposableTest {
-            let center = UNUserNotificationCenter.current()
-            center.delegate = self
-            let open = UNNotificationAction(identifier: "Still.open", title: "Open Still", options: [.foreground])
-            let later = UNNotificationAction(identifier: "Still.remindLater", title: "Remind me later", options: [])
-            center.setNotificationCategories([UNNotificationCategory(identifier: "Still.capacity", actions: [open, later], intentIdentifiers: [])])
-        }
+    }
+    /// Registers notification handling. Not called while alerts are unwired (Decision 12).
+    func configureNotifications() {
+        let center = UNUserNotificationCenter.current()
+        center.delegate = self
+        let open = UNNotificationAction(identifier: "Still.open", title: "Open Still", options: [.foreground])
+        let later = UNNotificationAction(identifier: "Still.remindLater", title: "Remind me later", options: [])
+        center.setNotificationCategories([UNNotificationCategory(identifier: "Still.capacity", actions: [open, later], intentIdentifiers: [])])
     }
     nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse) async {
         let action = response.actionIdentifier

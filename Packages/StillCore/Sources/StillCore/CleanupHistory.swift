@@ -10,7 +10,7 @@ public struct CleanupHistoryRun: Sendable, Identifiable {
     }
     public var trashHeldAllocatedBytes: Int64? {
         var seen = Set<String>()
-        let successes = records.filter { $0.state == .succeeded && seen.insert($0.resourceID).inserted }
+        let successes = records.filter { $0.state == .succeeded && $0.cleanupAction == .trash && seen.insert($0.resourceID).inserted }
         guard successes.allSatisfy({ $0.allocatedBytes != nil }) else { return nil }
         return successes.reduce(0) { $0 + ($1.allocatedBytes ?? 0) }
     }

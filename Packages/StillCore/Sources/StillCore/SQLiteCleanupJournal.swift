@@ -13,7 +13,7 @@ public final class SQLiteCleanupJournal: CleanupJournaling, @unchecked Sendable 
         isReadOnly = readOnly
         location = url
         guard url.isFileURL, url.path != ":memory:" else { throw CleanupJournalError.unavailable }
-        let url = try DownloadsRoot(url: url.deletingLastPathComponent()).url.appendingPathComponent(url.lastPathComponent)
+        let url = try Self.canonicalFolder(url.deletingLastPathComponent()).appendingPathComponent(url.lastPathComponent)
         var info = stat()
         if lstat(url.path, &info) == 0, info.st_mode & S_IFMT != S_IFREG { throw CleanupJournalError.unavailable }
         let flags = (readOnly ? SQLITE_OPEN_READONLY : SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE) | SQLITE_OPEN_FULLMUTEX | SQLITE_OPEN_NOFOLLOW
@@ -38,16 +38,22 @@ public final class SQLiteCleanupJournal: CleanupJournaling, @unchecked Sendable 
         } catch { sqlite3_close(database); database = nil; throw error }
     }
     deinit { sqlite3_close(database) }
-    public func claim(_ batch: CleanupApproval) throws -> Bool {
+    /// The journal's folder with symlinks resolved; it must already exist as a directory.
+    private static func canonicalFolder(_ url: URL) throws -> URL {
+        var info = stat()
+        guard lstat(url.path, &info) == 0, info.st_mode & S_IFMT == S_IFDIR, let resolved = realpath(url.path, nil) else { throw CleanupJournalError.unavailable }
+        defer { free(resolved) }
+        return URL(fileURLWithPath: String(cString: resolved))
+    }
+    public func claim(batchID: UUID, records: [CleanupRecord]) throws -> Bool {
         guard !isReadOnly else { throw CleanupJournalError.unavailable }
         lock.lock(); defer { lock.unlock() }
         try run("BEGIN IMMEDIATE")
         do {
-            try run("INSERT OR IGNORE INTO batches VALUES(?)", values: [Data(batch.id.uuidString.utf8)])
+            try run("INSERT OR IGNORE INTO batches VALUES(?)", values: [Data(batchID.uuidString.utf8)])
             let claimed = sqlite3_changes(database) == 1
             if claimed {
-                for target in batch.targets {
-                    let record = CleanupRecord(batch: batch, target: target)
+                for record in records {
                     try run("INSERT INTO records(payload,id) VALUES(?,?)", values: [try JSONEncoder().encode(record), Data(record.id.utf8)])
                 }
             }

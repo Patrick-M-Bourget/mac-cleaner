@@ -12,11 +12,7 @@ final class FolderInspection {
     private let selection: SessionPlan
     init(selection: SessionPlan) {
         self.selection = selection
-        #if DEBUG
-        scanner = FolderScanner(supplement: RefreshFixtureMetadata())
-        #else
         scanner = FolderScanner()
-        #endif
         session = InspectionSession(scanner: scanner)
     }
     private var task: Task<Void, Never>?
@@ -48,7 +44,7 @@ final class FolderInspection {
         picker.canChooseDirectories = true
         picker.allowsMultipleSelection = false
         picker.treatsFilePackagesAsDirectories = false
-        picker.message = "Scans inspect metadata only. Cleanup currently supports files in Downloads; other folders are inspection only."
+        picker.message = "Scans inspect metadata only. Cleanup choices come from the cleanup plan."
         if downloads { picker.directoryURL = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask).first }
         picker.prompt = remembering ? "Remember folder" : "Scan folder"
         if remembering { picker.message = "Remember this location for future manual scans. Adding it does not start a scan." }
@@ -57,14 +53,14 @@ final class FolderInspection {
 
     func scan(_ url: URL) {
         guard !AppLifecycleController.shared.operationInProgress, !AppLifecycleController.shared.maintenanceInProgress else { return }
-        guard !selection.execution.isRunning else { return }
+        guard !selection.workspaceRunning else { return }
         cancel()
         startScan(url)
     }
 
     /// Refresh the existing explicit scopes without replacing live choices or choosing a new scope.
     func scanAgain(scopes explicitScopes: [URL]? = nil, leases: [ScopeAccessLease] = [], unavailable: [URL] = []) {
-        guard !AppLifecycleController.shared.operationInProgress, !AppLifecycleController.shared.maintenanceInProgress, !selection.execution.isRunning, !isScanning else { return }
+        guard !AppLifecycleController.shared.operationInProgress, !AppLifecycleController.shared.maintenanceInProgress, !selection.workspaceRunning, !isScanning else { return }
         let focusedScope = scope?.standardizedFileURL
         let roots = Set((explicitScopes ?? (scopeReports.map { $0.current.scope } + selection.refreshScopes + [scope].compactMap { $0 })).map(\.standardizedFileURL)).sorted { $0.path < $1.path }
         guard !roots.isEmpty || !unavailable.isEmpty else { return }
@@ -142,7 +138,6 @@ final class FolderInspection {
                 selection.expectExclusions(policy.fingerprint)
                 request = selection.beginRefresh(url)
                 refreshRequest = request
-                let growthToken = await GrowthHistoryModel.shared.begin(url, exclusionFingerprint: policy.fingerprint)
                 let report = try await session.inspect(url, cancellation: scanCancellation, onProgress: { continuation.yield($0) }, exclusions: policy)
                 let observed = report.current
                 let reports = await session.reports()
@@ -158,9 +153,7 @@ final class FolderInspection {
                 progress = nil
                 isScanningCurrent = false
                 if scanAgainTask == nil { AppLifecycleController.shared.capacity.request(.scanEnded) }
-                await GrowthHistoryModel.shared.complete(observed, token: growthToken)
-                guard token == generation else { return }
-                activity?.observe(observed, baselineID: GrowthHistoryModel.shared.retainedBaseline(for: observed))
+                activity?.observe(observed, baselineID: nil)
                 if !grouped { await finishActivity() }
             } catch {
                 guard token == generation else { return }
@@ -169,7 +162,6 @@ final class FolderInspection {
                 progress = nil
                 isScanningCurrent = false
                 message = error is CancellationError ? "Scan stopped. Choose a folder to try again." : ExclusionsModel.shared.error ?? "This folder could not be inspected. Choose the folder again or check access in System Settings."
-                GrowthHistoryModel.shared.failed()
                 activity?.failed(url)
                 if !grouped { await finishActivity() }
                 if scanAgainTask == nil { AppLifecycleController.shared.capacity.request(.scanEnded) }
@@ -243,7 +235,6 @@ final class FolderInspection {
         if hadLogicalScan { AppLifecycleController.shared.capacity.request(.scanEnded) }
     }
     private func cancelCurrentScan() {
-        if isScanningCurrent { GrowthHistoryModel.shared.cancelled() }
         cancellation?.cancel()
         task?.cancel()
         generation = UUID()
@@ -298,15 +289,12 @@ struct FolderInspectionView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: StillDesign.Space.xl) {
             Button("Back to Overview", systemImage: "chevron.left", action: back)
-            PageHeader(title: "Folder inspection", subtitle: "Inspect names and evidence. Checkboxes update your live cleanup plan.")
+            PageHeader(title: "Folder inspection", subtitle: "Inspect names and evidence. Cleanup choices are made in the cleanup plan.")
             ScanHistoryRecordingNotice()
-            CleanupScopeNotice(enabled: !model.isScanning && !selection.execution.isRunning) {
-                if let url = FolderInspection.chooseFolder(downloads: true) { selection.leaveRetryMode(); model.scan(url) }
-            }
             if let scope = model.scope { Text(scope.path).foregroundStyle(.secondary).textSelection(.enabled) }
             HStack {
                 Button("Recheck folder") { if let scope = model.scope { model.scan(scope) } }.disabled(model.isScanning)
-                Button("Choose folder again…") { if let url = FolderInspection.chooseFolder() { selection.leaveRetryMode(); model.scan(url) } }.disabled(model.isScanning)
+                Button("Choose folder again…") { if let url = FolderInspection.chooseFolder() { model.scan(url) } }.disabled(model.isScanning)
             }
             if model.scopeReports.count > 1 {
                 Text("Selected locations").font(.headline)
@@ -357,11 +345,7 @@ struct FolderInspectionView: View {
                 LazyVStack(spacing: 0) {
                     ForEach(result.observations.filter { search.isEmpty || $0.url.path.localizedCaseInsensitiveContains(search) }) { item in
                         InspectableItemRow(name: item.url.lastPathComponent, detail: relative(item.url, to: result.scope), size: item.kind == .file ? bytes(item.logicalBytes) : item.kind.rawValue, symbol: item.kind == .file ? "doc" : "folder", inspected: model.selected?.id == item.id, inspect: { model.selected = item }) {
-                            if selection.eligible(item, in: result) {
-                                Toggle("Select \(item.url.lastPathComponent)", isOn: Binding(get: { selection.draft.contains(item) }, set: { selection.set(item, in: result, selected: $0) })).labelsHidden().disabled(selection.isPreparing || selection.execution.isRunning || (model.isScanning && !selection.draft.contains(item)))
-                            } else {
-                                Image(systemName: "lock").foregroundStyle(.secondary).help("Browse only · outside eligible Downloads or protected/unknown target").accessibilityLabel("Browse only · protected or ineligible target")
-                            }
+                            Image(systemName: "eye").foregroundStyle(.secondary).help("Inspection only").accessibilityLabel("Inspection only")
                         }
                         Divider()
                     }
@@ -396,7 +380,6 @@ struct FolderInspectionView: View {
                     }
                 }
                 CloudInventoryView(report: result.cloudInventory)
-                Text("\(StillDesign.files(selection.draft.selectedCount)) selected").accessibilityIdentifier("inspectionSelectionSummary")
 
             }
         }.quickLookPreview($model.previewURL)
@@ -413,42 +396,3 @@ struct FolderInspectionView: View {
     }
 }
 
-#if DEBUG
-/// Controlled latency at the public metadata boundary, only for explicitly picked disposable UI fixtures.
-private struct RefreshFixtureMetadata: MetadataSupplementReading {
-    func read(_ url: URL) throws -> MetadataSupplement {
-        if ProcessInfo.processInfo.arguments.contains("--ui-test-slow-refresh"),
-           let path = ProcessInfo.processInfo.environment["STILL_TEST_DOWNLOADS_ROOT"] {
-            let root = URL(fileURLWithPath: path).standardizedFileURL
-            if root.lastPathComponent.hasPrefix("StillSelectionUI-"), url.standardizedFileURL.pathComponents.starts(with: root.pathComponents) {
-                Thread.sleep(forTimeInterval: 0.02)
-                if ProcessInfo.processInfo.arguments.contains("--ui-test-directory-instability"), url.lastPathComponent == "trigger.txt", Self.isBoundOwnedTemporaryRoot(root) {
-                    try FileManager.default.setAttributes([.modificationDate: Date()], ofItemAtPath: root.path)
-                }
-            }
-        }
-        let metadata = try FoundationMetadataSupplement().read(url)
-        if ProcessInfo.processInfo.arguments.contains("--ui-test-cloud-unknown"),
-           url.lastPathComponent == "unknown-cloud-metadata.txt",
-           let path = ProcessInfo.processInfo.environment["STILL_TEST_DOWNLOADS_ROOT"] {
-            let root = URL(fileURLWithPath: path).standardizedFileURL
-            if Self.isBoundOwnedTemporaryRoot(root), url.standardizedFileURL.pathComponents.starts(with: root.pathComponents),
-               try url.resourceValues(forKeys: [.fileSizeKey]).fileSize == 0 {
-                return MetadataSupplement(allocatedBytes: metadata.allocatedBytes, locality: metadata.locality, cloud: .unknown)
-            }
-        }
-        return metadata
-    }
-    private static func isBoundOwnedTemporaryRoot(_ root: URL) -> Bool {
-        let prefix = "StillSelectionUI-"
-        guard root.lastPathComponent.hasPrefix(prefix), UUID(uuidString: String(root.lastPathComponent.dropFirst(prefix.count))) != nil,
-              root.path == root.resolvingSymlinksInPath().path,
-              let expected = ProcessInfo.processInfo.environment["STILL_TEST_DOWNLOADS_ID"] else { return false }
-        let runner = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Containers/com.patrickbourget.StillUITests.xctrunner/Data/tmp")
-        let parents = [runner, FileManager.default.temporaryDirectory, URL(fileURLWithPath: "/private/tmp")].map { $0.resolvingSymlinksInPath().path }
-        var info = stat()
-        return parents.contains(root.deletingLastPathComponent().path) && lstat(root.path, &info) == 0
-            && info.st_mode & S_IFMT == S_IFDIR && info.st_uid == geteuid() && "\(info.st_dev):\(info.st_ino)" == expected
-    }
-}
-#endif

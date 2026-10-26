@@ -67,7 +67,7 @@ import StillCore
     func chooseAppearance(_ choice: AppearanceChoice) { appearance.choose(choice); applyAppearance() }
     func resetAppearancePreference() throws { try appearance.reset(); applyAppearance() }
     func resetPreferences() throws {
-        guard !operationInProgress, !selection.execution.isRunning else { throw CleanupJournalError.unavailable }
+        guard !operationInProgress, !selection.workspaceRunning else { throw CleanupJournalError.unavailable }
         if !LocalStateLocation.isDisposableTest {
             registration.refresh()
             if registration.status == .enabled || registration.status == .requiresApproval { try registration.choose(false) }
@@ -78,11 +78,9 @@ import StillCore
         try alerts.resetPreferences()
     }
     func refreshLogin() {
-        guard StorageAlertsController.futureEnabled else { return }
         registration.refresh(); loginStatus = registration.status
     }
     func chooseLogin(_ enabled: Bool) {
-        guard StorageAlertsController.futureEnabled else { return }
         do { try registration.choose(enabled); loginError = nil }
         catch { loginError = "Login registration could not be changed. You can continue using Still on demand." }
         loginIntent = registration.intent; loginStatus = registration.status
@@ -129,7 +127,6 @@ import StillCore
     }
     func applicationDidFinishLaunching(_ notification: Notification) { AppLifecycleController.shared.applyAppearance() }
     func applicationDidBecomeActive(_ notification: Notification) {
-        AppLifecycleController.shared.refreshLogin()
         AppLifecycleController.shared.capacity.request(.foreground)
     }
 }

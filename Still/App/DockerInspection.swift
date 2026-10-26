@@ -22,7 +22,7 @@ import StillCore
         panel.canChooseDirectories = false; panel.allowsMultipleSelection = false
         guard panel.runModal() == .OK, let url = panel.url else { return }
         executable = url; inventory = nil; example = false
-        status = "CLI selected. Inspect verifies its exact release hash before executing a private copy."
+        status = "CLI selected. Inspect runs a private copy against the socket you enter."
     }
     func inspectCLI() async {
         guard let executable, !socketPath.isEmpty, !busy else { return }
@@ -69,8 +69,8 @@ struct DockerInspectionView: View {
             Button("Back to Overview", systemImage: "chevron.left", action: back)
             PageHeader(title: "Docker storage")
             Text("Read-only reporting and guidance").foregroundStyle(.secondary)
-            Text("Supports the official Docker 28.5.1 static macOS CLI and Engine 28.5.1. Genuine runtime integration is not yet qualified. Daemon estimates do not establish host allocation or safe deletion.")
-            SettingsRow(title: "Docker CLI", detail: "Choose the actual binary, not a shortcut. Unsupported releases are never executed.") {
+            Text("Daemon estimates do not establish host allocation or safe deletion.")
+            SettingsRow(title: "Docker CLI", detail: "Choose the actual binary, not a shortcut.") {
                 Button("Choose Docker CLI…") { model.chooseCLI() }
             }.disabled(model.busy)
             if let executable = model.executable { Text(executable.path).font(.caption).textSelection(.enabled) }

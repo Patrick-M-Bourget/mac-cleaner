@@ -63,7 +63,7 @@ import Testing
     #expect(try Data(contentsOf: sentinel) == Data("protected-data".utf8))
 }
 
-@Test func selectedDockerRejectsUntrustedExecutableBeforeAnyCommand() throws {
+@Test func selectedDockerRunsNothingWithoutAnExplicitLocalSocket() throws {
     let root = FileManager.default.temporaryDirectory.appendingPathComponent("StillDockerProbe-" + UUID().uuidString)
     try FileManager.default.createDirectory(at: root, withIntermediateDirectories: false)
     defer { try? FileManager.default.removeItem(at: root) }
@@ -71,17 +71,18 @@ import Testing
     try Data("#!/bin/sh\ntouch \"${0%/*}/executed\"\n".utf8).write(to: executable)
     try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: executable.path)
     let result = DockerInspector.inspectSelected(executable: executable, socket: root.appendingPathComponent("daemon.sock"))
-    #expect(result.state == .unsupportedCLI)
+    #expect(result.state == .invalidEndpoint)
     #expect(result.inventory == nil)
     #expect(!FileManager.default.fileExists(atPath: root.appendingPathComponent("executed").path))
 }
 
-@Test func dockerPinnedSchemaRejectsUnsupportedEngineAndKeepsHostAllocationUnknown() throws {
-    let report = try DockerInventory.parseRuntime(clientVersion: "28.5.1", serverVersion: "28.5.1", output: completeDockerReport)
+@Test func dockerRuntimeAcceptsAnyVersionAndKeepsHostAllocationUnknown() throws {
+    let report = try DockerInventory.parseRuntime(clientVersion: "29.1.0", serverVersion: "27.3.1", output: completeDockerReport)
+    #expect(report.version == "CLI 29.1.0 / Engine 27.3.1")
     #expect(report.categories.first?.persistentData == true)
     #expect(report.hostAllocatedBytes == nil)
     #expect(!report.runtimeQualified)
-    #expect(throws: (any Error).self) { try DockerInventory.parseRuntime(clientVersion: "28.5.1", serverVersion: "29.0.0", output: "{}") }
+    #expect(throws: (any Error).self) { try DockerInventory.parseRuntime(clientVersion: "29.1.0", serverVersion: "29.1.0", output: "{}") }
 }
 
 private let completeDockerReport = """
@@ -107,7 +108,7 @@ private let completeDockerReport = """
     test "$1" = --config && test "$2" = "\(root.path)/config" && test "$3" = --host && test "$4" = "unix://\(root.path)/daemon.sock" || exit 7
     test "$HOME" = "\(root.path)" && test -z "$DOCKER_HOST" && test -z "$DOCKER_CONTEXT" || exit 8
     if test "$#" = 7 && test "$5" = version && test "$6" = --format && test "$7" = '{{json .}}'; then
-      printf '%s\\n' '{"Client":{"Version":"28.5.1"},"Server":{"Version":"28.5.1"}}'
+      printf '%s\\n' '{"Client":{"Version":"29.1.0"},"Server":{"Version":"29.1.0"}}'
     elif test "$#" = 8 && test "$5" = system && test "$6" = df && test "$7" = --format && test "$8" = json; then
       cat '\(root.appendingPathComponent("report.json").path)'
     else exit 9

@@ -6,7 +6,13 @@ import StillCore
 enum StillDesign {
     enum Space { static let xs: CGFloat = 4; static let sm: CGFloat = 8; static let md: CGFloat = 12; static let lg: CGFloat = 16; static let xl: CGFloat = 24; static let page: CGFloat = 32 }
     enum Radius { static let row: CGFloat = 8; static let surface: CGFloat = 12 }
-    enum TypeStyle { static let page = Font.system(size: 26, weight: .medium); static let value = Font.system(size: 22, weight: .medium); static let section = Font.system(size: 13, weight: .medium) }
+    /// Fixed sizes: the capacity bar's heights (sidebar, card, prominent card) and the device card's icon tile.
+    enum Size { static let meterCompact: CGFloat = 4; static let meter: CGFloat = 8; static let meterProminent: CGFloat = 12; static let deviceIcon: CGFloat = 44 }
+    enum TypeStyle {
+        static let page = Font.system(size: 26, weight: .medium); static let value = Font.system(size: 22, weight: .medium); static let section = Font.system(size: 13, weight: .medium)
+        /// The symbol in the device card's icon tile.
+        static let deviceIcon = Font.system(size: 16, weight: .light)
+    }
     /// Reference colours belong here, never in individual screens. Keep system text/focus colours.
     static func adaptive(light: UInt32, dark: UInt32) -> Color {
         Color(nsColor: NSColor(name: nil) { appearance in
@@ -24,6 +30,7 @@ enum StillDesign {
     static var teal: Color { adaptive(light: 0x349A9B, dark: 0x61C3C2) }
     static var orange: Color { adaptive(light: 0xBD7527, dark: 0xE2A35E) }
     static func files(_ count: Int) -> String { "\(count) \(count == 1 ? "file" : "files")" }
+    static func items(_ count: Int) -> String { "\(count) \(count == 1 ? "item" : "items")" }
     static var capacityFill: Color { adaptive(light: 0x969BA7, dark: 0x858997) }
     static var capacityTrack: Color { adaptive(light: 0xECEEF2, dark: 0x33343D) }
     static var separator: Color { Color(nsColor: .separatorColor) }
@@ -108,6 +115,19 @@ struct SelectionSummary: View {
 enum StatusRole {
     case neutral, success, caution, failure
     var color: Color { switch self { case .neutral: .secondary; case .success: .green; case .caution: .orange; case .failure: .red } }
+}
+/// A disclosure group whose title is an action ("Choose items", "Show files"). On macOS only a DisclosureGroup's chevron
+/// toggles it, so the title toggles it too.
+struct ActionDisclosureGroup<Content: View>: View {
+    let title: String
+    @ViewBuilder var content: () -> Content
+    @State private var expanded = false
+    init(_ title: String, @ViewBuilder content: @escaping () -> Content) { self.title = title; self.content = content }
+    var body: some View {
+        DisclosureGroup(isExpanded: $expanded, content: content) {
+            Button(title) { expanded.toggle() }.buttonStyle(.plain)
+        }
+    }
 }
 struct StatusRow: View {
     let text: String
@@ -230,11 +250,16 @@ struct CapacityMeter: View {
     let total: Int64?
     var compact = false
     var showsValue = true
-    private func bytes(_ value: Int64) -> String { ByteCountFormatter.string(fromByteCount: value, countStyle: .decimal) }
-    private var validTotal: Int64? {
+    /// The taller bar of the Overview device card.
+    var prominent = false
+    static func bytes(_ value: Int64) -> String { ByteCountFormatter.string(fromByteCount: value, countStyle: .decimal) }
+    /// The total, when it and the available space are a consistent whole-disk reading.
+    static func validTotal(available: Int64?, total: Int64?) -> Int64? {
         guard let available, let total, total > 0, available >= 0, available <= total else { return nil }
         return total
     }
+    private func bytes(_ value: Int64) -> String { Self.bytes(value) }
+    private var validTotal: Int64? { Self.validTotal(available: available, total: total) }
     private var amountText: String {
         guard let available, available >= 0 else { return "Capacity unavailable" }
         if let total = validTotal { return "\(bytes(available)) available of \(bytes(total))" }
@@ -255,12 +280,13 @@ struct CapacityMeter: View {
                         Capsule().fill(StillDesign.capacityFill).frame(width: geometry.size.width * CGFloat(Double(total - available) / Double(total)))
                     }
                 } else { Color.clear }
-            }.frame(height: compact ? 4 : 8).accessibilityElement(children: .ignore)
+            }.frame(height: compact ? StillDesign.Size.meterCompact : prominent ? StillDesign.Size.meterProminent : StillDesign.Size.meter).accessibilityElement(children: .ignore)
                 .accessibilityLabel(validTotal == nil ? "Capacity meter unavailable" : amountText)
         }
     }
 }
 
+/// The prototype's device card: the whole disk, used against available. Never attributes bytes to categories.
 struct VolumeSummary: View {
     let available: Int64?
     let total: Int64?
@@ -269,44 +295,49 @@ struct VolumeSummary: View {
     var refreshTitle = "Refresh capacity"
     var refreshing = false
     var refresh: (() -> Void)? = nil
+    var name = StartupVolumeCapacity.name ?? "This Mac"
+    private func bytes(_ value: Int64) -> String { CapacityMeter.bytes(value) }
+    private var used: Int64? {
+        guard let available, let total = CapacityMeter.validTotal(available: available, total: total) else { return nil }
+        return total - available
+    }
     var body: some View {
         SummarySurface {
             VStack(alignment: .leading, spacing: StillDesign.Space.lg) {
-                HStack(spacing: StillDesign.Space.md) {
-                    Image(systemName: "internaldrive").font(.system(size: 24, weight: .light)).foregroundStyle(.secondary)
-                        .frame(width: 44, height: 44).background(StillDesign.reading.gradient, in: RoundedRectangle(cornerRadius: StillDesign.Radius.row))
+                HStack(alignment: .top, spacing: StillDesign.Space.md) {
+                    Image(systemName: "internaldrive").font(StillDesign.TypeStyle.deviceIcon).foregroundStyle(.secondary)
+                        .frame(width: StillDesign.Size.deviceIcon, height: StillDesign.Size.deviceIcon).background(StillDesign.reading.gradient, in: RoundedRectangle(cornerRadius: StillDesign.Radius.row))
                         .overlay { RoundedRectangle(cornerRadius: StillDesign.Radius.row).strokeBorder(StillDesign.separator, lineWidth: 0.5) }
                         .accessibilityHidden(true)
-                    Text("This Mac · Startup volume").font(StillDesign.TypeStyle.section)
+                    VStack(alignment: .leading, spacing: StillDesign.Space.xs) {
+                        Text(name).font(StillDesign.TypeStyle.section)
+                        Text("Startup volume · " + (total.map(bytes) ?? "Total capacity unavailable")).font(.caption).foregroundStyle(.secondary)
+                    }.frame(height: StillDesign.Size.deviceIcon)
                     Spacer(minLength: StillDesign.Space.sm)
-                    if let available, available >= 0 {
-                        VStack(alignment: .trailing, spacing: StillDesign.Space.xs) {
-                            Text(ByteCountFormatter.string(fromByteCount: available, countStyle: .decimal)).font(StillDesign.TypeStyle.value).monospacedDigit().accessibilityIdentifier("startupCapacityAmount")
-                            Text(total.map { "available of " + ByteCountFormatter.string(fromByteCount: $0, countStyle: .decimal) } ?? "Total capacity unavailable").font(.caption).foregroundStyle(.secondary)
-                        }
-                    } else {
-                        VStack(alignment: .trailing, spacing: StillDesign.Space.xs) {
+                    VStack(alignment: .trailing, spacing: StillDesign.Space.xs) {
+                        if let available, available >= 0 {
+                            Text(bytes(available)).font(StillDesign.TypeStyle.value).monospacedDigit().accessibilityIdentifier("startupCapacityAmount")
+                            Text("available").font(.caption).foregroundStyle(.secondary)
+                        } else {
                             Text("—").font(StillDesign.TypeStyle.value)
-                            Text(refreshing ? "Startup-volume measurement" : "Available space unavailable").font(.caption).foregroundStyle(.secondary)
+                            Text(refreshing ? "Checking capacity…" : "Available space unavailable").font(.caption).foregroundStyle(.secondary)
                         }
                     }
-                }.frame(height: 44)
-                CapacityMeter(available: available, total: total, showsValue: false)
-                HStack(alignment: .top, spacing: StillDesign.Space.md) {
-                    VStack(alignment: .leading, spacing: StillDesign.Space.xs) {
-                        Text(observation).font(.caption).foregroundStyle(.secondary).lineLimit(2)
-                            .frame(maxWidth: .infinity, alignment: .leading).frame(height: 28, alignment: .topLeading)
-                            .accessibilityIdentifier("capacityObservation")
-                        Text(status.isEmpty ? " " : status).font(.caption).foregroundStyle(.secondary)
-                            .accessibilityIdentifier("capacityRefreshStatus")
-                    }.frame(maxWidth: .infinity, alignment: .leading).frame(height: 48, alignment: .topLeading)
-                        .accessibilityElement(children: .contain).accessibilityIdentifier("capacityObservationRegion")
+                }
+                CapacityMeter(available: available, total: total, showsValue: false, prominent: true)
+                HStack(alignment: .firstTextBaseline, spacing: StillDesign.Space.md) {
+                    Text(used.map { bytes($0) + " used" } ?? "Used space unknown").font(.caption).foregroundStyle(.secondary).monospacedDigit()
                     Spacer(minLength: StillDesign.Space.sm)
-                    if let refresh {
-                        Button(refreshTitle, action: refresh).disabled(refreshing)
-                            .fixedSize(horizontal: true, vertical: true)
-                            .frame(minWidth: 144, alignment: .trailing)
-                            .accessibilityIdentifier("refreshCapacity")
+                    Text("Whole-disk capacity").font(.caption).foregroundStyle(.secondary)
+                        .help(observation).accessibilityValue(observation).accessibilityIdentifier("capacityObservation")
+                }
+                if !status.isEmpty {
+                    HStack(spacing: StillDesign.Space.md) {
+                        Text(status).font(.caption).foregroundStyle(.secondary).accessibilityIdentifier("capacityRefreshStatus")
+                        Spacer(minLength: StillDesign.Space.sm)
+                        if let refresh, !refreshing {
+                            Button(refreshTitle, action: refresh).accessibilityIdentifier("refreshCapacity")
+                        }
                     }
                 }
             }
@@ -398,10 +429,11 @@ struct CategorySelectionHeader: View {
     let detail: String
     let size: String
     let enabled: Bool
+    var identifier: String? = nil
     let action: () -> Void
     var body: some View {
         HStack(alignment: .top, spacing: StillDesign.Space.md) {
-            MacroCategoryCheckbox(state: state, label: title, enabled: enabled, action: action, identifier: category == .downloads ? "downloadsCategorySelection" : "\(category)-CategorySelection", showsTitle: false)
+            MacroCategoryCheckbox(state: state, label: title, enabled: enabled, action: action, identifier: identifier ?? (category == .downloads ? "downloadsCategorySelection" : "\(category)-CategorySelection"), showsTitle: false)
                 .fixedSize().padding(.top, StillDesign.Space.sm)
             CategoryBadge(category: category)
             VStack(alignment: .leading, spacing: StillDesign.Space.xs) {
@@ -501,6 +533,8 @@ struct InspectableItemRow<Selection: View>: View {
                     Text(size).font(.callout).monospacedDigit().foregroundStyle(.secondary)
                 }.contentShape(Rectangle())
             }.buttonStyle(.plain).accessibilityLabel("Inspect " + name)
+                // The button hides its texts from accessibility; keep the detail (e.g. when it was last used) and size readable.
+                .accessibilityValue(detail + ", " + size)
         }.padding(StillDesign.Space.md)
             .background(inspected ? Color.accentColor.opacity(0.06) : .clear, in: RoundedRectangle(cornerRadius: StillDesign.Radius.row))
     }
@@ -508,95 +542,27 @@ struct InspectableItemRow<Selection: View>: View {
 
 /// Enforce the outer-window minimum independently of a destination's intrinsic content size.
 struct NativeWindowContract: NSViewRepresentable {
-    #if DEBUG
-    var onCaptureFit: (() -> Void)? = nil
-    #endif
-    func makeNSView(context: Context) -> ContractView {
-        let view = ContractView()
-        #if DEBUG
-        view.onCaptureFit = onCaptureFit
-        #endif
-        return view
-    }
+    func makeNSView(context: Context) -> ContractView { ContractView() }
     func updateNSView(_ nsView: ContractView, context: Context) {}
     @MainActor final class ContractView: NSView {
         private var applied = false
-        #if DEBUG
-        var onCaptureFit: (() -> Void)?
-        private weak var captureWindow: NSWindow?
-        @objc private func captureWindowUpdated(_ notification: Notification) {
-            guard !applied, let window = captureWindow,
-                  notification.object as? NSWindow === window,
-                  NSApp.isActive, window.isKeyWindow, window.isVisible else { return }
-            // Remove before setFrame: fitting can itself generate native update events.
-            NotificationCenter.default.removeObserver(self, name: NSWindow.didUpdateNotification, object: window)
-            captureWindow = nil
-            applied = true
-            fit(window)
-        }
-        #endif
         override func viewDidMoveToWindow() {
             super.viewDidMoveToWindow()
             guard let window, !applied else { return }
-            #if DEBUG
-            if ProcessInfo.processInfo.arguments.contains(where: {
-                ["--design-minimum", "--design-initial-size"].contains($0)
-            }) {
-                if captureWindow !== window {
-                    if let previous = captureWindow {
-                        NotificationCenter.default.removeObserver(self, name: NSWindow.didUpdateNotification, object: previous)
-                    }
-                    captureWindow = window
-                    NotificationCenter.default.addObserver(self, selector: #selector(captureWindowUpdated(_:)), name: NSWindow.didUpdateNotification, object: window)
-                }
-                return
-            }
-            #endif
             applied = true
             DispatchQueue.main.async { self.fit(window) }
         }
         private func fit(_ window: NSWindow) {
             guard let screen = window.screen ?? NSScreen.main else { return }
-            var visible = screen.visibleFrame
-            var requested = window.frame
-            #if DEBUG
-            // Inject only an available-frame boundary; never change macOS display settings.
-            if ProcessInfo.processInfo.arguments.contains("--design-constrained-screen") {
-                visible.size.width = min(visible.width, 1024)
-                visible.size.height = min(visible.height, 720)
-            }
-            if ProcessInfo.processInfo.arguments.contains("--design-minimum") {
-                requested.size = NSSize(width: 900, height: 640)
-            } else if ProcessInfo.processInfo.arguments.contains("--design-initial-size") {
-                // Use approved capture presets rather than a fluctuating maximum height.
-                // The normal production fit below continues to use the actual window frame.
-                requested.size = NSSize(width: 1120, height: visible.height >= 760 ? 760 : 640)
-            }
-            #endif
+            let visible = screen.visibleFrame
+            let requested = window.frame
             let minimum = NSSize(width: min(900, visible.width), height: min(640, visible.height))
             window.minSize = minimum
             let size = NSSize(width: max(minimum.width, min(requested.width, visible.width)), height: max(minimum.height, min(requested.height, visible.height)))
-            var origin = NSPoint(x: min(max(requested.minX, visible.minX), visible.maxX - size.width), y: min(max(requested.minY, visible.minY), visible.maxY - size.height))
-            #if DEBUG
-            // Explicit captures use the visible top-left corner, independent of native
-            // restored/cascaded positions. Ordinary launches retain their fitted origin.
-            if ProcessInfo.processInfo.arguments.contains(where: {
-                ["--design-minimum", "--design-initial-size"].contains($0)
-            }) { origin = NSPoint(x: visible.minX, y: visible.maxY - size.height) }
-            #endif
+            let origin = NSPoint(x: min(max(requested.minX, visible.minX), visible.maxX - size.width), y: min(max(requested.minY, visible.minY), visible.maxY - size.height))
             let fitted = NSRect(origin: origin, size: size)
             if window.frame != fitted { window.setFrame(fitted, display: true) }
-            #if DEBUG
-            // Capture controls become visible only after this launch's explicit fit.
-            // Their layout was retained while hidden; ordinary launches are unaffected.
-            if ProcessInfo.processInfo.arguments.contains(where: {
-                ["--design-minimum", "--design-initial-size"].contains($0)
-            }) { self.onCaptureFit?() }
-            #endif
         }
-        #if DEBUG
-        deinit { NotificationCenter.default.removeObserver(self) }
-        #endif
     }
 }
 
@@ -624,29 +590,7 @@ struct ScanProgressSummary: View {
     }
 }
 
-/// Shared current-build scope guidance; the shortcut still requires native folder approval.
-struct CleanupScopeNotice: View {
-    var enabled = true
-    var compact = false
-    let chooseDownloads: () -> Void
-    var body: some View {
-        if compact {
-            HStack(spacing: StillDesign.Space.md) {
-                Text("Cleanup currently supports files in Downloads only. Other folders are inspection only.")
-                    .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-                    .frame(maxWidth: .infinity, alignment: .leading).accessibilityIdentifier("cleanupScopeNotice")
-                Button("Choose Downloads…", action: chooseDownloads).disabled(!enabled)
-            }
-        } else {
-            VStack(alignment: .leading, spacing: StillDesign.Space.sm) {
-                StatusRow(text: "Cleanup currently supports files in Downloads only. Other folders are inspection only.", symbol: "info.circle", identifier: "cleanupScopeNotice")
-                Button("Choose Downloads…", action: chooseDownloads).disabled(!enabled)
-            }
-        }
-    }
-}
-
-/// A category remains recognizable before it has usable scan evidence.
+/// A category before it has usable scan evidence: still recognizable, with the action that gets the evidence.
 struct CategoryPrerequisite: View {
     let title: String
     let detail: String

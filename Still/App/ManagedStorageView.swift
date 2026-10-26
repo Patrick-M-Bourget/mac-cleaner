@@ -5,12 +5,6 @@ import SwiftUI
 
 @MainActor final class NativeManagedAppLauncher: ManagedApplicationLaunching {
     func open(identifiers: [String]) async -> Bool {
-        #if DEBUG
-        if ProcessInfo.processInfo.arguments.contains("--ui-test-managed-launcher"),
-           let outcome = ProcessInfo.processInfo.environment["STILL_TEST_MANAGED_LAUNCH"] {
-            return outcome == "opened"
-        }
-#endif
         for identifier in identifiers {
             guard let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: identifier) else { continue }
             do { _ = try await NSWorkspace.shared.openApplication(at: url, configuration: .init()); return true }

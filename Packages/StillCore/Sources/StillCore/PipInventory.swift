@@ -1,5 +1,4 @@
 import Foundation
-import CryptoKit
 import Darwin
 
 public struct PipInventory: Sendable {
@@ -11,9 +10,9 @@ public struct PipInventory: Sendable {
     public let guidance: String?
     public static func parse(versionOutput: String, configuredCache: String, cacheInfo: String, wheelList: String) -> PipInventory {
         func unavailable() -> PipInventory {
-            .init(version: versionOutput, cache: configuredCache, wheels: [], cacheInfo: cacheInfo, supported: false, guidance: "This interpreter/version has not passed disposable cache-inventory qualification. No cleanup is available.")
+            .init(version: versionOutput, cache: configuredCache, wheels: [], cacheInfo: cacheInfo, supported: false, guidance: "pip's cache report was not recognized. No cleanup is available.")
         }
-        guard versionOutput.hasPrefix("pip 21.2.4 from "), versionOutput.hasSuffix("(python 3.9)"), configuredCache.hasPrefix("/"), configuredCache != "/",
+        guard versionOutput.hasPrefix("pip "), configuredCache.hasPrefix("/"), configuredCache != "/",
               configuredCache.dropFirst().split(separator: "/", omittingEmptySubsequences: false).allSatisfy({ !$0.isEmpty && $0 != "." && $0 != ".." }) else { return unavailable() }
         let lines = cacheInfo.split(separator: "\n").map(String.init)
         guard lines.count == 6, lines[0] == "Package index page cache location: " + configuredCache + "/http",
@@ -53,34 +52,45 @@ public struct PipCacheReport: Sendable {
     }
 }
 public enum PipInventoryInspector {
-    public static func inspectSelected(python: URL, cache: URL) throws -> PipCacheReport {
+    /// `toolTimeout` limits each pip command; tests that run the real bundled pip under load raise it.
+    public static func inspectSelected(python: URL, cache: URL, toolTimeout: TimeInterval = 5) throws -> PipCacheReport {
         guard python.isFileURL, cache.isFileURL, FileManager.default.isExecutableFile(atPath: python.path),
               (try? cache.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true else { throw ToolPreviewError.unavailable }
         let executable = URL(fileURLWithPath: "/Library/Developer/CommandLineTools/usr/bin/python3")
         let framework = URL(fileURLWithPath: "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework")
-        let wheel = framework.appendingPathComponent("Versions/3.9/lib/python3.9/ensurepip/_bundled/pip-21.2.4-py3-none-any.whl")
         // Never execute selected arbitrary code, even to ask its version. The trusted fixed
-        // runtime uses no site initialization; pip comes only from its sealed, pinned wheel.
+        // runtime uses no site initialization; pip comes only from its root-owned bundled wheel.
         guard python.standardizedFileURL.resolvingSymlinksInPath() == executable.resolvingSymlinksInPath() else {
             return unqualified(cache: cache)
         }
         for target in [executable, framework] {
             _ = try BoundedTool.run(executable: URL(fileURLWithPath: "/usr/bin/codesign"), arguments: ["--verify", "--deep", "--strict", "--test-requirement==anchor apple", target.path], timeout: 15)
         }
-        let wheelData = try Data(contentsOf: wheel, options: .mappedIfSafe)
-        guard wheelData.count < 4_000_000,
-              SHA256.hash(data: wheelData).map({ String(format: "%02x", $0) }).joined() == "fa9ebb85d3fd607617c0c44aca302b1b45d87f9c2a1649b46c26167ca4296323" else {
-            return unqualified(cache: cache)
-        }
+        guard let wheel = bundledPipWheel(in: framework) else { return unqualified(cache: cache) }
         let selectedCache = cache.standardizedFileURL.resolvingSymlinksInPath()
         guard selectedCache.path != "/" else { throw ToolPreviewError.unavailable }
         try preflightCache(selectedCache)
         let environment = ["PATH": "/usr/bin:/bin:/usr/sbin:/sbin", "HOME": "/var/empty", "TMPDIR": "/var/empty", "LANG": "C", "LC_ALL": "C", "PIP_CONFIG_FILE": "/dev/null", "PIP_DISABLE_PIP_VERSION_CHECK": "1", "PIP_NO_INDEX": "1", "PYTHONDONTWRITEBYTECODE": "1"]
         let launcher = "import sys,runpy; wheel=sys.argv.pop(1); sys.path.insert(0,wheel); sys.argv[0]='pip'; runpy.run_module('pip',run_name='__main__')"
         func command(_ args: [String]) throws -> String {
-            try BoundedTool.run(executable: executable, arguments: ["-I", "-S", "-B", "-c", launcher, wheel.path, "--disable-pip-version-check", "--cache-dir", selectedCache.path] + args, environment: environment).trimmingCharacters(in: .whitespacesAndNewlines)
+            try BoundedTool.run(executable: executable, arguments: ["-I", "-S", "-B", "-c", launcher, wheel.path, "--disable-pip-version-check", "--cache-dir", selectedCache.path] + args, timeout: toolTimeout, environment: environment).trimmingCharacters(in: .whitespacesAndNewlines)
         }
         return try collect(cache: selectedCache, command: command)
+    }
+    /// The CLT framework's bundled pip wheel, whatever its Python or pip version.
+    private static func bundledPipWheel(in framework: URL) -> URL? {
+        let lib = framework.appendingPathComponent("Versions/Current/lib")
+        guard let pythons = try? FileManager.default.contentsOfDirectory(atPath: lib.path) else { return nil }
+        let wheels = pythons.filter { $0.hasPrefix("python3.") }.flatMap { python -> [URL] in
+            let bundled = lib.appendingPathComponent(python + "/ensurepip/_bundled")
+            let names = (try? FileManager.default.contentsOfDirectory(atPath: bundled.path)) ?? []
+            return names.filter { $0.hasPrefix("pip-") && $0.hasSuffix(".whl") }.map { bundled.appendingPathComponent($0) }
+        }
+        guard wheels.count == 1, let wheel = wheels.first else { return nil }
+        var info = stat()
+        guard lstat(wheel.path, &info) == 0, info.st_mode & S_IFMT == S_IFREG, info.st_uid == 0,
+              info.st_mode & 0o022 == 0, info.st_size < 4_000_000 else { return nil }
+        return wheel
     }
     private static func preflightCache(_ cache: URL) throws {
         let deadline = ProcessInfo.processInfo.systemUptime + 5
@@ -120,7 +130,7 @@ public enum PipInventoryInspector {
     }
     private static func collect(cache: URL, command: ([String]) throws -> String) throws -> PipCacheReport {
         let version = try command(["--version"])
-        guard version.hasPrefix("pip 21.2.4 from "), version.hasSuffix("(python 3.9)") else {
+        guard version.hasPrefix("pip ") else {
             return .init(inventory: PipInventory.parse(versionOutput: version, configuredCache: cache.path, cacheInfo: "", wheelList: ""), wheels: [], observedAt: Date())
         }
         let configuredCache = try command(["cache", "dir"])

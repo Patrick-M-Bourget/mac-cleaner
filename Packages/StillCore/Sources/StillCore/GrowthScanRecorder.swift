@@ -74,7 +74,7 @@ public actor GrowthScanRecorder: GrowthObservationRecording {
         var info = stat()
         guard lstat(canonical.path, &info) == 0, info.st_mode & S_IFMT == S_IFDIR,
               let volume = try canonical.resourceValues(forKeys: [.volumeUUIDStringKey]).volumeUUIDString else { throw CocoaError(.fileReadNoPermission) }
-        return GrowthFingerprint(scopeID: Self.digest(canonical.path), rootID: "\(info.st_dev):\(info.st_ino)", volumeID: volume,
+        return GrowthFingerprint(scopeID: Self.digest(canonical.path), rootID: info.resourceID, volumeID: volume,
             access: "complete-explicit-metadata-scope-v1-mode\(info.st_mode & 0o777)-uid\(info.st_uid)-gid\(info.st_gid)", rules: "scanner-v2-directory-stability-recheck1-deadline30-depth64-entry100000-packages-unmeasured", exclusions: "scanner-protected-boundaries-v1|" + exclusions, classification: "logical-folder128-category-v2-semantic-buckets")
     }
     private static func digest(_ text: String) -> String { SHA256.hash(data: Data(text.utf8)).map { String(format: "%02x", $0) }.joined() }

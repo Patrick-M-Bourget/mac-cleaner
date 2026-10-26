@@ -131,7 +131,7 @@ public actor FolderScanner {
         guard observation.kind == .file,
               lstat(observation.url.path, &current) == 0,
               current.st_mode & S_IFMT == S_IFREG,
-              "\(current.st_dev):\(current.st_ino)" == observation.resourceID,
+              current.resourceID == observation.resourceID,
               try supplement.read(observation.url).locality == .local else {
             throw CocoaError(.fileReadNoPermission)
         }
@@ -304,7 +304,7 @@ public actor FolderScanner {
                 if isDirectory && !isPackage && sameVolume { directories[url.standardizedFileURL] = DirectoryEvidence(metadata) }
                 let kind: ObservationKind = isPackage ? .package : isDirectory ? .folder : isFile ? .file : type == S_IFLNK ? .symbolicLink : .other
                 let bytes = isFile && sameVolume ? Int64(metadata.st_size) : nil
-                let identity = "\(metadata.st_dev):\(metadata.st_ino)"
+                let identity = metadata.resourceID
                 var extra: MetadataSupplement?
                 if isFile && sameVolume {
                     do { extra = try supplement.read(url) }

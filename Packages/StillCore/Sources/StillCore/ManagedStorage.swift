@@ -55,7 +55,7 @@ public struct ManagedStorageObservation: Sendable, Identifiable {
     public var reclaimableBytes: Int64? { nil }
 }
 
-/// Inventory values remain separate from FileObservation/PlanDraft cleanup candidates.
+/// Inventory values remain separate from catalog cleanup candidates.
 public actor ManagedStorageInventory {
     private let metadata: any ManagedMetadataReading
     private var saved: [ManagedStorageCategory: ManagedStorageObservation] = [:]

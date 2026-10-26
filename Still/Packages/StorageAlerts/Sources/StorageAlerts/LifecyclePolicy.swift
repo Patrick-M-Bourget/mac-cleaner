@@ -7,6 +7,15 @@ public enum AppLifecyclePolicy {
     public static func mayQuit(operationInProgress: Bool) -> Bool { !operationInProgress }
 }
 
+/// A normal launch always opens the main window (#110). macOS's saved window state could restore
+/// the app with no main window, so Still ignores it, as `-ApplePersistenceIgnoreState YES` does.
+/// Registered defaults rank lowest, so an explicit setting can still override this.
+public enum AppLaunchPolicy {
+    public static func registerDefaults(in defaults: UserDefaults = .standard) {
+        defaults.register(defaults: ["ApplePersistenceIgnoreState": true])
+    }
+}
+
 public enum LoginStatus: String, Sendable { case enabled, requiresApproval, disabled, unavailable }
 @MainActor public protocol LoginService: AnyObject {
     var status: LoginStatus { get }

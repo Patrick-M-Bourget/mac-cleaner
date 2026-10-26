@@ -36,6 +36,13 @@ public struct ExclusionPolicy: Sendable {
             return rule.boundary == .folder ? parts.starts(with: expected) : parts == expected
         }
     }
+    /// SPEC section 2: an item is off limits when it is excluded, sits inside an excluded folder, or holds an exclusion.
+    /// Discovery leaves such items out, and the check just before acting refuses them.
+    public func covers(_ url: URL, volumeID: String) -> Bool {
+        if matches(url, volumeID: volumeID) { return true }
+        let parts = url.standardizedFileURL.pathComponents
+        return rules.contains { $0.volumeID == volumeID && URL(fileURLWithPath: $0.path).pathComponents.starts(with: parts) }
+    }
 }
 /// This store owns one bounded settings file; it has no plan or cleanup/journal authority.
 public actor ExclusionStore {
