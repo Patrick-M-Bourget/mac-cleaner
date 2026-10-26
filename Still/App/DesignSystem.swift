@@ -706,3 +706,8 @@ struct DestinationViewport: NSViewRepresentable {
         deinit { NotificationCenter.default.removeObserver(self) }
     }
 }
+
+extension StillDesign.Size {
+    /// The leading symbol column of a compact list row (History).
+    static let rowIcon: CGFloat = 24
+}
