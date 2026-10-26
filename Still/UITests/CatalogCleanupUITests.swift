@@ -203,6 +203,39 @@ final class CatalogCleanupUITests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: home.appendingPathComponent(".npm/_cacache/content-v2/sha512/ab/blob").path))
     }
 
+    /// #123: after a cleanup, an Overview category opens a fresh plan, not the last run's results.
+    @MainActor func testOverviewCategoryAfterACleanupOpensAFreshPlanWithThatCategoryOpen() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        let state = try configureIsolatedState(app)
+        let home = try configureCatalogHome(app)
+        defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
+        app.launch()
+
+        XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
+        let row = app.buttons["overviewCategory-developer"]
+        XCTAssertTrue(row.waitForExistence(timeout: 10))
+        revealAndClick(row, in: app)
+        let rule = app.checkBoxes["planRule-npm-cache"]
+        XCTAssertTrue(rule.waitForExistence(timeout: 5))
+        revealAndClick(rule, in: app)
+        XCTAssertEqual(app.checkBoxes["previewOnlyToggle"].value as? Int, 1)
+        app.buttons["Review cleanup"].click()
+        XCTAssertTrue(reviewLine(app, "permanentlyRemoved", "developer").waitForExistence(timeout: 5))
+        app.buttons["Run preview"].click()
+        XCTAssertTrue(app.staticTexts["catalogPreviewNotice"].waitForExistence(timeout: 10))
+
+        app.typeKey("1", modifierFlags: .command)
+        XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
+        XCTAssertTrue(row.waitForExistence(timeout: 10))
+        revealAndClick(row, in: app)
+
+        // A fresh plan: the category is open and nothing is ticked.
+        XCTAssertTrue(rule.waitForExistence(timeout: 5), "The category opened from Overview shows its items")
+        XCTAssertFalse(app.staticTexts["catalogPreviewNotice"].exists, "The last run's results are gone")
+        XCTAssertEqual(rule.value as? Int, 0)
+    }
+
     @MainActor func testPreviewOnlyDownloadsInstallerIsChosenOnItsOwnAndStaysInPlace() throws {
         continueAfterFailure = false
         let app = XCUIApplication()
