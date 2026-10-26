@@ -5,7 +5,8 @@ import Foundation
 /// and its names are protected in case a cache folder ever holds or sits under one.
 ///
 /// Only layouts confirmed from the browser's own documentation or source are listed. Safari, Arc and Edge are not:
-/// Apple, The Browser Company and Microsoft don't document where their macOS caches live.
+/// Apple, The Browser Company and Microsoft don't document where their macOS caches live. Arc and Edge are Chromium,
+/// so once their data folder is confirmed each is one `chromium(...)` line.
 public enum BrowserCaches {
     static let consequence = "Permanently removed. Logins, cookies, history, site data and settings are kept. The cache refills as you browse; pages may load more slowly at first."
 
@@ -27,8 +28,22 @@ public enum BrowserCaches {
                                       "Local Storage", "Session Storage", "IndexedDB", "Service Worker", "File System", "databases",
                                       "Extension State", "Extensions", "Local Extension Settings", "Sync Data", "Local State", "Downloads"]
 
+    /// What a Firefox profile keeps besides its caches. None of it lives in the cache folder; this guards the folder.
+    static let firefoxProfileData = ["cookies.sqlite", "places.sqlite", "favicons.sqlite", "logins.json", "key4.db", "cert9.db",
+                                     "formhistory.sqlite", "permissions.sqlite", "webappsstore.sqlite", "prefs.js", "user.js",
+                                     "sessionstore.jsonlz4", "sessionstore-backups", "storage", "extensions", "bookmarkbackups"]
+
     public static let rules: [CleanupRule] = [
         chromium(id: "chrome-cache", title: "Google Chrome", dataDir: "Google/Chrome", bundleIDs: ["com.google.Chrome"],
                  executables: ["Google Chrome", "Google Chrome Helper*"]),
+        // Firefox puts each profile's local folder under ~/Library/Caches/Firefox/Profiles (nsXREDirProvider, the
+        // Caches folder on macOS) and its HTTP cache in `<profile>/cache2` (Firefox source docs, networking/cache2).
+        // Release, Developer Edition and Nightly share that folder, and every channel's binary is `firefox`.
+        CleanupRule(id: "firefox-cache", category: .browser, title: "Firefox",
+                    detail: "Cached images, files and scripts, per profile.", consequence: consequence,
+                    regen: .cache, action: .delete, locations: ["Library/Caches/Firefox/Profiles/*/cache2"],
+                    owner: RuleOwner(name: "Firefox", bundleIDs: ["org.mozilla.firefox", "org.mozilla.firefoxdeveloperedition", "org.mozilla.nightly"],
+                                     executables: ["firefox", "plugin-container"]),
+                    protectedNames: firefoxProfileData),
     ]
 }

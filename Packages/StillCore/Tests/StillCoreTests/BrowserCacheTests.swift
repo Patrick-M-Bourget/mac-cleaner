@@ -94,3 +94,38 @@ private struct Running: RunningAppChecking {
     #expect(owner.matches(["/Applications/Google Chrome.app/Contents/Frameworks/Google Chrome Framework.framework/Helpers/Google Chrome Helper (Renderer).app/Contents/MacOS/Google Chrome Helper (Renderer)", "--type=renderer"]))
     #expect(!owner.matches(["/Applications/Google Chrome Canary.app/Contents/MacOS/Google Chrome Canary"]))
 }
+
+/// Firefox on macOS: profile data under Application Support, each profile's local folder under
+/// ~/Library/Caches/Firefox/Profiles, and its HTTP cache in `cache2` there.
+private let firefoxProfileData = ["cookies.sqlite", "places.sqlite", "logins.json", "key4.db", "formhistory.sqlite", "prefs.js",
+                                  "sessionstore.jsonlz4", "storage/default/https+++example.com/ls/data.sqlite", "webappsstore.sqlite"]
+
+@Test func firefoxOffersOnlyEachProfilesCache2Folder() throws {
+    let home = try fixtureHome()
+    defer { try? FileManager.default.removeItem(at: home) }
+    for profile in ["ab12cd34.default-release", "ef56gh78.work"] {
+        for item in firefoxProfileData { try write(home, "Library/Application Support/Firefox/Profiles/\(profile)/\(item)") }
+        try write(home, "Library/Caches/Firefox/Profiles/\(profile)/cache2/entries/0A1B", bytes: 2_048)
+        try write(home, "Library/Caches/Firefox/Profiles/\(profile)/startupCache/startupCache.8.little")
+        try write(home, "Library/Caches/Firefox/Profiles/\(profile)/safebrowsing/google4/goog-phish-proto.vlpset")
+    }
+    let catalog = Catalog(rules: BuiltInCatalog.rules)
+    let found = catalog.discover(home: home)
+    let profiles = home.appendingPathComponent("Library/Caches/Firefox/Profiles").path
+    #expect(Set(found.map(\.url.path)) == [profiles + "/ab12cd34.default-release/cache2", profiles + "/ef56gh78.work/cache2"])
+    #expect(found.allSatisfy { $0.ruleID == "firefox-cache" && $0.action == .delete && $0.logicalBytes == 2_048 })
+    #expect(Set(found.compactMap(\.profile)) == ["ab12cd34.default-release", "ef56gh78.work"])
+
+    let cache = try #require(found.first)
+    #expect(CandidateCheck(catalog: catalog, running: Running(names: ["Firefox"])).check(cache) == .ownerRunning("Firefox"))
+    try write(home, "Library/Caches/Firefox/Profiles/ab12cd34.default-release/cache2/cookies.sqlite")
+    #expect(CandidateCheck(catalog: catalog, running: Running(names: [])).check(cache) == .protected("cookies.sqlite"))
+}
+
+@Test func everyFirefoxChannelCountsAsRunning() throws {
+    let owner = try #require(BuiltInCatalog.rules.first { $0.id == "firefox-cache" }?.owner)
+    // Release, Developer Edition and Nightly share the same Profiles folder.
+    #expect(Set(owner.bundleIDs) == ["org.mozilla.firefox", "org.mozilla.firefoxdeveloperedition", "org.mozilla.nightly"])
+    #expect(owner.matches(["/Applications/Firefox Nightly.app/Contents/MacOS/firefox", "-foreground"]))
+    #expect(owner.matches(["/Applications/Firefox.app/Contents/MacOS/plugin-container.app/Contents/MacOS/plugin-container", "-isForBrowser"]))
+}
