@@ -1,4 +1,5 @@
 import XCTest
+import StillCore
 
 /// User-visible browser-cache journeys with real files under the app's guarded disposable state.
 final class ChromeCleanupUITests: XCTestCase {
@@ -179,6 +180,58 @@ final class ChromeCleanupUITests: XCTestCase {
         }
     }
 
+    @MainActor func testHistoryReportsChromeClearWhenDownloadsJournalLaterFails() async throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        let state = try configureIsolatedJourneyState(app)
+        defer { app.terminate(); try? FileManager.default.removeItem(at: state) }
+        let root = try makeChromeFixture(state)
+        let service = ChromeCacheService(environment: ChromeHistoryEnvironment(), journalURL: state.appendingPathComponent("chrome-cleanup.json"))
+        let scan = await service.inspect(.init(applicationURL: root.appendingPathComponent("Google Chrome.app"), dataRootURL: root, cacheRootURL: root, customLocation: true))
+        let run = await service.execute(try await service.approve(groupIDs: Set(scan.groups.map(\.id))), cancellation: CleanupCancellation())
+        XCTAssertEqual(run.groups.first?.status, .succeeded)
+        app.launchArguments = ["--chrome-cleanup-fixture", "--design-initial-size"]
+        app.launch(); app.typeKey("3", modifierFlags: .command)
+        let manage = app.buttons["manageLocalRecords"]
+        XCTAssertTrue(manage.waitForExistence(timeout: 5)); revealScrollElement(app, control: manage, label: "Local records"); manage.click()
+        let clear = app.buttons["clearHistory"]
+        XCTAssertTrue(clear.waitForExistence(timeout: 5))
+        try FileManager.default.createDirectory(at: state.appendingPathComponent("cleanup.sqlite"), withIntermediateDirectories: false)
+        revealScrollElement(app, control: clear, label: "Clear completed history"); clear.click()
+        XCTAssertTrue(app.sheets.buttons["Clear completed history"].waitForExistence(timeout: 5)); app.sheets.buttons["Clear completed history"].click()
+        let status = app.staticTexts["historyStatus"]
+        XCTAssertTrue(status.waitForExistence(timeout: 5))
+        let reported = expectation(for: NSPredicate(format: "value BEGINSWITH %@", "Cleared 1 completed Chrome cleanup run."), evaluatedWith: status)
+        await fulfillment(of: [reported], timeout: 10)
+        let retained = try await service.records()
+        XCTAssertTrue(retained.isEmpty)
+        XCTAssertEqual(try Data(contentsOf: root.appendingPathComponent("Default/Web Data")), Data("protected-autofill".utf8))
+    }
+
+    @MainActor func testResetIdentifiesChromePreferenceFailureBeforeAppearanceChanges() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        let state = try configureIsolatedJourneyState(app)
+        defer { app.terminate(); try? FileManager.default.removeItem(at: state) }
+        _ = try makeChromeFixture(state)
+        app.launchArguments = ["--chrome-cleanup-fixture", "--design-initial-size"]
+        app.launch(); app.popUpButtons["Appearance"].click(); app.menuItems["Dark"].click()
+        app.typeKey("3", modifierFlags: .command)
+        let manage = app.buttons["manageLocalRecords"]
+        XCTAssertTrue(manage.waitForExistence(timeout: 5)); revealScrollElement(app, control: manage, label: "Local records"); manage.click()
+        let reset = app.buttons["resetStill"]
+        XCTAssertTrue(reset.waitForExistence(timeout: 5))
+        try FileManager.default.createDirectory(at: state.appendingPathComponent("chrome-inspection-intent.txt"), withIntermediateDirectories: false)
+        revealScrollElement(app, control: reset, label: "Reset Still"); reset.click()
+        XCTAssertTrue(app.sheets.buttons["Reset Still"].waitForExistence(timeout: 5)); app.sheets.buttons["Reset Still"].click()
+        let status = app.staticTexts["historyStatus"]
+        XCTAssertTrue(status.waitForExistence(timeout: 5))
+        let reported = expectation(for: NSPredicate(format: "value BEGINSWITH %@", "Reset could not clear the Chrome inspection preference."), evaluatedWith: status)
+        wait(for: [reported], timeout: 10)
+        XCTAssertEqual(app.popUpButtons["Appearance"].value as? String, "Dark")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: state.appendingPathComponent("chrome-inspection-intent.txt").path))
+    }
+
     private func makeChromeFixture(_ state: URL) throws -> URL {
         let root = state.appendingPathComponent("ChromeFixture")
         try FileManager.default.createDirectory(at: root.appendingPathComponent("Default/Cache/Cache_Data"), withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
@@ -190,4 +243,10 @@ final class ChromeCleanupUITests: XCTestCase {
         try Data("closed".utf8).write(to: root.appendingPathComponent("environment.txt"))
         return root
     }
+}
+
+private struct ChromeHistoryEnvironment: ChromeCacheEnvironment {
+    func validateInstallation(at url: URL) throws {}
+    func browserIsRunning(bundleURL: URL) throws -> Bool { false }
+    func now() -> Date { Date() }
 }
