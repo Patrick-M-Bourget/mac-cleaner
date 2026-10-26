@@ -580,6 +580,8 @@ final class GuidanceUITests: XCTestCase {
         XCTAssertTrue(photos.waitForExistence(timeout: 10))
         XCTAssertTrue((photos.value as? String)?.contains("Open Photos") == true)
         XCTAssertTrue((app.buttons["guidance-messages-attachments"].value as? String)?.contains("Not accessible") == true)
+        XCTAssertTrue(app.descendants(matching: .any)["guidanceAccess-messages-attachments"].exists)
+        XCTAssertFalse(app.descendants(matching: .any)["guidanceAccess-time-machine-snapshots"].exists)
         XCTAssertTrue((app.buttons["guidance-time-machine-snapshots"].value as? String)?.contains("2 snapshots · Size unknown") == true)
         XCTAssertTrue(app.buttons["guidance-xcode-archives"].exists)
         photos.click()

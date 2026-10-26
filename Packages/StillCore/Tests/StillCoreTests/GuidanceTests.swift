@@ -104,7 +104,8 @@ private struct NothingRunning: RunningAppChecking {
     let catalog = Catalog(rules: fixtureRules)
     #expect(catalog.guidance(fixture: home, snapshots: 3).first { $0.ruleID == "time-machine-snapshots" }?.size == .snapshots(3))
     #expect(catalog.guidance(fixture: home, snapshots: 0).isEmpty)
-    #expect(catalog.guidance(fixture: home, snapshots: nil).first?.size == .notAccessible)
+    // tmutil failing isn't a Full Disk Access refusal: the snapshots are not available, and access wouldn't help.
+    #expect(catalog.guidance(fixture: home, snapshots: nil).first?.size == .unavailable)
     let output = "Snapshots for disk /:\ncom.apple.TimeMachine.2026-10-26-101010.local\ncom.apple.TimeMachine.2026-10-26-111010.local\n"
     #expect(TmutilSnapshots.count(in: output) == 2)
     #expect(TmutilSnapshots.count(in: "Snapshots for disk /:\n") == 0)

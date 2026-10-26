@@ -35,6 +35,8 @@ public enum GuidanceSize: Sendable, Equatable {
     case estimate(SizeEstimate)
     /// macOS didn't let Still read it, usually because it needs Full Disk Access.
     case notAccessible
+    /// Couldn't be read for a reason Full Disk Access doesn't change, such as `tmutil` failing.
+    case unavailable
     /// Time Machine local snapshots: how many, size unknown.
     case snapshots(Int)
 }
@@ -125,7 +127,7 @@ extension Catalog {
             guard rule.action == .guidance, let guidance = rule.guidance else { return nil }
             if rule.access(given: fullDiskAccess) == .needsFullDiskAccess { return GuidanceFinding(ruleID: rule.id, size: .notAccessible, folder: nil) }
             if guidance.sizing == .localSnapshots {
-                guard let count = snapshots.count() else { return GuidanceFinding(ruleID: rule.id, size: .notAccessible, folder: nil) }
+                guard let count = snapshots.count() else { return GuidanceFinding(ruleID: rule.id, size: .unavailable, folder: nil) }
                 return count > 0 ? GuidanceFinding(ruleID: rule.id, size: .snapshots(count), folder: nil) : nil
             }
             var parts: [SizeEstimate] = [], denied = 0, folder: URL?
