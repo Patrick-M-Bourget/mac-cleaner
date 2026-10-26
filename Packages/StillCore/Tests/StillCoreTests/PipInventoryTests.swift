@@ -2,11 +2,18 @@ import Foundation
 import Testing
 @testable import StillCore
 
-@Test func unknownPipVersionsNeverProduceCleanupAuthority() {
-    let inventory = PipInventory.parse(versionOutput: "pip 999.0 from /unknown (python 3.9)", configuredCache: "/tmp/cache", cacheInfo: "", wheelList: "")
+@Test func nonPipVersionOutputNeverProducesCleanupAuthority() {
+    let inventory = PipInventory.parse(versionOutput: "Python 3.12.4", configuredCache: "/tmp/cache", cacheInfo: "", wheelList: "")
     #expect(!inventory.supported)
     #expect(inventory.wheels.isEmpty)
     #expect(inventory.guidance != nil)
+}
+
+@Test func anyPipVersionWithRecognizedCacheOutputIsSupported() {
+    let info = "Package index page cache location: /owned/cache/http\nPackage index page cache size: 0 bytes\nNumber of HTTP files: 0\nWheels location: /owned/cache/wheels\nWheels size: 4 kB\nNumber of wheels: 1"
+    let inventory = PipInventory.parse(versionOutput: "pip 24.2 from /owned/venv/site-packages/pip (python 3.12)", configuredCache: "/owned/cache", cacheInfo: info, wheelList: "/owned/cache/wheels/a/fixture.whl")
+    #expect(inventory.supported)
+    #expect(inventory.wheels == ["/owned/cache/wheels/a/fixture.whl"])
 }
 
 @Test func supportedPipOutputUsesActualAlternateRootAndKeepsWheelScopeExplicit() {
