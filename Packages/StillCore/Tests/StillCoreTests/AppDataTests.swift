@@ -222,3 +222,32 @@ private let editor = InstalledApp(name: "Editor", bundleID: "com.example.Editor"
     #expect(CandidateCheck(catalog: catalog, running: Running(processes: [["/Applications/Ableton Live 12 Suite.app/Contents/MacOS/Live"]])).check(cache) == .ownerRunning("Ableton Live"))
     #expect(CandidateCheck(catalog: catalog, running: Running()).check(cache) == nil)
 }
+
+@Test func soundLibrariesPacksAndSamplesAreGuidanceThatOpensTheirOwnManager() async throws {
+    let home = try fixtureHome()
+    defer { try? FileManager.default.removeItem(at: home) }
+    // The fixture home stands in for the system root, so `/Library/...` is read here too.
+    try write(home, "Library/Application Support/Logic/Alchemy Samples/a.wav", bytes: 8_192)
+    try write(home, "Library/Audio/Apple Loops/Apple/01 Hip Hop/b.caf", bytes: 4_096)
+    try write(home, "Library/Audio/Apple Loops/User Loops/SingleFiles/c.aif", bytes: 2_048)
+    try write(home, "Music/Ableton/Factory Packs/Core Library/d.wav", bytes: 4_096)
+    try write(home, "Splice/sounds/packs/Drums/e.wav", bytes: 4_096)
+    let catalog = Catalog(rules: fixtureRules)
+    // Libraries and content are never offered for deletion.
+    #expect(catalog.discover(fixture: home).isEmpty)
+    let findings = catalog.guidance(fixture: home)
+    let expected: [(id: String, bytes: Int64, folder: String, app: String, place: String)] = [
+        ("logic-sound-library", 14_336, "Library/Application Support/Logic", "com.apple.logic10", "Logic Pro"),
+        ("ableton-packs", 4_096, "Music/Ableton/Factory Packs", "com.ableton.live", "Ableton Live"),
+        ("splice-samples", 4_096, "Splice", "com.splice.Splice", "Splice"),
+    ]
+    for item in expected {
+        let finding = try #require(findings.first { $0.ruleID == item.id })
+        guard case .estimate(.measured(let bytes)) = finding.size else { Issue.record("Expected a measured size for \(item.id), got \(finding.size)"); continue }
+        #expect(bytes >= item.bytes)
+        #expect(finding.folder?.path == home.appendingPathComponent(item.folder).path)
+        let rule = try #require(catalog.rule(item.id))
+        #expect(rule.category == .managed && rule.action == .guidance && rule.guidance?.openTitle == "Open " + item.place)
+        #expect(catalog.target(for: finding) == .app(bundleID: item.app))
+    }
+}

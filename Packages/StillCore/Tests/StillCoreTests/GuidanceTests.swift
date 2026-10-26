@@ -139,7 +139,7 @@ private actor RecordingOpener: GuidanceOpening {
 
 @Test func everyGuidanceRuleHasAnExplanationAndAPlaceToManageIt() {
     let rules = fixtureRules.filter { $0.action == .guidance }
-    #expect(Set(rules.map(\.id)) == ["device-backups", "mail-attachments", "messages-attachments", "photos-library", "time-machine-snapshots", "xcode-archives", "audio-plug-ins", "rack-extensions"])
+    #expect(Set(rules.map(\.id)) == ["device-backups", "mail-attachments", "messages-attachments", "photos-library", "time-machine-snapshots", "xcode-archives", "audio-plug-ins", "rack-extensions", "logic-sound-library", "ableton-packs", "splice-samples"])
     for rule in rules {
         #expect(!rule.detail.isEmpty)
         #expect(rule.guidance?.openTitle.hasPrefix("Open ") == true)

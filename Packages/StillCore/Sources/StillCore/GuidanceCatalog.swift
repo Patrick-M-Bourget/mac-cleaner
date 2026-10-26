@@ -42,5 +42,30 @@ extension BuiltInCatalog {
                      detail: "Devices you bought or installed for Reason. Manage them in Reason Companion, which reinstalls them from your account.",
                      locations: ["RackExtensions", "Optional REs"].map { "Library/Application Support/Propellerhead Software/" + $0 },
                      Guidance(place: .folder, placeName: "in Finder")),
+        // Audio production content (#139): libraries the user downloads again from the vendor, so never offered.
+        // Logic Pro's Sound Library: Apple Loops in /Library/Audio/Apple Loops/Apple, impulse responses in
+        // /Library/Audio/Impulse Responses/Apple, and sampler instruments and samples in /Library/Application Support/Logic
+        // (Logic Pro User Guide, "Manage Logic Pro content"); loops the user made in ~/Library/Audio/Apple Loops (Apple
+        // Support 101933, "Where are Apple Loops installed for Logic Pro for Mac and MainStage?"). GarageBand and MainStage
+        // share this library. Its manager is in Logic: Logic Pro > Sound Library > Open Sound Library Manager. Logic's
+        // bundle identifier is `com.apple.logic10`.
+        guidanceRule("logic-sound-library", "Logic Pro and GarageBand sound library",
+                     detail: "Instruments, samples and Apple Loops for Logic Pro, GarageBand and MainStage. Remove sound packs in Logic Pro: Sound Library, then Open Sound Library Manager.",
+                     locations: ["/Library/Application Support/Logic", "/Library/Audio/Apple Loops/Apple", "/Library/Audio/Impulse Responses/Apple",
+                                 "Library/Audio/Apple Loops"],
+                     Guidance(place: .app(bundleID: "com.apple.logic10"), placeName: "Logic Pro")),
+        // Ableton Live installs Packs in ~/Music/Ableton/Factory Packs by default (Ableton Help, "Resetting Live's
+        // Library" and "The Live Browser"); a folder chosen in Settings > Library isn't found. Packs are managed in Live's
+        // browser. Bundle identifier from Live 12's Info.plist.
+        guidanceRule("ableton-packs", "Ableton Packs",
+                     detail: "Packs installed for Ableton Live. Uninstall them in Live’s browser, under Packs, and download them again from your Ableton account.",
+                     locations: ["Music/Ableton/Factory Packs"],
+                     Guidance(place: .app(bundleID: "com.ableton.live"), placeName: "Ableton Live")),
+        // Splice downloads sounds to ~/Splice by default (Splice Support, "Where is my Splice folder?"); a folder moved in
+        // Splice's Preferences isn't found. Bundle identifier `com.splice.Splice` (the Splice app's Info.plist).
+        guidanceRule("splice-samples", "Splice samples",
+                     detail: "Sounds you downloaded from Splice. Manage them in the Splice app; they stay in your Splice library to download again.",
+                     locations: ["Splice"],
+                     Guidance(place: .app(bundleID: "com.splice.Splice"), placeName: "Splice")),
     ]
 }
