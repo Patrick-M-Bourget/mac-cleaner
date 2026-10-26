@@ -31,19 +31,4 @@ struct Protection {
     func protectedComponent(of url: URL, below base: URL) -> String? {
         url.standardizedFileURL.pathComponents.dropFirst(base.standardizedFileURL.pathComponents.count).first(where: protects)
     }
-
-    /// Whether a `.git` entry sits in a folder holding `url`, from its parent up to and including `top`.
-    /// A file inside a git working tree is live work, never a candidate (SPEC section 2). The home folder itself
-    /// doesn't count: a dotfiles repository there doesn't make Downloads or a picked folder live work.
-    static func insideGitCheckout(_ url: URL, upTo top: URL) -> Bool {
-        let topPath = top.standardizedFileURL.path, home = realPath(NSHomeDirectory())
-        var folder = url.standardizedFileURL.deletingLastPathComponent()
-        while folder.path.hasPrefix(topPath) {
-            var info = stat()
-            if folder.path != home, lstat(folder.appendingPathComponent(".git").path, &info) == 0 { return true }
-            if folder.path == topPath || folder.path == "/" { return false }
-            folder = folder.deletingLastPathComponent()
-        }
-        return false
-    }
 }
