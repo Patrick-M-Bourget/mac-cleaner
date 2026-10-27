@@ -236,3 +236,22 @@ private let components = "Library/Audio/Plug-Ins/Components/", vst = "Library/Au
     #expect(products.count == 1)
     #expect(products.first?.formats == [.vst3, .aax])
 }
+
+@Test func aFabFilterMonoVSTJoinsItsMainProduct() throws {
+    let root = try fixtureFolder("Root"), home = try fixtureFolder("Home")
+    defer { try? FileManager.default.removeItem(at: root); try? FileManager.default.removeItem(at: home) }
+    // As installed: every format names its Audio Unit "FabFilter: Pro-C 2"; the extra VST2 is "Pro-C 2 (Mono)".
+    for (path, id) in [(components + "FabFilter Pro-C 2.component", "com.fabfilter.Pro-C.AU.2"), (vst + "FabFilter Pro-C 2.vst", "com.fabfilter.Pro-C.Vst.2"),
+                       (vst3s + "FabFilter Pro-C 2.vst3", "com.fabfilter.Pro-C.Vst3.2"), (aaxs + "FabFilter Pro-C 2.aaxplugin", "com.fabfilter.Pro-C.AAX.2"),
+                       ("Library/Audio/Plug-Ins/CLAP/FabFilter Pro-C 2.clap", "com.fabfilter.Pro-C.Clap.2")] {
+        try plugIn(path, in: root, id: id, version: "2.20", component: "FabFilter: Pro-C 2")
+    }
+    try plugIn(vst + "FabFilter Pro-C 2 (Mono).vst", in: root, id: "com.fabfilter.Pro-C.Mono.Vst.2", version: "2.20", component: "FabFilter: Pro-C 2 (Mono)")
+
+    let products = scan(root, home).products
+    #expect(products.count == 1)
+    let product = try #require(products.first)
+    #expect(product.name == "Pro-C 2")
+    #expect(product.files.count == 6)
+    #expect(product.formats == [.au, .vst, .vst3, .aax, .clap])
+}

@@ -25,8 +25,11 @@ public struct PlugInFile: Sendable, Equatable {
     var isNamedByAudioUnit = false
     /// Apple's own Audio Units (bundle ID `com.apple.`): never offered for removal.
     public var isApple: Bool { bundleID?.lowercased().hasPrefix("com.apple.") == true }
-    /// The name as grouping compares it: case and "_" against " " aside.
-    var groupingName: String { name.replacingOccurrences(of: "_", with: " ").lowercased() }
+    /// The name as grouping compares it: case, "_" against " " and a channel suffix ("Pro-C 2 (Mono)") aside.
+    var groupingName: String {
+        let name = name.replacingOccurrences(of: "_", with: " ").lowercased()
+        return name.hasSuffix(" (mono)") ? String(name.dropLast(7)) : name
+    }
     /// The bundle ID's first two parts, `com.maker`: who made it, as far as the bundle says.
     var vendor: String? {
         guard let parts = bundleID?.lowercased().split(separator: "."), parts.count > 2 else { return nil }
