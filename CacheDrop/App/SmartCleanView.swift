@@ -10,7 +10,8 @@ struct SmartCleanView: View {
     let openPlan: (CatalogCategory?) -> Void
     var viewHistory: (() -> Void)? = nil
     var reviewRecovery: (() -> Void)? = nil
-    var presentation = AppLifecycleController.shared.smartCleanPresentation
+    /// Which categories are open, kept by the caller like the plan's `CleanupPlanPresentation` (Decision 48).
+    let presentation: SmartCleanPresentation
     @State private var review: WorkspaceCleanupReview?
     @State private var approvalError: String?
     private var model: CatalogCleanupModel { selection.catalog }

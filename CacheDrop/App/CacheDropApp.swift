@@ -120,6 +120,7 @@ private struct WorkspaceView: View {
     @State private var locationsModel = AppLifecycleController.shared.locations
     private var explorerContext: StorageExplorerContext { navigationState.downloadsExplorerActive ? AppLifecycleController.shared.downloadsExplorer : AppLifecycleController.shared.locationsExplorer }
     @State private var planPresentation = AppLifecycleController.shared.planPresentation
+    @State private var smartCleanPresentation = AppLifecycleController.shared.smartCleanPresentation
     private var explorerCaller: Destination { get { navigationState.explorerCaller } nonmutating set { navigationState.explorerCaller = newValue } }
     private var planReturnsToExplorer: Bool { get { navigationState.planReturnsToExplorer } nonmutating set { navigationState.planReturnsToExplorer = newValue } }
     private var scanOrigin: Destination { get { navigationState.scanOrigin } nonmutating set { navigationState.scanOrigin = newValue } }
@@ -215,7 +216,8 @@ private struct WorkspaceView: View {
                         backToExplorerDestination: navigationState.planReturnsToGrowth ? Destination.growth.rawValue : explorerContext.title,
                         presentation: planPresentation)
                 } else if showsSmartClean {
-                    SmartCleanView(selection: selection, openPlan: { openPlan($0) }, viewHistory: { navigate(.history) }, reviewRecovery: { openRecovery(caller: .smartClean) })
+                    SmartCleanView(selection: selection, openPlan: { openPlan($0) }, viewHistory: { navigate(.history) }, reviewRecovery: { openRecovery(caller: .smartClean) },
+                                   presentation: smartCleanPresentation)
                 } else {
                 ScrollView {
                     VStack(alignment: .leading, spacing: CacheDropDesign.Space.xl) {
