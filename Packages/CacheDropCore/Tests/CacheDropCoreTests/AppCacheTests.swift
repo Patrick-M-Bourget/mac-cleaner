@@ -197,14 +197,15 @@ private func catalogWith(_ apps: Apps) -> Catalog {
     }
 }
 
-/// #171, #203: Spotify's offline downloads can live in its cache folder, under any folder name its Settings > Storage is given.
-/// They are recognized by an `offline.bnk` file anywhere inside, never by a folder's name. Placeholder files only.
-@Test func spotifysCacheFolderIsNeverOfferedWhileItHoldsOfflineDownloads() throws {
+/// #171, #203, #243: Spotify's offline downloads can live in its cache folder, under any folder name its Settings > Storage is given.
+/// They are recognized by an `offline.bnk` file anywhere inside, never by a folder's name. A folder with downloads but no sign-in
+/// profile is split: every item but the one holding the downloads is offered. Placeholder files only.
+@Test func spotifysOfflineDownloadsAreKeptAndTheRestOfItsCacheOffered() throws {
     let home = try fixtureHome()
     defer { try? FileManager.default.removeItem(at: home) }
     let spotify = InstalledApp(name: "Spotify", bundleID: "com.spotify.client", path: "/Applications/Spotify.app")
     let apps = Apps(installed: [spotify, editor])
-    // The streaming cache in Data and a folder named Storage, nothing downloaded: offered as before.
+    // The streaming cache in Data and a folder named Storage, nothing downloaded: offered whole as before.
     try write(home, "Library/Caches/com.spotify.client/Data/0c/chunk")
     try write(home, "Library/Caches/com.spotify.client/Storage/ab/chunk")
     // An app whose layout wasn't audited keeps today's behavior, whatever its folders are named.
@@ -214,11 +215,19 @@ private func catalogWith(_ apps: Apps) -> Catalog {
     let found = catalog.discover(fixture: home)
     #expect(Set(found.map(\.url.path)) == [caches + "/com.spotify.client", caches + "/com.example.Editor"])
 
-    // Downloads under a custom folder name appear before the cleanup: the folder is refused, and no longer offered.
+    // Downloads under a custom folder name appear before the cleanup: the whole folder is refused, and from then on
+    // `Data` and `Storage` are offered while the downloads' folder is kept.
     let offered = try #require(found.first { $0.appName == "Spotify" })
     try write(home, "Library/Caches/com.spotify.client/My Music/v2/sub/offline.bnk")
-    #expect(CandidateCheck(catalog: catalog, running: Running()).check(offered) == .protected("Spotify’s offline downloads"))
-    #expect(!catalog.discover(fixture: home).contains { $0.appName == "Spotify" })
+    let check = CandidateCheck(catalog: catalog, running: Running())
+    #expect(check.check(offered) == .protected("Spotify’s offline downloads"))
+    let split = catalog.discover(fixture: home).filter { $0.appName == "Spotify" }
+    #expect(Set(split.map(\.url.path)) == [caches + "/com.spotify.client/Data", caches + "/com.spotify.client/Storage"])
+    let data = try #require(split.first { $0.url.lastPathComponent == "Data" })
+    #expect(check.check(data) == nil)
+    // The check re-applies it: an offered item that gained downloads since the scan is refused.
+    try write(home, "Library/Caches/com.spotify.client/Data/offline.bnk")
+    #expect(check.check(data) == .protected("Spotify’s offline downloads"))
 }
 
 /// #203: a web-view profile in an app's cache folder (Cookies, Login Data or Local Storage) is never offered whole; only its

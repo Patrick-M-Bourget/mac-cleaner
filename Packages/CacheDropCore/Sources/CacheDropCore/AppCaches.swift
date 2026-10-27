@@ -58,7 +58,7 @@ public enum AppCaches {
     static let sparkleFolder = "org.sparkle-project.Sparkle"
 
     /// Offline or downloaded content an app can keep in its own `~/Library/Caches/<bundle id>` folder (#171). While any of these
-    /// files is anywhere inside the app's folder, "App caches" offers nothing from it and the check refuses it: it is not a cache
+    /// files is anywhere inside the app's folder, "App caches" offers every item but the one holding it (#243) and the check refuses it: it is not a cache
     /// the app rebuilds. Each exception cites the vendor's documentation or an observed layout; an app not listed keeps the rule as is.
     ///
     /// Audit of the apps this rule matches (2026-10-26; folder names seen on a Mac, never file contents):
@@ -131,21 +131,22 @@ public enum AppCaches {
     static func overlaps(_ a: String, _ b: String) -> Bool { a == b || a.hasPrefix(b + "/") || b.hasPrefix(a + "/") }
 
     /// What "App caches" offers from an app's folder: the folder itself, or, when it holds web-view profiles with sign-in data or a
-    /// `Local State` within `liveWorkDepth` levels, every item in it except those, and of each profile only its `Cache`, `Code Cache`
-    /// and `GPUCache` (#203, #241, #243). A folder on the way to a profile or a `Local State` is not offered whole; its items are.
-    /// An item that is or holds the app's offline content (`offlineContent`), or sits in a folder holding it, is left out.
+    /// `Local State` within `liveWorkDepth` levels, or the app's offline content (`offlineContent`) at any depth, every item in it
+    /// except those, and of each profile only its `Cache`, `Code Cache` and `GPUCache` (#203, #241, #243). A folder on the way to a
+    /// profile or a `Local State` is not offered whole; its items are. An item that is or holds the offline content, or sits in a
+    /// folder holding it, is left out whole.
     /// A folder that can't be fully searched comes back whole, and the protected-entry search then leaves it out.
     static func offeredFolders(in appFolder: URL, offlineContent: [String: OfflineContent]) -> [URL] {
         guard Catalog.isFolder(appFolder), let found = entries(named: Set(signInNames + keptNames), in: appFolder, depth: liveWorkDepth)
         else { return [appFolder] }
         let kept = found.filter { keptNames.contains(($0 as NSString).lastPathComponent) }
         let profiles = Set(found.subtracting(kept).map { ($0 as NSString).deletingLastPathComponent })
-        guard !profiles.isEmpty || !kept.isEmpty else { return [appFolder] }
         var offline = Set<String>()
         if let content = offlineContent[appFolder.lastPathComponent.lowercased()] {
             guard let holders = folders(holding: content.names, in: appFolder, depth: .max) else { return [appFolder] }
             offline = holders
         }
+        guard !profiles.isEmpty || !kept.isEmpty || !offline.isEmpty else { return [appFolder] }
         // Folders between the app's folder and a profile or a kept file, the app's folder included.
         var onTheWay = Set<String>()
         for item in profiles.union(kept) {
