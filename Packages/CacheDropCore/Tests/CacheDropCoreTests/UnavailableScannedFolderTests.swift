@@ -18,6 +18,17 @@ import Testing
     #expect(UnavailableScannedFolder.text(reason: "Folder not found", lastObserved: nil) == "Folder not found")
 }
 
+/// #254: Overview tells a deleted or moved folder from one that is there but unreadable, in the explorer's words.
+@Test func overviewSaysFolderNotFoundWithTheLastObservationOnlyWhenTheFolderIsGone() {
+    #expect(UnavailableScannedFolder.overviewText(name: "Picked", reason: "Folder not found", lastObserved: "27 Oct 2026 at 10:02")
+        == "Picked · Folder not found · last observed 27 Oct 2026 at 10:02")
+    #expect(UnavailableScannedFolder.overviewText(name: "Picked", reason: "Folder not found", lastObserved: nil) == "Picked · Folder not found")
+    // Present but unreadable keeps today's row: no last observation, which wouldn't explain the problem.
+    #expect(UnavailableScannedFolder.overviewText(name: "Downloads", reason: "Access unavailable", lastObserved: "27 Oct 2026 at 10:02")
+        == "Downloads · Access unavailable")
+    #expect(UnavailableScannedFolder.overviewText(name: "Projects", reason: "Location unavailable", lastObserved: nil) == "Projects · Location unavailable")
+}
+
 @Test func aFolderInsideAGoneLocationBelongsToThatLocation() {
     let gone = [URL(fileURLWithPath: "/tmp/Picked"), URL(fileURLWithPath: "/tmp/Other")]
     #expect(UnavailableScannedFolder.location(holding: URL(fileURLWithPath: "/tmp/Picked"), among: gone) == URL(fileURLWithPath: "/tmp/Picked"))

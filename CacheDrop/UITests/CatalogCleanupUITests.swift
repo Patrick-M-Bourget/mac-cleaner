@@ -19,6 +19,17 @@ import XCTest
     app.launchEnvironment["CACHEDROP_TEST_DRY_RUN"] = "1"
 }
 
+/// #255: waits, on Overview, for the launch's catalog scan to finish rather than for a fixed time, so a slow cold launch
+/// can't fail a journey. The scan has started once Overview's total is measured, and finished once the bottom bar's
+/// progress line is gone; checking both means a scan that has not started yet never counts as done.
+@MainActor func waitForCatalogScan(_ app: XCUIApplication, timeout: TimeInterval = 120, file: StaticString = #filePath, line: UInt = #line) {
+    let measured = NSPredicate(format: "exists == true AND NOT (value IN %@)", ["Not measured yet", "Checking known locations…"])
+    let total = app.staticTexts["overviewRecommendedTotal"]
+    XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: measured, object: total)], timeout: timeout), .completed,
+                   "The catalog scan measured the known locations", file: file, line: line)
+    XCTAssertTrue(app.staticTexts["catalogScanProgress"].waitForNonExistence(timeout: timeout), "The catalog scan finished", file: file, line: line)
+}
+
 /// The review sheet has two buttons, Cancel and Clean up, and no preview mode.
 @MainActor func cleanUpFromReview(_ app: XCUIApplication) {
     XCTAssertTrue(app.buttons["Cancel"].exists)
