@@ -222,7 +222,7 @@ struct CleanupHistoryView: View {
                             .fixedSize(horizontal: false, vertical: true).help("Action: " + record.actionTitle + (record.previewOnly == true ? " · Dry run" : ""))
                     }.frame(maxWidth: .infinity, alignment: .leading)
                     if let trash = record.trashURL {
-                        Button("Show in Finder") { NSWorkspace.shared.activateFileViewerSelecting([trash]) }.controlSize(.small).help(trash.path)
+                        Button("Show in Finder") { Finder.reveal([trash]) }.controlSize(.small).help(trash.path)
                     }
                 }
             }

@@ -110,7 +110,7 @@ struct SmartCleanView: View {
         InspectableItemRow(name: line.name, detail: "",
                            size: catalogBytes(line.items.reduce(0) { $0 + $1.estimatedBytes }, complete: line.items.allSatisfy(\.sizeComplete),
                                               upperBound: line.rule.estimateIsUpperBound, estimate: line.items.contains(where: \.sizeIsEstimate)),
-                           symbol: "folder", inspected: false, inspect: { NSWorkspace.shared.activateFileViewerSelecting(line.items.map(\.url)) }) {
+                           symbol: "folder", inspected: false, inspect: { Finder.reveal(line.items.map(\.url)) }) {
             Toggle("Include " + line.name, isOn: Binding(get: { line.items.allSatisfy(model.isInSmartClean) }, set: { model.setSmartClean(line.items, $0) }))
                 .labelsHidden().disabled(!model.canEdit).accessibilityIdentifier("smartCleanLine-" + line.id)
         }.help(line.items.map(\.url.path).sorted().joined(separator: "\n"))

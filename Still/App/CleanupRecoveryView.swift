@@ -54,7 +54,7 @@ struct CleanupRecoveryView: View {
                                     Text("Recorded resulting location: " + returned.path).font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary).textSelection(.enabled)
                                     Text("Location has not been verified in this session.").font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary)
                                     if record.state == .succeeded, returned.isFileURL {
-                                        Button("Reveal recorded location") { NSWorkspace.shared.activateFileViewerSelecting([returned]) }
+                                        Button("Reveal recorded location") { Finder.reveal([returned]) }
                                             .accessibilityLabel("Reveal recorded location for " + record.originalURL.lastPathComponent)
                                     }
                                 }

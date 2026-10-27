@@ -277,6 +277,6 @@ final class FolderInspection {
     }
 
     func reveal(_ item: FileObservation) {
-        NSWorkspace.shared.activateFileViewerSelecting([item.url])
+        Finder.reveal([item.url])
     }
 }

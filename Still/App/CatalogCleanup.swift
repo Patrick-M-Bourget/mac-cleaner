@@ -644,7 +644,7 @@ private struct PlanRuleRows: View {
                                size: catalogBytes(model.estimatedBytes(for: rule), complete: model.sizeComplete(for: rule), upperBound: rule.estimateIsUpperBound,
                                                   estimate: model.sizeIsEstimate(for: rule)),
                                symbol: rule.offersFiles ? "doc.on.doc" : "folder", inspected: false,
-                               inspect: { NSWorkspace.shared.activateFileViewerSelecting(items.map(\.url)) }, detailLineLimit: 1) {
+                               inspect: { Finder.reveal(items.map(\.url)) }, detailLineLimit: 1) {
                 MacroCategoryCheckbox(state: state, label: rule.title, enabled: model.canEdit, action: { model.setSelected(rule, state != .checked) },
                                       identifier: "planRule-" + rule.id, showsTitle: false).fixedSize()
             }
@@ -668,7 +668,7 @@ struct CatalogProfileRows: View {
                 InspectableItemRow(name: profile, detail: items.map(\.url.lastPathComponent).sorted().joined(separator: ", "),
                                    size: catalogBytes(items.reduce(0) { $0 + $1.estimatedBytes }, complete: items.allSatisfy(\.sizeComplete)),
                                    symbol: items.contains { $0.appName != nil } ? "app" : "person.crop.circle", inspected: false,
-                                   inspect: { NSWorkspace.shared.activateFileViewerSelecting(items.map(\.url)) }, detailLineLimit: 1) {
+                                   inspect: { Finder.reveal(items.map(\.url)) }, detailLineLimit: 1) {
                     Toggle("Select " + profile, isOn: Binding(get: { items.allSatisfy(model.isSelected) }, set: { on in items.forEach { model.setSelected($0, on) } }))
                         .labelsHidden().disabled(!model.canEdit).accessibilityIdentifier("planProfile-\(rule.id)-\(profile)")
                 }.help(items.map(\.url.path).sorted().joined(separator: "\n"))
@@ -686,7 +686,7 @@ struct CatalogItemRows: View {
         LazyVStack(alignment: .leading, spacing: 0) {
             ForEach(items) { item in
                 InspectableItemRow(name: item.displayName, detail: detail(item), size: catalogBytes(item.estimatedBytes, estimate: item.sizeIsEstimate),
-                                   symbol: item.isDirectory ? "folder" : "doc", inspected: false, inspect: { NSWorkspace.shared.activateFileViewerSelecting([item.url]) },
+                                   symbol: item.isDirectory ? "folder" : "doc", inspected: false, inspect: { Finder.reveal([item.url]) },
                                    detailLineLimit: 1) {
                     Toggle("Select " + item.displayName, isOn: Binding(get: { model.isSelected(item) }, set: { model.setSelected(item, $0) }))
                         .labelsHidden().disabled(!model.canEdit).accessibilityIdentifier("planItem-" + item.displayName)
@@ -838,7 +838,7 @@ private struct CatalogResultRow: View {
                     .lineLimit(1).help(record.originalURL.path)
                 Spacer(minLength: StillDesign.Space.md)
                 if record.state == .succeeded, let trashed = record.trashURL {
-                    Button("Reveal in Trash") { NSWorkspace.shared.activateFileViewerSelecting([trashed]) }.buttonStyle(.link)
+                    Button("Reveal in Trash") { Finder.reveal([trashed]) }.buttonStyle(.link)
                         .accessibilityLabel("Reveal \(record.originalURL.lastPathComponent) in Trash")
                 }
                 Text(record.outcomeTitle).font(StillDesign.TypeStyle.note)
