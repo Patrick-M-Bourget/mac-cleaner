@@ -15,7 +15,8 @@ public struct ToolCommand: Sendable, Hashable {
     /// Absolute paths to try in order; the first installed one is used. None installed means the rule doesn't appear.
     public let executables: [String]
     public let arguments: [String]
-    public let timeout: TimeInterval
+    /// Settable inside the module only, so tests copy a rule with a shorter limit rather than rebuild it.
+    public internal(set) var timeout: TimeInterval
     /// Delete the candidate folder after the command succeeds (Homebrew: `brew cleanup -s` plus its cache folder).
     public let deletesLocationAfter: Bool
     /// An argument replaced by each item's name, as in `ollama rm <model>`; nil for commands that take none.
@@ -103,7 +104,7 @@ public struct CleanupRule: Sendable, Identifiable {
     /// Names that are never acted on when they are the item, one of its ancestors, or a top-level entry inside it.
     public let protectedNames: [String]
     /// The command a `.tool` rule runs; nil for every other action.
-    public let tool: ToolCommand?
+    public internal(set) var tool: ToolCommand?
     /// Extensions never acted on as the item or an ancestor, on top of the global ones.
     public let protectedExtensions: [String]
     /// Settings that move the owner's data elsewhere. When one is set the rule offers nothing.

@@ -136,12 +136,6 @@ private final class FakeVolume: @unchecked Sendable {
         return CapacitySample(available: available, total: 10_000_000, volumeID: "fake-volume", metric: .important, date: Date())
     }
 }
-private extension ToolCommand {
-    func withTimeout(_ timeout: TimeInterval) -> ToolCommand {
-        ToolCommand(executables: executables, arguments: arguments, timeout: timeout, deletesLocationAfter: deletesLocationAfter, itemPlaceholder: itemPlaceholder, daemonBacked: daemonBacked)
-    }
-}
-/// Docker rules are built from these fields only (`DockerCatalog.swift`), so the copy with a shorter time limit is otherwise the same rule.
 private func dockerRun(_ home: URL, docker: URL, choose ruleIDs: Set<String>, volume: FakeVolume = FakeVolume(), previewOnly: Bool = false,
                        timeout: TimeInterval? = nil, cancellation: CleanupCancellation = CleanupCancellation()) async throws -> CatalogExecutionResult {
     try await dockerRunning(home, docker: docker, choose: ruleIDs, volume: volume, previewOnly: previewOnly, timeout: timeout, cancellation: cancellation).result
@@ -156,10 +150,12 @@ private struct DockerRun {
 }
 private func dockerRunning(_ home: URL, docker: URL, choose ruleIDs: Set<String>, volume: FakeVolume = FakeVolume(), previewOnly: Bool = false,
                            timeout: TimeInterval? = nil, cancellation: CleanupCancellation = CleanupCancellation()) async throws -> DockerRun {
+    // A copy of each chosen rule with a shorter time limit, otherwise the same rule.
     let catalog = Catalog(rules: fixtureRules.map { rule in
-        guard let timeout, ruleIDs.contains(rule.id), let tool = rule.tool else { return rule }
-        return CleanupRule(id: rule.id, category: rule.category, title: rule.title, detail: rule.detail, consequence: rule.consequence, regen: rule.regen, action: rule.action,
-                           locations: rule.locations, owner: rule.owner, tool: tool.withTimeout(timeout), items: rule.items)
+        guard let timeout, ruleIDs.contains(rule.id) else { return rule }
+        var copy = rule
+        copy.tool?.timeout = timeout
+        return copy
     })
     let chosen = catalog.discover(fixture: home, locateTool: { $0.executables.contains("/usr/local/bin/docker") ? docker : nil }).filter { ruleIDs.contains($0.ruleID) }
     try #require(chosen.count == ruleIDs.count)
@@ -288,11 +284,14 @@ private func dockerRunning(_ home: URL, docker: URL, choose ruleIDs: Set<String>
     defer { try? FileManager.default.removeItem(at: home) }
     let length = uniqueSleep(), running = home.appendingPathComponent("running")
     let docker = try fakeDocker(home, prune: "echo pruning; touch '\(running.path)'; sleep \(length)")
-    let cancellation = CleanupCancellation()
-    let watcher = CancelWhenFileAppears(running, cancel: cancellation)
+    let cancellation = CleanupCancellation(), cancelledAt = CancelTime()
+    let watcher = CancelWhenFileAppears(running, cancel: cancellation, at: cancelledAt)
     defer { watcher.stop() }
-    let result = try await dockerRun(home, docker: docker, choose: ["docker-images"], cancellation: cancellation)
+    // A short time limit, so a cancel that never fires fails within seconds rather than when the stand-in's sleep ends.
+    let result = try await dockerRun(home, docker: docker, choose: ["docker-images"], timeout: 5, cancellation: cancellation)
+    let sinceCancel = cancelledAt.elapsed
     survivorsAfterSettling(length).forEach { kill($0, SIGKILL) }
+    #expect(sinceCancel < BoundedTool.stopGrace + 1)
     let record = try #require(result.records.first)
     #expect(record.state == .failed && record.partlyRemoved == true)
     #expect(record.message.hasPrefix("Stopped waiting when you cancelled. docker image prune -a -f hands its work to a background service, which may still be finishing"))
