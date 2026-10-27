@@ -38,9 +38,9 @@ private func fixture() throws -> (home: URL, synth: InstalledApp, apps: Apps) {
     let synth = InstalledApp(name: "Synth", bundleID: "com.maker.synth", path: home.appendingPathComponent("Applications/Synth.app").path)
     return (home, synth, Apps(installed: [synth]))
 }
-private func scan(_ home: URL, _ app: InstalledApp, _ apps: Apps, own: String? = "com.cachedrop.app") -> [Candidate] {
+private func scan(_ home: URL, _ app: InstalledApp, _ apps: Apps, own: String? = "com.cachedrop.app", exclusions: ExclusionPolicy = ExclusionPolicy()) -> [Candidate] {
     let leftovers = RemovedAppLeftovers.scan(home: home, apps: apps, receipts: NoReceipts())
-    return AppUninstall.scan(app, excluding: own, home: home, apps: apps, receipts: NoReceipts(), leftovers: leftovers)
+    return AppUninstall.scan(app, excluding: own, home: home, apps: apps, receipts: NoReceipts(), leftovers: leftovers, exclusions: exclusions)
 }
 private func check(_ home: URL, running: Running = Running()) -> CandidateCheck {
     CandidateCheck(catalog: Catalog(rules: AppUninstall.rules), running: running, inUse: FixtureNothingInUse(), home: home)
@@ -73,6 +73,14 @@ private func names(_ items: [Candidate], _ rule: String) -> Set<String> { Set(it
     #expect(scan(home, apple, Apps(installed: [apple])).isEmpty)
     #expect(scan(home, synth, apps, own: "com.maker.synth").isEmpty)
     #expect(scan(home, system, Apps(installed: [system])).isEmpty)
+}
+
+@Test func anExcludedAppIsNeverOffered() throws {
+    let (home, synth, apps) = try fixture()
+    defer { try? FileManager.default.removeItem(at: home) }
+    let excluded = ExclusionPolicy(rules: [try ExclusionRule.capture(URL(fileURLWithPath: synth.path))])
+
+    #expect(scan(home, synth, apps, exclusions: excluded).isEmpty, "SPEC section 2: an item inside a user exclusion is never a candidate")
 }
 
 @Test func anAppThatNeedsAPasswordIsNeverOffered() throws {
