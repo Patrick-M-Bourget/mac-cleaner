@@ -70,8 +70,8 @@ enum StorageCategory {
     case cloud, developer, downloads, browser, managed, files
     /// Catalog categories that share the app-managed colour but each have their own symbol.
     case appCaches, models, appUpdates, logs
-    /// Leftovers of apps you removed (#173).
-    case leftovers
+    /// Leftovers of apps you removed (#173), and the apps themselves on the Applications page (#267).
+    case leftovers, apps
     /// App-managed storage rows (SPEC section 3): each place keeps the app-managed colour with its own symbol.
     case deviceBackups, mail, messages, photos, timeMachine, xcodeArchives, audioPlugIns
     var color: Color {
@@ -80,7 +80,7 @@ enum StorageCategory {
         case .developer: CacheDropDesign.purple
         case .downloads: CacheDropDesign.orange
         case .browser: CacheDropDesign.teal
-        case .managed, .appCaches, .models, .appUpdates, .logs, .deviceBackups, .mail, .messages, .photos, .timeMachine, .xcodeArchives, .audioPlugIns, .leftovers: CacheDropDesign.indigo
+        case .managed, .appCaches, .models, .appUpdates, .logs, .deviceBackups, .mail, .messages, .photos, .timeMachine, .xcodeArchives, .audioPlugIns, .leftovers, .apps: CacheDropDesign.indigo
         }
     }
     var symbol: String {
@@ -103,6 +103,7 @@ enum StorageCategory {
         case .xcodeArchives: "archivebox"
         case .audioPlugIns: "pianokeys"
         case .leftovers: "square.dashed"
+        case .apps: "macwindow"
         }
     }
 }
@@ -620,12 +621,15 @@ extension CacheDropDesign.Size {
     /// A category badge and the gap after it: content under a badged header lines up with its title.
     static let badgeIndent: CGFloat = 32 + CacheDropDesign.Space.md
     /// A checkbox, then a badge: content under a `CategorySelectionHeader` lines up with its title.
-    static let categoryContentIndent: CGFloat = 16 + CacheDropDesign.Space.md + badgeIndent
+    static let categoryContentIndent: CGFloat = checkbox + CacheDropDesign.Space.md + badgeIndent
+    /// A category checkbox's width, kept as a gap when a row has none (#267, #270).
+    static let checkbox: CGFloat = 16
 }
-/// Selection stays on the native checkbox; the badge/title never become extra toggles.
+/// Selection stays on the native checkbox; the badge/title never become extra toggles. A nil `state` draws no checkbox, for a
+/// row that can't be chosen (Decision 51), and the identifier then names the row.
 struct CategorySelectionHeader: View {
     let category: StorageCategory
-    let state: CategorySelectionState
+    let state: CategorySelectionState?
     let title: String
     let detail: String
     let size: String
@@ -633,16 +637,20 @@ struct CategorySelectionHeader: View {
     var identifier: String? = nil
     let action: () -> Void
     var body: some View {
-        HStack(alignment: .top, spacing: CacheDropDesign.Space.md) {
-            MacroCategoryCheckbox(state: state, label: title, enabled: enabled, action: action, identifier: identifier ?? (category == .downloads ? "downloadsCategorySelection" : "\(category)-CategorySelection"), showsTitle: false)
-                .fixedSize().padding(.top, CacheDropDesign.Space.sm)
-            CategoryBadge(category: category)
+        let row = HStack(alignment: .top, spacing: CacheDropDesign.Space.md) {
+            if let state {
+                MacroCategoryCheckbox(state: state, label: title, enabled: enabled, action: action, identifier: identifier ?? (category == .downloads ? "downloadsCategorySelection" : "\(category)-CategorySelection"), showsTitle: false)
+                    .fixedSize().padding(.top, CacheDropDesign.Space.sm)
+            }
+            // Without a checkbox, the badge keeps its place, so titles line up with the rows that have one.
+            CategoryBadge(category: category).padding(.leading, state == nil ? CacheDropDesign.Size.checkbox + CacheDropDesign.Space.md : 0)
             VStack(alignment: .leading, spacing: CacheDropDesign.Space.xs) {
                 Text(title).font(CacheDropDesign.TypeStyle.section)
                 Text(detail).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary).lineLimit(1).help(detail)
             }.frame(maxWidth: .infinity, alignment: .leading)
             Text(size).font(.callout).monospacedDigit().fixedSize()
         }
+        if state == nil, let identifier { row.accessibilityElement(children: .contain).accessibilityIdentifier(identifier) } else { row }
     }
 }
 
@@ -651,7 +659,8 @@ struct CategorySelectionHeader: View {
 /// keeps its own selection and its own open/closed state.
 struct CategoryRow<Notice: View, Items: View>: View {
     let category: StorageCategory
-    let state: CategorySelectionState
+    /// Nil for a row that can't be chosen: no checkbox (Decision 51).
+    let state: CategorySelectionState?
     let title: String
     let detail: String
     let size: String

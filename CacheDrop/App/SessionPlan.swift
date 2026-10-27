@@ -22,6 +22,8 @@ struct RefreshRequest: Sendable {
     private(set) var runSource = CleanupSelections.Source.plan
     func showsRun(for source: CleanupSelections.Source) -> Bool { runSource == source && (workspaceRunning || hasWorkspaceResult) }
     var hasPendingChoices: Bool { catalog.selectedCount > 0 }
+    /// Choices on the plan or the Applications page, which quitting would lose (#270).
+    var hasPendingChoicesOnAnyPage: Bool { catalog.hasAnyChoices }
     var workspaceSelectedCount: Int { catalog.selectedCount }
     var workspaceSelectedSize: String {
         if !hasPendingChoices { return "—" }
@@ -116,6 +118,18 @@ struct RefreshRequest: Sendable {
         guard let review, canReviewSmartClean, catalog.selectionRevision == catalogVersion else { throw PlanReviewError.changed }
         return WorkspaceCleanupReview(catalog: review, catalogVersion: catalogVersion, source: .smartClean)
     }
+    /// Whether the Applications page's chosen leftovers can be reviewed (Decision 51).
+    var canReviewApplications: Bool {
+        !AppLifecycleController.shared.maintenanceInProgress && !workspaceRunning && catalog.canEdit && !catalog.applicationsSelected.isEmpty
+    }
+    /// The Applications page's review: its chosen items, through the plan's review and executor.
+    func prepareApplicationsReview() async throws -> WorkspaceCleanupReview {
+        guard canReviewApplications else { throw PlanReviewError.changed }
+        let catalogVersion = catalog.selectionRevision
+        let review = await catalog.prepareReview(of: catalog.applicationsSelected)
+        guard let review, canReviewApplications, catalog.selectionRevision == catalogVersion else { throw PlanReviewError.changed }
+        return WorkspaceCleanupReview(catalog: review, catalogVersion: catalogVersion, source: .applications)
+    }
     func prepareWorkspaceReview() async throws -> WorkspaceCleanupReview {
         guard canReview else { throw PlanReviewError.changed }
         let catalogVersion = catalog.selectionRevision
@@ -124,14 +138,15 @@ struct RefreshRequest: Sendable {
         return WorkspaceCleanupReview(catalog: items, catalogVersion: catalogVersion)
     }
     func executeWorkspace(_ review: WorkspaceCleanupReview) async throws {
-        guard review.source == .smartClean ? canReviewSmartClean : canReview, catalog.selectionRevision == review.catalogVersion else { throw PlanReviewError.changed }
+        let allowed = switch review.source { case .plan: canReview; case .smartClean: canReviewSmartClean; case .applications: canReviewApplications }
+        guard allowed, catalog.selectionRevision == review.catalogVersion else { throw PlanReviewError.changed }
         runSource = review.source
         let cancellation = CleanupCancellation()
         workspaceCancellation = cancellation; workspaceStopRequested = false
         workspaceRunning = true; workspaceFinished = false
         let lifecycle = AppLifecycleController.shared
         lifecycle.operationInProgress = true
-        defer { workspaceRunning = false; workspaceCancellation = nil; lifecycle.operationInProgress = false; lifecycle.hasPendingPlan = hasPendingChoices }
+        defer { workspaceRunning = false; workspaceCancellation = nil; lifecycle.operationInProgress = false; lifecycle.hasPendingPlan = hasPendingChoicesOnAnyPage }
         if let items = review.catalog { await catalog.execute(items.approval, from: review.source, cancellation: cancellation) }
         workspaceFinished = true
         lifecycle.capacity.request(.cleanupEnded)
@@ -145,7 +160,7 @@ struct RefreshRequest: Sendable {
     func endSession() {
         guard !workspaceRunning && !catalog.isRunning else { return }
         catalog.endSession(); scans.removeAll(); unavailableScopes.removeAll()
-        isRefreshingBatch = false; refreshRequests.removeAll(); AppLifecycleController.shared.hasPendingPlan = false
+        isRefreshingBatch = false; refreshRequests.removeAll(); AppLifecycleController.shared.hasPendingPlan = hasPendingChoicesOnAnyPage
     }
 }
 enum PlanReviewError: Error { case changed, nothingToClean }

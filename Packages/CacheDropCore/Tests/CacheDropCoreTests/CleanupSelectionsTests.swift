@@ -64,3 +64,45 @@ private let scan = [npm, logs, installer, derived]
     #expect(selections.plan.isEmpty)
     #expect(!selections.isInSmartClean(logs))
 }
+
+/// Decision 51: leftovers of removed apps are chosen and cleaned on the Applications page, the rest in the Cleanup plan.
+private let leftover = item(RemovedAppLeftovers.ruleID, name: "Synth"), related = item(RemovedAppLeftovers.possiblyRelatedRuleID, name: "Gone")
+
+@Test func eachPageReviewsOnlyTheItemsItShows() {
+    var selections = CleanupSelections()
+    selections.plan = [installer.id, leftover.id, related.id]
+    let found = scan + [leftover, related]
+    #expect(selections.chosen(on: .plan, from: found).map(\.ruleID) == ["downloads-installers"])
+    #expect(selections.chosen(on: .applications, from: found).map(\.ruleID) == [RemovedAppLeftovers.ruleID, RemovedAppLeftovers.possiblyRelatedRuleID])
+}
+
+@Test func aFinishedRunFromOnePageKeepsTheOtherPagesChoices() {
+    var selections = CleanupSelections()
+    selections.plan = [installer.id, leftover.id]
+    selections.finishRun(from: .applications)
+    #expect(selections.plan == [installer.id])
+
+    selections.plan = [installer.id, leftover.id]
+    selections.finishRun(from: .plan)
+    #expect(selections.plan == [leftover.id])
+}
+
+/// #270: quitting with only leftovers ticked still has choices to lose.
+@Test func leftoversTickedOnApplicationsCountAsChoices() {
+    var selections = CleanupSelections()
+    let found = scan + [leftover]
+    #expect(!selections.hasChoices(among: found))
+    selections.plan = [leftover.id]
+    #expect(selections.hasChoices(among: found))
+}
+
+/// #270: starting a new Cleanup plan clears only the plan's choices, never the Applications page's, even right after a
+/// run, when nothing is found until the next scan.
+@Test func clearingOnePageKeepsTheOtherPagesChoices() {
+    var selections = CleanupSelections()
+    selections.plan = [installer.id, leftover.id, related.id]
+    selections.clear(.plan)
+    #expect(selections.plan == [leftover.id, related.id])
+    selections.clear(.applications)
+    #expect(selections.plan.isEmpty)
+}

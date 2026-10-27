@@ -44,17 +44,18 @@ struct CacheDropApp: App {
 }
 
 enum Destination: String, CaseIterable, Identifiable {
-    case overview = "Overview", smartClean = "Smart clean", plan = "Cleanup plan", growth = "Storage trends", history = "History", locations = "Locations & access"
+    case overview = "Overview", smartClean = "Smart clean", plan = "Cleanup plan", growth = "Storage trends", applications = "Applications", history = "History", locations = "Locations & access"
     var id: String { rawValue }
-    /// ⌘1–⌘6 follow the sidebar order (#127, #141). Low-space alerts live in the Settings window (#131).
+    /// ⌘1–⌘7 follow the sidebar order (#127, #141), Applications just above History (#270). Low-space alerts live in the Settings window (#131).
     var shortcut: KeyEquivalent {
         switch self {
         case .overview: "1"
         case .smartClean: "2"
         case .plan: "3"
         case .growth: "4"
-        case .history: "5"
-        case .locations: "6"
+        case .applications: "5"
+        case .history: "6"
+        case .locations: "7"
         }
     }
     var symbol: String {
@@ -65,6 +66,7 @@ enum Destination: String, CaseIterable, Identifiable {
         case .plan: "checklist"
         case .history: "clock"
         case .locations: "folder.badge.gearshape"
+        case .applications: "square.grid.2x2"
         }
     }
 }
@@ -124,7 +126,7 @@ private struct WorkspaceView: View {
         case .growth: return $navigationState.growthOffset
         case .overview: return $navigationState.overviewOffset
         case .locations: return $navigationState.locationsOffset
-        case .plan, .smartClean: return nil
+        case .plan, .smartClean, .applications: return nil
         }
     }
     /// Which page the scroll view shows, so each keeps its own scroll position. Out of the view builder, where the
@@ -169,6 +171,7 @@ private struct WorkspaceView: View {
     @Bindable private var welcome = WelcomeModel.shared
     private var startupCapacity: StartupCapacityReading? { capacity.reading }
     private var showsSmartClean: Bool { destination == .smartClean && !navigationState.localRecordsVisible && !recoveryVisible && !nativeInspectionVisible && !diagnosticsVisible && !exclusionsVisible && !navigationState.appManagedVisible }
+    private var showsApplications: Bool { destination == .applications && !navigationState.localRecordsVisible && !recoveryVisible && !nativeInspectionVisible && !diagnosticsVisible && !exclusionsVisible && !navigationState.appManagedVisible }
     private var showsPlan: Bool { destination == .plan && !navigationState.localRecordsVisible && !recoveryVisible && !nativeInspectionVisible && !diagnosticsVisible && !exclusionsVisible }
     /// The toolbar's note, which only reports state (Decision 25: no toolbar subtitles). A screen returns nil to show none.
     private var contextLabel: String? {
@@ -182,7 +185,7 @@ private struct WorkspaceView: View {
         if navigationState.appManagedVisible { return nil }
         switch destination {
         case .overview: return nil
-        case .smartClean, .plan: return nil
+        case .smartClean, .plan, .applications: return nil
         case .history, .locations: return "" // Decision 25: no toolbar subtitles
         case .growth: return ""
         }
@@ -238,6 +241,8 @@ private struct WorkspaceView: View {
                 } else if showsSmartClean {
                     SmartCleanView(selection: selection, openPlan: { openPlan($0) }, viewHistory: { navigate(.history) }, reviewRecovery: { openRecovery(caller: .smartClean) },
                                    presentation: smartCleanPresentation)
+                } else if showsApplications {
+                    ApplicationsView(selection: selection, model: ApplicationsModel.shared, viewHistory: { navigate(.history) }, reviewRecovery: { openRecovery(caller: .applications) })
                 } else {
                 ScrollView {
                     VStack(alignment: .leading, spacing: CacheDropDesign.Space.xl) {
@@ -266,7 +271,7 @@ private struct WorkspaceView: View {
                             switch destination {
                             case .growth: GrowthHistoryView(model: GrowthHistoryModel.shared, catalog: selection.catalog)
                             case .overview: overview
-                            case .plan, .smartClean: EmptyView()
+                            case .plan, .smartClean, .applications: EmptyView()
                             case .history: history
                             case .locations: locations
                             }
@@ -314,7 +319,7 @@ private struct WorkspaceView: View {
         }
         .environment(\.cacheDropBackgroundWork, backgroundWorkStatus)
         .onChange(of: runningTasks, initial: true) { _, tasks in backgroundWork.update(running: tasks) }
-        .onChange(of: selection.catalog.selectionRevision) { _, _ in AppLifecycleController.shared.hasPendingPlan = selection.hasPendingChoices }
+        .onChange(of: selection.catalog.selectionRevision) { _, _ in AppLifecycleController.shared.hasPendingPlan = selection.hasPendingChoicesOnAnyPage }
         .task { if await recovery.loadOnce() { openRecovery(caller: .overview, refresh: false) } }
         .task { locationsModel.load() }
         .onChange(of: locationsModel.scopes) { _, _ in
@@ -368,6 +373,7 @@ private struct WorkspaceView: View {
         planReturnsToExplorer = false
         if value == .plan && selection.showsRun(for: .plan) { startNewPlan() }
         if value == .smartClean && selection.showsRun(for: .smartClean) { selection.dismissResult() }
+        if value == .applications && selection.showsRun(for: .applications) { selection.dismissResult() }
         navigationState.localRecordsVisible = false; navigationState.appManagedVisible = false
         diagnosticsVisible = false; exclusionsVisible = false
         recoveryVisible = false; navigationState.recoveryCaller = .overview; nativeInspectionVisible = false
@@ -495,13 +501,15 @@ private struct WorkspaceView: View {
             }
     }
     private func catalogRow(_ row: CatalogOverview.Row) -> some View {
-        let inPlan = row.rules.contains { selection.catalog.isSelected($0) }
+        // Leftovers are chosen on Applications, never "In cleanup plan" (#270).
+        let inPlan = row.category != .leftovers && row.rules.contains { selection.catalog.isSelected($0) }
         return StorageReviewRow(category: row.category.storageCategory, title: row.category.overviewTitle, detail: row.category.overviewDetail,
             value: row.valueText,
             meaning: row.estimate == .unknown ? "Couldn’t be measured" : inPlan ? "In cleanup plan"
                 : row.rules.allSatisfy { $0.action == .delete } ? "Rebuildable" : row.rules.allSatisfy { $0.action == .evict } ? "Local copies" : "Review files",
-            actionTitle: "Review \(row.category.overviewTitle) in the cleanup plan",
-            action: { navigate(.plan); planPresentation.expandedCategories.insert(row.category) },
+            actionTitle: row.category == .leftovers ? "Review \(row.category.overviewTitle) in Applications" : "Review \(row.category.overviewTitle) in the cleanup plan",
+            // Leftovers of removed apps are on the Applications page (Decision 51).
+            action: { if row.category == .leftovers { navigate(.applications) } else { navigate(.plan); planPresentation.expandedCategories.insert(row.category) } },
             identifier: "overviewCategory-" + row.id)
     }
     /// Opens the Cleanup plan from Smart clean's "Not included" note, with the category open when one is named.

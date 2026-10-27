@@ -136,7 +136,7 @@ In M1 (tickets #97–#105):
 - updater downloads, per-app caches, logs and crash reports (#103);
 - Hugging Face and Ollama models, VM and disk images (#104);
 - Overview with the storage bar and recommended total (#105);
-- Smart clean (#141, Decision 31): the sidebar reads Overview, Smart clean, Cleanup plan, Storage trends, History, then Locations & access, and ⌘1–⌘6 follow it. The page says "Smart clean · X ready to clean" and "Rebuildable caches, build files and logs. Never your files.", lists the recommended items by category, one line each with its size, all ticked, notes what is not included (Trash items, models, iCloud copies, your files, anything a running app is using), each a link to the Cleanup plan, and has one Clean up button that opens the review sheet. The full checks run at that click;
+- Smart clean (#141, Decision 31): the sidebar reads Overview, Smart clean, Cleanup plan, Storage trends, Applications (#270), History, then Locations & access, and ⌘1–⌘7 follow it. The page says "Smart clean · X ready to clean" and "Rebuildable caches, build files and logs. Never your files.", lists the recommended items by category, one line each with its size, all ticked, notes what is not included (Trash items, models, iCloud copies, your files, anything a running app is using), each a link to the Cleanup plan, and has one Clean up button that opens the review sheet. The full checks run at that click;
 - iCloud local copies: inventory only, no eviction (Decision 13).
 
 After M1 (#92), in rough order:
