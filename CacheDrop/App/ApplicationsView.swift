@@ -25,7 +25,7 @@ import SwiftUI
         }.value
     }
     /// The maker's own tool, when it is installed (Decision 50).
-    func vendorTool(for entry: InventoryEntry) -> InventoryEntry? { ApplicationsInventory.vendorTool(forMaker: entry.maker, among: apps) }
+    func vendorTool(for entry: InventoryEntry) -> InventoryEntry? { ApplicationsInventory.vendorTool(for: entry, among: apps) }
     /// Shows the entry's files selected in Finder. A debug test run reveals nothing.
     func reveal(_ name: String, _ urls: [URL]) {
         #if DEBUG

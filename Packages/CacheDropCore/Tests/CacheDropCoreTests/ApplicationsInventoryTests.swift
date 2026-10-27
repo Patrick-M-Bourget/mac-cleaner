@@ -70,6 +70,7 @@ private func makeApp(_ url: URL, id: String, bytes: Int, copyright: String? = ni
     let listed = ApplicationsInventory.apps(installed, excluding: "com.patrickbourget.CacheDrop")
     #expect(listed.map(\.name) == ["Big Synth", "Small"])
     #expect(listed.first?.maker == "Maker Audio Inc")
+    #expect(listed.map(\.bundleID) == ["com.maker.big", "com.other.small"])
     #expect(listed.first?.parts.map(\.url.lastPathComponent) == ["Big Synth.app"])
     #expect(listed.allSatisfy { !$0.needsPassword && $0.volume == nil })
 }
@@ -108,14 +109,20 @@ private func plugIn(_ url: URL, _ format: PlugInFormat, id: String, maker: Strin
     #expect(listed.map(\.name) == ["Pro Synth", "Locked"])
     #expect(listed.first?.parts.map(\.name) == ["AU", "VST3"])
     #expect(listed.first?.size == .measured(500))
+    #expect(listed.map(\.bundleID) == ["com.maker.prosynth.au", "com.vendor.locked"])
     #expect(listed.map(\.needsPassword) == [false, true], "Pro Synth's AU can still go; Locked has nothing that can")
 }
 
-@Test func aVendorsOwnToolIsFoundAmongTheAppsByItsMaker() {
-    func app(_ name: String) -> InventoryEntry { InventoryEntry(id: name, name: name, maker: nil, volume: nil, parts: []) }
-    let apps = [app("Native Access"), app("Big Synth")]
-    #expect(ApplicationsInventory.vendorTool(forMaker: "Native Instruments", among: apps)?.name == "Native Access")
-    #expect(ApplicationsInventory.vendorTool(forMaker: "Native Instruments GmbH", among: apps)?.name == "Native Access")
-    #expect(ApplicationsInventory.vendorTool(forMaker: "Waves", among: apps) == nil, "Waves Central isn't installed")
-    #expect(ApplicationsInventory.vendorTool(forMaker: nil, among: apps) == nil)
+/// Decision 41: a product's vendor, and the vendor's own tool, are known by bundle ID, never by name ("Waves" isn't
+/// "Wavesfactory", and an app merely named "Native Access" isn't Native Instruments' tool).
+@Test func aVendorsOwnToolIsFoundAmongTheAppsByBundleID() {
+    func entry(_ name: String, _ bundleID: String?) -> InventoryEntry { InventoryEntry(id: name, name: name, maker: nil, volume: nil, parts: [], bundleID: bundleID) }
+    let nativeAccess = entry("Native Access", "com.native-instruments.nativeaccess2")
+    let apps = [nativeAccess, entry("Big Synth", "com.bigsynth.app"), entry("UA Connect", "com.example.fake-connect")]
+    #expect(ApplicationsInventory.vendorTool(for: entry("Kontakt 8", "com.native-instruments.kontakt-8.component"), among: apps) == nativeAccess)
+    #expect(ApplicationsInventory.vendorTool(for: entry("Kontakt 8", "com.Native-Instruments.Kontakt"), among: apps) == nativeAccess)
+    #expect(ApplicationsInventory.vendorTool(for: entry("Pulse", "com.wavesfactory.pulse"), among: apps) == nil, "Wavesfactory isn't Waves")
+    #expect(ApplicationsInventory.vendorTool(for: entry("Console", "com.uaudio.console"), among: apps) == nil, "That UA Connect isn't Universal Audio's")
+    #expect(ApplicationsInventory.vendorTool(for: entry("Native Access", "com.native-instruments.nativeaccess2"), among: apps) == nil, "The tool needs no tool")
+    #expect(ApplicationsInventory.vendorTool(for: entry("Unknown", nil), among: apps) == nil)
 }

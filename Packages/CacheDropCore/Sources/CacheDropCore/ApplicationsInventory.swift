@@ -32,8 +32,10 @@ public struct InventoryEntry: Sendable, Equatable, Identifiable {
     /// The volume's name when it isn't the startup disk.
     public let volume: String?
     public let parts: [Part]
-    public init(id: String, name: String, maker: String?, volume: String?, parts: [Part]) {
-        self.id = id; self.name = name; self.maker = maker; self.volume = volume; self.parts = parts
+    /// The app's bundle ID, or a plug-in product's first: what ties it to its vendor (Decision 41).
+    public let bundleID: String?
+    public init(id: String, name: String, maker: String?, volume: String?, parts: [Part], bundleID: String? = nil) {
+        self.id = id; self.name = name; self.maker = maker; self.volume = volume; self.parts = parts; self.bundleID = bundleID
     }
     /// Each part counted once.
     public var size: SizeEstimate { SizeEstimate(sum: parts.map(\.size)) }
@@ -53,7 +55,8 @@ public enum ApplicationsInventory {
                   app.bundleID != ownBundleID, FileManager.default.fileExists(atPath: url.path) else { return nil }
             let maker = PlugInInventory.info(url).flatMap(PlugInInventory.copyrightHolder) ?? app.maker
             return InventoryEntry(id: url.path, name: app.name, maker: maker, volume: volume(of: url),
-                                  parts: [.init(name: url.lastPathComponent, url: url, size: Catalog.estimate(sizer.size(url)), removable: Removability.canMoveToTrash(url))])
+                                  parts: [.init(name: url.lastPathComponent, url: url, size: Catalog.estimate(sizer.size(url)), removable: Removability.canMoveToTrash(url))],
+                                  bundleID: app.bundleID)
         }
         return largestFirst(entries)
     }
@@ -62,18 +65,15 @@ public enum ApplicationsInventory {
     public static func plugIns(_ inventory: PlugInInventory) -> [InventoryEntry] {
         largestFirst(inventory.products.filter { !$0.isApple }.map { product in
             InventoryEntry(id: product.id, name: product.name, maker: product.maker, volume: product.files.lazy.compactMap { volume(of: $0.url) }.first,
-                           parts: product.files.map { .init(name: $0.format.rawValue, url: $0.url, size: $0.size, removable: Removability.canMoveToTrash($0.url)) })
+                           parts: product.files.map { .init(name: $0.format.rawValue, url: $0.url, size: $0.size, removable: Removability.canMoveToTrash($0.url)) },
+                           bundleID: product.files.lazy.compactMap(\.bundleID).first)
         })
     }
 
-    /// The managers vendors ship to install and remove their products (Decision 41), by the maker name they start with.
-    static let vendorTools: [(maker: String, tool: String)] = [("Native Instruments", "Native Access"), ("Waves", "Waves Central"),
-                                                               ("Arturia", "Arturia Software Center"), ("Softube", "Softube Central"),
-                                                               ("Universal Audio", "UA Connect")]
-    /// The maker's own tool, when it is among `apps`.
-    public static func vendorTool(forMaker maker: String?, among apps: [InventoryEntry]) -> InventoryEntry? {
-        guard let maker, let tool = vendorTools.first(where: { maker.lowercased().hasPrefix($0.maker.lowercased()) })?.tool else { return nil }
-        return apps.first { $0.name == tool }
+    /// The maker's own tool, when it is among `apps` (Decision 41): tied to the entry by its bundle ID's vendor, never by name.
+    public static func vendorTool(for entry: InventoryEntry, among apps: [InventoryEntry]) -> InventoryEntry? {
+        guard let tool = VendorTool.known.first(where: { $0.makes(entry.bundleID) }) else { return nil }
+        return apps.first { $0 != entry && tool.makes($0.bundleID) && $0.name == tool.name }
     }
 
     /// The volume a path is on, when it isn't the startup disk: "/Volumes/Studio/…" reads "Studio".
@@ -94,4 +94,21 @@ public enum ApplicationsInventory {
         }
         return entries.sorted { (bytes($0.size), $1.name) > (bytes($1.size), $0.name) }
     }
+}
+
+/// A manager a vendor ships to install and remove its products (Decision 41), such as Native Access.
+public struct VendorTool: Sendable, Equatable {
+    /// The vendor's part of a bundle ID, lowercased: `com.native-instruments` for `com.native-instruments.kontakt-8.vst3`.
+    public let vendor: String
+    /// The tool's app name, which must also carry the vendor's bundle ID.
+    public let name: String
+
+    public static let known = [VendorTool(vendor: "com.native-instruments", name: "Native Access"),
+                               VendorTool(vendor: "com.wavesaudio", name: "Waves Central"),
+                               VendorTool(vendor: "com.arturia", name: "Arturia Software Center"),
+                               VendorTool(vendor: "com.softube", name: "Softube Central"),
+                               VendorTool(vendor: "com.uaudio", name: "UA Connect")]
+
+    /// Whether a bundle ID is this vendor's.
+    func makes(_ bundleID: String?) -> Bool { bundleID.map { RemovedAppLeftovers.vendor(of: $0) == vendor } ?? false }
 }
