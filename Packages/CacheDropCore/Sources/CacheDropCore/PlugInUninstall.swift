@@ -121,10 +121,20 @@ public enum PlugInUninstall {
         for path in listed.sorted(by: { ($0.split(separator: "/").count, $0) < ($1.split(separator: "/").count, $1) }) {
             guard path.hasPrefix(base), !roots.contains(where: { path.hasPrefix($0 + "/") }) else { continue }
             let relative = String(path.dropFirst(base.count))
-            guard let place = supportPlaces.first(where: relative.hasPrefix), relative.count > place.count, isWhollyListed(path, listed) else { continue }
+            guard let place = supportPlaces.first(where: relative.hasPrefix), relative.count > place.count, !touchesPlugIns(path, listed, systemRoot: systemRoot),
+                  isWhollyListed(path, listed) else { continue }
             roots.append(path)
         }
         return roots.map { URL(fileURLWithPath: $0) }
+    }
+    /// Plug-ins are formats, never support files (#288): a path that is or is in a plug-in bundle or a plug-in folder (AAX's is
+    /// in Application Support), or that holds either, is never a support root.
+    static func touchesPlugIns(_ path: String, _ listed: Set<String>, systemRoot: URL) -> Bool {
+        let extensions = Set(PlugInFormat.allCases.map(\.bundleExtension))
+        if path.split(separator: "/").contains(where: { extensions.contains((String($0) as NSString).pathExtension.lowercased()) }) { return true }
+        let folders = PlugInInventory.folders.filter { $0.location.hasPrefix("/") }.map { systemRoot.appendingPathComponent(String($0.location.dropFirst())).standardizedFileURL.path }
+        if folders.contains(where: { $0 == path || path.hasPrefix($0 + "/") || $0.hasPrefix(path + "/") }) { return true }
+        return listed.contains { $0.hasPrefix(path + "/") && extensions.contains(URL(fileURLWithPath: $0).pathExtension.lowercased()) }
     }
     static func isWhollyListed(_ path: String, _ listed: Set<String>, limit: Int = 20_000) -> Bool {
         guard listed.contains(path) else { return false }

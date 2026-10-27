@@ -210,3 +210,17 @@ private func names(_ items: [Candidate]) -> Set<String> { Set(items.map(\.url.la
     #expect(AppUninstall.staying(chosen: own, offered: own).map(\.text) == ["Pad: 1 part stays · Goes with the app it is in"])
     #expect(own[0].uninstall?.owner.paths.contains(pad.path) == true, "The app it is in counts as the product running")
 }
+
+@Test func anAAXIsOfferedOnceAsAFormatNeverAsASupportFileNorItsFolders() throws {
+    let (root, home) = try fixture()
+    defer { try? FileManager.default.removeItem(at: root) }
+    let aax = "Library/Application Support/Avid/Audio/Plug-Ins/Pro Synth.aaxplugin"
+    try plugIn(aax, id: "com.maker.prosynth.aax", in: root)
+    // The AAX lives in Application Support, and the receipt lists it (and so, wholly, the Avid folder holding only it).
+    try receipt("com.maker.prosynth.pkg", listing: [plugIns + "Components/Pro Synth.component", plugIns + "VST3/Pro Synth.vst3", support + "Pro Synth", aax], in: root)
+    try receipt("com.maker.suite.pkg", listing: [plugIns + "VST3/Pro Synth.vst3", plugIns + "VST3/Pro Delay.vst3", support + "Shared", aax], in: root)
+    let (_, items) = scan(root, home)
+
+    #expect(items.filter { $0.url.lastPathComponent == "Pro Synth.aaxplugin" }.map(\.ruleID) == [PlugInUninstall.formatsRuleID], "Once, as a format")
+    #expect(!items.contains { $0.ruleID != PlugInUninstall.formatsRuleID && $0.url.path.contains("/Avid") }, "Never Avid's plug-in folders")
+}
