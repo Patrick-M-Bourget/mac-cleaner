@@ -160,7 +160,8 @@ final class ApplicationsUITests: XCTestCase {
         expandDisclosures(in: app)
         XCTAssertEqual(app.checkBoxes["planItem-Pro Synth.vst3"].value as? Int, 1, "Its removable format is ticked with it")
         XCTAssertFalse(app.checkBoxes["planItem-Pro Synth.component"].exists, "A format that needs a password has no checkbox")
-        XCTAssertEqual(element(app, "applicationsPartPassword-" + au.path, .staticText).value as? String, "AU: Needs your password")
+        XCTAssertEqual(element(app, "applicationsPassword-" + au.path, .staticText).value as? String, "AU: Needs your password to remove")
+        XCTAssertTrue(element(app, "applicationsReveal-" + au.path, .button).exists, "Reveal in Finder, with no vendor tool installed")
 
         app.buttons["Review cleanup"].click()
         let staying = element(app, "reviewStaying-" + au.path + "-password", .staticText)

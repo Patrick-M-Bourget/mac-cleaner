@@ -63,10 +63,13 @@ public enum PlugInUninstall {
         }
         let taken = RemovedAppLeftovers.notOffered
         var targets: [String: AppUninstall.Target] = [:]
+        let appEntries = apps.map { InventoryEntry(id: $0.path, name: $0.name, maker: $0.maker, volume: nil, parts: [], bundleID: $0.bundleID) }
         for product in products {
             let bundleID = product.files.lazy.compactMap(\.bundleID).first ?? ""
             let standalone = ownApp(of: product, among: apps)
-            let tool = VendorTool.known.first { $0.makes(bundleID) }.flatMap { tool in apps.first { $0.bundleID.lowercased() == tool.bundleID } }
+            // The vendor's tool, from the one lookup the Applications page uses (#288).
+            let tool = ApplicationsInventory.vendorTool(for: InventoryEntry(id: product.id, name: product.name, maker: nil, volume: nil, parts: [], bundleID: bundleID),
+                                                        among: appEntries)
             var target = AppUninstall.Target(name: product.name, bundleID: standalone?.bundleID ?? bundleID, path: product.id,
                                              helpers: standalone.map { AppUninstall.helperIDs(of: URL(fileURLWithPath: $0.path)) } ?? [])
             target.otherPaths = product.files.map(\.url.path) + (standalone.map { [$0.path] } ?? [])

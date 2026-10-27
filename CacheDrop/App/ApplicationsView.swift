@@ -175,11 +175,7 @@ struct ApplicationsView: View {
                         CatalogItemRows(model: catalog, rule: rule, app: entry.id)
                     }
                     // A partly removable product lists what stays, with no checkbox (Decision 50).
-                    ForEach(staying, id: \.url) { part in
-                        StatusRow(text: "\(part.name): " + (model.uninstaller(for: entry).map { "Needs \($0.name) or your password" } ?? "Needs your password"), symbol: "lock",
-                                  identifier: "applicationsPartPassword-" + part.url.path,
-                                  action: StatusAction(title: "Reveal in Finder", identifier: "applicationsPartReveal-" + part.url.path) { model.reveal(part.name, [part.url]) })
-                    }
+                    ForEach(staying, id: \.url) { part in passwordLine(entry, part: part) }
                 }
             } else {
             LazyVStack(alignment: .leading, spacing: 0) {
@@ -194,13 +190,14 @@ struct ApplicationsView: View {
         }
     }
 
-    /// "Needs your password to remove · Reveal in Finder", or "Needs <tool> or your password · Open <tool>" when the vendor's tool is installed.
-    private func passwordLine(_ entry: InventoryEntry) -> some View {
-        let tool = model.uninstaller(for: entry)
-        let action = tool.map { tool in StatusAction(title: "Open " + tool.name, identifier: "applicationsOpen-" + entry.id) { model.open(tool) } }
-            ?? StatusAction(title: "Reveal in Finder", identifier: "applicationsReveal-" + entry.id) { model.reveal(entry.name, entry.parts.map(\.url)) }
-        return StatusRow(text: tool.map { "Needs \($0.name) or your password" } ?? "Needs your password to remove", symbol: "lock",
-                         identifier: "applicationsPassword-" + entry.id, action: action)
+    /// "Needs your password to remove · Reveal in Finder", or "Needs <tool> or your password to remove · Open <tool>" when the
+    /// vendor's tool is installed (Decision 50); for one `part` of a partly removable product, prefixed with its name (#288).
+    private func passwordLine(_ entry: InventoryEntry, part: InventoryEntry.Part? = nil) -> some View {
+        let tool = model.uninstaller(for: entry), id = part?.url.path ?? entry.id
+        let action = tool.map { tool in StatusAction(title: "Open " + tool.name, identifier: "applicationsOpen-" + id) { model.open(tool) } }
+            ?? StatusAction(title: "Reveal in Finder", identifier: "applicationsReveal-" + id) { model.reveal(part?.name ?? entry.name, part.map { [$0.url] } ?? entry.parts.map(\.url)) }
+        let text = tool.map { "Needs \($0.name) or your password to remove" } ?? "Needs your password to remove"
+        return StatusRow(text: part.map { "\($0.name): " + text } ?? text, symbol: "lock", identifier: "applicationsPassword-" + id, action: action)
     }
 
     private func openReview() async {

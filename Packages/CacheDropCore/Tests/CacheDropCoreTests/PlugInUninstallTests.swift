@@ -289,3 +289,14 @@ private func names(_ items: [Candidate]) -> Set<String> { Set(items.map(\.url.la
     #expect(content.sharedLabel == "Shared by Maker products")
     #expect(content.uninstall != nil)
 }
+
+@Test func theVendorsToolComesFromTheApplicationsPagesLookup() throws {
+    let (root, home) = try fixture()
+    defer { try? FileManager.default.removeItem(at: root) }
+    try plugIn(plugIns + "VST3/Kontakt.vst3", id: "com.native-instruments.kontakt.vst3", in: root)
+    let nativeAccess = InstalledApp(name: "Native Access", bundleID: "com.native-instruments.NativeAccess2", path: "/Applications/Native Access.app")
+    let (inventory, items) = scan(root, home, apps: [nativeAccess])
+
+    #expect(items.first { try! $0.uninstall?.path == product("Kontakt", inventory) }?.uninstall?.tool == "Native Access")
+    #expect(items.first { try! $0.uninstall?.path == product("Pro Synth", inventory) }?.uninstall?.tool == nil)
+}
