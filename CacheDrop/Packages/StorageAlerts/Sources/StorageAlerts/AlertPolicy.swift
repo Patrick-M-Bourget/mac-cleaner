@@ -130,7 +130,8 @@ public struct AlertOpenContext: Sendable, Equatable {
     public let observedAt: Date?
     public init(observedAt: Date) { self.init(notificationUserInfo: ["CacheDrop.observedAt": observedAt.timeIntervalSince1970]) }
     public init(notificationUserInfo: [AnyHashable: Any]) {
-        guard let seconds = notificationUserInfo["CacheDrop.observedAt"] as? Double, seconds.isFinite, seconds >= 0, seconds < 253_402_300_800 else { observedAt = nil; return }
+        // An alert delivered before #150 carries it under Still's key.
+        guard let seconds = (notificationUserInfo["CacheDrop.observedAt"] ?? notificationUserInfo["Still.observedAt"]) as? Double, seconds.isFinite, seconds >= 0, seconds < 253_402_300_800 else { observedAt = nil; return }
         observedAt = Date(timeIntervalSince1970: seconds)
     }
     public var notificationUserInfo: [AnyHashable: Any] {
