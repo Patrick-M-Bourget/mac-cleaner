@@ -55,8 +55,9 @@ private func receipt(_ id: String, listing paths: [String], in root: URL) throws
 
 /// Pro Synth (AU, VST3, its own presets and a license file its receipt lists), Pro Delay of the same maker, and a suite
 /// receipt both install a shared folder from.
-private func fixture() throws -> (root: URL, home: URL) {
-    let root = FileManager.default.temporaryDirectory.appendingPathComponent("CacheDropPlugInUninstall-\(UUID())").resolvingSymlinksInPath()
+private func fixture(in folder: String? = nil) throws -> (root: URL, home: URL) {
+    let base = folder.map { FileManager.default.temporaryDirectory.appendingPathComponent($0 + "-\(UUID())") } ?? FileManager.default.temporaryDirectory
+    let root = base.appendingPathComponent("CacheDropPlugInUninstall-\(UUID())").resolvingSymlinksInPath()
     let home = root.appendingPathComponent("Users/me")
     try FileManager.default.createDirectory(at: home, withIntermediateDirectories: true)
     try plugIn(plugIns + "Components/Pro Synth.component", id: "com.maker.prosynth.au", in: root)
@@ -395,4 +396,30 @@ private func unreadableReceipt(_ id: String, in root: URL) throws {
     let (_, again) = scan(root, home)
     #expect(!again.contains { $0.ruleID != PlugInUninstall.formatsRuleID }, "At the scan: no support item, only formats")
     #expect(again.contains { $0.ruleID == PlugInUninstall.formatsRuleID })
+}
+
+@Test func licenceDataInSmallTextFilesDatabasesLargeFilesAndAnyFolderNamedForItIsNeverMoved() throws {
+    let (root, home) = try fixture()
+    defer { try? FileManager.default.removeItem(at: root) }
+    try Data("Serial: 1234-5678-ABCD".utf8).write(to: { try! write(support + "Pro Synth/Notes/notes.txt", in: root); return root.appendingPathComponent(support + "Pro Synth/Notes/notes.txt") }())
+    try write(support + "Pro Synth/Skins/Dark.skin", in: root)
+    try write(support + "Pro Synth/Skins/cache.db", in: root)
+    try write(support + "Pro Synth/Docs/manual.json", in: root, bytes: 2_000_000)
+    try Data("<settings/>".utf8).write(to: root.appendingPathComponent(support + "Pro Synth/Presets/Info.xml"))
+    try receipt("com.maker.prosynth.pkg", listing: [plugIns + "Components/Pro Synth.component", plugIns + "VST3/Pro Synth.vst3", support + "Pro Synth"], in: root)
+    let (_, items) = scan(root, home)
+
+    #expect(!items.contains { ["Notes", "Skins", "Docs"].contains($0.url.lastPathComponent) }, "\(items.map(\.url.lastPathComponent))")
+    let presets = try #require(items.first { $0.url.lastPathComponent == "Presets" })
+    #expect(check(home).check(presets) == nil)
+    try Data("<settings><activation>XYZ</activation></settings>".utf8).write(to: root.appendingPathComponent(support + "Pro Synth/Presets/Info.xml"))
+    // The listed placeholder is filled with activation data after the scan.
+    #expect(check(home).check(presets) == .protected("Info.xml"), "Before acting too")
+}
+
+@Test func aSupportItemWithRegistrationOrSerialAnywhereInItsPathIsNeverMoved() throws {
+    let (root, home) = try fixture(in: "Registration Data")
+    defer { try? FileManager.default.removeItem(at: root.deletingLastPathComponent()) }
+    let (_, items) = scan(root, home)
+    #expect(!items.contains { $0.ruleID != PlugInUninstall.formatsRuleID }, "Not at the scan")
 }

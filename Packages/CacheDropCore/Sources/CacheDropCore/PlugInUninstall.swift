@@ -186,18 +186,27 @@ public enum PlugInUninstall {
         return nil
     }
 
-    /// Licence and activation data, by name or by content (#291): a licence word in its name, a `.lic` or `.key` file, an
-    /// opaque data file (`.dat`, `.bin`, or a file with no extension), or a preference list with licence-like keys. Its name, or nil.
+    /// Licence and activation data, by name or by content (#291): a licence word in its name, "registration" or "serial" anywhere
+    /// in its path, a `.lic` or `.key` file, an opaque data file (`.dat`, `.bin`, a database, a file with no extension), a text
+    /// file (`.txt`, `.xml`, `.json`, `.plist`) with licence-like content, or one too large to read. Its name, or nil.
     static func licenceData(_ path: String) -> String? {
         let url = URL(fileURLWithPath: path), name = url.lastPathComponent, kind = url.pathExtension.lowercased()
-        if RemovedAppLeftovers.isNeverOffered(name) { return name }
+        if RemovedAppLeftovers.isNeverOffered(name) || ["registration", "serial"].contains(where: path.lowercased().contains) { return name }
         var info = stat()
         guard lstat(path, &info) == 0, info.st_mode & S_IFMT != S_IFDIR else { return nil }
-        if ["lic", "key", "dat", "bin", ""].contains(kind) { return name }
-        guard kind == "plist", let data = try? Data(contentsOf: url),
-              let list = try? PropertyListSerialization.propertyList(from: data, format: nil) else { return nil }
-        return hasLicenceKeys(list) ? name : nil
+        if opaqueKinds.contains(kind) { return name }
+        guard textKinds.contains(kind) else { return nil }
+        guard info.st_size <= textReadLimit, let data = try? Data(contentsOf: url) else { return name }
+        if kind == "plist", let list = try? PropertyListSerialization.propertyList(from: data, format: nil), hasLicenceKeys(list) { return name }
+        let text = String(decoding: data, as: UTF8.self)
+        return text.range(of: licenceContent, options: [.regularExpression, .caseInsensitive]) != nil ? name : nil
     }
+    /// Files whose content can't be read for licence data: never moved inside a support folder.
+    static let opaqueKinds: Set<String> = ["lic", "key", "dat", "bin", "sqlite", "sqlite3", "db", ""]
+    /// Text files read for licence-like content, up to `textReadLimit`; a larger one is opaque.
+    static let textKinds: Set<String> = ["txt", "xml", "json", "plist"]
+    static let textReadLimit: Int64 = 256 << 10
+    static let licenceContent = #"serial|licen[cs]e|activat|registration|authori[sz]ation|machine.?id"#
     /// Keys such as SerialNumber, LicenseKey, ActivationCode, Registration, AuthToken or UserKey, at any depth.
     static func hasLicenceKeys(_ list: Any, depth: Int = 0) -> Bool {
         guard depth < 8 else { return true }
