@@ -20,8 +20,10 @@ final class RemovedAppLeftoversUITests: XCTestCase {
         }
         app.launch()
 
+        // #255: a cold launch can take longer than any fixed wait, so wait for the scan itself.
+        waitForCatalogScan(app)
         let overview = app.buttons["overviewCategory-leftovers"]
-        XCTAssertTrue(overview.waitForExistence(timeout: 10))
+        XCTAssertTrue(overview.waitForExistence(timeout: 5))
         revealAndClick(overview, in: app)
 
         let category = app.checkBoxes["planCategory-leftovers"]
