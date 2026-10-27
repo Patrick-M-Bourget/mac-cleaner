@@ -20,7 +20,7 @@ struct AppManagedStorageView: View {
                         if index > 0 { Divider().padding(.horizontal, CacheDropDesign.Space.lg) }
                         let needsAccess = finding.size == .notAccessible
                         StorageReviewRow(category: rule.managedCategory, title: rule.title,
-                                         detail: finding.libraries.map(FoundLibrary.summary) ?? finding.plugIns.map(\.summary) ?? finding.workspaces?.summary
+                                         detail: finding.libraries.map { FoundLibrary.summary($0, nouns: rule.libraryNouns) } ?? finding.plugIns.map(\.summary) ?? finding.workspaces?.summary
                                              ?? rule.detail.firstSentence,
                                          value: needsAccess ? "Needs access" : finding.size.text,
                                          actionTitle: guidance.openTitle, action: { Task { await model.open(finding) } },
@@ -36,7 +36,7 @@ struct AppManagedStorageView: View {
     }
 }
 
-/// A guidance row's library packages (#180, #178): each with its volume and size, revealed in Finder, never offered.
+/// A guidance row's library packages (#180, #178, #179): each with its volume and size, revealed in Finder, never offered.
 /// Below them, the app's own steps and the vendor's help page.
 private struct LibraryRows: View {
     @Bindable var model: CatalogCleanupModel
@@ -44,7 +44,7 @@ private struct LibraryRows: View {
     let guidance: Guidance
     let libraries: [FoundLibrary]
     var body: some View {
-        ActionDisclosureGroup("Show libraries · \(libraries.count)") {
+        ActionDisclosureGroup("Show \(rule.libraryNouns.many) · \(libraries.count)") {
             VStack(alignment: .leading, spacing: CacheDropDesign.Space.sm) {
                 LazyVStack(alignment: .leading, spacing: 0) {
                     ForEach(libraries) { library in
@@ -65,6 +65,11 @@ private struct LibraryRows: View {
 extension CleanupRule {
     /// The symbol beside each of a rule's libraries.
     var librarySymbol: String { id == "final-cut-libraries" ? "film" : "photo.on.rectangle" }
+    /// What each listed package stands for: Lightroom's previews are counted by their catalogs (#179).
+    var libraryNouns: (one: String, many: String) {
+        if case .lightroomPreviews? = guidance?.sizing { return ("catalog", "catalogs") }
+        return ("library", "libraries")
+    }
 
     /// The badge for an app-managed row; a place without its own symbol keeps the shared app-managed one.
     var managedCategory: StorageCategory {

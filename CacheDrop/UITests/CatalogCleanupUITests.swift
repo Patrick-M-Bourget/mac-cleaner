@@ -1035,6 +1035,43 @@ final class GuidanceUITests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: render.path))
     }
 
+    /// #179: Lightroom Classic's previews and Smart Previews are separate rows, counted by catalog, each with its own
+    /// steps; the catalog is never listed or offered, and opening Lightroom changes nothing.
+    @MainActor func testLightroomPreviewsAreSeparateFromSmartPreviewsAndNoCatalogIsOffered() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        let state = try configureIsolatedState(app)
+        let home = try configureCatalogHome(app)
+        defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
+        let folder = home.appendingPathComponent("Pictures/Lightroom")
+        let catalog = folder.appendingPathComponent("Lightroom Catalog.lrcat")
+        for file in [catalog, folder.appendingPathComponent("Lightroom Catalog Previews.lrdata/root/a.lrprev"),
+                     folder.appendingPathComponent("Lightroom Catalog Smart Previews.lrdata/b.dng")] {
+            try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try Data(repeating: 4, count: 60_000).write(to: file)
+        }
+        app.launch()
+
+        let entry = app.buttons["overviewAppManaged"]
+        XCTAssertTrue(entry.waitForExistence(timeout: 10))
+        revealAndClick(entry, in: app)
+        let previews = app.buttons["guidance-lightroom-previews"], smart = app.buttons["guidance-lightroom-smart-previews"]
+        XCTAssertTrue(previews.waitForExistence(timeout: 10))
+        XCTAssertTrue(smart.exists)
+        XCTAssertEqual(previews.label, "Open Lightroom Classic")
+        XCTAssertTrue((previews.value as? String)?.contains("1 catalog") == true, String(describing: previews.value))
+        openDisclosure(app.disclosureTriangles.matching(NSPredicate(format: "label == 'Show catalogs · 1'")).firstMatch, in: app)
+        XCTAssertTrue(app.buttons["Reveal Lightroom Catalog Previews in Finder"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts.containing(NSPredicate(format: "value CONTAINS 'Discard 1:1 Previews'")).firstMatch.exists)
+        XCTAssertTrue(app.links["guidanceLearnMore-lightroom-previews"].exists)
+        XCTAssertFalse(app.buttons["Reveal Lightroom Catalog in Finder"].exists)
+        revealAndClick(smart, in: app)
+        XCTAssertTrue(app.staticTexts["guidanceStatus"].waitForExistence(timeout: 5))
+        XCTAssertEqual(app.staticTexts["guidanceStatus"].value as? String, "Test run: would open Lightroom Classic.")
+        for id in ["lightroom-previews", "lightroom-smart-previews"] { XCTAssertFalse(app.descendants(matching: .any)["planRule-" + id].exists) }
+        XCTAssertTrue(FileManager.default.fileExists(atPath: catalog.path))
+    }
+
     /// #174: plug-ins are listed by product, with Reveal in Finder, and nothing is offered or changed.
     @MainActor func testAudioPlugInsAreListedByProductAndLeftAsIs() throws {
         continueAfterFailure = false
