@@ -57,7 +57,7 @@ Each category is a catalog entry plus tests on temp-folder fixtures. Most need n
 **Tier A: proven on your Mac, highest value**
 | Category | Action |
 |---|---|
-| Developer caches: npm, Yarn, pnpm, uv, pip, Cargo, Gradle, CocoaPods | delete (cache dirs) |
+| Developer caches: npm, Yarn, pnpm, uv, pip, Cargo, Gradle, CocoaPods | delete (cache dirs); pnpm and uv through their own commands (Decisions 23, 44) |
 | Homebrew | `brew cleanup -s` + cache dir |
 | Xcode: all of DerivedData, unavailable simulators (`simctl delete unavailable`), old iOS DeviceSupport | delete / tool |
 | Browser caches: Chrome, Safari, Firefox, Arc, Edge (cache dirs only; logins, cookies and history are never touched) | delete, browser must be closed |
