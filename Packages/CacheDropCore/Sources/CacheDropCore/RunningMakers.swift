@@ -28,14 +28,13 @@ public struct SystemProcessListing: ProcessListing {
 
 /// The makers of what is running (#240), by #251's maker-wide rules: a process belongs to the maker of every bundle it runs
 /// from, by bundle ID or by the maker its bundle names, and to the maker a folder in `Application Support` is named for.
-/// A shared hosting namespace (`io.github.*`) is not one maker: there the maker is the next part (`io.github.alice`).
 struct RunningMakers {
     let products: [InstalledApp]
     let makers: InstalledMakers
 
     init(_ processes: [RunningProcess], resolve: (RunningProcess) -> [InstalledApp] = Self.products) {
         products = Set(processes).flatMap(resolve)
-        makers = InstalledMakers(products, byMaker: true)
+        makers = InstalledMakers(products)
     }
 
     /// Whether anything of an owner's makers (`bundleIDPrefixes`) is running.

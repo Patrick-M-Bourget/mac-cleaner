@@ -68,19 +68,18 @@ private func maker(_ vendor: String) -> RuleOwner { RuleOwner(name: vendor, bund
     #expect(checker([helper, daemon, privileged]).isRunning(maker("com.gone")) == false)
 }
 
-@Test func aSharedHostingNamespaceIsNotOneMaker() throws {
+@Test func aSharedHostingNamespaceStaysOneMaker() throws {
     let root = try fixtureFolder()
     defer { try? FileManager.default.removeItem(at: root) }
     let alice = try bundle("Applications/Clipper.app", in: root, id: "io.github.alice.clipper")
 
-    #expect(checker([alice]).isRunning(maker("io.github.alice")) == true)
-    #expect(checker([alice]).isRunning(maker("io.github.bob")) == false)
-    // A leftover's owner names the maker inside the namespace, so only that maker's processes block it.
+    // Coarse until a real-Mac listing shows it blocks too much (#259): any io.github process holds back io.github leftovers.
+    #expect(checker([alice]).isRunning(maker("io.github")) == true)
     let tie = LeftoverTie(app: "Notes", bundleID: "io.github.bob.notes", vendor: "io.github", evidence: .bundleID)
-    #expect(tie.owner.bundleIDPrefixes == ["io.github.bob."])
-    #expect(tie.owner.name == "Bob")
+    #expect(tie.owner.bundleIDPrefixes == ["io.github."])
+    #expect(checker([alice]).isRunning(tie.owner) == true)
     let receipt = LeftoverTie(app: "Notes", bundleID: nil, vendor: "io.github", evidence: .receipt("io.github.bob.notes.pkg"))
-    #expect(receipt.owner.bundleIDPrefixes == ["io.github.bob."])
+    #expect(receipt.owner.bundleIDPrefixes == ["io.github."])
     #expect(LeftoverTie(app: "Live", bundleID: "com.ableton.live", vendor: "com.ableton", evidence: .bundleID).owner
         == RuleOwner(name: "Ableton", bundleIDPrefixes: ["com.ableton."]))
 }
