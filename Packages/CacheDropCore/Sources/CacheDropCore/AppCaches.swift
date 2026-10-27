@@ -85,6 +85,9 @@ public enum AppCaches {
     /// Entries that make a folder an embedded web view's profile with the user's sign-in data (#203), as Chromium and
     /// Electron name them (seen in Spotify's cache folder). A folder holding a profile is never offered whole.
     static let signInNames = ["Cookies", "Login Data", "Local Storage"]
+    /// Chromium's profile list and browser settings beside its profiles (#243): not sign-in data, but removing it can reset an
+    /// app's embedded browser, so it is kept like the sign-in files, wherever it sits in the app's folder.
+    static let keptNames = ["Local State"]
     /// A web-view profile's parts that the web view rebuilds, the only parts of a profile ever offered (#203).
     static let webViewCacheParts: Set<String> = ["Cache", "Code Cache", "GPUCache"]
 
@@ -106,39 +109,47 @@ public enum AppCaches {
     /// The paths of the folders that directly hold an entry named in `names`, up to `depth` levels inside `folder`;
     /// nil when it can't be fully searched.
     static func folders(holding names: Set<String>, in folder: URL, depth: Int) -> Set<String>? {
-        var holders = Set<String>(), seen = 0, complete = true
+        entries(named: names, in: folder, depth: depth).map { Set($0.map { ($0 as NSString).deletingLastPathComponent }) }
+    }
+
+    /// The paths of the entries named in `names`, up to `depth` levels inside `folder`; nil when it can't be fully searched.
+    static func entries(named names: Set<String>, in folder: URL, depth: Int) -> Set<String>? {
+        var found = Set<String>(), seen = 0, complete = true
         let opened = FileTree.walk(folder) { entry in
             let level = Int(entry.pointee.fts_level), kind = Int32(entry.pointee.fts_info)
             guard level > 0, kind != FTS_DP else { return .continue }
             seen += 1
             if seen > CandidateCheck.protectedSearchLimit || kind == FTS_DNR || kind == FTS_ERR { complete = false; return .stop }
             let path = String(cString: entry.pointee.fts_path)
-            if names.contains((path as NSString).lastPathComponent) { holders.insert((path as NSString).deletingLastPathComponent) }
+            if names.contains((path as NSString).lastPathComponent) { found.insert(path) }
             return kind == FTS_D && level >= depth ? .skip : .continue
         }
-        return opened && complete ? holders : nil
+        return opened && complete ? found : nil
     }
 
     /// Whether one of two paths is or is inside the other.
     static func overlaps(_ a: String, _ b: String) -> Bool { a == b || a.hasPrefix(b + "/") || b.hasPrefix(a + "/") }
 
-    /// What "App caches" offers from an app's folder: the folder itself, or, when it holds web-view profiles with sign-in data
-    /// within `liveWorkDepth` levels, every item in it except those profiles, and of each profile only its `Cache`, `Code Cache`
-    /// and `GPUCache` (#203, #241). A folder on the way to a profile is not offered whole; its items are. An item that is or holds
-    /// the app's offline content (`offlineContent`), or sits in a folder holding it, is left out. A folder that can't be fully
-    /// searched comes back whole, and the protected-entry search then leaves it out.
+    /// What "App caches" offers from an app's folder: the folder itself, or, when it holds web-view profiles with sign-in data or a
+    /// `Local State` within `liveWorkDepth` levels, every item in it except those, and of each profile only its `Cache`, `Code Cache`
+    /// and `GPUCache` (#203, #241, #243). A folder on the way to a profile or a `Local State` is not offered whole; its items are.
+    /// An item that is or holds the app's offline content (`offlineContent`), or sits in a folder holding it, is left out.
+    /// A folder that can't be fully searched comes back whole, and the protected-entry search then leaves it out.
     static func offeredFolders(in appFolder: URL, offlineContent: [String: OfflineContent]) -> [URL] {
-        guard Catalog.isFolder(appFolder), let profiles = folders(holding: Set(signInNames), in: appFolder, depth: liveWorkDepth), !profiles.isEmpty
+        guard Catalog.isFolder(appFolder), let found = entries(named: Set(signInNames + keptNames), in: appFolder, depth: liveWorkDepth)
         else { return [appFolder] }
+        let kept = found.filter { keptNames.contains(($0 as NSString).lastPathComponent) }
+        let profiles = Set(found.subtracting(kept).map { ($0 as NSString).deletingLastPathComponent })
+        guard !profiles.isEmpty || !kept.isEmpty else { return [appFolder] }
         var offline = Set<String>()
         if let content = offlineContent[appFolder.lastPathComponent.lowercased()] {
             guard let holders = folders(holding: content.names, in: appFolder, depth: .max) else { return [appFolder] }
             offline = holders
         }
-        // Folders between the app's folder and a profile, the app's folder included.
+        // Folders between the app's folder and a profile or a kept file, the app's folder included.
         var onTheWay = Set<String>()
-        for profile in profiles {
-            var folder = (profile as NSString).deletingLastPathComponent
+        for item in profiles.union(kept) {
+            var folder = (item as NSString).deletingLastPathComponent
             while folder.count >= appFolder.path.count, onTheWay.insert(folder).inserted { folder = (folder as NSString).deletingLastPathComponent }
         }
         var offered: [String] = []
@@ -146,6 +157,7 @@ public enum AppCaches {
             let isProfile = profiles.contains(folder)
             for name in ((try? FileManager.default.contentsOfDirectory(atPath: folder)) ?? []).sorted() {
                 let item = folder + "/" + name
+                if kept.contains(item) { continue }
                 if profiles.contains(item) || onTheWay.contains(item) { visit(item) }
                 else if !isProfile || webViewCacheParts.contains(name) && Catalog.isFolder(URL(fileURLWithPath: item)) { offered.append(item) }
             }
@@ -174,7 +186,7 @@ public enum AppCaches {
                         detail: "Files apps keep in your Library to start and work faster, per app.",
                         consequence: "Permanently removed. Each app rebuilds its cache as you use it, so it may be slower at first. An app must be closed first; CacheDrop never quits it for you.",
                         regen: .cache, action: .delete, locations: ["Library/Caches/*"], owner: nil,
-                        protectedNames: signInNames,
+                        protectedNames: signInNames + keptNames,
                         // A web-view profile's cache part belongs to the app whose folder holds it (#203).
                         itemOwner: { installedOwner((appFolder(of: $0) ?? $0).lastPathComponent, apps: apps) }, yieldsToOtherRules: true, protectedDepth: liveWorkDepth,
                         offlineContent: knownOfflineContent),

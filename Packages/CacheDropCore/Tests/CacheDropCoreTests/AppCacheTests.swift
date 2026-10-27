@@ -238,7 +238,8 @@ private func catalogWith(_ apps: Apps) -> Catalog {
     let caches = home.appendingPathComponent("Library/Caches").path
     let found = catalog.discover(fixture: home)
     // Everything outside a profile is offered too (#241).
-    #expect(Set(found.map(\.url.path)) == [caches + "/com.example.Editor", caches + "/com.example.Chat/Cache.db", caches + "/com.example.Chat/Local State",
+    // Chromium's `Local State` (the profile list and settings) is kept like the sign-in files (#243).
+    #expect(Set(found.map(\.url.path)) == [caches + "/com.example.Editor", caches + "/com.example.Chat/Cache.db",
                                            caches + "/com.example.Chat/Data",
                                            caches + "/com.example.Chat/Default/Cache", caches + "/com.example.Chat/Default/Code Cache",
                                            caches + "/com.example.Chat/Default/GPUCache", caches + "/com.example.Chat/Partitions/help/GPUCache"])
@@ -252,9 +253,26 @@ private func catalogWith(_ apps: Apps) -> Catalog {
     let run = CleanupExecutor(journal: journal, check: check, measure: { _ in nil }, trash: TrashNeverUsed())
     #expect(try #require(await run.execute(CatalogApproval(candidates: [gpu], previewOnly: false)).records.first).state == .succeeded)
     #expect(!FileManager.default.fileExists(atPath: caches + "/com.example.Chat/Default/GPUCache"))
-    for kept in ["Default/Cookies", "Default/Login Data", "Default/Local Storage/leveldb/000003.log", "Default/Cache/Cache_Data/data_0"] {
+    for kept in ["Local State", "Default/Cookies", "Default/Login Data", "Default/Local Storage/leveldb/000003.log", "Default/Cache/Cache_Data/data_0"] {
         #expect(FileManager.default.fileExists(atPath: home.appendingPathComponent(app + "/" + kept).path), "\(kept)")
     }
+}
+
+/// #243: `Local State` alone, without a profile, splits an app's folder too: every other item is offered, and the check
+/// refuses a whole folder that gained one since the scan. Placeholder files only.
+@Test func localStateAloneIsKeptAndTheRestOffered() throws {
+    let home = try fixtureHome()
+    defer { try? FileManager.default.removeItem(at: home) }
+    let chat = InstalledApp(name: "Chat", bundleID: "com.example.Chat", path: "/Applications/Chat.app")
+    let catalog = catalogWith(Apps(installed: [chat]))
+    let check = CandidateCheck(catalog: catalog, running: Running())
+    try write(home, "Library/Caches/com.example.Chat/Data/chunk")
+    let whole = try #require(catalog.discover(fixture: home).first)
+    #expect(whole.url.lastPathComponent == "com.example.Chat")
+    try write(home, "Library/Caches/com.example.Chat/Local State")
+    #expect(check.check(whole) == .protected("Local State"))
+    let app = home.appendingPathComponent("Library/Caches/com.example.Chat").path
+    #expect(catalog.discover(fixture: home).map(\.url.path) == [app + "/Data"])
 }
 
 /// #203: the check just before acting refuses a whole app folder that gained sign-in data since the scan, and a profile
