@@ -16,6 +16,10 @@ public struct ActionWording: Sendable {
     static let unknown = ActionWording(title: "", previewOutcome: "Would run", succeeded: "Done",
                                        partlyFailed: "Partly removed", unresolved: "Unresolved · Outcome unknown",
                                        partlyFailedRecovery: "Recorded failure · It may be partly deleted", historyPhrase: nil)
+    /// Putting an item back from the Trash (#159): a rename, never a delete.
+    static let putBack = ActionWording(title: "Put back from Trash", previewOutcome: "Would put back", succeeded: "Put back",
+                                       partlyFailed: "Failed", unresolved: "Unresolved · It is either back in its folder or still in the Trash",
+                                       partlyFailedRecovery: "Recorded failure · Not changed", historyPhrase: nil)
 }
 
 extension CleanupAction {
@@ -51,12 +55,12 @@ extension CleanupRecord {
     static let previewPrefix = "Dry run:"
     /// What dry-run records journaled before the switch moved to Settings start with.
     static let legacyPreviewPrefix = "Preview only:"
-    private var wording: ActionWording { cleanupAction?.wording ?? .unknown }
+    private var wording: ActionWording { cleanupAction?.wording ?? (isPutBack ? .putBack : .unknown) }
     /// Checked with the dry run on: every check passed and nothing changed.
     public var wasPreviewed: Bool {
         previewOnly == true && state == .skipped && (message.hasPrefix(Self.previewPrefix) || message.hasPrefix(Self.legacyPreviewPrefix))
     }
-    public var actionTitle: String { cleanupAction?.wording.title ?? action }
+    public var actionTitle: String { cleanupAction?.wording.title ?? (isPutBack ? ActionWording.putBack.title : action) }
     public var outcomeTitle: String {
         if wasPreviewed { return wording.previewOutcome }
         switch state {
@@ -84,6 +88,9 @@ extension CleanupHistoryRun {
     public var isPreview: Bool { !records.isEmpty && records.allSatisfy { $0.previewOnly == true } }
     public var title: String {
         if isPreview { return "Dry run · Nothing changed" }
+        if !records.isEmpty, records.allSatisfy(\.isPutBack) {
+            return records.contains { $0.state == .succeeded } ? "Put back from Trash" : "Put back · Nothing changed"
+        }
         let done = records.filter { $0.state == .succeeded }
         var parts: [String] = []
         for action in [CleanupAction.delete, .tool, .trash, .evict] where done.contains(where: { $0.cleanupAction == action }) {
@@ -102,13 +109,15 @@ extension CleanupHistoryRun {
 extension CleanupRecoverySnapshot {
     /// What a missing original can and can't mean, for the actions the unresolved items were taking.
     public var unresolvedNotice: String {
-        let actions = Set(interruptedBatches.flatMap(\.records).filter { $0.state == .intent || $0.state == .unknown }.compactMap(\.cleanupAction))
+        let unresolved = interruptedBatches.flatMap(\.records).filter { $0.state == .intent || $0.state == .unknown }
+        let actions = Set(unresolved.compactMap(\.cleanupAction))
         let deletes = actions.contains(.delete) || actions.contains(.tool), trashes = actions.contains(.trash)
         let tail = (actions.contains(.evict) ? " Removing a local copy never deletes the original; it stays in iCloud and downloads again when opened." : "")
             + " Current file locations have not been inspected."
         if deletes && trashes { return "A missing original may have reached the Trash or been permanently deleted, possibly only in part." + tail }
         if deletes { return "A missing original may have been permanently deleted, possibly only in part. Deleted items can’t be restored from the Trash." + tail }
         if trashes { return "A missing original does not prove it reached the Trash." + tail }
+        if unresolved.contains(where: \.isPutBack) { return "An item being put back is either back in its folder or still in the Trash. Nothing was deleted." + tail }
         if actions.contains(.evict) { return "A missing local copy means only that it was removed from this Mac." + tail }
         return "Nothing was started for the unfinished items." + tail
     }
