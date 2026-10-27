@@ -11,9 +11,13 @@ enum StillDesign {
         /// A category badge's square tile.
         static let badge: CGFloat = 32
         /// The CacheDrop mark in the sidebar header (#156).
-        static let brandMark: CGFloat = 24 }
+        static let brandMark: CGFloat = 24
+        /// The surface gap between a meter's segments, and the narrowest segment it draws (#164).
+        static let meterGap: CGFloat = 2; static let meterSegmentMinimum: CGFloat = 3 }
     /// How strongly a colour tints a surface behind its symbol, as in a category badge.
-    enum Opacity { static let badgeTint: Double = 0.10 }
+    enum Opacity { static let badgeTint: Double = 0.10
+        /// A meter segment's part that Smart clean wouldn't free (#164).
+        static let meterDimmed: Double = 0.30 }
     enum TypeStyle {
         /// The app name in the sidebar header.
         static let brand = Font.system(size: 17, weight: .medium)
@@ -41,14 +45,22 @@ enum StillDesign {
     static var highlight: Color { adaptive(light: 0xFFFFFF, dark: 0xFFFFFF).opacity(0.08) }
     static var blue: Color { adaptive(light: 0x0877ED, dark: 0x60A9FF) }
     static var purple: Color { adaptive(light: 0x9360D8, dark: 0xB290ED) }
-    static var teal: Color { adaptive(light: 0x349A9B, dark: 0x61C3C2) }
+    /// Light teal is a step darker than the prototype's 0x349A9B so a meter segment keeps 3:1 against the track (#164).
+    static var teal: Color { adaptive(light: 0x2C8C8D, dark: 0x61C3C2) }
     static var orange: Color { adaptive(light: 0xBD7527, dark: 0xE2A35E) }
-    /// App-managed storage and the catalog categories that share its colour: the system indigo.
-    static var indigo: Color { .indigo }
+    /// App-managed storage and the catalog categories that share its colour: the system indigo, a step lighter in dark
+    /// mode so a meter segment keeps 3:1 against the track (#164).
+    static var indigo: Color { adaptive(light: 0x5856D6, dark: 0x8583F5) }
     static func files(_ count: Int) -> String { "\(count) \(count == 1 ? "file" : "files")" }
     static func items(_ count: Int) -> String { "\(count) \(count == 1 ? "item" : "items")" }
     static var capacityFill: Color { adaptive(light: 0x969BA7, dark: 0x858997) }
     static var capacityTrack: Color { adaptive(light: 0xECEEF2, dark: 0x33343D) }
+    /// The meter's "Other reclaimable" segment: a slate, 5:1 against the track in light and 6:1 in dark (#164).
+    static var meterOther: Color { adaptive(light: 0x5F6577, dark: 0xB4B8C5) }
+    /// The meter's "In Trash" segment: subtle, between the used fill and the track (#164).
+    static var meterTrash: Color { adaptive(light: 0xC4C8D1, dark: 0x5A5D69) }
+    /// The sidebar meter's one "Reclaimable" segment.
+    static var meterReclaimable: Color { .accentColor }
     static var separator: Color { Color(nsColor: .separatorColor) }
 }
 enum StorageCategory {
@@ -324,6 +336,10 @@ struct CapacityMeter: View {
     var showsValue = true
     /// The taller bar of the Overview device card.
     var prominent = false
+    /// What CacheDrop found, drawn inside the used space (#164); nil draws used space alone.
+    var breakdown: StorageBreakdown? = nil
+    /// Opens a segment's category in the Cleanup plan.
+    var open: ((StorageBreakdown.Part) -> Void)? = nil
     static func bytes(_ value: Int64) -> String { ByteCountFormatter.string(fromByteCount: value, countStyle: .decimal) }
     /// The total, when it and the available space are a consistent whole-disk reading.
     static func validTotal(available: Int64?, total: Int64?) -> Int64? {
@@ -346,19 +362,22 @@ struct CapacityMeter: View {
                 Text(amountText).font(.callout).foregroundStyle(.secondary)
             }
             GeometryReader { geometry in
-                if let available, let total = validTotal {
+                if let breakdown, validTotal != nil {
+                    MeterSegments(breakdown: breakdown, reclaimableOnly: compact, open: open)
+                } else if let available, let total = validTotal {
                     ZStack(alignment: .leading) {
                         Capsule().fill(StillDesign.capacityTrack)
                         Capsule().fill(StillDesign.capacityFill).frame(width: geometry.size.width * CGFloat(Double(total - available) / Double(total)))
                     }
                 } else { Color.clear }
-            }.frame(height: compact ? StillDesign.Size.meterCompact : prominent ? StillDesign.Size.meterProminent : StillDesign.Size.meter).accessibilityElement(children: .ignore)
+            }.frame(height: compact ? StillDesign.Size.meterCompact : prominent ? StillDesign.Size.meterProminent : StillDesign.Size.meter)
+                .accessibilityElement(children: breakdown == nil || validTotal == nil ? .ignore : .contain)
                 .accessibilityLabel(validTotal == nil ? "Capacity meter unavailable" : amountText)
         }
     }
 }
 
-/// The prototype's device card: the whole disk, used against available. Never attributes bytes to categories.
+/// The prototype's device card: the whole disk, used against available, with what CacheDrop found inside the used space (#164).
 struct VolumeSummary: View {
     let available: Int64?
     let total: Int64?
@@ -368,6 +387,8 @@ struct VolumeSummary: View {
     var refreshing = false
     var refresh: (() -> Void)? = nil
     var name = StartupVolumeCapacity.name ?? "This Mac"
+    var breakdown: StorageBreakdown? = nil
+    var open: ((StorageBreakdown.Part) -> Void)? = nil
     private func bytes(_ value: Int64) -> String { CapacityMeter.bytes(value) }
     private var used: Int64? {
         guard let available, let total = CapacityMeter.validTotal(available: available, total: total) else { return nil }
@@ -396,7 +417,7 @@ struct VolumeSummary: View {
                         }
                     }
                 }
-                CapacityMeter(available: available, total: total, showsValue: false, prominent: true)
+                CapacityMeter(available: available, total: total, showsValue: false, prominent: true, breakdown: breakdown, open: open)
                 HStack(alignment: .firstTextBaseline, spacing: StillDesign.Space.md) {
                     Text(used.map { bytes($0) + " used" } ?? "Used space unknown").font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary).monospacedDigit()
                     Spacer(minLength: StillDesign.Space.sm)
