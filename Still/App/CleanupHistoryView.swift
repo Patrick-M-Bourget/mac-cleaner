@@ -201,13 +201,14 @@ struct CleanupHistoryView: View {
         _ = await (cleanup, scanRecords)
     }
     private func cleanup(_ run: CleanupHistoryRun) -> some View {
-        HistoryRow(symbol: run.isPreview ? "eye" : "checklist", title: run.title, date: run.date, size: bytes(run.plannedLogicalBytes), sizeNote: "Estimated",
+        HistoryRow(symbol: run.isPreview ? "eye" : run.isPutBack ? "arrow.uturn.backward" : "checklist", title: run.title, date: run.date, size: bytes(run.plannedLogicalBytes),
+                   sizeNote: run.isPutBack ? "From Trash" : "Estimated",
                    expanded: Binding(get: { expandedRuns.contains(run.id) }, set: { if $0 { expandedRuns.insert(run.id) } else { expandedRuns.remove(run.id) } }),
                    identifier: "cleanupRun:" + run.id.uuidString) {
             if run.usesApprovalDate { note("Approval date shown; outcome time was not recorded by this version.") }
             if run.isPreview {
                 note("Dry run · Nothing on disk changed. No space was freed.")
-            } else {
+            } else if !run.isPutBack {
                 if run.records.contains(where: { $0.cleanupAction == .trash }) {
                     note("In Trash until you empty it: " + (run.trashHeldAllocatedBytes.map(bytes) ?? "Unknown"))
                 }
@@ -221,8 +222,12 @@ struct CleanupHistoryView: View {
                         Text(record.outcomeTitle + " · " + record.message).font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary)
                             .fixedSize(horizontal: false, vertical: true).help("Action: " + record.actionTitle + (record.previewOnly == true ? " · Dry run" : ""))
                     }.frame(maxWidth: .infinity, alignment: .leading)
-                    if let trash = record.trashURL {
+                    let putBack = run.putBackIDs.contains(record.id) || TrashModel.shared.putBackOutcomes[record.id] == .restored(record.originalURL)
+                    if let trash = record.trashURL, !putBack, !record.isPutBack {
                         Button("Show in Finder") { Finder.reveal([trash]) }.controlSize(.small).help(trash.path)
+                    }
+                    if record.canPutBack {
+                        PutBackLink(record: record, alreadyPutBack: run.putBackIDs.contains(record.id)) { Task { await model.load(maintainCompleted: false) } }
                     }
                 }
             }

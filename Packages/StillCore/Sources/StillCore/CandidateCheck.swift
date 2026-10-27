@@ -12,6 +12,8 @@ public enum CheckRefusal: Sendable, Equatable {
     case inUse(String), inUseUnknown(String)
     case keptDownloaded, notUploaded, conflicted, notDownloaded, cloudUnknown
     case guidanceOnly
+    /// A project's build folder (#157) is kept while the project is being worked on.
+    case projectOpen, projectUnchecked, recentlyEdited, uncommittedChanges, trackedByGit
     public var reason: String {
         switch self {
         case .missing: "No longer exists."
@@ -30,6 +32,11 @@ public enum CheckRefusal: Sendable, Equatable {
         case .notDownloaded: "No local copy to remove."
         case .cloudUnknown: "Couldn’t read its iCloud status. Its local copy stays."
         case .guidanceOnly: "Guidance only. CacheDrop never changes it; manage it in its own app."
+        case .projectOpen: "Its project is open in an app or tool. It is kept."
+        case .projectUnchecked: "Couldn’t check whether its project is in use, so it is kept."
+        case .recentlyEdited: "Its project changed in the last \(ProjectBuilds.recentDays) days. It is kept."
+        case .uncommittedChanges: "Its project has uncommitted changes. It is kept."
+        case .trackedByGit: "Git tracks files in it. It is kept."
         }
     }
 }
@@ -57,12 +64,20 @@ public struct CandidateCheck: Sendable {
     /// `.git` to `gitSearchDepth` whatever the rule. Discovery leaves such folders out; the check refuses them.
     static func protectedEntry(in folder: URL, rule: CleanupRule) -> String? {
         if let found = protectedEntry(in: folder, names: Protection(rule).names, depth: rule.protectedDepth) { return found }
-        return rule.protectedDepth >= gitSearchDepth ? nil : protectedEntry(in: folder, names: [".git"], depth: gitSearchDepth)
+        if rule.protectedDepth >= gitSearchDepth { return nil }
+        // A package manager's own clones in its build folder are rebuilt, not live work (#160): only those `.git` folders are passed over.
+        let clones = ProjectBuilds.managedClonesFolder(in: folder).map { $0.path + "/" }
+        return protectedEntry(in: folder, names: [".git"], depth: gitSearchDepth) { path, level, isFolder in
+            guard let clones, isFolder, level == 3, path.hasPrefix(clones) else { return false }
+            return path.dropFirst(clones.count).split(separator: "/").count == 2
+        }
     }
 
     /// The first protected name among the entries up to `depth` levels inside `folder`, never following symlinks or crossing volumes.
     /// A folder that can't be fully searched answers with the reason, so it is refused rather than guessed at.
-    static func protectedEntry(in folder: URL, names: Set<String>, depth: Int) -> String? {
+    /// `allowed` passes over a found entry (by path, level and whether it is a folder) without looking inside it.
+    static func protectedEntry(in folder: URL, names: Set<String>, depth: Int,
+                               allowed: (_ path: String, _ level: Int, _ isFolder: Bool) -> Bool = { _, _, _ in false }) -> String? {
         if depth <= 1 {
             return names.sorted().first { name in
                 var inner = stat()
@@ -75,8 +90,11 @@ public struct CandidateCheck: Sendable {
             guard level > 0, kind != FTS_DP else { return .continue }
             seen += 1
             if seen > protectedSearchLimit { found = "too many items to check"; return .stop }
-            let name = String(cString: entry.pointee.fts_path).split(separator: "/").last.map(String.init) ?? ""
-            if names.contains(name) { found = name; return .stop }
+            let path = String(cString: entry.pointee.fts_path), name = path.split(separator: "/").last.map(String.init) ?? ""
+            if names.contains(name) {
+                if allowed(path, level, kind == FTS_D) { return .skip }
+                found = name; return .stop
+            }
             if kind == FTS_DNR || kind == FTS_ERR { found = "unreadable folder"; return .stop }
             return kind == FTS_D && level >= depth ? .skip : .continue
         }
@@ -93,7 +111,7 @@ public struct CandidateCheck: Sendable {
     /// Whether checking this candidate asks what processes have open: leaked copies and old temporary items.
     public func needsInUseCheck(_ candidate: Candidate) -> Bool {
         guard let rule = catalog.rule(candidate.ruleID) else { return false }
-        return rule.copies != nil || rule.unused != nil
+        return rule.copies != nil || rule.unused != nil || rule.id == ProjectBuilds.ruleID
     }
     public func check(_ candidate: Candidate) -> CheckRefusal? {
         // Guidance-only data is never acted on, whatever the candidate or its rule says (SPEC section 3).
@@ -140,6 +158,8 @@ public struct CandidateCheck: Sendable {
             guard let used = inUse.inUse([candidate.url], by: .anyApp) else { return .inUseUnknown(RuleOwner.anyApp.name) }
             if !used.isEmpty { return .inUse(RuleOwner.anyApp.name) }
         }
+        // A project being worked on keeps its build folders (#157).
+        if rule.id == ProjectBuilds.ruleID, let refusal = ProjectBuilds.refusal(for: candidate.url, inUse: inUse, home: home) { return refusal }
         // A system image a virtual device started using since the scan is kept (#134).
         if rule.items == .androidSystemImages, AndroidSDK.referencedImages(home: home).map({ $0.contains(AndroidSDK.key(candidate.url)) }) ?? true {
             return .inUse("An Android virtual device")

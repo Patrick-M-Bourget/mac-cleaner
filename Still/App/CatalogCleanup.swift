@@ -13,8 +13,15 @@ import SwiftUI
     private(set) var pickedFiles: [URL: [Candidate]] = [:] { didSet { indexPickedFiles() } }
     /// The picked folders' files the plan offers, by "dev:ino". A file a catalog rule already offers is left to that rule.
     private(set) var pickedByResource: [String: Candidate] = [:]
+    /// Build folders in projects inside each folder the user picked and scanned, keyed by that folder (`ProjectBuilds`, #157).
+    private(set) var projectBuilds: [URL: [Candidate]] = [:]
+    /// The picked folders' build folders, once each, unless a catalog rule already offers one.
+    var projectBuildCandidates: [Candidate] {
+        var seen = Set(discovered.map(\.resourceID))
+        return projectBuilds.keys.sorted { $0.path < $1.path }.flatMap { projectBuilds[$0] ?? [] }.filter { seen.insert($0.resourceID).inserted }
+    }
     /// Everything the plan can offer.
-    var candidates: [Candidate] { discovered + pickedCandidates }
+    var candidates: [Candidate] { discovered + pickedCandidates + projectBuildCandidates }
     /// The large and old files offered from picked folders, largest first.
     var pickedCandidates: [Candidate] { pickedByResource.values.sorted { $0.estimatedBytes != $1.estimatedBytes ? $0.estimatedBytes > $1.estimatedBytes : $0.url.path < $1.url.path } }
     private func indexPickedFiles() {
@@ -295,19 +302,22 @@ import SwiftUI
         selectionRevision &+= 1
     }
 
-    /// Lists a picked folder's large and old files from its finished scan. Read-only; nothing is chosen.
+    /// Lists a picked folder's large and old files from its finished scan, and its projects' build folders. Read-only; nothing is chosen.
     func showPickedFiles(_ scan: ScanResult) async {
         guard !isRunning, let exclusions = try? await ExclusionsModel.shared.policyForScan() else { return }
         let home = Self.checkHome
-        let found = await Task.detached(priority: .userInitiated) { UserFiles.candidates(in: scan, exclusions: exclusions, home: home) }.value
+        let (found, builds) = await Task.detached(priority: .userInitiated) {
+            (UserFiles.candidates(in: scan, exclusions: exclusions, home: home), ProjectBuilds.candidates(in: scan.scope, exclusions: exclusions, home: home))
+        }.value
         guard !isRunning else { return }
         pickedFiles[scan.scope.standardizedFileURL] = found
+        projectBuilds[scan.scope.standardizedFileURL] = builds
         keepOnlyCurrentChoices()
     }
     /// A picked folder was forgotten, lost access or must be scanned again: its files are no longer offered.
     func forgetPickedFiles(_ scope: URL? = nil) {
         guard !isRunning else { return }
-        if let scope { pickedFiles[scope.standardizedFileURL] = nil } else { pickedFiles = [:] }
+        if let scope { pickedFiles[scope.standardizedFileURL] = nil; projectBuilds[scope.standardizedFileURL] = nil } else { pickedFiles = [:]; projectBuilds = [:] }
         keepOnlyCurrentChoices()
     }
     /// Chooses or clears every item the rule found.
@@ -374,13 +384,14 @@ import SwiftUI
         defer { isRunning = false; executor = nil }
         guard let check = await currentCheck() else { return }
         do {
-            let run = CleanupExecutor(journal: try CleanupJournalLocation.writer(), check: check, cancellation: cancellation)
+            let run = CleanupExecutor(journal: try CleanupJournalLocation.writer(), check: check, trash: TrashModel.mover, cancellation: cancellation)
             executor = run
             let outcome = await run.execute(approval)
             result = outcome
             if !approval.previewOnly { rescanFollowsCleanup = true }
             // Picked folders keep the large and old files this run didn't act on (#125).
-            selections.finishRun(from: source); discovered = []; pickedFiles = pickedFiles.mapValues { UserFiles.remaining($0, after: outcome) }; hasScanned = false; selectionRevision &+= 1
+            selections.finishRun(from: source); discovered = []; pickedFiles = pickedFiles.mapValues { UserFiles.remaining($0, after: outcome) }
+            projectBuilds = projectBuilds.mapValues { UserFiles.remaining($0, after: outcome) }; hasScanned = false; selectionRevision &+= 1
         } catch { message = "The cleanup journal is unavailable. Nothing was changed." }
     }
     func cancel() { executor?.cancel() }
@@ -391,7 +402,7 @@ import SwiftUI
     }
     func endSession() {
         guard !isRunning else { return }
-        selectedIDs = []; pickedFiles = [:]; result = nil; message = nil; selectionRevision &+= 1
+        selectedIDs = []; pickedFiles = [:]; projectBuilds = [:]; result = nil; message = nil; selectionRevision &+= 1
     }
     private func currentCheck() async -> CandidateCheck? {
         do { return CandidateCheck(catalog: catalog, running: SystemRunningAppChecker(), exclusions: try await ExclusionsModel.shared.policyForScan(), cloud: Self.cloud,
@@ -487,7 +498,9 @@ func catalogBytes(_ value: Int64, complete: Bool = true, upperBound: Bool = fals
 
 extension CleanupRule {
     /// Whether every item the rule offers is a single file.
-    var offersFiles: Bool { contents != nil || fromPickedFolders }
+    var offersFiles: Bool { contents != nil || id == UserFiles.ruleID }
+    /// The plan shows its items one row per project (#157).
+    var groupsByProject: Bool { id == ProjectBuilds.ruleID }
 }
 
 extension Candidate {
