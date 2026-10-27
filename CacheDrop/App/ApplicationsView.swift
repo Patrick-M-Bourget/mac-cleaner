@@ -51,8 +51,8 @@ import SwiftUI
     }
 }
 
-/// Applications (Decision 51): apps, plug-in products and leftovers of removed apps on one page. Apps (#177) and leftovers
-/// and plug-in products (#176) are chosen and cleaned through the plan's selection, review sheet and run.
+/// Applications (Decision 51): apps, plug-in products and leftovers of removed apps on one page. Apps (#177),
+/// leftovers and plug-in products (#176) are chosen and cleaned through the plan's selection, review sheet and run.
 struct ApplicationsView: View {
     let selection: SessionPlan
     let model: ApplicationsModel
