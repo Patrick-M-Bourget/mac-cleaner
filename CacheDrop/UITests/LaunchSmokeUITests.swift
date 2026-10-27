@@ -2,10 +2,61 @@ import XCTest
 import Darwin
 
 /// A fresh, owned state root so a launch never reads or writes the user's real app state.
+/// #299: the fixture folders a UI test makes in the runner's temp folder are removed after every test, whether it passed,
+/// failed or stopped early, with locked fixtures (0555 apps, 0311 or 0 folders) made writable first. The first fixture of a
+/// run also removes any left over from an earlier run that are more than a day old.
+@MainActor enum FixtureFolders {
+    static let prefixes = ["CacheDropTestHome-", "CacheDropTestState-", "CacheDropPicked-"]
+    private static var made: [URL] = []
+    private static var observer: Observer?
+
+    /// Registers a fixture folder for removal when the current test finishes.
+    static func track(_ folder: URL) {
+        if observer == nil {
+            let new = Observer()
+            XCTestObservationCenter.shared.addTestObserver(new)
+            observer = new
+            removeStale(in: FileManager.default.temporaryDirectory.resolvingSymlinksInPath())
+        }
+        made.append(folder)
+    }
+    static func removeMade() {
+        made.forEach(remove)
+        made = []
+    }
+    /// Fixture folders older than `age` in `temp`, from runs that ended before cleaning up.
+    static func removeStale(in temp: URL, olderThan age: TimeInterval = 24 * 60 * 60) {
+        let entries = (try? FileManager.default.contentsOfDirectory(at: temp, includingPropertiesForKeys: [.contentModificationDateKey])) ?? []
+        for entry in entries where prefixes.contains(where: entry.lastPathComponent.hasPrefix) {
+            guard let modified = try? entry.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate,
+                  Date().timeIntervalSince(modified) > age else { continue }
+            remove(entry)
+        }
+    }
+    /// Gives the owner full access to every folder in it, never following links, then removes it.
+    static func remove(_ folder: URL) {
+        func unlock(_ url: URL) {
+            var info = stat()
+            guard lstat(url.path, &info) == 0, info.st_mode & S_IFMT == S_IFDIR else { return }
+            chmod(url.path, (info.st_mode & 0o7777) | 0o700)
+            for child in (try? FileManager.default.contentsOfDirectory(atPath: url.path)) ?? [] { unlock(url.appendingPathComponent(child)) }
+        }
+        unlock(folder)
+        try? FileManager.default.removeItem(at: folder)
+    }
+
+    private final class Observer: NSObject, XCTestObservation {
+        func testCaseDidFinish(_ testCase: XCTestCase) {
+            MainActor.assumeIsolated { FixtureFolders.removeMade() }
+        }
+    }
+}
+
 @MainActor func configureIsolatedState(_ app: XCUIApplication) throws -> URL {
     let token = UUID().uuidString
     let state = FileManager.default.temporaryDirectory.resolvingSymlinksInPath().appendingPathComponent("CacheDropTestState-" + token)
     try FileManager.default.createDirectory(at: state, withIntermediateDirectories: false, attributes: [.posixPermissions: 0o700])
+    FixtureFolders.track(state)
     let marker = state.appendingPathComponent(".cachedrop-owned-test-state")
     try Data(token.utf8).write(to: marker)
     try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: marker.path)
@@ -17,6 +68,28 @@ import Darwin
 }
 
 final class LaunchSmokeUITests: XCTestCase {
+    /// #299: locked fixtures are unlocked and removed; only fixture folders more than a day old are swept at start. No app launch.
+    @MainActor func testFixtureFoldersAreRemovedEvenWhenLockedAndOnlyStaleOnesAreSwept() throws {
+        let temp = FileManager.default.temporaryDirectory.resolvingSymlinksInPath().appendingPathComponent("FixtureSweep-" + UUID().uuidString)
+        defer { FixtureFolders.remove(temp) }
+        let stale = temp.appendingPathComponent("CacheDropTestHome-" + UUID().uuidString), fresh = temp.appendingPathComponent("CacheDropTestState-" + UUID().uuidString)
+        let other = temp.appendingPathComponent("Unrelated-" + UUID().uuidString)
+        let app = stale.appendingPathComponent("Applications/Locked Suite.app"), folder = stale.appendingPathComponent("Library/Caches/Locked")
+        for url in [app.appendingPathComponent("Contents"), folder.appendingPathComponent("inner"), fresh, other] {
+            try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+        }
+        chmod(app.path, 0o555); chmod(folder.path, 0o311)
+        let old = Date(timeIntervalSinceNow: -2 * 24 * 60 * 60)
+        for url in [stale, other] { try FileManager.default.setAttributes([.modificationDate: old], ofItemAtPath: url.path) }
+
+        FixtureFolders.removeStale(in: temp)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: stale.path), "A locked fixture home more than a day old is removed")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: fresh.path), "A recent one may be another run's")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: other.path), "Only fixture folders")
+        FixtureFolders.remove(fresh)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: fresh.path))
+    }
+
     @MainActor func testLaunchShowsOverviewAndWhatGrewWithoutStorageAlerts() throws {
         continueAfterFailure = false
         let app = XCUIApplication()

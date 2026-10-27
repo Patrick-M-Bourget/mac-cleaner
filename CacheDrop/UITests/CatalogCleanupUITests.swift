@@ -4,6 +4,7 @@ import XCTest
 /// the DEBUG-only CACHEDROP_TEST_CATALOG_HOME seam, so the journey never touches real user paths.
 @MainActor func configureCatalogHome(_ app: XCUIApplication) throws -> URL {
     let home = FileManager.default.temporaryDirectory.resolvingSymlinksInPath().appendingPathComponent("CacheDropTestHome-" + UUID().uuidString)
+    FixtureFolders.track(home)
     let file = home.appendingPathComponent(".npm/_cacache/content-v2/sha512/ab/blob")
     try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
     try Data(repeating: 7, count: 200_000).write(to: file)

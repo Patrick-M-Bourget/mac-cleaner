@@ -78,12 +78,65 @@ private func makeApp(_ url: URL, id: String, bytes: Int, copyright: String? = ni
                      InstalledApp(name: "Gone", bundleID: "com.other.gone", path: apps.appendingPathComponent("Gone.app").path),
                      InstalledApp(name: "Chess", bundleID: "com.other.chess", path: "/System/Applications/Chess.app")]
 
-    let listed = ApplicationsInventory.apps(installed, excluding: "com.patrickbourget.CacheDrop")
+    let listed = ApplicationsInventory.apps(installed, excluding: "com.patrickbourget.CacheDrop", home: root)
     #expect(listed.map(\.name) == ["Big Synth", "Small"])
     #expect(listed.first?.maker == "Maker Audio Inc")
     #expect(listed.map(\.bundleID) == ["com.maker.big", "com.other.small"])
     #expect(listed.first?.parts.map(\.url.lastPathComponent) == ["Big Synth.app"])
     #expect(listed.allSatisfy { !$0.needsPassword && $0.volume == nil })
+}
+
+/// #297: only the Applications folders themselves count: `/Applications`, `~/Applications` and a volume's own `Applications`.
+/// A copy in any other folder named Applications (a backup, a test fixture, a disk image) is never listed, so never offered.
+@Test func onlyTheApplicationsFoldersAppsAreListedNotAnyFolderNamedApplications() throws {
+    let root = try temporaryFolder()
+    defer { try? FileManager.default.removeItem(at: root) }
+    let home = root.appendingPathComponent("home")
+    let mine = try makeApp(home.appendingPathComponent("Applications/Mine.app"), id: "com.maker.mine", bytes: 1_000)
+    let inVendorFolder = try makeApp(home.appendingPathComponent("Applications/Maker/Tool.app"), id: "com.maker.tool", bytes: 1_000)
+    let backup = try makeApp(root.appendingPathComponent("Backup/Applications/Big Synth.app"), id: "com.maker.big", bytes: 1_000)
+    let fixture = try makeApp(home.appendingPathComponent("Library/Containers/x/Data/tmp/CacheDropTestHome-1/Applications/Pad.app"), id: "com.maker.pad", bytes: 1_000)
+    let deeper = try makeApp(root.appendingPathComponent("Backup/Applications/Maker/Old.app"), id: "com.maker.old", bytes: 1_000)
+
+    let listed = ApplicationsInventory.apps([mine, inVendorFolder, backup, fixture, deeper], excluding: nil, home: home)
+    #expect(Set(listed.map(\.name)) == ["Mine", "Tool"])
+    #expect(ApplicationsInventory.withUninstallers([backup, fixture, deeper], excluding: nil, home: home).isEmpty)
+    for path in ["/Applications/A.app", "/Applications/Utilities/A.app", "/Volumes/Studio/Applications/A.app", home.path + "/Applications/A.app"] {
+        #expect(ApplicationsInventory.isInApplicationsFolder(URL(fileURLWithPath: path), home: home), "\(path)")
+    }
+    for path in ["/System/Applications/A.app", "/Users/other/Applications/A.app", "/Volumes/Studio/Backup/Applications/A.app", "/Applications/A.app/Contents/B.app",
+                 "/Applications/A/B/C.app", root.path + "/Applications/A.app"] {
+        #expect(!ApplicationsInventory.isInApplicationsFolder(URL(fileURLWithPath: path), home: home), "\(path)")
+    }
+}
+
+/// #297: a volume's Applications folder that is a link (a disk image's shortcut to /Applications, or the startup disk's own
+/// entry in /Volumes) lists nothing of its own.
+@Test func aLinkedApplicationsFolderOnAVolumeListsNothing() throws {
+    let volumes = try FileManager.default.contentsOfDirectory(atPath: "/Volumes")
+    for volume in volumes where (try? FileManager.default.destinationOfSymbolicLink(atPath: "/Volumes/" + volume)) != nil {
+        #expect(!ApplicationsInventory.isInApplicationsFolder(URL(fileURLWithPath: "/Volumes/\(volume)/Applications/A.app")), "\(volume) is the startup disk")
+    }
+}
+
+/// #297: an app on a mounted disk image is never listed, even in the image's own Applications folder.
+@Test func anAppOnAMountedDiskImageIsNotListed() throws {
+    let root = try temporaryFolder()
+    defer { try? FileManager.default.removeItem(at: root) }
+    let image = root.appendingPathComponent("t.dmg"), mount = root.appendingPathComponent("mnt")
+    func hdiutil(_ arguments: [String]) throws -> Int32 {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/hdiutil"); process.arguments = arguments + ["-quiet"]
+        try process.run(); process.waitUntilExit()
+        return process.terminationStatus
+    }
+    try #require(try hdiutil(["create", "-size", "2m", "-fs", "APFS", "-volname", "CacheDropTestImage", image.path]) == 0)
+    try #require(try hdiutil(["attach", image.path, "-nobrowse", "-mountpoint", mount.path]) == 0)
+    defer { _ = try? hdiutil(["detach", mount.path, "-force"]) }
+
+    #expect(ApplicationsInventory.isDiskImage(mount))
+    #expect(!ApplicationsInventory.isDiskImage(URL(fileURLWithPath: "/")))
+    #expect(!ApplicationsInventory.isDiskImage(URL(fileURLWithPath: "/Volumes/No Such Volume \(UUID())")))
 }
 
 @Test func anEntryOnAnotherVolumeNamesItAndOneNothingCanMoveNeedsAPassword() {
