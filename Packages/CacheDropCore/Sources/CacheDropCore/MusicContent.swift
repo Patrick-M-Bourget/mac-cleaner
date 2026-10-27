@@ -60,21 +60,19 @@ public struct MusicVendor: Sendable, Equatable {
         // Defaults from Ableton's Live Browser and User Library articles. The User Library holds the user's own presets
         // and samples. Live's settings can move both; reading them is open until Ableton documents where they live.
         MusicVendor(name: "Ableton", locations: [
-            .init(path: "Music/Ableton/Factory Packs", name: "Packs", kind: .installed),
+            .init(path: BuiltInCatalog.abletonPacks, name: "Packs", kind: .installed),
             .init(path: "Music/Ableton/User Library", name: "User Library", kind: .yours),
         ], owners: .vendorProducts("com.ableton")),
         // Apple's Logic Pro 12 / MainStage 4 library (relocatable) and the legacy layout (support.apple.com 111094 and
-        // Logic's legacy content guide), shared by Logic Pro, GarageBand and MainStage (as GuidanceCatalog's sound library
-        // says). Bundle IDs: Logic's `com.apple.logic10` (GuidanceCatalog); GarageBand's `com.apple.garageband10` (its
+        // Logic's legacy content guide), shared by Logic Pro, GarageBand and MainStage (as the sound library guidance
+        // says). Bundle IDs: Logic's `com.apple.logic10` (the guidance rule); GarageBand's `com.apple.garageband10` (its
         // published version history); MainStage's `com.apple.mainstage3` is unchecked: no source found, and it isn't
         // installed on the Mac this was written on.
         MusicVendor(name: "Apple", locations: [
             .init(path: "Music/Logic Pro Library.bundle", name: "Logic Pro Library", kind: .installed),
-            .init(path: "/Library/Application Support/Logic", name: "Logic content", kind: .installed),
-            .init(path: "/Library/Audio/Apple Loops/Apple", name: "Apple Loops", kind: .installed),
-            .init(path: "/Library/Audio/Impulse Responses/Apple", name: "Impulse responses", kind: .installed),
+        ] + BuiltInCatalog.logicSoundLibrary.map { .init(path: $0.location, name: $0.name, kind: .installed) } + [
             // Loops the user made (Apple Support 101933): theirs.
-            .init(path: "Library/Audio/Apple Loops", name: "Your Apple Loops", kind: .yours),
+            .init(path: BuiltInCatalog.userAppleLoops, name: "Your Apple Loops", kind: .yours),
         ], owners: .apps(["com.apple.logic10", "com.apple.garageband10", "com.apple.mainstage3"])),
         // Waves' documented default for its instrument samples; Waves Central can relocate them. Shared by every Waves product.
         MusicVendor(name: "Waves", locations: [
