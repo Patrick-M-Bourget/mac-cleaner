@@ -197,28 +197,55 @@ private func catalogWith(_ apps: Apps) -> Catalog {
     }
 }
 
-/// #171, #203: Spotify's offline downloads can live in its cache folder, under any folder name its Settings > Storage is given.
-/// They are recognized by an `offline.bnk` file anywhere inside, never by a folder's name. Placeholder files only.
-@Test func spotifysCacheFolderIsNeverOfferedWhileItHoldsOfflineDownloads() throws {
+/// #171, #203, #243: Spotify's offline downloads can live in its cache folder, under any folder name its Settings > Storage is given.
+/// They are recognized by an `offline.bnk` file anywhere inside, and by the folder names `Storage` and `storage` (#171). The app's
+/// folder is split: every item but those is offered. Placeholder files only.
+@Test func spotifysOfflineDownloadsAreKeptAndTheRestOfItsCacheOffered() throws {
     let home = try fixtureHome()
     defer { try? FileManager.default.removeItem(at: home) }
     let spotify = InstalledApp(name: "Spotify", bundleID: "com.spotify.client", path: "/Applications/Spotify.app")
     let apps = Apps(installed: [spotify, editor])
-    // The streaming cache in Data and a folder named Storage, nothing downloaded: offered as before.
+    // The streaming cache in Data is offered; a folder named Storage is kept, even without `offline.bnk`.
     try write(home, "Library/Caches/com.spotify.client/Data/0c/chunk")
     try write(home, "Library/Caches/com.spotify.client/Storage/ab/chunk")
     // An app whose layout wasn't audited keeps today's behavior, whatever its folders are named.
     try write(home, "Library/Caches/com.example.Editor/My Music/sub/offline.bnk")
+    try write(home, "Library/Caches/com.example.Editor/Storage/ab/chunk")
     let caches = home.appendingPathComponent("Library/Caches").path
     let catalog = catalogWith(apps)
     let found = catalog.discover(fixture: home)
-    #expect(Set(found.map(\.url.path)) == [caches + "/com.spotify.client", caches + "/com.example.Editor"])
+    #expect(Set(found.map(\.url.path)) == [caches + "/com.spotify.client/Data", caches + "/com.example.Editor"])
 
-    // Downloads under a custom folder name appear before the cleanup: the folder is refused, and no longer offered.
-    let offered = try #require(found.first { $0.appName == "Spotify" })
+    // Downloads under a custom folder name appear before the cleanup: from then on that folder is kept too.
+    let data = try #require(found.first { $0.appName == "Spotify" })
+    let check = CandidateCheck(catalog: catalog, running: Running())
     try write(home, "Library/Caches/com.spotify.client/My Music/v2/sub/offline.bnk")
-    #expect(CandidateCheck(catalog: catalog, running: Running()).check(offered) == .protected("Spotify’s offline downloads"))
-    #expect(!catalog.discover(fixture: home).contains { $0.appName == "Spotify" })
+    try write(home, "Library/Caches/com.spotify.client/Cache.db")
+    #expect(check.check(data) == nil)
+    let split = catalog.discover(fixture: home).filter { $0.appName == "Spotify" }
+    #expect(Set(split.map(\.url.path)) == [caches + "/com.spotify.client/Data", caches + "/com.spotify.client/Cache.db"])
+    // The check re-applies it: an offered item that gained downloads since the scan is refused.
+    try write(home, "Library/Caches/com.spotify.client/Data/offline.bnk")
+    #expect(check.check(data) == .protected("Spotify’s offline downloads"))
+}
+
+/// #171, #243: downloads moved to `~/Library/Caches/com.spotify.client/storage` while `offline.bnk` stays in Application Support:
+/// `storage` is kept by its name, `Data` is still offered, and the check refuses the whole folder and `storage` itself.
+@Test func spotifysStorageFolderIsKeptWithoutOfflineBnk() throws {
+    let home = try fixtureHome()
+    defer { try? FileManager.default.removeItem(at: home) }
+    let spotify = InstalledApp(name: "Spotify", bundleID: "com.spotify.client", path: "/Applications/Spotify.app")
+    let catalog = catalogWith(Apps(installed: [spotify]))
+    let app = home.appendingPathComponent("Library/Caches/com.spotify.client")
+    try write(home, "Library/Caches/com.spotify.client/Data/0c/chunk")
+    let whole = try #require(catalog.discover(fixture: home).first)
+    #expect(whole.url.path == app.path)
+    try write(home, "Library/Caches/com.spotify.client/storage/v2/track.file")
+    try write(home, "Library/Caches/com.spotify.client/storage/v2/track2.file")
+    let check = CandidateCheck(catalog: catalog, running: Running())
+    #expect(check.check(whole) == .protected("Spotify’s offline downloads"))
+    #expect(catalog.discover(fixture: home).map(\.url.path) == [app.path + "/Data"])
+    #expect(AppCaches.isOfferedItem(app.appendingPathComponent("storage"), offlineContent: AppCaches.knownOfflineContent) == false)
 }
 
 /// #203: a web-view profile in an app's cache folder (Cookies, Login Data or Local Storage) is never offered whole; only its
@@ -238,7 +265,8 @@ private func catalogWith(_ apps: Apps) -> Catalog {
     let caches = home.appendingPathComponent("Library/Caches").path
     let found = catalog.discover(fixture: home)
     // Everything outside a profile is offered too (#241).
-    #expect(Set(found.map(\.url.path)) == [caches + "/com.example.Editor", caches + "/com.example.Chat/Cache.db", caches + "/com.example.Chat/Local State",
+    // Chromium's `Local State` (the profile list and settings) is kept like the sign-in files (#243).
+    #expect(Set(found.map(\.url.path)) == [caches + "/com.example.Editor", caches + "/com.example.Chat/Cache.db",
                                            caches + "/com.example.Chat/Data",
                                            caches + "/com.example.Chat/Default/Cache", caches + "/com.example.Chat/Default/Code Cache",
                                            caches + "/com.example.Chat/Default/GPUCache", caches + "/com.example.Chat/Partitions/help/GPUCache"])
@@ -252,9 +280,26 @@ private func catalogWith(_ apps: Apps) -> Catalog {
     let run = CleanupExecutor(journal: journal, check: check, measure: { _ in nil }, trash: TrashNeverUsed())
     #expect(try #require(await run.execute(CatalogApproval(candidates: [gpu], previewOnly: false)).records.first).state == .succeeded)
     #expect(!FileManager.default.fileExists(atPath: caches + "/com.example.Chat/Default/GPUCache"))
-    for kept in ["Default/Cookies", "Default/Login Data", "Default/Local Storage/leveldb/000003.log", "Default/Cache/Cache_Data/data_0"] {
+    for kept in ["Local State", "Default/Cookies", "Default/Login Data", "Default/Local Storage/leveldb/000003.log", "Default/Cache/Cache_Data/data_0"] {
         #expect(FileManager.default.fileExists(atPath: home.appendingPathComponent(app + "/" + kept).path), "\(kept)")
     }
+}
+
+/// #243: `Local State` alone, without a profile, splits an app's folder too: every other item is offered, and the check
+/// refuses a whole folder that gained one since the scan. Placeholder files only.
+@Test func localStateAloneIsKeptAndTheRestOffered() throws {
+    let home = try fixtureHome()
+    defer { try? FileManager.default.removeItem(at: home) }
+    let chat = InstalledApp(name: "Chat", bundleID: "com.example.Chat", path: "/Applications/Chat.app")
+    let catalog = catalogWith(Apps(installed: [chat]))
+    let check = CandidateCheck(catalog: catalog, running: Running())
+    try write(home, "Library/Caches/com.example.Chat/Data/chunk")
+    let whole = try #require(catalog.discover(fixture: home).first)
+    #expect(whole.url.lastPathComponent == "com.example.Chat")
+    try write(home, "Library/Caches/com.example.Chat/Local State")
+    #expect(check.check(whole) == .protected("Local State"))
+    let app = home.appendingPathComponent("Library/Caches/com.example.Chat").path
+    #expect(catalog.discover(fixture: home).map(\.url.path) == [app + "/Data"])
 }
 
 /// #203: the check just before acting refuses a whole app folder that gained sign-in data since the scan, and a profile
