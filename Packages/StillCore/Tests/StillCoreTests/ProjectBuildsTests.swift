@@ -50,6 +50,7 @@ private func offered(_ folder: URL, inUse: any InUseChecking = FixtureNothingInU
     #expect(found.values.allSatisfy { $0.ruleID == ProjectBuilds.ruleID && $0.action == .trash && $0.isDirectory && $0.sizeComplete && $0.estimatedBytes > 0 })
     // Grouped per project, with the project's last change.
     #expect(found["web/dist"]?.profile == "web")
+    #expect(found["web/dist"]?.itemName == "dist in web")
     let lastUsed = try #require(found["rust/target"]?.lastUsed)
     #expect(abs(lastUsed.timeIntervalSinceNow + 30 * day) < 5)
 }

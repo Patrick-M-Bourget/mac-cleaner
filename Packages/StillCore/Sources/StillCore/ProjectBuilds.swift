@@ -81,8 +81,11 @@ public enum ProjectBuilds {
                 let volume = try? url.resourceValues(forKeys: [.volumeUUIDStringKey]).volumeUUIDString
                 if !exclusions.rules.isEmpty, volume.map({ exclusions.covers(url, volumeID: $0) }) ?? true { return nil }
                 let size = sizer.size(url)
-                return catalog.candidate(rule, url, info, logical: size.logicalBytes, allocated: size.allocatedBytes, complete: size.complete,
-                                         lastUsed: lastChange, profile: name).found(under: scope)
+                var found = catalog.candidate(rule, url, info, logical: size.logicalBytes, allocated: size.allocatedBytes, complete: size.complete,
+                                              lastUsed: lastChange, profile: name)
+                // Named with its project, so a review or result line says which `node_modules` it was.
+                found.itemName = url.lastPathComponent + " in " + project.lastPathComponent
+                return found.found(under: scope)
             }
         }
     }
