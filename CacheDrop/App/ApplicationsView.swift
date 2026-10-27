@@ -3,9 +3,17 @@ import CacheDropCore
 import SwiftUI
 
 /// The apps and plug-in products the Applications page lists (Decision 51), read after each catalog scan. Read-only: this
-/// slice removes nothing here. Apps come from `AppPresence` and plug-ins from `PlugInInventory`, both test seams.
+/// slice removes nothing here. Where it reads is injected: apps from `appPresence`, plug-ins from `home` and `systemRoot`.
 @MainActor @Observable final class ApplicationsModel {
-    static let shared = ApplicationsModel()
+    /// The app's model, reading what the catalog reads (test runs inject a fixture home there).
+    static let shared = ApplicationsModel(home: CatalogCleanupModel.home, appPresence: CatalogCleanupModel.appPresence, systemRoot: CatalogCleanupModel.systemRoot)
+    /// The home folder plug-ins are read in; nil (a debug test run without a fixture home) lists nothing.
+    let home: URL?
+    private let appPresence: any AppPresence
+    private let systemRoot: URL
+    init(home: URL?, appPresence: any AppPresence, systemRoot: URL) {
+        self.home = home; self.appPresence = appPresence; self.systemRoot = systemRoot
+    }
     private(set) var apps: [InventoryEntry] = []
     private(set) var plugIns: [InventoryEntry] = []
     private(set) var hasLoaded = false
@@ -17,8 +25,8 @@ import SwiftUI
         guard !isLoading else { return }
         isLoading = true
         defer { isLoading = false; hasLoaded = true }
-        guard let home = CatalogCleanupModel.home else { apps = []; plugIns = []; return }
-        let presence = CatalogCleanupModel.appPresence, system = CatalogCleanupModel.systemRoot, own = Bundle.main.bundleIdentifier
+        guard let home else { apps = []; plugIns = []; return }
+        let presence = appPresence, system = systemRoot, own = Bundle.main.bundleIdentifier
         (apps, plugIns) = await Task.detached(priority: .userInitiated) {
             (ApplicationsInventory.apps(presence.installedApps() ?? [], excluding: own),
              ApplicationsInventory.plugIns(PlugInInventory.scan(home: home, systemRoot: system)))
@@ -146,7 +154,7 @@ struct ApplicationsView: View {
         } items: {
             LazyVStack(alignment: .leading, spacing: 0) {
                 ForEach(entry.parts, id: \.url) { part in
-                    InspectableItemRow(name: part.name, detail: PathDisplay.shortLocation(of: part.url, home: CatalogCleanupModel.checkHome), size: part.size.text,
+                    InspectableItemRow(name: part.name, detail: PathDisplay.shortLocation(of: part.url, home: model.home ?? FileManager.default.homeDirectoryForCurrentUser), size: part.size.text,
                                        symbol: category.symbol, inspected: false, inspect: { model.reveal(part.name, [part.url]) },
                                        detailLineLimit: 1, actionLabel: "Reveal \(part.name) in Finder") { EmptyView() }
                         .help(part.url.path)
