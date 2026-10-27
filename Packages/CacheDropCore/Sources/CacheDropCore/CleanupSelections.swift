@@ -4,9 +4,16 @@ import Foundation
 /// the other, and a finished run clears only the one it came from.
 public struct CleanupSelections: Sendable, Equatable {
     /// Which selection a review or run came from.
-    public enum Source: Sendable, Equatable { case plan, smartClean }
+    public enum Source: Sendable, Equatable {
+        case plan, smartClean, applications
+        /// The page that shows and cleans an item: leftovers of removed apps on Applications (Decision 51), the rest in the plan.
+        public static func page(of candidate: Candidate) -> Source {
+            RemovedAppLeftovers.ruleIDs.contains(candidate.ruleID) ? .applications : .plan
+        }
+    }
 
-    /// The Cleanup plan's chosen candidate ids. Nothing is preselected (Decision 28).
+    /// The chosen candidate ids of the Cleanup plan and the Applications page; each page shows and reviews only its own
+    /// (`chosen(on:from:)`). Nothing is preselected (Decision 28).
     public var plan: Set<String> = []
     /// Recommended items unticked on Smart clean; every other recommended item is ticked.
     public private(set) var smartCleanUnticked: Set<String> = []
@@ -25,10 +32,18 @@ public struct CleanupSelections: Sendable, Equatable {
         RecommendedPlan(catalog: catalog, candidates: found, check: check).candidates.filter(isInSmartClean)
     }
 
-    /// A run finished: its own selection starts over (Smart clean with everything ticked again); the other is kept.
-    public mutating func finishRun(from source: Source) {
+    /// The chosen items among `found` that `page` shows (the plan or Applications).
+    public func chosen(on page: Source, from found: [Candidate]) -> [Candidate] {
+        found.filter { plan.contains($0.id) && Source.page(of: $0) == page }
+    }
+
+    /// A run finished: its own selection starts over (Smart clean with everything ticked again); the others are kept.
+    /// `found` tells the plan's items from the Applications page's, which share one set.
+    public mutating func finishRun(from source: Source, found: [Candidate] = []) {
+        let applications = Set(found.filter { Source.page(of: $0) == .applications }.map(\.id))
         switch source {
-        case .plan: plan = []
+        case .plan: plan.formIntersection(applications)
+        case .applications: plan.subtract(applications)
         case .smartClean: smartCleanUnticked = []
         }
     }

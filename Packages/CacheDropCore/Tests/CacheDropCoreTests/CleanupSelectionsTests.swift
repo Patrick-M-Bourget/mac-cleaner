@@ -64,3 +64,26 @@ private let scan = [npm, logs, installer, derived]
     #expect(selections.plan.isEmpty)
     #expect(!selections.isInSmartClean(logs))
 }
+
+/// Decision 51: leftovers of removed apps are chosen and cleaned on the Applications page, the rest in the Cleanup plan.
+private let leftover = item(RemovedAppLeftovers.ruleID, name: "Synth"), related = item(RemovedAppLeftovers.possiblyRelatedRuleID, name: "Gone")
+
+@Test func eachPageReviewsOnlyTheItemsItShows() {
+    var selections = CleanupSelections()
+    selections.plan = [installer.id, leftover.id, related.id]
+    let found = scan + [leftover, related]
+    #expect(selections.chosen(on: .plan, from: found).map(\.ruleID) == ["downloads-installers"])
+    #expect(selections.chosen(on: .applications, from: found).map(\.ruleID) == [RemovedAppLeftovers.ruleID, RemovedAppLeftovers.possiblyRelatedRuleID])
+}
+
+@Test func aFinishedRunFromOnePageKeepsTheOtherPagesChoices() {
+    var selections = CleanupSelections()
+    let found = scan + [leftover, related]
+    selections.plan = [installer.id, leftover.id]
+    selections.finishRun(from: .applications, found: found)
+    #expect(selections.plan == [installer.id])
+
+    selections.plan = [installer.id, leftover.id]
+    selections.finishRun(from: .plan, found: found)
+    #expect(selections.plan == [leftover.id])
+}
