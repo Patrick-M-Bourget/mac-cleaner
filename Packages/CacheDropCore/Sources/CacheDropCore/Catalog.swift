@@ -23,25 +23,13 @@ public struct ToolCommand: Sendable, Hashable {
     /// The command hands its work to a daemon outside its process group (Docker, CoreSimulator), so stopping it
     /// at a cancel or its time limit doesn't stop the work, which may still be finishing.
     public let daemonBacked: Bool
-    /// Arguments that make the tool print the folder it keeps its data in, as in `uv cache dir` (Decision 44). When set,
-    /// discovery asks the tool, and the folder it names is the candidate instead of the rule's locations. A tool that
-    /// doesn't answer within `locationQueryTimeout`, fails or names no usable folder is handled by `whenLocationUnanswered`.
-    public let locationQuery: [String]?
-    public let locationQueryTimeout: TimeInterval
-    /// What discovery does when the tool isn't found or doesn't say where its folder is (`UnansweredLocation`).
-    public let whenLocationUnanswered: UnansweredLocation
-    /// The folder inside the one the tool names that is the candidate, as `_cacache` inside `npm config get cache`.
-    public let reportedSubfolder: String?
-    /// Entries the tool's docs say its cache holds (pip's `http-v2`, Homebrew's `downloads`). When set, a folder the tool names
-    /// that a rule deletes is offered only when it holds at least one of them as a folder (#205).
-    public let cacheMarkers: Set<String>?
+    /// How this tool is asked where it keeps its data, as in `uv cache dir` (Decision 44); nil when it isn't.
+    public let locationQuery: LocationQuery?
     public init(executables: [String], arguments: [String], timeout: TimeInterval, deletesLocationAfter: Bool = false, itemPlaceholder: String? = nil, daemonBacked: Bool = false,
-                locationQuery: [String]? = nil, locationQueryTimeout: TimeInterval = 5, whenLocationUnanswered: UnansweredLocation = .notOffered, reportedSubfolder: String? = nil,
-                cacheMarkers: Set<String>? = nil) {
+                locationQuery: LocationQuery? = nil) {
         self.executables = executables; self.arguments = arguments; self.timeout = timeout; self.deletesLocationAfter = deletesLocationAfter
         self.itemPlaceholder = itemPlaceholder; self.daemonBacked = daemonBacked
-        self.locationQuery = locationQuery; self.locationQueryTimeout = locationQueryTimeout
-        self.whenLocationUnanswered = whenLocationUnanswered; self.reportedSubfolder = reportedSubfolder; self.cacheMarkers = cacheMarkers
+        self.locationQuery = locationQuery
     }
     /// The arguments for one item; nil when the command needs an item name and has none.
     public func arguments(for item: String?) -> [String]? {
@@ -163,13 +151,17 @@ public struct CleanupRule: Sendable, Identifiable {
     /// (a JetBrains folder holds local history), on top of the kinds `choosesItems` already counts.
     public let itemByItem: Bool
     /// A tool asked where a rule's folder is when the rule doesn't run a tool of its own (`npm config get cache`, #170).
-    /// Only its `locationQuery` is ever run; its `arguments` are empty. A `.tool` rule asks its own `tool` instead.
-    public let locationTool: ToolCommand?
-    /// The tool asked where this rule's folder is, if any: its own tool when that has a `locationQuery`, else `locationTool`.
-    public var locationAsker: ToolCommand? { tool?.locationQuery != nil ? tool : locationTool?.locationQuery != nil ? locationTool : nil }
+    /// Only its query is ever run. A `.tool` rule asks its own `tool` instead.
+    public let locationTool: LocationTool?
+    /// The tool asked where this rule's folder is, if any, decided here only: its own `tool` when that has a `locationQuery`
+    /// (`isOwnTool`, so discovery uses the executable it already found), else `locationTool`.
+    public var locationAsker: (tool: LocationTool, isOwnTool: Bool)? {
+        if let tool, let query = tool.locationQuery { return (LocationTool(executables: tool.executables, query: query), true) }
+        return locationTool.map { ($0, false) }
+    }
     public init(id: String, category: CatalogCategory, title: String, detail: String, consequence: String, regen: RegenClass, action: CleanupAction, locations: [String], owner: RuleOwner?, protectedNames: [String] = [], tool: ToolCommand? = nil, protectedExtensions: [String] = [], contents: ContentsMatch? = nil, keepNewestVersions: Int? = nil, layoutOverrides: [LayoutOverride] = [], base: LocationBase = .home, copies: LeakedCopies? = nil, itemName: (@Sendable (String) -> String?)? = nil, items: CatalogItems? = nil, unprotectedExtensions: Set<String> = [],
                 itemOwner: (@Sendable (URL) -> RuleOwner?)? = nil, yieldsToOtherRules: Bool = false, protectedDepth: Int = 1, requiresFullDiskAccess: Bool = false, guidance: Guidance? = nil,
-                unprotectedNames: Set<String> = [], fromPickedFolders: Bool = false, unused: UnusedItems? = nil, itemByItem: Bool = false, locationTool: ToolCommand? = nil) {
+                unprotectedNames: Set<String> = [], fromPickedFolders: Bool = false, unused: UnusedItems? = nil, itemByItem: Bool = false, locationTool: LocationTool? = nil) {
         self.id = id; self.category = category; self.title = title; self.detail = detail; self.consequence = consequence
         self.regen = regen; self.action = action; self.locations = locations; self.owner = owner; self.protectedNames = protectedNames; self.tool = tool
         self.protectedExtensions = protectedExtensions; self.contents = contents; self.keepNewestVersions = keepNewestVersions; self.layoutOverrides = layoutOverrides
@@ -201,8 +193,8 @@ public enum BuiltInCatalog {
                     consequence: "Permanently removed. npm downloads packages again as needed; the next install may take longer.",
                     regen: .cache, action: .delete, locations: [".npm/_cacache"],
                     owner: RuleOwner(name: "npm", executables: ["npm", "npx"], scripts: ["npm", "npx", "npm-cli.js", "npx-cli.js"]),
-                    locationTool: ToolCommand(executables: ["/opt/homebrew/bin/npm", "/usr/local/bin/npm"], arguments: [], timeout: 0, locationQuery: ["config", "get", "cache"],
-                                              whenLocationUnanswered: .defaultLocations, reportedSubfolder: "_cacache")),
+                    locationTool: LocationTool(executables: ["/opt/homebrew/bin/npm", "/usr/local/bin/npm"],
+                                               query: LocationQuery(["config", "get", "cache"], whenUnanswered: .defaultLocations, reportedSubfolder: "_cacache"))),
         CleanupRule(id: "yarn-cache", category: .developer, title: "Yarn cache",
                     detail: "Packages Yarn downloaded for your projects.",
                     consequence: "Permanently removed. Yarn downloads packages again as needed; the next install may take longer.",
@@ -214,7 +206,7 @@ public enum BuiltInCatalog {
                     regen: .cache, action: .tool, locations: ["Library/pnpm/store"],
                     owner: pnpmOwner,
                     tool: ToolCommand(executables: ["/opt/homebrew/bin/pnpm", "/usr/local/bin/pnpm", NSHomeDirectory() + "/Library/pnpm/pnpm"], arguments: ["store", "prune"], timeout: 300,
-                                      locationQuery: ["store", "path"], whenLocationUnanswered: .defaultLocations)),
+                                      locationQuery: LocationQuery(["store", "path"], whenUnanswered: .defaultLocations))),
         CleanupRule(id: "pnpm-cache", category: .developer, title: "pnpm metadata cache",
                     detail: "Package metadata pnpm downloaded.",
                     consequence: "Permanently removed. pnpm downloads metadata again as needed.",
@@ -227,7 +219,7 @@ public enum BuiltInCatalog {
                     regen: .cache, action: .tool, locations: [".cache/uv"],
                     owner: RuleOwner(name: "uv", executables: ["uv", "uvx"]),
                     tool: ToolCommand(executables: [NSHomeDirectory() + "/.local/bin/uv", "/opt/homebrew/bin/uv", "/usr/local/bin/uv", NSHomeDirectory() + "/.cargo/bin/uv"],
-                                      arguments: ["cache", "prune"], timeout: 300, locationQuery: ["cache", "dir"])),
+                                      arguments: ["cache", "prune"], timeout: 300, locationQuery: LocationQuery(["cache", "dir"]))),
         CleanupRule(id: "pip-cache", category: .developer, title: "pip cache",
                     detail: "Python packages pip downloaded and built.",
                     consequence: "Permanently removed. pip downloads packages again as needed; the next install may take longer.",
@@ -235,9 +227,8 @@ public enum BuiltInCatalog {
                     owner: RuleOwner(name: "pip", executables: ["pip", "pip3", "pip3.*"], scripts: ["pip", "pip3", "pip3.*"]),
                     // pip's cache holds `http-v2` (pip 23.3 on) or `http` (earlier), per https://pip.pypa.io/en/stable/topics/caching/,
                     // and `wheels`, per pip's `src/pip/_internal/cache.py` (`os.path.join(self.cache_dir, "wheels", ...)`).
-                    locationTool: ToolCommand(executables: ["/opt/homebrew/bin/python3", "/usr/local/bin/python3", "/Library/Developer/CommandLineTools/usr/bin/python3"], arguments: [],
-                                              timeout: 0, locationQuery: ["-m", "pip", "cache", "dir"], whenLocationUnanswered: .defaultLocations,
-                                              cacheMarkers: ["http-v2", "http", "wheels"])),
+                    locationTool: LocationTool(executables: ["/opt/homebrew/bin/python3", "/usr/local/bin/python3", "/Library/Developer/CommandLineTools/usr/bin/python3"],
+                                               query: LocationQuery(["-m", "pip", "cache", "dir"], whenUnanswered: .defaultLocations, cacheMarkers: ["http-v2", "http", "wheels"]))),
         CleanupRule(id: "cargo-cache", category: .developer, title: "Cargo cache",
                     detail: "Rust crates and git dependencies Cargo downloaded. Installed tools are not included.",
                     consequence: "Permanently removed. Cargo downloads crates again as needed; the next build may take longer.",
@@ -261,7 +252,7 @@ public enum BuiltInCatalog {
                     // `brew --cache` holds `downloads` (Homebrew's `download_strategy/abstract_file_download_strategy.rb`: `HOMEBREW_CACHE/"downloads/..."`)
                     // and `api` (`api.rb`: `HOMEBREW_CACHE_API = HOMEBREW_CACHE/"api"`), from https://github.com/Homebrew/brew.
                     tool: ToolCommand(executables: ["/opt/homebrew/bin/brew", "/usr/local/bin/brew"], arguments: ["cleanup", "-s"], timeout: 300, deletesLocationAfter: true,
-                                      locationQuery: ["--cache"], whenLocationUnanswered: .defaultLocations, cacheMarkers: ["downloads", "api"])),
+                                      locationQuery: LocationQuery(["--cache"], whenUnanswered: .defaultLocations, cacheMarkers: ["downloads", "api"]))),
         CleanupRule(id: "xcode-derived-data", category: .developer, title: "Xcode DerivedData",
                     detail: "Build files, indexes and products Xcode keeps for each project.",
                     consequence: "Permanently removed. Xcode rebuilds them; the next build and indexing take longer. Archives and your projects are not touched.",
@@ -447,8 +438,8 @@ public struct Catalog: Sendable {
             }
             // A tool that names its own folder (`uv cache dir`, `npm config get cache`) is asked; its answer replaces the rule's locations.
             var reported: URL?, defaultsNote: CatalogNote?, folderSource: String?
-            if let asker = rule.locationAsker {
-                switch reportedLocation(of: rule, asking: asker, at: rule.tool?.locationQuery != nil ? toolURL : locateTool(asker), base: base) {
+            if let (asker, isOwnTool) = rule.locationAsker {
+                switch reportedLocation(of: rule, asking: asker, at: isOwnTool ? toolURL : locateTool(asker.lookup), base: base) {
                 case .folder(let folder): reported = folder; folderSource = Self.namedBy(asker)
                 case .defaults(let note): defaultsNote = note; folderSource = note == nil ? Self.namedBy(asker) : "Usual folder"
                 case .notOffered(let note, let unmeasured):

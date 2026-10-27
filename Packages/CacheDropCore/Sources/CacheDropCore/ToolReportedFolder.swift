@@ -9,6 +9,41 @@ public enum UnansweredLocation: Sendable, Hashable {
     case defaultLocations
 }
 
+/// How a tool is asked where it keeps its data, as in `uv cache dir` (Decision 44). Discovery asks the tool, and the folder it
+/// names is the candidate instead of the rule's locations. A tool that doesn't answer within `timeout`, fails or names no
+/// usable folder is handled by `whenUnanswered`.
+public struct LocationQuery: Sendable, Hashable {
+    /// The arguments that make the tool print the folder.
+    public let arguments: [String]
+    public let timeout: TimeInterval
+    /// What discovery does when the tool isn't found or doesn't say where its folder is.
+    public let whenUnanswered: UnansweredLocation
+    /// The folder inside the one the tool names that is the candidate, as `_cacache` inside `npm config get cache`.
+    public let reportedSubfolder: String?
+    /// Entries the tool's docs say its cache holds (pip's `http-v2`, Homebrew's `downloads`). When set, a folder the tool names
+    /// that a rule deletes is offered only when it holds at least one of them as a folder (#205).
+    public let cacheMarkers: Set<String>?
+    public init(_ arguments: [String], timeout: TimeInterval = 5, whenUnanswered: UnansweredLocation = .notOffered, reportedSubfolder: String? = nil,
+                cacheMarkers: Set<String>? = nil) {
+        self.arguments = arguments; self.timeout = timeout; self.whenUnanswered = whenUnanswered
+        self.reportedSubfolder = reportedSubfolder; self.cacheMarkers = cacheMarkers
+    }
+}
+
+/// A tool that is only asked where a rule's folder is (`npm config get cache`, #170): the executables to try and the question.
+public struct LocationTool: Sendable, Hashable {
+    /// Absolute paths to try in order; the first installed one is asked.
+    public let executables: [String]
+    public let query: LocationQuery
+    public init(executables: [String], query: LocationQuery) { self.executables = executables; self.query = query }
+    /// The tool's name, as in `npm`.
+    public var name: String { executables.first.map { URL(fileURLWithPath: $0).lastPathComponent } ?? "" }
+    /// The question as shown in the plan, as in `npm config get cache` (in backticks).
+    var commandLine: String { "`" + ([name] + query.arguments).joined(separator: " ") + "`" }
+    /// Only for finding the installed executable with discovery's `locateTool`; never run as a cleanup command.
+    var lookup: ToolCommand { ToolCommand(executables: executables, arguments: [], timeout: 0) }
+}
+
 /// Where a rule whose tool names its folder looks, after asking (`Catalog.reportedLocation`).
 enum ReportedLocation: Equatable {
     /// A folder the tool named that isn't one of the rule's defaults. The item says where it came from (#206).
@@ -39,29 +74,26 @@ extension Catalog {
     }
 
     /// Why a rule whose tool names its folder offers nothing: the tool didn't say where it is. Never a size of 0.
-    static func locationQueryNotice(_ tool: ToolCommand, query: [String]) -> String {
-        let name = tool.executables.first.map { URL(fileURLWithPath: $0).lastPathComponent } ?? ""
-        return "\(name) didn’t say where its cache is (`\(([name] + query).joined(separator: " "))`), so it isn’t offered."
+    static func locationQueryNotice(_ tool: LocationTool) -> String {
+        "\(tool.name) didn’t say where its cache is (\(tool.commandLine)), so it isn’t offered."
     }
 
     /// Asks `asker`, installed at `toolURL` (nil when it isn't in one of its known locations), where `rule`'s folder is.
     /// Only the asker's own known executables are ever run. A named folder must pass the same scope checks as any other
     /// candidate; one that is missing, outside `base`, or holds more than the tool's cache is never offered, whatever the rule.
-    func reportedLocation(of rule: CleanupRule, asking asker: ToolCommand, at toolURL: URL?, base: URL) -> ReportedLocation {
-        guard let query = asker.locationQuery else { return .defaults(nil) }
-        let name = rule.owner?.name ?? asker.executables.first.map { URL(fileURLWithPath: $0).lastPathComponent } ?? rule.title
-        let command = "`" + ([asker.executables.first.map { URL(fileURLWithPath: $0).lastPathComponent } ?? ""] + query).joined(separator: " ") + "`"
+    func reportedLocation(of rule: CleanupRule, asking asker: LocationTool, at toolURL: URL?, base: URL) -> ReportedLocation {
+        let query = asker.query, name = rule.owner?.name ?? asker.name, command = asker.commandLine
         func unanswered(_ reason: String) -> ReportedLocation {
-            switch asker.whenLocationUnanswered {
-            case .notOffered: return .notOffered(CatalogNote(ruleID: rule.id, text: Self.locationQueryNotice(asker, query: query)), notMeasured: true)
+            switch query.whenUnanswered {
+            case .notOffered: return .notOffered(CatalogNote(ruleID: rule.id, text: Self.locationQueryNotice(asker)), notMeasured: true)
             case .defaultLocations: return .defaults(CatalogNote(ruleID: rule.id, text: reason))
             }
         }
         guard let toolURL else { return unanswered("\(name) wasn’t found, so its usual folder is offered.") }
-        guard case .success(let named) = Self.reportedFolder(by: toolURL, query: query, timeout: asker.locationQueryTimeout) else {
+        guard case .success(let named) = Self.reportedFolder(by: toolURL, query: query.arguments, timeout: query.timeout) else {
             return unanswered("\(name) didn’t say where its cache is (\(command)), so its usual folder is offered.")
         }
-        let folder = asker.reportedSubfolder.map { named.appendingPathComponent($0) } ?? named
+        let folder = query.reportedSubfolder.map { named.appendingPathComponent($0) } ?? named
         // A folder inside a usual location is that location: `pnpm store path` names `~/Library/pnpm/store/v10` (#206).
         let namedPath = folder.standardizedFileURL.path
         if rule.locations.contains(where: { location in
@@ -77,7 +109,7 @@ extension Catalog {
         // A folder the rule deletes must look like the tool's cache: a tool set to a project folder would otherwise take it (#205).
         if rule.deletesItems {
             if let userFolder = Self.userContentFolder(holding: folder, base: base) { return refused("which is inside your \(userFolder) folder") }
-            if let markers = asker.cacheMarkers, !markers.contains(where: { Self.isFolder(folder.appendingPathComponent($0)) }) {
+            if let markers = query.cacheMarkers, !markers.contains(where: { Self.isFolder(folder.appendingPathComponent($0)) }) {
                 return refused("which doesn’t look like its cache")
             }
         }
@@ -85,9 +117,7 @@ extension Catalog {
     }
 
     /// What a tool-asked item shows as its folder's source when the tool named it (#206).
-    static func namedBy(_ asker: ToolCommand) -> String? {
-        asker.locationQuery.map { "Named by `" + ([asker.executables.first.map { URL(fileURLWithPath: $0).lastPathComponent } ?? ""] + $0).joined(separator: " ") + "`" }
-    }
+    static func namedBy(_ asker: LocationTool) -> String { "Named by " + asker.commandLine }
 
     /// Home folders a tool's cache never is, whatever it says: deleting one would take the user's own files.
     static let homeFoldersNeverACache: Set<String> = ["Applications", "Desktop", "Developer", "Documents", "Downloads", "Library", "Movies", "Music", "Pictures", "Public"]

@@ -107,7 +107,8 @@ private func execute(_ candidate: Candidate, catalog: Catalog, home: URL, previe
     let rule = rules[index], tool = try #require(rule.tool)
     rules[index] = CleanupRule(id: rule.id, category: rule.category, title: rule.title, detail: rule.detail, consequence: rule.consequence, regen: rule.regen, action: rule.action,
                                locations: rule.locations, owner: rule.owner,
-                               tool: ToolCommand(executables: tool.executables, arguments: tool.arguments, timeout: tool.timeout, locationQuery: tool.locationQuery, locationQueryTimeout: 0.3))
+                               tool: ToolCommand(executables: tool.executables, arguments: tool.arguments, timeout: tool.timeout,
+                                                 locationQuery: LocationQuery(try #require(tool.locationQuery).arguments, timeout: 0.3)))
     let catalog = Catalog(rules: rules)
     for answer in ["echo 'error: no cache' >&2; exit 2", "sleep 5", "echo 'cache is somewhere'", "echo ''", "echo '\(home.path)/../uv'"] {
         let uv = try fakeUV(home, dir: answer)

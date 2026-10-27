@@ -73,8 +73,9 @@ private func npmRuleAskingWithin(_ timeout: TimeInterval) throws -> Catalog {
     let rule = rules[index], asker = try #require(rule.locationTool)
     rules[index] = CleanupRule(id: rule.id, category: rule.category, title: rule.title, detail: rule.detail, consequence: rule.consequence, regen: rule.regen, action: rule.action,
                                locations: rule.locations, owner: rule.owner,
-                               locationTool: ToolCommand(executables: asker.executables, arguments: [], timeout: 0, locationQuery: asker.locationQuery, locationQueryTimeout: timeout,
-                                                         whenLocationUnanswered: asker.whenLocationUnanswered, reportedSubfolder: asker.reportedSubfolder))
+                               locationTool: LocationTool(executables: asker.executables,
+                                                          query: LocationQuery(asker.query.arguments, timeout: timeout, whenUnanswered: asker.query.whenUnanswered,
+                                                                               reportedSubfolder: asker.query.reportedSubfolder)))
     return Catalog(rules: rules)
 }
 
@@ -107,7 +108,7 @@ private func npmRuleAskingWithin(_ timeout: TimeInterval) throws -> Catalog {
 /// Only each tool's known install locations are asked, never whatever is on a PATH.
 @Test func onlyToolsInTheirKnownLocationsAreAsked() throws {
     let catalog = Catalog(rules: fixtureRules)
-    let askers = try ["npm-cache", "pip-cache", "pnpm-store", "homebrew", "uv-cache"].map { try #require(catalog.rule($0)?.locationAsker, "\($0)") }
+    let askers = try ["npm-cache", "pip-cache", "pnpm-store", "homebrew", "uv-cache"].map { try #require(catalog.rule($0)?.locationAsker?.tool, "\($0)") }
     #expect(askers.map(\.executables) == [
         ["/opt/homebrew/bin/npm", "/usr/local/bin/npm"],
         ["/opt/homebrew/bin/python3", "/usr/local/bin/python3", "/Library/Developer/CommandLineTools/usr/bin/python3"],
@@ -115,11 +116,10 @@ private func npmRuleAskingWithin(_ timeout: TimeInterval) throws -> Catalog {
         ["/opt/homebrew/bin/brew", "/usr/local/bin/brew"],
         [NSHomeDirectory() + "/.local/bin/uv", "/opt/homebrew/bin/uv", "/usr/local/bin/uv", NSHomeDirectory() + "/.cargo/bin/uv"],
     ])
-    #expect(askers.map { ([URL(fileURLWithPath: $0.executables[0]).lastPathComponent] + ($0.locationQuery ?? [])).joined(separator: " ") }
+    #expect(askers.map { ([$0.name] + $0.query.arguments).joined(separator: " ") }
             == ["npm config get cache", "python3 -m pip cache dir", "pnpm store path", "brew --cache", "uv cache dir"])
     // A tool on PATH but not in a known location is never found.
-    let elsewhere = ToolCommand(executables: ["npm"], arguments: [], timeout: 0, locationQuery: ["config", "get", "cache"])
-    #expect(ToolCommand.installed(elsewhere) == nil)
+    #expect(ToolCommand.installed(LocationTool(executables: ["npm"], query: LocationQuery(["config", "get", "cache"])).lookup) == nil)
 }
 
 /// The write-scope checks are unchanged: a folder outside home, home itself, or one that holds more than the cache is refused.
