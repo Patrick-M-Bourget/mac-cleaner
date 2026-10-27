@@ -147,6 +147,10 @@ final class ApplicationsUITests: XCTestCase {
             try PropertyListSerialization.data(fromPropertyList: ["CFBundleIdentifier": "com.maker.prosynth.\(ext)"], format: .xml, options: 0)
                 .write(to: bundle.appendingPathComponent("Contents/Info.plist"))
         }
+        let appex = home.appendingPathComponent("Applications/Pad.app/Contents/PlugIns/Pad.appex")
+        try FileManager.default.createDirectory(at: appex.appendingPathComponent("Contents"), withIntermediateDirectories: true)
+        try PropertyListSerialization.data(fromPropertyList: ["CFBundleIdentifier": "com.other.pad.auv3", "NSExtension": ["NSExtensionPointIdentifier": "com.apple.AudioUnit"]],
+                                           format: .xml, options: 0).write(to: appex.appendingPathComponent("Contents/Info.plist"))
         // As in a root-owned Components folder, the AU can't be moved without a password (Decision 50).
         try FileManager.default.setAttributes([.posixPermissions: 0o555], ofItemAtPath: au.path)
         app.launch()
@@ -162,6 +166,8 @@ final class ApplicationsUITests: XCTestCase {
         XCTAssertFalse(app.checkBoxes["planItem-Pro Synth.component"].exists, "A format that needs a password has no checkbox")
         XCTAssertEqual(element(app, "applicationsPassword-" + au.path, .staticText).value as? String, "AU: Needs your password to remove")
         XCTAssertTrue(element(app, "applicationsReveal-" + au.path, .button).exists, "Reveal in Finder, with no vendor tool installed")
+        // A product that is only an AUv3 goes with its app (#288).
+        XCTAssertEqual(element(app, "applicationsInsideApp-" + appex.path, .staticText).value as? String, "Goes with Pad")
 
         app.buttons["Review cleanup"].click()
         let staying = element(app, "reviewStaying-" + au.path + "-password", .staticText)

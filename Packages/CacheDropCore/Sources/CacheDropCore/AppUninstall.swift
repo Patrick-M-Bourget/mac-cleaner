@@ -43,6 +43,8 @@ public enum AppUninstall {
         public var hosts: [RuleOwner] = []
         /// The vendor's tool, for "Needs <tool> or your password" (Decision 50).
         public var tool: String? = nil
+        /// A plug-in product's support files that need a password, listed on its row as staying (#288).
+        public var passwordPaths: [String] = []
         /// The app must be closed first (Decision 29): its bundle ID, its helpers' and any process run from inside it (#281).
         public var owner: RuleOwner { RuleOwner(name: name, bundleIDs: ([bundleID] + helpers).filter { !$0.isEmpty }, paths: [path] + otherPaths) }
     }

@@ -100,7 +100,7 @@ public enum PlugInUninstall {
                     if ids.count > 1 { if shared[url.path] == nil, let found = item(rules[2], url) { shared[url.path] = found.shared(by: ids, receipt: receipt).listed(listed) }; continue }
                     guard var file = item(rules[1], url).map({ $0.listed(listed) }) else { continue }
                     guard taken(offered, [file]).count == 1 else { target.inPlan += 1; continue }
-                    guard Removability.canMoveToTrash(url) else { target.needsPassword += 1; continue }
+                    guard Removability.canMoveToTrash(url) else { target.needsPassword += 1; target.passwordPaths.append(url.path); continue }
                     file.leftover = LeftoverTie(app: product.name, bundleID: nil, vendor: RemovedAppLeftovers.vendor(of: receipt), evidence: .receipt(receipt))
                     own.append(file)
                 }

@@ -290,13 +290,16 @@ private func names(_ items: [Candidate]) -> Set<String> { Set(items.map(\.url.la
     #expect(content.uninstall != nil)
 }
 
-@Test func theVendorsToolComesFromTheApplicationsPagesLookup() throws {
+@Test func whatNeedsAPasswordIsListedWithTheVendorsToolFromTheApplicationsPagesLookup() throws {
     let (root, home) = try fixture()
-    defer { try? FileManager.default.removeItem(at: root) }
+    let presets = root.appendingPathComponent(support + "Pro Synth/Presets")
+    defer { chmod(presets.path, 0o755); try? FileManager.default.removeItem(at: root) }
+    chmod(presets.path, 0o555)
     try plugIn(plugIns + "VST3/Kontakt.vst3", id: "com.native-instruments.kontakt.vst3", in: root)
     let nativeAccess = InstalledApp(name: "Native Access", bundleID: "com.native-instruments.NativeAccess2", path: "/Applications/Native Access.app")
     let (inventory, items) = scan(root, home, apps: [nativeAccess])
 
     #expect(items.first { try! $0.uninstall?.path == product("Kontakt", inventory) }?.uninstall?.tool == "Native Access")
-    #expect(items.first { try! $0.uninstall?.path == product("Pro Synth", inventory) }?.uninstall?.tool == nil)
+    let synth = try #require(items.first { try! $0.uninstall?.path == product("Pro Synth", inventory) }?.uninstall)
+    #expect(synth.passwordPaths == [presets.path] && synth.tool == nil)
 }

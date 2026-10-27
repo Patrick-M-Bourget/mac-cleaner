@@ -141,8 +141,12 @@ struct ApplicationsView: View {
     private func row(_ entry: InventoryEntry, category: StorageCategory, identifier: String) -> some View {
         let isExpanded = Binding(get: { expanded.contains(entry.id) }, set: { if $0 { expanded.insert(entry.id) } else { expanded.remove(entry.id) } })
         let uninstall = catalog.uninstallItems(of: entry.id)
-        // A partly removable product also lists what stays (#176).
-        let staying = uninstall.isEmpty || category == .apps ? [] : entry.parts.filter { !$0.removable }
+        // A partly removable product also lists what stays (#176, #288): formats and support files that need a password, and AUv3s.
+        let target = uninstall.lazy.compactMap(\.uninstall).first { $0.path == entry.id }
+        let locked = (entry.parts.filter { !$0.removable && $0.name != PlugInFormat.auv3.rawValue }
+            + (target?.passwordPaths ?? []).map { InventoryEntry.Part(name: URL(fileURLWithPath: $0).lastPathComponent, url: URL(fileURLWithPath: $0), size: .unknown, removable: false) })
+        let auv3 = category == .apps ? [] : entry.parts.filter { $0.name == PlugInFormat.auv3.rawValue }
+        let staying = uninstall.isEmpty || category == .apps ? [] : locked + auv3
         let count = uninstall.isEmpty ? entry.parts.count : uninstall.count + staying.count
         return CategoryRow(category: category, state: uninstall.isEmpty ? nil : catalog.selectionState(ofApp: entry.id), title: entry.name,
                            detail: [entry.maker, entry.volume].compactMap { $0 }.joined(separator: " · "),
@@ -163,6 +167,9 @@ struct ApplicationsView: View {
                 if let rule = (AppUninstall.rules + PlugInUninstall.rules).first(where: { rule in uninstall.contains { $0.ruleID == rule.id } }) {
                     PlanRunningOwners(model: catalog, rule: rule, only: Set(uninstall.compactMap(\.uninstall).flatMap { [$0.owner.name] + $0.hosts.map(\.name) }))
                 }
+            } else if !auv3.isEmpty, auv3.count == entry.parts.count {
+                // An AUv3 is part of its app: removing the app removes it (#288).
+                StatusRow(text: "Goes with " + Self.app(of: auv3[0]), identifier: "applicationsInsideApp-" + entry.id)
             } else if catalog.hasScanned, !catalog.isScanning {
                 // A removable app the scan didn't offer says why, rather than showing a bare row (#281).
                 StatusRow(text: "Not offered: excluded in Settings, or changed since the scan", identifier: "applicationsNotOffered-" + entry.id)
@@ -175,7 +182,10 @@ struct ApplicationsView: View {
                         CatalogItemRows(model: catalog, rule: rule, app: entry.id)
                     }
                     // A partly removable product lists what stays, with no checkbox (Decision 50).
-                    ForEach(staying, id: \.url) { part in passwordLine(entry, part: part) }
+                    ForEach(locked, id: \.url) { part in passwordLine(entry, part: part) }
+                    ForEach(auv3, id: \.url) { part in
+                        StatusRow(text: "\(part.name): Goes with " + Self.app(of: part), identifier: "applicationsInsideApp-" + part.url.path)
+                    }
                 }
             } else {
             LazyVStack(alignment: .leading, spacing: 0) {
@@ -198,6 +208,10 @@ struct ApplicationsView: View {
             ?? StatusAction(title: "Reveal in Finder", identifier: "applicationsReveal-" + id) { model.reveal(part?.name ?? entry.name, part.map { [$0.url] } ?? entry.parts.map(\.url)) }
         let text = tool.map { "Needs \($0.name) or your password to remove" } ?? "Needs your password to remove"
         return StatusRow(text: part.map { "\($0.name): " + text } ?? text, symbol: "lock", identifier: "applicationsPassword-" + id, action: action)
+    }
+    /// The app an AUv3 is in: "Pad" for `Pad.app/Contents/PlugIns/Pad.appex`.
+    static func app(of part: InventoryEntry.Part) -> String {
+        part.url.deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent().deletingPathExtension().lastPathComponent
     }
 
     private func openReview() async {
