@@ -177,3 +177,16 @@ private let unrelated = ContentOwner(id: "other", name: "Serum", bundleID: "com.
     #expect(content.items.first?.owners == ["live", "pigments"])
     #expect(content.items.first?.vendors == ["Ableton", "Arturia"])
 }
+
+/// #277: loops the user made, in their own Library, are theirs: never grouped with Apple's installed loops.
+@Test func theUsersOwnAppleLoopsAreTheirs() throws {
+    let mac = try FixtureMac(); defer { mac.remove() }
+    try mac.folder("/Library/Audio/Apple Loops/Apple")
+    try mac.folder("Library/Audio/Apple Loops")
+
+    let content = mac.scan([logic])
+
+    #expect(content.installed.map(\.name) == ["Apple Loops"])
+    #expect(content.yours.map(\.name) == ["Your Apple Loops"])
+    #expect(content.yours.first?.owners == ["logic"])
+}

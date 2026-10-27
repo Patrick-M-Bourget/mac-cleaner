@@ -73,13 +73,16 @@ public struct MusicVendor: Sendable, Equatable {
             .init(path: "/Library/Application Support/Logic", name: "Logic content", kind: .installed),
             .init(path: "/Library/Audio/Apple Loops/Apple", name: "Apple Loops", kind: .installed),
             .init(path: "/Library/Audio/Impulse Responses/Apple", name: "Impulse responses", kind: .installed),
+            // Loops the user made (Apple Support 101933): theirs.
+            .init(path: "Library/Audio/Apple Loops", name: "Your Apple Loops", kind: .yours),
         ], owners: .apps(["com.apple.logic10", "com.apple.garageband10", "com.apple.mainstage3"])),
         // Waves' documented default for its instrument samples; Waves Central can relocate them. Shared by every Waves product.
         MusicVendor(name: "Waves", locations: [
             .init(path: "/Applications/Waves/Data/Instrument Data/Waves Sample Libraries", name: "Sample libraries", kind: .installed),
         ], owners: .vendorProducts("com.wavesaudio")),
         // Arturia's default resources folder (presets, samples and other files its products need; binaries live apart).
-        // Arturia Software Center can move it; reading that setting is open until Arturia documents where it is kept.
+        // Arturia Software Center can move it; reading that setting is open until Arturia documents where it is kept. Its
+        // user presets inside it aren't told apart from installed ones: open until Arturia documents where they are.
         MusicVendor(name: "Arturia", locations: [
             .init(path: "/Library/Arturia", name: "Resources", kind: .installed),
         ], owners: .vendorProducts("com.arturia")),
