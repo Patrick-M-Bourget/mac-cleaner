@@ -64,6 +64,7 @@ public struct CandidateCheck: Sendable {
     /// `.git` to `gitSearchDepth` whatever the rule. Discovery leaves such folders out; the check refuses them.
     static func protectedEntry(in folder: URL, rule: CleanupRule) -> String? {
         if let found = protectedEntry(in: folder, names: Protection(rule).names, depth: rule.protectedDepth) { return found }
+        if let offline = AppCaches.offlineContent(in: folder, rule: rule) { return offline }
         if rule.protectedDepth >= gitSearchDepth { return nil }
         // A package manager's own clones in its build folder are rebuilt, not live work (#160): only those `.git` folders are passed over.
         let clones = ProjectBuilds.managedClonesFolder(in: folder).map { $0.path + "/" }

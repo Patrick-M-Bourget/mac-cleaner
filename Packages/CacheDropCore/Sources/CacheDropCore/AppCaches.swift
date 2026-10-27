@@ -51,6 +51,37 @@ public enum AppCaches {
     }
     static let sparkleFolder = "org.sparkle-project.Sparkle"
 
+    /// Offline or downloaded content an app can keep in its own `~/Library/Caches/<bundle id>` folder (#171). While any of these
+    /// entries is at the top of the app's folder, "App caches" never offers the folder and the check refuses it: it is not a cache
+    /// the app rebuilds. Each exception cites the vendor's documentation or an observed layout; an app not listed keeps the rule as is.
+    ///
+    /// Audit of the apps this rule matches (2026-10-26; folder names seen on a Mac, never file contents):
+    /// - Spotify (`com.spotify.client`): exception below. Spotify keeps "downloaded music and podcasts to play offline" apart from
+    ///   its cache, and Settings > Storage can move that storage elsewhere
+    ///   (https://support.spotify.com/us/article/storage-and-data-information/). Observed: the cache folder holds the streaming cache
+    ///   (`Data`) and a web-view profile, while downloads sit in `~/Library/Application Support/Spotify/PersistentCache` as `Storage`
+    ///   with `offline.bnk` beside it. Spotify's community reports downloads in `~/Library/Caches/com.spotify.Client/storage` too
+    ///   (https://community.spotify.com/t5/Desktop-Mac/Where-are-offline-files-stored-on-Mac/m-p/1367628,
+    ///   https://community.spotify.com/t5/Live-Ideas/Let-user-select-where-to-save-files-for-offline-mode/idi-p/7410350),
+    ///   so any of those names keeps the folder, in either case on a case-sensitive volume.
+    /// - Ableton Live (`com.ableton.live`), Pro Tools (`com.avid.ProTools`), Slack (`com.tinyspeck.slackmacgap`), Native Access,
+    ///   UA Connect, LANDR, Claude, CleanShot X: observed only the URL loading system's cache (`Cache.db`, `fsCachedData`),
+    ///   `WebKit` and crash reporters' folders (`io.sentry`), which are refetched or rewritten. Rebuildable.
+    ///   Live's sample decoding cache and Packs live elsewhere (`~/Library/Caches/Ableton`, not a bundle-identifier folder,
+    ///   and the User Library), so this rule never reaches them.
+    /// - Steam, Microsoft Teams, Adobe apps: not installed on the audited Mac, so no layout to observe. Their folders keep today's
+    ///   behavior until one is audited with vendor sources. Browsers have their own rules (`BrowserCaches`).
+    static let offlineContent: [String: (names: Set<String>, label: String)] = [
+        "com.spotify.client": (["Storage", "storage", "offline.bnk"], "Spotify’s offline downloads"),
+    ]
+    /// What offline content an app keeps in its "App caches" folder, if any (`offlineContent`, keyed in lowercase as
+    /// LaunchServices matches bundle identifiers). Nil for every other rule and app.
+    static func offlineContent(in folder: URL, rule: CleanupRule) -> String? {
+        guard rule.id == appCachesRuleID, let content = offlineContent[folder.lastPathComponent.lowercased()] else { return nil }
+        return content.names.contains { FileManager.default.fileExists(atPath: folder.appendingPathComponent($0).path) } ? content.label : nil
+    }
+    static let appCachesRuleID = "app-caches"
+
     public static func rules(apps: any AppLookup) -> [CleanupRule] {
         [
             CleanupRule(id: "updater-downloads", category: .updaters, title: "App update downloads",
@@ -59,7 +90,7 @@ public enum AppCaches {
                         regen: .updaterDownload, action: .delete,
                         locations: ["Library/Caches/*/" + sparkleFolder, "Library/Caches/*.ShipIt", "Library/Caches/*-updater"], owner: nil,
                         itemOwner: { updaterOwner($0, apps: apps) }, protectedDepth: liveWorkDepth),
-            CleanupRule(id: "app-caches", category: .system, title: "App caches",
+            CleanupRule(id: appCachesRuleID, category: .system, title: "App caches",
                         detail: "Files apps keep in your Library to start and work faster, per app.",
                         consequence: "Permanently removed. Each app rebuilds its cache as you use it, so it may be slower at first. An app must be closed first; CacheDrop never quits it for you.",
                         regen: .cache, action: .delete, locations: ["Library/Caches/*"], owner: nil,
