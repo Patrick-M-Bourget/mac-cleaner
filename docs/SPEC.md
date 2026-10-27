@@ -1,31 +1,31 @@
-# Still: behavior spec
+# CacheDrop: behavior spec
 
 This spec covers behavior the prototype can't show. The screens, layout and copy come from the prototype (`docs/visual/preview.html`, full mode). Where this spec and an older doc disagree, the **Decisions** in [RESET.md](RESET.md) win, then this spec. The PRD, research and field note are background.
 
 ## 1. Product principles
 
-- Still answers four questions: what takes space, what can be removed, what happens if it is, and how much space came back.
+- CacheDrop answers four questions: what takes space, what can be removed, what happens if it is, and how much space came back.
 - Size, age and location only suggest candidates. Every candidate is judged on three questions: who owns it, how it comes back, and whether anything uses it now.
 - Nothing is preselected in the Cleanup plan. The user picks categories or items there, or opens Smart clean, the recommended plan on its own page (only deleted data that rebuilds itself and passes the checks: caches, build data, updater downloads, logs, leaked app copies, never an item the user chooses one by one, such as an older JetBrains version's folder, which holds local history, or an old temporary file (#144); all ticked, each can be unticked). Either way the user reviews the consequences before anything changes. The two selections are separate: neither ever changes the other (#141, Decision 31).
-- Every item is checked again just before Still acts on it (section 4).
+- Every item is checked again just before CacheDrop acts on it (section 4).
 - Scanning never writes. Choosing scan locations never means consent to clean.
-- Unknown is shown as unknown, never as 0. A location Still can't read is listed as not accessible, not left out of the picture.
+- Unknown is shown as unknown, never as 0. A location CacheDrop can't read is listed as not accessible, not left out of the picture.
 - Estimated space, space moved to Trash and measured freed space are three separate numbers, always labeled (section 6).
 - No account, server, telemetry or AI service. All scanning and cleanup happen on the Mac.
-- No automatic cleanup. Still only acts when the user confirms a reviewed plan.
+- No automatic cleanup. CacheDrop only acts when the user confirms a reviewed plan.
 
 ## 2. Safety rules
 
 These hold for every category, in every milestone.
 
-- **User files go to Trash.** Still never empties the Trash, and never deletes anything from it.
+- **User files go to Trash.** CacheDrop never empties the Trash, and never deletes anything from it.
 - **Never touched:** browser logins, cookies, history, passwords, autofill, site data (IndexedDB, Local Storage, service-worker data), sessions and profile settings; the Photos, Mail and Messages databases; app binaries and signed bundles (except Chrome's leaked code-sign copies, section 3); other users' data; system files.
 - **Protected rules in the catalog.** Codex's protected-data lists become catalog rules that no cleanup rule can override: Chrome logins, cookies, history and profiles; Xcode Archives and anything outside DerivedData (project source). Everything inside DerivedData, built products and dSYMs included, is regenerable build output.
-- **A cache folder can hold live work.** A git working tree inside a cache folder is never a candidate. Known load-bearing caches (such as ccache) and Still's own tools are never offered.
-- **Owning app must be closed.** If the app that owns a candidate is running, that candidate is refused with a reason. Still never force-quits, and quits apps only when you ask: the plan's **Quit <App>** link sends a normal quit request, like ⌘Q, which the app may answer by asking to save or by refusing. Still never asks for Accessibility to quit an app. When the app quits, Still checks again; when it doesn't, the plan says it is still open. A command-line tool isn't an app: the plan says "Quit <tool> to include this" with **Check again**.
-- **No admin rights.** Still never asks for an administrator password and never installs a helper. An item it can't change as the user is skipped and reported.
+- **A cache folder can hold live work.** A git working tree inside a cache folder is never a candidate. Known load-bearing caches (such as ccache) and CacheDrop's own tools are never offered, nor CacheDrop's own folders or those of Still, its former name (#149).
+- **Owning app must be closed.** If the app that owns a candidate is running, that candidate is refused with a reason. CacheDrop never force-quits, and quits apps only when you ask: the plan's **Quit <App>** link sends a normal quit request, like ⌘Q, which the app may answer by asking to save or by refusing. CacheDrop never asks for Accessibility to quit an app. When the app quits, CacheDrop checks again; when it doesn't, the plan says it is still open. A command-line tool isn't an app: the plan says "Quit <tool> to include this" with **Check again**.
+- **No admin rights.** CacheDrop never asks for an administrator password and never installs a helper. An item it can't change as the user is skipped and reported.
 - **Exclusions win.** An item inside a user exclusion is never a candidate.
-- **No transactional rollback.** Items are handled one at a time. Still never claims a multi-item undo.
+- **No transactional rollback.** Items are handled one at a time. CacheDrop never claims a multi-item undo.
 - **Tests touch only temp fixture folders**, never real user paths.
 
 ## 3. Kinds of data and their action
@@ -50,9 +50,9 @@ Decision 3 sets the main split: regenerable data is deleted permanently; user fi
 
 Other actions:
 
-- **Run a tool**, with a time limit: `brew cleanup -s` (plus the Homebrew cache folder), `xcrun simctl delete unavailable`, `ollama rm <model>`, `pnpm store prune`, `docker image prune -a -f`, `docker builder prune -a -f`, `docker container prune -f`. Every other cache is cleaned by deleting its folder, not with the tool's own purge command. The tool's output and the measured freed space appear in the results. A tool that isn't installed means its rule doesn't appear; Still never installs anything.
-- **Evict local iCloud copy** (#111): removes only the local download (`evictUbiquitousItem`); the original stays in iCloud and downloads again when opened. Items are the files and folders at the top of iCloud Drive; a folder evicts each qualifying file inside it, and a package counts as one file. Files set to Keep Downloaded (pinned), not yet uploaded, in conflict, or whose state can't be read are never offered, and the check just before acting refuses them. No public API reports Keep Downloaded, so Still reads the `com.apple.fileprovider.pinned#PX` attribute on the file and its folders; when it can't be read the file counts as pinned. Scanning reads metadata only, with placeholder downloads blocked for the scanning thread. This is never a delete.
-- **Guidance only**: Still shows the size and tells the user where to manage it. It never changes these: iOS backups, Mail and Messages attachments, Photos, Time Machine local snapshots, Xcode release archives, purchased content such as audio plug-ins and Rack Extensions ("reinstall through the vendor", owner's call), AI agent workspaces (#140), and audio libraries (#139): the Logic Pro and GarageBand sound library, Ableton Packs and Splice samples. Kontakt and other Native Instruments libraries aren't listed: their default location, `/Users/Shared`, holds other apps' files too. (#114) They are catalog rules with the guidance action: sized from metadata only (never file contents), never candidates, and refused by the check if one ever reaches the executor. A location macOS won't let Still read shows as not accessible, never 0. Local snapshots show their count from `tmutil listlocalsnapshots /` with size unknown, since macOS reports no size per snapshot. Each has an "Open …" button: the owning app (Finder for device backups, Mail, Messages, Photos, Xcode), Storage settings for snapshots, or the plug-in folder in Finder. Audio libraries open their own manager (Logic Pro's Sound Library Manager, Live's browser, Splice); when that app doesn't open, usually because it isn't installed, the folder is revealed in Finder instead.
+- **Run a tool**, with a time limit: `brew cleanup -s` (plus the Homebrew cache folder), `xcrun simctl delete unavailable`, `ollama rm <model>`, `pnpm store prune`, `docker image prune -a -f`, `docker builder prune -a -f`, `docker container prune -f`. Every other cache is cleaned by deleting its folder, not with the tool's own purge command. The tool's output and the measured freed space appear in the results. A tool that isn't installed means its rule doesn't appear; CacheDrop never installs anything.
+- **Evict local iCloud copy** (#111): removes only the local download (`evictUbiquitousItem`); the original stays in iCloud and downloads again when opened. Items are the files and folders at the top of iCloud Drive; a folder evicts each qualifying file inside it, and a package counts as one file. Files set to Keep Downloaded (pinned), not yet uploaded, in conflict, or whose state can't be read are never offered, and the check just before acting refuses them. No public API reports Keep Downloaded, so CacheDrop reads the `com.apple.fileprovider.pinned#PX` attribute on the file and its folders; when it can't be read the file counts as pinned. Scanning reads metadata only, with placeholder downloads blocked for the scanning thread. This is never a delete.
+- **Guidance only**: CacheDrop shows the size and tells the user where to manage it. It never changes these: iOS backups, Mail and Messages attachments, Photos, Time Machine local snapshots, Xcode release archives, purchased content such as audio plug-ins and Rack Extensions ("reinstall through the vendor", owner's call), AI agent workspaces (#140), and audio libraries (#139): the Logic Pro and GarageBand sound library, Ableton Packs and Splice samples. Kontakt and other Native Instruments libraries aren't listed: their default location, `/Users/Shared`, holds other apps' files too. (#114) They are catalog rules with the guidance action: sized from metadata only (never file contents), never candidates, and refused by the check if one ever reaches the executor. A location macOS won't let CacheDrop read shows as not accessible, never 0. Local snapshots show their count from `tmutil listlocalsnapshots /` with size unknown, since macOS reports no size per snapshot. Each has an "Open …" button: the owning app (Finder for device backups, Mail, Messages, Photos, Xcode), Storage settings for snapshots, or the plug-in folder in Finder. Audio libraries open their own manager (Logic Pro's Sound Library Manager, Live's browser, Splice); when that app doesn't open, usually because it isn't installed, the folder is revealed in Finder instead.
 
 Notes per category:
 
@@ -66,38 +66,38 @@ Notes per category:
 - **Per-app caches**: only while the owning app isn't running.
 - **Caches outside `~/Library/Caches`** (#133), each only while its app isn't running:
   - VS Code, VSCodium, Cursor and Windsurf: `Cache`, `CachedData`, `CachedExtensionVSIXs`, `Code Cache` and `GPUCache` in `~/Library/Application Support/<Code|VSCodium|Cursor|Windsurf>`; never `User`, `extensions` or backups. Refused while that editor runs (#140). Copilot keeps its data in VS Code's folders, so it has no rule of its own.
-  - JetBrains: `~/Library/Caches/JetBrains/<product><version>` of older versions only. Never offered: the folder of any installed version (read from the IDE's app bundle, `product-info.json` or else its Info.plist), every folder of an IDE installed in a version Still can't read, the newest folder of each IDE, and products Still doesn't know (#145). Refused while any version of that IDE runs.
+  - JetBrains: `~/Library/Caches/JetBrains/<product><version>` of older versions only. Never offered: the folder of any installed version (read from the IDE's app bundle, `product-info.json` or else its Info.plist), every folder of an IDE installed in a version CacheDrop can't read, the newest folder of each IDE, and products CacheDrop doesn't know (#145). Refused while any version of that IDE runs.
   - Adobe: `Media Cache Files` and `Media Cache` in `~/Library/Application Support/Adobe/Common`, refused while an Adobe video app runs.
-  - Ableton Live: `~/Library/Caches/Ableton/Cache`, its decoding cache, refused while Live runs. Logic Pro, GarageBand, Pro Tools and Native Instruments have no rebuildable cache Still offers: none is documented outside projects, and Kontakt's database is an index, not a decoding, waveform or analysis cache. Freeze files and bounces inside projects are left to the explorer (#113).
+  - Ableton Live: `~/Library/Caches/Ableton/Cache`, its decoding cache, refused while Live runs. Logic Pro, GarageBand, Pro Tools and Native Instruments have no rebuildable cache CacheDrop offers: none is documented outside projects, and Kontakt's database is an index, not a decoding, waveform or analysis cache. Freeze files and bounces inside projects are left to the explorer (#113).
   - Sandboxed apps: only `~/Library/Containers/<bundle id>/Data/Library/Caches`, never other container data or group containers; the app must be installed and closed. Reading containers can make macOS ask for access, so without Full Disk Access the rule shows as not accessible and nothing there is read.
 - **AI coding tools** (#140):
   - Claude Code: `*.jsonl` transcripts under `~/.claude/projects`, never its `memory` folders; Codex: `*.jsonl` sessions under `~/.codex/sessions` and `~/.codex/archived_sessions`, and `~/.codex/log`. Only files not opened, changed or added in 90 days, to Trash. Settings, credentials, project memory and prompt history are never offered.
-  - Agent workspaces are guidance only, never offered even when clean: git checkouts and build scratch in `~/.codex/worktrees`, `~/Library/Caches/Codex` and Claude Code's `/private/tmp/claude-<uid>`. The row shows their size and git status ("4 workspaces · 1 has uncommitted changes · 2 have unpushed commits"), read with `git status --porcelain` and `git rev-list --count @{u}..HEAD` (without an upstream, commits on no remote), each with a 5-second limit. Git runs read-only as far as it can be made to (#147): no optional locks, so it never refreshes the index; fsmonitor and hooks off; no lazy fetch in a partial clone; submodules never entered (only a submodule moved to another commit counts, not changes inside one); untracked files still count as uncommitted. Remaining caveat: git still reads the repository's own `.git/config`, so a clean or process filter driver it names for a file in `.gitattributes` can still run when `git status` compares that file's contents; that filter is a command the repository's author configured, and Still can't turn it off without knowing its name. "Open in Finder" shows the folder.
+  - Agent workspaces are guidance only, never offered even when clean: git checkouts and build scratch in `~/.codex/worktrees`, `~/Library/Caches/Codex` and Claude Code's `/private/tmp/claude-<uid>`. The row shows their size and git status ("4 workspaces · 1 has uncommitted changes · 2 have unpushed commits"), read with `git status --porcelain` and `git rev-list --count @{u}..HEAD` (without an upstream, commits on no remote), each with a 5-second limit. Git runs read-only as far as it can be made to (#147): no optional locks, so it never refreshes the index; fsmonitor and hooks off; no lazy fetch in a partial clone; submodules never entered (only a submodule moved to another commit counts, not changes inside one); untracked files still count as uncommitted. Remaining caveat: git still reads the repository's own `.git/config`, so a clean or process filter driver it names for a file in `.gitattributes` can still run when `git status` compares that file's contents; that filter is a command the repository's author configured, and CacheDrop can't turn it off without knowing its name. "Open in Finder" shows the folder.
 - **Models and VM images** show their size and last-used date so the user can judge.
 - **A cleanup rule appears only when its tool or folder exists** on this Mac.
 - **Overview** shows one row per category that found something. Its storage bar is the whole disk, used against available, as in the prototype's full mode; it never splits the bar by category.
 
 ## 4. Checks just before acting
 
-When the user confirms, Still freezes the plan. Then, for each item in turn, right before acting, it checks that:
+When the user confirms, CacheDrop freezes the plan. Then, for each item in turn, right before acting, it checks that:
 
 1. the item still exists;
 2. it is unchanged since the scan: the same file identity. A file must also have the same size and modification time. A folder is checked for identity only, not modification time, because caches change constantly;
 3. its owning app is not running, or for a command-line tool's cache (npm, pip, Cargo and the like), no process of that tool is running;
 4. it is not excluded and doesn't match a protected rule;
-5. Still can act on it as the current user, without admin rights;
+5. CacheDrop can act on it as the current user, without admin rights;
 6. for leaked app copies and old temporary items, no process has it open or mapped, as read no more than 5 seconds earlier (#142).
 
-An item that fails any check is skipped, and the results say which check failed. The rest of the plan continues. Skipped items can be reviewed again after a fresh scan; Still never silently repeats a completed action or widens a plan after a rescan.
+An item that fails any check is skipped, and the results say which check failed. The rest of the plan continues. Skipped items can be reviewed again after a fresh scan; CacheDrop never silently repeats a completed action or widens a plan after a rescan.
 
-**Cancel** stops new items from starting. The item in progress finishes or reports its failure. Every item's outcome (done, skipped, failed, not started) goes into the cleanup journal. Quitting during a run asks first, "A cleanup is running. Stop after this item and quit?", with Cancel as the default; confirming cancels as above and quits once the current item finishes (#130). If Still quits in the middle of a run anyway, it recovers the journal on next launch and reports what happened.
+**Cancel** stops new items from starting. The item in progress finishes or reports its failure. Every item's outcome (done, skipped, failed, not started) goes into the cleanup journal. Quitting during a run asks first, "A cleanup is running. Stop after this item and quit?", with Cancel as the default; confirming cancels as above and quits once the current item finishes (#130). If CacheDrop quits in the middle of a run anyway, it recovers the journal on next launch and reports what happened.
 
 ## 5. Dry-run switch
 
 - The review sheet is the preview: it lists exactly what will happen, and **Clean up** runs it for real (Decision 27). The plan has no preview mode.
 - The dry run is a switch in the Settings window, **Dry run (nothing changes)**, off by default and meant for testing. While it's on, the review sheet says so in one line.
 - With dry run on, the whole flow runs as normal: scan, plan, review, confirm, per-item checks, results.
-- Instead of acting, Still logs each action it would take (item, action, size, check outcome) and changes nothing on disk. Tool actions are not run; the command is logged.
+- Instead of acting, CacheDrop logs each action it would take (item, action, size, check outcome) and changes nothing on disk. Tool actions are not run; the command is logged.
 - Results make clear it was a dry run. No freed space is reported, because none was freed.
 
 ## 6. Estimated vs measured freed space
@@ -106,20 +106,20 @@ An item that fails any check is skipped, and the results say which check failed.
 - **Moved to Trash** is reported on its own. That space is still used until the user empties the Trash, and is never counted as freed.
 - **Measured freed space** is the change in the volume's available space, read right before and right after each item. Results report the measured total, separately from the estimate.
 - **Why both:** on APFS, clones share disk blocks. Deleting a clone frees only the blocks no other file uses. Chrome's code-sign copies showed 52 GB but freed about 2 GB. For categories made of clones, the estimate is labeled as an upper bound.
-- **Why measure per item:** on a nearly full disk, macOS releases purgeable space on its own, so a single before/after reading for the whole run overstates what Still freed.
+- **Why measure per item:** on a nearly full disk, macOS releases purgeable space on its own, so a single before/after reading for the whole run overstates what CacheDrop freed.
 - Measured space is an observation. Downloads, snapshots and other activity can affect it, and the results say so.
-- **Pass bar for M1:** on the user's Mac, the freed space Still reports is within 10% or 1 GB (whichever is larger) of the `df` change measured around the whole run.
+- **Pass bar for M1:** on the user's Mac, the freed space CacheDrop reports is within 10% or 1 GB (whichever is larger) of the `df` change measured around the whole run.
 
 ## 7. Access: user-owned scope
 
-- Still works only in what the current user owns: the home folder, `~/Library`, and the user's own entry under `/private/var/folders` (its `T`, `C` and `X` folders). It never asks for admin rights (Decision 4).
+- CacheDrop works only in what the current user owns: the home folder, `~/Library`, and the user's own entry under `/private/var/folders` (its `T`, `C` and `X` folders). It never asks for admin rights (Decision 4).
 - It sizes only the catalog's known locations, plus folders the user picks. It never walks the whole disk.
-- **Full Disk Access is optional**, a way to "see more" (for example Safari's cache, which macOS may protect). Without it, Still works and lists what it couldn't read as not accessible. Still explains that Full Disk Access is broad read/write authority, not a read-only permission, and that Still's own scans stay read-only.
-- Still asks for access when a feature needs it, not as a launch checklist. No Accessibility, Screen Recording, notifications or login item is needed to scan or clean. Notification permission is asked for only when you turn low-space alerts on (#131).
+- **Full Disk Access is optional**, a way to "see more" (for example Safari's cache, which macOS may protect). Without it, CacheDrop works and lists what it couldn't read as not accessible. CacheDrop explains that Full Disk Access is broad read/write authority, not a read-only permission, and that CacheDrop's own scans stay read-only.
+- CacheDrop asks for access when a feature needs it, not as a launch checklist. No Accessibility, Screen Recording, notifications or login item is needed to scan or clean. Notification permission is asked for only when you turn low-space alerts on (#131).
 
 ## 8. Milestone 1 vs later
 
-**M1 is done when**, on the user's Mac, Still finds the field-scan categories, cleans what the user picks, and the freed space it reports matches `df` (Decision 7). M1 is not signed or notarized (Decision 2).
+**M1 is done when**, on the user's Mac, CacheDrop finds the field-scan categories, cleans what the user picks, and the freed space it reports matches `df` (Decision 7). M1 is not signed or notarized (Decision 2).
 
 In M1 (tickets #97–#105):
 
@@ -142,7 +142,7 @@ After M1 (#92), in rough order:
 - large and old files explorer (Trash only): it lists files of 500 MB or more OR not opened in 90 days, and you choose each file. Downloads keeps AND (Decision 24);
 - guidance-only categories (section 3);
 - Storage trends (formerly What grew, #119, #127): each completed catalog scan records the size per catalog category and per scanned rule location. The first scan records a baseline; a later scan shows net growth against the newest scan about a day older (20 h or more, #126) that isn't the rescan right after a cleanup. Until one exists, the page says "Baseline recorded · Check back tomorrow to see trends". Only a location measured in both scans counts. A location newly readable or unreadable (Full Disk Access, unreadable folders), or newly scanned or no longer scanned, is shown as a coverage change, never as growth. A change in exclusions starts a new baseline. History keeps at most 30 scans over 90 days and 250 MB, on this Mac: always the newest scan's baseline and the 5 newest scans, then one scan per day, so frequent rescans never push out every baseline (#146);
-- menu bar item and low-space alerts (#131, Decision 30): the menu bar shows free space ("38 GB free"; only a symbol when capacity is unknown), with Open Still, Scan again, Smart clean… (when it has something; it opens the Smart clean page, #141), Settings… and Quit. It is shown by default; a Settings toggle hides it. While it is shown, closing the window keeps Still running. Low-space alerts are off by default and live in the Settings window, with a threshold and a 24-hour snooze. Turning them on is the only time Still asks for notification permission. Alerts read the startup volume's capacity about every 15 minutes while Still runs; they never scan folders or clean. Start at Login is a separate toggle in the same window;
+- menu bar item and low-space alerts (#131, Decision 30): the menu bar shows free space ("38 GB free"; only a symbol when capacity is unknown), with Open CacheDrop, Scan again, Smart clean… (when it has something; it opens the Smart clean page, #141), Settings… and Quit. It is shown by default; a Settings toggle hides it. While it is shown, closing the window keeps CacheDrop running. Low-space alerts are off by default and live in the Settings window, with a threshold and a 24-hour snooze. Turning them on is the only time CacheDrop asks for notification permission. Alerts read the startup volume's capacity about every 15 minutes while CacheDrop runs; they never scan folders or clean. Start at Login is a separate toggle in the same window;
 - the optional Full Disk Access onboarding flow;
 - signing, notarization and a DMG for a shareable build.
 

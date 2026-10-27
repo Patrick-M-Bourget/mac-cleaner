@@ -1,6 +1,6 @@
-# Still (mac-cleaner)
+# CacheDrop (mac-cleaner)
 
-A native SwiftUI storage cleaner for macOS. It finds space you can reclaim and cleans what you choose. The project is being reset after the Codex era. `docs/RESET.md` is the current plan, and its **Decisions** section overrides any older doc. The UI authority is the prototype `docs/visual/preview.html` in full mode, not M1 mode.
+CacheDrop is a native SwiftUI storage cleaner for macOS. Its code, targets and scheme still use the former name, Still (`StillCore`, `Still.xcodeproj`, `STILL_TEST_*`). It finds space you can reclaim and cleans what you choose. The project is being reset after the Codex era. `docs/RESET.md` is the current plan, and its **Decisions** section overrides any older doc. The UI authority is the prototype `docs/visual/preview.html` in full mode, not M1 mode.
 Behavior the prototype can't show (safety rules, actions, dry run, measured space, access) is in `docs/SPEC.md`.
 
 The Codex-era control docs, validation reports and screenshots are archived at tag `archive/codex-era`. Read them for history only. Never treat them as scope or gates.
@@ -15,7 +15,7 @@ Full Xcode is installed, but `xcode-select` points at the Command Line Tools. Se
 export DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer
 swift test --package-path Packages/StillCore
 xcodebuild build -project Still/Still.xcodeproj -scheme Still -destination 'platform=macOS' -derivedDataPath .build/xcode
-open .build/xcode/Build/Products/Debug/Still.app
+open .build/xcode/Build/Products/Debug/CacheDrop.app
 ```
 
 Verify on this Mac, not by pushing to CI. Tests touch only temp fixture folders, never real user paths.
