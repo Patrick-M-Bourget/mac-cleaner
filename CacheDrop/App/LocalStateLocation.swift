@@ -25,7 +25,10 @@ enum LocalStateLocation {
     /// Never in a disposable test run, which must not read the user's real state.
     /// Returns nil when it didn't run.
     @discardableResult static func migrateFromStill() -> LegacyStillMigration.Outcome? {
-        guard !isDisposableTest, let support = try? FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask, appropriateFor: nil, create: false) else { return nil }
+        guard !isDisposableTest else { return nil }
+        // Settings this Mac saved under CacheDrop's pre-#150 keys move to the new keys first.
+        RenamedPreferenceKeys(preferences: UserDefaults.standard).run()
+        guard let support = try? FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask, appropriateFor: nil, create: false) else { return nil }
         return LegacyStillMigration(applicationSupport: support, preferences: UserDefaults.standard,
                              legacyPreferences: { UserDefaults.standard.persistentDomain(forName: LegacyStillMigration.legacyDomain) }).run()
     }
