@@ -235,3 +235,21 @@ private func registered(_ ids: Set<String>) -> any AppPresence { FixedAppPresenc
         .first { $0.ruleID == "final-cut-libraries" }
     #expect(finding?.libraries?.map(\.name) == ["Untitled"])
 }
+
+/// #247: without Full Disk Access, both Lightroom rows appear only when Launch Services knows Lightroom Classic;
+/// with access, previews found are listed whether Lightroom is installed or not.
+@Test func withoutFullDiskAccessTheLightroomRowsAppearOnlyWhenLightroomIsInstalled() throws {
+    let home = try libraryHome()
+    defer { try? FileManager.default.removeItem(at: home) }
+    let rows: Set<String> = ["lightroom-previews", "lightroom-smart-previews"]
+    let catalog = Catalog(rules: fixtureRules)
+    func needsAccess(_ apps: any AppPresence) -> Set<String> {
+        Set(catalog.guidance(home: home, systemRoot: home, sizer: KnownLocationSizer(), snapshots: FixtureSnapshots(), fullDiskAccess: .notGranted,
+                             appPresence: apps, libraryVolumes: .fixture).filter { $0.size == .notAccessible }.map(\.ruleID)).intersection(rows)
+    }
+
+    #expect(needsAccess(registered([])).isEmpty)
+    #expect(needsAccess(registered(["com.adobe.LightroomClassicCC7"])) == rows)
+    try write(4096, at: "Pictures/Lightroom/Lightroom Catalog Smart Previews.lrdata/a", in: home)
+    #expect(catalog.guidance(fixture: home).first { $0.ruleID == "lightroom-smart-previews" }?.libraries?.count == 1)
+}
