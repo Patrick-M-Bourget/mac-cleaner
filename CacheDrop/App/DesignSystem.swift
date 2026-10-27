@@ -151,6 +151,21 @@ struct PageHeader: View {
         }.frame(maxWidth: .infinity, alignment: .leading)
     }
 }
+/// The one back button (Decision 47): small, borderless and secondary, just above the page title, reading
+/// "‹ <destination>". Its accessibility label says "Back to <destination>", so it never shares a name with a sidebar row.
+struct BackButton: View {
+    let destination: String
+    let action: () -> Void
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: CacheDropDesign.Space.xs) {
+                Image(systemName: "chevron.left").imageScale(.small)
+                Text(destination)
+            }
+        }.buttonStyle(.plain).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
+            .accessibilityLabel("Back to " + destination)
+    }
+}
 struct SummarySurface<Content: View>: View {
     @Environment(\.colorSchemeContrast) private var contrast
     @ViewBuilder var content: () -> Content
