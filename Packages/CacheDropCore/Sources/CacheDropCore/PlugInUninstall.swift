@@ -145,11 +145,12 @@ public enum PlugInUninstall {
             || parts.dropLast().contains { $0.lowercased().hasSuffix(".app") }
     }
 
-    /// The check just before acting (Decision 50): never license, macOS or Apple data; a format is still the bundle the scan
-    /// tied to the product; and macOS still lets the user move it to the Trash without a password.
+    /// The check just before acting (Decision 50): never license, macOS or Apple data by its name (its folders were checked at
+    /// the scan, and the item can't leave them and keep its path); a format is still the bundle the scan tied to the product;
+    /// and macOS still lets the user move it to the Trash without a password.
     static func refusal(for candidate: Candidate) -> CheckRefusal? {
         let url = candidate.url
-        if isNeverTouched(url, below: URL(fileURLWithPath: "/")) { return .protected(url.lastPathComponent) }
+        if isNeverTouched(url, below: url.deletingLastPathComponent()) { return .protected(url.lastPathComponent) }
         if candidate.ruleID == formatsRuleID {
             guard let tie = candidate.leftover, PlugInInventory.info(url)?["CFBundleIdentifier"] as? String == tie.bundleID else { return .changed }
         }
