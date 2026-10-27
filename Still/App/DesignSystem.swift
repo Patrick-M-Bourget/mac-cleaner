@@ -628,6 +628,9 @@ struct NativeWindowContract: NSViewRepresentable {
             super.viewDidMoveToWindow()
             guard let window, !applied else { return }
             applied = true
+            // #162: the sidebar header shows the logo and name, so the title bar doesn't repeat it. The window keeps its
+            // title for accessibility, Mission Control and the Window menu; the traffic lights and dragging are unchanged.
+            window.titleVisibility = .hidden
             DispatchQueue.main.async { self.fit(window) }
         }
         private func fit(_ window: NSWindow) {

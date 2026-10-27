@@ -27,9 +27,12 @@ final class LaunchSmokeUITests: XCTestCase {
         XCTAssertTrue(app.buttons["Cleanup plan"].exists || app.staticTexts["Cleanup plan"].exists)
         XCTAssertTrue(app.staticTexts["Storage trends"].exists || app.buttons["Storage trends"].exists, "Storage trends is in the sidebar (#119, #127)")
         XCTAssertFalse(app.staticTexts["Storage alerts"].exists)
-        // #149: the app is CacheDrop, in the window title and the sidebar header.
+        // #149, #162: the app is CacheDrop. The sidebar header shows the name; the window keeps it as its title for
+        // accessibility and the Window menu, but the title bar doesn't show it again.
         XCTAssertEqual(app.windows.firstMatch.title, "CacheDrop")
         XCTAssertTrue(app.staticTexts["CacheDrop"].exists, "The sidebar header names CacheDrop")
+        XCTAssertEqual(app.windows.firstMatch.staticTexts.matching(NSPredicate(format: "value == 'CacheDrop' OR label == 'CacheDrop'")).count, 1,
+                       "Only the sidebar header shows CacheDrop, not the title bar")
         XCTAssertFalse(app.staticTexts["Still"].exists)
     }
 
