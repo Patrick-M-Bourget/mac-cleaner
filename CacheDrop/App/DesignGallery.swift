@@ -136,6 +136,11 @@ struct DesignGallery: View {
                         Text("Example cache").font(.callout)
                         Text("Example build files").font(.callout)
                     }
+                    // Applications (Decision 51): a row that can't be chosen has no checkbox, and says why.
+                    CategoryRow(category: .apps, state: nil, title: "Example app", detail: "Example maker", size: "800 MB", enabled: true,
+                                identifier: "galleryReadOnlyRow", itemCount: nil, expanded: .constant(false), toggle: {}) {
+                        StatusRow(text: "Needs your password to remove", symbol: "lock", action: StatusAction(title: "Reveal in Finder", action: {}))
+                    } items: { EmptyView() }
                     VolumeSummary(available: 40_000_000_000, total: 512_000_000_000, observation: "Synthetic gallery capacity · No category attribution")
                     VolumeSummary(available: nil, total: nil, observation: "No capacity observation · Unknown stays distinct from zero")
                 }.padding(CacheDropDesign.Space.page).frame(maxWidth: .infinity, alignment: .leading)
