@@ -15,12 +15,13 @@ private let arm64: UInt32 = 0x0100_000c, x86_64: UInt32 = 0x0100_0007
 /// A plug-in bundle with an Info.plist and a Mach-O header for `architectures`; its code is never loaded.
 @discardableResult
 private func plugIn(_ relative: String, in root: URL, id: String?, version: String = "1.0", component: String? = nil,
-                    architectures: [UInt32] = [arm64], extensionPoint: String? = nil, bytes: Int = 4096) throws -> URL {
+                    architectures: [UInt32] = [arm64], extensionPoint: String? = nil, bytes: Int = 4096, info extra: [String: String] = [:]) throws -> URL {
     let bundle = root.appendingPathComponent(relative)
     let executable = bundle.deletingPathExtension().lastPathComponent
     try FileManager.default.createDirectory(at: bundle.appendingPathComponent("Contents/MacOS"), withIntermediateDirectories: true)
     var info: [String: Any] = ["CFBundleExecutable": executable, "CFBundleShortVersionString": version]
     if let id { info["CFBundleIdentifier"] = id }
+    info.merge(extra) { $1 }
     let components = component.map { [["name": $0, "manufacturer": "Fxtr", "type": "aufx", "subtype": "fxtr"]] }
     if let extensionPoint {
         var attributes: [String: Any] = [:]
@@ -269,4 +270,23 @@ private let components = "Library/Audio/Plug-Ins/Components/", vst = "Library/Au
     #expect(versions["Reason Rack Plugin"] == ["14.0d381"])
     #expect(versions["NoteStack"] == ["26.4.1.179"])
     #expect(versions["Splice INSTRUMENT"] == ["1.0.6-921181f"])
+}
+
+@Test func anAAXOnlyProductTakesItsMakerFromItsCopyrightNeverFromItsBundleID() throws {
+    let root = try fixtureFolder("Root"), home = try fixtureFolder("Home")
+    defer { try? FileManager.default.removeItem(at: root); try? FileManager.default.removeItem(at: home) }
+    let copyright = "NSHumanReadableCopyright", getInfo = "CFBundleGetInfoString"
+    try plugIn(aaxs + "Reason Rack Plugin.aaxplugin", in: root, id: "se.propellerheads.reasonrackplugin.vst", version: "14.0d381 build 20109",
+               info: [copyright: "©2000-2026 Propellerhead Software AB, all rights reserved."])
+    try plugIn(aaxs + "uaudio_610_a.aaxplugin", in: root, id: "com.uaudio.effects.U3A1", version: "1.0.15",
+               info: [copyright: "Copyright © 2022 Universal Audio. All rights reserved."])
+    try plugIn(aaxs + "AIRReverb.aaxplugin", in: root, id: "com.wizoo.AIR", version: "2.0.1.f174278",
+               info: [getInfo: "2.0.1.f174278 Copyright 2025 AIR Music Technology"])
+    // A template's placeholder and no copyright at all: no maker, however clear the bundle ID looks.
+    try plugIn(aaxs + "THE_YEAR.aaxplugin", in: root, id: "com.myPhilspeiser.product", version: "1.1.0", info: [copyright: "(c)2024, Company"])
+    try plugIn(aaxs + "LANDR Composer.aaxplugin", in: root, id: "com.LANDR.ComposerPlugin", version: "1.0.11")
+
+    let makers = Dictionary(uniqueKeysWithValues: scan(root, home).products.map { ($0.name, $0.maker ?? "—") })
+    #expect(makers == ["Reason Rack Plugin": "Propellerhead Software AB", "uaudio_610_a": "Universal Audio",
+                       "AIRReverb": "AIR Music Technology", "THE_YEAR": "—", "LANDR Composer": "—"])
 }

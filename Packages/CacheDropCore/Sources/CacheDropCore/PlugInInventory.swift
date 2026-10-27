@@ -154,13 +154,34 @@ public struct PlugInInventory: Sendable, Equatable {
         let components = (attributes?["AudioComponents"] ?? info["AudioComponents"]) as? [[String: Any]]
         // An Audio Unit is named "Maker: Name".
         let component = (components?.first?["name"] as? String)?.split(separator: ":", maxSplits: 1).map { $0.trimmingCharacters(in: .whitespaces) }
-        let maker = component.flatMap { $0.count == 2 ? $0[0] : nil } ?? vst3Vendor(url)
+        let maker = component.flatMap { $0.count == 2 ? $0[0] : nil } ?? vst3Vendor(url) ?? (format == .aax ? copyrightHolder(info) : nil)
         let name = component.flatMap { $0.count == 2 ? $0[1] : nil } ?? url.deletingPathExtension().lastPathComponent
         let executable = (info["CFBundleExecutable"] as? String).map { url.appendingPathComponent("Contents/MacOS/" + $0) }
         return PlugInFile(url: url, format: format, bundleID: info["CFBundleIdentifier"] as? String, name: name, maker: maker,
                           version: leadingVersion((info["CFBundleShortVersionString"] ?? info["CFBundleVersion"]) as? String),
                           architectures: executable.map(MachOArchitectures.read) ?? [], size: Catalog.estimate(sizer.size(url)),
                           isNamedByAudioUnit: component?.count == 2)
+    }
+
+    /// Who an AAX bundle's copyright line names: "©2000-2026 Propellerhead Software AB, all rights reserved." reads
+    /// "Propellerhead Software AB". Nil without a copyright line, or when it names a template's placeholder.
+    static func copyrightHolder(_ info: [String: Any]) -> String? {
+        for key in ["NSHumanReadableCopyright", "CFBundleGetInfoString"] {
+            guard let line = info[key] as? String,
+                  let mark = line.range(of: #"copyright|©|\(c\)"#, options: [.regularExpression, .caseInsensitive]) else { continue }
+            var holder = String(line[mark.lowerBound...])
+            if let end = holder.range(of: #"[.,;]?\s*all rights reserved.*$"#, options: [.regularExpression, .caseInsensitive]) {
+                holder.removeSubrange(end)
+            }
+            // Strip the marks and years in front: "Copyright © 1991-2026 ".
+            holder = holder.replacingOccurrences(of: #"^(\s|,|copyright|©|\(c\)|\d{4}(\s*[-–]\s*\d{4})?)+"#, with: "",
+                                                 options: [.regularExpression, .caseInsensitive])
+                .trimmingCharacters(in: CharacterSet.whitespaces.union(CharacterSet(charactersIn: ",;")))
+            let placeholders: Set = ["company", "my company", "your company", "yourcompany"]
+            guard holder.contains(where: \.isLetter), !placeholders.contains(holder.lowercased()) else { return nil }
+            return holder
+        }
+        return nil
     }
 
     /// A version's leading number: "5.5.5.19885 Authorization: Crystallizer" reads "5.5.5.19885". A version that
