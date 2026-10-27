@@ -22,6 +22,8 @@ import SwiftUI
     }
     /// Installed apps with their files, offered on the Applications page to uninstall (#177); never on Overview or in the plan.
     private(set) var uninstallable: [Candidate] = []
+    /// The plug-ins the last scan read, for the Applications page's Plug-ins section (#176).
+    private(set) var plugInInventory: PlugInInventory?
     /// Everything the plan and the Applications page can offer.
     var candidates: [Candidate] { discovered + pickedCandidates + projectBuildCandidates + uninstallable }
     /// The large and old files offered from picked folders, largest first.
@@ -69,7 +71,7 @@ import SwiftUI
     private(set) var quitStates: [String: AppQuitState] = [:]
     enum AppQuitState { case quitting, stillOpen }
     /// Each candidate's owner name at the last scan, so views never look owners up while drawing.
-    private var ownerNames: [String: String] = [:]
+    private var ownerNames: [String: [String]] = [:]
     private var executor: CleanupExecutor?
     /// The Settings dry run, off by default: with it on, the whole flow runs and nothing changes on disk (Decision 27).
     var dryRun: Bool {
@@ -187,7 +189,7 @@ import SwiftUI
     }
     /// Owners of the rule's items that were running at the last scan, in name order.
     func runningOwnerNames(for rule: CleanupRule) -> [String] {
-        Set(candidates(for: rule).compactMap { ownerNames[$0.id] }).intersection(runningOwners).sorted()
+        Set(candidates(for: rule).flatMap { ownerNames[$0.id] ?? [] }).intersection(runningOwners).sorted()
     }
     /// The plan's line for each running owner of the rule: an open app offers to quit, a tool offers a check (#138).
     func runningOwnerNotices(for rule: CleanupRule) -> [(name: String, notice: RunningOwnerNotice)] {
@@ -200,6 +202,16 @@ import SwiftUI
         if LocalStateLocation.isDisposableTest { return SystemAppQuitter(sendsRequests: false) }
         #endif
         return SystemAppQuitter()
+    }
+
+    /// Plug-in products to uninstall (#176): their formats, own support files and shared items, never what is `offered` elsewhere.
+    nonisolated private static func plugIns(home: URL, system: URL, installed: [InstalledApp], offered: [Candidate],
+                                            exclusions: ExclusionPolicy) -> (PlugInInventory, [Candidate]) {
+        let inventory = PlugInInventory.scan(home: home, systemRoot: system)
+        let listings = PlugInUninstall.listings(of: Set(inventory.products.flatMap(\.receipts)), under: system)
+        let owners = ApplicationsInventory.plugIns(inventory).map { ContentOwner($0) } + installed.map { ContentOwner($0) }
+        let content = MusicContent.scan(owners: owners, home: home, systemRoot: system).items
+        return (inventory, PlugInUninstall.scan(inventory, apps: installed, listings: listings, content: content, systemRoot: system, offered: offered, exclusions: exclusions))
     }
 
     /// Which owners are running, and which of them as an open app.
@@ -260,13 +272,14 @@ import SwiftUI
     /// The Applications page's Leftovers row; nil when none were found.
     var leftoversRow: CatalogOverview.Row? { CatalogOverview(catalog: catalog, candidates: candidates).rows.first { $0.category == .leftovers } }
     /// An installed app's items to uninstall it with (#177), by the app's path; empty when it can't be uninstalled here.
-    func uninstallItems(of appPath: String) -> [Candidate] { uninstallable.filter { $0.uninstall?.path == appPath } }
+    /// A plug-in product's too, by its row's id, shared items included (#176).
+    func uninstallItems(of appPath: String) -> [Candidate] { uninstallable.filter { $0.isUninstalled(with: appPath) } }
     func selectionState(ofApp appPath: String) -> CategorySelectionState {
-        CategorySelection(rules: AppUninstall.rules, candidates: uninstallItems(of: appPath), selected: selectedIDs).state
+        CategorySelection(rules: AppUninstall.rules + PlugInUninstall.rules, candidates: uninstallItems(of: appPath), selected: selectedIDs).state
     }
     /// An app's checkbox, as a category's (#240): returns true when only its possibly related items are left to choose one by one.
     func toggleApp(_ appPath: String) -> Bool {
-        toggle(CategorySelection(rules: AppUninstall.rules, candidates: uninstallItems(of: appPath), selected: selectedIDs))
+        toggle(CategorySelection(rules: AppUninstall.rules + PlugInUninstall.rules, candidates: uninstallItems(of: appPath), selected: selectedIDs))
     }
     func selectionState(for rules: [CleanupRule]) -> CategorySelectionState { categorySelection(rules).state }
     private func categorySelection(_ rules: [CleanupRule]) -> CategorySelection {
@@ -311,7 +324,7 @@ import SwiftUI
         let (steps, reporter) = AsyncStream.makeStream(of: CatalogDiscoveryProgress.self)
         let progress = Task { for await step in steps { scanProgress?.apply(step) } }
         let presence = Self.appPresence.snapshot(), receipts = Self.receipts(home: home), own = Bundle.main.bundleIdentifier
-        let scanned = await Task.detached(priority: .userInitiated) { () -> (CatalogDiscovery, [CleanupRule], ([String: RuleOwner], Set<String>), [String: String], FullDiskAccessStatus, [Candidate], [Candidate]) in
+        let scanned = await Task.detached(priority: .userInitiated) { () -> (CatalogDiscovery, [CleanupRule], ([String: RuleOwner], Set<String>), [String: [String]], FullDiskAccessStatus, [Candidate], [Candidate], PlugInInventory) in
             // Probed once per scan, at launch too, and shared with the guidance scan: it only opens a protected folder
             // and never prompts (#117).
             let access = FullDiskAccessProbe(home: home).status()
@@ -332,15 +345,22 @@ import SwiftUI
                 AppUninstall.scan(app, uninstaller: uninstaller, excluding: own, home: home, apps: presence, receipts: readReceipts, leftovers: found, offered: discovered.candidates,
                                   exclusions: exclusions)
             }
-            var owners: [String: RuleOwner] = [:], names: [String: String] = [:]
-            for candidate in discovered.candidates + leftovers + apps { if let owner = catalog.owner(for: candidate) { owners[owner.name] = owner; names[candidate.id] = owner.name } }
-            return (discovered, catalog.overriddenRules(home: home, systemRoot: system), Self.running(owners, quitter: quitter), names, access, leftovers, apps)
+            // Plug-in products (#176): their formats, own support files and shared items, never what is offered above.
+            let (inventory, plugIns) = Self.plugIns(home: home, system: system, installed: presence.installedApps() ?? [], offered: discovered.candidates + found + apps,
+                                                    exclusions: exclusions)
+            var owners: [String: RuleOwner] = [:], names: [String: [String]] = [:]
+            for candidate in discovered.candidates + leftovers + apps + plugIns {
+                // A plug-in product's hosts must be closed too (#176).
+                guard let owner = catalog.owner(for: candidate) else { continue }
+                for owner in [owner] + (candidate.uninstall?.hosts ?? []) { owners[owner.name] = owner; names[candidate.id, default: []].append(owner.name) }
+            }
+            return (discovered, catalog.overriddenRules(home: home, systemRoot: system), Self.running(owners, quitter: quitter), names, access, leftovers, apps + plugIns, inventory)
         }.value
         await progress.value
         await GrowthHistoryModel.shared.completeCatalog(scanned.0, catalog: catalog, fullDiskAccess: scanned.4, token: growth, afterCleanup: rescanFollowsCleanup)
         rescanFollowsCleanup = false
         fullDiskAccessRescan.scanned(scanned.4)
-        discovered = scanned.0.candidates + scanned.5; uninstallable = scanned.6; notes = scanned.0.notes; notAccessibleRules = scanned.0.notAccessible; overriddenRules = scanned.1; setRunning(scanned.2.0, open: scanned.2.1); ownerNames = scanned.3
+        discovered = scanned.0.candidates + scanned.5; uninstallable = scanned.6; plugInInventory = scanned.7; notes = scanned.0.notes; notAccessibleRules = scanned.0.notAccessible; overriddenRules = scanned.1; setRunning(scanned.2.0, open: scanned.2.1); ownerNames = scanned.3
         keepOnlyCurrentChoices()
         await scanGuidance(home: home, fullDiskAccess: scanned.4)
     }
@@ -398,7 +418,7 @@ import SwiftUI
     var recommendedCandidates: [Candidate] {
         let running = runningOwners, names = ownerNames
         return RecommendedPlan(catalog: catalog, candidates: discovered) { item in
-            names[item.id].flatMap { running.contains($0) ? .ownerRunning($0) : nil }
+            names[item.id]?.first { running.contains($0) }.map(CheckRefusal.ownerRunning)
         }.candidates
     }
     /// "Up to" when part of the plan is copies that share disk blocks (SPEC section 6).

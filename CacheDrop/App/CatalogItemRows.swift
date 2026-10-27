@@ -11,7 +11,7 @@ struct CatalogItemRows: View {
     /// Only this installed app's items, on its Applications row (#177).
     var app: String? = nil
     var body: some View {
-        let items = model.candidates(for: rule).filter { app == nil || $0.uninstall?.path == app }.sorted { $0.displayName.localizedStandardCompare($1.displayName) == .orderedAscending }
+        let items = model.candidates(for: rule).filter { app.map($0.isUninstalled(with:)) ?? true }.sorted { $0.displayName.localizedStandardCompare($1.displayName) == .orderedAscending }
         LazyVStack(alignment: .leading, spacing: 0) {
             ForEach(items) { item in
                 InspectableItemRow(name: item.displayName, detail: detail(item), size: catalogBytes(item.estimatedBytes, estimate: item.sizeIsEstimate),
@@ -26,6 +26,8 @@ struct CatalogItemRows: View {
     private func detail(_ item: Candidate) -> String {
         // A possibly related leftover says why it is shown (#173).
         if let reason = item.leftover?.reason { return reason }
+        // A plug-in item other products use too (#176).
+        if item.sharedBy.count > 1 { return "Shared with \(item.sharedBy.count) products" }
         let folder = PathDisplay.shortLocation(of: item.url, home: CatalogCleanupModel.checkHome)
         return item.lastUsed.map { folder + " · Last used " + $0.formatted(date: .abbreviated, time: .omitted) } ?? folder
     }

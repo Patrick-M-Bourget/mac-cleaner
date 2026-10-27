@@ -73,7 +73,7 @@ final class ApplicationsUITests: XCTestCase {
         XCTAssertEqual(password.value as? String, "Needs your password to remove")
         XCTAssertTrue(element(app, "applicationsReveal-" + locked!.path, .button).exists)
 
-        // Plug-ins: one row per product, its formats as items.
+        // Plug-ins: one row per product, its formats as items to tick (#176).
         // A product's identifier carries its first file's path.
         let product = element(app, "applicationsPlugIn-" + home.appendingPathComponent("Library/Audio/Plug-Ins/Components/Pro Synth.component").path)
         XCTAssertTrue(product.exists)
@@ -127,6 +127,52 @@ final class ApplicationsUITests: XCTestCase {
         app.buttons["View history"].click()
         // A History row is one combined button whose label starts with its title.
         XCTAssertTrue(app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "Uninstalled Synth · 3 items")).firstMatch.waitForExistence(timeout: 10))
+    }
+
+    /// #176: a plug-in product is ticked with its removable formats, its AU (which needs a password) is listed without a
+    /// checkbox and the review says it stays, the VST3 goes to the fixture Trash, and History says "Uninstalled <Product>".
+    @MainActor func testAPlugInProductIsUninstalledAndWhatNeedsAPasswordStays() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        let state = try configureIsolatedState(app)
+        let home = try configureCatalogHome(app)
+        let au = home.appendingPathComponent("Library/Audio/Plug-Ins/Components/Pro Synth.component")
+        let vst3 = home.appendingPathComponent("Library/Audio/Plug-Ins/VST3/Pro Synth.vst3")
+        defer {
+            app.terminate(); try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: au.path)
+            try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home)
+        }
+        for (bundle, ext) in [(au, "component"), (vst3, "vst3")] {
+            try FileManager.default.createDirectory(at: bundle.appendingPathComponent("Contents"), withIntermediateDirectories: true)
+            try PropertyListSerialization.data(fromPropertyList: ["CFBundleIdentifier": "com.maker.prosynth.\(ext)"], format: .xml, options: 0)
+                .write(to: bundle.appendingPathComponent("Contents/Info.plist"))
+        }
+        // As in a root-owned Components folder, the AU can't be moved without a password (Decision 50).
+        try FileManager.default.setAttributes([.posixPermissions: 0o555], ofItemAtPath: au.path)
+        app.launch()
+        waitForCatalogScan(app)
+        app.typeKey("5", modifierFlags: .command)
+
+        let row = element(app, "applicationsPlugIn-" + au.path, .checkBox)
+        XCTAssertTrue(row.waitForExistence(timeout: 10), "A product CacheDrop can partly uninstall has a checkbox")
+        XCTAssertEqual(row.value as? Int, 0, "Nothing is ticked when the page opens")
+        revealAndClick(row, in: app)
+        expandDisclosures(in: app)
+        XCTAssertEqual(app.checkBoxes["planItem-Pro Synth.vst3"].value as? Int, 1, "Its removable format is ticked with it")
+        XCTAssertFalse(app.checkBoxes["planItem-Pro Synth.component"].exists, "A format that needs a password has no checkbox")
+        XCTAssertEqual(element(app, "applicationsPartPassword-" + au.path, .staticText).value as? String, "AU: Needs your password")
+
+        app.buttons["Review cleanup"].click()
+        let staying = element(app, "reviewStaying-" + au.path + "-password", .staticText)
+        XCTAssertTrue(staying.waitForExistence(timeout: 5))
+        XCTAssertEqual(staying.value as? String, "Pro Synth: 1 part stays · Needs your password", "The review says what stays")
+        cleanUpFromReview(app)
+        XCTAssertTrue(app.buttons["View history"].waitForExistence(timeout: 20))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: vst3.path), "The VST3 went to the Trash")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: au.path), "What needs a password is never acted on")
+
+        app.buttons["View history"].click()
+        XCTAssertTrue(app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "Uninstalled Pro Synth · 1 item")).firstMatch.waitForExistence(timeout: 10))
     }
 
     /// #270: while the scan runs each section says it is looking; a section that finds nothing says so.
