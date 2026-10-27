@@ -73,22 +73,18 @@ func survivorsAfterSettling(_ marker: String) -> [pid_t] {
     #expect(left.count == 1)
 }
 
-/// When a test cancelled, so a stop is timed from the cancel rather than from a start a busy test run may delay.
-final class CancelTime: @unchecked Sendable {
-    private let lock = NSLock()
-    private var at: TimeInterval = .infinity
-    func mark() { lock.lock(); at = ProcessInfo.processInfo.systemUptime; lock.unlock() }
-    var value: TimeInterval { lock.lock(); defer { lock.unlock() }; return at }
-}
-
 @Test func aCancelledToolIsStoppedWithEveryProcessItStartedAndReturnsItsOutputSoFar() throws {
     let marker = uniqueSleep()
-    let tool = try treeTool("echo started\nsleep \"$1\" &\nsleep \"$1\"")
+    let folder = try treeTool("true").deletingLastPathComponent()
+    defer { try? FileManager.default.removeItem(at: folder) }
+    let running = folder.appendingPathComponent("running")
+    let tool = try treeTool("echo started\ntouch '\(running.path)'\nsleep \"$1\" &\nsleep \"$1\"")
     defer { try? FileManager.default.removeItem(at: tool.deletingLastPathComponent()) }
     let cancellation = CleanupCancellation(), cancelledAt = CancelTime()
-    DispatchQueue.global().asyncAfter(deadline: .now() + 0.5) { cancelledAt.mark(); cancellation.cancel() }
+    // Cancel once the tool has printed and is running, never after a fixed delay a slow machine may outlast.
+    DispatchQueue.global().async { if waitForFile(running) { cancelledAt.mark(); cancellation.cancel() } }
     let error = #expect(throws: ToolCancelled.self) { try BoundedTool.capture(executable: tool, arguments: [marker], timeout: 60, cancellation: cancellation) }
-    let sinceCancel = ProcessInfo.processInfo.systemUptime - cancelledAt.value
+    let sinceCancel = cancelledAt.elapsed
     let left = survivorsAfterSettling(marker)
     left.forEach { kill($0, SIGKILL) }
     #expect(sinceCancel < BoundedTool.stopGrace + 1)
@@ -108,4 +104,25 @@ final class CancelTime: @unchecked Sendable {
     let error = #expect(throws: ToolCancelled.self) { try BoundedTool.capture(executable: tool, arguments: [], timeout: 5, cancellation: cancellation) }
     #expect(error?.started == false)
     #expect(!FileManager.default.fileExists(atPath: marker.path))
+}
+
+/// The tool exited but something it started still holds the output open, so there's no EOF yet. A cancel then
+/// reports the tool's own result, not a stop, and still ends what it left behind.
+@Test func aCancelAfterTheToolExitedReturnsItsOwnResult() throws {
+    let marker = uniqueSleep()
+    let folder = try treeTool("true").deletingLastPathComponent()
+    defer { try? FileManager.default.removeItem(at: folder) }
+    let exited = folder.appendingPathComponent("exited")
+    // The child writes `exited` once its parent, the tool, is a zombie waiting to be reaped.
+    let tool = try treeTool("p=$$\n( while :; do case \"$(ps -o stat= -p $p)\" in Z*|\"\") break;; esac; sleep 0.01; done; touch '\(exited.path)'; sleep \"$1\" ) &\necho done\nexit 0")
+    defer { try? FileManager.default.removeItem(at: tool.deletingLastPathComponent()) }
+    let cancellation = CleanupCancellation()
+    DispatchQueue.global().async { if waitForFile(exited) { cancellation.cancel() } }
+    let result = try BoundedTool.capture(executable: tool, arguments: [marker], timeout: 20, cancellation: cancellation)
+    let left = survivorsAfterSettling(marker)
+    left.forEach { kill($0, SIGKILL) }
+    #expect(cancellation.isCancelled)
+    #expect(result.status == 0)
+    #expect(result.output == "done\n")
+    #expect(left.isEmpty)
 }

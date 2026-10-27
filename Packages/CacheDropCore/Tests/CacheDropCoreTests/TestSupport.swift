@@ -98,3 +98,27 @@ extension CandidateCheck {
 func onlyTool(_ name: String, _ standIn: URL) -> @Sendable (ToolCommand) -> URL? {
     { command in command.executables.contains { URL(fileURLWithPath: $0).lastPathComponent == name } ? standIn : nil }
 }
+
+/// Waits up to `timeout` for `file` to appear, which a stand-in tool writes to say it reached a point; true once it has.
+/// Bounded, so a tool that never gets there fails the test instead of hanging it.
+func waitForFile(_ file: URL, timeout: TimeInterval = 10) -> Bool {
+    let deadline = ProcessInfo.processInfo.systemUptime + timeout
+    while !FileManager.default.fileExists(atPath: file.path) {
+        guard ProcessInfo.processInfo.systemUptime < deadline else { return false }
+        usleep(10_000)
+    }
+    return true
+}
+
+/// When a test cancelled, so a stop is timed from the cancel rather than from a start a busy test run may delay.
+final class CancelTime: @unchecked Sendable {
+    private let lock = NSLock()
+    private var at: TimeInterval?
+    func mark() { lock.lock(); at = ProcessInfo.processInfo.systemUptime; lock.unlock() }
+    /// Seconds since the cancel. A cancel that never fired fails the test, and reads as forever so no time bound passes.
+    var elapsed: TimeInterval {
+        lock.lock(); let at = self.at; lock.unlock()
+        guard let at else { Issue.record("The cancel never fired"); return .infinity }
+        return ProcessInfo.processInfo.systemUptime - at
+    }
+}

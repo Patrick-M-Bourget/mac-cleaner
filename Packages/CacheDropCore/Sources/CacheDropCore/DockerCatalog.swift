@@ -8,7 +8,7 @@ extension BuiltInCatalog {
     static let dockerExecutables = ["/usr/local/bin/docker", "/opt/homebrew/bin/docker", NSHomeDirectory() + "/.docker/bin/docker"]
     /// `effect` says what the command does; the consequence starts with the exact command, from `arguments`, so the two never drift.
     private static func docker(_ kind: DockerPruneKind, id: String, title: String, detail: String, effect: String, regen: RegenClass, arguments: [String]) -> CleanupRule {
-        let tool = ToolCommand(executables: dockerExecutables, arguments: arguments, timeout: 600)
+        let tool = ToolCommand(executables: dockerExecutables, arguments: arguments, timeout: 600, daemonBacked: true)
         // `.docker` is the CLI's own folder; it anchors the rule in the home folder. The command never touches it.
         return CleanupRule(id: id, category: .developer, title: title, detail: detail, consequence: "Runs `\(tool.commandLine)`, " + effect + " Docker must be running.",
                            regen: regen, action: .tool, locations: [".docker"], owner: nil, tool: tool, items: .docker(kind))
