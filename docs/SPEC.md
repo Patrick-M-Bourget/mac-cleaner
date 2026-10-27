@@ -6,7 +6,7 @@ This spec covers behavior the prototype can't show. The screens, layout and copy
 
 - Still answers four questions: what takes space, what can be removed, what happens if it is, and how much space came back.
 - Size, age and location only suggest candidates. Every candidate is judged on three questions: who owns it, how it comes back, and whether anything uses it now.
-- Nothing is preselected in the Cleanup plan. The user picks categories or items there, or opens Smart clean, the recommended plan on its own page (only deleted data that rebuilds itself and passes the checks: caches, build data, updater downloads, logs, leaked app copies; all ticked, each can be unticked). Either way the user reviews the consequences before anything changes. The two selections are separate: neither ever changes the other (#141, Decision 31).
+- Nothing is preselected in the Cleanup plan. The user picks categories or items there, or opens Smart clean, the recommended plan on its own page (only deleted data that rebuilds itself and passes the checks: caches, build data, updater downloads, logs, leaked app copies, never an item the user chooses one by one, such as an older JetBrains version's folder, which holds local history, or an old temporary file (#144); all ticked, each can be unticked). Either way the user reviews the consequences before anything changes. The two selections are separate: neither ever changes the other (#141, Decision 31).
 - Every item is checked again just before Still acts on it (section 4).
 - Scanning never writes. Choosing scan locations never means consent to clean.
 - Unknown is shown as unknown, never as 0. A location Still can't read is listed as not accessible, not left out of the picture.

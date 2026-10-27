@@ -140,9 +140,12 @@ public struct CleanupRule: Sendable, Identifiable {
     public let fromPickedFolders: Bool
     /// When set, each item inside a location is offered only when old and unused by any process (`TemporaryFiles`).
     public let unused: UnusedItems?
+    /// The user picks each item on its own (#144): set for rules whose items aren't all data that rebuilds itself
+    /// (a JetBrains folder holds local history), on top of the kinds `choosesItems` already counts.
+    public let itemByItem: Bool
     public init(id: String, category: CatalogCategory, title: String, detail: String, consequence: String, regen: RegenClass, action: CleanupAction, locations: [String], owner: RuleOwner?, protectedNames: [String] = [], tool: ToolCommand? = nil, protectedExtensions: [String] = [], contents: ContentsMatch? = nil, keepNewestVersions: Int? = nil, layoutOverrides: [LayoutOverride] = [], base: LocationBase = .home, copies: LeakedCopies? = nil, itemName: (@Sendable (String) -> String?)? = nil, items: CatalogItems? = nil, unprotectedExtensions: Set<String> = [],
                 itemOwner: (@Sendable (URL) -> RuleOwner?)? = nil, yieldsToOtherRules: Bool = false, protectedDepth: Int = 1, requiresFullDiskAccess: Bool = false, guidance: Guidance? = nil,
-                unprotectedNames: Set<String> = [], fromPickedFolders: Bool = false, unused: UnusedItems? = nil) {
+                unprotectedNames: Set<String> = [], fromPickedFolders: Bool = false, unused: UnusedItems? = nil, itemByItem: Bool = false) {
         self.id = id; self.category = category; self.title = title; self.detail = detail; self.consequence = consequence
         self.regen = regen; self.action = action; self.locations = locations; self.owner = owner; self.protectedNames = protectedNames; self.tool = tool
         self.protectedExtensions = protectedExtensions; self.contents = contents; self.keepNewestVersions = keepNewestVersions; self.layoutOverrides = layoutOverrides
@@ -151,8 +154,14 @@ public struct CleanupRule: Sendable, Identifiable {
         self.itemOwner = itemOwner; self.yieldsToOtherRules = yieldsToOtherRules; self.protectedDepth = protectedDepth
         self.requiresFullDiskAccess = requiresFullDiskAccess; self.unprotectedNames = unprotectedNames
         self.guidance = guidance; self.fromPickedFolders = fromPickedFolders
-        self.unused = unused
+        self.unused = unused; self.itemByItem = itemByItem
     }
+}
+
+extension CleanupRule {
+    /// Rules whose items the user chooses one by one: single Downloads files, each model or disk image, each iCloud copy,
+    /// and rules marked `itemByItem`. The one definition: the Cleanup plan lists their items, and Smart clean never takes them.
+    public var choosesItems: Bool { contents != nil || regen == .model || action == .evict || fromPickedFolders || items?.choosesEachItem == true || itemByItem }
 }
 
 public enum BuiltInCatalog {

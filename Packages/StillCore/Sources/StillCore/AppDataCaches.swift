@@ -81,7 +81,7 @@ public enum AppDataCaches {
                     detail: "Caches and indexes of older IDE versions. The versions you have installed, and the newest of each IDE, are kept.",
                     consequence: "Permanently removed, with that version’s local history. Newer versions keep their own caches and history.",
                     regen: .cache, action: .delete, locations: ["Library/Caches/JetBrains/*"], owner: nil,
-                    itemOwner: { jetBrainsOwner($0, apps: apps) }, protectedDepth: AppCaches.liveWorkDepth)
+                    itemOwner: { jetBrainsOwner($0, apps: apps) }, protectedDepth: AppCaches.liveWorkDepth, itemByItem: true)
     }
 
     // MARK: Adobe

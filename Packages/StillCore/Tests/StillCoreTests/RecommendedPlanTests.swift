@@ -78,3 +78,17 @@ private func recommended(_ items: [Candidate], refusing refused: [String: CheckR
     let scan = [item("downloads-installers"), item("npm-cache"), item("ollama-models"), item("app-logs"), item("homebrew"), item("pip-cache")]
     #expect(recommended(scan, refusing: ["pip-cache": .ownerRunning("pip")]) == ["npm-cache", "app-logs"])
 }
+
+@Test func jetBrainsCachesAndOldTemporaryFilesAreNotRecommended() {
+    // A JetBrains folder holds local history that doesn't rebuild; a temporary file can be anything an app left (#144).
+    #expect(catalog.rule("jetbrains-caches") != nil && catalog.rule("temporary-files") != nil)
+    #expect(recommended([item("jetbrains-caches"), item("temporary-files")]).isEmpty)
+    // Caches apps keep in `C` rebuild themselves and stay in.
+    #expect(recommended([item("temporary-app-caches")]) == ["temporary-app-caches"])
+}
+
+@Test func noRuleWhoseItemsAreChosenOneByOneIsRecommended() {
+    let chosen = catalog.rules.filter(\.choosesItems)
+    #expect(Set(chosen.map(\.id)).isSuperset(of: ["jetbrains-caches", "temporary-files", "android-system-images", "ollama-models", "icloud-local-copies"]))
+    #expect(recommended(chosen.map { item($0.id) } + chosen.map { item($0.id, action: .delete) }).isEmpty)
+}
