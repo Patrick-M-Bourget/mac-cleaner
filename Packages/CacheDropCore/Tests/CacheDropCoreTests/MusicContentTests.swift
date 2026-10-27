@@ -75,6 +75,7 @@ private let unrelated = ContentOwner(id: "other", name: "Serum", bundleID: "com.
 
     #expect(content.items.map(\.name).sorted() == ["Apple Loops", "Impulse responses", "Logic Pro Library", "Logic content"])
     #expect(content.items.allSatisfy { $0.vendor == "Apple" && $0.owners == ["logic", "mainstage"] && $0.isShared })
+    #expect(content.items.allSatisfy { $0.tie == .bundleID }, "Apple's content belongs to the named apps, not to every Apple app")
 }
 
 /// #175: a location reached two ways (a default that links to a configured one) is one item, counted once.
@@ -141,5 +142,6 @@ private let unrelated = ContentOwner(id: "other", name: "Serum", bundleID: "com.
     #expect(content.items.map(\.name) == ["Resources"])
     #expect(content.items.first?.owners == ["pigments", "analoglab"], "The vendor's manager installs content; it doesn't own it")
     #expect(content.items.first?.isShared == true)
+    #expect(content.items.first?.tie == .vendor, "Decision 52: no receipt or bundle ID ties it to one product, so the vendor does")
     #expect(content.items(for: "other").isEmpty)
 }

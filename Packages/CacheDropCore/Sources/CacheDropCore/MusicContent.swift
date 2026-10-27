@@ -28,15 +28,26 @@ public struct MusicVendor: Sendable, Equatable {
         public let kind: MusicContentItem.Kind
         public init(url: URL, kind: MusicContentItem.Kind) { self.url = url; self.kind = kind }
     }
+    /// Who owns a vendor's content.
+    public enum Owners: Sendable, Equatable {
+        /// Every installed product of the vendor, by the bundle ID's vendor part (`com.arturia`), lowercased: content no
+        /// receipt or bundle ID ties to one product belongs to the vendor (Decision 52). The one place a vendor match ties.
+        case vendorProducts(String)
+        /// The apps with exactly these bundle IDs, lowercased: a bundle-ID tie (Decision 41).
+        case apps([String])
+        var tie: MusicContentItem.Tie { if case .apps = self { .bundleID } else { .vendor } }
+    }
     public let name: String
     public let locations: [Location]
-    /// The owners' bundle IDs, lowercased: a vendor prefix (`com.ableton`) or a whole ID. A vendor's manager (Native
-    /// Access, Waves Central) installs content but never owns it.
-    let ownerIDs: [String]
+    public let owners: Owners
 
+    /// A vendor's manager (Native Access, Waves Central) installs content but never owns it.
     func owns(_ bundleID: String?) -> Bool {
         guard let id = bundleID?.lowercased(), !VendorTool.known.contains(where: { $0.bundleID == id }) else { return false }
-        return ownerIDs.contains { id == $0 || id.hasPrefix($0 + ".") }
+        switch owners {
+        case .vendorProducts(let vendor): return RemovedAppLeftovers.vendor(of: id) == vendor
+        case .apps(let ids): return ids.contains(id)
+        }
     }
 
     public static let known: [MusicVendor] = [
@@ -45,13 +56,13 @@ public struct MusicVendor: Sendable, Equatable {
         MusicVendor(name: "Reason Studios", locations: [
             .init(path: "/Library/Application Support/Propellerhead Software/Soundbanks", name: "Sound banks", kind: .installed),
             .init(path: "/Library/Application Support/Propellerhead Software/SharedResources", name: "Shared resources", kind: .installed),
-        ], ownerIDs: ["se.propellerheads"]),
+        ], owners: .vendorProducts("se.propellerheads")),
         // Defaults from Ableton's Live Browser and User Library articles. The User Library holds the user's own presets
         // and samples. Live's settings can move both; reading them is open until Ableton documents where they live.
         MusicVendor(name: "Ableton", locations: [
             .init(path: "Music/Ableton/Factory Packs", name: "Packs", kind: .installed),
             .init(path: "Music/Ableton/User Library", name: "User Library", kind: .yours),
-        ], ownerIDs: ["com.ableton"]),
+        ], owners: .vendorProducts("com.ableton")),
         // Apple's Logic Pro 12 / MainStage 4 library (relocatable) and the legacy layout, shared by both apps
         // (support.apple.com 111094 and Logic's legacy content guide). The bundle IDs are Logic's and MainStage's own.
         MusicVendor(name: "Apple", locations: [
@@ -59,16 +70,16 @@ public struct MusicVendor: Sendable, Equatable {
             .init(path: "/Library/Application Support/Logic", name: "Logic content", kind: .installed),
             .init(path: "/Library/Audio/Apple Loops/Apple", name: "Apple Loops", kind: .installed),
             .init(path: "/Library/Audio/Impulse Responses/Apple", name: "Impulse responses", kind: .installed),
-        ], ownerIDs: ["com.apple.logic10", "com.apple.mainstage3"]),
+        ], owners: .apps(["com.apple.logic10", "com.apple.mainstage3"])),
         // Waves' documented default for its instrument samples; Waves Central can relocate them. Shared by every Waves product.
         MusicVendor(name: "Waves", locations: [
             .init(path: "/Applications/Waves/Data/Instrument Data/Waves Sample Libraries", name: "Sample libraries", kind: .installed),
-        ], ownerIDs: ["com.wavesaudio"]),
+        ], owners: .vendorProducts("com.wavesaudio")),
         // Arturia's default resources folder (presets, samples and other files its products need; binaries live apart).
         // Arturia Software Center can move it; reading that setting is open until Arturia documents where it is kept.
         MusicVendor(name: "Arturia", locations: [
             .init(path: "/Library/Arturia", name: "Resources", kind: .installed),
-        ], ownerIDs: ["com.arturia"]),
+        ], owners: .vendorProducts("com.arturia")),
     ]
 }
 
@@ -79,6 +90,14 @@ public struct MusicContentItem: Sendable, Equatable, Identifiable {
         case installed
         /// Made by the user (Ableton's User Library, user presets): labelled as theirs, never grouped as installed content.
         case yours
+    }
+    /// What ties it to its owners.
+    public enum Tie: Sendable, Equatable {
+        /// The vendor (Decision 52): shared by every installed product of the vendor, "Shared by <Vendor> products",
+        /// ticked one by one only and counted once.
+        case vendor
+        /// The owners' bundle IDs (Decision 41).
+        case bundleID
     }
     public enum State: Sendable, Equatable {
         case present(SizeEstimate)
@@ -93,6 +112,7 @@ public struct MusicContentItem: Sendable, Equatable, Identifiable {
     public let state: State
     /// The IDs of every confirmed owner. More than one means it is shared ("Shared with <N> products").
     public let owners: [String]
+    public let tie: Tie
     public var id: String { url.path }
     public var isShared: Bool { owners.count > 1 }
 }
@@ -136,7 +156,8 @@ public struct MusicContent: Sendable, Equatable {
                 case .at(let real): (state, key) = (.present(Catalog.estimate(sizer.size(URL(fileURLWithPath: real)))), real)
                 }
                 guard seen.insert(key).inserted else { continue }
-                items.append(MusicContentItem(name: location.name, vendor: vendor.name, url: location.url, kind: location.kind, state: state, owners: ownerIDs))
+                items.append(MusicContentItem(name: location.name, vendor: vendor.name, url: location.url, kind: location.kind, state: state, owners: ownerIDs,
+                                              tie: vendor.owners.tie))
             }
         }
         return MusicContent(items: items)
