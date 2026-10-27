@@ -1,7 +1,7 @@
 import AppKit
 import Foundation
 import Observation
-import StillCore
+import CacheDropCore
 import SwiftUI
 
 /// Single items a rule found (Downloads files, models, disk images), each chosen on its own. Nothing is preselected.

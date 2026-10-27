@@ -1,6 +1,6 @@
 import AppKit
 import Observation
-import StillCore
+import CacheDropCore
 import SwiftUI
 
 /// Opens the Trash folder with NSWorkspace, which shows it as Finder's Trash.

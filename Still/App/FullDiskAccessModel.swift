@@ -1,6 +1,6 @@
 import AppKit
 import Observation
-import StillCore
+import CacheDropCore
 
 /// Full Disk Access state for an access surface, checked when it is shown. Catalog scans probe too, the one at
 /// launch included (`CatalogCleanupModel.scan`). Checking never asks for access (`FullDiskAccessProbe`).

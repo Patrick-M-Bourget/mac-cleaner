@@ -1,6 +1,6 @@
 import AppKit
 import Observation
-import StillCore
+import CacheDropCore
 import SwiftUI
 
 /// Results after a run moved items to the Trash: "Empty the Trash in Finder to free X · Open Trash", measured after the run.

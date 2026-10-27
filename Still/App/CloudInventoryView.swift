@@ -1,4 +1,4 @@
-import StillCore
+import CacheDropCore
 import SwiftUI
 
 struct CloudInventoryView: View {

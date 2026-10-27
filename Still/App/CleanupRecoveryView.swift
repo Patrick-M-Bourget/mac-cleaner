@@ -1,7 +1,7 @@
 import AppKit
 import Darwin
 import Observation
-import StillCore
+import CacheDropCore
 import SwiftUI
 
 @MainActor @Observable final class CleanupRecoveryModel {

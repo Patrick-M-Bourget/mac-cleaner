@@ -1,6 +1,6 @@
 import AppKit
 import Observation
-import StillCore
+import CacheDropCore
 import SwiftUI
 
 /// A small "Put back" link for an item a run moved to the Trash (#159). Once used it reads "Put back", or why it couldn't.

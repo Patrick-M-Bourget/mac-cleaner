@@ -1,5 +1,5 @@
 import AppKit
-import StillCore
+import CacheDropCore
 import SwiftUI
 
 /// The shared Full Disk Access explanation (#161), following the prototype's "Broader access is optional" sheet:

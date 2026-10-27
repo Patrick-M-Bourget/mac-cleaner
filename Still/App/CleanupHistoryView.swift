@@ -1,6 +1,6 @@
 import AppKit
 import Observation
-import StillCore
+import CacheDropCore
 import SwiftUI
 
 extension AppLifecycleController: HistoryMaintenanceLifecycle {

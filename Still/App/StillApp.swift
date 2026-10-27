@@ -1,6 +1,6 @@
 import SwiftUI
 import Observation
-import StillCore
+import CacheDropCore
 
 @main
 struct StillApp: App {
@@ -458,7 +458,7 @@ private struct WorkspaceView: View {
                             overviewCloudRow
                             if overviewCloudExpanded, let report = overviewObservation?.cloudInventory { CloudInventoryView(report: report).padding(StillDesign.Space.md) }
                         }
-                        // The largest catalog categories that found something; categories are data in StillCore.
+                        // The largest catalog categories that found something; categories are data in CacheDropCore.
                         ForEach(Array(shown.enumerated()), id: \.element.id) { index, row in
                             if index > 0 || showsCloudInventory { Divider().padding(.horizontal, StillDesign.Space.lg) }
                             catalogRow(row)

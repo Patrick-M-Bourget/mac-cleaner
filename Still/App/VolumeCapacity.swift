@@ -1,6 +1,6 @@
 import Darwin
 import Foundation
-import StillCore
+import CacheDropCore
 
 /// Capacity-only metadata shared by presentation and optional alerts; never enumerates files.
 struct StartupVolumeCapacity: Sendable {

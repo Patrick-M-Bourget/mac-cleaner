@@ -1,7 +1,7 @@
 import AppKit
 import Observation
 import QuickLook
-import StillCore
+import CacheDropCore
 import SwiftUI
 
 /// Process-local browsing state. It contains no restored scan or cleanup authority.

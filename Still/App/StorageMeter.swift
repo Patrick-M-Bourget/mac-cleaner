@@ -1,4 +1,4 @@
-import StillCore
+import CacheDropCore
 import SwiftUI
 
 /// The coloured segments a capacity meter draws inside the used space (#164): what CacheDrop found, never a whole-disk

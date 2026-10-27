@@ -1,7 +1,7 @@
 import SwiftUI
 import AppKit
 import Observation
-import StillCore
+import CacheDropCore
 
 @MainActor @Observable final class ScanActivityHistory {
     static let shared = ScanActivityHistory()

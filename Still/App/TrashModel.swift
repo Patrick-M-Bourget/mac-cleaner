@@ -1,6 +1,6 @@
 import AppKit
 import Observation
-import StillCore
+import CacheDropCore
 import SwiftUI
 
 /// What the Finder Trash holds, measured read-only off the main thread. Still never empties the Trash (SPEC section 2).

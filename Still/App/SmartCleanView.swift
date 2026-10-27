@@ -1,5 +1,5 @@
 import AppKit
-import StillCore
+import CacheDropCore
 import SwiftUI
 
 /// Smart clean (#141): the recommended plan on its own page. Only data that rebuilds itself, grouped by category, all ticked

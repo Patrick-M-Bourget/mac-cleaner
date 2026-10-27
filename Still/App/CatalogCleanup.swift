@@ -1,10 +1,10 @@
 import AppKit
 import Foundation
 import Observation
-import StillCore
+import CacheDropCore
 import SwiftUI
 
-/// The catalog's categories in the app. Nothing here knows a specific rule; rules are data in StillCore.
+/// The catalog's categories in the app. Nothing here knows a specific rule; rules are data in CacheDropCore.
 @MainActor @Observable final class CatalogCleanupModel {
     let catalog = Catalog(rules: BuiltInCatalog.rules)
     /// What the catalog's known locations hold.

@@ -2,7 +2,7 @@ import SwiftUI
 import AppKit
 import UserNotifications
 import Darwin
-import StillCore
+import CacheDropCore
 
 extension Notification.Name {
     static let stillAlertOpened = Notification.Name("Still.alertOpened")

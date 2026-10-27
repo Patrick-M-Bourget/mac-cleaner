@@ -2,7 +2,7 @@ import SwiftUI
 import AppKit
 import ServiceManagement
 import Combine
-import StillCore
+import CacheDropCore
 
 @MainActor private final class NativeLoginService: LoginService {
     var status: LoginStatus {

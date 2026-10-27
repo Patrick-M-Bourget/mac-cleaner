@@ -1,5 +1,5 @@
 import Foundation
-import StillCore
+import CacheDropCore
 
 #if DEBUG
 /// iCloud states for a UI test's fixture home: `.still-test-icloud.json` maps paths relative to the home to

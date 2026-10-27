@@ -1,7 +1,7 @@
 import Darwin
 import AppKit
 import Observation
-import StillCore
+import CacheDropCore
 import SwiftUI
 import QuickLook
 

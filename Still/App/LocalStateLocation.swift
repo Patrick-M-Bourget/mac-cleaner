@@ -1,6 +1,6 @@
 import Foundation
 import Darwin
-import StillCore
+import CacheDropCore
 
 /// Shared app-owned local state. Debug tests bind an existing disposable root by identity.
 enum LocalStateLocation {

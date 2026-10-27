@@ -1,7 +1,7 @@
 import SwiftUI
 import AppKit
 import Darwin
-import StillCore
+import CacheDropCore
 
 @MainActor final class HomebrewInspection: ObservableObject {
     @Published private(set) var executable: URL?

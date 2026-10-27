@@ -1,5 +1,5 @@
 import Foundation
-import StillCore
+import CacheDropCore
 
 #if DEBUG
 /// A UI test's snapshot count, from `<home>/.still-test-snapshots`; none when it's missing.

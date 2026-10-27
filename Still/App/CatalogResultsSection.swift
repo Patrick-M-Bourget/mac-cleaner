@@ -1,7 +1,7 @@
 import AppKit
 import Foundation
 import Observation
-import StillCore
+import CacheDropCore
 import SwiftUI
 
 /// Results: outcomes first (skipped and failed items on top, with their reason), details on demand.

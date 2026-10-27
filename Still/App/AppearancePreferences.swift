@@ -1,7 +1,7 @@
 import AppKit
 import Darwin
 import Foundation
-import StillCore
+import CacheDropCore
 import SwiftUI
 
 /// One known app-owned preference file. Opening the app never repairs invalid data.

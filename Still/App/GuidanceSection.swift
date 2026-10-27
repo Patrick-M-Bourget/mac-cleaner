@@ -1,4 +1,4 @@
-import StillCore
+import CacheDropCore
 import SwiftUI
 
 /// App-managed storage (Decision 25): its own quiet page, reached from one Overview row. Each row opens the app or

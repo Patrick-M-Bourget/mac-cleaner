@@ -1,6 +1,6 @@
 import SwiftUI
 import Observation
-import StillCore
+import CacheDropCore
 
 @MainActor @Observable final class ExclusionsModel {
     static let shared = ExclusionsModel()

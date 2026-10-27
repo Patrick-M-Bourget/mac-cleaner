@@ -1,5 +1,5 @@
 import AppKit
-import StillCore
+import CacheDropCore
 
 /// Opens guidance places with NSWorkspace.
 struct WorkspaceGuidanceOpener: GuidanceOpening {

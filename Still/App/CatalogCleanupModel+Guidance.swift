@@ -1,5 +1,5 @@
 import Foundation
-import StillCore
+import CacheDropCore
 
 /// Guidance-only categories (SPEC section 3): sized and shown with where to manage them, never in a plan.
 extension CatalogCleanupModel {

@@ -1,6 +1,6 @@
 import Foundation
 import Observation
-import StillCore
+import CacheDropCore
 
 /// Remembered configuration is separate from the process-only observations and live plan.
 @MainActor @Observable final class RememberedLocations {

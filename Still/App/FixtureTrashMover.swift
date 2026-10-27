@@ -1,5 +1,5 @@
 import Foundation
-import StillCore
+import CacheDropCore
 
 #if DEBUG
 /// A UI test's Trash: moves items into the fixture home's `.Trash` instead of the user's, so a journey that cleans for real

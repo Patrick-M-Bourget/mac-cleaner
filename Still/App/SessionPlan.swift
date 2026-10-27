@@ -1,6 +1,6 @@
 import Foundation
 import Observation
-import StillCore
+import CacheDropCore
 import SwiftUI
 
 /// A user-scanned location being read again. Its earlier observation is not current until the scan finishes.

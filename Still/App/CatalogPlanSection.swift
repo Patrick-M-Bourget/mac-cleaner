@@ -1,7 +1,7 @@
 import AppKit
 import Foundation
 import Observation
-import StillCore
+import CacheDropCore
 import SwiftUI
 
 /// The cleanup plan: one row per catalog category, as Overview groups them, with its rules and items under "Choose items".

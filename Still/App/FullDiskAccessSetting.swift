@@ -1,4 +1,4 @@
-import StillCore
+import CacheDropCore
 import SwiftUI
 
 /// The Locations & access settings row: Full Disk Access, its current state and the shared explanation.

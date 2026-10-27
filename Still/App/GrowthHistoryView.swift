@@ -1,6 +1,6 @@
 import SwiftUI
 import Observation
-import StillCore
+import CacheDropCore
 
 /// Storage trends (formerly What grew): compares the latest catalog scan of the known locations with the newest one about a day
 /// older that isn't a rescan right after a cleanup (SPEC, #119, #126). Each catalog scan is recorded; nothing scans in the background.

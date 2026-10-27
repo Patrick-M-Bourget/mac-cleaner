@@ -1,7 +1,7 @@
 import AppKit
 import Foundation
 import Observation
-import StillCore
+import CacheDropCore
 import SwiftUI
 
 /// One row per profile, app or project with its size; choosing a row chooses all of its folders.

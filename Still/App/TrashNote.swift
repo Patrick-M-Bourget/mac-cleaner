@@ -1,6 +1,6 @@
 import AppKit
 import Observation
-import StillCore
+import CacheDropCore
 import SwiftUI
 
 /// Overview: "Trash holds X · Open Trash", only when its size is known and not 0.

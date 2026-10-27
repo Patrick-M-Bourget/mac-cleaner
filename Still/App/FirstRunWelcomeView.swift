@@ -1,6 +1,6 @@
 import Foundation
 import Observation
-import StillCore
+import CacheDropCore
 import SwiftUI
 
 /// Whether the first-run welcome is showing (#158). Decided once at launch, right after Still's state is copied;

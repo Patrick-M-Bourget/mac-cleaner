@@ -1,6 +1,6 @@
 import AppKit
 import SwiftUI
-import StillCore
+import CacheDropCore
 
 /// Shared native presentation vocabulary. Reuse these components and tokens before adding UI; docs/visual/preview.html is the visual reference.
 enum StillDesign {

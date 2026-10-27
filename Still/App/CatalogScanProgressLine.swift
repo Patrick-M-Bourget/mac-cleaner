@@ -1,7 +1,7 @@
 import AppKit
 import Foundation
 import Observation
-import StillCore
+import CacheDropCore
 import SwiftUI
 
 /// The catalog scan's progress as one quiet line: a small spinner and "Checking <location>… 4 of 31" (Decision 25).

@@ -1,6 +1,6 @@
 import AppKit
 import Observation
-import StillCore
+import CacheDropCore
 import SwiftUI
 
 /// One quiet line with an Open Trash link, as `FullDiskAccessNote` is drawn (Decision 25).
