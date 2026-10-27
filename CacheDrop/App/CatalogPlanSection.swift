@@ -45,7 +45,7 @@ private struct PlanCategoryRow: View {
         CategoryRow(category: row.category.storageCategory, state: state, title: row.category.overviewTitle, detail: row.category.overviewDetail,
                     size: row.valueText, enabled: model.canEdit, identifier: "planCategory-" + row.id,
                     itemCount: row.planLayout == .categoryOnly ? nil : row.itemCount, expanded: $expanded,
-                    toggle: { model.setSelected(row.rules, state != .checked) }) {
+                    toggle: { if model.toggleCategory(row.rules) { expanded = true } }) {
             if row.planLayout != .ruleRows, let rule = row.rules.first { PlanRunningOwners(model: model, rule: rule) }
         } items: {
             switch row.planLayout {

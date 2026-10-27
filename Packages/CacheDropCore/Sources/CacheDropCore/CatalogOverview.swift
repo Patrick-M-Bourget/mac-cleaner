@@ -42,10 +42,11 @@ public struct CatalogOverview: Sendable {
         /// How many items the category's rules found.
         public let itemCount: Int
         /// What the cleanup plan shows under the category, decided per scan from what was found.
-        public var planLayout: PlanLayout { rules.count > 1 ? .ruleRows : itemCount > 1 ? .items : .categoryOnly }
+        public var planLayout: PlanLayout { rules.count > 1 ? .ruleRows : itemCount > 1 || rules.contains(where: \.selectedOneByOne) ? .items : .categoryOnly }
     }
     /// The category's checkbox is the only choice (one rule, one item); its items without a rule row (one rule,
-    /// several items); or a row per rule (two or more rules). Selection underneath is per item either way.
+    /// several items, or items chosen one by one, which the category's checkbox never chooses, #240); or a row per rule
+    /// (two or more rules). Selection underneath is per item either way.
     public enum PlanLayout: Sendable, Equatable { case categoryOnly, items, ruleRows }
     public let rows: [Row]
     /// "Recommended for review: up to X": every current candidate whose action releases space (SPEC section 6).

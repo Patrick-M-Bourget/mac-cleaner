@@ -249,9 +249,21 @@ import SwiftUI
     func isSelected(_ candidate: Candidate) -> Bool { selectedIDs.contains(candidate.id) }
     /// The plan's categories, grouped as Overview groups them, picked folders' files included.
     var planCategories: [CatalogOverview.Row] { CatalogOverview(catalog: catalog, candidates: candidates).rows }
-    func selectionState(for rules: [CleanupRule]) -> CategorySelectionState {
-        let items = rules.filter { !$0.selectedOneByOne }.flatMap(candidates(for:)), chosen = items.filter { selectedIDs.contains($0.id) }.count
-        return chosen == 0 ? .unchecked : chosen == items.count ? .checked : .mixed
+    func selectionState(for rules: [CleanupRule]) -> CategorySelectionState { categorySelection(rules).state }
+    private func categorySelection(_ rules: [CleanupRule]) -> CategorySelection {
+        CategorySelection(rules: rules, candidates: rules.flatMap(candidates(for:)), selected: selectedIDs)
+    }
+    /// The category's checkbox (#240): chooses what may be chosen together or clears every chosen item. Returns true when
+    /// nothing may be chosen together and nothing is chosen, so the category lists its items to choose one by one.
+    func toggleCategory(_ rules: [CleanupRule]) -> Bool {
+        guard canEdit else { return false }
+        switch categorySelection(rules).toggle {
+        case .choose(let ids): selectedIDs.formUnion(ids)
+        case .clear(let ids): selectedIDs.subtract(ids)
+        case .showItems: return true
+        }
+        selectionRevision &+= 1
+        return false
     }
 
     /// Rescans the remembered, included folders. Set by the workspace; called after each scan `scanIfNeeded` starts,
