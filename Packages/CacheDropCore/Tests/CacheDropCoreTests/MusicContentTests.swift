@@ -7,6 +7,8 @@ private struct FixtureMac {
     let root: URL
     var system: URL { root.appendingPathComponent("system") }
     var home: URL { root.appendingPathComponent("home") }
+    /// Stands in for `/Volumes`: a drive is connected when its folder is there.
+    var volumes: URL { root.appendingPathComponent("Volumes") }
     init() throws {
         root = FileManager.default.temporaryDirectory.appendingPathComponent("MusicContentTests-" + UUID().uuidString)
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
@@ -19,7 +21,7 @@ private struct FixtureMac {
         return url
     }
     func scan(_ owners: [ContentOwner], configured: @escaping @Sendable (MusicVendor) -> [MusicVendor.Configured] = { _ in [] }) -> MusicContent {
-        MusicContent.scan(owners: owners, home: home, systemRoot: system, configured: configured)
+        MusicContent.scan(owners: owners, home: home, systemRoot: system, volumes: volumes, configured: configured)
     }
     func remove() { try? FileManager.default.removeItem(at: root) }
 }
@@ -99,12 +101,12 @@ private let unrelated = ContentOwner(id: "other", name: "Serum", bundleID: "com.
 /// #175: a library on a drive that isn't connected is reported offline with its volume, never dropped or called removed.
 @Test func aLibraryOnAMissingVolumeIsOffline() throws {
     let mac = try FixtureMac(); defer { mac.remove() }
-    let drive = "CacheDropTest-" + UUID().uuidString
-    let away = URL(fileURLWithPath: "/Volumes/\(drive)/Ableton Packs")
+    let drive = "Studio"
+    let away = mac.volumes.appendingPathComponent("\(drive)/Ableton Packs")
     try FileManager.default.createDirectory(at: mac.home.appendingPathComponent("Music/Ableton"), withIntermediateDirectories: true)
     try FileManager.default.createSymbolicLink(at: mac.home.appendingPathComponent("Music/Ableton/Factory Packs"), withDestinationURL: away)
 
-    let content = mac.scan([live], configured: { $0.name == "Ableton" ? [.init(url: URL(fileURLWithPath: "/Volumes/\(drive)/User Library"), kind: .yours)] : [] })
+    let content = mac.scan([live], configured: { $0.name == "Ableton" ? [.init(url: mac.volumes.appendingPathComponent("\(drive)/User Library"), kind: .yours)] : [] })
 
     #expect(content.items.map(\.name) == ["Packs", "User Library"])
     #expect(content.items.allSatisfy { $0.state == .offline(volume: drive) && $0.owners == ["live"] })

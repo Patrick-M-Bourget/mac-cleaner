@@ -136,7 +136,9 @@ public struct MusicContent: Sendable, Equatable {
     /// Looks in each vendor's documented locations, plus the locations `configured` reads from the vendor's own settings,
     /// and attaches what it finds to `owners`. Reads metadata and sizes only; follows a link or alias at a location only to
     /// measure its target. A default location with nothing there isn't listed; a configured one is offline.
+    /// `volumes` is where drives are mounted, `/Volumes` outside tests.
     public static func scan(owners: [ContentOwner], home: URL, systemRoot: URL = URL(fileURLWithPath: "/"),
+                            volumes: URL = URL(fileURLWithPath: "/Volumes"),
                             configured: (MusicVendor) -> [MusicVendor.Configured] = { _ in [] },
                             sizer: KnownLocationSizer = KnownLocationSizer()) -> MusicContent {
         var items: [MusicContentItem] = [], seen = Set<String>()
@@ -150,9 +152,9 @@ public struct MusicContent: Sendable, Equatable {
             for (location, isConfigured) in found {
                 let state: MusicContentItem.State, key: String
                 switch resolve(location.url) {
-                case .missing where isConfigured: (state, key) = (.offline(volume: ApplicationsInventory.volume(of: location.url)), location.url.path)
+                case .missing where isConfigured: (state, key) = (.offline(volume: volume(of: location.url, under: volumes)), location.url.path)
                 case .missing: continue
-                case .offline(let target): (state, key) = (.offline(volume: target.flatMap(ApplicationsInventory.volume)), target?.path ?? location.url.path)
+                case .offline(let target): (state, key) = (.offline(volume: target.flatMap { volume(of: $0, under: volumes) }), target?.path ?? location.url.path)
                 case .at(let real): (state, key) = (.present(Catalog.estimate(sizer.size(URL(fileURLWithPath: real)))), real)
                 }
                 guard seen.insert(key).inserted else { continue }
@@ -161,6 +163,12 @@ public struct MusicContent: Sendable, Equatable {
             }
         }
         return MusicContent(items: items)
+    }
+
+    /// The drive a path is on, when it is under `volumes`: "<volumes>/Studio/…" reads "Studio".
+    static func volume(of url: URL, under volumes: URL) -> String? {
+        let prefix = volumes.standardizedFileURL.path + "/", path = url.standardizedFileURL.path
+        return path.hasPrefix(prefix) ? String(path.dropFirst(prefix.count).prefix { $0 != "/" }) : nil
     }
 
     enum Resolved: Equatable { case missing, at(String), offline(URL?) }
