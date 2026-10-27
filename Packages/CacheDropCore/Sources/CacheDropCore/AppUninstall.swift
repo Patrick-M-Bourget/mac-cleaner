@@ -57,7 +57,18 @@ public enum AppUninstall {
 
     /// The check just before acting: never macOS's, CacheDrop's or license data, and only what macOS still lets the user move to
     /// the Trash without a password, whatever changed since the scan (Decision 50).
-    static func refusal(for url: URL, below root: URL) -> CheckRefusal? {
+    /// An app's files keep the before-acting checks of a removed app's leftovers (#281), as if the app were gone: the tie still
+    /// holds, a group container is still an exact match, and no other app of the maker, or second copy of this one, appeared.
+    static func refusal(for candidate: Candidate, below root: URL, apps: any AppPresence) -> CheckRefusal? {
+        let url = candidate.url
+        guard let app = candidate.uninstall else { return .changed }
+        if candidate.ruleID != appRuleID {
+            guard let tie = candidate.leftover else { return .changed }
+            let gone = Without(app: InstalledApp(name: app.name, bundleID: app.bundleID, path: app.path), url: URL(fileURLWithPath: app.path), in: apps)
+            // The app's own container goes in the same run, so its bundle ID stands as the proof it was an app's.
+            let own = tie.bundleID?.lowercased() == app.bundleID.lowercased()
+            if let refusal = RemovedAppLeftovers.refusal(for: url, tie: tie, below: root, apps: gone, appKnown: own) { return refusal }
+        }
         if let part = url.standardizedFileURL.pathComponents.dropFirst(root.standardizedFileURL.pathComponents.count).first(where: RemovedAppLeftovers.isNeverOffered) {
             return .protected(part)
         }

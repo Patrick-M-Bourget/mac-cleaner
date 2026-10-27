@@ -140,7 +140,8 @@ public enum RemovedAppLeftovers {
 
     /// The check just before acting (#173): license, macOS and CacheDrop's own data are refused wherever a scan found them,
     /// and an app that is on this Mac again, or whose presence can't be read, keeps its leftovers.
-    static func refusal(for url: URL, tie: LeftoverTie, below root: URL, apps: any AppPresence) -> CheckRefusal? {
+    /// `appKnown`: the ID is an installed app's being uninstalled (#177), which proves it was an app's without its container.
+    static func refusal(for url: URL, tie: LeftoverTie, below root: URL, apps: any AppPresence, appKnown: Bool = false) -> CheckRefusal? {
         if let part = url.standardizedFileURL.pathComponents.dropFirst(root.standardizedFileURL.pathComponents.count).first(where: isNeverOffered) { return .protected(part) }
         guard let installed = apps.installedApps() else { return .appInstalled(tie.app) }
         let makers = InstalledMakers(installed)
@@ -152,7 +153,7 @@ public enum RemovedAppLeftovers {
         // state shows the ID was an app's (#251).
         let name = url.lastPathComponent
         if isGroupContainer(url), tie.isNameOnly || bundleID(inName: name)?.lowercased() != tie.bundleID?.lowercased() { return .protected(name) }
-        if tie.evidence == .bundleID, let id = tie.bundleID?.lowercased(), !hasAppEvidence(id, below: root) { return .protected(name) }
+        if tie.evidence == .bundleID, !appKnown, let id = tie.bundleID?.lowercased(), !hasAppEvidence(id, below: root) { return .protected(name) }
         return nil
     }
 

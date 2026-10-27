@@ -42,8 +42,9 @@ private func scan(_ home: URL, _ app: InstalledApp, _ apps: Apps, own: String? =
     let leftovers = RemovedAppLeftovers.scan(home: home, apps: apps, receipts: NoReceipts())
     return AppUninstall.scan(app, excluding: own, home: home, apps: apps, receipts: NoReceipts(), leftovers: leftovers, exclusions: exclusions)
 }
-private func check(_ home: URL, running: Running = Running()) -> CandidateCheck {
-    CandidateCheck(catalog: Catalog(rules: AppUninstall.rules), running: running, inUse: FixtureNothingInUse(), home: home)
+private func check(_ home: URL, running: Running = Running(), apps: Apps? = nil) -> CandidateCheck {
+    let installed = apps ?? Apps(installed: [InstalledApp(name: "Synth", bundleID: "com.maker.synth", path: home.appendingPathComponent("Applications/Synth.app").path)])
+    return CandidateCheck(catalog: Catalog(rules: AppUninstall.rules), running: running, inUse: FixtureNothingInUse(), home: home, apps: installed)
 }
 private func names(_ items: [Candidate], _ rule: String) -> Set<String> { Set(items.filter { $0.ruleID == rule }.map(\.url.lastPathComponent)) }
 
@@ -109,6 +110,19 @@ private func names(_ items: [Candidate], _ rule: String) -> Set<String> { Set(it
     #expect(result.records.first?.state == .skipped)
     #expect(result.records.first?.message == CheckRefusal.notPermitted.reason)
     #expect(FileManager.default.fileExists(atPath: app.path))
+}
+
+@Test func aFileIsKeptWhenAnotherAppItCouldBelongToAppearsAfterTheScan() throws {
+    let (home, synth, apps) = try fixture()
+    defer { try? FileManager.default.removeItem(at: home) }
+    let files = scan(home, synth, apps).filter { $0.ruleID != AppUninstall.appRuleID }
+    #expect(!files.isEmpty && files.allSatisfy { check(home).check($0) == nil })
+    let editor = InstalledApp(name: "Editor", bundleID: "com.maker.editor", path: "/Applications/Editor.app")
+    let copy = InstalledApp(name: "Synth", bundleID: "com.maker.synth", path: "/Volumes/Studio/Applications/Synth.app")
+
+    // Another app of the same maker, or a second copy of Synth, appeared since the scan: the files may be its.
+    #expect(files.allSatisfy { check(home, apps: Apps(installed: [synth, editor])).check($0) == .appInstalled("Synth") })
+    #expect(files.allSatisfy { check(home, apps: Apps(installed: [synth, copy])).check($0) == .appInstalled("Synth") })
 }
 
 @Test func aRunningAppBlocksItsUninstall() throws {

@@ -181,7 +181,7 @@ public struct CandidateCheck: Sendable {
         let uninstalling = AppUninstall.ruleIDs.contains(rule.id)
         if !uninstalling, let tie = candidate.leftover, let refusal = RemovedAppLeftovers.refusal(for: candidate.url, tie: tie, below: root, apps: apps) { return refusal }
         // An app and its files (#177): removable without a password now, whoever owns them (Decision 50).
-        if uninstalling, let refusal = AppUninstall.refusal(for: candidate.url, below: root) { return refusal }
+        if uninstalling, let refusal = AppUninstall.refusal(for: candidate, below: root, apps: apps) { return refusal }
         // A project being worked on keeps its build folders (#157).
         if rule.id == ProjectBuilds.ruleID, let refusal = ProjectBuilds.refusal(for: candidate.url, inUse: inUse, home: home) { return refusal }
         // A system image a virtual device started using since the scan is kept (#134).
