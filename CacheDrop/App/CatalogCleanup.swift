@@ -507,7 +507,7 @@ import SwiftUI
     }
     private func currentCheck() async -> CandidateCheck? {
         do { return CandidateCheck(catalog: catalog, running: SystemRunningAppChecker(), exclusions: try await ExclusionsModel.shared.policyForScan(), cloud: Self.cloud,
-                                    home: Self.checkHome, apps: Self.appPresence) }
+                                    home: Self.checkHome, apps: Self.appPresence, systemRoot: Self.systemRoot) }
         catch { message = "Exclusion settings are unavailable, so nothing can be checked. Try again."; return nil }
     }
 }

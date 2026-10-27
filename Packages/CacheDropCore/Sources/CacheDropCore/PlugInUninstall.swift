@@ -102,9 +102,9 @@ public enum PlugInUninstall {
             for receipt in product.receipts {
                 let listed = receipts.byReceipt[receipt] ?? []
                 for url in supportRoots(listed, systemRoot: systemRoot) {
-                    guard let ids = sharers(url.path) else { continue }
-                    if ids.count > 1 { if shared[url.path] == nil, let found = item(rules[2], url) { shared[url.path] = found.shared(by: ids, receipt: receipt).listed(listed) }; continue }
-                    guard var file = item(rules[1], url).map({ $0.listed(listed) }) else { continue }
+                    guard let listers = receipts.listers(of: url.path), let ids = sharers(url.path) else { continue }
+                    if ids.count > 1 { if shared[url.path] == nil, let found = item(rules[2], url) { shared[url.path] = found.shared(by: ids, receipt: receipt).installed(by: listers) }; continue }
+                    guard var file = item(rules[1], url).map({ $0.installed(by: listers) }) else { continue }
                     guard taken(offered, [file]).count == 1 else { target.inPlan += 1; continue }
                     guard Removability.canMoveToTrash(url) else { target.needsPassword += 1; target.passwordPaths.append(url.path); continue }
                     file.leftover = LeftoverTie(app: product.name, bundleID: nil, vendor: RemovedAppLeftovers.vendor(of: receipt), evidence: .receipt(receipt))
@@ -182,14 +182,21 @@ public enum PlugInUninstall {
     /// The check just before acting (Decision 50): never license, macOS or Apple data by its name (its folders were checked at
     /// the scan, and the item can't leave them and keep its path); a format is still the bundle the scan tied to the product;
     /// and macOS still lets the user move it to the Trash without a password.
-    static func refusal(for candidate: Candidate) -> CheckRefusal? {
+    static func refusal(for candidate: Candidate, receipts: LazyReceipts) -> CheckRefusal? {
         let url = candidate.url
         if isNeverTouched(url, below: url.deletingLastPathComponent()) { return .protected(url.lastPathComponent) }
         if candidate.ruleID == formatsRuleID {
             guard let tie = candidate.leftover, PlugInInventory.info(url)?["CFBundleIdentifier"] as? String == tie.bundleID else { return .changed }
         }
-        // A support item still holds only what its receipt listed (#288).
-        if let listed = candidate.listedByReceipt, let refusal = listingRefusal(url.path, listed) { return refusal }
+        // A support item: with the receipts read again, no other receipt lists it or anything in it, and they still list all of
+        // it (#288, #291).
+        if let allowed = candidate.installedBy {
+            let now = receipts.value
+            guard let listers = now.listers(of: url.path), listers.isSubset(of: allowed) else { return .changed }
+            let listed = Set(allowed.flatMap { now.byReceipt[$0] ?? [] })
+            guard listed.contains(url.path) else { return .changed }
+            if let refusal = listingRefusal(url.path, listed) { return refusal }
+        }
         return Removability.canMoveToTrash(url) ? nil : .notPermitted
     }
 }
@@ -202,10 +209,10 @@ extension Candidate {
         item.leftover = LeftoverTie(app: vendor ?? "", bundleID: nil, vendor: receipt.map(RemovedAppLeftovers.vendor(of:)) ?? "", evidence: receipt.map { .receipt($0) } ?? .bundleID)
         return item
     }
-    /// With what its receipt lists at and below it, to check again before acting.
-    func listed(_ paths: Set<String>) -> Candidate {
+    /// With the receipts that list it, to read again before acting (#291).
+    func installed(by receipts: Set<String>) -> Candidate {
         var item = self
-        item.listedByReceipt = paths.filter { $0 == url.path || $0.hasPrefix(url.path + "/") }
+        item.installedBy = receipts
         return item
     }
     /// "Shared with <N> products", or vendor content's "Shared by <Vendor> products" (Decision 52); nil when not shared.

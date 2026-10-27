@@ -78,8 +78,10 @@ private func scan(_ root: URL, _ home: URL, apps: [InstalledApp] = []) -> (inven
     return (inventory, PlugInUninstall.scan(inventory, apps: apps, receipts: ReceiptListings.read(under: root), systemRoot: root))
 }
 private func product(_ name: String, _ inventory: PlugInInventory) throws -> String { try #require(inventory.products.first { $0.name == name }).id }
+/// The check reads the fixture root's receipts, the home's grandparent.
 private func check(_ home: URL, running: Running = Running()) -> CandidateCheck {
-    CandidateCheck(catalog: Catalog(rules: PlugInUninstall.rules), running: running, inUse: FixtureNothingInUse(), home: home, apps: NoApps())
+    CandidateCheck(catalog: Catalog(rules: PlugInUninstall.rules), running: running, inUse: FixtureNothingInUse(), home: home, apps: NoApps(),
+                   systemRoot: home.deletingLastPathComponent().deletingLastPathComponent())
 }
 private func names(_ items: [Candidate]) -> Set<String> { Set(items.map(\.url.lastPathComponent)) }
 
@@ -314,4 +316,17 @@ private func names(_ items: [Candidate]) -> Set<String> { Set(items.map(\.url.la
     #expect(presets.ruleID == PlugInUninstall.sharedRuleID, "Never Pro Synth's own")
     #expect(presets.isUninstalled(with: try product("Pro Synth", inventory)))
     #expect(presets.sharedLabel == "Shared with another installer")
+}
+
+@Test func aProductInstalledSinceTheScanThatListsASupportItemMakesItRefused() throws {
+    let (root, home) = try fixture()
+    defer { try? FileManager.default.removeItem(at: root) }
+    let (_, items) = scan(root, home)
+    let presets = try #require(items.first { $0.url.lastPathComponent == "Presets" })
+    #expect(presets.ruleID == PlugInUninstall.filesRuleID && check(home).check(presets) == nil)
+
+    // Pro Verb's installer, run after the scan, rewrote a preset Pro Synth's receipt also lists: nothing new on disk.
+    try plugIn(plugIns + "VST3/Pro Verb.vst3", id: "com.maker.proverb.vst3", in: root)
+    try receipt("com.maker.proverb.pkg", listing: [plugIns + "VST3/Pro Verb.vst3", support + "Pro Synth/Presets/Init.preset"], in: root)
+    #expect(check(home).check(presets) == .changed, "Read again before acting: it is shared now")
 }

@@ -99,10 +99,10 @@ public enum AppUninstall {
     /// the Trash without a password, whatever changed since the scan (Decision 50).
     /// An app's files keep the before-acting checks of a removed app's leftovers (#281), as if the app were gone: the tie still
     /// holds, a group container is still an exact match, and no other app of the maker, or second copy of this one, appeared.
-    static func refusal(for candidate: Candidate, below root: URL, apps: any AppPresence) -> CheckRefusal? {
+    static func refusal(for candidate: Candidate, below root: URL, apps: any AppPresence, receipts: LazyReceipts) -> CheckRefusal? {
         let url = candidate.url
         guard let app = candidate.uninstall else { return .changed }
-        if PlugInUninstall.rules.contains(where: { $0.id == candidate.ruleID }) { return PlugInUninstall.refusal(for: candidate) }
+        if PlugInUninstall.rules.contains(where: { $0.id == candidate.ruleID }) { return PlugInUninstall.refusal(for: candidate, receipts: receipts) }
         if candidate.ruleID != appRuleID {
             guard let tie = candidate.leftover else { return .changed }
             let gone = Without(app: InstalledApp(name: app.name, bundleID: app.bundleID, path: app.path), url: URL(fileURLWithPath: app.path), in: apps)

@@ -61,6 +61,8 @@ public struct CandidateCheck: Sendable {
     public let home: URL
     /// Which apps are installed, for a removed app's leftovers (#173).
     public let apps: any AppPresence
+    /// The installer receipts, read again once per check (a review or a run) when a plug-in support item asks (#291).
+    let receipts: LazyReceipts
     /// At most this many entries are looked at; a deeper search that would need more refuses the folder.
     static let protectedSearchLimit = 200_000
 
@@ -114,12 +116,15 @@ public struct CandidateCheck: Sendable {
         return opened ? found : "unreadable folder"
     }
     public init(catalog: Catalog, running: any RunningAppChecking, exclusions: ExclusionPolicy = ExclusionPolicy(), inUse: any InUseChecking = SystemInUseChecker(),
-                cloud: any UbiquitousItemAccess = SystemUbiquitousItems(), home: URL, apps: any AppPresence = SystemAppPresence()) {
+                cloud: any UbiquitousItemAccess = SystemUbiquitousItems(), home: URL, apps: any AppPresence = SystemAppPresence(),
+                systemRoot: URL = URL(fileURLWithPath: "/")) {
         self.catalog = catalog; self.running = running; self.exclusions = exclusions; self.inUse = inUse; self.cloud = cloud; self.home = home; self.apps = apps
+        receipts = LazyReceipts(systemRoot)
     }
     /// This check with one reading of the process table, for checking many items together (a review or a cleanup run).
     public func snapshotted() -> CandidateCheck {
-        CandidateCheck(catalog: catalog, running: running, exclusions: exclusions, inUse: inUse.snapshot(), cloud: cloud, home: home, apps: apps.snapshot())
+        CandidateCheck(catalog: catalog, running: running, exclusions: exclusions, inUse: inUse.snapshot(), cloud: cloud, home: home, apps: apps.snapshot(),
+                       systemRoot: receipts.systemRoot)
     }
     /// Whether checking this candidate asks what processes have open: leaked copies and old temporary items.
     public func needsInUseCheck(_ candidate: Candidate) -> Bool {
@@ -189,7 +194,7 @@ public struct CandidateCheck: Sendable {
         let uninstalling = AppUninstall.ruleIDs.contains(rule.id)
         if !uninstalling, let tie = candidate.leftover, let refusal = RemovedAppLeftovers.refusal(for: candidate.url, tie: tie, below: root, apps: apps) { return refusal }
         // An app and its files (#177): removable without a password now, whoever owns them (Decision 50).
-        if uninstalling, let refusal = AppUninstall.refusal(for: candidate, below: root, apps: apps) { return refusal }
+        if uninstalling, let refusal = AppUninstall.refusal(for: candidate, below: root, apps: apps, receipts: receipts) { return refusal }
         // A project being worked on keeps its build folders (#157).
         if rule.id == ProjectBuilds.ruleID, let refusal = ProjectBuilds.refusal(for: candidate.url, inUse: inUse, home: home) { return refusal }
         // A system image a virtual device started using since the scan is kept (#134).
@@ -224,5 +229,20 @@ public struct CandidateCheck: Sendable {
         }
         let copies = Catalog.cloudCopies(in: candidate.url, rule: rule, cloud: cloud, exclusions: exclusions, volumeID: volume)
         return copies.units.isEmpty ? .notDownloaded : nil
+    }
+}
+
+/// Installer receipts read on first use, then kept for this check (#291): one read per review or run, none without plug-in items.
+final class LazyReceipts: @unchecked Sendable {
+    let systemRoot: URL
+    private let lock = NSLock()
+    private var read: ReceiptListings?
+    init(_ systemRoot: URL) { self.systemRoot = systemRoot }
+    var value: ReceiptListings {
+        lock.lock(); defer { lock.unlock() }
+        if let read { return read }
+        let fresh = ReceiptListings.read(under: systemRoot)
+        read = fresh
+        return fresh
     }
 }

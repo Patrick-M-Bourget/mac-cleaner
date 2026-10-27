@@ -373,8 +373,9 @@ public struct Candidate: Sendable, Identifiable, Hashable {
     public internal(set) var uninstall: AppUninstall.Target? = nil
     /// The rows of the products a shared plug-in item is uninstalled with, ticked one by one (#176); empty for every other item.
     public internal(set) var sharedBy: [String] = []
-    /// What a plug-in support item's receipt lists at and below it: it is moved only while it holds nothing else (#288).
-    public internal(set) var listedByReceipt: Set<String>? = nil
+    /// The receipts that listed a plug-in support item, or anything in it, at the scan: it is moved only while no other receipt
+    /// lists it and they still list all of it, read again before acting (#288, #291).
+    public internal(set) var installedBy: Set<String>? = nil
 }
 
 public struct Catalog: Sendable {
