@@ -35,6 +35,12 @@ public struct PlugInFile: Sendable, Equatable {
 public struct PlugInInventory: Sendable, Equatable {
     public let products: [PlugInProduct]
 
+    /// "12 products · AU, VST3, AAX".
+    public var summary: String {
+        let formats = Array(Set(products.flatMap(\.formats))).sorted().map(\.rawValue).joined(separator: ", ")
+        return (products.count == 1 ? "1 product" : "\(products.count) products") + (formats.isEmpty ? "" : " · " + formats)
+    }
+
     /// The plug-in folders, system ones first. Locations starting with `/` are read under the system root.
     public static let folders: [(format: PlugInFormat, location: String)] = {
         let audio: [(PlugInFormat, String)] = [(.au, "Components"), (.vst, "VST"), (.vst3, "VST3"), (.clap, "CLAP")]

@@ -85,7 +85,8 @@ private struct NothingRunning: RunningAppChecking {
     let finding = try #require(Catalog(rules: fixtureRules).guidance(home: home, systemRoot: root, snapshots: FixtureSnapshots()).first { $0.ruleID == "audio-plug-ins" })
     guard case .estimate(.atLeast(let bytes)) = finding.size else { Issue.record("Expected a lower bound, got \(finding.size)"); return }
     #expect(bytes >= 8192)
-    #expect(finding.folder?.path == root.appendingPathComponent("Library/Audio/Plug-Ins").path)
+    // The system's format folders can't be reached, so the first existing one is the user's.
+    #expect(finding.folder?.path == home.appendingPathComponent("Library/Audio/Plug-Ins/Components").path)
 }
 
 @Test func mailCountsOnlyItsAttachmentFolders() throws {
@@ -131,7 +132,7 @@ private actor RecordingOpener: GuidanceOpening {
         #expect(await catalog.open(finding, using: opener))
     }
     #expect(await opener.targets == [.app(bundleID: "com.apple.Photos"),
-                               .folder(home.appendingPathComponent("Library/Audio/Plug-Ins")),
+                               .folder(home.appendingPathComponent("Library/Audio/Plug-Ins/VST3")),
                                .app(bundleID: "com.apple.dt.Xcode"),
                                .url(URL(string: "x-apple.systempreferences:com.apple.settings.Storage")!)])
     #expect(catalog.rule("photos-library")?.guidance?.openTitle == "Open Photos")
