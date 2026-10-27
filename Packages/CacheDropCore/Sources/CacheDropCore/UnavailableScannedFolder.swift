@@ -13,13 +13,15 @@ public enum UnavailableScannedFolder {
     }
     /// The reason for a folder that was deleted or moved.
     public static let notFound = "Folder not found"
+    /// The explorer's recovery row. A deleted or moved folder says when it was last observed; one that is there but
+    /// unreadable keeps its reason alone, such as "Access unavailable" (#254, #257).
     public static func text(reason: String, lastObserved: String?) -> String {
-        lastObserved.map { reason + " · last observed " + $0 } ?? reason
+        guard reason == notFound, let lastObserved else { return reason }
+        return reason + " · last observed " + lastObserved
     }
-    /// Overview's recovery row (#254): the location's name, then the explorer's wording. A deleted or moved folder says
-    /// when it was last observed; one that is there but unreadable keeps its reason alone, such as "Access unavailable".
+    /// Overview's recovery row (#254): the location's name, then the explorer's wording.
     public static func overviewText(name: String, reason: String, lastObserved: String?) -> String {
-        name + " · " + text(reason: reason, lastObserved: reason == notFound ? lastObserved : nil)
+        name + " · " + text(reason: reason, lastObserved: lastObserved)
     }
     /// The gone location that is `folder` or holds it.
     public static func location(holding folder: URL, among gone: [URL]) -> URL? {

@@ -26,6 +26,7 @@ final class ModelsCleanupUITests: XCTestCase {
         app.launch()
 
         XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
+        waitForCatalogScan(app)
         let row = app.buttons["overviewCategory-models"]
         XCTAssertTrue(row.waitForExistence(timeout: 10))
         revealAndClick(row, in: app)

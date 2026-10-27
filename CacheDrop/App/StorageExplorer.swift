@@ -178,7 +178,7 @@ struct StorageExplorerView: View {
             return (location, date)
         }.sorted { $0.location.scope.path < $1.location.scope.path }
     }
-    /// Overview's orange row and Choose again…, with when the folder was last observed (#249).
+    /// Overview's orange row and Choose again…, with when a deleted or moved folder was last observed (#249, #257).
     private func recoveryRow(_ location: ExplorerUnavailableLocation, lastObserved: Date) -> some View {
         StatusRow(text: UnavailableScannedFolder.text(reason: location.reason, lastObserved: ExplorerUnavailableLocation.format(lastObserved)),
                   symbol: "info.circle", role: .caution, identifier: "explorerLocationRecovery",

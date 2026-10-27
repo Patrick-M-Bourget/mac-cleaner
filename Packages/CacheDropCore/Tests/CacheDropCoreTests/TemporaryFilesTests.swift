@@ -206,6 +206,9 @@ private final class CountingInUse: InUseChecking, @unchecked Sendable {
     func snapshot() -> any InUseChecking { lock.lock(); taken += 1; lock.unlock(); return self }
 }
 
+/// The run's clock stands still (#258): a reading is re-taken once it is older than `inUseReadingMaxAge`, and on a loaded
+/// strict pool this test can take half a minute of wall time, so the real clock would make a third reading.
+/// Re-reading after that age is covered by `aLongRunReadsWhatIsInUseAgainBeforeAnItemOnceTheLastReadingIsTooOld`.
 @Test func aDiscoveryAndACleanupRunEachReadWhatIsInUseOnce() async throws {
     let folder = try fixtureUserFolder()
     defer { try? FileManager.default.removeItem(at: folder) }
@@ -219,7 +222,7 @@ private final class CountingInUse: InUseChecking, @unchecked Sendable {
     #expect(counting.snapshots == 1)
     let journal = try SQLiteCleanupJournal(url: folder.appendingPathComponent("journal.sqlite"))
     let run = CleanupExecutor(journal: journal, check: CandidateCheck(catalog: catalog, running: NothingRunning(), inUse: counting, home: fixtureHome()),
-                              measure: { _ in nil }, trash: TrashNeverUsed())
+                              measure: { _ in nil }, trash: TrashNeverUsed(), clock: { now })
     let result = await run.execute(CatalogApproval(candidates: candidates.filter { $0.ruleID.hasPrefix("temporary-") }, previewOnly: true))
     #expect(result.records.count == 3)
     #expect(counting.snapshots == 2)
