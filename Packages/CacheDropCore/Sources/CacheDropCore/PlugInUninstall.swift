@@ -16,7 +16,7 @@ public enum PlugInUninstall {
         CleanupRule(id: filesRuleID, category: .apps, title: "Its support files", detail: "Presets and support files its own installer lists.",
                     consequence: AppUninstall.consequence, regen: .userFile, action: .trash, locations: [], owner: nil, protectedDepth: AppCaches.liveWorkDepth),
         CleanupRule(id: sharedRuleID, category: .apps, title: "Shared with other products",
-                    detail: "Suite support files and content other products use too. Tick each one yourself.",
+                    detail: "Suite support files and content.",
                     consequence: AppUninstall.consequence, regen: .userFile, action: .trash, locations: [], owner: nil, protectedDepth: AppCaches.liveWorkDepth,
                     itemByItem: true),
     ]
