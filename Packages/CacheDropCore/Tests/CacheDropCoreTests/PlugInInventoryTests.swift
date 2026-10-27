@@ -163,3 +163,15 @@ private func receipt(_ id: String, listing paths: [String], in root: URL) throws
     #expect(products.filter(\.isApple).count == 2)
     #expect(products.filter(\.removable).map(\.name) == ["Synth"])
 }
+
+@Test func theAudioPlugInsGuidanceCountsAAXAndCarriesTheInventory() throws {
+    let root = try fixtureFolder("Root"), home = try fixtureFolder("Home")
+    defer { try? FileManager.default.removeItem(at: root); try? FileManager.default.removeItem(at: home) }
+    try plugIn("Library/Application Support/Avid/Audio/Plug-Ins/Big.aaxplugin", in: root, id: "com.maker.big", bytes: 40_960)
+    try plugIn("Library/Audio/Plug-Ins/VST3/Big.vst3", in: home, id: "com.maker.vst3.big", bytes: 8192)
+    let finding = try #require(Catalog(rules: fixtureRules).guidance(home: home, systemRoot: root, snapshots: FixtureSnapshots()).first { $0.ruleID == "audio-plug-ins" })
+    guard case .estimate(.measured(let bytes)) = finding.size else { Issue.record("Expected a measured size, got \(finding.size)"); return }
+    #expect(bytes >= 40_960 + 8192)
+    #expect(finding.plugIns?.products.map(\.formats) == [[.vst3, .aax]])
+    #expect(finding.plugIns?.summary == "1 product · VST3, AAX")
+}
