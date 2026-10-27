@@ -18,6 +18,13 @@ xcodebuild build -project CacheDrop/CacheDrop.xcodeproj -scheme CacheDrop -desti
 open .build/xcode/Build/Products/Debug/CacheDrop.app
 ```
 
+The test that cleanup tools never block the concurrency pool (#200) only bites when the pool is held to one thread per core.
+Run the core tests that way too after touching how tools run:
+
+```sh
+LIBDISPATCH_COOPERATIVE_POOL_STRICT=1 swift test --package-path Packages/CacheDropCore
+```
+
 Verify on this Mac, not by pushing to CI. Tests touch only temp fixture folders, never real user paths.
 
 UI tests drive the screen, so run them only when the user isn't using it. Run only the journey you changed, and always turn off failure diagnostics, which would otherwise save system logs that may include other apps' activity:
