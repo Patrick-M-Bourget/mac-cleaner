@@ -147,14 +147,15 @@ struct ApplicationsView: View {
             + (target?.passwordPaths ?? []).map { InventoryEntry.Part(name: URL(fileURLWithPath: $0).lastPathComponent, url: URL(fileURLWithPath: $0), size: .unknown, removable: false) })
         let auv3 = category == .apps ? [] : entry.parts.filter { $0.name == PlugInFormat.auv3.rawValue }
         let staying = uninstall.isEmpty || category == .apps ? [] : locked + auv3
-        let count = uninstall.isEmpty ? entry.parts.count : uninstall.count + staying.count
+        // "Choose items" counts what can be chosen, and says how many listed parts stay (#290).
+        let count = uninstall.isEmpty ? entry.parts.count : uninstall.count
         return CategoryRow(category: category, state: uninstall.isEmpty ? nil : catalog.selectionState(ofApp: entry.id), title: entry.name,
                            detail: [entry.maker, entry.volume].compactMap { $0 }.joined(separator: " · "),
                            // Shared items count on no product's row, so the page counts them once (#288, Decisions 51 and 52).
                            size: uninstall.isEmpty ? entry.size.text : SizeEstimate(sum: uninstall.filter(\.sharedBy.isEmpty).map(SizeEstimate.init)).text,
                            enabled: uninstall.isEmpty || catalog.canEdit, identifier: identifier,
                            // An app alone is its only item: no "Choose items · 1" (#270).
-                           itemCount: count > 1 ? count : nil, expanded: isExpanded,
+                           itemCount: count > 1 || !staying.isEmpty ? count : nil, staying: staying.count, expanded: isExpanded,
                            toggle: { if catalog.toggleApp(entry.id) { expanded.insert(entry.id) } }) {
             if entry.needsPassword { passwordLine(entry) }
             else if !uninstall.isEmpty {
@@ -204,7 +205,8 @@ struct ApplicationsView: View {
     /// vendor's tool is installed (Decision 50); for one `part` of a partly removable product, prefixed with its name (#288).
     private func passwordLine(_ entry: InventoryEntry, part: InventoryEntry.Part? = nil) -> some View {
         let tool = model.uninstaller(for: entry), id = part?.url.path ?? entry.id
-        let action = tool.map { tool in StatusAction(title: "Open " + tool.name, identifier: "applicationsOpen-" + id) { model.open(tool) } }
+        // A part's line reveals it: the row's own line already offers "Open <tool>", once (#290).
+        let action = tool.flatMap { tool in part == nil ? StatusAction(title: "Open " + tool.name, identifier: "applicationsOpen-" + id) { model.open(tool) } : nil }
             ?? StatusAction(title: "Reveal in Finder", identifier: "applicationsReveal-" + id) { model.reveal(part?.name ?? entry.name, part.map { [$0.url] } ?? entry.parts.map(\.url)) }
         let text = tool.map { "Needs \($0.name) or your password to remove" } ?? "Needs your password to remove"
         return StatusRow(text: part.map { "\($0.name): " + text } ?? text, symbol: "lock", identifier: "applicationsPassword-" + id, action: action)

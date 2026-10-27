@@ -161,6 +161,7 @@ final class ApplicationsUITests: XCTestCase {
         let row = element(app, "applicationsPlugIn-" + au.path, .checkBox)
         XCTAssertTrue(row.waitForExistence(timeout: 10), "A product CacheDrop can partly uninstall has a checkbox")
         XCTAssertEqual(row.value as? Int, 0, "Nothing is ticked when the page opens")
+        XCTAssertTrue(app.disclosureTriangles.matching(NSPredicate(format: "label == 'Choose items · 1 · 1 stays'")).firstMatch.exists, "Counts what can be chosen")
         revealAndClick(row, in: app)
         expandDisclosures(in: app)
         XCTAssertEqual(app.checkBoxes["planItem-Pro Synth.vst3"].value as? Int, 1, "Its removable format is ticked with it")
@@ -173,6 +174,8 @@ final class ApplicationsUITests: XCTestCase {
         app.buttons["Review cleanup"].click()
         let staying = element(app, "reviewStaying-" + au.path + "-password", .staticText)
         XCTAssertTrue(staying.waitForExistence(timeout: 5))
+        let line = reviewLine(app, "movedToTrash", "apps").value as? String ?? ""
+        XCTAssertTrue(line.hasPrefix("Apps, plug-ins and their files"), "The review names plug-ins too: " + line)
         XCTAssertEqual(staying.value as? String, "Pro Synth: 1 part stays · Needs your password", "The review says what stays")
         cleanUpFromReview(app)
         XCTAssertTrue(app.buttons["View history"].waitForExistence(timeout: 20))
