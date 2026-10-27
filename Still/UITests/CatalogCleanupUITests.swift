@@ -874,6 +874,53 @@ final class TrashSpaceUITests: XCTestCase {
         XCTAssertEqual(try String(contentsOf: marker, encoding: .utf8), home.appendingPathComponent(".Trash").path)
         XCTAssertTrue(FileManager.default.fileExists(atPath: trashed.path), "Opening the Trash changes nothing in it")
     }
+
+    /// #159: an installer a run moved to the (fixture) Trash is put back from Results; History records it and Overview's
+    /// Trash line is measured again. Debug test runs trash into the fixture home's `.Trash`, never the real one.
+    @MainActor func testPutBackReturnsATrashedInstallerAndHistoryRecordsIt() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        let state = try configureIsolatedState(app)
+        let home = try configureCatalogHome(app)
+        defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
+        let older = home.appendingPathComponent(".Trash/Old installer.dmg")
+        try FileManager.default.createDirectory(at: older.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Data(repeating: 5, count: 300_000).write(to: older)
+        app.launch()
+
+        XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
+        let line = app.staticTexts["overviewTrash"]
+        XCTAssertTrue(line.waitForExistence(timeout: 10))
+        func lineText() -> String { [line.label, line.value as? String ?? ""].first { !$0.isEmpty } ?? "" }
+        let before = lineText()
+        let row = app.buttons["overviewCategory-downloads"]
+        XCTAssertTrue(row.waitForExistence(timeout: 10))
+        revealAndClick(row, in: app)
+        let category = app.checkBoxes["planCategory-downloads"]
+        XCTAssertTrue(category.waitForExistence(timeout: 5))
+        revealAndClick(category, in: app)
+        app.buttons["Review cleanup"].click()
+        XCTAssertTrue(reviewLine(app, "movedToTrash", "downloads").waitForExistence(timeout: 5))
+        cleanUpFromReview(app)
+
+        let original = home.appendingPathComponent("Downloads/Setup.dmg"), inTrash = home.appendingPathComponent(".Trash/Setup.dmg")
+        let putBack = app.descendants(matching: .any)["putBack-Setup.dmg"]
+        XCTAssertTrue(putBack.waitForExistence(timeout: 10))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: inTrash.path))
+        revealAndClick(putBack, in: app)
+        XCTAssertTrue(app.staticTexts["putBackDone-Setup.dmg"].waitForExistence(timeout: 10))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: original.path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: inTrash.path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: older.path), "Put back moves only its own item")
+
+        app.typeKey("5", modifierFlags: .command)
+        // The run's row is one button whose label holds its title.
+        let run = app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS 'Put back from Trash' OR value CONTAINS 'Put back from Trash'")).firstMatch
+        XCTAssertTrue(run.waitForExistence(timeout: 10))
+        app.typeKey("1", modifierFlags: .command)
+        XCTAssertTrue(line.waitForExistence(timeout: 10))
+        XCTAssertEqual(lineText(), before, "The Trash holds what it held before the run")
+    }
 }
 
 extension CatalogCleanupUITests {

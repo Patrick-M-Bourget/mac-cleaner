@@ -86,9 +86,11 @@ extension CleanupRecord {
 extension CleanupHistoryRun {
     /// Every record was checked with the dry run on; nothing changed on disk.
     public var isPreview: Bool { !records.isEmpty && records.allSatisfy { $0.previewOnly == true } }
+    /// A put back from the Trash (#159), recorded as its own run.
+    public var isPutBack: Bool { !records.isEmpty && records.allSatisfy(\.isPutBack) }
     public var title: String {
         if isPreview { return "Dry run · Nothing changed" }
-        if !records.isEmpty, records.allSatisfy(\.isPutBack) {
+        if isPutBack {
             return records.contains { $0.state == .succeeded } ? "Put back from Trash" : "Put back · Nothing changed"
         }
         let done = records.filter { $0.state == .succeeded }

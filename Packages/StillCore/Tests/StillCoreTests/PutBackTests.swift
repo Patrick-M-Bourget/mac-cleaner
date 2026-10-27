@@ -44,7 +44,7 @@ private func trashedInstaller(named name: String = "Setup.dmg") async throws -> 
     #expect(!FileManager.default.fileExists(atPath: home.appendingPathComponent(".Trash/Setup.dmg").path))
     // Recorded in History: its own run, and the trashed item reads as put back.
     let history = try journal.completedHistory()
-    let putBackRun = try #require(history.completedRuns.first { $0.records.allSatisfy(\.isPutBack) })
+    let putBackRun = try #require(history.completedRuns.first { $0.isPutBack })
     #expect(putBackRun.title == "Put back from Trash")
     #expect(putBackRun.records.first?.outcomeTitle == "Put back")
     #expect(putBackRun.records.first?.putBackOf == record.id)
