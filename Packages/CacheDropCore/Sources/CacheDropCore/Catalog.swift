@@ -204,7 +204,8 @@ public enum BuiltInCatalog {
                     regen: .cache, action: .delete, locations: [".npm/_cacache"],
                     owner: RuleOwner(name: "npm", executables: ["npm", "npx"], scripts: ["npm", "npx", "npm-cli.js", "npx-cli.js"]),
                     locationTool: LocationTool(executables: ["/opt/homebrew/bin/npm", "/usr/local/bin/npm"],
-                                               query: LocationQuery(["config", "get", "cache"], whenUnanswered: .defaultLocations, reportedSubfolder: "_cacache"))),
+                                               query: LocationQuery(["config", "get", "cache"], whenUnanswered: .defaultLocations, reportedSubfolder: "_cacache",
+                                                                    configuredIn: .npmrc))),
         CleanupRule(id: "yarn-cache", category: .developer, title: "Yarn cache",
                     detail: "Packages Yarn downloaded for your projects.",
                     consequence: "Permanently removed. Yarn downloads packages again as needed; the next install may take longer.",
@@ -238,7 +239,8 @@ public enum BuiltInCatalog {
                     // pip's cache holds `http-v2` (pip 23.3 on) or `http` (earlier), per https://pip.pypa.io/en/stable/topics/caching/,
                     // and `wheels`, per pip's `src/pip/_internal/cache.py` (`os.path.join(self.cache_dir, "wheels", ...)`).
                     locationTool: LocationTool(executables: ["/opt/homebrew/bin/python3", "/usr/local/bin/python3", "/Library/Developer/CommandLineTools/usr/bin/python3"],
-                                               query: LocationQuery(["-m", "pip", "cache", "dir"], whenUnanswered: .defaultLocations, cacheMarkers: ["http-v2", "http", "wheels"]))),
+                                               query: LocationQuery(["-m", "pip", "cache", "dir"], whenUnanswered: .defaultLocations, cacheMarkers: ["http-v2", "http", "wheels"],
+                                                                    configuredIn: .pipConf))),
         CleanupRule(id: "cargo-cache", category: .developer, title: "Cargo cache",
                     detail: "Rust crates and git dependencies Cargo downloaded. Installed tools are not included.",
                     consequence: "Permanently removed. Cargo downloads crates again as needed; the next build may take longer.",
@@ -457,8 +459,8 @@ public struct Catalog: Sendable {
             var reported: URL?, defaultsNote: CatalogNote?, folderSource: String?
             if let (asker, isOwnTool) = rule.locationAsker {
                 switch reportedLocation(of: rule, asking: asker, at: isOwnTool ? toolURL : locateTool(asker.lookup), base: base) {
-                case .folder(let folder): reported = folder; folderSource = Self.namedBy(asker)
-                case .defaults(let note): defaultsNote = note; folderSource = note == nil ? Self.namedBy(asker) : "Usual folder"
+                case .folder(let folder, let source): reported = folder; folderSource = source
+                case .defaults(let note, let source): defaultsNote = note; folderSource = source ?? "Usual folder"
                 case .notOffered(let note, let unmeasured):
                     notes.append(note)
                     if unmeasured { notMeasured[rule.id, default: []].formUnion(rule.locations) }
