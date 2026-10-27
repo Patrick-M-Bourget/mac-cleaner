@@ -62,7 +62,7 @@ import Testing
     #expect(defaults.bool(forKey: "ApplePersistenceIgnoreState"))
 }
 
-/// #130: ⌘Q during a cleanup asks first; a confirmed stop is not asked again while the current item finishes.
+/// #130: ⌘Q during a cleanup asks first; a confirmed stop is not asked again while the current item ends (#186).
 @Test func quittingDuringACleanupAsksBeforeStopping() {
     #expect(AppLifecyclePolicy.quitDecision(cleanupRunning: false, maintenanceInProgress: false, stopConfirmed: false) == .quitNow)
     #expect(AppLifecyclePolicy.quitDecision(cleanupRunning: true, maintenanceInProgress: false, stopConfirmed: false) == .askToStopCleanup)
@@ -70,9 +70,9 @@ import Testing
     #expect(AppLifecyclePolicy.quitDecision(cleanupRunning: false, maintenanceInProgress: true, stopConfirmed: false) == .waitForCurrentItem)
 }
 
-/// #130: the question is "Stop after this item and quit?", and Cancel (the default) keeps the cleanup running.
+/// #130, #186: the question is "Stop it and quit?", since a stop ends the running tool mid-item, and Cancel (the default) keeps the cleanup running.
 @Test @MainActor func cancelIsTheDefaultAndKeepsTheCleanupRunning() {
-    #expect(QuitDuringCleanupPrompt.message == "A cleanup is running. Stop after this item and quit?")
+    #expect(QuitDuringCleanupPrompt.message == "A cleanup is running. Stop it and quit?")
     #expect(QuitDuringCleanupPrompt.buttons == ["Cancel", "Stop and Quit"])
     var stops = 0
     let keep = QuitDuringCleanupPrompt(ask: { .keepRunning })

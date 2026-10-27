@@ -132,7 +132,7 @@ import CacheDropCore
         switch AppLifecyclePolicy.quitDecision(cleanupRunning: lifecycle.operationInProgress, maintenanceInProgress: lifecycle.maintenanceInProgress, stopConfirmed: lifecycle.quitPending) {
         case .quitNow: break
         case .waitForCurrentItem:
-            // Quit completes on its own once the current item finishes (operationInProgress/maintenanceInProgress didSet).
+            // Quit completes on its own once the current item ends (operationInProgress/maintenanceInProgress didSet).
             lifecycle.quitPending = true
             return .terminateCancel
         case .askToStopCleanup:
