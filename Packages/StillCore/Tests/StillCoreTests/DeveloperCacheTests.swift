@@ -175,8 +175,13 @@ private func homebrewRun(_ home: URL, script: String, timeout: TimeInterval? = n
     defer { try? FileManager.default.removeItem(at: home) }
     try makeFolder(home, "Library/Caches/Homebrew")
     let started = Date()
-    let result = try await homebrewRun(home, script: "echo started\nsleep 20", timeout: 0.5)
+    // A stand-in brew that starts its own child, like the real one does.
+    let length = uniqueSleep()
+    let result = try await homebrewRun(home, script: "echo started\nsleep \(length) &\nsleep \(length)", timeout: 0.5)
     #expect(Date().timeIntervalSince(started) < 10)
+    let left = survivorsAfterSettling(length)
+    left.forEach { kill($0, SIGKILL) }
+    #expect(left.isEmpty)
     let record = try #require(result.records.first)
     #expect(record.state == .failed)
     #expect(record.message.contains("time limit"))
