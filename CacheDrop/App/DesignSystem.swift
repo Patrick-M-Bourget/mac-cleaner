@@ -599,15 +599,20 @@ private struct NativeCategoryCheckbox: NSViewRepresentable {
     func sizeThatFits(_ proposal: ProposedViewSize, nsView: NSButton, context: Context) -> CGSize? { nsView.intrinsicContentSize }
     func updateNSView(_ view: NSButton, context: Context) {
         context.coordinator.action = action
+        context.coordinator.state = Self.buttonState(state)
         view.title = showsTitle ? label : ""; view.isEnabled = enabled && context.environment.isEnabled
         view.setAccessibilityIdentifier(identifier)
         view.setAccessibilityLabel(label)
-        view.state = state == .checked ? .on : state == .mixed ? .mixed : .off
+        view.state = Self.buttonState(state)
     }
+    static func buttonState(_ state: CategorySelectionState) -> NSControl.StateValue { state == .checked ? .on : state == .mixed ? .mixed : .off }
     @MainActor final class Coordinator: NSObject {
         var action: () -> Void
+        var state: NSControl.StateValue = .off
         init(_ action: @escaping () -> Void) { self.action = action }
-        @objc func clicked() { action() }
+        /// AppKit advances the button's own state on a click; put the model's back, since a click that only lists the
+        /// category's items (#240) changes no selection and so never redraws it. A changed selection redraws over this.
+        @objc func clicked(_ sender: NSButton) { action(); sender.state = state }
     }
 }
 
