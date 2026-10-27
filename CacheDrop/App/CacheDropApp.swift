@@ -124,6 +124,11 @@ private struct WorkspaceView: View {
     private var planReturnsToExplorer: Bool { get { navigationState.planReturnsToExplorer } nonmutating set { navigationState.planReturnsToExplorer = newValue } }
     private var scanOrigin: Destination { get { navigationState.scanOrigin } nonmutating set { navigationState.scanOrigin = newValue } }
     @State private var locationToForget: RememberedScope?
+    /// Work running in the background, earliest first, for every screen's bottom bar (Decision 46).
+    @State private var backgroundWork = BackgroundWork()
+    private var backgroundWorkLine: BackgroundWork.Line? {
+        backgroundWork.line { $0 == "catalogScanProgress" ? selection.catalog.scanProgressText : "Rechecking selected locations…" }
+    }
     @State private var capacity = AppLifecycleController.shared.capacity
     @Bindable private var welcome = WelcomeModel.shared
     private var startupCapacity: StartupCapacityReading? { capacity.reading }
@@ -293,11 +298,17 @@ private struct WorkspaceView: View {
                         }
                     } else if showsPlan {
                         ActionStrip(message: nil) { Button("Review cleanup") {}.disabled(true) }
+                    } else {
+                        ActionStrip()
                     }
                 }
                 }
             }.frame(maxWidth: .infinity, maxHeight: .infinity)
                 .background(CacheDropDesign.reading)
+        }
+        .environment(\.cacheDropBackgroundWork, backgroundWorkLine)
+        .onChange(of: [selection.catalog.isScanning, folderInspection.isScanning], initial: true) { _, running in
+            backgroundWork.update(running: Set(zip(["catalogScanProgress", "folderRecheckProgress"], running).filter(\.1).map(\.0)))
         }
         .onChange(of: selection.catalog.selectionRevision) { _, _ in AppLifecycleController.shared.hasPendingPlan = selection.hasPendingChoices }
         .task { if await recovery.loadOnce() { openRecovery(caller: .overview, refresh: false) } }
@@ -450,8 +461,6 @@ private struct WorkspaceView: View {
                             .buttonStyle(.link).font(CacheDropDesign.TypeStyle.caption).accessibilityIdentifier("overviewSmartClean")
                     }
                 }
-                // One quiet line while the scan runs; rows and the total fill in as each location finishes (#128).
-                if catalog.isScanning { CatalogScanProgressLine(model: catalog) }
                 if showsCloudInventory || !shown.isEmpty {
                     RecommendationGroup {
                         if showsCloudInventory {
@@ -562,7 +571,6 @@ private struct WorkspaceView: View {
             if selection.scans.values.contains(where: { !$0.isComplete }) || overviewObservation.map({ $0.excludedEntryCount > 0 || $0.hasUnmeasuredContents }) == true {
                 StatusRow(text: "Some locations have partial coverage. Uninspected bytes remain unknown.", symbol: "exclamationmark.circle", role: .caution)
             }
-            if folderInspection.isScanning { ProgressView("Rechecking selected locations…").font(CacheDropDesign.TypeStyle.caption) }
             if let message = locationsModel.message { StatusRow(text: message, symbol: "info.circle", role: .caution) }
             if let message = folderInspection.message { StatusRow(text: message, symbol: "info.circle") }
         }

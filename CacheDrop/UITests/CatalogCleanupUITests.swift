@@ -90,6 +90,11 @@ import XCTest
     XCTAssertEqual(triangle.value as? Int, 1, "\(triangle.label) opened")
 }
 
+/// The window's bottom bar (#220); every screen has exactly one.
+@MainActor func actionStrip(_ app: XCUIApplication) -> XCUIElement {
+    app.descendants(matching: .any).matching(identifier: "actionStrip").firstMatch
+}
+
 /// The review sheet's line for a catalog category in a consequence group, e.g. `reviewLine(app, "permanentlyRemoved", "developer")`.
 @MainActor func reviewLine(_ app: XCUIApplication, _ group: String, _ category: String) -> XCUIElement {
     app.descendants(matching: .any)["reviewLine-\(group)-\(category)"]
@@ -119,15 +124,58 @@ final class CatalogCleanupUITests: XCTestCase {
         XCTAssertTrue(progress.waitForExistence(timeout: 10))
         let counted = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value MATCHES %@", "Checking .+… [0-9]+ of [0-9]+"), object: progress)
         XCTAssertEqual(XCTWaiter.wait(for: [counted], timeout: 10), .completed, progress.debugDescription)
+        // #220: the progress line sits in the bottom bar, not at the top of the page.
+        let strip = actionStrip(app)
+        XCTAssertTrue(strip.frame.contains(progress.frame), "The progress line is in the bottom bar")
+        let stripHeight = strip.frame.height
         // The npm cache is among the first locations, Downloads comes later: its row and the total show up mid-scan.
-        XCTAssertTrue(app.buttons["overviewCategory-developer"].waitForExistence(timeout: 10))
+        let developer = app.buttons["overviewCategory-developer"]
+        XCTAssertTrue(developer.waitForExistence(timeout: 10))
         XCTAssertTrue(progress.exists, "The developer row appeared before the scan finished")
+        let rowTop = developer.frame.minY
         let total = app.staticTexts["overviewRecommendedTotal"]
         XCTAssertTrue((total.value as? String)?.hasPrefix("Up to ") == true, total.debugDescription)
         XCTAssertFalse(app.staticTexts["Nothing to review in the known locations."].exists)
 
         XCTAssertTrue(progress.waitForNonExistence(timeout: 60))
         XCTAssertTrue(app.buttons["overviewCategory-downloads"].exists)
+        // Nothing shifts when the scan ends: the rows stay put and the bar keeps its height.
+        XCTAssertEqual(developer.frame.minY, rowTop, accuracy: 0.5)
+        XCTAssertEqual(actionStrip(app).frame.height, stripHeight, accuracy: 0.5)
+    }
+
+    /// #220: every screen has the same bottom bar at the same height, and the catalog scan's progress shows in it on
+    /// whichever screen is open.
+    @MainActor func testEveryScreenHasTheSameBottomBarAndShowsScanProgress() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        let state = try configureIsolatedState(app)
+        let home = try configureCatalogHome(app)
+        app.launchEnvironment["CACHEDROP_TEST_DISCOVERY_PAUSE"] = "0.5"
+        defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
+        app.launch()
+
+        let progress = app.staticTexts["catalogScanProgress"]
+        XCTAssertTrue(progress.waitForExistence(timeout: 10))
+        let height = actionStrip(app).frame.height
+        XCTAssertGreaterThan(height, 0)
+        // History and Locations & access did not start the scan; their bars show it.
+        for (key, screen) in [("5", "History"), ("6", "Locations & access")] {
+            app.typeKey(key, modifierFlags: .command)
+            XCTAssertTrue(progress.waitForExistence(timeout: 5), "Scan progress shows on \(screen)")
+            XCTAssertTrue(actionStrip(app).frame.contains(progress.frame), screen)
+            XCTAssertEqual(actionStrip(app).frame.height, height, accuracy: 0.5, screen)
+        }
+        app.typeKey("1", modifierFlags: .command)
+        XCTAssertTrue(progress.waitForNonExistence(timeout: 60))
+        // With and without buttons, the bar is the same height once the scan is done.
+        for (key, screen) in [("1", "Overview"), ("2", "Smart clean"), ("3", "Cleanup plan"), ("4", "Storage trends"), ("5", "History"), ("6", "Locations & access")] {
+            app.typeKey(key, modifierFlags: .command)
+            XCTAssertTrue(app.buttons[screen].waitForExistence(timeout: 5))
+            let strip = actionStrip(app)
+            XCTAssertTrue(strip.waitForExistence(timeout: 5), screen)
+            XCTAssertEqual(strip.frame.height, height, accuracy: 0.5, screen)
+        }
     }
 
     @MainActor func testDeveloperCachesShowOnlyWhenPresentAndADryRunNeverRunsTheTool() throws {

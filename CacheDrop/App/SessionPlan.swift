@@ -244,7 +244,7 @@ struct CleanupRunSection: View {
 struct CleanupStopStrip: View {
     let selection: SessionPlan
     var body: some View {
-        ActionStrip(message: "Stopping starts no new items and stops a running cleanup tool, which may have cleaned part of its cache; work it handed to Docker or the Simulator may still finish. Completed Trash moves and cache removals are not rolled back.") {
+        ActionStrip(message: "Stopping starts no new items and stops a running cleanup tool, which may have cleaned part of its cache; work it handed to Docker or the Simulator may still finish. Completed Trash moves and cache removals are not rolled back.", showsBackgroundWork: false) {
             Button(selection.workspaceStopRequested ? "Stop requested" : "Stop cleanup") { selection.cancelWorkspace() }.disabled(selection.workspaceStopRequested)
         }
     }

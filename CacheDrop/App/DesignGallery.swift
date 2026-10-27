@@ -131,6 +131,9 @@ struct DesignGallery: View {
                     VolumeSummary(available: nil, total: nil, observation: "No capacity observation · Unknown stays distinct from zero")
                 }.padding(CacheDropDesign.Space.page).frame(maxWidth: .infinity, alignment: .leading)
             }.background(CacheDropDesign.reading)
+            // While background work runs, its progress line takes the note's place (Decision 46).
+            ActionStrip(message: "Developer gallery · Actions are inert examples") { ReviewCleanupButton(enabled: false, focusRequest: 0, action: {}) }
+                .environment(\.cacheDropBackgroundWork, BackgroundWork.Line(id: "galleryProgress", text: "Checking Example cache… 4 of 31 · +1 more"))
             ActionStrip(message: "Developer gallery · Actions are inert examples") { ReviewCleanupButton(enabled: false, focusRequest: 0, action: {}) }
         }
         .environment(\.cacheDropOpaqueChrome, opaque)

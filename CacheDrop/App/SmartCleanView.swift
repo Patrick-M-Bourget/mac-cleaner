@@ -53,7 +53,6 @@ struct SmartCleanView: View {
                 .padding(.bottom, CacheDropDesign.Space.sm)
             meter
             if let approvalError { StatusRow(text: approvalError, symbol: "exclamationmark.circle", role: .caution, identifier: "smartCleanError") }
-            if model.isScanning { CatalogScanProgressLine(model: model) }
             VStack(alignment: .leading, spacing: 0) {
                 ForEach(rows) { row in
                     category(row, items: items)

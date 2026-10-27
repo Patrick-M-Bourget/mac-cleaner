@@ -13,7 +13,9 @@ enum CacheDropDesign {
         /// The CacheDrop mark in the sidebar header (#156).
         static let brandMark: CGFloat = 24
         /// The surface gap between a meter's segments, and the narrowest segment it draws (#164).
-        static let meterGap: CGFloat = 2; static let meterSegmentMinimum: CGFloat = 3 }
+        static let meterGap: CGFloat = 2; static let meterSegmentMinimum: CGFloat = 3
+        /// The bottom bar's row: a large button's height, so the bar is the same with or without buttons or progress (#220).
+        static let actionStripRow: CGFloat = 32 }
     /// How strongly a colour tints a surface behind its symbol, as in a category badge.
     enum Opacity { static let badgeTint: Double = 0.10
         /// A meter segment's part that Smart clean wouldn't free (#164).
@@ -102,8 +104,11 @@ enum StorageCategory {
     }
 }
 private struct OpaqueChromeKey: EnvironmentKey { static let defaultValue = false }
+private struct BackgroundWorkKey: EnvironmentKey { static let defaultValue: BackgroundWork.Line? = nil }
 extension EnvironmentValues {
     var cacheDropOpaqueChrome: Bool { get { self[OpaqueChromeKey.self] } set { self[OpaqueChromeKey.self] = newValue } }
+    /// The app-wide background work every bottom bar reports while it runs (Decision 46).
+    var cacheDropBackgroundWork: BackgroundWork.Line? { get { self[BackgroundWorkKey.self] } set { self[BackgroundWorkKey.self] = newValue } }
 }
 enum ChromeRole { case chrome, sidebar }
 struct ChromeSurface: View {
@@ -305,24 +310,47 @@ struct EmptyState: View {
         }.frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, CacheDropDesign.Space.xl)
     }
 }
-/// A bottom bar: a leading note or control, then the actions.
+/// The bottom bar every screen has, always the same height (Decision 46): a leading note or control, then the actions.
+/// While background work runs, its one quiet progress line takes the note's place.
 struct ActionStrip<Leading: View, Actions: View>: View {
+    /// False keeps the note in place while work runs, as the running cleanup's Stop strip does.
+    var showsBackgroundWork = true
     @ViewBuilder var leading: () -> Leading
     @ViewBuilder var actions: () -> Actions
+    @Environment(\.cacheDropBackgroundWork) private var work
     var body: some View {
         VStack(spacing: 0) {
             Divider()
             HStack(spacing: CacheDropDesign.Space.lg) {
-                leading()
+                if showsBackgroundWork, let work { BackgroundWorkLine(line: work) } else { leading() }
                 Spacer(minLength: CacheDropDesign.Space.sm)
                 actions()
-            }.padding(.horizontal, CacheDropDesign.Space.page).padding(.vertical, CacheDropDesign.Space.lg)
+            }.frame(minHeight: CacheDropDesign.Size.actionStripRow)
+                .padding(.horizontal, CacheDropDesign.Space.page).padding(.vertical, CacheDropDesign.Space.lg)
         }.background(CacheDropDesign.reading).controlSize(.large).buttonBorderShape(.capsule)
+            .accessibilityElement(children: .contain).accessibilityIdentifier("actionStrip")
     }
 }
 extension ActionStrip where Leading == ActionStripMessage {
     /// Only for notes that report state, such as a running cleanup (Decision 25); nil leaves the actions alone.
-    init(message: String?, @ViewBuilder actions: @escaping () -> Actions) { self.init(leading: { ActionStripMessage(text: message) }, actions: actions) }
+    init(message: String?, showsBackgroundWork: Bool = true, @ViewBuilder actions: @escaping () -> Actions) {
+        self.init(showsBackgroundWork: showsBackgroundWork, leading: { ActionStripMessage(text: message) }, actions: actions)
+    }
+}
+extension ActionStrip where Leading == ActionStripMessage, Actions == EmptyView {
+    /// A bar with no buttons: empty, or the progress of work running in the background.
+    init() { self.init(message: nil) { EmptyView() } }
+}
+/// Background work as one quiet line: a small spinner and "Checking <location>… 4 of 31", plus "+1 more" (Decisions 25, 46).
+struct BackgroundWorkLine: View {
+    let line: BackgroundWork.Line
+    var body: some View {
+        HStack(spacing: CacheDropDesign.Space.sm) {
+            ProgressView().controlSize(.small).accessibilityHidden(true)
+            Text(line.text).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary).monospacedDigit().lineLimit(1).truncationMode(.middle)
+                .accessibilityIdentifier(line.id)
+        }
+    }
 }
 /// A bottom bar's note; nothing when there is none.
 struct ActionStripMessage: View {
