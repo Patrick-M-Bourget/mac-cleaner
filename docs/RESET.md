@@ -25,7 +25,7 @@ Codex has worked on Still for 4 days. The result:
 - **Docs:** the 23 control docs and 61 validation reports go to an `archive/codex-era` tag. Then remove them from `main`. That removes about 130 MB going forward; history is left alone. *(Delete: needs your approval.)*
 - **The new authority** is the prototype (`docs/visual/preview.html`) plus one `docs/SPEC.md` of 300 lines or less. A new `DECISIONS.md` grows only from our grilling.
 - **Code to delete:** the `Validation/*` probe packages, the version gates (listed below), the ~15 `--ui-test-*`/fixture flags spread through views, and `--future-milestones`. Features are either in the product or deleted.
-  - Version gates: `ChromeCache.swift:33-44`, `NativeXcodeBuildEnvironment.swift:53-57`, `XcodeDerivedDataMapping.swift:48`, `DockerInventory.swift:20,133`, `PipInventory.swift:16,59`, `HomebrewPreview.swift:37`.
+  - Version gates: `ChromeCache.swift:33-44`, `NativeXcodeBuildEnvironment.swift:53-57`, `XcodeDerivedDataMapping.swift:48`, `DockerInventory.swift:20,133`. (The pip and Homebrew gates, `PipInventory.swift` and `HomebrewPreview.swift`, went with those unused types in #252.)
 - **CI:** replace the 844-line `native.yml` with one job: `swift test` plus an app build plus a short smoke UI suite, on PRs only. *(CI change, L3: requires your approval.)*
 - **UI tests:** cut them to a small smoke set, about 5 journeys. Delete the screenshot-ledger tests.
 
