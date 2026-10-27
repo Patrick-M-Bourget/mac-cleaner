@@ -106,13 +106,14 @@ public struct MusicContentItem: Sendable, Equatable, Identifiable {
         case offline(volume: String?)
     }
     public let name: String
-    public let vendor: String
+    /// The vendors whose locations reach it: one, unless two vendors' locations lead to the same folder.
+    public internal(set) var vendors: [String]
     public let url: URL
     public let kind: Kind
     public let state: State
     /// The IDs of every confirmed owner. More than one means it is shared ("Shared with <N> products").
-    public let owners: [String]
-    public let tie: Tie
+    public internal(set) var owners: [String]
+    public internal(set) var tie: Tie
     public var id: String { url.path }
     public var isShared: Bool { owners.count > 1 }
 }
@@ -141,7 +142,7 @@ public struct MusicContent: Sendable, Equatable {
                             volumes: URL = URL(fileURLWithPath: "/Volumes"),
                             configured: (MusicVendor) -> [MusicVendor.Configured] = { _ in [] },
                             sizer: KnownLocationSizer = KnownLocationSizer()) -> MusicContent {
-        var items: [MusicContentItem] = [], seen = Set<String>()
+        var items: [MusicContentItem] = [], index: [String: Int] = [:]
         for vendor in MusicVendor.known {
             let ownerIDs = owners.filter { vendor.owns($0.bundleID) }.map(\.id)
             let defaults = vendor.locations.map { location in
@@ -157,8 +158,15 @@ public struct MusicContent: Sendable, Equatable {
                 case .offline(let target): (state, key) = (.offline(volume: target.flatMap { volume(of: $0, under: volumes) }), target?.path ?? location.url.path)
                 case .at(let real): (state, key) = (.present(Catalog.estimate(sizer.size(URL(fileURLWithPath: real)))), real)
                 }
-                guard seen.insert(key).inserted else { continue }
-                items.append(MusicContentItem(name: location.name, vendor: vendor.name, url: location.url, kind: location.kind, state: state, owners: ownerIDs,
+                if let seen = index[key] {
+                    // Reached again, through another vendor's location: one item, with every vendor's owners.
+                    if !items[seen].vendors.contains(vendor.name) { items[seen].vendors.append(vendor.name) }
+                    items[seen].owners += ownerIDs.filter { !items[seen].owners.contains($0) }
+                    if vendor.owners.tie == .vendor { items[seen].tie = .vendor }
+                    continue
+                }
+                index[key] = items.count
+                items.append(MusicContentItem(name: location.name, vendors: [vendor.name], url: location.url, kind: location.kind, state: state, owners: ownerIDs,
                                               tie: vendor.owners.tie))
             }
         }

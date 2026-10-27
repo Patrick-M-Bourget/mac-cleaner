@@ -45,7 +45,7 @@ private let unrelated = ContentOwner(id: "other", name: "Serum", bundleID: "com.
     let content = mac.scan([reasonRack, unrelated])
 
     #expect(content.items.map(\.name).sorted() == ["Shared resources", "Sound banks"])
-    #expect(content.items.allSatisfy { $0.vendor == "Reason Studios" && $0.owners == ["reason-rack"] && $0.kind == .installed })
+    #expect(content.items.allSatisfy { $0.vendors == ["Reason Studios"] && $0.owners == ["reason-rack"] && $0.kind == .installed })
     #expect(content.items(for: "other").isEmpty)
     #expect(content.items(for: "reason-rack").count == 2)
 }
@@ -76,7 +76,7 @@ private let unrelated = ContentOwner(id: "other", name: "Serum", bundleID: "com.
     let content = mac.scan([logic, mainStage, unrelated])
 
     #expect(content.items.map(\.name).sorted() == ["Apple Loops", "Impulse responses", "Logic Pro Library", "Logic content"])
-    #expect(content.items.allSatisfy { $0.vendor == "Apple" && $0.owners == ["logic", "mainstage"] && $0.isShared })
+    #expect(content.items.allSatisfy { $0.vendors == ["Apple"] && $0.owners == ["logic", "mainstage"] && $0.isShared })
     #expect(content.items.allSatisfy { $0.tie == .bundleID }, "Apple's content belongs to the named apps, not to every Apple app")
 }
 
@@ -146,4 +146,16 @@ private let unrelated = ContentOwner(id: "other", name: "Serum", bundleID: "com.
     #expect(content.items.first?.isShared == true)
     #expect(content.items.first?.tie == .vendor, "Decision 52: no receipt or bundle ID ties it to one product, so the vendor does")
     #expect(content.items(for: "other").isEmpty)
+}
+
+/// #277: when two vendors reach the same folder, it is one item with both vendors' owners, counted once.
+@Test func twoVendorsReachingOneFolderMergeTheirOwners() throws {
+    let mac = try FixtureMac(); defer { mac.remove() }
+    let shared = try mac.folder("/Library/Arturia", bytes: 8_192)
+
+    let content = mac.scan([pigments, live], configured: { $0.name == "Ableton" ? [.init(url: shared, kind: .installed)] : [] })
+
+    #expect(content.items.count == 1)
+    #expect(content.items.first?.owners == ["live", "pigments"])
+    #expect(content.items.first?.vendors == ["Ableton", "Arturia"])
 }
