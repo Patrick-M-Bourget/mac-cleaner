@@ -3,11 +3,14 @@ import Darwin
 
 /// Reads the current user's processes with libproc, as `lsof` does, without admin rights.
 public struct SystemInUseChecker: InUseChecking {
-    public init() {}
+    /// When set, only this process is read (tests), so other processes coming and going can't change the answer.
+    let onlyProcess: pid_t?
+    public init() { onlyProcess = nil }
+    init(onlyProcess: pid_t) { self.onlyProcess = onlyProcess }
     /// Reads the process table afresh for this one question.
-    public func inUse(_ folders: [URL], by owner: RuleOwner) -> Set<String>? { SystemInUseSnapshot().inUse(folders, by: owner) }
+    public func inUse(_ folders: [URL], by owner: RuleOwner) -> Set<String>? { snapshot().inUse(folders, by: owner) }
     /// One reading shared by every question until it is dropped: a discovery asks once per rule, a cleanup run once per item.
-    public func snapshot() -> any InUseChecking { SystemInUseSnapshot() }
+    public func snapshot() -> any InUseChecking { SystemInUseSnapshot(onlyProcess: onlyProcess) }
 }
 
 /// The current user's processes, listed once. Each process's open and mapped files are read the first time a question
@@ -19,7 +22,7 @@ final class SystemInUseSnapshot: InUseChecking, @unchecked Sendable {
     /// Each process's paths once read; an inner nil means they couldn't be read.
     private var paths: [pid_t: [String]?] = [:]
 
-    init() { processes = Self.userProcesses() }
+    init(onlyProcess: pid_t? = nil) { processes = Self.userProcesses()?.filter { onlyProcess == nil || $0.pid == onlyProcess } }
 
     func inUse(_ folders: [URL], by owner: RuleOwner) -> Set<String>? {
         guard let processes else { return nil }

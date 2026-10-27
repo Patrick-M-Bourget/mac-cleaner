@@ -191,7 +191,8 @@ private final class FakeVolume: @unchecked Sendable {
     #expect(descriptor >= 0)
     defer { close(descriptor) }
     let mapping = try Data(contentsOf: mapped, options: .alwaysMapped)
-    let used = SystemInUseChecker().inUse([opened, mapped, idle], by: .anyApp)
+    // Only this test's own process is read, so other processes can't make the answer unknown.
+    let used = SystemInUseChecker(onlyProcess: getpid()).inUse([opened, mapped, idle], by: .anyApp)
     #expect(used == [opened.path, mapped.path])
     #expect(mapping.count == 8192)
 }
@@ -232,7 +233,8 @@ private final class CountingInUse: InUseChecking, @unchecked Sendable {
     let descriptor = Darwin.open(opened.path, O_RDONLY)
     #expect(descriptor >= 0)
     defer { close(descriptor) }
-    let snapshot = SystemInUseChecker().snapshot()
+    // Only this test's own process is read: the real process table changes while tests run.
+    let snapshot = SystemInUseChecker(onlyProcess: getpid()).snapshot()
     #expect(snapshot.inUse([opened], by: .anyApp) == [opened.path])
     #expect(snapshot.inUse([idle], by: .anyApp) == [])
     #expect(snapshot.inUse([opened, idle], by: RuleOwner(name: "Nobody", executables: ["no-such-process-\(UUID())"])) == [])
@@ -294,8 +296,9 @@ private final class TimedInUse: InUseChecking, @unchecked Sendable {
     #expect(approved.map(\.url.path) == [first.path, later.path])
     let clock = StepClock()
     let journal = try SQLiteCleanupJournal(url: folder.appendingPathComponent("journal.sqlite"))
-    let run = CleanupExecutor(journal: journal, check: CandidateCheck(catalog: catalog, running: NothingRunning(), home: fixtureHome()),
-                              measure: { _ in nil }, trash: TrashNeverUsed(), clock: { clock.now })
+    // Only this test's own process is read, so other processes can't make the answer unknown.
+    let check = CandidateCheck(catalog: catalog, running: NothingRunning(), inUse: SystemInUseChecker(onlyProcess: getpid()), home: fixtureHome())
+    let run = CleanupExecutor(journal: journal, check: check, measure: { _ in nil }, trash: TrashNeverUsed(), clock: { clock.now })
     let descriptor = Descriptor()
     defer { descriptor.close() }
     // After the first item, this process opens the second file, and the run goes on long enough for a new reading.
