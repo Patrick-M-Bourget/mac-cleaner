@@ -103,7 +103,7 @@ enum StorageCategory {
         case .xcodeArchives: "archivebox"
         case .audioPlugIns: "pianokeys"
         case .leftovers: "square.dashed"
-        case .apps: "app"
+        case .apps: "macwindow"
         }
     }
 }
@@ -622,7 +622,7 @@ extension CacheDropDesign.Size {
     static let badgeIndent: CGFloat = 32 + CacheDropDesign.Space.md
     /// A checkbox, then a badge: content under a `CategorySelectionHeader` lines up with its title.
     static let categoryContentIndent: CGFloat = checkbox + CacheDropDesign.Space.md + badgeIndent
-    /// A category checkbox's width, kept as a gap when a row has none (#267).
+    /// A category checkbox's width, kept as a gap when a row has none (#267, #270).
     static let checkbox: CGFloat = 16
 }
 /// Selection stays on the native checkbox; the badge/title never become extra toggles. A nil `state` draws no checkbox, for a
@@ -641,10 +641,9 @@ struct CategorySelectionHeader: View {
             if let state {
                 MacroCategoryCheckbox(state: state, label: title, enabled: enabled, action: action, identifier: identifier ?? (category == .downloads ? "downloadsCategorySelection" : "\(category)-CategorySelection"), showsTitle: false)
                     .fixedSize().padding(.top, CacheDropDesign.Space.sm)
-            } else {
-                Color.clear.frame(width: CacheDropDesign.Size.checkbox, height: 1)
             }
-            CategoryBadge(category: category)
+            // Without a checkbox, the badge keeps its place, so titles line up with the rows that have one.
+            CategoryBadge(category: category).padding(.leading, state == nil ? CacheDropDesign.Size.checkbox + CacheDropDesign.Space.md : 0)
             VStack(alignment: .leading, spacing: CacheDropDesign.Space.xs) {
                 Text(title).font(CacheDropDesign.TypeStyle.section)
                 Text(detail).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary).lineLimit(1).help(detail)
