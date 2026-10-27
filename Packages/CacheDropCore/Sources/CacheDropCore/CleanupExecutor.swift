@@ -177,6 +177,8 @@ public actor CleanupExecutor {
                 record.message = "\(name) exited with status \(status). It may have cleaned part of it" + (candidate.isDirectory ? "; the folder was left in place." : "."); return
             }
             guard command.deletesLocationAfter else { record.state = .succeeded; record.message = "Ran \(name)"; return }
+            // A cancel that landed as the tool finished starts no new destructive step (#195).
+            guard !cancellation.isCancelled else { record.state = .succeeded; record.message = "Ran \(name). Stopped before removing the folder, since you cancelled."; return }
             var info = stat()
             if lstat(candidate.url.path, &info) != 0, errno == ENOENT { record.state = .succeeded; record.message = "Ran \(name); it removed the folder itself"; return }
             delete(candidate, into: &record)

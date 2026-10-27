@@ -228,6 +228,26 @@ private func cancellableRun(_ home: URL, brewScript: String, cancellation: Clean
     #expect(FileManager.default.fileExists(atPath: home.appendingPathComponent("Library/Caches/pnpm/entry").path))
 }
 
+@Test func aCancelAfterAToolFinishedKeepsItsFolderAndStopsTheRun() async throws {
+    let home = try fixtureHome()
+    defer { try? FileManager.default.removeItem(at: home) }
+    let length = uniqueSleep(), exited = home.appendingPathComponent("exited")
+    let cancellation = CleanupCancellation()
+    // The stand-in brew succeeds, leaving a child that holds its output open; the cancel lands once brew has exited (#195).
+    DispatchQueue.global().async { if waitForFile(exited) { cancellation.cancel() } }
+    let result = try await cancellableRun(home, brewScript: "p=$$\n( while :; do case \"$(ps -o stat= -p $p)\" in Z*|\"\") break;; esac; sleep 0.01; done; touch '\(exited.path)'; sleep \(length) ) &\necho cleaned\nexit 0", cancellation: cancellation)
+    let left = survivorsAfterSettling(length)
+    left.forEach { kill($0, SIGKILL) }
+    #expect(cancellation.isCancelled)
+    #expect(left.isEmpty)
+    let tool = try #require(result.records.first), next = try #require(result.records.last)
+    #expect(tool.state == .succeeded)
+    #expect(tool.message == "Ran brew cleanup -s. Stopped before removing the folder, since you cancelled.")
+    #expect(tool.toolOutput == "cleaned")
+    #expect(FileManager.default.fileExists(atPath: home.appendingPathComponent("Library/Caches/Homebrew/entry").path))
+    #expect(next.state == .cancelled && next.message == "Not started")
+}
+
 @Test func cancellingJustBeforeAToolLaunchesRecordsItAsStoppedWithNothingChanged() async throws {
     let home = try fixtureHome()
     defer { try? FileManager.default.removeItem(at: home) }
