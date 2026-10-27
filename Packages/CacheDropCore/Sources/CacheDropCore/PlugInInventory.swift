@@ -82,11 +82,15 @@ public struct PlugInInventory: Sendable, Equatable {
             if let vendor = file.vendor { tie("bundle|\(vendor)|\(file.name.lowercased())", i) }
         }
         let groups = Dictionary(grouping: files.indices, by: root).values
+        // Biggest first; an unknown size counts as 0 for ordering only.
+        func bytes(_ size: SizeEstimate) -> Int64 {
+            switch size { case .measured(let b), .atLeast(let b), .about(let b): b; case .unknown: 0 }
+        }
         return groups.map { indices in
             let members = indices.map { files[$0] }
             let receipted = members.contains { receipts[$0.url.standardizedFileURL.path] != nil }
             return PlugInProduct(files: members, grouping: receipted ? .receipt : members.contains { $0.vendor != nil } ? .bundleID : .none)
-        }.sorted { ($0.size.bytes, $1.name) > ($1.size.bytes, $0.name) }
+        }.sorted { (bytes($0.size), $1.name) > (bytes($1.size), $0.name) }
     }
 
     /// Plug-in bundle paths each non-Apple installer receipt in `/var/db/receipts` lists, from its BOM via `lsbom`.
@@ -204,13 +208,6 @@ public struct PlugInProduct: Sendable, Equatable, Identifiable {
     public var size: SizeEstimate { SizeEstimate(sum: files.map(\.size)) }
     /// Apple's own plug-ins are never offered for removal.
     public var isApple: Bool { files.allSatisfy(\.isApple) }
-    public var removable: Bool { !isApple }
     private static func unique(_ values: [String]) -> [String] { values.reduce(into: []) { if !$0.contains($1) { $0.append($1) } } }
 }
 
-extension SizeEstimate {
-    /// The bytes it counts, for ordering: unknown is 0 here only.
-    var bytes: Int64 {
-        switch self { case .measured(let b), .atLeast(let b), .about(let b): b; case .unknown: 0 }
-    }
-}

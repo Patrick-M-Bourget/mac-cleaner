@@ -619,6 +619,8 @@ struct InspectableItemRow<Selection: View>: View {
     let inspected: Bool
     let inspect: () -> Void
     var detailLineLimit = 2
+    /// What VoiceOver says the click does, when it isn't inspecting the item (Reveal in Finder, #207).
+    var actionLabel: String? = nil
     @ViewBuilder var selection: () -> Selection
     var body: some View {
         HStack(alignment: .center, spacing: CacheDropDesign.Space.md) {
@@ -633,7 +635,7 @@ struct InspectableItemRow<Selection: View>: View {
                     }.frame(maxWidth: .infinity, alignment: .leading)
                     Text(size).font(.callout).monospacedDigit().foregroundStyle(.secondary)
                 }.contentShape(Rectangle())
-            }.buttonStyle(.plain).accessibilityLabel("Inspect " + name)
+            }.buttonStyle(.plain).accessibilityLabel(actionLabel ?? "Inspect " + name)
                 // The button hides its texts from accessibility; keep the detail (e.g. when it was last used) and size readable.
                 .accessibilityValue(detail.isEmpty ? size : detail + ", " + size)
         }.padding(CacheDropDesign.Space.md)
