@@ -33,6 +33,25 @@ final class LaunchSmokeUITests: XCTestCase {
         XCTAssertFalse(app.staticTexts["Still"].exists)
     }
 
+    /// #156: the standard About panel shows the app icon, CacheDrop, its version and its build.
+    @MainActor func testAboutPanelShowsIconNameVersionAndBuild() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        let state = try configureIsolatedState(app)
+        defer { app.terminate(); try? FileManager.default.removeItem(at: state) }
+        app.launch()
+        XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
+        app.menuBars.menuBarItems["CacheDrop"].click()
+        app.menuItems["About CacheDrop"].click()
+        let version = NSPredicate(format: "value MATCHES %@ OR label MATCHES %@", "^Version [0-9.]+ \\([0-9]+\\)$", "^Version [0-9.]+ \\([0-9]+\\)$")
+        let line = app.staticTexts.matching(version).firstMatch
+        XCTAssertTrue(line.waitForExistence(timeout: 5), "The About panel shows Version x (build)")
+        let panel = app.windows.allElementsBoundByIndex.first { $0.staticTexts.matching(version).firstMatch.exists }
+        let about = try XCTUnwrap(panel, "The version line is in its own panel")
+        XCTAssertTrue(about.staticTexts["CacheDrop"].exists, "The About panel names CacheDrop")
+        XCTAssertTrue(about.images.firstMatch.exists, "The About panel shows the app icon")
+    }
+
     /// #131: the menu bar item shows free space and keeps CacheDrop running after its window closes.
     /// Low-space alerts are off by default, in the Settings window. Nothing here changes either preference.
     @MainActor func testMenuBarItemShowsFreeSpaceAndAlertsStartOff() throws {
