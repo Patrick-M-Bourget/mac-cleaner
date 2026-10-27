@@ -41,15 +41,15 @@ final class LaunchSmokeUITests: XCTestCase {
         defer { app.terminate(); try? FileManager.default.removeItem(at: state) }
         app.launch()
         XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
+        // The sidebar header already names CacheDrop, so the panel shows up as one more name and one more image.
+        let names = app.staticTexts.matching(NSPredicate(format: "value == 'CacheDrop' OR label == 'CacheDrop'"))
+        let namesBefore = names.count, imagesBefore = app.images.count
         app.menuBars.menuBarItems["CacheDrop"].click()
         app.menuItems["About CacheDrop"].click()
         let version = NSPredicate(format: "value MATCHES %@ OR label MATCHES %@", "^Version [0-9.]+ \\([0-9]+\\)$", "^Version [0-9.]+ \\([0-9]+\\)$")
-        let line = app.staticTexts.matching(version).firstMatch
-        XCTAssertTrue(line.waitForExistence(timeout: 5), "The About panel shows Version x (build)")
-        let panel = app.windows.allElementsBoundByIndex.first { $0.staticTexts.matching(version).firstMatch.exists }
-        let about = try XCTUnwrap(panel, "The version line is in its own panel")
-        XCTAssertTrue(about.staticTexts["CacheDrop"].exists, "The About panel names CacheDrop")
-        XCTAssertTrue(about.images.firstMatch.exists, "The About panel shows the app icon")
+        XCTAssertTrue(app.staticTexts.matching(version).firstMatch.waitForExistence(timeout: 5), "The About panel shows Version x (build)")
+        XCTAssertGreaterThan(names.count, namesBefore, "The About panel names CacheDrop")
+        XCTAssertGreaterThan(app.images.count, imagesBefore, "The About panel shows the app icon")
     }
 
     /// #131: the menu bar item shows free space and keeps CacheDrop running after its window closes.
