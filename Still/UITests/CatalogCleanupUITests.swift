@@ -493,7 +493,8 @@ final class CatalogCleanupUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
         let denied = app.descendants(matching: .any)["overviewNotAccessible"]
         XCTAssertTrue(denied.waitForExistence(timeout: 10))
-        XCTAssertTrue(app.staticTexts["1 location needs Full Disk Access ·"].exists)
+        // Safari's cache is one of the places named; others that need access too (sandboxed app caches, #133) add to the count.
+        XCTAssertTrue(denied.staticTexts.matching(NSPredicate(format: "label ENDSWITH 'Full Disk Access ·' AND value CONTAINS 'Safari cache'")).firstMatch.exists)
         XCTAssertFalse(app.descendants(matching: .any)["overviewCategory-browser"].exists, "Nothing found, so no 0-byte browser row")
         revealAndClick(denied.links["fullDiskAccessLink"], in: app)
         XCTAssertTrue(app.staticTexts["Full Disk Access is optional"].waitForExistence(timeout: 5))
