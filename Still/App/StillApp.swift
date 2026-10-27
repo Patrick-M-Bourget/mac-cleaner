@@ -160,7 +160,8 @@ private struct WorkspaceView: View {
                 Spacer()
                 VStack(alignment: .leading, spacing: StillDesign.Space.md) {
                     Label("This Mac", systemImage: "laptopcomputer").font(.callout)
-                    CapacityMeter(available: startupCapacity?.available, total: startupCapacity?.total, compact: true)
+                    CapacityMeter(available: startupCapacity?.available, total: startupCapacity?.total, compact: true,
+                                  breakdown: selection.catalog.breakdown(available: startupCapacity?.available, total: startupCapacity?.total, trash: TrashModel.shared.contents))
                     Text(capacity.sidebarObservationText).font(.caption2).foregroundStyle(.secondary)
                         .lineLimit(1).frame(height: 14, alignment: .leading)
                         .help(capacity.observationText).accessibilityLabel(capacity.observationText)
@@ -196,7 +197,7 @@ private struct WorkspaceView: View {
                         backToExplorerTitle: navigationState.planReturnsToGrowth ? "Back to Storage trends" : "Back to Explorer",
                         presentation: planPresentation)
                 } else if showsSmartClean {
-                    SmartCleanView(selection: selection, openPlan: openPlan, viewHistory: { navigate(.history) }, reviewRecovery: { openRecovery(caller: .smartClean) })
+                    SmartCleanView(selection: selection, openPlan: { openPlan($0) }, viewHistory: { navigate(.history) }, reviewRecovery: { openRecovery(caller: .smartClean) })
                 } else {
                 ScrollView {
                     VStack(alignment: .leading, spacing: StillDesign.Space.xl) {
@@ -419,7 +420,9 @@ private struct WorkspaceView: View {
             VolumeSummary(available: startupCapacity?.available, total: startupCapacity?.total,
                           observation: capacity.observationText, status: capacity.statusText,
                           refreshTitle: "Try again", refreshing: capacity.isRefreshing,
-                          refresh: { capacity.request(.manual) })
+                          refresh: { capacity.request(.manual) },
+                          breakdown: selection.catalog.breakdown(available: startupCapacity?.available, total: startupCapacity?.total, trash: TrashModel.shared.contents),
+                          open: { openPlan($0.categories) })
             scannedLocations
             overviewRecommendations
         }.task { await selection.catalog.scanIfNeeded() }
@@ -498,9 +501,11 @@ private struct WorkspaceView: View {
             identifier: "overviewCategory-" + row.id)
     }
     /// Opens the Cleanup plan from Smart clean's "Not included" note, with the category open when one is named.
-    private func openPlan(_ category: CatalogCategory?) {
+    private func openPlan(_ category: CatalogCategory?) { openPlan(category.map { [$0] } ?? []) }
+    /// Opens the Cleanup plan with these categories open, as a meter segment does (#164).
+    private func openPlan(_ categories: [CatalogCategory]) {
         navigate(.plan)
-        if let category { planPresentation.expandedCategories.insert(category) }
+        planPresentation.expandedCategories.formUnion(categories)
     }
     /// SPEC section 6: an estimate, and an upper bound because clones share blocks.
     private func recommendedText(_ estimate: SizeEstimate) -> String {
