@@ -78,12 +78,22 @@ private let leftover = item(RemovedAppLeftovers.ruleID, name: "Synth"), related 
 
 @Test func aFinishedRunFromOnePageKeepsTheOtherPagesChoices() {
     var selections = CleanupSelections()
-    let found = scan + [leftover, related]
     selections.plan = [installer.id, leftover.id]
-    selections.finishRun(from: .applications, found: found)
+    selections.finishRun(from: .applications)
     #expect(selections.plan == [installer.id])
 
     selections.plan = [installer.id, leftover.id]
-    selections.finishRun(from: .plan, found: found)
+    selections.finishRun(from: .plan)
     #expect(selections.plan == [leftover.id])
+}
+
+/// #270: starting a new Cleanup plan clears only the plan's choices, never the Applications page's, even right after a
+/// run, when nothing is found until the next scan.
+@Test func clearingOnePageKeepsTheOtherPagesChoices() {
+    var selections = CleanupSelections()
+    selections.plan = [installer.id, leftover.id, related.id]
+    selections.clear(.plan)
+    #expect(selections.plan == [leftover.id, related.id])
+    selections.clear(.applications)
+    #expect(selections.plan.isEmpty)
 }

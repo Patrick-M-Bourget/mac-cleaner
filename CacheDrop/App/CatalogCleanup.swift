@@ -428,7 +428,7 @@ import SwiftUI
             measureStoppedWorkAgain(outcome, of: approval, run: run)
             if !approval.previewOnly { rescanFollowsCleanup = true }
             // Picked folders keep the large and old files this run didn't act on (#125).
-            selections.finishRun(from: source, found: candidates); discovered = []; pickedFiles = pickedFiles.mapValues { UserFiles.remaining($0, after: outcome) }
+            selections.finishRun(from: source); discovered = []; pickedFiles = pickedFiles.mapValues { UserFiles.remaining($0, after: outcome) }
             projectBuilds = projectBuilds.mapValues { UserFiles.remaining($0, after: outcome) }; hasScanned = false; selectionRevision &+= 1
         } catch { message = "The cleanup journal is unavailable. Nothing was changed." }
     }
@@ -462,7 +462,8 @@ import SwiftUI
     }
     func endSession() {
         guard !isRunning else { return }
-        selectedIDs = []; pickedFiles = [:]; projectBuilds = [:]; result = nil; message = nil; selectionRevision &+= 1
+        // A new plan keeps the Applications page's choices (#270).
+        selections.clear(.plan); pickedFiles = [:]; projectBuilds = [:]; result = nil; message = nil; selectionRevision &+= 1
     }
     private func currentCheck() async -> CandidateCheck? {
         do { return CandidateCheck(catalog: catalog, running: SystemRunningAppChecker(), exclusions: try await ExclusionsModel.shared.policyForScan(), cloud: Self.cloud,

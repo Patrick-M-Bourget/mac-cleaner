@@ -7,8 +7,10 @@ public struct CleanupSelections: Sendable, Equatable {
     public enum Source: Sendable, Equatable {
         case plan, smartClean, applications
         /// The page that shows and cleans an item: leftovers of removed apps on Applications (Decision 51), the rest in the plan.
-        public static func page(of candidate: Candidate) -> Source {
-            RemovedAppLeftovers.ruleIDs.contains(candidate.ruleID) ? .applications : .plan
+        public static func page(of candidate: Candidate) -> Source { page(ofID: candidate.id) }
+        /// The same from a chosen id alone, which starts with its rule's ID, so it holds after a run, when nothing is found yet.
+        static func page(ofID id: String) -> Source {
+            RemovedAppLeftovers.ruleIDs.contains(String(id.prefix { $0 != "|" })) ? .applications : .plan
         }
     }
 
@@ -37,14 +39,15 @@ public struct CleanupSelections: Sendable, Equatable {
         found.filter { plan.contains($0.id) && Source.page(of: $0) == page }
     }
 
-    /// A run finished: its own selection starts over (Smart clean with everything ticked again); the others are kept.
-    /// `found` tells the plan's items from the Applications page's, which share one set.
-    public mutating func finishRun(from source: Source, found: [Candidate] = []) {
-        let applications = Set(found.filter { Source.page(of: $0) == .applications }.map(\.id))
-        switch source {
-        case .plan: plan.formIntersection(applications)
-        case .applications: plan.subtract(applications)
+    /// Clears one page's choices: the plan's or the Applications page's, which share one set, or Smart clean's unticks.
+    /// The other pages' are kept (#270), told apart by each chosen id's rule, so nothing needs to be found.
+    public mutating func clear(_ page: Source) {
+        switch page {
+        case .plan, .applications: plan = plan.filter { Source.page(ofID: $0) != page }
         case .smartClean: smartCleanUnticked = []
         }
     }
+
+    /// A run finished: its own selection starts over (Smart clean with everything ticked again); the others are kept.
+    public mutating func finishRun(from source: Source) { clear(source) }
 }
