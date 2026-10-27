@@ -78,4 +78,23 @@ final class ApplicationsUITests: XCTestCase {
         XCTAssertTrue(app.descendants(matching: .any)["applicationsHeader"].waitForExistence(timeout: 5), "⌘5 opens Applications")
         XCTAssertTrue(FileManager.default.fileExists(atPath: leftover.path))
     }
+
+    /// #270: while the scan runs each section says it is looking; a section that finds nothing says so.
+    @MainActor func testSectionsShowLoadingThenEmptyStates() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        let state = try configureIsolatedState(app)
+        let home = try configureCatalogHome(app)
+        app.launchEnvironment["CACHEDROP_TEST_DISCOVERY_PAUSE"] = "0.5"
+        defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
+        app.launch()
+        XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
+        app.typeKey("5", modifierFlags: .command)
+        XCTAssertTrue(app.descendants(matching: .any)["applicationsLoading-apps"].waitForExistence(timeout: 5), "Apps say they are loading")
+        XCTAssertTrue(app.descendants(matching: .any)["applicationsLoading-leftovers"].exists)
+        for section in ["apps", "plugIns", "leftovers"] {
+            XCTAssertTrue(app.descendants(matching: .any)["applicationsEmpty-" + section].waitForExistence(timeout: 120), "\(section) says nothing was found")
+        }
+        XCTAssertFalse(app.descendants(matching: .any)["applicationsLoading-apps"].exists)
+    }
 }

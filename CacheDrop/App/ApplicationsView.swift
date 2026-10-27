@@ -9,7 +9,7 @@ import SwiftUI
     private(set) var apps: [InventoryEntry] = []
     private(set) var plugIns: [InventoryEntry] = []
     private(set) var hasLoaded = false
-    private var isLoading = false
+    private(set) var isLoading = false
     /// What a debug test run would have revealed or opened.
     private(set) var status: String?
 
@@ -94,21 +94,29 @@ struct ApplicationsView: View {
                 .padding(.bottom, CacheDropDesign.Space.sm)
             if let approvalError { StatusRow(text: approvalError, symbol: "exclamationmark.circle", role: .caution) }
             if let status = model.status { StatusRow(text: status, identifier: "applicationsStatus") }
-            section("Apps", entries: model.apps, category: .apps, identifier: "applicationsApp-", empty: "No apps found in the Applications folders.")
-            section("Plug-ins", entries: model.plugIns, category: .audioPlugIns, identifier: "applicationsPlugIn-", empty: "No audio plug-ins found.")
+            section("Apps", id: "apps", entries: model.apps, category: .apps, identifier: "applicationsApp-",
+                    empty: ("No apps to list", "Only Apple’s apps are in the Applications folders."))
+            section("Plug-ins", id: "plugIns", entries: model.plugIns, category: .audioPlugIns, identifier: "applicationsPlugIn-",
+                    empty: ("No plug-ins to list", "No audio plug-ins other than Apple’s were found."))
             Text("Leftovers").font(CacheDropDesign.TypeStyle.section)
             if let row = catalog.leftoversRow {
                 PlanCategoryRow(model: catalog, row: row, expanded: $leftoversExpanded)
             } else if catalog.hasScanned && !catalog.isScanning {
-                Text("No leftovers of removed apps.").font(.callout).foregroundStyle(.secondary)
+                state("No leftovers", "Apps you removed left nothing behind that CacheDrop can tie to them.", symbol: "checkmark.circle", id: "applicationsEmpty-leftovers")
+            } else {
+                loading("leftovers")
             }
         }.padding(CacheDropDesign.Space.page).frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    @ViewBuilder private func section(_ title: String, entries: [InventoryEntry], category: StorageCategory, identifier: String, empty: String) -> some View {
+    /// A section's lists come after the catalog scan; until then, and while they are read, it says it is looking (#270).
+    private var listsLoading: Bool { !model.hasLoaded || model.isLoading || catalog.isScanning }
+
+    @ViewBuilder private func section(_ title: String, id: String, entries: [InventoryEntry], category: StorageCategory, identifier: String,
+                                      empty: (title: String, detail: String)) -> some View {
         Text(title).font(CacheDropDesign.TypeStyle.section)
         if entries.isEmpty {
-            if model.hasLoaded { Text(empty).font(.callout).foregroundStyle(.secondary) }
+            if listsLoading { loading(id) } else { state(empty.title, empty.detail, symbol: "tray", id: "applicationsEmpty-" + id) }
         } else {
             VStack(alignment: .leading, spacing: 0) {
                 ForEach(entries) { entry in
@@ -119,11 +127,19 @@ struct ApplicationsView: View {
         }
     }
 
+    private func loading(_ id: String) -> some View {
+        state("Looking…", "This fills in when the scan finishes.", symbol: "hourglass", id: "applicationsLoading-" + id)
+    }
+    private func state(_ title: String, _ detail: String, symbol: String, id: String) -> some View {
+        EmptyState(title: title, detail: detail, symbol: symbol).accessibilityElement(children: .combine).accessibilityIdentifier(id)
+    }
+
     /// A row with no checkbox, since nothing here is removed yet; one that needs a password says so (Decision 50).
     private func row(_ entry: InventoryEntry, category: StorageCategory, identifier: String) -> some View {
         let isExpanded = Binding(get: { expanded.contains(entry.id) }, set: { if $0 { expanded.insert(entry.id) } else { expanded.remove(entry.id) } })
         return CategoryRow(category: category, state: nil, title: entry.name, detail: [entry.maker, entry.volume].compactMap { $0 }.joined(separator: " · "),
-                           size: entry.size.text, enabled: true, identifier: identifier, itemCount: entry.parts.count, expanded: isExpanded, toggle: {}) {
+                           size: entry.size.text, enabled: true, identifier: identifier,
+                           itemCount: entry.parts.count, expanded: isExpanded, toggle: {}) {
             if entry.needsPassword { passwordLine(entry) }
         } items: {
             LazyVStack(alignment: .leading, spacing: 0) {
