@@ -475,8 +475,9 @@ public struct Catalog: Sendable {
                     ? Self.childFolders(of: location, in: base, keepNewestVersions: rule.keepNewestVersions).map { (base.appendingPathComponent($0), nil) }
                     : Self.pathsMatching(location, under: base).map { ($0.0, $0.1.isEmpty ? nil : $0.1.joined(separator: "/")) }
             }
-            // An app's folder holding a web-view profile offers only the profile's caches, never its sign-in data (#203).
-            let places = rule.id == AppCaches.appCachesRuleID ? located.flatMap { url, profile in AppCaches.offeredFolders(in: url).map { ($0, profile) } } : located
+            // An app's folder holding a web-view profile offers everything but the profile, and the profile's caches (#203, #241).
+            let places = rule.id == AppCaches.appCachesRuleID
+                ? located.flatMap { url, profile in AppCaches.offeredFolders(in: url, offlineContent: rule.offlineContent).map { ($0, profile) } } : located
             let found = places.flatMap { url, profile -> [Candidate] in
                 guard Protection(rule).protectedComponent(of: url, below: base) == nil, ScopeContainment.contains(url, in: base) else { return [] }
                 if let copies = rule.copies {

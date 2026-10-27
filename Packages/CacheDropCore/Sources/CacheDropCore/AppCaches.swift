@@ -103,34 +103,63 @@ public enum AppCaches {
         }
     }
 
-    /// What "App caches" offers from an app's folder: the folder itself, or, when it holds web-view profiles with sign-in data
-    /// within `liveWorkDepth` levels, only each profile's `Cache`, `Code Cache` and `GPUCache` (#203). A folder that can't be
-    /// fully searched comes back whole, and the protected-entry search then leaves it out.
-    static func offeredFolders(in appFolder: URL) -> [URL] {
-        guard Catalog.isFolder(appFolder) else { return [appFolder] }
-        var profiles = Set<String>(), seen = 0, complete = true
-        let opened = FileTree.walk(appFolder) { entry in
+    /// The paths of the folders that directly hold an entry named in `names`, up to `depth` levels inside `folder`;
+    /// nil when it can't be fully searched.
+    static func folders(holding names: Set<String>, in folder: URL, depth: Int) -> Set<String>? {
+        var holders = Set<String>(), seen = 0, complete = true
+        let opened = FileTree.walk(folder) { entry in
             let level = Int(entry.pointee.fts_level), kind = Int32(entry.pointee.fts_info)
             guard level > 0, kind != FTS_DP else { return .continue }
             seen += 1
             if seen > CandidateCheck.protectedSearchLimit || kind == FTS_DNR || kind == FTS_ERR { complete = false; return .stop }
             let path = String(cString: entry.pointee.fts_path)
-            if signInNames.contains((path as NSString).lastPathComponent) { profiles.insert((path as NSString).deletingLastPathComponent) }
-            return kind == FTS_D && level >= liveWorkDepth ? .skip : .continue
+            if names.contains((path as NSString).lastPathComponent) { holders.insert((path as NSString).deletingLastPathComponent) }
+            return kind == FTS_D && level >= depth ? .skip : .continue
         }
-        guard opened, complete, !profiles.isEmpty else { return [appFolder] }
-        return profiles.sorted().flatMap { profile in
-            webViewCacheParts.sorted().map { URL(fileURLWithPath: profile).appendingPathComponent($0) }.filter(Catalog.isFolder)
-        }
+        return opened && complete ? holders : nil
     }
 
-    /// Whether an "App caches" item is what the rule offers: an app's whole folder, or a cache part of a web-view profile
-    /// inside one (#203). Anything else, such as a part whose folder no longer holds sign-in data, has changed since the scan.
-    static func isOfferedItem(_ url: URL) -> Bool {
+    /// Whether one of two paths is or is inside the other.
+    static func overlaps(_ a: String, _ b: String) -> Bool { a == b || a.hasPrefix(b + "/") || b.hasPrefix(a + "/") }
+
+    /// What "App caches" offers from an app's folder: the folder itself, or, when it holds web-view profiles with sign-in data
+    /// within `liveWorkDepth` levels, every item in it except those profiles, and of each profile only its `Cache`, `Code Cache`
+    /// and `GPUCache` (#203, #241). A folder on the way to a profile is not offered whole; its items are. An item that is or holds
+    /// the app's offline content (`offlineContent`), or sits in a folder holding it, is left out. A folder that can't be fully
+    /// searched comes back whole, and the protected-entry search then leaves it out.
+    static func offeredFolders(in appFolder: URL, offlineContent: [String: OfflineContent]) -> [URL] {
+        guard Catalog.isFolder(appFolder), let profiles = folders(holding: Set(signInNames), in: appFolder, depth: liveWorkDepth), !profiles.isEmpty
+        else { return [appFolder] }
+        var offline = Set<String>()
+        if let content = offlineContent[appFolder.lastPathComponent.lowercased()] {
+            guard let holders = folders(holding: content.names, in: appFolder, depth: .max) else { return [appFolder] }
+            offline = holders
+        }
+        // Folders between the app's folder and a profile, the app's folder included.
+        var onTheWay = Set<String>()
+        for profile in profiles {
+            var folder = (profile as NSString).deletingLastPathComponent
+            while folder.count >= appFolder.path.count, onTheWay.insert(folder).inserted { folder = (folder as NSString).deletingLastPathComponent }
+        }
+        var offered: [String] = []
+        func visit(_ folder: String) {
+            let isProfile = profiles.contains(folder)
+            for name in ((try? FileManager.default.contentsOfDirectory(atPath: folder)) ?? []).sorted() {
+                let item = folder + "/" + name
+                if profiles.contains(item) || onTheWay.contains(item) { visit(item) }
+                else if !isProfile || webViewCacheParts.contains(name) && Catalog.isFolder(URL(fileURLWithPath: item)) { offered.append(item) }
+            }
+        }
+        visit(appFolder.path)
+        return offered.filter { item in !offline.contains { overlaps($0, item) } }.map { URL(fileURLWithPath: $0) }
+    }
+
+    /// Whether an "App caches" item is what the rule offers now (#203, #241): an app's whole folder, or one of the items
+    /// `offeredFolders` finds in it. Anything else, such as a part whose folder no longer holds sign-in data, has changed since the scan.
+    static func isOfferedItem(_ url: URL, offlineContent: [String: OfflineContent]) -> Bool {
         guard let app = appFolder(of: url) else { return false }
-        let depth = url.standardizedFileURL.pathComponents.count - app.standardizedFileURL.pathComponents.count
-        if depth == 0 { return true }
-        return depth <= liveWorkDepth && webViewCacheParts.contains(url.lastPathComponent) && isWebViewProfile(url.deletingLastPathComponent())
+        let path = url.standardizedFileURL.path
+        return path == app.path || offeredFolders(in: app, offlineContent: offlineContent).contains { $0.path == path }
     }
 
     public static func rules(apps: any AppLookup) -> [CleanupRule] {
@@ -264,12 +293,16 @@ public struct OfflineContent: Sendable, Hashable {
 
 extension CleanupRule {
     /// What offline content an app keeps in the app folder `folder` is or is inside, if any (`offlineContent`, keyed in lowercase
-    /// as LaunchServices matches bundle identifiers), found at any depth. A folder that can't be fully searched counts as holding it.
+    /// as LaunchServices matches bundle identifiers), found anywhere in the app's folder: `folder` is refused when it holds that
+    /// content or sits in a folder holding it (#241). An app folder that can't be fully searched counts as holding it.
     /// Nil for rules with none and for every other app.
     func offlineContentLabel(in folder: URL) -> String? {
         guard !offlineContent.isEmpty else { return nil }
         let app = AppCaches.appFolder(of: folder) ?? folder
         guard let content = offlineContent[app.lastPathComponent.lowercased()] else { return nil }
-        return CandidateCheck.protectedEntry(in: app, names: content.names, depth: .max) != nil ? content.label : nil
+        // An item is the offline content's when it holds it or sits in a folder holding it (#241).
+        guard let holders = AppCaches.folders(holding: content.names, in: app, depth: .max) else { return content.label }
+        let item = folder.standardizedFileURL.path
+        return holders.contains { AppCaches.overlaps($0, item) } ? content.label : nil
     }
 }
