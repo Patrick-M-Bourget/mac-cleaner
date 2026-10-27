@@ -12,11 +12,27 @@ struct StartupVolumeCapacity: Sendable {
     /// The startup volume's name as Finder shows it, e.g. "Macintosh HD". Metadata only.
     static let name: String? = try? URL(fileURLWithPath: "/").resourceValues(forKeys: [.volumeLocalizedNameKey]).volumeLocalizedName
     static func read() -> Self {
+        #if DEBUG
+        if let fixture = fixture { return fixture }
+        #endif
         let values = try? URL(fileURLWithPath: "/").resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey, .volumeAvailableCapacityKey, .volumeTotalCapacityKey, .volumeUUIDStringKey])
         let important = values?.volumeAvailableCapacityForImportantUsage
         return Self(available: important ?? values?.volumeAvailableCapacity.map(Int64.init), total: values?.volumeTotalCapacity.map(Int64.init), volumeID: values?.volumeUUIDString, metric: important == nil ? "available" : "important", observedAt: Date())
     }
 }
+
+#if DEBUG
+extension StartupVolumeCapacity {
+    /// A disposable test run can read a fixture disk (`STILL_TEST_CAPACITY` = "available,total" in bytes), so a fixture
+    /// home's few kilobytes fill a visible part of the meter (#164). Never set outside tests.
+    static var fixture: Self? {
+        guard LocalStateLocation.isDisposableTest, let value = ProcessInfo.processInfo.environment["STILL_TEST_CAPACITY"] else { return nil }
+        let parts = value.split(separator: ",").compactMap { Int64($0) }
+        guard parts.count == 2 else { return nil }
+        return Self(available: parts[0], total: parts[1], volumeID: "fixture", metric: "important", observedAt: Date())
+    }
+}
+#endif
 
 @MainActor final class NativeCapacityRefreshSystem: CapacityRefreshSystem {
     var now: Date { Date() }

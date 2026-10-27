@@ -875,6 +875,36 @@ final class TrashSpaceUITests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: trashed.path), "Opening the Trash changes nothing in it")
     }
 
+    /// #164: Overview's disk bar shows what was found inside the used space: a segment per category with an "up to" label for
+    /// VoiceOver and the tooltip, the Trash as its own segment that opens nothing, and a click that opens the category in the
+    /// plan. A fixture disk (`STILL_TEST_CAPACITY`) makes the fixture home's few hundred kilobytes a visible part of it.
+    @MainActor func testOverviewBarShowsWhatWasFoundAndASegmentOpensItsCategory() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        let state = try configureIsolatedState(app)
+        let home = try configureCatalogHome(app)
+        defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
+        let trashed = home.appendingPathComponent(".Trash/Old installer.dmg")
+        try FileManager.default.createDirectory(at: trashed.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Data(repeating: 5, count: 100_000).write(to: trashed)
+        app.launchEnvironment["STILL_TEST_CAPACITY"] = "400000,1000000"
+        app.launch()
+
+        XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
+        let developer = app.buttons["meterSegment-developer"]
+        XCTAssertTrue(developer.waitForExistence(timeout: 15))
+        XCTAssertTrue(developer.label.hasPrefix("Developer caches and build files, up to "), developer.label)
+        XCTAssertTrue(app.buttons["meterSegment-downloads"].exists)
+        let trash = app.descendants(matching: .any)["meterSegment-trash"]
+        XCTAssertTrue(trash.waitForExistence(timeout: 10))
+        XCTAssertTrue(trash.label.hasPrefix("In Trash, "), trash.label)
+        XCTAssertFalse(app.buttons["meterSegment-trash"].exists, "The Trash segment opens nothing")
+        XCTAssertTrue(app.descendants(matching: .any)["sidebarMeterSegments"].exists, "The sidebar meter shows one reclaimable segment")
+
+        developer.click()
+        XCTAssertTrue(app.checkBoxes["planCategory-developer"].waitForExistence(timeout: 5), "The segment opens its category in the plan")
+    }
+
     /// #159: an installer a run moved to the (fixture) Trash is put back from Results; History records it and Overview's
     /// Trash line is measured again. Debug test runs trash into the fixture home's `.Trash`, never the real one.
     @MainActor func testPutBackReturnsATrashedInstallerAndHistoryRecordsIt() throws {
