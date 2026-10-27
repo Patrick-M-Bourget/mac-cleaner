@@ -241,20 +241,23 @@ struct ActionDisclosureGroup<Content: View>: View {
         }
     }
 }
+/// A small button that fixes a status row's problem in place, such as "Choose again…" (#223).
+struct StatusAction {
+    let title: String
+    var identifier = ""
+    let action: () -> Void
+}
 struct StatusRow: View {
     let text: String
     var symbol = "info.circle"
     var role: StatusRole = .neutral
     var identifier: String = ""
-    /// An optional small button that fixes the problem in place, such as "Choose again…" (#223).
-    var actionTitle: String? = nil
-    var actionIdentifier: String = ""
-    var action: () -> Void = {}
+    var action: StatusAction? = nil
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: CacheDropDesign.Space.sm) {
             Label { Text(text).fixedSize(horizontal: false, vertical: true).accessibilityIdentifier(identifier) } icon: { Image(systemName: symbol).foregroundStyle(role.color) }
                 .font(.callout).foregroundStyle(.secondary)
-            if let actionTitle { Button(actionTitle, action: action).controlSize(.small).accessibilityIdentifier(actionIdentifier) }
+            if let action { Button(action.title, action: action.action).controlSize(.small).accessibilityIdentifier(action.identifier) }
         }.frame(maxWidth: .infinity, alignment: .leading)
     }
 }

@@ -573,9 +573,9 @@ private struct WorkspaceView: View {
             // One row per problem (#223, #231): each unavailable location names itself and carries the fix.
             ForEach(locationsModel.recoveries, id: \.scope.id) { scope, status in
                 StatusRow(text: URL(fileURLWithPath: scope.path).lastPathComponent + " · " + status.reason, symbol: "info.circle", role: .caution,
-                    identifier: "overviewLocationRecovery", actionTitle: "Choose again…", actionIdentifier: "overviewChooseAgain") {
+                    identifier: "overviewLocationRecovery", action: StatusAction(title: "Choose again…", identifier: "overviewChooseAgain") {
                     if chooseAgain(scope), let renewed = locationsModel.included.first(where: { $0.id == scope.id }) { scanLocations([renewed]) }
-                }.disabled(folderInspection.isScanning || selection.workspaceRunning)
+                }).disabled(folderInspection.isScanning || selection.workspaceRunning)
             }
             if let notice = locationsModel.notice { StatusRow(text: notice, symbol: "info.circle", role: .caution) }
             if let message = folderInspection.message, !recoveryRowCovers(folderInspection.unavailableScope) {
