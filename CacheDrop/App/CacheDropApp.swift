@@ -110,8 +110,6 @@ private struct WorkspaceView: View {
     @State private var recovery = AppLifecycleController.shared.recovery
     private var recoveryVisible: Bool { get { navigationState.recoveryVisible } nonmutating set { navigationState.recoveryVisible = newValue } }
     private var nativeInspectionVisible: Bool { get { navigationState.explorerVisible } nonmutating set { navigationState.explorerVisible = newValue } }
-    @State private var homebrewVisible = false
-    @State private var pipVisible = false
     @State private var exclusionsVisible = false
     private var diagnosticsVisible: Bool { get { navigationState.diagnosticsVisible } nonmutating set { navigationState.diagnosticsVisible = newValue } }
     @State private var overviewCloudExpanded = false
@@ -146,8 +144,8 @@ private struct WorkspaceView: View {
     @State private var capacity = AppLifecycleController.shared.capacity
     @Bindable private var welcome = WelcomeModel.shared
     private var startupCapacity: StartupCapacityReading? { capacity.reading }
-    private var showsSmartClean: Bool { destination == .smartClean && !navigationState.localRecordsVisible && !recoveryVisible && !nativeInspectionVisible && !homebrewVisible && !pipVisible && !diagnosticsVisible && !exclusionsVisible && !navigationState.appManagedVisible }
-    private var showsPlan: Bool { destination == .plan && !navigationState.localRecordsVisible && !recoveryVisible && !nativeInspectionVisible && !homebrewVisible && !pipVisible && !diagnosticsVisible && !exclusionsVisible }
+    private var showsSmartClean: Bool { destination == .smartClean && !navigationState.localRecordsVisible && !recoveryVisible && !nativeInspectionVisible && !diagnosticsVisible && !exclusionsVisible && !navigationState.appManagedVisible }
+    private var showsPlan: Bool { destination == .plan && !navigationState.localRecordsVisible && !recoveryVisible && !nativeInspectionVisible && !diagnosticsVisible && !exclusionsVisible }
     /// The toolbar's note, which only reports state (Decision 25: no toolbar subtitles). A screen returns nil to show none.
     private var contextLabel: String? {
         if selection.workspaceRunning { return "Running approved cleanup" }
@@ -156,8 +154,6 @@ private struct WorkspaceView: View {
         if recoveryVisible { return "Recovery review · Recorded facts only" }
         if selection.hasWorkspaceResult && showsPlan { return nil }
         if nativeInspectionVisible { return nil }
-        if homebrewVisible { return "Read-only Homebrew inventory" }
-        if pipVisible { return "Read-only pip inventory" }
         if exclusionsVisible { return "Custom scan exclusions" }
         if navigationState.appManagedVisible { return nil }
         switch destination {
@@ -242,10 +238,6 @@ private struct WorkspaceView: View {
                             })
                         } else if navigationState.appManagedVisible {
                             AppManagedStorageView(model: selection.catalog) { navigationState.appManagedVisible = false }
-                        } else if pipVisible {
-                            PipInspectionView { pipVisible = false; destination = .overview }
-                        } else if homebrewVisible {
-                            HomebrewInspectionView { homebrewVisible = false; destination = .overview }
                         } else {
                             switch destination {
                             case .growth: GrowthHistoryView(model: GrowthHistoryModel.shared, catalog: selection.catalog)
@@ -261,7 +253,7 @@ private struct WorkspaceView: View {
                                 DestinationViewport(offset: $navigationState.diagnosticsOffset).frame(width: 0, height: 0)
                             } else if navigationState.localRecordsVisible && !recoveryVisible {
                                 DestinationViewport(offset: $navigationState.localRecordsOffset).frame(width: 0, height: 0)
-                            } else if !recoveryVisible && !diagnosticsVisible && !exclusionsVisible && !pipVisible && !homebrewVisible && !navigationState.appManagedVisible {
+                            } else if !recoveryVisible && !diagnosticsVisible && !exclusionsVisible && !navigationState.appManagedVisible {
                                 if destination == .history {
                                     DestinationViewport(offset: $navigationState.historyOffset).frame(width: 0, height: 0)
                                 } else if destination == .growth {
@@ -329,7 +321,7 @@ private struct WorkspaceView: View {
             AppLifecycleController.shared.openSmartClean = { navigate(.smartClean) }
             selection.catalog.scanRememberedFolders = { scanRememberedFolders() }
         }
-        .onReceive(NotificationCenter.default.publisher(for: .cacheDropAlertOpened)) { _ in destination = .overview; navigationState.localRecordsVisible = false; navigationState.appManagedVisible = false; exclusionsVisible = false; diagnosticsVisible = false; recoveryVisible = false; nativeInspectionVisible = false; homebrewVisible = false; pipVisible = false }
+        .onReceive(NotificationCenter.default.publisher(for: .cacheDropAlertOpened)) { _ in destination = .overview; navigationState.localRecordsVisible = false; navigationState.appManagedVisible = false; exclusionsVisible = false; diagnosticsVisible = false; recoveryVisible = false; nativeInspectionVisible = false }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in Task { await alerts.activated() } }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in Task { await selection.catalog.rescanIfFullDiskAccessGranted() } }
         .onReceive(NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.didWakeNotification)) { _ in Task { await alerts.activated() } }
@@ -350,7 +342,7 @@ private struct WorkspaceView: View {
     }
 
     private var scanReturnAction: (() -> Void)? {
-        let atOrigin = destination == scanOrigin && !navigationState.localRecordsVisible && !navigationState.appManagedVisible && !nativeInspectionVisible && !diagnosticsVisible && !exclusionsVisible && !recoveryVisible && !homebrewVisible && !pipVisible
+        let atOrigin = destination == scanOrigin && !navigationState.localRecordsVisible && !navigationState.appManagedVisible && !nativeInspectionVisible && !diagnosticsVisible && !exclusionsVisible && !recoveryVisible
         if atOrigin { return nil }
         return { returnToScanOrigin() }
     }
@@ -359,8 +351,7 @@ private struct WorkspaceView: View {
         destination = scanOrigin
         navigationState.localRecordsVisible = false; navigationState.appManagedVisible = false
         nativeInspectionVisible = false; diagnosticsVisible = false
-        exclusionsVisible = false; recoveryVisible = false; homebrewVisible = false
-        pipVisible = false
+        exclusionsVisible = false; recoveryVisible = false
         planReturnsToExplorer = false
     }
 
@@ -373,8 +364,7 @@ private struct WorkspaceView: View {
         if value == .smartClean && selection.showsRun(for: .smartClean) { selection.dismissResult() }
         navigationState.localRecordsVisible = false; navigationState.appManagedVisible = false
         diagnosticsVisible = false; exclusionsVisible = false
-        recoveryVisible = false; navigationState.recoveryCaller = .overview; nativeInspectionVisible = false; homebrewVisible = false
-        pipVisible = false
+        recoveryVisible = false; navigationState.recoveryCaller = .overview; nativeInspectionVisible = false
     }
 
     private func navigation(_ value: Destination) -> some View {
