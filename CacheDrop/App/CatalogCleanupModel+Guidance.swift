@@ -9,10 +9,10 @@ extension CatalogCleanupModel {
     /// Sizes the guidance rules from metadata only. Read-only. A size cut short by `guidanceTimeBudget` reads "At least".
     /// `fullDiskAccess` is the catalog scan's own probe, so one scan never probes twice.
     func scanGuidance(home: URL, fullDiskAccess: FullDiskAccessStatus) async {
-        let catalog = catalog, system = Self.systemRoot, snapshots = Self.snapshots
+        let catalog = catalog, system = Self.systemRoot, snapshots = Self.snapshots, apps = Self.appPresence
         guidance = await Task.detached(priority: .utility) {
             catalog.guidance(home: home, systemRoot: system, sizer: KnownLocationSizer(timeBudget: Self.guidanceTimeBudget), snapshots: snapshots,
-                             fullDiskAccess: fullDiskAccess)
+                             fullDiskAccess: fullDiskAccess, appPresence: apps)
         }.value
     }
     /// CacheDrop became active: if Full Disk Access was granted while it was away, rescan the catalog and guidance once,
@@ -28,11 +28,14 @@ extension CatalogCleanupModel {
         guidanceStatus = await catalog.open(finding, using: Self.guidanceOpener) ? Self.openedStatus(name) : "Couldn’t open \(name)."
     }
     /// Shows a plug-in product's files selected in Finder. A debug test run reveals nothing.
-    func reveal(_ product: PlugInProduct) {
+    func reveal(_ product: PlugInProduct) { reveal(product.name, product.files.map(\.url)) }
+    /// Shows a library package selected in Finder (#180, #178). Nothing inside it is opened.
+    func reveal(_ library: FoundLibrary) { reveal(library.name, [library.url]) }
+    private func reveal(_ name: String, _ urls: [URL]) {
         #if DEBUG
-        if LocalStateLocation.isDisposableTest { guidanceStatus = "Test run: would reveal \(product.name)."; return }
+        if LocalStateLocation.isDisposableTest { guidanceStatus = "Test run: would reveal \(name)."; return }
         #endif
-        Finder.reveal(product.files.map(\.url))
+        Finder.reveal(urls)
     }
     private static func openedStatus(_ name: String) -> String? {
         #if DEBUG

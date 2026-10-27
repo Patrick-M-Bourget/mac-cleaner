@@ -58,7 +58,7 @@ public enum AppCaches {
     static let sparkleFolder = "org.sparkle-project.Sparkle"
 
     /// Offline or downloaded content an app can keep in its own `~/Library/Caches/<bundle id>` folder (#171). While any of these
-    /// entries is at the top of the app's folder, "App caches" never offers the folder and the check refuses it: it is not a cache
+    /// files is anywhere inside the app's folder, "App caches" offers every item but the one holding it (#243) and the check refuses it: it is not a cache
     /// the app rebuilds. Each exception cites the vendor's documentation or an observed layout; an app not listed keeps the rule as is.
     ///
     /// Audit of the apps this rule matches (2026-10-26; folder names seen on a Mac, never file contents):
@@ -69,7 +69,9 @@ public enum AppCaches {
     ///   with `offline.bnk` beside it. Spotify's community reports downloads in `~/Library/Caches/com.spotify.Client/storage` too
     ///   (https://community.spotify.com/t5/Desktop-Mac/Where-are-offline-files-stored-on-Mac/m-p/1367628,
     ///   https://community.spotify.com/t5/Live-Ideas/Let-user-select-where-to-save-files-for-offline-mode/idi-p/7410350),
-    ///   so any of those names keeps the folder, in either case on a case-sensitive volume.
+    ///   and Settings > Storage accepts any folder name, so downloads are recognized by their `offline.bnk` file at any depth (#203),
+    ///   and a `Storage` or `storage` folder right in the cache folder is kept by its name (#171), since `offline.bnk` may sit
+    ///   in `PersistentCache` instead.
     /// - Ableton Live (`com.ableton.live`), Pro Tools (`com.avid.ProTools`), Slack (`com.tinyspeck.slackmacgap`), Native Access,
     ///   UA Connect, LANDR, Claude, CleanShot X: observed only the URL loading system's cache (`Cache.db`, `fsCachedData`),
     ///   `WebKit` and crash reporters' folders (`io.sentry`), which are refetched or rewritten. Rebuildable.
@@ -78,9 +80,110 @@ public enum AppCaches {
     /// - Steam, Microsoft Teams, Adobe apps: not installed on the audited Mac, so no layout to observe. Their folders keep today's
     ///   behavior until one is audited with vendor sources. Browsers have their own rules (`BrowserCaches`).
     static let knownOfflineContent: [String: OfflineContent] = [
-        "com.spotify.client": OfflineContent(names: ["Storage", "storage", "offline.bnk"], label: "Spotify’s offline downloads"),
+        "com.spotify.client": OfflineContent(names: ["offline.bnk"], folderNames: ["Storage", "storage"], label: "Spotify’s offline downloads"),
     ]
     static let appCachesRuleID = "app-caches"
+
+    /// Entries that make a folder an embedded web view's profile with the user's sign-in data (#203), as Chromium and
+    /// Electron name them (seen in Spotify's cache folder). A folder holding a profile is never offered whole.
+    static let signInNames = ["Cookies", "Login Data", "Local Storage"]
+    /// Chromium's profile list and browser settings beside its profiles (#243): not sign-in data, but removing it can reset an
+    /// app's embedded browser, so it is kept like the sign-in files, wherever it sits in the app's folder.
+    static let keptNames = ["Local State"]
+    /// A web-view profile's parts that the web view rebuilds, the only parts of a profile ever offered (#203).
+    static let webViewCacheParts: Set<String> = ["Cache", "Code Cache", "GPUCache"]
+
+    /// The app's folder right below `~/Library/Caches` that `url` is or is inside; nil when it is in none.
+    static func appFolder(of url: URL) -> URL? {
+        let parts = url.standardizedFileURL.pathComponents
+        guard let caches = parts.indices.dropLast().last(where: { parts[$0] == "Library" && parts[$0 + 1] == "Caches" }), caches + 2 < parts.count else { return nil }
+        return URL(fileURLWithPath: NSString.path(withComponents: Array(parts[...(caches + 2)])), isDirectory: true)
+    }
+
+    /// Whether `folder` directly holds sign-in data: a web-view profile.
+    static func isWebViewProfile(_ folder: URL) -> Bool {
+        signInNames.contains { name in
+            var info = stat()
+            return lstat(folder.appendingPathComponent(name).path, &info) == 0
+        }
+    }
+
+    /// The paths of the folders that directly hold an entry named in `names`, up to `depth` levels inside `folder`;
+    /// nil when it can't be fully searched.
+    static func folders(holding names: Set<String>, in folder: URL, depth: Int) -> Set<String>? {
+        entries(named: names, in: folder, depth: depth).map { Set($0.map { ($0 as NSString).deletingLastPathComponent }) }
+    }
+
+    /// The paths of the entries named in `names`, up to `depth` levels inside `folder`; nil when it can't be fully searched.
+    static func entries(named names: Set<String>, in folder: URL, depth: Int) -> Set<String>? {
+        var found = Set<String>(), seen = 0, complete = true
+        let opened = FileTree.walk(folder) { entry in
+            let level = Int(entry.pointee.fts_level), kind = Int32(entry.pointee.fts_info)
+            guard level > 0, kind != FTS_DP else { return .continue }
+            seen += 1
+            if seen > CandidateCheck.protectedSearchLimit || kind == FTS_DNR || kind == FTS_ERR { complete = false; return .stop }
+            let path = String(cString: entry.pointee.fts_path)
+            if names.contains((path as NSString).lastPathComponent) { found.insert(path) }
+            return kind == FTS_D && level >= depth ? .skip : .continue
+        }
+        return opened && complete ? found : nil
+    }
+
+    /// The paths of an app's offline content in `app`, its folder: each folder holding one of `content.names` at any depth, and
+    /// each entry right in `app` named in `content.folderNames` (#171, #203). Nil when the folder can't be fully searched.
+    static func offlineItems(_ content: OfflineContent, in app: URL) -> Set<String>? {
+        guard let holders = folders(holding: content.names, in: app, depth: .max) else { return nil }
+        var info = stat()
+        return holders.union(content.folderNames.map { app.standardizedFileURL.path + "/" + $0 }.filter { lstat($0, &info) == 0 })
+    }
+
+    /// Whether one of two paths is or is inside the other.
+    static func overlaps(_ a: String, _ b: String) -> Bool { a == b || a.hasPrefix(b + "/") || b.hasPrefix(a + "/") }
+
+    /// What "App caches" offers from an app's folder: the folder itself, or, when it holds web-view profiles with sign-in data or a
+    /// `Local State` within `liveWorkDepth` levels, or the app's offline content (`offlineContent`) at any depth, every item in it
+    /// except those, and of each profile only its `Cache`, `Code Cache` and `GPUCache` (#203, #241, #243). A folder on the way to a
+    /// profile or a `Local State` is not offered whole; its items are. An item that is or holds the offline content, or sits in a
+    /// folder holding it, is left out whole.
+    /// A folder that can't be fully searched comes back whole, and the protected-entry search then leaves it out.
+    static func offeredFolders(in appFolder: URL, offlineContent: [String: OfflineContent]) -> [URL] {
+        guard Catalog.isFolder(appFolder), let found = entries(named: Set(signInNames + keptNames), in: appFolder, depth: liveWorkDepth)
+        else { return [appFolder] }
+        let kept = found.filter { keptNames.contains(($0 as NSString).lastPathComponent) }
+        let profiles = Set(found.subtracting(kept).map { ($0 as NSString).deletingLastPathComponent })
+        var offline = Set<String>()
+        if let content = offlineContent[appFolder.lastPathComponent.lowercased()] {
+            guard let holders = offlineItems(content, in: appFolder) else { return [appFolder] }
+            offline = holders
+        }
+        guard !profiles.isEmpty || !kept.isEmpty || !offline.isEmpty else { return [appFolder] }
+        // Folders between the app's folder and a profile or a kept file, the app's folder included.
+        var onTheWay = Set<String>()
+        for item in profiles.union(kept) {
+            var folder = (item as NSString).deletingLastPathComponent
+            while folder.count >= appFolder.path.count, onTheWay.insert(folder).inserted { folder = (folder as NSString).deletingLastPathComponent }
+        }
+        var offered: [String] = []
+        func visit(_ folder: String) {
+            let isProfile = profiles.contains(folder)
+            for name in ((try? FileManager.default.contentsOfDirectory(atPath: folder)) ?? []).sorted() {
+                let item = folder + "/" + name
+                if kept.contains(item) { continue }
+                if profiles.contains(item) || onTheWay.contains(item) { visit(item) }
+                else if !isProfile || webViewCacheParts.contains(name) && Catalog.isFolder(URL(fileURLWithPath: item)) { offered.append(item) }
+            }
+        }
+        visit(appFolder.path)
+        return offered.filter { item in !offline.contains { overlaps($0, item) } }.map { URL(fileURLWithPath: $0) }
+    }
+
+    /// Whether an "App caches" item is what the rule offers now (#203, #241): an app's whole folder, or one of the items
+    /// `offeredFolders` finds in it. Anything else, such as a part whose folder no longer holds sign-in data, has changed since the scan.
+    static func isOfferedItem(_ url: URL, offlineContent: [String: OfflineContent]) -> Bool {
+        guard let app = appFolder(of: url) else { return false }
+        let path = url.standardizedFileURL.path
+        return path == app.path || offeredFolders(in: app, offlineContent: offlineContent).contains { $0.path == path }
+    }
 
     public static func rules(apps: any AppLookup) -> [CleanupRule] {
         [
@@ -94,7 +197,9 @@ public enum AppCaches {
                         detail: "Files apps keep in your Library to start and work faster, per app.",
                         consequence: "Permanently removed. Each app rebuilds its cache as you use it, so it may be slower at first. An app must be closed first; CacheDrop never quits it for you.",
                         regen: .cache, action: .delete, locations: ["Library/Caches/*"], owner: nil,
-                        itemOwner: { installedOwner($0.lastPathComponent, apps: apps) }, yieldsToOtherRules: true, protectedDepth: liveWorkDepth,
+                        protectedNames: signInNames + keptNames,
+                        // A web-view profile's cache part belongs to the app whose folder holds it (#203).
+                        itemOwner: { installedOwner((appFolder(of: $0) ?? $0).lastPathComponent, apps: apps) }, yieldsToOtherRules: true, protectedDepth: liveWorkDepth,
                         offlineContent: knownOfflineContent),
             // Crash reports first, so ~/Library/Logs/DiagnosticReports is listed once, as crash reports.
             CleanupRule(id: "crash-reports", category: .logs, title: "Crash reports",
@@ -199,21 +304,34 @@ public struct InstalledApp: Sendable, Hashable {
     public let bundleID: String
     /// The app bundle's path; a process run from inside it counts as the app.
     public let path: String
-    public init(name: String, bundleID: String, path: String) { self.name = name; self.bundleID = bundleID; self.path = path }
+    /// Who made it, as its bundle says (a plug-in's Audio Unit maker or copyright line); nil when it doesn't say.
+    public let maker: String?
+    public init(name: String, bundleID: String, path: String, maker: String? = nil) {
+        self.name = name; self.bundleID = bundleID; self.path = path; self.maker = maker
+    }
 }
 
-/// Content an app keeps offline in its cache folder (#171): any of `names` inside the folder keeps it, and `label` says why.
+/// Content an app keeps offline in its cache folder (#171): a folder holding any of `names` anywhere inside it (#203), and an entry
+/// named in `folderNames` right in it (#171), is kept; `label` says why.
 public struct OfflineContent: Sendable, Hashable {
     public let names: Set<String>
+    public let folderNames: Set<String>
     public let label: String
-    public init(names: Set<String>, label: String) { self.names = names; self.label = label }
+    public init(names: Set<String>, folderNames: Set<String> = [], label: String) { self.names = names; self.folderNames = folderNames; self.label = label }
 }
 
 extension CleanupRule {
-    /// What offline content an app keeps in `folder`, if any (`offlineContent`, keyed in lowercase as LaunchServices matches
-    /// bundle identifiers). Nil for rules with none and for every other app.
+    /// What offline content an app keeps in the app folder `folder` is or is inside, if any (`offlineContent`, keyed in lowercase
+    /// as LaunchServices matches bundle identifiers), found anywhere in the app's folder: `folder` is refused when it holds that
+    /// content or sits in a folder holding it (#241). An app folder that can't be fully searched counts as holding it.
+    /// Nil for rules with none and for every other app.
     func offlineContentLabel(in folder: URL) -> String? {
-        guard let content = offlineContent[folder.lastPathComponent.lowercased()] else { return nil }
-        return content.names.contains { FileManager.default.fileExists(atPath: folder.appendingPathComponent($0).path) } ? content.label : nil
+        guard !offlineContent.isEmpty else { return nil }
+        let app = AppCaches.appFolder(of: folder) ?? folder
+        guard let content = offlineContent[app.lastPathComponent.lowercased()] else { return nil }
+        // An item is the offline content's when it holds it or sits in a folder holding it (#241).
+        guard let holders = AppCaches.offlineItems(content, in: app) else { return content.label }
+        let item = folder.standardizedFileURL.path
+        return holders.contains { AppCaches.overlaps($0, item) } ? content.label : nil
     }
 }

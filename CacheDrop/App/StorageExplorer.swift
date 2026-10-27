@@ -23,6 +23,15 @@ import SwiftUI
     var position = Position()
     private var history: [Position] = []
     var canGoBack: Bool { !history.isEmpty }
+    /// The explorer's own title, which a page opened from it names when it goes back (#228).
+    var title: String { downloadsOnly ? "Explore Downloads" : "Explore storage" }
+    /// The list of locations the explorer starts at.
+    var rootName: String { downloadsOnly ? "Scanned Downloads locations" : "Selected locations" }
+    /// Where back leads inside the explorer: the previous folder, or the list of locations; nil when back leaves it.
+    var backDestination: String? {
+        guard let previous = history.last else { return nil }
+        return previous.folder?.lastPathComponent ?? rootName
+    }
     var navigationID = UUID()
     func openDownloads() { reset(downloadsOnly: true, folder: nil) }
     func openLocations() { reset(downloadsOnly: false, folder: nil) }
@@ -64,11 +73,12 @@ private struct StorageExplorerObservations {
     }
     let scans: [ScanResult]
     let entries: [Entry]
-    init(scans selected: [URL: ScanResult], reports: [ScanResult], allowedScopes: Set<URL>?,
+    init(scans selected: [URL: ScanResult], reports: [ScanResult], gone: [URL] = [], allowedScopes: Set<URL>?,
          downloadsOnly: Bool, downloadsScopes: Set<URL>?, observedDownloadsScopes: Set<URL>,
          configuredDownloads: URL?, eligible: (FileObservation, ScanResult) -> Bool) {
-        var latest = selected
-        for scan in reports {
+        // A location a recheck couldn't reach keeps no current observation (#249).
+        var latest = Dictionary(UnavailableScannedFolder.current(Array(selected.values), gone: gone).map { ($0.scope, $0) }, uniquingKeysWith: { first, _ in first })
+        for scan in UnavailableScannedFolder.current(reports, gone: gone) {
             if latest[scan.scope].map({ $0.observedAt < scan.observedAt }) ?? true { latest[scan.scope] = scan }
         }
         scans = latest.values.filter { scan in
@@ -111,16 +121,28 @@ private struct StorageExplorerObservations {
     }
 }
 
+/// An included location a recheck couldn't reach, and how to fix it: Overview's Choose again… (#223, #249).
+struct ExplorerUnavailableLocation {
+    let scope: URL
+    let reason: String
+    let chooseAgain: () -> Void
+    /// When the folder was last observed, as the explorer and Overview both show it (#249, #254).
+    static func format(_ lastObserved: Date) -> String { lastObserved.formatted(date: .abbreviated, time: .shortened) }
+}
+
 /// Browses observed metadata only. The workspace supplies its fixed sibling action strip.
 struct StorageExplorerView: View {
     @Bindable var model: FolderInspection
     @Bindable var selection: SessionPlan
     @Bindable var context: StorageExplorerContext
-    let backTitle: String
+    /// The page the explorer was opened from, which back returns to.
+    let caller: String
     let back: () -> Void
+    /// Included locations a recheck couldn't reach, from Overview's recovery rows (#249).
+    var unavailable: [ExplorerUnavailableLocation] = []
     private typealias Entry = StorageExplorerObservations.Entry
     private var observations: StorageExplorerObservations {
-        StorageExplorerObservations(scans: selection.scans, reports: model.scopeReports.map(\.current),
+        StorageExplorerObservations(scans: selection.scans, reports: model.scopeReports.map(\.current), gone: unavailable.map(\.scope),
             allowedScopes: context.allowedScopes, downloadsOnly: context.downloadsOnly,
             downloadsScopes: context.downloadsScopes,
             observedDownloadsScopes: [],
@@ -145,14 +167,33 @@ struct StorageExplorerView: View {
               folderAvailable, context.position.query.isEmpty || !visible.isEmpty else { return nil }
         return entries.first { $0.item.id == id && $0.item.resourceID == resource }
     }
+    /// Inside a folder that is no longer in the observations.
+    private var folderGone: Bool { context.position.folder != nil && !folderAvailable }
+    /// Gone locations this explorer shows: each was observed before, so it has a last observation to date (#249).
+    private var goneLocations: [(location: ExplorerUnavailableLocation, lastObserved: Date)] {
+        let observed = Array(selection.scans.values) + model.scopeReports.map(\.current)
+        return unavailable.compactMap { location in
+            guard !context.downloadsOnly || context.downloadsScopes?.contains(location.scope.standardizedFileURL) == true,
+                  let date = UnavailableScannedFolder.lastObserved(location.scope, in: observed) else { return nil }
+            return (location, date)
+        }.sorted { $0.location.scope.path < $1.location.scope.path }
+    }
+    /// Overview's orange row and Choose again…, with when the folder was last observed (#249).
+    private func recoveryRow(_ location: ExplorerUnavailableLocation, lastObserved: Date) -> some View {
+        StatusRow(text: UnavailableScannedFolder.text(reason: location.reason, lastObserved: ExplorerUnavailableLocation.format(lastObserved)),
+                  symbol: "info.circle", role: .caution, identifier: "explorerLocationRecovery",
+                  action: StatusAction(title: "Choose again…", identifier: "explorerChooseAgain", action: location.chooseAgain))
+            .disabled(model.isScanning || selection.workspaceRunning)
+    }
     var body: some View {
         GeometryReader { geometry in
             let wide = geometry.size.width >= 800
             VStack(alignment: .leading, spacing: CacheDropDesign.Space.lg) {
-                Button(context.canGoBack ? "Back to previous folder" : backTitle, systemImage: "chevron.left") {
-                    if !context.backWithinExplorer() { back() }
-                }.accessibilityIdentifier("explorerBack")
-                PageHeader(title: context.downloadsOnly ? "Explore Downloads" : "Explore storage", subtitle: "Inspect local allocations within your selected folders.")
+                // A folder that is no longer observed leads back only to the list of locations (#227).
+                PageHeader(title: context.title, subtitle: "Inspect local allocations within your selected folders.",
+                           back: BackButton(destination: folderGone ? context.rootName : context.backDestination ?? caller, identifier: "explorerBack") {
+                               if folderGone { context.discardUnavailableFolder() } else if !context.backWithinExplorer() { back() }
+                           })
                 ScanHistoryRecordingNotice()
                 breadcrumbs
                 HStack(alignment: .top, spacing: CacheDropDesign.Space.lg) {
@@ -174,7 +215,7 @@ struct StorageExplorerView: View {
     private var breadcrumbs: some View {
         VStack(alignment: .leading, spacing: CacheDropDesign.Space.sm) {
             HStack {
-                Button(context.downloadsOnly ? "Scanned Downloads locations" : "Selected locations") { context.returnToRoot() }
+                Button(context.rootName) { context.returnToRoot() }
                 if folderAvailable, let folder = context.position.folder {
                     Image(systemName: "chevron.right").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
                     ForEach(breadcrumbs(for: folder), id: \.self) { ancestor in
@@ -210,7 +251,7 @@ struct StorageExplorerView: View {
                 if showsLargeAndOld {
                     largeAndOldFiles
                 } else if context.position.folder == nil {
-                    if scans.isEmpty { EmptyState(title: "No scanned folders", detail: "Use Scan a folder on Overview to choose one. Browsing never starts a scan.", symbol: "folder") }
+                    if scans.isEmpty && goneLocations.isEmpty { EmptyState(title: "No scanned folders", detail: "Use Scan a folder on Overview to choose one. Browsing never starts a scan.", symbol: "folder") }
                     ForEach(scans, id: \.scope) { scan in
                         VStack(alignment: .leading, spacing: CacheDropDesign.Space.sm) {
                             Button(scan.scope.lastPathComponent, systemImage: "folder") { context.enter(scan.scope) }
@@ -223,9 +264,20 @@ struct StorageExplorerView: View {
                         }.padding(CacheDropDesign.Space.md)
                         Divider()
                     }
+                    ForEach(goneLocations, id: \.location.scope) { gone in
+                        VStack(alignment: .leading, spacing: CacheDropDesign.Space.sm) {
+                            Label(gone.location.scope.lastPathComponent, systemImage: "folder").foregroundStyle(.secondary).help(gone.location.scope.path)
+                            recoveryRow(gone.location, lastObserved: gone.lastObserved)
+                        }.padding(CacheDropDesign.Space.md)
+                        Divider()
+                    }
                 } else if !folderAvailable {
-                    EmptyState(title: "This folder is no longer available in the observations", detail: "Its location may have been omitted, forgotten or changed during a refresh. Browsing cannot scan or restore access.", symbol: "folder.badge.questionmark")
-                    Button("Return to selected locations") { context.discardUnavailableFolder() }
+                    if let folder = context.position.folder, let scope = UnavailableScannedFolder.location(holding: folder, among: goneLocations.map(\.location.scope)),
+                       let gone = goneLocations.first(where: { $0.location.scope == scope }) {
+                        recoveryRow(gone.location, lastObserved: gone.lastObserved).padding(CacheDropDesign.Space.md)
+                    } else {
+                        EmptyState(title: "This folder is no longer available in the observations", detail: "Its location may have been omitted, forgotten or changed during a refresh. Browsing cannot scan or restore access.", symbol: "folder.badge.questionmark")
+                    }
                 } else if visible.isEmpty {
                     EmptyState(title: context.position.query.isEmpty ? "No observed entries here" : "No matches", detail: context.position.query.isEmpty ? "This describes existing observations only. Unscanned or unavailable contents remain unknown." : "No observed descendants match this search. Your selected files are unchanged.", symbol: "magnifyingglass")
                     if !context.position.query.isEmpty { Button("Clear search") { context.position.query = "" } }

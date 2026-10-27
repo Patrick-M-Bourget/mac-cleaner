@@ -13,6 +13,40 @@ public struct Guidance: Sendable {
         case agentWorkspaces
         /// The plug-in folders' trees, plus the per-product plug-in inventory (#174).
         case plugIns
+        /// Every library package with this extension in the home folder and on connected volumes (#180, #178), each
+        /// sized whole; nothing inside one is read. The rule's locations aren't used.
+        case libraries(extension: String)
+        /// Lightroom Classic's previews beside each catalog (#179), found by the same search as libraries:
+        /// `<Catalog> Previews.lrdata`, or with `smart`, `<Catalog> Smart Previews.lrdata`. Each package is sized whole.
+        case lightroomPreviews(smart: Bool)
+
+        /// The package extension the library search looks for, for the rules it sizes.
+        var searchedExtension: String? {
+            switch self {
+            case .libraries(let ext): ext
+            case .lightroomPreviews: "lrdata"
+            default: nil
+            }
+        }
+
+        /// Whether a package the search found belongs to this rule. Lightroom's other `.lrdata` packages
+        /// (Helper, Sync) never do, and normal previews of a catalog named "… Smart" stay normal.
+        func lists(_ url: URL) -> Bool {
+            guard case .lightroomPreviews(let smart) = self else { return true }
+            return Self.isSmartPreviews(url) == smart
+        }
+
+        /// True for Smart Previews, false for normal previews, nil for any other `.lrdata`. The catalog beside the
+        /// package decides; a package whose catalog is gone is judged by its name alone.
+        static func isSmartPreviews(_ url: URL) -> Bool? {
+            let name = url.deletingPathExtension().lastPathComponent, folder = url.deletingLastPathComponent()
+            func previews(_ suffix: String) -> Bool {
+                name.hasSuffix(suffix) && FileManager.default.fileExists(atPath: folder.appendingPathComponent(name.dropLast(suffix.count) + ".lrcat").path)
+            }
+            if previews(" Smart Previews") { return true }
+            if previews(" Previews") { return false }
+            return name.hasSuffix(" Smart Previews") ? true : name.hasSuffix(" Previews") ? false : nil
+        }
     }
     /// Where "Open …" goes.
     public enum Place: Sendable, Equatable {
@@ -27,8 +61,13 @@ public struct Guidance: Sendable {
     public let place: Place
     /// The place's name, as in "Open Photos".
     public let placeName: String
-    public init(sizing: Sizing = .locations, place: Place, placeName: String) {
-        self.sizing = sizing; self.place = place; self.placeName = placeName
+    /// The vendor's own help page for these steps, when there is one.
+    public let learnMore: URL?
+    /// Shown without Full Disk Access only when the `.app` place is installed (#245): an optional app's libraries, such as
+    /// Final Cut Pro's. With access, the row appears whenever something is found.
+    public let onlyWhenInstalled: Bool
+    public init(sizing: Sizing = .locations, place: Place, placeName: String, learnMore: URL? = nil, onlyWhenInstalled: Bool = false) {
+        self.sizing = sizing; self.place = place; self.placeName = placeName; self.learnMore = learnMore; self.onlyWhenInstalled = onlyWhenInstalled
     }
     public var openTitle: String { "Open " + placeName }
 }

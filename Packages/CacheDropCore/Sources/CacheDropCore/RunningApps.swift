@@ -17,10 +17,17 @@ extension RuleOwner {
 }
 
 /// Apps by bundle identifier; command-line tools by the current user's process command lines.
+/// A maker (`bundleIDPrefixes`) by every running process, background helpers included (#240), listed through `processes`.
 public struct SystemRunningAppChecker: RunningAppChecking {
-    public init() {}
+    let processes: any ProcessListing
+    private let makers = RunningMakerCache()
+    public init(processes: any ProcessListing = SystemProcessListing()) { self.processes = processes }
     public func isRunning(_ owner: RuleOwner) -> Bool? {
         if !UserProcesses.apps(owner.bundleIDs).isEmpty { return true }
+        if !owner.bundleIDPrefixes.isEmpty {
+            guard let running = processes.processes() else { return nil }
+            if RunningMakers(running, resolve: makers.products).runs(owner) { return true }
+        }
         guard !owner.executables.isEmpty || !owner.scripts.isEmpty || !owner.arguments.isEmpty || !owner.paths.isEmpty else { return false }
         guard let commands = Self.userCommandLines() else { return nil }
         return commands.contains { owner.matches($0) }

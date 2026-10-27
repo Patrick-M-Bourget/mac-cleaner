@@ -160,13 +160,18 @@ enum PlanReviewError: Error { case changed, nothingToClean }
     func reset() { search = ""; choosingItems = false; inspected = nil; offset = nil; expandedCategories = [] }
 }
 
+/// Smart clean's open categories (#219): its own, separate from the plan's, kept until CacheDrop quits. Categories start collapsed.
+@MainActor @Observable final class SmartCleanPresentation {
+    var expandedCategories: Set<CatalogCategory> = []
+}
+
 struct LiveCleanupPlanView: View {
     @Bindable var selection: SessionPlan
     var viewHistory: (() -> Void)? = nil
     var newPlan: (() -> Void)? = nil
     var reviewRecovery: (() -> Void)? = nil
     var backToExplorer: (() -> Void)? = nil
-    var backToExplorerTitle = "Back to Explorer"
+    var backToExplorerDestination = "Explore storage"
     @Bindable var presentation: CleanupPlanPresentation
     @State private var review: WorkspaceCleanupReview?
     @State private var approvalError: String?
@@ -178,8 +183,8 @@ struct LiveCleanupPlanView: View {
             CleanupRunSection(selection: selection)
         } else {
         VStack(alignment: .leading, spacing: CacheDropDesign.Space.lg) {
-            if let backToExplorer { Button(backToExplorerTitle, systemImage: "chevron.left", action: backToExplorer) }
-            PageHeader(title: "Cleanup plan", subtitle: "Choose categories, adjust items if needed, then review the changes.")
+            PageHeader(title: "Cleanup plan", subtitle: "Choose categories, adjust items if needed, then review the changes.",
+                       back: backToExplorer.map { BackButton(destination: backToExplorerDestination, action: $0) })
                 .padding(.bottom, CacheDropDesign.Space.sm)
             ScanHistoryRecordingNotice()
             SelectionSummary(value: selection.workspaceSelectedSize,
@@ -244,7 +249,7 @@ struct CleanupRunSection: View {
 struct CleanupStopStrip: View {
     let selection: SessionPlan
     var body: some View {
-        ActionStrip(message: "Stopping starts no new items and stops a running cleanup tool, which may have cleaned part of its cache; work it handed to Docker or the Simulator may still finish. Completed Trash moves and cache removals are not rolled back.") {
+        ActionStrip(message: "Stopping starts no new items and stops a running cleanup tool, which may have cleaned part of its cache; work it handed to Docker or the Simulator may still finish. Completed Trash moves and cache removals are not rolled back.", showsBackgroundWork: false, wrapsNote: true) {
             Button(selection.workspaceStopRequested ? "Stop requested" : "Stop cleanup") { selection.cancelWorkspace() }.disabled(selection.workspaceStopRequested)
         }
     }

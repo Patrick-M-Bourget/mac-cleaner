@@ -386,3 +386,40 @@ private final class FixtureTrash: TrashMoving, @unchecked Sendable {
     #expect(found.contains { $0.ruleID == "android-system-images" })
     #expect(RecommendedPlan(catalog: catalog, candidates: found, check: { _ in nil }).candidates.isEmpty)
 }
+
+/// #209 point 4: "Unavailable simulators" is sized at the scan from simctl's list and each unavailable device's folder,
+/// so the later measurement after a stopped `simctl delete unavailable` compares against it instead of "couldn't measure".
+@Test func unavailableSimulatorsAreSizedFromSimctlsListSoTheyCanBeMeasuredAgain() throws {
+    let home = try fixtureHome()
+    defer { try? FileManager.default.removeItem(at: home) }
+    try makeDevice(home, shutdownUDID, bytes: 3000)
+    // Whole blocks, so the size on disk is the same as the file size.
+    try makeDevice(home, unavailableUDID, bytes: 8192)
+    try makeDevice(home, watchUDID, bytes: 4096)
+    let catalog = Catalog(rules: fixtureRules)
+    let twoUnavailable = devicesJSON(adding: watchUDID, on: watchRuntime, available: false)
+    let scanned = catalog.discover(fixture: home, locateTool: onlyTool("simctl", try standInSimctl(home, devices: twoUnavailable)))
+    // Only the two unavailable devices count; the available one is the "Simulators" rule's.
+    let item = try #require(scanned.first { $0.ruleID == "xcode-simulators" })
+    #expect(item.sizeComplete && item.logicalBytes == 12_288)
+    #expect(SizeEstimate(item) == .measured(item.allocatedBytes ?? item.logicalBytes))
+
+    // The daemon has removed the watch so far.
+    try FileManager.default.removeItem(at: home.appendingPathComponent(devicesFolder + "/" + watchUDID))
+    let partly = catalog.measuredAgain([item], in: catalog.only([item]).discovery(fixture: home, locateTool: onlyTool("simctl", try standInSimctl(home))))
+    #expect(partly[item.id] == .remaining(bytes: 8192))
+
+    // Then the last one: nothing unavailable is left, so the rule offers nothing and the item is gone.
+    try FileManager.default.removeItem(at: home.appendingPathComponent(devicesFolder + "/" + unavailableUDID))
+    let noneUnavailable = devicesJSON.replacingOccurrences(of: """
+          { "udid" : "\(unavailableUDID)", "isAvailable" : false, "availabilityError" : "runtime profile not found", "state" : "Shutdown", "name" : "iPhone 14" }
+        """, with: "")
+    let gone = catalog.measuredAgain([item], in: catalog.only([item]).discovery(fixture: home, locateTool: onlyTool("simctl", try standInSimctl(home, devices: noneUnavailable))))
+    #expect(gone[item.id] == .gone)
+
+    // A list that can't be read keeps offering it at an unknown size, and measuring it again then is unmeasured.
+    let unreadable = catalog.discovery(fixture: home, locateTool: onlyTool("simctl", try standInSimctl(home, devices: "not json")))
+    let offered = try #require(unreadable.candidates.first { $0.ruleID == "xcode-simulators" })
+    #expect(SizeEstimate(offered) == .unknown)
+    #expect(catalog.measuredAgain([item], in: unreadable)[item.id] == .unmeasured)
+}

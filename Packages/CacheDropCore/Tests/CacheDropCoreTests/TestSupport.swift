@@ -69,6 +69,11 @@ final class FakeCloud: UbiquitousItemAccess, @unchecked Sendable {
     }
 }
 
+extension LibraryVolumes {
+    /// Fixture volumes: all local, walked as they are, so a test never asks about this Mac's mounts.
+    static let fixture = LibraryVolumes(isLocal: { _ in true }, walk: { FileTree.walk($0, $1) })
+}
+
 /// Snapshots as tests see them: a fixed count, never this Mac's.
 struct FixtureSnapshots: LocalSnapshotListing {
     var snapshots: Int? = 0
@@ -76,9 +81,11 @@ struct FixtureSnapshots: LocalSnapshotListing {
 }
 
 extension Catalog {
-    /// Guidance sizing as tests run it: the fixture home stands in for the system root, and no snapshots unless given.
+    /// Guidance sizing as tests run it: the fixture home stands in for the system root, every fixture volume is local,
+    /// no app is registered, and no snapshots unless given.
     func guidance(fixture home: URL, snapshots: Int? = 0) -> [GuidanceFinding] {
-        guidance(home: home, systemRoot: home, snapshots: FixtureSnapshots(snapshots: snapshots))
+        guidance(home: home, systemRoot: home, sizer: KnownLocationSizer(), snapshots: FixtureSnapshots(snapshots: snapshots),
+                 appPresence: FixedAppPresence(apps: [], registered: { _ in false }), libraryVolumes: .fixture)
     }
 }
 
@@ -97,6 +104,16 @@ extension CandidateCheck {
 /// tool, such as Docker's `system df` during discovery.
 func onlyTool(_ name: String, _ standIn: URL) -> @Sendable (ToolCommand) -> URL? {
     { command in command.executables.contains { URL(fileURLWithPath: $0).lastPathComponent == name } ? standIn : nil }
+}
+
+/// Runs blocking `work` on a thread of its own and waits for it without holding a Swift concurrency thread.
+/// A test that waits seconds on a real tool must not block the pool: under LIBDISPATCH_COOPERATIVE_POOL_STRICT=1
+/// it can be a single thread, and every other async test in the run would wait behind it.
+/// Keep `#expect` out of `work`; check what it returns instead.
+func onOwnThread<T: Sendable>(_ work: @escaping @Sendable () throws -> T) async throws -> T {
+    try await withCheckedThrowingContinuation { continuation in
+        Thread { continuation.resume(with: Result { try work() }) }.start()
+    }
 }
 
 /// Cancels `cancellation` once `file` appears, which a stand-in tool writes to say it reached a point, marking `at` first.
@@ -131,6 +148,40 @@ final class CancelTime: @unchecked Sendable {
         guard let at else { Issue.record("The cancel never fired"); return .infinity }
         return ProcessInfo.processInfo.systemUptime - at
     }
+    /// Seconds from the cancel to `end`, such as when a tool's processes were gone, so the time a busy run takes
+    /// to resume the test afterwards is left out.
+    func elapsed(until end: TimeInterval) -> TimeInterval {
+        lock.lock(); let at = self.at; lock.unlock()
+        guard let at else { Issue.record("The cancel never fired"); return .infinity }
+        return end - at
+    }
+}
+
+/// When the `count` processes a stand-in tool records with `recordPid` in `file` had all exited, watched on a thread
+/// of its own. A tool stopped at a cancel can be gone within milliseconds, too soon for an argv search to see it;
+/// recorded pids are read cheaply, and the time doesn't include how long a busy run takes to resume the test after.
+final class RecordedPidsGone: @unchecked Sendable {
+    private let lock = NSLock()
+    private var gone: TimeInterval?, stopped = false
+    init(_ file: URL, count: Int) {
+        Thread { [self] in
+            while true {
+                lock.lock(); let done = stopped || gone != nil; lock.unlock()
+                if done { return }
+                let pids = recordedPids(file)
+                if pids.count >= count, !pids.contains(where: isRunning) { lock.lock(); gone = ProcessInfo.processInfo.systemUptime; lock.unlock(); return }
+                usleep(5_000)
+            }
+        }.start()
+    }
+    /// System uptime when they were all gone. Ones never recorded, or still running, fail the test and read as forever.
+    var at: TimeInterval {
+        for _ in 0..<20 where isWatching { usleep(50_000) }
+        lock.lock(); stopped = true; let gone = self.gone; lock.unlock()
+        guard let gone else { Issue.record("The tool's recorded processes never all exited"); return .infinity }
+        return gone
+    }
+    private var isWatching: Bool { lock.lock(); defer { lock.unlock() }; return gone == nil && !stopped }
 }
 
 /// How long the processes whose command line carries `marker` lived: from the first time one is seen until none is left,

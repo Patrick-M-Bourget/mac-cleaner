@@ -35,7 +35,11 @@ final class FolderInspection {
     var selected: FileObservation?
     private var isScanningCurrent = false
     var isScanning: Bool { isScanningCurrent || scanAgainTask != nil }
-    var message: String?
+    /// Scan again's recheck of the selected locations, as opposed to a new folder's first scan (#230).
+    var isRechecking: Bool { scanAgainTask != nil }
+    var message: String? { didSet { unavailableScope = nil } }
+    /// The location the current message says is unavailable, so Overview can leave it to that location's recovery row (#231).
+    private(set) var unavailableScope: URL?
     var previewURL: URL?
 
     static func chooseFolder(downloads: Bool = false, remembering: Bool = false) -> URL? {
@@ -139,6 +143,9 @@ final class FolderInspection {
                 request = selection.beginRefresh(url)
                 refreshRequest = request
                 let report = try await session.inspect(url, cancellation: scanCancellation, onProgress: { continuation.yield($0) }, exclusions: policy)
+                #if DEBUG
+                try await Self.pauseForTests()
+                #endif
                 let observed = report.current
                 let reports = await session.reports()
                 guard !Task.isCancelled, token == generation else { return }
@@ -171,6 +178,15 @@ final class FolderInspection {
         }
     }
 
+    #if DEBUG
+    /// A disposable test run can hold a folder scan open (`CACHEDROP_TEST_FOLDER_SCAN_PAUSE`, seconds, at most 10) after it
+    /// has read the folder, so a UI journey sees its progress in the bottom bar (#235). Stop scan ends the wait. Never set outside tests.
+    private static func pauseForTests() async throws {
+        guard LocalStateLocation.isDisposableTest, let pause = ProcessInfo.processInfo.environment["CACHEDROP_TEST_FOLDER_SCAN_PAUSE"].flatMap(Double.init), pause > 0 else { return }
+        try await Task.sleep(for: .seconds(min(pause, 10)))
+    }
+    #endif
+
     private func finishActivity() async {
         guard let operation = activity else { return }
         activity = nil
@@ -188,12 +204,14 @@ final class FolderInspection {
             .max { $0.observedAt < $1.observedAt }
     }
 
+    static let unavailableMessage = "Current coverage: Unknown · This location is unavailable. Reconnect and recheck, or choose it again in Locations & access."
     func markUnavailable(_ url: URL) {
         scope = url
         let previous = scopeReports.first { $0.current.scope.path == url.path }
         lastComplete = previous?.lastComplete ?? previous.flatMap { $0.current.isComplete ? $0.current : nil }
         result = nil; selected = nil
-        message = "Current coverage: Unknown · This location is unavailable. Reconnect and recheck, or choose it again in Locations & access."
+        message = Self.unavailableMessage
+        unavailableScope = url.standardizedFileURL
     }
 
     func show(_ report: ScopeReport) {

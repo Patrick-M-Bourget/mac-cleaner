@@ -30,38 +30,33 @@ struct CatalogPlanSection: View {
                 }
             }
             ForEach(model.notes, id: \.ruleID) { note in StatusRow(text: note.text, symbol: "info.circle", role: .neutral, identifier: "planNote-" + note.ruleID) }
-            if model.isScanning { CatalogScanProgressLine(model: model) }
             if let message = model.message { StatusRow(text: message, symbol: "info.circle", role: .caution) }
         }.task { await model.scanIfNeeded() }
     }
 }
 
-/// A category: tri-state checkbox, badge, title, one short line and size, with "Choose items" inside.
+/// A plan category through the shared `CategoryRow` (Decision 48), with its rules or items under "Choose items".
 private struct PlanCategoryRow: View {
     @Bindable var model: CatalogCleanupModel
     let row: CatalogOverview.Row
     @Binding var expanded: Bool
     var body: some View {
         let state = model.selectionState(for: row.rules)
-        VStack(alignment: .leading, spacing: CacheDropDesign.Space.sm) {
-            CategorySelectionHeader(category: row.category.storageCategory, state: state, title: row.category.overviewTitle, detail: row.category.overviewDetail,
-                                    size: row.valueText, enabled: model.canEdit, identifier: "planCategory-" + row.id) { model.setSelected(row.rules, state != .checked) }
+        CategoryRow(category: row.category.storageCategory, state: state, title: row.category.overviewTitle, detail: row.category.overviewDetail,
+                    size: row.valueText, enabled: model.canEdit, identifier: "planCategory-" + row.id,
+                    itemCount: row.planLayout == .categoryOnly ? nil : row.itemCount, expanded: $expanded,
+                    toggle: { if model.toggleCategory(row.rules) { expanded = true } }) {
+            if row.planLayout != .ruleRows, let rule = row.rules.first { PlanRunningOwners(model: model, rule: rule) }
+        } items: {
             switch row.planLayout {
             case .ruleRows:
-                ActionDisclosureGroup("Choose items · \(row.itemCount)", isExpanded: $expanded) {
-                    VStack(alignment: .leading, spacing: 0) {
-                        ForEach(row.rules) { rule in PlanRuleRows(model: model, rule: rule) }
-                    }.padding(.top, CacheDropDesign.Space.sm)
-                }.padding(.leading, CacheDropDesign.Size.categoryContentIndent)
-            case .items:
-                if let rule = row.rules.first {
-                    PlanRunningOwners(model: model, rule: rule).padding(.leading, CacheDropDesign.Size.categoryContentIndent)
-                    ActionDisclosureGroup("Choose items · \(row.itemCount)", isExpanded: $expanded) {
-                        PlanRuleItems(model: model, rule: rule).padding(.top, CacheDropDesign.Space.sm)
-                    }.padding(.leading, CacheDropDesign.Size.categoryContentIndent)
+                VStack(alignment: .leading, spacing: 0) {
+                    ForEach(row.rules) { rule in PlanRuleRows(model: model, rule: rule) }
                 }
+            case .items:
+                if let rule = row.rules.first { PlanRuleItems(model: model, rule: rule) }
             case .categoryOnly:
-                if let rule = row.rules.first { PlanRunningOwners(model: model, rule: rule).padding(.leading, CacheDropDesign.Size.categoryContentIndent) }
+                EmptyView()
             }
         }
     }
@@ -97,7 +92,7 @@ private struct PlanRuleItems: View {
     @Bindable var model: CatalogCleanupModel
     let rule: CleanupRule
     var body: some View {
-        if model.candidates(for: rule).contains(where: { $0.group != nil }) { CatalogProfileRows(model: model, rule: rule) }
+        if !rule.selectedOneByOne, model.candidates(for: rule).contains(where: { $0.group != nil }) { CatalogProfileRows(model: model, rule: rule) }
         else { CatalogItemRows(model: model, rule: rule) }
     }
 }
@@ -116,7 +111,7 @@ private struct PlanRuleRows: View {
                                                   estimate: model.sizeIsEstimate(for: rule)),
                                symbol: rule.offersFiles ? "doc.on.doc" : "folder", inspected: false,
                                inspect: { Finder.reveal(items.map(\.url)) }, detailLineLimit: 1) {
-                MacroCategoryCheckbox(state: state, label: rule.title, enabled: model.canEdit, action: { model.setSelected(rule, state != .checked) },
+                MacroCategoryCheckbox(state: state, label: rule.title, enabled: model.canEdit && !rule.selectedOneByOne, action: { model.setSelected(rule, state != .checked) },
                                       identifier: "planRule-" + rule.id, showsTitle: false).fixedSize()
             }.help(source.map { _ in rule.detail + "\n" + items.map(\.url.path).joined(separator: "\n") } ?? "")
             PlanRunningOwners(model: model, rule: rule).padding(.leading, CacheDropDesign.Space.xl).padding(.bottom, CacheDropDesign.Space.sm)

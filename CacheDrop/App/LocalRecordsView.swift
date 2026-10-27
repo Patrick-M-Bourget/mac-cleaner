@@ -18,9 +18,11 @@ struct LocalRecordsView: View {
     var showRecovery: () -> Void
     var didReset: () -> Void
     var reviewDiagnostics: (() -> Void)? = nil
+    /// The back button above the title, from the page that opened this one.
+    var back: BackButton? = nil
     var body: some View {
         VStack(alignment: .leading, spacing: CacheDropDesign.Space.xl) {
-            PageHeader(title: "Local records", subtitle: "Manage what CacheDrop stores on this Mac. Original files and macOS access grants stay unchanged.")
+            PageHeader(title: "Local records", subtitle: "Manage what CacheDrop stores on this Mac. Original files and macOS access grants stay unchanged.", back: back)
             if let error = model.loadError { StatusRow(text: error, symbol: "exclamationmark.triangle", role: .caution) }
             if let message = model.message {
                 StatusRow(text: message, symbol: model.blocked ? "exclamationmark.triangle" : "info.circle", role: model.blocked ? .caution : .neutral, identifier: "historyStatus")

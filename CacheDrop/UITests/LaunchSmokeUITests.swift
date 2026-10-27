@@ -220,8 +220,38 @@ final class WhatGrewUITests: XCTestCase {
         app.radioButtons["Locations"].firstMatch.click()
         XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "value BEGINSWITH '~/.npm/_cacache'")).firstMatch.waitForExistence(timeout: 5))
 
+        // #221: the button names where it goes.
+        XCTAssertEqual(app.buttons["growthReviewOptions"].label, "Review plan")
         app.buttons["growthReviewOptions"].click()
-        XCTAssertTrue(app.buttons["Back to Storage trends"].waitForExistence(timeout: 5))
+        // #222: the quiet back button sits above the page title, and returns to Storage trends.
+        let back = app.buttons["Back to Storage trends"]
+        assertBackButton(back, isAbove: "Cleanup plan", in: app)
+        back.click()
+        XCTAssertTrue(app.buttons["growthReviewOptions"].waitForExistence(timeout: 5))
+    }
+}
+
+/// #222: a page reached from another keeps its back button above the title; its bottom bar stays, without it.
+final class BackButtonUITests: XCTestCase {
+    @MainActor func testLocalRecordsBackButtonSitsAboveTheTitleAndReturns() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        let state = try configureIsolatedState(app)
+        let home = try configureCatalogHome(app)
+        defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
+        app.launch()
+        XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
+
+        app.typeKey("6", modifierFlags: .command)
+        let manage = app.buttons["manageLocalRecords"]
+        XCTAssertTrue(manage.waitForExistence(timeout: 5))
+        revealAndClick(manage, in: app)
+        let back = app.buttons["Back to Locations & access"]
+        assertBackButton(back, isAbove: "Local records", in: app)
+        XCTAssertTrue(actionStrip(app).exists, "The bottom bar stays, empty")
+        back.click()
+        XCTAssertTrue(manage.waitForExistence(timeout: 5))
+        XCTAssertFalse(back.exists)
     }
 }
 
@@ -328,5 +358,107 @@ final class FirstRunWelcomeUITests: XCTestCase {
         XCTAssertTrue(welcome.waitForExistence(timeout: 5), "The Help menu opens it again")
         app.buttons["welcomeSkip"].click()
         XCTAssertFalse(welcome.waitForExistence(timeout: 2))
+    }
+}
+
+/// #223: a remembered folder whose access went stale shows one row on Overview, and its Choose again… fixes it there.
+final class ScannedLocationsUITests: XCTestCase {
+    /// #254: the folder is still there but can't be read, so the row says "Access unavailable", not "Folder not found".
+    @MainActor func testAStaleFolderShowsOneRowAndChooseAgainRenewsIt() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        let state = try configureIsolatedState(app)
+        let home = try configureCatalogHome(app)
+        defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
+        // A remembered fixture Downloads folder whose bookmark no longer resolves, as after the app was renamed.
+        let folder = home.appendingPathComponent("Downloads")
+        let scopes = state.appendingPathComponent("Scopes")
+        try FileManager.default.createDirectory(at: scopes, withIntermediateDirectories: false, attributes: [.posixPermissions: 0o700])
+        let record: [String: Any] = ["version": 1, "scopes": [["id": UUID().uuidString, "path": folder.path, "isIncluded": true,
+                                                               "kind": "downloads", "bookmark": Data("stale".utf8).base64EncodedString()]]]
+        try JSONSerialization.data(withJSONObject: record).write(to: scopes.appendingPathComponent("scopes-v1.json"))
+        app.launch()
+        XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
+
+        XCTAssertTrue(FileManager.default.fileExists(atPath: folder.path), "Present but unreadable, not deleted")
+        // One message for one problem: the row names the folder and the reason, and carries the fix.
+        let row = app.staticTexts["overviewLocationRecovery"]
+        XCTAssertTrue(row.waitForExistence(timeout: 15))
+        XCTAssertEqual(row.value as? String, "Downloads · Access unavailable")
+        XCTAssertFalse(app.staticTexts.matching(NSPredicate(format: "value CONTAINS 'Current coverage'")).firstMatch.exists)
+        XCTAssertFalse(app.staticTexts.matching(NSPredicate(format: "value CONTAINS 'Recheck required'")).firstMatch.exists)
+        XCTAssertFalse(app.staticTexts.matching(NSPredicate(format: "value CONTAINS 'Choose again to renew'")).firstMatch.exists)
+
+        let chooseAgain = app.buttons["overviewChooseAgain"]
+        XCTAssertEqual(chooseAgain.label, "Choose again…")
+        revealAndClick(chooseAgain, in: app)
+        let panel = app.sheets.firstMatch.exists ? app.sheets.firstMatch : app.dialogs.firstMatch
+        XCTAssertTrue(panel.waitForExistence(timeout: 5))
+        panel.typeKey("g", modifierFlags: [.command, .shift])
+        app.typeText(folder.path + "\n")
+        panel.buttons["Remember folder"].click()
+
+        // Renewed and scanned in place: the row is gone and the folder can be explored.
+        XCTAssertTrue(app.links["Explore storage"].waitForExistence(timeout: 20))
+        XCTAssertFalse(row.exists)
+    }
+
+    /// #254: a scanned folder deleted since its scan says, as in the explorer, "Folder not found · last observed <time>",
+    /// with Choose again…, rather than "Access unavailable".
+    @MainActor func testADeletedFolderSaysFolderNotFoundWithItsLastObservation() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        let state = try configureIsolatedState(app)
+        let home = try configureCatalogHome(app)
+        let folder = FileManager.default.temporaryDirectory.resolvingSymlinksInPath().appendingPathComponent("CacheDropPicked-" + UUID().uuidString)
+        defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home); try? FileManager.default.removeItem(at: folder) }
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        try Data(repeating: 1, count: 4_000).write(to: folder.appendingPathComponent("entry.zip"))
+        app.launch()
+        XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
+        app.buttons["overviewScanFolder"].click()
+        let panel = app.sheets.firstMatch.exists ? app.sheets.firstMatch : app.dialogs.firstMatch
+        XCTAssertTrue(panel.waitForExistence(timeout: 5))
+        panel.typeKey("g", modifierFlags: [.command, .shift])
+        app.typeText(folder.path + "\n")
+        panel.buttons["Scan folder"].click()
+        XCTAssertTrue(app.links["Explore storage"].waitForExistence(timeout: 20))
+
+        // Deleted, then Scan again can't find it.
+        try FileManager.default.removeItem(at: folder)
+        app.typeKey("r", modifierFlags: .command)
+        let row = app.staticTexts["overviewLocationRecovery"]
+        XCTAssertTrue(row.waitForExistence(timeout: 20))
+        let text = row.value as? String ?? ""
+        XCTAssertTrue(text.hasPrefix(folder.lastPathComponent + " · Folder not found · last observed "), text)
+        XCTAssertFalse(text.contains("Access unavailable"), text)
+        XCTAssertEqual(app.buttons["overviewChooseAgain"].label, "Choose again…")
+    }
+
+    /// #231: two stale folders get a row each, each with its own Choose again…, and no grey "Current coverage" row.
+    @MainActor func testTwoStaleFoldersShowARowEach() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        let state = try configureIsolatedState(app)
+        let home = try configureCatalogHome(app)
+        defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
+        let projects = home.appendingPathComponent("Projects")
+        try FileManager.default.createDirectory(at: projects, withIntermediateDirectories: true)
+        let scopes = state.appendingPathComponent("Scopes")
+        try FileManager.default.createDirectory(at: scopes, withIntermediateDirectories: false, attributes: [.posixPermissions: 0o700])
+        let stale = Data("stale".utf8).base64EncodedString()
+        let record: [String: Any] = ["version": 1, "scopes": [
+            ["id": UUID().uuidString, "path": home.appendingPathComponent("Downloads").path, "isIncluded": true, "kind": "downloads", "bookmark": stale],
+            ["id": UUID().uuidString, "path": projects.path, "isIncluded": true, "kind": "inspection", "bookmark": stale]]]
+        try JSONSerialization.data(withJSONObject: record).write(to: scopes.appendingPathComponent("scopes-v1.json"))
+        app.launch()
+        XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
+
+        let rows = app.staticTexts.matching(identifier: "overviewLocationRecovery")
+        XCTAssertTrue(rows.firstMatch.waitForExistence(timeout: 15))
+        let texts = Set(rows.allElementsBoundByIndex.compactMap { $0.value as? String })
+        XCTAssertEqual(texts, ["Downloads · Access unavailable", "Projects · Access unavailable"])
+        XCTAssertEqual(app.buttons.matching(identifier: "overviewChooseAgain").count, 2)
+        XCTAssertFalse(app.staticTexts.matching(NSPredicate(format: "value CONTAINS 'Current coverage'")).firstMatch.exists)
     }
 }

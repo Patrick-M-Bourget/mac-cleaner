@@ -20,10 +20,35 @@ extension BuiltInCatalog {
                      detail: "Photos, videos and files from your conversations. Review them in Messages, or in System Settings → General → Storage.",
                      locations: ["Library/Messages/Attachments"], protected: true,
                      Guidance(place: .app(bundleID: "com.apple.MobileSMS"), placeName: "Messages")),
-        guidanceRule("photos-library", "Photos library",
-                     detail: "Your Photos library. Photos manages it; with iCloud Photos, Optimize Mac Storage keeps smaller copies on this Mac.",
-                     locations: ["Pictures/Photos Library.photoslibrary"], protected: true,
-                     Guidance(place: .app(bundleID: "com.apple.Photos"), placeName: "Photos")),
+        // Every Photos library, renamed, additional or external (#180). Moving one whole: Apple Support 108345.
+        guidanceRule("photos-library", "Photos libraries",
+                     detail: "Your Photos libraries. Photos manages them: with iCloud Photos, turn on Optimize Mac Storage in Photos Settings → iCloud, or move a whole library to another drive (support.apple.com/108345). Deleting photos in an iCloud library deletes them on every device.",
+                     locations: [], protected: true,
+                     Guidance(sizing: .libraries(extension: "photoslibrary"), place: .app(bundleID: "com.apple.Photos"), placeName: "Photos",
+                              learnMore: URL(string: "https://support.apple.com/en-au/108345"))),
+        // Every Final Cut Pro library, renamed or external (#178). Generated media is removed in Final Cut itself:
+        // File > Delete Generated Library Files (Apple Support 119610). Bundle identifier `com.apple.FinalCut`.
+        guidanceRule("final-cut-libraries", "Final Cut Pro libraries",
+                     detail: "Your Final Cut Pro libraries, with the media Final Cut generated. To remove generated media, select a library in Final Cut Pro, then choose File → Delete Generated Library Files. Render files are made again as you work; optimized and proxy media must be created again, and that needs the original media online.",
+                     locations: [], protected: true,
+                     Guidance(sizing: .libraries(extension: "fcpbundle"), place: .app(bundleID: "com.apple.FinalCut"), placeName: "Final Cut Pro",
+                              learnMore: URL(string: "https://support.apple.com/en-au/119610"), onlyWhenInstalled: true)),
+        // Lightroom Classic's previews beside each catalog (#179), renamed or external; the catalog itself is never
+        // listed. Lightroom builds normal previews again as needed (Adobe, "Preview cache error"); Smart Previews let
+        // photos be edited while their originals are offline (Adobe, "Smart Previews"). Lightroom Classic's bundle id
+        // `com.adobe.LightroomClassicCC7` is from its Info.plist as listed on doesitarm.com/app/lightroom (11.1) and from
+        // a 12.4 crash report on community.adobe.com; cloud Lightroom (`com.adobe.lightroomCC`) is another app. Without
+        // Full Disk Access the rows show only when Lightroom Classic is installed (#247, as #245 for Final Cut).
+        guidanceRule("lightroom-previews", "Lightroom Classic previews",
+                     detail: "Previews Lightroom Classic made of your photos, beside each catalog. To remove them, choose Library → Previews → Discard 1:1 Previews in Lightroom Classic, or set Catalog Settings → File Handling → Automatically Discard 1:1 Previews. Previews are built again when you view photos, which is slower at first. Your catalog and photos are not touched.",
+                     locations: [], protected: true,
+                     Guidance(sizing: .lightroomPreviews(smart: false), place: .app(bundleID: "com.adobe.LightroomClassicCC7"), placeName: "Lightroom Classic",
+                              learnMore: URL(string: "https://helpx.adobe.com/lightroom-classic/desktop/kb/lightroom-gives-error-preview-cache.html"), onlyWhenInstalled: true)),
+        guidanceRule("lightroom-smart-previews", "Lightroom Classic Smart Previews",
+                     detail: "Smart Previews let you edit photos while their originals are offline, such as on a disconnected drive. To remove them, select photos in Lightroom Classic and choose Library → Previews → Discard Smart Previews. Without them, photos whose originals are offline can’t be edited until the drive is connected again.",
+                     locations: [], protected: true,
+                     Guidance(sizing: .lightroomPreviews(smart: true), place: .app(bundleID: "com.adobe.LightroomClassicCC7"), placeName: "Lightroom Classic",
+                              learnMore: URL(string: "https://helpx.adobe.com/lightroom-classic/help/lightroom-smart-previews.html"), onlyWhenInstalled: true)),
         guidanceRule("time-machine-snapshots", "Time Machine local snapshots",
                      detail: "macOS keeps these and removes them on its own when space runs low. Their size isn’t reported.",
                      locations: [],

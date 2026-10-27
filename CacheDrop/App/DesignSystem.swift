@@ -13,7 +13,9 @@ enum CacheDropDesign {
         /// The CacheDrop mark in the sidebar header (#156).
         static let brandMark: CGFloat = 24
         /// The surface gap between a meter's segments, and the narrowest segment it draws (#164).
-        static let meterGap: CGFloat = 2; static let meterSegmentMinimum: CGFloat = 3 }
+        static let meterGap: CGFloat = 2; static let meterSegmentMinimum: CGFloat = 3
+        /// The bottom bar's row: a large button's height, so the bar is the same with or without buttons or progress (#220).
+        static let actionStripRow: CGFloat = 32 }
     /// How strongly a colour tints a surface behind its symbol, as in a category badge.
     enum Opacity { static let badgeTint: Double = 0.10
         /// A meter segment's part that Smart clean wouldn't free (#164).
@@ -68,6 +70,8 @@ enum StorageCategory {
     case cloud, developer, downloads, browser, managed, files
     /// Catalog categories that share the app-managed colour but each have their own symbol.
     case appCaches, models, appUpdates, logs
+    /// Leftovers of apps you removed (#173).
+    case leftovers
     /// App-managed storage rows (SPEC section 3): each place keeps the app-managed colour with its own symbol.
     case deviceBackups, mail, messages, photos, timeMachine, xcodeArchives, audioPlugIns
     var color: Color {
@@ -76,7 +80,7 @@ enum StorageCategory {
         case .developer: CacheDropDesign.purple
         case .downloads: CacheDropDesign.orange
         case .browser: CacheDropDesign.teal
-        case .managed, .appCaches, .models, .appUpdates, .logs, .deviceBackups, .mail, .messages, .photos, .timeMachine, .xcodeArchives, .audioPlugIns: CacheDropDesign.indigo
+        case .managed, .appCaches, .models, .appUpdates, .logs, .deviceBackups, .mail, .messages, .photos, .timeMachine, .xcodeArchives, .audioPlugIns, .leftovers: CacheDropDesign.indigo
         }
     }
     var symbol: String {
@@ -98,12 +102,22 @@ enum StorageCategory {
         case .timeMachine: "clock.arrow.circlepath"
         case .xcodeArchives: "archivebox"
         case .audioPlugIns: "pianokeys"
+        case .leftovers: "square.dashed"
         }
     }
 }
 private struct OpaqueChromeKey: EnvironmentKey { static let defaultValue = false }
+/// The bar's background work line, with a folder scan's Stop scan and, away from where it started, Return to scan (#235).
+struct BackgroundWorkStatus {
+    let line: BackgroundWork.Line
+    var stop: (() -> Void)? = nil
+    var returnToScan: (() -> Void)? = nil
+}
+private struct BackgroundWorkKey: EnvironmentKey { static var defaultValue: BackgroundWorkStatus? { nil } }
 extension EnvironmentValues {
     var cacheDropOpaqueChrome: Bool { get { self[OpaqueChromeKey.self] } set { self[OpaqueChromeKey.self] = newValue } }
+    /// The app-wide background work every bottom bar reports while it runs (Decision 46).
+    var cacheDropBackgroundWork: BackgroundWorkStatus? { get { self[BackgroundWorkKey.self] } set { self[BackgroundWorkKey.self] = newValue } }
 }
 enum ChromeRole { case chrome, sidebar }
 struct ChromeSurface: View {
@@ -136,14 +150,45 @@ struct CategoryBadge: View {
             .accessibilityHidden(true)
     }
 }
+/// A page's title and optional subtitle, with its back button just above the title when another page leads here (Decision 47).
 struct PageHeader: View {
     let title: String
     var subtitle: String? = nil
+    var back: BackButton? = nil
     var body: some View {
         VStack(alignment: .leading, spacing: CacheDropDesign.Space.sm) {
+            if let back { back }
             Text(title).font(CacheDropDesign.TypeStyle.page).tracking(-0.6)
             if let subtitle { Text(subtitle).font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true) }
         }.frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+/// The one back button (Decision 47): small, borderless and secondary, just above the page title, reading
+/// "‹ <destination>". Its accessibility label says "Back to <destination>", so it never shares a name with a sidebar row.
+struct BackButton: View {
+    let destination: String
+    var identifier: String? = nil
+    var enabled = true
+    let action: () -> Void
+    init(destination: String, identifier: String? = nil, enabled: Bool = true, action: @escaping () -> Void) {
+        self.destination = destination; self.identifier = identifier; self.enabled = enabled; self.action = action
+    }
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: CacheDropDesign.Space.xs) {
+                Image(systemName: "chevron.left").imageScale(.small)
+                Text(destination)
+            }
+        }.buttonStyle(.plain).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
+            .accessibilityLabel("Back to " + destination).disabled(!enabled)
+            .modifier(OptionalIdentifier(identifier: identifier))
+    }
+}
+/// Sets an accessibility identifier only when there is one, so the element keeps its default otherwise.
+private struct OptionalIdentifier: ViewModifier {
+    let identifier: String?
+    func body(content: Content) -> some View {
+        if let identifier { content.accessibilityIdentifier(identifier) } else { content }
     }
 }
 struct SummarySurface<Content: View>: View {
@@ -199,14 +244,24 @@ struct ActionDisclosureGroup<Content: View>: View {
         }
     }
 }
+/// A small button that fixes a status row's problem in place, such as "Choose again…" (#223).
+struct StatusAction {
+    let title: String
+    var identifier = ""
+    let action: () -> Void
+}
 struct StatusRow: View {
     let text: String
     var symbol = "info.circle"
     var role: StatusRole = .neutral
     var identifier: String = ""
+    var action: StatusAction? = nil
     var body: some View {
-        Label { Text(text).fixedSize(horizontal: false, vertical: true).accessibilityIdentifier(identifier) } icon: { Image(systemName: symbol).foregroundStyle(role.color) }
-            .font(.callout).foregroundStyle(.secondary).frame(maxWidth: .infinity, alignment: .leading)
+        HStack(alignment: .firstTextBaseline, spacing: CacheDropDesign.Space.sm) {
+            Label { Text(text).fixedSize(horizontal: false, vertical: true).accessibilityIdentifier(identifier) } icon: { Image(systemName: symbol).foregroundStyle(role.color) }
+                .font(.callout).foregroundStyle(.secondary)
+            if let action { Button(action.title, action: action.action).controlSize(.small).accessibilityIdentifier(action.identifier) }
+        }.frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 struct SettingsRow<Content: View>: View {
@@ -305,29 +360,71 @@ struct EmptyState: View {
         }.frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, CacheDropDesign.Space.xl)
     }
 }
-/// A bottom bar: a leading note or control, then the actions.
+/// The bottom bar every screen has, always the same height (Decision 46): a leading note or control, then the actions.
+/// While background work runs, its one quiet progress line takes the note's place. Notes are one line (#234).
 struct ActionStrip<Leading: View, Actions: View>: View {
+    /// False keeps the note in place while work runs, as the running cleanup's Stop strip does.
+    var showsBackgroundWork = true
+    /// Only the running cleanup's Stop strip lets its note wrap, so that bar alone may grow (#234).
+    var wrapsNote = false
     @ViewBuilder var leading: () -> Leading
     @ViewBuilder var actions: () -> Actions
+    @Environment(\.cacheDropBackgroundWork) private var work
     var body: some View {
         VStack(spacing: 0) {
             Divider()
             HStack(spacing: CacheDropDesign.Space.lg) {
-                leading()
+                if showsBackgroundWork, let work { BackgroundWorkLine(status: work) } else { leading() }
                 Spacer(minLength: CacheDropDesign.Space.sm)
                 actions()
-            }.padding(.horizontal, CacheDropDesign.Space.page).padding(.vertical, CacheDropDesign.Space.lg)
+            }.frame(minHeight: CacheDropDesign.Size.actionStripRow, maxHeight: wrapsNote ? nil : CacheDropDesign.Size.actionStripRow)
+                .padding(.horizontal, CacheDropDesign.Space.page).padding(.vertical, CacheDropDesign.Space.lg)
         }.background(CacheDropDesign.reading).controlSize(.large).buttonBorderShape(.capsule)
+            .accessibilityElement(children: .contain).accessibilityIdentifier("actionStrip")
     }
 }
 extension ActionStrip where Leading == ActionStripMessage {
     /// Only for notes that report state, such as a running cleanup (Decision 25); nil leaves the actions alone.
-    init(message: String?, @ViewBuilder actions: @escaping () -> Actions) { self.init(leading: { ActionStripMessage(text: message) }, actions: actions) }
+    init(message: String?, showsBackgroundWork: Bool = true, wrapsNote: Bool = false, @ViewBuilder actions: @escaping () -> Actions) {
+        self.init(showsBackgroundWork: showsBackgroundWork, wrapsNote: wrapsNote, leading: { ActionStripMessage(text: message, wraps: wrapsNote) }, actions: actions)
+    }
 }
-/// A bottom bar's note; nothing when there is none.
+extension ActionStrip where Leading == ActionStripMessage, Actions == EmptyView {
+    /// A bar with no buttons: empty, or the progress of work running in the background.
+    init() { self.init(message: nil) { EmptyView() } }
+}
+/// Background work as one quiet line: a small spinner and "Checking <location>… 4 of 31", plus "+1 more" (Decisions 25, 46).
+/// A folder scan adds its phase and count, and small Stop scan and Return to scan buttons (#235).
+struct BackgroundWorkLine: View {
+    let status: BackgroundWorkStatus
+    var body: some View {
+        HStack(spacing: CacheDropDesign.Space.sm) {
+            ProgressView().controlSize(.small).accessibilityHidden(true)
+            HStack(spacing: CacheDropDesign.Space.xs) {
+                ForEach(Array(status.line.parts.enumerated()), id: \.offset) { index, part in
+                    if index > 0 { Text("·").accessibilityHidden(true) }
+                    Text(part.text).accessibilityIdentifier(part.id)
+                }
+            }.font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary).monospacedDigit().lineLimit(1).truncationMode(.middle)
+                .help(status.line.text)
+            if let stop = status.stop { Button("Stop scan", action: stop) }
+            if let returnToScan = status.returnToScan { Button("Return to scan", action: returnToScan) }
+        }.controlSize(.small).buttonBorderShape(.automatic)
+    }
+}
+/// A bottom bar's note; nothing when there is none. One line, truncated, with the full text in a tooltip (#234), unless it
+/// may wrap (only the Stop strip's).
 struct ActionStripMessage: View {
     let text: String?
-    var body: some View { if let text { Text(text).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true) } }
+    var wraps = false
+    var body: some View {
+        if let text {
+            Group {
+                if wraps { Text(text).fixedSize(horizontal: false, vertical: true) }
+                else { Text(text).lineLimit(1).truncationMode(.tail).help(text) }
+            }.font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary).accessibilityIdentifier("actionStripNote")
+        }
+    }
 }
 struct CapacityMeter: View {
     let available: Int64?
@@ -502,15 +599,20 @@ private struct NativeCategoryCheckbox: NSViewRepresentable {
     func sizeThatFits(_ proposal: ProposedViewSize, nsView: NSButton, context: Context) -> CGSize? { nsView.intrinsicContentSize }
     func updateNSView(_ view: NSButton, context: Context) {
         context.coordinator.action = action
+        context.coordinator.state = Self.buttonState(state)
         view.title = showsTitle ? label : ""; view.isEnabled = enabled && context.environment.isEnabled
         view.setAccessibilityIdentifier(identifier)
         view.setAccessibilityLabel(label)
-        view.state = state == .checked ? .on : state == .mixed ? .mixed : .off
+        view.state = Self.buttonState(state)
     }
+    static func buttonState(_ state: CategorySelectionState) -> NSControl.StateValue { state == .checked ? .on : state == .mixed ? .mixed : .off }
     @MainActor final class Coordinator: NSObject {
         var action: () -> Void
+        var state: NSControl.StateValue = .off
         init(_ action: @escaping () -> Void) { self.action = action }
-        @objc func clicked() { action() }
+        /// AppKit advances the button's own state on a click; put the model's back, since a click that only lists the
+        /// category's items (#240) changes no selection and so never redraws it. A changed selection redraws over this.
+        @objc func clicked(_ sender: NSButton) { action(); sender.state = state }
     }
 }
 
@@ -540,6 +642,36 @@ struct CategorySelectionHeader: View {
                 Text(detail).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary).lineLimit(1).help(detail)
             }.frame(maxWidth: .infinity, alignment: .leading)
             Text(size).font(.callout).monospacedDigit().fixedSize()
+        }
+    }
+}
+
+/// A category in the Cleanup plan or Smart clean (Decision 48): the header, whose checkbox ticks the whole category, then
+/// an optional notice and the items behind "Choose items · N". A nil `itemCount` draws no "Choose items". Each screen
+/// keeps its own selection and its own open/closed state.
+struct CategoryRow<Notice: View, Items: View>: View {
+    let category: StorageCategory
+    let state: CategorySelectionState
+    let title: String
+    let detail: String
+    let size: String
+    let enabled: Bool
+    let identifier: String
+    let itemCount: Int?
+    @Binding var expanded: Bool
+    let toggle: () -> Void
+    @ViewBuilder var notice: () -> Notice
+    @ViewBuilder var items: () -> Items
+    var body: some View {
+        VStack(alignment: .leading, spacing: CacheDropDesign.Space.sm) {
+            CategorySelectionHeader(category: category, state: state, title: title, detail: detail, size: size, enabled: enabled,
+                                    identifier: identifier, action: toggle)
+            notice().padding(.leading, CacheDropDesign.Size.categoryContentIndent)
+            if let itemCount {
+                ActionDisclosureGroup("Choose items · \(itemCount)", isExpanded: $expanded) {
+                    items().padding(.top, CacheDropDesign.Space.sm)
+                }.padding(.leading, CacheDropDesign.Size.categoryContentIndent)
+            }
         }
     }
 }
@@ -661,9 +793,16 @@ struct NativeWindowContract: NSViewRepresentable {
         private func fit(_ window: NSWindow) {
             guard let screen = window.screen ?? NSScreen.main else { return }
             let visible = screen.visibleFrame
-            let requested = window.frame
+            var requested = window.frame
             let minimum = NSSize(width: min(900, visible.width), height: min(640, visible.height))
             window.minSize = minimum
+            #if DEBUG
+            // A disposable UI test can open the window at its minimum size (#234) without saving that frame for later launches.
+            if LocalStateLocation.isDisposableTest, ProcessInfo.processInfo.environment["CACHEDROP_TEST_MINIMUM_WINDOW"] == "1" {
+                window.setFrameAutosaveName("")
+                requested.size = minimum
+            }
+            #endif
             let size = NSSize(width: max(minimum.width, min(requested.width, visible.width)), height: max(minimum.height, min(requested.height, visible.height)))
             let origin = NSPoint(x: min(max(requested.minX, visible.minX), visible.maxX - size.width), y: min(max(requested.minY, visible.minY), visible.maxY - size.height))
             let fitted = NSRect(origin: origin, size: size)
@@ -713,26 +852,6 @@ struct CategoryPrerequisite: View {
     }
 }
 
-/// Shared across destinations; stopping or finishing a scan never changes the route.
-struct ToolbarScanStatus: View {
-    let location: String
-    var phase = "Reading metadata…"
-    var inspectedEntries: Int? = nil
-    var returnToScan: (() -> Void)?
-    let stop: () -> Void
-    var body: some View {
-        HStack(spacing: CacheDropDesign.Space.sm) {
-            ProgressView().controlSize(.small)
-            VStack(alignment: .leading, spacing: 0) {
-                Text(phase).font(CacheDropDesign.TypeStyle.caption).lineLimit(1).accessibilityIdentifier("scanPhase")
-                Text(inspectedEntries.map { "\($0) entries inspected · " + location } ?? "Scanning " + location)
-                    .font(.caption2).foregroundStyle(.secondary).lineLimit(1).accessibilityIdentifier("scanProgressSummary")
-            }.frame(maxWidth: 240, alignment: .leading)
-            Button("Stop scan", action: stop).controlSize(.small)
-            if let returnToScan { Button("Return to scan", action: returnToScan).controlSize(.small) }
-        }.accessibilityElement(children: .contain)
-    }
-}
 
 struct LocationScopeRow<Actions: View>: View {
     let name: String

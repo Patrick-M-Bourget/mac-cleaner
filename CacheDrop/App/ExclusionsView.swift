@@ -83,9 +83,11 @@ import CacheDropCore
 
 struct ExclusionsView: View {
     @Bindable var model: ExclusionsModel
+    /// The back button above the title, from the page that opened this one.
+    var back: BackButton? = nil
     var body: some View {
         VStack(alignment: .leading, spacing: CacheDropDesign.Space.xl) {
-            PageHeader(title: "Custom exclusions", subtitle: "Keep exact paths out of explicit folder scans. Choosing an item in a cleanup plan never creates a rule.")
+            PageHeader(title: "Custom exclusions", subtitle: "Keep exact paths out of explicit folder scans. Choosing an item in a cleanup plan never creates a rule.", back: back)
             StatusRow(text: "Folder rules cover descendants on the same volume. Renamed or moved items stop matching; replacements at the saved path remain excluded. Missing volumes leave rules dormant.", symbol: "folder.badge.minus")
             if let error = model.error { StatusRow(text: error, symbol: "exclamationmark.circle", role: .caution) }
             SettingsRow(title: "Fixed protections", detail: "Protected libraries, packages, symlinks and volume boundaries remain protected independently of custom rules.") { Label("Always active", systemImage: "lock") }

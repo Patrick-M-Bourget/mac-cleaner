@@ -186,6 +186,21 @@ private extension URL {
     #expect(CandidateCheck(catalog: catalog, running: Running(processes: [["/Applications/Adobe Photoshop 2025/Adobe Photoshop 2025.app/Contents/MacOS/Adobe Photoshop 2025"]])).check(cache) == nil)
 }
 
+/// #179: only the media cache folders are sized, never the whole Adobe/Common tree, and the one cache every Adobe
+/// video app shares is counted once, even when one of its folders is a link to the other.
+@Test func adobesSharedMediaCacheIsSizedOnceFromItsOwnFoldersOnly() throws {
+    let home = try fixtureHome()
+    defer { try? FileManager.default.removeItem(at: home) }
+    let common = "Library/Application Support/Adobe/Common/"
+    try write(home, common + "Media Cache Files/clip.mov 48000.cfa", bytes: 8_192)
+    try write(home, common + "Plug-ins/7.0/MediaCore/effect.bundle/x", bytes: 50_000)
+    try FileManager.default.createSymbolicLink(atPath: home.appendingPathComponent(common + "Media Cache").path,
+                                               withDestinationPath: "Media Cache Files")
+    let offered = Catalog(rules: fixtureRules).discovery(fixture: home, access: .granted).candidates.filter { $0.url.path.contains("/Adobe/") }
+    #expect(offered.map(\.url.lastPathComponent) == ["Media Cache Files"])
+    #expect(offered.map(\.logicalBytes) == [8_192])
+}
+
 // MARK: Sandboxed apps
 
 private let editor = InstalledApp(name: "Editor", bundleID: "com.example.Editor", path: "/Applications/Editor.app")

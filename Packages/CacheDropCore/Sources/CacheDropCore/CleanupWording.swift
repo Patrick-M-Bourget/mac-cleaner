@@ -64,7 +64,7 @@ extension CleanupRecord {
     public var outcomeTitle: String {
         if wasPreviewed { return wording.previewOutcome }
         switch state {
-        case .succeeded: return wording.succeeded
+        case .succeeded: return finishedAfterStop ? "Removed" : wording.succeeded
         case .skipped: return "Skipped"
         case .failed: return partlyRemoved == true ? wording.partlyFailed : "Failed"
         case .cancelled, .pending: return "Not started"

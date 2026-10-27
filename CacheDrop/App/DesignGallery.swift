@@ -11,6 +11,7 @@ struct DesignGallery: View {
     @State private var historyExamplesExpanded = false
     @State private var growthExamplesExpanded = false
     @State private var alertExamplesExpanded = false
+    @State private var categoryRowExpanded = false
     var body: some View {
         VStack(spacing: 0) {
             HStack {
@@ -21,7 +22,8 @@ struct DesignGallery: View {
             }.padding(CacheDropDesign.Space.lg).background { ChromeSurface() }
             ScrollView {
                 VStack(alignment: .leading, spacing: CacheDropDesign.Space.xl) {
-                    PageHeader(title: "Native design system", subtitle: "Developer examples only · No personal storage measurements")
+                    PageHeader(title: "Native design system", subtitle: "Developer examples only · No personal storage measurements",
+                               back: BackButton(destination: "Overview", action: {}))
                     Button { shellExamplesExpanded.toggle() } label: {
                         Label("Synthetic shell and appearance examples", systemImage: shellExamplesExpanded ? "chevron.down" : "chevron.right")
                     }.buttonStyle(.plain).accessibilityValue(shellExamplesExpanded ? "Expanded" : "Collapsed")
@@ -49,6 +51,7 @@ struct DesignGallery: View {
                     Text("Synthetic Local records controls · Inert enabled example").font(.headline)
                     LocalRecordsMaintenanceControls(clear: {}, reset: {})
                     StatusRow(text: "Reset is blocked by unfinished cleanup records. Open recovery review; no operations will resume automatically.", symbol: "exclamationmark.triangle", role: .caution)
+                    StatusRow(text: "Downloads · Access unavailable", role: .caution, action: StatusAction(title: "Choose again…") {})
                     Text("Synthetic unavailable controls · Cleanup or maintenance in progress").font(.headline)
                     LocalRecordsMaintenanceControls(enabled: false, clear: {}, reset: {})
                     Text("Synthetic future-gated diagnostics entry · Inert example").font(.headline)
@@ -76,7 +79,6 @@ struct DesignGallery: View {
                         Text("Cleanup action").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
                         Text("Cloud-managed item. Cloud cleanup is unavailable; no eviction or synced deletion is offered.")
                     }.frame(height: 220)
-                    ToolbarScanStatus(location: "Downloads", returnToScan: {}, stop: {})
                     LocationScopeRow(name: "Downloads", path: "/Example/Downloads", status: "Not scanned", included: $selected, enabled: true) { Menu("More") { Button("Forget location") {} } }
                     LocationScopeRow(name: "Downloads B", path: "/Example/Downloads/Long project folder/Downloads B", status: "Location unavailable · Reconnect and recheck", overlap: "Overlaps another remembered location · Shared contents are counted once.", included: $selected, enabled: true) {
                         HStack {
@@ -127,10 +129,22 @@ struct DesignGallery: View {
                         CacheDropSidebarRow(title: "Cleanup plan", symbol: "checklist", selected: true, accent: CacheDropDesign.teal) {}
                     }
                     CategorySelectionHeader(category: .downloads, state: .mixed, title: "Downloads · Example mixed selection", detail: "The checkbox alone changes selection; filenames remain inspection controls.", size: "16 MB", enabled: true, action: {})
+                    CategoryRow(category: .developer, state: .checked, title: "Developer · Example category row", detail: "Plan and Smart clean share this row; each keeps its own selection.",
+                                size: "1.2 GB", enabled: true, identifier: "galleryCategoryRow", itemCount: 2, expanded: $categoryRowExpanded, toggle: {}) {
+                        EmptyView()
+                    } items: {
+                        Text("Example cache").font(.callout)
+                        Text("Example build files").font(.callout)
+                    }
                     VolumeSummary(available: 40_000_000_000, total: 512_000_000_000, observation: "Synthetic gallery capacity · No category attribution")
                     VolumeSummary(available: nil, total: nil, observation: "No capacity observation · Unknown stays distinct from zero")
                 }.padding(CacheDropDesign.Space.page).frame(maxWidth: .infinity, alignment: .leading)
             }.background(CacheDropDesign.reading)
+            // While background work runs, its progress line takes the note's place (Decision 46).
+            ActionStrip(message: "Developer gallery · Actions are inert examples") { ReviewCleanupButton(enabled: false, focusRequest: 0, action: {}) }
+                .environment(\.cacheDropBackgroundWork, BackgroundWorkStatus(line: .init(parts: [.init(id: "galleryProgress", text: "Checking Example cache… 4 of 31"), .init(id: "galleryMore", text: "+1 more")])))
+            ActionStrip(message: "Developer gallery · Actions are inert examples") { ReviewCleanupButton(enabled: false, focusRequest: 0, action: {}) }
+                .environment(\.cacheDropBackgroundWork, BackgroundWorkStatus(line: .init(parts: [.init(id: "galleryFolderScan", text: "Scanning Downloads"), .init(id: "galleryPhase", text: "Reading file metadata…"), .init(id: "galleryCount", text: "1240 entries inspected")], runsFolderScan: true), stop: {}, returnToScan: {}))
             ActionStrip(message: "Developer gallery · Actions are inert examples") { ReviewCleanupButton(enabled: false, focusRequest: 0, action: {}) }
         }
         .environment(\.cacheDropOpaqueChrome, opaque)

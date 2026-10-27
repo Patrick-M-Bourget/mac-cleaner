@@ -140,7 +140,7 @@ private actor RecordingOpener: GuidanceOpening {
 
 @Test func everyGuidanceRuleHasAnExplanationAndAPlaceToManageIt() {
     let rules = fixtureRules.filter { $0.action == .guidance }
-    #expect(Set(rules.map(\.id)) == ["device-backups", "mail-attachments", "messages-attachments", "photos-library", "time-machine-snapshots", "xcode-archives", "audio-plug-ins", "rack-extensions", "logic-sound-library", "ableton-packs", "splice-samples", "agent-workspaces"])
+    #expect(Set(rules.map(\.id)) == ["device-backups", "mail-attachments", "messages-attachments", "photos-library", "final-cut-libraries", "lightroom-previews", "lightroom-smart-previews", "time-machine-snapshots", "xcode-archives", "audio-plug-ins", "rack-extensions", "logic-sound-library", "ableton-packs", "splice-samples", "agent-workspaces"])
     for rule in rules {
         #expect(!rule.detail.isEmpty)
         #expect(rule.guidance?.openTitle.hasPrefix("Open ") == true)
@@ -153,9 +153,12 @@ private actor RecordingOpener: GuidanceOpening {
     try write(4096, at: "Library/Mail/V10/acct/Attachments/1/a.pdf", in: home)
     try write(4096, at: "Library/Developer/Xcode/Archives/a/b", in: home)
     let catalog = Catalog(rules: fixtureRules)
-    let findings = catalog.guidance(home: home, systemRoot: home, snapshots: FixtureSnapshots(), fullDiskAccess: .notGranted)
+    // Final Cut Pro and Lightroom Classic are installed here, so their rows need access too (#245, #247).
+    let findings = catalog.guidance(home: home, systemRoot: home, snapshots: FixtureSnapshots(), fullDiskAccess: .notGranted,
+                                    appPresence: FixedAppPresence(apps: [], registered: { ["com.apple.FinalCut", "com.adobe.LightroomClassicCC7"].contains($0) }))
     // Protected places aren't touched at all, so no privacy prompt can appear; each is listed as not accessible.
-    #expect(Set(findings.filter { $0.size == .notAccessible }.map(\.ruleID)) == ["device-backups", "mail-attachments", "messages-attachments", "photos-library"])
+    #expect(Set(findings.filter { $0.size == .notAccessible }.map(\.ruleID)) == ["device-backups", "mail-attachments", "messages-attachments", "photos-library", "final-cut-libraries", "lightroom-previews", "lightroom-smart-previews"])
     #expect(findings.first { $0.ruleID == "xcode-archives" }.map { $0.size != .notAccessible } == true)
-    #expect(catalog.guidance(home: home, systemRoot: home, snapshots: FixtureSnapshots(), fullDiskAccess: .granted).first { $0.ruleID == "mail-attachments" }?.size != .notAccessible)
+    #expect(catalog.guidance(home: home, systemRoot: home, snapshots: FixtureSnapshots(), fullDiskAccess: .granted,
+                             appPresence: FixedAppPresence(apps: [], registered: { _ in false })).first { $0.ruleID == "mail-attachments" }?.size != .notAccessible)
 }

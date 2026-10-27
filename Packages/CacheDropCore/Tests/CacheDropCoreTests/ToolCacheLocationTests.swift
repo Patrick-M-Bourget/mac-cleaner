@@ -101,7 +101,7 @@ private func npmRuleAskingWithin(_ timeout: TimeInterval) throws -> Catalog {
     try makeFolder(home, ".npm/_cacache")
     let discovery = Catalog(rules: fixtureRules).discovery(fixture: home)
     #expect(discovery.candidates.contains { $0.ruleID == "npm-cache" })
-    #expect(discovery.notes == [CatalogNote(ruleID: "npm-cache", text: "npm wasn’t found, so its usual folder is offered.")])
+    #expect(discovery.notes == [CatalogNote(ruleID: "npm-cache", text: "npm wasn’t found in a known location, so its usual folder is offered: that’s where npm keeps its cache unless it was set otherwise.")])
     #expect(discovery.candidates.first { $0.ruleID == "npm-cache" }?.folderSource == "Usual folder")
 }
 
@@ -288,4 +288,233 @@ private func npmRuleAskingWithin(_ timeout: TimeInterval) throws -> Catalog {
     #expect(candidate.url.path == home.appendingPathComponent("Library/pnpm/store").path)
     #expect(candidate.folderSource == "Named by `pnpm store path`")
     #expect(!discovery.notes.contains { $0.ruleID == "pnpm-store" })
+}
+
+// MARK: - #201: a cache location set in the tool's config file, read without running anything
+
+private func writeConfig(_ home: URL, _ relative: String, _ text: String) throws {
+    let file = home.appendingPathComponent(relative)
+    try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
+    try text.write(to: file, atomically: true, encoding: .utf8)
+}
+
+/// Without npm in a known location, `cache=` in ~/.npmrc names the folder; nothing is run.
+@Test func anNPMCacheSetInNpmrcIsOfferedWhenNPMIsntFound() async throws {
+    let home = try fixtureHome()
+    defer { try? FileManager.default.removeItem(at: home) }
+    try makeFolder(home, ".npm/_cacache")
+    try makeFolder(home, ".npm-custom/_cacache", bytes: 900)
+    try writeConfig(home, ".npmrc", "; my settings\nregistry=https://registry.npmjs.org/\ncache = ~/.npm-custom\n")
+    let catalog = Catalog(rules: fixtureRules)
+    let discovery = catalog.discovery(fixture: home)
+    let candidate = try #require(discovery.candidates.first { $0.ruleID == "npm-cache" })
+    #expect(discovery.candidates.filter { $0.ruleID == "npm-cache" }.count == 1)
+    #expect(candidate.url.path == home.appendingPathComponent(".npm-custom/_cacache").path && candidate.logicalBytes == 900)
+    #expect(candidate.folderSource == "Set in ~/.npmrc")
+    #expect(!discovery.notes.contains { $0.ruleID == "npm-cache" })
+    #expect(try await execute(candidate, catalog: catalog, home: home).state == .succeeded)
+    #expect(!FileManager.default.fileExists(atPath: home.appendingPathComponent(".npm-custom/_cacache").path))
+    #expect(FileManager.default.fileExists(atPath: home.appendingPathComponent(".npm/_cacache/entry").path))
+}
+
+/// A malicious or mistaken `cache=` is held to #205's write-scope checks: it is refused, and the usual folder isn't offered instead.
+@Test func anNPMCacheSetToTheUsersOwnFoldersIsRefused() throws {
+    let home = try fixtureHome()
+    defer { try? FileManager.default.removeItem(at: home) }
+    try makeFolder(home, ".npm/_cacache")
+    try makeFolder(home, "Documents/_cacache")
+    try makeFolder(home, "Desktop/work/_cacache")
+    let catalog = Catalog(rules: fixtureRules)
+    let cases: [(String, String)] = [
+        ("cache=~/Documents", "~/.npmrc sets ~/Documents/_cacache as npm’s cache, which is inside your Documents folder, so it isn’t offered."),
+        ("cache=\(home.path)/Desktop/work", "~/.npmrc sets ~/Desktop/work/_cacache as npm’s cache, which is inside your Desktop folder, so it isn’t offered."),
+        ("cache=~/nowhere", "~/.npmrc sets ~/nowhere/_cacache as npm’s cache, but there’s no folder there, so it isn’t offered."),
+        ("cache=${NPM_CACHE}", "~/.npmrc sets npm’s cache in a way CacheDrop can’t follow, so it isn’t offered."),
+        ("cache=relative/dir", "~/.npmrc sets npm’s cache in a way CacheDrop can’t follow, so it isn’t offered."),
+    ]
+    for (line, note) in cases {
+        try writeConfig(home, ".npmrc", line + "\n")
+        let discovery = catalog.discovery(fixture: home)
+        #expect(!discovery.candidates.contains { $0.ruleID == "npm-cache" }, "\(line)")
+        #expect(discovery.notes.filter { $0.ruleID == "npm-cache" } == [CatalogNote(ruleID: "npm-cache", text: note)], "\(line)")
+    }
+    #expect(FileManager.default.fileExists(atPath: home.appendingPathComponent("Documents/_cacache/entry").path))
+}
+
+/// pip reads ~/Library/Application Support/pip when that folder exists, else ~/.config/pip (pip's `appdirs.user_config_dir`).
+@Test func aPipCacheSetInPipConfIsOfferedWhenPipIsntFound() throws {
+    let home = try fixtureHome()
+    defer { try? FileManager.default.removeItem(at: home) }
+    try makeFolder(home, "Library/Caches/pip")
+    try makeFolder(home, ".pip-xdg/http-v2", bytes: 300)
+    try makeFolder(home, ".pip-mac/wheels", bytes: 500)
+    let catalog = Catalog(rules: fixtureRules)
+    try writeConfig(home, ".config/pip/pip.conf", "[install]\ncache-dir = ~/elsewhere\n[global]\ntimeout = 60\ncache-dir = ~/.pip-xdg\n")
+    let xdg = catalog.discovery(fixture: home)
+    let fromXDG = try #require(xdg.candidates.first { $0.ruleID == "pip-cache" })
+    #expect(fromXDG.url.path == home.appendingPathComponent(".pip-xdg").path && fromXDG.folderSource == "Set in ~/.config/pip/pip.conf")
+    #expect(!xdg.notes.contains { $0.ruleID == "pip-cache" })
+
+    try writeConfig(home, "Library/Application Support/pip/pip.conf", "[global]\ncache_dir: \(home.path)/.pip-mac\n")
+    let mac = catalog.discovery(fixture: home)
+    #expect(mac.candidates.filter { $0.ruleID == "pip-cache" }.map(\.url.path) == [home.appendingPathComponent(".pip-mac").path])
+    #expect(mac.candidates.first { $0.ruleID == "pip-cache" }?.folderSource == "Set in ~/Library/Application Support/pip/pip.conf")
+}
+
+/// A pip.conf `cache-dir` must look like pip's cache and must not be inside the user's own folders (#205).
+@Test func aPipCacheSetToSomethingThatIsntItsCacheIsRefused() throws {
+    let home = try fixtureHome()
+    defer { try? FileManager.default.removeItem(at: home) }
+    try makeFolder(home, "Library/Caches/pip")
+    try makeFolder(home, "Documents/proj/http-v2")
+    try makeFolder(home, "code/src")
+    let catalog = Catalog(rules: fixtureRules)
+    let cases: [(String, String)] = [
+        ("~/Documents/proj", "~/.config/pip/pip.conf sets ~/Documents/proj as pip’s cache, which is inside your Documents folder, so it isn’t offered."),
+        ("~/code", "~/.config/pip/pip.conf sets ~/code as pip’s cache, which doesn’t look like its cache, so it isn’t offered."),
+        ("~", "~/.config/pip/pip.conf sets \(home.path) as pip’s cache, which holds more than its cache, so it isn’t offered."),
+    ]
+    for (value, note) in cases {
+        try writeConfig(home, ".config/pip/pip.conf", "[global]\ncache-dir = \(value)\n")
+        let discovery = catalog.discovery(fixture: home)
+        #expect(!discovery.candidates.contains { $0.ruleID == "pip-cache" }, "\(value)")
+        #expect(discovery.notes.filter { $0.ruleID == "pip-cache" } == [CatalogNote(ruleID: "pip-cache", text: note)], "\(value)")
+    }
+}
+
+/// A config that doesn't set the cache leaves the usual folder, which is where the tool keeps it unless it was set otherwise.
+@Test func aConfigWithoutACacheSettingKeepsTheUsualFolder() throws {
+    let home = try fixtureHome()
+    defer { try? FileManager.default.removeItem(at: home) }
+    try makeFolder(home, ".npm/_cacache")
+    try writeConfig(home, ".npmrc", "registry=https://registry.npmjs.org/\n# cache=~/Documents\n")
+    let discovery = Catalog(rules: fixtureRules).discovery(fixture: home)
+    #expect(discovery.candidates.filter { $0.ruleID == "npm-cache" }.map(\.url.path) == [home.appendingPathComponent(".npm/_cacache").path])
+    #expect(discovery.notes == [CatalogNote(ruleID: "npm-cache", text: "npm wasn’t found in a known location, so its usual folder is offered: that’s where npm keeps its cache unless it was set otherwise.")])
+}
+
+/// The write-scope checks run again just before acting: a configured pip cache that no longer looks like one is kept.
+@Test func theCheckBeforeActingRefusesAConfiguredFolderThatNoLongerLooksLikeACache() async throws {
+    let home = try fixtureHome()
+    defer { try? FileManager.default.removeItem(at: home) }
+    try makeFolder(home, ".pip-cache/http-v2")
+    try writeConfig(home, ".config/pip/pip.conf", "[global]\ncache-dir = ~/.pip-cache\n")
+    let catalog = Catalog(rules: fixtureRules)
+    let candidate = try #require(catalog.discover(fixture: home).first { $0.ruleID == "pip-cache" })
+    try FileManager.default.removeItem(at: home.appendingPathComponent(".pip-cache/http-v2"))
+    try makeFolder(home, ".pip-cache/notes")
+    #expect(CandidateCheck(catalog: catalog, running: NothingRunning()).check(candidate) == .notACache("It doesn’t look like pip’s cache, so it is kept."))
+    #expect(try await execute(candidate, catalog: catalog, home: home).state == .skipped)
+    #expect(FileManager.default.fileExists(atPath: home.appendingPathComponent(".pip-cache/notes/entry").path))
+}
+
+/// What an interrupted clean of a folder a tool names left behind is looked for next to that folder too, not only next to
+/// the usual one (#202). The folder itself is renamed aside first, so it may be missing, and the half-deleted rest may no
+/// longer hold the tool's cache markers: the leftover's name is CacheDrop's own, and the write-scope checks still apply.
+@Test func leftoversNextToAFolderAToolNamesAreFoundAndCleaned() async throws {
+    let home = try fixtureHome()
+    defer { try? FileManager.default.removeItem(at: home) }
+    try makeFolder(home, "Library/Caches/pip")
+    let leftover = ".cachedrop-deleting-pip-cache-\(UUID().uuidString)"
+    try makeFolder(home, "Developer/caches/\(leftover)", bytes: 400)
+    let python = try fakeTool(home, "python3", asked: "-m pip cache dir", query: "echo '\(home.path)/Developer/caches/pip'")
+    let catalog = Catalog(rules: fixtureRules)
+    let found = catalog.discovery(fixture: home, locateTool: onlyTool("python3", python)).candidates.filter { $0.ruleID == "pip-cache" }
+    let candidate = try #require(found.first)
+    #expect(found.map(\.url.path) == [home.appendingPathComponent("Developer/caches/\(leftover)").path])
+    #expect(candidate.isLeftover && candidate.action == .delete && candidate.logicalBytes == 400)
+    #expect(try await execute(candidate, catalog: catalog, home: home).state == .succeeded)
+    #expect(!FileManager.default.fileExists(atPath: home.appendingPathComponent("Developer/caches/\(leftover)").path))
+    #expect(FileManager.default.fileExists(atPath: home.appendingPathComponent("Library/Caches/pip/entry").path))
+
+    // Homebrew's cache is renamed aside after `brew cleanup -s` too; its rest is offered as a plain delete.
+    try makeFolder(home, "Library/Caches/Homebrew")
+    let brewLeftover = ".cachedrop-deleting-homebrew-\(UUID().uuidString)"
+    try makeFolder(home, ".brew-parent/\(brewLeftover)")
+    try makeFolder(home, ".brew-parent/cache/downloads")
+    let brew = try fakeTool(home, "brew", asked: "--cache", query: "echo '\(home.path)/.brew-parent/cache'")
+    let homebrew = catalog.discovery(fixture: home, locateTool: onlyTool("brew", brew)).candidates.filter { $0.ruleID == "homebrew" }
+    #expect(Set(homebrew.map(\.url.path)) == [home.appendingPathComponent(".brew-parent/cache").path, home.appendingPathComponent(".brew-parent/\(brewLeftover)").path])
+    #expect(homebrew.first { $0.isLeftover }?.action == .delete)
+}
+
+/// Leftovers next to a named folder pass the same write-scope checks as the folder (#202, #205): none inside the user's own
+/// folders, none outside home, none next to a folder that holds more than the tool's cache.
+@Test func leftoversNextToANamedFolderOutsideTheWriteScopeAreNeverOffered() throws {
+    let home = try fixtureHome()
+    defer { try? FileManager.default.removeItem(at: home) }
+    let outside = home.deletingLastPathComponent().appendingPathComponent(".cachedrop-deleting-pip-cache-\(UUID().uuidString)")
+    try FileManager.default.createDirectory(at: outside, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: outside) }
+    let documents = "Documents/proj/.cachedrop-deleting-pip-cache-\(UUID().uuidString)"
+    try makeFolder(home, documents)
+    let library = "Library/.cachedrop-deleting-pip-cache-\(UUID().uuidString)"
+    try makeFolder(home, library)
+    try makeFolder(home, "Library/Caches/x")
+    let catalog = Catalog(rules: fixtureRules)
+    for named in ["\(home.path)/Documents/proj/pip", home.path, "\(home.path)/Library/Caches"] {
+        let python = try fakeTool(home, "python3", asked: "-m pip cache dir", query: "echo '\(named)'")
+        let discovery = catalog.discovery(fixture: home, locateTool: onlyTool("python3", python))
+        #expect(!discovery.candidates.contains { $0.ruleID == "pip-cache" }, "\(named)")
+    }
+    #expect(FileManager.default.fileExists(atPath: home.appendingPathComponent(documents).path))
+}
+
+/// A leftover is checked again just before acting with the same write-scope checks, but not for the tool's markers: a
+/// half-deleted cache may have lost them (#202).
+@Test func theCheckBeforeActingDoesNotAskALeftoverForCacheMarkers() throws {
+    let home = try fixtureHome()
+    defer { try? FileManager.default.removeItem(at: home) }
+    let leftover = "Library/Caches/.cachedrop-deleting-pip-cache-\(UUID().uuidString)"
+    try makeFolder(home, leftover)
+    try makeFolder(home, "Library/Caches/pip")
+    let catalog = Catalog(rules: fixtureRules)
+    let candidate = try #require(catalog.discover(fixture: home).first { $0.isLeftover && $0.ruleID == "pip-cache" })
+    let refusal = CandidateCheck(catalog: catalog, running: NothingRunning()).check(candidate)
+    #expect(refusal == nil, "\(String(describing: refusal))")
+}
+
+/// A folder pip or Homebrew named must still hold that tool's cache markers when it is cleaned, not only when it was found
+/// (#217): one whose markers vanished between the scan and the clean is refused, and Homebrew's cleanup never runs.
+@Test func aNamedFolderWhoseMarkersVanishBetweenScanAndCleanIsRefused() async throws {
+    let home = try fixtureHome()
+    defer { try? FileManager.default.removeItem(at: home) }
+    try makeFolder(home, ".pip-cache/http-v2")
+    try makeFolder(home, ".brew-cache/downloads")
+    let ran = home.appendingPathComponent("ran")
+    let python = try fakeTool(home, "python3", asked: "-m pip cache dir", query: "echo '\(home.path)/.pip-cache'")
+    let brew = try fakeTool(home, "brew", asked: "--cache", query: "echo '\(home.path)/.brew-cache'", otherwise: "echo \"$@\" > '\(ran.path)'")
+    let catalog = Catalog(rules: fixtureRules)
+    let pip = try #require(catalog.discovery(fixture: home, locateTool: onlyTool("python3", python)).candidates.first { $0.ruleID == "pip-cache" })
+    let homebrew = try #require(catalog.discovery(fixture: home, locateTool: onlyTool("brew", brew)).candidates.first { $0.ruleID == "homebrew" })
+    #expect(pip.folderSource == "Named by `python3 -m pip cache dir`" && homebrew.folderSource == "Named by `brew --cache`")
+    for (folder, marker) in [(".pip-cache", "http-v2"), (".brew-cache", "downloads")] {
+        try FileManager.default.removeItem(at: home.appendingPathComponent("\(folder)/\(marker)"))
+        try makeFolder(home, "\(folder)/notes")
+    }
+    let check = CandidateCheck(catalog: catalog, running: NothingRunning())
+    #expect(check.check(pip) == .notACache("It doesn’t look like pip’s cache, so it is kept."))
+    #expect(check.check(homebrew) == .notACache("It doesn’t look like Homebrew’s cache, so it is kept."))
+    #expect(try await execute(pip, catalog: catalog, home: home).state == .skipped)
+    #expect(try await execute(homebrew, catalog: catalog, home: home).state == .skipped)
+    #expect(!FileManager.default.fileExists(atPath: ran.path))
+    #expect(FileManager.default.fileExists(atPath: home.appendingPathComponent(".pip-cache/notes/entry").path))
+    #expect(FileManager.default.fileExists(atPath: home.appendingPathComponent(".brew-cache/notes/entry").path))
+}
+
+/// A named folder moved into one of the user's own folders since the scan, and reached at its old path through a link,
+/// is refused at clean time too (#217).
+@Test func aNamedFolderNowReachedInsideAUserFolderIsRefusedAtCleanTime() async throws {
+    let home = try fixtureHome()
+    defer { try? FileManager.default.removeItem(at: home) }
+    try makeFolder(home, "work/pip/http-v2")
+    try makeFolder(home, "Documents")
+    let python = try fakeTool(home, "python3", asked: "-m pip cache dir", query: "echo '\(home.path)/work/pip'")
+    let catalog = Catalog(rules: fixtureRules)
+    let pip = try #require(catalog.discovery(fixture: home, locateTool: onlyTool("python3", python)).candidates.first { $0.ruleID == "pip-cache" })
+    try FileManager.default.moveItem(at: home.appendingPathComponent("work"), to: home.appendingPathComponent("Documents/work"))
+    try FileManager.default.createSymbolicLink(at: home.appendingPathComponent("work"), withDestinationURL: home.appendingPathComponent("Documents/work"))
+    #expect(CandidateCheck(catalog: catalog, running: NothingRunning()).check(pip) != nil)
+    #expect(try await execute(pip, catalog: catalog, home: home).state == .skipped)
+    #expect(FileManager.default.fileExists(atPath: home.appendingPathComponent("Documents/work/pip/http-v2/entry").path))
 }

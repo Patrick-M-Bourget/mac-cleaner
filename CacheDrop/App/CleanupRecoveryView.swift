@@ -28,9 +28,11 @@ import SwiftUI
 
 struct CleanupRecoveryView: View {
     @Bindable var model: CleanupRecoveryModel
+    /// The back button above the title, from the page that opened this one.
+    var back: BackButton? = nil
     var body: some View {
         VStack(alignment: .leading, spacing: CacheDropDesign.Space.xl) {
-            PageHeader(title: "Review interrupted cleanup", subtitle: "Recorded facts from a previous session. Nothing will resume or repeat automatically.")
+            PageHeader(title: "Review interrupted cleanup", subtitle: "Recorded facts from a previous session. Nothing will resume or repeat automatically.", back: back)
             if let error = model.error {
                 StatusRow(text: error, symbol: "exclamationmark.triangle", role: .failure)
                 Text("Keep the journal for recovery. Reopening CacheDrop may help; do not clear or reset unresolved records.").font(.callout).foregroundStyle(.secondary)
