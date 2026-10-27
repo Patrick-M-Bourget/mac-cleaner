@@ -120,7 +120,7 @@ struct ApplicationsView: View {
         } else {
             VStack(alignment: .leading, spacing: 0) {
                 ForEach(entries) { entry in
-                    row(entry, category: category, identifier: identifier + entry.name)
+                    row(entry, category: category, identifier: identifier + entry.id)
                     Divider().padding(.vertical, CacheDropDesign.Space.md)
                 }
             }
@@ -134,7 +134,8 @@ struct ApplicationsView: View {
         EmptyState(title: title, detail: detail, symbol: symbol).accessibilityElement(children: .combine).accessibilityIdentifier(id)
     }
 
-    /// A row with no checkbox, since nothing here is removed yet; one that needs a password says so (Decision 50).
+    /// A row with no checkbox, since nothing here is removed yet; one that needs a password says so (Decision 50). Its
+    /// identifiers carry the entry's path, never its name, so same-named apps on two volumes stay apart (#271).
     private func row(_ entry: InventoryEntry, category: StorageCategory, identifier: String) -> some View {
         let isExpanded = Binding(get: { expanded.contains(entry.id) }, set: { if $0 { expanded.insert(entry.id) } else { expanded.remove(entry.id) } })
         return CategoryRow(category: category, state: nil, title: entry.name, detail: [entry.maker, entry.volume].compactMap { $0 }.joined(separator: " · "),
@@ -157,10 +158,10 @@ struct ApplicationsView: View {
     /// "Needs your password to remove · Reveal in Finder", or "Needs <tool> or your password · Open <tool>" when the vendor's tool is installed.
     private func passwordLine(_ entry: InventoryEntry) -> some View {
         let tool = model.vendorTool(for: entry)
-        let action = tool.map { tool in StatusAction(title: "Open " + tool.name, identifier: "applicationsOpen-" + entry.name) { model.open(tool) } }
-            ?? StatusAction(title: "Reveal in Finder", identifier: "applicationsReveal-" + entry.name) { model.reveal(entry.name, entry.parts.map(\.url)) }
+        let action = tool.map { tool in StatusAction(title: "Open " + tool.name, identifier: "applicationsOpen-" + entry.id) { model.open(tool) } }
+            ?? StatusAction(title: "Reveal in Finder", identifier: "applicationsReveal-" + entry.id) { model.reveal(entry.name, entry.parts.map(\.url)) }
         return StatusRow(text: tool.map { "Needs \($0.name) or your password" } ?? "Needs your password to remove", symbol: "lock",
-                         identifier: "applicationsPassword-" + entry.name, action: action)
+                         identifier: "applicationsPassword-" + entry.id, action: action)
     }
 
     private func openReview() async {

@@ -26,8 +26,8 @@ final class ApplicationsUITests: XCTestCase {
             if let locked { try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: locked.path) }
             try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home)
         }
-        _ = try addApp("Big Synth", id: "com.maker.bigsynth", bytes: 900_000, copyright: "© 2025 Maker Audio Inc. All rights reserved.", in: home)
-        _ = try addApp("Small Tool", id: "com.other.smalltool", bytes: 90_000, in: home)
+        let bigApp = try addApp("Big Synth", id: "com.maker.bigsynth", bytes: 900_000, copyright: "© 2025 Maker Audio Inc. All rights reserved.", in: home)
+        let smallApp = try addApp("Small Tool", id: "com.other.smalltool", bytes: 90_000, in: home)
         _ = try addApp("Notes", id: "com.apple.Notes", bytes: 2_000_000, in: home)
         _ = try addApp("CacheDrop", id: "com.patrickbourget.CacheDrop", bytes: 2_000_000, in: home)
         locked = try addApp("Locked Suite", id: "com.vendor.locked", bytes: 50_000, in: home)
@@ -50,25 +50,26 @@ final class ApplicationsUITests: XCTestCase {
         XCTAssertTrue(app.buttons["Applications"].isSelected)
         XCTAssertTrue(app.checkBoxes["planCategory-leftovers"].waitForExistence(timeout: 5))
 
-        // Apps: largest first, read-only, never Apple's or CacheDrop.
-        let big = app.descendants(matching: .any)["applicationsApp-Big Synth"], small = app.descendants(matching: .any)["applicationsApp-Small Tool"]
+        // Apps: largest first, read-only, never Apple's or CacheDrop. Identifiers carry each entry's path, not its name (#271).
+        let big = app.descendants(matching: .any)["applicationsApp-" + bigApp.path], small = app.descendants(matching: .any)["applicationsApp-" + smallApp.path]
         XCTAssertTrue(big.waitForExistence(timeout: 10), "The apps are listed")
         XCTAssertTrue(small.exists)
         XCTAssertLessThan(big.frame.minY, small.frame.minY, "Largest first")
         XCTAssertTrue(app.staticTexts["Maker Audio Inc"].exists, "A row names its maker")
-        XCTAssertFalse(app.descendants(matching: .any)["applicationsApp-Notes"].exists, "Apple's apps are never listed")
-        XCTAssertFalse(app.descendants(matching: .any)["applicationsApp-CacheDrop"].exists, "CacheDrop never lists itself")
+        XCTAssertFalse(app.descendants(matching: .any)["applicationsApp-" + home.appendingPathComponent("Applications/Notes.app").path].exists, "Apple's apps are never listed")
+        XCTAssertFalse(app.descendants(matching: .any)["applicationsApp-" + home.appendingPathComponent("Applications/CacheDrop.app").path].exists, "CacheDrop never lists itself")
         XCTAssertFalse(app.checkBoxes.matching(NSPredicate(format: "identifier BEGINSWITH 'applications'")).firstMatch.exists, "Nothing new can be ticked yet")
         XCTAssertFalse(app.disclosureTriangles.matching(NSPredicate(format: "label == 'Choose items · 1'")).firstMatch.exists, "An app alone has no Choose items")
 
         // An app that needs a password says so, with Reveal in Finder.
-        let password = app.staticTexts["applicationsPassword-Locked Suite"]
+        let password = app.staticTexts["applicationsPassword-" + locked!.path]
         XCTAssertTrue(password.exists)
         XCTAssertEqual(password.value as? String, "Needs your password to remove")
-        XCTAssertTrue(app.buttons["applicationsReveal-Locked Suite"].exists)
+        XCTAssertTrue(app.buttons["applicationsReveal-" + locked!.path].exists)
 
         // Plug-ins: one row per product, its formats as items.
-        let product = app.descendants(matching: .any)["applicationsPlugIn-Pro Synth"]
+        // A product's identifier carries its first file's path.
+        let product = app.descendants(matching: .any)["applicationsPlugIn-" + home.appendingPathComponent("Library/Audio/Plug-Ins/Components/Pro Synth.component").path]
         XCTAssertTrue(product.exists)
         XCTAssertTrue(app.disclosureTriangles.matching(NSPredicate(format: "label == 'Choose items · 2'")).firstMatch.exists, "AU and VST3")
 
