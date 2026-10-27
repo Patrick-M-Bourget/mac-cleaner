@@ -509,8 +509,8 @@ final class CatalogCleanupUITests: XCTestCase {
         XCTAssertTrue(denied.staticTexts.matching(NSPredicate(format: "label ENDSWITH 'Full Disk Access ·' AND value CONTAINS 'Safari cache'")).firstMatch.exists)
         XCTAssertFalse(app.descendants(matching: .any)["overviewCategory-browser"].exists, "Nothing found, so no 0-byte browser row")
         revealAndClick(denied.links["fullDiskAccessLink"], in: app)
-        XCTAssertTrue(app.staticTexts["Full Disk Access is optional"].waitForExistence(timeout: 5))
-        app.buttons["closeFullDiskAccess"].click() // Never "Open System Settings".
+        XCTAssertTrue(app.staticTexts["Broader access is optional"].waitForExistence(timeout: 5))
+        app.buttons["closeFullDiskAccess"].click() // "Not now", never "Open System Settings".
         app.terminate()
 
         // Granted: the Safari folder opens.

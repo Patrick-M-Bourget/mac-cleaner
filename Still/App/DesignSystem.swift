@@ -18,6 +18,8 @@ enum StillDesign {
         /// The app name in the sidebar header.
         static let brand = Font.system(size: 17, weight: .medium)
         static let page = Font.system(size: 26, weight: .medium); static let value = Font.system(size: 22, weight: .medium); static let section = Font.system(size: 13, weight: .medium)
+        /// A sheet's title beside its badge, smaller than a page title ("Broader access is optional").
+        static let sheet = Font.system(size: 18, weight: .medium)
         /// The symbol in the device card's icon tile.
         static let deviceIcon = Font.system(size: 16, weight: .light)
         /// The symbol in a category badge.
