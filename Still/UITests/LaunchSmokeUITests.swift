@@ -98,14 +98,37 @@ final class LaunchSmokeUITests: XCTestCase {
         XCTAssertTrue(status.waitForExistence(timeout: 5))
         XCTAssertTrue((status.value as? String ?? status.label).contains("Not granted"))
 
+        // #161: the calm sheet: title, two-line explanation, coverage table, one note, two buttons.
         revealAndClick(app.links["fullDiskAccessLink"].firstMatch, in: app)
-        XCTAssertTrue(app.staticTexts["Full Disk Access is optional"].waitForExistence(timeout: 5))
-        // Over XCUITest's 128-character subscript limit, so matched by label.
-        let readOnly = "CacheDrop’s scans stay read-only. Nothing protected becomes eligible for cleanup, and CacheDrop only changes what you choose and review."
-        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label == %@ OR value == %@", readOnly, readOnly)).firstMatch.exists)
-        XCTAssertTrue(app.buttons["openFullDiskAccessSettings"].exists) // Not pressed: tests never open System Settings.
-        app.buttons["closeFullDiskAccess"].click()
-        XCTAssertFalse(app.staticTexts["Full Disk Access is optional"].waitForExistence(timeout: 2))
+        let sheet = app.sheets.firstMatch
+        XCTAssertTrue(sheet.staticTexts["Broader access is optional"].waitForExistence(timeout: 5))
+        let summary = sheet.staticTexts["fullDiskAccessSummary"]
+        XCTAssertTrue((summary.value as? String ?? summary.label).contains("It’s broad authority, not read-only. CacheDrop’s scans stay read-only either way."))
+        XCTAssertTrue(sheet.staticTexts["Your folders and known locations"].exists)
+        let protected = sheet.staticTexts["fullDiskAccessSheetStatus"]
+        XCTAssertEqual(protected.value as? String ?? protected.label, "Not included")
+        let howTo = sheet.staticTexts["fullDiskAccessHowTo"]
+        XCTAssertTrue((howTo.value as? String ?? howTo.label).contains("Privacy & Security › Full Disk Access"))
+        XCTAssertEqual(sheet.buttons["closeFullDiskAccess"].label, "Not now")
+        XCTAssertTrue(sheet.buttons["openFullDiskAccessSettings"].isHittable) // Not pressed: tests never open System Settings.
+        XCTAssertFalse(sheet.buttons["Check again"].exists, "Coming back rescans by itself (#124)")
+        sheet.buttons["dismissFullDiskAccess"].click()
+        XCTAssertFalse(sheet.staticTexts["Broader access is optional"].waitForExistence(timeout: 2))
+
+        // Granted: the same sheet shows a single Done. The fixture's Safari folder opening stands in for the grant.
+        app.terminate()
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: safari.path)
+        app.launch()
+        app.buttons["Locations & access"].click()
+        XCTAssertTrue(app.staticTexts["fullDiskAccessStatus"].waitForExistence(timeout: 5))
+        revealAndClick(app.links["fullDiskAccessLink"].firstMatch, in: app)
+        let done = sheet.buttons["closeFullDiskAccess"]
+        XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate(format: "label == 'Done'"), object: done)], timeout: 10), .completed)
+        XCTAssertFalse(sheet.buttons["openFullDiskAccessSettings"].exists)
+        XCTAssertEqual(protected.value as? String ?? protected.label, "Included")
+        XCTAssertFalse(sheet.staticTexts["fullDiskAccessHowTo"].exists)
+        done.click()
+        XCTAssertFalse(sheet.waitForExistence(timeout: 2))
     }
 
     /// #124: Full Disk Access granted while Still was away: coming back rescans once, and the "needs Full Disk Access"
@@ -258,7 +281,7 @@ final class FirstRunWelcomeUITests: XCTestCase {
         app.buttons["welcomeContinue"].click()
 
         // Step 2 is the shared Full Disk Access explanation.
-        XCTAssertTrue(app.sheets.staticTexts["Full Disk Access is optional"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.sheets.staticTexts["Broader access is optional"].waitForExistence(timeout: 5))
         app.sheets.links["fullDiskAccessLink"].firstMatch.click()
         XCTAssertTrue(app.buttons["openFullDiskAccessSettings"].waitForExistence(timeout: 5)) // Not pressed: tests never open System Settings.
         app.buttons["closeFullDiskAccess"].click()
