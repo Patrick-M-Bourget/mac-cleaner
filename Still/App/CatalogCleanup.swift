@@ -72,12 +72,14 @@ import SwiftUI
     }
 
     init() {
+        #if DEBUG
         if LocalStateLocation.isDisposableTest {
             // A disposable test run starts with it off; a journey that asserts nothing changed turns it on (DEBUG seam).
             dryRun = ProcessInfo.processInfo.environment["STILL_TEST_DRY_RUN"] == "1"
-        } else {
-            dryRun = UserDefaults.standard.bool(forKey: Self.dryRunKey)
+            return
         }
+        #endif
+        dryRun = UserDefaults.standard.bool(forKey: Self.dryRunKey)
     }
 
     /// The home folder whose known locations the catalog sizes. Debug UI tests inject a temp
