@@ -40,7 +40,7 @@ extension CatalogCleanupModel {
         #endif
         return WorkspaceGuidanceOpener()
     }
-    /// Time Machine local snapshots. A debug test home reads a count from `<home>/.still-test-snapshots`, never tmutil.
+    /// Time Machine local snapshots. A debug test home reads a count from `<home>/.cachedrop-test-snapshots`, never tmutil.
     static var snapshots: any LocalSnapshotListing {
         #if DEBUG
         if LocalStateLocation.isDisposableTest { return FixtureSnapshotCount(home: home) }

@@ -23,10 +23,10 @@ struct StartupVolumeCapacity: Sendable {
 
 #if DEBUG
 extension StartupVolumeCapacity {
-    /// A disposable test run can read a fixture disk (`STILL_TEST_CAPACITY` = "available,total" in bytes), so a fixture
+    /// A disposable test run can read a fixture disk (`CACHEDROP_TEST_CAPACITY` = "available,total" in bytes), so a fixture
     /// home's few kilobytes fill a visible part of the meter (#164). Never set outside tests.
     static var fixture: Self? {
-        guard LocalStateLocation.isDisposableTest, let value = ProcessInfo.processInfo.environment["STILL_TEST_CAPACITY"] else { return nil }
+        guard LocalStateLocation.isDisposableTest, let value = ProcessInfo.processInfo.environment["CACHEDROP_TEST_CAPACITY"] else { return nil }
         let parts = value.split(separator: ",").compactMap { Int64($0) }
         guard parts.count == 2 else { return nil }
         return Self(available: parts[0], total: parts[1], volumeID: "fixture", metric: "important", observedAt: Date())

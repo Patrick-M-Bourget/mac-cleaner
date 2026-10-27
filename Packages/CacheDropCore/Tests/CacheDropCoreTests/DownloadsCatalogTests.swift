@@ -4,7 +4,7 @@ import CacheDropCore
 
 /// A temp home with a Downloads folder; tests never read or write the real Downloads.
 private func downloadsHome() throws -> (home: URL, downloads: URL) {
-    let home = FileManager.default.temporaryDirectory.appendingPathComponent("StillDownloads-\(UUID())").resolvingSymlinksInPath()
+    let home = FileManager.default.temporaryDirectory.appendingPathComponent("CacheDropDownloads-\(UUID())").resolvingSymlinksInPath()
     let downloads = home.appendingPathComponent("Downloads")
     try FileManager.default.createDirectory(at: downloads, withIntermediateDirectories: true)
     return (home.resolvingSymlinksInPath(), downloads.resolvingSymlinksInPath())

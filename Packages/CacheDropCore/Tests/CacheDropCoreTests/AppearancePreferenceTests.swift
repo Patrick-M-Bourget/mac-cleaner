@@ -3,7 +3,7 @@ import Testing
 import CacheDropCore
 
 @MainActor private final class DisposableAppearanceStore: AppearancePreferenceStore {
-    let root = FileManager.default.temporaryDirectory.appendingPathComponent("StillAppearance-" + UUID().uuidString)
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent("CacheDropAppearance-" + UUID().uuidString)
     var file: URL { root.appendingPathComponent("appearance") }
     var failReads = false, failWrites = false, failRemoves = false
     init() throws { try FileManager.default.createDirectory(at: root, withIntermediateDirectories: false) }

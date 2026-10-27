@@ -5,7 +5,7 @@ import Testing
 /// A temp stand-in for the user's own `/private/var/folders/<xx>/<id>` folder, with its `T`, `C` and `X` folders.
 /// Never the real one.
 private func fixtureUserFolder() throws -> URL {
-    let folder = FileManager.default.temporaryDirectory.appendingPathComponent("StillVarFolders-\(UUID())")
+    let folder = FileManager.default.temporaryDirectory.appendingPathComponent("CacheDropVarFolders-\(UUID())")
     for name in ["T", "C", "X"] { try FileManager.default.createDirectory(at: folder.appendingPathComponent(name), withIntermediateDirectories: true) }
     return folder.resolvingSymlinksInPath()
 }
@@ -46,7 +46,7 @@ private struct OneApp: AppLookup {
     func app(updaterCacheDirName name: String) -> InstalledApp? { nil }
 }
 private let catalog = Catalog(rules: BuiltInCatalog.rules(apps: OneApp()))
-private func fixtureHome() -> URL { FileManager.default.temporaryDirectory.appendingPathComponent("StillCatalog-\(UUID())") }
+private func fixtureHome() -> URL { FileManager.default.temporaryDirectory.appendingPathComponent("CacheDropCatalog-\(UUID())") }
 private func temporaryFiles(_ candidates: [Candidate]) -> [String] {
     candidates.filter { $0.ruleID.hasPrefix("temporary-") }.map(\.url.path).sorted()
 }

@@ -31,7 +31,7 @@ import Testing
 
 @Test func genuineDisposablePipInventoryPreservesOwnedEnvironment() throws {
     let manager = FileManager.default
-    let root = manager.temporaryDirectory.appendingPathComponent("StillPipProbe-" + UUID().uuidString).resolvingSymlinksInPath()
+    let root = manager.temporaryDirectory.appendingPathComponent("CacheDropPipProbe-" + UUID().uuidString).resolvingSymlinksInPath()
     try manager.createDirectory(at: root, withIntermediateDirectories: false)
     defer { try? manager.removeItem(at: root) }
     let home = root.appendingPathComponent("home")
@@ -41,7 +41,7 @@ import Testing
     let environment = ["PATH": "/usr/bin:/bin:/usr/sbin:/sbin", "HOME": home.path, "TMPDIR": root.path, "LANG": "C", "LC_ALL": "C", "PIP_CONFIG_FILE": "/dev/null", "PIP_DISABLE_PIP_VERSION_CHECK": "1", "PYTHONDONTWRITEBYTECODE": "1"]
     let bootstrap = "import sys,venv,subprocess,pathlib; p=pathlib.Path(sys.argv[1]); venv.EnvBuilder(with_pip=False).create(str(p/'venv')); subprocess.run([str(p/'venv/bin/python3'),'-I','-B','-m','ensurepip','--default-pip'],check=True,capture_output=True)"
     _ = try BoundedTool.run(executable: URL(fileURLWithPath: "/usr/bin/python3"), arguments: ["-I", "-B", "-c", bootstrap, root.path], timeout: 30, environment: environment)
-    let wheel = cache.appendingPathComponent("wheels/ab/cd/ef/disposable/still_fixture-1.0-py3-none-any.whl")
+    let wheel = cache.appendingPathComponent("wheels/ab/cd/ef/disposable/cachedrop_fixture-1.0-py3-none-any.whl")
     try manager.createDirectory(at: wheel.deletingLastPathComponent(), withIntermediateDirectories: true)
     try Data("disposable-inventory-sentinel".utf8).write(to: wheel)
     let before = try ownedSnapshot(root)
@@ -77,7 +77,7 @@ private func ownedSnapshot(_ root: URL) throws -> [String: Data] {
 
 @Test func signedBundledPipInspectsExplicitCacheWithoutChangingOwnedFiles() throws {
     let manager = FileManager.default
-    let root = manager.temporaryDirectory.appendingPathComponent("StillPipSelected-" + UUID().uuidString).resolvingSymlinksInPath()
+    let root = manager.temporaryDirectory.appendingPathComponent("CacheDropPipSelected-" + UUID().uuidString).resolvingSymlinksInPath()
     try manager.createDirectory(at: root, withIntermediateDirectories: false)
     defer { try? manager.removeItem(at: root) }
     let cache = root.appendingPathComponent("alternate-cache")
@@ -96,7 +96,7 @@ private func ownedSnapshot(_ root: URL) throws -> [String: Data] {
 
 @Test func selectedPipRefusesCacheSubdirectoryLinkOutsideExplicitScope() throws {
     let manager = FileManager.default
-    let root = manager.temporaryDirectory.appendingPathComponent("StillPipLinks-" + UUID().uuidString)
+    let root = manager.temporaryDirectory.appendingPathComponent("CacheDropPipLinks-" + UUID().uuidString)
     try manager.createDirectory(at: root, withIntermediateDirectories: false)
     defer { try? manager.removeItem(at: root) }
     let cache = root.appendingPathComponent("cache")
@@ -114,7 +114,7 @@ private func ownedSnapshot(_ root: URL) throws -> [String: Data] {
 
 @Test func selectedUntrustedExecutableIsNotInvokedEvenToAskVersion() throws {
     let manager = FileManager.default
-    let root = manager.temporaryDirectory.appendingPathComponent("StillPipUntrusted-" + UUID().uuidString)
+    let root = manager.temporaryDirectory.appendingPathComponent("CacheDropPipUntrusted-" + UUID().uuidString)
     try manager.createDirectory(at: root, withIntermediateDirectories: false)
     defer { try? manager.removeItem(at: root) }
     let executable = root.appendingPathComponent("python3")

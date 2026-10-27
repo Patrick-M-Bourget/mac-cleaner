@@ -4,7 +4,7 @@ import Testing
 
 /// A temp home folder with its own `.Trash`; tests never read or open the real Trash.
 private func trashHome() throws -> URL {
-    let home = FileManager.default.temporaryDirectory.appendingPathComponent("StillTrash-\(UUID())")
+    let home = FileManager.default.temporaryDirectory.appendingPathComponent("CacheDropTrash-\(UUID())")
     try FileManager.default.createDirectory(at: home.appendingPathComponent(".Trash"), withIntermediateDirectories: true)
     return URL(fileURLWithPath: try #require(realPath(home.path)))
 }

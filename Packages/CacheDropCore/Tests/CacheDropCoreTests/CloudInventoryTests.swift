@@ -16,7 +16,7 @@ private struct CloudFixtureMetadata: MetadataSupplementReading {
 }
 
 @Test func cloudBreakdownSeparatesLocalAllocationFromCloudLogicalSizeAndUnknowns() async throws {
-    let root = FileManager.default.temporaryDirectory.appendingPathComponent("StillCloudInventory-\(UUID().uuidString)", isDirectory: true)
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent("CacheDropCloudInventory-\(UUID().uuidString)", isDirectory: true)
     try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
     defer { try? FileManager.default.removeItem(at: root) }
     for name in ["current.bin", "placeholder.bin", "unknown.bin"] {
@@ -39,7 +39,7 @@ private struct DeniedCloudScope: ScanAccessChecking {
 }
 
 @Test func unreadableCloudScopeDoesNotClaimZeroCloudAllocation() async throws {
-    let root = FileManager.default.temporaryDirectory.appendingPathComponent("StillCloudDenied-\(UUID().uuidString)", isDirectory: true)
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent("CacheDropCloudDenied-\(UUID().uuidString)", isDirectory: true)
     try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
     defer { try? FileManager.default.removeItem(at: root) }
     let result = try await FolderScanner(access: DeniedCloudScope()).scan(root)
@@ -49,7 +49,7 @@ private struct DeniedCloudScope: ScanAccessChecking {
 }
 
 @Test func nativeExistingOrdinaryFileGetsExplicitNonCloudMembership() async throws {
-    let root = FileManager.default.temporaryDirectory.appendingPathComponent("StillOrdinaryMetadata-\(UUID().uuidString)", isDirectory: true)
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent("CacheDropOrdinaryMetadata-\(UUID().uuidString)", isDirectory: true)
     try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
     defer { try? FileManager.default.removeItem(at: root) }
     try Data([65]).write(to: root.appendingPathComponent("ordinary.txt"))

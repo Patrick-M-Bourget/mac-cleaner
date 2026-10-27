@@ -5,7 +5,7 @@ import CacheDropCore
 
 @Test func explicitNativeTemporaryPathAliasesObserveTheSameOwnedResource() async throws {
     let manager = FileManager.default
-    let root = manager.temporaryDirectory.appendingPathComponent("StillScannerAlias-" + UUID().uuidString, isDirectory: true)
+    let root = manager.temporaryDirectory.appendingPathComponent("CacheDropScannerAlias-" + UUID().uuidString, isDirectory: true)
     try manager.createDirectory(at: root, withIntermediateDirectories: false)
     defer { try? manager.removeItem(at: root) }
     let shortPath = root.standardizedFileURL.path

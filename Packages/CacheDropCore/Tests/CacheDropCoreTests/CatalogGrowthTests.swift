@@ -3,7 +3,7 @@ import Testing
 import CacheDropCore
 
 private func growthStore() -> (GrowthHistoryStore, URL) {
-    let directory = FileManager.default.temporaryDirectory.appendingPathComponent("StillCatalogGrowth-" + UUID().uuidString)
+    let directory = FileManager.default.temporaryDirectory.appendingPathComponent("CacheDropCatalogGrowth-" + UUID().uuidString)
     return (GrowthHistoryStore(directory: directory, minimumBaselineAge: 0), directory)
 }
 private let catalogFingerprint = GrowthFingerprint(scopeID: "catalog", rootID: "home", volumeID: "volume", access: "per-location", rules: "catalog", exclusions: "none", classification: "catalog")
@@ -64,7 +64,7 @@ private func catalogSnapshot(_ time: Double, _ groups: [GrowthAggregate]) -> Gro
 }
 
 private func fixtureHome() throws -> URL {
-    let home = FileManager.default.temporaryDirectory.appendingPathComponent("StillCatalogGrowthHome-\(UUID())")
+    let home = FileManager.default.temporaryDirectory.appendingPathComponent("CacheDropCatalogGrowthHome-\(UUID())")
     try FileManager.default.createDirectory(at: home, withIntermediateDirectories: true)
     return home.resolvingSymlinksInPath()
 }
@@ -144,7 +144,7 @@ private func recordCatalogScan(_ catalog: Catalog, home: URL, recorder: GrowthSc
 }
 
 @Test func catalogSnapshotsKeepTheRetentionLimits() async throws {
-    let directory = FileManager.default.temporaryDirectory.appendingPathComponent("StillCatalogGrowth-" + UUID().uuidString)
+    let directory = FileManager.default.temporaryDirectory.appendingPathComponent("CacheDropCatalogGrowth-" + UUID().uuidString)
     defer { try? FileManager.default.removeItem(at: directory) }
     let store = GrowthHistoryStore(directory: directory, policy: GrowthRetention(days: 1, baselines: 2))
     for time in [100.0, 200, 300] {

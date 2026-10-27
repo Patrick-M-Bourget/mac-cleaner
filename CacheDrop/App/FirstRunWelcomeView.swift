@@ -15,7 +15,7 @@ import SwiftUI
         // Disposable UI test runs treat the welcome as seen, so it never covers a journey, unless a test asks for it.
         // Then "seen" is a file in the test's own state root, never the user's defaults.
         if LocalStateLocation.isDisposableTest {
-            isShowing = ProcessInfo.processInfo.environment["STILL_TEST_SHOW_WELCOME"] == "1" && !Self.testMarkerExists
+            isShowing = ProcessInfo.processInfo.environment["CACHEDROP_TEST_SHOW_WELCOME"] == "1" && !Self.testMarkerExists
             return
         }
         #endif

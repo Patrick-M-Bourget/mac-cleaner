@@ -4,7 +4,7 @@ import CacheDropCore
 
 /// A temp home folder; tests never read or write the real home or the real Xcode folders.
 private func fixtureHome() throws -> URL {
-    let home = FileManager.default.temporaryDirectory.appendingPathComponent("StillXcode-\(UUID())")
+    let home = FileManager.default.temporaryDirectory.appendingPathComponent("CacheDropXcode-\(UUID())")
     try FileManager.default.createDirectory(at: home, withIntermediateDirectories: true)
     return home.resolvingSymlinksInPath()
 }
@@ -19,22 +19,22 @@ private let derivedData = "Library/Developer/Xcode/DerivedData"
     let home = try fixtureHome()
     defer { try? FileManager.default.removeItem(at: home) }
     let catalog = Catalog(rules: fixtureRules)
-    try makeFolder(home, "Library/Developer/Xcode/Archives/2026-10-01/Still.xcarchive/dSYMs/Still.app.dSYM")
+    try makeFolder(home, "Library/Developer/Xcode/Archives/2026-10-01/CacheDrop.xcarchive/dSYMs/CacheDrop.app.dSYM")
     try makeFolder(home, "Library/Developer/Xcode/UserData/CodeSnippets")
-    try makeFolder(home, "Projects/Still/Still.xcodeproj")
+    try makeFolder(home, "Projects/CacheDrop/CacheDrop.xcodeproj")
     #expect(catalog.discover(fixture: home).isEmpty)
     // Built products and dSYMs inside DerivedData are regenerable (Decision 22).
-    try makeFolder(home, derivedData + "/Still-abc/Build/Products/Debug/Still.app/Contents/MacOS", bytes: 300)
-    try makeFolder(home, derivedData + "/Still-abc/Build/Products/Debug/Still.app.dSYM", bytes: 200)
+    try makeFolder(home, derivedData + "/CacheDrop-abc/Build/Products/Debug/CacheDrop.app/Contents/MacOS", bytes: 300)
+    try makeFolder(home, derivedData + "/CacheDrop-abc/Build/Products/Debug/CacheDrop.app.dSYM", bytes: 200)
     try makeFolder(home, derivedData + "/Other-def/Index.noindex")
     try makeFolder(home, derivedData + "/ModuleCache.noindex")
     try Data(repeating: 1, count: 10).write(to: home.appendingPathComponent(derivedData + "/stray-file"))
     try FileManager.default.createSymbolicLink(at: home.appendingPathComponent(derivedData + "/Linked-ghi"),
-                                               withDestinationURL: home.appendingPathComponent("Projects/Still"))
+                                               withDestinationURL: home.appendingPathComponent("Projects/CacheDrop"))
     let found = catalog.discover(fixture: home)
-    #expect(Set(found.map(\.url.lastPathComponent)) == ["Still-abc", "Other-def", "ModuleCache.noindex"])
+    #expect(Set(found.map(\.url.lastPathComponent)) == ["CacheDrop-abc", "Other-def", "ModuleCache.noindex"])
     #expect(found.allSatisfy { $0.ruleID == "xcode-derived-data" && $0.action == .delete && $0.isDirectory })
-    #expect(found.first { $0.url.lastPathComponent == "Still-abc" }?.logicalBytes == 500)
+    #expect(found.first { $0.url.lastPathComponent == "CacheDrop-abc" }?.logicalBytes == 500)
     // Archives and project source are never candidates.
     #expect(!found.contains { !$0.url.path.hasPrefix(home.appendingPathComponent(derivedData).path + "/") })
 }
@@ -58,7 +58,7 @@ private struct Processes: RunningAppChecking {
         ["/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swift-frontend", "-frontend", "-c"],
         ["/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang", "-c", "x.m"],
         ["/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/ld"],
-        ["/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/dsymutil", "Still"],
+        ["/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/dsymutil", "CacheDrop"],
     ]
     for argv in builds { #expect(owner.matches(argv), "should see \(argv)") }
     for argv in [["/Applications/Visual Studio Code.app/Contents/MacOS/Electron"], ["/opt/homebrew/bin/node", "xcode.js"], ["/usr/bin/swift-format"]] {
@@ -69,7 +69,7 @@ private struct Processes: RunningAppChecking {
 @Test func derivedDataIsRefusedWithAReasonWhileXcodeOrABuildRuns() async throws {
     let home = try fixtureHome()
     defer { try? FileManager.default.removeItem(at: home) }
-    try makeFolder(home, derivedData + "/Still-abc/Build/Intermediates.noindex")
+    try makeFolder(home, derivedData + "/CacheDrop-abc/Build/Intermediates.noindex")
     let catalog = Catalog(rules: fixtureRules)
     let candidate = try #require(catalog.discover(fixture: home).first)
     let building = Processes(commandLines: [["/usr/bin/xcodebuild", "build"]])
@@ -80,12 +80,12 @@ private struct Processes: RunningAppChecking {
     let record = try #require(result.records.first)
     #expect(record.state == .skipped)
     #expect(record.message == "Xcode is running. Quit it, then scan again.")
-    #expect(FileManager.default.fileExists(atPath: home.appendingPathComponent(derivedData + "/Still-abc/Build/Intermediates.noindex/entry").path))
+    #expect(FileManager.default.fileExists(atPath: home.appendingPathComponent(derivedData + "/CacheDrop-abc/Build/Intermediates.noindex/entry").path))
     // Once nothing runs, the whole project folder is permanently removed.
     let idle = await CleanupExecutor(journal: journal, check: CandidateCheck(catalog: catalog, running: Processes(commandLines: [])), trash: TrashNeverUsed())
         .execute(CatalogApproval(candidates: [candidate], previewOnly: false))
     #expect(idle.records.first?.state == .succeeded)
-    #expect(!FileManager.default.fileExists(atPath: home.appendingPathComponent(derivedData + "/Still-abc").path))
+    #expect(!FileManager.default.fileExists(atPath: home.appendingPathComponent(derivedData + "/CacheDrop-abc").path))
     #expect(FileManager.default.fileExists(atPath: home.appendingPathComponent(derivedData).path))
 }
 

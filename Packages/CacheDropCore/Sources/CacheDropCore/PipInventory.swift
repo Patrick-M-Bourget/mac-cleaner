@@ -118,7 +118,7 @@ public enum PipInventoryInspector {
     }
     static func inspectDisposable(python: URL, cache: URL, home: URL) throws -> PipCacheReport {
         let root = home.deletingLastPathComponent().standardizedFileURL
-        guard root.lastPathComponent.hasPrefix("StillPipProbe-"), root.path == root.resolvingSymlinksInPath().path,
+        guard root.lastPathComponent.hasPrefix("CacheDropPipProbe-"), root.path == root.resolvingSymlinksInPath().path,
               python.path.hasPrefix(root.path + "/venv/bin/"),
               cache.path.hasPrefix(root.path + "/"), cache.path == cache.resolvingSymlinksInPath().path,
               home.path.hasPrefix(root.path + "/"), home.path == home.resolvingSymlinksInPath().path else { throw ToolPreviewError.unavailable }

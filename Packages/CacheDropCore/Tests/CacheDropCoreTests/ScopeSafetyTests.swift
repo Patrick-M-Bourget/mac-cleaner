@@ -17,7 +17,7 @@ private struct NothingRunning: RunningAppChecking { func isRunning(_ owner: Rule
 private let cargoOnly = Catalog(rules: fixtureRules.filter { $0.id == "cargo-cache" })
 
 @Test func aCacheReachedThroughASymlinkOutOfHomeIsNeverOffered() throws {
-    let home = try fixtureFolder("StillScopeHome"), outside = try fixtureFolder("StillScopeOutside")
+    let home = try fixtureFolder("CacheDropScopeHome"), outside = try fixtureFolder("CacheDropScopeOutside")
     defer { try? FileManager.default.removeItem(at: home); try? FileManager.default.removeItem(at: outside) }
     try write(outside, "cargo/registry/index/entry")
     try FileManager.default.createSymbolicLink(at: home.appendingPathComponent(".cargo"), withDestinationURL: outside.appendingPathComponent("cargo"))
@@ -25,7 +25,7 @@ private let cargoOnly = Catalog(rules: fixtureRules.filter { $0.id == "cargo-cac
 }
 
 @Test func aSymlinkSwappedInAfterTheScanIsRefused() throws {
-    let home = try fixtureFolder("StillScopeHome"), outside = try fixtureFolder("StillScopeOutside")
+    let home = try fixtureFolder("CacheDropScopeHome"), outside = try fixtureFolder("CacheDropScopeOutside")
     defer { try? FileManager.default.removeItem(at: home); try? FileManager.default.removeItem(at: outside) }
     try write(home, ".cargo/registry/index/entry")
     let candidate = try #require(cargoOnly.discover(fixture: home).first)
@@ -36,7 +36,7 @@ private let cargoOnly = Catalog(rules: fixtureRules.filter { $0.id == "cargo-cac
 }
 
 @Test func excludedItemsAreNeverCandidates() throws {
-    let home = try fixtureFolder("StillScopeHome")
+    let home = try fixtureFolder("CacheDropScopeHome")
     defer { try? FileManager.default.removeItem(at: home) }
     try write(home, ".cargo/registry/index/entry")
     try write(home, ".cargo/git/db/entry")
@@ -49,7 +49,7 @@ private let cargoOnly = Catalog(rules: fixtureRules.filter { $0.id == "cargo-cac
 }
 
 @Test func aGitCheckoutFourLevelsDownIsNeverOfferedAndRefusedIfItAppears() throws {
-    let home = try fixtureFolder("StillScopeHome")
+    let home = try fixtureFolder("CacheDropScopeHome")
     defer { try? FileManager.default.removeItem(at: home) }
     try write(home, ".cargo/git/checkouts/x/y/.git/HEAD")
     try write(home, ".cargo/registry/index/entry")
@@ -60,7 +60,7 @@ private let cargoOnly = Catalog(rules: fixtureRules.filter { $0.id == "cargo-cac
 }
 
 @Test func aDeleteThatFailsPartwayIsRecordedAsPartlyRemovedAndOfferedAgain() async throws {
-    let home = try fixtureFolder("StillScopeHome")
+    let home = try fixtureFolder("CacheDropScopeHome")
     let locked = home.appendingPathComponent(".cargo/registry/locked")
     defer {
         try? FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: locked.path)
@@ -92,7 +92,7 @@ private let cargoOnly = Catalog(rules: fixtureRules.filter { $0.id == "cargo-cac
 
 /// Homebrew's `brew cleanup -s` runs as a tool; what it leaves half-deleted comes back as a plain delete.
 @Test func aLeftoverFromAToolRuleIsOfferedAsADelete() throws {
-    let home = try fixtureFolder("StillScopeHome")
+    let home = try fixtureFolder("CacheDropScopeHome")
     defer { try? FileManager.default.removeItem(at: home) }
     try write(home, "Library/Caches/.still-deleting-homebrew-\(UUID().uuidString)/downloads/x")
     try write(home, "Library/Caches/.still-deleting-pip-cache-\(UUID().uuidString)/http/x")
@@ -115,7 +115,7 @@ private final class RecordingTrash: TrashMoving, @unchecked Sendable {
 }
 
 @Test func aFileSwappedJustBeforeTheMoveToTrashIsNotMoved() async throws {
-    let home = try fixtureFolder("StillScopeHome")
+    let home = try fixtureFolder("CacheDropScopeHome")
     defer { try? FileManager.default.removeItem(at: home) }
     try write(home, "Downloads/setup.dmg")
     let catalog = Catalog(rules: fixtureRules.filter { $0.id == "downloads-installers" })
@@ -137,7 +137,7 @@ private final class RecordingTrash: TrashMoving, @unchecked Sendable {
 }
 
 @Test func logsOfMacOSAndStillAreNeverOffered() throws {
-    let home = try fixtureFolder("StillScopeHome")
+    let home = try fixtureFolder("CacheDropScopeHome")
     defer { try? FileManager.default.removeItem(at: home) }
     for folder in ["com.apple.xpc.launchd", "com.apple.Safari", "Still", "com.patrickbourget.Still", "Editor"] { try write(home, "Library/Logs/\(folder)/log.txt") }
     let catalog = Catalog(rules: fixtureRules.filter { $0.id == "app-logs" })
@@ -146,7 +146,7 @@ private final class RecordingTrash: TrashMoving, @unchecked Sendable {
 }
 
 @Test func cacheDropsAndStillsOwnFoldersAreNeverOffered() throws {
-    let home = try fixtureFolder("StillScopeHome")
+    let home = try fixtureFolder("CacheDropScopeHome")
     defer { try? FileManager.default.removeItem(at: home) }
     let own = ["CacheDrop", "com.patrickbourget.CacheDrop", "Still", "com.patrickbourget.Still"]
     for folder in own + ["Editor"] { try write(home, "Library/Logs/\(folder)/log.txt") }
@@ -165,7 +165,7 @@ private final class RecordingTrash: TrashMoving, @unchecked Sendable {
 }
 
 @Test func aScanNeverOffersWhatTheCheckRefuses() throws {
-    let home = try fixtureFolder("StillScopeHome")
+    let home = try fixtureFolder("CacheDropScopeHome")
     defer { try? FileManager.default.removeItem(at: home) }
     for file in ["Downloads/ccache/setup.dmg", "Downloads/Still/setup.dmg", "Downloads/com.apple.Thing/setup.zip", "Downloads/kept.dmg",
                  "Library/Logs/Editor/log.txt", "Library/Logs/com.apple.xpc/log.txt", ".cargo/registry/index/entry"] { try write(home, file) }

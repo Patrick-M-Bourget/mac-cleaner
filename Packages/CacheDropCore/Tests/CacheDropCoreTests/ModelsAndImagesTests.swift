@@ -4,7 +4,7 @@ import CacheDropCore
 
 /// A temp home; tests never read or write the real home, models or app data.
 private func modelsHome() throws -> URL {
-    let home = FileManager.default.temporaryDirectory.appendingPathComponent("StillModels-\(UUID())")
+    let home = FileManager.default.temporaryDirectory.appendingPathComponent("CacheDropModels-\(UUID())")
     try FileManager.default.createDirectory(at: home, withIntermediateDirectories: true)
     return home.resolvingSymlinksInPath()
 }

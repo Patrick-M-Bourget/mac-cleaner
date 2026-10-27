@@ -3,7 +3,7 @@ import Testing
 import CacheDropCore
 
 @Test func explicitPathRulesPersistAndDistinguishRenameReplacementVolumeAndOverlaps() async throws {
-    let base = FileManager.default.temporaryDirectory.appendingPathComponent("StillExclusions-" + UUID().uuidString).resolvingSymlinksInPath()
+    let base = FileManager.default.temporaryDirectory.appendingPathComponent("CacheDropExclusions-" + UUID().uuidString).resolvingSymlinksInPath()
     let folder = base.appendingPathComponent("Chosen"), file = folder.appendingPathComponent("one.txt")
     try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
     defer { try? FileManager.default.removeItem(at: base) }
@@ -35,7 +35,7 @@ private struct ExclusionMetadata: MetadataSupplementReading {
     }
 }
 @Test func excludedBoundariesAreNotEnumeratedAndHardlinkAliasesRemainIndependent() async throws {
-    let scope = FileManager.default.temporaryDirectory.appendingPathComponent("StillExclusions-" + UUID().uuidString).resolvingSymlinksInPath()
+    let scope = FileManager.default.temporaryDirectory.appendingPathComponent("CacheDropExclusions-" + UUID().uuidString).resolvingSymlinksInPath()
     let hidden = scope.appendingPathComponent("Excluded")
     try FileManager.default.createDirectory(at: hidden, withIntermediateDirectories: true)
     defer { try? FileManager.default.removeItem(at: scope) }
@@ -56,7 +56,7 @@ private struct ExclusionMetadata: MetadataSupplementReading {
 }
 
 @Test func corruptExclusionSettingsNeverBecomeAnEmptyPolicy() async throws {
-    let base = FileManager.default.temporaryDirectory.appendingPathComponent("StillExclusions-" + UUID().uuidString)
+    let base = FileManager.default.temporaryDirectory.appendingPathComponent("CacheDropExclusions-" + UUID().uuidString)
     try FileManager.default.createDirectory(at: base, withIntermediateDirectories: true)
     defer { try? FileManager.default.removeItem(at: base) }
     let store = ExclusionStore(directory: base)

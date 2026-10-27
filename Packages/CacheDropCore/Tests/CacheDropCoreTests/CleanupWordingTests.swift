@@ -3,7 +3,7 @@ import Testing
 import CacheDropCore
 
 private func records(_ actions: [CleanupAction], previewOnly: Bool = false) throws -> (URL, [CleanupRecord]) {
-    let home = FileManager.default.temporaryDirectory.appendingPathComponent("StillWording-\(UUID())").resolvingSymlinksInPath()
+    let home = FileManager.default.temporaryDirectory.appendingPathComponent("CacheDropWording-\(UUID())").resolvingSymlinksInPath()
     var rules: [CleanupRule] = []
     for (index, action) in actions.enumerated() {
         try FileManager.default.createDirectory(at: home.appendingPathComponent("item\(index)"), withIntermediateDirectories: true)

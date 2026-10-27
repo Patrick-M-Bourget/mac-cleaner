@@ -18,7 +18,7 @@ import CacheDropCore
 }
 
 @Test func diagnosticsSaveUsesExactlyReviewedBytesAndCancellationOrFailureKeepsReview() throws {
-    let root = FileManager.default.temporaryDirectory.appendingPathComponent("StillDiagnostics-" + UUID().uuidString)
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent("CacheDropDiagnostics-" + UUID().uuidString)
     try FileManager.default.createDirectory(at: root, withIntermediateDirectories: false)
     defer { try? FileManager.default.removeItem(at: root) }
     let review = try DiagnosticsReview(appVersion: "0.1", build: "2", system: OperatingSystemVersion(majorVersion: 27, minorVersion: 0, patchVersion: 1), architecture: .arm64, scopeCount: 0, observedCount: 0, selectedCount: 0, scan: .notInspected, cleanup: .idle, recovery: .requiresReview, errors: [])
@@ -38,7 +38,7 @@ import CacheDropCore
 }
 
 @Test func diagnosticsSaveCannotOverwriteProtectedStateThroughDirectOrAliasedDestination() throws {
-    let root = FileManager.default.temporaryDirectory.appendingPathComponent("StillDiagnostics-" + UUID().uuidString)
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent("CacheDropDiagnostics-" + UUID().uuidString)
     try FileManager.default.createDirectory(at: root, withIntermediateDirectories: false)
     defer { try? FileManager.default.removeItem(at: root) }
     let state = root.appendingPathComponent("State")

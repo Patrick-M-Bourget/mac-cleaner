@@ -4,7 +4,7 @@ import Testing
 
 /// A temp stand-in for the user's own `/private/var/folders/<xx>/<id>` folder, with its `T`, `C` and `X` folders.
 private func fixtureUserFolder() throws -> URL {
-    let folder = FileManager.default.temporaryDirectory.appendingPathComponent("StillVarFolders-\(UUID())")
+    let folder = FileManager.default.temporaryDirectory.appendingPathComponent("CacheDropVarFolders-\(UUID())")
     for name in ["T", "C", "X"] { try FileManager.default.createDirectory(at: folder.appendingPathComponent(name), withIntermediateDirectories: true) }
     return folder.resolvingSymlinksInPath()
 }
@@ -31,7 +31,7 @@ private let catalog = Catalog(rules: fixtureRules)
 private func day(_ n: Double) -> Date { Date(timeIntervalSince1970: 1_790_000_000 + n * 86_400) }
 
 @Test func everyCodeSignCopyIsOfferedExceptTheOneInUseAndTheNewest() throws {
-    let home = FileManager.default.temporaryDirectory.appendingPathComponent("StillCatalog-\(UUID())")
+    let home = FileManager.default.temporaryDirectory.appendingPathComponent("CacheDropCatalog-\(UUID())")
     let folder = try fixtureUserFolder()
     defer { try? FileManager.default.removeItem(at: folder) }
     let oldest = try writeClone("code_sign_clone.aaaaaa", in: folder, created: day(1))
@@ -45,7 +45,7 @@ private func day(_ n: Double) -> Date { Date(timeIntervalSince1970: 1_790_000_00
 }
 
 @Test func whenInUseCantBeDeterminedEveryCopyIsKeptAndTheNoteSaysWhy() throws {
-    let home = FileManager.default.temporaryDirectory.appendingPathComponent("StillCatalog-\(UUID())")
+    let home = FileManager.default.temporaryDirectory.appendingPathComponent("CacheDropCatalog-\(UUID())")
     let folder = try fixtureUserFolder()
     defer { try? FileManager.default.removeItem(at: folder) }
     for (index, name) in ["a", "b", "c"].enumerated() { try writeClone("code_sign_clone." + name, in: folder, created: day(Double(index))) }
@@ -56,7 +56,7 @@ private func day(_ n: Double) -> Date { Date(timeIntervalSince1970: 1_790_000_00
 }
 
 @Test func withoutTheUserFolderNoCopiesAreLookedFor() throws {
-    let home = FileManager.default.temporaryDirectory.appendingPathComponent("StillCatalog-\(UUID())")
+    let home = FileManager.default.temporaryDirectory.appendingPathComponent("CacheDropCatalog-\(UUID())")
     let folder = try fixtureUserFolder()
     defer { try? FileManager.default.removeItem(at: folder) }
     try writeClone("code_sign_clone.a", in: folder, created: day(1))
@@ -96,7 +96,7 @@ private func day(_ n: Double) -> Date { Date(timeIntervalSince1970: 1_790_000_00
 }
 
 @Test func aCopyThatCameIntoUseSinceTheScanIsRefusedJustBeforeActing() throws {
-    let home = FileManager.default.temporaryDirectory.appendingPathComponent("StillCatalog-\(UUID())")
+    let home = FileManager.default.temporaryDirectory.appendingPathComponent("CacheDropCatalog-\(UUID())")
     let folder = try fixtureUserFolder()
     defer { try? FileManager.default.removeItem(at: folder) }
     let old = try writeClone("code_sign_clone.a", in: folder, created: day(1))
@@ -122,7 +122,7 @@ private final class FakeVolume: @unchecked Sendable {
 }
 
 @Test func deletingCopiesReportsMeasuredFreedSpaceAndTheEstimateIsAnUpperBound() async throws {
-    let home = FileManager.default.temporaryDirectory.appendingPathComponent("StillCatalog-\(UUID())")
+    let home = FileManager.default.temporaryDirectory.appendingPathComponent("CacheDropCatalog-\(UUID())")
     let folder = try fixtureUserFolder()
     defer { try? FileManager.default.removeItem(at: folder) }
     let old = try writeClone("code_sign_clone.a", in: folder, created: day(1))

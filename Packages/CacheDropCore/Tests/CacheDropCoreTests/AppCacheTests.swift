@@ -4,7 +4,7 @@ import Testing
 
 /// A temp home folder; tests never read or write the real home, its caches or its logs.
 private func fixtureHome() throws -> URL {
-    let home = FileManager.default.temporaryDirectory.appendingPathComponent("StillAppCaches-\(UUID())")
+    let home = FileManager.default.temporaryDirectory.appendingPathComponent("CacheDropAppCaches-\(UUID())")
     try FileManager.default.createDirectory(at: home, withIntermediateDirectories: true)
     return home.resolvingSymlinksInPath()
 }

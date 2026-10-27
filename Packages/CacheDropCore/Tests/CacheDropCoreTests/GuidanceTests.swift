@@ -4,7 +4,7 @@ import Testing
 
 /// A temp home folder; tests never read or write the real home, Photos, Mail or Messages.
 private func guidanceHome() throws -> URL {
-    let home = FileManager.default.temporaryDirectory.appendingPathComponent("StillGuidance-\(UUID())")
+    let home = FileManager.default.temporaryDirectory.appendingPathComponent("CacheDropGuidance-\(UUID())")
     try FileManager.default.createDirectory(at: home, withIntermediateDirectories: true)
     return home.resolvingSymlinksInPath()
 }

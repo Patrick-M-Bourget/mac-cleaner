@@ -82,7 +82,7 @@ import SwiftUI
         #if DEBUG
         if LocalStateLocation.isDisposableTest {
             // A disposable test run starts with it off; a journey that asserts nothing changed turns it on (DEBUG seam).
-            dryRun = ProcessInfo.processInfo.environment["STILL_TEST_DRY_RUN"] == "1"
+            dryRun = ProcessInfo.processInfo.environment["CACHEDROP_TEST_DRY_RUN"] == "1"
             return
         }
         #endif
@@ -94,9 +94,9 @@ import SwiftUI
     static var home: URL? {
         #if DEBUG
         if LocalStateLocation.isDisposableTest {
-            guard let path = ProcessInfo.processInfo.environment["STILL_TEST_CATALOG_HOME"] else { return nil }
+            guard let path = ProcessInfo.processInfo.environment["CACHEDROP_TEST_CATALOG_HOME"] else { return nil }
             let url = URL(fileURLWithPath: path).resolvingSymlinksInPath()
-            let prefix = "StillTestHome-"
+            let prefix = "CacheDropTestHome-"
             guard url.lastPathComponent.hasPrefix(prefix), UUID(uuidString: String(url.lastPathComponent.dropFirst(prefix.count))) != nil,
                   ["tmp", "T"].contains(url.deletingLastPathComponent().lastPathComponent) else { return nil }
             return url
@@ -110,11 +110,11 @@ import SwiftUI
     static var checkHome: URL { home ?? FileManager.default.homeDirectoryForCurrentUser }
 
     /// The user's own `/private/var/folders` entry, for rules based there (Chrome's code-sign copies).
-    /// A debug test home stands one in at `<home>/.still-test-user-folder`, so a UI test never reads the real one.
+    /// A debug test home stands one in at `<home>/.cachedrop-test-user-folder`, so a UI test never reads the real one.
     static var userFolder: URL? {
         #if DEBUG
         if LocalStateLocation.isDisposableTest {
-            guard let folder = home?.appendingPathComponent(".still-test-user-folder"), FileManager.default.fileExists(atPath: folder.path) else { return nil }
+            guard let folder = home?.appendingPathComponent(".cachedrop-test-user-folder"), FileManager.default.fileExists(atPath: folder.path) else { return nil }
             return folder
         }
         #endif
@@ -122,14 +122,14 @@ import SwiftUI
     }
 
     /// Where a tool rule's executable is found. A debug test home only ever finds stand-ins inside
-    /// `<home>/.still-test-tools`, so a UI test never runs a real tool. The sandboxed UI test runner quarantines the
+    /// `<home>/.cachedrop-test-tools`, so a UI test never runs a real tool. The sandboxed UI test runner quarantines the
     /// stand-ins it writes, and macOS won't run a quarantined script, so the attribute is cleared here.
     static var locateTool: @Sendable (ToolCommand) -> URL? {
         #if DEBUG
         if LocalStateLocation.isDisposableTest {
             guard let home else { return { _ in nil } }
             return { command in
-                let tool = command.executables.lazy.map { home.appendingPathComponent(".still-test-tools/" + URL(fileURLWithPath: $0).lastPathComponent) }
+                let tool = command.executables.lazy.map { home.appendingPathComponent(".cachedrop-test-tools/" + URL(fileURLWithPath: $0).lastPathComponent) }
                     .first { FileManager.default.isExecutableFile(atPath: $0.path) }
                 if let tool { removexattr(tool.path, "com.apple.quarantine", 0) }
                 return tool
@@ -149,7 +149,7 @@ import SwiftUI
     }
 
     /// iCloud as the catalog reads it. A debug test home stands in a fixture whose states come from
-    /// `<home>/.still-test-icloud.json`, so a UI test never reads or evicts anything in real iCloud Drive.
+    /// `<home>/.cachedrop-test-icloud.json`, so a UI test never reads or evicts anything in real iCloud Drive.
     static var cloud: any UbiquitousItemAccess {
         #if DEBUG
         if LocalStateLocation.isDisposableTest { return FixtureUbiquitousItems(home: home) }
@@ -288,10 +288,10 @@ import SwiftUI
         await scanGuidance(home: home, fullDiskAccess: scanned.4)
     }
     #if DEBUG
-    /// A disposable test run can slow discovery down (`STILL_TEST_DISCOVERY_PAUSE`, seconds after each location), so a UI journey sees
+    /// A disposable test run can slow discovery down (`CACHEDROP_TEST_DISCOVERY_PAUSE`, seconds after each location), so a UI journey sees
     /// Overview fill in while the fixture scan runs. Never set outside tests.
     nonisolated private static func pauseForTests() {
-        guard LocalStateLocation.isDisposableTest, let pause = ProcessInfo.processInfo.environment["STILL_TEST_DISCOVERY_PAUSE"].flatMap(Double.init), pause > 0 else { return }
+        guard LocalStateLocation.isDisposableTest, let pause = ProcessInfo.processInfo.environment["CACHEDROP_TEST_DISCOVERY_PAUSE"].flatMap(Double.init), pause > 0 else { return }
         Thread.sleep(forTimeInterval: min(pause, 2))
     }
     #endif

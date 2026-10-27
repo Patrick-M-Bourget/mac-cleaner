@@ -4,7 +4,7 @@ import Testing
 
 /// A fixture home with the probed protected folder in the given state. Never the real home.
 private func fixtureHome(_ safari: FolderState) throws -> URL {
-    let home = FileManager.default.temporaryDirectory.appendingPathComponent("StillFDA-\(UUID())")
+    let home = FileManager.default.temporaryDirectory.appendingPathComponent("CacheDropFDA-\(UUID())")
     try FileManager.default.createDirectory(at: home.appendingPathComponent("Library"), withIntermediateDirectories: true)
     let folder = home.appendingPathComponent("Library/Safari")
     switch safari {
@@ -103,7 +103,7 @@ private func rule(requiringFullDiskAccess: Bool) -> CleanupRule {
 }
 
 @Test func withoutFullDiskAccessSafarisCacheIsNotAccessibleNeverZeroAndIsNotRead() throws {
-    let home = FileManager.default.temporaryDirectory.appendingPathComponent("StillSafariAccess-\(UUID())").resolvingSymlinksInPath()
+    let home = FileManager.default.temporaryDirectory.appendingPathComponent("CacheDropSafariAccess-\(UUID())").resolvingSymlinksInPath()
     defer { try? FileManager.default.removeItem(at: home) }
     let cache = home.appendingPathComponent("Library/Caches/com.apple.Safari/WebKit/NetworkCache/Version 17/Records/AB")
     try FileManager.default.createDirectory(at: cache, withIntermediateDirectories: true)

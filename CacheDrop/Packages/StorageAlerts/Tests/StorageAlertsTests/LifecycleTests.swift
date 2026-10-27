@@ -55,7 +55,7 @@ import Testing
 
 /// #110: saved window state must never stop the main window from opening at launch.
 @Test func launchDefaultsIgnoreSavedWindowState() throws {
-    let suite = "StillLaunchDefaultsTest-" + UUID().uuidString
+    let suite = "CacheDropLaunchDefaultsTest-" + UUID().uuidString
     let defaults = try #require(UserDefaults(suiteName: suite))
     defer { defaults.removePersistentDomain(forName: suite) }
     AppLaunchPolicy.registerDefaults(in: defaults)

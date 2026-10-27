@@ -4,7 +4,7 @@ import Testing
 
 /// A temp folder standing in for one the user picked; tests never scan real projects.
 private func pickedFolder() throws -> URL {
-    let folder = FileManager.default.temporaryDirectory.appendingPathComponent("StillProjects-\(UUID())")
+    let folder = FileManager.default.temporaryDirectory.appendingPathComponent("CacheDropProjects-\(UUID())")
     try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
     return URL(fileURLWithPath: try #require(realPath(folder.path)))
 }

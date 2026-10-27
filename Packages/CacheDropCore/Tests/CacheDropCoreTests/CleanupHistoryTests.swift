@@ -15,7 +15,7 @@ private func historyApproval(_ root: URL, names: [String]) async throws -> Fixtu
     return fixtureBatch(root)
 }
 @Test func clearingCompletedRunsPreservesEntireInterruptedBatchAndReplayProtection() async throws {
-    let root = FileManager.default.temporaryDirectory.appendingPathComponent("StillHistory-" + UUID().uuidString)
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent("CacheDropHistory-" + UUID().uuidString)
     try FileManager.default.createDirectory(at: root, withIntermediateDirectories: false)
     defer { try? FileManager.default.removeItem(at: root) }
     let first = root.appendingPathComponent("first"), second = root.appendingPathComponent("second")
@@ -43,7 +43,7 @@ private func historyApproval(_ root: URL, names: [String]) async throws -> Fixtu
     #expect(try Data(contentsOf: first.appendingPathComponent("completed.pdf")) == Data([7]))
 }
 @Test func resetClearReadsFreshJournalAndCompactionPreservesRecoveryAndReplay() async throws {
-    let root = FileManager.default.temporaryDirectory.appendingPathComponent("StillHistory-" + UUID().uuidString)
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent("CacheDropHistory-" + UUID().uuidString)
     try FileManager.default.createDirectory(at: root, withIntermediateDirectories: false)
     defer { try? FileManager.default.removeItem(at: root) }
     let files = root.appendingPathComponent("files")
@@ -73,7 +73,7 @@ private func historyApproval(_ root: URL, names: [String]) async throws -> Fixtu
     #expect(try Data(contentsOf: files.appendingPathComponent("original.pdf")) == Data([7]))
 }
 @Test func retentionUsesRecordedOutcomeAgeAndProtectsUnresolved() async throws {
-    let root = FileManager.default.temporaryDirectory.appendingPathComponent("StillHistory-" + UUID().uuidString)
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent("CacheDropHistory-" + UUID().uuidString)
     try FileManager.default.createDirectory(at: root, withIntermediateDirectories: false)
     defer { try? FileManager.default.removeItem(at: root) }
     let approved = try await historyApproval(root, names: ["old.pdf"])
@@ -86,7 +86,7 @@ private func historyApproval(_ root: URL, names: [String]) async throws -> Fixtu
     #expect(try journal.claim(batchID: approved.id, records: approved.records) == false)
 }
 @Test func completedHistorySeparatesPersistedCapacityFromPlannedSizes() async throws {
-    let root = FileManager.default.temporaryDirectory.appendingPathComponent("StillHistory-" + UUID().uuidString)
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent("CacheDropHistory-" + UUID().uuidString)
     try FileManager.default.createDirectory(at: root, withIntermediateDirectories: false)
     defer { try? FileManager.default.removeItem(at: root) }
     let approval = try await historyApproval(root, names: ["local.pdf"])
@@ -102,7 +102,7 @@ private func historyApproval(_ root: URL, names: [String]) async throws -> Fixtu
     #expect(run.plannedLogicalBytes == 1)
 }
 @Test func deferredCompactionAndByteRetentionPreserveJournalAuthority() async throws {
-    let root = FileManager.default.temporaryDirectory.appendingPathComponent("StillHistory-" + UUID().uuidString)
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent("CacheDropHistory-" + UUID().uuidString)
     try FileManager.default.createDirectory(at: root, withIntermediateDirectories: false)
     defer { try? FileManager.default.removeItem(at: root) }
     let approval = try await historyApproval(root, names: ["kept.pdf"])

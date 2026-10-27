@@ -4,7 +4,7 @@ import Testing
 
 /// A temp home folder; tests never read or write the real home.
 private func fixtureHome() throws -> URL {
-    let home = FileManager.default.temporaryDirectory.appendingPathComponent("StillDocker-\(UUID())")
+    let home = FileManager.default.temporaryDirectory.appendingPathComponent("CacheDropDocker-\(UUID())")
     try FileManager.default.createDirectory(at: home.appendingPathComponent(".docker"), withIntermediateDirectories: true)
     return home.resolvingSymlinksInPath()
 }
@@ -215,7 +215,7 @@ private func dockerRun(_ home: URL, docker: URL, choose ruleIDs: Set<String>, vo
 }
 
 @Test func dockerGoingDownThenUpIsCoverageNeverGrowth() async throws {
-    let home = try fixtureHome(), store = FileManager.default.temporaryDirectory.appendingPathComponent("StillDockerGrowth-\(UUID())")
+    let home = try fixtureHome(), store = FileManager.default.temporaryDirectory.appendingPathComponent("CacheDropDockerGrowth-\(UUID())")
     defer { try? FileManager.default.removeItem(at: home); try? FileManager.default.removeItem(at: store) }
     let down = home.appendingPathComponent("tools/down")
     let docker = try fakeDocker(home, df: "if test -f \"$(dirname \"$0\")/down\"; then echo 'Cannot connect to the Docker daemon' >&2; exit 1; fi; cat \"$(dirname \"$0\")/df.json\"")

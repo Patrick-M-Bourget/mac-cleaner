@@ -1,22 +1,22 @@
 import XCTest
 
 /// A fixture home with an npm cache and a Downloads installer, inside the runner's temp folder. The app reads it only through
-/// the DEBUG-only STILL_TEST_CATALOG_HOME seam, so the journey never touches real user paths.
+/// the DEBUG-only CACHEDROP_TEST_CATALOG_HOME seam, so the journey never touches real user paths.
 @MainActor func configureCatalogHome(_ app: XCUIApplication) throws -> URL {
-    let home = FileManager.default.temporaryDirectory.resolvingSymlinksInPath().appendingPathComponent("StillTestHome-" + UUID().uuidString)
+    let home = FileManager.default.temporaryDirectory.resolvingSymlinksInPath().appendingPathComponent("CacheDropTestHome-" + UUID().uuidString)
     let file = home.appendingPathComponent(".npm/_cacache/content-v2/sha512/ab/blob")
     try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
     try Data(repeating: 7, count: 200_000).write(to: file)
     let installer = home.appendingPathComponent("Downloads/Setup.dmg")
     try FileManager.default.createDirectory(at: installer.deletingLastPathComponent(), withIntermediateDirectories: true)
     try Data(repeating: 3, count: 120_000).write(to: installer)
-    app.launchEnvironment["STILL_TEST_CATALOG_HOME"] = home.path
+    app.launchEnvironment["CACHEDROP_TEST_CATALOG_HOME"] = home.path
     return home
 }
 
 /// Turns on the Settings dry run for this launch through the DEBUG-only test seam, for journeys that assert nothing changed.
 @MainActor func turnOnDryRun(_ app: XCUIApplication) {
-    app.launchEnvironment["STILL_TEST_DRY_RUN"] = "1"
+    app.launchEnvironment["CACHEDROP_TEST_DRY_RUN"] = "1"
 }
 
 /// The review sheet has two buttons, Cancel and Clean up, and no preview mode.
@@ -26,7 +26,7 @@ import XCTest
     app.buttons["Clean up"].click()
 }
 
-/// Writes an executable stand-in tool into the fixture home's `.still-test-tools`. The sandboxed runner quarantines every
+/// Writes an executable stand-in tool into the fixture home's `.cachedrop-test-tools`. The sandboxed runner quarantines every
 /// file it writes and can't clear that; the app clears it on stand-ins it finds there (debug test seam), so they can run.
 @MainActor func writeStandInTool(_ script: String, to tool: URL) throws {
     try FileManager.default.createDirectory(at: tool.deletingLastPathComponent(), withIntermediateDirectories: true)
@@ -42,7 +42,7 @@ import XCTest
         try Data(repeating: 3, count: 50_000).write(to: file)
     }
     let marker = home.appendingPathComponent("brew-ran")
-    let brew = home.appendingPathComponent(".still-test-tools/brew")
+    let brew = home.appendingPathComponent(".cachedrop-test-tools/brew")
     try writeStandInTool("#!/bin/sh\ntouch '\(marker.path)'\n", to: brew)
     return marker
 }
@@ -110,7 +110,7 @@ final class CatalogCleanupUITests: XCTestCase {
         let app = XCUIApplication()
         let state = try configureIsolatedState(app)
         let home = try configureCatalogHome(app)
-        app.launchEnvironment["STILL_TEST_DISCOVERY_PAUSE"] = "0.25"
+        app.launchEnvironment["CACHEDROP_TEST_DISCOVERY_PAUSE"] = "0.25"
         defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
         app.launch()
 
@@ -175,15 +175,15 @@ final class CatalogCleanupUITests: XCTestCase {
         let state = try configureIsolatedState(app)
         let home = try configureCatalogHome(app)
         turnOnDryRun(app)
-        _ = try addDeveloperCaches(home, folders: ["Library/Developer/Xcode/DerivedData/Still-abc/Build/Products/Debug/Still.app",
-                                                   "Library/Developer/Xcode/Archives/2026-10-01/Still.xcarchive",
+        _ = try addDeveloperCaches(home, folders: ["Library/Developer/Xcode/DerivedData/CacheDrop-abc/Build/Products/Debug/CacheDrop.app",
+                                                   "Library/Developer/Xcode/Archives/2026-10-01/CacheDrop.xcarchive",
                                                    "Library/Developer/Xcode/iOS DeviceSupport/16.4 (20E247)",
                                                    "Library/Developer/Xcode/iOS DeviceSupport/17.5 (21F79)",
                                                    "Library/Developer/Xcode/iOS DeviceSupport/18.1 (22B83)",
                                                    "Library/Developer/CoreSimulator/Devices/0A1B2C3D-0000-0000-0000-000000000000",
                                                    ".android/avd/Pixel.avd"])
         let marker = home.appendingPathComponent("simctl-ran")
-        let simctl = home.appendingPathComponent(".still-test-tools/simctl")
+        let simctl = home.appendingPathComponent(".cachedrop-test-tools/simctl")
         // Lists one shut-down simulator and one unused runtime (#134); any other call leaves the marker.
         let devices = #"{"devices":{"com.apple.CoreSimulator.SimRuntime.iOS-18-0":[{"udid":"0A1B2C3D-0000-0000-0000-000000000000","name":"iPhone 16","state":"Shutdown","isAvailable":true}]}}"#
         let runtimes = #"{"BBBBBBBB-BBBB-4BBB-8BBB-BBBBBBBBBBBB":{"identifier":"BBBBBBBB-BBBB-4BBB-8BBB-BBBBBBBBBBBB","deletable":true,"runtimeIdentifier":"com.apple.CoreSimulator.SimRuntime.watchOS-11-0","version":"11.0","build":"22R349","sizeBytes":4500000000}}"#
@@ -227,7 +227,7 @@ final class CatalogCleanupUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["catalogPreviewNotice"].waitForExistence(timeout: 10))
         XCTAssertTrue(app.staticTexts["Would run"].exists)
         XCTAssertFalse(FileManager.default.fileExists(atPath: marker.path))
-        XCTAssertTrue(FileManager.default.fileExists(atPath: home.appendingPathComponent("Library/Developer/Xcode/DerivedData/Still-abc/Build/Products/Debug/Still.app/entry").path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: home.appendingPathComponent("Library/Developer/Xcode/DerivedData/CacheDrop-abc/Build/Products/Debug/CacheDrop.app/entry").path))
     }
 
 
@@ -238,7 +238,7 @@ final class CatalogCleanupUITests: XCTestCase {
         let app = XCUIApplication()
         let state = try configureIsolatedState(app)
         let home = try configureCatalogHome(app)
-        let script = home.appendingPathComponent(".still-test-npm/npm-cli.js")
+        let script = home.appendingPathComponent(".cachedrop-test-npm/npm-cli.js")
         try FileManager.default.createDirectory(at: script.deletingLastPathComponent(), withIntermediateDirectories: true)
         try "while :; do sleep 1; done\n".write(to: script, atomically: true, encoding: .utf8)
         let npm = Process()
@@ -392,7 +392,7 @@ final class CatalogCleanupUITests: XCTestCase {
         turnOnDryRun(app)
         defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
         // A stand-in for the user's /private/var/folders entry, read through the same DEBUG-only home seam.
-        let clones = home.appendingPathComponent(".still-test-user-folder/X/com.google.Chrome.code_sign_clone")
+        let clones = home.appendingPathComponent(".cachedrop-test-user-folder/X/com.google.Chrome.code_sign_clone")
         for (name, age) in [("code_sign_clone.old", -86_400.0), ("code_sign_clone.new", 0)] {
             let executable = clones.appendingPathComponent(name + "/Google Chrome.app/Contents/MacOS/Google Chrome")
             try FileManager.default.createDirectory(at: executable.deletingLastPathComponent(), withIntermediateDirectories: true)
@@ -539,7 +539,7 @@ final class CatalogCleanupUITests: XCTestCase {
         let home = try configureCatalogHome(app)
         turnOnDryRun(app)
         defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
-        let files = ["Library/Caches/com.example.StillFixture/org.sparkle-project.Sparkle/Installation/a/Fixture.tar.xz",
+        let files = ["Library/Caches/com.example.CacheDropFixture/org.sparkle-project.Sparkle/Installation/a/Fixture.tar.xz",
                      "Library/Logs/DiagnosticReports/Fixture-2026-10-26.ips", "Library/Logs/FixtureApp/main.log",
                      "Library/Logs/FixtureAgent/checkout/.git/HEAD"].map(home.appendingPathComponent)
         for file in files {
@@ -578,7 +578,7 @@ final class CatalogCleanupUITests: XCTestCase {
     @MainActor private func addDocker(_ home: URL, daemonAnswers: Bool) throws -> URL {
         try FileManager.default.createDirectory(at: home.appendingPathComponent(".docker"), withIntermediateDirectories: true)
         let marker = home.appendingPathComponent("docker-pruned")
-        let docker = home.appendingPathComponent(".still-test-tools/docker")
+        let docker = home.appendingPathComponent(".cachedrop-test-tools/docker")
         let df = daemonAnswers
             ? #"echo '{"Active":"1","Reclaimable":"2.5GB (62%)","Size":"4GB","TotalCount":"5","Type":"Images"}'; echo '{"Active":"0","Reclaimable":"1.2GB","Size":"1.2GB","TotalCount":"9","Type":"Build Cache"}'"#
             : "echo 'Cannot connect to the Docker daemon' >&2; exit 1"
@@ -659,7 +659,7 @@ final class ICloudCleanupUITests: XCTestCase {
             try Data(repeating: 4, count: 150_000).write(to: file)
         }
         let states = [drive + "/Report.pdf": "ready", drive + "/Notes.pdf": "ready", drive + "/Pinned.pdf": "pinned"]
-        try JSONEncoder().encode(states).write(to: home.appendingPathComponent(".still-test-icloud.json"))
+        try JSONEncoder().encode(states).write(to: home.appendingPathComponent(".cachedrop-test-icloud.json"))
     }
 
     @MainActor func testLocalCopiesAreChosenAndADryRunEvictsNothing() throws {
@@ -696,7 +696,7 @@ final class ICloudCleanupUITests: XCTestCase {
 
         XCTAssertTrue(app.staticTexts["catalogPreviewNotice"].waitForExistence(timeout: 10))
         XCTAssertTrue(app.staticTexts["Would remove local copy"].exists)
-        XCTAssertFalse(FileManager.default.fileExists(atPath: home.appendingPathComponent(".still-test-icloud-evicted").path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: home.appendingPathComponent(".cachedrop-test-icloud-evicted").path))
     }
 }
 
@@ -708,7 +708,7 @@ extension CatalogCleanupUITests {
         let state = try configureIsolatedState(app)
         let home = try configureCatalogHome(app)
         turnOnDryRun(app)
-        let folder = FileManager.default.temporaryDirectory.resolvingSymlinksInPath().appendingPathComponent("StillPicked-" + UUID().uuidString)
+        let folder = FileManager.default.temporaryDirectory.resolvingSymlinksInPath().appendingPathComponent("CacheDropPicked-" + UUID().uuidString)
         defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home); try? FileManager.default.removeItem(at: folder) }
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         // Not .txt: Spotlight reads new text files in the runner's container to index them, which makes the old one recent.
@@ -788,7 +788,7 @@ final class GuidanceUITests: XCTestCase {
             try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
             try Data(repeating: 5, count: 90_000).write(to: file)
         }
-        try "2".write(to: home.appendingPathComponent(".still-test-snapshots"), atomically: true, encoding: .utf8)
+        try "2".write(to: home.appendingPathComponent(".cachedrop-test-snapshots"), atomically: true, encoding: .utf8)
         // An agent workspace (#140): a fixture git repository, written by hand since the test runner can't run git,
         // with no commit yet and one file not committed.
         let workspace = home.appendingPathComponent(".codex/worktrees/a1b2/app")
@@ -868,7 +868,7 @@ final class TrashSpaceUITests: XCTestCase {
         let text = [line.label, line.value as? String ?? ""].first { !$0.isEmpty } ?? ""
         XCTAssertTrue(text.hasPrefix("Trash holds "), "label: \(line.label), value: \(String(describing: line.value))")
         revealAndClick(app.links["overviewTrashOpen"], in: app)
-        let marker = home.appendingPathComponent(".still-test-opened-trash")
+        let marker = home.appendingPathComponent(".cachedrop-test-opened-trash")
         let deadline = Date().addingTimeInterval(5)
         while !FileManager.default.fileExists(atPath: marker.path), Date() < deadline { RunLoop.current.run(until: Date().addingTimeInterval(0.2)) }
         XCTAssertEqual(try String(contentsOf: marker, encoding: .utf8), home.appendingPathComponent(".Trash").path)
@@ -877,7 +877,7 @@ final class TrashSpaceUITests: XCTestCase {
 
     /// #164: Overview's disk bar shows what was found inside the used space: a segment per category with an "up to" label for
     /// VoiceOver and the tooltip, the Trash as its own segment that opens nothing, and a click that opens the category in the
-    /// plan. A fixture disk (`STILL_TEST_CAPACITY`) makes the fixture home's few hundred kilobytes a visible part of it.
+    /// plan. A fixture disk (`CACHEDROP_TEST_CAPACITY`) makes the fixture home's few hundred kilobytes a visible part of it.
     @MainActor func testOverviewBarShowsWhatWasFoundAndASegmentOpensItsCategory() throws {
         continueAfterFailure = false
         let app = XCUIApplication()
@@ -887,7 +887,7 @@ final class TrashSpaceUITests: XCTestCase {
         let trashed = home.appendingPathComponent(".Trash/Old installer.dmg")
         try FileManager.default.createDirectory(at: trashed.deletingLastPathComponent(), withIntermediateDirectories: true)
         try Data(repeating: 5, count: 100_000).write(to: trashed)
-        app.launchEnvironment["STILL_TEST_CAPACITY"] = "400000,1000000"
+        app.launchEnvironment["CACHEDROP_TEST_CAPACITY"] = "400000,1000000"
         app.launch()
 
         XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))

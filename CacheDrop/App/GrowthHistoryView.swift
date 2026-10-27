@@ -20,7 +20,7 @@ import CacheDropCore
         var baselineAge = GrowthHistoryStore.minimumBaselineAge
         #if DEBUG
         // UI tests can't wait a day between scans; a disposable test run may shorten the baseline age.
-        if LocalStateLocation.isDisposableTest, let age = ProcessInfo.processInfo.environment["STILL_TEST_TRENDS_BASELINE_AGE"].flatMap(TimeInterval.init) { baselineAge = age }
+        if LocalStateLocation.isDisposableTest, let age = ProcessInfo.processInfo.environment["CACHEDROP_TEST_TRENDS_BASELINE_AGE"].flatMap(TimeInterval.init) { baselineAge = age }
         #endif
         let value = GrowthHistoryStore(directory: try LocalStateLocation.root(create: true).appendingPathComponent("Growth", isDirectory: true), minimumBaselineAge: baselineAge)
         archive = value; return value

@@ -5,7 +5,7 @@ import Testing
 /// Simulators and Android emulators (#134). Every test uses a temp fixture home, a stand-in simctl that prints
 /// canned JSON, and a fixture `.android`; the real simctl and the real `~/.android` are never touched.
 private func fixtureHome() throws -> URL {
-    let home = FileManager.default.temporaryDirectory.appendingPathComponent("StillDevices-\(UUID())")
+    let home = FileManager.default.temporaryDirectory.appendingPathComponent("CacheDropDevices-\(UUID())")
     try FileManager.default.createDirectory(at: home, withIntermediateDirectories: true)
     return home.resolvingSymlinksInPath()
 }

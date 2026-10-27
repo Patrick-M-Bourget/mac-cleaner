@@ -3,7 +3,7 @@ import Testing
 import CacheDropCore
 
 private func disposableTree() throws -> URL {
-    let root = FileManager.default.temporaryDirectory.appendingPathComponent("StillScanner-\(UUID().uuidString)", isDirectory: true)
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent("CacheDropScanner-\(UUID().uuidString)", isDirectory: true)
     try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
     return root
 }

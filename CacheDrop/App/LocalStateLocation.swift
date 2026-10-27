@@ -7,7 +7,7 @@ enum LocalStateLocation {
     static var isDisposableTest: Bool {
         #if DEBUG
         let env = ProcessInfo.processInfo.environment
-        return env["STILL_TEST_STATE_ROOT"] != nil || env["STILL_TEST_STATE_ID"] != nil
+        return env["CACHEDROP_TEST_STATE_ROOT"] != nil || env["CACHEDROP_TEST_STATE_ID"] != nil
         #else
         return false
         #endif
@@ -38,10 +38,10 @@ enum LocalStateLocation {
     static func root(create: Bool) throws -> URL {
         #if DEBUG
         let environment = ProcessInfo.processInfo.environment
-        if environment["STILL_TEST_STATE_ROOT"] != nil || environment["STILL_TEST_STATE_ID"] != nil {
-            guard let path = environment["STILL_TEST_STATE_ROOT"], let expected = environment["STILL_TEST_STATE_ID"] else { throw CocoaError(.fileReadNoPermission) }
+        if environment["CACHEDROP_TEST_STATE_ROOT"] != nil || environment["CACHEDROP_TEST_STATE_ID"] != nil {
+            guard let path = environment["CACHEDROP_TEST_STATE_ROOT"], let expected = environment["CACHEDROP_TEST_STATE_ID"] else { throw CocoaError(.fileReadNoPermission) }
             let url = URL(fileURLWithPath: path, isDirectory: true).standardizedFileURL
-            let prefix = "StillTestState-"
+            let prefix = "CacheDropTestState-"
             guard url.lastPathComponent.hasPrefix(prefix), UUID(uuidString: String(url.lastPathComponent.dropFirst(prefix.count))) != nil,
                   ["tmp", "T"].contains(url.deletingLastPathComponent().lastPathComponent),
                   url.path == url.resolvingSymlinksInPath().path else { throw CocoaError(.fileReadNoPermission) }
@@ -49,7 +49,7 @@ enum LocalStateLocation {
             guard lstat(url.path, &info) == 0, info.st_mode & S_IFMT == S_IFDIR,
                   info.st_uid == geteuid(), info.st_mode & 0o777 == 0o700,
                   "\(info.st_dev):\(info.st_ino)" == expected else { throw CocoaError(.fileReadNoPermission) }
-            let marker = url.appendingPathComponent(".still-owned-test-state")
+            let marker = url.appendingPathComponent(".cachedrop-owned-test-state")
             var markerInfo = stat()
             guard lstat(marker.path, &markerInfo) == 0, markerInfo.st_mode & S_IFMT == S_IFREG,
                   markerInfo.st_uid == geteuid(), markerInfo.st_size <= 128,

@@ -4,7 +4,7 @@ import StorageAlerts
 
 @Test @MainActor func disabledLateFailureReleasesOwnedReservationAndRetriesAfterCadenceIncludingRestart() async throws {
     for restart in [false, true] {
-        let root = FileManager.default.temporaryDirectory.appendingPathComponent("StillAlertReservation-" + UUID().uuidString)
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("CacheDropAlertReservation-" + UUID().uuidString)
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: false)
         defer { try? FileManager.default.removeItem(at: root) }
         let store = AlertStateStore(url: root.appendingPathComponent("episode.json"))
@@ -44,7 +44,7 @@ import StorageAlerts
 @Test @MainActor func acceptedUncertainAndResetReservationsCannotBeReleasedByLateFailure() async throws {
     let time = Date(timeIntervalSince1970: 1_000_000)
     for disposition in ["accepted", "uncertain", "reset", "replacement"] {
-        let root = FileManager.default.temporaryDirectory.appendingPathComponent("StillAlertReservation-" + UUID().uuidString)
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("CacheDropAlertReservation-" + UUID().uuidString)
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: false)
         defer { try? FileManager.default.removeItem(at: root) }
         let store = AlertStateStore(url: root.appendingPathComponent("episode.json"))

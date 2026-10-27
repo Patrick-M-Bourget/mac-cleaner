@@ -47,7 +47,7 @@ import CacheDropCore
     }
     func showReference() {
         python = nil; cache = nil; report = nil; isReference = true
-        inventory = PipInventory.parse(versionOutput: "pip 21.2.4 from /disposable/venv/site-packages/pip (python 3.9)", configuredCache: "/disposable/alternate-cache", cacheInfo: "Package index page cache location: /disposable/alternate-cache/http\nPackage index page cache size: 0 bytes\nNumber of HTTP files: 0\nWheels location: /disposable/alternate-cache/wheels\nWheels size: 29 bytes\nNumber of wheels: 1", wheelList: "/disposable/alternate-cache/wheels/still_fixture-1.0-py3-none-any.whl")
+        inventory = PipInventory.parse(versionOutput: "pip 21.2.4 from /disposable/venv/site-packages/pip (python 3.9)", configuredCache: "/disposable/alternate-cache", cacheInfo: "Package index page cache location: /disposable/alternate-cache/http\nPackage index page cache size: 0 bytes\nNumber of HTTP files: 0\nWheels location: /disposable/alternate-cache/wheels\nWheels size: 29 bytes\nNumber of wheels: 1", wheelList: "/disposable/alternate-cache/wheels/cachedrop_fixture-1.0-py3-none-any.whl")
         status = "Recorded disposable qualification reference. Paths are redacted examples; the 29-byte cache seed was synthetic. Your environment has not been inspected."
     }
 }

@@ -3,7 +3,7 @@ import Testing
 import CacheDropCore
 
 @Test func scanActivityArchiveRejectsRawErrorDescriptionsWithoutReplacingSavedActivity() async throws {
-    let root = FileManager.default.temporaryDirectory.appendingPathComponent("StillActivity-" + UUID().uuidString)
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent("CacheDropActivity-" + UUID().uuidString)
     defer { try? FileManager.default.removeItem(at: root) }
     let store = GrowthHistoryStore(directory: root)
     let now = Date(timeIntervalSince1970: 1000)
@@ -19,7 +19,7 @@ import CacheDropCore
 }
 
 @Test func unavailableScanArchiveDoesNotBecomeAnEmptyHistoryOrReplaceDanglingLink() async throws {
-    let root = FileManager.default.temporaryDirectory.appendingPathComponent("StillActivity-" + UUID().uuidString)
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent("CacheDropActivity-" + UUID().uuidString)
     try FileManager.default.createDirectory(at: root, withIntermediateDirectories: false)
     defer { try? FileManager.default.removeItem(at: root) }
     let archive = root.appendingPathComponent("aggregates-v1.json")
@@ -32,7 +32,7 @@ import CacheDropCore
 }
 
 @Test func readOnlyActivityHistoryExcludesExpiredRecordsWithoutRewritingArchive() async throws {
-    let root = FileManager.default.temporaryDirectory.appendingPathComponent("StillActivity-" + UUID().uuidString)
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent("CacheDropActivity-" + UUID().uuidString)
     defer { try? FileManager.default.removeItem(at: root) }
     let store = GrowthHistoryStore(directory: root)
     let then = Date(timeIntervalSince1970: 1000)
@@ -47,7 +47,7 @@ import CacheDropCore
 }
 
 @Test func activityArchiveRetainsMoreThanThirtyActivitiesAndClearRejectsLateWrites() async throws {
-    let root = FileManager.default.temporaryDirectory.appendingPathComponent("StillActivity-" + UUID().uuidString)
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent("CacheDropActivity-" + UUID().uuidString)
     defer { try? FileManager.default.removeItem(at: root) }
     let store = GrowthHistoryStore(directory: root)
     let epoch = try await store.recordingEpoch()
@@ -70,7 +70,7 @@ import CacheDropCore
 }
 
 @Test func activitySummaryRetainsUnmeasuredCoverageWithoutChildFileNames() async throws {
-    let root = FileManager.default.temporaryDirectory.appendingPathComponent("StillActivity-" + UUID().uuidString)
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent("CacheDropActivity-" + UUID().uuidString)
     let scope = root.appendingPathComponent("Selected")
     try FileManager.default.createDirectory(at: scope.appendingPathComponent("private-library.photoslibrary"), withIntermediateDirectories: true)
     defer { try? FileManager.default.removeItem(at: root) }
@@ -88,7 +88,7 @@ import CacheDropCore
 }
 
 @Test func scanAndGrowthRecordsShareEncodedBudgetAndPreserveLegacyBaseline() async throws {
-    let root = FileManager.default.temporaryDirectory.appendingPathComponent("StillActivity-" + UUID().uuidString)
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent("CacheDropActivity-" + UUID().uuidString)
     defer { try? FileManager.default.removeItem(at: root) }
     let store = GrowthHistoryStore(directory: root, policy: .init(bytes: 1400))
     let time = Date(timeIntervalSince1970: 1000)
@@ -117,7 +117,7 @@ import CacheDropCore
 }
 
 @Test func invalidOrUnwritableActivityArchiveNeverClaimsSavedOrOverwritesUnknownData() async throws {
-    let root = FileManager.default.temporaryDirectory.appendingPathComponent("StillActivity-" + UUID().uuidString)
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent("CacheDropActivity-" + UUID().uuidString)
     defer { try? FileManager.default.removeItem(at: root) }
     let store = GrowthHistoryStore(directory: root)
     let epoch = try await store.recordingEpoch()
@@ -137,7 +137,7 @@ import CacheDropCore
 }
 
 @Test func oversizedActivityIsRejectedWholeWhileThirtyBaselineLimitIsGlobal() async throws {
-    let root = FileManager.default.temporaryDirectory.appendingPathComponent("StillActivity-" + UUID().uuidString)
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent("CacheDropActivity-" + UUID().uuidString)
     defer { try? FileManager.default.removeItem(at: root) }
     let store = GrowthHistoryStore(directory: root)
     let epoch = try await store.recordingEpoch()

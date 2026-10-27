@@ -4,7 +4,7 @@ import Testing
 
 /// A temp home folder; tests never read the real home, `~/.claude`, `~/.codex` or any agent's caches.
 private func fixtureHome() throws -> URL {
-    let home = FileManager.default.temporaryDirectory.appendingPathComponent("StillAITools-\(UUID())")
+    let home = FileManager.default.temporaryDirectory.appendingPathComponent("CacheDropAITools-\(UUID())")
     try FileManager.default.createDirectory(at: home, withIntermediateDirectories: true)
     return home.resolvingSymlinksInPath()
 }
@@ -91,7 +91,7 @@ private func aged(_ home: URL, _ relative: String, days: Double, now: Date) thro
 private func git(_ arguments: [String], in folder: URL) throws -> String {
     let process = Process(), pipe = Pipe()
     process.executableURL = URL(fileURLWithPath: "/usr/bin/git")
-    process.arguments = ["-c", "user.name=Still Test", "-c", "user.email=test@example.com", "-c", "commit.gpgsign=false", "-c", "init.defaultBranch=main"] + arguments
+    process.arguments = ["-c", "user.name=CacheDrop Test", "-c", "user.email=test@example.com", "-c", "commit.gpgsign=false", "-c", "init.defaultBranch=main"] + arguments
     process.currentDirectoryURL = folder
     process.environment = ["PATH": "/usr/bin:/bin", "HOME": folder.path, "GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": "/dev/null",
                            "DEVELOPER_DIR": ProcessInfo.processInfo.environment["DEVELOPER_DIR"] ?? ""].filter { !$0.value.isEmpty }

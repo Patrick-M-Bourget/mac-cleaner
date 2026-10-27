@@ -18,7 +18,7 @@ private struct Closed: RunningAppChecking { func isRunning(_ owner: RuleOwner) -
 
 /// A fixture home with an empty `.Trash`, and one Downloads installer CacheDrop has moved to it.
 private func trashedInstaller(named name: String = "Setup.dmg") async throws -> (home: URL, journal: SQLiteCleanupJournal, record: CleanupRecord) {
-    let home = FileManager.default.temporaryDirectory.appendingPathComponent("StillPutBack-\(UUID())").resolvingSymlinksInPath()
+    let home = FileManager.default.temporaryDirectory.appendingPathComponent("CacheDropPutBack-\(UUID())").resolvingSymlinksInPath()
     try FileManager.default.createDirectory(at: home.appendingPathComponent(".Trash"), withIntermediateDirectories: true)
     try FileManager.default.createDirectory(at: home.appendingPathComponent("Downloads"), withIntermediateDirectories: true)
     try Data(repeating: 4, count: 3_000).write(to: home.appendingPathComponent("Downloads/" + name))
@@ -173,7 +173,7 @@ private func trashedInstaller(named name: String = "Setup.dmg") async throws -> 
 
 @Test func journalsWrittenBeforePutBackStillDecode() throws {
     // The record shape before #159 has no put-back field; decoding must not need one.
-    let json = #"{"action":"moveToTrash","allocatedBytes":4096,"approvedAt":814724718.878114,"batchID":"FD8FB579-0EB5-4CC1-925B-F038F4B44EEB","id":"x","logicalBytes":3,"message":"Moved to Trash","modifiedNanoseconds":0,"modifiedSeconds":1,"observedAt":814724718.877688,"originalURL":"file:\/\/\/private\/tmp\/StillLegacy\/Setup.dmg","policyVersion":2,"resourceID":"1:2","scopeResourceID":"1:3","scopeURL":"file:\/\/\/private\/tmp\/StillLegacy\/","state":"succeeded","trashURL":"file:\/\/\/Users\/someone\/.Trash\/Setup.dmg"}"#
+    let json = #"{"action":"moveToTrash","allocatedBytes":4096,"approvedAt":814724718.878114,"batchID":"FD8FB579-0EB5-4CC1-925B-F038F4B44EEB","id":"x","logicalBytes":3,"message":"Moved to Trash","modifiedNanoseconds":0,"modifiedSeconds":1,"observedAt":814724718.877688,"originalURL":"file:\/\/\/private\/tmp\/CacheDropLegacy\/Setup.dmg","policyVersion":2,"resourceID":"1:2","scopeResourceID":"1:3","scopeURL":"file:\/\/\/private\/tmp\/CacheDropLegacy\/","state":"succeeded","trashURL":"file:\/\/\/Users\/someone\/.Trash\/Setup.dmg"}"#
     let record = try JSONDecoder().decode(CleanupRecord.self, from: Data(json.utf8))
     #expect(record.putBackOf == nil)
     #expect(!record.isPutBack)

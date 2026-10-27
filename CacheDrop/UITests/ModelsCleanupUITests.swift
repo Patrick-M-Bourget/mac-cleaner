@@ -10,7 +10,7 @@ final class ModelsCleanupUITests: XCTestCase {
         try FileManager.default.createDirectory(at: manifest.deletingLastPathComponent(), withIntermediateDirectories: true)
         try Data(#"{"schemaVersion":2,"config":{"digest":"sha256:c1","size":10},"layers":[{"digest":"sha256:w1","size":90000}]}"#.utf8).write(to: manifest)
         let marker = home.appendingPathComponent("ollama-ran")
-        let ollama = home.appendingPathComponent(".still-test-tools/ollama")
+        let ollama = home.appendingPathComponent(".cachedrop-test-tools/ollama")
         try writeStandInTool("#!/bin/sh\ntouch '\(marker.path)'\n", to: ollama)
         return marker
     }

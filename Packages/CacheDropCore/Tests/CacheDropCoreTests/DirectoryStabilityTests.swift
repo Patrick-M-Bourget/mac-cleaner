@@ -26,7 +26,7 @@ private final class StabilityProgress: @unchecked Sendable {
     var rechecks: Int { lock.lock(); defer { lock.unlock() }; return count }
 }
 @Test func oneChangingDirectoryGetsOneBoundedRecheckThenPublishesStableLatestContents() async throws {
-    let root = FileManager.default.temporaryDirectory.appendingPathComponent("StillStability-" + UUID().uuidString)
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent("CacheDropStability-" + UUID().uuidString)
     let nested = root.appendingPathComponent("Nested")
     try FileManager.default.createDirectory(at: nested, withIntermediateDirectories: true)
     defer { try? FileManager.default.removeItem(at: root) }
@@ -40,7 +40,7 @@ private final class StabilityProgress: @unchecked Sendable {
 }
 
 @Test func repeatedDirectoryChangesStayPartialAndUnmeasured() async throws {
-    let root = FileManager.default.temporaryDirectory.appendingPathComponent("StillStability-" + UUID().uuidString)
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent("CacheDropStability-" + UUID().uuidString)
     let scope = root.appendingPathComponent("Selected")
     try FileManager.default.createDirectory(at: scope, withIntermediateDirectories: true)
     defer { try? FileManager.default.removeItem(at: root) }
@@ -67,7 +67,7 @@ private final class ReplacingScopeMetadata: MetadataSupplementReading, @unchecke
     }
 }
 @Test func replacingTheSelectedDirectoryNeverRebasesScopeAuthorityDuringRecheck() async throws {
-    let scope = FileManager.default.temporaryDirectory.appendingPathComponent("StillStability-" + UUID().uuidString)
+    let scope = FileManager.default.temporaryDirectory.appendingPathComponent("CacheDropStability-" + UUID().uuidString)
     try FileManager.default.createDirectory(at: scope, withIntermediateDirectories: true)
     defer { try? FileManager.default.removeItem(at: scope); try? FileManager.default.removeItem(at: scope.appendingPathExtension("previous")) }
     try Data([1]).write(to: scope.appendingPathComponent("trigger.txt"))
@@ -79,7 +79,7 @@ private final class ReplacingScopeMetadata: MetadataSupplementReading, @unchecke
     #expect(progress.rechecks == 0)
 }
 @Test func cancellationAtRecheckBoundaryNeverPublishesACompletedObservation() async throws {
-    let scope = FileManager.default.temporaryDirectory.appendingPathComponent("StillStability-" + UUID().uuidString)
+    let scope = FileManager.default.temporaryDirectory.appendingPathComponent("CacheDropStability-" + UUID().uuidString)
     try FileManager.default.createDirectory(at: scope, withIntermediateDirectories: true)
     defer { try? FileManager.default.removeItem(at: scope) }
     try Data([1]).write(to: scope.appendingPathComponent("trigger.txt"))
@@ -90,7 +90,7 @@ private final class ReplacingScopeMetadata: MetadataSupplementReading, @unchecke
     } catch is CancellationError { }
 }
 @Test func recheckSharesOriginalEntryBudgetRatherThanDoublingRetainedWork() async throws {
-    let scope = FileManager.default.temporaryDirectory.appendingPathComponent("StillStability-" + UUID().uuidString)
+    let scope = FileManager.default.temporaryDirectory.appendingPathComponent("CacheDropStability-" + UUID().uuidString)
     try FileManager.default.createDirectory(at: scope, withIntermediateDirectories: true)
     defer { try? FileManager.default.removeItem(at: scope) }
     try Data([1]).write(to: scope.appendingPathComponent("trigger.txt"))
@@ -104,7 +104,7 @@ private struct SlowStabilityMetadata: MetadataSupplementReading {
     func read(_ url: URL) throws -> MetadataSupplement { Thread.sleep(forTimeInterval: 0.02); return .init(allocatedBytes: 1, locality: .local) }
 }
 @Test func returningMetadataCallBeyondDeadlineLeavesCoverageUnknown() async throws {
-    let scope = FileManager.default.temporaryDirectory.appendingPathComponent("StillStability-" + UUID().uuidString)
+    let scope = FileManager.default.temporaryDirectory.appendingPathComponent("CacheDropStability-" + UUID().uuidString)
     try FileManager.default.createDirectory(at: scope, withIntermediateDirectories: true)
     defer { try? FileManager.default.removeItem(at: scope) }
     try Data([1]).write(to: scope.appendingPathComponent("trigger.txt"))
@@ -129,7 +129,7 @@ private final class SymlinkReplacingDirectoryMetadata: MetadataSupplementReading
     }
 }
 @Test func replacedAncestorSymlinkIsNotTraversedDuringTheSingleRecheck() async throws {
-    let base = FileManager.default.temporaryDirectory.appendingPathComponent("StillStability-" + UUID().uuidString)
+    let base = FileManager.default.temporaryDirectory.appendingPathComponent("CacheDropStability-" + UUID().uuidString)
     let scope = base.appendingPathComponent("Selected"), external = base.appendingPathComponent("Outside")
     let nested = scope.appendingPathComponent("Nested")
     try FileManager.default.createDirectory(at: nested, withIntermediateDirectories: true)
@@ -147,7 +147,7 @@ private final class SymlinkReplacingDirectoryMetadata: MetadataSupplementReading
 }
 
 @Test func rootReplacementAfterRecheckAnnouncementCannotRebaseTheSecondPass() async throws {
-    let scope = FileManager.default.temporaryDirectory.appendingPathComponent("StillStability-" + UUID().uuidString)
+    let scope = FileManager.default.temporaryDirectory.appendingPathComponent("CacheDropStability-" + UUID().uuidString)
     try FileManager.default.createDirectory(at: scope, withIntermediateDirectories: true)
     defer { try? FileManager.default.removeItem(at: scope); try? FileManager.default.removeItem(at: scope.appendingPathExtension("previous")) }
     try Data([1]).write(to: scope.appendingPathComponent("trigger.txt"))

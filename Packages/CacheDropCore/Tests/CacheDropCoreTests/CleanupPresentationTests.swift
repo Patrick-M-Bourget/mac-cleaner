@@ -8,7 +8,7 @@ private func rule(_ id: String, _ category: CatalogCategory, _ action: CleanupAc
 }
 
 private func fixture(_ rules: [CleanupRule]) throws -> (URL, Catalog, [Candidate]) {
-    let home = FileManager.default.temporaryDirectory.appendingPathComponent("StillPresentation-\(UUID())").resolvingSymlinksInPath()
+    let home = FileManager.default.temporaryDirectory.appendingPathComponent("CacheDropPresentation-\(UUID())").resolvingSymlinksInPath()
     for rule in rules {
         let file = home.appendingPathComponent(rule.id + "/entry")
         try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)

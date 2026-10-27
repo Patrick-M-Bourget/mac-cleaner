@@ -13,7 +13,7 @@ private func scan(_ hours: Double, _ bytes: Int64, afterCleanup: Bool = false, e
                           afterCleanup: afterCleanup)
 }
 private func record(_ snapshots: [GrowthSnapshot]) async throws -> (GrowthHistoryStore, GrowthComparison, URL) {
-    let directory = FileManager.default.temporaryDirectory.appendingPathComponent("StillTrends-" + UUID().uuidString)
+    let directory = FileManager.default.temporaryDirectory.appendingPathComponent("CacheDropTrends-" + UUID().uuidString)
     let store = GrowthHistoryStore(directory: directory)
     var last = GrowthComparison.unknown
     for snapshot in snapshots { last = try await store.record(snapshot, now: snapshot.observedAt, expectedEpoch: try await store.recordingEpoch()) }
@@ -118,7 +118,7 @@ private func record(_ snapshots: [GrowthSnapshot]) async throws -> (GrowthHistor
 }
 
 @Test func theHistoryStillFitsItsSizeLimit() async throws {
-    let directory = FileManager.default.temporaryDirectory.appendingPathComponent("StillTrends-" + UUID().uuidString)
+    let directory = FileManager.default.temporaryDirectory.appendingPathComponent("CacheDropTrends-" + UUID().uuidString)
     defer { try? FileManager.default.removeItem(at: directory) }
     let store = GrowthHistoryStore(directory: directory, policy: GrowthRetention(bytes: 4_000))
     for index in 0..<20 {

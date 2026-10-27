@@ -4,7 +4,7 @@ import Testing
 
 /// A temp folder standing in for one the user picked; tests never scan real user folders.
 private func pickedFolder() throws -> URL {
-    let folder = FileManager.default.temporaryDirectory.appendingPathComponent("StillPicked-\(UUID())")
+    let folder = FileManager.default.temporaryDirectory.appendingPathComponent("CacheDropPicked-\(UUID())")
     try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
     return URL(fileURLWithPath: try #require(realPath(folder.path)))
 }

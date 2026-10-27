@@ -4,7 +4,7 @@ import Testing
 import CacheDropCore
 
 private func fixtureDownloads() throws -> (home: URL, downloads: URL) {
-    let home = FileManager.default.temporaryDirectory.appendingPathComponent("StillTrashRecovery-\(UUID())").resolvingSymlinksInPath()
+    let home = FileManager.default.temporaryDirectory.appendingPathComponent("CacheDropTrashRecovery-\(UUID())").resolvingSymlinksInPath()
     let downloads = home.appendingPathComponent("Downloads")
     try FileManager.default.createDirectory(at: downloads, withIntermediateDirectories: true)
     return (home.resolvingSymlinksInPath(), downloads.resolvingSymlinksInPath())
@@ -40,7 +40,7 @@ private func fixtureDownloads() throws -> (home: URL, downloads: URL) {
 }
 
 /// A record written by the Downloads-only Trash flow before the catalog existed.
-private let legacyRecord = #"{"action":"moveToTrash","allocatedBytes":4096,"approvedAt":814724718.878114,"batchID":"FD8FB579-0EB5-4CC1-925B-F038F4B44EEB","downloadsResourceID":"16777230:106731990","downloadsURL":"file:\/\/\/private\/tmp\/StillLegacy\/","id":"FD8FB579-0EB5-4CC1-925B-F038F4B44EEB|\/private\/tmp\/StillLegacy\/Setup.dmg|16777230:106731991|moveToTrash","logicalBytes":3,"message":"Operation intent recorded; outcome unresolved","modifiedNanoseconds":849782547,"modifiedSeconds":1793031918,"observedAt":814724718.877688,"originalURL":"file:\/\/\/private\/tmp\/StillLegacy\/Setup.dmg","policyVersion":1,"resourceID":"16777230:106731991","scopeResourceID":"16777230:106731990","scopeURL":"file:\/\/\/private\/tmp\/StillLegacy\/","state":"intent","volumeID":"2CDE06D0-E3BF-4995-9F32-FE90CC292F1B"}"#
+private let legacyRecord = #"{"action":"moveToTrash","allocatedBytes":4096,"approvedAt":814724718.878114,"batchID":"FD8FB579-0EB5-4CC1-925B-F038F4B44EEB","downloadsResourceID":"16777230:106731990","downloadsURL":"file:\/\/\/private\/tmp\/CacheDropLegacy\/","id":"FD8FB579-0EB5-4CC1-925B-F038F4B44EEB|\/private\/tmp\/CacheDropLegacy\/Setup.dmg|16777230:106731991|moveToTrash","logicalBytes":3,"message":"Operation intent recorded; outcome unresolved","modifiedNanoseconds":849782547,"modifiedSeconds":1793031918,"observedAt":814724718.877688,"originalURL":"file:\/\/\/private\/tmp\/CacheDropLegacy\/Setup.dmg","policyVersion":1,"resourceID":"16777230:106731991","scopeResourceID":"16777230:106731990","scopeURL":"file:\/\/\/private\/tmp\/CacheDropLegacy\/","state":"intent","volumeID":"2CDE06D0-E3BF-4995-9F32-FE90CC292F1B"}"#
 
 @Test func journalsWrittenByTheDownloadsOnlyFlowStillDecodeForRecovery() throws {
     let (home, _) = try fixtureDownloads()
@@ -59,7 +59,7 @@ private let legacyRecord = #"{"action":"moveToTrash","allocatedBytes":4096,"appr
     #expect(record.action == "moveToTrash")
     #expect(record.ruleID == nil)
     #expect(record.previewOnly == nil)
-    #expect(record.downloadsURL?.path == "/private/tmp/StillLegacy")
+    #expect(record.downloadsURL?.path == "/private/tmp/CacheDropLegacy")
     #expect(try CleanupRecoverySnapshot(journal: reader).unresolvedCount == 1)
 }
 

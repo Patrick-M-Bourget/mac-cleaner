@@ -30,7 +30,7 @@ import Testing
 }
 
 @Test func disposableInstallationPreviewDoesNotChangePackageSentinel() throws {
-    let root = FileManager.default.temporaryDirectory.appendingPathComponent("StillHomebrewProbe-" + UUID().uuidString)
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent("CacheDropHomebrewProbe-" + UUID().uuidString)
     try FileManager.default.createDirectory(at: root.appendingPathComponent("cache"), withIntermediateDirectories: true)
     defer { try? FileManager.default.removeItem(at: root) }
     let sentinel = root.appendingPathComponent("cache/archive")
@@ -57,7 +57,7 @@ import Testing
 }
 
 @Test func selectedHomebrewCacheIsMeasuredWithoutExecutingBrew() throws {
-    let root = FileManager.default.temporaryDirectory.appendingPathComponent("StillHomebrewInventory-" + UUID().uuidString)
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent("CacheDropHomebrewInventory-" + UUID().uuidString)
     let cache = root.appendingPathComponent("cache")
     try FileManager.default.createDirectory(at: root.appendingPathComponent("bin"), withIntermediateDirectories: true)
     try FileManager.default.createDirectory(at: cache, withIntermediateDirectories: true)
@@ -81,7 +81,7 @@ import Testing
     let hardlinks = try HomebrewInspector.inspectSelected(executable: brew, cache: cache)
     #expect(hardlinks.regularFileCount == 3)
     #expect(hardlinks.logicalBytes == 128)
-    try FileManager.default.createSymbolicLink(atPath: cache.appendingPathComponent("unavailable-link").path, withDestinationPath: "/nonexistent/StillHomebrewOutsideCache")
+    try FileManager.default.createSymbolicLink(atPath: cache.appendingPathComponent("unavailable-link").path, withDestinationPath: "/nonexistent/CacheDropHomebrewOutsideCache")
     let partial = try HomebrewInspector.inspectSelected(executable: brew, cache: cache)
     #expect(partial.supported)
     #expect(!partial.complete)

@@ -10,7 +10,7 @@ private final class PublicProgressRecord: @unchecked Sendable {
     func snapshot() -> [ScanProgress] { lock.lock(); defer { lock.unlock() }; return events }
 }
 @Test func scanPublishesBoundedUsefulProgressBeforeCompletedResult() async throws {
-    let root = FileManager.default.temporaryDirectory.appendingPathComponent("StillProgress-" + UUID().uuidString)
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent("CacheDropProgress-" + UUID().uuidString)
     try FileManager.default.createDirectory(at: root, withIntermediateDirectories: false)
     defer { try? FileManager.default.removeItem(at: root) }
     for index in 0..<600 { try Data([1]).write(to: root.appendingPathComponent("file-\(index)")) }
@@ -25,7 +25,7 @@ private final class PublicProgressRecord: @unchecked Sendable {
 }
 
 @Test func cancellationRequestAcknowledgesWithoutWaitingForScannerActor() async throws {
-    let root = FileManager.default.temporaryDirectory.appendingPathComponent("StillProgress-" + UUID().uuidString)
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent("CacheDropProgress-" + UUID().uuidString)
     try FileManager.default.createDirectory(at: root, withIntermediateDirectories: false)
     defer { try? FileManager.default.removeItem(at: root) }
     for index in 0..<50 { try Data([1]).write(to: root.appendingPathComponent("file-\(index)")) }
@@ -40,7 +40,7 @@ private struct UnavailableProgressMetadata: MetadataSupplementReading {
     func read(_ url: URL) throws -> MetadataSupplement { throw CocoaError(.fileReadNoPermission) }
 }
 @Test func repeatedMetadataFailuresStayBoundedAndNeverLookComplete() async throws {
-    let root = FileManager.default.temporaryDirectory.appendingPathComponent("StillProgress-" + UUID().uuidString)
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent("CacheDropProgress-" + UUID().uuidString)
     try FileManager.default.createDirectory(at: root, withIntermediateDirectories: false)
     defer { try? FileManager.default.removeItem(at: root) }
     for index in 0..<100 { try Data([1]).write(to: root.appendingPathComponent("file-\(index)")) }
@@ -63,7 +63,7 @@ private struct ReplacingProgressMetadata: MetadataSupplementReading {
     }
 }
 @Test func changedIdentityDuringMetadataIsPartialAndNeverPublishedAsStableObservation() async throws {
-    let root = FileManager.default.temporaryDirectory.appendingPathComponent("StillProgress-" + UUID().uuidString)
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent("CacheDropProgress-" + UUID().uuidString)
     try FileManager.default.createDirectory(at: root, withIntermediateDirectories: false)
     defer { try? FileManager.default.removeItem(at: root) }
     let target = root.appendingPathComponent("changing.txt")
@@ -75,7 +75,7 @@ private struct ReplacingProgressMetadata: MetadataSupplementReading {
 }
 
 @Test func sparseHardlinkAndUnicodePathsKeepLogicalAllocationAndPackageBoundaries() async throws {
-    let root = FileManager.default.temporaryDirectory.appendingPathComponent("StillProgress-" + UUID().uuidString)
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent("CacheDropProgress-" + UUID().uuidString)
     try FileManager.default.createDirectory(at: root, withIntermediateDirectories: false)
     defer { try? FileManager.default.removeItem(at: root) }
     let file = root.appendingPathComponent(String(repeating: "é", count: 60) + "-📷.bin")
@@ -101,7 +101,7 @@ private func createEmpty(_ url: URL) throws -> URL {
 }
 
 @Test func supportedAPFSCloneKeepsDistinctIdentityWithoutClaimingExclusiveReclaimableBytes() async throws {
-    let root = FileManager.default.temporaryDirectory.appendingPathComponent("StillProgress-" + UUID().uuidString)
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent("CacheDropProgress-" + UUID().uuidString)
     try FileManager.default.createDirectory(at: root, withIntermediateDirectories: false)
     defer { try? FileManager.default.removeItem(at: root) }
     let original = root.appendingPathComponent("original.bin")
@@ -122,7 +122,7 @@ private func createEmpty(_ url: URL) throws -> URL {
 }
 
 @Test func filesystemCompressionWhenAvailablePreservesLogicalSizeSemantics() async throws {
-    let root = FileManager.default.temporaryDirectory.appendingPathComponent("StillProgress-" + UUID().uuidString)
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent("CacheDropProgress-" + UUID().uuidString)
     try FileManager.default.createDirectory(at: root, withIntermediateDirectories: false)
     defer { try? FileManager.default.removeItem(at: root) }
     let source = root.appendingPathComponent("source.bin")

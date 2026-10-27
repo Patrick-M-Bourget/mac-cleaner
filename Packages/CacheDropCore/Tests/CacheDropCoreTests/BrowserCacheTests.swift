@@ -4,7 +4,7 @@ import CacheDropCore
 
 /// A temp home folder; tests never read or write the real home or a real browser profile.
 private func fixtureHome() throws -> URL {
-    let home = FileManager.default.temporaryDirectory.appendingPathComponent("StillBrowsers-\(UUID())")
+    let home = FileManager.default.temporaryDirectory.appendingPathComponent("CacheDropBrowsers-\(UUID())")
     try FileManager.default.createDirectory(at: home, withIntermediateDirectories: true)
     return home.resolvingSymlinksInPath()
 }

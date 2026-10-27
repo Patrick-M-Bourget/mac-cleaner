@@ -80,7 +80,7 @@ private let GB: Int64 = 1_000_000_000
 }
 
 @Test func overviewsCategoriesAndASelectionOfFoundItemsFeedTheBreakdown() throws {
-    let home = FileManager.default.temporaryDirectory.appendingPathComponent("StillBreakdown-\(UUID())").resolvingSymlinksInPath()
+    let home = FileManager.default.temporaryDirectory.appendingPathComponent("CacheDropBreakdown-\(UUID())").resolvingSymlinksInPath()
     defer { try? FileManager.default.removeItem(at: home) }
     for (folder, bytes) in [("a", 40_960), ("b", 8192), ("c", 16384)] {
         let file = home.appendingPathComponent(folder + "/f")

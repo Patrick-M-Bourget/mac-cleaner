@@ -3,7 +3,7 @@ import Testing
 import CacheDropCore
 
 @Test func completedCompatibleAggregatesCompareAdditionsAndRemovalsWithoutFileRecords() async throws {
-    let directory = FileManager.default.temporaryDirectory.appendingPathComponent("StillGrowth-" + UUID().uuidString)
+    let directory = FileManager.default.temporaryDirectory.appendingPathComponent("CacheDropGrowth-" + UUID().uuidString)
     defer { try? FileManager.default.removeItem(at: directory) }
     let store = GrowthHistoryStore(directory: directory, minimumBaselineAge: 0)
     let fingerprint = GrowthFingerprint(scopeID: "scope", rootID: "root", volumeID: "volume", access: "complete", rules: "rules1", exclusions: "none", classification: "folders-v1")
@@ -21,7 +21,7 @@ import CacheDropCore
 }
 
 @Test func incompleteUnknownObservationsNeverReplaceCompletedBaselineAndCoverageChangesAreNotGrowth() async throws {
-    let directory = FileManager.default.temporaryDirectory.appendingPathComponent("StillGrowth-" + UUID().uuidString)
+    let directory = FileManager.default.temporaryDirectory.appendingPathComponent("CacheDropGrowth-" + UUID().uuidString)
     defer { try? FileManager.default.removeItem(at: directory) }
     let store = GrowthHistoryStore(directory: directory)
     let original = GrowthFingerprint(scopeID: "scope", rootID: "root", volumeID: "volume", access: "complete", rules: "one", exclusions: "none", classification: "one")
@@ -44,7 +44,7 @@ import CacheDropCore
 }
 
 @Test func retentionExpiresAtReadAndClearingIsDistinctWhileRecoveryRecordsRemainUntouched() async throws {
-    let directory = FileManager.default.temporaryDirectory.appendingPathComponent("StillGrowth-" + UUID().uuidString)
+    let directory = FileManager.default.temporaryDirectory.appendingPathComponent("CacheDropGrowth-" + UUID().uuidString)
     defer { try? FileManager.default.removeItem(at: directory) }
     try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
     let journal = directory.appendingPathComponent("unresolved-recovery.sqlite")
@@ -66,7 +66,7 @@ import CacheDropCore
 }
 
 @Test func aggregateArchiveRejectsCorruptionAndNeverExceedsBytePolicy() async throws {
-    let directory = FileManager.default.temporaryDirectory.appendingPathComponent("StillGrowth-" + UUID().uuidString)
+    let directory = FileManager.default.temporaryDirectory.appendingPathComponent("CacheDropGrowth-" + UUID().uuidString)
     defer { try? FileManager.default.removeItem(at: directory) }
     let store = GrowthHistoryStore(directory: directory, policy: GrowthRetention(bytes: 1600))
     let fingerprint = GrowthFingerprint(scopeID: "scope", rootID: "root", volumeID: "volume", access: "complete", rules: "one", exclusions: "none", classification: "one")
@@ -88,7 +88,7 @@ import CacheDropCore
 }
 
 @Test func aggregateStoreRejectsSymlinkedStorageWithoutTouchingItsDestination() async throws {
-    let directory = FileManager.default.temporaryDirectory.appendingPathComponent("StillGrowth-" + UUID().uuidString)
+    let directory = FileManager.default.temporaryDirectory.appendingPathComponent("CacheDropGrowth-" + UUID().uuidString)
     let destination = directory.appendingPathComponent("Destination"), link = directory.appendingPathComponent("Growth")
     try FileManager.default.createDirectory(at: destination, withIntermediateDirectories: true)
     defer { try? FileManager.default.removeItem(at: directory) }
@@ -99,7 +99,7 @@ import CacheDropCore
 }
 
 @Test func interleavedScopesCompareTheirOwnLatestCompletedObservation() async throws {
-    let directory = FileManager.default.temporaryDirectory.appendingPathComponent("StillGrowth-" + UUID().uuidString)
+    let directory = FileManager.default.temporaryDirectory.appendingPathComponent("CacheDropGrowth-" + UUID().uuidString)
     defer { try? FileManager.default.removeItem(at: directory) }
     let store = GrowthHistoryStore(directory: directory, minimumBaselineAge: 0)
     func snapshot(_ scope: String, _ time: Double, _ bytes: Int64) -> GrowthSnapshot {

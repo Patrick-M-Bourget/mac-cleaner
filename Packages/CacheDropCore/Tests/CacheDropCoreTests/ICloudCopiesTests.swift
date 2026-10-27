@@ -4,7 +4,7 @@ import Testing
 
 /// A temp home whose iCloud Drive folder holds plain fixture files; their iCloud state comes from a `FakeCloud`.
 private func cloudHome() throws -> (home: URL, drive: URL) {
-    let home = FileManager.default.temporaryDirectory.appendingPathComponent("StillCloud-\(UUID())").resolvingSymlinksInPath()
+    let home = FileManager.default.temporaryDirectory.appendingPathComponent("CacheDropCloud-\(UUID())").resolvingSymlinksInPath()
     let drive = home.appendingPathComponent("Library/Mobile Documents/com~apple~CloudDocs")
     try FileManager.default.createDirectory(at: drive, withIntermediateDirectories: true)
     return (home.resolvingSymlinksInPath(), drive.resolvingSymlinksInPath())

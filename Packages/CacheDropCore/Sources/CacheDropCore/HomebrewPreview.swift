@@ -35,7 +35,7 @@ public struct HomebrewPreview: Sendable {
 public enum HomebrewInspector {
     /// Test-only integration seam restricted to explicitly disposable installation roots.
     static func inspectDisposable(executable: URL) throws -> HomebrewPreview {
-        guard executable.deletingLastPathComponent().lastPathComponent.hasPrefix("StillHomebrewProbe-") else { throw ToolPreviewError.unavailable }
+        guard executable.deletingLastPathComponent().lastPathComponent.hasPrefix("CacheDropHomebrewProbe-") else { throw ToolPreviewError.unavailable }
         func command(_ args: [String]) throws -> String {
             try BoundedTool.run(executable: executable, arguments: args).trimmingCharacters(in: .whitespacesAndNewlines)
         }

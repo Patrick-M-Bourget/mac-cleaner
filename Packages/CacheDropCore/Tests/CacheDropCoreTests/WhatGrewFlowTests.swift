@@ -3,7 +3,7 @@ import Testing
 @testable import CacheDropCore
 
 @Test func firstObservationOfAnotherLocationDoesNotCompareUnrelatedScopes() async throws {
-    let directory = FileManager.default.temporaryDirectory.appendingPathComponent("StillWhatGrew-" + UUID().uuidString)
+    let directory = FileManager.default.temporaryDirectory.appendingPathComponent("CacheDropWhatGrew-" + UUID().uuidString)
     defer { try? FileManager.default.removeItem(at: directory) }
     let store = GrowthHistoryStore(directory: directory, minimumBaselineAge: 0)
     func observation(_ scope: String, _ time: Double, _ bytes: Int64) -> GrowthSnapshot {
@@ -24,7 +24,7 @@ import Testing
 }
 
 @Test func expiredUnrelatedHistoryDoesNotClaimANewLocationLostItsBaseline() async throws {
-    let directory = FileManager.default.temporaryDirectory.appendingPathComponent("StillWhatGrew-" + UUID().uuidString)
+    let directory = FileManager.default.temporaryDirectory.appendingPathComponent("CacheDropWhatGrew-" + UUID().uuidString)
     defer { try? FileManager.default.removeItem(at: directory) }
     let store = GrowthHistoryStore(directory: directory)
     func observation(_ scope: String, _ date: Date) -> GrowthSnapshot {

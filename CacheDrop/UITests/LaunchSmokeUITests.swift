@@ -4,15 +4,15 @@ import Darwin
 /// A fresh, owned state root so a launch never reads or writes the user's real app state.
 @MainActor func configureIsolatedState(_ app: XCUIApplication) throws -> URL {
     let token = UUID().uuidString
-    let state = FileManager.default.temporaryDirectory.resolvingSymlinksInPath().appendingPathComponent("StillTestState-" + token)
+    let state = FileManager.default.temporaryDirectory.resolvingSymlinksInPath().appendingPathComponent("CacheDropTestState-" + token)
     try FileManager.default.createDirectory(at: state, withIntermediateDirectories: false, attributes: [.posixPermissions: 0o700])
-    let marker = state.appendingPathComponent(".still-owned-test-state")
+    let marker = state.appendingPathComponent(".cachedrop-owned-test-state")
     try Data(token.utf8).write(to: marker)
     try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: marker.path)
     var info = stat()
     guard lstat(state.path, &info) == 0 else { throw CocoaError(.fileReadUnknown) }
-    app.launchEnvironment["STILL_TEST_STATE_ROOT"] = state.path
-    app.launchEnvironment["STILL_TEST_STATE_ID"] = "\(info.st_dev):\(info.st_ino)"
+    app.launchEnvironment["CACHEDROP_TEST_STATE_ROOT"] = state.path
+    app.launchEnvironment["CACHEDROP_TEST_STATE_ID"] = "\(info.st_dev):\(info.st_ino)"
     return state
 }
 
@@ -209,7 +209,7 @@ final class WhatGrewUITests: XCTestCase {
         // A day later (the test shortens the baseline age), the launch scan compares with the earlier one.
         app.terminate()
         try grow("ef")
-        app.launchEnvironment["STILL_TEST_TRENDS_BASELINE_AGE"] = "0"
+        app.launchEnvironment["CACHEDROP_TEST_TRENDS_BASELINE_AGE"] = "0"
         app.launch()
         XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
         app.buttons["Storage trends"].click()
@@ -249,7 +249,7 @@ final class KeyboardShortcutsUITests: XCTestCase {
         let app = XCUIApplication()
         let state = try configureIsolatedState(app)
         let home = try configureCatalogHome(app)
-        app.launchEnvironment["STILL_TEST_TRENDS_BASELINE_AGE"] = "0"
+        app.launchEnvironment["CACHEDROP_TEST_TRENDS_BASELINE_AGE"] = "0"
         defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
         app.launch()
         XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
@@ -279,7 +279,7 @@ final class KeyboardShortcutsUITests: XCTestCase {
 }
 
 /// #158: the welcome shows on a first launch, never again once finished, and the Help menu opens it again.
-/// Other journeys never see it: disposable test runs treat it as seen unless `STILL_TEST_SHOW_WELCOME` asks for it.
+/// Other journeys never see it: disposable test runs treat it as seen unless `CACHEDROP_TEST_SHOW_WELCOME` asks for it.
 final class FirstRunWelcomeUITests: XCTestCase {
     @MainActor func testWelcomeShowsOnceStartsTheScanAndOpensFromHelp() throws {
         continueAfterFailure = false
@@ -291,7 +291,7 @@ final class FirstRunWelcomeUITests: XCTestCase {
         let safari = home.appendingPathComponent("Library/Safari")
         try FileManager.default.createDirectory(at: safari, withIntermediateDirectories: true)
         try FileManager.default.setAttributes([.posixPermissions: 0], ofItemAtPath: safari.path)
-        app.launchEnvironment["STILL_TEST_SHOW_WELCOME"] = "1"
+        app.launchEnvironment["CACHEDROP_TEST_SHOW_WELCOME"] = "1"
         defer {
             app.terminate(); try? FileManager.default.removeItem(at: state)
             try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: safari.path); try? FileManager.default.removeItem(at: home)

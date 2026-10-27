@@ -12,7 +12,7 @@ private func fixtureBatch(_ root: URL) -> FixtureBatch {
 }
 private func recoveryApproval(_ root: URL) async throws -> FixtureBatch { fixtureBatch(root) }
 @Test func reopeningIntentWithMissingOriginalRemainsUnresolvedAndReadOnly() async throws {
-    let root = FileManager.default.temporaryDirectory.appendingPathComponent("StillRecovery-" + UUID().uuidString)
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent("CacheDropRecovery-" + UUID().uuidString)
     try FileManager.default.createDirectory(at: root, withIntermediateDirectories: false)
     defer { try? FileManager.default.removeItem(at: root) }
     let original = root.appendingPathComponent("owned.pdf")
@@ -41,7 +41,7 @@ private func recoveryApproval(_ root: URL) async throws -> FixtureBatch { fixtur
 }
 
 @Test func interruptedBatchKeepsTerminalFactsSeparateFromPendingAndUnknown() async throws {
-    let root = FileManager.default.temporaryDirectory.appendingPathComponent("StillRecovery-" + UUID().uuidString)
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent("CacheDropRecovery-" + UUID().uuidString)
     try FileManager.default.createDirectory(at: root, withIntermediateDirectories: false)
     defer { try? FileManager.default.removeItem(at: root) }
     for index in 0..<7 { try Data([UInt8(index)]).write(to: root.appendingPathComponent("file-\(index).pdf")) }
@@ -69,7 +69,7 @@ private func recoveryApproval(_ root: URL) async throws -> FixtureBatch { fixtur
 }
 
 @Test func readOnlyRecoveryOpenCannotCreateOrClaimAndPreservesRecords() async throws {
-    let root = FileManager.default.temporaryDirectory.appendingPathComponent("StillRecovery-" + UUID().uuidString)
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent("CacheDropRecovery-" + UUID().uuidString)
     try FileManager.default.createDirectory(at: root, withIntermediateDirectories: false)
     defer { try? FileManager.default.removeItem(at: root) }
     try Data([1]).write(to: root.appendingPathComponent("owned.pdf"))
@@ -88,7 +88,7 @@ private func recoveryApproval(_ root: URL) async throws -> FixtureBatch { fixtur
 }
 
 @Test func unreadableRecoveryJournalNeverBecomesAnEmptySuccessfulSnapshot() throws {
-    let root = FileManager.default.temporaryDirectory.appendingPathComponent("StillRecovery-" + UUID().uuidString)
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent("CacheDropRecovery-" + UUID().uuidString)
     try FileManager.default.createDirectory(at: root, withIntermediateDirectories: false)
     defer { try? FileManager.default.removeItem(at: root) }
     let url = root.appendingPathComponent("journal.sqlite")
@@ -99,7 +99,7 @@ private func recoveryApproval(_ root: URL) async throws -> FixtureBatch { fixtur
 }
 
 @Test func ordinarySessionChoicesAndCompletedBatchesAreNotRecoveryAuthority() async throws {
-    let root = FileManager.default.temporaryDirectory.appendingPathComponent("StillRecovery-" + UUID().uuidString)
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent("CacheDropRecovery-" + UUID().uuidString)
     try FileManager.default.createDirectory(at: root, withIntermediateDirectories: false)
     defer { try? FileManager.default.removeItem(at: root) }
     try Data([1]).write(to: root.appendingPathComponent("owned.pdf"))
