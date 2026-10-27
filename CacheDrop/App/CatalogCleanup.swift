@@ -270,15 +270,15 @@ import SwiftUI
     var planCategories: [CatalogOverview.Row] { CatalogOverview(catalog: catalog, candidates: candidates).rows.filter { CleanupSelections.Source.page(of: $0) == .plan } }
     /// The Applications page's Leftovers row; nil when none were found.
     var leftoversRow: CatalogOverview.Row? { CatalogOverview(catalog: catalog, candidates: candidates).rows.first { $0.category == .leftovers } }
-    /// An installed app's items to uninstall it with (#177), by the app's path; empty when it can't be uninstalled here.
-    /// A plug-in product's too, by its row's id, shared items included (#176).
-    func uninstallItems(of appPath: String) -> [Candidate] { uninstallable.filter { $0.isUninstalled(with: appPath) } }
-    func selectionState(ofApp appPath: String) -> CategorySelectionState {
-        CategorySelection(rules: AppRuleFamily.uninstallRules, candidates: uninstallItems(of: appPath), selected: selectedIDs).state
+    /// The items to uninstall an Applications row with, by its id (`AppUninstall.Target.path`): an installed app's (#177), or
+    /// a plug-in product's, shared items included (#176); empty when it can't be uninstalled here.
+    func uninstallItems(ofRow id: String) -> [Candidate] { uninstallable.filter { $0.isUninstalled(with: id) } }
+    func selectionState(ofRow id: String) -> CategorySelectionState {
+        CategorySelection(rules: AppRuleFamily.uninstallRules, candidates: uninstallItems(ofRow: id), selected: selectedIDs).state
     }
     /// An app's checkbox, as a category's (#240): returns true when only its possibly related items are left to choose one by one.
-    func toggleApp(_ appPath: String) -> Bool {
-        toggle(CategorySelection(rules: AppRuleFamily.uninstallRules, candidates: uninstallItems(of: appPath), selected: selectedIDs))
+    func toggleRow(_ id: String) -> Bool {
+        toggle(CategorySelection(rules: AppRuleFamily.uninstallRules, candidates: uninstallItems(ofRow: id), selected: selectedIDs))
     }
     func selectionState(for rules: [CleanupRule]) -> CategorySelectionState { categorySelection(rules).state }
     private func categorySelection(_ rules: [CleanupRule]) -> CategorySelection {
@@ -351,7 +351,7 @@ import SwiftUI
             for candidate in discovered.candidates + leftovers + apps + plugIns {
                 // A plug-in product's hosts must be closed too (#176).
                 guard let owner = catalog.owner(for: candidate) else { continue }
-                for owner in [owner] + (candidate.uninstall?.hosts ?? []) { owners[owner.name] = owner; names[candidate.id, default: []].append(owner.name) }
+                for owner in [owner] + (candidate.uninstall?.plugIn?.hosts ?? []) { owners[owner.name] = owner; names[candidate.id, default: []].append(owner.name) }
             }
             return (discovered, catalog.overriddenRules(home: home, systemRoot: system), Self.running(owners, quitter: quitter), names, access, leftovers, apps + plugIns, inventory)
         }.value

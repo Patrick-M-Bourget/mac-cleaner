@@ -140,7 +140,7 @@ struct ApplicationsView: View {
     /// two volumes stay apart (#271).
     private func row(_ entry: InventoryEntry, category: StorageCategory, identifier: String) -> some View {
         let isExpanded = Binding(get: { expanded.contains(entry.id) }, set: { if $0 { expanded.insert(entry.id) } else { expanded.remove(entry.id) } })
-        let uninstall = catalog.uninstallItems(of: entry.id)
+        let uninstall = catalog.uninstallItems(ofRow: entry.id)
         // A partly removable product also lists what stays (#176, #288): formats and support files that need a password, and AUv3s.
         let target = uninstall.lazy.compactMap(\.uninstall).first { $0.path == entry.id }
         let locked = (entry.parts.filter { !$0.removable && $0.name != PlugInFormat.auv3.rawValue }
@@ -149,14 +149,14 @@ struct ApplicationsView: View {
         let staying = uninstall.isEmpty || category == .apps ? [] : locked + auv3
         // "Choose items" counts what can be chosen, and says how many listed parts stay (#290).
         let count = uninstall.isEmpty ? entry.parts.count : uninstall.count
-        return CategoryRow(category: category, state: uninstall.isEmpty ? nil : catalog.selectionState(ofApp: entry.id), title: entry.name,
+        return CategoryRow(category: category, state: uninstall.isEmpty ? nil : catalog.selectionState(ofRow: entry.id), title: entry.name,
                            detail: [entry.maker, entry.volume].compactMap { $0 }.joined(separator: " · "),
                            // Shared items count on no product's row, so the page counts them once (#288, Decisions 51 and 52).
                            size: uninstall.isEmpty ? entry.size.text : SizeEstimate(sum: uninstall.filter(\.sharedBy.isEmpty).map(SizeEstimate.init)).text,
                            enabled: uninstall.isEmpty || catalog.canEdit, identifier: identifier,
                            // An app alone is its only item: no "Choose items · 1" (#270).
                            itemCount: count > 1 || !staying.isEmpty ? count : nil, staying: staying.count, expanded: isExpanded,
-                           toggle: { if catalog.toggleApp(entry.id) { expanded.insert(entry.id) } }) {
+                           toggle: { if catalog.toggleRow(entry.id) { expanded.insert(entry.id) } }) {
             if entry.needsPassword { passwordLine(entry) }
             else if !uninstall.isEmpty {
                 // Its own uninstaller comes first (Decision 41); a later scan's Leftovers shows what it left.
@@ -175,7 +175,7 @@ struct ApplicationsView: View {
                 }
                 // The app, or a plug-in product's own app and its hosts (#176), each with "Quit <App>".
                 if let rule = AppRuleFamily.uninstallRules.first(where: { rule in uninstall.contains { $0.ruleID == rule.id } }) {
-                    PlanRunningOwners(model: catalog, rule: rule, only: Set(uninstall.compactMap(\.uninstall).flatMap { [$0.owner.name] + $0.hosts.map(\.name) }))
+                    PlanRunningOwners(model: catalog, rule: rule, only: Set(uninstall.compactMap(\.uninstall).flatMap { [$0.owner.name] + ($0.plugIn?.hosts ?? []).map(\.name) }))
                 }
             } else if !auv3.isEmpty, auv3.count == entry.parts.count {
                 // An AUv3 is part of its app: removing the app removes it (#288).

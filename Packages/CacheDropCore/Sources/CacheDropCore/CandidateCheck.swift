@@ -159,7 +159,7 @@ public struct CandidateCheck: Sendable {
         case .mustNotUse, .none: break
         }
         // A plug-in product waits for every plug-in host to close too (#176, Decision 51).
-        for host in candidate.uninstall?.hosts ?? [] { if let refusal = runningRefusal(host) { return refusal } }
+        for host in candidate.uninstall?.plugIn?.hosts ?? [] { if let refusal = runningRefusal(host) { return refusal } }
         let path = candidate.url.path
         var info = stat()
         guard lstat(path, &info) == 0 else { return errno == ENOENT ? .missing : .notPermitted }

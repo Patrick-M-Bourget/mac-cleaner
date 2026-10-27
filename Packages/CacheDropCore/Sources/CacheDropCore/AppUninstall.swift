@@ -21,25 +21,21 @@ public enum AppUninstall {
         itemByItem: true, family: .appUninstall)
     public static let rules: [CleanupRule] = [appRule, filesRule, possiblyRelatedRule]
 
-    /// The app an item is uninstalled with.
+    /// The app or plug-in product an item is uninstalled with.
     public struct Target: Sendable, Hashable {
         public let name: String
         public let bundleID: String
-        /// The app bundle's standardized path: the Applications page's row id.
+        /// The Applications page's row id: the app bundle's standardized path, or a plug-in product's ID.
         public let path: String
         /// Its login items, helpers and XPC services' bundle IDs (#281).
         public var helpers: [String] = []
         /// Its files that stay whatever is ticked: those that need a password, and those the Cleanup plan already offers (#281).
         public var needsPassword = 0
         public var inPlan = 0
-        /// A plug-in product's AUv3 formats, which go with the app they are in (#176).
-        public var insideApp = 0
-        /// More folders any process run from inside of counts as it running: a plug-in product's formats and standalone app (#176).
-        public var otherPaths: [String] = []
-        /// Apps that must be closed too: plug-in hosts (#176, Decision 51).
-        public var hosts: [RuleOwner] = []
+        /// What only a plug-in product has (#176); nil for an app.
+        public var plugIn: PlugIn? = nil
         /// The vendor's tool, for "Needs <tool> or your password" (Decision 50).
-        public var tool: String? = nil
+        public var tool: String? { plugIn?.tool }
         /// A plug-in product's support files that need a password, listed on its row as staying (#288).
         public var passwordPaths: [String] = []
         /// A plug-in product's support files weren't offered: an installer record couldn't be read (#291).
@@ -47,7 +43,19 @@ public enum AppUninstall {
         /// A plug-in product's files that stay because CacheDrop doesn't recognise their kind (#291, Decision 53).
         public var unrecognised = 0
         /// The app must be closed first (Decision 29): its bundle ID, its helpers' and any process run from inside it (#281).
-        public var owner: RuleOwner { RuleOwner(name: name, bundleIDs: ([bundleID] + helpers).filter { !$0.isEmpty }, paths: [path] + otherPaths) }
+        public var owner: RuleOwner { RuleOwner(name: name, bundleIDs: ([bundleID] + helpers).filter { !$0.isEmpty }, paths: [path] + (plugIn?.otherPaths ?? [])) }
+
+        /// A plug-in product's own parts of its target (#176).
+        public struct PlugIn: Sendable, Hashable {
+            /// Its AUv3 formats, which go with the app they are in.
+            public var insideApp = 0
+            /// More folders any process run from inside of counts as it running: its formats and standalone app.
+            public var otherPaths: [String] = []
+            /// Apps that must be closed too: plug-in hosts (Decision 51).
+            public var hosts: [RuleOwner] = []
+            /// The vendor's tool (Decision 50).
+            public var tool: String? = nil
+        }
     }
 
     /// The bundle IDs of what an app runs besides itself: `Contents/Library/LoginItems`, `Contents/Helpers`, `Contents/XPCServices`.
@@ -131,7 +139,7 @@ public enum AppUninstall {
             let unticked = offered.filter { $0.isUninstalled(with: app.path) && !ids.contains($0.id) }.count
             let password: String = app.tool.map { "Needs \($0) or your password" } ?? "Needs your password"
             let reasons: [(String, Int, String)] = [("unticked", unticked, "Not ticked"), ("password", app.needsPassword, password),
-                                                    ("inside", app.insideApp, "Goes with the app it is in"),
+                                                    ("inside", app.plugIn?.insideApp ?? 0, "Goes with the app it is in"),
                                                     ("unrecognised", app.unrecognised, "Holds files CacheDrop doesn’t recognise"), ("plan", app.inPlan, "In the Cleanup plan")]
             return reasons
                 .filter { $0.1 > 0 }

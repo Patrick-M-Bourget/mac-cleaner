@@ -78,14 +78,13 @@ public enum PlugInUninstall {
                                                         among: appEntries)
             var target = AppUninstall.Target(name: product.name, bundleID: standalone?.bundleID ?? bundleID, path: product.id,
                                              helpers: standalone.map { AppUninstall.helperIDs(of: URL(fileURLWithPath: $0.path)) } ?? [])
-            target.otherPaths = product.files.map(\.url.path) + (standalone.map { [$0.path] } ?? [])
-            target.hosts = hosts; target.tool = tool?.name
+            target.plugIn = AppUninstall.Target.PlugIn(otherPaths: product.files.map(\.url.path) + (standalone.map { [$0.path] } ?? []), hosts: hosts, tool: tool?.name)
             targets[product.id] = target
         }
         /// A shared item waits for every sharer (#288): the first's target, with each other sharer's own app as a host.
         func sharedTarget(_ ids: [String]) -> AppUninstall.Target? {
             guard var target = ids.lazy.compactMap({ targets[$0] }).first else { return nil }
-            target.hosts += ids.compactMap { targets[$0] }.filter { $0.path != target.path }.map(\.owner)
+            target.plugIn?.hosts += ids.compactMap { targets[$0] }.filter { $0.path != target.path }.map(\.owner)
             return target
         }
         for product in products {
@@ -93,7 +92,7 @@ public enum PlugInUninstall {
             var own: [Candidate] = []
             for file in product.files {
                 // An AUv3 lives inside its app and goes with it.
-                if file.format == .auv3 { target.insideApp += 1; continue }
+                if file.format == .auv3 { target.plugIn?.insideApp += 1; continue }
                 guard var format = item(formatsRule, file.url) else { continue }
                 guard Removability.canMoveToTrash(file.url) else { target.needsPassword += 1; continue }
                 format.leftover = LeftoverTie(app: product.name, bundleID: file.bundleID, vendor: RemovedAppLeftovers.vendor(of: file.bundleID ?? ""), evidence: .bundleID)
