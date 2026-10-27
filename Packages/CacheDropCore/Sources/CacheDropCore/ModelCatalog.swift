@@ -23,14 +23,15 @@ extension BuiltInCatalog {
         consequence: "Moved to Trash. You can restore them from the Trash; otherwise download them again in LM Studio. Quit LM Studio first.",
         regen: .model, action: .trash, locations: [".lmstudio/models/*/*"],
         owner: RuleOwner(name: "LM Studio", bundleIDs: ["ai.elementlabs.lmstudio"]))
-    /// Ollama's own server must be running for `ollama rm`, so the rule has no owner to close.
+    /// Ollama's own server must be running for `ollama rm`, so the rule has no owner to close. `ollama rm` asks that
+    /// server to remove the model, so stopping the command doesn't stop the work (daemon-backed, #189).
     static let ollamaModels = CleanupRule(
         id: "ollama-models", category: .models, title: "Ollama models",
         detail: "Models Ollama downloaded. Sizes count only the files no other model shares. Check when each was last used.",
         consequence: "Runs `ollama rm` for each model, which permanently removes it and any files no other model uses. Run `ollama pull` to download it again. Ollama must be open.",
         regen: .model, action: .tool, locations: [".ollama/models/manifests"], owner: nil,
         tool: ToolCommand(executables: ["/usr/local/bin/ollama", "/opt/homebrew/bin/ollama", "/Applications/Ollama.app/Contents/Resources/ollama"],
-                          arguments: ["rm", "<model>"], timeout: 120, itemPlaceholder: "<model>"),
+                          arguments: ["rm", "<model>"], timeout: 120, itemPlaceholder: "<model>", daemonBacked: true),
         items: .ollamaModels)
     /// Field note section 6: Claude's VM keeps `rootfs.img` (10 GB) unpacked beside `rootfs.img.zst` (1.1 GB).
     /// Only that unpacked copy is offered, only in the app's own VM folder, and only while the app is closed.

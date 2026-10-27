@@ -20,7 +20,7 @@ public struct ToolCommand: Sendable, Hashable {
     public let deletesLocationAfter: Bool
     /// An argument replaced by each item's name, as in `ollama rm <model>`; nil for commands that take none.
     public let itemPlaceholder: String?
-    /// The command hands its work to a daemon outside its process group (Docker, CoreSimulator), so stopping it
+    /// The command hands its work to a daemon outside its process group (Docker, CoreSimulator, the Ollama server), so stopping it
     /// at a cancel or its time limit doesn't stop the work, which may still be finishing.
     public let daemonBacked: Bool
     public init(executables: [String], arguments: [String], timeout: TimeInterval, deletesLocationAfter: Bool = false, itemPlaceholder: String? = nil, daemonBacked: Bool = false) {

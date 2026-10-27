@@ -298,11 +298,11 @@ private func dockerRun(_ home: URL, docker: URL, choose ruleIDs: Set<String>, vo
     #expect(record.message.hasPrefix("Stopped waiting at the 1-second time limit. docker container prune -f hands its work to a background service, which may still be finishing"))
 }
 
-/// Which tools hand their work to a daemon is rule data: Docker's prunes and every simctl action; tools that do the
-/// work in their own process group are not.
+/// Which tools hand their work to a daemon is rule data: Docker's prunes, every simctl action and `ollama rm` (#189);
+/// tools that do the work in their own process group are not.
 @Test func onlyDaemonBackedToolsAreMarkedAsSuch() {
     let tools = Dictionary(uniqueKeysWithValues: fixtureRules.compactMap { rule in rule.tool.map { (rule.id, $0) } })
     let daemonBacked = Set(tools.filter { $0.value.daemonBacked }.keys)
-    #expect(daemonBacked == ["docker-images", "docker-build-cache", "docker-containers", "simulator-runtimes", "simulator-devices", "xcode-simulators"])
+    #expect(daemonBacked == ["docker-images", "docker-build-cache", "docker-containers", "simulator-runtimes", "simulator-devices", "xcode-simulators", "ollama-models"])
     #expect(tools["homebrew"]?.daemonBacked == false)
 }
