@@ -16,6 +16,8 @@ public enum CheckRefusal: Sendable, Equatable {
     case projectOpen, projectUnchecked, recentlyEdited, uncommittedChanges, trackedByGit
     /// A removed app's leftover whose app is on this Mac again, or can't be shown not to be (#173).
     case appInstalled(String)
+    /// A plug-in support item, while any installer record can't be read (#291): unread is never "lists nothing".
+    case receiptsUnread
     /// A folder a tool named or its config set that no longer passes the write-scope checks (#201, #205); the reason names the tool.
     case notACache(String)
     public var reason: String {
@@ -42,6 +44,7 @@ public enum CheckRefusal: Sendable, Equatable {
         case .uncommittedChanges: "Its project has uncommitted changes. It is kept."
         case .trackedByGit: "Git tracks files in it. It is kept."
         case .appInstalled(let name): "\(name) is installed again, or CacheDrop couldn’t check. It is kept."
+        case .receiptsUnread: "Couldn’t read every installer record, so it is kept."
         case .notACache(let reason): reason
         }
     }

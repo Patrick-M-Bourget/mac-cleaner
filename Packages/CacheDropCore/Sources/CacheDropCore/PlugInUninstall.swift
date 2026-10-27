@@ -100,7 +100,9 @@ public enum PlugInUninstall {
                 format.leftover = LeftoverTie(app: product.name, bundleID: file.bundleID, vendor: RemovedAppLeftovers.vendor(of: file.bundleID ?? ""), evidence: .bundleID)
                 own.append(format)
             }
-            for receipt in product.receipts {
+            // An installer record that can't be read might list any of them: no support file is offered (#291).
+            if !receipts.unread.isEmpty { target.receiptsUnread = true }
+            for receipt in receipts.unread.isEmpty ? product.receipts : [] {
                 let listed = receipts.byReceipt[receipt] ?? []
                 for url in supportRoots(listed, systemRoot: systemRoot, receipts: receipts, products: productNames) {
                     guard let listers = receipts.listers(of: url.path), let ids = sharers(url.path) else { continue }
@@ -116,7 +118,7 @@ public enum PlugInUninstall {
             items += own.map { var item = $0; item.uninstall = target; return item }
         }
         for (key, item) in shared { shared[key]?.uninstall = sharedTarget(item.sharedBy) }
-        for piece in content where piece.kind == .installed {
+        for piece in content where piece.kind == .installed && receipts.unread.isEmpty {
             let ids = piece.owners.filter { id in products.contains { $0.id == id } }
             guard shared[piece.url.path] == nil, let target = sharedTarget(ids), var found = item(rules[2], piece.url) else { continue }
             found = found.shared(by: ids, receipt: nil, vendor: piece.vendors.first); found.uninstall = target
@@ -228,6 +230,7 @@ public enum PlugInUninstall {
         // it (#288, #291).
         if let allowed = candidate.installedBy {
             let now = receipts.value
+            guard now.unread.isEmpty else { return .receiptsUnread }
             guard let listers = now.listers(of: url.path), listers.isSubset(of: allowed) else { return .changed }
             let listed = Set(allowed.flatMap { now.byReceipt[$0] ?? [] })
             guard listed.contains(url.path) else { return .changed }

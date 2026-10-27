@@ -374,3 +374,25 @@ private func plist(_ relative: String, _ value: [String: Any], in root: URL) thr
     try plist(support + "Pro Synth/Presets/Settings.plist", ["Volume": 1, "ActivationCode": "XYZ"], in: root)
     #expect(check(home).check(presets) == .protected("Settings.plist"))
 }
+
+/// An installer record lsbom can't read: its plist, and a BOM that isn't one.
+private func unreadableReceipt(_ id: String, in root: URL) throws {
+    let receipts = root.appendingPathComponent("var/db/receipts")
+    let info: [String: Any] = ["PackageIdentifier": id, "PackageVersion": "1.0", "InstallPrefixPath": "/"]
+    try PropertyListSerialization.data(fromPropertyList: info, format: .xml, options: 0).write(to: receipts.appendingPathComponent(id + ".plist"))
+    try Data("not a bill of materials".utf8).write(to: receipts.appendingPathComponent(id + ".bom"))
+}
+
+@Test func aReceiptThatCantBeReadNeverCountsAsListingNothing() throws {
+    let (root, home) = try fixture()
+    defer { try? FileManager.default.removeItem(at: root) }
+    let (_, items) = scan(root, home)
+    let presets = try #require(items.first { $0.url.lastPathComponent == "Presets" })
+    #expect(check(home).check(presets) == nil)
+
+    try unreadableReceipt("com.other.big.pkg", in: root)
+    #expect(check(home).check(presets) == .receiptsUnread, "Before acting")
+    let (_, again) = scan(root, home)
+    #expect(!again.contains { $0.ruleID != PlugInUninstall.formatsRuleID }, "At the scan: no support item, only formats")
+    #expect(again.contains { $0.ruleID == PlugInUninstall.formatsRuleID })
+}
