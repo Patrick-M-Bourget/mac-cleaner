@@ -69,11 +69,33 @@ extension Catalog {
         guard lstat(folder.path, &info) == 0 else { return refused("but there’s no folder there") }
         guard ScopeContainment.contains(folder, in: base) else { return refused("which is outside your home folder") }
         if holdsMoreThanACache(folder, base: base, besides: rule) { return refused("which holds more than its cache") }
+        // A folder the rule deletes must look like the tool's cache: a tool set to a project folder would otherwise take it (#205).
+        if rule.deletesItems {
+            if let userFolder = Self.userContentFolder(holding: folder, base: base) { return refused("which is inside your \(userFolder) folder") }
+            if let markers = asker.cacheMarkers, !markers.contains(where: { Self.isFolder(folder.appendingPathComponent($0)) }) {
+                return refused("which doesn’t look like its cache")
+            }
+        }
         return .folder(folder, CatalogNote(ruleID: rule.id, text: "\(name) keeps its cache in \(shown), as \(command) says."))
     }
 
     /// Home folders a tool's cache never is, whatever it says: deleting one would take the user's own files.
     static let homeFoldersNeverACache: Set<String> = ["Applications", "Desktop", "Developer", "Documents", "Downloads", "Library", "Movies", "Music", "Pictures", "Public"]
+
+    /// Home folders for the user's own files: a cache CacheDrop deletes is never anywhere inside one (#205).
+    static let userContentFolders: Set<String> = ["Applications", "Desktop", "Documents", "Downloads", "Movies", "Music", "Pictures", "Public"]
+
+    /// The standard folder for the user's own files that `folder` is inside, at any depth; nil when it's in none.
+    static func userContentFolder(holding folder: URL, base: URL) -> String? {
+        let parts = folder.standardizedFileURL.pathComponents.dropFirst(base.standardizedFileURL.pathComponents.count)
+        return parts.first.flatMap { userContentFolders.contains($0) ? $0 : nil }
+    }
+
+    /// Whether `url` is a real folder, not a link to one.
+    static func isFolder(_ url: URL) -> Bool {
+        var info = stat()
+        return lstat(url.path, &info) == 0 && info.st_mode & S_IFMT == S_IFDIR
+    }
 
     /// Whether a folder a tool named is the home folder itself, one of its standard folders, or holds another rule's location
     /// (a cache set to `~/Library/Caches`), so cleaning it would take more than the tool's cache.

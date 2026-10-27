@@ -154,7 +154,7 @@ private func npmRuleAskingWithin(_ timeout: TimeInterval) throws -> Catalog {
     let home = try fixtureHome()
     defer { try? FileManager.default.removeItem(at: home) }
     try makeFolder(home, "Library/Caches/pip")
-    try makeFolder(home, ".pip-cache", bytes: 700)
+    try makeFolder(home, ".pip-cache/http-v2", bytes: 700)
     let python = try fakeTool(home, "python3", asked: "-m pip cache dir", query: "echo '\(home.path)/.pip-cache'")
     let catalog = Catalog(rules: fixtureRules)
     let discovery = catalog.discovery(fixture: home, locateTool: onlyTool("python3", python))
@@ -188,7 +188,7 @@ private func npmRuleAskingWithin(_ timeout: TimeInterval) throws -> Catalog {
     let home = try fixtureHome()
     defer { try? FileManager.default.removeItem(at: home) }
     try makeFolder(home, "Library/Caches/Homebrew")
-    try makeFolder(home, ".brew-cache")
+    try makeFolder(home, ".brew-cache/downloads")
     let marker = home.appendingPathComponent("ran")
     let brew = try fakeTool(home, "brew", asked: "--cache", query: "echo '\(home.path)/.brew-cache'", otherwise: "echo \"$@\" > '\(marker.path)'")
     let catalog = Catalog(rules: fixtureRules)
@@ -200,4 +200,74 @@ private func npmRuleAskingWithin(_ timeout: TimeInterval) throws -> Catalog {
     #expect(try String(contentsOf: marker, encoding: .utf8) == "cleanup -s\n")
     #expect(!FileManager.default.fileExists(atPath: home.appendingPathComponent(".brew-cache").path))
     #expect(FileManager.default.fileExists(atPath: home.appendingPathComponent("Library/Caches/Homebrew/entry").path))
+}
+
+/// A folder pip or Homebrew names is deleted, so it is offered only when it looks like that tool's cache (#205): never inside
+/// a folder for the user's own files, at any depth, and only when it holds an entry the tool's docs describe.
+@Test func aFolderPipOrHomebrewNamesIsOfferedOnlyWhenItLooksLikeTheirCache() throws {
+    let home = try fixtureHome()
+    defer { try? FileManager.default.removeItem(at: home) }
+    try makeFolder(home, "Library/Caches/pip")
+    try makeFolder(home, "Library/Caches/Homebrew")
+    // Marker names inside user folders don't make them caches.
+    try makeFolder(home, "Documents/proj/http-v2")
+    try makeFolder(home, "Documents/proj/downloads")
+    try makeFolder(home, "Desktop/x/y/wheels")
+    try makeFolder(home, "Desktop/x/y/api")
+    try makeFolder(home, "code/src")
+    let catalog = Catalog(rules: fixtureRules)
+    let cases: [(String, String)] = [
+        ("Documents/proj", "which is inside your Documents folder"),
+        ("Desktop/x/y", "which is inside your Desktop folder"),
+        ("code", "which doesn’t look like its cache"),
+    ]
+    for (folder, why) in cases {
+        let python = try fakeTool(home, "python3", asked: "-m pip cache dir", query: "echo '\(home.path)/\(folder)'")
+        let pip = catalog.discovery(fixture: home, locateTool: onlyTool("python3", python))
+        #expect(!pip.candidates.contains { $0.ruleID == "pip-cache" }, "\(folder)")
+        #expect(pip.notes.filter { $0.ruleID == "pip-cache" }
+                == [CatalogNote(ruleID: "pip-cache", text: "pip names ~/\(folder) as its cache (`python3 -m pip cache dir`), \(why), so it isn’t offered.")], "\(folder)")
+        let brew = try fakeTool(home, "brew", asked: "--cache", query: "echo '\(home.path)/\(folder)'")
+        let homebrew = catalog.discovery(fixture: home, locateTool: onlyTool("brew", brew))
+        #expect(!homebrew.candidates.contains { $0.ruleID == "homebrew" }, "\(folder)")
+        #expect(homebrew.notes.filter { $0.ruleID == "homebrew" }
+                == [CatalogNote(ruleID: "homebrew", text: "Homebrew names ~/\(folder) as its cache (`brew --cache`), \(why), so it isn’t offered.")], "\(folder)")
+    }
+}
+
+/// npm's `_cacache` is deleted too, so a folder npm names inside the user's own folders is refused whatever it holds (#205).
+@Test func anNPMCacheInsideTheUsersOwnFoldersIsNeverOffered() throws {
+    let home = try fixtureHome()
+    defer { try? FileManager.default.removeItem(at: home) }
+    try makeFolder(home, "Documents/proj/_cacache")
+    let npm = try fakeNPM(home, answer: "echo '\(home.path)/Documents/proj'")
+    let discovery = Catalog(rules: fixtureRules).discovery(fixture: home, locateTool: onlyTool("npm", npm))
+    #expect(!discovery.candidates.contains { $0.ruleID == "npm-cache" })
+    #expect(discovery.notes == [CatalogNote(ruleID: "npm-cache",
+                                            text: "npm names ~/Documents/proj/_cacache as its cache (`npm config get cache`), which is inside your Documents folder, so it isn’t offered.")])
+}
+
+/// Each tool's real cache layout is still offered: any one entry its docs describe is enough (#205).
+@Test func realPipAndHomebrewCacheLayoutsAreStillOffered() throws {
+    let catalog = Catalog(rules: fixtureRules)
+    for (tool, asked, ruleID, marker) in [("python3", "-m pip cache dir", "pip-cache", "http-v2"), ("python3", "-m pip cache dir", "pip-cache", "http"),
+                                          ("python3", "-m pip cache dir", "pip-cache", "wheels"), ("brew", "--cache", "homebrew", "downloads"),
+                                          ("brew", "--cache", "homebrew", "api")] {
+        let home = try fixtureHome()
+        defer { try? FileManager.default.removeItem(at: home) }
+        try makeFolder(home, "Developer/caches/\(ruleID)/\(marker)")
+        let fake = try fakeTool(home, tool, asked: asked, query: "echo '\(home.path)/Developer/caches/\(ruleID)'")
+        let discovery = catalog.discovery(fixture: home, locateTool: onlyTool(tool, fake))
+        #expect(discovery.candidates.filter { $0.ruleID == ruleID }.map(\.url.path) == [home.appendingPathComponent("Developer/caches/\(ruleID)").path], "\(ruleID) \(marker)")
+    }
+}
+
+/// Prune-only tools keep their folder, so the cache-look rule doesn't apply to them (#205).
+@Test func aPnpmStoreWithoutMarkersIsStillOffered() throws {
+    let home = try fixtureHome()
+    defer { try? FileManager.default.removeItem(at: home) }
+    try makeFolder(home, "code/store")
+    let pnpm = try fakeTool(home, "pnpm", asked: "store path", query: "echo '\(home.path)/code/store'")
+    let discovery = Catalog(rules: fixtureRules).discovery(fixture: home, locateTool: onlyTool("pnpm", pnpm))
+    #expect(discovery.candidates.filter { $0.ruleID == "pnpm-store" }.map(\.url.path) == [home.appendingPathComponent("code/store").path])
 }

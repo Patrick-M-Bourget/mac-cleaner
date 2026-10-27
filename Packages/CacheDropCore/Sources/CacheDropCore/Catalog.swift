@@ -32,12 +32,16 @@ public struct ToolCommand: Sendable, Hashable {
     public let whenLocationUnanswered: UnansweredLocation
     /// The folder inside the one the tool names that is the candidate, as `_cacache` inside `npm config get cache`.
     public let reportedSubfolder: String?
+    /// Entries the tool's docs say its cache holds (pip's `http-v2`, Homebrew's `downloads`). When set, a folder the tool names
+    /// that a rule deletes is offered only when it holds at least one of them as a folder (#205).
+    public let cacheMarkers: Set<String>?
     public init(executables: [String], arguments: [String], timeout: TimeInterval, deletesLocationAfter: Bool = false, itemPlaceholder: String? = nil, daemonBacked: Bool = false,
-                locationQuery: [String]? = nil, locationQueryTimeout: TimeInterval = 5, whenLocationUnanswered: UnansweredLocation = .notOffered, reportedSubfolder: String? = nil) {
+                locationQuery: [String]? = nil, locationQueryTimeout: TimeInterval = 5, whenLocationUnanswered: UnansweredLocation = .notOffered, reportedSubfolder: String? = nil,
+                cacheMarkers: Set<String>? = nil) {
         self.executables = executables; self.arguments = arguments; self.timeout = timeout; self.deletesLocationAfter = deletesLocationAfter
         self.itemPlaceholder = itemPlaceholder; self.daemonBacked = daemonBacked
         self.locationQuery = locationQuery; self.locationQueryTimeout = locationQueryTimeout
-        self.whenLocationUnanswered = whenLocationUnanswered; self.reportedSubfolder = reportedSubfolder
+        self.whenLocationUnanswered = whenLocationUnanswered; self.reportedSubfolder = reportedSubfolder; self.cacheMarkers = cacheMarkers
     }
     /// The arguments for one item; nil when the command needs an item name and has none.
     public func arguments(for item: String?) -> [String]? {
@@ -229,8 +233,11 @@ public enum BuiltInCatalog {
                     consequence: "Permanently removed. pip downloads packages again as needed; the next install may take longer.",
                     regen: .cache, action: .delete, locations: ["Library/Caches/pip"],
                     owner: RuleOwner(name: "pip", executables: ["pip", "pip3", "pip3.*"], scripts: ["pip", "pip3", "pip3.*"]),
+                    // pip's cache holds `http-v2` (pip 23.3 on) or `http` (earlier), per https://pip.pypa.io/en/stable/topics/caching/,
+                    // and `wheels`, per pip's `src/pip/_internal/cache.py` (`os.path.join(self.cache_dir, "wheels", ...)`).
                     locationTool: ToolCommand(executables: ["/opt/homebrew/bin/python3", "/usr/local/bin/python3", "/Library/Developer/CommandLineTools/usr/bin/python3"], arguments: [],
-                                              timeout: 0, locationQuery: ["-m", "pip", "cache", "dir"], whenLocationUnanswered: .defaultLocations)),
+                                              timeout: 0, locationQuery: ["-m", "pip", "cache", "dir"], whenLocationUnanswered: .defaultLocations,
+                                              cacheMarkers: ["http-v2", "http", "wheels"])),
         CleanupRule(id: "cargo-cache", category: .developer, title: "Cargo cache",
                     detail: "Rust crates and git dependencies Cargo downloaded. Installed tools are not included.",
                     consequence: "Permanently removed. Cargo downloads crates again as needed; the next build may take longer.",
@@ -251,8 +258,10 @@ public enum BuiltInCatalog {
                     consequence: "Runs `brew cleanup -s`, then permanently removes the cache folder. Homebrew downloads again when you install or upgrade.",
                     regen: .cache, action: .tool, locations: ["Library/Caches/Homebrew"],
                     owner: RuleOwner(name: "Homebrew", executables: ["brew"], scripts: ["brew", "brew.sh", "brew.rb"]),
+                    // `brew --cache` holds `downloads` (Homebrew's `download_strategy/abstract_file_download_strategy.rb`: `HOMEBREW_CACHE/"downloads/..."`)
+                    // and `api` (`api.rb`: `HOMEBREW_CACHE_API = HOMEBREW_CACHE/"api"`), from https://github.com/Homebrew/brew.
                     tool: ToolCommand(executables: ["/opt/homebrew/bin/brew", "/usr/local/bin/brew"], arguments: ["cleanup", "-s"], timeout: 300, deletesLocationAfter: true,
-                                      locationQuery: ["--cache"], whenLocationUnanswered: .defaultLocations)),
+                                      locationQuery: ["--cache"], whenLocationUnanswered: .defaultLocations, cacheMarkers: ["downloads", "api"])),
         CleanupRule(id: "xcode-derived-data", category: .developer, title: "Xcode DerivedData",
                     detail: "Build files, indexes and products Xcode keeps for each project.",
                     consequence: "Permanently removed. Xcode rebuilds them; the next build and indexing take longer. Archives and your projects are not touched.",
