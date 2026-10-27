@@ -23,9 +23,16 @@ public struct ToolCommand: Sendable, Hashable {
     /// The command hands its work to a daemon outside its process group (Docker, CoreSimulator), so stopping it
     /// at a cancel or its time limit doesn't stop the work, which may still be finishing.
     public let daemonBacked: Bool
-    public init(executables: [String], arguments: [String], timeout: TimeInterval, deletesLocationAfter: Bool = false, itemPlaceholder: String? = nil, daemonBacked: Bool = false) {
+    /// Arguments that make the tool print the folder it keeps its data in, as in `uv cache dir` (Decision 44). When set,
+    /// discovery asks the tool, and the folder it names is the candidate instead of the rule's locations. A tool that
+    /// doesn't answer within `locationQueryTimeout`, fails or names no usable folder means nothing is offered.
+    public let locationQuery: [String]?
+    public let locationQueryTimeout: TimeInterval
+    public init(executables: [String], arguments: [String], timeout: TimeInterval, deletesLocationAfter: Bool = false, itemPlaceholder: String? = nil, daemonBacked: Bool = false,
+                locationQuery: [String]? = nil, locationQueryTimeout: TimeInterval = 5) {
         self.executables = executables; self.arguments = arguments; self.timeout = timeout; self.deletesLocationAfter = deletesLocationAfter
         self.itemPlaceholder = itemPlaceholder; self.daemonBacked = daemonBacked
+        self.locationQuery = locationQuery; self.locationQueryTimeout = locationQueryTimeout
     }
     /// The arguments for one item; nil when the command needs an item name and has none.
     public func arguments(for item: String?) -> [String]? {
@@ -196,11 +203,14 @@ public enum BuiltInCatalog {
                     consequence: "Permanently removed. pnpm downloads metadata again as needed.",
                     regen: .cache, action: .delete, locations: ["Library/Caches/pnpm"],
                     owner: pnpmOwner),
+        // Decision 44: uv's docs say to change its cache only through uv, so uv names the folder and prunes it.
         CleanupRule(id: "uv-cache", category: .developer, title: "uv cache",
-                    detail: "Python packages uv downloaded and built.",
-                    consequence: "Permanently removed. uv downloads or builds packages again as needed; the next install may take longer.",
-                    regen: .cache, action: .delete, locations: [".cache/uv"],
-                    owner: RuleOwner(name: "uv", executables: ["uv", "uvx"])),
+                    detail: "Python packages uv downloaded and built that it no longer needs.",
+                    consequence: "Runs `uv cache prune`, which permanently removes only unused cache entries. uv downloads or builds packages again as needed.",
+                    regen: .cache, action: .tool, locations: [".cache/uv"],
+                    owner: RuleOwner(name: "uv", executables: ["uv", "uvx"]),
+                    tool: ToolCommand(executables: [NSHomeDirectory() + "/.local/bin/uv", "/opt/homebrew/bin/uv", "/usr/local/bin/uv", NSHomeDirectory() + "/.cargo/bin/uv"],
+                                      arguments: ["cache", "prune"], timeout: 300, locationQuery: ["cache", "dir"])),
         CleanupRule(id: "pip-cache", category: .developer, title: "pip cache",
                     detail: "Python packages pip downloaded and built.",
                     consequence: "Permanently removed. pip downloads packages again as needed; the next install may take longer.",
@@ -407,13 +417,25 @@ public struct Catalog: Sendable {
                 dockerUsage[toolURL.path] = usage
                 if case .failure = usage { notMeasured[rule.id, default: []].formUnion(rule.locations); return leftovers.map { $0.found(under: base) } }
             }
+            // A tool that names its own folder (`uv cache dir`) is asked; its answer replaces the rule's locations.
+            var reported: URL?
+            if let query = rule.tool?.locationQuery, let tool = rule.tool, let toolURL {
+                switch Self.reportedFolder(by: toolURL, query: query, timeout: tool.locationQueryTimeout) {
+                case .success(let folder): reported = folder
+                case .failure:
+                    notes.append(CatalogNote(ruleID: rule.id, text: Self.locationQueryNotice(tool, query: query)))
+                    notMeasured[rule.id, default: []].formUnion(rule.locations)
+                    return leftovers.map { $0.found(under: base) }
+                }
+            }
             // A trailing `/*` offers each folder inside (DeviceSupport versions); a `*` inside the path names a profile.
-            let found = rule.locations.flatMap { location -> [(URL, String?)] in
+            let places = reported.map { [($0, String?.none)] } ?? rule.locations.flatMap { location -> [(URL, String?)] in
                 // A pattern as the last component (`models--*`) also offers each matching folder.
                 (location as NSString).lastPathComponent.contains("*")
                     ? Self.childFolders(of: location, in: base, keepNewestVersions: rule.keepNewestVersions).map { (base.appendingPathComponent($0), nil) }
                     : Self.pathsMatching(location, under: base).map { ($0.0, $0.1.isEmpty ? nil : $0.1.joined(separator: "/")) }
-            }.flatMap { url, profile -> [Candidate] in
+            }
+            let found = places.flatMap { url, profile -> [Candidate] in
                 guard Protection(rule).protectedComponent(of: url, below: base) == nil, ScopeContainment.contains(url, in: base) else { return [] }
                 if let copies = rule.copies {
                     let (found, note) = leakedCopies(rule, copies, in: url, sizer: sizer, inUse: inUse)
