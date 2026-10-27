@@ -558,7 +558,7 @@ private struct WorkspaceView: View {
             }
             // One row per problem (#223, #231): each unavailable location names itself and carries the fix.
             ForEach(locationsModel.recoveries, id: \.scope.id) { scope, status in
-                StatusRow(text: URL(fileURLWithPath: scope.path).lastPathComponent + " · " + status.reason, symbol: "info.circle", role: .caution,
+                StatusRow(text: recoveryText(scope, status: status), symbol: "info.circle", role: .caution,
                     identifier: "overviewLocationRecovery", action: StatusAction(title: "Choose again…", identifier: "overviewChooseAgain") {
                     renewAndScan(scope)
                 }).disabled(folderInspection.isScanning || selection.workspaceRunning)
@@ -574,6 +574,13 @@ private struct WorkspaceView: View {
         locationsModel.recoveries.map { scope, status in
             ExplorerUnavailableLocation(scope: URL(fileURLWithPath: scope.path).standardizedFileURL, reason: locationsModel.recoveryReasons[scope.id] ?? status.reason) { renewAndScan(scope) }
         }
+    }
+    /// "Folder not found · last observed <time>" for a deleted or moved folder, "Access unavailable" for an unreadable one (#254).
+    private func recoveryText(_ scope: RememberedScope, status: RememberedLocations.AccessStatus) -> String {
+        let observed = Array(selection.scans.values) + folderInspection.scopeReports.map(\.current)
+        return UnavailableScannedFolder.overviewText(name: URL(fileURLWithPath: scope.path).lastPathComponent,
+            reason: locationsModel.recoveryReasons[scope.id] ?? status.reason,
+            lastObserved: UnavailableScannedFolder.lastObserved(URL(fileURLWithPath: scope.path), in: observed).map(ExplorerUnavailableLocation.format))
     }
     /// Choose again…, then scan the renewed location in place (#223).
     private func renewAndScan(_ scope: RememberedScope) {
