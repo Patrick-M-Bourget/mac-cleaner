@@ -2,10 +2,15 @@ import Foundation
 import Testing
 @testable import CacheDropCore
 
-/// A stand-in tool: a shell script whose children all carry `marker` on their command line.
-private func treeTool(_ body: String) throws -> URL {
+/// A new empty temp folder, for files a stand-in tool writes to say it reached a point.
+private func scratchFolder() throws -> URL {
     let folder = FileManager.default.temporaryDirectory.appendingPathComponent("bounded-tool-\(UUID().uuidString)")
     try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+    return folder
+}
+/// A stand-in tool: a shell script whose children all carry `marker` on their command line.
+private func treeTool(_ body: String) throws -> URL {
+    let folder = try scratchFolder()
     let script = folder.appendingPathComponent("tool.sh")
     try "#!/bin/sh\n\(body)\n".write(to: script, atomically: true, encoding: .utf8)
     try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: script.path)
@@ -84,7 +89,7 @@ private func isRunning(_ pid: pid_t) -> Bool {
 
 @Test func aCancelledToolIsStoppedWithEveryProcessItStartedAndReturnsItsOutputSoFar() throws {
     let marker = uniqueSleep()
-    let folder = try treeTool("true").deletingLastPathComponent()
+    let folder = try scratchFolder()
     defer { try? FileManager.default.removeItem(at: folder) }
     let running = folder.appendingPathComponent("running")
     let tool = try treeTool("echo started\ntouch '\(running.path)'\nsleep \"$1\" &\nsleep \"$1\"")
@@ -104,7 +109,7 @@ private func isRunning(_ pid: pid_t) -> Bool {
 }
 
 @Test func aToolCancelledBeforeItStartsIsNeverLaunched() throws {
-    let folder = try treeTool("true").deletingLastPathComponent()
+    let folder = try scratchFolder()
     defer { try? FileManager.default.removeItem(at: folder) }
     let marker = folder.appendingPathComponent("ran")
     let tool = try treeTool("touch '\(marker.path)'")
@@ -120,7 +125,7 @@ private func isRunning(_ pid: pid_t) -> Bool {
 /// reports the tool's own result, not a stop, and still ends what it left behind.
 @Test func aCancelAfterTheToolExitedReturnsItsOwnResult() throws {
     let marker = uniqueSleep()
-    let folder = try treeTool("true").deletingLastPathComponent()
+    let folder = try scratchFolder()
     defer { try? FileManager.default.removeItem(at: folder) }
     let exited = folder.appendingPathComponent("exited")
     // The child writes `exited` once its parent, the tool, is a zombie waiting to be reaped.

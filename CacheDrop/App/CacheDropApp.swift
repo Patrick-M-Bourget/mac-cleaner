@@ -7,7 +7,7 @@ struct CacheDropApp: App {
     @NSApplicationDelegateAdaptor(CacheDropApplicationDelegate.self) private var delegate
     @StateObject private var lifecycle = AppLifecycleController.shared
     @StateObject private var alerts = AppLifecycleController.shared.alerts
-    @AppStorage(MenuBarItemPreference.key) private var showsMenuBarItem = true
+    @AppStorage(PreferenceKeys.showsMenuBarItem) private var showsMenuBarItem = true
     /// Runs before AppKit finishes launching, so saved window state is ignored before it can be restored.
     /// Still's state is copied first, before anything reads CacheDrop's (#149).
     /// The first-run welcome is decided from what was there before (#158).

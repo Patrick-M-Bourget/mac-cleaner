@@ -3,9 +3,9 @@ import Foundation
 
 /// Updater downloads, per-app caches and the user's logs (#103).
 public enum AppCaches {
-    /// CacheDrop's own folders, and those of Still (its former name), never offered under any rule (`Protection`).
-    /// Other bundle IDs of theirs, such as the UI-test runners', are covered by `isExcluded`'s prefix check.
-    static let ownNames = ["CacheDrop", "com.patrickbourget.CacheDrop", "Still", "com.patrickbourget.Still"]
+    /// CacheDrop's own folders, and those of Still (its former name), by plain name, never offered under any rule (`Protection`).
+    /// Bundle IDs aren't listed: every one of theirs, the apps' and the UI-test runners', is covered by `isExcluded`'s prefix check.
+    static let ownNames = ["CacheDrop", "Still"]
 
     /// Levels searched for a git checkout or other protected name inside a cache or log folder. A path under Caches
     /// doesn't prove a folder is disposable: the field scan found an agent's live checkout two levels down.

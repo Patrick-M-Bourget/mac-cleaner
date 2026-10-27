@@ -84,6 +84,10 @@ private struct CatalogResultRow: View {
             }
             VStack(alignment: .leading, spacing: CacheDropDesign.Space.xs) {
                 if record.needsAttention { Text(record.message).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true) }
+                if let later = record.laterMeasurementText {
+                    Text(later).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                        .accessibilityIdentifier("laterMeasurement-" + (record.ruleID ?? ""))
+                }
                 if showsDetails {
                     Text(record.originalURL.path).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary).textSelection(.enabled)
                     if !record.needsAttention { Text(record.message).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary) }

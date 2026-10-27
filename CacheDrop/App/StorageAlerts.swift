@@ -225,7 +225,3 @@ struct CacheDropMenuBarMenu: View {
     }
 }
 
-/// The Settings toggle for the menu bar item. Stored with the other app preferences; shown unless turned off.
-enum MenuBarItemPreference {
-    static let key = PreferenceKeys.showsMenuBarItem
-}
