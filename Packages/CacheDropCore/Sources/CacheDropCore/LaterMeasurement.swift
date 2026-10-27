@@ -44,12 +44,22 @@ extension CleanupRecord {
         guard let finding = laterMeasurement?.finding else { return nil }
         let scanned = allocatedBytes ?? logicalBytes
         func size(_ bytes: Int64) -> String { ByteCountFormatter.string(fromByteCount: bytes, countStyle: .decimal) }
+        let later = Self.laterMeasurementWhen
         switch finding {
-        case .gone: return "Measured again a minute later: it’s gone (\(size(scanned)) at the scan)."
+        case .gone: return "Measured again \(later): it’s gone (\(size(scanned)) at the scan)."
         case .remaining(let bytes) where bytes < scanned:
-            return "Measured again a minute later: \(size(scanned - bytes)) of \(size(scanned)) went; \(size(bytes)) is left."
-        case .remaining: return "Measured again a minute later: nothing went yet."
-        case .unmeasured: return "Couldn’t measure it again a minute later."
+            return "Measured again \(later): \(size(scanned - bytes)) of \(size(scanned)) went; \(size(bytes)) is left."
+        case .remaining: return "Measured again \(later): nothing went yet."
+        case .unmeasured: return "Couldn’t measure it again \(later)."
         }
+    }
+
+    /// When the item was measured again, from `CleanupExecutor.laterMeasurementDelay`: "a minute later".
+    static var laterMeasurementWhen: String {
+        let seconds = CleanupExecutor.laterMeasurementDelay.components.seconds
+        if seconds == 60 { return "a minute later" }
+        let formatter = DateComponentsFormatter()
+        formatter.unitsStyle = .full; formatter.allowedUnits = [.minute, .second]
+        return (formatter.string(from: TimeInterval(seconds)) ?? "") + " later"
     }
 }
