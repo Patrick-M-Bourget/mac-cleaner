@@ -357,6 +357,9 @@ public struct Candidate: Sendable, Identifiable, Hashable {
     public internal(set) var fileBytes: Int64? = nil
     /// What the scan sized: allocated bytes where known, else logical bytes.
     public var estimatedBytes: Int64 { allocatedBytes ?? logicalBytes }
+    /// Where a tool-asked rule's folder came from, shown on the item (#206): "Named by `npm config get cache`", or "Usual folder"
+    /// when the tool wasn't asked successfully. Nil for every other rule.
+    public internal(set) var folderSource: String? = nil
     /// The base folder the item was found under (home or the user's folder); the check refuses an item without one.
     public internal(set) var scopeRoot: URL? = nil
 }
@@ -443,11 +446,11 @@ public struct Catalog: Sendable {
                 if case .failure = usage { notMeasured[rule.id, default: []].formUnion(rule.locations); return leftovers.map { $0.found(under: base) } }
             }
             // A tool that names its own folder (`uv cache dir`, `npm config get cache`) is asked; its answer replaces the rule's locations.
-            var reported: URL?, defaultsNote: CatalogNote?
+            var reported: URL?, defaultsNote: CatalogNote?, folderSource: String?
             if let asker = rule.locationAsker {
                 switch reportedLocation(of: rule, asking: asker, at: rule.tool?.locationQuery != nil ? toolURL : locateTool(asker), base: base) {
-                case .folder(let folder, let note): reported = folder; notes.append(note)
-                case .defaults(let note): defaultsNote = note
+                case .folder(let folder): reported = folder; folderSource = Self.namedBy(asker)
+                case .defaults(let note): defaultsNote = note; folderSource = note == nil ? Self.namedBy(asker) : "Usual folder"
                 case .notOffered(let note, let unmeasured):
                     notes.append(note)
                     if unmeasured { notMeasured[rule.id, default: []].formUnion(rule.locations) }
@@ -514,6 +517,7 @@ public struct Catalog: Sendable {
                                       profile: profile)
                 found.itemName = rule.itemName?(url.lastPathComponent)
                 found.appName = appName
+                found.folderSource = folderSource
                 return [found]
             }
             // The default folder offered in place of one the tool didn't name says so (#170).

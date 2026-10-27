@@ -66,7 +66,7 @@ private func execute(_ candidate: Candidate, catalog: Catalog, home: URL, previe
     let uv = try fakeUV(home, dir: "echo '\(home.path)/Developer/uv-cache'")
     let found = Catalog(rules: fixtureRules).discover(fixture: home, locateTool: onlyTool("uv", uv)).filter { $0.ruleID == "uv-cache" }
     #expect(found.map(\.url.path) == [home.appendingPathComponent("Developer/uv-cache").path])
-    #expect(found.allSatisfy { $0.action == .tool })
+    #expect(found.allSatisfy { $0.action == .tool && $0.folderSource == "Named by `uv cache dir`" })
 }
 
 /// A folder uv names outside the home folder is out of CacheDrop's scope, and one that doesn't exist has nothing to prune.
