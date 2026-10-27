@@ -101,9 +101,9 @@ public struct MusicContentItem: Sendable, Equatable, Identifiable {
     }
     public enum State: Sendable, Equatable {
         case present(SizeEstimate)
-        /// Its volume isn't connected or its target is gone: it is reported, never treated as removed. `volume` is the
-        /// volume's name when known.
-        case offline(volume: String?)
+        /// On a drive that isn't connected: reported, never treated as removed. Content missing from a connected drive or
+        /// the startup disk is gone and isn't listed.
+        case offline(volume: String)
     }
     public let name: String
     /// The vendors whose locations reach it: one, unless two vendors' locations lead to the same folder.
@@ -136,7 +136,7 @@ public struct MusicContent: Sendable, Equatable {
 
     /// Looks in each vendor's documented locations, plus the locations `configured` reads from the vendor's own settings,
     /// and attaches what it finds to `owners`. Reads metadata and sizes only; follows a link or alias at a location only to
-    /// measure its target. A default location with nothing there isn't listed; a configured one is offline.
+    /// measure its target. Content whose drive isn't connected is offline; missing anywhere else, it isn't listed.
     /// `volumes` is where drives are mounted, `/Volumes` outside tests.
     public static func scan(owners: [ContentOwner], home: URL, systemRoot: URL = URL(fileURLWithPath: "/"),
                             volumes: URL = URL(fileURLWithPath: "/Volumes"),
@@ -151,12 +151,16 @@ public struct MusicContent: Sendable, Equatable {
             }
             let found = defaults.map { ($0, false) } + configured(vendor).map { ((url: $0.url, name: $0.url.lastPathComponent, kind: $0.kind), true) }
             for (location, isConfigured) in found {
-                let state: MusicContentItem.State, key: String
-                switch resolve(location.url) {
-                case .missing where isConfigured: (state, key) = (.offline(volume: volume(of: location.url, under: volumes)), location.url.path)
-                case .missing: continue
-                case .offline(let target): (state, key) = (.offline(volume: target.flatMap { volume(of: $0, under: volumes) }), target?.path ?? location.url.path)
-                case .at(let real): (state, key) = (.present(Catalog.estimate(sizer.size(URL(fileURLWithPath: real)))), real)
+                let resolved = resolve(location.url), state: MusicContentItem.State, key: String
+                if case .at(let real) = resolved {
+                    (state, key) = (.present(Catalog.estimate(sizer.size(URL(fileURLWithPath: real)))), real)
+                } else {
+                    if resolved == .missing, !isConfigured { continue }
+                    let target: URL? = if case .leadsNowhere(let destination) = resolved { destination } else { location.url }
+                    // Only a drive that isn't connected makes it offline; missing anywhere else, it is gone.
+                    guard let target, let drive = volume(of: target, under: volumes),
+                          !FileManager.default.fileExists(atPath: volumes.appendingPathComponent(drive).path) else { continue }
+                    (state, key) = (.offline(volume: drive), target.standardizedFileURL.path)
                 }
                 if let seen = index[key] {
                     // Reached again, through another vendor's location: one item, with every vendor's owners.
@@ -175,28 +179,33 @@ public struct MusicContent: Sendable, Equatable {
 
     /// The drive a path is on, when it is under `volumes`: "<volumes>/Studio/…" reads "Studio".
     static func volume(of url: URL, under volumes: URL) -> String? {
-        let prefix = volumes.standardizedFileURL.path + "/", path = url.standardizedFileURL.path
-        return path.hasPrefix(prefix) ? String(path.dropFirst(prefix.count).prefix { $0 != "/" }) : nil
+        // An alias records the real path ("/private/var/…" for "/var/…"), so the volumes folder is matched both ways.
+        let path = url.standardizedFileURL.path
+        for root in [volumes.standardizedFileURL.path, realPath(volumes.path)].compactMap({ $0 }) where path.hasPrefix(root + "/") {
+            return String(path.dropFirst(root.count + 1).prefix { $0 != "/" })
+        }
+        return nil
     }
 
-    enum Resolved: Equatable { case missing, at(String), offline(URL?) }
+    /// Nothing at the location; the real path it leads to; or a link or alias whose target isn't there (when known).
+    enum Resolved: Equatable { case missing, at(String), leadsNowhere(URL?) }
 
     /// Where a location really is: through a symbolic link or a Finder alias left where a library was moved from, without
-    /// mounting a volume or asking the user. A link or alias whose target is gone is offline, with the target when known.
+    /// mounting a volume or asking the user.
     static func resolve(_ url: URL) -> Resolved {
         var info = stat()
         guard lstat(url.path, &info) == 0 else { return .missing }
         if info.st_mode & S_IFMT == S_IFLNK {
-            guard let destination = try? FileManager.default.destinationOfSymbolicLink(atPath: url.path) else { return .offline(nil) }
+            guard let destination = try? FileManager.default.destinationOfSymbolicLink(atPath: url.path) else { return .leadsNowhere(nil) }
             let target = URL(fileURLWithPath: destination, relativeTo: url.deletingLastPathComponent()).standardizedFileURL
-            return realPath(url.path).map(Resolved.at) ?? .offline(target)
+            return realPath(url.path).map(Resolved.at) ?? .leadsNowhere(target)
         }
         if info.st_mode & S_IFMT == S_IFREG, (try? url.resourceValues(forKeys: [.isAliasFileKey]))?.isAliasFile == true {
             guard let resolved = try? URL(resolvingAliasFileAt: url, options: [.withoutUI, .withoutMounting]),
                   let real = realPath(resolved.path) else {
                 let bookmark = try? URL.bookmarkData(withContentsOf: url)
-                let volume = bookmark.flatMap { URL.resourceValues(forKeys: [.volumeURLKey], fromBookmarkData: $0)?.volume }
-                return .offline(volume)
+                let path = bookmark.flatMap { URL.resourceValues(forKeys: [.pathKey], fromBookmarkData: $0)?.path }
+                return .leadsNowhere(path.map { URL(fileURLWithPath: $0) })
             }
             return .at(real)
         }

@@ -114,10 +114,13 @@ private let unrelated = ContentOwner(id: "other", name: "Serum", bundleID: "com.
     #expect(content.size == .measured(0))
 }
 
-/// #175: a Finder alias left where a library was moved from is followed for inventory; when its target is gone, it is offline.
-@Test func anAliasToAMovedLibraryIsFollowedAndOfflineWhenItsTargetIsGone() throws {
+/// #175, #277: a Finder alias left where a library was moved from is followed for inventory. When its drive is unplugged
+/// it is offline; when its target is gone from a connected drive, it is gone.
+@Test func anAliasToAMovedLibraryIsFollowedOfflineWhenItsDriveIsUnpluggedAndGoneWhenDeleted() throws {
     let mac = try FixtureMac(); defer { mac.remove() }
-    let moved = try mac.folder("Elsewhere/Waves Samples", bytes: 8_192)
+    let moved = mac.volumes.appendingPathComponent("Studio/Waves Samples")
+    try FileManager.default.createDirectory(at: moved, withIntermediateDirectories: true)
+    try Data(count: 8_192).write(to: moved.appendingPathComponent("content.bin"))
     let folder = mac.system.appendingPathComponent("Applications/Waves/Data/Instrument Data")
     try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
     let alias = folder.appendingPathComponent("Waves Sample Libraries")
@@ -130,7 +133,21 @@ private let unrelated = ContentOwner(id: "other", name: "Serum", bundleID: "com.
     #expect(bytes >= 8_192)
 
     try FileManager.default.removeItem(at: moved)
-    #expect(mac.scan([wavesShell]).items.first?.state == .offline(volume: nil))
+    #expect(mac.scan([wavesShell]).items.isEmpty, "Deleted from a connected drive: gone, not offline")
+
+    try FileManager.default.removeItem(at: mac.volumes.appendingPathComponent("Studio"))
+    #expect(mac.scan([wavesShell]).items.first?.state == .offline(volume: "Studio"))
+}
+
+/// #277: a configured location missing from a connected drive, or from the startup disk, is gone, not offline.
+@Test func aConfiguredLocationMissingFromAConnectedDriveIsGone() throws {
+    let mac = try FixtureMac(); defer { mac.remove() }
+    try FileManager.default.createDirectory(at: mac.volumes.appendingPathComponent("Studio"), withIntermediateDirectories: true)
+    let onDrive = mac.volumes.appendingPathComponent("Studio/Ableton Packs"), onStartup = mac.home.appendingPathComponent("Moved Packs")
+
+    let content = mac.scan([live], configured: { $0.name == "Ableton" ? [.init(url: onDrive, kind: .installed), .init(url: onStartup, kind: .installed)] : [] })
+
+    #expect(content.items.isEmpty)
 }
 
 /// #175: Arturia's resources folder serves all its products: one item, shared with every Arturia product installed.
