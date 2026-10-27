@@ -252,3 +252,20 @@ private func names(_ items: [Candidate]) -> Set<String> { Set(items.map(\.url.la
     try write(support + "Pro Synth/Presets/iLok Activation.dat", in: root)
     #expect(check(home).check(presets) == .protected("iLok Activation.dat"), "License data is never moved")
 }
+
+@Test func aSharedItemWaitsForEverySharersOwnAppAndTheReviewNamesTheProductBeingUninstalled() throws {
+    let (root, home) = try fixture()
+    defer { try? FileManager.default.removeItem(at: root) }
+    let apps = ["Pro Synth", "Pro Delay"].map { InstalledApp(name: $0, bundleID: "com.maker." + $0.lowercased().replacingOccurrences(of: " ", with: "") + ".app",
+                                                            path: "/Applications/\($0).app") }
+    let (inventory, items) = scan(root, home, apps: apps)
+    let shared = try #require(items.first { $0.ruleID == PlugInUninstall.sharedRuleID })
+
+    for app in ["Pro Synth", "Pro Delay"] { #expect(check(home, running: Running(names: [app])).check(shared) == .ownerRunning(app), "\(app) is running") }
+    #expect(check(home, running: Running(names: ["REAPER"])).check(shared) == .ownerRunning("REAPER"))
+    let delay = try product("Pro Delay", inventory)
+    // Pro Delay's formats and the shared folder, its presets left unticked.
+    let chosen = items.filter { $0.uninstall?.path == delay && $0.ruleID == PlugInUninstall.formatsRuleID } + [shared]
+    let lines = AppUninstall.staying(chosen: chosen, offered: items).map(\.text)
+    #expect(!lines.isEmpty && lines.allSatisfy { $0.hasPrefix("Pro Delay: ") }, "\(lines)")
+}

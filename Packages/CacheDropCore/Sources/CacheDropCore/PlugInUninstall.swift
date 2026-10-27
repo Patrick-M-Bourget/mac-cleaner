@@ -62,6 +62,7 @@ public enum PlugInUninstall {
                 .found(under: url.deletingLastPathComponent())
         }
         let taken = RemovedAppLeftovers.notOffered
+        var targets: [String: AppUninstall.Target] = [:]
         for product in products {
             let bundleID = product.files.lazy.compactMap(\.bundleID).first ?? ""
             let standalone = ownApp(of: product, among: apps)
@@ -70,6 +71,16 @@ public enum PlugInUninstall {
                                              helpers: standalone.map { AppUninstall.helperIDs(of: URL(fileURLWithPath: $0.path)) } ?? [])
             target.otherPaths = product.files.map(\.url.path) + (standalone.map { [$0.path] } ?? [])
             target.hosts = hosts; target.tool = tool?.name
+            targets[product.id] = target
+        }
+        /// A shared item waits for every sharer (#288): the first's target, with each other sharer's own app as a host.
+        func sharedTarget(_ ids: [String]) -> AppUninstall.Target? {
+            guard var target = ids.lazy.compactMap({ targets[$0] }).first else { return nil }
+            target.hosts += ids.compactMap { targets[$0] }.filter { $0.path != target.path }.map(\.owner)
+            return target
+        }
+        for product in products {
+            guard var target = targets[product.id] else { continue }
             var own: [Candidate] = []
             for file in product.files {
                 // An AUv3 lives inside its app and goes with it.
@@ -91,15 +102,14 @@ public enum PlugInUninstall {
                     own.append(file)
                 }
             }
+            targets[product.id] = target
             items += own.map { var item = $0; item.uninstall = target; return item }
-            // Shared items carry the first sharer's target, for its owner and checks.
-            for key in shared.keys where shared[key]?.uninstall == nil { shared[key]?.uninstall = target }
         }
+        for (key, item) in shared { shared[key]?.uninstall = sharedTarget(item.sharedBy) }
         for piece in content where piece.kind == .installed {
             let ids = piece.owners.filter { id in products.contains { $0.id == id } }
-            guard let first = ids.first, shared[piece.url.path] == nil, let target = items.first(where: { $0.uninstall?.path == first })?.uninstall,
-                  var found = item(rules[2], piece.url) else { continue }
-            found = found.shared(by: piece.owners, receipt: nil); found.uninstall = target
+            guard shared[piece.url.path] == nil, let target = sharedTarget(ids), var found = item(rules[2], piece.url) else { continue }
+            found = found.shared(by: ids, receipt: nil); found.uninstall = target
             shared[piece.url.path] = found
         }
         let sharedItems = taken(offered + items, shared.values.sorted { $0.url.path < $1.url.path }).filter { Removability.canMoveToTrash($0.url) && $0.uninstall != nil }

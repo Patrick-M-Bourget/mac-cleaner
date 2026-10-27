@@ -123,7 +123,9 @@ public enum AppUninstall {
     public static func staying(chosen: [Candidate], offered: [Candidate]) -> [Staying] {
         let ids = Set(chosen.map(\.id))
         var apps: [Target] = []
-        for item in chosen { if let app = item.uninstall, !apps.contains(app) { apps.append(app) } }
+        // The products being uninstalled: a shared item ticked with one names that one, never the sharer it was found with (#288).
+        let own = chosen.filter(\.sharedBy.isEmpty)
+        for item in own.isEmpty ? chosen : own { if let app = item.uninstall, !apps.contains(where: { $0.path == app.path }) { apps.append(app) } }
         return apps.flatMap { app in
             let unticked = offered.filter { $0.isUninstalled(with: app.path) && !ids.contains($0.id) }.count
             let password: String = app.tool.map { "Needs \($0) or your password" } ?? "Needs your password"
