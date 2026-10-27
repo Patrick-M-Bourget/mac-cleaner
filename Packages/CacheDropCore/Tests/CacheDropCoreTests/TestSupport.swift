@@ -99,15 +99,25 @@ func onlyTool(_ name: String, _ standIn: URL) -> @Sendable (ToolCommand) -> URL?
     { command in command.executables.contains { URL(fileURLWithPath: $0).lastPathComponent == name } ? standIn : nil }
 }
 
-/// Waits up to `timeout` for `file` to appear, which a stand-in tool writes to say it reached a point; true once it has.
-/// Bounded, so a tool that never gets there fails the test instead of hanging it.
-func waitForFile(_ file: URL, timeout: TimeInterval = 10) -> Bool {
-    let deadline = ProcessInfo.processInfo.systemUptime + timeout
-    while !FileManager.default.fileExists(atPath: file.path) {
-        guard ProcessInfo.processInfo.systemUptime < deadline else { return false }
-        usleep(10_000)
+/// Cancels `cancellation` once `file` appears, which a stand-in tool writes to say it reached a point, marking `at` first.
+/// It watches on a thread of its own, never GCD's global queues or the Swift concurrency pool: on a runner with few cores,
+/// tests blocked in a tool run can fill both, so a watcher queued there may start only after the tool has finished.
+/// It has no time limit of its own, which a slow runner may outlast; the tool's time limit bounds the test,
+/// and `stop()` (deferred by the test) ends the watch.
+final class CancelWhenFileAppears: @unchecked Sendable {
+    private let lock = NSLock()
+    private var stopped = false
+    init(_ file: URL, cancel cancellation: CleanupCancellation, at: CancelTime? = nil) {
+        let thread = Thread { [self] in
+            while !isStopped {
+                if FileManager.default.fileExists(atPath: file.path) { at?.mark(); cancellation.cancel(); return }
+                usleep(10_000)
+            }
+        }
+        thread.start()
     }
-    return true
+    private var isStopped: Bool { lock.lock(); defer { lock.unlock() }; return stopped }
+    func stop() { lock.lock(); stopped = true; lock.unlock() }
 }
 
 /// When a test cancelled, so a stop is timed from the cancel rather than from a start a busy test run may delay.
@@ -120,5 +130,37 @@ final class CancelTime: @unchecked Sendable {
         lock.lock(); let at = self.at; lock.unlock()
         guard let at else { Issue.record("The cancel never fired"); return .infinity }
         return ProcessInfo.processInfo.systemUptime - at
+    }
+}
+
+/// How long the processes whose command line carries `marker` lived: from the first time one is seen until none is left,
+/// timed on a thread of its own. A busy test run can delay a test by many seconds before and after its tool runs;
+/// this times only the tool, so a time-limit check measures the limit rather than the runner.
+final class MarkedProcessLifetime: @unchecked Sendable {
+    private let lock = NSLock()
+    private let marker: String
+    private var firstSeen: TimeInterval?, gone: TimeInterval?, stopped = false
+    init(_ marker: String) {
+        self.marker = marker
+        Thread { [self] in
+            while true {
+                lock.lock(); let done = stopped || gone != nil; lock.unlock()
+                if done { return }
+                observe(); usleep(10_000)
+            }
+        }.start()
+    }
+    private func observe() {
+        let alive = !survivors(marker).isEmpty, now = ProcessInfo.processInfo.systemUptime
+        lock.lock()
+        if alive, firstSeen == nil { firstSeen = now } else if !alive, firstSeen != nil, gone == nil { gone = now }
+        lock.unlock()
+    }
+    /// Seconds the processes lived. Ones never seen, or still running, fail the test and read as forever.
+    var seconds: TimeInterval {
+        observe()
+        lock.lock(); stopped = true; let (firstSeen, gone) = (self.firstSeen, self.gone); lock.unlock()
+        guard let firstSeen, let gone else { Issue.record("The tool's processes were never seen, or are still running"); return .infinity }
+        return gone - firstSeen
     }
 }
