@@ -196,3 +196,30 @@ private func catalogWith(_ apps: Apps) -> Catalog {
         #expect(AppCaches.isMacOSOrOwn(name))
     }
 }
+
+/// #171: Spotify's offline downloads can live in its cache folder. Folder names only, as observed on a Mac and as Spotify's
+/// community describes it; the files are placeholders.
+@Test func spotifysCacheFolderIsNeverOfferedWhileItHoldsOfflineDownloads() throws {
+    let home = try fixtureHome()
+    defer { try? FileManager.default.removeItem(at: home) }
+    let spotify = InstalledApp(name: "Spotify", bundleID: "com.spotify.client", path: "/Applications/Spotify.app")
+    let apps = Apps(installed: [spotify, editor])
+    // Observed layout: the streaming cache in Data and a web-view profile, nothing downloaded. Offered as before.
+    try write(home, "Library/Caches/com.spotify.client/Data/0c/chunk")
+    try write(home, "Library/Caches/com.spotify.client/Default/Cache/index")
+    // An app whose layout wasn't audited keeps today's behavior, whatever its folders are named.
+    try write(home, "Library/Caches/com.example.Editor/Storage/data")
+    let caches = home.appendingPathComponent("Library/Caches").path
+    let catalog = catalogWith(apps)
+    let found = catalog.discover(fixture: home)
+    #expect(Set(found.map(\.url.path)) == [caches + "/com.spotify.client", caches + "/com.example.Editor"])
+
+    // Offline downloads appear (Storage, offline.bnk) before the cleanup: the folder is refused.
+    let offered = try #require(found.first { $0.appName == "Spotify" })
+    try write(home, "Library/Caches/com.spotify.client/Storage/ab/track")
+    #expect(CandidateCheck(catalog: catalog, running: Running()).check(offered) == .protected("Spotify’s offline downloads"))
+    #expect(!catalog.discover(fixture: home).contains { $0.appName == "Spotify" })
+    try FileManager.default.removeItem(at: home.appendingPathComponent("Library/Caches/com.spotify.client/Storage"))
+    try write(home, "Library/Caches/com.spotify.client/offline.bnk")
+    #expect(!catalog.discover(fixture: home).contains { $0.appName == "Spotify" })
+}
