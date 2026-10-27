@@ -36,9 +36,7 @@ public struct LegacyStillMigration {
     /// Recorded in CacheDrop's preferences once the migration is done.
     public static let completedKey = "CacheDrop.migratedFromStill"
     /// Login launch is registered with macOS for Still's app, not CacheDrop's, so its intent isn't carried over.
-    static let skippedKeys: Set<String> = ["Still.startAtLogin"]
-    /// Still's preference keys that CacheDrop renamed (#150), copied under CacheDrop's names. Must match the app's keys.
-    static let renamedKeys = ["StillDryRun": "CacheDropDryRun", "Still.showsMenuBarItem": "CacheDrop.showsMenuBarItem"]
+    static let skippedKeys: Set<String> = [PreferenceKeys.legacyStartAtLogin]
 
     let applicationSupport: URL
     let fileManager: FileManager
@@ -78,7 +76,8 @@ public struct LegacyStillMigration {
             }
         }
         for (legacyKey, value) in values {
-            let key = Self.renamedKeys[legacyKey] ?? legacyKey
+            // Keys CacheDrop renamed (#150) are copied under their new names.
+            let key = PreferenceKeys.renamed[legacyKey] ?? legacyKey
             if preferences.object(forKey: key) == nil { preferences.set(value, forKey: key) }
         }
         return record(.copied)
