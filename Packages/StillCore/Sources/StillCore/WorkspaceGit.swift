@@ -5,9 +5,9 @@ enum WorkspaceGit {
     /// Git itself, never `/usr/bin/git`: on a Mac without developer tools that stub offers to install them.
     static let executables = ["/Library/Developer/CommandLineTools/usr/bin/git", "/Applications/Xcode.app/Contents/Developer/usr/bin/git",
                               "/opt/homebrew/bin/git", "/usr/local/bin/git"]
-    static func installed() -> URL? {
-        executables.lazy.map { URL(fileURLWithPath: $0) }.first { FileManager.default.isExecutableFile(atPath: $0.path) }
-    }
+    /// Git as a tool command, so it is found the way every other tool is (`ToolCommand.installed`).
+    static let command = ToolCommand(executables: executables, arguments: [], timeout: timeout)
+    static func installed() -> URL? { ToolCommand.installed(command) }
     /// Levels searched for checkouts inside a location (a Claude Code scratchpad sits a few levels down).
     static let depth = 6
     /// At most this many checkouts per scan.
