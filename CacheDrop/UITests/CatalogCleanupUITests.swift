@@ -192,7 +192,7 @@ final class CatalogCleanupUITests: XCTestCase {
             XCTAssertTrue(strip.waitForExistence(timeout: 5), screen)
             XCTAssertEqual(strip.frame.height, height, accuracy: 0.5, screen)
         }
-        // #234: the explorer's note ("Inspection only · …") stays on one line beside its button.
+        // #234: the explorer's bar is the same height too. It carries no note by design (617288f).
         app.typeKey("1", modifierFlags: .command)
         app.buttons["overviewScanFolder"].click()
         let panel = app.sheets.firstMatch.exists ? app.sheets.firstMatch : app.dialogs.firstMatch
@@ -204,10 +204,7 @@ final class CatalogCleanupUITests: XCTestCase {
         XCTAssertTrue(explore.waitForExistence(timeout: 20))
         explore.click()
         XCTAssertTrue(app.buttons["Open folder " + folder.lastPathComponent].waitForExistence(timeout: 10))
-        let note = app.descendants(matching: .any)["actionStripNote"]
-        XCTAssertTrue(note.waitForExistence(timeout: 5), actionStrip(app).debugDescription)
-        XCTAssertTrue((note.value as? String)?.hasPrefix("Inspection only") == true, note.debugDescription)
-        XCTAssertTrue(actionStrip(app).frame.contains(note.frame))
+        XCTAssertTrue(actionStrip(app).waitForExistence(timeout: 5))
         XCTAssertEqual(actionStrip(app).frame.height, height, accuracy: 0.5, "Explore storage")
     }
 
@@ -263,11 +260,13 @@ final class CatalogCleanupUITests: XCTestCase {
                                                    "Library/Developer/Xcode/iOS DeviceSupport/17.5 (21F79)",
                                                    "Library/Developer/Xcode/iOS DeviceSupport/18.1 (22B83)",
                                                    "Library/Developer/CoreSimulator/Devices/0A1B2C3D-0000-0000-0000-000000000000",
+                                                   "Library/Developer/CoreSimulator/Devices/0E0E0E0E-0000-0000-0000-000000000000",
                                                    ".android/avd/Pixel.avd"])
         let marker = home.appendingPathComponent("simctl-ran")
         let simctl = home.appendingPathComponent(".cachedrop-test-tools/simctl")
-        // Lists one shut-down simulator and one unused runtime (#134); any other call leaves the marker.
-        let devices = #"{"devices":{"com.apple.CoreSimulator.SimRuntime.iOS-18-0":[{"udid":"0A1B2C3D-0000-0000-0000-000000000000","name":"iPhone 16","state":"Shutdown","isAvailable":true}]}}"#
+        // Lists one shut-down simulator, one unavailable simulator that takes space (#209: otherwise "Unavailable simulators"
+        // isn't offered) and one unused runtime (#134); any other call leaves the marker.
+        let devices = #"{"devices":{"com.apple.CoreSimulator.SimRuntime.iOS-18-0":[{"udid":"0A1B2C3D-0000-0000-0000-000000000000","name":"iPhone 16","state":"Shutdown","isAvailable":true}],"com.apple.CoreSimulator.SimRuntime.iOS-16-0":[{"udid":"0E0E0E0E-0000-0000-0000-000000000000","name":"iPhone 14","state":"Shutdown","isAvailable":false}]}}"#
         let runtimes = #"{"BBBBBBBB-BBBB-4BBB-8BBB-BBBBBBBBBBBB":{"identifier":"BBBBBBBB-BBBB-4BBB-8BBB-BBBBBBBBBBBB","deletable":true,"runtimeIdentifier":"com.apple.CoreSimulator.SimRuntime.watchOS-11-0","version":"11.0","build":"22R349","sizeBytes":4500000000}}"#
         try writeStandInTool("#!/bin/sh\ncase \"$*\" in\n\"list devices -j\") echo '\(devices)' ;;\n\"runtime list -j\") echo '\(runtimes)' ;;\n*) touch '\(marker.path)' ;;\nesac\n", to: simctl)
         defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
@@ -890,8 +889,11 @@ extension CatalogCleanupUITests {
         back.click()
         XCTAssertTrue(app.textFields["explorerSearch"].waitForExistence(timeout: 5))
 
-        // #227: the folder is gone after a recheck; only the shared back button leads to the list of locations.
-        try FileManager.default.removeItem(at: folder)
+        // #227: a subfolder is gone after a recheck; only the shared back button leads to the list of locations.
+        // (Removing the scanned folder itself keeps its last observation, so the subfolder is what goes away.)
+        app.buttons["Open folder Inner"].click()
+        XCTAssertTrue(app.buttons["Inspect entry.zip"].firstMatch.waitForExistence(timeout: 5))
+        try FileManager.default.removeItem(at: folder.appendingPathComponent("Inner"))
         app.typeKey("r", modifierFlags: .command)
         XCTAssertTrue(app.staticTexts["This folder is no longer available in the observations"].waitForExistence(timeout: 20))
         XCTAssertFalse(app.buttons["Return to selected locations"].exists)
