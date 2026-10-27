@@ -28,7 +28,7 @@ public struct CleanupRecord: Codable, Sendable, Identifiable {
     public let approvedAt: Date
     /// Catalog records only. Optional so journals written before the catalog still decode.
     public var ruleID: String? = nil
-    /// True when Preview only was on: the item was checked and nothing changed on disk.
+    /// True when the dry run was on: the item was checked and nothing changed on disk.
     public var previewOnly: Bool? = nil
     /// Available space read right before and right after this item.
     public var itemCapacity: CleanupCapacityObservation? = nil
@@ -38,6 +38,10 @@ public struct CleanupRecord: Codable, Sendable, Identifiable {
     public var cleanupAction: CleanupAction? { CleanupAction(rawValue: action) }
     /// True when a delete or tool action failed after it may have removed part of the item.
     public var partlyRemoved: Bool? = nil
+    /// The item's name when it isn't its file name (a model, a simulator); nil in older journals.
+    public var itemName: String? = nil
+    /// What a per-item tool command took for it, such as a simulator's UDID; nil in older journals.
+    public var toolItem: String? = nil
 }
 public protocol CleanupJournaling: Sendable {
     /// Writes every record as pending in one transaction; false when the batch was already claimed.

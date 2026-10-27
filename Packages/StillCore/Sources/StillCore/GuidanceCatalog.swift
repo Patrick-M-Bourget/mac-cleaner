@@ -3,7 +3,7 @@ import Foundation
 extension BuiltInCatalog {
     private static func guidanceRule(_ id: String, _ title: String, detail: String, locations: [String], protected: Bool = false, _ guidance: Guidance) -> CleanupRule {
         CleanupRule(id: id, category: .managed, title: title, detail: detail,
-                    consequence: "Guidance only. Still shows the size and where to manage it, and never changes it.",
+                    consequence: "Guidance only. CacheDrop shows the size and where to manage it, and never changes it.",
                     regen: .userFile, action: .guidance, locations: locations, owner: nil, requiresFullDiskAccess: protected, guidance: guidance)
     }
     /// SPEC section 3, "Guidance only". Locations starting with `/` are read under the system root.
@@ -36,5 +36,36 @@ extension BuiltInCatalog {
                      detail: "Plug-ins you bought or installed. Remove them with the vendor’s uninstaller, and reinstall through the vendor.",
                      locations: ["/Library/Audio/Plug-Ins", "Library/Audio/Plug-Ins"],
                      Guidance(place: .folder, placeName: "in Finder")),
+        // Reason Studios installs Rack Extensions here: `Optional REs` holds Reason 13's additional devices (Reason Studios
+        // Help, "Installing Additional Content in Reason 13"); `RackExtensions` is the field scan's folder (17 GB).
+        guidanceRule("rack-extensions", "Rack Extensions",
+                     detail: "Devices you bought or installed for Reason. Manage them in Reason Companion, which reinstalls them from your account.",
+                     locations: ["RackExtensions", "Optional REs"].map { "Library/Application Support/Propellerhead Software/" + $0 },
+                     Guidance(place: .folder, placeName: "in Finder")),
+        // Audio production content (#139): libraries the user downloads again from the vendor, so never offered.
+        // Logic Pro's Sound Library: Apple Loops in /Library/Audio/Apple Loops/Apple, impulse responses in
+        // /Library/Audio/Impulse Responses/Apple, and sampler instruments and samples in /Library/Application Support/Logic
+        // (Logic Pro User Guide, "Manage Logic Pro content"); loops the user made in ~/Library/Audio/Apple Loops (Apple
+        // Support 101933, "Where are Apple Loops installed for Logic Pro for Mac and MainStage?"). GarageBand and MainStage
+        // share this library. Its manager is in Logic: Logic Pro > Sound Library > Open Sound Library Manager. Logic's
+        // bundle identifier is `com.apple.logic10`.
+        guidanceRule("logic-sound-library", "Logic Pro and GarageBand sound library",
+                     detail: "Instruments, samples and Apple Loops for Logic Pro, GarageBand and MainStage. Remove sound packs in Logic Pro: Sound Library, then Open Sound Library Manager.",
+                     locations: ["/Library/Application Support/Logic", "/Library/Audio/Apple Loops/Apple", "/Library/Audio/Impulse Responses/Apple",
+                                 "Library/Audio/Apple Loops"],
+                     Guidance(place: .app(bundleID: "com.apple.logic10"), placeName: "Logic Pro")),
+        // Ableton Live installs Packs in ~/Music/Ableton/Factory Packs by default (Ableton Help, "Resetting Live's
+        // Library" and "The Live Browser"); a folder chosen in Settings > Library isn't found. Packs are managed in Live's
+        // browser. Bundle identifier from Live 12's Info.plist.
+        guidanceRule("ableton-packs", "Ableton Packs",
+                     detail: "Packs installed for Ableton Live. Uninstall them in Live’s browser, under Packs, and download them again from your Ableton account.",
+                     locations: ["Music/Ableton/Factory Packs"],
+                     Guidance(place: .app(bundleID: "com.ableton.live"), placeName: "Ableton Live")),
+        // Splice downloads sounds to ~/Splice by default (Splice Support, "Where is my Splice folder?"); a folder moved in
+        // Splice's Preferences isn't found. Bundle identifier `com.splice.Splice` (the Splice app's Info.plist).
+        guidanceRule("splice-samples", "Splice samples",
+                     detail: "Sounds you downloaded from Splice. Manage them in the Splice app; they stay in your Splice library to download again.",
+                     locations: ["Splice"],
+                     Guidance(place: .app(bundleID: "com.splice.Splice"), placeName: "Splice")),
     ]
 }

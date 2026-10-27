@@ -3,8 +3,8 @@ import Foundation
 
 /// Updater downloads, per-app caches and the user's logs (#103).
 public enum AppCaches {
-    /// Still's own folders, never offered under any rule (`Protection`).
-    static let stillNames = ["Still", "com.patrickbourget.Still", "com.patrickbourget.StillUITests"]
+    /// CacheDrop's own folders, and those of Still (its former name), never offered under any rule (`Protection`).
+    static let stillNames = ["CacheDrop", "com.patrickbourget.CacheDrop", "Still", "com.patrickbourget.Still", "com.patrickbourget.StillUITests"]
 
     /// Levels searched for a git checkout or other protected name inside a cache or log folder. A path under Caches
     /// doesn't prove a folder is disposable: the field scan found an agent's live checkout two levels down.
@@ -16,10 +16,10 @@ public enum AppCaches {
         return parts.count >= 3 && parts.allSatisfy { part in !part.isEmpty && part.allSatisfy { $0.isASCII && ($0.isLetter || $0.isNumber || $0 == "-" || $0 == "_") } }
             && parts[0].first?.isLetter == true
     }
-    /// macOS's own caches and Still's are never offered, whoever asks.
+    /// macOS's own caches and CacheDrop's (or Still's) are never offered, whoever asks.
     static func isExcluded(_ bundleID: String) -> Bool {
         let id = bundleID.lowercased()
-        return id.hasPrefix("com.apple.") || id.hasPrefix("com.patrickbourget.still")
+        return id.hasPrefix("com.apple.") || id.hasPrefix("com.patrickbourget.still") || id.hasPrefix("com.patrickbourget.cachedrop")
     }
     /// A folder of macOS's own or of Still's, by bundle identifier or name. Never offered under any rule,
     /// so logs and every other location leave them alone as app caches do.
@@ -60,7 +60,7 @@ public enum AppCaches {
                         itemOwner: { updaterOwner($0, apps: apps) }, protectedDepth: liveWorkDepth),
             CleanupRule(id: "app-caches", category: .system, title: "App caches",
                         detail: "Files apps keep in your Library to start and work faster, per app.",
-                        consequence: "Permanently removed. Each app rebuilds its cache as you use it, so it may be slower at first. An app must be closed first; Still never quits it for you.",
+                        consequence: "Permanently removed. Each app rebuilds its cache as you use it, so it may be slower at first. An app must be closed first; CacheDrop never quits it for you.",
                         regen: .cache, action: .delete, locations: ["Library/Caches/*"], owner: nil,
                         itemOwner: { installedOwner($0.lastPathComponent, apps: apps) }, yieldsToOtherRules: true, protectedDepth: liveWorkDepth),
             // Crash reports first, so ~/Library/Logs/DiagnosticReports is listed once, as crash reports.
@@ -84,6 +84,21 @@ public protocol AppLookup: Sendable {
     /// The app whose electron-updater keeps its downloads in ~/Library/Caches/<name>, from the `updaterCacheDirName`
     /// in its `app-update.yml`.
     func app(updaterCacheDirName name: String) -> InstalledApp?
+    /// The JetBrains IDEs installed on this Mac, each with the version whose cache folder it uses (#145).
+    func jetBrainsIDEs() -> [JetBrainsInstall]
+}
+
+extension AppLookup {
+    /// No JetBrains IDE is installed unless a lookup says so.
+    public func jetBrainsIDEs() -> [JetBrainsInstall] { [] }
+}
+
+/// An installed JetBrains IDE: the product its cache folders are named after ("IntelliJIdea"), and the version of the
+/// folder it uses ([2025, 2] for IntelliJIdea2025.2); nil when the app's version can't be read.
+public struct JetBrainsInstall: Sendable, Hashable {
+    public let product: String
+    public let version: [Int]?
+    public init(product: String, version: [Int]?) { self.product = product; self.version = version }
 }
 
 /// The apps LaunchServices knows on this Mac.
@@ -96,15 +111,7 @@ public struct SystemAppLookup: AppLookup {
         return InstalledApp(name: name, bundleID: bundleID, path: url.resolvingSymlinksInPath().path)
     }
     public func app(updaterCacheDirName name: String) -> InstalledApp? {
-        let roots = ["/Applications", NSHomeDirectory() + "/Applications"].map { URL(fileURLWithPath: $0) }
-        let manager = FileManager.default
-        // Apps at the top of each Applications folder, or one folder down (a vendor's folder).
-        let apps = roots.flatMap { root in
-            ((try? manager.contentsOfDirectory(at: root, includingPropertiesForKeys: nil)) ?? []).flatMap { item in
-                item.pathExtension == "app" ? [item] : ((try? manager.contentsOfDirectory(at: item, includingPropertiesForKeys: nil)) ?? []).filter { $0.pathExtension == "app" }
-            }
-        }
-        for app in apps {
+        for app in Self.applicationBundles() {
             let config = app.appendingPathComponent("Contents/Resources/app-update.yml")
             guard let size = try? config.resourceValues(forKeys: [.fileSizeKey]).fileSize, size < 64_000,
                   let text = try? String(contentsOf: config, encoding: .utf8),
@@ -114,6 +121,36 @@ public struct SystemAppLookup: AppLookup {
                 ?? InstalledApp(name: app.deletingPathExtension().lastPathComponent, bundleID: bundleID, path: app.resolvingSymlinksInPath().path)
         }
         return nil
+    }
+    /// Apps at the top of each Applications folder, or one folder down (a vendor's folder).
+    static func applicationBundles() -> [URL] {
+        let roots = ["/Applications", NSHomeDirectory() + "/Applications"].map { URL(fileURLWithPath: $0) }
+        let manager = FileManager.default
+        return roots.flatMap { root in
+            ((try? manager.contentsOfDirectory(at: root, includingPropertiesForKeys: nil)) ?? []).flatMap { item in
+                item.pathExtension == "app" ? [item] : ((try? manager.contentsOfDirectory(at: item, includingPropertiesForKeys: nil)) ?? []).filter { $0.pathExtension == "app" }
+            }
+        }
+    }
+    /// JetBrains IDEs in the Applications folders (where Toolbox installs them too) and every copy LaunchServices knows.
+    public func jetBrainsIDEs() -> [JetBrainsInstall] {
+        let registered = AppDataCaches.jetBrainsBundleIDs.keys.flatMap { NSWorkspace.shared.urlsForApplications(withBundleIdentifier: $0) }
+        let bundles = Set((Self.applicationBundles() + registered).map { $0.resolvingSymlinksInPath().standardizedFileURL })
+        return bundles.compactMap(Self.jetBrainsInstall)
+    }
+    /// The IDE in an app bundle. Its folder name is `dataDirectoryName` in Contents/Resources/product-info.json, which
+    /// the IDE itself uses for its cache folder; without that file, the product comes from the bundle identifier and the
+    /// version from `CFBundleShortVersionString` ("2025.2.1" uses 2025.2). Nil for an app that isn't a JetBrains IDE.
+    static func jetBrainsInstall(_ app: URL) -> JetBrainsInstall? {
+        let info = app.appendingPathComponent("Contents/Resources/product-info.json")
+        if let size = try? info.resourceValues(forKeys: [.fileSizeKey]).fileSize, size < 1_000_000,
+           let json = (try? JSONSerialization.jsonObject(with: Data(contentsOf: info))) as? [String: Any],
+           let folder = json["dataDirectoryName"] as? String, let (product, version) = AppDataCaches.jetBrainsVersion(folder),
+           AppDataCaches.jetBrainsProducts[product] != nil {
+            return JetBrainsInstall(product: product, version: version)
+        }
+        guard let bundle = Bundle(url: app), let id = bundle.bundleIdentifier, let product = AppDataCaches.jetBrainsProduct(bundleID: id) else { return nil }
+        return JetBrainsInstall(product: product, version: (bundle.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String).flatMap(AppDataCaches.jetBrainsReleaseVersion))
     }
     /// `key: value` on one line, with optional quotes.
     static func yamlValue(_ line: Substring, key: String) -> String? {

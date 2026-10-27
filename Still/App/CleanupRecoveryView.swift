@@ -33,7 +33,7 @@ struct CleanupRecoveryView: View {
             PageHeader(title: "Review interrupted cleanup", subtitle: "Recorded facts from a previous session. Nothing will resume or repeat automatically.")
             if let error = model.error {
                 StatusRow(text: error, symbol: "exclamationmark.triangle", role: .failure)
-                Text("Keep the journal for recovery. Reopening Still may help; do not clear or reset unresolved records.").font(.callout).foregroundStyle(.secondary)
+                Text("Keep the journal for recovery. Reopening CacheDrop may help; do not clear or reset unresolved records.").font(.callout).foregroundStyle(.secondary)
             } else if let snapshot = model.snapshot, !snapshot.interruptedBatches.isEmpty {
                 SummarySurface {
                     VStack(alignment: .leading, spacing: StillDesign.Space.sm) {
@@ -49,21 +49,21 @@ struct CleanupRecoveryView: View {
                             SettingsRow(title: record.originalURL.lastPathComponent, detail: record.originalURL.path) {
                                 StatusRow(text: record.recoveryStateText, symbol: record.state == .succeeded ? "checkmark.circle" : "info.circle", role: record.state == .succeeded ? .success : .neutral)
                                     .accessibilityIdentifier("recoveryState-" + record.originalURL.lastPathComponent)
-                                Text(record.message).font(.caption).foregroundStyle(.secondary)
+                                Text(record.message).font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary)
                                 if let returned = record.trashURL {
-                                    Text("Recorded resulting location: " + returned.path).font(.caption).foregroundStyle(.secondary).textSelection(.enabled)
-                                    Text("Location has not been verified in this session.").font(.caption).foregroundStyle(.secondary)
+                                    Text("Recorded resulting location: " + returned.path).font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary).textSelection(.enabled)
+                                    Text("Location has not been verified in this session.").font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary)
                                     if record.state == .succeeded, returned.isFileURL {
-                                        Button("Reveal recorded location") { NSWorkspace.shared.activateFileViewerSelecting([returned]) }
+                                        Button("Reveal recorded location") { Finder.reveal([returned]) }
                                             .accessibilityLabel("Reveal recorded location for " + record.originalURL.lastPathComponent)
                                     }
                                 }
                                 DisclosureGroup("Recorded details") {
                                     VStack(alignment: .leading, spacing: StillDesign.Space.sm) {
                                         Text("Scope: " + record.scopeURL.path)
-                                        Text("Action: " + record.actionTitle + (record.previewOnly == true ? " · Preview only" : "") + " · Policy \(record.policyVersion)")
+                                        Text("Action: " + record.actionTitle + (record.previewOnly == true ? " · Dry run" : "") + " · Policy \(record.policyVersion)")
                                         Text("Resource identity at approval: " + record.resourceID)
-                                    }.font(.caption).foregroundStyle(.secondary).textSelection(.enabled)
+                                    }.font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary).textSelection(.enabled)
                                 }
                             }
                             Divider()

@@ -114,7 +114,7 @@ private enum HistoryActivityItem: Identifiable {
             lifecycle.workspaceNavigation.explorerVisible = false
             lifecycle.workspaceNavigation.planReturnsToExplorer = false
             snapshot = CleanupHistorySnapshot(records: [])
-            message = "Still’s preferences, custom exclusions, selected locations and completed history were reset. Original files and macOS access grants are unchanged." + (result.1.completed ? "" : " Journal compaction did not finish; disk reclamation is not confirmed.")
+            message = "CacheDrop’s preferences, custom exclusions, selected locations and completed history were reset. Original files and macOS access grants are unchanged." + (result.1.completed ? "" : " Journal compaction did not finish; disk reclamation is not confirmed.")
             blocked = false
             return true
         } catch CleanupJournalError.recoveryRequired {
@@ -127,7 +127,7 @@ private enum HistoryActivityItem: Identifiable {
             case .appearance:
                 message = "Reset could not clear the appearance preference. The current appearance is retained; some completed history may already be cleared. Review recovery before trying again."
             case .remainingPreferences:
-                message = "Reset could not finish safely. Appearance was reset to Automatic, but another preference service is unavailable; some completed history may already be cleared. Review recovery before trying again."
+                message = "Reset could not finish safely. Appearance was reset to System, but another preference service is unavailable; some completed history may already be cleared. Review recovery before trying again."
             }
         }
         if let downloadsClearedRuns, downloadsClearedRuns > 0 {
@@ -142,7 +142,6 @@ struct CleanupHistoryView: View {
     @Binding var expandedRuns: Set<UUID>
     @Bindable private var scans = ScanActivityHistory.shared
     var showRecovery: () -> Void
-    var manageLocalRecords: () -> Void
     var goOverview: () -> Void
     var viewPlan: () -> Void
     private var items: [HistoryActivityItem] {
@@ -155,8 +154,10 @@ struct CleanupHistoryView: View {
     }
     var body: some View {
         VStack(alignment: .leading, spacing: StillDesign.Space.xl) {
-            PageHeader(title: "History", subtitle: "Recorded scans and cleanup outcomes stored locally. Recovery facts are kept separately.")
-            HistoryActivityFilterControl(selection: $model.filter)
+            HStack(alignment: .firstTextBaseline) {
+                PageHeader(title: "History")
+                HistoryActivityFilterControl(selection: $model.filter)
+            }
             if let message = model.message {
                 StatusRow(text: message, symbol: model.blocked ? "exclamationmark.triangle" : "info.circle", role: model.blocked ? .caution : .neutral, identifier: "historyStatus")
             }
@@ -173,21 +174,20 @@ struct CleanupHistoryView: View {
                     Button("Open recovery review", action: showRecovery).accessibilityIdentifier("historyRecovery")
                 }
             }
-            LocalRecordsEntry(action: manageLocalRecords)
-            ForEach(items) { item in
-                switch item {
-                case .scan(let activity):
-                    ScanActivitySummary(activity: activity, expanded: Binding(get: { model.expandedScans.contains(activity.id) }, set: { if $0 { model.expandedScans.insert(activity.id) } else { model.expandedScans.remove(activity.id) } }))
-                case .cleanup(let run): cleanup(run)
+            if !items.isEmpty {
+                VStack(alignment: .leading, spacing: 0) {
+                    ForEach(items) { item in
+                        switch item {
+                        case .scan(let activity):
+                            ScanActivitySummary(activity: activity, expanded: Binding(get: { model.expandedScans.contains(activity.id) }, set: { if $0 { model.expandedScans.insert(activity.id) } else { model.expandedScans.remove(activity.id) } }))
+                        case .cleanup(let run): cleanup(run)
+                        }
+                        Divider()
+                    }
                 }
-            }
-            if items.isEmpty {
-                if readingHistory { EmptyView() }
-                else if unavailable {
-                    HistoryActivityUnavailableState()
-                } else {
-                    HistoryActivityEmptyState(filter: model.filter, goOverview: goOverview, viewPlan: viewPlan)
-                }
+            } else if !readingHistory {
+                if unavailable { HistoryActivityUnavailableState() }
+                else { HistoryActivityEmptyState(filter: model.filter, goOverview: goOverview, viewPlan: viewPlan) }
             }
             HistoryRetentionNote()
         }.task { await reload() }
@@ -201,41 +201,33 @@ struct CleanupHistoryView: View {
         _ = await (cleanup, scanRecords)
     }
     private func cleanup(_ run: CleanupHistoryRun) -> some View {
-                    SummarySurface {
-                        VStack(alignment: .leading, spacing: StillDesign.Space.md) {
-                            Label(run.title, systemImage: run.isPreview ? "eye" : "checklist").font(StillDesign.TypeStyle.section)
-                            Text(run.date.formatted(date: .abbreviated, time: .shortened)).font(StillDesign.TypeStyle.section)
-                            if run.usesApprovalDate { Text("Approval date shown; outcome time was not recorded by this version.").font(.caption).foregroundStyle(.secondary) }
-                            Text("Recorded results: \(run.records.count)").font(.callout)
-                            Text("Estimated size: " + bytes(run.plannedLogicalBytes)).font(.callout)
-                            if run.isPreview {
-                                Text("Preview only · Each item was checked and nothing on disk changed. No space was freed.").font(.callout).foregroundStyle(.secondary)
-                            } else {
-                                if run.records.contains(where: { $0.cleanupAction == .trash }) {
-                                    Text("Moved to Trash, still using space until the Trash is emptied: " + (run.trashHeldAllocatedBytes.map(bytes) ?? "Unknown"))
-                                }
-                                Text("Observed startup-volume capacity change: " + (run.capacity?.observedChange.map { ($0 >= 0 ? "+" : "−") + bytes(abs($0)) } ?? "Unknown"))
-                                Text("Capacity samples are independent and can change for other reasons. Allocation is an estimate, not an exclusive-space promise.").font(.caption).foregroundStyle(.secondary)
-                            }
-                            DisclosureGroup("Per-item results", isExpanded: Binding(
-                                get: { expandedRuns.contains(run.id) },
-                                set: { if $0 { expandedRuns.insert(run.id) } else { expandedRuns.remove(run.id) } }
-                            )) {
-                                VStack(alignment: .leading, spacing: StillDesign.Space.lg) {
-                                    ForEach(run.records) { record in
-                                        SettingsRow(title: record.originalURL.lastPathComponent, detail: record.originalURL.path) {
-                                            StatusRow(text: "\(record.outcomeTitle) · \(record.message)", symbol: record.state == .succeeded ? "checkmark.circle" : record.wasPreviewed ? "eye" : "info.circle")
-                                            Text("Action: \(record.actionTitle)" + (record.previewOnly == true ? " · Preview only" : "")).font(.caption).foregroundStyle(.secondary)
-                                            if let trash = record.trashURL {
-                                                Text("Recorded resulting location: " + trash.path).font(.caption).textSelection(.enabled)
-                                                Button("Reveal recorded location") { NSWorkspace.shared.activateFileViewerSelecting([trash]) }
-                                            }
-                                        }
-                                    }
-                                }.padding(.leading, StillDesign.Space.xl)
-                            }
-                        }
+        HistoryRow(symbol: run.isPreview ? "eye" : "checklist", title: run.title, date: run.date, size: bytes(run.plannedLogicalBytes), sizeNote: "Estimated",
+                   expanded: Binding(get: { expandedRuns.contains(run.id) }, set: { if $0 { expandedRuns.insert(run.id) } else { expandedRuns.remove(run.id) } }),
+                   identifier: "cleanupRun:" + run.id.uuidString) {
+            if run.usesApprovalDate { note("Approval date shown; outcome time was not recorded by this version.") }
+            if run.isPreview {
+                note("Dry run · Nothing on disk changed. No space was freed.")
+            } else {
+                if run.records.contains(where: { $0.cleanupAction == .trash }) {
+                    note("In Trash until you empty it: " + (run.trashHeldAllocatedBytes.map(bytes) ?? "Unknown"))
+                }
+                note("Observed startup-volume capacity change: " + (run.capacity?.observedChange.map { ($0 >= 0 ? "+" : "−") + bytes(abs($0)) } ?? "Unknown") + " · Other activity can affect it.")
+            }
+            ForEach(run.records) { record in
+                HStack(alignment: .firstTextBaseline, spacing: StillDesign.Space.md) {
+                    VStack(alignment: .leading, spacing: StillDesign.Space.xs) {
+                        Text(record.originalURL.lastPathComponent + " · " + PathDisplay.shortLocation(of: record.originalURL.path))
+                            .lineLimit(1).truncationMode(.middle).help(record.originalURL.path)
+                        Text(record.outcomeTitle + " · " + record.message).font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true).help("Action: " + record.actionTitle + (record.previewOnly == true ? " · Dry run" : ""))
+                    }.frame(maxWidth: .infinity, alignment: .leading)
+                    if let trash = record.trashURL {
+                        Button("Show in Finder") { Finder.reveal([trash]) }.controlSize(.small).help(trash.path)
                     }
+                }
+            }
+        }
     }
+    private func note(_ text: String) -> some View { Text(text).font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true) }
     private func bytes(_ value: Int64) -> String { ByteCountFormatter.string(fromByteCount: value, countStyle: .decimal) }
 }

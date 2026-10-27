@@ -139,14 +139,15 @@ private let devices = "Library/Developer/CoreSimulator/Devices"
     defer { try? FileManager.default.removeItem(at: home) }
     try makeFolder(home, devices + "/0A1B2C3D-0000-0000-0000-000000000000/data")
     let marker = home.appendingPathComponent("ran")
-    let simctl = try fakeSimctl(home, "echo \"$@\" > '\(marker.path)'\necho 'Deleted: iPhone 12 (0A1B2C3D)'")
+    // Discovery also lists simulators (#134); only the cleanup command is recorded.
+    let simctl = try fakeSimctl(home, "[ \"$1\" = list ] || [ \"$1\" = runtime ] && exit 1\necho \"$@\" > '\(marker.path)'\necho 'Deleted: iPhone 12 (0A1B2C3D)'")
     let catalog = Catalog(rules: fixtureRules)
     let candidate = try #require(catalog.discover(fixture: home, locateTool: onlyTool("simctl", simctl)).first)
     let journal = try SQLiteCleanupJournal(url: home.appendingPathComponent("journal.sqlite"))
     let check = CandidateCheck(catalog: catalog, running: NothingRunning())
 
     let preview = await CleanupExecutor(journal: journal, check: check, trash: TrashNeverUsed()).execute(CatalogApproval(candidates: [candidate], previewOnly: true))
-    #expect(preview.records.first?.message.hasPrefix("Preview only: would run simctl delete unavailable") == true)
+    #expect(preview.records.first?.message.hasPrefix("Dry run: would run simctl delete unavailable") == true)
     #expect(!FileManager.default.fileExists(atPath: marker.path))
 
     let result = await CleanupExecutor(journal: journal, check: check, trash: TrashNeverUsed()).execute(CatalogApproval(candidates: [candidate], previewOnly: false))

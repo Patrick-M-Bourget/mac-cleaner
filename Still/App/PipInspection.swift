@@ -14,7 +14,7 @@ import StillCore
     func choose(isCache: Bool) {
         let panel = NSOpenPanel()
         panel.title = isCache ? "Choose pip cache folder" : "Choose Apple developer tools Python"
-        panel.message = isCache ? "Choose the exact cache to inspect. Still overrides pip’s configured cache for this read-only inventory." : "Only Apple-signed Command Line Tools Python with its bundled pip is supported. Other interpreters are never executed."
+        panel.message = isCache ? "Choose the exact cache to inspect. CacheDrop overrides pip’s configured cache for this read-only inventory." : "Only Apple-signed Command Line Tools Python with its bundled pip is supported. Other interpreters are never executed."
         if !isCache { panel.directoryURL = URL(fileURLWithPath: "/Library/Developer/CommandLineTools/usr/bin") }
         panel.canChooseFiles = !isCache; panel.canChooseDirectories = isCache; panel.allowsMultipleSelection = false
         guard panel.runModal() == .OK, let url = panel.url else { return }
@@ -41,7 +41,7 @@ import StillCore
             switch error as? ToolPreviewError {
             case .timeout: status = "Inventory timed out. Choose a smaller cache and retry explicitly; no cleanup is enabled."
             case .outputLimit: status = "Inventory exceeded a bounded metadata or output limit. Choose a smaller cache and retry explicitly; no cleanup is enabled."
-            default: status = "Inventory unavailable: interpreter provenance, cache access or output could not be verified. Rechoose the paths; Still never installs packages or requests elevated access."
+            default: status = "Inventory unavailable: interpreter provenance, cache access or output could not be verified. Rechoose the paths; CacheDrop never installs packages or requests elevated access."
             }
         }
     }
@@ -60,7 +60,7 @@ struct PipInspectionView: View {
             Button("Back to Overview", systemImage: "chevron.left", action: back)
             PageHeader(title: "pip cache opportunities")
             Text("Read-only cache inventory").foregroundStyle(.secondary)
-            Text("Supports Apple developer tools Python with its bundled pip. Still verifies Apple signatures and the bundled tool before running read-only commands. Other interpreters are not executed.")
+            Text("Supports Apple developer tools Python with its bundled pip. CacheDrop verifies Apple signatures and the bundled tool before running read-only commands. Other interpreters are not executed.")
             SettingsRow(title: "Selected installation") {
             HStack {
                 Button("Choose Python interpreter…") { model.choose(isCache: false) }
@@ -68,8 +68,8 @@ struct PipInspectionView: View {
                 Button("Inspect selected pip cache") { Task { await model.inspect() } }.disabled(model.python == nil || model.cache == nil || model.inspecting)
             }.disabled(model.inspecting)
             }
-            if let python = model.python { Text("Interpreter: \(python.path)").font(.caption).textSelection(.enabled) }
-            if let cache = model.cache { Text("Chosen cache: \(cache.path)").font(.caption).textSelection(.enabled) }
+            if let python = model.python { Text("Interpreter: \(python.path)").font(StillDesign.TypeStyle.caption).textSelection(.enabled) }
+            if let cache = model.cache { Text("Chosen cache: \(cache.path)").font(StillDesign.TypeStyle.caption).textSelection(.enabled) }
             StatusRow(text: model.status, symbol: "info.circle", identifier: "pipInventoryStatus")
             if let inventory = model.inventory {
                 Text(model.isReference ? "Recorded disposable evidence" : "Inventory evidence").font(.headline)
@@ -79,8 +79,8 @@ struct PipInspectionView: View {
                             Text("Listed wheels: \(report.wheels.count)").font(.headline)
                             Text("Wheel logical bytes: \(report.wheelLogicalBytes.map(String.init) ?? "Unknown")")
                             Text("Wheel allocated bytes: \(report.wheelAllocatedBytes.map(String.init) ?? "Unknown")")
-                            Text("Observed: \(report.observedAt.formatted())").font(.caption)
-                            Text("Measurements are observed subtotals, not exclusive reclaimable space. Repeated hard-linked files may share allocations.").font(.caption).foregroundStyle(.secondary)
+                            Text("Observed: \(report.observedAt.formatted())").font(StillDesign.TypeStyle.caption)
+                            Text("Measurements are observed subtotals, not exclusive reclaimable space. Repeated hard-linked files may share allocations.").font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary)
                         }
                     }
                 }
@@ -89,16 +89,16 @@ struct PipInspectionView: View {
                 if let guidance = inventory.guidance { Text(guidance).foregroundStyle(.secondary) }
                 if !inventory.cacheInfo.isEmpty {
                     Text("Tool-reported summary · Not exclusive reclaimable bytes").font(.headline)
-                    Text(inventory.cacheInfo).font(.caption.monospaced()).textSelection(.enabled)
-                    Text(model.isReference ? "Wheel list covers wheel caches only; allocated bytes for this reference: Unknown." : "pip reports legacy http and wheels only. Newer http-v2 and other contents are unmeasured; total cache allocation: Unknown.").font(.caption).foregroundStyle(.secondary)
+                    Text(inventory.cacheInfo).font(StillDesign.TypeStyle.code).textSelection(.enabled)
+                    Text(model.isReference ? "Wheel list covers wheel caches only; allocated bytes for this reference: Unknown." : "pip reports legacy http and wheels only. Newer http-v2 and other contents are unmeasured; total cache allocation: Unknown.").font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary)
                 }
-                Text("\(inventory.wheels.count) listed wheel paths").font(.caption)
-                ForEach(Array(inventory.wheels.prefix(20)), id: \.self) { Text($0).font(.caption).textSelection(.enabled) }
-                if inventory.wheels.count > 20 { Text("Showing first 20 paths; measurements include all listed wheels.").font(.caption).foregroundStyle(.secondary) }
+                Text("\(inventory.wheels.count) listed wheel paths").font(StillDesign.TypeStyle.caption)
+                ForEach(Array(inventory.wheels.prefix(20)), id: \.self) { Text($0).font(StillDesign.TypeStyle.caption).textSelection(.enabled) }
+                if inventory.wheels.count > 20 { Text("Showing first 20 paths; measurements include all listed wheels.").font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary) }
             }
             Divider()
             Button("Show recorded disposable qualification") { model.showReference() }.disabled(model.inspecting)
-            Text("No package install or cache mutation is available here. Genuine bootstrap occurs only in owned test environments; ordinary inventory never bootstraps an interpreter.").font(.caption).foregroundStyle(.secondary)
+            Text("No package install or cache mutation is available here. Genuine bootstrap occurs only in owned test environments; ordinary inventory never bootstraps an interpreter.").font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary)
         }
     }
 }

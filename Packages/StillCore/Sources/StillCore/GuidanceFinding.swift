@@ -7,4 +7,6 @@ public struct GuidanceFinding: Sendable, Identifiable, Equatable {
     public let size: GuidanceSize
     /// The first existing location, which a `.folder` place opens.
     public let folder: URL?
+    /// Agent workspaces' git status (#140); nil for every other rule.
+    public var workspaces: AgentWorkspaces? = nil
 }

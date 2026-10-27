@@ -160,3 +160,12 @@ import StillCore
     await #expect(throws: (any Error).self) { try await small.recordActivity(oversized, now: now, expectedEpoch: smallEpoch) }
     #expect(try await GrowthHistoryStore(directory: smallRoot, policy: .init(bytes: 600)).activities(now: now).map(\.id) == [fitting.id])
 }
+
+@Test func observedSizeSumsCompleteSizesAndMarksKnownMinimums() {
+    let date = Date(timeIntervalSince1970: 1000)
+    func activity(_ locations: [ScanActivityLocation]) -> ScanActivity { ScanActivity(startedAt: date, completedAt: date, outcome: .complete, locations: locations) }
+    #expect(activity([.init(path: "/A", logicalBytes: 10, knownLogicalBytes: 10), .init(path: "/B", logicalBytes: 5)]).observedSize == ScanActivitySize(bytes: 15, complete: true))
+    #expect(activity([.init(path: "/A", logicalBytes: 10), .init(path: "/B", knownLogicalBytes: 4)]).observedSize == ScanActivitySize(bytes: 14, complete: false))
+    #expect(activity([.init(path: "/A", logicalBytes: 10), .init(path: "/B")]).observedSize == ScanActivitySize(bytes: 10, complete: false))
+    #expect(activity([.init(path: "/A"), .init(path: "/B")]).observedSize == nil)
+}

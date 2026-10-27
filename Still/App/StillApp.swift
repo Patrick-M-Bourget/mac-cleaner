@@ -7,41 +7,53 @@ struct StillApp: App {
     @NSApplicationDelegateAdaptor(StillApplicationDelegate.self) private var delegate
     @StateObject private var lifecycle = AppLifecycleController.shared
     @StateObject private var alerts = AppLifecycleController.shared.alerts
+    @AppStorage(MenuBarItemPreference.key) private var showsMenuBarItem = true
     /// Runs before AppKit finishes launching, so saved window state is ignored before it can be restored.
-    init() { AppLaunchPolicy.registerDefaults() }
+    /// Still's state is copied first, before anything reads CacheDrop's (#149).
+    init() { LocalStateLocation.migrateFromStill(); AppLaunchPolicy.registerDefaults() }
     var body: some Scene {
-        Window("Still", id: "workspace") {
+        Window("CacheDrop", id: "workspace") {
             WorkspaceView(alerts: lifecycle.alerts)
                 .frame(minWidth: 900).background { NativeWindowContract() }
         }
         .defaultSize(width: 1120, height: 760)
         .commands {
             CommandGroup(after: .windowArrangement) {
-                Button("Show Still") { lifecycle.openWorkspace?() }
+                Button("Show CacheDrop") { lifecycle.openWorkspace?() }
+            }
+            CommandGroup(after: .toolbar) {
+                Button("Scan again") { lifecycle.scanAgain?() }.keyboardShortcut("r")
             }
         }
+        Settings { StillSettingsView() }
+        // #131: free space in the menu bar, shown unless turned off in Settings.
+        // The binding ignores no-op writes: MenuBarExtra writes it back on every update, and an unconditional
+        // UserDefaults write re-renders the App, which loops.
+        MenuBarExtra(isInserted: Binding(get: { showsMenuBarItem }, set: { if $0 != showsMenuBarItem { showsMenuBarItem = $0 } })) {
+            StillMenuBarMenu(lifecycle: lifecycle)
+        } label: { StillMenuBarLabel(capacity: lifecycle.capacity) }
     }
 }
 
 enum Destination: String, CaseIterable, Identifiable {
-    case alerts = "Storage alerts"
-    case overview = "Overview", growth = "What grew", plan = "Cleanup plan", history = "History", locations = "Locations & access"
+    case overview = "Overview", smartClean = "Smart clean", plan = "Cleanup plan", growth = "Storage trends", history = "History", locations = "Locations & access"
     var id: String { rawValue }
+    /// ⌘1–⌘6 follow the sidebar order (#127, #141). Low-space alerts live in the Settings window (#131).
     var shortcut: KeyEquivalent {
         switch self {
-        case .growth: "6"
-        case .alerts: "5"
         case .overview: "1"
-        case .plan: "2"
-        case .history: "3"
-        case .locations: "4"
+        case .smartClean: "2"
+        case .plan: "3"
+        case .growth: "4"
+        case .history: "5"
+        case .locations: "6"
         }
     }
     var symbol: String {
         switch self {
         case .growth: "chart.line.uptrend.xyaxis"
-        case .alerts: "bell"
         case .overview: "internaldrive"
+        case .smartClean: "sparkles"
         case .plan: "checklist"
         case .history: "clock"
         case .locations: "folder.badge.gearshape"
@@ -52,7 +64,6 @@ enum Destination: String, CaseIterable, Identifiable {
 /// Window restoration within this process never restores cleanup authority after Quit.
 @MainActor @Observable final class WorkspaceNavigation {
     var destination = Destination.overview
-    var configureAlertsOnEntry = true
     var explorerVisible = false
     var explorerCaller = Destination.overview
     var planReturnsToExplorer = false
@@ -75,7 +86,8 @@ enum Destination: String, CaseIterable, Identifiable {
     var diagnosticsCaller = Destination.overview
     var diagnosticsOffset: CGPoint?
     var diagnosticsModel = DiagnosticsModel()
-    var accessGuideExpanded = false
+    /// Overview's App-managed storage page (Decision 25).
+    var appManagedVisible = false
 }
 
 private struct WorkspaceView: View {
@@ -95,6 +107,7 @@ private struct WorkspaceView: View {
     @State private var exclusionsVisible = false
     private var diagnosticsVisible: Bool { get { navigationState.diagnosticsVisible } nonmutating set { navigationState.diagnosticsVisible = newValue } }
     @State private var overviewCloudExpanded = false
+    @State private var overviewShowsAllCategories = false
     private var diagnostics: DiagnosticsModel { get { navigationState.diagnosticsModel } nonmutating set { navigationState.diagnosticsModel = newValue } }
     @State private var locationsModel = AppLifecycleController.shared.locations
     private var explorerContext: StorageExplorerContext { navigationState.downloadsExplorerActive ? AppLifecycleController.shared.downloadsExplorer : AppLifecycleController.shared.locationsExplorer }
@@ -105,24 +118,25 @@ private struct WorkspaceView: View {
     @State private var locationToForget: RememberedScope?
     @State private var capacity = AppLifecycleController.shared.capacity
     private var startupCapacity: StartupCapacityReading? { capacity.reading }
+    private var showsSmartClean: Bool { destination == .smartClean && !navigationState.localRecordsVisible && !recoveryVisible && !nativeInspectionVisible && !homebrewVisible && !pipVisible && !diagnosticsVisible && !exclusionsVisible && !navigationState.appManagedVisible }
     private var showsPlan: Bool { destination == .plan && !navigationState.localRecordsVisible && !recoveryVisible && !nativeInspectionVisible && !homebrewVisible && !pipVisible && !diagnosticsVisible && !exclusionsVisible }
-    private var contextLabel: String {
+    /// The toolbar's note, which only reports state (Decision 25: no toolbar subtitles). A screen returns nil to show none.
+    private var contextLabel: String? {
         if selection.workspaceRunning { return "Running approved cleanup" }
-        if navigationState.localRecordsVisible && !recoveryVisible { return "Local records · Explicit maintenance only" }
+        if navigationState.localRecordsVisible && !recoveryVisible { return "" }
         if diagnosticsVisible { return "Redacted diagnostics · Explicit local Save" }
         if recoveryVisible { return "Recovery review · Recorded facts only" }
-        if selection.hasWorkspaceResult && showsPlan { return "Cleanup results · individual outcomes" }
-        if nativeInspectionVisible { return "Read-only storage inspection" }
+        if selection.hasWorkspaceResult && showsPlan { return nil }
+        if nativeInspectionVisible { return nil }
         if homebrewVisible { return "Read-only Homebrew inventory" }
         if pipVisible { return "Read-only pip inventory" }
         if exclusionsVisible { return "Custom scan exclusions" }
+        if navigationState.appManagedVisible { return nil }
         switch destination {
-        case .overview: return "On-demand storage review"
-        case .plan: return "Choose files, then review"
-        case .history: return "Recorded scan and cleanup activity"
-        case .locations: return "Scan locations and access"
-        case .alerts: return "Capacity checks only"
-        case .growth: return "Observed storage changes"
+        case .overview: return nil
+        case .smartClean, .plan: return nil
+        case .history, .locations: return "" // Decision 25: no toolbar subtitles
+        case .growth: return ""
         }
     }
 
@@ -130,10 +144,9 @@ private struct WorkspaceView: View {
         HStack(spacing: 0) {
             VStack(alignment: .leading, spacing: StillDesign.Space.sm) {
                 AppBrand().padding(.horizontal, StillDesign.Space.sm).padding(.bottom, StillDesign.Space.xl)
-                Text("Storage").font(.caption).foregroundStyle(.secondary).padding(.horizontal, StillDesign.Space.sm)
-                // Storage alerts stay unwired until after M1 (Decision 12); What grew is back (#119).
-                ForEach(Destination.allCases.filter { $0 != .locations && $0 != .alerts }) { navigation($0) }
-                Text("Settings").font(.caption).foregroundStyle(.secondary).padding(.horizontal, StillDesign.Space.sm).padding(.top, StillDesign.Space.xl)
+                Text("Storage").font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary).padding(.horizontal, StillDesign.Space.sm)
+                ForEach(Destination.allCases.filter { $0 != .locations }) { navigation($0) }
+                Text("Settings").font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary).padding(.horizontal, StillDesign.Space.sm).padding(.top, StillDesign.Space.xl)
                 navigation(.locations)
                 Spacer()
                 VStack(alignment: .leading, spacing: StillDesign.Space.md) {
@@ -159,7 +172,7 @@ private struct WorkspaceView: View {
                 if nativeInspectionVisible {
                     StorageExplorerView(model: folderInspection, selection: selection, context: explorerContext,
                         backTitle: "Back to " + explorerCaller.rawValue, back: { nativeInspectionVisible = false; destination = explorerCaller })
-                    ActionStrip(message: "Inspection only · \(StillDesign.items(selection.workspaceSelectedCount)) in the cleanup plan · Nothing changes before confirmation.") {
+                    ActionStrip(message: nil) {
                         Button("View cleanup plan") {
                             nativeInspectionVisible = false
                             planReturnsToExplorer = explorerCaller != .plan
@@ -171,8 +184,10 @@ private struct WorkspaceView: View {
                         viewHistory: { destination = .history }, newPlan: startNewPlan,
                         reviewRecovery: { openRecovery(caller: .plan) },
                         backToExplorer: navigationState.planReturnsToGrowth ? { navigationState.planReturnsToGrowth = false; destination = .growth } : planReturnsToExplorer ? { nativeInspectionVisible = true; planReturnsToExplorer = false } : nil,
-                        backToExplorerTitle: navigationState.planReturnsToGrowth ? "Back to What grew" : "Back to Explorer",
+                        backToExplorerTitle: navigationState.planReturnsToGrowth ? "Back to Storage trends" : "Back to Explorer",
                         presentation: planPresentation)
+                } else if showsSmartClean {
+                    SmartCleanView(selection: selection, openPlan: openPlan, viewHistory: { navigate(.history) }, reviewRecovery: { openRecovery(caller: .smartClean) })
                 } else {
                 ScrollView {
                     VStack(alignment: .leading, spacing: StillDesign.Space.xl) {
@@ -184,19 +199,17 @@ private struct WorkspaceView: View {
                             ExclusionsView(model: ExclusionsModel.shared)
                         } else if diagnosticsVisible {
                             DiagnosticsView(model: diagnostics)
+                        } else if navigationState.appManagedVisible {
+                            AppManagedStorageView(model: selection.catalog) { navigationState.appManagedVisible = false }
                         } else if pipVisible {
                             PipInspectionView { pipVisible = false; destination = .overview }
                         } else if homebrewVisible {
                             HomebrewInspectionView { homebrewVisible = false; destination = .overview }
-                        } else if nativeInspectionVisible {
-                            FolderInspectionView(model: folderInspection, selection: selection, viewPlan: { nativeInspectionVisible = false; destination = .plan }) { nativeInspectionVisible = false; destination = .overview }
-                        }
-                        else {
+                        } else {
                             switch destination {
-                            case .alerts: StorageAlertsView(controller: alerts, capacity: capacity, configureOnEntry: navigationState.configureAlertsOnEntry)
                             case .growth: GrowthHistoryView(model: GrowthHistoryModel.shared, catalog: selection.catalog)
                             case .overview: overview
-                            case .plan: EmptyView()
+                            case .plan, .smartClean: EmptyView()
                             case .history: history
                             case .locations: locations
                             }
@@ -207,7 +220,7 @@ private struct WorkspaceView: View {
                                 DestinationViewport(offset: $navigationState.diagnosticsOffset).frame(width: 0, height: 0)
                             } else if navigationState.localRecordsVisible && !recoveryVisible {
                                 DestinationViewport(offset: $navigationState.localRecordsOffset).frame(width: 0, height: 0)
-                            } else if !recoveryVisible && !diagnosticsVisible && !exclusionsVisible && !pipVisible && !homebrewVisible {
+                            } else if !recoveryVisible && !diagnosticsVisible && !exclusionsVisible && !pipVisible && !homebrewVisible && !navigationState.appManagedVisible {
                                 if destination == .history {
                                     DestinationViewport(offset: $navigationState.historyOffset).frame(width: 0, height: 0)
                                 } else if destination == .growth {
@@ -219,7 +232,7 @@ private struct WorkspaceView: View {
                                 }
                             }
                         }
-                }.id(recoveryVisible ? "recovery" : diagnosticsVisible ? "diagnostics" : navigationState.localRecordsVisible ? "local-records" : destination.rawValue)
+                }.id(recoveryVisible ? "recovery" : diagnosticsVisible ? "diagnostics" : navigationState.localRecordsVisible ? "local-records" : navigationState.appManagedVisible ? "app-managed" : destination.rawValue)
 
                 Group {
                     if exclusionsVisible {
@@ -247,7 +260,7 @@ private struct WorkspaceView: View {
                             }.buttonStyle(.borderedProminent)
                         }
                     } else if navigationState.localRecordsVisible {
-                        ActionStrip(message: "These controls manage Still’s records, not your original files.") {
+                        ActionStrip(message: nil) {
                             Button("Back to " + navigationState.localRecordsCaller.rawValue) {
                                 navigationState.localRecordsVisible = false
                                 destination = navigationState.localRecordsCaller
@@ -262,14 +275,14 @@ private struct WorkspaceView: View {
                             Button("View cleanup plan") { nativeInspectionVisible = false; destination = .plan }.buttonStyle(.borderedProminent)
                         }
                     } else if destination == .growth {
-                        ActionStrip(message: GrowthHistoryModel.shared.comparison?.state == .compared ? "Two completed scans · Coverage changes aren’t counted as growth. No continuous monitoring required." : "Each completed scan of the known locations is recorded. No continuous monitoring required.") {
+                        ActionStrip(message: nil) {
                             Button("Scan again", action: scanAgain).disabled(selection.catalog.isScanning || folderInspection.isScanning || selection.workspaceRunning || !selection.catalog.canEdit)
                                 .accessibilityIdentifier("growthScanAgain")
                             Button("Review options") { navigate(.plan); navigationState.planReturnsToGrowth = true }.buttonStyle(.borderedProminent)
                                 .accessibilityIdentifier("growthReviewOptions")
                         }
                     } else if showsPlan {
-                        ActionStrip(message: "Nothing changes until you confirm the next step.") { Button("Review cleanup") {}.disabled(true) }
+                        ActionStrip(message: nil) { Button("Review cleanup") {}.disabled(true) }
                     }
                 }
                 }
@@ -283,16 +296,17 @@ private struct WorkspaceView: View {
             explorerContext.allowedScopes = Set(locationsModel.included.map { URL(fileURLWithPath: $0.path).standardizedFileURL })
             explorerContext.downloadsScopes = Set(locationsModel.includedDownloads.map { URL(fileURLWithPath: $0.path).standardizedFileURL })
         }
-        .onAppear { AppLifecycleController.shared.openWorkspace = { openWindow(id: "workspace") } }
-        .onReceive(NotificationCenter.default.publisher(for: .stillAlertOpened)) { _ in destination = .overview; navigationState.localRecordsVisible = false; exclusionsVisible = false; diagnosticsVisible = false; recoveryVisible = false; nativeInspectionVisible = false; homebrewVisible = false; pipVisible = false }
-        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in Task { await alerts.activated() } }
-        .onReceive(NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.didWakeNotification)) { _ in Task { await alerts.activated() } }
-        .toolbar {
-            contextToolbar
-            ToolbarItem(placement: .automatic) {
-            AppearancePicker(choice: Binding(get: { appearance.choice }, set: { AppLifecycleController.shared.chooseAppearance($0) }))
-            }
+        .onAppear {
+            AppLifecycleController.shared.openWorkspace = { openWindow(id: "workspace") }
+            AppLifecycleController.shared.scanAgain = { if canScanAgain { scanAgain() } }
+            AppLifecycleController.shared.openSmartClean = { navigate(.smartClean) }
+            selection.catalog.scanRememberedFolders = { scanRememberedFolders() }
         }
+        .onReceive(NotificationCenter.default.publisher(for: .stillAlertOpened)) { _ in destination = .overview; navigationState.localRecordsVisible = false; navigationState.appManagedVisible = false; exclusionsVisible = false; diagnosticsVisible = false; recoveryVisible = false; nativeInspectionVisible = false; homebrewVisible = false; pipVisible = false }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in Task { await alerts.activated() } }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in Task { await selection.catalog.rescanIfFullDiskAccessGranted() } }
+        .onReceive(NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.didWakeNotification)) { _ in Task { await alerts.activated() } }
+        .toolbar { contextToolbar }
     }
 
     @ToolbarContentBuilder private var contextToolbar: some ToolbarContent {
@@ -303,40 +317,40 @@ private struct WorkspaceView: View {
         }
     }
     @ViewBuilder private var contextToolbarLabel: some View {
-        if selection.workspaceRunning {
-            Text(contextLabel).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+        if selection.workspaceRunning, let contextLabel {
+            Text(contextLabel).font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary).lineLimit(1)
         } else if folderInspection.isScanning {
             ToolbarScanStatus(location: folderInspection.scope?.lastPathComponent ?? "selected locations",
                 phase: folderInspection.progress.map { $0.phase == .rechecking ? "Rechecking changed coverage (one attempt)…" : $0.phase == .checkingDirectories ? "Checking directory stability…" : "Reading file metadata…" } ?? "Preparing metadata scan…",
                 inspectedEntries: folderInspection.progress?.visitedEntries,
                 returnToScan: scanReturnAction,
                 stop: { folderInspection.cancel() })
-        } else { Text(contextLabel).font(.caption).foregroundStyle(.secondary).lineLimit(1) }
+        } else if let contextLabel, !contextLabel.isEmpty { Text(contextLabel).font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary).lineLimit(1) }
     }
 
     private var scanReturnAction: (() -> Void)? {
-        let atOrigin = destination == scanOrigin && !navigationState.localRecordsVisible && !nativeInspectionVisible && !diagnosticsVisible && !exclusionsVisible && !recoveryVisible && !homebrewVisible && !pipVisible
+        let atOrigin = destination == scanOrigin && !navigationState.localRecordsVisible && !navigationState.appManagedVisible && !nativeInspectionVisible && !diagnosticsVisible && !exclusionsVisible && !recoveryVisible && !homebrewVisible && !pipVisible
         if atOrigin { return nil }
         return { returnToScanOrigin() }
     }
 
     private func returnToScanOrigin() {
         destination = scanOrigin
-        navigationState.localRecordsVisible = false
+        navigationState.localRecordsVisible = false; navigationState.appManagedVisible = false
         nativeInspectionVisible = false; diagnosticsVisible = false
         exclusionsVisible = false; recoveryVisible = false; homebrewVisible = false
         pipVisible = false
         planReturnsToExplorer = false
     }
 
-    private func navigate(_ value: Destination, configureAlerts: Bool = true) {
+    private func navigate(_ value: Destination) {
         navigationState.routeGeneration = UUID()
         navigationState.planReturnsToGrowth = false
-        navigationState.configureAlertsOnEntry = configureAlerts
         destination = value
         planReturnsToExplorer = false
-        if value == .plan && selection.hasWorkspaceResult { startNewPlan() }
-        navigationState.localRecordsVisible = false
+        if value == .plan && selection.showsRun(for: .plan) { startNewPlan() }
+        if value == .smartClean && selection.showsRun(for: .smartClean) { selection.dismissResult() }
+        navigationState.localRecordsVisible = false; navigationState.appManagedVisible = false
         diagnosticsVisible = false; exclusionsVisible = false
         recoveryVisible = false; navigationState.recoveryCaller = .overview; nativeInspectionVisible = false; homebrewVisible = false
         pipVisible = false
@@ -370,18 +384,16 @@ private struct WorkspaceView: View {
             HStack(alignment: .top) {
                 PageHeader(title: "Storage overview", subtitle: "A clearer picture of what’s on your Mac.")
                 Spacer(minLength: StillDesign.Space.md)
-                Button("Scan again", action: scanAgain).disabled(folderInspection.isScanning || selection.workspaceRunning || !selection.catalog.canEdit)
+                Button("Scan again", action: scanAgain).disabled(!canScanAgain)
             }
             ScanHistoryRecordingNotice()
             if let context = alerts.openedAlertContext {
                 SummarySurface {
                     VStack(alignment: .leading, spacing: StillDesign.Space.md) {
-                        StatusRow(text: context.observedAt.map { "Alert checked \($0.formatted(date: .abbreviated, time: .shortened))" } ?? "Alert check time unavailable", symbol: "bell", identifier: "openedStorageAlert")
-                        Text("This alert is an earlier observation. Choose a folder for a fresh scan; nothing runs automatically.").font(.callout).foregroundStyle(.secondary)
+                        StatusRow(text: context.observedAt.map { "Space was low at \($0.formatted(date: .omitted, time: .shortened))" } ?? "Space was low", symbol: "bell", identifier: "openedStorageAlert")
                         HStack {
-                            Button("Choose a folder to scan…", action: chooseFolderForScan)
-                                .disabled(folderInspection.isScanning || selection.workspaceRunning)
-                            Button("Dismiss alert", action: alerts.dismissOpenedAlert)
+                            Button("Scan again") { alerts.dismissOpenedAlert(); scanAgain() }.disabled(!canScanAgain)
+                            Button("Dismiss", action: alerts.dismissOpenedAlert)
                         }
                     }
                 }
@@ -401,53 +413,84 @@ private struct WorkspaceView: View {
             scannedLocations
             overviewRecommendations
         }.task { await selection.catalog.scanIfNeeded() }
+            .task { await TrashModel.shared.refresh() }
     }
 
     private var overviewRecommendations: some View {
         let catalog = selection.catalog
         let summary = catalog.overview
+        let rows = summary?.visibleRows ?? []
+        let more = max(0, rows.count - CatalogOverview.leadingRowCount)
+        let shown = overviewShowsAllCategories ? rows : Array(rows.prefix(CatalogOverview.leadingRowCount))
+        // The scanned folders' iCloud inventory, when the catalog found no local copies of its own.
+        // Hidden at 0 bytes, like any category; unknown is never 0.
+        let showsCloudInventory = overviewObservation.map { $0.cloudInventory.localAllocatedBytes != 0 } == true && !rows.contains { $0.category == .icloud }
         return VStack(alignment: .leading, spacing: StillDesign.Space.md) {
                 HStack(alignment: .firstTextBaseline) {
                     Text("Recommended for review").font(StillDesign.TypeStyle.section)
                     Spacer(minLength: StillDesign.Space.md)
                     Text(summary.map { recommendedText($0.recommended) } ?? (catalog.isScanning ? "Checking known locations…" : "Not measured yet"))
-                        .font(.caption).foregroundStyle(.secondary).monospacedDigit().accessibilityIdentifier("overviewRecommendedTotal")
-                }
-                RecommendationGroup {
-                    // iCloud keeps its first place: the catalog's local copies once found, else the scanned location's inventory.
-                    if let cloud = summary?.rows.first(where: { $0.category == .icloud }) { catalogRow(cloud) } else {
-                        overviewCloudRow
-                        if overviewCloudExpanded, let report = overviewObservation?.cloudInventory { CloudInventoryView(report: report).padding(StillDesign.Space.md) }
-                    }
-                    Divider().padding(.horizontal, StillDesign.Space.lg)
-                    if summary == nil && catalog.isScanning {
-                        ProgressView("Checking known locations…").font(.caption).padding(StillDesign.Space.lg).frame(maxWidth: .infinity, alignment: .leading)
-                        Divider().padding(.horizontal, StillDesign.Space.lg)
-                    }
-                    // One row per catalog category that found something; categories are data in StillCore.
-                    ForEach(summary?.rows.filter { $0.category != .icloud } ?? []) { row in
-                        catalogRow(row)
-                        Divider().padding(.horizontal, StillDesign.Space.lg)
-                    }
-                    // Places macOS protects (Safari's cache) without Full Disk Access: not accessible, never 0.
-                    ForEach(catalog.notAccessibleRules) { rule in
-                        NotAccessibleRow(title: rule.title).padding(StillDesign.Space.lg).accessibilityIdentifier("overviewNotAccessible-" + rule.id)
-                        Divider().padding(.horizontal, StillDesign.Space.lg)
+                        .font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary).monospacedDigit().accessibilityIdentifier("overviewRecommendedTotal")
+                    // The recommended plan lives on its own page (#141): one quiet link to it.
+                    if summary != nil, !catalog.recommendedCandidates.isEmpty {
+                        Button("Smart clean · " + catalog.recommendedSizeText + " ›") { navigate(.smartClean) }
+                            .buttonStyle(.link).font(StillDesign.TypeStyle.caption).accessibilityIdentifier("overviewSmartClean")
                     }
                 }
-                Text(trashFootnote(summary?.proposedForTrash)).font(.caption).foregroundStyle(.secondary)
-                GuidanceSection(model: catalog)
+                // One quiet line while the scan runs; rows and the total fill in as each location finishes (#128).
+                if catalog.isScanning { CatalogScanProgressLine(model: catalog) }
+                if showsCloudInventory || !shown.isEmpty {
+                    RecommendationGroup {
+                        if showsCloudInventory {
+                            overviewCloudRow
+                            if overviewCloudExpanded, let report = overviewObservation?.cloudInventory { CloudInventoryView(report: report).padding(StillDesign.Space.md) }
+                        }
+                        // The largest catalog categories that found something; categories are data in StillCore.
+                        ForEach(Array(shown.enumerated()), id: \.element.id) { index, row in
+                            if index > 0 || showsCloudInventory { Divider().padding(.horizontal, StillDesign.Space.lg) }
+                            catalogRow(row)
+                        }
+                        if more > 0 {
+                            Divider().padding(.horizontal, StillDesign.Space.lg)
+                            Button(overviewShowsAllCategories ? "Show fewer" : "Show \(more) more") { overviewShowsAllCategories.toggle() }
+                                .buttonStyle(.link).font(.callout).padding(StillDesign.Space.lg).frame(maxWidth: .infinity, alignment: .leading)
+                                .accessibilityIdentifier("overviewShowMore")
+                        }
+                    }
+                } else if summary != nil, !catalog.isScanning {
+                    Text("Nothing to review in the known locations.").font(.callout).foregroundStyle(.secondary)
+                }
+                // Places macOS protects (Safari's cache) without Full Disk Access: one line, never a 0-byte row.
+                if !catalog.notAccessibleRules.isEmpty {
+                    FullDiskAccessNote(places: catalog.notAccessibleRules.map(\.title)).accessibilityIdentifier("overviewNotAccessible")
+                }
+                TrashNote()
+                if let trash = summary?.proposedForTrash, trash != .measured(0) {
+                    Text("Estimated release excludes " + trash.text + " proposed for Trash.").font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary)
+                }
+                if !catalog.guidance.isEmpty {
+                    RecommendationGroup {
+                        StorageReviewRow(category: .managed, title: "App-managed storage", detail: "", value: StillDesign.items(catalog.guidance.count),
+                                         actionTitle: "Review app-managed storage", action: { navigationState.appManagedVisible = true },
+                                         identifier: "overviewAppManaged", mutedValue: true)
+                    }
+                }
             }
     }
     private func catalogRow(_ row: CatalogOverview.Row) -> some View {
         let inPlan = row.rules.contains { selection.catalog.isSelected($0) }
-        return StorageReviewRow(category: row.category.storageCategory, title: row.category.overviewTitle, detail: row.detail,
+        return StorageReviewRow(category: row.category.storageCategory, title: row.category.overviewTitle, detail: row.category.overviewDetail,
             value: row.valueText,
             meaning: row.estimate == .unknown ? "Couldn’t be measured" : inPlan ? "In cleanup plan"
                 : row.rules.allSatisfy { $0.action == .delete } ? "Rebuildable" : row.rules.allSatisfy { $0.action == .evict } ? "Local copies" : "Review files",
             actionTitle: "Review \(row.category.overviewTitle) in the cleanup plan",
-            action: { destination = .plan },
+            action: { navigate(.plan); planPresentation.expandedCategories.insert(row.category) },
             identifier: "overviewCategory-" + row.id)
+    }
+    /// Opens the Cleanup plan from Smart clean's "Not included" note, with the category open when one is named.
+    private func openPlan(_ category: CatalogCategory?) {
+        navigate(.plan)
+        if let category { planPresentation.expandedCategories.insert(category) }
     }
     /// SPEC section 6: an estimate, and an upper bound because clones share blocks.
     private func recommendedText(_ estimate: SizeEstimate) -> String {
@@ -457,10 +500,6 @@ private struct WorkspaceView: View {
         case .atLeast(let bytes): "At least " + catalogBytes(bytes) + " estimated · Some sizes unknown"
         case .unknown: "Size unknown"
         }
-    }
-    private func trashFootnote(_ trash: SizeEstimate?) -> String {
-        guard let trash, trash != .measured(0) else { return "Moving files to Trash won’t free space until you empty it." }
-        return "Estimated release excludes " + trash.text + " proposed for Trash."
     }
 
     private var overviewCloudRow: some View {
@@ -478,28 +517,37 @@ private struct WorkspaceView: View {
         scanLocations(locationsModel.included)
     }
     /// Rechecks capacity, the catalog's known locations and any included folders. Read-only.
+    /// The same conditions that enable the Overview's Scan again button.
+    private var canScanAgain: Bool { !folderInspection.isScanning && !selection.workspaceRunning && selection.catalog.canEdit }
     private func scanAgain() {
         capacity.request(.manual)
         Task { await selection.catalog.scan() }
+        Task { await TrashModel.shared.refresh() }
+        if !locationsModel.included.isEmpty { scanKnownLocations() }
+    }
+    /// The remembered, included folders, scanned along with the catalog at launch and after a cleanup (#125).
+    private func scanRememberedFolders() {
+        locationsModel.load()
         if !locationsModel.included.isEmpty { scanKnownLocations() }
     }
     private var scannedLocations: some View {
         VStack(alignment: .leading, spacing: StillDesign.Space.sm) {
             HStack(alignment: .firstTextBaseline, spacing: StillDesign.Space.sm) {
                 Text("Scanned locations").font(.caption.weight(.medium))
-                Text(scannedSummary).font(.caption).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
+                Text(scannedSummary).font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
                     .help(overviewObservation?.scope.path ?? "").accessibilityIdentifier("overviewScopeCoverage")
                 if overviewObservation != nil {
-                    Button("Explore storage") { openExplorer(downloads: false, caller: .overview) }.buttonStyle(.link).font(.caption).disabled(selection.workspaceRunning)
-                } else {
-                    Button("Choose a folder…", action: chooseFolderForScan).buttonStyle(.link).font(.caption).disabled(folderInspection.isScanning || selection.workspaceRunning)
+                    Button("Explore storage") { openExplorer(downloads: false, caller: .overview) }.buttonStyle(.link).font(StillDesign.TypeStyle.caption).disabled(selection.workspaceRunning)
                 }
                 Spacer(minLength: 0)
+                // One clear action: pick a folder, remember it and scan it now (#125).
+                Button("Scan a folder…", systemImage: "folder.badge.plus", action: chooseFolderForScan)
+                    .disabled(folderInspection.isScanning || selection.workspaceRunning).accessibilityIdentifier("overviewScanFolder")
             }
             if selection.scans.values.contains(where: { !$0.isComplete }) || overviewObservation.map({ $0.excludedEntryCount > 0 || $0.hasUnmeasuredContents }) == true {
                 StatusRow(text: "Some locations have partial coverage. Uninspected bytes remain unknown.", symbol: "exclamationmark.circle", role: .caution)
             }
-            if folderInspection.isScanning { ProgressView("Rechecking selected locations…").font(.caption) }
+            if folderInspection.isScanning { ProgressView("Rechecking selected locations…").font(StillDesign.TypeStyle.caption) }
             if let message = locationsModel.message { StatusRow(text: message, symbol: "info.circle", role: .caution) }
             if let message = folderInspection.message { StatusRow(text: message, symbol: "info.circle") }
         }
@@ -573,21 +621,19 @@ private struct WorkspaceView: View {
 
     private var history: some View {
         CleanupHistoryView(model: navigationState.historyModel, expandedRuns: $navigationState.historyExpandedRuns,
-            showRecovery: { openRecovery(caller: .history) }, manageLocalRecords: { openLocalRecords(caller: .history) }, goOverview: { navigate(.overview) }, viewPlan: { navigate(.plan) })
+            showRecovery: { openRecovery(caller: .history) }, goOverview: { navigate(.overview) }, viewPlan: { navigate(.plan) })
     }
 
     private var locations: some View {
         VStack(alignment: .leading, spacing: StillDesign.Space.xl) {
-            PageHeader(title: "Locations & access", subtitle: "Remember locations to include in your next manual scan.")
+            PageHeader(title: "Locations & access", subtitle: "Folders CacheDrop scans at launch and when you scan again.")
             ScanHistoryRecordingNotice()
             HStack {
-                Button("Add folder…") {
-                    if let url = FolderInspection.chooseFolder(remembering: true) { _ = locationsModel.remember(url, downloads: isDownloadsLocation(url)) }
-                }.disabled(folderInspection.isScanning || selection.workspaceRunning)
+                Button("Add folder…", action: chooseFolderForScan).disabled(folderInspection.isScanning || selection.workspaceRunning)
                 Button("Scan selected locations") { scanLocations(locationsModel.included) }
                     .disabled(locationsModel.included.isEmpty || folderInspection.isScanning || selection.workspaceRunning)
             }
-            if locationsModel.scopes.isEmpty { EmptyState(title: "No locations yet", detail: "Add a folder, then run a manual scan. Adding a location never starts scanning.", symbol: "folder.badge.plus") }
+            if locationsModel.scopes.isEmpty { EmptyState(title: "No locations yet", detail: "Add a folder to scan it now and each time CacheDrop opens.", symbol: "folder.badge.plus") }
             ForEach(locationsModel.scopes) { scope in
                 LocationScopeRow(name: URL(fileURLWithPath: scope.path).lastPathComponent, path: scope.path,
                     status: locationStatus(scope), overlap: locationOverlap(scope), included: Binding(get: { scope.isIncluded }, set: { included in
@@ -610,13 +656,12 @@ private struct WorkspaceView: View {
                 }
                 if locationsModel.statuses[scope.id]?.needsRecovery == true,
                    let previous = folderInspection.scopeReports.first(where: { $0.current.scope.path == scope.path })?.lastComplete {
-                    Text("Last complete observation: " + previous.observedAt.formatted() + " · Historical, not current coverage").font(.caption).foregroundStyle(.secondary)
+                    Text("Last complete observation: " + previous.observedAt.formatted() + " · Historical, not current coverage").font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary)
                 }
                 Divider()
             }
             if let message = locationsModel.message { StatusRow(text: message, symbol: "info.circle") }
-            Text("Scanned folders are for inspection. Cleanup choices, Downloads included, come from the cleanup plan. Access is rechecked for each manual scan; no files are scanned at launch.").font(.caption).foregroundStyle(.secondary)
-            LocationAccessGuide(expanded: $navigationState.accessGuideExpanded)
+            FullDiskAccessSetting()
             LocalRecordsEntry { openLocalRecords(caller: .locations) }
         }.confirmationDialog("Forget location?", isPresented: Binding(get: { locationToForget != nil }, set: { if !$0 { locationToForget = nil } }), titleVisibility: .visible) {
             if let scope = locationToForget {
@@ -625,7 +670,7 @@ private struct WorkspaceView: View {
             }
         } message: {
             if let scope = locationToForget {
-                Text("Forget " + URL(fileURLWithPath: scope.path).lastPathComponent + "? Still stops scanning it. No files will be deleted.")
+                Text("Forget " + URL(fileURLWithPath: scope.path).lastPathComponent + "? CacheDrop stops scanning it. No files will be deleted.")
             }
         }
     }
@@ -646,21 +691,5 @@ private struct WorkspaceView: View {
             return scan.isComplete ? "Observed · " + scan.observedAt.formatted(date: .omitted, time: .shortened) : "Partial coverage · Uninspected bytes unknown"
         }
         return "Not scanned"
-    }
-}
-
-private struct StillStatusMenu: View {
-    @ObservedObject var alerts: StorageAlertsController
-    @Environment(\.openWindow) private var openWindow
-    var body: some View {
-        Text("Storage alerts active")
-        Text(alerts.status)
-        Button("Open Still") {
-            openWindow(id: "workspace")
-            NSApp.activate(ignoringOtherApps: true)
-            NotificationCenter.default.post(name: .stillAlertOpened, object: nil)
-        }
-        Divider()
-        Button("Quit Still") { NSApp.terminate(nil) }.keyboardShortcut("q")
     }
 }

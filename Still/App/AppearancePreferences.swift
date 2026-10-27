@@ -27,12 +27,37 @@ import SwiftUI
     func remove() throws { try LocalStateLocation.removeKnownFile(filename) }
 }
 
+extension AppearanceChoice {
+    /// What the picker shows. The stored raw value stays "Automatic".
+    var title: String { self == .automatic ? "System" : rawValue }
+}
+
 struct AppearancePicker: View {
     @Binding var choice: AppearanceChoice
     var body: some View {
         Picker("Appearance", selection: $choice) {
-            ForEach(AppearanceChoice.allCases, id: \.self) { Text($0.rawValue).tag($0) }
-        }.labelsHidden().controlSize(.small).frame(width: 110).accessibilityLabel("Appearance").accessibilityIdentifier("Appearance")
+            ForEach(AppearanceChoice.allCases, id: \.self) { Text($0.title).tag($0) }
+        }.accessibilityIdentifier("Appearance")
+    }
+}
+
+/// The Settings window (⌘,). Appearance follows the system unless overridden here; the menu bar item is shown and
+/// low-space alerts are off unless changed here (#131); the dry run is off unless turned on here.
+struct StillSettingsView: View {
+    @State private var appearance = AppLifecycleController.shared.appearance
+    @AppStorage(MenuBarItemPreference.key) private var showsMenuBarItem = true
+    var body: some View {
+        Form {
+            Section {
+                AppearancePicker(choice: Binding(get: { appearance.choice }, set: { AppLifecycleController.shared.chooseAppearance($0) }))
+                if appearance.notice != nil { AppearancePreferenceNotice(notice: appearance.notice, retry: { appearance.retrySaving() }) }
+                Toggle("Show free space in the menu bar", isOn: $showsMenuBarItem).accessibilityIdentifier("menuBarItemToggle")
+                LoginSettingsView()
+            }
+            // #131: low-space alerts live here, not in the sidebar.
+            LowSpaceAlertsSettings(controller: AppLifecycleController.shared.alerts)
+            Section { DryRunToggle(model: AppLifecycleController.shared.selection.catalog) }
+        }.formStyle(.grouped).frame(width: StillDesign.Size.sheetNarrow).fixedSize(horizontal: false, vertical: true)
     }
 }
 
@@ -43,7 +68,7 @@ struct AppearancePreferenceNotice: View {
     var body: some View {
         HStack(spacing: StillDesign.Space.sm) {
             Spacer(minLength: 0)
-            Text(message).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+            Text(message).font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary).lineLimit(1)
                 .accessibilityIdentifier("appearanceSaveNotice")
                 .accessibilityHidden(notice == nil)
             if notice == .saveFailed {
@@ -53,8 +78,8 @@ struct AppearancePreferenceNotice: View {
     }
     private var message: String {
         switch notice {
-        case .invalidSavedValue: "Saved appearance isn’t recognized. Using Automatic."
-        case .unreadable: "Couldn’t read saved appearance. Using Automatic."
+        case .invalidSavedValue: "Saved appearance isn’t recognized. Using System."
+        case .unreadable: "Couldn’t read saved appearance. Using System."
         case .saveFailed: "Appearance wasn’t saved."
         case nil: " "
         }

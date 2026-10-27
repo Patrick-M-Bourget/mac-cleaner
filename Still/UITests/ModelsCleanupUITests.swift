@@ -15,12 +15,13 @@ final class ModelsCleanupUITests: XCTestCase {
         return marker
     }
 
-    @MainActor func testModelsAreChosenOneByOneAndPreviewNeitherTrashesNorRunsOllama() throws {
+    @MainActor func testModelsAreChosenOneByOneAndADryRunNeitherTrashesNorRunsOllama() throws {
         continueAfterFailure = false
         let app = XCUIApplication()
         let state = try configureIsolatedState(app)
         let home = try configureCatalogHome(app)
         let marker = try addModels(home)
+        turnOnDryRun(app)
         defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
         app.launch()
 
@@ -35,7 +36,9 @@ final class ModelsCleanupUITests: XCTestCase {
             XCTAssertTrue(header.waitForExistence(timeout: 5), rule)
             XCTAssertEqual(header.value as? Int, 0, rule)
         }
-        for name in ["org/tiny", "llama3:latest"] {
+        for (rule, name) in [("huggingface-models", "org/tiny"), ("ollama-models", "llama3:latest")] {
+            // Items are drawn lazily: bring the rule's list into view first.
+            reveal(app.checkBoxes["planRule-" + rule], in: app, nearTop: true)
             let item = app.checkBoxes["planItem-" + name]
             if !item.waitForExistence(timeout: 2) { expandDisclosures(in: app) }
             XCTAssertTrue(item.waitForExistence(timeout: 5), name)
@@ -43,12 +46,11 @@ final class ModelsCleanupUITests: XCTestCase {
             revealAndClick(item, in: app)
         }
         XCTAssertTrue(app.buttons.matching(NSPredicate(format: "label == 'Inspect org/tiny' AND value CONTAINS 'Last used'")).firstMatch.exists)
-        XCTAssertEqual(app.checkBoxes["previewOnlyToggle"].value as? Int, 1)
         app.buttons["Review cleanup"].click()
 
-        XCTAssertTrue(app.staticTexts["Move to Trash: Hugging Face models"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.staticTexts["Clear Ollama models"].exists)
-        app.buttons["Run preview"].click()
+        XCTAssertTrue(reviewLine(app, "movedToTrash", "models").waitForExistence(timeout: 5))
+        XCTAssertTrue(reviewLine(app, "commandsRun", "models").exists)
+        cleanUpFromReview(app)
 
         XCTAssertTrue(app.staticTexts["catalogPreviewNotice"].waitForExistence(timeout: 10))
         XCTAssertFalse(FileManager.default.fileExists(atPath: marker.path))

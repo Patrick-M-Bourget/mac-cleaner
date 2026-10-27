@@ -20,7 +20,7 @@ public enum CheckRefusal: Sendable, Equatable {
         case .ownerUnknown(let name): "Couldn’t check whether \(name) is running."
         case .protected(let name): "Contains protected data (\(name))."
         case .excluded: "Excluded in Settings."
-        case .notPermitted: "Still can’t change it without admin rights."
+        case .notPermitted: "CacheDrop can’t change it without admin rights."
         case .cloud: "Stored in iCloud."
         case .inUse(let name): "\(name) is using it. It is kept."
         case .inUseUnknown(let name): "Couldn’t check whether \(name) is using it, so it is kept."
@@ -29,7 +29,7 @@ public enum CheckRefusal: Sendable, Equatable {
         case .conflicted: "Has an iCloud conflict to resolve. Its local copy stays."
         case .notDownloaded: "No local copy to remove."
         case .cloudUnknown: "Couldn’t read its iCloud status. Its local copy stays."
-        case .guidanceOnly: "Guidance only. Still never changes it; manage it in its own app."
+        case .guidanceOnly: "Guidance only. CacheDrop never changes it; manage it in its own app."
         }
     }
 }
@@ -86,15 +86,26 @@ public struct CandidateCheck: Sendable {
                 cloud: any UbiquitousItemAccess = SystemUbiquitousItems(), home: URL) {
         self.catalog = catalog; self.running = running; self.exclusions = exclusions; self.inUse = inUse; self.cloud = cloud; self.home = home
     }
+    /// This check with one reading of the process table, for checking many items together (a review or a cleanup run).
+    public func snapshotted() -> CandidateCheck {
+        CandidateCheck(catalog: catalog, running: running, exclusions: exclusions, inUse: inUse.snapshot(), cloud: cloud, home: home)
+    }
+    /// Whether checking this candidate asks what processes have open: leaked copies and old temporary items.
+    public func needsInUseCheck(_ candidate: Candidate) -> Bool {
+        guard let rule = catalog.rule(candidate.ruleID) else { return false }
+        return rule.copies != nil || rule.unused != nil
+    }
     public func check(_ candidate: Candidate) -> CheckRefusal? {
         // Guidance-only data is never acted on, whatever the candidate or its rule says (SPEC section 3).
         if candidate.action == .guidance || catalog.rule(candidate.ruleID)?.action == .guidance { return .guidanceOnly }
         guard let rule = catalog.rule(candidate.ruleID),
               rule.action == candidate.action || (candidate.isLeftover && rule.deletesItems && candidate.action == .delete) else { return .changed }
+        // A per-item command's argument is never an option, whatever the item says (#134).
+        if candidate.action == .tool, rule.tool?.itemPlaceholder != nil, candidate.toolArgument.map({ $0.isEmpty || $0.hasPrefix("-") }) ?? true { return .changed }
         let ownership = Catalog.ownership(of: candidate.url, under: rule)
         switch ownership {
         // An item whose own owner can't be found any more (the app was removed) is refused, never guessed.
-        case .unknown: return .ownerUnknown(candidate.url.lastPathComponent)
+        case .unknown: return .ownerUnknown(candidate.appName ?? candidate.url.lastPathComponent)
         case .mustBeClosed(let owner):
             switch running.isRunning(owner) {
             case nil: return .ownerUnknown(owner.name)
@@ -124,6 +135,20 @@ public struct CandidateCheck: Sendable {
             guard let used = inUse.inUse([candidate.url], by: owner) else { return .inUseUnknown(owner.name) }
             if !used.isEmpty { return .inUse(owner.name) }
         }
+        // An old temporary item with an app of its own must also not be open in any process.
+        if rule.unused != nil, rule.itemOwner != nil {
+            guard let used = inUse.inUse([candidate.url], by: .anyApp) else { return .inUseUnknown(RuleOwner.anyApp.name) }
+            if !used.isEmpty { return .inUse(RuleOwner.anyApp.name) }
+        }
+        // A system image a virtual device started using since the scan is kept (#134).
+        if rule.items == .androidSystemImages, AndroidSDK.referencedImages(home: home).map({ $0.contains(AndroidSDK.key(candidate.url)) }) ?? true {
+            return .inUse("An Android virtual device")
+        }
+        // A simulator booted, or a runtime a device started using, since the scan is kept (#143).
+        if rule.items == .simulatorDevices || rule.items == .simulatorRuntimes, let items = rule.items,
+           let refusal = SimulatorInventory.refusal(for: candidate, items: items) { return refusal }
+        // An old temporary item that anything inside changed in since the scan is in use again (`TemporaryFiles`).
+        if rule.unused != nil, !candidate.isLeftover, Catalog.lastChange(in: candidate.url).map({ $0 > candidate.observedAt }) ?? true { return .changed }
         guard info.st_uid == geteuid(),
               info.st_flags & UInt32(UF_IMMUTABLE | SF_IMMUTABLE | UF_APPEND | SF_APPEND) == 0,
               access(candidate.url.deletingLastPathComponent().path, W_OK | X_OK) == 0 else { return .notPermitted }

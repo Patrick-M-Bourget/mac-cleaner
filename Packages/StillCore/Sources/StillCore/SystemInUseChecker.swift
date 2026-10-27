@@ -3,29 +3,40 @@ import Darwin
 
 /// Reads the current user's processes with libproc, as `lsof` does, without admin rights.
 public struct SystemInUseChecker: InUseChecking {
-    public init() {}
-    public func inUse(_ folders: [URL], by owner: RuleOwner) -> Set<String>? {
+    /// When set, only this process is read (tests), so other processes coming and going can't change the answer.
+    let onlyProcess: pid_t?
+    public init() { onlyProcess = nil }
+    init(onlyProcess: pid_t) { self.onlyProcess = onlyProcess }
+    /// Reads the process table afresh for this one question.
+    public func inUse(_ folders: [URL], by owner: RuleOwner) -> Set<String>? { snapshot().inUse(folders, by: owner) }
+    /// One reading shared by every question until it is dropped: a discovery asks once per rule, a cleanup run once per item.
+    public func snapshot() -> any InUseChecking { SystemInUseSnapshot(onlyProcess: onlyProcess) }
+}
+
+/// The current user's processes, listed once. Each process's open and mapped files are read the first time a question
+/// needs them and then kept, so asking about many items reads each process at most once.
+final class SystemInUseSnapshot: InUseChecking, @unchecked Sendable {
+    private let lock = NSLock()
+    /// Nil when the process list can't be read.
+    private let processes: [(pid: pid_t, executable: String)]?
+    /// Each process's paths once read; an inner nil means they couldn't be read.
+    private var paths: [pid_t: [String]?] = [:]
+
+    init(onlyProcess: pid_t? = nil) { processes = Self.userProcesses()?.filter { onlyProcess == nil || $0.pid == onlyProcess } }
+
+    func inUse(_ folders: [URL], by owner: RuleOwner) -> Set<String>? {
+        guard let processes else { return nil }
         // The kernel reports canonical paths (/private/var/...), so compare against each folder's real path.
         let roots = folders.map { realPath($0.path) ?? $0.path }
         func folder(holding path: String) -> String? {
             zip(folders, roots).first { path == $0.1 || path.hasPrefix($0.1 + "/") }?.0.path
         }
-        let capacity = proc_listallpids(nil, 0)
-        guard capacity > 0 else { return nil }
-        var pids = [pid_t](repeating: 0, count: Int(capacity) + 128)
-        let count = pids.withUnsafeMutableBytes { proc_listallpids($0.baseAddress, Int32($0.count)) }
-        guard count > 0, Int(count) < pids.count else { return nil }
-        let uid = getuid()
         var used = Set<String>()
-        for pid in pids.prefix(Int(count)) where pid > 0 {
-            var details = proc_bsdinfo()
-            let size = Int32(MemoryLayout<proc_bsdinfo>.size)
-            guard proc_pidinfo(pid, PROC_PIDTBSDINFO, 0, &details, size) == size, details.pbi_uid == uid else { continue }
-            guard let executable = Self.executablePath(pid) else { continue }
+        for (pid, executable) in processes {
             if let hit = folder(holding: executable) { used.insert(hit); continue }
             guard owner.matches([executable]) else { continue }
             // One of the owner's processes: an unreadable file list means in-use status is unknown.
-            guard let paths = Self.openAndMappedPaths(pid) else {
+            guard let paths = cachedPaths(pid) else {
                 if kill(pid, 0) != 0, errno == ESRCH { continue }
                 return nil
             }
@@ -34,10 +45,17 @@ public struct SystemInUseChecker: InUseChecking {
         return used
     }
 
-    private static func executablePath(_ pid: pid_t) -> String? {
-        var buffer = [CChar](repeating: 0, count: Int(4 * MAXPATHLEN))
-        let length = proc_pidpath(pid, &buffer, UInt32(buffer.count))
-        return length > 0 ? String(cString: buffer) : nil
+    private func cachedPaths(_ pid: pid_t) -> [String]? {
+        lock.lock(); defer { lock.unlock() }
+        if let known = paths[pid] { return known }
+        let read = Self.openAndMappedPaths(pid)
+        paths[pid] = .some(read)
+        return read
+    }
+
+    /// The pid and executable of each process the current user owns; nil when the list can't be read.
+    private static func userProcesses() -> [(pid: pid_t, executable: String)]? {
+        UserProcesses.pids()?.compactMap { pid in UserProcesses.executablePath(pid).map { (pid, $0) } }
     }
 
     /// The current folder, open files and mapped files of one process; nil if they can't be read.

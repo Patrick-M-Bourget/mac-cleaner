@@ -14,7 +14,7 @@ extension Catalog {
                 guard let count = snapshots.count() else { return GuidanceFinding(ruleID: rule.id, size: .unavailable, folder: nil) }
                 return count > 0 ? GuidanceFinding(ruleID: rule.id, size: .snapshots(count), folder: nil) : nil
             }
-            var parts: [SizeEstimate] = [], denied = 0, folder: URL?
+            var parts: [SizeEstimate] = [], denied = 0, folder: URL?, read: [URL] = []
             for location in rule.locations {
                 let url = location.hasPrefix("/") ? systemRoot.appendingPathComponent(String(location.dropFirst())) : home.appendingPathComponent(location)
                 var info = stat()
@@ -24,6 +24,7 @@ extension Catalog {
                 }
                 folder = folder ?? url
                 guard Self.isReadable(url, info) else { denied += 1; continue }
+                read.append(url)
                 switch guidance.sizing {
                 case .foldersNamed(let name): parts.append(Self.sizeOfFolders(named: name, in: url, sizer: sizer))
                 default: parts.append(Self.estimate(sizer.size(url)))
@@ -33,7 +34,9 @@ extension Catalog {
             if denied > 0 { parts.append(.unknown) }
             let total = SizeEstimate(sum: parts)
             // Nothing there, such as a Mail folder with no attachments, is no finding.
-            return total == .measured(0) ? nil : GuidanceFinding(ruleID: rule.id, size: .estimate(total), folder: folder)
+            guard total != .measured(0) else { return nil }
+            let workspaces = guidance.sizing == .agentWorkspaces ? WorkspaceGit.workspaces(in: read) : nil
+            return GuidanceFinding(ruleID: rule.id, size: .estimate(total), folder: folder, workspaces: workspaces)
         }
     }
 
@@ -47,10 +50,13 @@ extension Catalog {
         }
     }
 
-    /// Opens where the finding is managed. False when there is nowhere to go or it didn't open.
+    /// Opens where the finding is managed. When its app doesn't open, usually because it isn't installed (GarageBand
+    /// without Logic Pro), the folder is revealed in Finder instead (#139). False when there is nowhere to go or it didn't open.
     public func open(_ finding: GuidanceFinding, using opener: any GuidanceOpening) async -> Bool {
         guard let target = target(for: finding) else { return false }
-        return await opener.open(target)
+        if await opener.open(target) { return true }
+        guard case .app = target, let folder = finding.folder else { return false }
+        return await opener.open(.folder(folder))
     }
 
     /// A folder must list its entries to be sized; macOS privacy protection (TCC) refuses that without Full Disk Access.

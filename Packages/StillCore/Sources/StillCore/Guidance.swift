@@ -9,6 +9,8 @@ public struct Guidance: Sendable {
         case foldersNamed(String)
         /// Time Machine local snapshots: counted, never sized, since macOS reports no size per snapshot.
         case localSnapshots
+        /// Each location's whole tree, plus the git status of the agent workspaces inside (#140).
+        case agentWorkspaces
     }
     /// Where "Open …" goes.
     public enum Place: Sendable, Equatable {

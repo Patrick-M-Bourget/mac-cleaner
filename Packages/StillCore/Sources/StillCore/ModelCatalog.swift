@@ -15,6 +15,14 @@ extension BuiltInCatalog {
             guard name.hasPrefix("models--") else { return nil }
             return name.dropFirst("models--".count).replacingOccurrences(of: "--", with: "/")
         })
+    /// #135: LM Studio keeps each model in `~/.lmstudio/models/<publisher>/<model>/` (its "Import models" docs).
+    /// Older installs used `~/.cache/lm-studio/models`, which LM Studio's documentation doesn't confirm, so it is left out.
+    static let lmStudioModels = CleanupRule(
+        id: "lmstudio-models", category: .models, title: "LM Studio models",
+        detail: "Models downloaded in LM Studio. Check when each was last used.",
+        consequence: "Moved to Trash. You can restore them from the Trash; otherwise download them again in LM Studio. Quit LM Studio first.",
+        regen: .model, action: .trash, locations: [".lmstudio/models/*/*"],
+        owner: RuleOwner(name: "LM Studio", bundleIDs: ["ai.elementlabs.lmstudio"]))
     /// Ollama's own server must be running for `ollama rm`, so the rule has no owner to close.
     static let ollamaModels = CleanupRule(
         id: "ollama-models", category: .models, title: "Ollama models",
@@ -43,6 +51,10 @@ public enum CatalogItems: Sendable, Equatable {
     case ollamaModels
     /// One item per prune kind, sized by what `docker system df` says Docker can reclaim.
     case docker(DockerPruneKind)
+    /// Simulator runtimes and devices, from `simctl`'s own lists (#134).
+    case simulatorRuntimes, simulatorDevices
+    /// Android virtual devices and the system images none of them uses (#134).
+    case androidVirtualDevices, androidSystemImages
 }
 
 private struct OllamaManifest: Decodable {

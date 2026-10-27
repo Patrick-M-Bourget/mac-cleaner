@@ -14,10 +14,10 @@ struct DesignGallery: View {
     var body: some View {
         VStack(spacing: 0) {
             HStack {
-                Text("Still · Component gallery").font(.headline)
+                Text("CacheDrop · Component gallery").font(.headline)
                 Spacer()
                 Toggle("Opaque chrome", isOn: $opaque)
-                AppearancePicker(choice: $appearance)
+                AppearancePicker(choice: $appearance).labelsHidden().fixedSize()
             }.padding(StillDesign.Space.lg).background { ChromeSurface() }
             ScrollView {
                 VStack(alignment: .leading, spacing: StillDesign.Space.xl) {
@@ -37,14 +37,11 @@ struct DesignGallery: View {
                     DisclosureGroup("Synthetic History activity examples", isExpanded: $historyExamplesExpanded) {
                         HistoryActivityGalleryExamples()
                     }
-                    DisclosureGroup("Synthetic What grew examples", isExpanded: $growthExamplesExpanded) { GrowthGalleryExamples() }
+                    DisclosureGroup("Synthetic Storage trends examples", isExpanded: $growthExamplesExpanded) { GrowthGalleryExamples() }
                     DisclosureGroup("Synthetic storage alert settings", isExpanded: $alertExamplesExpanded) {
-                        AlertThresholdEditor(draft: .constant("60"), appliedBytes: 40_000_000_000, hasCurrentTotal: true, canApply: true, apply: {})
-                        AlertThresholdEditor(draft: .constant("invalid"), appliedBytes: 40_000_000_000, hasCurrentTotal: true, canApply: false, invalidDraft: true, apply: {})
-                        AlertThresholdEditor(draft: .constant("invalid"), appliedBytes: 40_000_000_000, hasCurrentTotal: false, canApply: false, apply: {})
-                        AlertPermissionDetails(authorization: .unknown, checked: true, openSettings: {})
+                        AlertThresholdEditor(draft: .constant("60"), canApply: true, apply: {})
+                        AlertThresholdEditor(draft: .constant("invalid"), canApply: false, invalidDraft: true, apply: {})
                         AlertPermissionDetails(authorization: .denied, checked: true, settingsFeedback: "System Settings could not be opened.", openSettings: {})
-                        QuietAlertExplanation(expanded: .constant(true))
                     }
                     CapacityGalleryExamples()
                     Text("Synthetic Local records entry · Inert example").font(.headline)
@@ -56,27 +53,27 @@ struct DesignGallery: View {
                     LocalRecordsMaintenanceControls(enabled: false, clear: {}, reset: {})
                     Text("Synthetic future-gated diagnostics entry · Inert example").font(.headline)
                     LocalRecordsDiagnosticsEntry(action: {})
-                    Text("Synthetic optional folder access · Inert Gallery guidance").font(.headline)
-                    LocationAccessGuide(expanded: .constant(true))
+                    Text("Synthetic Full Disk Access row · Live status check only").font(.headline)
+                    FullDiskAccessSetting()
                     NotAccessibleRow(title: "Safari cache")
                     CategoryPrerequisite(title: "Not scanned", detail: "Scan the included Downloads locations before choosing files.", actionTitle: "Scan Downloads…", enabled: true, action: {})
                     CategoryPrerequisite(title: "No eligible files", detail: "No eligible files in this inspected location.", actionTitle: "Scan Downloads again", enabled: true, action: {})
                     ExplorerInspector(name: "Camera guide.pdf", close: {}) {
-                        Text("Location").font(.caption).foregroundStyle(.secondary)
+                        Text("Location").font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary)
                         Text("/Example/Downloads/Camera guide.pdf")
-                        Text("Observed scope").font(.caption).foregroundStyle(.secondary)
+                        Text("Observed scope").font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary)
                         Text("/Example/Downloads")
                         Text("On disk: 8 MB observed")
                         Text("Logical size: 8 MB")
-                        Text("Why listed").font(.caption).foregroundStyle(.secondary)
+                        Text("Why listed").font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary)
                         Text("Observed during a manual scan")
-                        Text("Cleanup action").font(.caption).foregroundStyle(.secondary)
+                        Text("Cleanup action").font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary)
                         Text("Move this exact file to Trash after selection and confirmation.")
                     }.frame(height: 220)
                     ExplorerInspector(name: "Cloud metadata (synthetic)", close: {}) {
                         Text("Synthetic Gallery metadata; no provider certification.")
                         Text("On disk: Unknown")
-                        Text("Cleanup action").font(.caption).foregroundStyle(.secondary)
+                        Text("Cleanup action").font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary)
                         Text("Cloud-managed item. Cloud cleanup is unavailable; no eviction or synced deletion is offered.")
                     }.frame(height: 220)
                     ToolbarScanStatus(location: "Downloads", returnToScan: {}, stop: {})
@@ -164,18 +161,10 @@ private struct CapacityGalleryExamples: View {
 private struct ShellAppearanceGalleryExamples: View {
     var body: some View {
         VStack(alignment: .leading, spacing: StillDesign.Space.lg) {
-            Text("Synthetic monitoring footer · Inert examples").font(.headline)
-            ForEach(Array([AlertShellState.off, .checking, .on, .snoozed(until: Date(timeIntervalSince1970: 2_000_000)), .attention(.capacityUnavailable), .attention(.savedStateUnavailable), .attention(.submissionFailed)].enumerated()), id: \.offset) { index, state in
-                VStack(alignment: .leading, spacing: StillDesign.Space.sm) {
-                    Text("Monitoring example " + String(index)).font(.caption)
-                    MonitoringFooter(state: state, openDetails: {}).frame(width: 142)
-                    MonitoringDetails(state: state, effective: [.on, .snoozed(until: Date(timeIntervalSince1970: 2_000_000)), .attention(.capacityUnavailable)].contains(state))
-                }.accessibilityElement(children: .contain).accessibilityIdentifier("monitoringGallery-" + String(index))
-            }
             Text("Synthetic appearance controls · Inert examples").font(.headline)
             ForEach(Array([AppearancePreferenceController.Notice?.none, .invalidSavedValue, .unreadable, .saveFailed].enumerated()), id: \.offset) { index, notice in
                 VStack(alignment: .leading, spacing: StillDesign.Space.xs) {
-                    Text("Appearance notice example " + String(index)).font(.caption)
+                    Text("Appearance notice example " + String(index)).font(StillDesign.TypeStyle.caption)
                     AppearancePreferenceNotice(notice: notice, retry: {})
                 }.accessibilityElement(children: .contain).accessibilityIdentifier("appearanceGallery-" + String(index))
             }

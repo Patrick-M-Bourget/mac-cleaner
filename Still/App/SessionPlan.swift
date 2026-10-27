@@ -18,11 +18,18 @@ struct RefreshRequest: Sendable {
     private(set) var workspaceStopRequested = false
     private var workspaceCancellation: CleanupCancellation?
     var hasWorkspaceResult: Bool { workspaceFinished || catalog.result != nil }
+    /// The selection the running or last finished cleanup came from; only its page shows the run (#141).
+    private(set) var runSource = CleanupSelections.Source.plan
+    func showsRun(for source: CleanupSelections.Source) -> Bool { runSource == source && (workspaceRunning || hasWorkspaceResult) }
     var hasPendingChoices: Bool { catalog.selectedCount > 0 }
     var workspaceSelectedCount: Int { catalog.selectedCount }
     var workspaceSelectedSize: String {
         if !hasPendingChoices { return "—" }
         return ByteCountFormatter.string(fromByteCount: catalog.estimatedBytes, countStyle: .decimal)
+    }
+    /// "X of this goes to Trash", only when the selection includes Trash-bound items (that space stays used until Trash is emptied).
+    var workspaceTrashNote: String? {
+        catalog.selectedTrashBytes.map { ByteCountFormatter.string(fromByteCount: $0, countStyle: .decimal) + " of this goes to Trash" }
     }
     /// The last run left records whose outcome is unknown; they must be reviewed before another plan.
     var requiresRecoveryReview: Bool {
@@ -95,6 +102,20 @@ struct RefreshRequest: Sendable {
         guard !workspaceRunning, !catalog.isRunning else { return }
         endSession(); workspaceFinished = false; workspaceStopRequested = false; workspaceCancellation = nil; unavailableScopes.removeAll()
     }
+    /// Whether a Smart clean can be reviewed: nothing else is running and the catalog can be edited.
+    var canReviewSmartClean: Bool {
+        !AppLifecycleController.shared.maintenanceInProgress && !workspaceRunning && catalog.canEdit && !catalog.smartCleanCandidates.isEmpty
+    }
+    /// Smart clean's review (#141): its own selection, checked now, through the same review and executor as the plan.
+    func prepareSmartCleanReview() async throws -> WorkspaceCleanupReview {
+        guard canReviewSmartClean else { throw PlanReviewError.changed }
+        let catalogVersion = catalog.selectionRevision
+        guard let items = await catalog.smartCleanCheckedNow() else { throw PlanReviewError.changed }
+        guard !items.isEmpty else { throw PlanReviewError.nothingToClean }
+        let review = await catalog.prepareReview(of: items)
+        guard let review, canReviewSmartClean, catalog.selectionRevision == catalogVersion else { throw PlanReviewError.changed }
+        return WorkspaceCleanupReview(catalog: review, catalogVersion: catalogVersion, source: .smartClean)
+    }
     func prepareWorkspaceReview() async throws -> WorkspaceCleanupReview {
         guard canReview else { throw PlanReviewError.changed }
         let catalogVersion = catalog.selectionRevision
@@ -103,16 +124,22 @@ struct RefreshRequest: Sendable {
         return WorkspaceCleanupReview(catalog: items, catalogVersion: catalogVersion)
     }
     func executeWorkspace(_ review: WorkspaceCleanupReview) async throws {
-        guard canReview, catalog.selectionRevision == review.catalogVersion else { throw PlanReviewError.changed }
+        guard review.source == .smartClean ? canReviewSmartClean : canReview, catalog.selectionRevision == review.catalogVersion else { throw PlanReviewError.changed }
+        runSource = review.source
         let cancellation = CleanupCancellation()
         workspaceCancellation = cancellation; workspaceStopRequested = false
         workspaceRunning = true; workspaceFinished = false
         let lifecycle = AppLifecycleController.shared
         lifecycle.operationInProgress = true
         defer { workspaceRunning = false; workspaceCancellation = nil; lifecycle.operationInProgress = false; lifecycle.hasPendingPlan = hasPendingChoices }
-        if let items = review.catalog { await catalog.execute(items.approval, cancellation: cancellation) }
+        if let items = review.catalog { await catalog.execute(items.approval, from: review.source, cancellation: cancellation) }
         workspaceFinished = true
         lifecycle.capacity.request(.cleanupEnded)
+    }
+    /// Leaves a finished Smart clean's results; the Cleanup plan's selection is kept (#141).
+    func dismissResult() {
+        guard !workspaceRunning, !catalog.isRunning else { return }
+        workspaceFinished = false; catalog.dismissResult()
     }
     func cancelWorkspace() { workspaceStopRequested = true; workspaceCancellation?.cancel(); catalog.cancel() }
     func endSession() {
@@ -121,14 +148,16 @@ struct RefreshRequest: Sendable {
         isRefreshingBatch = false; refreshRequests.removeAll(); AppLifecycleController.shared.hasPendingPlan = false
     }
 }
-enum PlanReviewError: Error { case changed }
+enum PlanReviewError: Error { case changed, nothingToClean }
 
 @MainActor @Observable final class CleanupPlanPresentation {
     var search = ""
     var choosingItems = false
     var inspected: FileObservation?
     var offset: CGPoint?
-    func reset() { search = ""; choosingItems = false; inspected = nil; offset = nil }
+    /// Categories whose "Choose items" is open; opening a category from Overview opens it.
+    var expandedCategories: Set<CatalogCategory> = []
+    func reset() { search = ""; choosingItems = false; inspected = nil; offset = nil; expandedCategories = [] }
 }
 
 struct LiveCleanupPlanView: View {
@@ -145,51 +174,36 @@ struct LiveCleanupPlanView: View {
     var body: some View {
         VStack(spacing: 0) {
         ScrollView {
-        if selection.workspaceRunning || selection.hasWorkspaceResult {
-            VStack(alignment: .leading, spacing: StillDesign.Space.xl) {
-                PageHeader(title: selection.workspaceRunning ? "Running cleanup" : selection.catalog.result?.previewOnly == true ? "Preview results" : "Cleanup results",
-                           subtitle: "Review each item’s recorded outcome. Caches are permanently removed; Downloads go to Trash.")
-                if selection.catalog.isRunning { ProgressView(selection.catalog.previewOnly ? "Checking selected items…" : "Cleaning selected items…") }
-                if let result = selection.catalog.result { CatalogResultsSection(result: result, catalog: selection.catalog.catalog) }
-                if let message = selection.catalog.message { StatusRow(text: message, symbol: "exclamationmark.triangle", role: .caution) }
-            }.padding(StillDesign.Space.page)
+        if selection.showsRun(for: .plan) {
+            CleanupRunSection(selection: selection)
         } else {
         VStack(alignment: .leading, spacing: StillDesign.Space.lg) {
             if let backToExplorer { Button(backToExplorerTitle, systemImage: "chevron.left", action: backToExplorer) }
             PageHeader(title: "Cleanup plan", subtitle: "Choose categories, adjust items if needed, then review the changes.")
                 .padding(.bottom, StillDesign.Space.sm)
             ScanHistoryRecordingNotice()
-            let removesCaches = selection.catalog.selectedCandidates.contains { $0.action == .delete }
-            let trashes = selection.catalog.selectedCandidates.contains { $0.action == .trash }
             SelectionSummary(value: selection.workspaceSelectedSize,
                              detail: StillDesign.items(selection.catalog.selectedCount) + " selected",
-                             identifier: "liveSelectionSummary",
-                             consequence: removesCaches && trashes ? "Caches are permanently removed and may regrow. Files moved to Trash use space until you empty it." : removesCaches ? "Caches are permanently removed and may regrow." : trashes ? "Files moved to Trash use space until you empty it. Nothing changes before final confirmation." : "Nothing changes before final confirmation.",
-                             title: trashes && !removesCaches ? "Selected for Trash" : "Selected for cleanup")
-            CatalogPlanSection(model: selection.catalog)
-            if let approvalError { Text(approvalError).foregroundStyle(.secondary) }
-            DisclosureGroup("Size and selection details") {
-                Text("Sizes are estimates from the scan, not guaranteed space freed. Linked files count once. Each item is checked again just before Still acts on it.").font(.caption).foregroundStyle(.secondary)
-            }
+                             identifier: "liveSelectionSummary", consequence: selection.workspaceTrashNote, title: "Potential space released",
+                             consequenceIdentifier: "liveSelectionTrash")
+                .help("Sizes are estimates from the scan, not guaranteed space freed. Linked files count once. Each item is checked again just before CacheDrop acts on it.")
+            if let approvalError { StatusRow(text: approvalError, symbol: "exclamationmark.circle", role: .caution) }
+            CatalogPlanSection(model: selection.catalog, expanded: $presentation.expandedCategories)
         }.padding(StillDesign.Space.page).frame(maxWidth: .infinity, alignment: .leading)
             .background(alignment: .topLeading) { DestinationViewport(offset: $presentation.offset).frame(width: 0, height: 0) }
         }
         }.background(StillDesign.reading)
-        if selection.workspaceRunning {
-            ActionStrip(message: "Stopping preserves unstarted work. Completed Trash moves and cache removals are not rolled back.") {
-                Button(selection.workspaceStopRequested ? "Stop requested" : "Stop after current item") { selection.cancelWorkspace() }.disabled(selection.workspaceStopRequested)
-            }
-        } else if selection.hasWorkspaceResult {
-            ActionStrip(message: selection.requiresRecoveryReview ? "Review unresolved records before making another plan." : "This run has ended. A new plan starts from a fresh scan.") {
+        if selection.showsRun(for: .plan) && selection.workspaceRunning {
+            CleanupStopStrip(selection: selection)
+        } else if selection.showsRun(for: .plan) {
+            ActionStrip(message: selection.requiresRecoveryReview ? "Review unresolved records before making another plan." : nil) {
                 if let viewHistory { Button("View history", action: viewHistory) }
                 if selection.requiresRecoveryReview, let reviewRecovery { Button("Review recovery", action: reviewRecovery) }
                 if let newPlan { Button("Start a new plan", action: newPlan).buttonStyle(.borderedProminent) }
             }
         } else {
-            ActionStrip(message: "Nothing changes until you confirm the next step.") {
-                ReviewCleanupButton(enabled: selection.canReview, focusRequest: reviewFocusRequest) {
-                    Task { do { review = try await selection.prepareWorkspaceReview(); approvalError = nil } catch { approvalError = "Your choices changed. Review the latest items and try again." } }
-                }.fixedSize()
+            ActionStrip(message: nil) {
+                ReviewCleanupButton(enabled: selection.canReview, focusRequest: reviewFocusRequest) { Task { await openReview() } }.fixedSize()
             }
         }
         }
@@ -201,6 +215,9 @@ struct LiveCleanupPlanView: View {
         }
         .onChange(of: selection.catalog.selectionRevision) { _, _ in if review != nil { review = nil } }
     }
+    private func openReview() async {
+        do { review = try await selection.prepareWorkspaceReview(); approvalError = nil } catch { approvalError = "Your choices changed. Review the latest items and try again." }
+    }
 }
 
 /// Distinct immutable approvals share presentation, never target authority.
@@ -208,13 +225,34 @@ struct WorkspaceCleanupReview: Identifiable {
     let id = UUID()
     let catalog: CatalogReview?
     let catalogVersion: UInt64
+    /// The selection it came from; a finished run clears only that one (#141).
+    var source = CleanupSelections.Source.plan
 }
-private struct WorkspaceCleanupConfirmationView: View {
+/// A running or finished cleanup, from either selection: the header, progress and outcomes.
+struct CleanupRunSection: View {
+    let selection: SessionPlan
+    var body: some View {
+        VStack(alignment: .leading, spacing: StillDesign.Space.xl) {
+            PageHeader(title: selection.workspaceRunning ? "Running cleanup" : "Cleanup results")
+            if selection.catalog.isRunning { ProgressView(selection.catalog.dryRun ? "Checking selected items…" : "Cleaning selected items…") }
+            if let result = selection.catalog.result { CatalogResultsSection(result: result, catalog: selection.catalog.catalog) }
+            if let message = selection.catalog.message { StatusRow(text: message, symbol: "exclamationmark.triangle", role: .caution) }
+        }.padding(StillDesign.Space.page)
+    }
+}
+/// The running cleanup's one action.
+struct CleanupStopStrip: View {
+    let selection: SessionPlan
+    var body: some View {
+        ActionStrip(message: "Stopping preserves unstarted work. Completed Trash moves and cache removals are not rolled back.") {
+            Button(selection.workspaceStopRequested ? "Stop requested" : "Stop after current item") { selection.cancelWorkspace() }.disabled(selection.workspaceStopRequested)
+        }
+    }
+}
+struct WorkspaceCleanupConfirmationView: View {
     let review: WorkspaceCleanupReview
     let cancel: () -> Void
     let approve: () -> Void
-    /// Only catalog actions are selected and Preview only is on, so nothing will change.
-    private var previewOnlyRun: Bool { review.catalog?.approval.previewOnly == true }
     var body: some View {
         VStack(alignment: .leading, spacing: StillDesign.Space.lg) {
             PageHeader(title: "Review your changes", subtitle: "Check what each action does. You can go back and change your selection.")
@@ -224,7 +262,7 @@ private struct WorkspaceCleanupConfirmationView: View {
                 }.frame(maxWidth: .infinity, alignment: .leading)
             }
             Divider()
-            HStack { Button("Cancel", action: cancel).keyboardShortcut(.cancelAction); Spacer(); Button(previewOnlyRun ? "Run preview" : "Run cleanup", action: approve).buttonStyle(.borderedProminent) }
+            HStack { Button("Cancel", action: cancel).keyboardShortcut(.cancelAction); Spacer(); Button("Clean up", action: approve).buttonStyle(.borderedProminent) }
         }.padding(StillDesign.Space.xl).frame(width: 640, height: 520).background(StillDesign.reading)
     }
 }

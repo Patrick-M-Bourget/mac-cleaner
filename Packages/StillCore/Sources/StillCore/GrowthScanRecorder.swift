@@ -24,11 +24,13 @@ extension GrowthScanRecorder {
     }
     /// Records a completed catalog scan per category and location. Coverage is tracked per location, so access
     /// changes (Full Disk Access, unreadable folders) and catalog changes never invalidate the whole comparison.
-    public func completeCatalog(_ discovery: CatalogDiscovery, catalog: Catalog, fullDiskAccess: FullDiskAccessStatus, token: GrowthScanToken, observedAt: Date = Date()) async throws -> GrowthComparison {
+    /// `afterCleanup` marks the rescan right after a cleanup, which is never a later scan's baseline (#126).
+    public func completeCatalog(_ discovery: CatalogDiscovery, catalog: Catalog, fullDiskAccess: FullDiskAccessStatus, token: GrowthScanToken, observedAt: Date = Date(),
+                                afterCleanup: Bool = false) async throws -> GrowthComparison {
         try Task.checkCancellation()
         guard observedAt >= token.startedAt, try Self.catalogFingerprint(token.scope, exclusions: token.fingerprint.exclusions) == token.fingerprint else { return .unknown }
         let snapshot = GrowthSnapshot(fingerprint: token.fingerprint, scopeLabel: "Known locations", observedAt: observedAt,
-                                      groups: CatalogGrowth.groups(discovery, catalog: catalog, fullDiskAccess: fullDiskAccess))
+                                      groups: CatalogGrowth.groups(discovery, catalog: catalog, fullDiskAccess: fullDiskAccess), afterCleanup: afterCleanup)
         return try await store.record(snapshot, now: max(observedAt, Date()), expectedEpoch: token.epoch)
     }
     static func catalogFingerprint(_ home: URL, exclusions: String) throws -> GrowthFingerprint {

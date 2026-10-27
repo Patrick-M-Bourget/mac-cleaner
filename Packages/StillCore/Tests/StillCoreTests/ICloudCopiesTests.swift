@@ -154,7 +154,7 @@ private func evictor(_ home: URL, cloud: FakeCloud, volume: GrowingVolume = Grow
     let record = try #require(result.records.first)
     #expect(cloud.evicted.isEmpty)
     #expect(record.state == .skipped)
-    #expect(record.message.hasPrefix("Preview only: would remove the local copy"))
+    #expect(record.message.hasPrefix("Dry run: would remove the local copy"))
     #expect(record.outcomeTitle == "Would remove local copy")
     #expect(result.measuredFreedBytes == nil)
 }

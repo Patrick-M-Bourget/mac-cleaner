@@ -180,7 +180,7 @@ private func dockerRun(_ home: URL, docker: URL, choose ruleIDs: Set<String>, vo
     let result = try await dockerRun(home, docker: docker, choose: ["docker-build-cache"], previewOnly: true)
     let record = try #require(result.records.first)
     #expect(record.state == .skipped)
-    #expect(record.message.hasPrefix("Preview only: would run docker builder prune -a -f (1.23 GB)"))
+    #expect(record.message.hasPrefix("Dry run: would run docker builder prune -a -f (1.23 GB)"))
     #expect(result.measuredFreedBytes == nil)
     #expect(calls(home) == ["system df --format json"])
 }
@@ -219,7 +219,7 @@ private func dockerRun(_ home: URL, docker: URL, choose ruleIDs: Set<String>, vo
     defer { try? FileManager.default.removeItem(at: home); try? FileManager.default.removeItem(at: store) }
     let down = home.appendingPathComponent("tools/down")
     let docker = try fakeDocker(home, df: "if test -f \"$(dirname \"$0\")/down\"; then echo 'Cannot connect to the Docker daemon' >&2; exit 1; fi; cat \"$(dirname \"$0\")/df.json\"")
-    let catalog = Catalog(rules: fixtureRules), recorder = GrowthScanRecorder(store: GrowthHistoryStore(directory: store))
+    let catalog = Catalog(rules: fixtureRules), recorder = GrowthScanRecorder(store: GrowthHistoryStore(directory: store, minimumBaselineAge: 0))
     func scan() async throws -> GrowthComparison {
         let token = try await recorder.beginCatalog(home: home, exclusionFingerprint: ExclusionPolicy().fingerprint)
         let discovery = catalog.discovery(fixture: home, locateTool: { $0.executables.contains("/usr/local/bin/docker") ? docker : nil })

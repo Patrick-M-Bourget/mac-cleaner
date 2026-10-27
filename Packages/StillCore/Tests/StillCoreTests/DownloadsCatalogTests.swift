@@ -123,7 +123,7 @@ private func trashExecutor(_ home: URL, trash: FixtureTrash) throws -> (CleanupE
     let (run, _) = try trashExecutor(home, trash: FixtureTrash(folder: home.appendingPathComponent("FixtureTrash")))
     let result = await run.execute(CatalogApproval(candidates: Catalog(rules: fixtureRules).discover(fixture: home), previewOnly: true))
     #expect(result.records.map(\.state) == [.skipped])
-    #expect(result.records.first?.message.hasPrefix("Preview only: would move to Trash") == true)
+    #expect(result.records.first?.message.hasPrefix("Dry run: would move to Trash") == true)
     #expect(result.movedToTrashBytes == 0)
     #expect(FileManager.default.fileExists(atPath: installer.path))
     #expect(!FileManager.default.fileExists(atPath: home.appendingPathComponent("FixtureTrash").path))
@@ -136,4 +136,43 @@ private func trashExecutor(_ home: URL, trash: FixtureTrash) throws -> (CleanupE
     try file(downloads, "repo/dist/Setup.dmg", now: Date())
     try file(downloads, "Other.dmg", now: Date())
     #expect(Catalog(rules: fixtureRules).discover(fixture: home).map(\.url.lastPathComponent) == ["Other.dmg"])
+}
+
+// MARK: Old iOS update files (#135)
+
+@Test func oldIOSUpdateFilesAreTrashCandidatesWithSizeAndLastUse() throws {
+    let (home, _) = try downloadsHome()
+    defer { try? FileManager.default.removeItem(at: home) }
+    let now = Date()
+    try file(home, "Library/iTunes/iPhone Software Updates/iPhone15,2_17.0_21A329_Restore.ipsw", size: 7_000 * megabyte, age: 300 * day, now: now)
+    try file(home, "Library/iTunes/iPad Software Updates/iPad_64bit_TouchID_16.6_20G75_Restore.ipsw", size: 6_000 * megabyte, age: 30 * day, now: now)
+    try file(home, "Library/iTunes/iPod Software Updates/iPod_7.1_Restore.ipsw", size: 2_000 * megabyte, age: 900 * day, now: now)
+    // Only IPSW files: the folder's other files and other iTunes folders are not offered.
+    try file(home, "Library/iTunes/iPhone Software Updates/notes.txt", now: now)
+    try file(home, "Library/iTunes/Other/old.ipsw", now: now)
+
+    let catalog = Catalog(rules: fixtureRules)
+    let candidates = catalog.discover(fixture: home)
+    #expect(candidates.allSatisfy { $0.ruleID == "ios-software-updates" && $0.action == .trash && !$0.isDirectory })
+    let found = Dictionary(uniqueKeysWithValues: candidates.map { ($0.url.lastPathComponent, $0) })
+    #expect(Set(found.keys) == ["iPhone15,2_17.0_21A329_Restore.ipsw", "iPad_64bit_TouchID_16.6_20G75_Restore.ipsw", "iPod_7.1_Restore.ipsw"])
+    #expect(found["iPhone15,2_17.0_21A329_Restore.ipsw"]?.logicalBytes == 7_000 * megabyte)
+    let used = try #require(found["iPad_64bit_TouchID_16.6_20G75_Restore.ipsw"]?.lastUsed)
+    #expect(abs(used.timeIntervalSince(now) + 30 * day) < 5)
+    let rule = try #require(catalog.rule("ios-software-updates"))
+    #expect(rule.category == .updaters)
+}
+
+@Test func aChosenIOSUpdateFileGoesToTrash() async throws {
+    let (home, _) = try downloadsHome()
+    defer { try? FileManager.default.removeItem(at: home) }
+    let ipsw = try file(home, "Library/iTunes/iPhone Software Updates/iPhone_Restore.ipsw", size: 4096, now: Date())
+    let chosen = try #require(Catalog(rules: fixtureRules).discover(fixture: home).first { $0.url == ipsw })
+    let trash = FixtureTrash(folder: home.appendingPathComponent("FixtureTrash"))
+    let (run, _) = try trashExecutor(home, trash: trash)
+    let record = try #require(await run.execute(CatalogApproval(candidates: [chosen], previewOnly: false)).records.first)
+    #expect(record.state == .succeeded)
+    #expect(record.action == "moveToTrash")
+    #expect(!FileManager.default.fileExists(atPath: ipsw.path))
+    #expect(FileManager.default.fileExists(atPath: trash.folder.appendingPathComponent("iPhone_Restore.ipsw").path))
 }

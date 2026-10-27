@@ -32,6 +32,13 @@ import StillCore
     let locationsExplorer = StorageExplorerContext()
     lazy var inspection = FolderInspection(selection: selection)
     var openWorkspace: (() -> Void)?
+    /// The workspace's Scan again, for the ⌘R menu command (#127).
+    var scanAgain: (() -> Void)?
+    /// Opens the Smart clean page, for the menu bar item (#131, #141).
+    var openSmartClean: (() -> Void)?
+    /// The menu bar item is shown unless turned off in Settings (#131).
+    var menuBarItemShown: Bool { UserDefaults.standard.object(forKey: MenuBarItemPreference.key) as? Bool ?? true }
+    private var capacityTimer: Timer?
     @Published private(set) var loginIntent: Bool
     @Published private(set) var loginStatus: LoginStatus
     @Published private(set) var loginError: String?
@@ -43,6 +50,8 @@ import StillCore
         didSet { if !maintenanceInProgress, quitPending, !operationInProgress { NSApp.terminate(nil) } }
     }
     var quitPending = false
+    /// #130: asked before quitting stops a running cleanup.
+    let quitDuringCleanup = QuitDuringCleanupPrompt(ask: QuitDuringCleanupAlert.ask)
     var isTerminating = false
     private var monitoringSubscription: AnyCancellable?
     private let registration: LoginRegistration
@@ -51,6 +60,9 @@ import StillCore
         self.registration = registration
         loginIntent = registration.intent; loginStatus = registration.status
         capacity.request(.launch)
+        // Keeps the menu bar item's free space current. Capacity metadata only; never a folder scan (#131).
+        capacityTimer = Timer.scheduledTimer(withTimeInterval: 300, repeats: true) { [capacity] _ in Task { @MainActor in capacity.request(.foreground) } }
+        capacityTimer?.tolerance = 60
         monitoringSubscription = alerts.$effectiveMonitoring.dropFirst().sink { [weak self] effective in
             self?.monitoringChanged(effective)
         }
@@ -82,7 +94,7 @@ import StillCore
     }
     func chooseLogin(_ enabled: Bool) {
         do { try registration.choose(enabled); loginError = nil }
-        catch { loginError = "Login registration could not be changed. You can continue using Still on demand." }
+        catch { loginError = "Login registration could not be changed. You can continue using CacheDrop on demand." }
         loginIntent = registration.intent; loginStatus = registration.status
         UserDefaults.standard.set(loginIntent, forKey: "Still.startAtLogin")
     }
@@ -92,29 +104,45 @@ import StillCore
         // Finish the current preference/journal update before an off transition terminates.
         DispatchQueue.main.async { [weak self] in
             guard let self, !self.quitPending, !self.isTerminating,
-                  !self.alerts.effectiveMonitoring, !self.operationInProgress, !self.maintenanceInProgress, !self.hasPendingPlan,
+                  !self.alerts.effectiveMonitoring, !self.operationInProgress, !self.maintenanceInProgress, !self.hasPendingPlan, !self.menuBarItemShown,
                   !NSApp.windows.contains(where: { $0.isVisible && $0.canBecomeMain }) else { return }
             NSApp.terminate(nil)
         }
     }
 }
 
+/// The standard alert for #130, with Cancel as the default button.
+@MainActor enum QuitDuringCleanupAlert {
+    static func ask() -> QuitDuringCleanupPrompt.Answer {
+        let alert = NSAlert()
+        alert.messageText = QuitDuringCleanupPrompt.message
+        for title in QuitDuringCleanupPrompt.buttons { alert.addButton(withTitle: title) }
+        alert.buttons.last?.hasDestructiveAction = true
+        return alert.runModal() == .alertSecondButtonReturn ? .stopAndQuit : .keepRunning
+    }
+}
+
 @MainActor final class StillApplicationDelegate: NSObject, NSApplicationDelegate {
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
         let lifecycle = AppLifecycleController.shared
-        return !AppLifecyclePolicy.shouldKeepRunning(effectiveAlerts: lifecycle.alerts.effectiveMonitoring, operationInProgress: lifecycle.operationInProgress || lifecycle.maintenanceInProgress, hasPendingPlan: lifecycle.hasPendingPlan)
+        return !AppLifecyclePolicy.shouldKeepRunning(effectiveAlerts: lifecycle.alerts.effectiveMonitoring, operationInProgress: lifecycle.operationInProgress || lifecycle.maintenanceInProgress, hasPendingPlan: lifecycle.hasPendingPlan, menuBarItemShown: lifecycle.menuBarItemShown)
     }
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
-        if AppLifecycleController.shared.maintenanceInProgress {
-            AppLifecycleController.shared.quitPending = true
+        let lifecycle = AppLifecycleController.shared
+        switch AppLifecyclePolicy.quitDecision(cleanupRunning: lifecycle.operationInProgress, maintenanceInProgress: lifecycle.maintenanceInProgress, stopConfirmed: lifecycle.quitPending) {
+        case .quitNow: break
+        case .waitForCurrentItem:
+            // Quit completes on its own once the current item finishes (operationInProgress/maintenanceInProgress didSet).
+            lifecycle.quitPending = true
             return .terminateCancel
-        }
-        // Future executor must report its safe-operation boundary before requesting termination again.
-        guard AppLifecyclePolicy.mayQuit(operationInProgress: AppLifecycleController.shared.operationInProgress) else {
-            AppLifecycleController.shared.quitPending = true
-            AppLifecycleController.shared.selection.cancelWorkspace()
-            AppLifecycleController.shared.alerts.stopForTermination()
-            return .terminateCancel
+        case .askToStopCleanup:
+            let confirmed = lifecycle.quitDuringCleanup.confirm {
+                lifecycle.quitPending = true
+                lifecycle.selection.cancelWorkspace()
+                lifecycle.alerts.stopForTermination()
+            }
+            // The cleanup can finish while the alert is open; a confirmed quit then completes now.
+            guard confirmed, !lifecycle.operationInProgress, !lifecycle.maintenanceInProgress else { return .terminateCancel }
         }
         AppLifecycleController.shared.selection.endSession()
         AppLifecycleController.shared.isTerminating = true
@@ -125,31 +153,32 @@ import StillCore
         if !flag { AppLifecycleController.shared.openWorkspace?() }
         return true
     }
-    func applicationDidFinishLaunching(_ notification: Notification) { AppLifecycleController.shared.applyAppearance() }
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        let lifecycle = AppLifecycleController.shared
+        lifecycle.applyAppearance()
+        // Low-space alerts (#131): restore a saved choice. Nothing is asked for until you turn alerts on.
+        if !LocalStateLocation.isDisposableTest { lifecycle.alerts.configureNotifications() }
+        lifecycle.alerts.configure()
+    }
     func applicationDidBecomeActive(_ notification: Notification) {
         AppLifecycleController.shared.capacity.request(.foreground)
     }
 }
 
+/// Start at Login, a separate choice from alerts and the menu bar item.
 struct LoginSettingsView: View {
     @ObservedObject var lifecycle = AppLifecycleController.shared
     var body: some View {
-        SettingsRow(title: "Start at Login", detail: "Separate from storage alerts") {
-            Toggle("Start Still at Login", isOn: Binding(get: { lifecycle.loginIntent }, set: { lifecycle.chooseLogin($0) }))
-            StatusRow(text: statusText, symbol: "power", identifier: "loginRegistrationStatus")
-            if let error = lifecycle.loginError { Text(error).foregroundStyle(.secondary) }
-            if lifecycle.loginStatus == .requiresApproval {
+        Toggle("Start CacheDrop at Login", isOn: Binding(get: { lifecycle.loginIntent }, set: { lifecycle.chooseLogin($0) }))
+            .accessibilityIdentifier("startAtLoginToggle")
+            .task { lifecycle.refreshLogin() }
+        if let error = lifecycle.loginError { StatusRow(text: error, symbol: "exclamationmark.circle") }
+        if lifecycle.loginStatus == .requiresApproval {
+            LabeledContent("Needs approval in System Settings") {
                 Button("Review Login Items") { SMAppService.openSystemSettingsLoginItems() }
             }
-            Text("Login launch is independent of alerts. Closing the window keeps effective alerts in the menu bar; Quit stops checks and preserves your login choice.").font(.caption).foregroundStyle(.secondary)
-        }.task { lifecycle.refreshLogin() }
-    }
-    private var statusText: String {
-        switch lifecycle.loginStatus {
-        case .enabled: "Login launch enabled by macOS."
-        case .requiresApproval: "Approval required in System Settings > Login Items."
-        case .disabled: "Login launch is disabled in macOS."
-        case .unavailable: "Login registration unavailable. Still works on demand."
+        } else if lifecycle.loginStatus == .unavailable {
+            StatusRow(text: "Start at Login isn’t available for this copy of CacheDrop.", symbol: "info.circle", identifier: "loginRegistrationStatus")
         }
     }
 }

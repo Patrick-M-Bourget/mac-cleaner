@@ -152,7 +152,7 @@ struct StorageExplorerView: View {
                 Button(context.canGoBack ? "Back to previous folder" : backTitle, systemImage: "chevron.left") {
                     if !context.backWithinExplorer() { back() }
                 }.accessibilityIdentifier("explorerBack")
-                PageHeader(title: context.downloadsOnly ? "Explore Downloads" : "Explore storage", subtitle: "Browse existing observations. On disk sizes are allocation evidence, not reclaimable space.")
+                PageHeader(title: context.downloadsOnly ? "Explore Downloads" : "Explore storage", subtitle: "Inspect local allocations within your selected folders.")
                 ScanHistoryRecordingNotice()
                 breadcrumbs
                 HStack(alignment: .top, spacing: StillDesign.Space.lg) {
@@ -176,19 +176,17 @@ struct StorageExplorerView: View {
             HStack {
                 Button(context.downloadsOnly ? "Scanned Downloads locations" : "Selected locations") { context.returnToRoot() }
                 if folderAvailable, let folder = context.position.folder {
-                    Image(systemName: "chevron.right").font(.caption).foregroundStyle(.secondary)
+                    Image(systemName: "chevron.right").font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary)
                     ForEach(breadcrumbs(for: folder), id: \.self) { ancestor in
                         Button(ancestor.lastPathComponent) { if ancestor != folder { context.enter(ancestor) } }
                             .lineLimit(1).help(ancestor.path)
-                        if ancestor != folder { Image(systemName: "chevron.right").font(.caption).foregroundStyle(.secondary) }
+                        if ancestor != folder { Image(systemName: "chevron.right").font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary) }
                     }
                 }
             }
             if folderAvailable, let folder = context.position.folder {
-                Text(folder.path).font(.caption).foregroundStyle(.secondary).lineLimit(2).textSelection(.enabled)
-                TextField("Search scanned descendants", text: $context.position.query)
+                TextField("Search this folder", text: $context.position.query).help(folder.path)
                     .accessibilityIdentifier("explorerSearch")
-                Text("Search covers this folder and its scanned descendants only.").font(.caption).foregroundStyle(.secondary)
             }
             if !selection.catalog.pickedByResource.isEmpty && !context.downloadsOnly {
                 HStack {
@@ -212,17 +210,16 @@ struct StorageExplorerView: View {
                 if showsLargeAndOld {
                     largeAndOldFiles
                 } else if context.position.folder == nil {
-                    if scans.isEmpty { EmptyState(title: "No scanned locations", detail: "Run a manual scan from Cleanup plan or Overview. Browsing never starts a scan.", symbol: "folder") }
+                    if scans.isEmpty { EmptyState(title: "No scanned folders", detail: "Use Scan a folder on Overview to choose one. Browsing never starts a scan.", symbol: "folder") }
                     ForEach(scans, id: \.scope) { scan in
                         VStack(alignment: .leading, spacing: StillDesign.Space.sm) {
                             Button(scan.scope.lastPathComponent, systemImage: "folder") { context.enter(scan.scope) }
-                                .accessibilityLabel("Open folder " + scan.scope.lastPathComponent)
-                            Text(scan.scope.path).font(.caption).foregroundStyle(.secondary).textSelection(.enabled)
-                            Text(scan.totalAllocatedBytes.map { "On disk: " + bytes($0) } ?? "On disk: Unknown · observed subtotal " + bytes(scan.allocatedBytes)).font(.callout)
-                            Text(scan.isComplete ? "Observed coverage" : "Partial coverage · uninspected bytes unknown").font(.caption).foregroundStyle(.secondary)
-                            if observations.overlaps(scan.scope) {
-                                Text("Overlaps another selected location · totals are not additive").font(.caption).foregroundStyle(.secondary)
-                            }
+                                .accessibilityLabel("Open folder " + scan.scope.lastPathComponent).help(scan.scope.path)
+                            // One short line: the size, then only the caveats that apply.
+                            Text(([scan.totalAllocatedBytes.map { bytes($0) + " on disk" } ?? "At least " + bytes(scan.allocatedBytes) + " on disk",
+                                   scan.isComplete ? nil : "Partial coverage",
+                                   observations.overlaps(scan.scope) ? "Overlaps another location" : nil] as [String?]).compactMap { $0 }.joined(separator: " · "))
+                                .font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary)
                         }.padding(StillDesign.Space.md)
                         Divider()
                     }
@@ -248,7 +245,7 @@ struct StorageExplorerView: View {
             } label: {
                 VStack(alignment: .leading, spacing: StillDesign.Space.xs) {
                     Text(item.url.lastPathComponent).foregroundStyle(.primary)
-                    if let folder = context.position.folder, !context.position.query.isEmpty { Text(relative(item.url, to: folder)).font(.caption).foregroundStyle(.secondary) }
+                    if context.position.folder != nil, !context.position.query.isEmpty { Text(PathDisplay.shortLocation(of: item.url.path)).font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle) }
                 }.frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
             }.buttonStyle(.plain).accessibilityLabel((item.kind == .folder ? "Open folder " : "Inspect ") + item.url.lastPathComponent)
             Text(item.kind == .folder ? folderAllocation(item.url) : bytes(item.allocatedBytes)).font(.callout).monospacedDigit().foregroundStyle(.secondary)
@@ -274,7 +271,7 @@ struct StorageExplorerView: View {
             } else {
                 inspectorField("Cleanup action", "Inspection only. Large and old files, and Downloads installers, can be added to the cleanup plan.")
             }
-            Text("Observed allocation is not reclaimable space. Trash may retain storage until emptied.").font(.caption).foregroundStyle(.secondary)
+            Text("Observed allocation is not reclaimable space. Trash may retain storage until emptied.").font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary)
             if entry.item.isDuplicateResource { Text("Shared resource · allocation counts once within a total.") }
             if entry.item.kind == .package || entry.item.kind == .symbolicLink { Text("Protected boundary · contents not inspected.") }
             if entry.item.previewAvailability != .local { Text("Local contents are " + entry.item.previewAvailability.rawValue + ". Preview will not request a download.") }
@@ -306,26 +303,28 @@ struct StorageExplorerView: View {
     private var largeAndOldFiles: some View {
         let files = offeredHere
         return VStack(alignment: .leading, spacing: 0) {
-            Text("Files of 500 MB or more, or not opened in 90 days. Choose the ones to move to Trash, then review them in the cleanup plan.")
-                .font(.caption).foregroundStyle(.secondary).padding(.bottom, StillDesign.Space.sm)
+            Text("Files of 500 MB or more, or not opened in 90 days.")
+                .font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary).padding(.bottom, StillDesign.Space.sm)
             if files.isEmpty { EmptyState(title: "No large or old files here", detail: "Nothing in this folder is 500 MB or more or unopened for 90 days. Protected files and git checkouts are never listed.", symbol: "doc") }
             LazyVStack(alignment: .leading, spacing: 0) {
                 ForEach(files, id: \.file.id) { file, entry in
                     InspectableItemRow(name: file.displayName, detail: fileDetail(file), size: catalogBytes(file.estimatedBytes), symbol: "doc",
                                        inspected: context.position.inspectedID == entry.item.id,
                                        inspect: { context.inspect(entry.item) }) { planToggle(file) }
+                        .help(file.url.path)
                     Divider()
                 }
             }
-            if files.count == UserFiles.listLimit { Text("Showing the \(UserFiles.listLimit) largest. Pick a smaller folder to see more.").font(.caption).foregroundStyle(.secondary) }
+            if files.count == UserFiles.listLimit { Text("Showing the \(UserFiles.listLimit) largest. Pick a smaller folder to see more.").font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary) }
         }.accessibilityIdentifier("explorerLargeAndOld")
     }
     private func planToggle(_ file: Candidate) -> some View {
         Toggle("Select " + file.displayName, isOn: Binding(get: { selection.catalog.isSelected(file) }, set: { selection.catalog.setSelected(file, $0) }))
             .labelsHidden().toggleStyle(.checkbox).disabled(!selection.catalog.canEdit).accessibilityIdentifier("explorerChoose-" + file.displayName)
     }
+    /// A short location and when it was last used; the full path is the row's tooltip and in the inspector.
     private func fileDetail(_ file: Candidate) -> String {
-        let folder = file.url.deletingLastPathComponent().path.replacingOccurrences(of: FileManager.default.homeDirectoryForCurrentUser.path, with: "~")
+        let folder = PathDisplay.shortLocation(of: file.url.path)
         return file.lastUsed.map { folder + " · Last used " + $0.formatted(date: .abbreviated, time: .omitted) } ?? folder
     }
     private func whyListed(_ file: Candidate) -> String {
@@ -333,9 +332,10 @@ struct StorageExplorerView: View {
         let old = file.lastUsed.flatMap { $0 < Date().addingTimeInterval(-Double(UserFiles.unusedDays) * 86_400) ? "not opened since " + $0.formatted(date: .abbreviated, time: .omitted) : nil }
         return ([large, old].compactMap { $0 }.joined(separator: " and ") + ".").capitalizedFirst + " Age and size don’t mean it’s unwanted; you decide."
     }
+    private func relative(_ url: URL, to root: URL) -> String { url.pathComponents.dropFirst(root.pathComponents.count).joined(separator: "/") }
     private func inspectorField(_ title: String, _ value: String) -> some View {
         VStack(alignment: .leading, spacing: StillDesign.Space.xs) {
-            Text(title).font(.caption).foregroundStyle(.secondary)
+            Text(title).font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary)
             Text(value).font(.callout).textSelection(.enabled)
         }
     }
@@ -352,7 +352,6 @@ struct StorageExplorerView: View {
         return result
     }
     private func bytes(_ value: Int64?) -> String { value.map { ByteCountFormatter.string(fromByteCount: $0, countStyle: .decimal) } ?? "Unknown" }
-    private func relative(_ url: URL, to root: URL) -> String { url.pathComponents.dropFirst(root.pathComponents.count).joined(separator: "/") }
 }
 
 /// Shared bounded inspector surface: the host chooses a side pane or compact panel.

@@ -21,6 +21,13 @@ enum LocalStateLocation {
         guard info.st_mode & S_IFMT == S_IFREG, file.path == file.resolvingSymlinksInPath().path, info.st_uid == geteuid() else { throw CocoaError(.fileWriteNoPermission) }
         try FileManager.default.removeItem(at: file)
     }
+    /// Copies Still's state and preferences into CacheDrop's on the first launch after the rename (#149).
+    /// Never in a disposable test run, which must not read the user's real state.
+    static func migrateFromStill() {
+        guard !isDisposableTest, let support = try? FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask, appropriateFor: nil, create: false) else { return }
+        LegacyStillMigration(applicationSupport: support, preferences: UserDefaults.standard,
+                             legacyPreferences: { UserDefaults.standard.persistentDomain(forName: LegacyStillMigration.legacyDomain) }).run()
+    }
     static func root(create: Bool) throws -> URL {
         #if DEBUG
         let environment = ProcessInfo.processInfo.environment
@@ -44,7 +51,7 @@ enum LocalStateLocation {
         }
         #endif
         let manager = FileManager.default
-        let url = try manager.url(for: .applicationSupportDirectory, in: .userDomainMask, appropriateFor: nil, create: create).appendingPathComponent("Still", isDirectory: true)
+        let url = try manager.url(for: .applicationSupportDirectory, in: .userDomainMask, appropriateFor: nil, create: create).appendingPathComponent(LegacyStillMigration.folder, isDirectory: true)
         if create { try manager.createDirectory(at: url, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700]) }
         var info = stat()
         if lstat(url.path, &info) == 0 {

@@ -145,6 +145,16 @@ private final class RecordingTrash: TrashMoving, @unchecked Sendable {
     #expect(found.map(\.url.lastPathComponent) == ["Editor"])
 }
 
+@Test func cacheDropsAndStillsOwnFoldersAreNeverOffered() throws {
+    let home = try fixtureFolder("StillScopeHome")
+    defer { try? FileManager.default.removeItem(at: home) }
+    let own = ["CacheDrop", "com.patrickbourget.CacheDrop", "Still", "com.patrickbourget.Still"]
+    for folder in own + ["Editor"] { try write(home, "Library/Logs/\(folder)/log.txt") }
+    for folder in own { try write(home, "Downloads/\(folder)/setup.dmg") }
+    let found = Catalog(rules: fixtureRules.filter { $0.id == "app-logs" || $0.id == "downloads-installers" }).discover(fixture: home)
+    #expect(found.map(\.url.lastPathComponent) == ["Editor"])
+}
+
 @Test func huggingFaceCLIIsMatchedWhenItRunsAsAPythonScript() throws {
     let owner = try #require(fixtureRules.first { $0.id == "huggingface-models" }?.owner)
     #expect(owner.matches(["/opt/homebrew/bin/python3.12", "/opt/homebrew/bin/hf", "download", "org/model"]))

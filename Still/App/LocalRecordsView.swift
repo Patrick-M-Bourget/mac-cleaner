@@ -4,7 +4,7 @@ import SwiftUI
 struct LocalRecordsEntry: View {
     var action: () -> Void
     var body: some View {
-        SettingsRow(title: "Local records", detail: "Manage completed history and Still’s local settings.") {
+        SettingsRow(title: "Local records", detail: "Manage completed history and CacheDrop’s local settings.") {
             Button("Manage local records", action: action).accessibilityIdentifier("manageLocalRecords")
         }
     }
@@ -20,7 +20,7 @@ struct LocalRecordsView: View {
     var reviewDiagnostics: (() -> Void)? = nil
     var body: some View {
         VStack(alignment: .leading, spacing: StillDesign.Space.xl) {
-            PageHeader(title: "Local records", subtitle: "Manage what Still stores on this Mac. Original files and macOS access grants stay unchanged.")
+            PageHeader(title: "Local records", subtitle: "Manage what CacheDrop stores on this Mac. Original files and macOS access grants stay unchanged.")
             if let error = model.loadError { StatusRow(text: error, symbol: "exclamationmark.triangle", role: .caution) }
             if let message = model.message {
                 StatusRow(text: message, symbol: model.blocked ? "exclamationmark.triangle" : "info.circle", role: model.blocked ? .caution : .neutral, identifier: "historyStatus")
@@ -38,9 +38,9 @@ struct LocalRecordsView: View {
         .confirmationDialog("Clear completed history?", isPresented: $confirmingClear, titleVisibility: .visible) {
             Button("Clear completed history", role: .destructive) { Task { await model.clear() } }
         } message: { Text("Scan activity, completed cleanup records and retained growth baselines will be removed, regardless of the History filter. Recovery facts, consumed approval IDs, current selections, appearance, original files and Trash contents remain.") }
-        .confirmationDialog("Reset Still?", isPresented: $confirmingReset, titleVisibility: .visible) {
-            Button("Reset Still", role: .destructive) { Task { if await model.reset() { didReset() } } }
-        } message: { Text("Forget Still’s preferences, custom exclusions, selected locations and completed history; stop alerts and login launch. Original files, Trash and macOS access grants remain. Unfinished or unreadable journal records block reset.") }
+        .confirmationDialog("Reset CacheDrop?", isPresented: $confirmingReset, titleVisibility: .visible) {
+            Button("Reset CacheDrop", role: .destructive) { Task { if await model.reset() { didReset() } } }
+        } message: { Text("Forget CacheDrop’s preferences, custom exclusions, selected locations and completed history; stop alerts and login launch. Original files, Trash and macOS access grants remain. Unfinished or unreadable journal records block reset.") }
     }
 }
 
@@ -54,8 +54,8 @@ struct LocalRecordsMaintenanceControls: View {
             SettingsRow(title: "Completed history", detail: "Remove scan activity, completed cleanup results and retained growth baselines together. Recovery facts, consumed approvals, current selections, appearance, original files and Trash remain.") {
                 Button("Clear completed history…", action: clear).accessibilityIdentifier("clearHistory")
             }
-            SettingsRow(title: "Reset Still", detail: "Forget preferences and selected locations, and stop alerts and login launch. Unfinished or unreadable recovery records block Reset.") {
-                Button("Reset Still…", action: reset).accessibilityIdentifier("resetStill")
+            SettingsRow(title: "Reset CacheDrop", detail: "Forget preferences and selected locations, and stop alerts and login launch. Unfinished or unreadable recovery records block Reset.") {
+                Button("Reset CacheDrop…", action: reset).accessibilityIdentifier("resetStill")
             }
         }.disabled(!enabled)
     }

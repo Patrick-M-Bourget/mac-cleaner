@@ -4,12 +4,7 @@ import Foundation
 public struct ActionWording: Sendable {
     /// What the action is, e.g. "Move to Trash".
     public let title: String
-    /// Before a rule's title in the review, e.g. "Move to Trash: ".
-    public let reviewPrefix: String
-    /// Overview's phrase for the titles of the rules it applies to; rules whose phrases share `overviewGroup` are listed together.
-    public let overviewGroup: Int
-    public let overview: @Sendable (String) -> String
-    /// With Preview only on, e.g. "Would move to Trash".
+    /// With the dry run on, e.g. "Would move to Trash".
     public let previewOutcome: String
     public let succeeded: String
     public let partlyFailed: String
@@ -18,7 +13,7 @@ public struct ActionWording: Sendable {
     /// In a History run's title, e.g. "moved to Trash"; nil for an action that never changes anything.
     public let historyPhrase: String?
 
-    static let unknown = ActionWording(title: "", reviewPrefix: "", overviewGroup: 0, overview: { "Clear " + $0 }, previewOutcome: "Would run", succeeded: "Done",
+    static let unknown = ActionWording(title: "", previewOutcome: "Would run", succeeded: "Done",
                                        partlyFailed: "Partly removed", unresolved: "Unresolved · Outcome unknown",
                                        partlyFailedRecovery: "Recorded failure · It may be partly deleted", historyPhrase: nil)
 }
@@ -27,24 +22,23 @@ extension CleanupAction {
     public var wording: ActionWording {
         switch self {
         case .delete:
-            ActionWording(title: "Delete permanently", reviewPrefix: "Clear ", overviewGroup: 0, overview: { "Clear " + $0 }, previewOutcome: "Would delete", succeeded: "Deleted",
+            ActionWording(title: "Delete permanently", previewOutcome: "Would delete", succeeded: "Deleted",
                           partlyFailed: "Partly removed", unresolved: "Unresolved · It may be partly deleted",
                           partlyFailedRecovery: "Recorded failure · It may be partly deleted", historyPhrase: "deleted")
         case .tool:
-            ActionWording(title: "Run its cleanup command", reviewPrefix: "Clear ", overviewGroup: 0, overview: { "Clear " + $0 }, previewOutcome: "Would run", succeeded: "Cleaned",
+            ActionWording(title: "Run its cleanup command", previewOutcome: "Would run", succeeded: "Cleaned",
                           partlyFailed: "Partly removed", unresolved: "Unresolved · It may be partly deleted",
                           partlyFailedRecovery: "Recorded failure · It may be partly deleted", historyPhrase: "deleted")
         case .trash:
-            ActionWording(title: "Move to Trash", reviewPrefix: "Move to Trash: ", overviewGroup: 1, overview: { "Move " + $0 + " to Trash" }, previewOutcome: "Would move to Trash",
+            ActionWording(title: "Move to Trash", previewOutcome: "Would move to Trash",
                           succeeded: "Moved to Trash", partlyFailed: "Partly removed", unresolved: "Unresolved · It may or may not be in the Trash",
                           partlyFailedRecovery: "Recorded failure · It may be partly deleted", historyPhrase: "moved to Trash")
         case .evict:
-            ActionWording(title: "Remove local copy", reviewPrefix: "Remove local copies: ", overviewGroup: 2, overview: { _ in "Remove local copies · Originals stay in iCloud" },
-                          previewOutcome: "Would remove local copy", succeeded: "Removed local copy", partlyFailed: "Partly removed local copies",
+            ActionWording(title: "Remove local copy", previewOutcome: "Would remove local copy", succeeded: "Removed local copy", partlyFailed: "Partly removed local copies",
                           unresolved: "Unresolved · Local copies may be removed · The original stays in iCloud",
                           partlyFailedRecovery: "Recorded failure · Some local copies were removed · The originals stay in iCloud", historyPhrase: "removed local iCloud copies")
         case .guidance:
-            ActionWording(title: "Guidance only", reviewPrefix: "Guidance only: ", overviewGroup: 0, overview: { "Clear " + $0 }, previewOutcome: "Would run", succeeded: "Done",
+            ActionWording(title: "Guidance only", previewOutcome: "Would run", succeeded: "Done",
                           partlyFailed: "Partly removed", unresolved: "Unresolved · Outcome unknown",
                           partlyFailedRecovery: "Recorded failure · It may be partly deleted", historyPhrase: nil)
         }
@@ -54,10 +48,14 @@ extension CleanupAction {
 /// How Results, History and Recovery describe a record, per action (`ActionWording`). Records from the
 /// Downloads-only flow carry the "moveToTrash" action, so they read as Trash moves.
 extension CleanupRecord {
-    static let previewPrefix = "Preview only:"
+    static let previewPrefix = "Dry run:"
+    /// What dry-run records journaled before the switch moved to Settings start with.
+    static let legacyPreviewPrefix = "Preview only:"
     private var wording: ActionWording { cleanupAction?.wording ?? .unknown }
-    /// Checked with Preview only on: every check passed and nothing changed.
-    public var wasPreviewed: Bool { previewOnly == true && state == .skipped && message.hasPrefix(Self.previewPrefix) }
+    /// Checked with the dry run on: every check passed and nothing changed.
+    public var wasPreviewed: Bool {
+        previewOnly == true && state == .skipped && (message.hasPrefix(Self.previewPrefix) || message.hasPrefix(Self.legacyPreviewPrefix))
+    }
     public var actionTitle: String { cleanupAction?.wording.title ?? action }
     public var outcomeTitle: String {
         if wasPreviewed { return wording.previewOutcome }
@@ -75,17 +73,17 @@ extension CleanupRecord {
         case .intent, .unknown: return wording.unresolved
         case .succeeded: return "Recorded success · " + outcomeTitle
         case .failed: return partlyRemoved == true ? wording.partlyFailedRecovery : "Recorded failure · Not changed"
-        case .skipped: return wasPreviewed ? "Preview · " + outcomeTitle : "Recorded skip · Not changed"
+        case .skipped: return wasPreviewed ? "Dry run · " + outcomeTitle : "Recorded skip · Not changed"
         case .cancelled: return "Recorded cancellation · Not started"
         }
     }
 }
 
 extension CleanupHistoryRun {
-    /// Every record was checked with Preview only on; nothing changed on disk.
+    /// Every record was checked with the dry run on; nothing changed on disk.
     public var isPreview: Bool { !records.isEmpty && records.allSatisfy { $0.previewOnly == true } }
     public var title: String {
-        if isPreview { return "Preview · Nothing changed" }
+        if isPreview { return "Dry run · Nothing changed" }
         let done = records.filter { $0.state == .succeeded }
         var parts: [String] = []
         for action in [CleanupAction.delete, .tool, .trash, .evict] where done.contains(where: { $0.cleanupAction == action }) {

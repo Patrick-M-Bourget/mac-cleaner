@@ -1,36 +1,52 @@
 import StillCore
 import SwiftUI
 
-/// Overview's guidance section: each category's size, or "Not accessible", with an "Open …" button.
-struct GuidanceSection: View {
+/// App-managed storage (Decision 25): its own quiet page, reached from one Overview row. Each row opens the app or
+/// place that manages it; Still shows the size and never changes these (SPEC section 3).
+struct AppManagedStorageView: View {
     @Bindable var model: CatalogCleanupModel
-    @State private var expanded = true
+    let back: () -> Void
     var body: some View {
-        if !model.guidance.isEmpty {
-            DisclosureGroup(isExpanded: $expanded) {
-                VStack(alignment: .leading, spacing: StillDesign.Space.md) {
-                    Text("Review these where they are managed. Still shows their size and never changes them.").font(StillDesign.TypeStyle.note).foregroundStyle(.secondary)
-                    RecommendationGroup {
-                        ForEach(model.guidance) { finding in
-                            if let rule = model.guidanceRule(finding), let guidance = rule.guidance {
-                                StorageReviewRow(category: .managed, title: rule.title, detail: rule.detail, value: finding.size.text,
-                                                 meaning: "Guidance only · " + guidance.openTitle, actionTitle: guidance.openTitle,
-                                                 action: { Task { await model.open(finding) } }, identifier: "guidance-" + finding.id)
-                                // Each row Full Disk Access would open gets its own link, as `NotAccessibleRow` does.
-                                if finding.size == .notAccessible {
-                                    FullDiskAccessLink(title: "Review access options").padding(.horizontal, StillDesign.Space.lg)
-                                        .accessibilityIdentifier("guidanceAccess-" + finding.id)
-                                }
-                                if finding.id != model.guidance.last?.id { Divider().padding(.horizontal, StillDesign.Space.lg) }
-                            }
-                        }
-                    }
-                    if let status = model.guidanceStatus { StatusRow(text: status, symbol: "info.circle", identifier: "guidanceStatus") }
-                }.padding(.top, StillDesign.Space.sm)
-            } label: {
-                // On the title only: on the group it replaces every row's own identifier.
-                Text("App-managed storage").font(StillDesign.TypeStyle.section).accessibilityIdentifier("guidanceSection")
+        let protected = model.guidance.filter { $0.size == .notAccessible }
+        VStack(alignment: .leading, spacing: StillDesign.Space.xl) {
+            HStack(alignment: .top) {
+                PageHeader(title: "App-managed storage", subtitle: "Review protected data in the app that owns it.")
+                Spacer(minLength: StillDesign.Space.md)
+                Button("Back to overview", action: back).accessibilityIdentifier("appManagedBack")
             }
+            if !protected.isEmpty {
+                FullDiskAccessNote(places: protected.compactMap { model.guidanceRule($0)?.title }).accessibilityIdentifier("guidanceAccess")
+            }
+            RecommendationGroup {
+                ForEach(Array(model.guidance.enumerated()), id: \.element.id) { index, finding in
+                    if let rule = model.guidanceRule(finding), let guidance = rule.guidance {
+                        if index > 0 { Divider().padding(.horizontal, StillDesign.Space.lg) }
+                        let needsAccess = finding.size == .notAccessible
+                        StorageReviewRow(category: rule.managedCategory, title: rule.title, detail: finding.workspaces?.summary ?? rule.detail.firstSentence,
+                                         value: needsAccess ? "Needs access" : finding.size.text,
+                                         actionTitle: guidance.openTitle, action: { Task { await model.open(finding) } },
+                                         identifier: "guidance-" + finding.id, mutedValue: needsAccess)
+                            .help(rule.detail)
+                    }
+                }
+            }
+            if let status = model.guidanceStatus { StatusRow(text: status, symbol: "info.circle", identifier: "guidanceStatus") }
+        }
+    }
+}
+
+extension CleanupRule {
+    /// The badge for an app-managed row; a place without its own symbol keeps the shared app-managed one.
+    var managedCategory: StorageCategory {
+        switch id {
+        case "device-backups": .deviceBackups
+        case "mail-attachments": .mail
+        case "messages-attachments": .messages
+        case "photos-library": .photos
+        case "time-machine-snapshots": .timeMachine
+        case "xcode-archives": .xcodeArchives
+        case "audio-plug-ins", "rack-extensions", "logic-sound-library", "ableton-packs", "splice-samples": .audioPlugIns
+        default: .managed
         }
     }
 }
@@ -44,5 +60,13 @@ extension GuidanceSize {
         case .unavailable: "Not available"
         case .snapshots(let count): (count == 1 ? "1 snapshot" : "\(count) snapshots") + " · Size unknown"
         }
+    }
+}
+
+private extension String {
+    /// A row's one short line: the detail's first sentence. The whole detail is the row's tooltip.
+    var firstSentence: String {
+        guard let end = range(of: ". ") else { return self }
+        return String(self[..<end.lowerBound]) + "."
     }
 }

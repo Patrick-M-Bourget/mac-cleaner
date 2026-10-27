@@ -52,7 +52,7 @@ private func day(_ n: Double) -> Date { Date(timeIntervalSince1970: 1_790_000_00
     let discovery = catalog.discovery(fixture: home, userFolder: folder, inUse: FakeInUse(unknown: true))
     #expect(discovery.candidates.isEmpty)
     #expect(discovery.notes == [CatalogNote(ruleID: "chrome-code-sign-clones",
-                                            text: "Chrome code-sign copies: kept all 3 copies, because Still couldn’t tell which one Google Chrome is using.")])
+                                            text: "Chrome code-sign copies: kept all 3 copies, because CacheDrop couldn’t tell which one Google Chrome is using.")])
 }
 
 @Test func withoutTheUserFolderNoCopiesAreLookedFor() throws {

@@ -12,6 +12,8 @@ private func records(_ actions: [CleanupAction], previewOnly: Bool = false) thro
     }
     let batch = UUID()
     let made = Catalog(rules: rules).discover(fixture: home, locateTool: { _ in home.appendingPathComponent("tool") }).map { CleanupRecord(batchID: batch, approvedAt: Date(), candidate: $0, previewOnly: previewOnly) }
+    // One record per action, so tests can index them without crashing.
+    try #require(made.count == actions.count)
     return (home, made)
 }
 
@@ -48,7 +50,7 @@ private func records(_ actions: [CleanupAction], previewOnly: Bool = false) thro
     #expect(record.recoveryStateText == "Recorded success · Moved to Trash")
 }
 
-@Test func aPreviewRunReadsAsAPreviewNotAsSkippedOrFailed() async throws {
+@Test func aDryRunReadsAsADryRunNotAsSkippedOrFailed() async throws {
     let (home, made) = try records([.delete, .trash], previewOnly: true)
     defer { try? FileManager.default.removeItem(at: home) }
     let journal = try SQLiteCleanupJournal(url: home.appendingPathComponent("j.sqlite"))
@@ -62,10 +64,23 @@ private func records(_ actions: [CleanupAction], previewOnly: Bool = false) thro
     let result = await CleanupExecutor(journal: journal, check: CandidateCheck(catalog: catalog, running: Closed()), measure: { _ in nil }, trash: TrashNeverUsed())
         .execute(CatalogApproval(candidates: candidates, previewOnly: true))
     #expect(result.records.map(\.outcomeTitle) == ["Would delete", "Would move to Trash"])
+    #expect(result.records.allSatisfy { $0.message.hasPrefix("Dry run: would ") })
+    #expect(result.records.first?.recoveryStateText == "Dry run · Would delete")
     let run = try #require(try journal.completedHistory().completedRuns.first)
     #expect(run.isPreview)
-    #expect(run.title == "Preview · Nothing changed")
+    #expect(run.title == "Dry run · Nothing changed")
     #expect(run.trashHeldAllocatedBytes == 0)
+}
+
+/// Records journaled while the switch was called "Preview only" still read as a dry run.
+@Test func previewOnlyEraRecordsStillReadAsADryRun() throws {
+    let (home, made) = try records([.delete], previewOnly: true)
+    defer { try? FileManager.default.removeItem(at: home) }
+    var record = try #require(made.first)
+    record.state = .skipped; record.message = "Dry run: would delete (10 KB). Checks passed; nothing changed."
+    #expect(record.wasPreviewed)
+    #expect(record.outcomeTitle == "Would delete")
+    #expect(CleanupHistorySnapshot(records: [record]).completedRuns.first?.title == "Dry run · Nothing changed")
 }
 
 @Test func aRealRunIsTitledByTheActionsItTook() throws {

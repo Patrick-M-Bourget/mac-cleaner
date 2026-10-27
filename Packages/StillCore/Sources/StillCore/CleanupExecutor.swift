@@ -52,6 +52,7 @@ extension CleanupRecord {
         modifiedSeconds = candidate.modifiedSeconds; modifiedNanoseconds = candidate.modifiedNanoseconds
         action = candidate.action.rawValue; policyVersion = 2; self.approvedAt = approvedAt
         ruleID = candidate.ruleID; self.previewOnly = previewOnly
+        itemName = candidate.itemName; toolItem = candidate.toolItem
     }
 }
 
@@ -63,9 +64,15 @@ public actor CleanupExecutor {
     private let measure: @Sendable (URL) -> CapacitySample?
     private let cancellation: CleanupCancellation
     private let trashMover: any TrashMoving
+    private let clock: @Sendable () -> Date
     private var running = false
-    public init(journal: any CleanupJournaling, check: CandidateCheck, measure: @escaping @Sendable (URL) -> CapacitySample? = CapacitySample.read, trash: any TrashMoving = FinderTrash(), cancellation: CleanupCancellation = CleanupCancellation()) {
-        self.journal = journal; self.check = check; self.measure = measure; self.trashMover = trash; self.cancellation = cancellation
+    /// How old a reading of what processes have open may be before an item that needs the in-use check reads it again
+    /// (SPEC section 4). A long step, such as a tool with a 600-second limit, would otherwise leave later items checked
+    /// against what was open when the run began.
+    public static let inUseReadingMaxAge: TimeInterval = 5
+    public init(journal: any CleanupJournaling, check: CandidateCheck, measure: @escaping @Sendable (URL) -> CapacitySample? = CapacitySample.read, trash: any TrashMoving = FinderTrash(), cancellation: CleanupCancellation = CleanupCancellation(),
+                clock: @escaping @Sendable () -> Date = Date.init) {
+        self.journal = journal; self.check = check; self.measure = measure; self.trashMover = trash; self.cancellation = cancellation; self.clock = clock
     }
     public nonisolated func cancel() { cancellation.cancel() }
 
@@ -84,6 +91,8 @@ public actor CleanupExecutor {
         do { guard try journal.claim(batchID: approval.id, records: pending) else { return result([], replay: true) } }
         catch { return result([], failure: "Could not record the cleanup. Nothing was changed.") }
         var records: [CleanupRecord] = [], failure: String?
+        // One reading of what processes have open serves many items, but never one older than `inUseReadingMaxAge`.
+        var reading: (check: CandidateCheck, takenAt: Date)?
         for (candidate, initial) in zip(approval.candidates, pending) {
             await Task.yield()
             var record = initial
@@ -95,7 +104,10 @@ public actor CleanupExecutor {
             record.state = .intent; record.message = "Started; outcome not yet recorded"
             do { try journal.intent(record) }
             catch { record.state = .cancelled; record.message = "Could not record the start; not changed"; failure = record.message; records.append(record); await progress(.init(resolved: records.count, total: total, last: record)); continue }
-            await perform(candidate, previewOnly: approval.previewOnly, into: &record)
+            if self.check.needsInUseCheck(candidate), reading.map({ clock().timeIntervalSince($0.takenAt) > Self.inUseReadingMaxAge }) ?? true {
+                reading = (self.check.snapshotted(), clock())
+            }
+            await perform(candidate, check: reading?.check ?? self.check, previewOnly: approval.previewOnly, into: &record)
             do { try journal.outcome(record) }
             catch { record.state = .unknown; record.message = "Outcome could not be recorded. Review recovery; do not repeat automatically."; failure = record.message }
             if record.state == .unknown { failure = record.message }
@@ -105,14 +117,14 @@ public actor CleanupExecutor {
         return result(records, failure: failure)
     }
 
-    private func perform(_ candidate: Candidate, previewOnly: Bool, into record: inout CleanupRecord) async {
+    private func perform(_ candidate: Candidate, check: CandidateCheck, previewOnly: Bool, into record: inout CleanupRecord) async {
         let command = check.catalog.rule(candidate.ruleID)?.tool
         let verb = switch candidate.action {
         case .delete: "delete"
         case .trash: "move to Trash"
         case .evict: "remove the local copy"
         case .guidance: "change nothing (guidance only)"
-        case .tool: "run " + (command?.commandLine(for: candidate.itemName) ?? "its tool") + (command?.deletesLocationAfter == true ? ", then delete the folder" : "")
+        case .tool: "run " + (command?.commandLine(for: candidate.toolArgument) ?? "its tool") + (command?.deletesLocationAfter == true ? ", then delete the folder" : "")
         }
         if let refusal = check.check(candidate) {
             record.state = .skipped; record.message = refusal.reason
@@ -122,13 +134,15 @@ public actor CleanupExecutor {
         if previewOnly {
             let size = ByteCountFormatter.string(fromByteCount: candidate.estimatedBytes, countStyle: .decimal)
             record.state = .skipped; record.message = CleanupRecord.previewPrefix + " would \(verb) (\(size)). Checks passed; nothing changed."
-            Self.log.info("Preview only: would \(verb, privacy: .public) \(candidate.url.path, privacy: .public), \(size, privacy: .public)")
+            Self.log.info("Dry run: would \(verb, privacy: .public) \(candidate.url.path, privacy: .public), \(size, privacy: .public)")
             return
         }
         let before = measure(candidate.url.deletingLastPathComponent())
         switch candidate.action {
         case .delete: delete(candidate, into: &record)
-        case .trash: trash(candidate, into: &record)
+        case .trash:
+            trash(candidate, into: &record)
+            if record.state == .succeeded, check.catalog.rule(candidate.ruleID)?.items == .androidVirtualDevices { trashIniFile(of: candidate, into: &record) }
         case .tool: await runTool(candidate, command, into: &record)
         case .evict: evict(candidate, into: &record)
         // The check refuses guidance first; this stays a refusal if it ever doesn't.
@@ -143,7 +157,7 @@ public actor CleanupExecutor {
 
     /// Runs the rule's fixed command off the actor with its time limit, then deletes the folder if the rule says so.
     private func runTool(_ candidate: Candidate, _ command: ToolCommand?, into record: inout CleanupRecord) async {
-        guard let command, let executable = candidate.toolURL, let arguments = command.arguments(for: candidate.itemName) else {
+        guard let command, let executable = candidate.toolURL, let arguments = command.arguments(for: candidate.toolArgument) else {
             record.state = .skipped; record.message = CheckRefusal.changed.reason; return
         }
         let outcome = await Task.detached(priority: .userInitiated) {
@@ -152,7 +166,7 @@ public actor CleanupExecutor {
             environment["PATH"] = executable.deletingLastPathComponent().path + ":" + (environment["PATH"] ?? "")
             return Result { try BoundedTool.capture(executable: executable, arguments: arguments, timeout: command.timeout, environment: environment) }
         }.value
-        let name = command.commandLine(for: candidate.itemName)
+        let name = command.commandLine(for: candidate.toolArgument)
         switch outcome {
         case .success(let (status, output)):
             record.toolOutput = Self.trimmed(output)
@@ -210,7 +224,7 @@ public actor CleanupExecutor {
         } catch {
             // Never "not changed": part of it is gone. The rest is offered again on the next scan, under the same rule.
             record.state = .failed; record.partlyRemoved = true
-            record.message = "Partly removed. The rest is at \(aside.path); Still offers it again on the next scan."
+            record.message = "Partly removed. The rest is at \(aside.path); CacheDrop offers it again on the next scan."
         }
     }
 
@@ -238,6 +252,15 @@ public actor CleanupExecutor {
             record.state = unchanged() ? .failed : .unknown
             record.message = record.state == .failed ? "Couldn’t move it to Trash. Left unchanged." : "Move to Trash may be incomplete. Review it before cleaning again."
         }
+    }
+
+    /// An Android virtual device's `<name>.ini` follows its folder to the Trash, so Android Studio doesn't list a broken device.
+    private func trashIniFile(of candidate: Candidate, into record: inout CleanupRecord) {
+        let ini = AndroidSDK.iniFile(of: candidate.url)
+        var info = stat()
+        guard lstat(ini.path, &info) == 0, info.st_mode & S_IFMT == S_IFREG, info.st_uid == geteuid() else { return }
+        do { _ = try trashMover.moveToTrash(ini); record.message = "Moved to Trash with \(ini.lastPathComponent)" }
+        catch { record.message = "Moved to Trash. Couldn’t move \(ini.lastPathComponent); Android Studio may list the device as broken." }
     }
 
     /// Removes only local copies: the file or package itself, or each qualifying file in a folder, each read again

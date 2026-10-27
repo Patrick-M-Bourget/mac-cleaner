@@ -67,8 +67,8 @@ private func rule(requiringFullDiskAccess: Bool) -> CleanupRule {
 
 @Test func ordinaryRulesNeverWaitForFullDiskAccess() {
     #expect(rule(requiringFullDiskAccess: false).access(given: .notGranted) == .available)
-    // Besides guidance rules (Mail, Messages, Photos, device backups), only Safari's cache needs it.
-    #expect(fixtureRules.filter { $0.action != .guidance && $0.requiresFullDiskAccess }.map(\.id) == ["safari-cache"])
+    // Besides guidance rules (Mail, Messages, Photos, device backups), Safari’s cache and sandboxed apps’ caches need it.
+    #expect(fixtureRules.filter { $0.action != .guidance && $0.requiresFullDiskAccess }.map(\.id) == ["safari-cache", "container-caches"])
 }
 
 @Test func theExplanationSaysFullDiskAccessIsBroadOptionalAndScansStayReadOnly() {
@@ -99,7 +99,7 @@ private func rule(requiringFullDiskAccess: Bool) -> CleanupRule {
     let catalog = Catalog(rules: fixtureRules)
 
     let denied = catalog.discovery(fixture: home, access: .notGranted)
-    #expect(denied.notAccessible.map(\.id) == ["safari-cache"])
+    #expect(denied.notAccessible.map(\.id) == ["safari-cache", "container-caches"])
     // Not offered and not sized, so Overview can't show it as 0: it's listed as not accessible instead.
     #expect(!denied.candidates.contains { $0.ruleID == "safari-cache" })
 

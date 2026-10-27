@@ -14,7 +14,7 @@ struct FullDiskAccessSheet: View {
             StatusRow(text: "Current state: " + (model.status.map(FullDiskAccessGuide.statusText) ?? "Checking…"),
                       symbol: "lock.shield", role: model.status == .granted ? .success : .neutral, identifier: "fullDiskAccessSheetStatus")
             if model.status != .granted {
-                Text("In System Settings, turn on Still under Privacy & Security → Full Disk Access. If Still still shows Not granted, quit and reopen it.")
+                Text("In System Settings, turn on CacheDrop under Privacy & Security → Full Disk Access. If CacheDrop still shows Not granted, quit and reopen it.")
                     .font(StillDesign.TypeStyle.note).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             }
             Divider()

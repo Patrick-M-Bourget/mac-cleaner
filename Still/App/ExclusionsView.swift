@@ -95,7 +95,7 @@ struct ExclusionsView: View {
                         Text("Preview exclusion").font(StillDesign.TypeStyle.section)
                         Text(preview.path).textSelection(.enabled)
                         Text(preview.boundary == .folder ? "This folder and its descendants" : "This exact file path")
-                        Text("Volume: " + preview.volumeID).font(.caption).textSelection(.enabled)
+                        Text("Volume: " + preview.volumeID).font(StillDesign.TypeStyle.caption).textSelection(.enabled)
                         Text("Saving invalidates current findings and approval. Selected choices remain pending until a complete recheck. Excluded bytes stay unknown.").font(.callout)
                     }
                 }

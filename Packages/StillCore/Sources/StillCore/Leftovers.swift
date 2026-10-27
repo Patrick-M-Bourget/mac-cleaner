@@ -12,12 +12,12 @@ extension Catalog {
         return name.hasPrefix(prefix) && UUID(uuidString: String(name.dropFirst(prefix.count))) != nil
     }
 
-    /// Leftovers of `rule`'s earlier deletes: siblings of its locations, or entries of a leaked-copies location.
+    /// Leftovers of `rule`'s earlier deletes: siblings of its locations, or entries of a leaked-copies or unused-items location.
     /// Each is offered as a plain delete, whatever the rule's own action.
     func leftovers(of rule: CleanupRule, in base: URL, sizer: KnownLocationSizer) -> [Candidate] {
         guard rule.deletesItems else { return [] }
         let folders = Set(rule.locations.flatMap { location in
-            Self.pathsMatching(rule.copies != nil ? location : (location as NSString).deletingLastPathComponent, under: base).map(\.0)
+            Self.pathsMatching(rule.copies != nil || rule.unused != nil ? location : (location as NSString).deletingLastPathComponent, under: base).map(\.0)
         })
         return folders.sorted { $0.path < $1.path }.flatMap { folder in
             ((try? FileManager.default.contentsOfDirectory(atPath: folder.path)) ?? []).sorted().filter { Self.isLeftover($0, of: rule.id) }.compactMap { name -> Candidate? in
