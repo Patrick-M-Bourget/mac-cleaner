@@ -22,11 +22,13 @@ private func makeFolder(_ home: URL, _ relative: String, bytes: Int = 100) throw
     let folders = [
         "Library/Caches/Yarn": "yarn-cache", ".yarn/berry/cache": "yarn-cache",
         "Library/Caches/pnpm": "pnpm-cache",
-        ".cache/uv": "uv-cache", "Library/Caches/pip": "pip-cache",
+        "Library/Caches/pip": "pip-cache",
         ".cargo/registry": "cargo-cache", ".cargo/git": "cargo-cache",
         ".gradle/caches": "gradle-cache", "Library/Caches/CocoaPods": "cocoapods-cache",
     ]
     for folder in folders.keys { try makeFolder(home, folder) }
+    // uv's cache is a tool rule that uv itself names (`UVCacheTests`): without uv it's never offered, so never deleted.
+    try makeFolder(home, ".cache/uv")
     let found = catalog.discover(fixture: home)
     #expect(Dictionary(found.map { ($0.url.path, $0.ruleID) }, uniquingKeysWith: { a, _ in a })
             == Dictionary(uniqueKeysWithValues: folders.map { (home.appendingPathComponent($0.key).path, $0.value) }))
@@ -75,10 +77,10 @@ private struct NothingRunning: RunningAppChecking { func isRunning(_ owner: Rule
 @Test func aFolderHoldingACcacheStoreIsRefusedJustBeforeActing() throws {
     let home = try fixtureHome()
     defer { try? FileManager.default.removeItem(at: home) }
-    try makeFolder(home, ".cache/uv")
+    try makeFolder(home, "Library/Caches/pip")
     let catalog = Catalog(rules: fixtureRules)
     let candidate = try #require(catalog.discover(fixture: home).first)
-    try makeFolder(home, ".cache/uv/ccache")
+    try makeFolder(home, "Library/Caches/pip/ccache")
     #expect(CandidateCheck(catalog: catalog, running: NothingRunning()).check(candidate) == .protected("ccache"))
 }
 

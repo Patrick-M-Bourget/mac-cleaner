@@ -45,8 +45,8 @@ private func recommended(_ items: [Candidate], refusing refused: [String: CheckR
 }
 
 @Test func toolActionsAreNotRecommendedEvenForCaches() {
-    // Homebrew's and pnpm's caches rebuild themselves, but their command has side effects of its own.
-    #expect(recommended([item("homebrew"), item("pnpm-store"), item("xcode-simulators")]).isEmpty)
+    // Homebrew's, pnpm's and uv's caches rebuild themselves, but their command has side effects of its own.
+    #expect(recommended([item("homebrew"), item("pnpm-store"), item("uv-cache"), item("xcode-simulators")]).isEmpty)
 }
 
 @Test func leftoversOfAToolRuleAreNotRecommended() {
