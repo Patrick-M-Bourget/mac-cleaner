@@ -51,7 +51,8 @@ public enum AppUninstall {
     /// The app and its files, ready to tick; nothing when the app isn't offered or needs a password to remove (Decision 50).
     /// `leftovers` are what the scan already finds with the app installed: they belong to removed apps, not to this one.
     /// What the Cleanup plan `offered` stays there, so no space is offered twice.
-    public static func scan(_ app: InstalledApp, excluding ownBundleID: String?, home: URL, apps: any AppPresence, receipts: any InstallerReceiptReading,
+    /// Its own `uninstaller` (`ApplicationsInventory.withUninstallers`) goes with it, in its App group (#285).
+    public static func scan(_ app: InstalledApp, uninstaller: InstalledApp? = nil, excluding ownBundleID: String?, home: URL, apps: any AppPresence, receipts: any InstallerReceiptReading,
                             leftovers: [Candidate], offered: [Candidate] = [], exclusions: ExclusionPolicy = ExclusionPolicy(),
                             sizer: KnownLocationSizer = KnownLocationSizer()) -> [Candidate] {
         let url = URL(fileURLWithPath: app.path).standardizedFileURL
@@ -70,7 +71,17 @@ public enum AppUninstall {
                             needsPassword: notInPlan.count - removable.count, inPlan: found.count - notInPlan.count)
         let files = removable.map { $0.uninstalled(with: target, ruleID: $0.ruleID == RemovedAppLeftovers.ruleID ? filesRuleID : possiblyRelatedRuleID) }
         bundle.uninstall = target
-        return [bundle] + files
+        // Its own uninstaller, when macOS lets the user move it to the Trash and it isn't excluded.
+        var tool = uninstaller.map { URL(fileURLWithPath: $0.path).standardizedFileURL }.flatMap { tool -> Candidate? in
+            var info = stat()
+            guard Removability.canMoveToTrash(tool), lstat(tool.path, &info) == 0,
+                  let volume = try? tool.resourceValues(forKeys: [.volumeUUIDStringKey]).volumeUUIDString, !exclusions.covers(tool, volumeID: volume) else { return nil }
+            let size = sizer.size(tool)
+            return catalog.candidate(rules[0], tool, info, logical: size.logicalBytes, allocated: size.allocatedBytes, complete: size.complete, lastUsed: nil)
+                .found(under: tool.deletingLastPathComponent())
+        }
+        tool?.uninstall = target
+        return [bundle] + (tool.map { [$0] } ?? []) + files
     }
 
     /// The check just before acting: never macOS's, CacheDrop's or license data, and only what macOS still lets the user move to

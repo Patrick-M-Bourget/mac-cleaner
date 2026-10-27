@@ -38,6 +38,8 @@ public struct InventoryEntry: Sendable, Equatable, Identifiable {
     public let parts: [Part]
     /// The app's bundle ID, or a plug-in product's first: what ties it to its vendor (Decision 41).
     public let bundleID: String?
+    /// The name of the app's own uninstaller, its second part (#285); nil when it has none.
+    public internal(set) var ownUninstaller: String? = nil
     public init(id: String, name: String, maker: String?, volume: String?, parts: [Part], bundleID: String? = nil) {
         self.id = id; self.name = name; self.maker = maker; self.volume = volume; self.parts = parts; self.bundleID = bundleID
     }
@@ -51,17 +53,48 @@ public struct InventoryEntry: Sendable, Equatable, Identifiable {
 public enum ApplicationsInventory {
     /// The apps in an Applications folder (at its top or one folder down) on any volume, from `installed` (`AppPresence`):
     /// never Apple's, one in `/System`, one inside another bundle, CacheDrop itself, or one no longer on disk.
+    /// An app's own uninstaller is one of its parts, never a row of its own (#285).
     public static func apps(_ installed: [InstalledApp], excluding ownBundleID: String?, sizer: KnownLocationSizer = KnownLocationSizer()) -> [InventoryEntry] {
-        var seen = Set<String>()
-        let entries = installed.compactMap { app -> InventoryEntry? in
+        func part(_ app: InstalledApp) -> InventoryEntry.Part {
             let url = URL(fileURLWithPath: app.path).standardizedFileURL
-            guard seen.insert(url.path).inserted, isListed(app, excluding: ownBundleID) else { return nil }
+            return .init(name: url.lastPathComponent, url: url, size: Catalog.estimate(sizer.size(url)), removable: Removability.canMoveToTrash(url))
+        }
+        let entries = withUninstallers(installed, excluding: ownBundleID).map { app, uninstaller -> InventoryEntry in
+            let url = URL(fileURLWithPath: app.path).standardizedFileURL
             let maker = PlugInInventory.info(url).flatMap(PlugInInventory.copyrightHolder) ?? app.maker
-            return InventoryEntry(id: url.path, name: app.name, maker: maker, volume: volume(of: url),
-                                  parts: [.init(name: url.lastPathComponent, url: url, size: Catalog.estimate(sizer.size(url)), removable: Removability.canMoveToTrash(url))],
-                                  bundleID: app.bundleID)
+            var entry = InventoryEntry(id: url.path, name: app.name, maker: maker, volume: volume(of: url), parts: [part(app)] + (uninstaller.map { [part($0)] } ?? []),
+                                       bundleID: app.bundleID)
+            entry.ownUninstaller = uninstaller?.name
+            return entry
         }
         return largestFirst(entries)
+    }
+
+    /// The listed apps, once each, with each one's own uninstaller (#285): an "Uninstall…" app in the app's own folder (not the
+    /// Applications folder itself), or one named exactly for it ("Uninstall <App>", "<App> Uninstaller"). An uninstaller goes
+    /// with the first app it is found for and is not listed on its own.
+    public static func withUninstallers(_ installed: [InstalledApp], excluding ownBundleID: String?) -> [(app: InstalledApp, uninstaller: InstalledApp?)] {
+        var seen = Set<String>()
+        let listed = installed.filter { seen.insert(URL(fileURLWithPath: $0.path).standardizedFileURL.path).inserted && isListed($0, excluding: ownBundleID) }
+        var claimed = Set<String>()
+        let pairs = listed.map { app -> (app: InstalledApp, uninstaller: InstalledApp?) in
+            guard !isUninstallerName(app.name) else { return (app, nil) }
+            let tool = listed.first { !claimed.contains($0.path) && isOwnUninstaller($0, of: app) }
+            if let tool { claimed.insert(tool.path) }
+            return (app, tool)
+        }
+        return pairs.filter { !claimed.contains($0.app.path) }
+    }
+    static func isUninstallerName(_ name: String) -> Bool {
+        let token = RemovedAppLeftovers.token(name)
+        return token.hasPrefix("uninstall") || token.hasSuffix("uninstaller")
+    }
+    static func isOwnUninstaller(_ tool: InstalledApp, of app: InstalledApp) -> Bool {
+        let folder = URL(fileURLWithPath: app.path).standardizedFileURL.deletingLastPathComponent(), name = RemovedAppLeftovers.token(app.name)
+        let token = RemovedAppLeftovers.token(tool.name)
+        guard tool.path != app.path, !name.isEmpty else { return false }
+        let inOwnFolder = URL(fileURLWithPath: tool.path).standardizedFileURL.deletingLastPathComponent() == folder && folder.lastPathComponent != "Applications"
+        return (inOwnFolder && token.hasPrefix("uninstall")) || token == "uninstall" + name || token == name + "uninstaller"
     }
 
     /// Whether the page lists an app: in an Applications folder, still on disk, never Apple's, a system app or CacheDrop itself.
@@ -89,14 +122,11 @@ public enum ApplicationsInventory {
     /// The app's own uninstaller, or its maker's tool (Decision 41, #177, #281): an "Uninstall…" app in the app's own folder (not
     /// the Applications folder itself), or one named exactly for the app ("Uninstall <App>"), else `vendorTool(for:among:)`.
     public static func uninstaller(for entry: InventoryEntry, among apps: [InventoryEntry]) -> InventoryEntry? {
-        let folder = URL(fileURLWithPath: entry.id).deletingLastPathComponent(), name = RemovedAppLeftovers.token(entry.name)
-        let own = apps.first { app in
-            let token = RemovedAppLeftovers.token(app.name)
-            guard app != entry, !name.isEmpty else { return false }
-            let inOwnFolder = URL(fileURLWithPath: app.id).deletingLastPathComponent() == folder && folder.lastPathComponent != "Applications"
-            return (inOwnFolder && token.hasPrefix("uninstall")) || token == "uninstall" + name || token == name + "uninstaller"
+        if let name = entry.ownUninstaller, let part = entry.parts.dropFirst().first {
+            return InventoryEntry(id: part.url.path, name: name, maker: entry.maker, volume: entry.volume, parts: [part])
         }
-        return own ?? vendorTool(for: entry, among: apps)
+        let app = InstalledApp(name: entry.name, bundleID: entry.bundleID ?? "", path: entry.id)
+        return apps.first { isOwnUninstaller(InstalledApp(name: $0.name, bundleID: $0.bundleID ?? "", path: $0.id), of: app) } ?? vendorTool(for: entry, among: apps)
     }
 
     /// The volume a path is on, when it isn't the startup disk: "/Volumes/Studio/…" reads "Studio".

@@ -229,3 +229,31 @@ private struct Processes: ProcessListing {
     #expect(ApplicationsInventory.uninstaller(for: loose, among: [loose, pro, helper]) == nil)
     #expect(ApplicationsInventory.uninstaller(for: synth, among: [synth, app("/Applications/Maker/Read Me.app")]) == nil, "Its folder's other apps aren't uninstallers")
 }
+
+@Test func anAppsOwnUninstallerIsNotListedOnItsOwnAndGoesWithTheApp() async throws {
+    let (home, synth, _) = try fixture()
+    defer { try? FileManager.default.removeItem(at: home) }
+    // Synth in its maker's folder, with "Uninstall Synth" beside it.
+    let folder = home.appendingPathComponent("Applications/Maker")
+    try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+    try FileManager.default.moveItem(atPath: synth.path, toPath: folder.appendingPathComponent("Synth.app").path)
+    try FileManager.default.createDirectory(at: folder.appendingPathComponent("Uninstall Synth.app/Contents"), withIntermediateDirectories: true)
+    let app = InstalledApp(name: "Synth", bundleID: "com.maker.synth", path: folder.appendingPathComponent("Synth.app").path)
+    let tool = InstalledApp(name: "Uninstall Synth", bundleID: "com.maker.synth.uninstall", path: folder.appendingPathComponent("Uninstall Synth.app").path)
+    let apps = Apps(installed: [tool, app])
+
+    let pairs = ApplicationsInventory.withUninstallers(apps.installed, excluding: nil)
+    #expect(pairs.map(\.app) == [app] && pairs.first?.uninstaller == tool, "The uninstaller is the app's, not a row of its own")
+    let entries = ApplicationsInventory.apps(apps.installed, excluding: nil)
+    #expect(entries.map(\.name) == ["Synth"])
+    #expect(ApplicationsInventory.uninstaller(for: entries[0], among: entries)?.name == "Uninstall Synth", "Open <uninstaller> still comes first")
+
+    let leftovers = RemovedAppLeftovers.scan(home: home, apps: apps, receipts: NoReceipts())
+    let found = AppUninstall.scan(app, uninstaller: tool, excluding: nil, home: home, apps: apps, receipts: NoReceipts(), leftovers: leftovers)
+    #expect(names(found, AppUninstall.appRuleID) == ["Synth.app", "Uninstall Synth.app"], "It goes with the app, in its App group")
+    let journal = try SQLiteCleanupJournal(url: home.appendingPathComponent("journal.sqlite"))
+    let installed = Apps(installed: [app])
+    _ = await CleanupExecutor(journal: journal, check: check(home, apps: installed), measure: { _ in nil }, trash: HomeTrash(home: home))
+        .execute(CatalogApproval(candidates: found.filter { $0.ruleID == AppUninstall.appRuleID }, previewOnly: false))
+    #expect(try journal.completedHistory().completedRuns.first?.title == "Uninstalled Synth · 2 items")
+}

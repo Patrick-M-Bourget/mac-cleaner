@@ -328,8 +328,8 @@ import SwiftUI
             let leftovers = RemovedAppLeftovers.notOffered(by: discovered.candidates, found)
             // Installed apps with their files (#177), each read once; receipts are read once for all of them.
             let readReceipts = ReadReceipts(receipts.receipts())
-            let apps = (presence.installedApps() ?? []).flatMap { app in
-                AppUninstall.scan(app, excluding: own, home: home, apps: presence, receipts: readReceipts, leftovers: found, offered: discovered.candidates,
+            let apps = ApplicationsInventory.withUninstallers(presence.installedApps() ?? [], excluding: own).flatMap { app, uninstaller in
+                AppUninstall.scan(app, uninstaller: uninstaller, excluding: own, home: home, apps: presence, receipts: readReceipts, leftovers: found, offered: discovered.candidates,
                                   exclusions: exclusions)
             }
             var owners: [String: RuleOwner] = [:], names: [String: String] = [:]
