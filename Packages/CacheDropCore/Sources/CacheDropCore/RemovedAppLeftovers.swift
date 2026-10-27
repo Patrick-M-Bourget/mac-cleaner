@@ -262,7 +262,7 @@ public struct LeftoverTie: Sendable, Hashable {
 
 extension CleanupRule {
     /// Its items are ticked one by one, never with their category, rule or app (#173: possibly related leftovers).
-    public var selectedOneByOne: Bool { id == RemovedAppLeftovers.possiblyRelatedRuleID || id == AppUninstall.possiblyRelatedRuleID }
+    public var selectedOneByOne: Bool { [RemovedAppLeftovers.possiblyRelatedRuleID, AppUninstall.possiblyRelatedRuleID, PlugInUninstall.sharedRuleID].contains(id) }
 }
 
 /// Which apps are on this Mac, on every volume. Injected so tests never ask Launch Services or Spotlight.
