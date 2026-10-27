@@ -63,14 +63,17 @@ public struct MusicVendor: Sendable, Equatable {
             .init(path: "Music/Ableton/Factory Packs", name: "Packs", kind: .installed),
             .init(path: "Music/Ableton/User Library", name: "User Library", kind: .yours),
         ], owners: .vendorProducts("com.ableton")),
-        // Apple's Logic Pro 12 / MainStage 4 library (relocatable) and the legacy layout, shared by both apps
-        // (support.apple.com 111094 and Logic's legacy content guide). The bundle IDs are Logic's and MainStage's own.
+        // Apple's Logic Pro 12 / MainStage 4 library (relocatable) and the legacy layout (support.apple.com 111094 and
+        // Logic's legacy content guide), shared by Logic Pro, GarageBand and MainStage (as GuidanceCatalog's sound library
+        // says). Bundle IDs: Logic's `com.apple.logic10` (GuidanceCatalog); GarageBand's `com.apple.garageband10` (its
+        // published version history); MainStage's `com.apple.mainstage3` is unchecked: no source found, and it isn't
+        // installed on the Mac this was written on.
         MusicVendor(name: "Apple", locations: [
             .init(path: "Music/Logic Pro Library.bundle", name: "Logic Pro Library", kind: .installed),
             .init(path: "/Library/Application Support/Logic", name: "Logic content", kind: .installed),
             .init(path: "/Library/Audio/Apple Loops/Apple", name: "Apple Loops", kind: .installed),
             .init(path: "/Library/Audio/Impulse Responses/Apple", name: "Impulse responses", kind: .installed),
-        ], owners: .apps(["com.apple.logic10", "com.apple.mainstage3"])),
+        ], owners: .apps(["com.apple.logic10", "com.apple.garageband10", "com.apple.mainstage3"])),
         // Waves' documented default for its instrument samples; Waves Central can relocate them. Shared by every Waves product.
         MusicVendor(name: "Waves", locations: [
             .init(path: "/Applications/Waves/Data/Instrument Data/Waves Sample Libraries", name: "Sample libraries", kind: .installed),

@@ -29,6 +29,7 @@ private struct FixtureMac {
 private let reasonRack = ContentOwner(id: "reason-rack", name: "Reason Rack Plugin", bundleID: "se.propellerheads.reasonrackplugin.vst")
 private let live = ContentOwner(id: "live", name: "Ableton Live 12 Suite", bundleID: "com.ableton.live")
 private let logic = ContentOwner(id: "logic", name: "Logic Pro", bundleID: "com.apple.logic10")
+private let garageBand = ContentOwner(id: "garageband", name: "GarageBand", bundleID: "com.apple.garageband10")
 private let mainStage = ContentOwner(id: "mainstage", name: "MainStage", bundleID: "com.apple.mainstage3")
 private let pigments = ContentOwner(id: "pigments", name: "Pigments", bundleID: "com.arturia.pigments.vst3")
 private let analogLab = ContentOwner(id: "analoglab", name: "Analog Lab", bundleID: "com.arturia.analoglab.component")
@@ -65,18 +66,18 @@ private let unrelated = ContentOwner(id: "other", name: "Serum", bundleID: "com.
     #expect(content.items(for: "live").count == 2)
 }
 
-/// #175: Logic Pro and MainStage share one sound library, and the legacy Logic content too: each shows once, with both owners.
-@Test func logicContentIsSharedWithMainStageAndShownOnce() throws {
+/// #175, #277: Logic Pro, GarageBand and MainStage share one sound library, and the legacy Logic content too: each shows once, with both owners.
+@Test func logicContentIsSharedWithGarageBandAndMainStageAndShownOnce() throws {
     let mac = try FixtureMac(); defer { mac.remove() }
     try mac.folder("Music/Logic Pro Library.bundle", bytes: 8_192)
     try mac.folder("/Library/Application Support/Logic")
     try mac.folder("/Library/Audio/Apple Loops/Apple")
     try mac.folder("/Library/Audio/Impulse Responses/Apple")
 
-    let content = mac.scan([logic, mainStage, unrelated])
+    let content = mac.scan([logic, garageBand, mainStage, unrelated])
 
     #expect(content.items.map(\.name).sorted() == ["Apple Loops", "Impulse responses", "Logic Pro Library", "Logic content"])
-    #expect(content.items.allSatisfy { $0.vendors == ["Apple"] && $0.owners == ["logic", "mainstage"] && $0.isShared })
+    #expect(content.items.allSatisfy { $0.vendors == ["Apple"] && $0.owners == ["logic", "garageband", "mainstage"] && $0.isShared })
     #expect(content.items.allSatisfy { $0.tie == .bundleID }, "Apple's content belongs to the named apps, not to every Apple app")
 }
 
