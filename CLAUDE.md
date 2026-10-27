@@ -20,6 +20,14 @@ open .build/xcode/Build/Products/Debug/CacheDrop.app
 
 Verify on this Mac, not by pushing to CI. Tests touch only temp fixture folders, never real user paths.
 
+UI tests drive the screen, so run them only when the user isn't using it. Run only the journey you changed, and always turn off failure diagnostics, which would otherwise save system logs that may include other apps' activity:
+
+```sh
+xcodebuild test -project CacheDrop/CacheDrop.xcodeproj -scheme CacheDrop -destination 'platform=macOS' -derivedDataPath .build/xcode -collect-test-diagnostics never -only-testing:CacheDropUITests/<Class>/<test>
+```
+
+The scheme keeps no test attachments and never records the screen (#153). Never take full-screen screenshots; capture only CacheDrop's window.
+
 ## Workflow
 
 - One logical change per commit and about 500 lines or less per PR. Run tests and build before every commit.
