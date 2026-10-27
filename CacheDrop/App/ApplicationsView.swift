@@ -69,18 +69,10 @@ struct ApplicationsView: View {
             ScrollView {
                 if selection.showsRun(for: .applications) { CleanupRunSection(selection: selection) } else { page }
             }.background(CacheDropDesign.reading)
-            if selection.showsRun(for: .applications) && selection.workspaceRunning {
-                CleanupStopStrip(selection: selection)
-            } else if selection.showsRun(for: .applications) {
-                ActionStrip(message: selection.requiresRecoveryReview ? "Review unresolved records before cleaning again." : nil) {
-                    if let viewHistory { Button("View history", action: viewHistory) }
-                    if selection.requiresRecoveryReview, let reviewRecovery { Button("Review recovery", action: reviewRecovery) }
-                    Button("Done") { selection.dismissResult() }.buttonStyle(.borderedProminent)
-                }
-            } else {
-                ActionStrip(message: nil) {
-                    ReviewCleanupButton(enabled: selection.canReviewApplications, focusRequest: reviewFocusRequest) { Task { await openReview() } }.fixedSize()
-                }
+            CleanupActionBar(selection: selection, source: .applications, viewHistory: viewHistory, reviewRecovery: reviewRecovery) {
+                Button("Done") { selection.dismissResult() }.buttonStyle(.borderedProminent)
+            } idle: {
+                ReviewCleanupButton(enabled: selection.canReviewApplications, focusRequest: reviewFocusRequest) { Task { await openReview() } }.fixedSize()
             }
         }
         .sheet(item: $review, onDismiss: { reviewFocusRequest += 1 }) { snapshot in
