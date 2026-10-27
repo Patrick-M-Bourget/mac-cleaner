@@ -7,9 +7,20 @@ extension Catalog {
     /// Without Full Disk Access, a rule that needs it is `.notAccessible` without being touched, so no privacy prompt appears.
     public func guidance(home: URL, systemRoot: URL = URL(fileURLWithPath: "/"), sizer: KnownLocationSizer = KnownLocationSizer(),
                          snapshots: any LocalSnapshotListing = TmutilSnapshots(), fullDiskAccess: FullDiskAccessStatus = .unknown) -> [GuidanceFinding] {
-        rules.compactMap { rule -> GuidanceFinding? in
+        // One search finds every library rule's packages, and only for rules CacheDrop may read.
+        let extensions = Set(rules.compactMap { rule -> String? in
+            guard rule.access(given: fullDiskAccess) == .available, case .libraries(let ext)? = rule.guidance?.sizing else { return nil }
+            return ext
+        })
+        let libraries = extensions.isEmpty ? nil : LibrarySearch.find(extensions: extensions, home: home, systemRoot: systemRoot, sizer: sizer)
+        return rules.compactMap { rule -> GuidanceFinding? in
             guard rule.action == .guidance, let guidance = rule.guidance else { return nil }
             if rule.access(given: fullDiskAccess) == .needsFullDiskAccess { return GuidanceFinding(ruleID: rule.id, size: .notAccessible, folder: nil) }
+            if case .libraries(let ext) = guidance.sizing {
+                guard let libraries, let found = libraries.found[ext], !found.isEmpty else { return nil }
+                let total = SizeEstimate(sum: found.map(\.size) + (libraries.complete ? [] : [.unknown]))
+                return GuidanceFinding(ruleID: rule.id, size: .estimate(total), folder: found.first?.url, libraries: found)
+            }
             if guidance.sizing == .localSnapshots {
                 guard let count = snapshots.count() else { return GuidanceFinding(ruleID: rule.id, size: .unavailable, folder: nil) }
                 return count > 0 ? GuidanceFinding(ruleID: rule.id, size: .snapshots(count), folder: nil) : nil

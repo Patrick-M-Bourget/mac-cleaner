@@ -28,11 +28,14 @@ extension CatalogCleanupModel {
         guidanceStatus = await catalog.open(finding, using: Self.guidanceOpener) ? Self.openedStatus(name) : "Couldn’t open \(name)."
     }
     /// Shows a plug-in product's files selected in Finder. A debug test run reveals nothing.
-    func reveal(_ product: PlugInProduct) {
+    func reveal(_ product: PlugInProduct) { reveal(product.name, product.files.map(\.url)) }
+    /// Shows a library package selected in Finder (#180, #178). Nothing inside it is opened.
+    func reveal(_ library: FoundLibrary) { reveal(library.name, [library.url]) }
+    private func reveal(_ name: String, _ urls: [URL]) {
         #if DEBUG
-        if LocalStateLocation.isDisposableTest { guidanceStatus = "Test run: would reveal \(product.name)."; return }
+        if LocalStateLocation.isDisposableTest { guidanceStatus = "Test run: would reveal \(name)."; return }
         #endif
-        Finder.reveal(product.files.map(\.url))
+        Finder.reveal(urls)
     }
     private static func openedStatus(_ name: String) -> String? {
         #if DEBUG

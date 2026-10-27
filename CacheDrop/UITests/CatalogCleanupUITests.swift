@@ -916,10 +916,12 @@ extension CatalogCleanupUITests {
 }
 
 final class GuidanceUITests: XCTestCase {
-    /// A Photos library, Xcode archives, unreadable Messages attachments and two local snapshots in the fixture home.
+    /// Three Photos libraries, Xcode archives, unreadable Messages attachments and two local snapshots in the fixture home.
     /// The snapshot count comes from a debug fixture file, so tmutil never runs, and opening is a debug no-op.
     @MainActor private func addGuidanceData(_ home: URL) throws -> URL {
-        for path in ["Pictures/Photos Library.photoslibrary/originals/a.heic", "Library/Developer/Xcode/Archives/2026-10-26/App.xcarchive/Info.plist",
+        // Photos libraries (#180): the default one, a renamed one and one on a connected volume (`<home>/Volumes` here).
+        for path in ["Pictures/Photos Library.photoslibrary/originals/a.heic", "Pictures/Trip 2019.photoslibrary/originals/b.heic",
+                     "Volumes/External/Family.photoslibrary/originals/c.heic", "Library/Developer/Xcode/Archives/2026-10-26/App.xcarchive/Info.plist",
                      "Library/Messages/Attachments/ab/photo.jpg"] {
             let file = home.appendingPathComponent(path)
             try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
@@ -962,6 +964,17 @@ final class GuidanceUITests: XCTestCase {
         let photos = app.buttons["guidance-photos-library"]
         XCTAssertTrue(photos.waitForExistence(timeout: 10))
         XCTAssertEqual(photos.label, "Open Photos")
+        XCTAssertTrue((photos.value as? String)?.contains("3 libraries") == true, String(describing: photos.value))
+        // Each library with its volume and size, revealed in Finder, never offered (#180).
+        openDisclosure(app.disclosureTriangles.matching(NSPredicate(format: "label == 'Show libraries · 3'")).firstMatch, in: app)
+        let external = app.buttons["Reveal Family in Finder"]
+        XCTAssertTrue(external.waitForExistence(timeout: 5))
+        XCTAssertTrue((external.value as? String)?.hasPrefix("External") == true, String(describing: external.value))
+        XCTAssertTrue(app.buttons["Reveal Trip 2019 in Finder"].exists)
+        XCTAssertTrue(app.links["guidanceLearnMore-photos-library"].exists)
+        revealAndClick(external, in: app)
+        XCTAssertTrue(app.staticTexts["guidanceStatus"].waitForExistence(timeout: 5))
+        XCTAssertEqual(app.staticTexts["guidanceStatus"].value as? String, "Test run: would reveal Family.")
         XCTAssertTrue((app.buttons["guidance-messages-attachments"].value as? String)?.contains("Needs access") == true)
         // One access note for the page, never a link per row.
         XCTAssertTrue(app.descendants(matching: .any)["guidanceAccess"].exists)
