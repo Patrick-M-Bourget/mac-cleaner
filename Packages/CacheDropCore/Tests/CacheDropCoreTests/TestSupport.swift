@@ -99,6 +99,16 @@ func onlyTool(_ name: String, _ standIn: URL) -> @Sendable (ToolCommand) -> URL?
     { command in command.executables.contains { URL(fileURLWithPath: $0).lastPathComponent == name } ? standIn : nil }
 }
 
+/// Runs blocking `work` on a thread of its own and waits for it without holding a Swift concurrency thread.
+/// A test that waits seconds on a real tool must not block the pool: under LIBDISPATCH_COOPERATIVE_POOL_STRICT=1
+/// it can be a single thread, and every other async test in the run would wait behind it.
+/// Keep `#expect` out of `work`; check what it returns instead.
+func onOwnThread<T: Sendable>(_ work: @escaping @Sendable () throws -> T) async throws -> T {
+    try await withCheckedThrowingContinuation { continuation in
+        Thread { continuation.resume(with: Result { try work() }) }.start()
+    }
+}
+
 /// Cancels `cancellation` once `file` appears, which a stand-in tool writes to say it reached a point, marking `at` first.
 /// It watches on a thread of its own, never GCD's global queues or the Swift concurrency pool: on a runner with few cores,
 /// tests blocked in a tool run can fill both, so a watcher queued there may start only after the tool has finished.
