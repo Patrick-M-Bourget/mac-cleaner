@@ -20,8 +20,10 @@ import SwiftUI
         var seen = Set(discovered.map(\.resourceID))
         return projectBuilds.keys.sorted { $0.path < $1.path }.flatMap { projectBuilds[$0] ?? [] }.filter { seen.insert($0.resourceID).inserted }
     }
-    /// Everything the plan can offer.
-    var candidates: [Candidate] { discovered + pickedCandidates + projectBuildCandidates }
+    /// Installed apps with their files, offered on the Applications page to uninstall (#177); never on Overview or in the plan.
+    private(set) var uninstallable: [Candidate] = []
+    /// Everything the plan and the Applications page can offer.
+    var candidates: [Candidate] { discovered + pickedCandidates + projectBuildCandidates + uninstallable }
     /// The large and old files offered from picked folders, largest first.
     var pickedCandidates: [Candidate] { pickedByResource.values.sorted { $0.estimatedBytes != $1.estimatedBytes ? $0.estimatedBytes > $1.estimatedBytes : $0.url.path < $1.url.path } }
     private func indexPickedFiles() {
@@ -256,16 +258,26 @@ import SwiftUI
     /// are on the Applications page instead (Decision 51).
     var planCategories: [CatalogOverview.Row] { CatalogOverview(catalog: catalog, candidates: candidates).rows.filter { CleanupSelections.Source.page(of: $0) == .plan } }
     /// The Applications page's Leftovers row; nil when none were found.
-    var leftoversRow: CatalogOverview.Row? { CatalogOverview(catalog: catalog, candidates: candidates).rows.first { CleanupSelections.Source.page(of: $0) == .applications } }
+    var leftoversRow: CatalogOverview.Row? { CatalogOverview(catalog: catalog, candidates: candidates).rows.first { $0.category == .leftovers } }
+    /// An installed app's items to uninstall it with (#177), by the app's path; empty when it can't be uninstalled here.
+    func uninstallItems(of appPath: String) -> [Candidate] { uninstallable.filter { $0.uninstall?.path == appPath } }
+    func selectionState(ofApp appPath: String) -> CategorySelectionState {
+        CategorySelection(rules: AppUninstall.rules, candidates: uninstallItems(of: appPath), selected: selectedIDs).state
+    }
+    /// An app's checkbox, as a category's (#240): returns true when only its possibly related items are left to choose one by one.
+    func toggleApp(_ appPath: String) -> Bool {
+        toggle(CategorySelection(rules: AppUninstall.rules, candidates: uninstallItems(of: appPath), selected: selectedIDs))
+    }
     func selectionState(for rules: [CleanupRule]) -> CategorySelectionState { categorySelection(rules).state }
     private func categorySelection(_ rules: [CleanupRule]) -> CategorySelection {
         CategorySelection(rules: rules, candidates: rules.flatMap(candidates(for:)), selected: selectedIDs)
     }
     /// The category's checkbox (#240): chooses what may be chosen together or clears every chosen item. Returns true when
     /// nothing may be chosen together and nothing is chosen, so the category lists its items to choose one by one.
-    func toggleCategory(_ rules: [CleanupRule]) -> Bool {
+    func toggleCategory(_ rules: [CleanupRule]) -> Bool { toggle(categorySelection(rules)) }
+    private func toggle(_ selection: CategorySelection) -> Bool {
         guard canEdit else { return false }
-        switch categorySelection(rules).toggle {
+        switch selection.toggle {
         case .choose(let ids): selectedIDs.formUnion(ids)
         case .clear(let ids): selectedIDs.subtract(ids)
         case .showItems: return true
@@ -283,10 +295,10 @@ import SwiftUI
         guard canEdit else { return }
         isScanning = true; message = nil; scanProgress = CatalogScanProgress()
         defer { isScanning = false; hasScanned = true; scanProgress = nil }
-        guard let home = Self.home else { discovered = []; notes = []; overriddenRules = []; notAccessibleRules = []; setRunning([:], open: []); ownerNames = [:]; return }
+        guard let home = Self.home else { discovered = []; uninstallable = []; notes = []; overriddenRules = []; notAccessibleRules = []; setRunning([:], open: []); ownerNames = [:]; return }
         // Excluded items are never offered (SPEC section 2); without the settings nothing can be offered safely.
         guard let exclusions = try? await ExclusionsModel.shared.policyForScan() else {
-            discovered = []; notes = []; overriddenRules = []; notAccessibleRules = []; setRunning([:], open: []); ownerNames = [:]
+            discovered = []; uninstallable = []; notes = []; overriddenRules = []; notAccessibleRules = []; setRunning([:], open: []); ownerNames = [:]
             message = "Exclusion settings are unavailable, so nothing can be checked. Try again."; return
         }
         let catalog = catalog
@@ -298,8 +310,8 @@ import SwiftUI
         // Discovery reports each location as it goes; the steps reach the main actor in order (#128).
         let (steps, reporter) = AsyncStream.makeStream(of: CatalogDiscoveryProgress.self)
         let progress = Task { for await step in steps { scanProgress?.apply(step) } }
-        let presence = Self.appPresence, receipts = Self.receipts(home: home)
-        let scanned = await Task.detached(priority: .userInitiated) { () -> (CatalogDiscovery, [CleanupRule], ([String: RuleOwner], Set<String>), [String: String], FullDiskAccessStatus, [Candidate]) in
+        let presence = Self.appPresence.snapshot(), receipts = Self.receipts(home: home), own = Bundle.main.bundleIdentifier
+        let scanned = await Task.detached(priority: .userInitiated) { () -> (CatalogDiscovery, [CleanupRule], ([String: RuleOwner], Set<String>), [String: String], FullDiskAccessStatus, [Candidate], [Candidate]) in
             // Probed once per scan, at launch too, and shared with the guidance scan: it only opens a protected folder
             // and never prompts (#117).
             let access = FullDiskAccessProbe(home: home).status()
@@ -312,16 +324,23 @@ import SwiftUI
                                                })
             reporter.finish()
             // Leftovers of removed apps (#173), except what a catalog rule already offers, holds or sits inside.
-            let leftovers = RemovedAppLeftovers.notOffered(by: discovered.candidates, RemovedAppLeftovers.scan(home: home, apps: presence, receipts: receipts, exclusions: exclusions))
+            let found = RemovedAppLeftovers.scan(home: home, apps: presence, receipts: receipts, exclusions: exclusions)
+            let leftovers = RemovedAppLeftovers.notOffered(by: discovered.candidates, found)
+            // Installed apps with their files (#177), each read once; receipts are read once for all of them.
+            let readReceipts = ReadReceipts(receipts.receipts())
+            let apps = (presence.installedApps() ?? []).flatMap { app in
+                RemovedAppLeftovers.notOffered(by: discovered.candidates, AppUninstall.scan(app, excluding: own, home: home, apps: presence, receipts: readReceipts,
+                                                                                            leftovers: found, exclusions: exclusions))
+            }
             var owners: [String: RuleOwner] = [:], names: [String: String] = [:]
-            for candidate in discovered.candidates + leftovers { if let owner = catalog.owner(for: candidate) { owners[owner.name] = owner; names[candidate.id] = owner.name } }
-            return (discovered, catalog.overriddenRules(home: home, systemRoot: system), Self.running(owners, quitter: quitter), names, access, leftovers)
+            for candidate in discovered.candidates + leftovers + apps { if let owner = catalog.owner(for: candidate) { owners[owner.name] = owner; names[candidate.id] = owner.name } }
+            return (discovered, catalog.overriddenRules(home: home, systemRoot: system), Self.running(owners, quitter: quitter), names, access, leftovers, apps)
         }.value
         await progress.value
         await GrowthHistoryModel.shared.completeCatalog(scanned.0, catalog: catalog, fullDiskAccess: scanned.4, token: growth, afterCleanup: rescanFollowsCleanup)
         rescanFollowsCleanup = false
         fullDiskAccessRescan.scanned(scanned.4)
-        discovered = scanned.0.candidates + scanned.5; notes = scanned.0.notes; notAccessibleRules = scanned.0.notAccessible; overriddenRules = scanned.1; setRunning(scanned.2.0, open: scanned.2.1); ownerNames = scanned.3
+        discovered = scanned.0.candidates + scanned.5; uninstallable = scanned.6; notes = scanned.0.notes; notAccessibleRules = scanned.0.notAccessible; overriddenRules = scanned.1; setRunning(scanned.2.0, open: scanned.2.1); ownerNames = scanned.3
         keepOnlyCurrentChoices()
         await scanGuidance(home: home, fullDiskAccess: scanned.4)
     }
@@ -415,7 +434,7 @@ import SwiftUI
         let approval = CatalogApproval(candidates: candidates, previewOnly: dryRun)
         guard let check = await currentCheck()?.snapshotted() else { return nil }
         let refusals = await Task.detached { Dictionary(uniqueKeysWithValues: approval.candidates.compactMap { c in check.check(c).map { (c.id, $0) } }) }.value
-        return CatalogReview(approval: approval, refusals: refusals)
+        return CatalogReview(approval: approval, refusals: refusals, staying: AppUninstall.staying(chosen: candidates, offered: uninstallable))
     }
     func execute(_ approval: CatalogApproval, from source: CleanupSelections.Source, cancellation: CleanupCancellation) async {
         guard !isRunning else { return }
@@ -430,7 +449,7 @@ import SwiftUI
             measureStoppedWorkAgain(outcome, of: approval, run: run)
             if !approval.previewOnly { rescanFollowsCleanup = true }
             // Picked folders keep the large and old files this run didn't act on (#125).
-            selections.finishRun(from: source); discovered = []; pickedFiles = pickedFiles.mapValues { UserFiles.remaining($0, after: outcome) }
+            selections.finishRun(from: source); discovered = []; uninstallable = []; pickedFiles = pickedFiles.mapValues { UserFiles.remaining($0, after: outcome) }
             projectBuilds = projectBuilds.mapValues { UserFiles.remaining($0, after: outcome) }; hasScanned = false; selectionRevision &+= 1
         } catch { message = "The cleanup journal is unavailable. Nothing was changed." }
     }
@@ -478,6 +497,8 @@ import SwiftUI
 struct CatalogReview {
     let approval: CatalogApproval
     let refusals: [String: CheckRefusal]
+    /// What an uninstall leaves and why (#177).
+    var staying: [String] = []
 }
 
 extension CatalogCategory {
@@ -494,6 +515,7 @@ extension CatalogCategory {
         case .logs: .logs
         case .managed: .managed
         case .leftovers: .leftovers
+        case .apps: .apps
         }
     }
     /// Overview's row title for a category; the rows themselves come from what the catalog found.
@@ -510,6 +532,7 @@ extension CatalogCategory {
         case .files: "Large and old files"
         case .managed: "App-managed storage"
         case .leftovers: "Leftovers of removed apps"
+        case .apps: "Apps and their files"
         }
     }
     /// The one short line under a category's title on Overview and in the plan, written per category rather than built from rule names.
@@ -526,6 +549,7 @@ extension CatalogCategory {
         case .files: "Large files you haven’t opened in a while"
         case .managed: "Data the apps that own it look after"
         case .leftovers: "Files apps you removed left behind"
+        case .apps: "Installed apps you chose to uninstall"
         }
     }
 }

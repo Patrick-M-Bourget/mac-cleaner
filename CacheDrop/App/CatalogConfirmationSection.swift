@@ -54,12 +54,21 @@ struct CatalogConfirmationSection: View {
                 }
                 Divider()
             }
+            // What an uninstall leaves, and why (#177).
+            ForEach(review.staying, id: \.self) { line in StatusRow(text: line, symbol: "info.circle", identifier: "reviewStaying") }
         }
     }
     private func files(_ rule: CleanupRule, _ items: [Candidate]) -> some View {
         VStack(alignment: .leading, spacing: CacheDropDesign.Space.xs) {
             Text(rule.title).font(CacheDropDesign.TypeStyle.caption.weight(.medium))
             Text(rule.consequence).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            // An app's files are grouped by the folder they are in (#177).
+            if rule.category == .apps {
+                ForEach(AppUninstall.byPlace(items), id: \.place) { place in
+                    Text(PathDisplay.shortLocation(of: place.items[0].url, home: CatalogCleanupModel.checkHome)).font(CacheDropDesign.TypeStyle.caption.weight(.medium))
+                    ForEach(place.items) { item in Text(item.displayName).font(CacheDropDesign.TypeStyle.caption).help(item.url.path) }
+                }
+            } else {
             ForEach(items) { item in
                 // A tool shows the exact command, e.g. `ollama rm llama3:latest` or `docker builder prune -a -f`.
                 if let tool = rule.tool { Text(tool.commandLine(for: item.toolArgument)).font(CacheDropDesign.TypeStyle.code).textSelection(.enabled) }
@@ -68,6 +77,7 @@ struct CatalogConfirmationSection: View {
                     Text(item.displayName + " · " + PathDisplay.shortLocation(of: item.url, home: CatalogCleanupModel.checkHome))
                         .font(CacheDropDesign.TypeStyle.caption).help(item.url.path)
                 }
+            }
             }
         }
     }

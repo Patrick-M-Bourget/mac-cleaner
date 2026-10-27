@@ -55,14 +55,20 @@ public enum ApplicationsInventory {
         var seen = Set<String>()
         let entries = installed.compactMap { app -> InventoryEntry? in
             let url = URL(fileURLWithPath: app.path).standardizedFileURL
-            guard seen.insert(url.path).inserted, isInApplicationsFolder(url), !app.bundleID.lowercased().hasPrefix("com.apple."),
-                  app.bundleID != ownBundleID, FileManager.default.fileExists(atPath: url.path) else { return nil }
+            guard seen.insert(url.path).inserted, isListed(app, excluding: ownBundleID) else { return nil }
             let maker = PlugInInventory.info(url).flatMap(PlugInInventory.copyrightHolder) ?? app.maker
             return InventoryEntry(id: url.path, name: app.name, maker: maker, volume: volume(of: url),
                                   parts: [.init(name: url.lastPathComponent, url: url, size: Catalog.estimate(sizer.size(url)), removable: Removability.canMoveToTrash(url))],
                                   bundleID: app.bundleID)
         }
         return largestFirst(entries)
+    }
+
+    /// Whether the page lists an app: in an Applications folder, still on disk, never Apple's, a system app or CacheDrop itself.
+    public static func isListed(_ app: InstalledApp, excluding ownBundleID: String?) -> Bool {
+        let url = URL(fileURLWithPath: app.path).standardizedFileURL
+        return isInApplicationsFolder(url) && !app.bundleID.lowercased().hasPrefix("com.apple.") && app.bundleID != ownBundleID
+            && FileManager.default.fileExists(atPath: url.path)
     }
 
     /// Plug-in products (Decision 42), each format a part, except Apple's own.
@@ -78,6 +84,19 @@ public enum ApplicationsInventory {
     public static func vendorTool(for entry: InventoryEntry, among apps: [InventoryEntry]) -> InventoryEntry? {
         guard let tool = VendorTool.known.first(where: { $0.makes(entry.bundleID) }) else { return nil }
         return apps.first { $0 != entry && $0.bundleID?.lowercased() == tool.bundleID }
+    }
+
+    /// The app's own uninstaller, or its maker's tool (Decision 41, #177): an app named "Uninstall…" in the app's own folder
+    /// (not the Applications folder itself) or named for the app, else `vendorTool(for:among:)`.
+    public static func uninstaller(for entry: InventoryEntry, among apps: [InventoryEntry]) -> InventoryEntry? {
+        let folder = URL(fileURLWithPath: entry.id).deletingLastPathComponent(), name = RemovedAppLeftovers.token(entry.name)
+        let own = apps.first { app in
+            let token = RemovedAppLeftovers.token(app.name)
+            guard app != entry, token.contains("uninstall") else { return false }
+            return (URL(fileURLWithPath: app.id).deletingLastPathComponent() == folder && folder.lastPathComponent != "Applications")
+                || (name.count >= 3 && token.contains(name))
+        }
+        return own ?? vendorTool(for: entry, among: apps)
     }
 
     /// The volume a path is on, when it isn't the startup disk: "/Volumes/Studio/…" reads "Studio".
