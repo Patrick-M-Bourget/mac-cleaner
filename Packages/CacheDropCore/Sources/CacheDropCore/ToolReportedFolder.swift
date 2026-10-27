@@ -11,10 +11,10 @@ public enum UnansweredLocation: Sendable, Hashable {
 
 /// Where a rule whose tool names its folder looks, after asking (`Catalog.reportedLocation`).
 enum ReportedLocation: Equatable {
-    /// A folder the tool named that isn't one of the rule's defaults, with the note saying where it came from.
-    case folder(URL, CatalogNote)
-    /// The rule's own locations: the tool named one of them (no note), or it didn't answer and the rule falls back (a note,
-    /// shown only when something is offered there).
+    /// A folder the tool named that isn't one of the rule's defaults. The item says where it came from (#206).
+    case folder(URL)
+    /// The rule's own locations: the tool named one of them or a folder inside one (no note), or it didn't answer and the rule
+    /// falls back (a note, shown only when something is offered there).
     case defaults(CatalogNote?)
     /// Nothing is offered. `notMeasured` when the rule's size is unknown rather than nothing.
     case notOffered(CatalogNote, notMeasured: Bool)
@@ -62,7 +62,12 @@ extension Catalog {
             return unanswered("\(name) didn’t say where its cache is (\(command)), so its usual folder is offered.")
         }
         let folder = asker.reportedSubfolder.map { named.appendingPathComponent($0) } ?? named
-        if rule.locations.contains(where: { base.appendingPathComponent($0).standardizedFileURL.path == folder.standardizedFileURL.path }) { return .defaults(nil) }
+        // A folder inside a usual location is that location: `pnpm store path` names `~/Library/pnpm/store/v10` (#206).
+        let namedPath = folder.standardizedFileURL.path
+        if rule.locations.contains(where: { location in
+            let usual = base.appendingPathComponent(location).standardizedFileURL.path
+            return !location.contains("*") && (namedPath == usual || namedPath.hasPrefix(usual + "/"))
+        }) { return .defaults(nil) }
         let shown = Self.tildePath(folder, base: base)
         func refused(_ why: String) -> ReportedLocation { .notOffered(CatalogNote(ruleID: rule.id, text: "\(name) names \(shown) as its cache (\(command)), \(why), so it isn’t offered."), notMeasured: false) }
         var info = stat()
@@ -76,7 +81,12 @@ extension Catalog {
                 return refused("which doesn’t look like its cache")
             }
         }
-        return .folder(folder, CatalogNote(ruleID: rule.id, text: "\(name) keeps its cache in \(shown), as \(command) says."))
+        return .folder(folder)
+    }
+
+    /// What a tool-asked item shows as its folder's source when the tool named it (#206).
+    static func namedBy(_ asker: ToolCommand) -> String? {
+        asker.locationQuery.map { "Named by `" + ([asker.executables.first.map { URL(fileURLWithPath: $0).lastPathComponent } ?? ""] + $0).joined(separator: " ") + "`" }
     }
 
     /// Home folders a tool's cache never is, whatever it says: deleting one would take the user's own files.
