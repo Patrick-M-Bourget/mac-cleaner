@@ -20,19 +20,21 @@ public enum TemporaryFiles {
     /// Field note sections 3 and 6: what apps left in the user's own temp and cache folders. `X` is never a location;
     /// only the Chrome rule acts there. In `C`, only folders named after an installed app's bundle identifier are offered,
     /// with that app closed: the rest belong to macOS's own daemons (`assessmentagent`, `clang`'s module cache).
+    /// How long nothing inside an old temporary item may have changed: the rule and its copy both use it.
+    static let unused = UnusedItems(unusedDays: 3)
     public static func rules(apps: any AppLookup) -> [CleanupRule] {
         [
             CleanupRule(id: "temporary-files", category: .system, title: "Old temporary files",
-                        detail: "Temporary files apps left in your temporary folder, unchanged for 3 days.",
+                        detail: "Temporary files apps left in your temporary folder, unchanged for \(unused.unusedDays) days.",
                         consequence: "Permanently removed. Nothing open or recently changed is offered; an app that wants one again recreates it.",
                         regen: .cache, action: .delete, locations: ["T"], owner: nil, base: .userFolder,
-                        yieldsToOtherRules: true, protectedDepth: AppCaches.liveWorkDepth, unused: UnusedItems(unusedDays: 3)),
+                        yieldsToOtherRules: true, protectedDepth: AppCaches.liveWorkDepth, unused: unused),
             CleanupRule(id: "temporary-app-caches", category: .system, title: "Old temporary app caches",
-                        detail: "Caches your apps keep in your temporary folder, unchanged for 3 days.",
+                        detail: "Caches your apps keep in your temporary folder, unchanged for \(unused.unusedDays) days.",
                         consequence: "Permanently removed. Each app rebuilds its cache as you use it. An app must be closed first; Still never quits it for you.",
                         regen: .cache, action: .delete, locations: ["C"], owner: nil, base: .userFolder,
                         itemOwner: { AppCaches.installedOwner($0.lastPathComponent, apps: apps) },
-                        yieldsToOtherRules: true, protectedDepth: AppCaches.liveWorkDepth, unused: UnusedItems(unusedDays: 3)),
+                        yieldsToOtherRules: true, protectedDepth: AppCaches.liveWorkDepth, unused: unused),
         ]
     }
 }

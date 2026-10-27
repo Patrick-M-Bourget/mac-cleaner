@@ -319,3 +319,11 @@ private final class Descriptor: @unchecked Sendable {
     func open(_ path: String) { value = Darwin.open(path, O_RDONLY) }
     func close() { if value >= 0 { Darwin.close(value) } }
 }
+
+@Test func theTemporaryRulesSayTheDaysTheyUse() {
+    for id in ["temporary-files", "temporary-app-caches"] {
+        let rule = catalog.rule(id)
+        #expect(rule?.unused?.unusedDays == 3)
+        #expect(rule?.detail.hasSuffix("unchanged for 3 days.") == true)
+    }
+}
