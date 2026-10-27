@@ -1,15 +1,19 @@
 import Foundation
 import Darwin
 
-/// A delete first renames its item aside to `.still-deleting-<rule id>-<uuid>`, in the same folder, then removes it.
+/// A delete first renames its item aside to `.cachedrop-deleting-<rule id>-<uuid>`, in the same folder, then removes it.
 /// When removal stops partway, the rest stays there; discovery offers it again under the same rule.
 extension Catalog {
-    static let leftoverMarker = ".still-deleting-"
+    static let leftoverMarker = ".cachedrop-deleting-"
+    /// The marker Still, the app's former name, renamed items aside with; its leftovers are still offered (#150).
+    static let legacyLeftoverMarker = ".still-deleting-"
     static func leftoverName(for ruleID: String) -> String { leftoverMarker + ruleID + "-" + UUID().uuidString }
-    /// Whether `name` is what a delete under `ruleID` renamed its item to.
+    /// Whether `name` is what a delete under `ruleID` renamed its item to, by CacheDrop or by Still.
     static func isLeftover(_ name: String, of ruleID: String) -> Bool {
-        let prefix = leftoverMarker + ruleID + "-"
-        return name.hasPrefix(prefix) && UUID(uuidString: String(name.dropFirst(prefix.count))) != nil
+        [leftoverMarker, legacyLeftoverMarker].contains { marker in
+            let prefix = marker + ruleID + "-"
+            return name.hasPrefix(prefix) && UUID(uuidString: String(name.dropFirst(prefix.count))) != nil
+        }
     }
 
     /// Leftovers of `rule`'s earlier deletes: siblings of its locations, or entries of a leaked-copies or unused-items location.

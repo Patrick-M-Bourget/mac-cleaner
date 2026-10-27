@@ -50,7 +50,7 @@ private func recommended(_ items: [Candidate], refusing refused: [String: CheckR
 }
 
 @Test func leftoversOfAToolRuleAreNotRecommended() {
-    #expect(recommended([item("homebrew", action: .delete, name: ".still-deleting-homebrew-\(UUID().uuidString)")]).isEmpty)
+    #expect(recommended([item("homebrew", action: .delete, name: ".cachedrop-deleting-homebrew-\(UUID().uuidString)")]).isEmpty)
 }
 
 @Test func modelsAndVMImagesAreNotRecommended() {

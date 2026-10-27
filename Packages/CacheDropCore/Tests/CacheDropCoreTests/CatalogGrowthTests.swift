@@ -135,7 +135,7 @@ private func recordCatalogScan(_ catalog: Catalog, home: URL, recorder: GrowthSc
                            locations: ["Library/FixtureCaches/*"], owner: nil)
     try write(1_000, at: "Library/FixtureCaches/one/blob", in: home)
     try write(2_000, at: "Library/FixtureCaches/two/blob", in: home)
-    try write(4_000, at: "Library/FixtureCaches/.still-deleting-fixture-caches-\(UUID().uuidString)/blob", in: home)
+    try write(4_000, at: "Library/FixtureCaches/.cachedrop-deleting-fixture-caches-\(UUID().uuidString)/blob", in: home)
     let result = try await recordCatalogScan(Catalog(rules: [rule]), home: home, recorder: GrowthScanRecorder(store: store))
     let groups = try #require(result.current?.groups)
     #expect(groups.count == 1)

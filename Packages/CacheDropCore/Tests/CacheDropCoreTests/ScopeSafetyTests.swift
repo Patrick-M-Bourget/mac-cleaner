@@ -79,7 +79,7 @@ private let cargoOnly = Catalog(rules: fixtureRules.filter { $0.id == "cargo-cac
     #expect(!record.recoveryStateText.contains("Not changed"))
 
     // The rest is offered again under the same rule, and the next cleanup finishes it.
-    let leftovers = try FileManager.default.contentsOfDirectory(atPath: home.appendingPathComponent(".cargo").path).filter { $0.hasPrefix(".still-deleting-") }
+    let leftovers = try FileManager.default.contentsOfDirectory(atPath: home.appendingPathComponent(".cargo").path).filter { $0.hasPrefix(".cachedrop-deleting-") }
     #expect(leftovers.count == 1)
     try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: home.appendingPathComponent(".cargo/" + leftovers[0] + "/locked").path)
     let again = cargoOnly.discover(fixture: home)
@@ -90,11 +90,12 @@ private let cargoOnly = Catalog(rules: fixtureRules.filter { $0.id == "cargo-cac
     #expect(try FileManager.default.contentsOfDirectory(atPath: home.appendingPathComponent(".cargo").path).isEmpty)
 }
 
-/// Homebrew's `brew cleanup -s` runs as a tool; what it leaves half-deleted comes back as a plain delete.
+/// Homebrew's `brew cleanup -s` runs as a tool; what it leaves half-deleted comes back as a plain delete. Still's leftovers
+/// (`.still-deleting-`, its former marker) come back the same way.
 @Test func aLeftoverFromAToolRuleIsOfferedAsADelete() throws {
     let home = try fixtureFolder("CacheDropScopeHome")
     defer { try? FileManager.default.removeItem(at: home) }
-    try write(home, "Library/Caches/.still-deleting-homebrew-\(UUID().uuidString)/downloads/x")
+    try write(home, "Library/Caches/.cachedrop-deleting-homebrew-\(UUID().uuidString)/downloads/x")
     try write(home, "Library/Caches/.still-deleting-pip-cache-\(UUID().uuidString)/http/x")
     let catalog = Catalog(rules: fixtureRules.filter { ["homebrew", "pip-cache"].contains($0.id) })
     let found = catalog.discover(fixture: home, locateTool: { _ in URL(fileURLWithPath: "/usr/bin/true") })
