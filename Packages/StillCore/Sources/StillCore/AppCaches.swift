@@ -3,8 +3,8 @@ import Foundation
 
 /// Updater downloads, per-app caches and the user's logs (#103).
 public enum AppCaches {
-    /// Still's own folders, never offered under any rule (`Protection`).
-    static let stillNames = ["Still", "com.patrickbourget.Still", "com.patrickbourget.StillUITests"]
+    /// CacheDrop's own folders, and those of Still (its former name), never offered under any rule (`Protection`).
+    static let stillNames = ["CacheDrop", "com.patrickbourget.CacheDrop", "Still", "com.patrickbourget.Still", "com.patrickbourget.StillUITests"]
 
     /// Levels searched for a git checkout or other protected name inside a cache or log folder. A path under Caches
     /// doesn't prove a folder is disposable: the field scan found an agent's live checkout two levels down.
@@ -16,10 +16,10 @@ public enum AppCaches {
         return parts.count >= 3 && parts.allSatisfy { part in !part.isEmpty && part.allSatisfy { $0.isASCII && ($0.isLetter || $0.isNumber || $0 == "-" || $0 == "_") } }
             && parts[0].first?.isLetter == true
     }
-    /// macOS's own caches and Still's are never offered, whoever asks.
+    /// macOS's own caches and CacheDrop's (or Still's) are never offered, whoever asks.
     static func isExcluded(_ bundleID: String) -> Bool {
         let id = bundleID.lowercased()
-        return id.hasPrefix("com.apple.") || id.hasPrefix("com.patrickbourget.still")
+        return id.hasPrefix("com.apple.") || id.hasPrefix("com.patrickbourget.still") || id.hasPrefix("com.patrickbourget.cachedrop")
     }
     /// A folder of macOS's own or of Still's, by bundle identifier or name. Never offered under any rule,
     /// so logs and every other location leave them alone as app caches do.
