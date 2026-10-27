@@ -220,6 +220,8 @@ final class WhatGrewUITests: XCTestCase {
         app.radioButtons["Locations"].firstMatch.click()
         XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "value BEGINSWITH '~/.npm/_cacache'")).firstMatch.waitForExistence(timeout: 5))
 
+        // #221: the button names where it goes.
+        XCTAssertEqual(app.buttons["growthReviewOptions"].label, "Review plan")
         app.buttons["growthReviewOptions"].click()
         XCTAssertTrue(app.buttons["Back to Storage trends"].waitForExistence(timeout: 5))
     }

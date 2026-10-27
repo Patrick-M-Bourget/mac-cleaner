@@ -183,7 +183,7 @@ private struct WorkspaceView: View {
                     StorageExplorerView(model: folderInspection, selection: selection, context: explorerContext,
                         backTitle: "Back to " + explorerCaller.rawValue, back: { nativeInspectionVisible = false; destination = explorerCaller })
                     ActionStrip(message: nil) {
-                        Button("View cleanup plan") {
+                        Button("Review plan") {
                             nativeInspectionVisible = false
                             planReturnsToExplorer = explorerCaller != .plan
                             destination = .plan
@@ -282,13 +282,13 @@ private struct WorkspaceView: View {
                         }
                     } else if nativeInspectionVisible {
                         ActionStrip(message: "Inspection only · \(CacheDropDesign.items(selection.workspaceSelectedCount)) in the cleanup plan") {
-                            Button("View cleanup plan") { nativeInspectionVisible = false; destination = .plan }.buttonStyle(.borderedProminent)
+                            Button("Review plan") { nativeInspectionVisible = false; destination = .plan }.buttonStyle(.borderedProminent)
                         }
                     } else if destination == .growth {
                         ActionStrip(message: nil) {
                             Button("Scan again", action: scanAgain).disabled(selection.catalog.isScanning || folderInspection.isScanning || selection.workspaceRunning || !selection.catalog.canEdit)
                                 .accessibilityIdentifier("growthScanAgain")
-                            Button("Review options") { navigate(.plan); navigationState.planReturnsToGrowth = true }.buttonStyle(.borderedProminent)
+                            Button("Review plan") { navigate(.plan); navigationState.planReturnsToGrowth = true }.buttonStyle(.borderedProminent)
                                 .accessibilityIdentifier("growthReviewOptions")
                         }
                     } else if showsPlan {

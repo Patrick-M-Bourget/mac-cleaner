@@ -746,7 +746,7 @@ extension CatalogCleanupUITests {
         XCTAssertEqual(item.value as? Int, 0)
         item.click()
         XCTAssertEqual(item.value as? Int, 1)
-        app.buttons["View cleanup plan"].click()
+        app.buttons["Review plan"].click()
 
         app.buttons["Review cleanup"].click()
         XCTAssertTrue(reviewLine(app, "movedToTrash", "files").waitForExistence(timeout: 5))

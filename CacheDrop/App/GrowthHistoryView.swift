@@ -172,7 +172,7 @@ struct GrowthHistoryView: View {
                     CategoryBadge(category: GrowthPresentation.storageCategory(top.category))
                     VStack(alignment: .leading, spacing: CacheDropDesign.Space.xs) {
                         Text("Most growth is in " + GrowthPresentation.categoryTitle(top.category).lowercased() + ".").font(CacheDropDesign.TypeStyle.rowTitle)
-                        Text("Review options shows what can be cleaned there now.").font(CacheDropDesign.TypeStyle.note).foregroundStyle(.secondary)
+                        Text("Review plan shows what can be cleaned there now.").font(CacheDropDesign.TypeStyle.note).foregroundStyle(.secondary)
                     }
                 }
             }
