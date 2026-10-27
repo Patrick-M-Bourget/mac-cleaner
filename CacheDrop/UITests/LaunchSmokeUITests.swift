@@ -272,7 +272,7 @@ final class AppearanceSettingsUITests: XCTestCase {
     }
 }
 
-/// #127, #141: ⌘1–⌘6 follow the sidebar order, and ⌘R scans again from any screen.
+/// #127, #141, #267: ⌘1–⌘7 follow the sidebar order, Applications last, and ⌘R scans again from any screen.
 final class KeyboardShortcutsUITests: XCTestCase {
     @MainActor func testShortcutsFollowTheSidebarAndCommandRScansAgain() throws {
         continueAfterFailure = false
@@ -284,7 +284,7 @@ final class KeyboardShortcutsUITests: XCTestCase {
         app.launch()
         XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
 
-        let sidebar = ["Overview", "Smart clean", "Cleanup plan", "Storage trends", "History", "Locations & access"]
+        let sidebar = ["Overview", "Smart clean", "Cleanup plan", "Storage trends", "History", "Locations & access", "Applications"]
         let rows = sidebar.map { app.buttons[$0].frame.minY }
         XCTAssertEqual(rows, rows.sorted(), "The sidebar lists \(sidebar.joined(separator: ", ")) from the top")
         for (index, title) in sidebar.enumerated().reversed() {

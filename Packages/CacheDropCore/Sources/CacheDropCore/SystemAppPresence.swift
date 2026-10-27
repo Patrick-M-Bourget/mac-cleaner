@@ -35,13 +35,13 @@ public struct SystemAppPresence: AppPresence {
         let volumes = (try? FileManager.default.contentsOfDirectory(atPath: "/Volumes")) ?? []
         return (["/Applications", NSHomeDirectory() + "/Applications"] + volumes.map { "/Volumes/\($0)/Applications" }).map { URL(fileURLWithPath: $0) }
     }
-    static func bundles(in folder: URL) -> [URL] {
+    public static func bundles(in folder: URL) -> [URL] {
         let manager = FileManager.default
         return ((try? manager.contentsOfDirectory(at: folder, includingPropertiesForKeys: nil)) ?? []).flatMap { item in
             item.pathExtension == "app" ? [item] : ((try? manager.contentsOfDirectory(at: item, includingPropertiesForKeys: nil)) ?? []).filter { $0.pathExtension == "app" }
         }
     }
-    static func app(_ bundle: URL) -> InstalledApp? {
+    public static func app(_ bundle: URL) -> InstalledApp? {
         guard let id = Bundle(url: bundle)?.bundleIdentifier else { return nil }
         return InstalledApp(name: bundle.deletingPathExtension().lastPathComponent, bundleID: id, path: bundle.path)
     }

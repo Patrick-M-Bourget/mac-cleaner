@@ -233,7 +233,10 @@ import SwiftUI
     func estimatedBytes(for rule: CleanupRule) -> Int64 { candidates(for: rule).reduce(0) { $0 + $1.estimatedBytes } }
     func sizeComplete(for rule: CleanupRule) -> Bool { candidates(for: rule).allSatisfy(\.sizeComplete) }
     func sizeIsEstimate(for rule: CleanupRule) -> Bool { candidates(for: rule).contains(where: \.sizeIsEstimate) }
-    var selectedCandidates: [Candidate] { candidates.filter { selectedIDs.contains($0.id) } }
+    /// The Cleanup plan's chosen items; leftovers of removed apps are chosen on the Applications page (Decision 51).
+    var selectedCandidates: [Candidate] { selections.chosen(on: .plan, from: candidates) }
+    /// The Applications page's chosen items.
+    var applicationsSelected: [Candidate] { selections.chosen(on: .applications, from: candidates) }
     /// Rules with at least one chosen item.
     var selectedRuleCount: Int { Set(selectedCandidates.map(\.ruleID)).count }
     var selectedCount: Int { selectedCandidates.count }
@@ -247,8 +250,11 @@ import SwiftUI
     var canReview: Bool { canEdit && selectedCount > 0 }
     func isSelected(_ rule: CleanupRule) -> Bool { candidates(for: rule).contains { selectedIDs.contains($0.id) } }
     func isSelected(_ candidate: Candidate) -> Bool { selectedIDs.contains(candidate.id) }
-    /// The plan's categories, grouped as Overview groups them, picked folders' files included.
-    var planCategories: [CatalogOverview.Row] { CatalogOverview(catalog: catalog, candidates: candidates).rows }
+    /// The plan's categories, grouped as Overview groups them, picked folders' files included. Leftovers of removed apps
+    /// are on the Applications page instead (Decision 51).
+    var planCategories: [CatalogOverview.Row] { CatalogOverview(catalog: catalog, candidates: candidates).rows.filter { $0.category != .leftovers } }
+    /// The Applications page's Leftovers row; nil when none were found.
+    var leftoversRow: CatalogOverview.Row? { CatalogOverview(catalog: catalog, candidates: candidates).rows.first { $0.category == .leftovers } }
     func selectionState(for rules: [CleanupRule]) -> CategorySelectionState { categorySelection(rules).state }
     private func categorySelection(_ rules: [CleanupRule]) -> CategorySelection {
         CategorySelection(rules: rules, candidates: rules.flatMap(candidates(for:)), selected: selectedIDs)
@@ -422,7 +428,7 @@ import SwiftUI
             measureStoppedWorkAgain(outcome, of: approval, run: run)
             if !approval.previewOnly { rescanFollowsCleanup = true }
             // Picked folders keep the large and old files this run didn't act on (#125).
-            selections.finishRun(from: source); discovered = []; pickedFiles = pickedFiles.mapValues { UserFiles.remaining($0, after: outcome) }
+            selections.finishRun(from: source, found: candidates); discovered = []; pickedFiles = pickedFiles.mapValues { UserFiles.remaining($0, after: outcome) }
             projectBuilds = projectBuilds.mapValues { UserFiles.remaining($0, after: outcome) }; hasScanned = false; selectionRevision &+= 1
         } catch { message = "The cleanup journal is unavailable. Nothing was changed." }
     }

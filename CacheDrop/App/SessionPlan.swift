@@ -116,6 +116,18 @@ struct RefreshRequest: Sendable {
         guard let review, canReviewSmartClean, catalog.selectionRevision == catalogVersion else { throw PlanReviewError.changed }
         return WorkspaceCleanupReview(catalog: review, catalogVersion: catalogVersion, source: .smartClean)
     }
+    /// Whether the Applications page's chosen leftovers can be reviewed (Decision 51).
+    var canReviewApplications: Bool {
+        !AppLifecycleController.shared.maintenanceInProgress && !workspaceRunning && catalog.canEdit && !catalog.applicationsSelected.isEmpty
+    }
+    /// The Applications page's review: its chosen items, through the plan's review and executor.
+    func prepareApplicationsReview() async throws -> WorkspaceCleanupReview {
+        guard canReviewApplications else { throw PlanReviewError.changed }
+        let catalogVersion = catalog.selectionRevision
+        let review = await catalog.prepareReview(of: catalog.applicationsSelected)
+        guard let review, canReviewApplications, catalog.selectionRevision == catalogVersion else { throw PlanReviewError.changed }
+        return WorkspaceCleanupReview(catalog: review, catalogVersion: catalogVersion, source: .applications)
+    }
     func prepareWorkspaceReview() async throws -> WorkspaceCleanupReview {
         guard canReview else { throw PlanReviewError.changed }
         let catalogVersion = catalog.selectionRevision
@@ -124,7 +136,8 @@ struct RefreshRequest: Sendable {
         return WorkspaceCleanupReview(catalog: items, catalogVersion: catalogVersion)
     }
     func executeWorkspace(_ review: WorkspaceCleanupReview) async throws {
-        guard review.source == .smartClean ? canReviewSmartClean : canReview, catalog.selectionRevision == review.catalogVersion else { throw PlanReviewError.changed }
+        let allowed = switch review.source { case .plan: canReview; case .smartClean: canReviewSmartClean; case .applications: canReviewApplications }
+        guard allowed, catalog.selectionRevision == review.catalogVersion else { throw PlanReviewError.changed }
         runSource = review.source
         let cancellation = CleanupCancellation()
         workspaceCancellation = cancellation; workspaceStopRequested = false

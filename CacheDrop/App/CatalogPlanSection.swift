@@ -36,7 +36,7 @@ struct CatalogPlanSection: View {
 }
 
 /// A plan category through the shared `CategoryRow` (Decision 48), with its rules or items under "Choose items".
-private struct PlanCategoryRow: View {
+struct PlanCategoryRow: View {
     @Bindable var model: CatalogCleanupModel
     let row: CatalogOverview.Row
     @Binding var expanded: Bool
