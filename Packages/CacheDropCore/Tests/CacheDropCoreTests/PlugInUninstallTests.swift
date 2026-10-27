@@ -423,3 +423,31 @@ private func unreadableReceipt(_ id: String, in root: URL) throws {
     let (_, items) = scan(root, home)
     #expect(!items.contains { $0.ruleID != PlugInUninstall.formatsRuleID }, "Not at the scan")
 }
+
+@Test func vendorContentHoldingLicenceDataOrAnotherProductsFilesIsNeverOfferedOrMoved() throws {
+    let (root, home) = try fixture()
+    defer { try? FileManager.default.removeItem(at: root) }
+    let folder = "Library/Application Support/Maker Content"
+    try write(folder + "/Sounds/Pad.wav", in: root)
+    try write("Library/Application Support/Locked Content/Sounds/Pad.wav", in: root)
+    try write("Library/Application Support/Locked Content/auth.lic", in: root)
+    let inventory = PlugInInventory.scan(home: home, systemRoot: root, sizer: KnownLocationSizer(timeBudget: 5))
+    let synth = try product("Pro Synth", inventory)
+    func content(_ name: String) -> MusicContentItem {
+        MusicContentItem(name: name, vendors: ["Maker"], url: root.appendingPathComponent("Library/Application Support/" + name), kind: .installed,
+                         state: .present(.unknown), owners: [synth], tie: .vendor)
+    }
+    func scanned() -> [Candidate] {
+        PlugInUninstall.scan(inventory, apps: [], receipts: ReceiptListings.read(under: root), content: [content("Maker Content"), content("Locked Content")], systemRoot: root)
+    }
+    #expect(!scanned().contains { $0.url.lastPathComponent == "Locked Content" }, "Licence data in it, at the scan")
+    let library = try #require(scanned().first { $0.url.lastPathComponent == "Maker Content" })
+    #expect(check(home).check(library) == nil)
+
+    // Before acting: opaque data appeared in it, or another product's receipt now lists a file in it.
+    try write(folder + "/Sounds/state.db", in: root)
+    #expect(check(home).check(library) == .protected("state.db"))
+    try FileManager.default.removeItem(at: root.appendingPathComponent(folder + "/Sounds/state.db"))
+    try receipt("com.maker.prodelay.pkg", listing: [plugIns + "VST3/Pro Delay.vst3", support + "Pro Delay", folder + "/Sounds/Pad.wav"], in: root)
+    #expect(check(home).check(library) == .changed)
+}

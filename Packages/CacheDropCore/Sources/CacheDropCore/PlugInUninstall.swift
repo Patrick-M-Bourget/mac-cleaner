@@ -118,10 +118,14 @@ public enum PlugInUninstall {
             items += own.map { var item = $0; item.uninstall = target; return item }
         }
         for (key, item) in shared { shared[key]?.uninstall = sharedTarget(item.sharedBy) }
+        // Receipts no product owns (a vendor's content pkg) may list vendor content; another product's may not (#291).
+        let orphans = Set(receipts.byReceipt.keys).subtracting(products.flatMap(\.receipts))
         for piece in content where piece.kind == .installed && receipts.unread.isEmpty {
             let ids = piece.owners.filter { id in products.contains { $0.id == id } }
-            guard shared[piece.url.path] == nil, let target = sharedTarget(ids), var found = item(rules[2], piece.url) else { continue }
-            found = found.shared(by: ids, receipt: nil, vendor: piece.vendors.first); found.uninstall = target
+            let allowed = orphans.union(products.filter { ids.contains($0.id) }.flatMap(\.receipts))
+            guard shared[piece.url.path] == nil, let target = sharedTarget(ids), var found = item(rules[2], piece.url),
+                  contentRefusal(piece.url.path, allowed: allowed, receipts: receipts, refuseWhenTooLarge: false) == nil else { continue }
+            found = found.shared(by: ids, receipt: nil, vendor: piece.vendors.first).installed(by: allowed); found.uninstall = target
             shared[piece.url.path] = found
         }
         let sharedItems = taken(offered + items, shared.values.sorted { $0.url.path < $1.url.path }).filter { Removability.canMoveToTrash($0.url) && $0.uninstall != nil }
@@ -186,6 +190,27 @@ public enum PlugInUninstall {
         return nil
     }
 
+    /// Why vendor content may not be moved (#291), from its names alone, since it may be large media: licence data by name, an
+    /// opaque data file, or anything a receipt not in `allowed` lists. A folder with more than `limit` entries is refused when
+    /// `refuseWhenTooLarge` (before acting), and passed at the scan, where it would cost too much.
+    static func contentRefusal(_ path: String, allowed: Set<String>, receipts: ReceiptListings, refuseWhenTooLarge: Bool, limit: Int = 200_000) -> CheckRefusal? {
+        func check(_ entry: String, isFile: Bool) -> CheckRefusal? {
+            let name = (entry as NSString).lastPathComponent
+            if RemovedAppLeftovers.isNeverOffered(name) || ["registration", "serial"].contains(where: entry.lowercased().contains) { return .protected(name) }
+            if isFile, !name.hasPrefix("."), opaqueKinds.contains((name as NSString).pathExtension.lowercased()) { return .protected(name) }
+            return (receipts.byPath[entry] ?? []).isSubset(of: allowed) ? nil : .changed
+        }
+        if let refusal = check(path, isFile: false) { return refusal }
+        guard let walk = FileManager.default.enumerator(atPath: path) else { return nil }
+        var seen = 0
+        while let relative = walk.nextObject() as? String {
+            seen += 1
+            if seen > limit { return refuseWhenTooLarge ? .changed : nil }
+            if let refusal = check(path + "/" + relative, isFile: walk.fileAttributes?[.type] as? FileAttributeType != .typeDirectory) { return refusal }
+        }
+        return nil
+    }
+
     /// Licence and activation data, by name or by content (#291): a licence word in its name, "registration" or "serial" anywhere
     /// in its path, a `.lic` or `.key` file, an opaque data file (`.dat`, `.bin`, a database, a file with no extension), a text
     /// file (`.txt`, `.xml`, `.json`, `.plist`) with licence-like content, or one too large to read. Its name, or nil.
@@ -237,7 +262,12 @@ public enum PlugInUninstall {
         }
         // A support item: with the receipts read again, no other receipt lists it or anything in it, and they still list all of
         // it (#288, #291).
-        if let allowed = candidate.installedBy {
+        // Vendor content: its names and kinds, and no other product's receipt lists anything in it, always walked (#291).
+        if let allowed = candidate.installedBy, candidate.isVendorContent {
+            let now = receipts.value
+            guard now.unread.isEmpty else { return .receiptsUnread }
+            if let refusal = contentRefusal(url.path, allowed: allowed, receipts: now, refuseWhenTooLarge: true) { return refusal }
+        } else if let allowed = candidate.installedBy {
             let now = receipts.value
             guard now.unread.isEmpty else { return .receiptsUnread }
             guard let listers = now.listers(of: url.path), listers.isSubset(of: allowed) else { return .changed }
@@ -272,6 +302,8 @@ extension Candidate {
         if others == 0 { return "Shared with \(products) products" }
         return products > 1 ? "Shared with \(products) products and another installer" : "Shared with another installer"
     }
+    /// Vendor content (Decision 52) rather than a receipt's support item: shared, with no receipt behind it.
+    var isVendorContent: Bool { !sharedBy.isEmpty && leftover?.evidence == .bundleID }
     /// Whether it is uninstalled with the app or product whose row is `id`: its own, or one it is shared with.
     public func isUninstalled(with id: String) -> Bool { uninstall?.path == id || sharedBy.contains(id) }
 }
