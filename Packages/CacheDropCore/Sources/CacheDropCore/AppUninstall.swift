@@ -138,12 +138,11 @@ public enum AppUninstall {
 }
 
 extension Candidate {
-    /// A removed app's leftover found with the app hidden, as one of the app's own files to uninstall with it.
+    /// A removed app's leftover found with the app hidden, as one of the app's own files to uninstall with it. A copy, so every
+    /// field carries over, a new one included.
     func uninstalled(with app: AppUninstall.Target, ruleID: String) -> Candidate {
-        var item = Candidate(ruleID: ruleID, action: action, url: url, resourceID: resourceID, isDirectory: isDirectory, toolURL: nil, volumeID: volumeID,
-                             modifiedSeconds: modifiedSeconds, modifiedNanoseconds: modifiedNanoseconds, logicalBytes: logicalBytes, allocatedBytes: allocatedBytes,
-                             sizeComplete: sizeComplete, lastUsed: lastUsed, observedAt: observedAt, profile: nil)
-        item.appName = app.name; item.leftover = leftover; item.scopeRoot = scopeRoot; item.uninstall = app
+        var item = self
+        item.ruleID = ruleID; item.appName = app.name; item.uninstall = app
         return item
     }
 }

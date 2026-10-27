@@ -327,7 +327,8 @@ public enum BuiltInCatalog {
 /// A concrete item a rule found, with the identity it had when sized.
 public struct Candidate: Sendable, Identifiable, Hashable {
     public var id: String { ruleID + "|" + url.path + "|" + resourceID + "|" + action.rawValue + (toolItem.map { "|" + $0 } ?? "") }
-    public let ruleID: String
+    /// Set once by discovery; an uninstall moves a leftover to its own rule (`uninstalled(with:ruleID:)`).
+    public internal(set) var ruleID: String
     public let action: CleanupAction
     public let url: URL
     /// "dev:ino" of the item itself.
