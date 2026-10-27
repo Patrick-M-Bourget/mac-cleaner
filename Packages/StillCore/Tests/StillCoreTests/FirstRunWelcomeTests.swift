@@ -22,11 +22,21 @@ private final class Preferences: MigrationPreferences, @unchecked Sendable {
         #expect(!FirstRunWelcome(preferences: preferences).shouldShow(migration: .alreadyDone, stateExisted: false), "Kept across launches")
     }
 
+    @Test func quittingWithTheWelcomeOpenShowsItAgainEvenOnceStateExists() {
+        let preferences = Preferences()
+        #expect(FirstRunWelcome(preferences: preferences).shouldShow(migration: .nothingToCopy, stateExisted: false))
+        #expect(preferences.values[FirstRunWelcome.stateKey] as? String == "pending", "Recorded the first time")
+        // Quit without Skip or Start scan; by the next launch the launch scan has written CacheDrop's state.
+        #expect(FirstRunWelcome(preferences: preferences).shouldShow(migration: .alreadyDone, stateExisted: true))
+        FirstRunWelcome(preferences: preferences).markSeen()
+        #expect(!FirstRunWelcome(preferences: preferences).shouldShow(migration: .alreadyDone, stateExisted: true))
+    }
+
     @Test(arguments: [LegacyStillMigration.Outcome.copied, .cacheDropHasState])
     func aMigratedOrExistingUserNeverSeesIt(_ migration: LegacyStillMigration.Outcome) {
         let preferences = Preferences()
         #expect(!FirstRunWelcome(preferences: preferences).shouldShow(migration: migration, stateExisted: false))
-        #expect(preferences.values[FirstRunWelcome.seenKey] as? Bool == true, "Recorded, so a later launch doesn't show it either")
+        #expect(preferences.values[FirstRunWelcome.stateKey] as? String == "seen", "Recorded, so a later launch doesn't show it either")
     }
 
     @Test func cacheDropStateFromAnEarlierVersionCountsAsSeen() {
