@@ -40,9 +40,14 @@ public struct CatalogExecutionResult: Sendable {
 }
 
 extension CleanupRecord {
+    /// A record's id: its batch, then the candidate it was approved for (`batchID|candidateID`).
+    static func id(batchID: UUID, candidateID: String) -> String { batchID.uuidString + "|" + candidateID }
+    /// The id of the candidate this record was approved for, read back from `id`.
+    var candidateID: String { String(id.dropFirst(batchID.uuidString.count + 1)) }
+
     /// A pending record for one approved candidate, written when a run claims its batch.
     public init(batchID: UUID, approvedAt: Date, candidate: Candidate, previewOnly: Bool) {
-        id = batchID.uuidString + "|" + candidate.id; self.batchID = batchID; originalURL = candidate.url
+        id = Self.id(batchID: batchID, candidateID: candidate.id); self.batchID = batchID; originalURL = candidate.url
         resourceID = candidate.resourceID; logicalBytes = candidate.logicalBytes; allocatedBytes = candidate.allocatedBytes
         state = .pending; trashURL = nil; message = "Approved; not started"; observedAt = candidate.observedAt
         let parent = candidate.url.deletingLastPathComponent()
@@ -129,15 +134,14 @@ public actor CleanupExecutor {
                                   wait: @Sendable () async -> Bool = { (try? await Task.sleep(for: CleanupExecutor.laterMeasurementDelay)) != nil },
                                   measure: @Sendable ([Candidate]) async -> [String: LaterMeasurement.Finding]) async -> CatalogExecutionResult {
         let stopped = Set(result.records.filter { $0.mayStillBeFinishing == true && $0.laterMeasurement == nil }.map(\.id))
-        let candidates = approval.candidates.filter { stopped.contains(approval.id.uuidString + "|" + $0.id) }
+        let candidates = approval.candidates.filter { stopped.contains(CleanupRecord.id(batchID: approval.id, candidateID: $0.id)) }
         guard !candidates.isEmpty, await wait() else { return result }
         let findings = await measure(candidates)
         let measuredAt = clock()
         var records = result.records
         for index in records.indices where stopped.contains(records[index].id) {
-            let candidateID = String(records[index].id.dropFirst(approval.id.uuidString.count + 1))
             var record = records[index]
-            record.laterMeasurement = LaterMeasurement(measuredAt: measuredAt, finding: findings[candidateID] ?? .unmeasured)
+            record.laterMeasurement = LaterMeasurement(measuredAt: measuredAt, finding: findings[record.candidateID] ?? .unmeasured)
             // Shown only once the journal has it, so Results and History never disagree.
             do { try journal.outcome(record); records[index] = record } catch { continue }
         }
