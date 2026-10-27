@@ -196,7 +196,7 @@ private struct WorkspaceView: View {
                     .padding(.horizontal, CacheDropDesign.Space.page)
                 if nativeInspectionVisible {
                     StorageExplorerView(model: folderInspection, selection: selection, context: explorerContext,
-                        caller: explorerCaller.rawValue, back: { nativeInspectionVisible = false; destination = explorerCaller })
+                        caller: explorerCaller.rawValue, back: { nativeInspectionVisible = false; destination = explorerCaller }, unavailable: explorerUnavailable)
                     ActionStrip(message: nil) {
                         Button("Review plan") {
                             nativeInspectionVisible = false
@@ -560,7 +560,7 @@ private struct WorkspaceView: View {
             ForEach(locationsModel.recoveries, id: \.scope.id) { scope, status in
                 StatusRow(text: URL(fileURLWithPath: scope.path).lastPathComponent + " · " + status.reason, symbol: "info.circle", role: .caution,
                     identifier: "overviewLocationRecovery", action: StatusAction(title: "Choose again…", identifier: "overviewChooseAgain") {
-                    if chooseAgain(scope), let renewed = locationsModel.included.first(where: { $0.id == scope.id }) { scanLocations([renewed]) }
+                    renewAndScan(scope)
                 }).disabled(folderInspection.isScanning || selection.workspaceRunning)
             }
             if let notice = locationsModel.notice { StatusRow(text: notice, symbol: "info.circle", role: .caution) }
@@ -568,6 +568,16 @@ private struct WorkspaceView: View {
                 StatusRow(text: message, symbol: "info.circle")
             }
         }
+    }
+    /// Overview's recovery rows, for the explorer to mark those locations' last observations as gone (#249).
+    private var explorerUnavailable: [ExplorerUnavailableLocation] {
+        locationsModel.recoveries.map { scope, status in
+            ExplorerUnavailableLocation(scope: URL(fileURLWithPath: scope.path).standardizedFileURL, reason: locationsModel.recoveryReasons[scope.id] ?? status.reason) { renewAndScan(scope) }
+        }
+    }
+    /// Choose again…, then scan the renewed location in place (#223).
+    private func renewAndScan(_ scope: RememberedScope) {
+        if chooseAgain(scope), let renewed = locationsModel.included.first(where: { $0.id == scope.id }) { scanLocations([renewed]) }
     }
     /// Whether an unavailable location already has its own recovery row, which says what the grey message would (#231).
     private func recoveryRowCovers(_ scope: URL?) -> Bool {

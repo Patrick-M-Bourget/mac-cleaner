@@ -28,6 +28,8 @@ import CacheDropCore
         var needsRecovery: Bool { self == .chooseAgain || self == .unavailable }
     }
     private(set) var statuses: [UUID: AccessStatus] = [:]
+    /// What the last failed recheck found, read once when it failed: "Folder not found" when nothing is there any more (#249).
+    private(set) var recoveryReasons: [UUID: String] = [:]
     /// Every included location that needs access renewed or its volume reconnected: one Overview recovery row each (#223, #231).
     var recoveries: [(scope: RememberedScope, status: AccessStatus)] {
         included.compactMap { scope in statuses[scope.id].flatMap { $0.needsRecovery ? (scope, $0) : nil } }
@@ -54,15 +56,16 @@ import CacheDropCore
     @discardableResult func remember(_ url: URL, downloads: Bool) -> Bool {
         do {
             let scope = try registry().remember(url: url, kind: downloads ? .downloads : .inspection)
-            load(); statuses[scope.id] = .notScanned; return true
+            load(); statuses[scope.id] = .notScanned; recoveryReasons[scope.id] = nil; return true
         } catch { message = "This location could not be remembered. Choose it again or check access."; return false }
     }
     var included: [RememberedScope] { scopes.filter(\.isIncluded) }
     var includedDownloads: [RememberedScope] { included.filter { $0.kind == .downloads } }
     func resolve(_ scope: RememberedScope) -> ScopeAccessLease? {
-        do { let lease = try registry().resolveForScan(id: scope.id); statuses[scope.id] = .ready; return lease }
+        do { let lease = try registry().resolveForScan(id: scope.id); statuses[scope.id] = .ready; recoveryReasons[scope.id] = nil; return lease }
         catch ScopeRegistryError.chooseAgain { statuses[scope.id] = .chooseAgain }
         catch { statuses[scope.id] = .unavailable }
+        recoveryReasons[scope.id] = statuses[scope.id].map { UnavailableScannedFolder.reason(path: scope.path, otherwise: $0.reason) }
         return nil
     }
     @discardableResult func setIncluded(_ value: Bool, scope: RememberedScope) -> Bool {
@@ -70,7 +73,7 @@ import CacheDropCore
         catch { message = "The location setting could not be saved."; return false }
     }
     @discardableResult func forget(_ scope: RememberedScope) -> Bool {
-        do { try registry().forget(scope.id); load(); statuses[scope.id] = nil; return true }
+        do { try registry().forget(scope.id); load(); statuses[scope.id] = nil; recoveryReasons[scope.id] = nil; return true }
         catch { message = "The location could not be forgotten. No files were changed."; return false }
     }
     func leases(for urls: [URL]) throws -> [ScopeAccessLease] {
@@ -85,5 +88,5 @@ import CacheDropCore
             return leases
         } catch { for lease in leases { lease.close() }; throw error }
     }
-    func reset() throws { try registry().reset(); scopes = []; statuses = [:]; message = nil }
+    func reset() throws { try registry().reset(); scopes = []; statuses = [:]; recoveryReasons = [:]; message = nil }
 }

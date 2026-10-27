@@ -905,6 +905,48 @@ extension CatalogCleanupUITests {
         XCTAssertEqual(explorerBack.label, "Back to Overview")
     }
 
+    /// #249: the scanned folder itself is deleted and Scan again can't find it. The explorer keeps its last observation
+    /// but marks it as gone, with Overview's orange row and Choose again…, and never lists its old contents as current.
+    @MainActor func testExplorerMarksADeletedScannedFolderAsNotFound() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        let state = try configureIsolatedState(app)
+        let home = try configureCatalogHome(app)
+        let folder = FileManager.default.temporaryDirectory.resolvingSymlinksInPath().appendingPathComponent("CacheDropPicked-" + UUID().uuidString)
+        defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home); try? FileManager.default.removeItem(at: folder) }
+        try FileManager.default.createDirectory(at: folder.appendingPathComponent("Inner"), withIntermediateDirectories: true)
+        try Data(repeating: 1, count: 4_000).write(to: folder.appendingPathComponent("Inner/entry.zip"))
+        app.launch()
+        XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
+        app.buttons["overviewScanFolder"].click()
+        let panel = app.sheets.firstMatch.exists ? app.sheets.firstMatch : app.dialogs.firstMatch
+        XCTAssertTrue(panel.waitForExistence(timeout: 5))
+        panel.typeKey("g", modifierFlags: [.command, .shift])
+        app.typeText(folder.path + "\n")
+        panel.buttons["Scan folder"].click()
+        let explore = app.links["Explore storage"]
+        XCTAssertTrue(explore.waitForExistence(timeout: 20))
+        explore.click()
+        app.buttons["Open folder " + folder.lastPathComponent].click()
+        XCTAssertTrue(app.buttons["Open folder Inner"].waitForExistence(timeout: 5))
+
+        try FileManager.default.removeItem(at: folder)
+        app.typeKey("r", modifierFlags: .command)
+        let row = app.staticTexts["explorerLocationRecovery"]
+        XCTAssertTrue(row.waitForExistence(timeout: 20))
+        XCTAssertTrue((row.value as? String ?? "").hasPrefix("Folder not found · last observed "), "\(String(describing: row.value))")
+        XCTAssertEqual(app.buttons["explorerChooseAgain"].label, "Choose again…")
+        XCTAssertFalse(app.buttons["Open folder Inner"].exists)
+        XCTAssertFalse(app.staticTexts["This folder is no longer available in the observations"].exists)
+
+        // The list of locations marks it the same way and doesn't offer to open its old contents.
+        let explorerBack = app.buttons["explorerBack"]
+        XCTAssertEqual(explorerBack.label, "Back to Selected locations")
+        explorerBack.click()
+        XCTAssertTrue(row.waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["Open folder " + folder.lastPathComponent].exists)
+    }
+
     /// Opens Explore storage from Overview in its Large and old files mode; returns the fixture's old file toggle.
     @MainActor private func openLargeAndOld(_ app: XCUIApplication) -> XCUIElement {
         let explore = app.links["Explore storage"]
