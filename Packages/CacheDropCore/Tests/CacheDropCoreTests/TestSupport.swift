@@ -69,6 +69,11 @@ final class FakeCloud: UbiquitousItemAccess, @unchecked Sendable {
     }
 }
 
+extension LibraryVolumes {
+    /// Fixture volumes: all local, walked as they are, so a test never asks about this Mac's mounts.
+    static let fixture = LibraryVolumes(isLocal: { _ in true }, walk: { FileTree.walk($0, $1) })
+}
+
 /// Snapshots as tests see them: a fixed count, never this Mac's.
 struct FixtureSnapshots: LocalSnapshotListing {
     var snapshots: Int? = 0
@@ -76,9 +81,11 @@ struct FixtureSnapshots: LocalSnapshotListing {
 }
 
 extension Catalog {
-    /// Guidance sizing as tests run it: the fixture home stands in for the system root, and no snapshots unless given.
+    /// Guidance sizing as tests run it: the fixture home stands in for the system root, every fixture volume is local,
+    /// no app is registered, and no snapshots unless given.
     func guidance(fixture home: URL, snapshots: Int? = 0) -> [GuidanceFinding] {
-        guidance(home: home, systemRoot: home, snapshots: FixtureSnapshots(snapshots: snapshots))
+        guidance(home: home, systemRoot: home, sizer: KnownLocationSizer(), snapshots: FixtureSnapshots(snapshots: snapshots),
+                 appPresence: FixedAppPresence(apps: [], registered: { _ in false }), libraryVolumes: .fixture)
     }
 }
 

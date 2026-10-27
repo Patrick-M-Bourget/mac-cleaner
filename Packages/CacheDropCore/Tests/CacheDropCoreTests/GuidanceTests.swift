@@ -153,9 +153,12 @@ private actor RecordingOpener: GuidanceOpening {
     try write(4096, at: "Library/Mail/V10/acct/Attachments/1/a.pdf", in: home)
     try write(4096, at: "Library/Developer/Xcode/Archives/a/b", in: home)
     let catalog = Catalog(rules: fixtureRules)
-    let findings = catalog.guidance(home: home, systemRoot: home, snapshots: FixtureSnapshots(), fullDiskAccess: .notGranted)
+    // Final Cut Pro is installed here, so its row needs access too (#245).
+    let findings = catalog.guidance(home: home, systemRoot: home, snapshots: FixtureSnapshots(), fullDiskAccess: .notGranted,
+                                    appPresence: FixedAppPresence(apps: [], registered: { $0 == "com.apple.FinalCut" }))
     // Protected places aren't touched at all, so no privacy prompt can appear; each is listed as not accessible.
     #expect(Set(findings.filter { $0.size == .notAccessible }.map(\.ruleID)) == ["device-backups", "mail-attachments", "messages-attachments", "photos-library", "final-cut-libraries", "lightroom-previews", "lightroom-smart-previews"])
     #expect(findings.first { $0.ruleID == "xcode-archives" }.map { $0.size != .notAccessible } == true)
-    #expect(catalog.guidance(home: home, systemRoot: home, snapshots: FixtureSnapshots(), fullDiskAccess: .granted).first { $0.ruleID == "mail-attachments" }?.size != .notAccessible)
+    #expect(catalog.guidance(home: home, systemRoot: home, snapshots: FixtureSnapshots(), fullDiskAccess: .granted,
+                             appPresence: FixedAppPresence(apps: [], registered: { _ in false })).first { $0.ruleID == "mail-attachments" }?.size != .notAccessible)
 }

@@ -53,7 +53,8 @@ private func write(_ bytes: Int, at relative: String, in home: URL) throws {
     let home = try libraryHome()
     defer { try? FileManager.default.removeItem(at: home) }
     try write(4096, at: "Pictures/Photos Library.photoslibrary/a", in: home)
-    let finding = Catalog(rules: fixtureRules).guidance(home: home, systemRoot: home, snapshots: FixtureSnapshots(), fullDiskAccess: .notGranted)
+    let finding = Catalog(rules: fixtureRules).guidance(home: home, systemRoot: home, snapshots: FixtureSnapshots(), fullDiskAccess: .notGranted,
+                                                        appPresence: FixedAppPresence(apps: [], registered: { _ in false }))
         .first { $0.ruleID == "photos-library" }
     #expect(finding?.size == .notAccessible && finding?.libraries == nil)
 }
@@ -136,4 +137,101 @@ private actor RecordingOpener: GuidanceOpening {
     #expect(await catalog.open(finding, using: opener))
     #expect(await opener.targets == [.app(bundleID: "com.adobe.LightroomClassicCC7")])
     #expect(FileManager.default.fileExists(atPath: home.appendingPathComponent(folder + "Lightroom Catalog Smart Previews.lrdata/b.dng").path))
+}
+
+/// A directory reader that hangs on one volume, as a dropped SMB share can, until the test lets it go (#244).
+private final class StuckReader: @unchecked Sendable {
+    let release = DispatchSemaphore(value: 0)
+    let stuckName: String
+    init(stuck name: String) { stuckName = name }
+    func volumes(network: Set<String> = []) -> LibraryVolumes {
+        LibraryVolumes(isLocal: { !network.contains($0.lastPathComponent) }, walk: { [self] root, visit in
+            if root.lastPathComponent == stuckName { release.wait() }
+            return FileTree.walk(root, visit)
+        })
+    }
+}
+
+@Test func aStuckVolumeIsAbandonedAtTheDeadlineAndReportedNotSearched() throws {
+    let base = try libraryHome(), home = base.appendingPathComponent("Home"), system = base.appendingPathComponent("System")
+    defer { try? FileManager.default.removeItem(at: base) }
+    try write(4096, at: "Home/Pictures/Photos Library.photoslibrary/a", in: base)
+    try write(4096, at: "System/Volumes/External/Family.photoslibrary/b", in: base)
+    try write(4096, at: "System/Volumes/Stuck/Old.photoslibrary/c", in: base)
+    let reader = StuckReader(stuck: "Stuck")
+    defer { reader.release.signal() }
+
+    let started = ProcessInfo.processInfo.systemUptime
+    let result = LibrarySearch.find(extensions: ["photoslibrary"], home: home, systemRoot: system,
+                                    sizer: KnownLocationSizer(timeBudget: 0.5), volumes: reader.volumes())
+    #expect(ProcessInfo.processInfo.systemUptime - started < 5)
+    #expect(result.found["photoslibrary"]?.map(\.name).sorted() == ["Family", "Photos Library"])
+    #expect(result.notSearched == ["Stuck"])
+    #expect(!result.complete)
+}
+
+@Test func aNetworkVolumeIsNeverSearched() throws {
+    let base = try libraryHome(), home = base.appendingPathComponent("Home"), system = base.appendingPathComponent("System")
+    defer { try? FileManager.default.removeItem(at: base) }
+    try write(4096, at: "System/Volumes/External/Family.photoslibrary/b", in: base)
+    try write(4096, at: "System/Volumes/Share/Team.photoslibrary/c", in: base)
+    // The share would hang if it were read at all.
+    let reader = StuckReader(stuck: "Share")
+    defer { reader.release.signal() }
+
+    let result = LibrarySearch.find(extensions: ["photoslibrary"], home: home, systemRoot: system,
+                                    sizer: KnownLocationSizer(timeBudget: 5), volumes: reader.volumes(network: ["Share"]))
+    #expect(result.found["photoslibrary"]?.map(\.name) == ["Family"])
+    #expect(result.notSearched.isEmpty && result.complete)
+}
+
+@Test func theSummaryNamesAVolumeThatWasNotSearched() {
+    let one = FoundLibrary(url: URL(fileURLWithPath: "/a/One.photoslibrary"), volume: "Macintosh HD", size: .measured(1))
+    #expect(FoundLibrary.summary([one], notSearched: ["NAS"]) == "1 library · Macintosh HD · NAS not searched")
+    #expect(FoundLibrary.summary([one], notSearched: ["NAS", "Old Disk"]) == "1 library · Macintosh HD · NAS, Old Disk not searched")
+}
+
+@Test func aFindingCarriesTheVolumesNotSearched() throws {
+    let base = try libraryHome(), home = base.appendingPathComponent("Home"), system = base.appendingPathComponent("System")
+    defer { try? FileManager.default.removeItem(at: base) }
+    try write(4096, at: "Home/Pictures/Photos Library.photoslibrary/a", in: base)
+    try write(4096, at: "System/Volumes/Stuck/Old.photoslibrary/c", in: base)
+    let reader = StuckReader(stuck: "Stuck")
+    defer { reader.release.signal() }
+
+    let finding = Catalog(rules: fixtureRules).guidance(home: home, systemRoot: system, sizer: KnownLocationSizer(timeBudget: 0.5),
+                                                        snapshots: FixtureSnapshots(), appPresence: registered([]),
+                                                        libraryVolumes: reader.volumes())
+        .first { $0.ruleID == "photos-library" }
+    #expect(finding?.libraries?.map(\.name) == ["Photos Library"])
+    #expect(finding?.notSearched == ["Stuck"])
+}
+
+/// Launch Services as tests see it: only the listed bundle IDs are registered (#245).
+private func registered(_ ids: Set<String>) -> any AppPresence { FixedAppPresence(apps: [], registered: { ids.contains($0) }) }
+
+@Test func withoutFullDiskAccessTheFinalCutRowAppearsOnlyWhenFinalCutIsInstalled() throws {
+    let home = try libraryHome()
+    defer { try? FileManager.default.removeItem(at: home) }
+    let catalog = Catalog(rules: fixtureRules)
+    func findings(_ apps: any AppPresence) -> [GuidanceFinding] {
+        catalog.guidance(home: home, systemRoot: home, sizer: KnownLocationSizer(), snapshots: FixtureSnapshots(), fullDiskAccess: .notGranted,
+                         appPresence: apps, libraryVolumes: .fixture)
+    }
+
+    #expect(!findings(registered([])).contains { $0.ruleID == "final-cut-libraries" })
+    #expect(findings(registered(["com.apple.FinalCut"])).first { $0.ruleID == "final-cut-libraries" }?.size == .notAccessible)
+    // Photos ships with macOS: its row still says it needs access.
+    #expect(findings(registered([])).first { $0.ruleID == "photos-library" }?.size == .notAccessible)
+}
+
+@Test func aFinalCutLibraryFoundIsListedEvenWithoutFinalCutInstalled() throws {
+    let home = try libraryHome()
+    defer { try? FileManager.default.removeItem(at: home) }
+    try write(4096, at: "Movies/Untitled.fcpbundle/a", in: home)
+
+    let finding = Catalog(rules: fixtureRules).guidance(home: home, systemRoot: home, sizer: KnownLocationSizer(), snapshots: FixtureSnapshots(),
+                                                        appPresence: registered([]), libraryVolumes: .fixture)
+        .first { $0.ruleID == "final-cut-libraries" }
+    #expect(finding?.libraries?.map(\.name) == ["Untitled"])
 }

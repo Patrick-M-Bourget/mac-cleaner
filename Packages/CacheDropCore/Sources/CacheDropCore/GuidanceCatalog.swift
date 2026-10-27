@@ -32,7 +32,7 @@ extension BuiltInCatalog {
                      detail: "Your Final Cut Pro libraries, with the media Final Cut generated. To remove generated media, select a library in Final Cut Pro, then choose File → Delete Generated Library Files. Render files are made again as you work; optimized and proxy media must be created again, and that needs the original media online.",
                      locations: [], protected: true,
                      Guidance(sizing: .libraries(extension: "fcpbundle"), place: .app(bundleID: "com.apple.FinalCut"), placeName: "Final Cut Pro",
-                              learnMore: URL(string: "https://support.apple.com/en-au/119610"))),
+                              learnMore: URL(string: "https://support.apple.com/en-au/119610"), onlyWhenInstalled: true)),
         // Lightroom Classic's previews beside each catalog (#179), renamed or external; the catalog itself is never
         // listed. Lightroom builds normal previews again as needed (Adobe, "Preview cache error"); Smart Previews let
         // photos be edited while their originals are offline (Adobe, "Smart Previews"). Bundle id from Lightroom
