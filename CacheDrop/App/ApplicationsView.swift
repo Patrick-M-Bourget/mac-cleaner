@@ -156,6 +156,9 @@ struct ApplicationsView: View {
                               action: StatusAction(title: "Open " + tool.name, identifier: "applicationsOpen-" + entry.id) { model.open(tool) })
                 }
                 PlanRunningOwners(model: catalog, rule: AppUninstall.rules[0], only: entry.name)
+            } else if category == .apps, catalog.hasScanned, !catalog.isScanning {
+                // A removable app the scan didn't offer says why, rather than showing a bare row (#281).
+                StatusRow(text: "Not offered: excluded in Settings, or changed since the scan", identifier: "applicationsNotOffered-" + entry.id)
             }
         } items: {
             if !uninstall.isEmpty {
