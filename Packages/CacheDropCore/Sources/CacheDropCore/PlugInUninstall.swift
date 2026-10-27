@@ -175,14 +175,13 @@ public enum PlugInUninstall {
     /// The narrowest roots (#291): never a folder holding things different receipts installed (each product's folder in a
     /// maker's), nor one holding a folder named for a product (a suite's `Vendor/ProductA`); its folders are offered instead.
     static func holdsOthers(_ path: String, receipts: ReceiptListings, products: Set<String>) -> Bool {
-        guard let walk = FileManager.default.enumerator(atPath: path) else { return false }
         var installers: Set<Set<String>> = []
-        while let relative = walk.nextObject() as? String {
-            if relative.split(separator: "/").contains(where: { products.contains(RemovedAppLeftovers.token(String($0))) }) { return true }
-            if let listers = receipts.byPath[path + "/" + relative] { installers.insert(listers) }
-            if installers.count > 1 { return true }
+        let ending = FileTree.entries(below: path, limit: 200_000) { entry, _ in
+            if entry.dropFirst(path.count).split(separator: "/").contains(where: { products.contains(RemovedAppLeftovers.token(String($0))) }) { return true }
+            if let listers = receipts.byPath[entry] { installers.insert(listers) }
+            return installers.count > 1
         }
-        return false
+        return ending != .finished
     }
     static func isWhollyListed(_ path: String, _ listed: Set<String>) -> Bool { listed.contains(path) && listingRefusal(path, listed) == nil }
     /// Why a support item may not be moved as its receipt installed it (#288): a file CacheDrop doesn't know is safe, or
@@ -190,14 +189,15 @@ public enum PlugInUninstall {
     /// than `limit` to look at).
     static func listingRefusal(_ path: String, _ listed: Set<String>, limit: Int = 20_000) -> CheckRefusal? {
         if let refusal = fileRefusal(path) { return refusal }
-        guard let walk = FileManager.default.enumerator(atPath: path) else { return nil }
-        var seen = 0
-        while let relative = walk.nextObject() as? String {
-            seen += 1
-            if let refusal = fileRefusal(path + "/" + relative) { return refusal }
-            if seen > limit || !listed.contains(path + "/" + relative) { return .changed }
+        var refusal: CheckRefusal?
+        switch FileTree.entries(below: path, limit: limit, { entry, _ in
+            refusal = fileRefusal(entry) ?? (listed.contains(entry) ? nil : .changed)
+            return refusal != nil
+        }) {
+        case .finished, .stopped: return refusal
+        case .unreadable: return .protected("unreadable folder")
+        case .tooLarge: return .changed
         }
-        return nil
     }
 
     /// Why vendor content may not be moved (#291): a file CacheDrop doesn't know is safe, licence data, or anything a receipt not
@@ -209,14 +209,12 @@ public enum PlugInUninstall {
             return (receipts.byPath[entry] ?? []).isSubset(of: allowed) ? nil : .changed
         }
         if let refusal = check(path) { return refusal }
-        guard let walk = FileManager.default.enumerator(atPath: path) else { return nil }
-        var seen = 0
-        while let relative = walk.nextObject() as? String {
-            seen += 1
-            if seen > limit { return refuseWhenTooLarge ? .changed : nil }
-            if let refusal = check(path + "/" + relative) { return refusal }
+        var refusal: CheckRefusal?
+        switch FileTree.entries(below: path, limit: limit, { entry, _ in refusal = check(entry); return refusal != nil }) {
+        case .finished, .stopped: return refusal
+        case .unreadable: return .protected("unreadable folder")
+        case .tooLarge: return refuseWhenTooLarge ? .changed : nil
         }
-        return nil
     }
 
     /// Why a file may not go with a product (#291, Decision 53), an allow-list: licence data by name ("registration" or "serial"

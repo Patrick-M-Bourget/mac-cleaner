@@ -471,3 +471,19 @@ private func unreadableReceipt(_ id: String, in root: URL) throws {
     #expect(names(own.filter { $0.ruleID == PlugInUninstall.filesRuleID }) == ["Init.fxp"], "What it recognises next to it is still offered")
     #expect(AppUninstall.staying(chosen: own, offered: items).map(\.text).contains("Pro Synth: 1 part stays · Holds files CacheDrop doesn’t recognise"))
 }
+
+@Test func anUnreadableFolderAtAnyDepthRefusesTheItemAtTheScanAndBeforeActing() throws {
+    let (root, home) = try fixture()
+    let deep = root.appendingPathComponent(support + "Pro Synth/Presets/a/b/c/d/locked")
+    defer { chmod(deep.path, 0o755); try? FileManager.default.removeItem(at: root) }
+    try write(support + "Pro Synth/Presets/a/b/c/d/locked/Hidden.fxp", in: root)
+    try receipt("com.maker.prosynth.pkg", listing: [plugIns + "Components/Pro Synth.component", plugIns + "VST3/Pro Synth.vst3", support + "Pro Synth"], in: root)
+    let (_, items) = scan(root, home)
+    let presets = try #require(items.first { $0.url.lastPathComponent == "Presets" })
+    #expect(check(home).check(presets) == nil)
+
+    // A folder five levels down can no longer be read: what is in it is unknown.
+    chmod(deep.path, 0o000)
+    #expect(check(home).check(presets) != nil, "Before acting")
+    #expect(!scan(root, home).items.contains { $0.url.lastPathComponent == "Presets" }, "At the scan")
+}

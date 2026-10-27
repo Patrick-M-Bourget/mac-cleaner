@@ -19,14 +19,9 @@ public struct ReceiptListings: Sendable {
     /// The receipts that list `path` or anything on disk inside it; nil when there is too much inside to look at.
     func listers(of path: String, limit: Int = 20_000) -> Set<String>? {
         var found = byPath[path] ?? []
-        guard let walk = FileManager.default.enumerator(atPath: path) else { return found }
-        var seen = 0
-        while let relative = walk.nextObject() as? String {
-            seen += 1
-            if seen > limit { return nil }
-            found.formUnion(byPath[path + "/" + relative] ?? [])
-        }
-        return found
+        // An unreadable folder anywhere in it may hold what another receipt lists (#291).
+        let ending = FileTree.entries(below: path, limit: limit) { entry, _ in found.formUnion(byPath[entry] ?? []); return false }
+        return ending == .finished ? found : nil
     }
 
     /// Every non-Apple receipt in `<systemRoot>/var/db/receipts`, listed with `lsbom`. One that can't be read, or lists more than
