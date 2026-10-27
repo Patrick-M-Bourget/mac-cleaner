@@ -20,10 +20,30 @@ extension Catalog {
     /// Each is offered as a plain delete, whatever the rule's own action.
     func leftovers(of rule: CleanupRule, in base: URL, sizer: KnownLocationSizer) -> [Candidate] {
         guard rule.deletesItems else { return [] }
-        let folders = Set(rule.locations.flatMap { location in
+        return leftovers(of: rule, in: Set(leftoverFolders(of: rule, in: base)), base: base, sizer: sizer)
+    }
+
+    /// The folders `rule`'s own leftovers are looked for in, from its locations.
+    func leftoverFolders(of rule: CleanupRule, in base: URL) -> [URL] {
+        rule.locations.flatMap { location in
             Self.pathsMatching(rule.copies != nil || rule.unused != nil ? location : (location as NSString).deletingLastPathComponent, under: base).map(\.0)
-        })
-        return folders.sorted { $0.path < $1.path }.flatMap { folder in
+        }
+    }
+
+    /// Leftovers of an interrupted clean of a folder a tool named or its config set (#170, #201): siblings of that folder,
+    /// which may itself be missing, since a delete renames it aside first (#202). The named folder must not be inside the
+    /// user's own folders or hold more than the tool's cache, and each leftover passes #205's write-scope checks; only the
+    /// tool's markers aren't asked for, since a half-deleted cache may have lost them. Folders the usual leftovers are
+    /// looked for in are skipped, so nothing is offered twice.
+    func leftovers(of rule: CleanupRule, nextTo named: URL, in base: URL, sizer: KnownLocationSizer) -> [Candidate] {
+        let folder = named.deletingLastPathComponent().standardizedFileURL
+        guard rule.deletesItems, !holdsMoreThanACache(named, base: base, besides: rule), Self.userContentFolder(holding: named, base: base) == nil,
+              !leftoverFolders(of: rule, in: base).contains(where: { $0.standardizedFileURL.path == folder.path }) else { return [] }
+        return leftovers(of: rule, in: [folder], base: base, sizer: sizer).filter { notACache($0.url, of: rule, markers: nil, base: base) == nil }
+    }
+
+    private func leftovers(of rule: CleanupRule, in folders: Set<URL>, base: URL, sizer: KnownLocationSizer) -> [Candidate] {
+        folders.sorted { $0.path < $1.path }.flatMap { folder in
             ((try? FileManager.default.contentsOfDirectory(atPath: folder.path)) ?? []).sorted().filter { Self.isLeftover($0, of: rule.id) }.compactMap { name -> Candidate? in
                 let url = folder.appendingPathComponent(name)
                 var info = stat()

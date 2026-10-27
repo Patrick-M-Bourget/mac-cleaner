@@ -407,3 +407,69 @@ private func writeConfig(_ home: URL, _ relative: String, _ text: String) throws
     #expect(try await execute(candidate, catalog: catalog, home: home).state == .skipped)
     #expect(FileManager.default.fileExists(atPath: home.appendingPathComponent(".pip-cache/notes/entry").path))
 }
+
+/// What an interrupted clean of a folder a tool names left behind is looked for next to that folder too, not only next to
+/// the usual one (#202). The folder itself is renamed aside first, so it may be missing, and the half-deleted rest may no
+/// longer hold the tool's cache markers: the leftover's name is CacheDrop's own, and the write-scope checks still apply.
+@Test func leftoversNextToAFolderAToolNamesAreFoundAndCleaned() async throws {
+    let home = try fixtureHome()
+    defer { try? FileManager.default.removeItem(at: home) }
+    try makeFolder(home, "Library/Caches/pip")
+    let leftover = ".cachedrop-deleting-pip-cache-\(UUID().uuidString)"
+    try makeFolder(home, "Developer/caches/\(leftover)", bytes: 400)
+    let python = try fakeTool(home, "python3", asked: "-m pip cache dir", query: "echo '\(home.path)/Developer/caches/pip'")
+    let catalog = Catalog(rules: fixtureRules)
+    let found = catalog.discovery(fixture: home, locateTool: onlyTool("python3", python)).candidates.filter { $0.ruleID == "pip-cache" }
+    let candidate = try #require(found.first)
+    #expect(found.map(\.url.path) == [home.appendingPathComponent("Developer/caches/\(leftover)").path])
+    #expect(candidate.isLeftover && candidate.action == .delete && candidate.logicalBytes == 400)
+    #expect(try await execute(candidate, catalog: catalog, home: home).state == .succeeded)
+    #expect(!FileManager.default.fileExists(atPath: home.appendingPathComponent("Developer/caches/\(leftover)").path))
+    #expect(FileManager.default.fileExists(atPath: home.appendingPathComponent("Library/Caches/pip/entry").path))
+
+    // Homebrew's cache is renamed aside after `brew cleanup -s` too; its rest is offered as a plain delete.
+    try makeFolder(home, "Library/Caches/Homebrew")
+    let brewLeftover = ".cachedrop-deleting-homebrew-\(UUID().uuidString)"
+    try makeFolder(home, ".brew-parent/\(brewLeftover)")
+    try makeFolder(home, ".brew-parent/cache/downloads")
+    let brew = try fakeTool(home, "brew", asked: "--cache", query: "echo '\(home.path)/.brew-parent/cache'")
+    let homebrew = catalog.discovery(fixture: home, locateTool: onlyTool("brew", brew)).candidates.filter { $0.ruleID == "homebrew" }
+    #expect(Set(homebrew.map(\.url.path)) == [home.appendingPathComponent(".brew-parent/cache").path, home.appendingPathComponent(".brew-parent/\(brewLeftover)").path])
+    #expect(homebrew.first { $0.isLeftover }?.action == .delete)
+}
+
+/// Leftovers next to a named folder pass the same write-scope checks as the folder (#202, #205): none inside the user's own
+/// folders, none outside home, none next to a folder that holds more than the tool's cache.
+@Test func leftoversNextToANamedFolderOutsideTheWriteScopeAreNeverOffered() throws {
+    let home = try fixtureHome()
+    defer { try? FileManager.default.removeItem(at: home) }
+    let outside = home.deletingLastPathComponent().appendingPathComponent(".cachedrop-deleting-pip-cache-\(UUID().uuidString)")
+    try FileManager.default.createDirectory(at: outside, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: outside) }
+    let documents = "Documents/proj/.cachedrop-deleting-pip-cache-\(UUID().uuidString)"
+    try makeFolder(home, documents)
+    let library = "Library/.cachedrop-deleting-pip-cache-\(UUID().uuidString)"
+    try makeFolder(home, library)
+    try makeFolder(home, "Library/Caches/x")
+    let catalog = Catalog(rules: fixtureRules)
+    for named in ["\(home.path)/Documents/proj/pip", home.path, "\(home.path)/Library/Caches"] {
+        let python = try fakeTool(home, "python3", asked: "-m pip cache dir", query: "echo '\(named)'")
+        let discovery = catalog.discovery(fixture: home, locateTool: onlyTool("python3", python))
+        #expect(!discovery.candidates.contains { $0.ruleID == "pip-cache" }, "\(named)")
+    }
+    #expect(FileManager.default.fileExists(atPath: home.appendingPathComponent(documents).path))
+}
+
+/// A leftover is checked again just before acting with the same write-scope checks, but not for the tool's markers: a
+/// half-deleted cache may have lost them (#202).
+@Test func theCheckBeforeActingDoesNotAskALeftoverForCacheMarkers() throws {
+    let home = try fixtureHome()
+    defer { try? FileManager.default.removeItem(at: home) }
+    let leftover = "Library/Caches/.cachedrop-deleting-pip-cache-\(UUID().uuidString)"
+    try makeFolder(home, leftover)
+    try makeFolder(home, "Library/Caches/pip")
+    let catalog = Catalog(rules: fixtureRules)
+    let candidate = try #require(catalog.discover(fixture: home).first { $0.isLeftover && $0.ruleID == "pip-cache" })
+    let refusal = CandidateCheck(catalog: catalog, running: NothingRunning()).check(candidate)
+    #expect(refusal == nil, "\(String(describing: refusal))")
+}

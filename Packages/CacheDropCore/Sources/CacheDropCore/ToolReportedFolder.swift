@@ -152,7 +152,16 @@ enum ReportedLocation: Equatable {
     /// answer and the rule falls back (a note, shown only when something is offered there).
     case defaults(CatalogNote?, source: String? = nil)
     /// Nothing is offered. `notMeasured` when the rule's size is unknown rather than nothing.
-    case notOffered(CatalogNote, notMeasured: Bool)
+    case notOffered(CatalogNote, notMeasured: Bool, named: URL? = nil)
+
+    /// The folder the tool named or its config set, offered or not, whose siblings may hold an interrupted clean's leftovers (#202).
+    var named: URL? {
+        switch self {
+        case .folder(let folder, _): folder
+        case .notOffered(_, _, let named): named
+        case .defaults: nil
+        }
+    }
 }
 
 /// A tool that says where it keeps its data (`uv cache dir`, Decision 44; `npm config get cache`, #170), so CacheDrop never guesses the folder.
@@ -208,7 +217,9 @@ extension Catalog {
         // A folder inside a usual location is that location: `pnpm store path` names `~/Library/pnpm/store/v10` (#206).
         if isUsualLocation(folder, of: rule, base: base) { return .defaults(nil, source: source) }
         let shown = Self.tildePath(folder, base: base)
-        func refused(_ why: String) -> ReportedLocation { .notOffered(CatalogNote(ruleID: rule.id, text: "\(says(shown)), \(why), so it isn’t offered."), notMeasured: false) }
+        func refused(_ why: String) -> ReportedLocation {
+            .notOffered(CatalogNote(ruleID: rule.id, text: "\(says(shown)), \(why), so it isn’t offered."), notMeasured: false, named: folder)
+        }
         var info = stat()
         guard lstat(folder.path, &info) == 0 else { return refused("but there’s no folder there") }
         if let problem = notACache(folder, of: rule, markers: query.cacheMarkers, base: base) { return refused(problem.clause) }
@@ -238,10 +249,14 @@ extension Catalog {
     }
 
     /// The check just before acting runs the write-scope checks again on an item outside the rule's usual locations,
-    /// which a tool named or its config set (#201, #205). Nil for every other item.
+    /// which a tool named or its config set (#201, #205), and on a leftover next to such a folder (#202). A leftover isn't asked
+    /// for the tool's markers, which a half-deleted cache may have lost, and one next to a usual location is that location's.
+    /// Nil for every other item.
     func notACacheRefusal(_ candidate: Candidate, rule: CleanupRule, base: URL) -> CheckRefusal? {
+        let parent = candidate.url.deletingLastPathComponent().standardizedFileURL.path
         guard let asker = rule.locationAsker?.tool, candidate.isDirectory, !isUsualLocation(candidate.url, of: rule, base: base),
-              let problem = notACache(candidate.url, of: rule, markers: asker.query.cacheMarkers, base: base) else { return nil }
+              !candidate.isLeftover || !leftoverFolders(of: rule, in: base).contains(where: { $0.standardizedFileURL.path == parent }),
+              let problem = notACache(candidate.url, of: rule, markers: candidate.isLeftover ? nil : asker.query.cacheMarkers, base: base) else { return nil }
         return .notACache(problem.reason(rule.owner?.name ?? asker.name))
     }
 

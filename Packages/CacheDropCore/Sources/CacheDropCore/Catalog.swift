@@ -445,7 +445,7 @@ public struct Catalog: Sendable {
             // Looked at but not read: What grew records it as not measured, so access granted later is coverage, not growth.
             if notAccessible.contains(where: { $0.id == rule.id }) { scanned.append(rule.id); return [] }
             // What an earlier cleanup left half-deleted comes back under the same rule, even if its tool is gone.
-            let leftovers = leftovers(of: rule, in: base, sizer: sizer)
+            var leftovers = leftovers(of: rule, in: base, sizer: sizer)
             let toolURL = rule.tool.flatMap(locateTool)
             guard rule.action != .tool || toolURL != nil else { return leftovers.map { $0.found(under: base) } }
             scanned.append(rule.id)
@@ -459,10 +459,13 @@ public struct Catalog: Sendable {
             // A tool that names its own folder (`uv cache dir`, `npm config get cache`) is asked; its answer replaces the rule's locations.
             var reported: URL?, defaultsNote: CatalogNote?, folderSource: String?
             if let (asker, isOwnTool) = rule.locationAsker {
-                switch reportedLocation(of: rule, asking: asker, at: isOwnTool ? toolURL : locateTool(asker.lookup), base: base) {
+                let location = reportedLocation(of: rule, asking: asker, at: isOwnTool ? toolURL : locateTool(asker.lookup), base: base)
+                // An interrupted clean of the named folder left its rest next to it (#202).
+                if let named = location.named { leftovers += self.leftovers(of: rule, nextTo: named, in: base, sizer: sizer) }
+                switch location {
                 case .folder(let folder, let source): reported = folder; folderSource = source
                 case .defaults(let note, let source): defaultsNote = note; folderSource = source ?? "Usual folder"
-                case .notOffered(let note, let unmeasured):
+                case .notOffered(let note, let unmeasured, _):
                     notes.append(note)
                     if unmeasured { notMeasured[rule.id, default: []].formUnion(rule.locations) }
                     return leftovers.map { $0.found(under: base) }
