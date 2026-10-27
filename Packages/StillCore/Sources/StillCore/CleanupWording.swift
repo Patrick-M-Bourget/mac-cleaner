@@ -4,9 +4,6 @@ import Foundation
 public struct ActionWording: Sendable {
     /// What the action is, e.g. "Move to Trash".
     public let title: String
-    /// Overview's phrase for the titles of the rules it applies to; rules whose phrases share `overviewGroup` are listed together.
-    public let overviewGroup: Int
-    public let overview: @Sendable (String) -> String
     /// With the dry run on, e.g. "Would move to Trash".
     public let previewOutcome: String
     public let succeeded: String
@@ -16,7 +13,7 @@ public struct ActionWording: Sendable {
     /// In a History run's title, e.g. "moved to Trash"; nil for an action that never changes anything.
     public let historyPhrase: String?
 
-    static let unknown = ActionWording(title: "", overviewGroup: 0, overview: { "Clear " + $0 }, previewOutcome: "Would run", succeeded: "Done",
+    static let unknown = ActionWording(title: "", previewOutcome: "Would run", succeeded: "Done",
                                        partlyFailed: "Partly removed", unresolved: "Unresolved · Outcome unknown",
                                        partlyFailedRecovery: "Recorded failure · It may be partly deleted", historyPhrase: nil)
 }
@@ -25,24 +22,23 @@ extension CleanupAction {
     public var wording: ActionWording {
         switch self {
         case .delete:
-            ActionWording(title: "Delete permanently", overviewGroup: 0, overview: { "Clear " + $0 }, previewOutcome: "Would delete", succeeded: "Deleted",
+            ActionWording(title: "Delete permanently", previewOutcome: "Would delete", succeeded: "Deleted",
                           partlyFailed: "Partly removed", unresolved: "Unresolved · It may be partly deleted",
                           partlyFailedRecovery: "Recorded failure · It may be partly deleted", historyPhrase: "deleted")
         case .tool:
-            ActionWording(title: "Run its cleanup command", overviewGroup: 0, overview: { "Clear " + $0 }, previewOutcome: "Would run", succeeded: "Cleaned",
+            ActionWording(title: "Run its cleanup command", previewOutcome: "Would run", succeeded: "Cleaned",
                           partlyFailed: "Partly removed", unresolved: "Unresolved · It may be partly deleted",
                           partlyFailedRecovery: "Recorded failure · It may be partly deleted", historyPhrase: "deleted")
         case .trash:
-            ActionWording(title: "Move to Trash", overviewGroup: 1, overview: { "Move " + $0 + " to Trash" }, previewOutcome: "Would move to Trash",
+            ActionWording(title: "Move to Trash", previewOutcome: "Would move to Trash",
                           succeeded: "Moved to Trash", partlyFailed: "Partly removed", unresolved: "Unresolved · It may or may not be in the Trash",
                           partlyFailedRecovery: "Recorded failure · It may be partly deleted", historyPhrase: "moved to Trash")
         case .evict:
-            ActionWording(title: "Remove local copy", overviewGroup: 2, overview: { _ in "Remove local copies · Originals stay in iCloud" },
-                          previewOutcome: "Would remove local copy", succeeded: "Removed local copy", partlyFailed: "Partly removed local copies",
+            ActionWording(title: "Remove local copy", previewOutcome: "Would remove local copy", succeeded: "Removed local copy", partlyFailed: "Partly removed local copies",
                           unresolved: "Unresolved · Local copies may be removed · The original stays in iCloud",
                           partlyFailedRecovery: "Recorded failure · Some local copies were removed · The originals stay in iCloud", historyPhrase: "removed local iCloud copies")
         case .guidance:
-            ActionWording(title: "Guidance only", overviewGroup: 0, overview: { "Clear " + $0 }, previewOutcome: "Would run", succeeded: "Done",
+            ActionWording(title: "Guidance only", previewOutcome: "Would run", succeeded: "Done",
                           partlyFailed: "Partly removed", unresolved: "Unresolved · Outcome unknown",
                           partlyFailedRecovery: "Recorded failure · It may be partly deleted", historyPhrase: nil)
         }
