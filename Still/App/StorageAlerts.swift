@@ -193,9 +193,9 @@ struct StillMenuBarLabel: View {
     let capacity: CapacityRefreshController
     var body: some View {
         if let title = MenuBarStatus.freeSpaceTitle(available: capacity.reading?.available) {
-            Label(title, systemImage: "internaldrive").labelStyle(.titleAndIcon)
+            Label(title, image: "BrandMark").labelStyle(.titleAndIcon)
         } else {
-            Image(systemName: "internaldrive").accessibilityLabel("CacheDrop")
+            Image("BrandMark").accessibilityLabel("CacheDrop")
         }
     }
 }

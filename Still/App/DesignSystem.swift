@@ -9,10 +9,14 @@ enum StillDesign {
     /// Fixed sizes: the capacity bar's heights (sidebar, card, prominent card) and the device card's icon tile.
     enum Size { static let meterCompact: CGFloat = 4; static let meter: CGFloat = 8; static let meterProminent: CGFloat = 12; static let deviceIcon: CGFloat = 44; static let sheetNarrow: CGFloat = 480; static let numberField: CGFloat = 64
         /// A category badge's square tile.
-        static let badge: CGFloat = 32 }
+        static let badge: CGFloat = 32
+        /// The CacheDrop mark in the sidebar header (#156).
+        static let brandMark: CGFloat = 24 }
     /// How strongly a colour tints a surface behind its symbol, as in a category badge.
     enum Opacity { static let badgeTint: Double = 0.10 }
     enum TypeStyle {
+        /// The app name in the sidebar header.
+        static let brand = Font.system(size: 17, weight: .medium)
         static let page = Font.system(size: 26, weight: .medium); static let value = Font.system(size: 22, weight: .medium); static let section = Font.system(size: 13, weight: .medium)
         /// The symbol in the device card's icon tile.
         static let deviceIcon = Font.system(size: 16, weight: .light)
@@ -517,15 +521,15 @@ struct CategorySelectionHeader: View {
     }
 }
 
+/// The sidebar header: the CacheDrop mark (the app icon's drop and check, #156) and the name.
 struct AppBrand: View {
     var body: some View {
-        HStack(spacing: StillDesign.Space.md) {
-            Image(systemName: "square.3.layers.3d").foregroundStyle(.white).font(.system(size: 17))
-                .frame(width: 30, height: 30)
-                .background(LinearGradient(colors: [Color(red: 0.565, green: 0.741, blue: 1), Color(red: 0.329, green: 0.518, blue: 0.910), Color(red: 0.455, green: 0.427, blue: 0.882)], startPoint: .topLeading, endPoint: .bottomTrailing), in: RoundedRectangle(cornerRadius: StillDesign.Radius.row))
-                .overlay { RoundedRectangle(cornerRadius: StillDesign.Radius.row).strokeBorder(.white.opacity(0.3), lineWidth: 0.5) }
+        HStack(spacing: StillDesign.Space.sm) {
+            Image("BrandMark").resizable().scaledToFit()
+                .frame(width: StillDesign.Size.brandMark, height: StillDesign.Size.brandMark)
+                .foregroundStyle(.primary)
                 .accessibilityHidden(true)
-            Text("CacheDrop").font(.system(size: 17, weight: .medium)).tracking(-0.4)
+            Text("CacheDrop").font(StillDesign.TypeStyle.brand).tracking(-0.4)
         }
     }
 }
