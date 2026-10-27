@@ -600,7 +600,7 @@ private struct WorkspaceView: View {
     private var scannedSummary: String {
         let result = overviewObservation
         return ScannedLocationsSummary.text(folders: result.map { _ in selection.scans.count },
-            observedBytes: result.map { $0.isComplete ? $0.totalLogicalBytes : $0.logicalBytes } ?? nil, complete: result?.isComplete ?? false,
+            observedSize: (result.map { $0.isComplete ? $0.totalLogicalBytes : $0.logicalBytes } ?? nil).map { overviewBytes($0) }, complete: result?.isComplete ?? false,
             knownCacheFolders: selection.catalog.overview?.rows.reduce(0) { $0 + $1.rules.count }, checking: selection.catalog.isScanning)
     }
 

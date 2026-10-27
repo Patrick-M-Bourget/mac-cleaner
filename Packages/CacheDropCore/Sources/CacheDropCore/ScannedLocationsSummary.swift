@@ -1,15 +1,15 @@
 import Foundation
 
-/// Overview's one-line summary of what was scanned (#223): the observed folders and the catalog's known cache folders.
-/// Unknown coverage isn't repeated here; the row for the unavailable location explains it.
+/// Overview's one-line summary of what was scanned (#223): what was observed in the folders, and the catalog's known cache
+/// folders. Unknown coverage isn't repeated here; the row for the unavailable location explains it. The caller formats the
+/// observed size with Overview's own byte formatter (#232).
 public enum ScannedLocationsSummary {
-    public static func text(folders: Int?, observedBytes: Int64?, complete: Bool, knownCacheFolders: Int?, checking: Bool) -> String {
+    public static func text(folders: Int?, observedSize: String?, complete: Bool, knownCacheFolders: Int?, checking: Bool) -> String {
         var parts: [String] = []
         if let folders {
             let count = folders == 1 ? "1 folder" : "\(folders) folders"
-            if let observedBytes {
-                let size = ByteCountFormatter.string(fromByteCount: observedBytes, countStyle: .decimal)
-                parts.append((complete ? "" : "at least ") + size + " in " + count)
+            if let observedSize {
+                parts.append((complete ? "" : "at least ") + observedSize + " observed in " + count)
             } else {
                 parts.append(count)
             }
