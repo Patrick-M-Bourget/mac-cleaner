@@ -92,8 +92,9 @@ private func names(_ items: [Candidate]) -> Set<String> { Set(items.map(\.url.la
     let own = items.filter { $0.uninstall?.path == synth && $0.sharedBy.isEmpty }
 
     #expect(names(own.filter { $0.ruleID == PlugInUninstall.formatsRuleID }) == ["Pro Synth.component", "Pro Synth.vst3"])
-    // Its own folder in the maker's folder, never the maker's folder, which holds the other product's files too.
-    #expect(names(own.filter { $0.ruleID == PlugInUninstall.filesRuleID }) == ["Pro Synth"])
+    // Its own presets in the maker's folder, never the maker's folder, which holds the other product's files too, nor its
+    // own folder, which holds its license file (#288).
+    #expect(names(own.filter { $0.ruleID == PlugInUninstall.filesRuleID }) == ["Presets"])
     #expect(!items.contains { $0.isUninstalled(with: synth) && $0.url.path.contains("Pro Delay") }, "Nothing of another product, even from the same maker")
 }
 
@@ -236,4 +237,18 @@ private func names(_ items: [Candidate]) -> Set<String> { Set(items.map(\.url.la
     let common = items.filter { $0.url.lastPathComponent == "Common" }
 
     #expect(common.count == 1 && common[0].ruleID == PlugInUninstall.sharedRuleID && common[0].sharedBy.count == 2)
+}
+
+@Test func aSupportFolderThatGainedALicenseOrAnyUnlistedFileSinceTheScanIsRefusedNotMoved() throws {
+    let (root, home) = try fixture()
+    defer { try? FileManager.default.removeItem(at: root) }
+    let (_, items) = scan(root, home)
+    let presets = try #require(items.first { $0.url.lastPathComponent == "Presets" })
+    #expect(check(home).check(presets) == nil)
+
+    try write(support + "Pro Synth/Presets/My Sound.preset", in: root)
+    #expect(check(home).check(presets) == .changed, "A file the receipt doesn't list may be the user's")
+    try FileManager.default.removeItem(at: root.appendingPathComponent(support + "Pro Synth/Presets/My Sound.preset"))
+    try write(support + "Pro Synth/Presets/iLok Activation.dat", in: root)
+    #expect(check(home).check(presets) == .protected("iLok Activation.dat"), "License data is never moved")
 }

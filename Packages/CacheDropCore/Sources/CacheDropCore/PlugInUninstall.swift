@@ -80,10 +80,11 @@ public enum PlugInUninstall {
                 own.append(format)
             }
             for receipt in product.receipts {
-                for url in supportRoots(listings[receipt] ?? [], systemRoot: systemRoot) {
+                let listed = listings[receipt] ?? []
+                for url in supportRoots(listed, systemRoot: systemRoot) {
                     let ids = sharers(url.path)
-                    if ids.count > 1 { if shared[url.path] == nil, let found = item(rules[2], url) { shared[url.path] = found.shared(by: ids, receipt: receipt) }; continue }
-                    guard var file = item(rules[1], url) else { continue }
+                    if ids.count > 1 { if shared[url.path] == nil, let found = item(rules[2], url) { shared[url.path] = found.shared(by: ids, receipt: receipt).listed(listed) }; continue }
+                    guard var file = item(rules[1], url).map({ $0.listed(listed) }) else { continue }
                     guard taken(offered, [file]).count == 1 else { target.inPlan += 1; continue }
                     guard Removability.canMoveToTrash(url) else { target.needsPassword += 1; continue }
                     file.leftover = LeftoverTie(app: product.name, bundleID: nil, vendor: RemovedAppLeftovers.vendor(of: receipt), evidence: .receipt(receipt))
@@ -136,15 +137,19 @@ public enum PlugInUninstall {
         if folders.contains(where: { $0 == path || path.hasPrefix($0 + "/") || $0.hasPrefix(path + "/") }) { return true }
         return listed.contains { $0.hasPrefix(path + "/") && extensions.contains(URL(fileURLWithPath: $0).pathExtension.lowercased()) }
     }
-    static func isWhollyListed(_ path: String, _ listed: Set<String>, limit: Int = 20_000) -> Bool {
-        guard listed.contains(path) else { return false }
-        guard let walk = FileManager.default.enumerator(atPath: path) else { return true }
+    static func isWhollyListed(_ path: String, _ listed: Set<String>) -> Bool { listed.contains(path) && listingRefusal(path, listed) == nil }
+    /// Why a support item may not be moved as its receipt installed it (#288): it holds license data (refused by name), or an
+    /// entry the receipt doesn't list, which may be the user's or another product's (or more than `limit` to look at).
+    static func listingRefusal(_ path: String, _ listed: Set<String>, limit: Int = 20_000) -> CheckRefusal? {
+        guard let walk = FileManager.default.enumerator(atPath: path) else { return nil }
         var seen = 0
         while let relative = walk.nextObject() as? String {
             seen += 1
-            if seen > limit || !listed.contains(path + "/" + relative) { return false }
+            let name = (relative as NSString).lastPathComponent
+            if RemovedAppLeftovers.isNeverOffered(name) { return .protected(name) }
+            if seen > limit || !listed.contains(path + "/" + relative) { return .changed }
         }
-        return true
+        return nil
     }
 
     /// Never offered or acted on: license and macOS data and Apple's folders anywhere on the path below the system root, and
@@ -164,6 +169,8 @@ public enum PlugInUninstall {
         if candidate.ruleID == formatsRuleID {
             guard let tie = candidate.leftover, PlugInInventory.info(url)?["CFBundleIdentifier"] as? String == tie.bundleID else { return .changed }
         }
+        // A support item still holds only what its receipt listed (#288).
+        if let listed = candidate.listedByReceipt, let refusal = listingRefusal(url.path, listed) { return refusal }
         return Removability.canMoveToTrash(url) ? nil : .notPermitted
     }
 
@@ -192,6 +199,12 @@ extension Candidate {
         var item = self
         item.sharedBy = products
         item.leftover = LeftoverTie(app: "", bundleID: nil, vendor: receipt.map(RemovedAppLeftovers.vendor(of:)) ?? "", evidence: receipt.map { .receipt($0) } ?? .bundleID)
+        return item
+    }
+    /// With what its receipt lists at and below it, to check again before acting.
+    func listed(_ paths: Set<String>) -> Candidate {
+        var item = self
+        item.listedByReceipt = paths.filter { $0 == url.path || $0.hasPrefix(url.path + "/") }
         return item
     }
     /// Whether it is uninstalled with the app or product whose row is `id`: its own, or one it is shared with.
