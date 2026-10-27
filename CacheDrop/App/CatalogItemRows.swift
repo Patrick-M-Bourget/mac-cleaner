@@ -22,6 +22,8 @@ struct CatalogItemRows: View {
         }
     }
     private func detail(_ item: Candidate) -> String {
+        // A possibly related leftover says why it is shown (#173).
+        if let reason = item.leftover?.reason { return reason }
         let folder = PathDisplay.shortLocation(of: item.url, home: CatalogCleanupModel.checkHome)
         return item.lastUsed.map { folder + " · Last used " + $0.formatted(date: .abbreviated, time: .omitted) } ?? folder
     }

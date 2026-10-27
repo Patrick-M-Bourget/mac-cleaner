@@ -14,6 +14,8 @@ public enum CheckRefusal: Sendable, Equatable {
     case guidanceOnly
     /// A project's build folder (#157) is kept while the project is being worked on.
     case projectOpen, projectUnchecked, recentlyEdited, uncommittedChanges, trackedByGit
+    /// A removed app's leftover whose app is on this Mac again, or can't be shown not to be (#173).
+    case appInstalled(String)
     public var reason: String {
         switch self {
         case .missing: "No longer exists."
@@ -37,6 +39,7 @@ public enum CheckRefusal: Sendable, Equatable {
         case .recentlyEdited: "Its project changed in the last \(ProjectBuilds.recentDays) days. It is kept."
         case .uncommittedChanges: "Its project has uncommitted changes. It is kept."
         case .trackedByGit: "Git tracks files in it. It is kept."
+        case .appInstalled(let name): "\(name) is installed again, or CacheDrop couldn’t check. It is kept."
         }
     }
 }
@@ -53,6 +56,8 @@ public struct CandidateCheck: Sendable {
     /// The home folder the catalog was scanned under: a picked folder's files are never taken from its protected
     /// folders (`UserFiles`), and a git repository in it doesn't make what it holds live work (`GitCheckout`).
     public let home: URL
+    /// Which apps are installed, for a removed app's leftovers (#173).
+    public let apps: any AppPresence
     /// At most this many entries are looked at; a deeper search that would need more refuses the folder.
     static let protectedSearchLimit = 200_000
 
@@ -106,17 +111,17 @@ public struct CandidateCheck: Sendable {
         return opened ? found : "unreadable folder"
     }
     public init(catalog: Catalog, running: any RunningAppChecking, exclusions: ExclusionPolicy = ExclusionPolicy(), inUse: any InUseChecking = SystemInUseChecker(),
-                cloud: any UbiquitousItemAccess = SystemUbiquitousItems(), home: URL) {
-        self.catalog = catalog; self.running = running; self.exclusions = exclusions; self.inUse = inUse; self.cloud = cloud; self.home = home
+                cloud: any UbiquitousItemAccess = SystemUbiquitousItems(), home: URL, apps: any AppPresence = SystemAppPresence()) {
+        self.catalog = catalog; self.running = running; self.exclusions = exclusions; self.inUse = inUse; self.cloud = cloud; self.home = home; self.apps = apps
     }
     /// This check with one reading of the process table, for checking many items together (a review or a cleanup run).
     public func snapshotted() -> CandidateCheck {
-        CandidateCheck(catalog: catalog, running: running, exclusions: exclusions, inUse: inUse.snapshot(), cloud: cloud, home: home)
+        CandidateCheck(catalog: catalog, running: running, exclusions: exclusions, inUse: inUse.snapshot(), cloud: cloud, home: home, apps: apps.snapshot())
     }
     /// Whether checking this candidate asks what processes have open: leaked copies and old temporary items.
     public func needsInUseCheck(_ candidate: Candidate) -> Bool {
         guard let rule = catalog.rule(candidate.ruleID) else { return false }
-        return rule.copies != nil || rule.unused != nil || rule.id == ProjectBuilds.ruleID
+        return rule.copies != nil || rule.unused != nil || rule.id == ProjectBuilds.ruleID || RemovedAppLeftovers.ruleIDs.contains(rule.id)
     }
     public func check(_ candidate: Candidate) -> CheckRefusal? {
         // Guidance-only data is never acted on, whatever the candidate or its rule says (SPEC section 3).
@@ -125,7 +130,7 @@ public struct CandidateCheck: Sendable {
               rule.action == candidate.action || (candidate.isLeftover && rule.deletesItems && candidate.action == .delete) else { return .changed }
         // A per-item command's argument is never an option, whatever the item says (#134).
         if candidate.action == .tool, rule.tool?.itemPlaceholder != nil, candidate.toolArgument.map({ $0.isEmpty || $0.hasPrefix("-") }) ?? true { return .changed }
-        let ownership = Catalog.ownership(of: candidate.url, under: rule)
+        let ownership = Catalog.ownership(of: candidate, under: rule)
         switch ownership {
         // An item whose own owner can't be found any more (the app was removed) is refused, never guessed.
         case .unknown: return .ownerUnknown(candidate.appName ?? candidate.url.lastPathComponent)
@@ -163,6 +168,8 @@ public struct CandidateCheck: Sendable {
             guard let used = inUse.inUse([candidate.url], by: .anyApp) else { return .inUseUnknown(RuleOwner.anyApp.name) }
             if !used.isEmpty { return .inUse(RuleOwner.anyApp.name) }
         }
+        // A removed app's leftover: never license or macOS data, and kept once its app is back (#173).
+        if let tie = candidate.leftover, let refusal = RemovedAppLeftovers.refusal(for: candidate.url, tie: tie, below: root, apps: apps) { return refusal }
         // A project being worked on keeps its build folders (#157).
         if rule.id == ProjectBuilds.ruleID, let refusal = ProjectBuilds.refusal(for: candidate.url, inUse: inUse, home: home) { return refusal }
         // A system image a virtual device started using since the scan is kept (#134).
