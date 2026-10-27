@@ -8,17 +8,22 @@ import Foundation
 enum UserProcesses {
     /// The pid of each process the current user owns; nil when the list can't be read.
     static func pids() -> [pid_t]? {
+        let uid = getuid()
+        return allPids()?.filter { pid in
+            var details = proc_bsdinfo()
+            let size = Int32(MemoryLayout<proc_bsdinfo>.size)
+            return proc_pidinfo(pid, PROC_PIDTBSDINFO, 0, &details, size) == size && details.pbi_uid == uid
+        }
+    }
+
+    /// The pid of every running process, any user's; nil when the list can't be read.
+    static func allPids() -> [pid_t]? {
         let capacity = proc_listallpids(nil, 0)
         guard capacity > 0 else { return nil }
         var pids = [pid_t](repeating: 0, count: Int(capacity) + 128)
         let count = pids.withUnsafeMutableBytes { proc_listallpids($0.baseAddress, Int32($0.count)) }
         guard count > 0, Int(count) < pids.count else { return nil }
-        let uid = getuid()
-        return pids.prefix(Int(count)).filter { pid in
-            var details = proc_bsdinfo()
-            let size = Int32(MemoryLayout<proc_bsdinfo>.size)
-            return pid > 0 && proc_pidinfo(pid, PROC_PIDTBSDINFO, 0, &details, size) == size && details.pbi_uid == uid
-        }
+        return pids.prefix(Int(count)).filter { $0 > 0 }
     }
 
     /// The process's executable; nil when it can't be read.

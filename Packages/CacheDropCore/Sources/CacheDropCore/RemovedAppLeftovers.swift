@@ -35,6 +35,16 @@ public enum RemovedAppLeftovers {
     }
     /// The maker part of a bundle ID: `com.ableton` for `com.ableton.live`.
     static func vendor(of bundleID: String) -> String { bundleID.lowercased().split(separator: ".").prefix(2).joined(separator: ".") }
+    /// Namespaces many makers share: there the maker is the next part, `io.github.alice` for `io.github.alice.clipper` (#240).
+    static let sharedNamespaces: Set<String> = ["io.github", "com.github", "io.gitlab", "com.gitlab", "org.sourceforge", "net.sourceforge",
+                                                "com.googlecode", "org.bitbucket", "io.bitbucket", "org.codeberg"]
+    /// The maker part of an ID, one part longer inside a shared namespace: `com.ableton`, but `io.github.alice`.
+    static func maker(of id: String) -> String {
+        let parts = id.lowercased().split(separator: ".")
+        return parts.prefix(sharedNamespaces.contains(parts.prefix(2).joined(separator: ".")) && parts.count > 2 ? 3 : 2).joined(separator: ".")
+    }
+    /// The maker's word in an ID: "ableton" for `com.ableton.live`, "alice" for `io.github.alice.clipper`.
+    static func makerToken(_ id: String) -> String { token(maker(of: id).split(separator: ".").dropFirst().last.map(String.init) ?? "") }
     /// A name for an app known only by its bundle ID: "Live" for `com.ableton.live`.
     static func appName(from bundleID: String) -> String {
         let parts = bundleID.split(separator: ".").map(String.init)
@@ -210,22 +220,28 @@ struct InstalledMakers {
     /// Tokens long enough to match as a prefix: "propellerhead" for `se.propellerheads`, "reason" for "Reason Companion".
     let prefixes: Set<String>
     static let generic: Set<String> = ["software", "ab", "inc", "gmbh", "ltd", "llc", "co", "corp", "audio", "music", "technology", "technologies", "labs", "the"]
+    /// Makers by `RemovedAppLeftovers.maker(of:)`, one part longer inside a shared namespace, as the running check reads them (#240).
+    let byMaker: Bool
 
-    init(_ installed: [InstalledApp]) {
+    init(_ installed: [InstalledApp], byMaker: Bool = false) {
         typealias L = RemovedAppLeftovers
-        vendors = Set(installed.filter { !$0.bundleID.isEmpty }.map { L.vendor(of: $0.bundleID) })
+        self.byMaker = byMaker
+        func vendorWord(_ id: String) -> String { byMaker ? L.makerToken(id) : L.vendorToken(id) }
+        func makerOf(_ id: String) -> String { byMaker ? L.maker(of: id) : L.vendor(of: id) }
+        vendors = Set(installed.filter { !$0.bundleID.isEmpty }.map { makerOf($0.bundleID) })
         let makerWords = installed.compactMap(\.maker).flatMap { maker -> [String] in
             let words = maker.split(whereSeparator: { !$0.isLetter && !$0.isNumber }).map { L.token(String($0)) }
             return [L.token(maker), words.filter { !Self.generic.contains($0) }.joined()] + words.filter { !Self.generic.contains($0) }
         }
-        let ids = installed.filter { !$0.bundleID.isEmpty }.flatMap { [L.token(L.appName(from: $0.bundleID)), L.vendorToken($0.bundleID)] }
+        let ids = installed.filter { !$0.bundleID.isEmpty }.flatMap { [L.token(L.appName(from: $0.bundleID)), vendorWord($0.bundleID)] }
         names = Set((installed.map { L.token($0.name) } + ids + makerWords).filter { !$0.isEmpty })
-        prefixes = Set((installed.filter { !$0.bundleID.isEmpty }.map { L.vendorToken($0.bundleID) } + makerWords).filter { $0.count >= 4 })
+        prefixes = Set((installed.filter { !$0.bundleID.isEmpty }.map { vendorWord($0.bundleID) } + makerWords).filter { $0.count >= 4 })
     }
     /// Whether a maker (`com.maker`) has something installed, by bundle ID or by the maker's name.
     func makes(_ vendor: String) -> Bool {
-        if vendors.contains(vendor.lowercased()) { return true }
-        let word = RemovedAppLeftovers.vendorToken(vendor)
+        typealias L = RemovedAppLeftovers
+        if vendors.contains(byMaker ? L.maker(of: vendor) : vendor.lowercased()) { return true }
+        let word = byMaker ? L.makerToken(vendor) : L.vendorToken(vendor)
         return word.count >= 4 && prefixes.contains { $0.hasPrefix(word) || word.hasPrefix($0) }
     }
     /// Whether a name (as a token) is an installed product's or its maker's, or starts with a maker's name.
@@ -248,10 +264,13 @@ public struct LeftoverTie: Sendable, Hashable {
     /// The maker part of the bundle or package ID (`com.ableton`); any running process of the maker's blocks the group.
     public let vendor: String
     public let evidence: Evidence
-    /// Who must be closed first: every app of the maker (#173), named after it ("Ableton" for `com.ableton`).
+    /// Who must be closed first: everything of the maker that runs (#173, #240), named after it ("Ableton" for `com.ableton`).
+    /// Inside a shared namespace the maker is one part longer: `io.github.bob`, named "Bob".
     public var owner: RuleOwner {
-        let word = vendor.split(separator: ".").dropFirst().first.map(String.init) ?? vendor
-        return RuleOwner(name: word.prefix(1).uppercased() + word.dropFirst(), bundleIDPrefixes: [vendor + "."])
+        let maker: String
+        if case .receipt(let id) = evidence { maker = RemovedAppLeftovers.maker(of: bundleID ?? id) } else { maker = bundleID.map(RemovedAppLeftovers.maker) ?? vendor }
+        let word = maker.split(separator: ".").dropFirst().last.map(String.init) ?? maker
+        return RuleOwner(name: word.prefix(1).uppercased() + word.dropFirst(), bundleIDPrefixes: [maker + "."])
     }
     var isNameOnly: Bool { if case .nameOnly = evidence { true } else { false } }
     /// Why a possibly related item is shown; nil for a confirmed one.
