@@ -40,9 +40,14 @@ public struct CatalogExecutionResult: Sendable {
 }
 
 extension CleanupRecord {
+    /// A record's id: its batch, then the candidate it was approved for (`batchID|candidateID`).
+    static func id(batchID: UUID, candidateID: String) -> String { batchID.uuidString + "|" + candidateID }
+    /// The id of the candidate this record was approved for, read back from `id`.
+    var candidateID: String { String(id.dropFirst(batchID.uuidString.count + 1)) }
+
     /// A pending record for one approved candidate, written when a run claims its batch.
     public init(batchID: UUID, approvedAt: Date, candidate: Candidate, previewOnly: Bool) {
-        id = batchID.uuidString + "|" + candidate.id; self.batchID = batchID; originalURL = candidate.url
+        id = Self.id(batchID: batchID, candidateID: candidate.id); self.batchID = batchID; originalURL = candidate.url
         resourceID = candidate.resourceID; logicalBytes = candidate.logicalBytes; allocatedBytes = candidate.allocatedBytes
         state = .pending; trashURL = nil; message = "Approved; not started"; observedAt = candidate.observedAt
         let parent = candidate.url.deletingLastPathComponent()
@@ -117,6 +122,33 @@ public actor CleanupExecutor {
         return result(records, failure: failure)
     }
 
+    /// How long after a run a stopped daemon-backed tool's item is measured again (#190): long enough for a daemon to
+    /// finish a typical removal, short enough that the results are still open.
+    public static let laterMeasurementDelay: Duration = .seconds(60)
+
+    /// After `result`, waits once (`wait`, by default `laterMeasurementDelay`), then measures every item whose
+    /// daemon-backed tool was stopped again with `measure` and records what it found in the journal (#190). The outcome
+    /// recorded at the stop stays as it was. Bounded: one wait for the whole run and one measurement per item, never a retry.
+    /// Returns `result` unchanged when nothing needs it, the wait was cancelled, or the journal couldn't record it.
+    public func measureAgainLater(_ result: CatalogExecutionResult, of approval: CatalogApproval,
+                                  wait: @Sendable () async -> Bool = { (try? await Task.sleep(for: CleanupExecutor.laterMeasurementDelay)) != nil },
+                                  measure: @Sendable ([Candidate]) async -> [String: LaterMeasurement.Finding]) async -> CatalogExecutionResult {
+        let stopped = Set(result.records.filter { $0.mayStillBeFinishing == true && $0.laterMeasurement == nil }.map(\.id))
+        let candidates = approval.candidates.filter { stopped.contains(CleanupRecord.id(batchID: approval.id, candidateID: $0.id)) }
+        guard !candidates.isEmpty, await wait() else { return result }
+        let findings = await measure(candidates)
+        let measuredAt = clock()
+        var records = result.records
+        for index in records.indices where stopped.contains(records[index].id) {
+            var record = records[index]
+            record.laterMeasurement = LaterMeasurement(measuredAt: measuredAt, finding: findings[record.candidateID] ?? .unmeasured)
+            // Shown only once the journal has it, so Results and History never disagree.
+            do { try journal.outcome(record); records[index] = record } catch { continue }
+        }
+        return CatalogExecutionResult(batchID: result.batchID, records: records, previewOnly: result.previewOnly, rejectedReplay: result.rejectedReplay,
+                                      journalFailure: result.journalFailure, estimatedBytes: result.estimatedBytes)
+    }
+
     private func perform(_ candidate: Candidate, check: CandidateCheck, previewOnly: Bool, into record: inout CleanupRecord) async {
         let command = check.catalog.rule(candidate.ruleID)?.tool
         let verb = switch candidate.action {
@@ -161,12 +193,12 @@ public actor CleanupExecutor {
             record.state = .skipped; record.message = CheckRefusal.changed.reason; return
         }
         let cancellation = self.cancellation
-        let outcome = await Task.detached(priority: .userInitiated) {
-            // The tool's own folder goes first on PATH, so `#!/usr/bin/env node` tools such as pnpm find their runtime.
-            var environment = BoundedTool.defaultEnvironment
-            environment["PATH"] = executable.deletingLastPathComponent().path + ":" + (environment["PATH"] ?? "")
-            return Result { try BoundedTool.capture(executable: executable, arguments: arguments, timeout: command.timeout, environment: environment, cancellation: cancellation) }
-        }.value
+        // The tool's own folder goes first on PATH, so `#!/usr/bin/env node` tools such as pnpm find their runtime.
+        var environment = BoundedTool.defaultEnvironment
+        environment["PATH"] = executable.deletingLastPathComponent().path + ":" + (environment["PATH"] ?? "")
+        let outcome = await Self.onOwnThread { [environment] in
+            Result { try BoundedTool.capture(executable: executable, arguments: arguments, timeout: command.timeout, environment: environment, cancellation: cancellation) }
+        }
         let name = command.commandLine(for: candidate.toolArgument)
         switch outcome {
         case .success(let (status, output)):
@@ -185,11 +217,11 @@ public actor CleanupExecutor {
             if record.state == .succeeded { record.message = "Ran \(name) and permanently removed the folder" }
             else { record.message = "Ran \(name). " + record.message }
         case .failure(let error as ToolTimeout):
-            Self.recordStopped("at the \(Int(command.timeout.rounded(.up)))-second time limit", output: error.output, command, name: name, candidate, into: &record)
+            Self.recordStopped(.timeLimit(seconds: Int(command.timeout.rounded(.up))), output: error.output, command: command, name: name, candidate: candidate, into: &record)
         case .failure(let error as ToolCancelled) where !error.started:
             record.state = .cancelled; record.message = "Stopped before \(name) started. Nothing was changed."
         case .failure(let error as ToolCancelled):
-            Self.recordStopped("when you cancelled", output: error.output, command, name: name, candidate, into: &record)
+            Self.recordStopped(.cancelled, output: error.output, command: command, name: name, candidate: candidate, into: &record)
         case .failure(ToolPreviewError.unavailable):
             record.state = .skipped; record.message = "\(name) is no longer installed."
         case .failure:
@@ -197,14 +229,36 @@ public actor CleanupExecutor {
         }
     }
 
+    /// Runs `work`, which blocks for as long as a tool runs (up to its time limit), on a thread of its own and resumes with its result.
+    /// Never on the Swift concurrency pool, whose few threads a long `brew cleanup` would otherwise hold (#200).
+    private static func onOwnThread<T: Sendable>(_ work: @escaping @Sendable () -> T) async -> T {
+        await withCheckedContinuation { continuation in
+            let thread = Thread { continuation.resume(returning: work()) }
+            thread.qualityOfService = .userInitiated
+            thread.start()
+        }
+    }
+
+    /// What stopped a tool before it finished.
+    private enum StopCause {
+        case timeLimit(seconds: Int), cancelled
+        /// How results say it: "Stopped at the 300-second time limit", "Stopped waiting when you cancelled".
+        var phrase: String {
+            switch self {
+            case .timeLimit(let seconds): "at the \(seconds)-second time limit"
+            case .cancelled: "when you cancelled"
+            }
+        }
+    }
     /// A tool stopped before it finished (time limit or cancel) ran until then, so it may have removed some files;
-    /// the folder is never deleted after it. `reason` says what stopped it. A daemon-backed tool's work goes on without it (SPEC section 3),
+    /// the folder is never deleted after it. A daemon-backed tool's work goes on without it (SPEC section 3),
     /// so only the wait stopped and the work may still be finishing.
-    private static func recordStopped(_ reason: String, output: String, _ command: ToolCommand, name: String, _ candidate: Candidate, into record: inout CleanupRecord) {
+    private static func recordStopped(_ cause: StopCause, output: String, command: ToolCommand, name: String, candidate: Candidate, into record: inout CleanupRecord) {
         record.toolOutput = trimmed(output)
         record.state = .failed; record.partlyRemoved = true
-        let effect = command.daemonBacked ? "Stopped waiting \(reason). \(name) hands its work to a background service, which may still be finishing"
-                                          : "Stopped \(reason). \(name) may have cleaned part of it"
+        if command.daemonBacked { record.mayStillBeFinishing = true }
+        let effect = command.daemonBacked ? "Stopped waiting \(cause.phrase). \(name) hands its work to a background service, which may still be finishing"
+                                          : "Stopped \(cause.phrase). \(name) may have cleaned part of it"
         record.message = effect + (candidate.isDirectory ? "; the folder was left in place." : ".")
     }
 

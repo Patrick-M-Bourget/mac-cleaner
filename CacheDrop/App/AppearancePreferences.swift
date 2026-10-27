@@ -45,7 +45,7 @@ struct AppearancePicker: View {
 /// low-space alerts are off unless changed here (#131); the dry run is off unless turned on here.
 struct CacheDropSettingsView: View {
     @State private var appearance = AppLifecycleController.shared.appearance
-    @AppStorage(MenuBarItemPreference.key) private var showsMenuBarItem = true
+    @AppStorage(PreferenceKeys.showsMenuBarItem) private var showsMenuBarItem = true
     var body: some View {
         Form {
             Section {

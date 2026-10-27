@@ -179,12 +179,14 @@ private func homebrewRun(_ home: URL, script: String, timeout: TimeInterval? = n
     defer { try? FileManager.default.removeItem(at: home) }
     try makeFolder(home, "Library/Caches/Homebrew")
     // A stand-in brew that starts its own child, like the real one does.
-    let length = uniqueSleep(), lifetime = MarkedProcessLifetime(length)
-    let result = try await homebrewRun(home, script: "echo started\nsleep \(length) &\nsleep \(length)", timeout: 0.5)
-    let left = survivorsAfterSettling(length)
+    let length = uniqueSleep(), lifetime = MarkedProcessLifetime(length), pids = home.appendingPathComponent("pids")
+    let script = "echo started\n\(recordPid("$$", in: pids))\nsleep \(length) &\n\(recordPid("$!", in: pids))\nexec sleep \(length)"
+    let result = try await homebrewRun(home, script: script, timeout: 0.5)
+    let left = stillRunning(recordedPids(pids))
     // Stopped at the limit, not left to finish its sleep: the tool, timed alone, lived the limit plus the stop's grace at most.
     #expect(lifetime.seconds < 0.5 + BoundedTool.stopGrace + 1)
     left.forEach { kill($0, SIGKILL) }
+    #expect(recordedPids(pids).count == 2)
     #expect(left.isEmpty)
     let record = try #require(result.records.first)
     #expect(record.state == .failed)
@@ -192,6 +194,41 @@ private func homebrewRun(_ home: URL, script: String, timeout: TimeInterval? = n
     #expect(record.partlyRemoved == true)
     #expect(record.toolOutput == "started")
     #expect(FileManager.default.fileExists(atPath: home.appendingPathComponent("Library/Caches/Homebrew/entry").path))
+}
+
+/// A running tool holds no Swift concurrency thread (#200): with as many tools running at once as the pool has threads,
+/// another async task still runs. Run under LIBDISPATCH_COOPERATIVE_POOL_STRICT=1 to hold the pool to that width.
+/// The tools wait for a release file; the async task writes it once it sees them all running. If the pool is held,
+/// it never gets to, and a plain thread releases them after a long wait so the test ends, failing.
+@Test func aRunningToolLeavesTheConcurrencyPoolFree() async throws {
+    let shared = try fixtureHome()
+    defer { try? FileManager.default.removeItem(at: shared) }
+    let release = shared.appendingPathComponent("release"), releasedByFallback = shared.appendingPathComponent("released-by-fallback")
+    let count = ProcessInfo.processInfo.activeProcessorCount
+    let homes = try (0..<count).map { _ in try fixtureHome() }
+    defer { homes.forEach { try? FileManager.default.removeItem(at: $0) } }
+    for home in homes { try makeFolder(home, "Library/Caches/Homebrew") }
+    Thread {
+        let deadline = ProcessInfo.processInfo.systemUptime + 30
+        while !FileManager.default.fileExists(atPath: release.path), ProcessInfo.processInfo.systemUptime < deadline { usleep(50_000) }
+        if !FileManager.default.fileExists(atPath: release.path) {
+            FileManager.default.createFile(atPath: releasedByFallback.path, contents: nil)
+            FileManager.default.createFile(atPath: release.path, contents: nil)
+        }
+    }.start()
+    try await withThrowingTaskGroup(of: CatalogExecutionResult.self) { group in
+        for home in homes {
+            let script = "touch '\(home.appendingPathComponent("running").path)'\nwhile [ ! -e '\(release.path)' ]; do sleep 0.05; done"
+            group.addTask { try await homebrewRun(home, script: script, timeout: 60) }
+        }
+        group.addTask {
+            while !homes.allSatisfy({ FileManager.default.fileExists(atPath: $0.appendingPathComponent("running").path) }) { try await Task.sleep(nanoseconds: 20_000_000) }
+            FileManager.default.createFile(atPath: release.path, contents: nil)
+            return CatalogExecutionResult(batchID: UUID(), records: [], previewOnly: false, rejectedReplay: false, journalFailure: nil, estimatedBytes: 0)
+        }
+        for try await result in group { #expect(result.records.allSatisfy { $0.state == .succeeded }) }
+    }
+    #expect(!FileManager.default.fileExists(atPath: releasedByFallback.path))
 }
 
 /// Homebrew's cleanup followed by a plain delete (pnpm's metadata cache), run with `cancellation`.
@@ -211,16 +248,18 @@ private func cancellableRun(_ home: URL, brewScript: String, cancellation: Clean
 @Test func cancellingDuringAToolStopsItWithinTheGracePeriodAndRecordsItAsPartlyRemoved() async throws {
     let home = try fixtureHome()
     defer { try? FileManager.default.removeItem(at: home) }
-    let length = uniqueSleep(), running = home.appendingPathComponent("running")
+    let length = uniqueSleep(), running = home.appendingPathComponent("running"), pids = home.appendingPathComponent("pids")
     let cancellation = CleanupCancellation(), cancelledAt = CancelTime()
     // Cancel once the stand-in brew, which starts its own child like the real one, is running.
     let watcher = CancelWhenFileAppears(running, cancel: cancellation, at: cancelledAt)
     defer { watcher.stop() }
-    let result = try await cancellableRun(home, brewScript: "echo cleaning\ntouch '\(running.path)'\nsleep \(length) &\nsleep \(length)", cancellation: cancellation)
+    let script = "echo cleaning\n\(recordPid("$$", in: pids))\nsleep \(length) &\n\(recordPid("$!", in: pids))\ntouch '\(running.path)'\nexec sleep \(length)"
+    let result = try await cancellableRun(home, brewScript: script, cancellation: cancellation)
     let sinceCancel = cancelledAt.elapsed
-    let left = survivorsAfterSettling(length)
+    let left = stillRunning(recordedPids(pids))
     left.forEach { kill($0, SIGKILL) }
     #expect(sinceCancel < BoundedTool.stopGrace + 1)
+    #expect(recordedPids(pids).count == 2)
     #expect(left.isEmpty)
     let tool = try #require(result.records.first), next = try #require(result.records.last)
     #expect(tool.state == .failed)
@@ -236,15 +275,18 @@ private func cancellableRun(_ home: URL, brewScript: String, cancellation: Clean
 @Test func aCancelAfterAToolFinishedKeepsItsFolderAndStopsTheRun() async throws {
     let home = try fixtureHome()
     defer { try? FileManager.default.removeItem(at: home) }
-    let length = uniqueSleep(), exited = home.appendingPathComponent("exited")
+    let length = uniqueSleep(), exited = home.appendingPathComponent("exited"), pids = home.appendingPathComponent("pids")
     let cancellation = CleanupCancellation()
     // The stand-in brew succeeds, leaving a child that holds its output open; the cancel lands once brew has exited (#195).
     let watcher = CancelWhenFileAppears(exited, cancel: cancellation)
     defer { watcher.stop() }
-    let result = try await cancellableRun(home, brewScript: "p=$$\n( while :; do case \"$(ps -o stat= -p $p)\" in Z*|\"\") break;; esac; sleep 0.01; done; touch '\(exited.path)'; sleep \(length) ) &\necho cleaned\nexit 0", cancellation: cancellation)
-    let left = survivorsAfterSettling(length)
+    let script = "p=$$\n( while :; do case \"$(ps -o stat= -p $p)\" in Z*|\"\") break;; esac; sleep 0.01; done; touch '\(exited.path)'; exec sleep \(length) ) &\n"
+        + recordPid("$!", in: pids) + "\necho cleaned\nexit 0"
+    let result = try await cancellableRun(home, brewScript: script, cancellation: cancellation)
+    let left = stillRunning(recordedPids(pids))
     left.forEach { kill($0, SIGKILL) }
     #expect(cancellation.isCancelled)
+    #expect(recordedPids(pids).count == 1)
     #expect(left.isEmpty)
     let tool = try #require(result.records.first), next = try #require(result.records.last)
     #expect(tool.state == .succeeded)

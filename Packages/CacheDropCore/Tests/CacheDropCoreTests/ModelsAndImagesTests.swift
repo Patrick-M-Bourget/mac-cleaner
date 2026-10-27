@@ -178,6 +178,26 @@ private func fakeOllama(_ home: URL, _ script: String = "echo \"$@\" >> \"$(dirn
     return tool
 }
 
+/// #190: a model whose `ollama rm` was stopped is measured again later; the server finishing it removes its manifest.
+@Test func aStoppedOllamaRemovalIsMeasuredAgainByItsManifest() throws {
+    let home = try modelsHome()
+    defer { try? FileManager.default.removeItem(at: home) }
+    let ollama = try fakeOllama(home)
+    let removed = try ollamaModel(home, "registry.ollama.ai/library/llama3/latest", layers: [("weights1", 4000)])
+    try ollamaModel(home, "registry.ollama.ai/library/mistral/latest", layers: [("weights2", 3000)])
+    let catalog = Catalog(rules: fixtureRules)
+    let stopped = catalog.discover(fixture: home, locateTool: onlyTool("ollama", ollama))
+    #expect(stopped.count == 2)
+    try FileManager.default.removeItem(at: removed)
+    let findings = catalog.measuredAgain(stopped, in: catalog.only(stopped).discovery(fixture: home, locateTool: onlyTool("ollama", ollama)))
+    let byName = Dictionary(uniqueKeysWithValues: stopped.map { ($0.itemName ?? "", findings[$0.id]) })
+    #expect(byName["llama3:latest"] == .gone)
+    #expect(byName["mistral:latest"] == .remaining(bytes: 3010)) // its weights and its config
+    // Without ollama installed nothing can be measured, which is never "gone".
+    let uninstalled = catalog.measuredAgain(stopped, in: catalog.only(stopped).discovery(fixture: home))
+    #expect(uninstalled.values.allSatisfy { $0 == .unmeasured })
+}
+
 @Test func ollamaModelsAreListedFromTheirManifestsWithTheSpaceOnlyTheyUse() throws {
     let home = try modelsHome()
     defer { try? FileManager.default.removeItem(at: home) }

@@ -15,12 +15,13 @@ public struct ToolCommand: Sendable, Hashable {
     /// Absolute paths to try in order; the first installed one is used. None installed means the rule doesn't appear.
     public let executables: [String]
     public let arguments: [String]
-    public let timeout: TimeInterval
+    /// Settable inside the module only, so tests copy a rule with a shorter limit rather than rebuild it.
+    public internal(set) var timeout: TimeInterval
     /// Delete the candidate folder after the command succeeds (Homebrew: `brew cleanup -s` plus its cache folder).
     public let deletesLocationAfter: Bool
     /// An argument replaced by each item's name, as in `ollama rm <model>`; nil for commands that take none.
     public let itemPlaceholder: String?
-    /// The command hands its work to a daemon outside its process group (Docker, CoreSimulator), so stopping it
+    /// The command hands its work to a daemon outside its process group (Docker, CoreSimulator, the Ollama server), so stopping it
     /// at a cancel or its time limit doesn't stop the work, which may still be finishing.
     public let daemonBacked: Bool
     /// How this tool is asked where it keeps its data, as in `uv cache dir` (Decision 44); nil when it isn't.
@@ -107,7 +108,7 @@ public struct CleanupRule: Sendable, Identifiable {
     /// Names that are never acted on when they are the item, one of its ancestors, or a top-level entry inside it.
     public let protectedNames: [String]
     /// The command a `.tool` rule runs; nil for every other action.
-    public let tool: ToolCommand?
+    public internal(set) var tool: ToolCommand?
     /// Extensions never acted on as the item or an ancestor, on top of the global ones.
     public let protectedExtensions: [String]
     /// Settings that move the owner's data elsewhere. When one is set the rule offers nothing.
@@ -483,7 +484,8 @@ public struct Catalog: Sendable {
                     let read = simulators[toolURL.path] ?? SimulatorInventory.read(toolURL)
                     if simulators[toolURL.path] == nil, case .failure = read { notes.append(CatalogNote(ruleID: rule.id, text: SimulatorInventory.notice)) }
                     simulators[toolURL.path] = read
-                    guard case .success(let inventory) = read else { return [] }
+                    // Every rule that reads simctl is unmeasured when it fails, never read as gone (Decision 45, #212).
+                    guard case .success(let inventory) = read else { notMeasured[rule.id, default: []].formUnion(rule.locations); return [] }
                     return rule.items == .simulatorDevices ? simulatorDevices(in: url, rule: rule, toolURL: toolURL, inventory: inventory, sizer: sizer)
                         : simulatorRuntimes(anchor: url, rule: rule, toolURL: toolURL, inventory: inventory)
                 }

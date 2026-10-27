@@ -51,8 +51,7 @@ public enum UserFiles {
     /// The picked files still worth offering after a run (#125): drops only the ones it acted on, or may have,
     /// so a cleanup never wipes a folder's other large and old files.
     public static func remaining(_ files: [Candidate], after result: CatalogExecutionResult) -> [Candidate] {
-        let prefix = result.batchID.uuidString + "|"
-        let touched = Set(result.records.filter { [.succeeded, .intent, .unknown].contains($0.state) }.map { String($0.id.dropFirst(prefix.count)) })
+        let touched = Set(result.records.filter { [.succeeded, .intent, .unknown].contains($0.state) }.map(\.candidateID))
         return files.filter { !touched.contains($0.id) }
     }
 
