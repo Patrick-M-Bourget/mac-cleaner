@@ -112,6 +112,21 @@ private struct WorkspaceView: View {
     private var nativeInspectionVisible: Bool { get { navigationState.explorerVisible } nonmutating set { navigationState.explorerVisible = newValue } }
     @State private var exclusionsVisible = false
     private var diagnosticsVisible: Bool { get { navigationState.diagnosticsVisible } nonmutating set { navigationState.diagnosticsVisible = newValue } }
+    /// Where the page on show keeps its scroll position; nil for a page that keeps none. Out of the view builder, where
+    /// the if-chain timed out CI's type checker (#264).
+    private var scrollOffset: Binding<CGPoint?>? {
+        if recoveryVisible { return nil }
+        if diagnosticsVisible { return $navigationState.diagnosticsOffset }
+        if navigationState.localRecordsVisible { return $navigationState.localRecordsOffset }
+        if exclusionsVisible || navigationState.appManagedVisible { return nil }
+        switch destination {
+        case .history: return $navigationState.historyOffset
+        case .growth: return $navigationState.growthOffset
+        case .overview: return $navigationState.overviewOffset
+        case .locations: return $navigationState.locationsOffset
+        case .plan, .smartClean: return nil
+        }
+    }
     /// Which page the scroll view shows, so each keeps its own scroll position. Out of the view builder, where the
     /// chained ternary timed out CI's type checker (#264).
     private var scrollIdentity: String {
@@ -258,21 +273,7 @@ private struct WorkspaceView: View {
                         }
                     }.padding(CacheDropDesign.Space.page).frame(maxWidth: .infinity, alignment: .leading)
                         .background(alignment: .topLeading) {
-                            if diagnosticsVisible && !recoveryVisible {
-                                DestinationViewport(offset: $navigationState.diagnosticsOffset).frame(width: 0, height: 0)
-                            } else if navigationState.localRecordsVisible && !recoveryVisible {
-                                DestinationViewport(offset: $navigationState.localRecordsOffset).frame(width: 0, height: 0)
-                            } else if !recoveryVisible && !diagnosticsVisible && !exclusionsVisible && !navigationState.appManagedVisible {
-                                if destination == .history {
-                                    DestinationViewport(offset: $navigationState.historyOffset).frame(width: 0, height: 0)
-                                } else if destination == .growth {
-                                    DestinationViewport(offset: $navigationState.growthOffset).frame(width: 0, height: 0)
-                                } else if destination == .overview {
-                                    DestinationViewport(offset: $navigationState.overviewOffset).frame(width: 0, height: 0)
-                                } else if destination == .locations {
-                                    DestinationViewport(offset: $navigationState.locationsOffset).frame(width: 0, height: 0)
-                                }
-                            }
+                            if let offset = scrollOffset { DestinationViewport(offset: offset).frame(width: 0, height: 0) }
                         }
                 }.id(scrollIdentity)
 
