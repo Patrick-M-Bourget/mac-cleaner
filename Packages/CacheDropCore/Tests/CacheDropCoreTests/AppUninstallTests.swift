@@ -222,4 +222,8 @@ private struct Processes: ProcessListing {
     #expect(ApplicationsInventory.uninstaller(for: synth, among: [synth, other, inFolder]) == inFolder)
     #expect(ApplicationsInventory.uninstaller(for: loose, among: [loose, other, named]) == named)
     #expect(ApplicationsInventory.uninstaller(for: loose, among: [loose, other]) == nil, "Another app's uninstaller in the Applications folder isn't its")
+    // Only named exactly for the app: "Uninstall Synth Pro" is another app's, and so is a loose "Synth Uninstall Helper".
+    let pro = app("/Applications/Uninstall Synth Pro.app"), helper = app("/Applications/Synth Uninstall Helper.app")
+    #expect(ApplicationsInventory.uninstaller(for: loose, among: [loose, pro, helper]) == nil)
+    #expect(ApplicationsInventory.uninstaller(for: synth, among: [synth, app("/Applications/Maker/Read Me.app")]) == nil, "Its folder's other apps aren't uninstallers")
 }

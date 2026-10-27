@@ -86,15 +86,15 @@ public enum ApplicationsInventory {
         return apps.first { $0 != entry && $0.bundleID?.lowercased() == tool.bundleID }
     }
 
-    /// The app's own uninstaller, or its maker's tool (Decision 41, #177): an app named "Uninstall…" in the app's own folder
-    /// (not the Applications folder itself) or named for the app, else `vendorTool(for:among:)`.
+    /// The app's own uninstaller, or its maker's tool (Decision 41, #177, #281): an "Uninstall…" app in the app's own folder (not
+    /// the Applications folder itself), or one named exactly for the app ("Uninstall <App>"), else `vendorTool(for:among:)`.
     public static func uninstaller(for entry: InventoryEntry, among apps: [InventoryEntry]) -> InventoryEntry? {
         let folder = URL(fileURLWithPath: entry.id).deletingLastPathComponent(), name = RemovedAppLeftovers.token(entry.name)
         let own = apps.first { app in
             let token = RemovedAppLeftovers.token(app.name)
-            guard app != entry, token.contains("uninstall") else { return false }
-            return (URL(fileURLWithPath: app.id).deletingLastPathComponent() == folder && folder.lastPathComponent != "Applications")
-                || (name.count >= 3 && token.contains(name))
+            guard app != entry, !name.isEmpty else { return false }
+            let inOwnFolder = URL(fileURLWithPath: app.id).deletingLastPathComponent() == folder && folder.lastPathComponent != "Applications"
+            return (inOwnFolder && token.hasPrefix("uninstall")) || token == "uninstall" + name || token == name + "uninstaller"
         }
         return own ?? vendorTool(for: entry, among: apps)
     }
