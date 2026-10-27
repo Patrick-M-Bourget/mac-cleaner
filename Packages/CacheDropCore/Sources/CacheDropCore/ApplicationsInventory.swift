@@ -9,8 +9,12 @@ public enum Removability {
         var info = stat(), folder = stat()
         let parent = url.deletingLastPathComponent().path
         guard lstat(url.path, &info) == 0, stat(parent, &folder) == 0, access(parent, W_OK | X_OK) == 0 else { return false }
-        if folder.st_mode & S_ISVTX != 0, user != 0, user != info.st_uid, user != folder.st_uid { return false }
+        if folder.st_mode & S_ISVTX != 0, !stickyFolderAllows(user: user, itemOwner: info.st_uid, folderOwner: folder.st_uid) { return false }
         return info.st_mode & S_IFMT != S_IFDIR || access(url.path, W_OK) == 0
+    }
+    /// In a sticky folder, only the item's owner, the folder's owner or root may move an item.
+    static func stickyFolderAllows(user: uid_t, itemOwner: uid_t, folderOwner: uid_t) -> Bool {
+        user == 0 || user == itemOwner || user == folderOwner
     }
 }
 

@@ -40,6 +40,17 @@ private func setMode(_ url: URL, _ mode: Int) throws { try FileManager.default.s
     try setMode(root, 0o1777)
     #expect(Removability.canMoveToTrash(file), "Its owner still can")
     #expect(!Removability.canMoveToTrash(file, asUser: stranger), "Anyone else can't, though the folder is writable")
+    #expect(Removability.canMoveToTrash(file, asUser: 0), "Root can")
+}
+
+/// #273: in a sticky folder, the folder's owner and root may also move another user's item. A test can't own a folder as
+/// someone else, so the owners are given.
+@Test func aStickyFoldersOwnerAndRootMayMoveAnotherUsersItem() {
+    let me: uid_t = 501, other: uid_t = 502, third: uid_t = 503
+    #expect(Removability.stickyFolderAllows(user: me, itemOwner: me, folderOwner: other), "The item's owner")
+    #expect(Removability.stickyFolderAllows(user: me, itemOwner: other, folderOwner: me), "The folder's owner")
+    #expect(Removability.stickyFolderAllows(user: 0, itemOwner: other, folderOwner: third), "Root")
+    #expect(!Removability.stickyFolderAllows(user: me, itemOwner: other, folderOwner: third), "Anyone else")
 }
 
 /// An app bundle with an Info.plist and `bytes` of executable.
