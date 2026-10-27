@@ -70,15 +70,19 @@ private func execute(_ candidate: Candidate, catalog: Catalog, home: URL, previe
 }
 
 /// A folder uv names outside the home folder is out of CacheDrop's scope, and one that doesn't exist has nothing to prune.
+/// Either way the plan says why it isn't offered (#198).
 @Test func aUVCacheFolderOutsideHomeOrMissingIsNotOffered() throws {
     let home = try fixtureHome(), outside = try fixtureHome()
     defer { try? FileManager.default.removeItem(at: home); try? FileManager.default.removeItem(at: outside) }
     try makeFolder(home, ".cache/uv")
     try makeFolder(outside, "uv")
     let catalog = Catalog(rules: fixtureRules)
-    for named in ["\(outside.path)/uv", "\(home.path)/missing-uv"] {
+    for (named, why) in [("\(outside.path)/uv", "\(outside.path)/uv as its cache (`uv cache dir`), which is outside your home folder"),
+                         ("\(home.path)/missing-uv", "~/missing-uv as its cache (`uv cache dir`), but there’s no folder there")] {
         let uv = try fakeUV(home, dir: "echo '\(named)'")
-        #expect(!catalog.discover(fixture: home, locateTool: onlyTool("uv", uv)).contains { $0.ruleID == "uv-cache" }, "\(named)")
+        let discovery = catalog.discovery(fixture: home, locateTool: onlyTool("uv", uv))
+        #expect(!discovery.candidates.contains { $0.ruleID == "uv-cache" }, "\(named)")
+        #expect(discovery.notes == [CatalogNote(ruleID: "uv-cache", text: "uv names \(why), so it isn’t offered.")], "\(named)")
     }
 }
 
