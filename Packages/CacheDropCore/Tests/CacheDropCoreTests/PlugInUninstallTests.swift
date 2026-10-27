@@ -522,3 +522,14 @@ private func unreadableReceipt(_ id: String, in root: URL) throws {
     let content = try #require(items.first { $0.url == library.url })
     #expect(check(home).check(content) == nil)
 }
+
+@Test func aPreferencesPlistAlwaysStaysWhateverItsKeys() throws {
+    let (root, home) = try fixture()
+    defer { try? FileManager.default.removeItem(at: root) }
+    let prefs = "Library/Preferences/com.maker.prosynth.plist"
+    try plist(prefs, ["UnlockCode": "7Q2-ZZ9", "Theme": "Dark"], in: root)
+    try receipt("com.maker.prosynth.pkg", listing: [plugIns + "Components/Pro Synth.component", plugIns + "VST3/Pro Synth.vst3", support + "Pro Synth", prefs], in: root)
+    let (_, items) = scan(root, home)
+    #expect(!items.contains { $0.url.lastPathComponent == "com.maker.prosynth.plist" })
+    #expect(PlugInUninstall.fileRefusal(root.appendingPathComponent(prefs).path) == .unrecognised("com.maker.prosynth.plist"), "Nor moved")
+}

@@ -228,13 +228,23 @@ public enum PlugInUninstall {
         if RemovedAppLeftovers.isNeverOffered(name) || ["registration", "serial"].contains(where: path.lowercased().contains) { return .protected(name) }
         var info = stat()
         guard lstat(path, &info) == 0, info.st_mode & S_IFMT != S_IFDIR else { return nil }
+        // A property list is safe only among preset files in a preset folder, never in Preferences (#291, Decision 53): a key
+        // list can't tell every licence key (UnlockCode, ProductKey, Token, a data blob) from a setting.
         if kind == "plist" {
+            guard isAmongPresets(url) else { return .unrecognised(name) }
             guard info.st_size <= plistReadLimit, let data = try? Data(contentsOf: url),
                   let list = try? PropertyListSerialization.propertyList(from: data, format: nil) else { return .unrecognised(name) }
             return hasLicenceKeys(list) ? .protected(name) : nil
         }
         return safeKinds.contains(kind) || finderFiles.contains(name) ? nil : .unrecognised(name)
     }
+    /// Whether a file sits in a folder (not Preferences) beside preset files.
+    static func isAmongPresets(_ url: URL) -> Bool {
+        let folder = url.deletingLastPathComponent()
+        guard folder.lastPathComponent != "Preferences" else { return false }
+        return ((try? FileManager.default.contentsOfDirectory(atPath: folder.path)) ?? []).contains { presetKinds.contains(($0 as NSString).pathExtension.lowercased()) }
+    }
+    static let presetKinds: Set<String> = ["fxp", "fxb", "vstpreset", "aupreset", "nmsv", "nksf", "nksn", "adg", "adv", "h2p"]
     /// Finder's own files in any folder: a folder's custom icon and its view settings.
     static let finderFiles: Set<String> = ["Icon\r", ".DS_Store"]
     /// File kinds known to hold only sound, presets, pictures or documents (Decision 53). Everything else stays.
