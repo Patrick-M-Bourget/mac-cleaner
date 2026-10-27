@@ -63,6 +63,9 @@ private func write(_ bytes: Int, at relative: String, in home: URL) throws {
     #expect(FoundLibrary.summary([library("/a/One.fcpbundle", "Macintosh HD")]) == "1 library · Macintosh HD")
     #expect(FoundLibrary.summary([library("/a/One.photoslibrary", "Macintosh HD"), library("/b/Two.photoslibrary", "Macintosh HD"),
                                   library("/Volumes/X/Three.photoslibrary", "External")]) == "3 libraries · Macintosh HD, External")
+    // Lightroom's previews (#179) are counted by the catalogs they belong to.
+    #expect(FoundLibrary.summary([library("/a/One Previews.lrdata", "Macintosh HD"), library("/Volumes/X/Two Previews.lrdata", "External")],
+                                 nouns: ("catalog", "catalogs")) == "2 catalogs · Macintosh HD, External")
 }
 
 /// Records what would open; opens nothing.
@@ -93,4 +96,44 @@ private actor RecordingOpener: GuidanceOpening {
     #expect(await catalog.open(finding, using: opener))
     #expect(await opener.targets == [.app(bundleID: "com.apple.FinalCut")])
     #expect(FileManager.default.fileExists(atPath: home.appendingPathComponent("Movies/Untitled.fcpbundle/Event 1/Render Files/a.mov").path))
+}
+
+/// #179: Lightroom Classic's previews beside each catalog, normal and Smart as separate guidance rows, each with its
+/// own consequence and Lightroom's steps. The catalog, its other packages and its backups are never listed or offered.
+@Test func lightroomPreviewsAreListedApartFromSmartPreviewsAndNoCatalogIsOffered() async throws {
+    let home = try libraryHome()
+    defer { try? FileManager.default.removeItem(at: home) }
+    let folder = "Pictures/Lightroom/"
+    try write(8_192, at: folder + "Lightroom Catalog.lrcat", in: home)
+    try write(4_096, at: folder + "Lightroom Catalog.lrcat-data/x", in: home)
+    try write(30_000, at: folder + "Lightroom Catalog Previews.lrdata/root/a.lrprev", in: home)
+    try write(20_000, at: folder + "Lightroom Catalog Smart Previews.lrdata/b.dng", in: home)
+    try write(4_096, at: folder + "Lightroom Catalog Helper.lrdata/c", in: home)
+    try write(4_096, at: folder + "Lightroom Catalog Sync.lrdata/d", in: home)
+    try write(4_096, at: folder + "Backups/2026-10-01/Lightroom Catalog.lrcat.zip", in: home)
+    // A catalog whose own name ends in "Smart" keeps its normal previews normal.
+    try write(4_096, at: "Volumes/Photo SSD/Travel Smart/Travel Smart.lrcat", in: home)
+    try write(10_000, at: "Volumes/Photo SSD/Travel Smart/Travel Smart Previews.lrdata/e", in: home)
+    let catalog = Catalog(rules: fixtureRules)
+    let findings = catalog.guidance(fixture: home)
+
+    let previews = try #require(findings.first { $0.ruleID == "lightroom-previews" }?.libraries)
+    #expect(previews.map(\.name).sorted() == ["Lightroom Catalog Previews", "Travel Smart Previews"])
+    #expect(previews.first { $0.name == "Travel Smart Previews" }?.volume == "Photo SSD")
+    let smart = try #require(findings.first { $0.ruleID == "lightroom-smart-previews" }?.libraries)
+    #expect(smart.map(\.name) == ["Lightroom Catalog Smart Previews"])
+
+    let normalRule = try #require(catalog.rule("lightroom-previews")), smartRule = try #require(catalog.rule("lightroom-smart-previews"))
+    #expect(normalRule.action == .guidance && smartRule.action == .guidance)
+    #expect(normalRule.detail.contains("Discard 1:1 Previews") && normalRule.detail.contains("built again"))
+    #expect(smartRule.detail.contains("Discard Smart Previews") && smartRule.detail.contains("originals"))
+    #expect(normalRule.guidance?.openTitle == "Open Lightroom Classic" && smartRule.guidance?.learnMore != nil)
+
+    // Nothing is offered, so no catalog, preview or backup can be cleaned; opening Lightroom changes nothing.
+    #expect(catalog.discover(fixture: home).isEmpty)
+    let finding = try #require(findings.first { $0.ruleID == "lightroom-smart-previews" })
+    let opener = RecordingOpener()
+    #expect(await catalog.open(finding, using: opener))
+    #expect(await opener.targets == [.app(bundleID: "com.adobe.LightroomClassicCC7")])
+    #expect(FileManager.default.fileExists(atPath: home.appendingPathComponent(folder + "Lightroom Catalog Smart Previews.lrdata/b.dng").path))
 }

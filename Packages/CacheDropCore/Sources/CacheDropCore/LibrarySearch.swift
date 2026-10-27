@@ -12,11 +12,12 @@ public struct FoundLibrary: Sendable, Equatable, Identifiable {
     /// "Trip 2019" for `Trip 2019.photoslibrary`.
     public var name: String { url.deletingPathExtension().lastPathComponent }
 
-    /// "3 libraries · Macintosh HD, External": how many, and their volumes in the order found.
-    public static func summary(_ libraries: [FoundLibrary]) -> String {
+    /// "3 libraries · Macintosh HD, External": how many, and their volumes in the order found. `nouns` names what one
+    /// package stands for, such as a Lightroom catalog for its previews (#179).
+    public static func summary(_ libraries: [FoundLibrary], nouns: (one: String, many: String) = ("library", "libraries")) -> String {
         var volumes: [String] = []
         for library in libraries where !volumes.contains(library.volume) { volumes.append(library.volume) }
-        return (libraries.count == 1 ? "1 library" : "\(libraries.count) libraries") + " · " + volumes.joined(separator: ", ")
+        return (libraries.count == 1 ? "1 \(nouns.one)" : "\(libraries.count) \(nouns.many)") + " · " + volumes.joined(separator: ", ")
     }
 }
 

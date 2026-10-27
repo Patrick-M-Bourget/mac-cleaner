@@ -9,15 +9,15 @@ extension Catalog {
                          snapshots: any LocalSnapshotListing = TmutilSnapshots(), fullDiskAccess: FullDiskAccessStatus = .unknown) -> [GuidanceFinding] {
         // One search finds every library rule's packages, and only for rules CacheDrop may read.
         let extensions = Set(rules.compactMap { rule -> String? in
-            guard rule.access(given: fullDiskAccess) == .available, case .libraries(let ext)? = rule.guidance?.sizing else { return nil }
-            return ext
+            guard rule.access(given: fullDiskAccess) == .available else { return nil }
+            return rule.guidance?.sizing.searchedExtension
         })
         let libraries = extensions.isEmpty ? nil : LibrarySearch.find(extensions: extensions, home: home, systemRoot: systemRoot, sizer: sizer)
         return rules.compactMap { rule -> GuidanceFinding? in
             guard rule.action == .guidance, let guidance = rule.guidance else { return nil }
             if rule.access(given: fullDiskAccess) == .needsFullDiskAccess { return GuidanceFinding(ruleID: rule.id, size: .notAccessible, folder: nil) }
-            if case .libraries(let ext) = guidance.sizing {
-                guard let libraries, let found = libraries.found[ext], !found.isEmpty else { return nil }
+            if let ext = guidance.sizing.searchedExtension {
+                guard let libraries, let found = libraries.found[ext]?.filter({ guidance.sizing.lists($0.url) }), !found.isEmpty else { return nil }
                 let total = SizeEstimate(sum: found.map(\.size) + (libraries.complete ? [] : [.unknown]))
                 return GuidanceFinding(ruleID: rule.id, size: .estimate(total), folder: found.first?.url, libraries: found)
             }

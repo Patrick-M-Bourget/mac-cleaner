@@ -140,7 +140,7 @@ private actor RecordingOpener: GuidanceOpening {
 
 @Test func everyGuidanceRuleHasAnExplanationAndAPlaceToManageIt() {
     let rules = fixtureRules.filter { $0.action == .guidance }
-    #expect(Set(rules.map(\.id)) == ["device-backups", "mail-attachments", "messages-attachments", "photos-library", "final-cut-libraries", "time-machine-snapshots", "xcode-archives", "audio-plug-ins", "rack-extensions", "logic-sound-library", "ableton-packs", "splice-samples", "agent-workspaces"])
+    #expect(Set(rules.map(\.id)) == ["device-backups", "mail-attachments", "messages-attachments", "photos-library", "final-cut-libraries", "lightroom-previews", "lightroom-smart-previews", "time-machine-snapshots", "xcode-archives", "audio-plug-ins", "rack-extensions", "logic-sound-library", "ableton-packs", "splice-samples", "agent-workspaces"])
     for rule in rules {
         #expect(!rule.detail.isEmpty)
         #expect(rule.guidance?.openTitle.hasPrefix("Open ") == true)
@@ -155,7 +155,7 @@ private actor RecordingOpener: GuidanceOpening {
     let catalog = Catalog(rules: fixtureRules)
     let findings = catalog.guidance(home: home, systemRoot: home, snapshots: FixtureSnapshots(), fullDiskAccess: .notGranted)
     // Protected places aren't touched at all, so no privacy prompt can appear; each is listed as not accessible.
-    #expect(Set(findings.filter { $0.size == .notAccessible }.map(\.ruleID)) == ["device-backups", "mail-attachments", "messages-attachments", "photos-library", "final-cut-libraries"])
+    #expect(Set(findings.filter { $0.size == .notAccessible }.map(\.ruleID)) == ["device-backups", "mail-attachments", "messages-attachments", "photos-library", "final-cut-libraries", "lightroom-previews", "lightroom-smart-previews"])
     #expect(findings.first { $0.ruleID == "xcode-archives" }.map { $0.size != .notAccessible } == true)
     #expect(catalog.guidance(home: home, systemRoot: home, snapshots: FixtureSnapshots(), fullDiskAccess: .granted).first { $0.ruleID == "mail-attachments" }?.size != .notAccessible)
 }
