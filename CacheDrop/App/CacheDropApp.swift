@@ -44,18 +44,18 @@ struct CacheDropApp: App {
 }
 
 enum Destination: String, CaseIterable, Identifiable {
-    case overview = "Overview", smartClean = "Smart clean", plan = "Cleanup plan", growth = "Storage trends", history = "History", locations = "Locations & access", applications = "Applications"
+    case overview = "Overview", smartClean = "Smart clean", plan = "Cleanup plan", growth = "Storage trends", applications = "Applications", history = "History", locations = "Locations & access"
     var id: String { rawValue }
-    /// ⌘1–⌘7 follow the sidebar order (#127, #141), Applications last (#267). Low-space alerts live in the Settings window (#131).
+    /// ⌘1–⌘7 follow the sidebar order (#127, #141), Applications just above History (#270). Low-space alerts live in the Settings window (#131).
     var shortcut: KeyEquivalent {
         switch self {
         case .overview: "1"
         case .smartClean: "2"
         case .plan: "3"
         case .growth: "4"
-        case .history: "5"
-        case .locations: "6"
-        case .applications: "7"
+        case .applications: "5"
+        case .history: "6"
+        case .locations: "7"
         }
     }
     var symbol: String {
@@ -196,11 +196,9 @@ private struct WorkspaceView: View {
             VStack(alignment: .leading, spacing: CacheDropDesign.Space.sm) {
                 AppBrand().padding(.horizontal, CacheDropDesign.Space.sm).padding(.bottom, CacheDropDesign.Space.xl)
                 Text("Storage").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary).padding(.horizontal, CacheDropDesign.Space.sm)
-                ForEach(Destination.allCases.filter { $0 != .locations && $0 != .applications }) { navigation($0) }
+                ForEach(Destination.allCases.filter { $0 != .locations }) { navigation($0) }
                 Text("Settings").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary).padding(.horizontal, CacheDropDesign.Space.sm).padding(.top, CacheDropDesign.Space.xl)
                 navigation(.locations)
-                // Last in the sidebar, after Locations & access (#267, Decision 51).
-                navigation(.applications).padding(.top, CacheDropDesign.Space.xl)
                 Spacer()
                 VStack(alignment: .leading, spacing: CacheDropDesign.Space.md) {
                     Label("This Mac", systemImage: "laptopcomputer").font(.callout)

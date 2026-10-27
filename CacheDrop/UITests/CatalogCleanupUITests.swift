@@ -1258,7 +1258,7 @@ final class TrashSpaceUITests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: inTrash.path))
         XCTAssertTrue(FileManager.default.fileExists(atPath: older.path), "Put back moves only its own item")
 
-        app.typeKey("5", modifierFlags: .command)
+        app.typeKey("6", modifierFlags: .command)
         // The run's row is one button whose label holds its title.
         let run = app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS 'Put back from Trash' OR value CONTAINS 'Put back from Trash'")).firstMatch
         XCTAssertTrue(run.waitForExistence(timeout: 10))

@@ -74,8 +74,8 @@ final class ApplicationsUITests: XCTestCase {
         app.typeKey("3", modifierFlags: .command)
         XCTAssertTrue(app.staticTexts["Cleanup plan"].waitForExistence(timeout: 5))
         XCTAssertFalse(app.checkBoxes["planCategory-leftovers"].exists, "Leftovers leave the Cleanup plan")
-        app.typeKey("7", modifierFlags: .command)
-        XCTAssertTrue(app.descendants(matching: .any)["applicationsHeader"].waitForExistence(timeout: 5), "⌘7 opens Applications")
+        app.typeKey("5", modifierFlags: .command)
+        XCTAssertTrue(app.descendants(matching: .any)["applicationsHeader"].waitForExistence(timeout: 5), "⌘5 opens Applications")
         XCTAssertTrue(FileManager.default.fileExists(atPath: leftover.path))
     }
 }
