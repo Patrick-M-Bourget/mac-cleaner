@@ -51,6 +51,7 @@ struct SmartCleanView: View {
             PageHeader(title: title, subtitle: "Rebuildable caches, build files and logs. Never your files.")
                 .accessibilityElement(children: .combine).accessibilityIdentifier("smartCleanHeader")
                 .padding(.bottom, StillDesign.Space.sm)
+            meter
             if let approvalError { StatusRow(text: approvalError, symbol: "exclamationmark.circle", role: .caution, identifier: "smartCleanError") }
             if model.isScanning { CatalogScanProgressLine(model: model) }
             VStack(alignment: .leading, spacing: 0) {
@@ -64,6 +65,17 @@ struct SmartCleanView: View {
             }
             notIncluded
         }.padding(StillDesign.Space.page).frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    /// The same meter as Overview's, with what Smart clean would free in full colour and the rest dimmed (#164).
+    @ViewBuilder private var meter: some View {
+        let reading = AppLifecycleController.shared.capacity.reading
+        if let breakdown = model.breakdown(available: reading?.available, total: reading?.total, trash: TrashModel.shared.contents, highlightingSmartClean: true),
+           breakdown.segments.contains(where: { $0.bytes > 0 }) {
+            CapacityMeter(available: reading?.available, total: reading?.total, showsValue: false, prominent: true, breakdown: breakdown,
+                          open: { part in part.categories.forEach { openPlan($0) } })
+                .accessibilityIdentifier("smartCleanMeter").padding(.bottom, StillDesign.Space.sm)
+        }
     }
 
     /// "Smart clean · X ready to clean": the ticked items' size; "Up to" when part of it is copies that share disk blocks.
