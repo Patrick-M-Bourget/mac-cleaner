@@ -58,7 +58,7 @@ public enum AppCaches {
     static let sparkleFolder = "org.sparkle-project.Sparkle"
 
     /// Offline or downloaded content an app can keep in its own `~/Library/Caches/<bundle id>` folder (#171). While any of these
-    /// entries is at the top of the app's folder, "App caches" never offers the folder and the check refuses it: it is not a cache
+    /// files is anywhere inside the app's folder, "App caches" offers nothing from it and the check refuses it: it is not a cache
     /// the app rebuilds. Each exception cites the vendor's documentation or an observed layout; an app not listed keeps the rule as is.
     ///
     /// Audit of the apps this rule matches (2026-10-26; folder names seen on a Mac, never file contents):
@@ -69,7 +69,7 @@ public enum AppCaches {
     ///   with `offline.bnk` beside it. Spotify's community reports downloads in `~/Library/Caches/com.spotify.Client/storage` too
     ///   (https://community.spotify.com/t5/Desktop-Mac/Where-are-offline-files-stored-on-Mac/m-p/1367628,
     ///   https://community.spotify.com/t5/Live-Ideas/Let-user-select-where-to-save-files-for-offline-mode/idi-p/7410350),
-    ///   so any of those names keeps the folder, in either case on a case-sensitive volume.
+    ///   and Settings > Storage accepts any folder name, so downloads are recognized by their `offline.bnk` file at any depth (#203).
     /// - Ableton Live (`com.ableton.live`), Pro Tools (`com.avid.ProTools`), Slack (`com.tinyspeck.slackmacgap`), Native Access,
     ///   UA Connect, LANDR, Claude, CleanShot X: observed only the URL loading system's cache (`Cache.db`, `fsCachedData`),
     ///   `WebKit` and crash reporters' folders (`io.sentry`), which are refetched or rewritten. Rebuildable.
@@ -78,9 +78,60 @@ public enum AppCaches {
     /// - Steam, Microsoft Teams, Adobe apps: not installed on the audited Mac, so no layout to observe. Their folders keep today's
     ///   behavior until one is audited with vendor sources. Browsers have their own rules (`BrowserCaches`).
     static let knownOfflineContent: [String: OfflineContent] = [
-        "com.spotify.client": OfflineContent(names: ["Storage", "storage", "offline.bnk"], label: "Spotify’s offline downloads"),
+        "com.spotify.client": OfflineContent(names: ["offline.bnk"], label: "Spotify’s offline downloads"),
     ]
     static let appCachesRuleID = "app-caches"
+
+    /// Entries that make a folder an embedded web view's profile with the user's sign-in data (#203), as Chromium and
+    /// Electron name them (seen in Spotify's cache folder). A folder holding a profile is never offered whole.
+    static let signInNames = ["Cookies", "Login Data", "Local Storage"]
+    /// A web-view profile's parts that the web view rebuilds, the only parts of a profile ever offered (#203).
+    static let webViewCacheParts: Set<String> = ["Cache", "Code Cache", "GPUCache"]
+
+    /// The app's folder right below `~/Library/Caches` that `url` is or is inside; nil when it is in none.
+    static func appFolder(of url: URL) -> URL? {
+        let parts = url.standardizedFileURL.pathComponents
+        guard let caches = parts.indices.dropLast().last(where: { parts[$0] == "Library" && parts[$0 + 1] == "Caches" }), caches + 2 < parts.count else { return nil }
+        return URL(fileURLWithPath: NSString.path(withComponents: Array(parts[...(caches + 2)])), isDirectory: true)
+    }
+
+    /// Whether `folder` directly holds sign-in data: a web-view profile.
+    static func isWebViewProfile(_ folder: URL) -> Bool {
+        signInNames.contains { name in
+            var info = stat()
+            return lstat(folder.appendingPathComponent(name).path, &info) == 0
+        }
+    }
+
+    /// What "App caches" offers from an app's folder: the folder itself, or, when it holds web-view profiles with sign-in data
+    /// within `liveWorkDepth` levels, only each profile's `Cache`, `Code Cache` and `GPUCache` (#203). A folder that can't be
+    /// fully searched comes back whole, and the protected-entry search then leaves it out.
+    static func offeredFolders(in appFolder: URL) -> [URL] {
+        guard Catalog.isFolder(appFolder) else { return [appFolder] }
+        var profiles = Set<String>(), seen = 0, complete = true
+        let opened = FileTree.walk(appFolder) { entry in
+            let level = Int(entry.pointee.fts_level), kind = Int32(entry.pointee.fts_info)
+            guard level > 0, kind != FTS_DP else { return .continue }
+            seen += 1
+            if seen > CandidateCheck.protectedSearchLimit || kind == FTS_DNR || kind == FTS_ERR { complete = false; return .stop }
+            let path = String(cString: entry.pointee.fts_path)
+            if signInNames.contains((path as NSString).lastPathComponent) { profiles.insert((path as NSString).deletingLastPathComponent) }
+            return kind == FTS_D && level >= liveWorkDepth ? .skip : .continue
+        }
+        guard opened, complete, !profiles.isEmpty else { return [appFolder] }
+        return profiles.sorted().flatMap { profile in
+            webViewCacheParts.sorted().map { URL(fileURLWithPath: profile).appendingPathComponent($0) }.filter(Catalog.isFolder)
+        }
+    }
+
+    /// Whether an "App caches" item is what the rule offers: an app's whole folder, or a cache part of a web-view profile
+    /// inside one (#203). Anything else, such as a part whose folder no longer holds sign-in data, has changed since the scan.
+    static func isOfferedItem(_ url: URL) -> Bool {
+        guard let app = appFolder(of: url) else { return false }
+        let depth = url.standardizedFileURL.pathComponents.count - app.standardizedFileURL.pathComponents.count
+        if depth == 0 { return true }
+        return depth <= liveWorkDepth && webViewCacheParts.contains(url.lastPathComponent) && isWebViewProfile(url.deletingLastPathComponent())
+    }
 
     public static func rules(apps: any AppLookup) -> [CleanupRule] {
         [
@@ -94,7 +145,9 @@ public enum AppCaches {
                         detail: "Files apps keep in your Library to start and work faster, per app.",
                         consequence: "Permanently removed. Each app rebuilds its cache as you use it, so it may be slower at first. An app must be closed first; CacheDrop never quits it for you.",
                         regen: .cache, action: .delete, locations: ["Library/Caches/*"], owner: nil,
-                        itemOwner: { installedOwner($0.lastPathComponent, apps: apps) }, yieldsToOtherRules: true, protectedDepth: liveWorkDepth,
+                        protectedNames: signInNames,
+                        // A web-view profile's cache part belongs to the app whose folder holds it (#203).
+                        itemOwner: { installedOwner((appFolder(of: $0) ?? $0).lastPathComponent, apps: apps) }, yieldsToOtherRules: true, protectedDepth: liveWorkDepth,
                         offlineContent: knownOfflineContent),
             // Crash reports first, so ~/Library/Logs/DiagnosticReports is listed once, as crash reports.
             CleanupRule(id: "crash-reports", category: .logs, title: "Crash reports",
@@ -202,7 +255,7 @@ public struct InstalledApp: Sendable, Hashable {
     public init(name: String, bundleID: String, path: String) { self.name = name; self.bundleID = bundleID; self.path = path }
 }
 
-/// Content an app keeps offline in its cache folder (#171): any of `names` inside the folder keeps it, and `label` says why.
+/// Content an app keeps offline in its cache folder (#171): any of `names` anywhere inside the folder keeps it (#203), and `label` says why.
 public struct OfflineContent: Sendable, Hashable {
     public let names: Set<String>
     public let label: String
@@ -210,10 +263,13 @@ public struct OfflineContent: Sendable, Hashable {
 }
 
 extension CleanupRule {
-    /// What offline content an app keeps in `folder`, if any (`offlineContent`, keyed in lowercase as LaunchServices matches
-    /// bundle identifiers). Nil for rules with none and for every other app.
+    /// What offline content an app keeps in the app folder `folder` is or is inside, if any (`offlineContent`, keyed in lowercase
+    /// as LaunchServices matches bundle identifiers), found at any depth. A folder that can't be fully searched counts as holding it.
+    /// Nil for rules with none and for every other app.
     func offlineContentLabel(in folder: URL) -> String? {
-        guard let content = offlineContent[folder.lastPathComponent.lowercased()] else { return nil }
-        return content.names.contains { FileManager.default.fileExists(atPath: folder.appendingPathComponent($0).path) } ? content.label : nil
+        guard !offlineContent.isEmpty else { return nil }
+        let app = AppCaches.appFolder(of: folder) ?? folder
+        guard let content = offlineContent[app.lastPathComponent.lowercased()] else { return nil }
+        return CandidateCheck.protectedEntry(in: app, names: content.names, depth: .max) != nil ? content.label : nil
     }
 }
