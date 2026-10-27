@@ -333,10 +333,12 @@ struct EmptyState: View {
     }
 }
 /// The bottom bar every screen has, always the same height (Decision 46): a leading note or control, then the actions.
-/// While background work runs, its one quiet progress line takes the note's place.
+/// While background work runs, its one quiet progress line takes the note's place. Notes are one line (#234).
 struct ActionStrip<Leading: View, Actions: View>: View {
     /// False keeps the note in place while work runs, as the running cleanup's Stop strip does.
     var showsBackgroundWork = true
+    /// Only the running cleanup's Stop strip lets its note wrap, so that bar alone may grow (#234).
+    var wrapsNote = false
     @ViewBuilder var leading: () -> Leading
     @ViewBuilder var actions: () -> Actions
     @Environment(\.cacheDropBackgroundWork) private var work
@@ -347,7 +349,7 @@ struct ActionStrip<Leading: View, Actions: View>: View {
                 if showsBackgroundWork, let work { BackgroundWorkLine(line: work) } else { leading() }
                 Spacer(minLength: CacheDropDesign.Space.sm)
                 actions()
-            }.frame(minHeight: CacheDropDesign.Size.actionStripRow)
+            }.frame(minHeight: CacheDropDesign.Size.actionStripRow, maxHeight: wrapsNote ? nil : CacheDropDesign.Size.actionStripRow)
                 .padding(.horizontal, CacheDropDesign.Space.page).padding(.vertical, CacheDropDesign.Space.lg)
         }.background(CacheDropDesign.reading).controlSize(.large).buttonBorderShape(.capsule)
             .accessibilityElement(children: .contain).accessibilityIdentifier("actionStrip")
@@ -355,8 +357,8 @@ struct ActionStrip<Leading: View, Actions: View>: View {
 }
 extension ActionStrip where Leading == ActionStripMessage {
     /// Only for notes that report state, such as a running cleanup (Decision 25); nil leaves the actions alone.
-    init(message: String?, showsBackgroundWork: Bool = true, @ViewBuilder actions: @escaping () -> Actions) {
-        self.init(showsBackgroundWork: showsBackgroundWork, leading: { ActionStripMessage(text: message) }, actions: actions)
+    init(message: String?, showsBackgroundWork: Bool = true, wrapsNote: Bool = false, @ViewBuilder actions: @escaping () -> Actions) {
+        self.init(showsBackgroundWork: showsBackgroundWork, wrapsNote: wrapsNote, leading: { ActionStripMessage(text: message, wraps: wrapsNote) }, actions: actions)
     }
 }
 extension ActionStrip where Leading == ActionStripMessage, Actions == EmptyView {
@@ -374,10 +376,19 @@ struct BackgroundWorkLine: View {
         }
     }
 }
-/// A bottom bar's note; nothing when there is none.
+/// A bottom bar's note; nothing when there is none. One line, truncated, with the full text in a tooltip (#234), unless it
+/// may wrap (only the Stop strip's).
 struct ActionStripMessage: View {
     let text: String?
-    var body: some View { if let text { Text(text).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true) } }
+    var wraps = false
+    var body: some View {
+        if let text {
+            Group {
+                if wraps { Text(text).fixedSize(horizontal: false, vertical: true) }
+                else { Text(text).lineLimit(1).truncationMode(.tail).help(text) }
+            }.font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary).accessibilityIdentifier("actionStripNote")
+        }
+    }
 }
 struct CapacityMeter: View {
     let available: Int64?
@@ -741,9 +752,16 @@ struct NativeWindowContract: NSViewRepresentable {
         private func fit(_ window: NSWindow) {
             guard let screen = window.screen ?? NSScreen.main else { return }
             let visible = screen.visibleFrame
-            let requested = window.frame
+            var requested = window.frame
             let minimum = NSSize(width: min(900, visible.width), height: min(640, visible.height))
             window.minSize = minimum
+            #if DEBUG
+            // A disposable UI test can open the window at its minimum size (#234) without saving that frame for later launches.
+            if LocalStateLocation.isDisposableTest, ProcessInfo.processInfo.environment["CACHEDROP_TEST_MINIMUM_WINDOW"] == "1" {
+                window.setFrameAutosaveName("")
+                requested.size = minimum
+            }
+            #endif
             let size = NSSize(width: max(minimum.width, min(requested.width, visible.width)), height: max(minimum.height, min(requested.height, visible.height)))
             let origin = NSPoint(x: min(max(requested.minX, visible.minX), visible.maxX - size.width), y: min(max(requested.minY, visible.minY), visible.maxY - size.height))
             let fitted = NSRect(origin: origin, size: size)

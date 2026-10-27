@@ -154,21 +154,27 @@ final class CatalogCleanupUITests: XCTestCase {
         XCTAssertEqual(actionStrip(app).frame.height, stripHeight, accuracy: 0.5)
     }
 
-    /// #220: every screen has the same bottom bar at the same height, and the catalog scan's progress shows in it on
-    /// whichever screen is open.
+    /// #220, #234: every screen has the same bottom bar at the same height, even at the minimum window width, and the
+    /// catalog scan's progress shows in it on whichever screen is open. A long note stays on one line.
     @MainActor func testEveryScreenHasTheSameBottomBarAndShowsScanProgress() throws {
         continueAfterFailure = false
         let app = XCUIApplication()
         let state = try configureIsolatedState(app)
         let home = try configureCatalogHome(app)
+        let folder = FileManager.default.temporaryDirectory.resolvingSymlinksInPath().appendingPathComponent("CacheDropPicked-" + UUID().uuidString)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        try Data(repeating: 1, count: 4_000).write(to: folder.appendingPathComponent("entry.zip"))
         app.launchEnvironment["CACHEDROP_TEST_DISCOVERY_PAUSE"] = "0.5"
-        defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
+        app.launchEnvironment["CACHEDROP_TEST_MINIMUM_WINDOW"] = "1"
+        defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home); try? FileManager.default.removeItem(at: folder) }
         app.launch()
 
         let progress = app.staticTexts["catalogScanProgress"]
         XCTAssertTrue(progress.waitForExistence(timeout: 10))
+        // #234: at the minimum window width, a bar is its one row (Size.actionStripRow, 32) plus its padding and divider.
+        XCTAssertEqual(app.windows.firstMatch.frame.width, 900, accuracy: 1, "The window is at its minimum width")
         let height = actionStrip(app).frame.height
-        XCTAssertGreaterThan(height, 0)
+        XCTAssertEqual(height, 32 + 2 * 16 + 1, accuracy: 1)
         // History and Locations & access did not start the scan; their bars show it.
         for (key, screen) in [("5", "History"), ("6", "Locations & access")] {
             app.typeKey(key, modifierFlags: .command)
@@ -186,6 +192,23 @@ final class CatalogCleanupUITests: XCTestCase {
             XCTAssertTrue(strip.waitForExistence(timeout: 5), screen)
             XCTAssertEqual(strip.frame.height, height, accuracy: 0.5, screen)
         }
+        // #234: the explorer's note ("Inspection only · …") stays on one line beside its button.
+        app.typeKey("1", modifierFlags: .command)
+        app.buttons["overviewScanFolder"].click()
+        let panel = app.sheets.firstMatch.exists ? app.sheets.firstMatch : app.dialogs.firstMatch
+        XCTAssertTrue(panel.waitForExistence(timeout: 5))
+        panel.typeKey("g", modifierFlags: [.command, .shift])
+        app.typeText(folder.path + "\n")
+        panel.buttons["Scan folder"].click()
+        let explore = app.links["Explore storage"]
+        XCTAssertTrue(explore.waitForExistence(timeout: 20))
+        explore.click()
+        XCTAssertTrue(app.buttons["Open folder " + folder.lastPathComponent].waitForExistence(timeout: 10))
+        let note = app.staticTexts["actionStripNote"]
+        XCTAssertTrue(note.waitForExistence(timeout: 5))
+        XCTAssertTrue((note.value as? String)?.hasPrefix("Inspection only") == true, note.debugDescription)
+        XCTAssertTrue(actionStrip(app).frame.contains(note.frame))
+        XCTAssertEqual(actionStrip(app).frame.height, height, accuracy: 0.5, "Explore storage")
     }
 
     @MainActor func testDeveloperCachesShowOnlyWhenPresentAndADryRunNeverRunsTheTool() throws {

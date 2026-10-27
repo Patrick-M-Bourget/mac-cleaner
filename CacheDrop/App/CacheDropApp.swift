@@ -272,7 +272,7 @@ private struct WorkspaceView: View {
 
                 Group {
                     if exclusionsVisible {
-                        ActionStrip(message: "Custom rules change scan coverage; original files stay unchanged.") {
+                        ActionStrip(message: "Exclusions change scan coverage. Files stay unchanged.") {
                             if ExclusionsModel.shared.preview != nil {
                                 Button("Cancel") { ExclusionsModel.shared.preview = nil }.disabled(ExclusionsModel.shared.editingBlocked)
                                 Button("Save exclusion") { Task { await ExclusionsModel.shared.save() } }.buttonStyle(.borderedProminent).disabled(ExclusionsModel.shared.editingBlocked)
@@ -281,11 +281,11 @@ private struct WorkspaceView: View {
                             }
                         }
                     } else if diagnosticsVisible {
-                        ActionStrip(message: "The reviewed payload stays on this Mac unless you explicitly save it.") {
+                        ActionStrip(message: "It stays on this Mac unless you save it.") {
                             Button("Save diagnostics…") { Task { await diagnostics.save() } }.buttonStyle(.borderedProminent).disabled(diagnostics.export == nil || diagnostics.isSaving)
                         }
                     } else if recoveryVisible {
-                        ActionStrip(message: "Recovery records are retained. Nothing resumes automatically.") { EmptyView() }
+                        ActionStrip(message: "Records are kept. Nothing resumes automatically.") { EmptyView() }
                     } else if navigationState.localRecordsVisible {
                         ActionStrip()
                     } else if nativeInspectionVisible && folderInspection.isScanning {
