@@ -9,7 +9,8 @@ struct StillApp: App {
     @StateObject private var alerts = AppLifecycleController.shared.alerts
     @AppStorage(MenuBarItemPreference.key) private var showsMenuBarItem = true
     /// Runs before AppKit finishes launching, so saved window state is ignored before it can be restored.
-    init() { AppLaunchPolicy.registerDefaults() }
+    /// Still's state is copied first, before anything reads CacheDrop's (#149).
+    init() { LocalStateLocation.migrateFromStill(); AppLaunchPolicy.registerDefaults() }
     var body: some Scene {
         Window("Still", id: "workspace") {
             WorkspaceView(alerts: lifecycle.alerts)
