@@ -152,7 +152,7 @@ struct ApplicationsView: View {
             else if !uninstall.isEmpty {
                 // Its own uninstaller comes first (Decision 41); a later scan's Leftovers shows what it left.
                 if let tool = model.uninstaller(for: entry) {
-                    StatusRow(text: "Its own uninstaller removes it best", symbol: "shippingbox", identifier: "applicationsUninstaller-" + entry.id,
+                    StatusRow(text: "Has its own uninstaller", symbol: "shippingbox", identifier: "applicationsUninstaller-" + entry.id,
                               action: StatusAction(title: "Open " + tool.name, identifier: "applicationsOpen-" + entry.id) { model.open(tool) })
                 }
                 PlanRunningOwners(model: catalog, rule: AppUninstall.rules[0], only: entry.name)
