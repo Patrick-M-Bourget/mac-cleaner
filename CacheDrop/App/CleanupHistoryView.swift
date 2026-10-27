@@ -1,0 +1,238 @@
+import AppKit
+import Observation
+import CacheDropCore
+import SwiftUI
+
+extension AppLifecycleController: HistoryMaintenanceLifecycle {
+    var operationActive: Bool { operationInProgress || selection.workspaceRunning }
+    var maintenanceActive: Bool { get { maintenanceInProgress } set { maintenanceInProgress = newValue } }
+}
+
+enum HistoryActivityFilter: String, CaseIterable { case all = "All activity", scans = "Scans", cleanups = "Cleanups" }
+private enum HistoryActivityItem: Identifiable {
+    case scan(ScanActivity), cleanup(CleanupHistoryRun)
+    var id: String { switch self { case .scan(let value): "scan-" + value.id.uuidString; case .cleanup(let value): "cleanup-" + value.id.uuidString } }
+    var date: Date { switch self { case .scan(let value): value.completedAt; case .cleanup(let value): value.date } }
+}
+
+@MainActor @Observable final class CleanupHistoryModel {
+    var filter = HistoryActivityFilter.all
+    var expandedScans: Set<UUID> = []
+    var snapshot: CleanupHistorySnapshot?
+    var message: String?
+    var loadError: String?
+    var blocked = false
+    var busy = false
+    func load(maintainCompleted: Bool = true) async {
+        guard !busy else { return }
+        busy = true; defer { busy = false }
+        do {
+            let loaded = try await HistoryLoadCoordinator.load(lifecycle: AppLifecycleController.shared) { mayMaintain in
+                try await Task.detached {
+                    guard let reader = try CleanupJournalLocation.existingReader() else { return (CleanupHistorySnapshot(records: []), false) }
+                    if mayMaintain && maintainCompleted {
+                        let journal = try CleanupJournalLocation.writer()
+                        let maintenance = try journal.retainCompletedRuns(maximumBytes: 250_000_000)
+                        let compacted = maintenance.removedRecords == 0 ? true : try journal.compact().completed
+                        return (try journal.completedHistory(), !compacted)
+                    }
+                    return (try reader.completedHistory(), false)
+                }.value
+            }
+            snapshot = loaded.0; loadError = nil
+            if loaded.1 { message = "Expired completed history was removed, but journal compaction did not finish. Disk reclamation is not confirmed." }
+            blocked = false
+        } catch {
+            snapshot = nil; blocked = true
+            loadError = "Cleanup history is unavailable. The local journal cannot be read. Clear and reset are unavailable; keep its recovery records."
+        }
+    }
+
+    func clear() async {
+        let lifecycle = AppLifecycleController.shared
+        guard !busy, !lifecycle.maintenanceInProgress, !lifecycle.operationInProgress, !lifecycle.selection.workspaceRunning else { message = "Wait for the current cleanup to finish."; return }
+        busy = true; defer { busy = false }
+        lifecycle.maintenanceInProgress = true; defer { lifecycle.maintenanceInProgress = false }
+        var clearedRuns: Int?
+        var compactionCompleted = false
+        do {
+            let result = try await Task.detached {
+                let journal = try CleanupJournalLocation.writer()
+                let removed = try journal.clearCompletedRuns()
+                // Compaction/readback cannot turn an already committed clear into an unknown count.
+                let compacted = try? journal.compact()
+                return (removed, compacted?.completed ?? false, try? journal.completedHistory())
+            }.value
+            clearedRuns = result.0.removedRuns; compactionCompleted = result.1
+            snapshot = result.2
+            if snapshot == nil { blocked = true; loadError = "Cleanup history is unavailable. The local journal cannot be read. Clear and reset are unavailable; keep its recovery records." }
+            else { blocked = false; loadError = nil }
+            try await GrowthHistoryModel.shared.clearCompletedHistory()
+            await ScanActivityHistory.shared.load(maintain: false)
+            let noun = result.0.removedRuns == 1 ? "run" : "runs"
+            message = "Cleared \(result.0.removedRuns) completed cleanup \(noun), scan activity and growth baselines. Recovery facts retained." + compactionMessage(compactionCompleted)
+        } catch {
+            if let clearedRuns {
+                let noun = clearedRuns == 1 ? "run" : "runs"
+                message = "Cleared \(clearedRuns) completed cleanup \(noun). Scan activity and growth baseline clearing could not be confirmed. Recovery facts remain protected." + compactionMessage(compactionCompleted)
+            } else {
+                message = "Cleanup history clearing could not be confirmed. Scan activity and growth baselines were not cleared. Recovery facts remain protected."
+            }
+        }
+    }
+    private func compactionMessage(_ completed: Bool) -> String {
+        completed ? " Local journal compacted." : " Journal compaction was deferred or failed; disk reclamation is not confirmed."
+    }
+    func reset() async -> Bool {
+        let lifecycle = AppLifecycleController.shared
+        guard !busy, !lifecycle.maintenanceInProgress, !lifecycle.operationInProgress, !lifecycle.selection.workspaceRunning else { message = "Reset is blocked while cleanup is running. Stop and review its results first."; return false }
+        busy = true; lifecycle.maintenanceInProgress = true
+        defer { busy = false; lifecycle.maintenanceInProgress = false }
+        enum ResetStage { case journal, appearance, remainingPreferences }
+        var resetStage = ResetStage.journal
+        var downloadsClearedRuns: Int?
+        do {
+            // This check is deliberately inside the write transaction, never based on cached UI.
+            let result = try await Task.detached {
+                let journal = try CleanupJournalLocation.writer()
+                let removed = try journal.clearCompletedRuns(requireNoRecovery: true)
+                let compacted = try journal.compact()
+                return (removed, compacted)
+            }.value
+            downloadsClearedRuns = result.0.removedRuns
+            resetStage = .appearance
+            try lifecycle.resetAppearancePreference()
+            resetStage = .remainingPreferences
+            try lifecycle.resetPreferences()
+            try lifecycle.locations.reset()
+            try await GrowthHistoryModel.shared.resetHistory()
+            try await ExclusionsModel.shared.reset()
+            lifecycle.selection.endSession()
+            await lifecycle.inspection.resetSession()
+            lifecycle.planPresentation.reset()
+            lifecycle.downloadsExplorer.openDownloads(); lifecycle.locationsExplorer.openLocations()
+            lifecycle.workspaceNavigation.explorerVisible = false
+            lifecycle.workspaceNavigation.planReturnsToExplorer = false
+            snapshot = CleanupHistorySnapshot(records: [])
+            message = "CacheDrop’s preferences, custom exclusions, selected locations and completed history were reset. Original files and macOS access grants are unchanged." + (result.1.completed ? "" : " Journal compaction did not finish; disk reclamation is not confirmed.")
+            blocked = false
+            return true
+        } catch CleanupJournalError.recoveryRequired {
+            blocked = true; message = "Reset is blocked by unfinished cleanup records. Open recovery review; no operations will resume automatically."
+        } catch {
+            blocked = true
+            switch resetStage {
+            case .journal:
+                message = "Reset could not finish safely. The journal is unavailable; preferences are unchanged and some completed history may already be cleared. Review recovery before trying again."
+            case .appearance:
+                message = "Reset could not clear the appearance preference. The current appearance is retained; some completed history may already be cleared. Review recovery before trying again."
+            case .remainingPreferences:
+                message = "Reset could not finish safely. Appearance was reset to System, but another preference service is unavailable; some completed history may already be cleared. Review recovery before trying again."
+            }
+        }
+        if let downloadsClearedRuns, downloadsClearedRuns > 0 {
+            message = (message ?? "Reset did not finish.") + " Completed cleanup runs cleared: \(downloadsClearedRuns)."
+        }
+        return false
+    }
+}
+
+struct CleanupHistoryView: View {
+    @Bindable var model: CleanupHistoryModel
+    @Binding var expandedRuns: Set<UUID>
+    @Bindable private var scans = ScanActivityHistory.shared
+    var showRecovery: () -> Void
+    var goOverview: () -> Void
+    var viewPlan: () -> Void
+    private var items: [HistoryActivityItem] {
+        let scanItems: [HistoryActivityItem] = model.filter == .cleanups ? [] : (scans.records ?? []).map(HistoryActivityItem.scan)
+        let cleanupItems: [HistoryActivityItem] = model.filter == .scans ? [] : (model.snapshot?.completedRuns ?? []).map(HistoryActivityItem.cleanup)
+        return (scanItems + cleanupItems).sorted { $0.date == $1.date ? $0.id < $1.id : $0.date > $1.date }
+    }
+    private var unavailable: Bool {
+        switch model.filter { case .all: scans.records == nil || model.snapshot == nil; case .scans: scans.records == nil; case .cleanups: model.snapshot == nil }
+    }
+    var body: some View {
+        VStack(alignment: .leading, spacing: CacheDropDesign.Space.xl) {
+            HStack(alignment: .firstTextBaseline) {
+                PageHeader(title: "History")
+                HistoryActivityFilterControl(selection: $model.filter)
+            }
+            if let message = model.message {
+                StatusRow(text: message, symbol: model.blocked ? "exclamationmark.triangle" : "info.circle", role: model.blocked ? .caution : .neutral, identifier: "historyStatus")
+            }
+            ScanHistoryRecordingNotice()
+            if let error = model.loadError {
+                HistoryStoreFailure(message: error, retryTitle: "Try cleanup history again", enabled: !model.busy) { Task { await model.load() } }
+            }
+            if let error = scans.loadError {
+                HistoryStoreFailure(message: error, retryTitle: "Try scan history again", enabled: !scans.isLoading) { Task { await scans.load() } }
+            }
+            if readingHistory { ProgressView("Reading local history…") }
+            if model.blocked || (model.snapshot?.protectedRecordCount ?? 0) > 0 {
+                SettingsRow(title: "Recovery facts are protected", detail: "Unfinished runs are excluded from Clear and retention. Reset requires them to be resolved.") {
+                    Button("Open recovery review", action: showRecovery).accessibilityIdentifier("historyRecovery")
+                }
+            }
+            if !items.isEmpty {
+                VStack(alignment: .leading, spacing: 0) {
+                    ForEach(items) { item in
+                        switch item {
+                        case .scan(let activity):
+                            ScanActivitySummary(activity: activity, expanded: Binding(get: { model.expandedScans.contains(activity.id) }, set: { if $0 { model.expandedScans.insert(activity.id) } else { model.expandedScans.remove(activity.id) } }))
+                        case .cleanup(let run): cleanup(run)
+                        }
+                        Divider()
+                    }
+                }
+            } else if !readingHistory {
+                if unavailable { HistoryActivityUnavailableState() }
+                else { HistoryActivityEmptyState(filter: model.filter, goOverview: goOverview, viewPlan: viewPlan) }
+            }
+            HistoryRetentionNote()
+        }.task { await reload() }
+    }
+    private var readingHistory: Bool {
+        model.busy || scans.isLoading || (model.snapshot == nil && model.loadError == nil) || (scans.records == nil && scans.loadError == nil)
+    }
+    private func reload() async {
+        async let cleanup: Void = model.load()
+        async let scanRecords: Void = scans.load()
+        _ = await (cleanup, scanRecords)
+    }
+    private func cleanup(_ run: CleanupHistoryRun) -> some View {
+        HistoryRow(symbol: run.isPreview ? "eye" : run.isPutBack ? "arrow.uturn.backward" : "checklist", title: run.title, date: run.date, size: bytes(run.plannedLogicalBytes),
+                   sizeNote: run.isPutBack ? "From Trash" : "Estimated",
+                   expanded: Binding(get: { expandedRuns.contains(run.id) }, set: { if $0 { expandedRuns.insert(run.id) } else { expandedRuns.remove(run.id) } }),
+                   identifier: "cleanupRun:" + run.id.uuidString) {
+            if run.usesApprovalDate { note("Approval date shown; outcome time was not recorded by this version.") }
+            if run.isPreview {
+                note("Dry run · Nothing on disk changed. No space was freed.")
+            } else if !run.isPutBack {
+                if run.records.contains(where: { $0.cleanupAction == .trash }) {
+                    note("In Trash until you empty it: " + (run.trashHeldAllocatedBytes.map(bytes) ?? "Unknown"))
+                }
+                note("Observed startup-volume capacity change: " + (run.capacity?.observedChange.map { ($0 >= 0 ? "+" : "−") + bytes(abs($0)) } ?? "Unknown") + " · Other activity can affect it.")
+            }
+            ForEach(run.records) { record in
+                HStack(alignment: .firstTextBaseline, spacing: CacheDropDesign.Space.md) {
+                    VStack(alignment: .leading, spacing: CacheDropDesign.Space.xs) {
+                        Text(record.originalURL.lastPathComponent + " · " + PathDisplay.shortLocation(of: record.originalURL.path))
+                            .lineLimit(1).truncationMode(.middle).help(record.originalURL.path)
+                        Text(record.outcomeTitle + " · " + record.message).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true).help("Action: " + record.actionTitle + (record.previewOnly == true ? " · Dry run" : ""))
+                    }.frame(maxWidth: .infinity, alignment: .leading)
+                    let putBack = run.putBackIDs.contains(record.id) || TrashModel.shared.putBackOutcomes[record.id] == .restored(record.originalURL)
+                    if let trash = record.trashURL, !putBack, !record.isPutBack {
+                        Button("Show in Finder") { Finder.reveal([trash]) }.controlSize(.small).help(trash.path)
+                    }
+                    if record.canPutBack {
+                        PutBackLink(record: record, alreadyPutBack: run.putBackIDs.contains(record.id)) { Task { await model.load(maintainCompleted: false) } }
+                    }
+                }
+            }
+        }
+    }
+    private func note(_ text: String) -> some View { Text(text).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true) }
+    private func bytes(_ value: Int64) -> String { ByteCountFormatter.string(fromByteCount: value, countStyle: .decimal) }
+}

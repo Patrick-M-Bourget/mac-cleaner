@@ -1,6 +1,6 @@
 # CacheDrop (mac-cleaner)
 
-CacheDrop is a native SwiftUI storage cleaner for macOS. Its code, targets and scheme still use the former name, Still (`StillCore`, `Still.xcodeproj`, `STILL_TEST_*`). It finds space you can reclaim and cleans what you choose. The project is being reset after the Codex era. `docs/RESET.md` is the current plan, and its **Decisions** section overrides any older doc. The UI authority is the prototype `docs/visual/preview.html` in full mode, not M1 mode.
+CacheDrop is a native SwiftUI storage cleaner for macOS. Its former name was Still: only the one-time migrations (`LegacyStillMigration`, `RenamedPreferenceKeys` with the former keys in `PreferenceKeys`, the `Still.observedAt` fallback in `AlertOpenContext`) and the protection of Still's old folders and bundle IDs still name it. It finds space you can reclaim and cleans what you choose. The project is being reset after the Codex era. `docs/RESET.md` is the current plan, and its **Decisions** section overrides any older doc. The UI authority is the prototype `docs/visual/preview.html` in full mode, not M1 mode.
 Behavior the prototype can't show (safety rules, actions, dry run, measured space, access) is in `docs/SPEC.md`.
 
 The Codex-era control docs, validation reports and screenshots are archived at tag `archive/codex-era`. Read them for history only. Never treat them as scope or gates.
@@ -13,12 +13,20 @@ Full Xcode is installed, but `xcode-select` points at the Command Line Tools. Se
 
 ```sh
 export DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer
-swift test --package-path Packages/StillCore
-xcodebuild build -project Still/Still.xcodeproj -scheme Still -destination 'platform=macOS' -derivedDataPath .build/xcode
+swift test --package-path Packages/CacheDropCore
+xcodebuild build -project CacheDrop/CacheDrop.xcodeproj -scheme CacheDrop -destination 'platform=macOS' -derivedDataPath .build/xcode
 open .build/xcode/Build/Products/Debug/CacheDrop.app
 ```
 
 Verify on this Mac, not by pushing to CI. Tests touch only temp fixture folders, never real user paths.
+
+UI tests drive the screen, so run them only when the user isn't using it. Run only the journey you changed, and always turn off failure diagnostics, which would otherwise save system logs that may include other apps' activity:
+
+```sh
+xcodebuild test -project CacheDrop/CacheDrop.xcodeproj -scheme CacheDrop -destination 'platform=macOS' -derivedDataPath .build/xcode -collect-test-diagnostics never -only-testing:CacheDropUITests/<Class>/<test>
+```
+
+The scheme keeps no test attachments and never records the screen (#153). Never take full-screen screenshots; capture only CacheDrop's window.
 
 ## Workflow
 
