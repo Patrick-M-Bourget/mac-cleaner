@@ -169,3 +169,28 @@ private func clone(_ origin: URL, to folder: URL) throws {
     let finding = try #require(Catalog(rules: fixtureRules).guidance(fixture: home).first { $0.ruleID == "agent-workspaces" })
     #expect(finding.workspaces == AgentWorkspaces(count: 1, uncommitted: 1, unpushed: 0, unchecked: 0))
 }
+
+@Test func workspaceGitRunsWithEveryReadOnlyHardeningFlag() throws {
+    let folder = try fixtureHome()
+    defer { try? FileManager.default.removeItem(at: folder) }
+    // A stand-in git that logs each command line and its environment, and reports a clean, pushed checkout.
+    let log = folder.appendingPathComponent("calls.log"), fake = folder.appendingPathComponent("git")
+    try Data("""
+    #!/bin/sh
+    echo "$* | GIT_OPTIONAL_LOCKS=$GIT_OPTIONAL_LOCKS GIT_TERMINAL_PROMPT=$GIT_TERMINAL_PROMPT GIT_NO_LAZY_FETCH=$GIT_NO_LAZY_FETCH" >> '\(log.path)'
+    case "$*" in *rev-list*) echo 0 ;; esac
+    exit 0
+    """.utf8).write(to: fake)
+    try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: fake.path)
+    let checkout = folder.appendingPathComponent("app")
+    let result = try #require(WorkspaceGit.status(of: checkout, git: fake))
+    #expect(result.uncommitted == false && result.unpushed == false)
+    let calls = try String(contentsOf: log, encoding: .utf8).split(separator: "\n").map(String.init)
+    #expect(calls.count == 2)
+    for call in calls {
+        #expect(call.hasPrefix("--no-optional-locks -c core.fsmonitor=false -c core.hooksPath=/dev/null -C \(checkout.path) "))
+        #expect(call.hasSuffix("| GIT_OPTIONAL_LOCKS=0 GIT_TERMINAL_PROMPT=0 GIT_NO_LAZY_FETCH=1"))
+    }
+    // No submodule is entered (each would run git with its own config), untracked files still count, no rename detection.
+    #expect(calls[0].contains(" status --porcelain --ignore-submodules=dirty --untracked-files=normal --no-renames |"))
+}
