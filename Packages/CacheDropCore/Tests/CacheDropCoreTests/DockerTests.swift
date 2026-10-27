@@ -398,7 +398,11 @@ private func dockerRunning(_ home: URL, docker: URL, choose ruleIDs: Set<String>
         Issue.record("measured after a cancelled wait"); return [:]
     }
     #expect(cancelled.records.first?.laterMeasurement == nil)
-    #expect(try stopped.journal.records().first { $0.ruleID == "docker-build-cache" }?.laterMeasurement == nil)
+    // #209 point 2: quitting during the wait cancels it. The journal keeps "may still be finishing", and nothing
+    // measures it on the next launch.
+    let kept = try #require(try stopped.journal.records().first { $0.ruleID == "docker-build-cache" })
+    #expect(kept.laterMeasurement == nil && kept.mayStillBeFinishing == true)
+    #expect(kept.state == .failed && kept.outcomeTitle == "Partly removed" && kept.message.contains("may still be finishing"))
 }
 /// Counts calls from any thread.
 private final class Counter: @unchecked Sendable {
