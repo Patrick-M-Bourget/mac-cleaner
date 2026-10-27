@@ -646,7 +646,10 @@ struct CategorySelectionHeader: View {
             CategoryBadge(category: category).padding(.leading, state == nil ? CacheDropDesign.Size.checkbox + CacheDropDesign.Space.md : 0)
             VStack(alignment: .leading, spacing: CacheDropDesign.Space.xs) {
                 Text(title).font(CacheDropDesign.TypeStyle.section)
-                Text(detail).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary).lineLimit(1).help(detail)
+                // No detail (an app with no maker) leaves no empty line: what follows sits right under the title (#298).
+                if !detail.isEmpty {
+                    Text(detail).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary).lineLimit(1).help(detail)
+                }
             }.frame(maxWidth: .infinity, alignment: .leading)
             Text(size).font(.callout).monospacedDigit().fixedSize()
         }

@@ -72,6 +72,9 @@ final class ApplicationsUITests: XCTestCase {
         XCTAssertTrue(password.exists)
         XCTAssertEqual(password.value as? String, "Needs your password to remove")
         XCTAssertTrue(element(app, "applicationsReveal-" + locked!.path, .button).exists)
+        // With no maker, no empty line is left: the password line sits right under the name (#298).
+        let lockedTitle = element(app, "applicationsApp-" + locked!.path).staticTexts["Locked Suite"], maker = app.staticTexts["Maker Audio Inc"]
+        XCTAssertLessThan(password.frame.minY - lockedTitle.frame.maxY, maker.frame.height, "No gap where the maker line would be")
 
         // Plug-ins: one row per product, its formats as items to tick (#176).
         // A product's identifier carries its first file's path.

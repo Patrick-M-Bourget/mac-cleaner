@@ -141,6 +141,11 @@ struct DesignGallery: View {
                                 identifier: "galleryReadOnlyRow", itemCount: nil, expanded: .constant(false), toggle: {}) {
                         StatusRow(text: "Needs your password to remove", symbol: "lock", action: StatusAction(title: "Reveal in Finder", action: {}))
                     } items: { EmptyView() }
+                    // With no maker, no empty line is left under the title (#298).
+                    CategoryRow(category: .apps, state: nil, title: "Example app without a maker", detail: "", size: "12 MB", enabled: true,
+                                identifier: "galleryNoDetailRow", itemCount: nil, expanded: .constant(false), toggle: {}) {
+                        StatusRow(text: "Needs your password to remove", symbol: "lock", action: StatusAction(title: "Reveal in Finder", action: {}))
+                    } items: { EmptyView() }
                     VolumeSummary(available: 40_000_000_000, total: 512_000_000_000, observation: "Synthetic gallery capacity · No category attribution")
                     VolumeSummary(available: nil, total: nil, observation: "No capacity observation · Unknown stays distinct from zero")
                 }.padding(CacheDropDesign.Space.page).frame(maxWidth: .infinity, alignment: .leading)
