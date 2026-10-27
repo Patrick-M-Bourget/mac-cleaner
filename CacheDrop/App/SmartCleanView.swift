@@ -21,19 +21,11 @@ struct SmartCleanView: View {
             ScrollView {
                 if selection.showsRun(for: .smartClean) { CleanupRunSection(selection: selection) } else { page }
             }.background(CacheDropDesign.reading)
-            if selection.showsRun(for: .smartClean) && selection.workspaceRunning {
-                CleanupStopStrip(selection: selection)
-            } else if selection.showsRun(for: .smartClean) {
-                ActionStrip(message: selection.requiresRecoveryReview ? "Review unresolved records before cleaning again." : nil) {
-                    if let viewHistory { Button("View history", action: viewHistory) }
-                    if selection.requiresRecoveryReview, let reviewRecovery { Button("Review recovery", action: reviewRecovery) }
-                    Button("Done") { selection.dismissResult() }.buttonStyle(.borderedProminent).accessibilityIdentifier("smartCleanDone")
-                }
-            } else {
-                ActionStrip(message: nil) {
-                    Button("Clean up") { Task { await openReview() } }.buttonStyle(.borderedProminent).controlSize(.large)
-                        .disabled(!selection.canReviewSmartClean).accessibilityIdentifier("smartCleanCleanUp")
-                }
+            CleanupActionBar(selection: selection, source: .smartClean, viewHistory: viewHistory, reviewRecovery: reviewRecovery) {
+                Button("Done") { selection.dismissResult() }.buttonStyle(.borderedProminent).accessibilityIdentifier("smartCleanDone")
+            } idle: {
+                Button("Clean up") { Task { await openReview() } }.buttonStyle(.borderedProminent).controlSize(.large)
+                    .disabled(!selection.canReviewSmartClean).accessibilityIdentifier("smartCleanCleanUp")
             }
         }
         .sheet(item: $review) { snapshot in

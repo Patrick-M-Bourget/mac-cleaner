@@ -3,9 +3,17 @@ import CacheDropCore
 import SwiftUI
 
 /// The apps and plug-in products the Applications page lists (Decision 51), read after each catalog scan. Read-only: this
-/// slice removes nothing here. Apps come from `AppPresence` and plug-ins from `PlugInInventory`, both test seams.
+/// slice removes nothing here. Where it reads is injected: apps from `appPresence`, plug-ins from `home` and `systemRoot`.
 @MainActor @Observable final class ApplicationsModel {
-    static let shared = ApplicationsModel()
+    /// The app's model, reading what the catalog reads (test runs inject a fixture home there).
+    static let shared = ApplicationsModel(home: CatalogCleanupModel.home, appPresence: CatalogCleanupModel.appPresence, systemRoot: CatalogCleanupModel.systemRoot)
+    /// The home folder plug-ins are read in; nil (a debug test run without a fixture home) lists nothing.
+    let home: URL?
+    private let appPresence: any AppPresence
+    private let systemRoot: URL
+    init(home: URL?, appPresence: any AppPresence, systemRoot: URL) {
+        self.home = home; self.appPresence = appPresence; self.systemRoot = systemRoot
+    }
     private(set) var apps: [InventoryEntry] = []
     private(set) var plugIns: [InventoryEntry] = []
     private(set) var hasLoaded = false
@@ -17,15 +25,15 @@ import SwiftUI
         guard !isLoading else { return }
         isLoading = true
         defer { isLoading = false; hasLoaded = true }
-        guard let home = CatalogCleanupModel.home else { apps = []; plugIns = []; return }
-        let presence = CatalogCleanupModel.appPresence, system = CatalogCleanupModel.systemRoot, own = Bundle.main.bundleIdentifier
+        guard let home else { apps = []; plugIns = []; return }
+        let presence = appPresence, system = systemRoot, own = Bundle.main.bundleIdentifier
         (apps, plugIns) = await Task.detached(priority: .userInitiated) {
             (ApplicationsInventory.apps(presence.installedApps() ?? [], excluding: own),
              ApplicationsInventory.plugIns(PlugInInventory.scan(home: home, systemRoot: system)))
         }.value
     }
     /// The maker's own tool, when it is installed (Decision 50).
-    func vendorTool(for entry: InventoryEntry) -> InventoryEntry? { ApplicationsInventory.vendorTool(forMaker: entry.maker, among: apps) }
+    func vendorTool(for entry: InventoryEntry) -> InventoryEntry? { ApplicationsInventory.vendorTool(for: entry, among: apps) }
     /// Shows the entry's files selected in Finder. A debug test run reveals nothing.
     func reveal(_ name: String, _ urls: [URL]) {
         #if DEBUG
@@ -61,18 +69,10 @@ struct ApplicationsView: View {
             ScrollView {
                 if selection.showsRun(for: .applications) { CleanupRunSection(selection: selection) } else { page }
             }.background(CacheDropDesign.reading)
-            if selection.showsRun(for: .applications) && selection.workspaceRunning {
-                CleanupStopStrip(selection: selection)
-            } else if selection.showsRun(for: .applications) {
-                ActionStrip(message: selection.requiresRecoveryReview ? "Review unresolved records before cleaning again." : nil) {
-                    if let viewHistory { Button("View history", action: viewHistory) }
-                    if selection.requiresRecoveryReview, let reviewRecovery { Button("Review recovery", action: reviewRecovery) }
-                    Button("Done") { selection.dismissResult() }.buttonStyle(.borderedProminent)
-                }
-            } else {
-                ActionStrip(message: nil) {
-                    ReviewCleanupButton(enabled: selection.canReviewApplications, focusRequest: reviewFocusRequest) { Task { await openReview() } }.fixedSize()
-                }
+            CleanupActionBar(selection: selection, source: .applications, viewHistory: viewHistory, reviewRecovery: reviewRecovery) {
+                Button("Done") { selection.dismissResult() }.buttonStyle(.borderedProminent)
+            } idle: {
+                ReviewCleanupButton(enabled: selection.canReviewApplications, focusRequest: reviewFocusRequest) { Task { await openReview() } }.fixedSize()
             }
         }
         .sheet(item: $review, onDismiss: { reviewFocusRequest += 1 }) { snapshot in
@@ -120,7 +120,7 @@ struct ApplicationsView: View {
         } else {
             VStack(alignment: .leading, spacing: 0) {
                 ForEach(entries) { entry in
-                    row(entry, category: category, identifier: identifier + entry.name)
+                    row(entry, category: category, identifier: identifier + entry.id)
                     Divider().padding(.vertical, CacheDropDesign.Space.md)
                 }
             }
@@ -134,7 +134,8 @@ struct ApplicationsView: View {
         EmptyState(title: title, detail: detail, symbol: symbol).accessibilityElement(children: .combine).accessibilityIdentifier(id)
     }
 
-    /// A row with no checkbox, since nothing here is removed yet; one that needs a password says so (Decision 50).
+    /// A row with no checkbox, since nothing here is removed yet; one that needs a password says so (Decision 50). Its
+    /// identifiers carry the entry's path, never its name, so same-named apps on two volumes stay apart (#271).
     private func row(_ entry: InventoryEntry, category: StorageCategory, identifier: String) -> some View {
         let isExpanded = Binding(get: { expanded.contains(entry.id) }, set: { if $0 { expanded.insert(entry.id) } else { expanded.remove(entry.id) } })
         return CategoryRow(category: category, state: nil, title: entry.name, detail: [entry.maker, entry.volume].compactMap { $0 }.joined(separator: " · "),
@@ -157,10 +158,10 @@ struct ApplicationsView: View {
     /// "Needs your password to remove · Reveal in Finder", or "Needs <tool> or your password · Open <tool>" when the vendor's tool is installed.
     private func passwordLine(_ entry: InventoryEntry) -> some View {
         let tool = model.vendorTool(for: entry)
-        let action = tool.map { tool in StatusAction(title: "Open " + tool.name, identifier: "applicationsOpen-" + entry.name) { model.open(tool) } }
-            ?? StatusAction(title: "Reveal in Finder", identifier: "applicationsReveal-" + entry.name) { model.reveal(entry.name, entry.parts.map(\.url)) }
+        let action = tool.map { tool in StatusAction(title: "Open " + tool.name, identifier: "applicationsOpen-" + entry.id) { model.open(tool) } }
+            ?? StatusAction(title: "Reveal in Finder", identifier: "applicationsReveal-" + entry.id) { model.reveal(entry.name, entry.parts.map(\.url)) }
         return StatusRow(text: tool.map { "Needs \($0.name) or your password" } ?? "Needs your password to remove", symbol: "lock",
-                         identifier: "applicationsPassword-" + entry.name, action: action)
+                         identifier: "applicationsPassword-" + entry.id, action: action)
     }
 
     private func openReview() async {

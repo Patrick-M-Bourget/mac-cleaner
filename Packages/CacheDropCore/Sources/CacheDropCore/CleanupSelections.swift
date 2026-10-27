@@ -1,7 +1,7 @@
 import Foundation
 
-/// The two selections a session keeps (#141): the Cleanup plan's chosen items, and Smart clean's. Neither ever changes
-/// the other, and a finished run clears only the one it came from.
+/// The selections a session keeps (#141): the items ticked on the Cleanup plan and the Applications page, and Smart
+/// clean's. Neither ever changes the other, and a finished run clears only the page it came from.
 public struct CleanupSelections: Sendable, Equatable {
     /// Which selection a review or run came from.
     public enum Source: Sendable, Equatable {
@@ -9,14 +9,15 @@ public struct CleanupSelections: Sendable, Equatable {
         /// The page that shows and cleans an item: leftovers of removed apps on Applications (Decision 51), the rest in the plan.
         public static func page(of candidate: Candidate) -> Source { page(ofID: candidate.id) }
         /// The same from a chosen id alone, which starts with its rule's ID, so it holds after a run, when nothing is found yet.
-        static func page(ofID id: String) -> Source {
-            RemovedAppLeftovers.ruleIDs.contains(String(id.prefix { $0 != "|" })) ? .applications : .plan
-        }
+        static func page(ofID id: String) -> Source { page(ofRule: String(id.prefix { $0 != "|" })) }
+        /// The page that shows a category row: the one its rules are on.
+        public static func page(of row: CatalogOverview.Row) -> Source { row.rules.first.map { page(ofRule: $0.id) } ?? .plan }
+        private static func page(ofRule ruleID: String) -> Source { RemovedAppLeftovers.ruleIDs.contains(ruleID) ? .applications : .plan }
     }
 
-    /// The chosen candidate ids of the Cleanup plan and the Applications page; each page shows and reviews only its own
-    /// (`chosen(on:from:)`). Nothing is preselected (Decision 28).
-    public var plan: Set<String> = []
+    /// The ticked candidate ids of both the Cleanup plan and the Applications page, in one set; each page shows and reviews
+    /// only its own, told apart by each id's rule (`chosen(on:from:)`). Nothing is preselected (Decision 28).
+    public var ticked: Set<String> = []
     /// Recommended items unticked on Smart clean; every other recommended item is ticked.
     public private(set) var smartCleanUnticked: Set<String> = []
 
@@ -36,17 +37,17 @@ public struct CleanupSelections: Sendable, Equatable {
 
     /// The chosen items among `found` that `page` shows (the plan or Applications).
     public func chosen(on page: Source, from found: [Candidate]) -> [Candidate] {
-        found.filter { plan.contains($0.id) && Source.page(of: $0) == page }
+        found.filter { ticked.contains($0.id) && Source.page(of: $0) == page }
     }
 
     /// Whether either page has chosen items among `found`: what quitting would lose (#270).
-    public func hasChoices(among found: [Candidate]) -> Bool { found.contains { plan.contains($0.id) } }
+    public func hasChoices(among found: [Candidate]) -> Bool { found.contains { ticked.contains($0.id) } }
 
     /// Clears one page's choices: the plan's or the Applications page's, which share one set, or Smart clean's unticks.
     /// The other pages' are kept (#270), told apart by each chosen id's rule, so nothing needs to be found.
     public mutating func clear(_ page: Source) {
         switch page {
-        case .plan, .applications: plan = plan.filter { Source.page(ofID: $0) != page }
+        case .plan, .applications: ticked = ticked.filter { Source.page(ofID: $0) != page }
         case .smartClean: smartCleanUnticked = []
         }
     }

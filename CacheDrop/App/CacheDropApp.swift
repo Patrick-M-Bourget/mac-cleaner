@@ -170,9 +170,16 @@ private struct WorkspaceView: View {
     @State private var capacity = AppLifecycleController.shared.capacity
     @Bindable private var welcome = WelcomeModel.shared
     private var startupCapacity: StartupCapacityReading? { capacity.reading }
-    private var showsSmartClean: Bool { destination == .smartClean && !navigationState.localRecordsVisible && !recoveryVisible && !nativeInspectionVisible && !diagnosticsVisible && !exclusionsVisible && !navigationState.appManagedVisible }
-    private var showsApplications: Bool { destination == .applications && !navigationState.localRecordsVisible && !recoveryVisible && !nativeInspectionVisible && !diagnosticsVisible && !exclusionsVisible && !navigationState.appManagedVisible }
-    private var showsPlan: Bool { destination == .plan && !navigationState.localRecordsVisible && !recoveryVisible && !nativeInspectionVisible && !diagnosticsVisible && !exclusionsVisible }
+    /// The destination's own page shows: no records, recovery, inspection, diagnostics, exclusions or app-managed page covers it.
+    private func showsOwnPage(_ page: Destination, evenUnderAppManaged: Bool = false) -> Bool {
+        destination == page && !navigationState.localRecordsVisible && !recoveryVisible && !nativeInspectionVisible && !diagnosticsVisible && !exclusionsVisible
+            && (evenUnderAppManaged || !navigationState.appManagedVisible)
+    }
+    private var showsSmartClean: Bool { showsOwnPage(.smartClean) }
+    private var showsApplications: Bool { showsOwnPage(.applications) }
+    /// The plan is the one page app-managed storage never covers: Explore storage's Review plan and Start a new plan switch
+    /// to it directly, without `navigate(_:)`, so `appManagedVisible` may still be set then, and the plan must show anyway.
+    private var showsPlan: Bool { showsOwnPage(.plan, evenUnderAppManaged: true) }
     /// The toolbar's note, which only reports state (Decision 25: no toolbar subtitles). A screen returns nil to show none.
     private var contextLabel: String? {
         if selection.workspaceRunning { return "Running approved cleanup" }
@@ -502,14 +509,15 @@ private struct WorkspaceView: View {
     }
     private func catalogRow(_ row: CatalogOverview.Row) -> some View {
         // Leftovers are chosen on Applications, never "In cleanup plan" (#270).
-        let inPlan = row.category != .leftovers && row.rules.contains { selection.catalog.isSelected($0) }
+        let onApplications = CleanupSelections.Source.page(of: row) == .applications
+        let inPlan = !onApplications && row.rules.contains { selection.catalog.isSelected($0) }
         return StorageReviewRow(category: row.category.storageCategory, title: row.category.overviewTitle, detail: row.category.overviewDetail,
             value: row.valueText,
             meaning: row.estimate == .unknown ? "Couldn’t be measured" : inPlan ? "In cleanup plan"
                 : row.rules.allSatisfy { $0.action == .delete } ? "Rebuildable" : row.rules.allSatisfy { $0.action == .evict } ? "Local copies" : "Review files",
-            actionTitle: row.category == .leftovers ? "Review \(row.category.overviewTitle) in Applications" : "Review \(row.category.overviewTitle) in the cleanup plan",
+            actionTitle: onApplications ? "Review \(row.category.overviewTitle) in Applications" : "Review \(row.category.overviewTitle) in the cleanup plan",
             // Leftovers of removed apps are on the Applications page (Decision 51).
-            action: { if row.category == .leftovers { navigate(.applications) } else { navigate(.plan); planPresentation.expandedCategories.insert(row.category) } },
+            action: { if onApplications { navigate(.applications) } else { navigate(.plan); planPresentation.expandedCategories.insert(row.category) } },
             identifier: "overviewCategory-" + row.id)
     }
     /// Opens the Cleanup plan from Smart clean's "Not included" note, with the category open when one is named.

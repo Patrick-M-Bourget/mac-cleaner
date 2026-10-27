@@ -35,33 +35,33 @@ private let scan = [npm, logs, installer, derived]
 
 @Test func buildingOrUntickingASmartCleanNeverChangesTheCleanupPlan() {
     var selections = CleanupSelections()
-    selections.plan = [installer.id, npm.id]
+    selections.ticked = [installer.id, npm.id]
     _ = selections.smartClean(catalog: catalog, found: scan) { _ in nil }
     selections.setSmartClean([npm, logs], included: false)
-    #expect(selections.plan == [installer.id, npm.id])
+    #expect(selections.ticked == [installer.id, npm.id])
 }
 
 @Test func choosingInTheCleanupPlanNeverChangesTheSmartClean() {
     var selections = CleanupSelections()
     selections.setSmartClean([logs], included: false)
-    selections.plan = [logs.id]
-    selections.plan.remove(logs.id)
+    selections.ticked = [logs.id]
+    selections.ticked.remove(logs.id)
     #expect(!selections.isInSmartClean(logs))
     #expect(selections.isInSmartClean(npm))
 }
 
 @Test func aFinishedRunClearsOnlyTheSelectionItCameFrom() {
     var selections = CleanupSelections()
-    selections.plan = [installer.id]
+    selections.ticked = [installer.id]
     selections.setSmartClean([logs], included: false)
 
     selections.finishRun(from: .smartClean)
-    #expect(selections.plan == [installer.id])
+    #expect(selections.ticked == [installer.id])
     #expect(selections.isInSmartClean(logs), "A Smart clean starts again with everything ticked")
 
     selections.setSmartClean([logs], included: false)
     selections.finishRun(from: .plan)
-    #expect(selections.plan.isEmpty)
+    #expect(selections.ticked.isEmpty)
     #expect(!selections.isInSmartClean(logs))
 }
 
@@ -70,7 +70,7 @@ private let leftover = item(RemovedAppLeftovers.ruleID, name: "Synth"), related 
 
 @Test func eachPageReviewsOnlyTheItemsItShows() {
     var selections = CleanupSelections()
-    selections.plan = [installer.id, leftover.id, related.id]
+    selections.ticked = [installer.id, leftover.id, related.id]
     let found = scan + [leftover, related]
     #expect(selections.chosen(on: .plan, from: found).map(\.ruleID) == ["downloads-installers"])
     #expect(selections.chosen(on: .applications, from: found).map(\.ruleID) == [RemovedAppLeftovers.ruleID, RemovedAppLeftovers.possiblyRelatedRuleID])
@@ -78,13 +78,13 @@ private let leftover = item(RemovedAppLeftovers.ruleID, name: "Synth"), related 
 
 @Test func aFinishedRunFromOnePageKeepsTheOtherPagesChoices() {
     var selections = CleanupSelections()
-    selections.plan = [installer.id, leftover.id]
+    selections.ticked = [installer.id, leftover.id]
     selections.finishRun(from: .applications)
-    #expect(selections.plan == [installer.id])
+    #expect(selections.ticked == [installer.id])
 
-    selections.plan = [installer.id, leftover.id]
+    selections.ticked = [installer.id, leftover.id]
     selections.finishRun(from: .plan)
-    #expect(selections.plan == [leftover.id])
+    #expect(selections.ticked == [leftover.id])
 }
 
 /// #270: quitting with only leftovers ticked still has choices to lose.
@@ -92,7 +92,7 @@ private let leftover = item(RemovedAppLeftovers.ruleID, name: "Synth"), related 
     var selections = CleanupSelections()
     let found = scan + [leftover]
     #expect(!selections.hasChoices(among: found))
-    selections.plan = [leftover.id]
+    selections.ticked = [leftover.id]
     #expect(selections.hasChoices(among: found))
 }
 
@@ -100,9 +100,16 @@ private let leftover = item(RemovedAppLeftovers.ruleID, name: "Synth"), related 
 /// run, when nothing is found until the next scan.
 @Test func clearingOnePageKeepsTheOtherPagesChoices() {
     var selections = CleanupSelections()
-    selections.plan = [installer.id, leftover.id, related.id]
+    selections.ticked = [installer.id, leftover.id, related.id]
     selections.clear(.plan)
-    #expect(selections.plan == [leftover.id, related.id])
+    #expect(selections.ticked == [leftover.id, related.id])
     selections.clear(.applications)
-    #expect(selections.plan.isEmpty)
+    #expect(selections.ticked.isEmpty)
+}
+
+/// #271: a category row is on the page its rules are on, so the app asks the core instead of checking the category.
+@Test func aCategoryRowIsOnThePageOfItsRules() {
+    let rows = CatalogOverview(catalog: Catalog(rules: fixtureRules + RemovedAppLeftovers.rules), candidates: scan + [leftover, related]).rows
+    #expect(rows.filter { CleanupSelections.Source.page(of: $0) == .applications }.map(\.category) == [.leftovers])
+    #expect(rows.filter { CleanupSelections.Source.page(of: $0) == .plan }.count == rows.count - 1)
 }
