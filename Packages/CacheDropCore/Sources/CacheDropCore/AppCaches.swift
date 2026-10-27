@@ -69,7 +69,9 @@ public enum AppCaches {
     ///   with `offline.bnk` beside it. Spotify's community reports downloads in `~/Library/Caches/com.spotify.Client/storage` too
     ///   (https://community.spotify.com/t5/Desktop-Mac/Where-are-offline-files-stored-on-Mac/m-p/1367628,
     ///   https://community.spotify.com/t5/Live-Ideas/Let-user-select-where-to-save-files-for-offline-mode/idi-p/7410350),
-    ///   and Settings > Storage accepts any folder name, so downloads are recognized by their `offline.bnk` file at any depth (#203).
+    ///   and Settings > Storage accepts any folder name, so downloads are recognized by their `offline.bnk` file at any depth (#203),
+    ///   and a `Storage` or `storage` folder right in the cache folder is kept by its name (#171), since `offline.bnk` may sit
+    ///   in `PersistentCache` instead.
     /// - Ableton Live (`com.ableton.live`), Pro Tools (`com.avid.ProTools`), Slack (`com.tinyspeck.slackmacgap`), Native Access,
     ///   UA Connect, LANDR, Claude, CleanShot X: observed only the URL loading system's cache (`Cache.db`, `fsCachedData`),
     ///   `WebKit` and crash reporters' folders (`io.sentry`), which are refetched or rewritten. Rebuildable.
@@ -78,7 +80,7 @@ public enum AppCaches {
     /// - Steam, Microsoft Teams, Adobe apps: not installed on the audited Mac, so no layout to observe. Their folders keep today's
     ///   behavior until one is audited with vendor sources. Browsers have their own rules (`BrowserCaches`).
     static let knownOfflineContent: [String: OfflineContent] = [
-        "com.spotify.client": OfflineContent(names: ["offline.bnk"], label: "Spotify’s offline downloads"),
+        "com.spotify.client": OfflineContent(names: ["offline.bnk"], folderNames: ["Storage", "storage"], label: "Spotify’s offline downloads"),
     ]
     static let appCachesRuleID = "app-caches"
 
@@ -127,6 +129,14 @@ public enum AppCaches {
         return opened && complete ? found : nil
     }
 
+    /// The paths of an app's offline content in `app`, its folder: each folder holding one of `content.names` at any depth, and
+    /// each entry right in `app` named in `content.folderNames` (#171, #203). Nil when the folder can't be fully searched.
+    static func offlineItems(_ content: OfflineContent, in app: URL) -> Set<String>? {
+        guard let holders = folders(holding: content.names, in: app, depth: .max) else { return nil }
+        var info = stat()
+        return holders.union(content.folderNames.map { app.standardizedFileURL.path + "/" + $0 }.filter { lstat($0, &info) == 0 })
+    }
+
     /// Whether one of two paths is or is inside the other.
     static func overlaps(_ a: String, _ b: String) -> Bool { a == b || a.hasPrefix(b + "/") || b.hasPrefix(a + "/") }
 
@@ -143,7 +153,7 @@ public enum AppCaches {
         let profiles = Set(found.subtracting(kept).map { ($0 as NSString).deletingLastPathComponent })
         var offline = Set<String>()
         if let content = offlineContent[appFolder.lastPathComponent.lowercased()] {
-            guard let holders = folders(holding: content.names, in: appFolder, depth: .max) else { return [appFolder] }
+            guard let holders = offlineItems(content, in: appFolder) else { return [appFolder] }
             offline = holders
         }
         guard !profiles.isEmpty || !kept.isEmpty || !offline.isEmpty else { return [appFolder] }
@@ -297,11 +307,13 @@ public struct InstalledApp: Sendable, Hashable {
     public init(name: String, bundleID: String, path: String) { self.name = name; self.bundleID = bundleID; self.path = path }
 }
 
-/// Content an app keeps offline in its cache folder (#171): any of `names` anywhere inside the folder keeps it (#203), and `label` says why.
+/// Content an app keeps offline in its cache folder (#171): a folder holding any of `names` anywhere inside it (#203), and an entry
+/// named in `folderNames` right in it (#171), is kept; `label` says why.
 public struct OfflineContent: Sendable, Hashable {
     public let names: Set<String>
+    public let folderNames: Set<String>
     public let label: String
-    public init(names: Set<String>, label: String) { self.names = names; self.label = label }
+    public init(names: Set<String>, folderNames: Set<String> = [], label: String) { self.names = names; self.folderNames = folderNames; self.label = label }
 }
 
 extension CleanupRule {
@@ -314,7 +326,7 @@ extension CleanupRule {
         let app = AppCaches.appFolder(of: folder) ?? folder
         guard let content = offlineContent[app.lastPathComponent.lowercased()] else { return nil }
         // An item is the offline content's when it holds it or sits in a folder holding it (#241).
-        guard let holders = AppCaches.folders(holding: content.names, in: app, depth: .max) else { return content.label }
+        guard let holders = AppCaches.offlineItems(content, in: app) else { return content.label }
         let item = folder.standardizedFileURL.path
         return holders.contains { AppCaches.overlaps($0, item) } ? content.label : nil
     }
