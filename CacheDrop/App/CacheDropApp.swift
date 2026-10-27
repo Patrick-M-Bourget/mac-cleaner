@@ -126,8 +126,14 @@ private struct WorkspaceView: View {
     @State private var locationToForget: RememberedScope?
     /// Work running in the background, earliest first, for every screen's bottom bar (Decision 46).
     @State private var backgroundWork = BackgroundWork()
-    private var backgroundWorkLine: BackgroundWork.Line? {
-        backgroundWork.line { $0 == "catalogScanProgress" ? selection.catalog.scanProgressText : "Rechecking selected locations…" }
+    private var backgroundWorkLine: BackgroundWork.Line? { backgroundWork.line(catalogProgress: selection.catalog.scanProgressText) }
+    /// What runs now, each labelled by what it is (#230): a recheck, or a new folder's scan.
+    private var runningTasks: Set<BackgroundJob> {
+        var tasks: Set<BackgroundJob> = []
+        if selection.catalog.isScanning { tasks.insert(.catalogScan) }
+        if folderInspection.isRechecking { tasks.insert(.folderRecheck) }
+        else if folderInspection.isScanning { tasks.insert(.folderScan(folder: folderInspection.scope?.lastPathComponent ?? "folder")) }
+        return tasks
     }
     @State private var capacity = AppLifecycleController.shared.capacity
     @Bindable private var welcome = WelcomeModel.shared
@@ -314,9 +320,7 @@ private struct WorkspaceView: View {
                 .background(CacheDropDesign.reading)
         }
         .environment(\.cacheDropBackgroundWork, backgroundWorkLine)
-        .onChange(of: [selection.catalog.isScanning, folderInspection.isScanning], initial: true) { _, running in
-            backgroundWork.update(running: Set(zip(["catalogScanProgress", "folderRecheckProgress"], running).filter(\.1).map(\.0)))
-        }
+        .onChange(of: runningTasks, initial: true) { _, tasks in backgroundWork.update(running: tasks) }
         .onChange(of: selection.catalog.selectionRevision) { _, _ in AppLifecycleController.shared.hasPendingPlan = selection.hasPendingChoices }
         .task { if await recovery.loadOnce() { openRecovery(caller: .overview, refresh: false) } }
         .task { locationsModel.load() }

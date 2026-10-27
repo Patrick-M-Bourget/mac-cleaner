@@ -35,6 +35,8 @@ final class FolderInspection {
     var selected: FileObservation?
     private var isScanningCurrent = false
     var isScanning: Bool { isScanningCurrent || scanAgainTask != nil }
+    /// Scan again's recheck of the selected locations, as opposed to a new folder's first scan (#230).
+    var isRechecking: Bool { scanAgainTask != nil }
     var message: String? { didSet { unavailableScope = nil } }
     /// The location the current message says is unavailable, so Overview can leave it to that location's recovery row (#231).
     private(set) var unavailableScope: URL?
