@@ -81,7 +81,6 @@ struct DesignGallery: View {
                         Text("Cleanup action").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
                         Text("Cloud-managed item. Cloud cleanup is unavailable; no eviction or synced deletion is offered.")
                     }.frame(height: 220)
-                    ToolbarScanStatus(location: "Downloads", returnToScan: {}, stop: {})
                     LocationScopeRow(name: "Downloads", path: "/Example/Downloads", status: "Not scanned", included: $selected, enabled: true) { Menu("More") { Button("Forget location") {} } }
                     LocationScopeRow(name: "Downloads B", path: "/Example/Downloads/Long project folder/Downloads B", status: "Location unavailable · Reconnect and recheck", overlap: "Overlaps another remembered location · Shared contents are counted once.", included: $selected, enabled: true) {
                         HStack {
@@ -145,7 +144,9 @@ struct DesignGallery: View {
             }.background(CacheDropDesign.reading)
             // While background work runs, its progress line takes the note's place (Decision 46).
             ActionStrip(message: "Developer gallery · Actions are inert examples") { ReviewCleanupButton(enabled: false, focusRequest: 0, action: {}) }
-                .environment(\.cacheDropBackgroundWork, BackgroundWork.Line(id: "galleryProgress", text: "Checking Example cache… 4 of 31 · +1 more"))
+                .environment(\.cacheDropBackgroundWork, BackgroundWorkStatus(line: .init(parts: [.init(id: "galleryProgress", text: "Checking Example cache… 4 of 31"), .init(id: "galleryMore", text: "+1 more")])))
+            ActionStrip(message: "Developer gallery · Actions are inert examples") { ReviewCleanupButton(enabled: false, focusRequest: 0, action: {}) }
+                .environment(\.cacheDropBackgroundWork, BackgroundWorkStatus(line: .init(parts: [.init(id: "galleryFolderScan", text: "Scanning Downloads"), .init(id: "galleryPhase", text: "Reading file metadata…"), .init(id: "galleryCount", text: "1240 entries inspected")], runsFolderScan: true), stop: {}, returnToScan: {}))
             ActionStrip(message: "Developer gallery · Actions are inert examples") { ReviewCleanupButton(enabled: false, focusRequest: 0, action: {}) }
         }
         .environment(\.cacheDropOpaqueChrome, opaque)

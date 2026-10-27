@@ -27,20 +27,24 @@ private let catalog = "Checking npm cache… 4 of 31"
 @Test func oneJobShowsItsOwnText() {
     var work = BackgroundWork()
     work.update(running: [.catalogScan])
-    #expect(work.line(catalogProgress: catalog) == BackgroundWork.Line(id: "catalogScanProgress", text: "Checking npm cache… 4 of 31"))
+    let line = work.line(catalogProgress: catalog)
+    #expect(line?.id == "catalogScanProgress")
+    #expect(line?.text == "Checking npm cache… 4 of 31")
 }
 
 @Test func aNewFolderScanIsNotARecheck() {
     var work = BackgroundWork()
     work.update(running: [.folderScan(folder: "Projects")])
-    #expect(work.line(catalogProgress: catalog) == BackgroundWork.Line(id: "folderScanProgress", text: "Scanning Projects…"))
+    #expect(work.line(catalogProgress: catalog)?.id == "folderScanProgress")
+    #expect(work.line(catalogProgress: catalog)?.text == "Scanning Projects…")
 }
 
 @Test func twoJobsShowTheEarliestPlusOneMore() {
     var work = BackgroundWork()
     work.update(running: [.folderRecheck])
     work.update(running: [.catalogScan, .folderRecheck])
-    #expect(work.line(catalogProgress: catalog) == BackgroundWork.Line(id: "folderRecheckProgress", text: "Rechecking selected locations… · +1 more"))
+    #expect(work.line(catalogProgress: catalog)?.id == "folderRecheckProgress")
+    #expect(work.line(catalogProgress: catalog)?.text == "Rechecking selected locations… · +1 more")
 }
 
 @Test func whenTheEarliestFinishesTheNextTakesItsPlace() {
@@ -48,7 +52,7 @@ private let catalog = "Checking npm cache… 4 of 31"
     work.update(running: [.catalogScan])
     work.update(running: [.catalogScan, .folderRecheck])
     work.update(running: [.folderRecheck])
-    #expect(work.line(catalogProgress: catalog) == BackgroundWork.Line(id: "folderRecheckProgress", text: "Rechecking selected locations…"))
+    #expect(work.line(catalogProgress: catalog)?.text == "Rechecking selected locations…")
     // Work that starts again later goes to the back.
     work.update(running: [.folderRecheck, .catalogScan])
     #expect(work.line(catalogProgress: catalog)?.text == "Rechecking selected locations… · +1 more")
@@ -66,4 +70,38 @@ private let catalog = "Checking npm cache… 4 of 31"
     work.update(running: [.catalogScan])
     work.update(running: [.catalogScan, .folderRecheck, .folderScan(folder: "Projects")])
     #expect(work.line(catalogProgress: catalog)?.text == "Checking npm cache… 4 of 31 · +2 more")
+}
+
+// #235: a folder scan's line carries its phase and count, each with its own identifier, on one line.
+
+@Test func aFolderScanShowsItsPhaseAndCount() {
+    var work = BackgroundWork()
+    work.update(running: [.folderScan(folder: "Projects")])
+    let line = work.line(catalogProgress: catalog, folderPhase: .enumerating, inspectedEntries: 1240)
+    #expect(line?.text == "Scanning Projects · Reading file metadata… · 1240 entries inspected")
+    #expect(line?.parts.map(\.id) == ["folderScanProgress", "scanPhase", "scanProgressSummary"])
+}
+
+@Test func aRecheckNamesEachPhase() {
+    var work = BackgroundWork()
+    work.update(running: [.folderRecheck, .catalogScan])
+    #expect(work.line(catalogProgress: catalog, folderPhase: .checkingDirectories, inspectedEntries: 3)?.text
+        == "Rechecking selected locations · Checking directory stability… · 3 entries inspected · +1 more")
+    #expect(work.line(catalogProgress: catalog, folderPhase: .rechecking, inspectedEntries: 1)?.text
+        == "Rechecking selected locations · Rechecking changed coverage… · 1 entry inspected · +1 more")
+}
+
+@Test func theCatalogScanLeadingIgnoresFolderProgress() {
+    var work = BackgroundWork()
+    work.update(running: [.catalogScan])
+    work.update(running: [.catalogScan, .folderRecheck])
+    let line = work.line(catalogProgress: catalog, folderPhase: .enumerating, inspectedEntries: 9)
+    #expect(line?.text == "Checking npm cache… 4 of 31 · +1 more")
+    #expect(line?.runsFolderScan == true)
+}
+
+@Test func onlyFolderScansCanBeStopped() {
+    var work = BackgroundWork()
+    work.update(running: [.catalogScan])
+    #expect(work.line(catalogProgress: catalog)?.runsFolderScan == false)
 }

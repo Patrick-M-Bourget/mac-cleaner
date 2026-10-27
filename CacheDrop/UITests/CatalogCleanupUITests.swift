@@ -1153,3 +1153,61 @@ extension CatalogCleanupUITests {
         XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: chosen, object: installer)], timeout: 15), .completed, "The installer is still chosen")
     }
 }
+
+/// #235: a folder scan's status lives in the bottom bar on every screen, never in the toolbar.
+final class FolderScanProgressUITests: XCTestCase {
+    @MainActor func testFolderScanShowsInTheBottomBarWithStopAndReturnAndLeavesTheToolbarAlone() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        let state = try configureIsolatedState(app)
+        let home = try configureCatalogHome(app)
+        let folder = FileManager.default.temporaryDirectory.resolvingSymlinksInPath().appendingPathComponent("CacheDropPicked-" + UUID().uuidString)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        for index in 0..<5 { try Data(repeating: 1, count: 4_000).write(to: folder.appendingPathComponent("entry-\(index).zip")) }
+        app.launchEnvironment["CACHEDROP_TEST_FOLDER_SCAN_PAUSE"] = "10"
+        defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home); try? FileManager.default.removeItem(at: folder) }
+        app.launch()
+        XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["catalogScanProgress"].waitForNonExistence(timeout: 60))
+        let toolbar = app.toolbars.firstMatch
+        let toolbarItems = { toolbar.descendants(matching: .any).allElementsBoundByIndex.map { $0.identifier + "|" + $0.label } }
+        let before = toolbarItems()
+        let height = actionStrip(app).frame.height
+
+        app.buttons["overviewScanFolder"].click()
+        let panel = app.sheets.firstMatch.exists ? app.sheets.firstMatch : app.dialogs.firstMatch
+        XCTAssertTrue(panel.waitForExistence(timeout: 5))
+        panel.typeKey("g", modifierFlags: [.command, .shift])
+        app.typeText(folder.path + "\n")
+        panel.buttons["Scan folder"].click()
+
+        // On the screen that started it: the folder, phase and count, and Stop scan, in the bar; no Return to scan.
+        let line = app.staticTexts["folderScanProgress"]
+        XCTAssertTrue(line.waitForExistence(timeout: 10))
+        XCTAssertEqual(line.value as? String, "Scanning " + folder.lastPathComponent)
+        let strip = actionStrip(app)
+        for element in [line, app.staticTexts["scanPhase"], app.staticTexts["scanProgressSummary"], strip.buttons["Stop scan"]] {
+            XCTAssertTrue(element.waitForExistence(timeout: 5), element.debugDescription)
+            XCTAssertTrue(strip.frame.contains(element.frame), element.debugDescription)
+        }
+        XCTAssertTrue((app.staticTexts["scanProgressSummary"].value as? String)?.hasSuffix("inspected") == true)
+        XCTAssertFalse(strip.buttons["Return to scan"].exists)
+        XCTAssertEqual(strip.frame.height, height, accuracy: 0.5)
+        XCTAssertEqual(toolbarItems(), before, "The toolbar is unchanged during the scan")
+
+        // Away from it, on Storage trends and History: Stop scan and Return to scan.
+        for key in ["4", "5"] {
+            app.typeKey(key, modifierFlags: .command)
+            XCTAssertTrue(actionStrip(app).buttons["Return to scan"].waitForExistence(timeout: 5), key)
+            XCTAssertTrue(actionStrip(app).buttons["Stop scan"].exists, key)
+            XCTAssertTrue(app.staticTexts["scanPhase"].exists, key)
+            XCTAssertEqual(actionStrip(app).frame.height, height, accuracy: 0.5, key)
+        }
+        actionStrip(app).buttons["Return to scan"].click()
+        XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 5))
+        actionStrip(app).buttons["Stop scan"].click()
+        XCTAssertTrue(line.waitForNonExistence(timeout: 10))
+        XCTAssertEqual(actionStrip(app).frame.height, height, accuracy: 0.5)
+        XCTAssertEqual(toolbarItems(), before, "The toolbar is unchanged after the scan")
+    }
+}

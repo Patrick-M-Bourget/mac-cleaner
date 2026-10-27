@@ -104,11 +104,17 @@ enum StorageCategory {
     }
 }
 private struct OpaqueChromeKey: EnvironmentKey { static let defaultValue = false }
-private struct BackgroundWorkKey: EnvironmentKey { static let defaultValue: BackgroundWork.Line? = nil }
+/// The bar's background work line, with a folder scan's Stop scan and, away from where it started, Return to scan (#235).
+struct BackgroundWorkStatus {
+    let line: BackgroundWork.Line
+    var stop: (() -> Void)? = nil
+    var returnToScan: (() -> Void)? = nil
+}
+private struct BackgroundWorkKey: EnvironmentKey { static var defaultValue: BackgroundWorkStatus? { nil } }
 extension EnvironmentValues {
     var cacheDropOpaqueChrome: Bool { get { self[OpaqueChromeKey.self] } set { self[OpaqueChromeKey.self] = newValue } }
     /// The app-wide background work every bottom bar reports while it runs (Decision 46).
-    var cacheDropBackgroundWork: BackgroundWork.Line? { get { self[BackgroundWorkKey.self] } set { self[BackgroundWorkKey.self] = newValue } }
+    var cacheDropBackgroundWork: BackgroundWorkStatus? { get { self[BackgroundWorkKey.self] } set { self[BackgroundWorkKey.self] = newValue } }
 }
 enum ChromeRole { case chrome, sidebar }
 struct ChromeSurface: View {
@@ -346,7 +352,7 @@ struct ActionStrip<Leading: View, Actions: View>: View {
         VStack(spacing: 0) {
             Divider()
             HStack(spacing: CacheDropDesign.Space.lg) {
-                if showsBackgroundWork, let work { BackgroundWorkLine(line: work) } else { leading() }
+                if showsBackgroundWork, let work { BackgroundWorkLine(status: work) } else { leading() }
                 Spacer(minLength: CacheDropDesign.Space.sm)
                 actions()
             }.frame(minHeight: CacheDropDesign.Size.actionStripRow, maxHeight: wrapsNote ? nil : CacheDropDesign.Size.actionStripRow)
@@ -366,14 +372,22 @@ extension ActionStrip where Leading == ActionStripMessage, Actions == EmptyView 
     init() { self.init(message: nil) { EmptyView() } }
 }
 /// Background work as one quiet line: a small spinner and "Checking <location>… 4 of 31", plus "+1 more" (Decisions 25, 46).
+/// A folder scan adds its phase and count, and small Stop scan and Return to scan buttons (#235).
 struct BackgroundWorkLine: View {
-    let line: BackgroundWork.Line
+    let status: BackgroundWorkStatus
     var body: some View {
         HStack(spacing: CacheDropDesign.Space.sm) {
             ProgressView().controlSize(.small).accessibilityHidden(true)
-            Text(line.text).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary).monospacedDigit().lineLimit(1).truncationMode(.middle)
-                .accessibilityIdentifier(line.id)
-        }
+            HStack(spacing: CacheDropDesign.Space.xs) {
+                ForEach(Array(status.line.parts.enumerated()), id: \.offset) { index, part in
+                    if index > 0 { Text("·").accessibilityHidden(true) }
+                    Text(part.text).accessibilityIdentifier(part.id)
+                }
+            }.font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary).monospacedDigit().lineLimit(1).truncationMode(.middle)
+                .help(status.line.text)
+            if let stop = status.stop { Button("Stop scan", action: stop) }
+            if let returnToScan = status.returnToScan { Button("Return to scan", action: returnToScan) }
+        }.controlSize(.small).buttonBorderShape(.automatic)
     }
 }
 /// A bottom bar's note; nothing when there is none. One line, truncated, with the full text in a tooltip (#234), unless it
@@ -811,26 +825,6 @@ struct CategoryPrerequisite: View {
     }
 }
 
-/// Shared across destinations; stopping or finishing a scan never changes the route.
-struct ToolbarScanStatus: View {
-    let location: String
-    var phase = "Reading metadata…"
-    var inspectedEntries: Int? = nil
-    var returnToScan: (() -> Void)?
-    let stop: () -> Void
-    var body: some View {
-        HStack(spacing: CacheDropDesign.Space.sm) {
-            ProgressView().controlSize(.small)
-            VStack(alignment: .leading, spacing: 0) {
-                Text(phase).font(CacheDropDesign.TypeStyle.caption).lineLimit(1).accessibilityIdentifier("scanPhase")
-                Text(inspectedEntries.map { "\($0) entries inspected · " + location } ?? "Scanning " + location)
-                    .font(.caption2).foregroundStyle(.secondary).lineLimit(1).accessibilityIdentifier("scanProgressSummary")
-            }.frame(maxWidth: 240, alignment: .leading)
-            Button("Stop scan", action: stop).controlSize(.small)
-            if let returnToScan { Button("Return to scan", action: returnToScan).controlSize(.small) }
-        }.accessibilityElement(children: .contain)
-    }
-}
 
 struct LocationScopeRow<Actions: View>: View {
     let name: String

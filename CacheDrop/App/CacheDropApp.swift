@@ -126,7 +126,14 @@ private struct WorkspaceView: View {
     @State private var locationToForget: RememberedScope?
     /// Work running in the background, earliest first, for every screen's bottom bar (Decision 46).
     @State private var backgroundWork = BackgroundWork()
-    private var backgroundWorkLine: BackgroundWork.Line? { backgroundWork.line(catalogProgress: selection.catalog.scanProgressText) }
+    /// The bar's line; a folder scan's carries its phase and count, Stop scan, and Return to scan away from its screen (#235).
+    private var backgroundWorkStatus: BackgroundWorkStatus? {
+        guard let line = backgroundWork.line(catalogProgress: selection.catalog.scanProgressText,
+                                             folderPhase: folderInspection.isScanning ? folderInspection.progress?.phase ?? .enumerating : nil,
+                                             inspectedEntries: folderInspection.progress?.visitedEntries) else { return nil }
+        guard line.runsFolderScan else { return BackgroundWorkStatus(line: line) }
+        return BackgroundWorkStatus(line: line, stop: { folderInspection.cancel() }, returnToScan: scanReturnAction)
+    }
     /// What runs now, each labelled by what it is (#230): a recheck, or a new folder's scan.
     private var runningTasks: Set<BackgroundJob> {
         var tasks: Set<BackgroundJob> = []
@@ -294,10 +301,6 @@ private struct WorkspaceView: View {
                         ActionStrip(message: "Records are kept. Nothing resumes automatically.") { EmptyView() }
                     } else if navigationState.localRecordsVisible {
                         ActionStrip()
-                    } else if nativeInspectionVisible && folderInspection.isScanning {
-                        ActionStrip(message: "Preliminary observations · No cleanup is running") {
-                            Button("Stop scan") { folderInspection.cancel() }.buttonStyle(.borderedProminent)
-                        }
                     } else if nativeInspectionVisible {
                         ActionStrip(message: "Inspection only · \(CacheDropDesign.items(selection.workspaceSelectedCount)) in the cleanup plan") {
                             Button("Review plan") { nativeInspectionVisible = false; destination = .plan }.buttonStyle(.borderedProminent)
@@ -319,7 +322,7 @@ private struct WorkspaceView: View {
             }.frame(maxWidth: .infinity, maxHeight: .infinity)
                 .background(CacheDropDesign.reading)
         }
-        .environment(\.cacheDropBackgroundWork, backgroundWorkLine)
+        .environment(\.cacheDropBackgroundWork, backgroundWorkStatus)
         .onChange(of: runningTasks, initial: true) { _, tasks in backgroundWork.update(running: tasks) }
         .onChange(of: selection.catalog.selectionRevision) { _, _ in AppLifecycleController.shared.hasPendingPlan = selection.hasPendingChoices }
         .task { if await recovery.loadOnce() { openRecovery(caller: .overview, refresh: false) } }
@@ -350,15 +353,8 @@ private struct WorkspaceView: View {
         }
     }
     @ViewBuilder private var contextToolbarLabel: some View {
-        if selection.workspaceRunning, let contextLabel {
-            Text(contextLabel).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary).lineLimit(1)
-        } else if folderInspection.isScanning {
-            ToolbarScanStatus(location: folderInspection.scope?.lastPathComponent ?? "selected locations",
-                phase: folderInspection.progress.map { $0.phase == .rechecking ? "Rechecking changed coverage (one attempt)…" : $0.phase == .checkingDirectories ? "Checking directory stability…" : "Reading file metadata…" } ?? "Preparing metadata scan…",
-                inspectedEntries: folderInspection.progress?.visitedEntries,
-                returnToScan: scanReturnAction,
-                stop: { folderInspection.cancel() })
-        } else if let contextLabel, !contextLabel.isEmpty { Text(contextLabel).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary).lineLimit(1) }
+        // Only the context label: a scan's progress lives in the bottom bar, so nothing here changes when one starts (#235).
+        if let contextLabel, !contextLabel.isEmpty { Text(contextLabel).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary).lineLimit(1) }
     }
 
     private var scanReturnAction: (() -> Void)? {

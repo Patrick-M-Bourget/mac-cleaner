@@ -143,6 +143,9 @@ final class FolderInspection {
                 request = selection.beginRefresh(url)
                 refreshRequest = request
                 let report = try await session.inspect(url, cancellation: scanCancellation, onProgress: { continuation.yield($0) }, exclusions: policy)
+                #if DEBUG
+                try await Self.pauseForTests()
+                #endif
                 let observed = report.current
                 let reports = await session.reports()
                 guard !Task.isCancelled, token == generation else { return }
@@ -174,6 +177,15 @@ final class FolderInspection {
             }
         }
     }
+
+    #if DEBUG
+    /// A disposable test run can hold a folder scan open (`CACHEDROP_TEST_FOLDER_SCAN_PAUSE`, seconds, at most 10) after it
+    /// has read the folder, so a UI journey sees its progress in the bottom bar (#235). Stop scan ends the wait. Never set outside tests.
+    private static func pauseForTests() async throws {
+        guard LocalStateLocation.isDisposableTest, let pause = ProcessInfo.processInfo.environment["CACHEDROP_TEST_FOLDER_SCAN_PAUSE"].flatMap(Double.init), pause > 0 else { return }
+        try await Task.sleep(for: .seconds(min(pause, 10)))
+    }
+    #endif
 
     private func finishActivity() async {
         guard let operation = activity else { return }
