@@ -208,3 +208,31 @@ private let components = "Library/Audio/Plug-Ins/Components/", vst = "Library/Au
     #expect(products.map(\.name).sorted() == ["THE_FX", "THE_YEAR"])
     #expect(products.first { $0.name == "THE_FX" }?.formats == [.vst3, .aax])
 }
+
+@Test func triggerTwoAndTrigger_2AreOneProduct() throws {
+    let root = try fixtureFolder("Root"), home = try fixtureFolder("Home")
+    defer { try? FileManager.default.removeItem(at: root); try? FileManager.default.removeItem(at: home) }
+    // As installed: every format carries this (doubled) bundle ID; only the Audio Unit says "Trigger 2" and who made it.
+    let id = "com.stevenslate.Trigger_2com.stevenslate.Trigger_2"
+    try plugIn(components + "Trigger_2.component", in: root, id: id, version: "2.1.9", component: "Steven Slate: Trigger 2")
+    for path in [vst + "Trigger_2.vst", vst3s + "Trigger_2.vst3", aaxs + "Trigger_2.aaxplugin"] { try plugIn(path, in: root, id: id, version: "2.1.9") }
+
+    let products = scan(root, home).products
+    #expect(products.count == 1)
+    let product = try #require(products.first)
+    #expect(product.name == "Trigger 2")
+    #expect(product.maker == "Steven Slate")
+    #expect(product.formats == [.au, .vst, .vst3, .aax])
+    #expect(product.versions == ["2.1.9"])
+}
+
+@Test func namesThatDifferOnlyByUnderscoreOrCaseJoinWithinOneMaker() throws {
+    let root = try fixtureFolder("Root"), home = try fixtureFolder("Home")
+    defer { try? FileManager.default.removeItem(at: root); try? FileManager.default.removeItem(at: home) }
+    // Trigger with a different ID per format and no Audio Unit to name it: joined by maker and name, "_" and case aside.
+    try plugIn(vst3s + "Trigger_2.vst3", in: root, id: "com.stevenslate.trigger2.vst3", version: "2.1.9")
+    try plugIn(aaxs + "TRIGGER 2.aaxplugin", in: root, id: "com.stevenslate.trigger2.aax", version: "2.1.9")
+    let products = scan(root, home).products
+    #expect(products.count == 1)
+    #expect(products.first?.formats == [.vst3, .aax])
+}

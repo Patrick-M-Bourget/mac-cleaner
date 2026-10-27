@@ -25,6 +25,8 @@ public struct PlugInFile: Sendable, Equatable {
     var isNamedByAudioUnit = false
     /// Apple's own Audio Units (bundle ID `com.apple.`): never offered for removal.
     public var isApple: Bool { bundleID?.lowercased().hasPrefix("com.apple.") == true }
+    /// The name as grouping compares it: case and "_" against " " aside.
+    var groupingName: String { name.replacingOccurrences(of: "_", with: " ").lowercased() }
     /// The bundle ID's first two parts, `com.maker`: who made it, as far as the bundle says.
     var vendor: String? {
         guard let parts = bundleID?.lowercased().split(separator: "."), parts.count > 2 else { return nil }
@@ -84,7 +86,7 @@ public struct PlugInInventory: Sendable, Equatable {
         for (i, file) in files.enumerated() {
             for id in receipts[file.url.standardizedFileURL.path] ?? [] { tie("receipt|" + id, i) }
             if let id = file.bundleID?.lowercased(), perFormat["\(id)|\(file.format.rawValue)"]?.count == 1 { tie("id|" + id, i) }
-            if let vendor = file.vendor { tie("bundle|\(vendor)|\(file.name.lowercased())", i) }
+            if let vendor = file.vendor { tie("bundle|\(vendor)|\(file.groupingName)", i) }
         }
         let groups = Dictionary(grouping: files.indices, by: root).values
         // Biggest first; an unknown size counts as 0 for ordering only.
