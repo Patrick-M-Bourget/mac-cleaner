@@ -173,15 +173,38 @@ public enum PlugInUninstall {
     /// Why a support item may not be moved as its receipt installed it (#288): it holds license data (refused by name), or an
     /// entry the receipt doesn't list, which may be the user's or another product's (or more than `limit` to look at).
     static func listingRefusal(_ path: String, _ listed: Set<String>, limit: Int = 20_000) -> CheckRefusal? {
+        if let name = licenceData(path) { return .protected(name) }
         guard let walk = FileManager.default.enumerator(atPath: path) else { return nil }
         var seen = 0
         while let relative = walk.nextObject() as? String {
             seen += 1
-            let name = (relative as NSString).lastPathComponent
-            if RemovedAppLeftovers.isNeverOffered(name) { return .protected(name) }
+            if let name = licenceData(path + "/" + relative) { return .protected(name) }
             if seen > limit || !listed.contains(path + "/" + relative) { return .changed }
         }
         return nil
+    }
+
+    /// Licence and activation data, by name or by content (#291): a licence word in its name, a `.lic` or `.key` file, an
+    /// opaque data file (`.dat`, `.bin`, or a file with no extension), or a preference list with licence-like keys. Its name, or nil.
+    static func licenceData(_ path: String) -> String? {
+        let url = URL(fileURLWithPath: path), name = url.lastPathComponent, kind = url.pathExtension.lowercased()
+        if RemovedAppLeftovers.isNeverOffered(name) { return name }
+        var info = stat()
+        guard lstat(path, &info) == 0, info.st_mode & S_IFMT != S_IFDIR else { return nil }
+        if ["lic", "key", "dat", "bin", ""].contains(kind) { return name }
+        guard kind == "plist", let data = try? Data(contentsOf: url),
+              let list = try? PropertyListSerialization.propertyList(from: data, format: nil) else { return nil }
+        return hasLicenceKeys(list) ? name : nil
+    }
+    /// Keys such as SerialNumber, LicenseKey, ActivationCode, Registration, AuthToken or UserKey, at any depth.
+    static func hasLicenceKeys(_ list: Any, depth: Int = 0) -> Bool {
+        guard depth < 8 else { return true }
+        if let array = list as? [Any] { return array.contains { hasLicenceKeys($0, depth: depth + 1) } }
+        guard let dictionary = list as? [String: Any] else { return false }
+        return dictionary.contains { key, value in
+            key.range(of: #"serial|licen[cs]|activat|registr|auth|(user|email|account).*key"#, options: [.regularExpression, .caseInsensitive]) != nil
+                || hasLicenceKeys(value, depth: depth + 1)
+        }
     }
 
     /// Never offered or acted on: license and macOS data and Apple's folders anywhere on the path below the system root, and

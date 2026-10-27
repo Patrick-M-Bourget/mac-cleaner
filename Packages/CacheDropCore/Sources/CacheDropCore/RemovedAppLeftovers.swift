@@ -185,7 +185,8 @@ public enum RemovedAppLeftovers {
         let id = bundleID.lowercased() + "."
         return sharedFrameworkPrefixes.contains { id.hasPrefix($0) }
     }
-    static let licenseWords = ["ilok", "paceap", "pace anti", "elicenser", "syncrosoft", "codemeter", "wibu", "licens", "licenc", "activation", "authoriz"]
+    static let licenseWords = ["ilok", "paceap", "pace anti", "elicenser", "syncrosoft", "codemeter", "wibu", "licens", "licenc", "activation", "authoriz",
+                               "authoris", "serial", "registration", "keychain"]
     /// A LaunchAgent whose program is still on disk belongs to something installed, whatever its label says.
     static func launchAgentProgramExists(_ url: URL) -> Bool {
         guard url.deletingLastPathComponent().lastPathComponent == "LaunchAgents" else { return false }

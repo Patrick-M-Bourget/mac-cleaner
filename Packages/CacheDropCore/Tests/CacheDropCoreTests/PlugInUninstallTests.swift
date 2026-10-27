@@ -65,7 +65,7 @@ private func fixture() throws -> (root: URL, home: URL) {
     try write(support + "Pro Synth/Presets/Init.preset", in: root)
     try write(support + "Pro Synth/License.dat", in: root)
     try write(support + "Pro Delay/Presets/Echo.preset", in: root)
-    try write(support + "Shared/Engine.dat", in: root, bytes: 5000)
+    try write(support + "Shared/Engine.res", in: root, bytes: 5000)
     try receipt("com.maker.prosynth.pkg", listing: [plugIns + "Components/Pro Synth.component", plugIns + "VST3/Pro Synth.vst3", support + "Pro Synth"], in: root)
     try receipt("com.maker.prodelay.pkg", listing: [plugIns + "VST3/Pro Delay.vst3", support + "Pro Delay"], in: root)
     // A suite receipt lists both products and their shared folder.
@@ -344,4 +344,33 @@ private func names(_ items: [Candidate]) -> Set<String> { Set(items.map(\.url.la
 
     #expect(!items.contains { $0.url.path == root.appendingPathComponent(maker).path }, "Never the folder above both products' files")
     #expect(names(items.filter { $0.ruleID == PlugInUninstall.sharedRuleID }).isSuperset(of: ["Shared", "Pro Synth", "Pro Delay"]))
+}
+
+private func plist(_ relative: String, _ value: [String: Any], in root: URL) throws {
+    let file = root.appendingPathComponent(relative)
+    try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
+    try PropertyListSerialization.data(fromPropertyList: value, format: .xml, options: 0).write(to: file)
+}
+
+@Test func licenceDataIsNeverOfferedByNameKindOrPreferenceKeysAtTheScanOrTheRun() throws {
+    let (root, home) = try fixture()
+    defer { try? FileManager.default.removeItem(at: root) }
+    let prefs = "Library/Preferences/com.maker.prosynth.plist"
+    try plist(prefs, ["SerialNumber": "ABCD-1234", "Theme": "Dark"], in: root)
+    try write(support + "Pro Synth/Skins/Dark.skin", in: root)
+    try write(support + "Pro Synth/Skins/state.dat", in: root)
+    try write(support + "Pro Synth/Docs/Registration Info.txt", in: root)
+    try write(support + "Pro Synth/Docs/Manual.pdf", in: root)
+    try plist(support + "Pro Synth/Presets/Settings.plist", ["Volume": 1], in: root)
+    try receipt("com.maker.prosynth.pkg", listing: [plugIns + "Components/Pro Synth.component", plugIns + "VST3/Pro Synth.vst3", support + "Pro Synth", prefs], in: root)
+    let (_, items) = scan(root, home)
+
+    #expect(!items.contains { $0.url.lastPathComponent == "com.maker.prosynth.plist" }, "A preference with a serial number")
+    #expect(!items.contains { $0.url.lastPathComponent == "Skins" }, "A folder with opaque data in it")
+    #expect(!items.contains { $0.url.lastPathComponent == "Docs" }, "A folder with registration data in it")
+    // A listed placeholder later filled with activation data is refused before acting.
+    let presets = try #require(items.first { $0.url.lastPathComponent == "Presets" })
+    #expect(check(home).check(presets) == nil)
+    try plist(support + "Pro Synth/Presets/Settings.plist", ["Volume": 1, "ActivationCode": "XYZ"], in: root)
+    #expect(check(home).check(presets) == .protected("Settings.plist"))
 }
