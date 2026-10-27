@@ -15,14 +15,14 @@ extension BuiltInCatalog {
         consequence: "Runs `simctl runtime delete` for each runtime, which permanently removes it. Xcode downloads it again when you need it.",
         // The user's CoreSimulator folder anchors the rule in the home folder; the runtimes themselves live outside it.
         regen: .build, action: .tool, locations: ["Library/Developer/CoreSimulator"], owner: simulatorOwner,
-        tool: ToolCommand(executables: simctlExecutables, arguments: ["runtime", "delete", "<runtime>"], timeout: 600, itemPlaceholder: "<runtime>"),
+        tool: ToolCommand(executables: simctlExecutables, arguments: ["runtime", "delete", "<runtime>"], timeout: 600, itemPlaceholder: "<runtime>", daemonBacked: true),
         items: .simulatorRuntimes)
     static let simulatorDevices = CleanupRule(
         id: "simulator-devices", category: .developer, title: "Simulators",
         detail: "Simulator devices that aren’t running.",
         consequence: "Runs `simctl delete` for each simulator, which permanently removes it with its apps and data. Create it again in Xcode if you need it.",
         regen: .build, action: .tool, locations: ["Library/Developer/CoreSimulator/Devices"], owner: simulatorOwner,
-        tool: ToolCommand(executables: simctlExecutables, arguments: ["delete", "<device>"], timeout: 120, itemPlaceholder: "<device>"),
+        tool: ToolCommand(executables: simctlExecutables, arguments: ["delete", "<device>"], timeout: 120, itemPlaceholder: "<device>", daemonBacked: true),
         items: .simulatorDevices)
 
     static let androidOwner = RuleOwner(name: "Android Studio or the emulator", bundleIDs: ["com.google.android.studio"], executables: ["emulator", "qemu-system-*"])

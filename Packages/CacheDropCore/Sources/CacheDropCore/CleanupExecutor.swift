@@ -183,11 +183,11 @@ public actor CleanupExecutor {
             if record.state == .succeeded { record.message = "Ran \(name) and permanently removed the folder" }
             else { record.message = "Ran \(name). " + record.message }
         case .failure(let error as ToolTimeout):
-            Self.recordStopped("Stopped at the \(Int(command.timeout.rounded(.up)))-second time limit.", output: error.output, name: name, candidate, into: &record)
+            Self.recordStopped("at the \(Int(command.timeout.rounded(.up)))-second time limit", output: error.output, command, name: name, candidate, into: &record)
         case .failure(let error as ToolCancelled) where !error.started:
             record.state = .cancelled; record.message = "Stopped before \(name) started. Nothing was changed."
         case .failure(let error as ToolCancelled):
-            Self.recordStopped("Stopped when you cancelled.", output: error.output, name: name, candidate, into: &record)
+            Self.recordStopped("when you cancelled", output: error.output, command, name: name, candidate, into: &record)
         case .failure(ToolPreviewError.unavailable):
             record.state = .skipped; record.message = "\(name) is no longer installed."
         case .failure:
@@ -196,11 +196,14 @@ public actor CleanupExecutor {
     }
 
     /// A tool stopped before it finished (time limit or cancel) ran until then, so it may have removed some files;
-    /// the folder is never deleted after it. `reason` says what stopped it.
-    private static func recordStopped(_ reason: String, output: String, name: String, _ candidate: Candidate, into record: inout CleanupRecord) {
+    /// the folder is never deleted after it. `reason` says what stopped it. A daemon-backed tool's work goes on without it (SPEC section 4),
+    /// so only the wait stopped and the work may still be finishing.
+    private static func recordStopped(_ reason: String, output: String, _ command: ToolCommand, name: String, _ candidate: Candidate, into record: inout CleanupRecord) {
         record.toolOutput = trimmed(output)
         record.state = .failed; record.partlyRemoved = true
-        record.message = "\(reason) \(name) may have cleaned part of it" + (candidate.isDirectory ? "; the folder was left in place." : ".")
+        let effect = command.daemonBacked ? "Stopped waiting \(reason). \(name) hands its work to a background service, which may still be finishing"
+                                          : "Stopped \(reason). \(name) may have cleaned part of it"
+        record.message = effect + (candidate.isDirectory ? "; the folder was left in place." : ".")
     }
 
     /// The last 40 lines, so the journal and results stay small.

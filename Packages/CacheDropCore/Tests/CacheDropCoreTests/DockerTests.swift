@@ -136,12 +136,23 @@ private final class FakeVolume: @unchecked Sendable {
         return CapacitySample(available: available, total: 10_000_000, volumeID: "fake-volume", metric: .important, date: Date())
     }
 }
-private func dockerRun(_ home: URL, docker: URL, choose ruleIDs: Set<String>, volume: FakeVolume = FakeVolume(), previewOnly: Bool = false) async throws -> CatalogExecutionResult {
-    let catalog = Catalog(rules: fixtureRules)
+private extension ToolCommand {
+    func withTimeout(_ timeout: TimeInterval) -> ToolCommand {
+        ToolCommand(executables: executables, arguments: arguments, timeout: timeout, deletesLocationAfter: deletesLocationAfter, itemPlaceholder: itemPlaceholder, daemonBacked: daemonBacked)
+    }
+}
+/// Docker rules are built from these fields only (`DockerCatalog.swift`), so the copy with a shorter time limit is otherwise the same rule.
+private func dockerRun(_ home: URL, docker: URL, choose ruleIDs: Set<String>, volume: FakeVolume = FakeVolume(), previewOnly: Bool = false,
+                       timeout: TimeInterval? = nil, cancellation: CleanupCancellation = CleanupCancellation()) async throws -> CatalogExecutionResult {
+    let catalog = Catalog(rules: fixtureRules.map { rule in
+        guard let timeout, ruleIDs.contains(rule.id), let tool = rule.tool else { return rule }
+        return CleanupRule(id: rule.id, category: rule.category, title: rule.title, detail: rule.detail, consequence: rule.consequence, regen: rule.regen, action: rule.action,
+                           locations: rule.locations, owner: rule.owner, tool: tool.withTimeout(timeout), items: rule.items)
+    })
     let chosen = catalog.discover(fixture: home, locateTool: { $0.executables.contains("/usr/local/bin/docker") ? docker : nil }).filter { ruleIDs.contains($0.ruleID) }
     try #require(chosen.count == ruleIDs.count)
     let journal = try SQLiteCleanupJournal(url: home.appendingPathComponent("journal.sqlite"))
-    let run = CleanupExecutor(journal: journal, check: CandidateCheck(catalog: catalog, running: EverythingRunning()), measure: volume.read, trash: TrashNeverUsed())
+    let run = CleanupExecutor(journal: journal, check: CandidateCheck(catalog: catalog, running: EverythingRunning()), measure: volume.read, trash: TrashNeverUsed(), cancellation: cancellation)
     return await run.execute(CatalogApproval(candidates: chosen, previewOnly: previewOnly))
 }
 
@@ -256,4 +267,41 @@ private func dockerRun(_ home: URL, docker: URL, choose ruleIDs: Set<String>, vo
         #expect(rule.consequence.contains("`" + command + "`"), "\(rule.id): \(command)")
     }
     #expect(fixtureRules.first { $0.id == "docker-build-cache" }?.consequence.hasPrefix("Runs `docker builder prune -a -f`") == true)
+}
+
+/// Docker's daemon does the pruning, outside the CLI's process group: stopping the CLI doesn't stop the work (#185).
+@Test func aCancelledPruneSaysDockerMayStillBeFinishing() async throws {
+    let home = try fixtureHome()
+    defer { try? FileManager.default.removeItem(at: home) }
+    let length = uniqueSleep(), running = home.appendingPathComponent("running")
+    let docker = try fakeDocker(home, prune: "echo pruning; touch '\(running.path)'; sleep \(length)")
+    let cancellation = CleanupCancellation()
+    Task.detached { if waitForFile(running) { cancellation.cancel() } }
+    let result = try await dockerRun(home, docker: docker, choose: ["docker-images"], cancellation: cancellation)
+    survivorsAfterSettling(length).forEach { kill($0, SIGKILL) }
+    let record = try #require(result.records.first)
+    #expect(record.state == .failed && record.partlyRemoved == true)
+    #expect(record.message.hasPrefix("Stopped waiting when you cancelled. docker image prune -a -f hands its work to a background service, which may still be finishing"))
+    #expect(record.toolOutput == "pruning")
+}
+
+@Test func aTimedOutPruneSaysDockerMayStillBeFinishing() async throws {
+    let home = try fixtureHome()
+    defer { try? FileManager.default.removeItem(at: home) }
+    let length = uniqueSleep()
+    let docker = try fakeDocker(home, prune: "sleep \(length)")
+    let result = try await dockerRun(home, docker: docker, choose: ["docker-containers"], timeout: 0.5)
+    survivorsAfterSettling(length).forEach { kill($0, SIGKILL) }
+    let record = try #require(result.records.first)
+    #expect(record.state == .failed && record.partlyRemoved == true)
+    #expect(record.message.hasPrefix("Stopped waiting at the 1-second time limit. docker container prune -f hands its work to a background service, which may still be finishing"))
+}
+
+/// Which tools hand their work to a daemon is rule data: Docker's prunes and every simctl action; tools that do the
+/// work in their own process group are not.
+@Test func onlyDaemonBackedToolsAreMarkedAsSuch() {
+    let tools = Dictionary(uniqueKeysWithValues: fixtureRules.compactMap { rule in rule.tool.map { (rule.id, $0) } })
+    let daemonBacked = Set(tools.filter { $0.value.daemonBacked }.keys)
+    #expect(daemonBacked == ["docker-images", "docker-build-cache", "docker-containers", "simulator-runtimes", "simulator-devices", "xcode-simulators"])
+    #expect(tools["homebrew"]?.daemonBacked == false)
 }

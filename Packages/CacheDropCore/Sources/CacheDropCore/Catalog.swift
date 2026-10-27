@@ -20,9 +20,12 @@ public struct ToolCommand: Sendable, Hashable {
     public let deletesLocationAfter: Bool
     /// An argument replaced by each item's name, as in `ollama rm <model>`; nil for commands that take none.
     public let itemPlaceholder: String?
-    public init(executables: [String], arguments: [String], timeout: TimeInterval, deletesLocationAfter: Bool = false, itemPlaceholder: String? = nil) {
+    /// The command hands its work to a daemon outside its process group (Docker, CoreSimulator), so stopping it
+    /// at a cancel or its time limit doesn't stop the work, which may still be finishing.
+    public let daemonBacked: Bool
+    public init(executables: [String], arguments: [String], timeout: TimeInterval, deletesLocationAfter: Bool = false, itemPlaceholder: String? = nil, daemonBacked: Bool = false) {
         self.executables = executables; self.arguments = arguments; self.timeout = timeout; self.deletesLocationAfter = deletesLocationAfter
-        self.itemPlaceholder = itemPlaceholder
+        self.itemPlaceholder = itemPlaceholder; self.daemonBacked = daemonBacked
     }
     /// The arguments for one item; nil when the command needs an item name and has none.
     public func arguments(for item: String?) -> [String]? {
@@ -239,7 +242,7 @@ public enum BuiltInCatalog {
                     detail: "Simulator devices whose OS version is no longer installed, so they can’t run.",
                     consequence: "Runs `simctl delete unavailable`. Only devices that can’t run are removed, with their apps and data; available simulators are not touched.",
                     regen: .build, action: .tool, locations: ["Library/Developer/CoreSimulator/Devices"], owner: nil,
-                    tool: ToolCommand(executables: simctlExecutables, arguments: ["delete", "unavailable"], timeout: 300)),
+                    tool: ToolCommand(executables: simctlExecutables, arguments: ["delete", "unavailable"], timeout: 300, daemonBacked: true)),
         // RESET Decision 18. Installers come first so a large old installer is listed once, as an installer.
         CleanupRule(id: "downloads-installers", category: .downloads, title: "Installers in Downloads",
                     detail: "Disk images, packages and archives you downloaded, at any age.",
