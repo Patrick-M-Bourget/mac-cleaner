@@ -20,7 +20,7 @@ struct AppManagedStorageView: View {
                         if index > 0 { Divider().padding(.horizontal, CacheDropDesign.Space.lg) }
                         let needsAccess = finding.size == .notAccessible
                         StorageReviewRow(category: rule.managedCategory, title: rule.title,
-                                         detail: finding.libraries.map(FoundLibrary.summary) ?? finding.plugIns.map(\.summary) ?? finding.workspaces?.summary
+                                         detail: finding.librariesSummary ?? finding.plugIns.map(\.summary) ?? finding.workspaces?.summary
                                              ?? rule.detail.firstSentence,
                                          value: needsAccess ? "Needs access" : finding.size.text,
                                          actionTitle: guidance.openTitle, action: { Task { await model.open(finding) } },

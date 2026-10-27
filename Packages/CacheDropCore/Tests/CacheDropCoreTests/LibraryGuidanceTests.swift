@@ -94,3 +94,70 @@ private actor RecordingOpener: GuidanceOpening {
     #expect(await opener.targets == [.app(bundleID: "com.apple.FinalCut")])
     #expect(FileManager.default.fileExists(atPath: home.appendingPathComponent("Movies/Untitled.fcpbundle/Event 1/Render Files/a.mov").path))
 }
+
+/// A directory reader that hangs on one volume, as a dropped SMB share can, until the test lets it go (#244).
+private final class StuckReader: @unchecked Sendable {
+    let release = DispatchSemaphore(value: 0)
+    let stuckName: String
+    init(stuck name: String) { stuckName = name }
+    func volumes(network: Set<String> = []) -> LibraryVolumes {
+        LibraryVolumes(isLocal: { !network.contains($0.lastPathComponent) }, walk: { [self] root, visit in
+            if root.lastPathComponent == stuckName { release.wait() }
+            return FileTree.walk(root, visit)
+        })
+    }
+}
+
+@Test func aStuckVolumeIsAbandonedAtTheDeadlineAndReportedNotSearched() throws {
+    let base = try libraryHome(), home = base.appendingPathComponent("Home"), system = base.appendingPathComponent("System")
+    defer { try? FileManager.default.removeItem(at: base) }
+    try write(4096, at: "Home/Pictures/Photos Library.photoslibrary/a", in: base)
+    try write(4096, at: "System/Volumes/External/Family.photoslibrary/b", in: base)
+    try write(4096, at: "System/Volumes/Stuck/Old.photoslibrary/c", in: base)
+    let reader = StuckReader(stuck: "Stuck")
+    defer { reader.release.signal() }
+
+    let started = ProcessInfo.processInfo.systemUptime
+    let result = LibrarySearch.find(extensions: ["photoslibrary"], home: home, systemRoot: system,
+                                    sizer: KnownLocationSizer(timeBudget: 0.5), volumes: reader.volumes())
+    #expect(ProcessInfo.processInfo.systemUptime - started < 5)
+    #expect(result.found["photoslibrary"]?.map(\.name).sorted() == ["Family", "Photos Library"])
+    #expect(result.notSearched == ["Stuck"])
+    #expect(!result.complete)
+}
+
+@Test func aNetworkVolumeIsNeverSearched() throws {
+    let base = try libraryHome(), home = base.appendingPathComponent("Home"), system = base.appendingPathComponent("System")
+    defer { try? FileManager.default.removeItem(at: base) }
+    try write(4096, at: "System/Volumes/External/Family.photoslibrary/b", in: base)
+    try write(4096, at: "System/Volumes/Share/Team.photoslibrary/c", in: base)
+    // The share would hang if it were read at all.
+    let reader = StuckReader(stuck: "Share")
+    defer { reader.release.signal() }
+
+    let result = LibrarySearch.find(extensions: ["photoslibrary"], home: home, systemRoot: system,
+                                    sizer: KnownLocationSizer(timeBudget: 5), volumes: reader.volumes(network: ["Share"]))
+    #expect(result.found["photoslibrary"]?.map(\.name) == ["Family"])
+    #expect(result.notSearched.isEmpty && result.complete)
+}
+
+@Test func theSummaryNamesAVolumeThatWasNotSearched() {
+    let one = FoundLibrary(url: URL(fileURLWithPath: "/a/One.photoslibrary"), volume: "Macintosh HD", size: .measured(1))
+    #expect(FoundLibrary.summary([one], notSearched: ["NAS"]) == "1 library · Macintosh HD · NAS not searched")
+    #expect(FoundLibrary.summary([one], notSearched: ["NAS", "Old Disk"]) == "1 library · Macintosh HD · NAS, Old Disk not searched")
+}
+
+@Test func aFindingCarriesTheVolumesNotSearched() throws {
+    let base = try libraryHome(), home = base.appendingPathComponent("Home"), system = base.appendingPathComponent("System")
+    defer { try? FileManager.default.removeItem(at: base) }
+    try write(4096, at: "Home/Pictures/Photos Library.photoslibrary/a", in: base)
+    try write(4096, at: "System/Volumes/Stuck/Old.photoslibrary/c", in: base)
+    let reader = StuckReader(stuck: "Stuck")
+    defer { reader.release.signal() }
+
+    let finding = Catalog(rules: fixtureRules).guidance(home: home, systemRoot: system, sizer: KnownLocationSizer(timeBudget: 0.5),
+                                                        snapshots: FixtureSnapshots(), libraryVolumes: reader.volumes())
+        .first { $0.ruleID == "photos-library" }
+    #expect(finding?.libraries?.map(\.name) == ["Photos Library"])
+    #expect(finding?.notSearched == ["Stuck"])
+}
