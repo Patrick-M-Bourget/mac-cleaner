@@ -1,11 +1,15 @@
 import Foundation
 
 /// Whether macOS lets the user move an item to the Trash without a password (Decision 50, #268): its folder is writable
-/// and, for a folder item (an app or plug-in bundle), the item itself is writable. Read from permissions, never by trying.
+/// and, for a folder item (an app or plug-in bundle), the item itself is writable; in a folder with the sticky bit, the user
+/// must also own the item or the folder (#271). Read from permissions, never by trying.
 public enum Removability {
-    public static func canMoveToTrash(_ url: URL) -> Bool {
-        var info = stat()
-        guard lstat(url.path, &info) == 0, access(url.deletingLastPathComponent().path, W_OK | X_OK) == 0 else { return false }
+    /// `user` stands in for the current user's ID, so a test can ask as someone who owns nothing.
+    public static func canMoveToTrash(_ url: URL, asUser user: uid_t = getuid()) -> Bool {
+        var info = stat(), folder = stat()
+        let parent = url.deletingLastPathComponent().path
+        guard lstat(url.path, &info) == 0, stat(parent, &folder) == 0, access(parent, W_OK | X_OK) == 0 else { return false }
+        if folder.st_mode & S_ISVTX != 0, user != 0, user != info.st_uid, user != folder.st_uid { return false }
         return info.st_mode & S_IFMT != S_IFDIR || access(url.path, W_OK) == 0
     }
 }

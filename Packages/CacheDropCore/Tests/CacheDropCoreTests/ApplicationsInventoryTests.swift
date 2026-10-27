@@ -28,6 +28,20 @@ private func setMode(_ url: URL, _ mode: Int) throws { try FileManager.default.s
     #expect(!Removability.canMoveToTrash(root.appendingPathComponent("missing.app")))
 }
 
+/// #271: in a writable folder with the sticky bit (like /Library/Application Support's shared folders), only the item's
+/// owner or the folder's may move it. A test can't make another user's file, so it asks as another user instead.
+@Test func aStickyFolderLetsOnlyTheOwnerMoveAnItem() throws {
+    let root = try temporaryFolder()
+    defer { try? setMode(root, 0o755); try? FileManager.default.removeItem(at: root) }
+    let file = root.appendingPathComponent("shared.plist")
+    try Data([1]).write(to: file)
+    let stranger = getuid() + 1_000
+    #expect(Removability.canMoveToTrash(file, asUser: stranger), "Without the sticky bit, a writable folder is enough")
+    try setMode(root, 0o1777)
+    #expect(Removability.canMoveToTrash(file), "Its owner still can")
+    #expect(!Removability.canMoveToTrash(file, asUser: stranger), "Anyone else can't, though the folder is writable")
+}
+
 /// An app bundle with an Info.plist and `bytes` of executable.
 private func makeApp(_ url: URL, id: String, bytes: Int, copyright: String? = nil) throws -> InstalledApp {
     try FileManager.default.createDirectory(at: url.appendingPathComponent("Contents/MacOS"), withIntermediateDirectories: true)
