@@ -487,3 +487,25 @@ private func unreadableReceipt(_ id: String, in root: URL) throws {
     #expect(check(home).check(presets) != nil, "Before acting")
     #expect(!scan(root, home).items.contains { $0.url.lastPathComponent == "Presets" }, "At the scan")
 }
+
+@Test func anyReceiptNotTheProductsListingFilesInVendorContentIsASharer() throws {
+    let (root, home) = try fixture()
+    defer { try? FileManager.default.removeItem(at: root) }
+    let folder = "Library/Application Support/Maker Content"
+    try write(folder + "/Sounds/Pad.wav", in: root)
+    try write(folder + "/Sounds/Lead.wav", in: root)
+    // The vendor's standalone app's pkg, which installs no plug-in, wrote a file into the content folder.
+    try receipt("com.maker.hub.pkg", listing: [folder + "/Sounds/Pad.wav"], in: root)
+    let inventory = PlugInInventory.scan(home: home, systemRoot: root, sizer: KnownLocationSizer(timeBudget: 5))
+    let synth = try product("Pro Synth", inventory)
+    let library = MusicContentItem(name: "Sounds", vendors: ["Maker"], url: root.appendingPathComponent(folder), kind: .installed,
+                                   state: .present(.unknown), owners: [synth], tie: .vendor)
+    let items = PlugInUninstall.scan(inventory, apps: [], receipts: ReceiptListings.read(under: root), content: [library], systemRoot: root)
+    let content = try #require(items.first { $0.url == library.url })
+
+    #expect(content.sharedBy.contains("receipt:com.maker.hub.pkg"), "\(content.sharedBy)")
+    #expect(check(home).check(content) == nil)
+    // Another app's pkg, installed after the scan, lists a file in it: refused before acting.
+    try receipt("com.other.app.pkg", listing: [folder + "/Sounds/Lead.wav"], in: root)
+    #expect(check(home).check(content) == .changed)
+}

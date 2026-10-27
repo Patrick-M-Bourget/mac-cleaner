@@ -120,18 +120,22 @@ public enum PlugInUninstall {
             items += own.map { var item = $0; item.uninstall = target; return item }
         }
         for (key, item) in shared { shared[key]?.uninstall = sharedTarget(item.sharedBy) }
-        // Receipts no product owns (a vendor's content pkg) may list vendor content; another product's may not (#291).
-        let orphans = Set(receipts.byReceipt.keys).subtracting(products.flatMap(\.receipts))
+        let productReceipts = Set(products.flatMap(\.receipts))
         for piece in content where piece.kind == .installed && receipts.unread.isEmpty {
             let ids = piece.owners.filter { id in products.contains { $0.id == id } }
-            let allowed = orphans.union(products.filter { ids.contains($0.id) }.flatMap(\.receipts))
+            // Every receipt that lists anything in it and isn't one of its owners' shares it (#291): a vendor's content pkg or a
+            // standalone app's; another product's refuses it. Only those may list it before acting.
+            let owners = Set(products.filter { ids.contains($0.id) }.flatMap(\.receipts))
+            let others = (receipts.listers(of: piece.url.path) ?? []).subtracting(owners).subtracting(productReceipts)
+            let allowed = owners.union(others)
             guard shared[piece.url.path] == nil, let target = sharedTarget(ids), var found = item(rules[2], piece.url) else { continue }
             if let refusal = contentRefusal(piece.url.path, allowed: allowed, receipts: receipts, refuseWhenTooLarge: false) {
                 // Content with a file CacheDrop doesn't recognise stays, and its first owner's row says so (Decision 53).
                 if case .unrecognised = refusal, let first = ids.first { targets[first]?.unrecognised += 1 }
                 continue
             }
-            found = found.shared(by: ids, receipt: nil, vendor: piece.vendors.first).installed(by: allowed); found.uninstall = target
+            found = found.shared(by: ids + others.sorted().map { "receipt:" + $0 }, receipt: nil, vendor: piece.vendors.first).installed(by: allowed)
+            found.uninstall = target
             shared[piece.url.path] = found
         }
         let sharedItems = taken(offered + items, shared.values.sorted { $0.url.path < $1.url.path }).filter { Removability.canMoveToTrash($0.url) && $0.uninstall != nil }
