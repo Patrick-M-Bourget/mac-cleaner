@@ -109,6 +109,16 @@ public enum RemovedAppLeftovers {
     static func vendorToken(_ bundleID: String) -> String { token(bundleID.split(separator: ".").dropFirst().first.map(String.init) ?? "") }
     static func receiptAppName(_ path: String) -> String { URL(fileURLWithPath: path).deletingPathExtension().lastPathComponent }
 
+    /// The leftovers no catalog item already covers: one that is, holds or sits inside an offered item is left to its rule,
+    /// so no space is offered twice.
+    public static func notOffered(by offered: [Candidate], _ leftovers: [Candidate]) -> [Candidate] {
+        let paths = offered.map { $0.url.standardizedFileURL.path }
+        return leftovers.filter { item in
+            let path = item.url.standardizedFileURL.path
+            return !paths.contains { $0 == path || $0.hasPrefix(path + "/") || path.hasPrefix($0 + "/") }
+        }
+    }
+
     /// The check just before acting (#173): license, macOS and CacheDrop's own data are refused wherever a scan found them,
     /// and an app that is on this Mac again, or whose presence can't be read, keeps its leftovers.
     static func refusal(for url: URL, tie: LeftoverTie, below root: URL, apps: any AppPresence) -> CheckRefusal? {

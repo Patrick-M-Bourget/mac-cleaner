@@ -244,3 +244,15 @@ private struct FixtureHomeTrash: TrashMoving {
     #expect(TrashPutBack(journal: journal).putBack(record) == .restored(record.originalURL))
     #expect(FileManager.default.fileExists(atPath: home.appendingPathComponent("Library/Caches/com.gone.synth/Cache.db").path))
 }
+
+@Test func aLeftoverAnotherRuleOffersHoldsOrSitsInsideIsLeftToThatRule() throws {
+    let home = try fixtureHome()
+    defer { try? FileManager.default.removeItem(at: home) }
+    try write(home, "Library/Caches/com.gone.synth/org.sparkle-project.Sparkle/update.zip")
+    try write(home, "Library/Logs/com.gone.synth/main.log")
+    try write(home, "Library/Preferences/com.gone.synth.plist")
+    let offered = Catalog(rules: fixtureRules).discover(fixture: home)
+    #expect(!offered.isEmpty)
+
+    #expect(names(RemovedAppLeftovers.notOffered(by: offered, scan(home))) == ["com.gone.synth.plist"])
+}
