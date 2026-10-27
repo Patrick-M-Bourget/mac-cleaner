@@ -448,6 +448,7 @@ extension CatalogCategory {
         case .updaters: .appUpdates
         case .logs: .logs
         case .managed: .managed
+        case .leftovers: .leftovers
         }
     }
     /// Overview's row title for a category; the rows themselves come from what the catalog found.
@@ -463,6 +464,7 @@ extension CatalogCategory {
         case .icloud: "Downloaded iCloud files"
         case .files: "Large and old files"
         case .managed: "App-managed storage"
+        case .leftovers: "Leftovers of removed apps"
         }
     }
     /// The one short line under a category's title on Overview and in the plan, written per category rather than built from rule names.
@@ -478,6 +480,7 @@ extension CatalogCategory {
         case .icloud: "Local copies of files that stay in iCloud"
         case .files: "Large files you haven’t opened in a while"
         case .managed: "Data the apps that own it look after"
+        case .leftovers: "Files apps you removed left behind"
         }
     }
 }

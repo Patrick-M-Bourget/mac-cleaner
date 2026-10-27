@@ -51,7 +51,7 @@ public struct ToolCommand: Sendable, Hashable {
 }
 /// Whether none, some or all of a category's items are chosen.
 public enum CategorySelectionState: Sendable { case unchecked, mixed, checked }
-public enum CatalogCategory: String, Codable, Sendable { case developer, browser, downloads, system, models, updaters, logs, icloud, files, managed }
+public enum CatalogCategory: String, Codable, Sendable { case developer, browser, downloads, system, models, updaters, logs, icloud, files, managed, leftovers }
 
 /// Who must be closed before a rule's data is touched.
 public struct RuleOwner: Sendable, Hashable {
@@ -68,8 +68,13 @@ public struct RuleOwner: Sendable, Hashable {
     public let arguments: [String]
     /// Folders, such as an app bundle, any process run from inside of which belongs to the owner.
     public let paths: [String]
-    public init(name: String, bundleIDs: [String] = [], executables: [String] = [], scripts: [String] = [], arguments: [String] = [], paths: [String] = []) {
+    /// Lowercased bundle ID prefixes (`com.ableton.`): any running app whose bundle ID starts with one belongs to the owner,
+    /// as a removed app's maker does (#173).
+    public let bundleIDPrefixes: [String]
+    public init(name: String, bundleIDs: [String] = [], executables: [String] = [], scripts: [String] = [], arguments: [String] = [], paths: [String] = [],
+                bundleIDPrefixes: [String] = []) {
         self.name = name; self.bundleIDs = bundleIDs; self.executables = executables; self.scripts = scripts; self.arguments = arguments; self.paths = paths
+        self.bundleIDPrefixes = bundleIDPrefixes
     }
 }
 
@@ -190,7 +195,8 @@ public enum BuiltInCatalog {
     public static let rules: [CleanupRule] = rules(apps: SystemAppLookup())
     /// The catalog with installed apps found by `apps`. Tests pass a fake, so they never depend on this Mac's apps.
     public static func rules(apps: any AppLookup) -> [CleanupRule] { fixedRules + BrowserCaches.rules + AppDataCaches.rules(apps: apps) + AppCaches.rules(apps: apps) + dockerRules + developerDeviceRules + guidanceRules
-        + TemporaryFiles.rules(apps: apps) + AITools.rules }
+        + TemporaryFiles.rules(apps: apps) + AITools.rules
+        + RemovedAppLeftovers.rules }
     private static let fixedRules: [CleanupRule] = [
         CleanupRule(id: "npm-cache", category: .developer, title: "npm cache",
                     detail: "Packages npm downloaded for your projects.",
@@ -357,6 +363,8 @@ public struct Candidate: Sendable, Identifiable, Hashable {
     public internal(set) var folderSource: String? = nil
     /// The base folder the item was found under (home or the user's folder); the check refuses an item without one.
     public internal(set) var scopeRoot: URL? = nil
+    /// What ties a leftover of a removed app to that app (#173); nil for every other item.
+    public internal(set) var leftover: LeftoverTie? = nil
 }
 
 public struct Catalog: Sendable {
@@ -365,7 +373,7 @@ public struct Catalog: Sendable {
     public func rule(_ id: String) -> CleanupRule? { rules.first { $0.id == id } }
     /// Who must be closed before the candidate is touched: the rule's owner, or the item's own when it has one.
     public func owner(for candidate: Candidate) -> RuleOwner? {
-        guard let rule = rule(candidate.ruleID), case .mustBeClosed(let owner) = Self.ownership(of: candidate.url, under: rule) else { return nil }
+        guard let rule = rule(candidate.ruleID), case .mustBeClosed(let owner) = Self.ownership(of: candidate, under: rule) else { return nil }
         return owner
     }
 
@@ -383,6 +391,11 @@ public struct Catalog: Sendable {
     /// The one place an item's owner is resolved, from the rule's `owner`, `itemOwner` and `copies.owner`.
     /// A leftover from an earlier delete has no owner to close, since no app uses a folder renamed aside,
     /// but a leaked copy's app may still have one open.
+    static func ownership(of candidate: Candidate, under rule: CleanupRule) -> Ownership {
+        // A removed app's leftovers wait for every app of its maker to close (#173); one without its tie is refused.
+        if RemovedAppLeftovers.ruleIDs.contains(rule.id) { return candidate.leftover.map { .mustBeClosed($0.owner) } ?? .unknown }
+        return ownership(of: candidate.url, under: rule)
+    }
     static func ownership(of url: URL, under rule: CleanupRule) -> Ownership {
         if let copies = rule.copies { return .mustNotUse(copies.owner) }
         if rule.unused != nil, rule.itemOwner == nil { return .mustNotUse(.anyApp) }

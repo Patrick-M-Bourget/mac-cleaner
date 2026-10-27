@@ -21,6 +21,9 @@ public struct SystemRunningAppChecker: RunningAppChecking {
     public init() {}
     public func isRunning(_ owner: RuleOwner) -> Bool? {
         if !UserProcesses.apps(owner.bundleIDs).isEmpty { return true }
+        if !owner.bundleIDPrefixes.isEmpty, NSWorkspace.shared.runningApplications.contains(where: { app in
+            app.bundleIdentifier.map { id in owner.bundleIDPrefixes.contains { id.lowercased().hasPrefix($0) } } ?? false
+        }) { return true }
         guard !owner.executables.isEmpty || !owner.scripts.isEmpty || !owner.arguments.isEmpty || !owner.paths.isEmpty else { return false }
         guard let commands = Self.userCommandLines() else { return nil }
         return commands.contains { owner.matches($0) }
