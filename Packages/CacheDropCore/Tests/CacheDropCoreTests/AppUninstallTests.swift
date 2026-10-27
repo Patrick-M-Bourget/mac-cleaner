@@ -257,3 +257,33 @@ private struct Processes: ProcessListing {
         .execute(CatalogApproval(candidates: found.filter { $0.ruleID == AppUninstall.appRuleID }, previewOnly: false))
     #expect(try journal.completedHistory().completedRuns.first?.title == "Uninstalled Synth · 2 items")
 }
+
+/// #301: an app with no container or saved window state is uninstalled with its own preferences and caches, and its helper's:
+/// the installed app being uninstalled proves its bundle IDs were an app's. Another ID still needs that evidence (#251).
+@Test func anAppWithoutAContainerIsUninstalledWithItsOwnPreferencesAndCaches() async throws {
+    let home = FileManager.default.temporaryDirectory.appendingPathComponent("CacheDropUninstall-\(UUID())").resolvingSymlinksInPath()
+    defer { try? FileManager.default.removeItem(at: home) }
+    let helper = home.appendingPathComponent("Applications/Synth.app/Contents/Library/LoginItems/Synth Helper.app")
+    for relative in ["Applications/Synth.app/Contents/MacOS/Synth", "Library/Preferences/com.maker.synth.plist", "Library/Caches/com.maker.synth/Cache.db",
+                     "Library/Preferences/com.maker.synthhelper.plist", "Library/Preferences/com.maker.other.plist"] {
+        let file = home.appendingPathComponent(relative)
+        try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Data(repeating: 1, count: 200).write(to: file)
+    }
+    try FileManager.default.createDirectory(at: helper.appendingPathComponent("Contents"), withIntermediateDirectories: true)
+    try PropertyListSerialization.data(fromPropertyList: ["CFBundleIdentifier": "com.maker.synthhelper"], format: .xml, options: 0)
+        .write(to: helper.appendingPathComponent("Contents/Info.plist"))
+    try FileManager.default.createDirectory(at: home.appendingPathComponent(".Trash"), withIntermediateDirectories: true)
+    let synth = InstalledApp(name: "Synth", bundleID: "com.maker.synth", path: home.appendingPathComponent("Applications/Synth.app").path)
+    let found = scan(home, synth, Apps(installed: [synth]))
+
+    #expect(names(found, AppUninstall.filesRuleID) == ["com.maker.synth.plist", "com.maker.synth", "com.maker.synthhelper.plist"], "Its files, ticked with the app")
+    #expect(names(found, AppUninstall.possiblyRelatedRuleID) == ["com.maker.other.plist"], "Another ID is only possibly related")
+    let chosen = found.filter { $0.ruleID != AppUninstall.possiblyRelatedRuleID }
+    #expect(chosen.allSatisfy { check(home).check($0) == nil }, "The check before acting agrees")
+    let journal = try SQLiteCleanupJournal(url: home.appendingPathComponent("journal.sqlite"))
+    let result = await CleanupExecutor(journal: journal, check: check(home), measure: { _ in nil }, trash: HomeTrash(home: home))
+        .execute(CatalogApproval(candidates: chosen, previewOnly: false))
+    #expect(result.records.count == 4 && result.records.allSatisfy { $0.state == .succeeded })
+    #expect(!FileManager.default.fileExists(atPath: home.appendingPathComponent("Library/Preferences/com.maker.synth.plist").path))
+}

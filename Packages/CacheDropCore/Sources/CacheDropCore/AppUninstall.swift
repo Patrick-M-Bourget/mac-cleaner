@@ -79,10 +79,13 @@ public enum AppUninstall {
         var bundle = catalog.candidate(rules[0], url, info, logical: size.logicalBytes, allocated: size.allocatedBytes, complete: size.complete, lastUsed: nil)
         bundle = bundle.found(under: url.deletingLastPathComponent())
         let skipped = Set(leftovers.map(\.url.path))
+        // The app being uninstalled proves its own and its helpers' bundle IDs were an app's (#301): files named for them are its
+        // files, without the container or saved state a removed app's would need (#251).
+        let helpers = helperIDs(of: url), ownIDs = Set(([app.bundleID] + helpers).map { $0.lowercased() })
         let found = RemovedAppLeftovers.scan(home: home, apps: Without(app: app, url: url, in: apps), receipts: receipts, exclusions: exclusions,
-                                             sizer: sizer, skipping: skipped)
+                                             sizer: sizer, skipping: skipped).map { confirmingOwn($0, ids: ownIDs) }
         let notInPlan = RemovedAppLeftovers.notOffered(by: offered, found), removable = notInPlan.filter { Removability.canMoveToTrash($0.url) }
-        let target = Target(name: app.name, bundleID: app.bundleID, path: url.path, helpers: helperIDs(of: url),
+        let target = Target(name: app.name, bundleID: app.bundleID, path: url.path, helpers: helpers,
                             needsPassword: notInPlan.count - removable.count, inPlan: found.count - notInPlan.count)
         let files = removable.map { $0.uninstalled(with: target, ruleID: $0.ruleID == RemovedAppLeftovers.ruleID ? filesRuleID : possiblyRelatedRuleID) }
         bundle.uninstall = target
@@ -99,6 +102,17 @@ public enum AppUninstall {
         return [bundle] + (tool.map { [$0] } ?? []) + files
     }
 
+    /// A possibly related item named for one of `ids` (lowercased), the app's own or its helpers', as one of its files (#301).
+    /// A group container stays an exact match on the evidence rule: the maker's apps share it.
+    static func confirmingOwn(_ item: Candidate, ids: Set<String>) -> Candidate {
+        guard let tie = item.leftover, tie.isNameOnly, !RemovedAppLeftovers.isGroupContainer(item.url),
+              let id = RemovedAppLeftovers.bundleID(inName: item.url.lastPathComponent), ids.contains(id.lowercased()) else { return item }
+        var confirmed = item
+        confirmed.ruleID = RemovedAppLeftovers.ruleID
+        confirmed.leftover = LeftoverTie(app: tie.app, bundleID: id, vendor: tie.vendor, evidence: .bundleID)
+        return confirmed
+    }
+
     /// The check just before acting: never macOS's, CacheDrop's or license data, and only what macOS still lets the user move to
     /// the Trash without a password, whatever changed since the scan (Decision 50).
     /// An app's files keep the before-acting checks of a removed app's leftovers (#281), as if the app were gone: the tie still
@@ -110,8 +124,8 @@ public enum AppUninstall {
         if candidate.ruleID != appRuleID {
             guard let tie = candidate.leftover else { return .changed }
             let gone = Without(app: InstalledApp(name: app.name, bundleID: app.bundleID, path: app.path), url: URL(fileURLWithPath: app.path), in: apps)
-            // The app's own container goes in the same run, so its bundle ID stands as the proof it was an app's.
-            let own = tie.bundleID?.lowercased() == app.bundleID.lowercased()
+            // The app goes in the same run, so its own and its helpers' bundle IDs stand as the proof they were an app's (#301).
+            let own = tie.bundleID.map { ([app.bundleID] + app.helpers).map { $0.lowercased() }.contains($0.lowercased()) } ?? false
             if let refusal = RemovedAppLeftovers.refusal(for: url, tie: tie, below: root, apps: gone, appKnown: own) { return refusal }
         }
         if let part = url.standardizedFileURL.pathComponents.dropFirst(root.standardizedFileURL.pathComponents.count).first(where: RemovedAppLeftovers.isNeverOffered) {
