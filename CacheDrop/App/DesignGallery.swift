@@ -22,10 +22,8 @@ struct DesignGallery: View {
             }.padding(CacheDropDesign.Space.lg).background { ChromeSurface() }
             ScrollView {
                 VStack(alignment: .leading, spacing: CacheDropDesign.Space.xl) {
-                    VStack(alignment: .leading, spacing: CacheDropDesign.Space.sm) {
-                        BackButton(destination: "Overview", action: {})
-                        PageHeader(title: "Native design system", subtitle: "Developer examples only · No personal storage measurements")
-                    }
+                    PageHeader(title: "Native design system", subtitle: "Developer examples only · No personal storage measurements",
+                               back: BackButton(destination: "Overview", action: {}))
                     Button { shellExamplesExpanded.toggle() } label: {
                         Label("Synthetic shell and appearance examples", systemImage: shellExamplesExpanded ? "chevron.down" : "chevron.right")
                     }.buttonStyle(.plain).accessibilityValue(shellExamplesExpanded ? "Expanded" : "Collapsed")

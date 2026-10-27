@@ -183,10 +183,9 @@ struct LiveCleanupPlanView: View {
             CleanupRunSection(selection: selection)
         } else {
         VStack(alignment: .leading, spacing: CacheDropDesign.Space.lg) {
-            VStack(alignment: .leading, spacing: CacheDropDesign.Space.sm) {
-                if let backToExplorer { BackButton(destination: backToExplorerDestination, action: backToExplorer) }
-                PageHeader(title: "Cleanup plan", subtitle: "Choose categories, adjust items if needed, then review the changes.")
-            }.padding(.bottom, CacheDropDesign.Space.sm)
+            PageHeader(title: "Cleanup plan", subtitle: "Choose categories, adjust items if needed, then review the changes.",
+                       back: backToExplorer.map { BackButton(destination: backToExplorerDestination, action: $0) })
+                .padding(.bottom, CacheDropDesign.Space.sm)
             ScanHistoryRecordingNotice()
             SelectionSummary(value: selection.workspaceSelectedSize,
                              detail: CacheDropDesign.items(selection.catalog.selectedCount) + " selected",

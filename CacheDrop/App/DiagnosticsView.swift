@@ -65,9 +65,11 @@ import UniformTypeIdentifiers
 
 struct DiagnosticsView: View {
     @Bindable var model: DiagnosticsModel
+    /// The back button above the title, from the page that opened this one.
+    var back: BackButton? = nil
     var body: some View {
         VStack(alignment: .leading, spacing: CacheDropDesign.Space.xl) {
-            PageHeader(title: "Review diagnostics", subtitle: "A local snapshot with only allowlisted versions, counts, status and error codes.")
+            PageHeader(title: "Review diagnostics", subtitle: "A local snapshot with only allowlisted versions, counts, status and error codes.", back: back)
             SettingsRow(title: "Included", detail: "App/build and system versions, CPU architecture, session scope count, latest scan entry count, selected count and fixed status/error codes.") { EmptyView() }
             SettingsRow(title: "Excluded", detail: "File paths and names, resource/batch/account identities, raw errors, file or browser contents, credentials, cloud metadata and recovery records.") { EmptyView() }
             if let export = model.export {

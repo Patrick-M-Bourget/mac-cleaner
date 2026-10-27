@@ -220,34 +220,24 @@ private struct WorkspaceView: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: CacheDropDesign.Space.xl) {
                         if recoveryVisible {
-                            VStack(alignment: .leading, spacing: CacheDropDesign.Space.sm) {
-                                BackButton(destination: navigationState.localRecordsVisible ? "Local records" : navigationState.recoveryCaller.rawValue) {
-                                    recoveryVisible = false; destination = navigationState.recoveryCaller; navigationState.recoveryCaller = .overview
-                                }
-                                CleanupRecoveryView(model: recovery)
-                            }
+                            CleanupRecoveryView(model: recovery, back: BackButton(destination: navigationState.localRecordsVisible ? "Local records" : navigationState.recoveryCaller.rawValue) {
+                                recoveryVisible = false; destination = navigationState.recoveryCaller; navigationState.recoveryCaller = .overview
+                            })
                         } else if navigationState.localRecordsVisible {
-                            VStack(alignment: .leading, spacing: CacheDropDesign.Space.sm) {
-                                BackButton(destination: navigationState.localRecordsCaller.rawValue) {
-                                    navigationState.localRecordsVisible = false
-                                    destination = navigationState.localRecordsCaller
-                                }
-                                LocalRecordsView(model: navigationState.historyModel, showRecovery: { openRecovery(caller: navigationState.localRecordsCaller) }, didReset: didResetLocalRecords, reviewDiagnostics: nil)
-                            }
+                            LocalRecordsView(model: navigationState.historyModel, showRecovery: { openRecovery(caller: navigationState.localRecordsCaller) }, didReset: didResetLocalRecords, reviewDiagnostics: nil,
+                                             back: BackButton(destination: navigationState.localRecordsCaller.rawValue) {
+                                                 navigationState.localRecordsVisible = false
+                                                 destination = navigationState.localRecordsCaller
+                                             })
                         } else if exclusionsVisible {
-                            VStack(alignment: .leading, spacing: CacheDropDesign.Space.sm) {
-                                BackButton(destination: Destination.locations.rawValue) { exclusionsVisible = false; destination = .locations }
-                                    .disabled(ExclusionsModel.shared.editingBlocked)
-                                ExclusionsView(model: ExclusionsModel.shared)
-                            }
+                            ExclusionsView(model: ExclusionsModel.shared, back: BackButton(destination: Destination.locations.rawValue, enabled: !ExclusionsModel.shared.editingBlocked) {
+                                exclusionsVisible = false; destination = .locations
+                            })
                         } else if diagnosticsVisible {
-                            VStack(alignment: .leading, spacing: CacheDropDesign.Space.sm) {
-                                BackButton(destination: navigationState.diagnosticsCaller.rawValue) {
-                                    diagnosticsVisible = false; navigationState.localRecordsVisible = false
-                                    destination = navigationState.diagnosticsCaller
-                                }.disabled(diagnostics.isSaving)
-                                DiagnosticsView(model: diagnostics)
-                            }
+                            DiagnosticsView(model: diagnostics, back: BackButton(destination: navigationState.diagnosticsCaller.rawValue, enabled: !diagnostics.isSaving) {
+                                diagnosticsVisible = false; navigationState.localRecordsVisible = false
+                                destination = navigationState.diagnosticsCaller
+                            })
                         } else if navigationState.appManagedVisible {
                             AppManagedStorageView(model: selection.catalog) { navigationState.appManagedVisible = false }
                         } else if pipVisible {

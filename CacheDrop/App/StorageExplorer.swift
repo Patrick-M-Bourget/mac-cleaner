@@ -161,13 +161,11 @@ struct StorageExplorerView: View {
         GeometryReader { geometry in
             let wide = geometry.size.width >= 800
             VStack(alignment: .leading, spacing: CacheDropDesign.Space.lg) {
-                VStack(alignment: .leading, spacing: CacheDropDesign.Space.sm) {
-                    // A folder that is no longer observed leads back only to the list of locations (#227).
-                    BackButton(destination: folderGone ? context.rootName : context.backDestination ?? caller) {
-                        if folderGone { context.discardUnavailableFolder() } else if !context.backWithinExplorer() { back() }
-                    }.accessibilityIdentifier("explorerBack")
-                    PageHeader(title: context.title, subtitle: "Inspect local allocations within your selected folders.")
-                }
+                // A folder that is no longer observed leads back only to the list of locations (#227).
+                PageHeader(title: context.title, subtitle: "Inspect local allocations within your selected folders.",
+                           back: BackButton(destination: folderGone ? context.rootName : context.backDestination ?? caller, identifier: "explorerBack") {
+                               if folderGone { context.discardUnavailableFolder() } else if !context.backWithinExplorer() { back() }
+                           })
                 ScanHistoryRecordingNotice()
                 breadcrumbs
                 HStack(alignment: .top, spacing: CacheDropDesign.Space.lg) {

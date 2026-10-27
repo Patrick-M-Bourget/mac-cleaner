@@ -57,10 +57,7 @@ struct PipInspectionView: View {
     let back: () -> Void
     var body: some View {
         VStack(alignment: .leading, spacing: CacheDropDesign.Space.xl) {
-            VStack(alignment: .leading, spacing: CacheDropDesign.Space.sm) {
-                BackButton(destination: Destination.overview.rawValue, action: back)
-                PageHeader(title: "pip cache opportunities")
-            }
+            PageHeader(title: "pip cache opportunities", back: BackButton(destination: Destination.overview.rawValue, action: back))
             Text("Read-only cache inventory").foregroundStyle(.secondary)
             Text("Supports Apple developer tools Python with its bundled pip. CacheDrop verifies Apple signatures and the bundled tool before running read-only commands. Other interpreters are not executed.")
             SettingsRow(title: "Selected installation") {

@@ -147,11 +147,14 @@ struct CategoryBadge: View {
             .accessibilityHidden(true)
     }
 }
+/// A page's title and optional subtitle, with its back button just above the title when another page leads here (Decision 47).
 struct PageHeader: View {
     let title: String
     var subtitle: String? = nil
+    var back: BackButton? = nil
     var body: some View {
         VStack(alignment: .leading, spacing: CacheDropDesign.Space.sm) {
+            if let back { back }
             Text(title).font(CacheDropDesign.TypeStyle.page).tracking(-0.6)
             if let subtitle { Text(subtitle).font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true) }
         }.frame(maxWidth: .infinity, alignment: .leading)
@@ -161,7 +164,12 @@ struct PageHeader: View {
 /// "‹ <destination>". Its accessibility label says "Back to <destination>", so it never shares a name with a sidebar row.
 struct BackButton: View {
     let destination: String
+    var identifier: String? = nil
+    var enabled = true
     let action: () -> Void
+    init(destination: String, identifier: String? = nil, enabled: Bool = true, action: @escaping () -> Void) {
+        self.destination = destination; self.identifier = identifier; self.enabled = enabled; self.action = action
+    }
     var body: some View {
         Button(action: action) {
             HStack(spacing: CacheDropDesign.Space.xs) {
@@ -169,7 +177,15 @@ struct BackButton: View {
                 Text(destination)
             }
         }.buttonStyle(.plain).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
-            .accessibilityLabel("Back to " + destination)
+            .accessibilityLabel("Back to " + destination).disabled(!enabled)
+            .modifier(OptionalIdentifier(identifier: identifier))
+    }
+}
+/// Sets an accessibility identifier only when there is one, so the element keeps its default otherwise.
+private struct OptionalIdentifier: ViewModifier {
+    let identifier: String?
+    func body(content: Content) -> some View {
+        if let identifier { content.accessibilityIdentifier(identifier) } else { content }
     }
 }
 struct SummarySurface<Content: View>: View {
