@@ -501,7 +501,8 @@ private struct WorkspaceView: View {
             }
     }
     private func catalogRow(_ row: CatalogOverview.Row) -> some View {
-        let inPlan = row.rules.contains { selection.catalog.isSelected($0) }
+        // Leftovers are chosen on Applications, never "In cleanup plan" (#270).
+        let inPlan = row.category != .leftovers && row.rules.contains { selection.catalog.isSelected($0) }
         return StorageReviewRow(category: row.category.storageCategory, title: row.category.overviewTitle, detail: row.category.overviewDetail,
             value: row.valueText,
             meaning: row.estimate == .unknown ? "Couldn’t be measured" : inPlan ? "In cleanup plan"
