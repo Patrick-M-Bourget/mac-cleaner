@@ -255,3 +255,18 @@ private let components = "Library/Audio/Plug-Ins/Components/", vst = "Library/Au
     #expect(product.files.count == 6)
     #expect(product.formats == [.au, .vst, .vst3, .aax, .clap])
 }
+
+@Test func aVersionKeepsOnlyItsLeadingNumber() throws {
+    let root = try fixtureFolder("Root"), home = try fixtureFolder("Home")
+    defer { try? FileManager.default.removeItem(at: root); try? FileManager.default.removeItem(at: home) }
+    try plugIn(components + "Crystallizer.component", in: root, id: "com.soundtoys.audiounit.Crystallizer",
+               version: "5.5.5.19885 Authorization: Crystallizer", component: "Soundtoys: Crystallizer")
+    try plugIn(vst3s + "Reason Rack Plugin.vst3", in: root, id: "se.propellerheads.reasonrackplugin.vst", version: "14.0d381 build 20109")
+    try plugIn(aaxs + "NoteStack.aaxplugin", in: root, id: "com.avid.aax.notestack", version: "26.4.1.179 Release")
+    try plugIn(aaxs + "Splice INSTRUMENT.aaxplugin", in: root, id: "com.splice.Instrument", version: "1.0.6-921181f")
+    let versions = Dictionary(uniqueKeysWithValues: scan(root, home).products.map { ($0.name, $0.versions) })
+    #expect(versions["Crystallizer"] == ["5.5.5.19885"])
+    #expect(versions["Reason Rack Plugin"] == ["14.0d381"])
+    #expect(versions["NoteStack"] == ["26.4.1.179"])
+    #expect(versions["Splice INSTRUMENT"] == ["1.0.6-921181f"])
+}

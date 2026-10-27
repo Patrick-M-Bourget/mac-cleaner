@@ -158,9 +158,17 @@ public struct PlugInInventory: Sendable, Equatable {
         let name = component.flatMap { $0.count == 2 ? $0[1] : nil } ?? url.deletingPathExtension().lastPathComponent
         let executable = (info["CFBundleExecutable"] as? String).map { url.appendingPathComponent("Contents/MacOS/" + $0) }
         return PlugInFile(url: url, format: format, bundleID: info["CFBundleIdentifier"] as? String, name: name, maker: maker,
-                          version: (info["CFBundleShortVersionString"] ?? info["CFBundleVersion"]) as? String,
+                          version: leadingVersion((info["CFBundleShortVersionString"] ?? info["CFBundleVersion"]) as? String),
                           architectures: executable.map(MachOArchitectures.read) ?? [], size: Catalog.estimate(sizer.size(url)),
                           isNamedByAudioUnit: component?.count == 2)
+    }
+
+    /// A version's leading number: "5.5.5.19885 Authorization: Crystallizer" reads "5.5.5.19885". A version that
+    /// doesn't start with a digit is kept as it is.
+    static func leadingVersion(_ version: String?) -> String? {
+        guard let version = version?.trimmingCharacters(in: .whitespaces), !version.isEmpty else { return nil }
+        guard version.first?.isNumber == true, let token = version.split(whereSeparator: \.isWhitespace).first else { return version }
+        return String(token).trimmingCharacters(in: CharacterSet(charactersIn: ",;:"))
     }
 
     /// A VST3's vendor, from its `moduleinfo.json` (VST 3.7 SDK) when it ships one.
