@@ -11,6 +11,7 @@ struct DesignGallery: View {
     @State private var historyExamplesExpanded = false
     @State private var growthExamplesExpanded = false
     @State private var alertExamplesExpanded = false
+    @State private var categoryRowExpanded = false
     var body: some View {
         VStack(spacing: 0) {
             HStack {
@@ -127,6 +128,13 @@ struct DesignGallery: View {
                         CacheDropSidebarRow(title: "Cleanup plan", symbol: "checklist", selected: true, accent: CacheDropDesign.teal) {}
                     }
                     CategorySelectionHeader(category: .downloads, state: .mixed, title: "Downloads · Example mixed selection", detail: "The checkbox alone changes selection; filenames remain inspection controls.", size: "16 MB", enabled: true, action: {})
+                    CategoryRow(category: .developer, state: .checked, title: "Developer · Example category row", detail: "Plan and Smart clean share this row; each keeps its own selection.",
+                                size: "1.2 GB", enabled: true, identifier: "galleryCategoryRow", itemCount: 2, expanded: $categoryRowExpanded, toggle: {}) {
+                        EmptyView()
+                    } items: {
+                        Text("Example cache").font(.callout)
+                        Text("Example build files").font(.callout)
+                    }
                     VolumeSummary(available: 40_000_000_000, total: 512_000_000_000, observation: "Synthetic gallery capacity · No category attribution")
                     VolumeSummary(available: nil, total: nil, observation: "No capacity observation · Unknown stays distinct from zero")
                 }.padding(CacheDropDesign.Space.page).frame(maxWidth: .infinity, alignment: .leading)

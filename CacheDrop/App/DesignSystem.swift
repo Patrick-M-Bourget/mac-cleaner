@@ -544,6 +544,36 @@ struct CategorySelectionHeader: View {
     }
 }
 
+/// A category in the Cleanup plan or Smart clean (Decision 48): the header, whose checkbox ticks the whole category, then
+/// an optional notice and the items behind "Choose items · N". A nil `itemCount` draws no "Choose items". Each screen
+/// keeps its own selection and its own open/closed state.
+struct CategoryRow<Notice: View, Items: View>: View {
+    let category: StorageCategory
+    let state: CategorySelectionState
+    let title: String
+    let detail: String
+    let size: String
+    let enabled: Bool
+    let identifier: String
+    let itemCount: Int?
+    @Binding var expanded: Bool
+    let toggle: () -> Void
+    @ViewBuilder var notice: () -> Notice
+    @ViewBuilder var items: () -> Items
+    var body: some View {
+        VStack(alignment: .leading, spacing: CacheDropDesign.Space.sm) {
+            CategorySelectionHeader(category: category, state: state, title: title, detail: detail, size: size, enabled: enabled,
+                                    identifier: identifier, action: toggle)
+            notice().padding(.leading, CacheDropDesign.Size.categoryContentIndent)
+            if let itemCount {
+                ActionDisclosureGroup("Choose items · \(itemCount)", isExpanded: $expanded) {
+                    items().padding(.top, CacheDropDesign.Space.sm)
+                }.padding(.leading, CacheDropDesign.Size.categoryContentIndent)
+            }
+        }
+    }
+}
+
 /// The sidebar header: the CacheDrop mark (the app icon's drop and check, #156) and the name.
 struct AppBrand: View {
     var body: some View {
