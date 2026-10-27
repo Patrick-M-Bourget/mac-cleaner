@@ -37,7 +37,7 @@ import CacheDropCore
     /// Opens the Smart clean page, for the menu bar item (#131, #141).
     var openSmartClean: (() -> Void)?
     /// The menu bar item is shown unless turned off in Settings (#131).
-    var menuBarItemShown: Bool { UserDefaults.standard.object(forKey: MenuBarItemPreference.key) as? Bool ?? true }
+    var menuBarItemShown: Bool { UserDefaults.standard.object(forKey: PreferenceKeys.showsMenuBarItem) as? Bool ?? true }
     private var capacityTimer: Timer?
     @Published private(set) var loginIntent: Bool
     @Published private(set) var loginStatus: LoginStatus

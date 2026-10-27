@@ -69,12 +69,11 @@ import SwiftUI
     /// Each candidate's owner name at the last scan, so views never look owners up while drawing.
     private var ownerNames: [String: String] = [:]
     private var executor: CleanupExecutor?
-    private static let dryRunKey = PreferenceKeys.dryRun
     /// The Settings dry run, off by default: with it on, the whole flow runs and nothing changes on disk (Decision 27).
     var dryRun: Bool {
         didSet {
             selectionRevision &+= 1
-            if !LocalStateLocation.isDisposableTest { UserDefaults.standard.set(dryRun, forKey: Self.dryRunKey) }
+            if !LocalStateLocation.isDisposableTest { UserDefaults.standard.set(dryRun, forKey: PreferenceKeys.dryRun) }
         }
     }
 
@@ -86,7 +85,7 @@ import SwiftUI
             return
         }
         #endif
-        dryRun = UserDefaults.standard.bool(forKey: Self.dryRunKey)
+        dryRun = UserDefaults.standard.bool(forKey: PreferenceKeys.dryRun)
     }
 
     /// The home folder whose known locations the catalog sizes. Debug UI tests inject a temp
