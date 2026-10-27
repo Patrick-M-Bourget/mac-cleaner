@@ -183,21 +183,24 @@ public actor CleanupExecutor {
             if record.state == .succeeded { record.message = "Ran \(name) and permanently removed the folder" }
             else { record.message = "Ran \(name). " + record.message }
         case .failure(let error as ToolTimeout):
-            record.toolOutput = Self.trimmed(error.output)
-            record.state = .failed; record.partlyRemoved = true
-            record.message = "Stopped at the \(Int(command.timeout.rounded(.up)))-second time limit. \(name) may have cleaned part of it" + (candidate.isDirectory ? "; the folder was left in place." : ".")
+            Self.recordStopped("Stopped at the \(Int(command.timeout.rounded(.up)))-second time limit.", output: error.output, name: name, candidate, into: &record)
         case .failure(let error as ToolCancelled) where !error.started:
             record.state = .cancelled; record.message = "Stopped before \(name) started. Nothing was changed."
         case .failure(let error as ToolCancelled):
-            // The tool ran until the cancel, so it may have removed some files; the folder is never deleted after it.
-            record.toolOutput = Self.trimmed(error.output)
-            record.state = .failed; record.partlyRemoved = true
-            record.message = "Stopped when you cancelled. \(name) may have cleaned part of it" + (candidate.isDirectory ? "; the folder was left in place." : ".")
+            Self.recordStopped("Stopped when you cancelled.", output: error.output, name: name, candidate, into: &record)
         case .failure(ToolPreviewError.unavailable):
             record.state = .skipped; record.message = "\(name) is no longer installed."
         case .failure:
             record.state = .failed; record.message = "Couldn’t run \(name). Nothing was changed."
         }
+    }
+
+    /// A tool stopped before it finished (time limit or cancel) ran until then, so it may have removed some files;
+    /// the folder is never deleted after it. `reason` says what stopped it.
+    private static func recordStopped(_ reason: String, output: String, name: String, _ candidate: Candidate, into record: inout CleanupRecord) {
+        record.toolOutput = trimmed(output)
+        record.state = .failed; record.partlyRemoved = true
+        record.message = "\(reason) \(name) may have cleaned part of it" + (candidate.isDirectory ? "; the folder was left in place." : ".")
     }
 
     /// The last 40 lines, so the journal and results stay small.
