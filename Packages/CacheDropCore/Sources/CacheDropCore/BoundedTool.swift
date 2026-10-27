@@ -11,22 +11,24 @@ public enum BoundedTool {
         return output
     }
 
-    /// For tool actions: returns the exit status and the last `outputLimit` bytes of combined output,
-    /// so a long run is never killed for printing a lot. A timeout still stops it and throws, with the output so far.
     /// Minimal, predictable environment for every tool CacheDrop runs.
     public static let defaultEnvironment: [String: String] = ["PATH": "/usr/bin:/bin:/usr/sbin:/sbin", "HOME": NSHomeDirectory(), "LANG": "C", "LC_ALL": "C", "HOMEBREW_NO_AUTO_UPDATE": "1", "HOMEBREW_NO_ANALYTICS": "1", "HOMEBREW_NO_BOOTSNAP": "1", "HOMEBREW_NO_INSTALL_CLEANUP": "1", "HOMEBREW_NO_AUTOREMOVE": "1", "HOMEBREW_NO_SUDO": "1"]
 
-    public static func capture(executable: URL, arguments: [String], timeout: TimeInterval, outputLimit: Int = 16_384, environment: [String: String]? = nil) throws -> (status: Int32, output: String) {
-        let (status, output) = try launch(executable: executable, arguments: arguments, timeout: timeout, outputLimit: outputLimit, keepTail: true, environment: environment)
+    /// For tool actions: returns the exit status and the last `outputLimit` bytes of combined output,
+    /// so a long run is never killed for printing a lot. A timeout still stops it and throws, with the output so far.
+    /// So does `cancellation`: once cancelled, the tool is stopped the same way and `ToolCancelled` is thrown.
+    public static func capture(executable: URL, arguments: [String], timeout: TimeInterval, outputLimit: Int = 16_384, environment: [String: String]? = nil, cancellation: CleanupCancellation? = nil) throws -> (status: Int32, output: String) {
+        let (status, output) = try launch(executable: executable, arguments: arguments, timeout: timeout, outputLimit: outputLimit, keepTail: true, environment: environment, cancellation: cancellation)
         return (status, String(decoding: output, as: UTF8.self))
     }
 
     /// How long a stopped tool and everything it started get to exit after SIGTERM before SIGKILL.
     static let stopGrace: TimeInterval = 2
 
-    private static func launch(executable: URL, arguments: [String], timeout: TimeInterval, outputLimit: Int, keepTail: Bool, environment: [String: String]?) throws -> (Int32, Data) {
+    private static func launch(executable: URL, arguments: [String], timeout: TimeInterval, outputLimit: Int, keepTail: Bool, environment: [String: String]?, cancellation: CleanupCancellation? = nil) throws -> (Int32, Data) {
         guard executable.isFileURL, executable.path.hasPrefix("/"), timeout > 0, outputLimit > 0,
               FileManager.default.isExecutableFile(atPath: executable.path) else { throw ToolPreviewError.unavailable }
+        guard cancellation?.isCancelled != true else { throw ToolCancelled(output: "", started: false) }
         let tool = try ToolGroup(executable: executable.path, arguments: arguments, environment: environment ?? defaultEnvironment)
         var finished = false
         // Only a run that didn't finish (timeout, output limit, read error) is stopped; the read end closes either way,
@@ -44,6 +46,8 @@ public enum BoundedTool {
                 if data.count > outputLimit { data.removeFirst(data.count - outputLimit) }
             } else if count == 0 && tool.reap() { break }
             else if count < 0 && errno != EAGAIN && errno != EWOULDBLOCK { throw ToolPreviewError.failed }
+            // Polled with the read loop, so a cancel reaches the tool within about 5 ms.
+            if cancellation?.isCancelled == true { throw ToolCancelled(output: String(decoding: data, as: UTF8.self), started: true) }
             guard ProcessInfo.processInfo.systemUptime < deadline else { throw keepTail ? ToolTimeout(output: String(decoding: data, as: UTF8.self)) : ToolPreviewError.timeout }
             if count <= 0 { usleep(5_000) }
         }
@@ -127,3 +131,7 @@ private final class ToolGroup {
 
 /// A tool action stopped at its time limit, with what it printed until then.
 public struct ToolTimeout: Error { public let output: String }
+
+/// A tool action stopped because the user cancelled, with what it printed until then.
+/// `started` is false when the cancel came before the tool was launched, so nothing ran.
+public struct ToolCancelled: Error { public let output: String; public let started: Bool }

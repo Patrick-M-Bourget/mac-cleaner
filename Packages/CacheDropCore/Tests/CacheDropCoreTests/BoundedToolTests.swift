@@ -72,3 +72,40 @@ func survivorsAfterSettling(_ marker: String) -> [pid_t] {
     #expect(result.output == "done\n")
     #expect(left.count == 1)
 }
+
+/// When a test cancelled, so a stop is timed from the cancel rather than from a start a busy test run may delay.
+final class CancelTime: @unchecked Sendable {
+    private let lock = NSLock()
+    private var at: TimeInterval = .infinity
+    func mark() { lock.lock(); at = ProcessInfo.processInfo.systemUptime; lock.unlock() }
+    var value: TimeInterval { lock.lock(); defer { lock.unlock() }; return at }
+}
+
+@Test func aCancelledToolIsStoppedWithEveryProcessItStartedAndReturnsItsOutputSoFar() throws {
+    let marker = uniqueSleep()
+    let tool = try treeTool("echo started\nsleep \"$1\" &\nsleep \"$1\"")
+    defer { try? FileManager.default.removeItem(at: tool.deletingLastPathComponent()) }
+    let cancellation = CleanupCancellation(), cancelledAt = CancelTime()
+    DispatchQueue.global().asyncAfter(deadline: .now() + 0.5) { cancelledAt.mark(); cancellation.cancel() }
+    let error = #expect(throws: ToolCancelled.self) { try BoundedTool.capture(executable: tool, arguments: [marker], timeout: 60, cancellation: cancellation) }
+    let sinceCancel = ProcessInfo.processInfo.systemUptime - cancelledAt.value
+    let left = survivorsAfterSettling(marker)
+    left.forEach { kill($0, SIGKILL) }
+    #expect(sinceCancel < BoundedTool.stopGrace + 1)
+    #expect(left.isEmpty)
+    #expect(error?.output == "started\n")
+    #expect(error?.started == true)
+}
+
+@Test func aToolCancelledBeforeItStartsIsNeverLaunched() throws {
+    let folder = try treeTool("true").deletingLastPathComponent()
+    defer { try? FileManager.default.removeItem(at: folder) }
+    let marker = folder.appendingPathComponent("ran")
+    let tool = try treeTool("touch '\(marker.path)'")
+    defer { try? FileManager.default.removeItem(at: tool.deletingLastPathComponent()) }
+    let cancellation = CleanupCancellation()
+    cancellation.cancel()
+    let error = #expect(throws: ToolCancelled.self) { try BoundedTool.capture(executable: tool, arguments: [], timeout: 5, cancellation: cancellation) }
+    #expect(error?.started == false)
+    #expect(!FileManager.default.fileExists(atPath: marker.path))
+}
