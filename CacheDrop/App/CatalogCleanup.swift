@@ -388,11 +388,27 @@ import SwiftUI
             executor = run
             let outcome = await run.execute(approval)
             result = outcome
+            measureStoppedWorkAgain(outcome, of: approval, run: run)
             if !approval.previewOnly { rescanFollowsCleanup = true }
             // Picked folders keep the large and old files this run didn't act on (#125).
             selections.finishRun(from: source); discovered = []; pickedFiles = pickedFiles.mapValues { UserFiles.remaining($0, after: outcome) }
             projectBuilds = projectBuilds.mapValues { UserFiles.remaining($0, after: outcome) }; hasScanned = false; selectionRevision &+= 1
         } catch { message = "The cleanup journal is unavailable. Nothing was changed." }
+    }
+    /// A stopped daemon-backed tool's work may still be finishing, so its item is measured again a minute later,
+    /// as the scan measures it, and the journal records what went (#190). Results show it if they are still open.
+    private func measureStoppedWorkAgain(_ outcome: CatalogExecutionResult, of approval: CatalogApproval, run: CleanupExecutor) {
+        guard outcome.records.contains(where: { $0.mayStillBeFinishing == true }), let home = Self.home else { return }
+        let catalog = catalog, userFolder = Self.userFolder, locate = Self.locateTool, system = Self.systemRoot, cloud = Self.cloud
+        Task {
+            let later = await run.measureAgainLater(outcome, of: approval) { candidates in
+                await Task.detached(priority: .utility) {
+                    let only = catalog.only(candidates)
+                    return catalog.measuredAgain(candidates, in: only.discovery(home: home, userFolder: userFolder, locateTool: locate, systemRoot: system, cloud: cloud))
+                }.value
+            }
+            if result?.batchID == later.batchID { result = later }
+        }
     }
     func cancel() { executor?.cancel() }
     /// Leaves a finished run's results without starting a new plan: both selections are kept.
