@@ -41,7 +41,7 @@ import SwiftUI
     /// The Cleanup plan's selection and Smart clean's, kept apart (#141).
     private(set) var selections = CleanupSelections()
     /// The Cleanup plan's chosen candidate ids. Nothing is preselected (Decision 28).
-    private(set) var selectedIDs: Set<String> { get { selections.plan } set { selections.plan = newValue } }
+    private(set) var selectedIDs: Set<String> { get { selections.ticked } set { selections.ticked = newValue } }
     private(set) var selectionRevision: UInt64 = 0
     private(set) var isRunning = false
     /// A cleanup changed files since the last catalog scan, so the next one is recorded as a post-cleanup rescan (#126).
