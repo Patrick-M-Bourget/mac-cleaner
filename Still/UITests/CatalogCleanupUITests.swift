@@ -77,6 +77,18 @@ import XCTest
     element.click()
 }
 
+/// Reveals and opens a disclosure group, then waits until it reports open. A synthesized click on a sheet is sometimes
+/// routed to the window behind it: macOS shakes the sheet and the group stays closed (#152), so a rejected click is retried.
+@MainActor func openDisclosure(_ triangle: XCUIElement, in app: XCUIApplication) {
+    reveal(triangle, in: app)
+    let open = NSPredicate(format: "value == 1")
+    for _ in 0..<3 where (triangle.value as? Int) != 1 {
+        triangle.click()
+        _ = XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: open, object: triangle)], timeout: 2)
+    }
+    XCTAssertEqual(triangle.value as? Int, 1, "\(triangle.label) opened")
+}
+
 /// The review sheet's line for a catalog category in a consequence group, e.g. `reviewLine(app, "permanentlyRemoved", "developer")`.
 @MainActor func reviewLine(_ app: XCUIApplication, _ group: String, _ category: String) -> XCUIElement {
     app.descendants(matching: .any)["reviewLine-\(group)-\(category)"]
@@ -404,7 +416,7 @@ final class CatalogCleanupUITests: XCTestCase {
 
         XCTAssertTrue(reviewLine(app, "permanentlyRemoved", "browser").waitForExistence(timeout: 5))
         // The review lists each copy in a collapsed file list.
-        revealAndClick(app.disclosureTriangles.matching(NSPredicate(format: "label ENDSWITH 'Show files'")).firstMatch, in: app)
+        openDisclosure(app.disclosureTriangles.matching(NSPredicate(format: "label ENDSWITH 'Show files'")).firstMatch, in: app)
         XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "value CONTAINS 'code_sign_clone.old'")).firstMatch.exists)
         XCTAssertFalse(app.staticTexts.matching(NSPredicate(format: "value CONTAINS 'code_sign_clone.new'")).firstMatch.exists)
         cleanUpFromReview(app)
@@ -602,7 +614,7 @@ final class CatalogCleanupUITests: XCTestCase {
 
         XCTAssertTrue(reviewLine(app, "commandsRun", "developer").waitForExistence(timeout: 5))
         // The exact command shows with the files; only the chosen kind is there.
-        revealAndClick(app.disclosureTriangles.matching(NSPredicate(format: "label ENDSWITH 'Show files'")).firstMatch, in: app)
+        openDisclosure(app.disclosureTriangles.matching(NSPredicate(format: "label ENDSWITH 'Show files'")).firstMatch, in: app)
         XCTAssertTrue(app.staticTexts["docker builder prune -a -f"].waitForExistence(timeout: 5))
         XCTAssertFalse(app.staticTexts["docker image prune -a -f"].exists)
         cleanUpFromReview(app)
