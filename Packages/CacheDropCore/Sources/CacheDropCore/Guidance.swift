@@ -13,6 +13,9 @@ public struct Guidance: Sendable {
         case agentWorkspaces
         /// The plug-in folders' trees, plus the per-product plug-in inventory (#174).
         case plugIns
+        /// Every library package with this extension in the home folder and on connected volumes (#180, #178), each
+        /// sized whole; nothing inside one is read. The rule's locations aren't used.
+        case libraries(extension: String)
     }
     /// Where "Open …" goes.
     public enum Place: Sendable, Equatable {
@@ -27,8 +30,10 @@ public struct Guidance: Sendable {
     public let place: Place
     /// The place's name, as in "Open Photos".
     public let placeName: String
-    public init(sizing: Sizing = .locations, place: Place, placeName: String) {
-        self.sizing = sizing; self.place = place; self.placeName = placeName
+    /// The vendor's own help page for these steps, when there is one.
+    public let learnMore: URL?
+    public init(sizing: Sizing = .locations, place: Place, placeName: String, learnMore: URL? = nil) {
+        self.sizing = sizing; self.place = place; self.placeName = placeName; self.learnMore = learnMore
     }
     public var openTitle: String { "Open " + placeName }
 }

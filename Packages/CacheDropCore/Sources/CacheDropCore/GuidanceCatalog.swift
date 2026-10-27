@@ -20,10 +20,19 @@ extension BuiltInCatalog {
                      detail: "Photos, videos and files from your conversations. Review them in Messages, or in System Settings → General → Storage.",
                      locations: ["Library/Messages/Attachments"], protected: true,
                      Guidance(place: .app(bundleID: "com.apple.MobileSMS"), placeName: "Messages")),
-        guidanceRule("photos-library", "Photos library",
-                     detail: "Your Photos library. Photos manages it; with iCloud Photos, Optimize Mac Storage keeps smaller copies on this Mac.",
-                     locations: ["Pictures/Photos Library.photoslibrary"], protected: true,
-                     Guidance(place: .app(bundleID: "com.apple.Photos"), placeName: "Photos")),
+        // Every Photos library, renamed, additional or external (#180). Moving one whole: Apple Support 108345.
+        guidanceRule("photos-library", "Photos libraries",
+                     detail: "Your Photos libraries. Photos manages them: with iCloud Photos, turn on Optimize Mac Storage in Photos Settings → iCloud, or move a whole library to another drive (support.apple.com/108345). Deleting photos in an iCloud library deletes them on every device.",
+                     locations: [], protected: true,
+                     Guidance(sizing: .libraries(extension: "photoslibrary"), place: .app(bundleID: "com.apple.Photos"), placeName: "Photos",
+                              learnMore: URL(string: "https://support.apple.com/en-au/108345"))),
+        // Every Final Cut Pro library, renamed or external (#178). Generated media is removed in Final Cut itself:
+        // File > Delete Generated Library Files (Apple Support 119610). Bundle identifier `com.apple.FinalCut`.
+        guidanceRule("final-cut-libraries", "Final Cut Pro libraries",
+                     detail: "Your Final Cut Pro libraries, with the media Final Cut generated. To remove generated media, select a library in Final Cut Pro, then choose File → Delete Generated Library Files. Render files are made again as you work; optimized and proxy media must be created again, and that needs the original media online.",
+                     locations: [], protected: true,
+                     Guidance(sizing: .libraries(extension: "fcpbundle"), place: .app(bundleID: "com.apple.FinalCut"), placeName: "Final Cut Pro",
+                              learnMore: URL(string: "https://support.apple.com/en-au/119610"))),
         guidanceRule("time-machine-snapshots", "Time Machine local snapshots",
                      detail: "macOS keeps these and removes them on its own when space runs low. Their size isn’t reported.",
                      locations: [],

@@ -20,12 +20,14 @@ struct AppManagedStorageView: View {
                         if index > 0 { Divider().padding(.horizontal, CacheDropDesign.Space.lg) }
                         let needsAccess = finding.size == .notAccessible
                         StorageReviewRow(category: rule.managedCategory, title: rule.title,
-                                         detail: finding.plugIns.map(\.summary) ?? finding.workspaces?.summary ?? rule.detail.firstSentence,
+                                         detail: finding.libraries.map(FoundLibrary.summary) ?? finding.plugIns.map(\.summary) ?? finding.workspaces?.summary
+                                             ?? rule.detail.firstSentence,
                                          value: needsAccess ? "Needs access" : finding.size.text,
                                          actionTitle: guidance.openTitle, action: { Task { await model.open(finding) } },
                                          identifier: "guidance-" + finding.id, mutedValue: needsAccess)
                             .help(rule.detail)
                         if let plugIns = finding.plugIns, !plugIns.products.isEmpty { PlugInProductRows(model: model, inventory: plugIns) }
+                        if let libraries = finding.libraries { LibraryRows(model: model, rule: rule, guidance: guidance, libraries: libraries) }
                     }
                 }
             }
@@ -34,7 +36,36 @@ struct AppManagedStorageView: View {
     }
 }
 
+/// A guidance row's library packages (#180, #178): each with its volume and size, revealed in Finder, never offered.
+/// Below them, the app's own steps and the vendor's help page.
+private struct LibraryRows: View {
+    @Bindable var model: CatalogCleanupModel
+    let rule: CleanupRule
+    let guidance: Guidance
+    let libraries: [FoundLibrary]
+    var body: some View {
+        ActionDisclosureGroup("Show libraries · \(libraries.count)") {
+            VStack(alignment: .leading, spacing: CacheDropDesign.Space.sm) {
+                LazyVStack(alignment: .leading, spacing: 0) {
+                    ForEach(libraries) { library in
+                        InspectableItemRow(name: library.name, detail: library.volume, size: library.size.text, symbol: rule.librarySymbol,
+                                           inspected: false, inspect: { model.reveal(library) }, actionLabel: "Reveal \(library.name) in Finder") { EmptyView() }
+                            .help(library.url.path)
+                    }
+                }
+                Text(rule.detail).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                if let url = guidance.learnMore {
+                    Link("Learn more", destination: url).font(CacheDropDesign.TypeStyle.caption).accessibilityIdentifier("guidanceLearnMore-" + rule.id)
+                }
+            }
+        }.padding(.horizontal, CacheDropDesign.Space.lg).padding(.bottom, CacheDropDesign.Space.md)
+    }
+}
+
 extension CleanupRule {
+    /// The symbol beside each of a rule's libraries.
+    var librarySymbol: String { id == "final-cut-libraries" ? "film" : "photo.on.rectangle" }
+
     /// The badge for an app-managed row; a place without its own symbol keeps the shared app-managed one.
     var managedCategory: StorageCategory {
         switch id {

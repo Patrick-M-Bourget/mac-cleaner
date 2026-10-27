@@ -916,10 +916,12 @@ extension CatalogCleanupUITests {
 }
 
 final class GuidanceUITests: XCTestCase {
-    /// A Photos library, Xcode archives, unreadable Messages attachments and two local snapshots in the fixture home.
+    /// Three Photos libraries, Xcode archives, unreadable Messages attachments and two local snapshots in the fixture home.
     /// The snapshot count comes from a debug fixture file, so tmutil never runs, and opening is a debug no-op.
     @MainActor private func addGuidanceData(_ home: URL) throws -> URL {
-        for path in ["Pictures/Photos Library.photoslibrary/originals/a.heic", "Library/Developer/Xcode/Archives/2026-10-26/App.xcarchive/Info.plist",
+        // Photos libraries (#180): the default one, a renamed one and one on a connected volume (`<home>/Volumes` here).
+        for path in ["Pictures/Photos Library.photoslibrary/originals/a.heic", "Pictures/Trip 2019.photoslibrary/originals/b.heic",
+                     "Volumes/External/Family.photoslibrary/originals/c.heic", "Library/Developer/Xcode/Archives/2026-10-26/App.xcarchive/Info.plist",
                      "Library/Messages/Attachments/ab/photo.jpg"] {
             let file = home.appendingPathComponent(path)
             try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
@@ -962,6 +964,17 @@ final class GuidanceUITests: XCTestCase {
         let photos = app.buttons["guidance-photos-library"]
         XCTAssertTrue(photos.waitForExistence(timeout: 10))
         XCTAssertEqual(photos.label, "Open Photos")
+        XCTAssertTrue((photos.value as? String)?.contains("3 libraries") == true, String(describing: photos.value))
+        // Each library with its volume and size, revealed in Finder, never offered (#180).
+        openDisclosure(app.disclosureTriangles.matching(NSPredicate(format: "label == 'Show libraries · 3'")).firstMatch, in: app)
+        let external = app.buttons["Reveal Family in Finder"]
+        XCTAssertTrue(external.waitForExistence(timeout: 5))
+        XCTAssertTrue((external.value as? String)?.hasPrefix("External") == true, String(describing: external.value))
+        XCTAssertTrue(app.buttons["Reveal Trip 2019 in Finder"].exists)
+        XCTAssertTrue(app.links["guidanceLearnMore-photos-library"].exists)
+        revealAndClick(external, in: app)
+        XCTAssertTrue(app.staticTexts["guidanceStatus"].waitForExistence(timeout: 5))
+        XCTAssertEqual(app.staticTexts["guidanceStatus"].value as? String, "Test run: would reveal Family.")
         XCTAssertTrue((app.buttons["guidance-messages-attachments"].value as? String)?.contains("Needs access") == true)
         // One access note for the page, never a link per row.
         XCTAssertTrue(app.descendants(matching: .any)["guidanceAccess"].exists)
@@ -985,6 +998,41 @@ final class GuidanceUITests: XCTestCase {
             XCTAssertFalse(app.descendants(matching: .any)["planRule-" + id].exists, id)
         }
         XCTAssertTrue(FileManager.default.fileExists(atPath: home.appendingPathComponent("Pictures/Photos Library.photoslibrary/originals/a.heic").path))
+    }
+
+    /// #178: Final Cut Pro libraries, renamed and external, are listed with Final Cut's own steps; opening it reports
+    /// only that it would open, never cleanup done, and nothing in a library changes.
+    @MainActor func testFinalCutLibrariesAreListedAndOpeningFinalCutCleansNothing() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        let state = try configureIsolatedState(app)
+        let home = try configureCatalogHome(app)
+        defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
+        let render = home.appendingPathComponent("Movies/Untitled.fcpbundle/Event 1/Render Files/a.mov")
+        for file in [render, home.appendingPathComponent("Volumes/Shuttle/Client Cut.fcpbundle/Event 1/Transcoded Media/b.mov")] {
+            try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try Data(repeating: 4, count: 60_000).write(to: file)
+        }
+        app.launch()
+
+        let entry = app.buttons["overviewAppManaged"]
+        XCTAssertTrue(entry.waitForExistence(timeout: 10))
+        revealAndClick(entry, in: app)
+        let row = app.buttons["guidance-final-cut-libraries"]
+        XCTAssertTrue(row.waitForExistence(timeout: 10))
+        XCTAssertEqual(row.label, "Open Final Cut Pro")
+        XCTAssertTrue((row.value as? String)?.contains("2 libraries") == true, String(describing: row.value))
+        openDisclosure(app.disclosureTriangles.matching(NSPredicate(format: "label == 'Show libraries · 2'")).firstMatch, in: app)
+        let external = app.buttons["Reveal Client Cut in Finder"]
+        XCTAssertTrue(external.waitForExistence(timeout: 5))
+        XCTAssertTrue((external.value as? String)?.hasPrefix("Shuttle") == true, String(describing: external.value))
+        XCTAssertTrue(app.staticTexts.containing(NSPredicate(format: "value CONTAINS 'Delete Generated Library Files'")).firstMatch.exists)
+        XCTAssertTrue(app.links["guidanceLearnMore-final-cut-libraries"].exists)
+        revealAndClick(row, in: app)
+        XCTAssertTrue(app.staticTexts["guidanceStatus"].waitForExistence(timeout: 5))
+        XCTAssertEqual(app.staticTexts["guidanceStatus"].value as? String, "Test run: would open Final Cut Pro.")
+        XCTAssertFalse(app.descendants(matching: .any)["planRule-final-cut-libraries"].exists)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: render.path))
     }
 
     /// #174: plug-ins are listed by product, with Reveal in Finder, and nothing is offered or changed.

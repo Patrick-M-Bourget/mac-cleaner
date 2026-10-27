@@ -11,4 +11,6 @@ public struct GuidanceFinding: Sendable, Identifiable, Equatable {
     public var workspaces: AgentWorkspaces? = nil
     /// The audio plug-ins by product (#174); nil for every other rule.
     public var plugIns: PlugInInventory? = nil
+    /// The library packages found (#180, #178); nil for every other rule.
+    public var libraries: [FoundLibrary]? = nil
 }
