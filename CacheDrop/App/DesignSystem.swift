@@ -70,6 +70,8 @@ enum StorageCategory {
     case cloud, developer, downloads, browser, managed, files
     /// Catalog categories that share the app-managed colour but each have their own symbol.
     case appCaches, models, appUpdates, logs
+    /// Leftovers of apps you removed (#173).
+    case leftovers
     /// App-managed storage rows (SPEC section 3): each place keeps the app-managed colour with its own symbol.
     case deviceBackups, mail, messages, photos, timeMachine, xcodeArchives, audioPlugIns
     var color: Color {
@@ -78,7 +80,7 @@ enum StorageCategory {
         case .developer: CacheDropDesign.purple
         case .downloads: CacheDropDesign.orange
         case .browser: CacheDropDesign.teal
-        case .managed, .appCaches, .models, .appUpdates, .logs, .deviceBackups, .mail, .messages, .photos, .timeMachine, .xcodeArchives, .audioPlugIns: CacheDropDesign.indigo
+        case .managed, .appCaches, .models, .appUpdates, .logs, .deviceBackups, .mail, .messages, .photos, .timeMachine, .xcodeArchives, .audioPlugIns, .leftovers: CacheDropDesign.indigo
         }
     }
     var symbol: String {
@@ -100,6 +102,7 @@ enum StorageCategory {
         case .timeMachine: "clock.arrow.circlepath"
         case .xcodeArchives: "archivebox"
         case .audioPlugIns: "pianokeys"
+        case .leftovers: "square.dashed"
         }
     }
 }
@@ -596,15 +599,20 @@ private struct NativeCategoryCheckbox: NSViewRepresentable {
     func sizeThatFits(_ proposal: ProposedViewSize, nsView: NSButton, context: Context) -> CGSize? { nsView.intrinsicContentSize }
     func updateNSView(_ view: NSButton, context: Context) {
         context.coordinator.action = action
+        context.coordinator.state = Self.buttonState(state)
         view.title = showsTitle ? label : ""; view.isEnabled = enabled && context.environment.isEnabled
         view.setAccessibilityIdentifier(identifier)
         view.setAccessibilityLabel(label)
-        view.state = state == .checked ? .on : state == .mixed ? .mixed : .off
+        view.state = Self.buttonState(state)
     }
+    static func buttonState(_ state: CategorySelectionState) -> NSControl.StateValue { state == .checked ? .on : state == .mixed ? .mixed : .off }
     @MainActor final class Coordinator: NSObject {
         var action: () -> Void
+        var state: NSControl.StateValue = .off
         init(_ action: @escaping () -> Void) { self.action = action }
-        @objc func clicked() { action() }
+        /// AppKit advances the button's own state on a click; put the model's back, since a click that only lists the
+        /// category's items (#240) changes no selection and so never redraws it. A changed selection redraws over this.
+        @objc func clicked(_ sender: NSButton) { action(); sender.state = state }
     }
 }
 

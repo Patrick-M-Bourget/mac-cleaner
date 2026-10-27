@@ -363,6 +363,7 @@ final class FirstRunWelcomeUITests: XCTestCase {
 
 /// #223: a remembered folder whose access went stale shows one row on Overview, and its Choose again… fixes it there.
 final class ScannedLocationsUITests: XCTestCase {
+    /// #254: the folder is still there but can't be read, so the row says "Access unavailable", not "Folder not found".
     @MainActor func testAStaleFolderShowsOneRowAndChooseAgainRenewsIt() throws {
         continueAfterFailure = false
         let app = XCUIApplication()
@@ -379,6 +380,7 @@ final class ScannedLocationsUITests: XCTestCase {
         app.launch()
         XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
 
+        XCTAssertTrue(FileManager.default.fileExists(atPath: folder.path), "Present but unreadable, not deleted")
         // One message for one problem: the row names the folder and the reason, and carries the fix.
         let row = app.staticTexts["overviewLocationRecovery"]
         XCTAssertTrue(row.waitForExistence(timeout: 15))
@@ -399,6 +401,38 @@ final class ScannedLocationsUITests: XCTestCase {
         // Renewed and scanned in place: the row is gone and the folder can be explored.
         XCTAssertTrue(app.links["Explore storage"].waitForExistence(timeout: 20))
         XCTAssertFalse(row.exists)
+    }
+
+    /// #254: a scanned folder deleted since its scan says, as in the explorer, "Folder not found · last observed <time>",
+    /// with Choose again…, rather than "Access unavailable".
+    @MainActor func testADeletedFolderSaysFolderNotFoundWithItsLastObservation() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        let state = try configureIsolatedState(app)
+        let home = try configureCatalogHome(app)
+        let folder = FileManager.default.temporaryDirectory.resolvingSymlinksInPath().appendingPathComponent("CacheDropPicked-" + UUID().uuidString)
+        defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home); try? FileManager.default.removeItem(at: folder) }
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        try Data(repeating: 1, count: 4_000).write(to: folder.appendingPathComponent("entry.zip"))
+        app.launch()
+        XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
+        app.buttons["overviewScanFolder"].click()
+        let panel = app.sheets.firstMatch.exists ? app.sheets.firstMatch : app.dialogs.firstMatch
+        XCTAssertTrue(panel.waitForExistence(timeout: 5))
+        panel.typeKey("g", modifierFlags: [.command, .shift])
+        app.typeText(folder.path + "\n")
+        panel.buttons["Scan folder"].click()
+        XCTAssertTrue(app.links["Explore storage"].waitForExistence(timeout: 20))
+
+        // Deleted, then Scan again can't find it.
+        try FileManager.default.removeItem(at: folder)
+        app.typeKey("r", modifierFlags: .command)
+        let row = app.staticTexts["overviewLocationRecovery"]
+        XCTAssertTrue(row.waitForExistence(timeout: 20))
+        let text = row.value as? String ?? ""
+        XCTAssertTrue(text.hasPrefix(folder.lastPathComponent + " · Folder not found · last observed "), text)
+        XCTAssertFalse(text.contains("Access unavailable"), text)
+        XCTAssertEqual(app.buttons["overviewChooseAgain"].label, "Choose again…")
     }
 
     /// #231: two stale folders get a row each, each with its own Choose again…, and no grey "Current coverage" row.

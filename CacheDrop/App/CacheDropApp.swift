@@ -110,10 +110,32 @@ private struct WorkspaceView: View {
     @State private var recovery = AppLifecycleController.shared.recovery
     private var recoveryVisible: Bool { get { navigationState.recoveryVisible } nonmutating set { navigationState.recoveryVisible = newValue } }
     private var nativeInspectionVisible: Bool { get { navigationState.explorerVisible } nonmutating set { navigationState.explorerVisible = newValue } }
-    @State private var homebrewVisible = false
-    @State private var pipVisible = false
     @State private var exclusionsVisible = false
     private var diagnosticsVisible: Bool { get { navigationState.diagnosticsVisible } nonmutating set { navigationState.diagnosticsVisible = newValue } }
+    /// Where the page on show keeps its scroll position; nil for a page that keeps none. Out of the view builder, where
+    /// the if-chain timed out CI's type checker (#264).
+    private var scrollOffset: Binding<CGPoint?>? {
+        if recoveryVisible { return nil }
+        if diagnosticsVisible { return $navigationState.diagnosticsOffset }
+        if navigationState.localRecordsVisible { return $navigationState.localRecordsOffset }
+        if exclusionsVisible || navigationState.appManagedVisible { return nil }
+        switch destination {
+        case .history: return $navigationState.historyOffset
+        case .growth: return $navigationState.growthOffset
+        case .overview: return $navigationState.overviewOffset
+        case .locations: return $navigationState.locationsOffset
+        case .plan, .smartClean: return nil
+        }
+    }
+    /// Which page the scroll view shows, so each keeps its own scroll position. Out of the view builder, where the
+    /// chained ternary timed out CI's type checker (#264).
+    private var scrollIdentity: String {
+        if recoveryVisible { return "recovery" }
+        if diagnosticsVisible { return "diagnostics" }
+        if navigationState.localRecordsVisible { return "local-records" }
+        if navigationState.appManagedVisible { return "app-managed" }
+        return destination.rawValue
+    }
     @State private var overviewCloudExpanded = false
     @State private var overviewShowsAllCategories = false
     private var diagnostics: DiagnosticsModel { get { navigationState.diagnosticsModel } nonmutating set { navigationState.diagnosticsModel = newValue } }
@@ -146,8 +168,8 @@ private struct WorkspaceView: View {
     @State private var capacity = AppLifecycleController.shared.capacity
     @Bindable private var welcome = WelcomeModel.shared
     private var startupCapacity: StartupCapacityReading? { capacity.reading }
-    private var showsSmartClean: Bool { destination == .smartClean && !navigationState.localRecordsVisible && !recoveryVisible && !nativeInspectionVisible && !homebrewVisible && !pipVisible && !diagnosticsVisible && !exclusionsVisible && !navigationState.appManagedVisible }
-    private var showsPlan: Bool { destination == .plan && !navigationState.localRecordsVisible && !recoveryVisible && !nativeInspectionVisible && !homebrewVisible && !pipVisible && !diagnosticsVisible && !exclusionsVisible }
+    private var showsSmartClean: Bool { destination == .smartClean && !navigationState.localRecordsVisible && !recoveryVisible && !nativeInspectionVisible && !diagnosticsVisible && !exclusionsVisible && !navigationState.appManagedVisible }
+    private var showsPlan: Bool { destination == .plan && !navigationState.localRecordsVisible && !recoveryVisible && !nativeInspectionVisible && !diagnosticsVisible && !exclusionsVisible }
     /// The toolbar's note, which only reports state (Decision 25: no toolbar subtitles). A screen returns nil to show none.
     private var contextLabel: String? {
         if selection.workspaceRunning { return "Running approved cleanup" }
@@ -156,8 +178,6 @@ private struct WorkspaceView: View {
         if recoveryVisible { return "Recovery review · Recorded facts only" }
         if selection.hasWorkspaceResult && showsPlan { return nil }
         if nativeInspectionVisible { return nil }
-        if homebrewVisible { return "Read-only Homebrew inventory" }
-        if pipVisible { return "Read-only pip inventory" }
         if exclusionsVisible { return "Custom scan exclusions" }
         if navigationState.appManagedVisible { return nil }
         switch destination {
@@ -200,7 +220,7 @@ private struct WorkspaceView: View {
                     .padding(.horizontal, CacheDropDesign.Space.page)
                 if nativeInspectionVisible {
                     StorageExplorerView(model: folderInspection, selection: selection, context: explorerContext,
-                        caller: explorerCaller.rawValue, back: { nativeInspectionVisible = false; destination = explorerCaller })
+                        caller: explorerCaller.rawValue, back: { nativeInspectionVisible = false; destination = explorerCaller }, unavailable: explorerUnavailable)
                     ActionStrip(message: nil) {
                         Button("Review plan") {
                             nativeInspectionVisible = false
@@ -242,10 +262,6 @@ private struct WorkspaceView: View {
                             })
                         } else if navigationState.appManagedVisible {
                             AppManagedStorageView(model: selection.catalog) { navigationState.appManagedVisible = false }
-                        } else if pipVisible {
-                            PipInspectionView { pipVisible = false; destination = .overview }
-                        } else if homebrewVisible {
-                            HomebrewInspectionView { homebrewVisible = false; destination = .overview }
                         } else {
                             switch destination {
                             case .growth: GrowthHistoryView(model: GrowthHistoryModel.shared, catalog: selection.catalog)
@@ -257,23 +273,9 @@ private struct WorkspaceView: View {
                         }
                     }.padding(CacheDropDesign.Space.page).frame(maxWidth: .infinity, alignment: .leading)
                         .background(alignment: .topLeading) {
-                            if diagnosticsVisible && !recoveryVisible {
-                                DestinationViewport(offset: $navigationState.diagnosticsOffset).frame(width: 0, height: 0)
-                            } else if navigationState.localRecordsVisible && !recoveryVisible {
-                                DestinationViewport(offset: $navigationState.localRecordsOffset).frame(width: 0, height: 0)
-                            } else if !recoveryVisible && !diagnosticsVisible && !exclusionsVisible && !pipVisible && !homebrewVisible && !navigationState.appManagedVisible {
-                                if destination == .history {
-                                    DestinationViewport(offset: $navigationState.historyOffset).frame(width: 0, height: 0)
-                                } else if destination == .growth {
-                                    DestinationViewport(offset: $navigationState.growthOffset).frame(width: 0, height: 0)
-                                } else if destination == .overview {
-                                    DestinationViewport(offset: $navigationState.overviewOffset).frame(width: 0, height: 0)
-                                } else if destination == .locations {
-                                    DestinationViewport(offset: $navigationState.locationsOffset).frame(width: 0, height: 0)
-                                }
-                            }
+                            if let offset = scrollOffset { DestinationViewport(offset: offset).frame(width: 0, height: 0) }
                         }
-                }.id(recoveryVisible ? "recovery" : diagnosticsVisible ? "diagnostics" : navigationState.localRecordsVisible ? "local-records" : navigationState.appManagedVisible ? "app-managed" : destination.rawValue)
+                }.id(scrollIdentity)
 
                 Group {
                     if exclusionsVisible {
@@ -293,10 +295,6 @@ private struct WorkspaceView: View {
                         ActionStrip(message: "Records are kept. Nothing resumes automatically.") { EmptyView() }
                     } else if navigationState.localRecordsVisible {
                         ActionStrip()
-                    } else if nativeInspectionVisible {
-                        ActionStrip(message: "Inspection only · \(CacheDropDesign.items(selection.workspaceSelectedCount)) in the cleanup plan") {
-                            Button("Review plan") { nativeInspectionVisible = false; destination = .plan }.buttonStyle(.borderedProminent)
-                        }
                     } else if destination == .growth {
                         ActionStrip(message: nil) {
                             Button("Scan again", action: scanAgain).disabled(selection.catalog.isScanning || folderInspection.isScanning || selection.workspaceRunning || !selection.catalog.canEdit)
@@ -329,7 +327,7 @@ private struct WorkspaceView: View {
             AppLifecycleController.shared.openSmartClean = { navigate(.smartClean) }
             selection.catalog.scanRememberedFolders = { scanRememberedFolders() }
         }
-        .onReceive(NotificationCenter.default.publisher(for: .cacheDropAlertOpened)) { _ in destination = .overview; navigationState.localRecordsVisible = false; navigationState.appManagedVisible = false; exclusionsVisible = false; diagnosticsVisible = false; recoveryVisible = false; nativeInspectionVisible = false; homebrewVisible = false; pipVisible = false }
+        .onReceive(NotificationCenter.default.publisher(for: .cacheDropAlertOpened)) { _ in destination = .overview; navigationState.localRecordsVisible = false; navigationState.appManagedVisible = false; exclusionsVisible = false; diagnosticsVisible = false; recoveryVisible = false; nativeInspectionVisible = false }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in Task { await alerts.activated() } }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in Task { await selection.catalog.rescanIfFullDiskAccessGranted() } }
         .onReceive(NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.didWakeNotification)) { _ in Task { await alerts.activated() } }
@@ -350,7 +348,7 @@ private struct WorkspaceView: View {
     }
 
     private var scanReturnAction: (() -> Void)? {
-        let atOrigin = destination == scanOrigin && !navigationState.localRecordsVisible && !navigationState.appManagedVisible && !nativeInspectionVisible && !diagnosticsVisible && !exclusionsVisible && !recoveryVisible && !homebrewVisible && !pipVisible
+        let atOrigin = destination == scanOrigin && !navigationState.localRecordsVisible && !navigationState.appManagedVisible && !nativeInspectionVisible && !diagnosticsVisible && !exclusionsVisible && !recoveryVisible
         if atOrigin { return nil }
         return { returnToScanOrigin() }
     }
@@ -359,8 +357,7 @@ private struct WorkspaceView: View {
         destination = scanOrigin
         navigationState.localRecordsVisible = false; navigationState.appManagedVisible = false
         nativeInspectionVisible = false; diagnosticsVisible = false
-        exclusionsVisible = false; recoveryVisible = false; homebrewVisible = false
-        pipVisible = false
+        exclusionsVisible = false; recoveryVisible = false
         planReturnsToExplorer = false
     }
 
@@ -373,8 +370,7 @@ private struct WorkspaceView: View {
         if value == .smartClean && selection.showsRun(for: .smartClean) { selection.dismissResult() }
         navigationState.localRecordsVisible = false; navigationState.appManagedVisible = false
         diagnosticsVisible = false; exclusionsVisible = false
-        recoveryVisible = false; navigationState.recoveryCaller = .overview; nativeInspectionVisible = false; homebrewVisible = false
-        pipVisible = false
+        recoveryVisible = false; navigationState.recoveryCaller = .overview; nativeInspectionVisible = false
     }
 
     private func navigation(_ value: Destination) -> some View {
@@ -572,9 +568,9 @@ private struct WorkspaceView: View {
             }
             // One row per problem (#223, #231): each unavailable location names itself and carries the fix.
             ForEach(locationsModel.recoveries, id: \.scope.id) { scope, status in
-                StatusRow(text: URL(fileURLWithPath: scope.path).lastPathComponent + " · " + status.reason, symbol: "info.circle", role: .caution,
+                StatusRow(text: recoveryText(scope, status: status), symbol: "info.circle", role: .caution,
                     identifier: "overviewLocationRecovery", action: StatusAction(title: "Choose again…", identifier: "overviewChooseAgain") {
-                    if chooseAgain(scope), let renewed = locationsModel.included.first(where: { $0.id == scope.id }) { scanLocations([renewed]) }
+                    renewAndScan(scope)
                 }).disabled(folderInspection.isScanning || selection.workspaceRunning)
             }
             if let notice = locationsModel.notice { StatusRow(text: notice, symbol: "info.circle", role: .caution) }
@@ -582,6 +578,23 @@ private struct WorkspaceView: View {
                 StatusRow(text: message, symbol: "info.circle")
             }
         }
+    }
+    /// Overview's recovery rows, for the explorer to mark those locations' last observations as gone (#249).
+    private var explorerUnavailable: [ExplorerUnavailableLocation] {
+        locationsModel.recoveries.map { scope, status in
+            ExplorerUnavailableLocation(scope: URL(fileURLWithPath: scope.path).standardizedFileURL, reason: locationsModel.recoveryReasons[scope.id] ?? status.reason) { renewAndScan(scope) }
+        }
+    }
+    /// "Folder not found · last observed <time>" for a deleted or moved folder, "Access unavailable" for an unreadable one (#254).
+    private func recoveryText(_ scope: RememberedScope, status: RememberedLocations.AccessStatus) -> String {
+        let observed = Array(selection.scans.values) + folderInspection.scopeReports.map(\.current)
+        return UnavailableScannedFolder.overviewText(name: URL(fileURLWithPath: scope.path).lastPathComponent,
+            reason: locationsModel.recoveryReasons[scope.id] ?? status.reason,
+            lastObserved: UnavailableScannedFolder.lastObserved(URL(fileURLWithPath: scope.path), in: observed).map(ExplorerUnavailableLocation.format))
+    }
+    /// Choose again…, then scan the renewed location in place (#223).
+    private func renewAndScan(_ scope: RememberedScope) {
+        if chooseAgain(scope), let renewed = locationsModel.included.first(where: { $0.id == scope.id }) { scanLocations([renewed]) }
     }
     /// Whether an unavailable location already has its own recovery row, which says what the grey message would (#231).
     private func recoveryRowCovers(_ scope: URL?) -> Bool {

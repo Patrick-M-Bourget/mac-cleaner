@@ -19,6 +19,17 @@ import XCTest
     app.launchEnvironment["CACHEDROP_TEST_DRY_RUN"] = "1"
 }
 
+/// #255: waits, on Overview, for the launch's catalog scan to finish rather than for a fixed time, so a slow cold launch
+/// can't fail a journey. The scan has started once Overview's total is measured, and finished once the bottom bar's
+/// progress line is gone; checking both means a scan that has not started yet never counts as done.
+@MainActor func waitForCatalogScan(_ app: XCUIApplication, timeout: TimeInterval = 120, file: StaticString = #filePath, line: UInt = #line) {
+    let measured = NSPredicate(format: "exists == true AND NOT (value IN %@)", ["Not measured yet", "Checking known locations…"])
+    let total = app.staticTexts["overviewRecommendedTotal"]
+    XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: measured, object: total)], timeout: timeout), .completed,
+                   "The catalog scan measured the known locations", file: file, line: line)
+    XCTAssertTrue(app.staticTexts["catalogScanProgress"].waitForNonExistence(timeout: timeout), "The catalog scan finished", file: file, line: line)
+}
+
 /// The review sheet has two buttons, Cancel and Clean up, and no preview mode.
 @MainActor func cleanUpFromReview(_ app: XCUIApplication) {
     XCTAssertTrue(app.buttons["Cancel"].exists)
@@ -192,7 +203,7 @@ final class CatalogCleanupUITests: XCTestCase {
             XCTAssertTrue(strip.waitForExistence(timeout: 5), screen)
             XCTAssertEqual(strip.frame.height, height, accuracy: 0.5, screen)
         }
-        // #234: the explorer's note ("Inspection only · …") stays on one line beside its button.
+        // #234: the explorer's bar is the same height too. It carries no note by design (617288f).
         app.typeKey("1", modifierFlags: .command)
         app.buttons["overviewScanFolder"].click()
         let panel = app.sheets.firstMatch.exists ? app.sheets.firstMatch : app.dialogs.firstMatch
@@ -204,10 +215,7 @@ final class CatalogCleanupUITests: XCTestCase {
         XCTAssertTrue(explore.waitForExistence(timeout: 20))
         explore.click()
         XCTAssertTrue(app.buttons["Open folder " + folder.lastPathComponent].waitForExistence(timeout: 10))
-        let note = app.descendants(matching: .any)["actionStripNote"]
-        XCTAssertTrue(note.waitForExistence(timeout: 5), actionStrip(app).debugDescription)
-        XCTAssertTrue((note.value as? String)?.hasPrefix("Inspection only") == true, note.debugDescription)
-        XCTAssertTrue(actionStrip(app).frame.contains(note.frame))
+        XCTAssertTrue(actionStrip(app).waitForExistence(timeout: 5))
         XCTAssertEqual(actionStrip(app).frame.height, height, accuracy: 0.5, "Explore storage")
     }
 
@@ -263,11 +271,13 @@ final class CatalogCleanupUITests: XCTestCase {
                                                    "Library/Developer/Xcode/iOS DeviceSupport/17.5 (21F79)",
                                                    "Library/Developer/Xcode/iOS DeviceSupport/18.1 (22B83)",
                                                    "Library/Developer/CoreSimulator/Devices/0A1B2C3D-0000-0000-0000-000000000000",
+                                                   "Library/Developer/CoreSimulator/Devices/0E0E0E0E-0000-0000-0000-000000000000",
                                                    ".android/avd/Pixel.avd"])
         let marker = home.appendingPathComponent("simctl-ran")
         let simctl = home.appendingPathComponent(".cachedrop-test-tools/simctl")
-        // Lists one shut-down simulator and one unused runtime (#134); any other call leaves the marker.
-        let devices = #"{"devices":{"com.apple.CoreSimulator.SimRuntime.iOS-18-0":[{"udid":"0A1B2C3D-0000-0000-0000-000000000000","name":"iPhone 16","state":"Shutdown","isAvailable":true}]}}"#
+        // Lists one shut-down simulator, one unavailable simulator that takes space (#209: otherwise "Unavailable simulators"
+        // isn't offered) and one unused runtime (#134); any other call leaves the marker.
+        let devices = #"{"devices":{"com.apple.CoreSimulator.SimRuntime.iOS-18-0":[{"udid":"0A1B2C3D-0000-0000-0000-000000000000","name":"iPhone 16","state":"Shutdown","isAvailable":true}],"com.apple.CoreSimulator.SimRuntime.iOS-16-0":[{"udid":"0E0E0E0E-0000-0000-0000-000000000000","name":"iPhone 14","state":"Shutdown","isAvailable":false}]}}"#
         let runtimes = #"{"BBBBBBBB-BBBB-4BBB-8BBB-BBBBBBBBBBBB":{"identifier":"BBBBBBBB-BBBB-4BBB-8BBB-BBBBBBBBBBBB","deletable":true,"runtimeIdentifier":"com.apple.CoreSimulator.SimRuntime.watchOS-11-0","version":"11.0","build":"22R349","sizeBytes":4500000000}}"#
         try writeStandInTool("#!/bin/sh\ncase \"$*\" in\n\"list devices -j\") echo '\(devices)' ;;\n\"runtime list -j\") echo '\(runtimes)' ;;\n*) touch '\(marker.path)' ;;\nesac\n", to: simctl)
         defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
@@ -890,8 +900,11 @@ extension CatalogCleanupUITests {
         back.click()
         XCTAssertTrue(app.textFields["explorerSearch"].waitForExistence(timeout: 5))
 
-        // #227: the folder is gone after a recheck; only the shared back button leads to the list of locations.
-        try FileManager.default.removeItem(at: folder)
+        // #227: a subfolder is gone after a recheck; only the shared back button leads to the list of locations.
+        // (Removing the scanned folder itself keeps its last observation, so the subfolder is what goes away.)
+        app.buttons["Open folder Inner"].click()
+        XCTAssertTrue(app.buttons["Inspect entry.zip"].firstMatch.waitForExistence(timeout: 5))
+        try FileManager.default.removeItem(at: folder.appendingPathComponent("Inner"))
         app.typeKey("r", modifierFlags: .command)
         XCTAssertTrue(app.staticTexts["This folder is no longer available in the observations"].waitForExistence(timeout: 20))
         XCTAssertFalse(app.buttons["Return to selected locations"].exists)
@@ -901,6 +914,48 @@ extension CatalogCleanupUITests {
         explorerBack.click()
         XCTAssertFalse(app.staticTexts["This folder is no longer available in the observations"].waitForExistence(timeout: 2))
         XCTAssertEqual(explorerBack.label, "Back to Overview")
+    }
+
+    /// #249: the scanned folder itself is deleted and Scan again can't find it. The explorer keeps its last observation
+    /// but marks it as gone, with Overview's orange row and Choose again…, and never lists its old contents as current.
+    @MainActor func testExplorerMarksADeletedScannedFolderAsNotFound() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        let state = try configureIsolatedState(app)
+        let home = try configureCatalogHome(app)
+        let folder = FileManager.default.temporaryDirectory.resolvingSymlinksInPath().appendingPathComponent("CacheDropPicked-" + UUID().uuidString)
+        defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home); try? FileManager.default.removeItem(at: folder) }
+        try FileManager.default.createDirectory(at: folder.appendingPathComponent("Inner"), withIntermediateDirectories: true)
+        try Data(repeating: 1, count: 4_000).write(to: folder.appendingPathComponent("Inner/entry.zip"))
+        app.launch()
+        XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
+        app.buttons["overviewScanFolder"].click()
+        let panel = app.sheets.firstMatch.exists ? app.sheets.firstMatch : app.dialogs.firstMatch
+        XCTAssertTrue(panel.waitForExistence(timeout: 5))
+        panel.typeKey("g", modifierFlags: [.command, .shift])
+        app.typeText(folder.path + "\n")
+        panel.buttons["Scan folder"].click()
+        let explore = app.links["Explore storage"]
+        XCTAssertTrue(explore.waitForExistence(timeout: 20))
+        explore.click()
+        app.buttons["Open folder " + folder.lastPathComponent].click()
+        XCTAssertTrue(app.buttons["Open folder Inner"].waitForExistence(timeout: 5))
+
+        try FileManager.default.removeItem(at: folder)
+        app.typeKey("r", modifierFlags: .command)
+        let row = app.staticTexts["explorerLocationRecovery"]
+        XCTAssertTrue(row.waitForExistence(timeout: 20))
+        XCTAssertTrue((row.value as? String ?? "").hasPrefix("Folder not found · last observed "), "\(String(describing: row.value))")
+        XCTAssertEqual(app.buttons["explorerChooseAgain"].label, "Choose again…")
+        XCTAssertFalse(app.buttons["Open folder Inner"].exists)
+        XCTAssertFalse(app.staticTexts["This folder is no longer available in the observations"].exists)
+
+        // The list of locations marks it the same way and doesn't offer to open its old contents.
+        let explorerBack = app.buttons["explorerBack"]
+        XCTAssertEqual(explorerBack.label, "Back to Selected locations")
+        explorerBack.click()
+        XCTAssertTrue(row.waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["Open folder " + folder.lastPathComponent].exists)
     }
 
     /// Opens Explore storage from Overview in its Large and old files mode; returns the fixture's old file toggle.
@@ -916,10 +971,12 @@ extension CatalogCleanupUITests {
 }
 
 final class GuidanceUITests: XCTestCase {
-    /// A Photos library, Xcode archives, unreadable Messages attachments and two local snapshots in the fixture home.
+    /// Three Photos libraries, Xcode archives, unreadable Messages attachments and two local snapshots in the fixture home.
     /// The snapshot count comes from a debug fixture file, so tmutil never runs, and opening is a debug no-op.
     @MainActor private func addGuidanceData(_ home: URL) throws -> URL {
-        for path in ["Pictures/Photos Library.photoslibrary/originals/a.heic", "Library/Developer/Xcode/Archives/2026-10-26/App.xcarchive/Info.plist",
+        // Photos libraries (#180): the default one, a renamed one and one on a connected volume (`<home>/Volumes` here).
+        for path in ["Pictures/Photos Library.photoslibrary/originals/a.heic", "Pictures/Trip 2019.photoslibrary/originals/b.heic",
+                     "Volumes/External/Family.photoslibrary/originals/c.heic", "Library/Developer/Xcode/Archives/2026-10-26/App.xcarchive/Info.plist",
                      "Library/Messages/Attachments/ab/photo.jpg"] {
             let file = home.appendingPathComponent(path)
             try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
@@ -962,6 +1019,17 @@ final class GuidanceUITests: XCTestCase {
         let photos = app.buttons["guidance-photos-library"]
         XCTAssertTrue(photos.waitForExistence(timeout: 10))
         XCTAssertEqual(photos.label, "Open Photos")
+        XCTAssertTrue((photos.value as? String)?.contains("3 libraries") == true, String(describing: photos.value))
+        // Each library with its volume and size, revealed in Finder, never offered (#180).
+        openDisclosure(app.disclosureTriangles.matching(NSPredicate(format: "label == 'Show libraries · 3'")).firstMatch, in: app)
+        let external = app.buttons["Reveal Family in Finder"]
+        XCTAssertTrue(external.waitForExistence(timeout: 5))
+        XCTAssertTrue((external.value as? String)?.hasPrefix("External") == true, String(describing: external.value))
+        XCTAssertTrue(app.buttons["Reveal Trip 2019 in Finder"].exists)
+        XCTAssertTrue(app.links["guidanceLearnMore-photos-library"].exists)
+        revealAndClick(external, in: app)
+        XCTAssertTrue(app.staticTexts["guidanceStatus"].waitForExistence(timeout: 5))
+        XCTAssertEqual(app.staticTexts["guidanceStatus"].value as? String, "Test run: would reveal Family.")
         XCTAssertTrue((app.buttons["guidance-messages-attachments"].value as? String)?.contains("Needs access") == true)
         // One access note for the page, never a link per row.
         XCTAssertTrue(app.descendants(matching: .any)["guidanceAccess"].exists)
@@ -985,6 +1053,78 @@ final class GuidanceUITests: XCTestCase {
             XCTAssertFalse(app.descendants(matching: .any)["planRule-" + id].exists, id)
         }
         XCTAssertTrue(FileManager.default.fileExists(atPath: home.appendingPathComponent("Pictures/Photos Library.photoslibrary/originals/a.heic").path))
+    }
+
+    /// #178: Final Cut Pro libraries, renamed and external, are listed with Final Cut's own steps; opening it reports
+    /// only that it would open, never cleanup done, and nothing in a library changes.
+    @MainActor func testFinalCutLibrariesAreListedAndOpeningFinalCutCleansNothing() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        let state = try configureIsolatedState(app)
+        let home = try configureCatalogHome(app)
+        defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
+        let render = home.appendingPathComponent("Movies/Untitled.fcpbundle/Event 1/Render Files/a.mov")
+        for file in [render, home.appendingPathComponent("Volumes/Shuttle/Client Cut.fcpbundle/Event 1/Transcoded Media/b.mov")] {
+            try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try Data(repeating: 4, count: 60_000).write(to: file)
+        }
+        app.launch()
+
+        let entry = app.buttons["overviewAppManaged"]
+        XCTAssertTrue(entry.waitForExistence(timeout: 10))
+        revealAndClick(entry, in: app)
+        let row = app.buttons["guidance-final-cut-libraries"]
+        XCTAssertTrue(row.waitForExistence(timeout: 10))
+        XCTAssertEqual(row.label, "Open Final Cut Pro")
+        XCTAssertTrue((row.value as? String)?.contains("2 libraries") == true, String(describing: row.value))
+        openDisclosure(app.disclosureTriangles.matching(NSPredicate(format: "label == 'Show libraries · 2'")).firstMatch, in: app)
+        let external = app.buttons["Reveal Client Cut in Finder"]
+        XCTAssertTrue(external.waitForExistence(timeout: 5))
+        XCTAssertTrue((external.value as? String)?.hasPrefix("Shuttle") == true, String(describing: external.value))
+        XCTAssertTrue(app.staticTexts.containing(NSPredicate(format: "value CONTAINS 'Delete Generated Library Files'")).firstMatch.exists)
+        XCTAssertTrue(app.links["guidanceLearnMore-final-cut-libraries"].exists)
+        revealAndClick(row, in: app)
+        XCTAssertTrue(app.staticTexts["guidanceStatus"].waitForExistence(timeout: 5))
+        XCTAssertEqual(app.staticTexts["guidanceStatus"].value as? String, "Test run: would open Final Cut Pro.")
+        XCTAssertFalse(app.descendants(matching: .any)["planRule-final-cut-libraries"].exists)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: render.path))
+    }
+
+    /// #179: Lightroom Classic's previews and Smart Previews are separate rows, counted by catalog, each with its own
+    /// steps; the catalog is never listed or offered, and opening Lightroom changes nothing.
+    @MainActor func testLightroomPreviewsAreSeparateFromSmartPreviewsAndNoCatalogIsOffered() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        let state = try configureIsolatedState(app)
+        let home = try configureCatalogHome(app)
+        defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
+        let folder = home.appendingPathComponent("Pictures/Lightroom")
+        let catalog = folder.appendingPathComponent("Lightroom Catalog.lrcat")
+        for file in [catalog, folder.appendingPathComponent("Lightroom Catalog Previews.lrdata/root/a.lrprev"),
+                     folder.appendingPathComponent("Lightroom Catalog Smart Previews.lrdata/b.dng")] {
+            try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try Data(repeating: 4, count: 60_000).write(to: file)
+        }
+        app.launch()
+
+        let entry = app.buttons["overviewAppManaged"]
+        XCTAssertTrue(entry.waitForExistence(timeout: 10))
+        revealAndClick(entry, in: app)
+        let previews = app.buttons["guidance-lightroom-previews"], smart = app.buttons["guidance-lightroom-smart-previews"]
+        XCTAssertTrue(previews.waitForExistence(timeout: 10))
+        XCTAssertTrue(smart.exists)
+        XCTAssertEqual(previews.label, "Open Lightroom Classic")
+        XCTAssertTrue((previews.value as? String)?.contains("1 catalog") == true, String(describing: previews.value))
+        openDisclosure(app.disclosureTriangles.matching(NSPredicate(format: "label == 'Show catalogs · 1'")).firstMatch, in: app)
+        XCTAssertTrue(app.buttons["Reveal Lightroom Catalog Previews in Finder"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts.containing(NSPredicate(format: "value CONTAINS 'Discard 1:1 Previews'")).firstMatch.exists)
+        XCTAssertTrue(app.links["guidanceLearnMore-lightroom-previews"].exists)
+        XCTAssertFalse(app.buttons["Reveal Lightroom Catalog in Finder"].exists)
+        revealAndClick(smart, in: app)
+        XCTAssertTrue(app.staticTexts["guidanceStatus"].waitForExistence(timeout: 5))
+        XCTAssertEqual(app.staticTexts["guidanceStatus"].value as? String, "Test run: would open Lightroom Classic.")
+        for id in ["lightroom-previews", "lightroom-smart-previews"] { XCTAssertFalse(app.descendants(matching: .any)["planRule-" + id].exists) }
+        XCTAssertTrue(FileManager.default.fileExists(atPath: catalog.path))
     }
 
     /// #174: plug-ins are listed by product, with Reveal in Finder, and nothing is offered or changed.
