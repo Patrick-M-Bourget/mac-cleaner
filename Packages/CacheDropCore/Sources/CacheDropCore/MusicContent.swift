@@ -51,8 +51,9 @@ public struct MusicVendor: Sendable, Equatable {
     }
 
     public static let known: [MusicVendor] = [
-        // The folder named in #175; its Soundbanks and SharedResources hold the content (6.3 GB on the Mac this was
-        // written on). ReWire and REX in the same folder are shared code, not content.
+        // The folder named in #175. Its Soundbanks and SharedResources hold the content, and ReWire and REX in the same
+        // folder are shared code, not content: confirmed on the user's Mac on 2026-10-27 (6.3 GB). The vendor part
+        // `se.propellerheads` is the Reason Rack Plugin's bundle ID there.
         MusicVendor(name: "Reason Studios", locations: [
             .init(path: "/Library/Application Support/Propellerhead Software/Soundbanks", name: "Sound banks", kind: .installed),
             .init(path: "/Library/Application Support/Propellerhead Software/SharedResources", name: "Shared resources", kind: .installed),
