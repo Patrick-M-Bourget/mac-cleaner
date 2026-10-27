@@ -146,7 +146,7 @@ struct ApplicationsView: View {
         } items: {
             LazyVStack(alignment: .leading, spacing: 0) {
                 ForEach(entry.parts, id: \.url) { part in
-                    InspectableItemRow(name: part.name, detail: PathDisplay.shortLocation(of: part.url, home: model.home ?? FileManager.default.homeDirectoryForCurrentUser), size: part.size.text,
+                    InspectableItemRow(name: part.name, detail: PathDisplay.shortLocation(of: part.url, home: CatalogCleanupModel.checkHome), size: part.size.text,
                                        symbol: category.symbol, inspected: false, inspect: { model.reveal(part.name, [part.url]) },
                                        detailLineLimit: 1, actionLabel: "Reveal \(part.name) in Finder") { EmptyView() }
                         .help(part.url.path)
