@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <!-- CacheDrop app icon, dark. Same geometry as cachedrop-icon-light.svg. -->
+  <defs>
+    <filter id="ambientShadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="32"/>
+    </filter>
+    <linearGradient id="platter" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#24262B"/>
+      <stop offset="0.5" stop-color="#18191D"/>
+      <stop offset="1" stop-color="#0F1012"/>
+    </linearGradient>
+    <linearGradient id="rim" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#555861" stop-opacity="0.8"/>
+      <stop offset="0.4" stop-color="#3A3C43" stop-opacity="0.5"/>
+      <stop offset="1" stop-color="#1F2024" stop-opacity="0.6"/>
+    </linearGradient>
+    <filter id="emblemGlow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="18" stdDeviation="20" flood-color="#000000" flood-opacity="0.7"/>
+      <feDropShadow dx="0" dy="0" stdDeviation="12" flood-color="#38BDF8" flood-opacity="0.25"/>
+    </filter>
+    <linearGradient id="drop" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FFFFFF"/>
+      <stop offset="0.85" stop-color="#F1F5F9"/>
+      <stop offset="1" stop-color="#E2E8F0"/>
+    </linearGradient>
+  </defs>
+  <path d="M557.65 100c141.08 0 211.63 0 263.45 31.76a215.5 215.5 0 0 1 71.15 71.15c31.76 51.82 31.76 122.36 31.76 263.45L924 557.65c0 141.08 0 211.63 -31.76 263.45a215.5 215.5 0 0 1 -71.15 71.15c-51.82 31.76 -122.36 31.76 -263.45 31.76L466.35 924c-141.08 0 -211.63 0 -263.45 -31.76a215.5 215.5 0 0 1 -71.15 -71.15c-31.76 -51.82 -31.76 -122.36 -31.76 -263.45L100 466.35c0 -141.08 0 -211.63 31.76 -263.45a215.5 215.5 0 0 1 71.15 -71.15c51.82 -31.76 122.36 -31.76 263.45 -31.76Z" transform="translate(0 8)" fill="#000000" opacity="0.55" filter="url(#ambientShadow)"/>
+  <path d="M557.65 100c141.08 0 211.63 0 263.45 31.76a215.5 215.5 0 0 1 71.15 71.15c31.76 51.82 31.76 122.36 31.76 263.45L924 557.65c0 141.08 0 211.63 -31.76 263.45a215.5 215.5 0 0 1 -71.15 71.15c-51.82 31.76 -122.36 31.76 -263.45 31.76L466.35 924c-141.08 0 -211.63 0 -263.45 -31.76a215.5 215.5 0 0 1 -71.15 -71.15c-31.76 -51.82 -31.76 -122.36 -31.76 -263.45L100 466.35c0 -141.08 0 -211.63 31.76 -263.45a215.5 215.5 0 0 1 71.15 -71.15c51.82 -31.76 122.36 -31.76 263.45 -31.76Z" fill="url(#platter)"/>
+  <path d="M557.65 100c141.08 0 211.63 0 263.45 31.76a215.5 215.5 0 0 1 71.15 71.15c31.76 51.82 31.76 122.36 31.76 263.45L924 557.65c0 141.08 0 211.63 -31.76 263.45a215.5 215.5 0 0 1 -71.15 71.15c-51.82 31.76 -122.36 31.76 -263.45 31.76L466.35 924c-141.08 0 -211.63 0 -263.45 -31.76a215.5 215.5 0 0 1 -71.15 -71.15c-31.76 -51.82 -31.76 -122.36 -31.76 -263.45L100 466.35c0 -141.08 0 -211.63 31.76 -263.45a215.5 215.5 0 0 1 71.15 -71.15c51.82 -31.76 122.36 -31.76 263.45 -31.76Z" fill="none" stroke="url(#rim)" stroke-width="4"/>
+  <g filter="url(#emblemGlow)">
+    <path d="M533.57 282.41 C520.43 265.84 503.57 265.84 490.43 282.41 C442.64 342.71 332 492.78 332 590 C332 689 413 768 512 768 C611 768 692 689 692 590 C692 492.78 581.36 342.71 533.57 282.41 Z" fill="url(#drop)"/>
+    <path d="M434 582 L488 636 L594 530" fill="none" stroke="#09090B" stroke-width="50" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+</svg>
