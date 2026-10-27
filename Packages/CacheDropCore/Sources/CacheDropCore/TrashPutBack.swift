@@ -130,9 +130,13 @@ public struct TrashPutBack: Sendable {
     /// item at the original location is the one that was in the Trash.
     private static func move(_ original: CleanupRecord, from trashURL: URL, into record: inout CleanupRecord) -> PutBackRefusal? {
         func skip(_ refusal: PutBackRefusal) -> PutBackRefusal { record.state = .skipped; record.message = refusal.reason; return refusal }
-        let flags = O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC
+        // Search only: without Full Disk Access the Trash can't be read (listed), only searched.
+        let flags = O_SEARCH | O_NOFOLLOW | O_CLOEXEC
         let source = open(trashURL.deletingLastPathComponent().path, flags)
-        guard source >= 0 else { return skip(.notInTrash) }
+        guard source >= 0 else {
+            if errno == ENOENT { return skip(.notInTrash) }
+            record.state = .failed; record.message = PutBackRefusal.failed.reason; return .failed
+        }
         defer { close(source) }
         let destination = open(original.originalURL.deletingLastPathComponent().path, flags)
         guard destination >= 0 else { return skip(.originalFolderMissing) }
