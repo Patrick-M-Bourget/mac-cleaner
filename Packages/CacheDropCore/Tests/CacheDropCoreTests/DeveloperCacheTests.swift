@@ -190,6 +190,65 @@ private func homebrewRun(_ home: URL, script: String, timeout: TimeInterval? = n
     #expect(FileManager.default.fileExists(atPath: home.appendingPathComponent("Library/Caches/Homebrew/entry").path))
 }
 
+/// Homebrew's cleanup followed by a plain delete (pnpm's metadata cache), run with `cancellation`.
+private func cancellableRun(_ home: URL, brewScript: String, cancellation: CleanupCancellation, measure: @escaping @Sendable (URL) -> CapacitySample? = FakeVolume().read) async throws -> CatalogExecutionResult {
+    try makeFolder(home, "Library/Caches/Homebrew")
+    try makeFolder(home, "Library/Caches/pnpm")
+    let brew = try fakeTool(home, brewScript)
+    let catalog = Catalog(rules: fixtureRules)
+    let found = catalog.discover(fixture: home, locateTool: onlyTool("brew", brew))
+    let homebrew = try #require(found.first { $0.ruleID == "homebrew" })
+    let pnpm = try #require(found.first { $0.ruleID == "pnpm-cache" })
+    let journal = try SQLiteCleanupJournal(url: home.appendingPathComponent("journal.sqlite"))
+    let run = CleanupExecutor(journal: journal, check: CandidateCheck(catalog: catalog, running: NothingRunning()), measure: measure, trash: TrashNeverUsed(), cancellation: cancellation)
+    return await run.execute(CatalogApproval(candidates: [homebrew, pnpm], previewOnly: false))
+}
+
+@Test func cancellingDuringAToolStopsItWithinTheGracePeriodAndRecordsItAsPartlyRemoved() async throws {
+    let home = try fixtureHome()
+    defer { try? FileManager.default.removeItem(at: home) }
+    let length = uniqueSleep(), running = home.appendingPathComponent("running")
+    let cancellation = CleanupCancellation(), cancelledAt = CancelTime()
+    // Cancel once the stand-in brew, which starts its own child like the real one, is running.
+    Task.detached {
+        while !FileManager.default.fileExists(atPath: running.path) { try? await Task.sleep(for: .milliseconds(10)) }
+        cancelledAt.mark(); cancellation.cancel()
+    }
+    let result = try await cancellableRun(home, brewScript: "echo cleaning\ntouch '\(running.path)'\nsleep \(length) &\nsleep \(length)", cancellation: cancellation)
+    let sinceCancel = ProcessInfo.processInfo.systemUptime - cancelledAt.value
+    let left = survivorsAfterSettling(length)
+    left.forEach { kill($0, SIGKILL) }
+    #expect(sinceCancel < 2 + 1)
+    #expect(left.isEmpty)
+    let tool = try #require(result.records.first), next = try #require(result.records.last)
+    #expect(tool.state == .failed)
+    #expect(tool.partlyRemoved == true)
+    #expect(tool.outcomeTitle == "Partly removed")
+    #expect(tool.message == "Stopped when you cancelled. brew cleanup -s may have cleaned part of it; the folder was left in place.")
+    #expect(tool.toolOutput == "cleaning")
+    #expect(FileManager.default.fileExists(atPath: home.appendingPathComponent("Library/Caches/Homebrew/entry").path))
+    #expect(next.state == .cancelled && next.message == "Not started")
+    #expect(FileManager.default.fileExists(atPath: home.appendingPathComponent("Library/Caches/pnpm/entry").path))
+}
+
+@Test func cancellingJustBeforeAToolLaunchesRecordsItAsStoppedWithNothingChanged() async throws {
+    let home = try fixtureHome()
+    defer { try? FileManager.default.removeItem(at: home) }
+    let ran = home.appendingPathComponent("ran")
+    let cancellation = CleanupCancellation()
+    // The space reading taken just before the tool starts is the last moment before launch.
+    let result = try await cancellableRun(home, brewScript: "touch '\(ran.path)'", cancellation: cancellation,
+                                          measure: { _ in cancellation.cancel(); return nil })
+    #expect(!FileManager.default.fileExists(atPath: ran.path))
+    let tool = try #require(result.records.first), next = try #require(result.records.last)
+    #expect(tool.state == .cancelled)
+    #expect(tool.partlyRemoved != true)
+    #expect(tool.message == "Stopped before brew cleanup -s started. Nothing was changed.")
+    #expect(tool.recoveryStateText == "Recorded cancellation · Not started")
+    #expect(next.state == .cancelled && next.message == "Not started")
+    #expect(FileManager.default.fileExists(atPath: home.appendingPathComponent("Library/Caches/Homebrew/entry").path))
+}
+
 @Test func aToolThatFailsKeepsTheFolderAndShowsItsOutput() async throws {
     let home = try fixtureHome()
     defer { try? FileManager.default.removeItem(at: home) }

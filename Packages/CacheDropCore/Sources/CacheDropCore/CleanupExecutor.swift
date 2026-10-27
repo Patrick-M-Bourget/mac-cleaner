@@ -160,11 +160,12 @@ public actor CleanupExecutor {
         guard let command, let executable = candidate.toolURL, let arguments = command.arguments(for: candidate.toolArgument) else {
             record.state = .skipped; record.message = CheckRefusal.changed.reason; return
         }
+        let cancellation = self.cancellation
         let outcome = await Task.detached(priority: .userInitiated) {
             // The tool's own folder goes first on PATH, so `#!/usr/bin/env node` tools such as pnpm find their runtime.
             var environment = BoundedTool.defaultEnvironment
             environment["PATH"] = executable.deletingLastPathComponent().path + ":" + (environment["PATH"] ?? "")
-            return Result { try BoundedTool.capture(executable: executable, arguments: arguments, timeout: command.timeout, environment: environment) }
+            return Result { try BoundedTool.capture(executable: executable, arguments: arguments, timeout: command.timeout, environment: environment, cancellation: cancellation) }
         }.value
         let name = command.commandLine(for: candidate.toolArgument)
         switch outcome {
@@ -185,6 +186,13 @@ public actor CleanupExecutor {
             record.toolOutput = Self.trimmed(error.output)
             record.state = .failed; record.partlyRemoved = true
             record.message = "Stopped at the \(Int(command.timeout.rounded(.up)))-second time limit. \(name) may have cleaned part of it" + (candidate.isDirectory ? "; the folder was left in place." : ".")
+        case .failure(let error as ToolCancelled) where !error.started:
+            record.state = .cancelled; record.message = "Stopped before \(name) started. Nothing was changed."
+        case .failure(let error as ToolCancelled):
+            // The tool ran until the cancel, so it may have removed some files; the folder is never deleted after it.
+            record.toolOutput = Self.trimmed(error.output)
+            record.state = .failed; record.partlyRemoved = true
+            record.message = "Stopped when you cancelled. \(name) may have cleaned part of it" + (candidate.isDirectory ? "; the folder was left in place." : ".")
         case .failure(ToolPreviewError.unavailable):
             record.state = .skipped; record.message = "\(name) is no longer installed."
         case .failure:
