@@ -204,8 +204,8 @@ final class CatalogCleanupUITests: XCTestCase {
         XCTAssertTrue(explore.waitForExistence(timeout: 20))
         explore.click()
         XCTAssertTrue(app.buttons["Open folder " + folder.lastPathComponent].waitForExistence(timeout: 10))
-        let note = app.staticTexts["actionStripNote"]
-        XCTAssertTrue(note.waitForExistence(timeout: 5))
+        let note = app.descendants(matching: .any)["actionStripNote"]
+        XCTAssertTrue(note.waitForExistence(timeout: 5), actionStrip(app).debugDescription)
         XCTAssertTrue((note.value as? String)?.hasPrefix("Inspection only") == true, note.debugDescription)
         XCTAssertTrue(actionStrip(app).frame.contains(note.frame))
         XCTAssertEqual(actionStrip(app).frame.height, height, accuracy: 0.5, "Explore storage")
