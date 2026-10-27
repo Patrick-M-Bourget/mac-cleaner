@@ -232,3 +232,56 @@ final class KeyboardShortcutsUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["growthNetChange"].waitForExistence(timeout: 15), "⌘R from History scanned again")
     }
 }
+
+/// #158: the welcome shows on a first launch, never again once finished, and the Help menu opens it again.
+/// Other journeys never see it: disposable test runs treat it as seen unless `STILL_TEST_SHOW_WELCOME` asks for it.
+final class FirstRunWelcomeUITests: XCTestCase {
+    @MainActor func testWelcomeShowsOnceStartsTheScanAndOpensFromHelp() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        let state = try configureIsolatedState(app)
+        let home = try configureCatalogHome(app)
+        // The fixture's Safari folder refuses to open, as without Full Disk Access; opening it before step 3 shows
+        // that Start scan scanned again.
+        let safari = home.appendingPathComponent("Library/Safari")
+        try FileManager.default.createDirectory(at: safari, withIntermediateDirectories: true)
+        try FileManager.default.setAttributes([.posixPermissions: 0], ofItemAtPath: safari.path)
+        app.launchEnvironment["STILL_TEST_SHOW_WELCOME"] = "1"
+        defer {
+            app.terminate(); try? FileManager.default.removeItem(at: state)
+            try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: safari.path); try? FileManager.default.removeItem(at: home)
+        }
+        app.launch()
+        let welcome = app.sheets.staticTexts["Welcome to CacheDrop"]
+        XCTAssertTrue(welcome.waitForExistence(timeout: 10), "A first launch shows the welcome")
+        XCTAssertTrue(app.staticTexts["welcomeNeverTouches"].exists)
+        app.buttons["welcomeContinue"].click()
+
+        // Step 2 is the shared Full Disk Access explanation.
+        XCTAssertTrue(app.sheets.staticTexts["Full Disk Access is optional"].waitForExistence(timeout: 5))
+        app.sheets.links["fullDiskAccessLink"].firstMatch.click()
+        XCTAssertTrue(app.buttons["openFullDiskAccessSettings"].waitForExistence(timeout: 5)) // Not pressed: tests never open System Settings.
+        app.buttons["closeFullDiskAccess"].click()
+        XCTAssertFalse(app.buttons["openFullDiskAccessSettings"].waitForExistence(timeout: 2))
+
+        let denied = app.descendants(matching: .any)["overviewNotAccessible"]
+        XCTAssertTrue(denied.waitForExistence(timeout: 15), "The launch scan finished without Safari")
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: safari.path)
+        app.buttons["welcomeContinue"].click()
+        app.buttons["welcomeStartScan"].click()
+        XCTAssertFalse(welcome.waitForExistence(timeout: 2))
+        let gone = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"), object: denied)
+        XCTAssertEqual(XCTWaiter.wait(for: [gone], timeout: 15), .completed, "Start scan scanned again")
+
+        app.terminate()
+        app.launch()
+        XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
+        XCTAssertFalse(welcome.waitForExistence(timeout: 3), "Finished, it never shows again")
+
+        app.menuBars.menuBarItems["Help"].click()
+        app.menuBars.menuItems["Welcome to CacheDrop"].click()
+        XCTAssertTrue(welcome.waitForExistence(timeout: 5), "The Help menu opens it again")
+        app.buttons["welcomeSkip"].click()
+        XCTAssertFalse(welcome.waitForExistence(timeout: 2))
+    }
+}

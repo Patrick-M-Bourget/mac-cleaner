@@ -23,10 +23,17 @@ enum LocalStateLocation {
     }
     /// Copies Still's state and preferences into CacheDrop's on the first launch after the rename (#149).
     /// Never in a disposable test run, which must not read the user's real state.
-    static func migrateFromStill() {
-        guard !isDisposableTest, let support = try? FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask, appropriateFor: nil, create: false) else { return }
-        LegacyStillMigration(applicationSupport: support, preferences: UserDefaults.standard,
+    /// Returns nil when it didn't run.
+    @discardableResult static func migrateFromStill() -> LegacyStillMigration.Outcome? {
+        guard !isDisposableTest, let support = try? FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask, appropriateFor: nil, create: false) else { return nil }
+        return LegacyStillMigration(applicationSupport: support, preferences: UserDefaults.standard,
                              legacyPreferences: { UserDefaults.standard.persistentDomain(forName: LegacyStillMigration.legacyDomain) }).run()
+    }
+    /// CacheDrop's own state folder is there, as after an earlier launch (#158). False in a disposable test run.
+    static var stateFolderExists: Bool {
+        guard !isDisposableTest, let support = try? FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask, appropriateFor: nil, create: false) else { return false }
+        var info = stat()
+        return lstat(support.appendingPathComponent(LegacyStillMigration.folder).path, &info) == 0
     }
     static func root(create: Bool) throws -> URL {
         #if DEBUG
