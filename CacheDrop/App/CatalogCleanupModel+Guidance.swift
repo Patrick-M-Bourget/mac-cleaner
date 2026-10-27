@@ -27,6 +27,13 @@ extension CatalogCleanupModel {
         let name = guidanceRule(finding)?.guidance?.placeName ?? "it"
         guidanceStatus = await catalog.open(finding, using: Self.guidanceOpener) ? Self.openedStatus(name) : "Couldn’t open \(name)."
     }
+    /// Shows a plug-in product's files selected in Finder. A debug test run reveals nothing.
+    func reveal(_ product: PlugInProduct) {
+        #if DEBUG
+        if LocalStateLocation.isDisposableTest { guidanceStatus = "Test run: would reveal \(product.name)."; return }
+        #endif
+        Finder.reveal(product.files.map(\.url))
+    }
     private static func openedStatus(_ name: String) -> String? {
         #if DEBUG
         if LocalStateLocation.isDisposableTest { return "Test run: would open \(name)." }
