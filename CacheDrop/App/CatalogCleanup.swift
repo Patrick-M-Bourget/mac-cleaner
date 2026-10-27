@@ -204,7 +204,7 @@ import SwiftUI
 
     /// Which owners are running, and which of them as an open app.
     nonisolated private static func running(_ owners: [String: RuleOwner], quitter: any AppQuitting) -> ([String: RuleOwner], Set<String>) {
-        let checker = SystemRunningAppChecker()
+        let checker = SystemRunningAppChecker().listedOnce()
         let running = owners.filter { checker.isRunning($0.value) == true }
         return (running, Set(running.values.filter { quitter.isOpen($0.bundleIDs) }.map(\.name)))
     }

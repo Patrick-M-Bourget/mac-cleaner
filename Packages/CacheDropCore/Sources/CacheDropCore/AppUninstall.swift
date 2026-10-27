@@ -29,8 +29,20 @@ public enum AppUninstall {
         public let bundleID: String
         /// The app bundle's standardized path: the Applications page's row id.
         public let path: String
-        /// The app must be closed first (Decision 29), by its bundle ID.
-        public var owner: RuleOwner { RuleOwner(name: name, bundleIDs: [bundleID]) }
+        /// Its login items, helpers and XPC services' bundle IDs (#281).
+        public var helpers: [String] = []
+        /// The app must be closed first (Decision 29): its bundle ID, its helpers' and any process run from inside it (#281).
+        public var owner: RuleOwner { RuleOwner(name: name, bundleIDs: [bundleID] + helpers, paths: [path]) }
+    }
+
+    /// The bundle IDs of what an app runs besides itself: `Contents/Library/LoginItems`, `Contents/Helpers`, `Contents/XPCServices`.
+    static func helperIDs(of app: URL) -> [String] {
+        ["Contents/Library/LoginItems", "Contents/Helpers", "Contents/XPCServices"].flatMap { place -> [String] in
+            let folder = app.appendingPathComponent(place)
+            return ((try? FileManager.default.contentsOfDirectory(atPath: folder.path)) ?? []).sorted().compactMap { name in
+                PlugInInventory.info(folder.appendingPathComponent(name))?["CFBundleIdentifier"] as? String
+            }
+        }
     }
 
     /// The app and its files, ready to tick; nothing when the app isn't offered or needs a password to remove (Decision 50).
@@ -42,7 +54,7 @@ public enum AppUninstall {
         guard ApplicationsInventory.isListed(app, excluding: ownBundleID), Removability.canMoveToTrash(url), lstat(url.path, &info) == 0,
               // An excluded app is never offered, nor its files (SPEC section 2).
               let volume = try? url.resourceValues(forKeys: [.volumeUUIDStringKey]).volumeUUIDString, !exclusions.covers(url, volumeID: volume) else { return [] }
-        let target = Target(name: app.name, bundleID: app.bundleID, path: url.path)
+        let target = Target(name: app.name, bundleID: app.bundleID, path: url.path, helpers: helperIDs(of: url))
         let catalog = Catalog(rules: rules), size = sizer.size(url)
         var bundle = catalog.candidate(rules[0], url, info, logical: size.logicalBytes, allocated: size.allocatedBytes, complete: size.complete, lastUsed: nil)
         bundle = bundle.found(under: url.deletingLastPathComponent())

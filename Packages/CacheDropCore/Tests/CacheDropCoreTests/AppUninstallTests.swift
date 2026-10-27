@@ -125,13 +125,33 @@ private func names(_ items: [Candidate], _ rule: String) -> Set<String> { Set(it
     #expect(files.allSatisfy { check(home, apps: Apps(installed: [synth, copy])).check($0) == .appInstalled("Synth") })
 }
 
+private struct Processes: ProcessListing {
+    let list: [RunningProcess]
+    func processes() -> [RunningProcess]? { list }
+}
+
+@Test func aHelperOrLoginItemOfTheAppCountsAsTheAppRunning() throws {
+    let (home, synth, apps) = try fixture()
+    defer { try? FileManager.default.removeItem(at: home) }
+    let helper = URL(fileURLWithPath: synth.path).appendingPathComponent("Contents/Library/LoginItems/Synth Helper.app")
+    try FileManager.default.createDirectory(at: helper.appendingPathComponent("Contents"), withIntermediateDirectories: true)
+    try PropertyListSerialization.data(fromPropertyList: ["CFBundleIdentifier": "com.maker.synthhelper"], format: .xml, options: 0)
+        .write(to: helper.appendingPathComponent("Contents/Info.plist"))
+    let owner = try #require(Catalog(rules: AppUninstall.rules).owner(for: scan(home, synth, apps)[0]))
+    func running(_ process: RunningProcess) -> Bool? { SystemRunningAppChecker(processes: Processes(list: [process])).isRunning(owner) }
+
+    #expect(running(RunningProcess(path: helper.path + "/Contents/MacOS/Synth Helper")) == true, "A process inside the bundle")
+    #expect(running(RunningProcess(path: "/private/var/run/agent", bundleID: "com.maker.synthhelper")) == true, "Its login item, by bundle ID")
+    #expect(running(RunningProcess(path: "/Applications/Other.app/Contents/MacOS/Other", bundleID: "com.other.app")) == false)
+}
+
 @Test func aRunningAppBlocksItsUninstall() throws {
     let (home, synth, apps) = try fixture()
     defer { try? FileManager.default.removeItem(at: home) }
     let found = scan(home, synth, apps)
 
     #expect(found.allSatisfy { check(home, running: Running(names: ["Synth"])).check($0) == .ownerRunning("Synth") })
-    #expect(Catalog(rules: AppUninstall.rules).owner(for: found[0]) == RuleOwner(name: "Synth", bundleIDs: ["com.maker.synth"]))
+    #expect(Catalog(rules: AppUninstall.rules).owner(for: found[0])?.bundleIDs == ["com.maker.synth"])
 }
 
 @Test func uninstallingMovesTheAppAndItsFilesToTrashAndPutBackRestoresThem() async throws {
