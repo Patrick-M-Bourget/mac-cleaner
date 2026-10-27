@@ -337,21 +337,75 @@ private func dockerRunning(_ home: URL, docker: URL, choose ruleIDs: Set<String>
         .write(to: home.appendingPathComponent("tools/df.json"), atomically: true, encoding: .utf8)
     let waited = Counter()
     let catalog = done.catalog, locate: @Sendable (ToolCommand) -> URL? = { $0.executables.contains("/usr/local/bin/docker") ? docker : nil }
-    let later = await done.run.measureAgainLater(done.result, of: done.approval, wait: { waited.increment(); return true }) { candidates in
+    let later = await done.run.measureAgainLater(done.result, of: done.approval, wait: { delay in waited.increment(); return delay == .seconds(60) }) { candidates in
         catalog.measuredAgain(candidates, in: catalog.only(candidates).discovery(fixture: home, locateTool: locate))
     }
-    #expect(waited.value == 1)
+    // The containers were still shrinking, so a second wait started; it was cancelled, so the 60-second finding stays.
+    #expect(waited.value == 2)
     let byRule = Dictionary(uniqueKeysWithValues: later.records.map { ($0.ruleID ?? "", $0) })
     #expect(byRule["docker-images"]?.laterMeasurement?.finding == .gone)
     #expect(byRule["docker-containers"]?.laterMeasurement?.finding == .remaining(bytes: 50_000_000))
     #expect(byRule["docker-images"]?.laterMeasurementText == "Measured again a minute later: it’s gone (2.5 GB at the scan).")
     #expect(byRule["docker-containers"]?.laterMeasurementText == "Measured again a minute later: 70 MB of 120 MB went; 50 MB is left.")
-    // The outcome recorded at the stop stays; the journal gains the measurement.
-    #expect(later.records.allSatisfy { $0.state == .failed && $0.partlyRemoved == true && $0.message.contains("may still be finishing") })
+    // #209: the outcome follows the measurement. Gone reads "Removed", finished after the stop; some left stays partly removed.
+    let images = try #require(byRule["docker-images"]), containers = try #require(byRule["docker-containers"])
+    #expect(images.state == .succeeded && images.partlyRemoved == nil && images.outcomeTitle == "Removed")
+    #expect(images.message == "Finished after you stopped it.")
+    #expect(!images.needsAttention)
+    #expect(containers.state == .failed && containers.partlyRemoved == true && containers.outcomeTitle == "Partly removed")
+    #expect(containers.message.contains("may still be finishing"))
+    // The measured freed space stays what was measured during the run.
+    #expect(later.measuredFreedBytes == done.result.measuredFreedBytes)
     let journaled = Dictionary(uniqueKeysWithValues: try done.journal.records().map { ($0.ruleID ?? "", $0) })
     #expect(journaled["docker-images"]?.laterMeasurement?.finding == .gone)
     #expect(journaled["docker-containers"]?.laterMeasurement?.finding == .remaining(bytes: 50_000_000))
-    #expect(journaled["docker-images"]?.state == .failed)
+    #expect(journaled["docker-images"]?.state == .succeeded && journaled["docker-images"]?.outcomeTitle == "Removed")
+    #expect(journaled["docker-containers"]?.state == .failed)
+}
+
+/// #209 point 3: measured once at 60 s; an item still shrinking compared with its size at the scan is measured once more
+/// at about 5 minutes, then never again. Items that are gone or unchanged at 60 s aren't measured again.
+@Test func anItemStillShrinkingAtAMinuteIsMeasuredOnceMoreAtFiveMinutes() async throws {
+    let home = try fixtureHome()
+    defer { try? FileManager.default.removeItem(at: home) }
+    let length = uniqueSleep()
+    let docker = try fakeDocker(home, prune: "sleep \(length)")
+    let done = try await dockerRunning(home, docker: docker, choose: ["docker-images", "docker-containers", "docker-build-cache"], timeout: 0.5)
+    survivorsAfterSettling(length).forEach { kill($0, SIGKILL) }
+    let df = home.appendingPathComponent("tools/df.json")
+    // At a minute: the build cache is gone, the images are half done, the containers haven't changed.
+    let atAMinute = report.replacingOccurrences(of: "\"Reclaimable\":\"2.5GB (62%)\"", with: "\"Reclaimable\":\"1GB (25%)\"")
+        .replacingOccurrences(of: "\"Reclaimable\":\"1.234GB\"", with: "\"Reclaimable\":\"0B\"")
+    // At 5 minutes: the images are gone too.
+    let atFive = atAMinute.replacingOccurrences(of: "\"Reclaimable\":\"1GB (25%)\"", with: "\"Reclaimable\":\"0B (0%)\"")
+    let waits = Delays()
+    let updates = Delays()
+    let catalog = done.catalog, locate: @Sendable (ToolCommand) -> URL? = { $0.executables.contains("/usr/local/bin/docker") ? docker : nil }
+    let measured = Delays()
+    let later = await done.run.measureAgainLater(done.result, of: done.approval, wait: { delay in
+        waits.append(delay)
+        try? (waits.values.count == 1 ? atAMinute : atFive).write(to: df, atomically: true, encoding: .utf8)
+        return true
+    }, update: { partial in
+        updates.append(.seconds(partial.records.first { $0.ruleID == "docker-images" }?.laterMeasurement?.afterSeconds ?? 0))
+    }) { candidates in
+        measured.append(.seconds(candidates.count))
+        return catalog.measuredAgain(candidates, in: catalog.only(candidates).discovery(fixture: home, locateTool: locate))
+    }
+    // 60 s after the run, then 240 s more: about 5 minutes after it. Only the images are measured the second time.
+    #expect(waits.values == [.seconds(60), .seconds(240)])
+    #expect(measured.values == [.seconds(3), .seconds(1)])
+    // Results showed the 60-second findings before the second wait.
+    #expect(updates.values == [.seconds(60)])
+    let byRule = Dictionary(uniqueKeysWithValues: later.records.map { ($0.ruleID ?? "", $0) })
+    let images = try #require(byRule["docker-images"]), cache = try #require(byRule["docker-build-cache"]), containers = try #require(byRule["docker-containers"])
+    #expect(images.laterMeasurement?.finding == .gone && images.laterMeasurement?.afterSeconds == 300 && images.outcomeTitle == "Removed")
+    #expect(images.laterMeasurementText == "Measured again 5 minutes later: it’s gone (2.5 GB at the scan).")
+    #expect(cache.laterMeasurement?.afterSeconds == 60 && cache.outcomeTitle == "Removed")
+    #expect(containers.laterMeasurement?.finding == .remaining(bytes: 120_000_000) && containers.laterMeasurement?.afterSeconds == 60)
+    #expect(containers.laterMeasurementText == "Measured again a minute later: nothing went yet.")
+    let journaled = try #require(try done.journal.records().first { $0.ruleID == "docker-images" })
+    #expect(journaled.laterMeasurement?.afterSeconds == 300 && journaled.state == .succeeded)
 }
 
 /// A daemon that doesn't answer later is never read as "gone".
@@ -364,7 +418,7 @@ private func dockerRunning(_ home: URL, docker: URL, choose ruleIDs: Set<String>
     survivorsAfterSettling(length).forEach { kill($0, SIGKILL) }
     let down = try fakeDocker(home, df: "echo 'Cannot connect to the Docker daemon' >&2; exit 1", prune: "exit 1")
     let catalog = done.catalog, locate: @Sendable (ToolCommand) -> URL? = { $0.executables.contains("/usr/local/bin/docker") ? down : nil }
-    let later = await done.run.measureAgainLater(done.result, of: done.approval, wait: { true }) { candidates in
+    let later = await done.run.measureAgainLater(done.result, of: done.approval, wait: { _ in true }) { candidates in
         catalog.measuredAgain(candidates, in: catalog.only(candidates).discovery(fixture: home, locateTool: locate))
     }
     #expect(later.records.first?.laterMeasurement?.finding == .unmeasured)
@@ -379,7 +433,7 @@ private func dockerRunning(_ home: URL, docker: URL, choose ruleIDs: Set<String>
     let finished = try await dockerRunning(home, docker: docker, choose: ["docker-images"])
     #expect(finished.result.records.first?.state == .succeeded && finished.result.records.first?.mayStillBeFinishing == nil)
     let waited = Counter()
-    let untouched = await finished.run.measureAgainLater(finished.result, of: finished.approval, wait: { waited.increment(); return true }) { _ in
+    let untouched = await finished.run.measureAgainLater(finished.result, of: finished.approval, wait: { _ in waited.increment(); return true }) { _ in
         Issue.record("measured an item whose tool finished"); return [:]
     }
     #expect(waited.value == 0 && untouched.records.first?.laterMeasurement == nil)
@@ -388,11 +442,22 @@ private func dockerRunning(_ home: URL, docker: URL, choose ruleIDs: Set<String>
     let slow = try fakeDocker(home, prune: "sleep \(length)")
     let stopped = try await dockerRunning(home, docker: slow, choose: ["docker-build-cache"], timeout: 0.5)
     survivorsAfterSettling(length).forEach { kill($0, SIGKILL) }
-    let cancelled = await stopped.run.measureAgainLater(stopped.result, of: stopped.approval, wait: { false }) { _ in
+    let cancelled = await stopped.run.measureAgainLater(stopped.result, of: stopped.approval, wait: { _ in false }) { _ in
         Issue.record("measured after a cancelled wait"); return [:]
     }
     #expect(cancelled.records.first?.laterMeasurement == nil)
-    #expect(try stopped.journal.records().first { $0.ruleID == "docker-build-cache" }?.laterMeasurement == nil)
+    // #209 point 2: quitting during the wait cancels it. The journal keeps "may still be finishing", and nothing
+    // measures it on the next launch.
+    let kept = try #require(try stopped.journal.records().first { $0.ruleID == "docker-build-cache" })
+    #expect(kept.laterMeasurement == nil && kept.mayStillBeFinishing == true)
+    #expect(kept.state == .failed && kept.outcomeTitle == "Partly removed" && kept.message.contains("may still be finishing"))
+}
+/// Durations collected from any thread, in order.
+private final class Delays: @unchecked Sendable {
+    private let lock = NSLock()
+    private var list: [Duration] = []
+    func append(_ delay: Duration) { lock.lock(); list.append(delay); lock.unlock() }
+    var values: [Duration] { lock.lock(); defer { lock.unlock() }; return list }
 }
 /// Counts calls from any thread.
 private final class Counter: @unchecked Sendable {

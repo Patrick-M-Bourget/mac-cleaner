@@ -51,7 +51,7 @@ public struct ToolCommand: Sendable, Hashable {
 }
 /// Whether none, some or all of a category's items are chosen.
 public enum CategorySelectionState: Sendable { case unchecked, mixed, checked }
-public enum CatalogCategory: String, Codable, Sendable { case developer, browser, downloads, system, models, updaters, logs, icloud, files, managed }
+public enum CatalogCategory: String, Codable, Sendable { case developer, browser, downloads, system, models, updaters, logs, icloud, files, managed, leftovers }
 
 /// Who must be closed before a rule's data is touched.
 public struct RuleOwner: Sendable, Hashable {
@@ -68,8 +68,13 @@ public struct RuleOwner: Sendable, Hashable {
     public let arguments: [String]
     /// Folders, such as an app bundle, any process run from inside of which belongs to the owner.
     public let paths: [String]
-    public init(name: String, bundleIDs: [String] = [], executables: [String] = [], scripts: [String] = [], arguments: [String] = [], paths: [String] = []) {
+    /// Lowercased bundle ID prefixes (`com.ableton.`): any running app whose bundle ID starts with one belongs to the owner,
+    /// as a removed app's maker does (#173).
+    public let bundleIDPrefixes: [String]
+    public init(name: String, bundleIDs: [String] = [], executables: [String] = [], scripts: [String] = [], arguments: [String] = [], paths: [String] = [],
+                bundleIDPrefixes: [String] = []) {
         self.name = name; self.bundleIDs = bundleIDs; self.executables = executables; self.scripts = scripts; self.arguments = arguments; self.paths = paths
+        self.bundleIDPrefixes = bundleIDPrefixes
     }
 }
 
@@ -190,7 +195,8 @@ public enum BuiltInCatalog {
     public static let rules: [CleanupRule] = rules(apps: SystemAppLookup())
     /// The catalog with installed apps found by `apps`. Tests pass a fake, so they never depend on this Mac's apps.
     public static func rules(apps: any AppLookup) -> [CleanupRule] { fixedRules + BrowserCaches.rules + AppDataCaches.rules(apps: apps) + AppCaches.rules(apps: apps) + dockerRules + developerDeviceRules + guidanceRules
-        + TemporaryFiles.rules(apps: apps) + AITools.rules }
+        + TemporaryFiles.rules(apps: apps) + AITools.rules
+        + RemovedAppLeftovers.rules }
     private static let fixedRules: [CleanupRule] = [
         CleanupRule(id: "npm-cache", category: .developer, title: "npm cache",
                     detail: "Packages npm downloaded for your projects.",
@@ -198,7 +204,8 @@ public enum BuiltInCatalog {
                     regen: .cache, action: .delete, locations: [".npm/_cacache"],
                     owner: RuleOwner(name: "npm", executables: ["npm", "npx"], scripts: ["npm", "npx", "npm-cli.js", "npx-cli.js"]),
                     locationTool: LocationTool(executables: ["/opt/homebrew/bin/npm", "/usr/local/bin/npm"],
-                                               query: LocationQuery(["config", "get", "cache"], whenUnanswered: .defaultLocations, reportedSubfolder: "_cacache"))),
+                                               query: LocationQuery(["config", "get", "cache"], whenUnanswered: .defaultLocations, reportedSubfolder: "_cacache",
+                                                                    configuredIn: .npmrc))),
         CleanupRule(id: "yarn-cache", category: .developer, title: "Yarn cache",
                     detail: "Packages Yarn downloaded for your projects.",
                     consequence: "Permanently removed. Yarn downloads packages again as needed; the next install may take longer.",
@@ -232,7 +239,8 @@ public enum BuiltInCatalog {
                     // pip's cache holds `http-v2` (pip 23.3 on) or `http` (earlier), per https://pip.pypa.io/en/stable/topics/caching/,
                     // and `wheels`, per pip's `src/pip/_internal/cache.py` (`os.path.join(self.cache_dir, "wheels", ...)`).
                     locationTool: LocationTool(executables: ["/opt/homebrew/bin/python3", "/usr/local/bin/python3", "/Library/Developer/CommandLineTools/usr/bin/python3"],
-                                               query: LocationQuery(["-m", "pip", "cache", "dir"], whenUnanswered: .defaultLocations, cacheMarkers: ["http-v2", "http", "wheels"]))),
+                                               query: LocationQuery(["-m", "pip", "cache", "dir"], whenUnanswered: .defaultLocations, cacheMarkers: ["http-v2", "http", "wheels"],
+                                                                    configuredIn: .pipConf))),
         CleanupRule(id: "cargo-cache", category: .developer, title: "Cargo cache",
                     detail: "Rust crates and git dependencies Cargo downloaded. Installed tools are not included.",
                     consequence: "Permanently removed. Cargo downloads crates again as needed; the next build may take longer.",
@@ -272,7 +280,8 @@ public enum BuiltInCatalog {
                     detail: "Simulator devices whose OS version is no longer installed, so they can’t run.",
                     consequence: "Runs `simctl delete unavailable`. Only devices that can’t run are removed, with their apps and data; available simulators are not touched.",
                     regen: .build, action: .tool, locations: ["Library/Developer/CoreSimulator/Devices"], owner: nil,
-                    tool: ToolCommand(executables: simctlExecutables, arguments: ["delete", "unavailable"], timeout: 300, daemonBacked: true)),
+                    tool: ToolCommand(executables: simctlExecutables, arguments: ["delete", "unavailable"], timeout: 300, daemonBacked: true),
+                    items: .unavailableSimulators),
         // RESET Decision 18. Installers come first so a large old installer is listed once, as an installer.
         CleanupRule(id: "downloads-installers", category: .downloads, title: "Installers in Downloads",
                     detail: "Disk images, packages and archives you downloaded, at any age.",
@@ -357,6 +366,8 @@ public struct Candidate: Sendable, Identifiable, Hashable {
     public internal(set) var folderSource: String? = nil
     /// The base folder the item was found under (home or the user's folder); the check refuses an item without one.
     public internal(set) var scopeRoot: URL? = nil
+    /// What ties a leftover of a removed app to that app (#173); nil for every other item.
+    public internal(set) var leftover: LeftoverTie? = nil
 }
 
 public struct Catalog: Sendable {
@@ -365,7 +376,7 @@ public struct Catalog: Sendable {
     public func rule(_ id: String) -> CleanupRule? { rules.first { $0.id == id } }
     /// Who must be closed before the candidate is touched: the rule's owner, or the item's own when it has one.
     public func owner(for candidate: Candidate) -> RuleOwner? {
-        guard let rule = rule(candidate.ruleID), case .mustBeClosed(let owner) = Self.ownership(of: candidate.url, under: rule) else { return nil }
+        guard let rule = rule(candidate.ruleID), case .mustBeClosed(let owner) = Self.ownership(of: candidate, under: rule) else { return nil }
         return owner
     }
 
@@ -383,6 +394,11 @@ public struct Catalog: Sendable {
     /// The one place an item's owner is resolved, from the rule's `owner`, `itemOwner` and `copies.owner`.
     /// A leftover from an earlier delete has no owner to close, since no app uses a folder renamed aside,
     /// but a leaked copy's app may still have one open.
+    static func ownership(of candidate: Candidate, under rule: CleanupRule) -> Ownership {
+        // A removed app's leftovers wait for every app of its maker to close (#173); one without its tie is refused.
+        if RemovedAppLeftovers.ruleIDs.contains(rule.id) { return candidate.leftover.map { .mustBeClosed($0.owner) } ?? .unknown }
+        return ownership(of: candidate.url, under: rule)
+    }
     static func ownership(of url: URL, under rule: CleanupRule) -> Ownership {
         if let copies = rule.copies { return .mustNotUse(copies.owner) }
         if rule.unused != nil, rule.itemOwner == nil { return .mustNotUse(.anyApp) }
@@ -444,8 +460,8 @@ public struct Catalog: Sendable {
             var reported: URL?, defaultsNote: CatalogNote?, folderSource: String?
             if let (asker, isOwnTool) = rule.locationAsker {
                 switch reportedLocation(of: rule, asking: asker, at: isOwnTool ? toolURL : locateTool(asker.lookup), base: base) {
-                case .folder(let folder): reported = folder; folderSource = Self.namedBy(asker)
-                case .defaults(let note): defaultsNote = note; folderSource = note == nil ? Self.namedBy(asker) : "Usual folder"
+                case .folder(let folder, let source): reported = folder; folderSource = source
+                case .defaults(let note, let source): defaultsNote = note; folderSource = source ?? "Usual folder"
                 case .notOffered(let note, let unmeasured):
                     notes.append(note)
                     if unmeasured { notMeasured[rule.id, default: []].formUnion(rule.locations) }
@@ -453,12 +469,14 @@ public struct Catalog: Sendable {
                 }
             }
             // A trailing `/*` offers each folder inside (DeviceSupport versions); a `*` inside the path names a profile.
-            let places = reported.map { [($0, String?.none)] } ?? rule.locations.flatMap { location -> [(URL, String?)] in
+            let located = reported.map { [($0, String?.none)] } ?? rule.locations.flatMap { location -> [(URL, String?)] in
                 // A pattern as the last component (`models--*`) also offers each matching folder.
                 (location as NSString).lastPathComponent.contains("*")
                     ? Self.childFolders(of: location, in: base, keepNewestVersions: rule.keepNewestVersions).map { (base.appendingPathComponent($0), nil) }
                     : Self.pathsMatching(location, under: base).map { ($0.0, $0.1.isEmpty ? nil : $0.1.joined(separator: "/")) }
             }
+            // An app's folder holding a web-view profile offers only the profile's caches, never its sign-in data (#203).
+            let places = rule.id == AppCaches.appCachesRuleID ? located.flatMap { url, profile in AppCaches.offeredFolders(in: url).map { ($0, profile) } } : located
             let found = places.flatMap { url, profile -> [Candidate] in
                 guard Protection(rule).protectedComponent(of: url, below: base) == nil, ScopeContainment.contains(url, in: base) else { return [] }
                 if let copies = rule.copies {
@@ -488,6 +506,17 @@ public struct Catalog: Sendable {
                     guard case .success(let inventory) = read else { notMeasured[rule.id, default: []].formUnion(rule.locations); return [] }
                     return rule.items == .simulatorDevices ? simulatorDevices(in: url, rule: rule, toolURL: toolURL, inventory: inventory, sizer: sizer)
                         : simulatorRuntimes(anchor: url, rule: rule, toolURL: toolURL, inventory: inventory)
+                }
+                if rule.items == .unavailableSimulators, let toolURL {
+                    let read = simulators[toolURL.path] ?? SimulatorInventory.read(toolURL)
+                    // Sized from the list, so measuring it again after a stopped run has a baseline (#209).
+                    if case .success(let inventory) = read {
+                        simulators[toolURL.path] = read
+                        return unavailableSimulators(in: url, rule: rule, toolURL: toolURL, inventory: inventory, sizer: sizer)
+                    }
+                    // Without the list it is offered at an unknown size, as before, and is never measured as gone. The
+                    // simulator rules read the list again and say why.
+                    notMeasured[rule.id, default: []].formUnion(rule.locations)
                 }
                 if case .docker(let kind) = rule.items, let toolURL {
                     guard case .success(let rows)? = dockerUsage[toolURL.path] else { return [] }

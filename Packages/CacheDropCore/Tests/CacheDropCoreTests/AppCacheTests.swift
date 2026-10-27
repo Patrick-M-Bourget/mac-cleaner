@@ -197,29 +197,79 @@ private func catalogWith(_ apps: Apps) -> Catalog {
     }
 }
 
-/// #171: Spotify's offline downloads can live in its cache folder. Folder names only, as observed on a Mac and as Spotify's
-/// community describes it; the files are placeholders.
+/// #171, #203: Spotify's offline downloads can live in its cache folder, under any folder name its Settings > Storage is given.
+/// They are recognized by an `offline.bnk` file anywhere inside, never by a folder's name. Placeholder files only.
 @Test func spotifysCacheFolderIsNeverOfferedWhileItHoldsOfflineDownloads() throws {
     let home = try fixtureHome()
     defer { try? FileManager.default.removeItem(at: home) }
     let spotify = InstalledApp(name: "Spotify", bundleID: "com.spotify.client", path: "/Applications/Spotify.app")
     let apps = Apps(installed: [spotify, editor])
-    // Observed layout: the streaming cache in Data and a web-view profile, nothing downloaded. Offered as before.
+    // The streaming cache in Data and a folder named Storage, nothing downloaded: offered as before.
     try write(home, "Library/Caches/com.spotify.client/Data/0c/chunk")
-    try write(home, "Library/Caches/com.spotify.client/Default/Cache/index")
+    try write(home, "Library/Caches/com.spotify.client/Storage/ab/chunk")
     // An app whose layout wasn't audited keeps today's behavior, whatever its folders are named.
-    try write(home, "Library/Caches/com.example.Editor/Storage/data")
+    try write(home, "Library/Caches/com.example.Editor/My Music/sub/offline.bnk")
     let caches = home.appendingPathComponent("Library/Caches").path
     let catalog = catalogWith(apps)
     let found = catalog.discover(fixture: home)
     #expect(Set(found.map(\.url.path)) == [caches + "/com.spotify.client", caches + "/com.example.Editor"])
 
-    // Offline downloads appear (Storage, offline.bnk) before the cleanup: the folder is refused.
+    // Downloads under a custom folder name appear before the cleanup: the folder is refused, and no longer offered.
     let offered = try #require(found.first { $0.appName == "Spotify" })
-    try write(home, "Library/Caches/com.spotify.client/Storage/ab/track")
+    try write(home, "Library/Caches/com.spotify.client/My Music/v2/sub/offline.bnk")
     #expect(CandidateCheck(catalog: catalog, running: Running()).check(offered) == .protected("Spotify’s offline downloads"))
     #expect(!catalog.discover(fixture: home).contains { $0.appName == "Spotify" })
-    try FileManager.default.removeItem(at: home.appendingPathComponent("Library/Caches/com.spotify.client/Storage"))
-    try write(home, "Library/Caches/com.spotify.client/offline.bnk")
-    #expect(!catalog.discover(fixture: home).contains { $0.appName == "Spotify" })
+}
+
+/// #203: a web-view profile in an app's cache folder (Cookies, Login Data or Local Storage) is never offered whole; only its
+/// Cache, Code Cache and GPUCache are, so cleaning never signs the user out of the app's web views. Placeholder files only.
+@Test func onlyTheCachesOfAWebViewProfileAreOffered() async throws {
+    let home = try fixtureHome()
+    defer { try? FileManager.default.removeItem(at: home) }
+    let chat = InstalledApp(name: "Chat", bundleID: "com.example.Chat", path: "/Applications/Chat.app")
+    let catalog = catalogWith(Apps(installed: [editor, chat]))
+    let app = "Library/Caches/com.example.Chat"
+    for entry in ["Cache.db", "Local State", "Data/chunk", "Default/Cookies", "Default/Login Data", "Default/Local Storage/leveldb/000003.log",
+                  "Default/Preferences", "Default/Cache/Cache_Data/data_0", "Default/Code Cache/js/index", "Default/GPUCache/data_1",
+                  "Partitions/help/Local Storage/leveldb/000003.log", "Partitions/help/GPUCache/data_1"] {
+        try write(home, app + "/" + entry)
+    }
+    try write(home, "Library/Caches/com.example.Editor/Cache.db")
+    let caches = home.appendingPathComponent("Library/Caches").path
+    let found = catalog.discover(fixture: home)
+    #expect(Set(found.map(\.url.path)) == [caches + "/com.example.Editor", caches + "/com.example.Chat/Default/Cache", caches + "/com.example.Chat/Default/Code Cache",
+                                           caches + "/com.example.Chat/Default/GPUCache", caches + "/com.example.Chat/Partitions/help/GPUCache"])
+    // Each part is the app's, so the plan shows them as one row for Chat.
+    #expect(found.filter { $0.url.path.contains("com.example.Chat") }.allSatisfy { $0.appName == "Chat" && $0.ruleID == "app-caches" })
+
+    let check = CandidateCheck(catalog: catalog, running: Running())
+    let gpu = try #require(found.first { $0.url.path == caches + "/com.example.Chat/Default/GPUCache" })
+    #expect(check.check(gpu) == nil)
+    let journal = try SQLiteCleanupJournal(url: home.appendingPathComponent("journal.sqlite"))
+    let run = CleanupExecutor(journal: journal, check: check, measure: { _ in nil }, trash: TrashNeverUsed())
+    #expect(try #require(await run.execute(CatalogApproval(candidates: [gpu], previewOnly: false)).records.first).state == .succeeded)
+    #expect(!FileManager.default.fileExists(atPath: caches + "/com.example.Chat/Default/GPUCache"))
+    for kept in ["Default/Cookies", "Default/Login Data", "Default/Local Storage/leveldb/000003.log", "Default/Cache/Cache_Data/data_0"] {
+        #expect(FileManager.default.fileExists(atPath: home.appendingPathComponent(app + "/" + kept).path), "\(kept)")
+    }
+}
+
+/// #203: the check just before acting refuses a whole app folder that gained sign-in data since the scan, and a profile
+/// cache whose folder no longer holds a web-view profile.
+@Test func theCheckRefusesSignInDataThatAppearedSinceTheScan() throws {
+    let home = try fixtureHome()
+    defer { try? FileManager.default.removeItem(at: home) }
+    let chat = InstalledApp(name: "Chat", bundleID: "com.example.Chat", path: "/Applications/Chat.app")
+    let catalog = catalogWith(Apps(installed: [chat]))
+    let check = CandidateCheck(catalog: catalog, running: Running())
+    try write(home, "Library/Caches/com.example.Chat/Default/Cache/data_0")
+    let whole = try #require(catalog.discover(fixture: home).first)
+    #expect(whole.url.lastPathComponent == "com.example.Chat")
+    try write(home, "Library/Caches/com.example.Chat/Default/Login Data")
+    #expect(check.check(whole) == .protected("Login Data"))
+
+    let part = try #require(catalog.discover(fixture: home).first)
+    #expect(part.url.path.hasSuffix("com.example.Chat/Default/Cache"))
+    try FileManager.default.removeItem(at: home.appendingPathComponent("Library/Caches/com.example.Chat/Default/Login Data"))
+    #expect(check.check(part) == .changed)
 }

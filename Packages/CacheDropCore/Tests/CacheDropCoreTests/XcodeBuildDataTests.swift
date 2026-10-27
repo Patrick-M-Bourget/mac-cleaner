@@ -127,7 +127,8 @@ private let devices = "Library/Developer/CoreSimulator/Devices"
     let candidate = try #require(catalog.discover(fixture: home, locateTool: onlyTool("simctl", simctl)).first)
     #expect(candidate.ruleID == "xcode-simulators")
     #expect(candidate.action == .tool)
-    // simctl removes only the unavailable devices, so the folder's total isn't what it frees.
+    // simctl removes only the unavailable devices, so the folder's total isn't what it frees. Without simctl's list
+    // (this stand-in prints none) their size is unknown; with it, they are sized (#209, DeveloperDevicesTests).
     #expect(SizeEstimate(candidate) == .unknown)
     let tool = try #require(catalog.rule("xcode-simulators")?.tool)
     #expect(tool.commandLine == "simctl delete unavailable")

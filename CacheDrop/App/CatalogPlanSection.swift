@@ -92,7 +92,7 @@ private struct PlanRuleItems: View {
     @Bindable var model: CatalogCleanupModel
     let rule: CleanupRule
     var body: some View {
-        if model.candidates(for: rule).contains(where: { $0.group != nil }) { CatalogProfileRows(model: model, rule: rule) }
+        if !rule.selectedOneByOne, model.candidates(for: rule).contains(where: { $0.group != nil }) { CatalogProfileRows(model: model, rule: rule) }
         else { CatalogItemRows(model: model, rule: rule) }
     }
 }
@@ -111,7 +111,7 @@ private struct PlanRuleRows: View {
                                                   estimate: model.sizeIsEstimate(for: rule)),
                                symbol: rule.offersFiles ? "doc.on.doc" : "folder", inspected: false,
                                inspect: { Finder.reveal(items.map(\.url)) }, detailLineLimit: 1) {
-                MacroCategoryCheckbox(state: state, label: rule.title, enabled: model.canEdit, action: { model.setSelected(rule, state != .checked) },
+                MacroCategoryCheckbox(state: state, label: rule.title, enabled: model.canEdit && !rule.selectedOneByOne, action: { model.setSelected(rule, state != .checked) },
                                       identifier: "planRule-" + rule.id, showsTitle: false).fixedSize()
             }.help(source.map { _ in rule.detail + "\n" + items.map(\.url.path).joined(separator: "\n") } ?? "")
             PlanRunningOwners(model: model, rule: rule).padding(.leading, CacheDropDesign.Space.xl).padding(.bottom, CacheDropDesign.Space.sm)

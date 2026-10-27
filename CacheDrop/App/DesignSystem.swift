@@ -70,6 +70,8 @@ enum StorageCategory {
     case cloud, developer, downloads, browser, managed, files
     /// Catalog categories that share the app-managed colour but each have their own symbol.
     case appCaches, models, appUpdates, logs
+    /// Leftovers of apps you removed (#173).
+    case leftovers
     /// App-managed storage rows (SPEC section 3): each place keeps the app-managed colour with its own symbol.
     case deviceBackups, mail, messages, photos, timeMachine, xcodeArchives, audioPlugIns
     var color: Color {
@@ -78,7 +80,7 @@ enum StorageCategory {
         case .developer: CacheDropDesign.purple
         case .downloads: CacheDropDesign.orange
         case .browser: CacheDropDesign.teal
-        case .managed, .appCaches, .models, .appUpdates, .logs, .deviceBackups, .mail, .messages, .photos, .timeMachine, .xcodeArchives, .audioPlugIns: CacheDropDesign.indigo
+        case .managed, .appCaches, .models, .appUpdates, .logs, .deviceBackups, .mail, .messages, .photos, .timeMachine, .xcodeArchives, .audioPlugIns, .leftovers: CacheDropDesign.indigo
         }
     }
     var symbol: String {
@@ -100,6 +102,7 @@ enum StorageCategory {
         case .timeMachine: "clock.arrow.circlepath"
         case .xcodeArchives: "archivebox"
         case .audioPlugIns: "pianokeys"
+        case .leftovers: "square.dashed"
         }
     }
 }

@@ -1,8 +1,8 @@
 import Foundation
 
 /// A stopped daemon-backed tool's item, measured again a little after the run (#190, Decision 45). The daemon may have
-/// finished the work after CacheDrop stopped waiting, so the record keeps "may still be finishing" and gains what the
-/// item measured then. It is an observation, never a change of the recorded outcome.
+/// finished the work after CacheDrop stopped waiting, so the record gains what the item measured then. Found gone, the
+/// outcome becomes removed, finished after the stop (#209); otherwise it keeps "may still be finishing".
 public struct LaterMeasurement: Codable, Sendable, Equatable {
     public enum Finding: Codable, Sendable, Equatable {
         /// The rule no longer offers the item: all of it went.
@@ -14,7 +14,11 @@ public struct LaterMeasurement: Codable, Sendable, Equatable {
     }
     public let measuredAt: Date
     public let finding: Finding
-    public init(measuredAt: Date, finding: Finding) { self.measuredAt = measuredAt; self.finding = finding }
+    /// How long after the run it was measured (#209); nil in journals written before, which measured once at 60 s.
+    public let afterSeconds: Int?
+    public init(measuredAt: Date, finding: Finding, afterSeconds: Int) {
+        self.measuredAt = measuredAt; self.finding = finding; self.afterSeconds = afterSeconds
+    }
 }
 
 extension Catalog {
@@ -39,12 +43,16 @@ extension Catalog {
 }
 
 extension CleanupRecord {
+    static let finishedAfterStopMessage = "Finished after you stopped it."
+    /// A stopped daemon-backed tool's item that a later measurement found gone (#209): its outcome reads "Removed".
+    public var finishedAfterStop: Bool { state == .succeeded && mayStillBeFinishing == true && laterMeasurement?.finding == .gone }
+
     /// One line for Results and History once the item was measured again; nil before then.
     public var laterMeasurementText: String? {
         guard let finding = laterMeasurement?.finding else { return nil }
         let scanned = allocatedBytes ?? logicalBytes
         func size(_ bytes: Int64) -> String { ByteCountFormatter.string(fromByteCount: bytes, countStyle: .decimal) }
-        let later = Self.laterMeasurementWhen
+        let later = Self.laterMeasurementWhen(laterMeasurement?.afterSeconds ?? 60)
         switch finding {
         case .gone: return "Measured again \(later): it’s gone (\(size(scanned)) at the scan)."
         case .remaining(let bytes) where bytes < scanned:
@@ -54,9 +62,8 @@ extension CleanupRecord {
         }
     }
 
-    /// When the item was measured again, from `CleanupExecutor.laterMeasurementDelay`: "a minute later".
-    static var laterMeasurementWhen: String {
-        let seconds = CleanupExecutor.laterMeasurementDelay.components.seconds
+    /// When the item was measured again: "a minute later", "5 minutes later".
+    static func laterMeasurementWhen(_ seconds: Int) -> String {
         if seconds == 60 { return "a minute later" }
         let formatter = DateComponentsFormatter()
         formatter.unitsStyle = .full; formatter.allowedUnits = [.minute, .second]

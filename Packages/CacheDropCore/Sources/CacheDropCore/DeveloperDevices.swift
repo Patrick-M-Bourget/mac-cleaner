@@ -46,7 +46,7 @@ extension CatalogItems {
     public var choosesEachItem: Bool {
         switch self {
         case .ollamaModels, .simulatorRuntimes, .simulatorDevices, .androidVirtualDevices, .androidSystemImages: true
-        case .docker: false
+        case .docker, .unavailableSimulators: false
         }
     }
 }
