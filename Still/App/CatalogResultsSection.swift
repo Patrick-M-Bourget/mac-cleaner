@@ -73,8 +73,11 @@ private struct CatalogResultRow: View {
                     .lineLimit(1).help(record.originalURL.path)
                 Spacer(minLength: StillDesign.Space.md)
                 if record.state == .succeeded, let trashed = record.trashURL {
-                    Button("Reveal in Trash") { Finder.reveal([trashed]) }.buttonStyle(.link)
-                        .accessibilityLabel("Reveal \(record.originalURL.lastPathComponent) in Trash")
+                    if TrashModel.shared.putBackOutcomes[record.id] == nil {
+                        Button("Reveal in Trash") { Finder.reveal([trashed]) }.buttonStyle(.link)
+                            .accessibilityLabel("Reveal \(record.originalURL.lastPathComponent) in Trash")
+                    }
+                    PutBackLink(record: record)
                 }
                 Text(record.outcomeTitle).font(StillDesign.TypeStyle.note)
                 Text(catalogBytes(record.recordedBytes)).font(StillDesign.TypeStyle.note).monospacedDigit().foregroundStyle(.secondary)

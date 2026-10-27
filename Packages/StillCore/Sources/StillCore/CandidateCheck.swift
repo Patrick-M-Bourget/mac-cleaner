@@ -12,6 +12,8 @@ public enum CheckRefusal: Sendable, Equatable {
     case inUse(String), inUseUnknown(String)
     case keptDownloaded, notUploaded, conflicted, notDownloaded, cloudUnknown
     case guidanceOnly
+    /// A project's build folder (#157) is kept while the project is being worked on.
+    case projectOpen, projectUnchecked, recentlyEdited, uncommittedChanges, trackedByGit
     public var reason: String {
         switch self {
         case .missing: "No longer exists."
@@ -30,6 +32,11 @@ public enum CheckRefusal: Sendable, Equatable {
         case .notDownloaded: "No local copy to remove."
         case .cloudUnknown: "Couldn’t read its iCloud status. Its local copy stays."
         case .guidanceOnly: "Guidance only. CacheDrop never changes it; manage it in its own app."
+        case .projectOpen: "Its project is open in an app or tool. It is kept."
+        case .projectUnchecked: "Couldn’t check whether its project is in use, so it is kept."
+        case .recentlyEdited: "Its project changed in the last \(ProjectBuilds.recentDays) days. It is kept."
+        case .uncommittedChanges: "Its project has uncommitted changes. It is kept."
+        case .trackedByGit: "Git tracks files in it. It is kept."
         }
     }
 }
@@ -93,7 +100,7 @@ public struct CandidateCheck: Sendable {
     /// Whether checking this candidate asks what processes have open: leaked copies and old temporary items.
     public func needsInUseCheck(_ candidate: Candidate) -> Bool {
         guard let rule = catalog.rule(candidate.ruleID) else { return false }
-        return rule.copies != nil || rule.unused != nil
+        return rule.copies != nil || rule.unused != nil || rule.id == ProjectBuilds.ruleID
     }
     public func check(_ candidate: Candidate) -> CheckRefusal? {
         // Guidance-only data is never acted on, whatever the candidate or its rule says (SPEC section 3).
@@ -140,6 +147,8 @@ public struct CandidateCheck: Sendable {
             guard let used = inUse.inUse([candidate.url], by: .anyApp) else { return .inUseUnknown(RuleOwner.anyApp.name) }
             if !used.isEmpty { return .inUse(RuleOwner.anyApp.name) }
         }
+        // A project being worked on keeps its build folders (#157).
+        if rule.id == ProjectBuilds.ruleID, let refusal = ProjectBuilds.refusal(for: candidate.url, inUse: inUse, home: home) { return refusal }
         // A system image a virtual device started using since the scan is kept (#134).
         if rule.items == .androidSystemImages, AndroidSDK.referencedImages(home: home).map({ $0.contains(AndroidSDK.key(candidate.url)) }) ?? true {
             return .inUse("An Android virtual device")

@@ -118,7 +118,7 @@ private struct PlanRuleRows: View {
                                       identifier: "planRule-" + rule.id, showsTitle: false).fixedSize()
             }
             PlanRunningOwners(model: model, rule: rule).padding(.leading, StillDesign.Space.xl).padding(.bottom, StillDesign.Space.sm)
-            if rule.choosesItems { CatalogItemRows(model: model, rule: rule).padding(.leading, StillDesign.Space.xl) }
+            if rule.choosesItems && !rule.groupsByProject { CatalogItemRows(model: model, rule: rule).padding(.leading, StillDesign.Space.xl) }
             else if items.contains(where: { $0.group != nil }) { CatalogProfileRows(model: model, rule: rule).padding(.leading, StillDesign.Space.xl) }
             Divider()
         }

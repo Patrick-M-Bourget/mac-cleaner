@@ -42,6 +42,8 @@ public struct CleanupRecord: Codable, Sendable, Identifiable {
     public var itemName: String? = nil
     /// What a per-item tool command took for it, such as a simulator's UDID; nil in older journals.
     public var toolItem: String? = nil
+    /// On a put-back record (#159), the id of the Trash move it undoes; nil on every other record and in older journals.
+    public var putBackOf: String? = nil
 }
 public protocol CleanupJournaling: Sendable {
     /// Writes every record as pending in one transaction; false when the batch was already claimed.

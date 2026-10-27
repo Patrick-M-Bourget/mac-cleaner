@@ -10,7 +10,12 @@ struct StillApp: App {
     @AppStorage(MenuBarItemPreference.key) private var showsMenuBarItem = true
     /// Runs before AppKit finishes launching, so saved window state is ignored before it can be restored.
     /// Still's state is copied first, before anything reads CacheDrop's (#149).
-    init() { LocalStateLocation.migrateFromStill(); AppLaunchPolicy.registerDefaults() }
+    /// The first-run welcome is decided from what was there before (#158).
+    init() {
+        let stateExisted = LocalStateLocation.stateFolderExists
+        WelcomeModel.shared.decideAtLaunch(migration: LocalStateLocation.migrateFromStill(), stateExisted: stateExisted)
+        AppLaunchPolicy.registerDefaults()
+    }
     var body: some Scene {
         Window("CacheDrop", id: "workspace") {
             WorkspaceView(alerts: lifecycle.alerts)
@@ -23,6 +28,9 @@ struct StillApp: App {
             }
             CommandGroup(after: .toolbar) {
                 Button("Scan again") { lifecycle.scanAgain?() }.keyboardShortcut("r")
+            }
+            CommandGroup(after: .help) {
+                Button("Welcome to CacheDrop") { lifecycle.openWorkspace?(); WelcomeModel.shared.isShowing = true }
             }
         }
         Settings { StillSettingsView() }
@@ -117,6 +125,7 @@ private struct WorkspaceView: View {
     private var scanOrigin: Destination { get { navigationState.scanOrigin } nonmutating set { navigationState.scanOrigin = newValue } }
     @State private var locationToForget: RememberedScope?
     @State private var capacity = AppLifecycleController.shared.capacity
+    @Bindable private var welcome = WelcomeModel.shared
     private var startupCapacity: StartupCapacityReading? { capacity.reading }
     private var showsSmartClean: Bool { destination == .smartClean && !navigationState.localRecordsVisible && !recoveryVisible && !nativeInspectionVisible && !homebrewVisible && !pipVisible && !diagnosticsVisible && !exclusionsVisible && !navigationState.appManagedVisible }
     private var showsPlan: Bool { destination == .plan && !navigationState.localRecordsVisible && !recoveryVisible && !nativeInspectionVisible && !homebrewVisible && !pipVisible && !diagnosticsVisible && !exclusionsVisible }
@@ -307,6 +316,7 @@ private struct WorkspaceView: View {
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in Task { await selection.catalog.rescanIfFullDiskAccessGranted() } }
         .onReceive(NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.didWakeNotification)) { _ in Task { await alerts.activated() } }
         .toolbar { contextToolbar }
+        .sheet(isPresented: $welcome.isShowing) { FirstRunWelcomeView(model: welcome) { AppLifecycleController.shared.scanAgain?() } }
     }
 
     @ToolbarContentBuilder private var contextToolbar: some ToolbarContent {
