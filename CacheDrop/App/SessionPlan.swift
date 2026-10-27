@@ -160,6 +160,11 @@ enum PlanReviewError: Error { case changed, nothingToClean }
     func reset() { search = ""; choosingItems = false; inspected = nil; offset = nil; expandedCategories = [] }
 }
 
+/// Smart clean's open categories (#219): its own, separate from the plan's, kept until CacheDrop quits. Categories start collapsed.
+@MainActor @Observable final class SmartCleanPresentation {
+    var expandedCategories: Set<CatalogCategory> = []
+}
+
 struct LiveCleanupPlanView: View {
     @Bindable var selection: SessionPlan
     var viewHistory: (() -> Void)? = nil

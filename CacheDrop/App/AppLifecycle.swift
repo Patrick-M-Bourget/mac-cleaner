@@ -28,6 +28,7 @@ import CacheDropCore
     let workspaceNavigation = WorkspaceNavigation()
     let locations = RememberedLocations()
     let planPresentation = CleanupPlanPresentation()
+    let smartCleanPresentation = SmartCleanPresentation()
     let downloadsExplorer = StorageExplorerContext()
     let locationsExplorer = StorageExplorerContext()
     lazy var inspection = FolderInspection(selection: selection)
