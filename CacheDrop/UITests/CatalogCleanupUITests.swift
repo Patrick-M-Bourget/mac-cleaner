@@ -858,8 +858,8 @@ extension CatalogCleanupUITests {
         XCTAssertTrue(openLargeAndOld(app).waitForExistence(timeout: 30))
     }
 
-    /// #227: the explorer's back button names its destination; a folder that went away leaves only the back button to
-    /// the list of locations.
+    /// #227, #228: the explorer's back buttons name their destination. The Cleanup plan opened from the explorer goes back to
+    /// "Explore storage", and a folder that went away leaves only the back button to the list of locations.
     @MainActor func testExplorerBackButtonsNameTheirDestination() throws {
         continueAfterFailure = false
         let app = XCUIApplication()
@@ -881,6 +881,13 @@ extension CatalogCleanupUITests {
         XCTAssertTrue(explore.waitForExistence(timeout: 20))
         explore.click()
         app.buttons["Open folder " + folder.lastPathComponent].click()
+        XCTAssertTrue(app.textFields["explorerSearch"].waitForExistence(timeout: 5))
+
+        // #228: the plan's back button names the explorer page by its title.
+        actionStrip(app).buttons["Review plan"].click()
+        let back = app.buttons["Back to Explore storage"]
+        assertBackButton(back, isAbove: "Cleanup plan", in: app)
+        back.click()
         XCTAssertTrue(app.textFields["explorerSearch"].waitForExistence(timeout: 5))
 
         // #227: the folder is gone after a recheck; only the shared back button leads to the list of locations.

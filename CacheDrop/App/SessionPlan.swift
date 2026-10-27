@@ -171,7 +171,7 @@ struct LiveCleanupPlanView: View {
     var newPlan: (() -> Void)? = nil
     var reviewRecovery: (() -> Void)? = nil
     var backToExplorer: (() -> Void)? = nil
-    var backToExplorerDestination = "Explorer"
+    var backToExplorerDestination = "Explore storage"
     @Bindable var presentation: CleanupPlanPresentation
     @State private var review: WorkspaceCleanupReview?
     @State private var approvalError: String?

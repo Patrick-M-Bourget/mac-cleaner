@@ -212,7 +212,7 @@ private struct WorkspaceView: View {
                         viewHistory: { destination = .history }, newPlan: startNewPlan,
                         reviewRecovery: { openRecovery(caller: .plan) },
                         backToExplorer: navigationState.planReturnsToGrowth ? { navigationState.planReturnsToGrowth = false; destination = .growth } : planReturnsToExplorer ? { nativeInspectionVisible = true; planReturnsToExplorer = false } : nil,
-                        backToExplorerDestination: navigationState.planReturnsToGrowth ? Destination.growth.rawValue : "Explorer",
+                        backToExplorerDestination: navigationState.planReturnsToGrowth ? Destination.growth.rawValue : explorerContext.title,
                         presentation: planPresentation)
                 } else if showsSmartClean {
                     SmartCleanView(selection: selection, openPlan: { openPlan($0) }, viewHistory: { navigate(.history) }, reviewRecovery: { openRecovery(caller: .smartClean) })
