@@ -1,6 +1,6 @@
 # CacheDrop: macOS storage cleaner
 
-A native, local-first macOS app. It finds space you can reclaim on your Mac and cleans what you choose. It was called Still while in development; the code, targets and repo still use that name (Decision 32).
+A native, local-first macOS app. It finds space you can reclaim on your Mac and cleans what you choose. It was called Still while in development (Decisions 32 and 34); the GitHub repository keeps the name mac-cleaner.
 
 - **Plan and decisions:** [docs/RESET.md](docs/RESET.md); work is tracked in issue #75.
 - **Behavior spec:** [docs/SPEC.md](docs/SPEC.md).

@@ -16,9 +16,9 @@ jobs:
       - uses: maxim-lobanov/setup-xcode@v1
         with:
           xcode-version: '26.6'
-      - name: StillCore tests
-        run: xcrun swift test --package-path Packages/StillCore
+      - name: CacheDropCore tests
+        run: xcrun swift test --package-path Packages/CacheDropCore
       - name: StorageAlerts tests
-        run: xcrun swift test --package-path Still/Packages/StorageAlerts
+        run: xcrun swift test --package-path CacheDrop/Packages/StorageAlerts
       - name: Build app
-        run: xcodebuild build -project Still/Still.xcodeproj -scheme Still -configuration Debug -destination 'platform=macOS' -derivedDataPath .build/xcode
+        run: xcodebuild build -project CacheDrop/CacheDrop.xcodeproj -scheme CacheDrop -configuration Debug -destination 'platform=macOS' -derivedDataPath .build/xcode
