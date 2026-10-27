@@ -55,7 +55,7 @@ struct CatalogConfirmationSection: View {
                 Divider()
             }
             // What an uninstall leaves, and why (#177).
-            ForEach(review.staying, id: \.self) { line in StatusRow(text: line, symbol: "info.circle", identifier: "reviewStaying") }
+            ForEach(review.staying) { line in StatusRow(text: line.text, symbol: "info.circle", identifier: "reviewStaying-" + line.id) }
         }
     }
     private func files(_ rule: CleanupRule, _ items: [Candidate]) -> some View {

@@ -31,6 +31,9 @@ public enum AppUninstall {
         public let path: String
         /// Its login items, helpers and XPC services' bundle IDs (#281).
         public var helpers: [String] = []
+        /// Its files that stay whatever is ticked: those that need a password, and those the Cleanup plan already offers (#281).
+        public var needsPassword = 0
+        public var inPlan = 0
         /// The app must be closed first (Decision 29): its bundle ID, its helpers' and any process run from inside it (#281).
         public var owner: RuleOwner { RuleOwner(name: name, bundleIDs: [bundleID] + helpers, paths: [path]) }
     }
@@ -47,22 +50,25 @@ public enum AppUninstall {
 
     /// The app and its files, ready to tick; nothing when the app isn't offered or needs a password to remove (Decision 50).
     /// `leftovers` are what the scan already finds with the app installed: they belong to removed apps, not to this one.
+    /// What the Cleanup plan `offered` stays there, so no space is offered twice.
     public static func scan(_ app: InstalledApp, excluding ownBundleID: String?, home: URL, apps: any AppPresence, receipts: any InstallerReceiptReading,
-                            leftovers: [Candidate], exclusions: ExclusionPolicy = ExclusionPolicy(), sizer: KnownLocationSizer = KnownLocationSizer()) -> [Candidate] {
+                            leftovers: [Candidate], offered: [Candidate] = [], exclusions: ExclusionPolicy = ExclusionPolicy(),
+                            sizer: KnownLocationSizer = KnownLocationSizer()) -> [Candidate] {
         let url = URL(fileURLWithPath: app.path).standardizedFileURL
         var info = stat()
         guard ApplicationsInventory.isListed(app, excluding: ownBundleID), Removability.canMoveToTrash(url), lstat(url.path, &info) == 0,
               // An excluded app is never offered, nor its files (SPEC section 2).
               let volume = try? url.resourceValues(forKeys: [.volumeUUIDStringKey]).volumeUUIDString, !exclusions.covers(url, volumeID: volume) else { return [] }
-        let target = Target(name: app.name, bundleID: app.bundleID, path: url.path, helpers: helperIDs(of: url))
         let catalog = Catalog(rules: rules), size = sizer.size(url)
         var bundle = catalog.candidate(rules[0], url, info, logical: size.logicalBytes, allocated: size.allocatedBytes, complete: size.complete, lastUsed: nil)
         bundle = bundle.found(under: url.deletingLastPathComponent())
         let skipped = Set(leftovers.map(\.url.path))
-        let files = RemovedAppLeftovers.scan(home: home, apps: Without(app: app, url: url, in: apps), receipts: receipts, exclusions: exclusions,
+        let found = RemovedAppLeftovers.scan(home: home, apps: Without(app: app, url: url, in: apps), receipts: receipts, exclusions: exclusions,
                                              sizer: sizer, skipping: skipped)
-            .filter { Removability.canMoveToTrash($0.url) }
-            .map { $0.uninstalled(with: target, ruleID: $0.ruleID == RemovedAppLeftovers.ruleID ? filesRuleID : possiblyRelatedRuleID) }
+        let notInPlan = RemovedAppLeftovers.notOffered(by: offered, found), removable = notInPlan.filter { Removability.canMoveToTrash($0.url) }
+        let target = Target(name: app.name, bundleID: app.bundleID, path: url.path, helpers: helperIDs(of: url),
+                            needsPassword: notInPlan.count - removable.count, inPlan: found.count - notInPlan.count)
+        let files = removable.map { $0.uninstalled(with: target, ruleID: $0.ruleID == RemovedAppLeftovers.ruleID ? filesRuleID : possiblyRelatedRuleID) }
         bundle.uninstall = target
         return [bundle] + files
     }
@@ -87,17 +93,21 @@ public enum AppUninstall {
         return Removability.canMoveToTrash(url) ? nil : .notPermitted
     }
 
-    /// The review's "what stays and why": for each app being uninstalled, its offered items left unticked.
-    public static func staying(chosen: [Candidate], offered: [Candidate]) -> [String] {
+    /// One line of the review's "what stays and why" (Decision 51: "<N> parts stay"), one per app and reason.
+    public struct Staying: Sendable, Equatable, Identifiable {
+        public let id: String
+        public let text: String
+    }
+    /// For each app being uninstalled: its items left unticked, those that need a password, and those the plan offers.
+    public static func staying(chosen: [Candidate], offered: [Candidate]) -> [Staying] {
         let ids = Set(chosen.map(\.id))
         var apps: [Target] = []
         for item in chosen { if let app = item.uninstall, !apps.contains(app) { apps.append(app) } }
-        return apps.compactMap { app in
-            let left = offered.filter { $0.uninstall == app && !ids.contains($0.id) }
-            guard !left.isEmpty else { return nil }
-            let related = left.filter { $0.ruleID == possiblyRelatedRuleID }.count
-            let what = left.count == 1 ? "1 item" : "\(left.count) items"
-            return "\(what) of \(app.name) stay because you didn’t tick them" + (related > 0 ? " (\(related) possibly related)." : ".")
+        return apps.flatMap { app in
+            let unticked = offered.filter { $0.uninstall == app && !ids.contains($0.id) }.count
+            return [("unticked", unticked, "Not ticked"), ("password", app.needsPassword, "Needs your password"), ("plan", app.inPlan, "In the Cleanup plan")]
+                .filter { $0.1 > 0 }
+                .map { Staying(id: app.path + "-" + $0.0, text: "\(app.name): " + ($0.1 == 1 ? "1 part stays" : "\($0.1) parts stay") + " · " + $0.2) }
         }
     }
 

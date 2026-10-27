@@ -177,9 +177,27 @@ private struct Processes: ProcessListing {
     let found = scan(home, synth, apps)
     let chosen = found.filter { $0.ruleID != AppUninstall.possiblyRelatedRuleID }
 
-    #expect(AppUninstall.staying(chosen: chosen, offered: found) == ["1 item of Synth stay because you didn’t tick them (1 possibly related)."])
+    #expect(AppUninstall.staying(chosen: chosen, offered: found).map(\.text) == ["Synth: 1 part stays · Not ticked"])
     #expect(AppUninstall.staying(chosen: found, offered: found).isEmpty)
     #expect(AppUninstall.byPlace(chosen).map(\.place.lastPathComponent) == ["Applications", "Containers", "Preferences"])
+}
+
+@Test func theReviewCountsWhatNeedsAPasswordAndWhatThePlanAlreadyOffers() throws {
+    let (home, synth, apps) = try fixture()
+    let prefs = home.appendingPathComponent("Library/Preferences")
+    defer { chmod(prefs.path, 0o755); try? FileManager.default.removeItem(at: home) }
+    let container = home.appendingPathComponent("Library/Containers/com.maker.synth")
+    // The Cleanup plan already offers the container through another rule.
+    let planItem = try #require(scan(home, synth, apps).first { $0.url == container })
+    chmod(prefs.path, 0o555)
+
+    let leftovers = RemovedAppLeftovers.scan(home: home, apps: apps, receipts: NoReceipts())
+    let found = AppUninstall.scan(synth, excluding: nil, home: home, apps: apps, receipts: NoReceipts(), leftovers: leftovers, offered: [planItem])
+
+    #expect(!found.contains { $0.url == container || $0.url.deletingLastPathComponent() == prefs })
+    let lines = AppUninstall.staying(chosen: found, offered: found)
+    #expect(lines.map(\.text) == ["Synth: 1 part stays · Needs your password", "Synth: 1 part stays · In the Cleanup plan"])
+    #expect(Set(lines.map(\.id)).count == 2, "Each line has its own identifier")
 }
 
 @Test func anUninstalledAppsItemsAreChosenOnTheApplicationsPage() throws {

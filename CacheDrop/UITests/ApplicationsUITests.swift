@@ -116,7 +116,8 @@ final class ApplicationsUITests: XCTestCase {
 
         app.buttons["Review cleanup"].click()
         XCTAssertTrue(reviewLine(app, "movedToTrash", "apps").waitForExistence(timeout: 5))
-        XCTAssertTrue(app.staticTexts["1 item of Synth stay because you didn’t tick them (1 possibly related)."].exists, "The review says what stays")
+        let staying = element(app, "reviewStaying-" + synth.path + "-unticked", .staticText)
+        XCTAssertEqual(staying.value as? String, "Synth: 1 part stays · Not ticked", "The review says what stays")
         cleanUpFromReview(app)
         XCTAssertTrue(app.buttons["View history"].waitForExistence(timeout: 20))
         XCTAssertFalse(FileManager.default.fileExists(atPath: synth.path), "The app went to the Trash")

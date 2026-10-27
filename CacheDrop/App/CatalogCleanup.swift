@@ -329,8 +329,8 @@ import SwiftUI
             // Installed apps with their files (#177), each read once; receipts are read once for all of them.
             let readReceipts = ReadReceipts(receipts.receipts())
             let apps = (presence.installedApps() ?? []).flatMap { app in
-                RemovedAppLeftovers.notOffered(by: discovered.candidates, AppUninstall.scan(app, excluding: own, home: home, apps: presence, receipts: readReceipts,
-                                                                                            leftovers: found, exclusions: exclusions))
+                AppUninstall.scan(app, excluding: own, home: home, apps: presence, receipts: readReceipts, leftovers: found, offered: discovered.candidates,
+                                  exclusions: exclusions)
             }
             var owners: [String: RuleOwner] = [:], names: [String: String] = [:]
             for candidate in discovered.candidates + leftovers + apps { if let owner = catalog.owner(for: candidate) { owners[owner.name] = owner; names[candidate.id] = owner.name } }
@@ -498,7 +498,7 @@ struct CatalogReview {
     let approval: CatalogApproval
     let refusals: [String: CheckRefusal]
     /// What an uninstall leaves and why (#177).
-    var staying: [String] = []
+    var staying: [AppUninstall.Staying] = []
 }
 
 extension CatalogCategory {
