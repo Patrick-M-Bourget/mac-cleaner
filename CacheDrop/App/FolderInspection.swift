@@ -179,10 +179,15 @@ final class FolderInspection {
     }
 
     #if DEBUG
-    /// A disposable test run can hold a folder scan open (`CACHEDROP_TEST_FOLDER_SCAN_PAUSE`, seconds, at most 10) after it
-    /// has read the folder, so a UI journey sees its progress in the bottom bar (#235). Stop scan ends the wait. Never set outside tests.
+    /// A disposable test run can hold a folder scan open (`CACHEDROP_TEST_FOLDER_SCAN_PAUSE`: seconds, at most 10, or `hold`
+    /// to wait until Stop scan, #284) after it has read the folder, so a UI journey sees its progress in the bottom bar (#235).
+    /// Stop scan ends the wait. Never set outside tests.
     private static func pauseForTests() async throws {
-        guard LocalStateLocation.isDisposableTest, let pause = ProcessInfo.processInfo.environment["CACHEDROP_TEST_FOLDER_SCAN_PAUSE"].flatMap(Double.init), pause > 0 else { return }
+        guard LocalStateLocation.isDisposableTest, let value = ProcessInfo.processInfo.environment["CACHEDROP_TEST_FOLDER_SCAN_PAUSE"] else { return }
+        if value == "hold" {
+            while true { try await Task.sleep(for: .seconds(60)) }
+        }
+        guard let pause = Double(value), pause > 0 else { return }
         try await Task.sleep(for: .seconds(min(pause, 10)))
     }
     #endif

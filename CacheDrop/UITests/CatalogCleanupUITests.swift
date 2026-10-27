@@ -1385,7 +1385,8 @@ final class FolderScanProgressUITests: XCTestCase {
         let folder = FileManager.default.temporaryDirectory.resolvingSymlinksInPath().appendingPathComponent("CacheDropPicked-" + UUID().uuidString)
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         for index in 0..<5 { try Data(repeating: 1, count: 4_000).write(to: folder.appendingPathComponent("entry-\(index).zip")) }
-        app.launchEnvironment["CACHEDROP_TEST_FOLDER_SCAN_PAUSE"] = "10"
+        // The scan holds until Stop scan, so a slow, loaded run can't finish it before the journey ends (#284).
+        app.launchEnvironment["CACHEDROP_TEST_FOLDER_SCAN_PAUSE"] = "hold"
         defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home); try? FileManager.default.removeItem(at: folder) }
         app.launch()
         XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
@@ -1417,7 +1418,7 @@ final class FolderScanProgressUITests: XCTestCase {
         XCTAssertEqual(toolbarItems(), before, "The toolbar is unchanged during the scan")
 
         // Away from it, on Storage trends and History: Stop scan and Return to scan.
-        for key in ["4", "5"] {
+        for key in ["4", "6"] {
             app.typeKey(key, modifierFlags: .command)
             XCTAssertTrue(actionStrip(app).buttons["Return to scan"].waitForExistence(timeout: 5), key)
             XCTAssertTrue(actionStrip(app).buttons["Stop scan"].exists, key)
