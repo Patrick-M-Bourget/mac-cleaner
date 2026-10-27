@@ -330,3 +330,18 @@ private func names(_ items: [Candidate]) -> Set<String> { Set(items.map(\.url.la
     try receipt("com.maker.proverb.pkg", listing: [plugIns + "VST3/Pro Verb.vst3", support + "Pro Synth/Presets/Init.preset"], in: root)
     #expect(check(home).check(presets) == .changed, "Read again before acting: it is shared now")
 }
+
+@Test func aSuiteFolderHoldingEachProductsFolderIsNeverOfferedWholeOnlyTheNarrowestFolders() throws {
+    let (root, home) = try fixture()
+    defer { try? FileManager.default.removeItem(at: root) }
+    let maker = "Library/Application Support/Maker"
+    try FileManager.default.removeItem(at: root.appendingPathComponent(support + "Pro Synth/License.dat"))
+    // Only the suite receipt lists the maker's folder, with each product's folder and the shared one in it.
+    try receipt("com.maker.prosynth.pkg", listing: [plugIns + "Components/Pro Synth.component", plugIns + "VST3/Pro Synth.vst3"], in: root)
+    try receipt("com.maker.prodelay.pkg", listing: [plugIns + "VST3/Pro Delay.vst3"], in: root)
+    try receipt("com.maker.suite.pkg", listing: [plugIns + "VST3/Pro Synth.vst3", plugIns + "VST3/Pro Delay.vst3", maker], in: root)
+    let (_, items) = scan(root, home)
+
+    #expect(!items.contains { $0.url.path == root.appendingPathComponent(maker).path }, "Never the folder above both products' files")
+    #expect(names(items.filter { $0.ruleID == PlugInUninstall.sharedRuleID }).isSuperset(of: ["Shared", "Pro Synth", "Pro Delay"]))
+}

@@ -68,6 +68,7 @@ public enum PlugInUninstall {
                 .found(under: url.deletingLastPathComponent())
         }
         let taken = RemovedAppLeftovers.notOffered
+        let productNames = Set(products.map { RemovedAppLeftovers.token($0.name) }.filter { !$0.isEmpty })
         var targets: [String: AppUninstall.Target] = [:]
         let appEntries = apps.map { InventoryEntry(id: $0.path, name: $0.name, maker: $0.maker, volume: nil, parts: [], bundleID: $0.bundleID) }
         for product in products {
@@ -101,7 +102,7 @@ public enum PlugInUninstall {
             }
             for receipt in product.receipts {
                 let listed = receipts.byReceipt[receipt] ?? []
-                for url in supportRoots(listed, systemRoot: systemRoot) {
+                for url in supportRoots(listed, systemRoot: systemRoot, receipts: receipts, products: productNames) {
                     guard let listers = receipts.listers(of: url.path), let ids = sharers(url.path) else { continue }
                     if ids.count > 1 { if shared[url.path] == nil, let found = item(rules[2], url) { shared[url.path] = found.shared(by: ids, receipt: receipt).installed(by: listers) }; continue }
                     guard var file = item(rules[1], url).map({ $0.installed(by: listers) }) else { continue }
@@ -135,14 +136,14 @@ public enum PlugInUninstall {
 
     /// The items a receipt installed whole: the shallowest listed paths in a support place whose every entry on disk the
     /// receipt lists, so a maker's folder that other products also fill is never taken, only this product's folder in it.
-    static func supportRoots(_ listed: Set<String>, systemRoot: URL) -> [URL] {
+    static func supportRoots(_ listed: Set<String>, systemRoot: URL, receipts: ReceiptListings = ReceiptListings([:]), products: Set<String> = []) -> [URL] {
         let base = systemRoot.standardizedFileURL.path.hasSuffix("/") ? systemRoot.standardizedFileURL.path : systemRoot.standardizedFileURL.path + "/"
         var roots: [String] = []
         for path in listed.sorted(by: { ($0.split(separator: "/").count, $0) < ($1.split(separator: "/").count, $1) }) {
             guard path.hasPrefix(base), !roots.contains(where: { path.hasPrefix($0 + "/") }) else { continue }
             let relative = String(path.dropFirst(base.count))
             guard let place = supportPlaces.first(where: relative.hasPrefix), relative.count > place.count, !touchesPlugIns(path, listed, systemRoot: systemRoot),
-                  isWhollyListed(path, listed) else { continue }
+                  isWhollyListed(path, listed), !holdsOthers(path, receipts: receipts, products: products) else { continue }
             roots.append(path)
         }
         return roots.map { URL(fileURLWithPath: $0) }
@@ -155,6 +156,18 @@ public enum PlugInUninstall {
         let folders = PlugInInventory.folders.filter { $0.location.hasPrefix("/") }.map { systemRoot.appendingPathComponent(String($0.location.dropFirst())).standardizedFileURL.path }
         if folders.contains(where: { $0 == path || path.hasPrefix($0 + "/") || $0.hasPrefix(path + "/") }) { return true }
         return listed.contains { $0.hasPrefix(path + "/") && extensions.contains(URL(fileURLWithPath: $0).pathExtension.lowercased()) }
+    }
+    /// The narrowest roots (#291): never a folder holding things different receipts installed (each product's folder in a
+    /// maker's), nor one holding a folder named for a product (a suite's `Vendor/ProductA`); its folders are offered instead.
+    static func holdsOthers(_ path: String, receipts: ReceiptListings, products: Set<String>) -> Bool {
+        guard let walk = FileManager.default.enumerator(atPath: path) else { return false }
+        var installers: Set<Set<String>> = []
+        while let relative = walk.nextObject() as? String {
+            if relative.split(separator: "/").contains(where: { products.contains(RemovedAppLeftovers.token(String($0))) }) { return true }
+            if let listers = receipts.byPath[path + "/" + relative] { installers.insert(listers) }
+            if installers.count > 1 { return true }
+        }
+        return false
     }
     static func isWhollyListed(_ path: String, _ listed: Set<String>) -> Bool { listed.contains(path) && listingRefusal(path, listed) == nil }
     /// Why a support item may not be moved as its receipt installed it (#288): it holds license data (refused by name), or an
