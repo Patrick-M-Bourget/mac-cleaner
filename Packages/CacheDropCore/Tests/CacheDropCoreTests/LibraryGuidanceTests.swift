@@ -53,7 +53,8 @@ private func write(_ bytes: Int, at relative: String, in home: URL) throws {
     let home = try libraryHome()
     defer { try? FileManager.default.removeItem(at: home) }
     try write(4096, at: "Pictures/Photos Library.photoslibrary/a", in: home)
-    let finding = Catalog(rules: fixtureRules).guidance(home: home, systemRoot: home, snapshots: FixtureSnapshots(), fullDiskAccess: .notGranted)
+    let finding = Catalog(rules: fixtureRules).guidance(home: home, systemRoot: home, snapshots: FixtureSnapshots(), fullDiskAccess: .notGranted,
+                                                        appPresence: FixedAppPresence(apps: [], registered: { _ in false }))
         .first { $0.ruleID == "photos-library" }
     #expect(finding?.size == .notAccessible && finding?.libraries == nil)
 }
@@ -156,8 +157,38 @@ private final class StuckReader: @unchecked Sendable {
     defer { reader.release.signal() }
 
     let finding = Catalog(rules: fixtureRules).guidance(home: home, systemRoot: system, sizer: KnownLocationSizer(timeBudget: 0.5),
-                                                        snapshots: FixtureSnapshots(), libraryVolumes: reader.volumes())
+                                                        snapshots: FixtureSnapshots(), appPresence: registered([]),
+                                                        libraryVolumes: reader.volumes())
         .first { $0.ruleID == "photos-library" }
     #expect(finding?.libraries?.map(\.name) == ["Photos Library"])
     #expect(finding?.notSearched == ["Stuck"])
+}
+
+/// Launch Services as tests see it: only the listed bundle IDs are registered (#245).
+private func registered(_ ids: Set<String>) -> any AppPresence { FixedAppPresence(apps: [], registered: { ids.contains($0) }) }
+
+@Test func withoutFullDiskAccessTheFinalCutRowAppearsOnlyWhenFinalCutIsInstalled() throws {
+    let home = try libraryHome()
+    defer { try? FileManager.default.removeItem(at: home) }
+    let catalog = Catalog(rules: fixtureRules)
+    func findings(_ apps: any AppPresence) -> [GuidanceFinding] {
+        catalog.guidance(home: home, systemRoot: home, sizer: KnownLocationSizer(), snapshots: FixtureSnapshots(), fullDiskAccess: .notGranted,
+                         appPresence: apps, libraryVolumes: .fixture)
+    }
+
+    #expect(!findings(registered([])).contains { $0.ruleID == "final-cut-libraries" })
+    #expect(findings(registered(["com.apple.FinalCut"])).first { $0.ruleID == "final-cut-libraries" }?.size == .notAccessible)
+    // Photos ships with macOS: its row still says it needs access.
+    #expect(findings(registered([])).first { $0.ruleID == "photos-library" }?.size == .notAccessible)
+}
+
+@Test func aFinalCutLibraryFoundIsListedEvenWithoutFinalCutInstalled() throws {
+    let home = try libraryHome()
+    defer { try? FileManager.default.removeItem(at: home) }
+    try write(4096, at: "Movies/Untitled.fcpbundle/a", in: home)
+
+    let finding = Catalog(rules: fixtureRules).guidance(home: home, systemRoot: home, sizer: KnownLocationSizer(), snapshots: FixtureSnapshots(),
+                                                        appPresence: registered([]), libraryVolumes: .fixture)
+        .first { $0.ruleID == "final-cut-libraries" }
+    #expect(finding?.libraries?.map(\.name) == ["Untitled"])
 }

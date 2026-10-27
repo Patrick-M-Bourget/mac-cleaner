@@ -9,10 +9,10 @@ extension CatalogCleanupModel {
     /// Sizes the guidance rules from metadata only. Read-only. A size cut short by `guidanceTimeBudget` reads "At least".
     /// `fullDiskAccess` is the catalog scan's own probe, so one scan never probes twice.
     func scanGuidance(home: URL, fullDiskAccess: FullDiskAccessStatus) async {
-        let catalog = catalog, system = Self.systemRoot, snapshots = Self.snapshots
+        let catalog = catalog, system = Self.systemRoot, snapshots = Self.snapshots, apps = Self.appPresence
         guidance = await Task.detached(priority: .utility) {
             catalog.guidance(home: home, systemRoot: system, sizer: KnownLocationSizer(timeBudget: Self.guidanceTimeBudget), snapshots: snapshots,
-                             fullDiskAccess: fullDiskAccess)
+                             fullDiskAccess: fullDiskAccess, appPresence: apps)
         }.value
     }
     /// CacheDrop became active: if Full Disk Access was granted while it was away, rescan the catalog and guidance once,

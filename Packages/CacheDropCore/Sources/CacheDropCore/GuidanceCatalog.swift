@@ -32,7 +32,7 @@ extension BuiltInCatalog {
                      detail: "Your Final Cut Pro libraries, with the media Final Cut generated. To remove generated media, select a library in Final Cut Pro, then choose File → Delete Generated Library Files. Render files are made again as you work; optimized and proxy media must be created again, and that needs the original media online.",
                      locations: [], protected: true,
                      Guidance(sizing: .libraries(extension: "fcpbundle"), place: .app(bundleID: "com.apple.FinalCut"), placeName: "Final Cut Pro",
-                              learnMore: URL(string: "https://support.apple.com/en-au/119610"))),
+                              learnMore: URL(string: "https://support.apple.com/en-au/119610"), onlyWhenInstalled: true)),
         guidanceRule("time-machine-snapshots", "Time Machine local snapshots",
                      detail: "macOS keeps these and removes them on its own when space runs low. Their size isn’t reported.",
                      locations: [],

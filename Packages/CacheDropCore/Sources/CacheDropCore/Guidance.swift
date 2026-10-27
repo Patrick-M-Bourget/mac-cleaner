@@ -32,8 +32,11 @@ public struct Guidance: Sendable {
     public let placeName: String
     /// The vendor's own help page for these steps, when there is one.
     public let learnMore: URL?
-    public init(sizing: Sizing = .locations, place: Place, placeName: String, learnMore: URL? = nil) {
-        self.sizing = sizing; self.place = place; self.placeName = placeName; self.learnMore = learnMore
+    /// Shown without Full Disk Access only when the `.app` place is installed (#245): an optional app's libraries, such as
+    /// Final Cut Pro's. With access, the row appears whenever something is found.
+    public let onlyWhenInstalled: Bool
+    public init(sizing: Sizing = .locations, place: Place, placeName: String, learnMore: URL? = nil, onlyWhenInstalled: Bool = false) {
+        self.sizing = sizing; self.place = place; self.placeName = placeName; self.learnMore = learnMore; self.onlyWhenInstalled = onlyWhenInstalled
     }
     public var openTitle: String { "Open " + placeName }
 }

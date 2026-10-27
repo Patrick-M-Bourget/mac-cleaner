@@ -82,10 +82,10 @@ struct FixtureSnapshots: LocalSnapshotListing {
 
 extension Catalog {
     /// Guidance sizing as tests run it: the fixture home stands in for the system root, every fixture volume is local,
-    /// and no snapshots unless given.
+    /// no app is registered, and no snapshots unless given.
     func guidance(fixture home: URL, snapshots: Int? = 0) -> [GuidanceFinding] {
         guidance(home: home, systemRoot: home, sizer: KnownLocationSizer(), snapshots: FixtureSnapshots(snapshots: snapshots),
-                 libraryVolumes: .fixture)
+                 appPresence: FixedAppPresence(apps: [], registered: { _ in false }), libraryVolumes: .fixture)
     }
 }
 
