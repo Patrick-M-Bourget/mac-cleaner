@@ -72,11 +72,23 @@ private func rule(requiringFullDiskAccess: Bool) -> CleanupRule {
 }
 
 @Test func theExplanationSaysFullDiskAccessIsBroadOptionalAndScansStayReadOnly() {
-    let copy = ([FullDiskAccessGuide.title, FullDiskAccessGuide.summary] + FullDiskAccessGuide.points).joined(separator: " ")
-    #expect(copy.contains("optional"))
-    #expect(copy.contains("broad read/write authority"))
-    #expect(copy.contains("scans stay read-only"))
-    #expect(copy.contains("Safari"))
+    // #161: a sheet-sized title and a two-line explanation, as in the prototype.
+    #expect(FullDiskAccessGuide.title == "Broader access is optional")
+    #expect(FullDiskAccessGuide.summary == "Full Disk Access lets CacheDrop see protected places like Mail and Safari data. It’s broad authority, not read-only. CacheDrop’s scans stay read-only either way.")
+}
+
+@Test func theNoteSaysWhereToTurnFullDiskAccessOn() {
+    #expect(FullDiskAccessGuide.howToTurnOn == "Turn on CacheDrop in System Settings › Privacy & Security › Full Disk Access.")
+}
+
+@Test func theCoverageTableSaysWhetherProtectedAppDataIsIncluded() {
+    #expect(FullDiskAccessGuide.coverage(nil).map(\.title) == ["Current coverage", "Protected app data"])
+    #expect(FullDiskAccessGuide.coverage(.granted).map(\.value) == ["Your folders and known locations", "Included"])
+    #expect(FullDiskAccessGuide.coverage(.notGranted).map(\.value) == ["Your folders and known locations", "Not included"])
+    #expect(FullDiskAccessGuide.coverage(.unknown).map(\.value) == ["Your folders and known locations", "Couldn’t check"])
+    #expect(FullDiskAccessGuide.coverage(nil).map(\.value) == ["Your folders and known locations", "Checking…"])
+    #expect(FullDiskAccessGuide.coverage(.granted).map(\.included) == [true, true])
+    #expect(FullDiskAccessGuide.coverage(.notGranted).map(\.included) == [true, false])
 }
 
 @Test func theSettingsLinkOpensTheFullDiskAccessPane() {
