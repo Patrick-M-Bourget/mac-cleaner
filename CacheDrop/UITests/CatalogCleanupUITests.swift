@@ -231,6 +231,7 @@ final class CatalogCleanupUITests: XCTestCase {
 
         XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
         // Overview has one row per category; the plan lists the rules that found something.
+        waitForCatalogScan(app)
         let developer = app.buttons["overviewCategory-developer"]
         XCTAssertTrue(developer.waitForExistence(timeout: 10))
         XCTAssertFalse(app.descendants(matching: .any).matching(NSPredicate(format: "identifier CONTAINS 'ccache'")).firstMatch.exists)
@@ -284,6 +285,7 @@ final class CatalogCleanupUITests: XCTestCase {
         app.launch()
 
         XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
+        waitForCatalogScan(app)
         let developer = app.buttons["overviewCategory-developer"]
         XCTAssertTrue(developer.waitForExistence(timeout: 10))
         XCTAssertFalse(app.descendants(matching: .any).matching(NSPredicate(format: "identifier CONTAINS 'Archives'")).firstMatch.exists)
@@ -341,6 +343,7 @@ final class CatalogCleanupUITests: XCTestCase {
         app.launch()
 
         XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
+        waitForCatalogScan(app)
         let row = app.buttons["overviewCategory-developer"]
         XCTAssertTrue(row.waitForExistence(timeout: 10))
         revealAndClick(row, in: app)
@@ -364,6 +367,7 @@ final class CatalogCleanupUITests: XCTestCase {
         app.launch()
 
         XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
+        waitForCatalogScan(app)
         let row = app.buttons["overviewCategory-developer"]
         XCTAssertTrue(row.waitForExistence(timeout: 10))
         XCTAssertFalse(app.staticTexts["0 bytes"].exists)
@@ -403,6 +407,7 @@ final class CatalogCleanupUITests: XCTestCase {
         app.launch()
 
         XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
+        waitForCatalogScan(app)
         let row = app.buttons["overviewCategory-developer"]
         XCTAssertTrue(row.waitForExistence(timeout: 10))
         revealAndClick(row, in: app)
@@ -446,6 +451,7 @@ final class CatalogCleanupUITests: XCTestCase {
         XCTAssertEqual(dryRun.value as? Int, 1)
         app.typeKey("w", modifierFlags: .command)
         XCTAssertTrue(dryRun.waitForNonExistence(timeout: 5))
+        waitForCatalogScan(app)
         let row = app.buttons["overviewCategory-downloads"]
         XCTAssertTrue(row.waitForExistence(timeout: 10))
         revealAndClick(row, in: app)
@@ -494,6 +500,7 @@ final class CatalogCleanupUITests: XCTestCase {
         app.launch()
 
         XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
+        waitForCatalogScan(app)
         let row = app.buttons["overviewCategory-browser"]
         XCTAssertTrue(row.waitForExistence(timeout: 10))
         revealAndClick(row, in: app)
@@ -548,6 +555,7 @@ final class CatalogCleanupUITests: XCTestCase {
         app.launch()
 
         XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
+        waitForCatalogScan(app)
         let row = app.buttons["overviewCategory-browser"]
         XCTAssertTrue(row.waitForExistence(timeout: 10))
         revealAndClick(row, in: app)
@@ -608,6 +616,7 @@ final class CatalogCleanupUITests: XCTestCase {
         // Granted: the Safari folder opens.
         try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: safari.path)
         app.launch()
+        waitForCatalogScan(app)
         let row = app.buttons["overviewCategory-browser"]
         XCTAssertTrue(row.waitForExistence(timeout: 10))
         XCTAssertFalse(app.descendants(matching: .any)["overviewNotAccessible"].exists)
@@ -641,6 +650,7 @@ final class CatalogCleanupUITests: XCTestCase {
         app.launch()
 
         XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
+        waitForCatalogScan(app)
         let updaters = app.buttons["overviewCategory-updaters"]
         XCTAssertTrue(updaters.waitForExistence(timeout: 10))
         XCTAssertTrue(app.buttons["overviewCategory-logs"].exists)
@@ -689,6 +699,7 @@ final class CatalogCleanupUITests: XCTestCase {
         app.launch()
 
         XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
+        waitForCatalogScan(app)
         let row = app.buttons["overviewCategory-developer"]
         XCTAssertTrue(row.waitForExistence(timeout: 10))
         revealAndClick(row, in: app)
@@ -729,6 +740,7 @@ final class CatalogCleanupUITests: XCTestCase {
         app.launch()
 
         XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
+        waitForCatalogScan(app)
         let row = app.buttons["overviewCategory-developer"]
         XCTAssertTrue(row.waitForExistence(timeout: 10))
         revealAndClick(row, in: app)
@@ -765,6 +777,7 @@ final class ICloudCleanupUITests: XCTestCase {
         app.launch()
 
         XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
+        waitForCatalogScan(app)
         let row = app.buttons["overviewCategory-icloud"]
         XCTAssertTrue(row.waitForExistence(timeout: 10))
         XCTAssertFalse(app.descendants(matching: .any)["overviewCloudFinding"].exists, "The catalog row replaces the inventory row")
@@ -1238,6 +1251,7 @@ final class TrashSpaceUITests: XCTestCase {
         XCTAssertTrue(line.waitForExistence(timeout: 10))
         func lineText() -> String { [line.label, line.value as? String ?? ""].first { !$0.isEmpty } ?? "" }
         let before = lineText()
+        waitForCatalogScan(app)
         let row = app.buttons["overviewCategory-downloads"]
         XCTAssertTrue(row.waitForExistence(timeout: 10))
         revealAndClick(row, in: app)
@@ -1280,7 +1294,7 @@ extension CatalogCleanupUITests {
         defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
         app.launch()
         XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
-        XCTAssertTrue(app.staticTexts["catalogScanProgress"].waitForNonExistence(timeout: 60))
+        waitForCatalogScan(app)
         app.typeKey("2", modifierFlags: .command)
         XCTAssertTrue(app.checkBoxes["smartCleanCategory-developer"].waitForExistence(timeout: 10))
         let choose = app.disclosureTriangles.matching(NSPredicate(format: "label BEGINSWITH 'Choose items'")).firstMatch
@@ -1375,7 +1389,7 @@ final class FolderScanProgressUITests: XCTestCase {
         defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home); try? FileManager.default.removeItem(at: folder) }
         app.launch()
         XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
-        XCTAssertTrue(app.staticTexts["catalogScanProgress"].waitForNonExistence(timeout: 60))
+        waitForCatalogScan(app)
         let toolbar = app.toolbars.firstMatch
         let toolbarItems = { toolbar.descendants(matching: .any).allElementsBoundByIndex.map { $0.identifier + "|" + $0.label } }
         let before = toolbarItems()
