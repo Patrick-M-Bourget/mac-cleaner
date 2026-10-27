@@ -41,7 +41,7 @@ import SwiftUI
     /// The Cleanup plan's selection and Smart clean's, kept apart (#141).
     private(set) var selections = CleanupSelections()
     /// The Cleanup plan's chosen candidate ids. Nothing is preselected (Decision 28).
-    private(set) var selectedIDs: Set<String> { get { selections.plan } set { selections.plan = newValue } }
+    private(set) var selectedIDs: Set<String> { get { selections.ticked } set { selections.ticked = newValue } }
     private(set) var selectionRevision: UInt64 = 0
     private(set) var isRunning = false
     /// A cleanup changed files since the last catalog scan, so the next one is recorded as a post-cleanup rescan (#126).
@@ -254,9 +254,9 @@ import SwiftUI
     func isSelected(_ candidate: Candidate) -> Bool { selectedIDs.contains(candidate.id) }
     /// The plan's categories, grouped as Overview groups them, picked folders' files included. Leftovers of removed apps
     /// are on the Applications page instead (Decision 51).
-    var planCategories: [CatalogOverview.Row] { CatalogOverview(catalog: catalog, candidates: candidates).rows.filter { $0.category != .leftovers } }
+    var planCategories: [CatalogOverview.Row] { CatalogOverview(catalog: catalog, candidates: candidates).rows.filter { CleanupSelections.Source.page(of: $0) == .plan } }
     /// The Applications page's Leftovers row; nil when none were found.
-    var leftoversRow: CatalogOverview.Row? { CatalogOverview(catalog: catalog, candidates: candidates).rows.first { $0.category == .leftovers } }
+    var leftoversRow: CatalogOverview.Row? { CatalogOverview(catalog: catalog, candidates: candidates).rows.first { CleanupSelections.Source.page(of: $0) == .applications } }
     func selectionState(for rules: [CleanupRule]) -> CategorySelectionState { categorySelection(rules).state }
     private func categorySelection(_ rules: [CleanupRule]) -> CategorySelection {
         CategorySelection(rules: rules, candidates: rules.flatMap(candidates(for:)), selected: selectedIDs)

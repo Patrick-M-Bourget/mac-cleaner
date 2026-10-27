@@ -28,6 +28,31 @@ private func setMode(_ url: URL, _ mode: Int) throws { try FileManager.default.s
     #expect(!Removability.canMoveToTrash(root.appendingPathComponent("missing.app")))
 }
 
+/// #271: in a writable folder with the sticky bit (like /Library/Application Support's shared folders), only the item's
+/// owner or the folder's may move it. A test can't make another user's file, so it asks as another user instead.
+@Test func aStickyFolderLetsOnlyTheOwnerMoveAnItem() throws {
+    let root = try temporaryFolder()
+    defer { try? setMode(root, 0o755); try? FileManager.default.removeItem(at: root) }
+    let file = root.appendingPathComponent("shared.plist")
+    try Data([1]).write(to: file)
+    let stranger = getuid() + 1_000
+    #expect(Removability.canMoveToTrash(file, asUser: stranger), "Without the sticky bit, a writable folder is enough")
+    try setMode(root, 0o1777)
+    #expect(Removability.canMoveToTrash(file), "Its owner still can")
+    #expect(!Removability.canMoveToTrash(file, asUser: stranger), "Anyone else can't, though the folder is writable")
+    #expect(Removability.canMoveToTrash(file, asUser: 0), "Root can")
+}
+
+/// #273: in a sticky folder, the folder's owner and root may also move another user's item. A test can't own a folder as
+/// someone else, so the owners are given.
+@Test func aStickyFoldersOwnerAndRootMayMoveAnotherUsersItem() {
+    let me: uid_t = 501, other: uid_t = 502, third: uid_t = 503
+    #expect(Removability.stickyFolderAllows(user: me, itemOwner: me, folderOwner: other), "The item's owner")
+    #expect(Removability.stickyFolderAllows(user: me, itemOwner: other, folderOwner: me), "The folder's owner")
+    #expect(Removability.stickyFolderAllows(user: 0, itemOwner: other, folderOwner: third), "Root")
+    #expect(!Removability.stickyFolderAllows(user: me, itemOwner: other, folderOwner: third), "Anyone else")
+}
+
 /// An app bundle with an Info.plist and `bytes` of executable.
 private func makeApp(_ url: URL, id: String, bytes: Int, copyright: String? = nil) throws -> InstalledApp {
     try FileManager.default.createDirectory(at: url.appendingPathComponent("Contents/MacOS"), withIntermediateDirectories: true)
@@ -56,6 +81,7 @@ private func makeApp(_ url: URL, id: String, bytes: Int, copyright: String? = ni
     let listed = ApplicationsInventory.apps(installed, excluding: "com.patrickbourget.CacheDrop")
     #expect(listed.map(\.name) == ["Big Synth", "Small"])
     #expect(listed.first?.maker == "Maker Audio Inc")
+    #expect(listed.map(\.bundleID) == ["com.maker.big", "com.other.small"])
     #expect(listed.first?.parts.map(\.url.lastPathComponent) == ["Big Synth.app"])
     #expect(listed.allSatisfy { !$0.needsPassword && $0.volume == nil })
 }
@@ -94,14 +120,21 @@ private func plugIn(_ url: URL, _ format: PlugInFormat, id: String, maker: Strin
     #expect(listed.map(\.name) == ["Pro Synth", "Locked"])
     #expect(listed.first?.parts.map(\.name) == ["AU", "VST3"])
     #expect(listed.first?.size == .measured(500))
+    #expect(listed.map(\.bundleID) == ["com.maker.prosynth.au", "com.vendor.locked"])
     #expect(listed.map(\.needsPassword) == [false, true], "Pro Synth's AU can still go; Locked has nothing that can")
 }
 
-@Test func aVendorsOwnToolIsFoundAmongTheAppsByItsMaker() {
-    func app(_ name: String) -> InventoryEntry { InventoryEntry(id: name, name: name, maker: nil, volume: nil, parts: []) }
-    let apps = [app("Native Access"), app("Big Synth")]
-    #expect(ApplicationsInventory.vendorTool(forMaker: "Native Instruments", among: apps)?.name == "Native Access")
-    #expect(ApplicationsInventory.vendorTool(forMaker: "Native Instruments GmbH", among: apps)?.name == "Native Access")
-    #expect(ApplicationsInventory.vendorTool(forMaker: "Waves", among: apps) == nil, "Waves Central isn't installed")
-    #expect(ApplicationsInventory.vendorTool(forMaker: nil, among: apps) == nil)
+/// Decision 41: a product's vendor, and the vendor's own tool, are known by bundle ID, never by name ("Waves" isn't
+/// "Wavesfactory"). The tool is the app with the tool's exact bundle ID, whatever it is named (#273).
+@Test func aVendorsOwnToolIsFoundAmongTheAppsByBundleID() {
+    func entry(_ name: String, _ bundleID: String?) -> InventoryEntry { InventoryEntry(id: name, name: name, maker: nil, volume: nil, parts: [], bundleID: bundleID) }
+    let nativeAccess = entry("Native Access 2", "com.native-instruments.nativeaccess2")
+    let apps = [entry("Native Access", "com.native-instruments.other-tool"), nativeAccess, entry("Big Synth", "com.bigsynth.app"),
+                entry("UA Connect", "com.uaudio.ua-connect-helper")]
+    #expect(ApplicationsInventory.vendorTool(for: entry("Kontakt 8", "com.native-instruments.kontakt-8.component"), among: apps) == nativeAccess)
+    #expect(ApplicationsInventory.vendorTool(for: entry("Kontakt 8", "com.Native-Instruments.Kontakt"), among: apps) == nativeAccess)
+    #expect(ApplicationsInventory.vendorTool(for: entry("Pulse", "com.wavesfactory.pulse"), among: apps) == nil, "Wavesfactory isn't Waves")
+    #expect(ApplicationsInventory.vendorTool(for: entry("Console", "com.uaudio.console"), among: apps) == nil, "Only UA Connect's own bundle ID is UA's tool")
+    #expect(ApplicationsInventory.vendorTool(for: nativeAccess, among: apps) == nil, "The tool needs no tool")
+    #expect(ApplicationsInventory.vendorTool(for: entry("Unknown", nil), among: apps) == nil)
 }

@@ -104,9 +104,15 @@ struct RefreshRequest: Sendable {
         guard !workspaceRunning, !catalog.isRunning else { return }
         endSession(); workspaceFinished = false; workspaceStopRequested = false; workspaceCancellation = nil; unavailableScopes.removeAll()
     }
+    /// Nothing blocks a review: no maintenance, no cleanup running, and the catalog can be edited.
+    private var canStartReview: Bool { !AppLifecycleController.shared.maintenanceInProgress && !workspaceRunning && catalog.canEdit }
     /// Whether a Smart clean can be reviewed: nothing else is running and the catalog can be edited.
-    var canReviewSmartClean: Bool {
-        !AppLifecycleController.shared.maintenanceInProgress && !workspaceRunning && catalog.canEdit && !catalog.smartCleanCandidates.isEmpty
+    var canReviewSmartClean: Bool { canStartReview && !catalog.smartCleanCandidates.isEmpty }
+    /// Whether the Applications page's chosen leftovers can be reviewed (Decision 51).
+    var canReviewApplications: Bool { canStartReview && !catalog.applicationsSelected.isEmpty }
+    /// Whether the page `source` can be reviewed and cleaned now.
+    func canReview(_ source: CleanupSelections.Source) -> Bool {
+        switch source { case .plan: canReview; case .smartClean: canReviewSmartClean; case .applications: canReviewApplications }
     }
     /// Smart clean's review (#141): its own selection, checked now, through the same review and executor as the plan.
     func prepareSmartCleanReview() async throws -> WorkspaceCleanupReview {
@@ -114,21 +120,18 @@ struct RefreshRequest: Sendable {
         let catalogVersion = catalog.selectionRevision
         guard let items = await catalog.smartCleanCheckedNow() else { throw PlanReviewError.changed }
         guard !items.isEmpty else { throw PlanReviewError.nothingToClean }
-        let review = await catalog.prepareReview(of: items)
-        guard let review, canReviewSmartClean, catalog.selectionRevision == catalogVersion else { throw PlanReviewError.changed }
-        return WorkspaceCleanupReview(catalog: review, catalogVersion: catalogVersion, source: .smartClean)
-    }
-    /// Whether the Applications page's chosen leftovers can be reviewed (Decision 51).
-    var canReviewApplications: Bool {
-        !AppLifecycleController.shared.maintenanceInProgress && !workspaceRunning && catalog.canEdit && !catalog.applicationsSelected.isEmpty
+        return try await review(items, from: .smartClean, catalogVersion: catalogVersion)
     }
     /// The Applications page's review: its chosen items, through the plan's review and executor.
     func prepareApplicationsReview() async throws -> WorkspaceCleanupReview {
         guard canReviewApplications else { throw PlanReviewError.changed }
-        let catalogVersion = catalog.selectionRevision
-        let review = await catalog.prepareReview(of: catalog.applicationsSelected)
-        guard let review, canReviewApplications, catalog.selectionRevision == catalogVersion else { throw PlanReviewError.changed }
-        return WorkspaceCleanupReview(catalog: review, catalogVersion: catalogVersion, source: .applications)
+        return try await review(catalog.applicationsSelected, from: .applications, catalogVersion: catalog.selectionRevision)
+    }
+    /// A page's review of `items` through the plan's review, refused when the page's choices changed meanwhile.
+    private func review(_ items: [Candidate], from source: CleanupSelections.Source, catalogVersion: UInt64) async throws -> WorkspaceCleanupReview {
+        let review = await catalog.prepareReview(of: items)
+        guard let review, canReview(source), catalog.selectionRevision == catalogVersion else { throw PlanReviewError.changed }
+        return WorkspaceCleanupReview(catalog: review, catalogVersion: catalogVersion, source: source)
     }
     func prepareWorkspaceReview() async throws -> WorkspaceCleanupReview {
         guard canReview else { throw PlanReviewError.changed }
@@ -138,8 +141,7 @@ struct RefreshRequest: Sendable {
         return WorkspaceCleanupReview(catalog: items, catalogVersion: catalogVersion)
     }
     func executeWorkspace(_ review: WorkspaceCleanupReview) async throws {
-        let allowed = switch review.source { case .plan: canReview; case .smartClean: canReviewSmartClean; case .applications: canReviewApplications }
-        guard allowed, catalog.selectionRevision == review.catalogVersion else { throw PlanReviewError.changed }
+        guard canReview(review.source), catalog.selectionRevision == review.catalogVersion else { throw PlanReviewError.changed }
         runSource = review.source
         let cancellation = CleanupCancellation()
         workspaceCancellation = cancellation; workspaceStopRequested = false
@@ -213,18 +215,10 @@ struct LiveCleanupPlanView: View {
             .background(alignment: .topLeading) { DestinationViewport(offset: $presentation.offset).frame(width: 0, height: 0) }
         }
         }.background(CacheDropDesign.reading)
-        if selection.showsRun(for: .plan) && selection.workspaceRunning {
-            CleanupStopStrip(selection: selection)
-        } else if selection.showsRun(for: .plan) {
-            ActionStrip(message: selection.requiresRecoveryReview ? "Review unresolved records before making another plan." : nil) {
-                if let viewHistory { Button("View history", action: viewHistory) }
-                if selection.requiresRecoveryReview, let reviewRecovery { Button("Review recovery", action: reviewRecovery) }
-                if let newPlan { Button("Start a new plan", action: newPlan).buttonStyle(.borderedProminent) }
-            }
-        } else {
-            ActionStrip(message: nil) {
-                ReviewCleanupButton(enabled: selection.canReview, focusRequest: reviewFocusRequest) { Task { await openReview() } }.fixedSize()
-            }
+        CleanupActionBar(selection: selection, source: .plan, viewHistory: viewHistory, reviewRecovery: reviewRecovery) {
+            if let newPlan { Button("Start a new plan", action: newPlan).buttonStyle(.borderedProminent) }
+        } idle: {
+            ReviewCleanupButton(enabled: selection.canReview, focusRequest: reviewFocusRequest) { Task { await openReview() } }.fixedSize()
         }
         }
         .sheet(item: $review, onDismiss: { reviewFocusRequest += 1 }) { snapshot in
@@ -258,6 +252,32 @@ struct CleanupRunSection: View {
             if let result = selection.catalog.result { CatalogResultsSection(result: result, catalog: selection.catalog.catalog) }
             if let message = selection.catalog.message { StatusRow(text: message, symbol: "exclamationmark.triangle", role: .caution) }
         }.padding(CacheDropDesign.Space.page)
+    }
+}
+/// The bottom bar of a page that cleans (Decision 46): Stop while its run goes, the result's buttons after it, and the
+/// page's own actions otherwise. `finish` is the result's last button: Done, or Start a new plan.
+struct CleanupActionBar<Finish: View, Idle: View>: View {
+    let selection: SessionPlan
+    let source: CleanupSelections.Source
+    var viewHistory: (() -> Void)? = nil
+    var reviewRecovery: (() -> Void)? = nil
+    @ViewBuilder var finish: () -> Finish
+    @ViewBuilder var idle: () -> Idle
+    var body: some View {
+        if selection.showsRun(for: source) && selection.workspaceRunning {
+            CleanupStopStrip(selection: selection)
+        } else if selection.showsRun(for: source) {
+            ActionStrip(message: selection.requiresRecoveryReview ? recoveryNote : nil) {
+                if let viewHistory { Button("View history", action: viewHistory) }
+                if selection.requiresRecoveryReview, let reviewRecovery { Button("Review recovery", action: reviewRecovery) }
+                finish()
+            }
+        } else {
+            ActionStrip(message: nil) { idle() }
+        }
+    }
+    private var recoveryNote: String {
+        source == .plan ? "Review unresolved records before making another plan." : "Review unresolved records before cleaning again."
     }
 }
 /// The running cleanup's one action.
