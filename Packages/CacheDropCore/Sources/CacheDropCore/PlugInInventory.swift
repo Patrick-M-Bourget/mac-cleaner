@@ -79,15 +79,21 @@ public struct PlugInInventory: Sendable, Equatable {
 
     /// Groups files into products (Decision 42): files one installer receipt lists, files in different formats that share
     /// a full bundle ID, then files with the same bundle ID vendor (`com.maker`) and name. A bundle ID two files of one
-    /// format share (a maker's template ID) ties nothing. A file nothing ties stands alone; nothing is guessed from a name alone.
+    /// format share (a maker's template ID) ties nothing, and a receipt that lists two files of one format (a suite) ties
+    /// only files with the same name. A file nothing ties stands alone; nothing is guessed from a name alone.
     static func group(_ files: [PlugInFile], receipts: [String: Set<String>]) -> [PlugInProduct] {
         var parent = Array(files.indices)
         func root(_ i: Int) -> Int { parent[i] == i ? i : root(parent[i]) }
         var first: [String: Int] = [:]
         func tie(_ key: String, _ i: Int) { if let j = first[key] { parent[root(i)] = root(j) } else { first[key] = i } }
         let perFormat = Dictionary(grouping: files.compactMap { f in f.bundleID.map { "\($0.lowercased())|\(f.format.rawValue)" } }, by: { $0 })
+        // A receipt that lists two files of one format installs several products (a suite, #246): it ties only files
+        // with the same name, as the bundle ID rules below tie the rest.
+        var listed: [String: [PlugInFormat]] = [:]
+        for file in files { for id in receipts[file.url.standardizedFileURL.path] ?? [] { listed[id, default: []].append(file.format) } }
+        let suites = Set(listed.filter { Set($0.value).count < $0.value.count }.keys)
         for (i, file) in files.enumerated() {
-            for id in receipts[file.url.standardizedFileURL.path] ?? [] { tie("receipt|" + id, i) }
+            for id in receipts[file.url.standardizedFileURL.path] ?? [] { tie(suites.contains(id) ? "receipt|\(id)|\(file.groupingName)" : "receipt|" + id, i) }
             if let id = file.bundleID?.lowercased(), perFormat["\(id)|\(file.format.rawValue)"]?.count == 1 { tie("id|" + id, i) }
             if let vendor = file.vendor { tie("bundle|\(vendor)|\(file.groupingName)", i) }
         }
@@ -98,8 +104,9 @@ public struct PlugInInventory: Sendable, Equatable {
         }
         return groups.map { indices in
             let members = indices.map { files[$0] }
-            let receipted = members.contains { receipts[$0.url.standardizedFileURL.path] != nil }
-            return PlugInProduct(files: members, grouping: receipted ? .receipt : members.contains { $0.vendor != nil } ? .bundleID : .none)
+            let installedBy = Set(members.flatMap { receipts[$0.url.standardizedFileURL.path] ?? [] }).sorted()
+            return PlugInProduct(files: members, grouping: !installedBy.isEmpty ? .receipt : members.contains { $0.vendor != nil } ? .bundleID : .none,
+                                 receipts: installedBy)
         }.sorted { (bytes($0.size), $1.name) > (bytes($1.size), $0.name) }
     }
 
@@ -232,9 +239,12 @@ public struct PlugInProduct: Sendable, Equatable, Identifiable {
     public enum Grouping: Sendable, Equatable { case receipt, bundleID, none }
     public let files: [PlugInFile]
     public let grouping: Grouping
+    /// The installer receipts (package IDs) that list any of its files, for uninstalling it later (#176).
+    public let receipts: [String]
     public var id: String { files.map(\.url.path).min() ?? "" }
-    init(files: [PlugInFile], grouping: Grouping) {
+    init(files: [PlugInFile], grouping: Grouping, receipts: [String] = []) {
         self.files = files.sorted { ($0.format, $0.url.path) < ($1.format, $1.url.path) }; self.grouping = grouping
+        self.receipts = receipts
     }
     /// The most common name among its files, preferring an Audio Unit's display name to bundle file names.
     public var name: String {

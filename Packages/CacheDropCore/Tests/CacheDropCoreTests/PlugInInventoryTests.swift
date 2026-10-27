@@ -141,7 +141,7 @@ private func receipt(_ id: String, listing paths: [String], in root: URL) throws
     defer { try? FileManager.default.removeItem(at: root); try? FileManager.default.removeItem(at: home) }
     // No plug-in folder, no Applications and no receipts folder: nothing, and no error.
     #expect(scan(root, home).products.isEmpty)
-    let a = "Library/Audio/Plug-Ins/VST3/Drum A.vst3", b = "Library/Audio/Plug-Ins/VST3/Drum B.vst3"
+    let a = "Library/Audio/Plug-Ins/VST3/Drum A.vst3", b = "Library/Audio/Plug-Ins/CLAP/Drum B.clap"
     try plugIn(a, in: root, id: nil)
     try plugIn(b, in: root, id: nil)
     try receipt("com.drums.pkg", listing: [a, b], in: root)
@@ -289,4 +289,26 @@ private let components = "Library/Audio/Plug-Ins/Components/", vst = "Library/Au
     let makers = Dictionary(uniqueKeysWithValues: scan(root, home).products.map { ($0.name, $0.maker ?? "—") })
     #expect(makers == ["Reason Rack Plugin": "Propellerhead Software AB", "uaudio_610_a": "Universal Audio",
                        "AIRReverb": "AIR Music Technology", "THE_YEAR": "—", "LANDR Composer": "—"])
+}
+
+@Test func aSuiteReceiptGivesOneRowPerProductEachWithItsFormats() throws {
+    let root = try fixtureFolder("Root"), home = try fixtureFolder("Home")
+    defer { try? FileManager.default.removeItem(at: root); try? FileManager.default.removeItem(at: home) }
+    // Soundtoys' suite receipt lists every product it installs (#246). The VST3s carry no bundle ID here, so only the
+    // receipt and the name tie each one to its Audio Unit.
+    var listed: [String] = []
+    for (file, name) in [("Crystallizer", "Crystallizer"), ("EchoBoy", "EchoBoy"), ("Devil-Loc_Deluxe", "Devil-Loc Deluxe")] {
+        let au = components + file + ".component", vst3 = vst3s + file + ".vst3"
+        try plugIn(au, in: root, id: "com.soundtoys.audiounit." + file, version: "5.5.5.19885", component: "Soundtoys: " + name)
+        try plugIn(vst3, in: root, id: nil, version: "5.5.5.19885")
+        listed += [au, vst3]
+    }
+    try receipt("com.soundtoys.SoundtoysV54Bundle", listing: listed, in: root)
+
+    let products = scan(root, home).products
+    #expect(products.map(\.name).sorted() == ["Crystallizer", "Devil-Loc Deluxe", "EchoBoy"])
+    #expect(products.allSatisfy { $0.formats == [.au, .vst3] })
+    #expect(products.allSatisfy { $0.grouping == .receipt })
+    // Each product still records the receipt that installed it, for uninstalling it later (#176).
+    #expect(products.allSatisfy { $0.receipts == ["com.soundtoys.SoundtoysV54Bundle"] })
 }
