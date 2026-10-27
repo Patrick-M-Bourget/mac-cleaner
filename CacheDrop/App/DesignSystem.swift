@@ -626,8 +626,9 @@ extension CacheDropDesign.Size {
     static let checkbox: CGFloat = 16
 }
 /// Selection stays on the native checkbox; the badge/title never become extra toggles. A nil `state` draws no checkbox, for a
-/// row that can't be chosen (Decision 51), and the identifier then names the row.
-struct CategorySelectionHeader: View {
+/// row that can't be chosen (Decision 51), and the identifier then names the row. `below` goes under the title and detail, in
+/// their column (#298).
+struct CategorySelectionHeader<Below: View>: View {
     let category: StorageCategory
     let state: CategorySelectionState?
     let title: String
@@ -636,6 +637,7 @@ struct CategorySelectionHeader: View {
     let enabled: Bool
     var identifier: String? = nil
     let action: () -> Void
+    @ViewBuilder var below: () -> Below
     var body: some View {
         let row = HStack(alignment: .top, spacing: CacheDropDesign.Space.md) {
             if let state {
@@ -646,14 +648,21 @@ struct CategorySelectionHeader: View {
             CategoryBadge(category: category).padding(.leading, state == nil ? CacheDropDesign.Size.checkbox + CacheDropDesign.Space.md : 0)
             VStack(alignment: .leading, spacing: CacheDropDesign.Space.xs) {
                 Text(title).font(CacheDropDesign.TypeStyle.section)
-                // No detail (an app with no maker) leaves no empty line: what follows sits right under the title (#298).
+                // No detail (an app with no maker) leaves no empty line (#298).
                 if !detail.isEmpty {
                     Text(detail).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary).lineLimit(1).help(detail)
                 }
+                below()
             }.frame(maxWidth: .infinity, alignment: .leading)
             Text(size).font(.callout).monospacedDigit().fixedSize()
         }
         if state == nil, let identifier { row.accessibilityElement(children: .contain).accessibilityIdentifier(identifier) } else { row }
+    }
+}
+extension CategorySelectionHeader where Below == EmptyView {
+    init(category: StorageCategory, state: CategorySelectionState?, title: String, detail: String, size: String, enabled: Bool, identifier: String? = nil,
+         action: @escaping () -> Void) {
+        self.init(category: category, state: state, title: title, detail: detail, size: size, enabled: enabled, identifier: identifier, action: action) { EmptyView() }
     }
 }
 
@@ -678,9 +687,13 @@ struct CategoryRow<Notice: View, Items: View>: View {
     @ViewBuilder var items: () -> Items
     var body: some View {
         VStack(alignment: .leading, spacing: CacheDropDesign.Space.sm) {
+            // With no detail (an app with no maker), the notice takes the detail's place, right under the title, rather than
+            // below the badge (#298).
             CategorySelectionHeader(category: category, state: state, title: title, detail: detail, size: size, enabled: enabled,
-                                    identifier: identifier, action: toggle)
-            notice().padding(.leading, CacheDropDesign.Size.categoryContentIndent)
+                                    identifier: identifier, action: toggle) {
+                if detail.isEmpty { notice() }
+            }
+            if !detail.isEmpty { notice().padding(.leading, CacheDropDesign.Size.categoryContentIndent) }
             if let itemCount {
                 ActionDisclosureGroup("Choose items · \(itemCount)" + (staying == 1 ? " · 1 stays" : staying > 1 ? " · \(staying) stay" : ""), isExpanded: $expanded) {
                     items().padding(.top, CacheDropDesign.Space.sm)
