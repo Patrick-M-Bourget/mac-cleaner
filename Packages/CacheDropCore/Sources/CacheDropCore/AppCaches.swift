@@ -21,7 +21,7 @@ public enum AppCaches {
         let id = bundleID.lowercased()
         return id.hasPrefix("com.apple.") || id.hasPrefix("com.patrickbourget.still") || id.hasPrefix("com.patrickbourget.cachedrop")
     }
-    /// A folder of macOS's own or of Still's, by bundle identifier or name. Never offered under any rule,
+    /// A folder of macOS's own, CacheDrop's or Still's, by bundle identifier or name. Never offered under any rule,
     /// so logs and every other location leave them alone as app caches do.
     static func isMacOSOrOwn(_ name: String) -> Bool { isExcluded(name) || ownNames.contains(name) }
     /// The installed app a folder named by bundle identifier belongs to, or nil when that can't be determined.

@@ -36,7 +36,7 @@ import SwiftUI
     private(set) var hasScanned = false
     /// The running catalog scan's progress, one location at a time (#128); nil when no scan is running.
     private(set) var scanProgress: CatalogScanProgress?
-    /// Watches for Full Disk Access being granted while Still was away (#124, `rescanIfFullDiskAccessGranted`).
+    /// Watches for Full Disk Access being granted while CacheDrop was away (#124, `rescanIfFullDiskAccessGranted`).
     var fullDiskAccessRescan = FullDiskAccessRescan()
     /// The Cleanup plan's selection and Smart clean's, kept apart (#141).
     private(set) var selections = CleanupSelections()
@@ -56,7 +56,7 @@ import SwiftUI
     var guidanceStatus: String?
     /// Rules whose owner keeps its data elsewhere by a setting; they offer nothing.
     private(set) var overriddenRules: [CleanupRule] = []
-    /// Rules Still can't read without Full Disk Access (Safari's cache): shown as not accessible, never as 0.
+    /// Rules CacheDrop can't read without Full Disk Access (Safari's cache): shown as not accessible, never as 0.
     private(set) var notAccessibleRules: [CleanupRule] = []
     /// Names of owners that were running at the last scan. Their items stay choosable; the checks refuse them.
     private(set) var runningOwners: Set<String> = []
@@ -177,7 +177,7 @@ import SwiftUI
         runningOwnerNames(for: rule).map { ($0, RunningOwnerNotice(name: $0, appOpen: openApps.contains($0), stillOpen: quitStates[$0] == .stillOpen)) }
     }
 
-    /// Asks Still's quitter; a debug UI test run never asks a real app to quit.
+    /// Asks CacheDrop's quitter; a debug UI test run never asks a real app to quit.
     nonisolated static var quitter: any AppQuitting {
         #if DEBUG
         if LocalStateLocation.isDisposableTest { return SystemAppQuitter(sendsRequests: false) }
@@ -203,7 +203,7 @@ import SwiftUI
         setRunning(running, open: open)
     }
 
-    /// Sends the owner's app a normal quit request, like ⌘Q, only because the user asked. When it quits, Still checks again;
+    /// Sends the owner's app a normal quit request, like ⌘Q, only because the user asked. When it quits, CacheDrop checks again;
     /// when it doesn't (unsaved work, or it refused), the plan says it is still open.
     func quitApp(named name: String) async {
         guard let owner = runningOwnerDetails[name], quitStates[name] != .quitting else { return }

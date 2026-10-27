@@ -1,7 +1,7 @@
 import Foundation
 
 /// Git checkouts AI coding agents keep in their own folders (#140): how many, and how many hold work that exists
-/// nowhere else. Always guidance only; Still never offers them, even clean ones.
+/// nowhere else. Always guidance only; CacheDrop never offers them, even clean ones.
 public struct AgentWorkspaces: Sendable, Equatable {
     public let count: Int
     /// Workspaces with changes not committed.

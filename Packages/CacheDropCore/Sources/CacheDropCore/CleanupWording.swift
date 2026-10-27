@@ -1,6 +1,6 @@
 import Foundation
 
-/// Everything Still says that depends on the action, in one place: the plan, the review, Results, History and Recovery.
+/// Everything CacheDrop says that depends on the action, in one place: the plan, the review, Results, History and Recovery.
 public struct ActionWording: Sendable {
     /// What the action is, e.g. "Move to Trash".
     public let title: String

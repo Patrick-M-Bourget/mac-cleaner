@@ -1,6 +1,6 @@
 import Foundation
 
-/// How a guidance-only rule (SPEC section 3) is sized and where the user manages it. Still never changes these.
+/// How a guidance-only rule (SPEC section 3) is sized and where the user manages it. CacheDrop never changes these.
 public struct Guidance: Sendable {
     public enum Sizing: Sendable, Equatable {
         /// Each location's whole tree, metadata only.

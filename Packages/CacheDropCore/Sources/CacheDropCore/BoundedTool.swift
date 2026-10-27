@@ -13,7 +13,7 @@ public enum BoundedTool {
 
     /// For tool actions: returns the exit status and the last `outputLimit` bytes of combined output,
     /// so a long run is never killed for printing a lot. A timeout still stops it and throws, with the output so far.
-    /// Minimal, predictable environment for every tool Still runs.
+    /// Minimal, predictable environment for every tool CacheDrop runs.
     public static let defaultEnvironment: [String: String] = ["PATH": "/usr/bin:/bin:/usr/sbin:/sbin", "HOME": NSHomeDirectory(), "LANG": "C", "LC_ALL": "C", "HOMEBREW_NO_AUTO_UPDATE": "1", "HOMEBREW_NO_ANALYTICS": "1", "HOMEBREW_NO_BOOTSNAP": "1", "HOMEBREW_NO_INSTALL_CLEANUP": "1", "HOMEBREW_NO_AUTOREMOVE": "1", "HOMEBREW_NO_SUDO": "1"]
 
     public static func capture(executable: URL, arguments: [String], timeout: TimeInterval, outputLimit: Int = 16_384, environment: [String: String]? = nil) throws -> (status: Int32, output: String) {

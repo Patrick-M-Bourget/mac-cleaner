@@ -1,7 +1,7 @@
 import Foundation
 import Darwin
 
-/// The one way Still walks a folder tree: physically, never following symlinks or crossing volumes.
+/// The one way CacheDrop walks a folder tree: physically, never following symlinks or crossing volumes.
 enum FileTree {
     /// What the walk does after an entry.
     enum Next { case `continue`, skip, stop }

@@ -3,7 +3,7 @@ import Darwin
 
 /// What a completed catalog scan records for What grew: one group per scanned rule location, with its category,
 /// its size and whether it could be read. Every scanned location is recorded, found or not, so a location that
-/// appears later is growth, while one the scan starts or stops covering is a coverage change. A location Still
+/// appears later is growth, while one the scan starts or stops covering is a coverage change. A location CacheDrop
 /// couldn't read, or whose tool didn't answer, is recorded as not measured, never as 0.
 public enum CatalogGrowth {
     public static func groups(_ discovery: CatalogDiscovery, catalog: Catalog, fullDiskAccess: FullDiskAccessStatus) -> [GrowthAggregate] {

@@ -3,7 +3,7 @@ import Darwin
 
 extension Catalog {
     /// Sizes the guidance-only rules (SPEC section 3). Reads metadata only, through `sizer`; never file contents.
-    /// A rule appears when one of its locations exists; one Still can't read is `.notAccessible`, never 0.
+    /// A rule appears when one of its locations exists; one CacheDrop can't read is `.notAccessible`, never 0.
     /// Without Full Disk Access, a rule that needs it is `.notAccessible` without being touched, so no privacy prompt appears.
     public func guidance(home: URL, systemRoot: URL = URL(fileURLWithPath: "/"), sizer: KnownLocationSizer = KnownLocationSizer(),
                          snapshots: any LocalSnapshotListing = TmutilSnapshots(), fullDiskAccess: FullDiskAccessStatus = .unknown) -> [GuidanceFinding] {

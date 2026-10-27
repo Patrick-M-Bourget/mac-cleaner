@@ -29,7 +29,7 @@ extension BuiltInCatalog {
     ]
 }
 
-/// The kinds of Docker data Still offers to prune, by their `Type` in `docker system df`. Volumes are never one.
+/// The kinds of Docker data CacheDrop offers to prune, by their `Type` in `docker system df`. Volumes are never one.
 public enum DockerPruneKind: String, Sendable, Equatable {
     case images = "Images", buildCache = "Build Cache", stoppedContainers = "Containers"
 }

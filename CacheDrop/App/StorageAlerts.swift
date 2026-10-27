@@ -53,7 +53,7 @@ extension Notification.Name {
     init() {
         super.init(system: NativeAlertMonitoringSystem())
     }
-    /// Registers notification handling at launch, so an alert's Open Still and Remind me later work (#131).
+    /// Registers notification handling at launch, so an alert's Open CacheDrop and Remind me later work (#131).
     func configureNotifications() {
         let center = UNUserNotificationCenter.current()
         center.delegate = self
@@ -104,7 +104,7 @@ struct AlertThresholdEditor: View {
     }
 }
 
-/// Shown only when notifications for Still are blocked; permission is asked for only when alerts are turned on.
+/// Shown only when notifications for CacheDrop are blocked; permission is asked for only when alerts are turned on.
 struct AlertPermissionDetails: View {
     let authorization: AlertPolicy.Authorization
     let checked: Bool
@@ -200,7 +200,7 @@ struct CacheDropMenuBarLabel: View {
     }
 }
 
-/// The menu bar item's menu: Open Still, Scan again, Smart clean… when it has something, Settings… and Quit.
+/// The menu bar item's menu: Open CacheDrop, Scan again, Smart clean… when it has something, Settings… and Quit.
 struct CacheDropMenuBarMenu: View {
     @Environment(\.openWindow) private var openWindow
     let lifecycle: AppLifecycleController

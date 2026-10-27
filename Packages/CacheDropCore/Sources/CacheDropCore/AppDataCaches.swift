@@ -63,8 +63,8 @@ public enum AppDataCaches {
         return parts.compactMap { $0 }
     }
     /// The IDE an older version's folder belongs to. Never offered: the folder of any installed version, every folder
-    /// of a product installed in a version Still can't read, the newest folder of each product (an install Still didn't
-    /// find may use it), and a product Still doesn't know.
+    /// of a product installed in a version CacheDrop can't read, the newest folder of each product (an install CacheDrop didn't
+    /// find may use it), and a product CacheDrop doesn't know.
     static func jetBrainsOwner(_ url: URL, apps: any AppLookup) -> RuleOwner? {
         guard let (product, version) = jetBrainsVersion(url.lastPathComponent), let ide = jetBrainsProducts[product],
               let siblings = try? FileManager.default.contentsOfDirectory(atPath: url.deletingLastPathComponent().path) else { return nil }
@@ -120,7 +120,7 @@ public enum AppDataCaches {
     /// (Apple, File System Programming Guide: a sandboxed app's container). The rest of the container is the app's data
     /// and is never a location; nor are group containers, which several apps share.
     static let containerCaches = "Library/Containers/*/Data/Library/Caches"
-    /// The installed app whose container holds the caches folder; nil for macOS's and Still's own, or an app that isn't installed.
+    /// The installed app whose container holds the caches folder; nil for macOS's, CacheDrop's and Still's own, or an app that isn't installed.
     static func containerOwner(_ url: URL, apps: any AppLookup) -> RuleOwner? {
         let parts = url.pathComponents
         guard parts.count > 5, Array(parts.suffix(3)) == ["Data", "Library", "Caches"], parts[parts.count - 5] == "Containers" else { return nil }

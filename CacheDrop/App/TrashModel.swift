@@ -3,7 +3,7 @@ import Observation
 import CacheDropCore
 import SwiftUI
 
-/// What the Finder Trash holds, measured read-only off the main thread. Still never empties the Trash (SPEC section 2).
+/// What the Finder Trash holds, measured read-only off the main thread. CacheDrop never empties the Trash (SPEC section 2).
 @MainActor @Observable final class TrashModel {
     static let shared = TrashModel()
     /// nil until measured, and with no catalog home (a debug test run without a fixture home).

@@ -1,6 +1,6 @@
 import AppKit
 
-/// The one way Still hands a place to Finder: opening a folder or link (the Trash, guidance places), or showing items selected in a Finder window.
+/// The one way CacheDrop hands a place to Finder: opening a folder or link (the Trash, guidance places), or showing items selected in a Finder window.
 enum Finder {
     /// Opens a folder in Finder, or a link in its app. Returns whether it opened.
     @discardableResult

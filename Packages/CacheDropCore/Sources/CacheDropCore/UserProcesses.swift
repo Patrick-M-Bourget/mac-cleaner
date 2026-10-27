@@ -2,7 +2,7 @@ import AppKit
 import Darwin
 import Foundation
 
-/// The one way Still lists what is running: the current user's processes through the documented libproc calls
+/// The one way CacheDrop lists what is running: the current user's processes through the documented libproc calls
 /// (`proc_listallpids`, `proc_pidinfo`, `proc_pidpath`), and open apps by bundle identifier through `NSRunningApplication`.
 /// The running-app check, the in-use check and the app quitter all read from here.
 enum UserProcesses {

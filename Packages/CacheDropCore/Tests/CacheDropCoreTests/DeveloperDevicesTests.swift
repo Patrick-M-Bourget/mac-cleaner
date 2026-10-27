@@ -150,7 +150,7 @@ private let nothingRunning = Running(names: [])
     #expect(result.records.map(\.message) == ["Ran simctl delete \(shutdownUDID)", "Ran simctl runtime delete \(unusedRuntime)"])
     #expect(result.records.map(\.itemName) == ["iPhone 16 (iOS 18.0)", "watchOS 11.0 (22R349)"])
     #expect(simctlLog(home) == "delete \(shutdownUDID)\nruntime delete \(unusedRuntime)\n")
-    // simctl decides what goes; Still never deletes the device folder itself.
+    // simctl decides what goes; CacheDrop never deletes the device folder itself.
     #expect(FileManager.default.fileExists(atPath: home.appendingPathComponent(devicesFolder + "/" + shutdownUDID).path))
 }
 

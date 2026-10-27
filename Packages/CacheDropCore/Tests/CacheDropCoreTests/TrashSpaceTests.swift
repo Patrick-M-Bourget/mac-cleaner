@@ -98,7 +98,7 @@ private final class RecordingOpener: TrashOpening, @unchecked Sendable {
     #expect(opener.opened == [home.appendingPathComponent(".Trash", isDirectory: true)])
 }
 
-// SPEC section 2: Still never empties the Trash and never deletes anything from it. Every path that could act on an
+// SPEC section 2: CacheDrop never empties the Trash and never deletes anything from it. Every path that could act on an
 // item goes through discovery or a picked folder's listing, and then the check; each is held to that here.
 
 /// A home whose Trash holds what rules would otherwise take: an old installer, a large file and a cache folder.

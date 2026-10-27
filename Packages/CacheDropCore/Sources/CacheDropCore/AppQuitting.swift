@@ -1,7 +1,7 @@
 import AppKit
 import Foundation
 
-/// The one way Still asks an app to quit (SPEC section 2): a normal quit request, like ⌘Q, sent only when the user asks.
+/// The one way CacheDrop asks an app to quit (SPEC section 2): a normal quit request, like ⌘Q, sent only when the user asks.
 /// There is deliberately no force-quit here. The app may ask to save, or refuse.
 public protocol AppQuitting: Sendable {
     /// Whether an app with one of these bundle identifiers is open.

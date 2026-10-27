@@ -17,7 +17,7 @@ struct FullDiskAccessLink: View {
     }
 }
 
-/// One quiet line for every place Still couldn't read without Full Disk Access: "2 locations need Full Disk Access · Learn more".
+/// One quiet line for every place CacheDrop couldn't read without Full Disk Access: "2 locations need Full Disk Access · Learn more".
 /// The places are named in its tooltip and accessibility value.
 struct FullDiskAccessNote: View {
     let places: [String]

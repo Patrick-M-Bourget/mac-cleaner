@@ -16,7 +16,7 @@ import CacheDropCore
     #expect(refused.action == .quitApp("Quit Xcode"))
 }
 
-/// Records what Still asks of apps. It has no force-quit to call, so a test can only see normal quit requests.
+/// Records what CacheDrop asks of apps. It has no force-quit to call, so a test can only see normal quit requests.
 private final class FakeQuitter: AppQuitting, @unchecked Sendable {
     private let lock = NSLock()
     private var open: Set<String>
@@ -40,7 +40,7 @@ private final class FakeQuitter: AppQuitting, @unchecked Sendable {
     #expect(await AppQuitRequest(quitter: polite).quit(owner) == .quit)
     #expect(polite.quitRequests == [["com.apple.dt.Xcode"]])
 
-    // Unsaved work, or the app refused: it stays open and Still says so calmly.
+    // Unsaved work, or the app refused: it stays open and CacheDrop says so calmly.
     let stubborn = FakeQuitter(open: ["com.apple.dt.Xcode"], quitsWhenAsked: false)
     #expect(await AppQuitRequest(quitter: stubborn).quit(owner) == .stillOpen)
     #expect(stubborn.quitRequests == [["com.apple.dt.Xcode"]])

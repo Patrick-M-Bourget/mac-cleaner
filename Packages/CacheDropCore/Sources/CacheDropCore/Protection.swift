@@ -9,7 +9,7 @@ struct Protection {
     /// Packages and libraries that are never acted on, whatever folder holds them.
     static let extensions: Set<String> = ["app", "bundle", "framework", "xcarchive", "photoslibrary", "photolibrary", "musiclibrary", "backupbundle", "sparsebundle", "band", "logicx"]
 
-    /// Protected names for the rule: the global ones, load-bearing caches, Still's own folders and the rule's own.
+    /// Protected names for the rule: the global ones, load-bearing caches, CacheDrop's and Still's own folders and the rule's own.
     let names: Set<String>
     /// Protected extensions for the rule: the global ones the rule may not act inside, plus the rule's own.
     let extensions: Set<String>
@@ -22,7 +22,7 @@ struct Protection {
         macOSNamesAllowed = rule.unprotectedNames
     }
 
-    /// Whether a single file or folder name is protected: by name, by extension, or as macOS's or Still's own folder.
+    /// Whether a single file or folder name is protected: by name, by extension, or as macOS's, CacheDrop's or Still's own folder.
     func protects(_ name: String) -> Bool {
         names.contains(name) || extensions.contains((name as NSString).pathExtension.lowercased()) || (AppCaches.isMacOSOrOwn(name) && !macOSNamesAllowed.contains(name))
     }

@@ -47,7 +47,7 @@ import XCTest
     return marker
 }
 
-/// Scrolls `element` fully into view before a click. Still's window may open at its 900×640 minimum (the saved frame is
+/// Scrolls `element` fully into view before a click. CacheDrop's window may open at its 900×640 minimum (the saved frame is
 /// shared with the user's own runs). Overview rows and plan rules then sit below the visible area or on the window's bottom
 /// resize edge, where a synthesized click does nothing. `nearTop` leaves room below it, e.g. for a disclosure group's
 /// lazily drawn items.

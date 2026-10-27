@@ -1,8 +1,8 @@
 import Foundation
 
-/// Whether Still has Full Disk Access (SPEC section 7). It's optional; Still works without it.
+/// Whether CacheDrop has Full Disk Access (SPEC section 7). It's optional; CacheDrop works without it.
 public enum FullDiskAccessStatus: Sendable, Equatable {
     case granted, notGranted
-    /// No protected folder to check was found, so Still can't tell.
+    /// No protected folder to check was found, so CacheDrop can't tell.
     case unknown
 }

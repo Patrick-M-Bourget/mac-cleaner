@@ -367,7 +367,7 @@ public struct Catalog: Sendable {
     }
 
     /// `discover`, plus notes on rules that kept items back, such as copies kept because their use couldn't be checked.
-    /// A rule that needs Full Disk Access Still doesn't have (`access`) is never read; it comes back in `notAccessible`.
+    /// A rule that needs Full Disk Access CacheDrop doesn't have (`access`) is never read; it comes back in `notAccessible`.
     public func discovery(home: URL, userFolder: URL? = nil, exclusions: ExclusionPolicy = ExclusionPolicy(), inUse: any InUseChecking = SystemInUseChecker(), sizer: KnownLocationSizer = KnownLocationSizer(), now: Date = Date(), locateTool: (ToolCommand) -> URL? = ToolCommand.installed,
                           systemRoot: URL = URL(fileURLWithPath: "/"), cloud: any UbiquitousItemAccess = SystemUbiquitousItems(), access: FullDiskAccessStatus = .unknown,
                           progress: (CatalogDiscoveryProgress) -> Void = { _ in }) -> CatalogDiscovery {

@@ -1,6 +1,6 @@
 import Foundation
 
-/// The plan Still recommends from the latest scan: only data that rebuilds itself, deleted, that passes the checks now.
+/// The plan CacheDrop recommends from the latest scan: only data that rebuilds itself, deleted, that passes the checks now.
 /// Nothing is preselected unless the user asks for it (RESET Decision 28, SPEC section 1).
 public struct RecommendedPlan: Sendable {
     /// The scan's candidates the plan takes, in scan order.

@@ -156,6 +156,6 @@ private let devices = "Library/Developer/CoreSimulator/Devices"
     #expect(record.message == "Ran simctl delete unavailable")
     #expect(record.toolOutput == "Deleted: iPhone 12 (0A1B2C3D)")
     #expect(try String(contentsOf: marker, encoding: .utf8) == "delete unavailable\n")
-    // The tool decides what goes; Still never deletes the Devices folder itself.
+    // The tool decides what goes; CacheDrop never deletes the Devices folder itself.
     #expect(FileManager.default.fileExists(atPath: home.appendingPathComponent(devices + "/0A1B2C3D-0000-0000-0000-000000000000/data/entry").path))
 }

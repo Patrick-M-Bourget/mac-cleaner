@@ -34,7 +34,7 @@ public enum AppLifecyclePolicy {
 }
 
 /// A normal launch always opens the main window (#110). macOS's saved window state could restore
-/// the app with no main window, so Still ignores it, as `-ApplePersistenceIgnoreState YES` does.
+/// the app with no main window, so CacheDrop ignores it, as `-ApplePersistenceIgnoreState YES` does.
 /// Registered defaults rank lowest, so an explicit setting can still override this.
 public enum AppLaunchPolicy {
     public static func registerDefaults(in defaults: UserDefaults = .standard) {

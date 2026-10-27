@@ -93,7 +93,7 @@ private func found(_ catalog: Catalog, _ home: URL, access: FullDiskAccessStatus
         try write(home, jetbrains + folder + "/caches/content.dat", bytes: 1_024)
     }
     let catalog = Catalog(rules: fixtureRules)
-    // The newest version of each product is the one in use; a product Still doesn't know has no owner to check.
+    // The newest version of each product is the one in use; a product CacheDrop doesn't know has no owner to check.
     #expect(found(catalog, home) == [jetbrains + "IntelliJIdea2023.3": "jetbrains-caches", jetbrains + "IntelliJIdea2024.2": "jetbrains-caches",
                                      jetbrains + "PyCharmCE2023.1": "jetbrains-caches"])
     let rule = try #require(catalog.rule("jetbrains-caches"))

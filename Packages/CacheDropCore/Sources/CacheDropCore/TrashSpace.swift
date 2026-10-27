@@ -8,7 +8,7 @@ public enum TrashContents: Equatable, Sendable {
     case unknown
 }
 
-/// The Finder Trash, sized read-only. Still never empties the Trash or deletes anything from it (SPEC section 2):
+/// The Finder Trash, sized read-only. CacheDrop never empties the Trash or deletes anything from it (SPEC section 2):
 /// this only reads it, and `Protection` keeps every rule and the check away from it.
 public enum TrashSpace {
     /// The user's Trash folder in `home`.

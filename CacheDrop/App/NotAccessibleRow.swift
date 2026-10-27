@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// A row for something Still couldn't read, such as a rule that declares `requiresFullDiskAccess`.
+/// A row for something CacheDrop couldn't read, such as a rule that declares `requiresFullDiskAccess`.
 /// It always offers the same explanation.
 struct NotAccessibleRow: View {
     let title: String

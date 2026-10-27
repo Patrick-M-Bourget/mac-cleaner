@@ -15,7 +15,7 @@ extension CatalogCleanupModel {
                              fullDiskAccess: fullDiskAccess)
         }.value
     }
-    /// Still became active: if Full Disk Access was granted while it was away, rescan the catalog and guidance once,
+    /// CacheDrop became active: if Full Disk Access was granted while it was away, rescan the catalog and guidance once,
     /// so "needs Full Disk Access" lines go away without Scan again (#124). Probing never asks for access.
     func rescanIfFullDiskAccessGranted() async {
         guard canEdit, !isScanning, let home = Self.home else { return }

@@ -2,7 +2,7 @@ import CacheDropCore
 import SwiftUI
 
 /// App-managed storage (Decision 25): its own quiet page, reached from one Overview row. Each row opens the app or
-/// place that manages it; Still shows the size and never changes these (SPEC section 3).
+/// place that manages it; CacheDrop shows the size and never changes these (SPEC section 3).
 struct AppManagedStorageView: View {
     @Bindable var model: CatalogCleanupModel
     let back: () -> Void
