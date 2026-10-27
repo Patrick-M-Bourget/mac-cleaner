@@ -35,7 +35,9 @@ final class FolderInspection {
     var selected: FileObservation?
     private var isScanningCurrent = false
     var isScanning: Bool { isScanningCurrent || scanAgainTask != nil }
-    var message: String?
+    var message: String? { didSet { unavailableScope = nil } }
+    /// The location the current message says is unavailable, so Overview can leave it to that location's recovery row (#231).
+    private(set) var unavailableScope: URL?
     var previewURL: URL?
 
     static func chooseFolder(downloads: Bool = false, remembering: Bool = false) -> URL? {
@@ -188,7 +190,6 @@ final class FolderInspection {
             .max { $0.observedAt < $1.observedAt }
     }
 
-    /// Overview leaves this out while the location's recovery row already says it (#223).
     static let unavailableMessage = "Current coverage: Unknown · This location is unavailable. Reconnect and recheck, or choose it again in Locations & access."
     func markUnavailable(_ url: URL) {
         scope = url
@@ -196,6 +197,7 @@ final class FolderInspection {
         lastComplete = previous?.lastComplete ?? previous.flatMap { $0.current.isComplete ? $0.current : nil }
         result = nil; selected = nil
         message = Self.unavailableMessage
+        unavailableScope = url.standardizedFileURL
     }
 
     func show(_ report: ScopeReport) {

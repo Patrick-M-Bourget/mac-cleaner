@@ -28,10 +28,9 @@ import CacheDropCore
         var needsRecovery: Bool { self == .chooseAgain || self == .unavailable }
     }
     private(set) var statuses: [UUID: AccessStatus] = [:]
-    /// The first included location that needs access renewed or its volume reconnected: Overview's one recovery row (#223).
-    var recovery: (scope: RememberedScope, status: AccessStatus)? {
-        for scope in included { if let status = statuses[scope.id], status.needsRecovery { return (scope, status) } }
-        return nil
+    /// Every included location that needs access renewed or its volume reconnected: one Overview recovery row each (#223, #231).
+    var recoveries: [(scope: RememberedScope, status: AccessStatus)] {
+        included.compactMap { scope in statuses[scope.id].flatMap { $0.needsRecovery ? (scope, $0) : nil } }
     }
     private(set) var notice: String?
     var message: String? {

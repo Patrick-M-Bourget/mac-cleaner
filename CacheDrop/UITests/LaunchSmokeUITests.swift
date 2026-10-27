@@ -400,4 +400,31 @@ final class ScannedLocationsUITests: XCTestCase {
         XCTAssertTrue(app.links["Explore storage"].waitForExistence(timeout: 20))
         XCTAssertFalse(row.exists)
     }
+
+    /// #231: two stale folders get a row each, each with its own Choose again…, and no grey "Current coverage" row.
+    @MainActor func testTwoStaleFoldersShowARowEach() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        let state = try configureIsolatedState(app)
+        let home = try configureCatalogHome(app)
+        defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
+        let projects = home.appendingPathComponent("Projects")
+        try FileManager.default.createDirectory(at: projects, withIntermediateDirectories: true)
+        let scopes = state.appendingPathComponent("Scopes")
+        try FileManager.default.createDirectory(at: scopes, withIntermediateDirectories: false, attributes: [.posixPermissions: 0o700])
+        let stale = Data("stale".utf8).base64EncodedString()
+        let record: [String: Any] = ["version": 1, "scopes": [
+            ["id": UUID().uuidString, "path": home.appendingPathComponent("Downloads").path, "isIncluded": true, "kind": "downloads", "bookmark": stale],
+            ["id": UUID().uuidString, "path": projects.path, "isIncluded": true, "kind": "inspection", "bookmark": stale]]]
+        try JSONSerialization.data(withJSONObject: record).write(to: scopes.appendingPathComponent("scopes-v1.json"))
+        app.launch()
+        XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
+
+        let rows = app.staticTexts.matching(identifier: "overviewLocationRecovery")
+        XCTAssertTrue(rows.firstMatch.waitForExistence(timeout: 15))
+        let texts = Set(rows.allElementsBoundByIndex.compactMap { $0.value as? String })
+        XCTAssertEqual(texts, ["Downloads · Access unavailable", "Projects · Access unavailable"])
+        XCTAssertEqual(app.buttons.matching(identifier: "overviewChooseAgain").count, 2)
+        XCTAssertFalse(app.staticTexts.matching(NSPredicate(format: "value CONTAINS 'Current coverage'")).firstMatch.exists)
+    }
 }

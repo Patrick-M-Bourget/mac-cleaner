@@ -578,18 +578,23 @@ private struct WorkspaceView: View {
             if selection.scans.values.contains(where: { !$0.isComplete }) || overviewObservation.map({ $0.excludedEntryCount > 0 || $0.hasUnmeasuredContents }) == true {
                 StatusRow(text: "Some locations have partial coverage. Uninspected bytes remain unknown.", symbol: "exclamationmark.circle", role: .caution)
             }
-            // One row per problem (#223): an unavailable location names itself and carries the fix.
-            if let (scope, status) = locationsModel.recovery {
+            // One row per problem (#223, #231): each unavailable location names itself and carries the fix.
+            ForEach(locationsModel.recoveries, id: \.scope.id) { scope, status in
                 StatusRow(text: URL(fileURLWithPath: scope.path).lastPathComponent + " · " + status.reason, symbol: "info.circle", role: .caution,
                     identifier: "overviewLocationRecovery", actionTitle: "Choose again…", actionIdentifier: "overviewChooseAgain") {
                     if chooseAgain(scope), let renewed = locationsModel.included.first(where: { $0.id == scope.id }) { scanLocations([renewed]) }
                 }.disabled(folderInspection.isScanning || selection.workspaceRunning)
             }
             if let notice = locationsModel.notice { StatusRow(text: notice, symbol: "info.circle", role: .caution) }
-            if let message = folderInspection.message, !(message == FolderInspection.unavailableMessage && locationsModel.recovery != nil) {
+            if let message = folderInspection.message, !recoveryRowCovers(folderInspection.unavailableScope) {
                 StatusRow(text: message, symbol: "info.circle")
             }
         }
+    }
+    /// Whether an unavailable location already has its own recovery row, which says what the grey message would (#231).
+    private func recoveryRowCovers(_ scope: URL?) -> Bool {
+        guard let scope else { return false }
+        return locationsModel.recoveries.contains { URL(fileURLWithPath: $0.scope.path).standardizedFileURL == scope }
     }
     /// Folders the user picked plus the catalog's known locations; unknown coverage is left to the recovery row (#223).
     private var scannedSummary: String {
