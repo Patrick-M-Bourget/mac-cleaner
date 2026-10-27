@@ -304,7 +304,11 @@ public struct InstalledApp: Sendable, Hashable {
     public let bundleID: String
     /// The app bundle's path; a process run from inside it counts as the app.
     public let path: String
-    public init(name: String, bundleID: String, path: String) { self.name = name; self.bundleID = bundleID; self.path = path }
+    /// Who made it, as its bundle says (a plug-in's Audio Unit maker or copyright line); nil when it doesn't say.
+    public let maker: String?
+    public init(name: String, bundleID: String, path: String, maker: String? = nil) {
+        self.name = name; self.bundleID = bundleID; self.path = path; self.maker = maker
+    }
 }
 
 /// Content an app keeps offline in its cache folder (#171): a folder holding any of `names` anywhere inside it (#203), and an entry

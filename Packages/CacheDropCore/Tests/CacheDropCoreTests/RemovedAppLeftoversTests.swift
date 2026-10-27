@@ -145,6 +145,8 @@ private func names(_ found: [Candidate]) -> Set<String> { Set(found.map(\.url.la
     let home = try fixtureHome()
     defer { try? FileManager.default.removeItem(at: home) }
     try write(home, "Library/Preferences/com.gone.synth.plist")
+    // Its saved window state shows com.gone.synth was an app's (#251).
+    try write(home, "Library/Saved Application State/com.gone.synth.savedState/data.data")
     try write(home, "Library/Application Support/Gone/x")
     try write(home, "Library/Logs/Synth/x")
     // Named like Editor's maker or Editor itself, which is installed; or like no removed app at all.
@@ -156,7 +158,7 @@ private func names(_ found: [Candidate]) -> Set<String> { Set(found.map(\.url.la
     let possible = found.filter { $0.ruleID == RemovedAppLeftovers.possiblyRelatedRuleID }
 
     #expect(names(possible) == ["Gone", "Synth"])
-    #expect(names(found) == ["com.gone.synth.plist", "Gone", "Synth"])
+    #expect(names(found) == ["com.gone.synth.plist", "com.gone.synth.savedState", "Gone", "Synth"])
     #expect(possible.allSatisfy { $0.appName == "Synth" && $0.leftover?.reason?.contains("com.gone.synth") == true })
     #expect(RemovedAppLeftovers.rules.first { $0.id == RemovedAppLeftovers.possiblyRelatedRuleID }?.selectedOneByOne == true)
     #expect(RemovedAppLeftovers.rules.first { $0.id == RemovedAppLeftovers.ruleID }?.selectedOneByOne == false)
@@ -176,7 +178,7 @@ private func check(_ home: URL, running: Running = Running(), apps: Apps = Apps(
 @Test func aRunningProcessOfTheMakerBlocksTheWholeGroup() throws {
     let home = try fixtureHome()
     defer { try? FileManager.default.removeItem(at: home) }
-    try write(home, "Library/Preferences/com.gone.synth.plist")
+    try write(home, "Library/Containers/com.gone.synth/Data/x")
     try write(home, "Library/Application Support/Gone/x")
     let found = scan(home)
     #expect(found.count == 2)

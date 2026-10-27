@@ -58,6 +58,12 @@ public struct PlugInInventory: Sendable, Equatable {
     /// Finds every plug-in in `folders` and every AUv3 extension in apps in `/Applications` and `~/Applications`.
     /// Folders that don't exist or can't be read are skipped. Reads metadata only.
     public static func scan(home: URL, systemRoot: URL = URL(fileURLWithPath: "/"), sizer: KnownLocationSizer = KnownLocationSizer()) -> PlugInInventory {
+        PlugInInventory(products: group(files(home: home, systemRoot: systemRoot, sizer: sizer), receipts: receipts(under: systemRoot)))
+    }
+
+    /// Every plug-in file `scan` finds, ungrouped. Without a sizer, sizes are left unknown, so nothing is walked: for telling
+    /// whether a maker's products are installed (#251).
+    static func files(home: URL, systemRoot: URL, sizer: KnownLocationSizer?) -> [PlugInFile] {
         func resolve(_ location: String) -> URL {
             location.hasPrefix("/") ? systemRoot.appendingPathComponent(String(location.dropFirst())) : home.appendingPathComponent(location)
         }
@@ -74,7 +80,7 @@ public struct PlugInInventory: Sendable, Equatable {
                 for appex in bundles(in: app.appendingPathComponent("Contents/PlugIns"), withExtension: "appex", depth: 1) where isAudioExtension(appex) { add(appex, .auv3) }
             }
         }
-        return PlugInInventory(products: group(files, receipts: receipts(under: systemRoot)))
+        return files
     }
 
     /// Groups files into products (Decision 42): files one installer receipt lists, files in different formats that share
@@ -155,7 +161,7 @@ public struct PlugInInventory: Sendable, Equatable {
         return point == "com.apple.AudioUnit" || point == "com.apple.AudioUnit-UI"
     }
 
-    static func read(_ url: URL, _ format: PlugInFormat, sizer: KnownLocationSizer) -> PlugInFile? {
+    static func read(_ url: URL, _ format: PlugInFormat, sizer: KnownLocationSizer?) -> PlugInFile? {
         let info = info(url) ?? [:]
         let attributes = (info["NSExtension"] as? [String: Any])?["NSExtensionAttributes"] as? [String: Any]
         let components = (attributes?["AudioComponents"] ?? info["AudioComponents"]) as? [[String: Any]]
@@ -166,7 +172,7 @@ public struct PlugInInventory: Sendable, Equatable {
         let executable = (info["CFBundleExecutable"] as? String).map { url.appendingPathComponent("Contents/MacOS/" + $0) }
         return PlugInFile(url: url, format: format, bundleID: info["CFBundleIdentifier"] as? String, name: name, maker: maker,
                           version: leadingVersion((info["CFBundleShortVersionString"] ?? info["CFBundleVersion"]) as? String),
-                          architectures: executable.map(MachOArchitectures.read) ?? [], size: Catalog.estimate(sizer.size(url)),
+                          architectures: executable.map(MachOArchitectures.read) ?? [], size: sizer.map { Catalog.estimate($0.size(url)) } ?? .unknown,
                           isNamedByAudioUnit: component?.count == 2)
     }
 
