@@ -66,8 +66,8 @@ struct HomebrewInspectionView: View {
                 Button("Inspect selected Homebrew") { Task { await model.inspect() } }.disabled(model.executable == nil || model.cache == nil || model.inspecting)
             }
             }
-            if let executable = model.executable { Text("Installation: \(executable.path)").textSelection(.enabled).font(.caption) }
-            if let cache = model.cache { Text("Explicit cache override: \(cache.path)").textSelection(.enabled).font(.caption) }
+            if let executable = model.executable { Text("Installation: \(executable.path)").textSelection(.enabled).font(StillDesign.TypeStyle.caption) }
+            if let cache = model.cache { Text("Explicit cache override: \(cache.path)").textSelection(.enabled).font(StillDesign.TypeStyle.caption) }
             StatusRow(text: model.status, symbol: "info.circle", identifier: "homebrewPreviewStatus")
             if let inventory = model.inventory {
                 if inventory.supported {
@@ -78,20 +78,20 @@ struct HomebrewInspectionView: View {
                         Text("Allocated bytes: \(inventory.allocatedBytes.map(String.init) ?? "Unknown")")
                         Text("Download files: \(inventory.downloadFileCount) · Top-level incomplete files: \(inventory.incompleteDownloadCount)")
                         Text("Reclaimable space: Unknown").foregroundStyle(.secondary)
-                        Text("Observed: \(inventory.observedAt.formatted())").font(.caption)
+                        Text("Observed: \(inventory.observedAt.formatted())").font(StillDesign.TypeStyle.caption)
                     }
                 }
                 }
                 Text(inventory.version).font(.headline)
-                Text("Resolved installation prefix: \(inventory.prefix)").font(.caption).textSelection(.enabled)
-                Text("Queried explicit cache: \(inventory.cache)").font(.caption).textSelection(.enabled)
-                Text(inventory.guidance).font(.caption).foregroundStyle(.secondary)
+                Text("Resolved installation prefix: \(inventory.prefix)").font(StillDesign.TypeStyle.caption).textSelection(.enabled)
+                Text("Queried explicit cache: \(inventory.cache)").font(StillDesign.TypeStyle.caption).textSelection(.enabled)
+                Text(inventory.guidance).font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary)
                 if !inventory.incompleteDownloads.isEmpty {
                     Text("Incomplete download names · May still be active").font(.headline)
                     ForEach(Array(inventory.incompleteDownloads.prefix(20).enumerated()), id: \.offset) { _, entry in
-                        Text("\(entry.relativePath) · \(entry.logicalBytes) logical bytes").font(.caption).textSelection(.enabled)
+                        Text("\(entry.relativePath) · \(entry.logicalBytes) logical bytes").font(StillDesign.TypeStyle.caption).textSelection(.enabled)
                     }
-                    if inventory.incompleteDownloadCount > 20 { Text("Showing up to 20 names; counts include all observed files.").font(.caption).foregroundStyle(.secondary) }
+                    if inventory.incompleteDownloadCount > 20 { Text("Showing up to 20 names; counts include all observed files.").font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary) }
                 }
             }
             if let report = model.report {
@@ -108,7 +108,7 @@ struct HomebrewInspectionView: View {
             }
             Divider()
             Button("Show disposable preview example") { model.showExample() }.disabled(model.inspecting)
-            Text("The example below uses synthetic vendor-format output. Real cache inventory measures metadata only; it does not predict brew cleanup or authorize deletion.").font(.caption).foregroundStyle(.secondary)
+            Text("The example below uses synthetic vendor-format output. Real cache inventory measures metadata only; it does not predict brew cleanup or authorize deletion.").font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary)
         }
     }
 }

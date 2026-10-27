@@ -159,7 +159,7 @@ struct LowSpaceAlertsSettings: View {
             Text("Low-space alerts")
         } footer: {
             Text("Still checks free space about every 15 minutes while it’s open. It never scans or cleans in the background.")
-                .font(.caption).foregroundStyle(.secondary)
+                .font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary)
         }
         .task {
             controller.configure()

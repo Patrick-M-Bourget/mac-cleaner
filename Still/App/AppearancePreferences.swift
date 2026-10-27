@@ -68,7 +68,7 @@ struct AppearancePreferenceNotice: View {
     var body: some View {
         HStack(spacing: StillDesign.Space.sm) {
             Spacer(minLength: 0)
-            Text(message).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+            Text(message).font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary).lineLimit(1)
                 .accessibilityIdentifier("appearanceSaveNotice")
                 .accessibilityHidden(notice == nil)
             if notice == .saveFailed {

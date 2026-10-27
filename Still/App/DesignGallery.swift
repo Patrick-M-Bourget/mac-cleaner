@@ -59,21 +59,21 @@ struct DesignGallery: View {
                     CategoryPrerequisite(title: "Not scanned", detail: "Scan the included Downloads locations before choosing files.", actionTitle: "Scan Downloads…", enabled: true, action: {})
                     CategoryPrerequisite(title: "No eligible files", detail: "No eligible files in this inspected location.", actionTitle: "Scan Downloads again", enabled: true, action: {})
                     ExplorerInspector(name: "Camera guide.pdf", close: {}) {
-                        Text("Location").font(.caption).foregroundStyle(.secondary)
+                        Text("Location").font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary)
                         Text("/Example/Downloads/Camera guide.pdf")
-                        Text("Observed scope").font(.caption).foregroundStyle(.secondary)
+                        Text("Observed scope").font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary)
                         Text("/Example/Downloads")
                         Text("On disk: 8 MB observed")
                         Text("Logical size: 8 MB")
-                        Text("Why listed").font(.caption).foregroundStyle(.secondary)
+                        Text("Why listed").font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary)
                         Text("Observed during a manual scan")
-                        Text("Cleanup action").font(.caption).foregroundStyle(.secondary)
+                        Text("Cleanup action").font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary)
                         Text("Move this exact file to Trash after selection and confirmation.")
                     }.frame(height: 220)
                     ExplorerInspector(name: "Cloud metadata (synthetic)", close: {}) {
                         Text("Synthetic Gallery metadata; no provider certification.")
                         Text("On disk: Unknown")
-                        Text("Cleanup action").font(.caption).foregroundStyle(.secondary)
+                        Text("Cleanup action").font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary)
                         Text("Cloud-managed item. Cloud cleanup is unavailable; no eviction or synced deletion is offered.")
                     }.frame(height: 220)
                     ToolbarScanStatus(location: "Downloads", returnToScan: {}, stop: {})
@@ -164,7 +164,7 @@ private struct ShellAppearanceGalleryExamples: View {
             Text("Synthetic appearance controls · Inert examples").font(.headline)
             ForEach(Array([AppearancePreferenceController.Notice?.none, .invalidSavedValue, .unreadable, .saveFailed].enumerated()), id: \.offset) { index, notice in
                 VStack(alignment: .leading, spacing: StillDesign.Space.xs) {
-                    Text("Appearance notice example " + String(index)).font(.caption)
+                    Text("Appearance notice example " + String(index)).font(StillDesign.TypeStyle.caption)
                     AppearancePreferenceNotice(notice: notice, retry: {})
                 }.accessibilityElement(children: .contain).accessibilityIdentifier("appearanceGallery-" + String(index))
             }

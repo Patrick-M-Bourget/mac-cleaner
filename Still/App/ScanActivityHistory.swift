@@ -255,7 +255,7 @@ struct HistoryActivityGalleryExamples: View {
     ] }
     var body: some View {
         VStack(alignment: .leading, spacing: StillDesign.Space.xl) {
-            Text("Synthetic presentation only · Actions are inert; no scan, comparison or record write occurs.").font(.caption).foregroundStyle(.secondary)
+            Text("Synthetic presentation only · Actions are inert; no scan, comparison or record write occurs.").font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary)
             HistoryActivityFilterControl(selection: .constant(.all))
             ForEach(cases) { item in
                 VStack(alignment: .leading, spacing: StillDesign.Space.md) {
@@ -292,6 +292,6 @@ struct HistoryActivityGalleryExamples: View {
         }
     }
     private func heading(_ id: String, _ title: String) -> some View { Text("Synthetic History · " + title).font(StillDesign.TypeStyle.section).accessibilityIdentifier("historyGalleryCase-" + id) }
-    private func end(_ id: String, _ text: String) -> some View { Text(text).font(.caption).foregroundStyle(.secondary).accessibilityIdentifier("historyGalleryEnd-" + id) }
+    private func end(_ id: String, _ text: String) -> some View { Text(text).font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary).accessibilityIdentifier("historyGalleryEnd-" + id) }
 }
 #endif

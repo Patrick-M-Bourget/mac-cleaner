@@ -176,11 +176,11 @@ struct StorageExplorerView: View {
             HStack {
                 Button(context.downloadsOnly ? "Scanned Downloads locations" : "Selected locations") { context.returnToRoot() }
                 if folderAvailable, let folder = context.position.folder {
-                    Image(systemName: "chevron.right").font(.caption).foregroundStyle(.secondary)
+                    Image(systemName: "chevron.right").font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary)
                     ForEach(breadcrumbs(for: folder), id: \.self) { ancestor in
                         Button(ancestor.lastPathComponent) { if ancestor != folder { context.enter(ancestor) } }
                             .lineLimit(1).help(ancestor.path)
-                        if ancestor != folder { Image(systemName: "chevron.right").font(.caption).foregroundStyle(.secondary) }
+                        if ancestor != folder { Image(systemName: "chevron.right").font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary) }
                     }
                 }
             }
@@ -219,7 +219,7 @@ struct StorageExplorerView: View {
                             Text(([scan.totalAllocatedBytes.map { bytes($0) + " on disk" } ?? "At least " + bytes(scan.allocatedBytes) + " on disk",
                                    scan.isComplete ? nil : "Partial coverage",
                                    observations.overlaps(scan.scope) ? "Overlaps another location" : nil] as [String?]).compactMap { $0 }.joined(separator: " · "))
-                                .font(.caption).foregroundStyle(.secondary)
+                                .font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary)
                         }.padding(StillDesign.Space.md)
                         Divider()
                     }
@@ -245,7 +245,7 @@ struct StorageExplorerView: View {
             } label: {
                 VStack(alignment: .leading, spacing: StillDesign.Space.xs) {
                     Text(item.url.lastPathComponent).foregroundStyle(.primary)
-                    if context.position.folder != nil, !context.position.query.isEmpty { Text(PathDisplay.shortLocation(of: item.url.path)).font(.caption).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle) }
+                    if context.position.folder != nil, !context.position.query.isEmpty { Text(PathDisplay.shortLocation(of: item.url.path)).font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle) }
                 }.frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
             }.buttonStyle(.plain).accessibilityLabel((item.kind == .folder ? "Open folder " : "Inspect ") + item.url.lastPathComponent)
             Text(item.kind == .folder ? folderAllocation(item.url) : bytes(item.allocatedBytes)).font(.callout).monospacedDigit().foregroundStyle(.secondary)
@@ -271,7 +271,7 @@ struct StorageExplorerView: View {
             } else {
                 inspectorField("Cleanup action", "Inspection only. Large and old files, and Downloads installers, can be added to the cleanup plan.")
             }
-            Text("Observed allocation is not reclaimable space. Trash may retain storage until emptied.").font(.caption).foregroundStyle(.secondary)
+            Text("Observed allocation is not reclaimable space. Trash may retain storage until emptied.").font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary)
             if entry.item.isDuplicateResource { Text("Shared resource · allocation counts once within a total.") }
             if entry.item.kind == .package || entry.item.kind == .symbolicLink { Text("Protected boundary · contents not inspected.") }
             if entry.item.previewAvailability != .local { Text("Local contents are " + entry.item.previewAvailability.rawValue + ". Preview will not request a download.") }
@@ -304,7 +304,7 @@ struct StorageExplorerView: View {
         let files = offeredHere
         return VStack(alignment: .leading, spacing: 0) {
             Text("Files of 500 MB or more, or not opened in 90 days.")
-                .font(.caption).foregroundStyle(.secondary).padding(.bottom, StillDesign.Space.sm)
+                .font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary).padding(.bottom, StillDesign.Space.sm)
             if files.isEmpty { EmptyState(title: "No large or old files here", detail: "Nothing in this folder is 500 MB or more or unopened for 90 days. Protected files and git checkouts are never listed.", symbol: "doc") }
             LazyVStack(alignment: .leading, spacing: 0) {
                 ForEach(files, id: \.file.id) { file, entry in
@@ -315,7 +315,7 @@ struct StorageExplorerView: View {
                     Divider()
                 }
             }
-            if files.count == UserFiles.listLimit { Text("Showing the \(UserFiles.listLimit) largest. Pick a smaller folder to see more.").font(.caption).foregroundStyle(.secondary) }
+            if files.count == UserFiles.listLimit { Text("Showing the \(UserFiles.listLimit) largest. Pick a smaller folder to see more.").font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary) }
         }.accessibilityIdentifier("explorerLargeAndOld")
     }
     private func planToggle(_ file: Candidate) -> some View {
@@ -335,7 +335,7 @@ struct StorageExplorerView: View {
     private func relative(_ url: URL, to root: URL) -> String { url.pathComponents.dropFirst(root.pathComponents.count).joined(separator: "/") }
     private func inspectorField(_ title: String, _ value: String) -> some View {
         VStack(alignment: .leading, spacing: StillDesign.Space.xs) {
-            Text(title).font(.caption).foregroundStyle(.secondary)
+            Text(title).font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary)
             Text(value).font(.callout).textSelection(.enabled)
         }
     }

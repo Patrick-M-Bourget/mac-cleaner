@@ -79,7 +79,7 @@ struct DiagnosticsView: View {
                 }
             }
             StatusRow(text: model.status, symbol: "doc.text", role: model.export?.outcome == .failed || model.unavailable ? .caution : .neutral, identifier: "diagnosticsStatus")
-            Text("Saving diagnostics does not clear history, resolve interrupted work or grant permission to retry cleanup.").font(.caption).foregroundStyle(.secondary)
+            Text("Saving diagnostics does not clear history, resolve interrupted work or grant permission to retry cleanup.").font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary)
         }
     }
 }

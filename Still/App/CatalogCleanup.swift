@@ -520,7 +520,7 @@ struct CatalogScanProgressLine: View {
     var body: some View {
         HStack(spacing: StillDesign.Space.sm) {
             ProgressView().controlSize(.small).accessibilityHidden(true)
-            Text(model.scanProgressText).font(.caption).foregroundStyle(.secondary).monospacedDigit().lineLimit(1).truncationMode(.middle)
+            Text(model.scanProgressText).font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary).monospacedDigit().lineLimit(1).truncationMode(.middle)
                 .accessibilityIdentifier("catalogScanProgress")
         }
     }

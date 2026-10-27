@@ -7,11 +7,17 @@ enum StillDesign {
     enum Space { static let xs: CGFloat = 4; static let sm: CGFloat = 8; static let md: CGFloat = 12; static let lg: CGFloat = 16; static let xl: CGFloat = 24; static let page: CGFloat = 32 }
     enum Radius { static let row: CGFloat = 8; static let surface: CGFloat = 12 }
     /// Fixed sizes: the capacity bar's heights (sidebar, card, prominent card) and the device card's icon tile.
-    enum Size { static let meterCompact: CGFloat = 4; static let meter: CGFloat = 8; static let meterProminent: CGFloat = 12; static let deviceIcon: CGFloat = 44; static let sheetNarrow: CGFloat = 480; static let numberField: CGFloat = 64 }
+    enum Size { static let meterCompact: CGFloat = 4; static let meter: CGFloat = 8; static let meterProminent: CGFloat = 12; static let deviceIcon: CGFloat = 44; static let sheetNarrow: CGFloat = 480; static let numberField: CGFloat = 64
+        /// A category badge's square tile.
+        static let badge: CGFloat = 32 }
+    /// How strongly a colour tints a surface behind its symbol, as in a category badge.
+    enum Opacity { static let badgeTint: Double = 0.10 }
     enum TypeStyle {
         static let page = Font.system(size: 26, weight: .medium); static let value = Font.system(size: 22, weight: .medium); static let section = Font.system(size: 13, weight: .medium)
         /// The symbol in the device card's icon tile.
         static let deviceIcon = Font.system(size: 16, weight: .light)
+        /// The symbol in a category badge.
+        static let badgeIcon = Font.system(size: 16, weight: .regular)
         /// A list row's name, explanations under a heading, captions and secondary lines, and command or tool output.
         static let rowTitle = Font.body.weight(.medium); static let note = Font.callout; static let caption = Font.caption; static let code = Font.caption.monospaced()
     }
@@ -31,6 +37,8 @@ enum StillDesign {
     static var purple: Color { adaptive(light: 0x9360D8, dark: 0xB290ED) }
     static var teal: Color { adaptive(light: 0x349A9B, dark: 0x61C3C2) }
     static var orange: Color { adaptive(light: 0xBD7527, dark: 0xE2A35E) }
+    /// App-managed storage and the catalog categories that share its colour: the system indigo.
+    static var indigo: Color { .indigo }
     static func files(_ count: Int) -> String { "\(count) \(count == 1 ? "file" : "files")" }
     static func items(_ count: Int) -> String { "\(count) \(count == 1 ? "item" : "items")" }
     static var capacityFill: Color { adaptive(light: 0x969BA7, dark: 0x858997) }
@@ -50,7 +58,7 @@ enum StorageCategory {
         case .developer: StillDesign.purple
         case .downloads: StillDesign.orange
         case .browser: StillDesign.teal
-        case .managed, .appCaches, .models, .appUpdates, .logs, .deviceBackups, .mail, .messages, .photos, .timeMachine, .xcodeArchives, .audioPlugIns: .indigo
+        case .managed, .appCaches, .models, .appUpdates, .logs, .deviceBackups, .mail, .messages, .photos, .timeMachine, .xcodeArchives, .audioPlugIns: StillDesign.indigo
         }
     }
     var symbol: String {
@@ -104,9 +112,9 @@ struct CategoryBadge: View {
     /// A badge for something other than a storage category, such as a review sheet's consequence group.
     init(symbol: String, color: Color) { self.symbol = symbol; self.color = color }
     var body: some View {
-        Image(systemName: symbol).font(.system(size: 16, weight: .regular))
-            .foregroundStyle(color).frame(width: 32, height: 32)
-            .background(color.opacity(0.10), in: RoundedRectangle(cornerRadius: StillDesign.Radius.row))
+        Image(systemName: symbol).font(StillDesign.TypeStyle.badgeIcon)
+            .foregroundStyle(color).frame(width: StillDesign.Size.badge, height: StillDesign.Size.badge)
+            .background(color.opacity(StillDesign.Opacity.badgeTint), in: RoundedRectangle(cornerRadius: StillDesign.Radius.row))
             .accessibilityHidden(true)
     }
 }
@@ -141,14 +149,14 @@ struct SelectionSummary: View {
         SummarySurface {
             HStack(alignment: .center) {
                 VStack(alignment: .leading, spacing: StillDesign.Space.sm) {
-                    Text(title).font(.caption).foregroundStyle(.secondary)
+                    Text(title).font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary)
                     Text(value).font(StillDesign.TypeStyle.value).monospacedDigit()
                 }
                 Spacer(minLength: StillDesign.Space.lg)
-                Text(detail).font(.caption).foregroundStyle(.secondary).multilineTextAlignment(.trailing).accessibilityIdentifier(identifier)
+                Text(detail).font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary).multilineTextAlignment(.trailing).accessibilityIdentifier(identifier)
             }
         }
-        if let consequence { Text(consequence).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true).accessibilityIdentifier(consequenceIdentifier) }
+        if let consequence { Text(consequence).font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true).accessibilityIdentifier(consequenceIdentifier) }
         }
     }
 }
@@ -207,7 +215,7 @@ struct FindingRow<Accessory: View>: View {
             VStack(alignment: .leading, spacing: StillDesign.Space.xs) {
                 Text(title).font(StillDesign.TypeStyle.section)
                 Text(detail).font(.callout).foregroundStyle(.secondary)
-                if let consequence { Text(consequence).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true) }
+                if let consequence { Text(consequence).font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true) }
             }.frame(maxWidth: .infinity, alignment: .leading)
             accessory()
         }.padding(.vertical, StillDesign.Space.md)
@@ -253,14 +261,14 @@ struct StorageReviewRow: View {
             CategoryBadge(category: category)
             VStack(alignment: .leading, spacing: StillDesign.Space.xs) {
                 Text(title).font(StillDesign.TypeStyle.section)
-                if !detail.isEmpty { Text(detail).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true) }
+                if !detail.isEmpty { Text(detail).font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true) }
             }.frame(maxWidth: .infinity, alignment: .leading)
             VStack(alignment: .trailing, spacing: StillDesign.Space.xs) {
                 Text(value).font(mutedValue ? StillDesign.TypeStyle.caption : StillDesign.TypeStyle.section).monospacedDigit()
                     .foregroundStyle(mutedValue ? .secondary : .primary)
-                if !meaning.isEmpty { Text(meaning).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true) }
+                if !meaning.isEmpty { Text(meaning).font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true) }
             }.multilineTextAlignment(.trailing)
-            if action != nil { Image(systemName: "chevron.right").font(.caption).foregroundStyle(.secondary) }
+            if action != nil { Image(systemName: "chevron.right").font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary) }
         }.padding(StillDesign.Space.lg).frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
     }
 }
@@ -301,7 +309,7 @@ extension ActionStrip where Leading == ActionStripMessage {
 /// A bottom bar's note; nothing when there is none.
 struct ActionStripMessage: View {
     let text: String?
-    var body: some View { if let text { Text(text).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true) } }
+    var body: some View { if let text { Text(text).font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true) } }
 }
 struct CapacityMeter: View {
     let available: Int64?
@@ -326,7 +334,7 @@ struct CapacityMeter: View {
     var body: some View {
         VStack(alignment: .leading, spacing: StillDesign.Space.sm) {
             if compact {
-                Text(amountText).font(.caption).foregroundStyle(.secondary).lineLimit(2)
+                Text(amountText).font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary).lineLimit(2)
                     .frame(height: 30, alignment: .topLeading).accessibilityIdentifier("sidebarCapacityAmount")
             } else if showsValue {
                 Text(amountText).font(.callout).foregroundStyle(.secondary)
@@ -369,29 +377,29 @@ struct VolumeSummary: View {
                         .accessibilityHidden(true)
                     VStack(alignment: .leading, spacing: StillDesign.Space.xs) {
                         Text(name).font(StillDesign.TypeStyle.section)
-                        Text("Startup volume · " + (total.map(bytes) ?? "Total capacity unavailable")).font(.caption).foregroundStyle(.secondary)
+                        Text("Startup volume · " + (total.map(bytes) ?? "Total capacity unavailable")).font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary)
                     }.frame(height: StillDesign.Size.deviceIcon)
                     Spacer(minLength: StillDesign.Space.sm)
                     VStack(alignment: .trailing, spacing: StillDesign.Space.xs) {
                         if let available, available >= 0 {
                             Text(bytes(available)).font(StillDesign.TypeStyle.value).monospacedDigit().accessibilityIdentifier("startupCapacityAmount")
-                            Text("available").font(.caption).foregroundStyle(.secondary)
+                            Text("available").font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary)
                         } else {
                             Text("—").font(StillDesign.TypeStyle.value)
-                            Text(refreshing ? "Checking capacity…" : "Available space unavailable").font(.caption).foregroundStyle(.secondary)
+                            Text(refreshing ? "Checking capacity…" : "Available space unavailable").font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary)
                         }
                     }
                 }
                 CapacityMeter(available: available, total: total, showsValue: false, prominent: true)
                 HStack(alignment: .firstTextBaseline, spacing: StillDesign.Space.md) {
-                    Text(used.map { bytes($0) + " used" } ?? "Used space unknown").font(.caption).foregroundStyle(.secondary).monospacedDigit()
+                    Text(used.map { bytes($0) + " used" } ?? "Used space unknown").font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary).monospacedDigit()
                     Spacer(minLength: StillDesign.Space.sm)
-                    Text("Whole-disk capacity").font(.caption).foregroundStyle(.secondary)
+                    Text("Whole-disk capacity").font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary)
                         .help(observation).accessibilityValue(observation).accessibilityIdentifier("capacityObservation")
                 }
                 if !status.isEmpty {
                     HStack(spacing: StillDesign.Space.md) {
-                        Text(status).font(.caption).foregroundStyle(.secondary).accessibilityIdentifier("capacityRefreshStatus")
+                        Text(status).font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary).accessibilityIdentifier("capacityRefreshStatus")
                         Spacer(minLength: StillDesign.Space.sm)
                         if let refresh, !refreshing {
                             Button(refreshTitle, action: refresh).accessibilityIdentifier("refreshCapacity")
@@ -502,7 +510,7 @@ struct CategorySelectionHeader: View {
             CategoryBadge(category: category)
             VStack(alignment: .leading, spacing: StillDesign.Space.xs) {
                 Text(title).font(StillDesign.TypeStyle.section)
-                Text(detail).font(.caption).foregroundStyle(.secondary).lineLimit(1).help(detail)
+                Text(detail).font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary).lineLimit(1).help(detail)
             }.frame(maxWidth: .infinity, alignment: .leading)
             Text(size).font(.callout).monospacedDigit().fixedSize()
         }
@@ -594,7 +602,7 @@ struct InspectableItemRow<Selection: View>: View {
                     VStack(alignment: .leading, spacing: StillDesign.Space.xs) {
                         Text(name).foregroundStyle(.primary)
                         // An empty detail makes it a one-line row (Smart clean, #141).
-                        if !detail.isEmpty { Text(detail).font(.caption).foregroundStyle(.secondary).lineLimit(detailLineLimit) }
+                        if !detail.isEmpty { Text(detail).font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary).lineLimit(detailLineLimit) }
                     }.frame(maxWidth: .infinity, alignment: .leading)
                     Text(size).font(.callout).monospacedDigit().foregroundStyle(.secondary)
                 }.contentShape(Rectangle())
@@ -647,9 +655,9 @@ struct ScanProgressSummary: View {
                 }
                 StatusRow(text: "\(inspectedEntries) entries inspected so far · Preliminary observations", identifier: "scanProgressSummary")
                 Text("Known logical subtotal: \(logicalSubtotal) · Coverage incomplete")
-                    .font(.caption).foregroundStyle(.secondary)
+                    .font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary)
                 ForEach(Array(recentNames.prefix(5).enumerated()), id: \.offset) { _, name in
-                    Text(name).font(.caption).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
+                    Text(name).font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
                 }
             }
         }
@@ -684,7 +692,7 @@ struct ToolbarScanStatus: View {
         HStack(spacing: StillDesign.Space.sm) {
             ProgressView().controlSize(.small)
             VStack(alignment: .leading, spacing: 0) {
-                Text(phase).font(.caption).lineLimit(1).accessibilityIdentifier("scanPhase")
+                Text(phase).font(StillDesign.TypeStyle.caption).lineLimit(1).accessibilityIdentifier("scanPhase")
                 Text(inspectedEntries.map { "\($0) entries inspected · " + location } ?? "Scanning " + location)
                     .font(.caption2).foregroundStyle(.secondary).lineLimit(1).accessibilityIdentifier("scanProgressSummary")
             }.frame(maxWidth: 240, alignment: .leading)
@@ -705,8 +713,8 @@ struct LocationScopeRow<Actions: View>: View {
     private var identity: some View {
         VStack(alignment: .leading, spacing: StillDesign.Space.sm) {
             Label(name, systemImage: "folder").font(StillDesign.TypeStyle.section)
-            Text(PathDisplay.shortLocation(of: path) + " · " + status).font(.caption).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle).help(path)
-            if let overlap { Text(overlap).font(.caption).foregroundStyle(.secondary) }
+            Text(PathDisplay.shortLocation(of: path) + " · " + status).font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle).help(path)
+            if let overlap { Text(overlap).font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary) }
         }.frame(maxWidth: .infinity, alignment: .leading)
     }
     var body: some View {

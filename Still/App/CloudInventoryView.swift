@@ -10,24 +10,24 @@ struct CloudInventoryView: View {
         VStack(alignment: .leading, spacing: StillDesign.Space.sm) {
             HStack(spacing: StillDesign.Space.sm) { CategoryBadge(category: .cloud); Text("iCloud in this scan").font(StillDesign.TypeStyle.section) }
             Text("\(report.isComplete ? "Completed selected-scope observation" : "Partial selected-scope observation") · \(report.observedAt.formatted(date: .abbreviated, time: .shortened))")
-                .font(.caption).foregroundStyle(.secondary)
+                .font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary)
             Text("Identified local downloaded allocation: \(bytes(report.localAllocatedBytes)) · \(report.localItemCount) files")
                 .monospacedDigit()
             if !report.isComplete {
                 Text("Observed local allocated subtotal: \(bytes(report.observedLocalAllocatedBytes)) · Uninspected cloud allocation: Unknown")
-                    .font(.caption).foregroundStyle(.secondary)
+                    .font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary)
             }
             Text("Cloud-only: \(report.cloudOnlyItemCount) files · \(bytes(report.cloudOnlyLogicalBytes)) logical size")
             Text("Cloud-only allocated bytes: \(bytes(report.cloudOnlyAllocatedBytes))")
-                .font(.caption).foregroundStyle(.secondary)
+                .font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary)
             if report.unknownStateCount > 0 { Text("\(report.unknownStateCount) identified iCloud files have unknown local/download state.") }
             if report.unknownMembershipCount > 0 { Text("iCloud membership unknown for \(report.unknownMembershipCount) file identities.") }
             if report.isComplete && report.items.isEmpty && report.unknownMembershipCount == 0 {
                 Text("No iCloud files identified in this selected scope.").foregroundStyle(.secondary)
             }
-            Text("Pinning: Unknown — not established by this scan").font(.caption).foregroundStyle(.secondary)
+            Text("Pinning: Unknown — not established by this scan").font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary)
             Text("Sync safety remains unverified. Logical sizes and local allocations are not promised savings. Local eviction is unavailable until the validation gate passes.")
-                .font(.caption).foregroundStyle(.secondary)
+                .font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary)
             if !report.items.isEmpty {
                 Button {
                     evidenceExpanded.toggle()
@@ -43,7 +43,7 @@ struct CloudInventoryView: View {
                                 Text("Download metadata: \(state(item.cloud.downloadState)) · locality: \(item.previewAvailability.rawValue)")
                                 Text("Upload complete: \(flag(item.cloud.uploaded)) · uploading: \(flag(item.cloud.uploading)) · downloading: \(flag(item.cloud.downloading))")
                                 Text("Conflicts: \(flag(item.cloud.conflicts)) · Pinning: Unknown")
-                            }.font(.caption).foregroundStyle(.secondary)
+                            }.font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary)
                         }
                     }
                 }

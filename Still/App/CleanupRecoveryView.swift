@@ -49,10 +49,10 @@ struct CleanupRecoveryView: View {
                             SettingsRow(title: record.originalURL.lastPathComponent, detail: record.originalURL.path) {
                                 StatusRow(text: record.recoveryStateText, symbol: record.state == .succeeded ? "checkmark.circle" : "info.circle", role: record.state == .succeeded ? .success : .neutral)
                                     .accessibilityIdentifier("recoveryState-" + record.originalURL.lastPathComponent)
-                                Text(record.message).font(.caption).foregroundStyle(.secondary)
+                                Text(record.message).font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary)
                                 if let returned = record.trashURL {
-                                    Text("Recorded resulting location: " + returned.path).font(.caption).foregroundStyle(.secondary).textSelection(.enabled)
-                                    Text("Location has not been verified in this session.").font(.caption).foregroundStyle(.secondary)
+                                    Text("Recorded resulting location: " + returned.path).font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary).textSelection(.enabled)
+                                    Text("Location has not been verified in this session.").font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary)
                                     if record.state == .succeeded, returned.isFileURL {
                                         Button("Reveal recorded location") { NSWorkspace.shared.activateFileViewerSelecting([returned]) }
                                             .accessibilityLabel("Reveal recorded location for " + record.originalURL.lastPathComponent)
@@ -63,7 +63,7 @@ struct CleanupRecoveryView: View {
                                         Text("Scope: " + record.scopeURL.path)
                                         Text("Action: " + record.actionTitle + (record.previewOnly == true ? " · Dry run" : "") + " · Policy \(record.policyVersion)")
                                         Text("Resource identity at approval: " + record.resourceID)
-                                    }.font(.caption).foregroundStyle(.secondary).textSelection(.enabled)
+                                    }.font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary).textSelection(.enabled)
                                 }
                             }
                             Divider()

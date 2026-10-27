@@ -143,9 +143,9 @@ private struct WorkspaceView: View {
         HStack(spacing: 0) {
             VStack(alignment: .leading, spacing: StillDesign.Space.sm) {
                 AppBrand().padding(.horizontal, StillDesign.Space.sm).padding(.bottom, StillDesign.Space.xl)
-                Text("Storage").font(.caption).foregroundStyle(.secondary).padding(.horizontal, StillDesign.Space.sm)
+                Text("Storage").font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary).padding(.horizontal, StillDesign.Space.sm)
                 ForEach(Destination.allCases.filter { $0 != .locations }) { navigation($0) }
-                Text("Settings").font(.caption).foregroundStyle(.secondary).padding(.horizontal, StillDesign.Space.sm).padding(.top, StillDesign.Space.xl)
+                Text("Settings").font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary).padding(.horizontal, StillDesign.Space.sm).padding(.top, StillDesign.Space.xl)
                 navigation(.locations)
                 Spacer()
                 VStack(alignment: .leading, spacing: StillDesign.Space.md) {
@@ -317,14 +317,14 @@ private struct WorkspaceView: View {
     }
     @ViewBuilder private var contextToolbarLabel: some View {
         if selection.workspaceRunning, let contextLabel {
-            Text(contextLabel).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+            Text(contextLabel).font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary).lineLimit(1)
         } else if folderInspection.isScanning {
             ToolbarScanStatus(location: folderInspection.scope?.lastPathComponent ?? "selected locations",
                 phase: folderInspection.progress.map { $0.phase == .rechecking ? "Rechecking changed coverage (one attempt)…" : $0.phase == .checkingDirectories ? "Checking directory stability…" : "Reading file metadata…" } ?? "Preparing metadata scan…",
                 inspectedEntries: folderInspection.progress?.visitedEntries,
                 returnToScan: scanReturnAction,
                 stop: { folderInspection.cancel() })
-        } else if let contextLabel, !contextLabel.isEmpty { Text(contextLabel).font(.caption).foregroundStyle(.secondary).lineLimit(1) }
+        } else if let contextLabel, !contextLabel.isEmpty { Text(contextLabel).font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary).lineLimit(1) }
     }
 
     private var scanReturnAction: (() -> Void)? {
@@ -429,11 +429,11 @@ private struct WorkspaceView: View {
                     Text("Recommended for review").font(StillDesign.TypeStyle.section)
                     Spacer(minLength: StillDesign.Space.md)
                     Text(summary.map { recommendedText($0.recommended) } ?? (catalog.isScanning ? "Checking known locations…" : "Not measured yet"))
-                        .font(.caption).foregroundStyle(.secondary).monospacedDigit().accessibilityIdentifier("overviewRecommendedTotal")
+                        .font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary).monospacedDigit().accessibilityIdentifier("overviewRecommendedTotal")
                     // The recommended plan lives on its own page (#141): one quiet link to it.
                     if summary != nil, !catalog.recommendedCandidates.isEmpty {
                         Button("Smart clean · " + catalog.recommendedSizeText + " ›") { navigate(.smartClean) }
-                            .buttonStyle(.link).font(.caption).accessibilityIdentifier("overviewSmartClean")
+                            .buttonStyle(.link).font(StillDesign.TypeStyle.caption).accessibilityIdentifier("overviewSmartClean")
                     }
                 }
                 // One quiet line while the scan runs; rows and the total fill in as each location finishes (#128).
@@ -465,7 +465,7 @@ private struct WorkspaceView: View {
                 }
                 TrashNote()
                 if let trash = summary?.proposedForTrash, trash != .measured(0) {
-                    Text("Estimated release excludes " + trash.text + " proposed for Trash.").font(.caption).foregroundStyle(.secondary)
+                    Text("Estimated release excludes " + trash.text + " proposed for Trash.").font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary)
                 }
                 if !catalog.guidance.isEmpty {
                     RecommendationGroup {
@@ -533,10 +533,10 @@ private struct WorkspaceView: View {
         VStack(alignment: .leading, spacing: StillDesign.Space.sm) {
             HStack(alignment: .firstTextBaseline, spacing: StillDesign.Space.sm) {
                 Text("Scanned locations").font(.caption.weight(.medium))
-                Text(scannedSummary).font(.caption).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
+                Text(scannedSummary).font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
                     .help(overviewObservation?.scope.path ?? "").accessibilityIdentifier("overviewScopeCoverage")
                 if overviewObservation != nil {
-                    Button("Explore storage") { openExplorer(downloads: false, caller: .overview) }.buttonStyle(.link).font(.caption).disabled(selection.workspaceRunning)
+                    Button("Explore storage") { openExplorer(downloads: false, caller: .overview) }.buttonStyle(.link).font(StillDesign.TypeStyle.caption).disabled(selection.workspaceRunning)
                 }
                 Spacer(minLength: 0)
                 // One clear action: pick a folder, remember it and scan it now (#125).
@@ -546,7 +546,7 @@ private struct WorkspaceView: View {
             if selection.scans.values.contains(where: { !$0.isComplete }) || overviewObservation.map({ $0.excludedEntryCount > 0 || $0.hasUnmeasuredContents }) == true {
                 StatusRow(text: "Some locations have partial coverage. Uninspected bytes remain unknown.", symbol: "exclamationmark.circle", role: .caution)
             }
-            if folderInspection.isScanning { ProgressView("Rechecking selected locations…").font(.caption) }
+            if folderInspection.isScanning { ProgressView("Rechecking selected locations…").font(StillDesign.TypeStyle.caption) }
             if let message = locationsModel.message { StatusRow(text: message, symbol: "info.circle", role: .caution) }
             if let message = folderInspection.message { StatusRow(text: message, symbol: "info.circle") }
         }
@@ -655,7 +655,7 @@ private struct WorkspaceView: View {
                 }
                 if locationsModel.statuses[scope.id]?.needsRecovery == true,
                    let previous = folderInspection.scopeReports.first(where: { $0.current.scope.path == scope.path })?.lastComplete {
-                    Text("Last complete observation: " + previous.observedAt.formatted() + " · Historical, not current coverage").font(.caption).foregroundStyle(.secondary)
+                    Text("Last complete observation: " + previous.observedAt.formatted() + " · Historical, not current coverage").font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary)
                 }
                 Divider()
             }
