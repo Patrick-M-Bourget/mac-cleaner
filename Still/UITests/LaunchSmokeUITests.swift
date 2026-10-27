@@ -100,7 +100,9 @@ final class LaunchSmokeUITests: XCTestCase {
 
         revealAndClick(app.links["fullDiskAccessLink"].firstMatch, in: app)
         XCTAssertTrue(app.staticTexts["Full Disk Access is optional"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.staticTexts["CacheDrop’s scans stay read-only. Nothing protected becomes eligible for cleanup, and CacheDrop only changes what you choose and review."].exists)
+        // Over XCUITest's 128-character subscript limit, so matched by label.
+        let readOnly = "CacheDrop’s scans stay read-only. Nothing protected becomes eligible for cleanup, and CacheDrop only changes what you choose and review."
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label == %@ OR value == %@", readOnly, readOnly)).firstMatch.exists)
         XCTAssertTrue(app.buttons["openFullDiskAccessSettings"].exists) // Not pressed: tests never open System Settings.
         app.buttons["closeFullDiskAccess"].click()
         XCTAssertFalse(app.staticTexts["Full Disk Access is optional"].waitForExistence(timeout: 2))
