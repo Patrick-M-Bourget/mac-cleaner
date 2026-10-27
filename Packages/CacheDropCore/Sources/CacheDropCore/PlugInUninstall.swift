@@ -10,16 +10,15 @@ public enum PlugInUninstall {
     public static let formatsRuleID = "uninstall-plugin"
     public static let filesRuleID = "uninstall-plugin-files"
     public static let sharedRuleID = "uninstall-plugin-shared"
-    public static let rules: [CleanupRule] = [
-        CleanupRule(id: formatsRuleID, category: .apps, title: "Formats", detail: "The product's plug-in formats.", consequence: AppUninstall.consequence,
-                    regen: .userFile, action: .trash, locations: [], owner: nil),
-        CleanupRule(id: filesRuleID, category: .apps, title: "Its support files", detail: "Presets and support files its own installer lists.",
-                    consequence: AppUninstall.consequence, regen: .userFile, action: .trash, locations: [], owner: nil, protectedDepth: AppCaches.liveWorkDepth),
-        CleanupRule(id: sharedRuleID, category: .apps, title: "Shared with other products",
-                    detail: "Suite support files and content.",
-                    consequence: AppUninstall.consequence, regen: .userFile, action: .trash, locations: [], owner: nil, protectedDepth: AppCaches.liveWorkDepth,
-                    itemByItem: true),
-    ]
+    static let formatsRule = CleanupRule(id: formatsRuleID, category: .apps, title: "Formats", detail: "The product's plug-in formats.",
+        consequence: AppUninstall.consequence, regen: .userFile, action: .trash, locations: [], owner: nil, family: .plugInUninstall)
+    static let filesRule = CleanupRule(id: filesRuleID, category: .apps, title: "Its support files", detail: "Presets and support files its own installer lists.",
+        consequence: AppUninstall.consequence, regen: .userFile, action: .trash, locations: [], owner: nil, protectedDepth: AppCaches.liveWorkDepth,
+        family: .plugInUninstall)
+    static let sharedRule = CleanupRule(id: sharedRuleID, category: .apps, title: "Shared with other products", detail: "Suite support files and content.",
+        consequence: AppUninstall.consequence, regen: .userFile, action: .trash, locations: [], owner: nil, protectedDepth: AppCaches.liveWorkDepth,
+        itemByItem: true, family: .plugInUninstall)
+    public static let rules: [CleanupRule] = [formatsRule, filesRule, sharedRule]
 
     /// Plug-in hosts that must be closed first (Decision 51, a curated list). Bundle IDs checked on this Mac: Ableton Live
     /// (`com.ableton.live`) and Pro Tools (`com.avid.ProTools`); the rest are their makers' published IDs, and every host is
@@ -79,14 +78,13 @@ public enum PlugInUninstall {
                                                         among: appEntries)
             var target = AppUninstall.Target(name: product.name, bundleID: standalone?.bundleID ?? bundleID, path: product.id,
                                              helpers: standalone.map { AppUninstall.helperIDs(of: URL(fileURLWithPath: $0.path)) } ?? [])
-            target.otherPaths = product.files.map(\.url.path) + (standalone.map { [$0.path] } ?? [])
-            target.hosts = hosts; target.tool = tool?.name
+            target.plugIn = AppUninstall.Target.PlugIn(otherPaths: product.files.map(\.url.path) + (standalone.map { [$0.path] } ?? []), hosts: hosts, tool: tool?.name)
             targets[product.id] = target
         }
         /// A shared item waits for every sharer (#288): the first's target, with each other sharer's own app as a host.
         func sharedTarget(_ ids: [String]) -> AppUninstall.Target? {
             guard var target = ids.lazy.compactMap({ targets[$0] }).first else { return nil }
-            target.hosts += ids.compactMap { targets[$0] }.filter { $0.path != target.path }.map(\.owner)
+            target.plugIn?.hosts += ids.compactMap { targets[$0] }.filter { $0.path != target.path }.map(\.owner)
             return target
         }
         for product in products {
@@ -94,8 +92,8 @@ public enum PlugInUninstall {
             var own: [Candidate] = []
             for file in product.files {
                 // An AUv3 lives inside its app and goes with it.
-                if file.format == .auv3 { target.insideApp += 1; continue }
-                guard var format = item(rules[0], file.url) else { continue }
+                if file.format == .auv3 { target.plugIn?.insideApp += 1; continue }
+                guard var format = item(formatsRule, file.url) else { continue }
                 guard Removability.canMoveToTrash(file.url) else { target.needsPassword += 1; continue }
                 format.leftover = LeftoverTie(app: product.name, bundleID: file.bundleID, vendor: RemovedAppLeftovers.vendor(of: file.bundleID ?? ""), evidence: .bundleID)
                 own.append(format)
@@ -108,8 +106,8 @@ public enum PlugInUninstall {
                 target.unrecognised += unrecognised
                 for url in roots {
                     guard let listers = receipts.listers(of: url.path), let ids = sharers(url.path) else { continue }
-                    if ids.count > 1 { if shared[url.path] == nil, let found = item(rules[2], url) { shared[url.path] = found.shared(by: ids, receipt: receipt).installed(by: listers) }; continue }
-                    guard var file = item(rules[1], url).map({ $0.installed(by: listers) }) else { continue }
+                    if ids.count > 1 { if shared[url.path] == nil, let found = item(sharedRule, url) { shared[url.path] = found.shared(by: ids, receipt: receipt).installed(by: listers) }; continue }
+                    guard var file = item(filesRule, url).map({ $0.installed(by: listers) }) else { continue }
                     guard taken(offered, [file]).count == 1 else { target.inPlan += 1; continue }
                     guard Removability.canMoveToTrash(url) else { target.needsPassword += 1; target.passwordPaths.append(url.path); continue }
                     file.leftover = LeftoverTie(app: product.name, bundleID: nil, vendor: RemovedAppLeftovers.vendor(of: receipt), evidence: .receipt(receipt))
@@ -128,7 +126,7 @@ public enum PlugInUninstall {
             let owners = Set(products.filter { ids.contains($0.id) }.flatMap(\.receipts))
             let others = (receipts.listers(of: piece.url.path) ?? []).subtracting(owners).subtracting(productReceipts)
             let allowed = owners.union(others)
-            guard shared[piece.url.path] == nil, let target = sharedTarget(ids), var found = item(rules[2], piece.url) else { continue }
+            guard shared[piece.url.path] == nil, let target = sharedTarget(ids), var found = item(sharedRule, piece.url) else { continue }
             if let refusal = contentRefusal(piece.url.path, allowed: allowed, receipts: receipts, refuseWhenTooLarge: false) {
                 // Content with a file CacheDrop doesn't recognise stays, and its first owner's row says so (Decision 53).
                 if case .unrecognised = refusal, let first = ids.first { targets[first]?.unrecognised += 1 }
@@ -155,7 +153,7 @@ public enum PlugInUninstall {
     /// `unrecognised`: the listed files left out because CacheDrop doesn't know their kind is safe (Decision 53).
     static func supportRoots(_ listed: Set<String>, systemRoot: URL, receipts: ReceiptListings = ReceiptListings([:]), products: Set<String> = [])
         -> (roots: [URL], unrecognised: Int) {
-        let base = systemRoot.standardizedFileURL.path.hasSuffix("/") ? systemRoot.standardizedFileURL.path : systemRoot.standardizedFileURL.path + "/"
+        let root = systemRoot.standardizedFileURL.path, base = root.hasSuffix("/") ? root : root + "/"
         var roots: [String] = [], unrecognised = 0
         for path in listed.sorted(by: { ($0.split(separator: "/").count, $0) < ($1.split(separator: "/").count, $1) }) {
             guard path.hasPrefix(base), !roots.contains(where: { path.hasPrefix($0 + "/") }) else { continue }
@@ -272,7 +270,7 @@ public enum PlugInUninstall {
     /// Never offered or acted on: license and macOS data and Apple's folders anywhere on the path below the system root, and
     /// anything that is or holds an app or plug-in other than the item itself.
     static func isNeverTouched(_ url: URL, below systemRoot: URL) -> Bool {
-        let parts = url.standardizedFileURL.pathComponents.dropFirst(systemRoot.standardizedFileURL.pathComponents.count)
+        let parts = RemovedAppLeftovers.parts(of: url, below: systemRoot)
         return parts.contains { RemovedAppLeftovers.isNeverOffered($0) || appleFolders.contains($0.lowercased()) }
             || parts.dropLast().contains { $0.lowercased().hasSuffix(".app") }
     }
@@ -283,7 +281,7 @@ public enum PlugInUninstall {
     static func refusal(for candidate: Candidate, receipts: LazyReceipts) -> CheckRefusal? {
         let url = candidate.url
         if isNeverTouched(url, below: url.deletingLastPathComponent()) { return .protected(url.lastPathComponent) }
-        if candidate.ruleID == formatsRuleID {
+        if candidate.ruleID == formatsRule.id {
             guard let tie = candidate.leftover, PlugInInventory.info(url)?["CFBundleIdentifier"] as? String == tie.bundleID else { return .changed }
         }
         // A support item: with the receipts read again, no other receipt lists it or anything in it, and they still list all of

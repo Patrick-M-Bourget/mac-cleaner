@@ -156,6 +156,8 @@ public struct CleanupRule: Sendable, Identifiable {
     /// The user picks each item on its own (#144): set for rules whose items aren't all data that rebuilds itself
     /// (a JetBrains folder holds local history), on top of the kinds `choosesItems` already counts.
     public let itemByItem: Bool
+    /// The app or plug-in product its items are tied to (#289): leftovers of a removed app, or an uninstall; nil for every other rule.
+    public let family: AppRuleFamily?
     /// A tool asked where a rule's folder is when the rule doesn't run a tool of its own (`npm config get cache`, #170).
     /// Only its query is ever run. A `.tool` rule asks its own `tool` instead.
     public let locationTool: LocationTool?
@@ -170,7 +172,7 @@ public struct CleanupRule: Sendable, Identifiable {
     public init(id: String, category: CatalogCategory, title: String, detail: String, consequence: String, regen: RegenClass, action: CleanupAction, locations: [String], owner: RuleOwner?, protectedNames: [String] = [], tool: ToolCommand? = nil, protectedExtensions: [String] = [], contents: ContentsMatch? = nil, keepNewestVersions: Int? = nil, layoutOverrides: [LayoutOverride] = [], base: LocationBase = .home, copies: LeakedCopies? = nil, itemName: (@Sendable (String) -> String?)? = nil, items: CatalogItems? = nil, unprotectedExtensions: Set<String> = [],
                 itemOwner: (@Sendable (URL) -> RuleOwner?)? = nil, yieldsToOtherRules: Bool = false, protectedDepth: Int = 1, requiresFullDiskAccess: Bool = false, guidance: Guidance? = nil,
                 unprotectedNames: Set<String> = [], fromPickedFolders: Bool = false, unused: UnusedItems? = nil, itemByItem: Bool = false, locationTool: LocationTool? = nil,
-                offlineContent: [String: OfflineContent] = [:]) {
+                offlineContent: [String: OfflineContent] = [:], family: AppRuleFamily? = nil) {
         self.id = id; self.category = category; self.title = title; self.detail = detail; self.consequence = consequence
         self.regen = regen; self.action = action; self.locations = locations; self.owner = owner; self.protectedNames = protectedNames; self.tool = tool
         self.protectedExtensions = protectedExtensions; self.contents = contents; self.keepNewestVersions = keepNewestVersions; self.layoutOverrides = layoutOverrides
@@ -180,6 +182,7 @@ public struct CleanupRule: Sendable, Identifiable {
         self.requiresFullDiskAccess = requiresFullDiskAccess; self.unprotectedNames = unprotectedNames
         self.guidance = guidance; self.fromPickedFolders = fromPickedFolders
         self.unused = unused; self.itemByItem = itemByItem; self.locationTool = locationTool; self.offlineContent = offlineContent
+        self.family = family
     }
 }
 
@@ -196,7 +199,7 @@ public enum BuiltInCatalog {
     /// The catalog with installed apps found by `apps`. Tests pass a fake, so they never depend on this Mac's apps.
     public static func rules(apps: any AppLookup) -> [CleanupRule] { fixedRules + BrowserCaches.rules + AppDataCaches.rules(apps: apps) + AppCaches.rules(apps: apps) + dockerRules + developerDeviceRules + guidanceRules
         + TemporaryFiles.rules(apps: apps) + AITools.rules
-        + RemovedAppLeftovers.rules + AppUninstall.rules + PlugInUninstall.rules }
+        + AppRuleFamily.rules }
     private static let fixedRules: [CleanupRule] = [
         CleanupRule(id: "npm-cache", category: .developer, title: "npm cache",
                     detail: "Packages npm downloaded for your projects.",
@@ -403,10 +406,9 @@ public struct Catalog: Sendable {
     /// A leftover from an earlier delete has no owner to close, since no app uses a folder renamed aside,
     /// but a leaked copy's app may still have one open.
     static func ownership(of candidate: Candidate, under rule: CleanupRule) -> Ownership {
-        // A removed app's leftovers wait for every app of its maker to close (#173); one without its tie is refused.
-        if RemovedAppLeftovers.ruleIDs.contains(rule.id) { return candidate.leftover.map { .mustBeClosed($0.owner) } ?? .unknown }
-        // An app and its files wait for the app to close (#177, Decision 29); one without its app is refused.
-        if AppUninstall.ruleIDs.contains(rule.id) { return candidate.uninstall.map { .mustBeClosed($0.owner) } ?? .unknown }
+        // A removed app's leftovers wait for every app of its maker to close (#173), an app and its files for the app (#177,
+        // Decision 29); one without its tie or app is refused.
+        if let family = rule.family { return family.owner(of: candidate).map { .mustBeClosed($0) } ?? .unknown }
         return ownership(of: candidate.url, under: rule)
     }
     static func ownership(of url: URL, under rule: CleanupRule) -> Ownership {

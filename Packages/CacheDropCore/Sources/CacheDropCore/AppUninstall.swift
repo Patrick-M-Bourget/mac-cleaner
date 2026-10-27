@@ -10,39 +10,32 @@ public enum AppUninstall {
     public static let filesRuleID = "uninstall-app-files"
     public static let possiblyRelatedRuleID = "uninstall-app-possibly-related"
     static let consequence = "Moved to Trash. You can put them back from History, or restore them from the Trash in Finder."
-    public static let rules: [CleanupRule] = [
-        CleanupRule(id: appRuleID, category: .apps, title: "App", detail: "The app itself.", consequence: consequence, regen: .userFile, action: .trash,
-                    locations: [], owner: nil, unprotectedExtensions: ["app"]),
-        CleanupRule(id: filesRuleID, category: .apps, title: "Its files",
-                    detail: "Settings, caches and data tied to the app by its bundle ID or installer receipt.",
-                    consequence: consequence, regen: .userFile, action: .trash, locations: [], owner: nil, protectedDepth: AppCaches.liveWorkDepth),
-        CleanupRule(id: possiblyRelatedRuleID, category: .apps, title: "Possibly related",
-                    detail: "Folders named like the app or its maker. Nothing ties them to it for sure, so check each one.",
-                    consequence: consequence, regen: .userFile, action: .trash, locations: [], owner: nil, protectedDepth: AppCaches.liveWorkDepth,
-                    itemByItem: true),
-    ]
-    /// Every uninstall rule's ID, an app's and a plug-in product's (#176): their items are chosen on the Applications page.
-    public static let ruleIDs: Set<String> = Set((rules + PlugInUninstall.rules).map(\.id))
+    static let appRule = CleanupRule(id: appRuleID, category: .apps, title: "App", detail: "The app itself.", consequence: consequence, regen: .userFile,
+        action: .trash, locations: [], owner: nil, unprotectedExtensions: ["app"], family: .appUninstall)
+    static let filesRule = CleanupRule(id: filesRuleID, category: .apps, title: "Its files",
+        detail: "Settings, caches and data tied to the app by its bundle ID or installer receipt.",
+        consequence: consequence, regen: .userFile, action: .trash, locations: [], owner: nil, protectedDepth: AppCaches.liveWorkDepth, family: .appUninstall)
+    static let possiblyRelatedRule = CleanupRule(id: possiblyRelatedRuleID, category: .apps, title: "Possibly related",
+        detail: "Folders named like the app or its maker. Nothing ties them to it for sure, so check each one.",
+        consequence: consequence, regen: .userFile, action: .trash, locations: [], owner: nil, protectedDepth: AppCaches.liveWorkDepth,
+        itemByItem: true, family: .appUninstall)
+    public static let rules: [CleanupRule] = [appRule, filesRule, possiblyRelatedRule]
 
-    /// The app an item is uninstalled with.
+    /// The app or plug-in product an item is uninstalled with.
     public struct Target: Sendable, Hashable {
         public let name: String
         public let bundleID: String
-        /// The app bundle's standardized path: the Applications page's row id.
+        /// The Applications page's row id: the app bundle's standardized path, or a plug-in product's ID.
         public let path: String
         /// Its login items, helpers and XPC services' bundle IDs (#281).
         public var helpers: [String] = []
         /// Its files that stay whatever is ticked: those that need a password, and those the Cleanup plan already offers (#281).
         public var needsPassword = 0
         public var inPlan = 0
-        /// A plug-in product's AUv3 formats, which go with the app they are in (#176).
-        public var insideApp = 0
-        /// More folders any process run from inside of counts as it running: a plug-in product's formats and standalone app (#176).
-        public var otherPaths: [String] = []
-        /// Apps that must be closed too: plug-in hosts (#176, Decision 51).
-        public var hosts: [RuleOwner] = []
+        /// What only a plug-in product has (#176); nil for an app.
+        public var plugIn: PlugIn? = nil
         /// The vendor's tool, for "Needs <tool> or your password" (Decision 50).
-        public var tool: String? = nil
+        public var tool: String? { plugIn?.tool }
         /// A plug-in product's support files that need a password, listed on its row as staying (#288).
         public var passwordPaths: [String] = []
         /// A plug-in product's support files weren't offered: an installer record couldn't be read (#291).
@@ -50,7 +43,19 @@ public enum AppUninstall {
         /// A plug-in product's files that stay because CacheDrop doesn't recognise their kind (#291, Decision 53).
         public var unrecognised = 0
         /// The app must be closed first (Decision 29): its bundle ID, its helpers' and any process run from inside it (#281).
-        public var owner: RuleOwner { RuleOwner(name: name, bundleIDs: ([bundleID] + helpers).filter { !$0.isEmpty }, paths: [path] + otherPaths) }
+        public var owner: RuleOwner { RuleOwner(name: name, bundleIDs: ([bundleID] + helpers).filter { !$0.isEmpty }, paths: [path] + (plugIn?.otherPaths ?? [])) }
+
+        /// A plug-in product's own parts of its target (#176).
+        public struct PlugIn: Sendable, Hashable {
+            /// Its AUv3 formats, which go with the app they are in.
+            public var insideApp = 0
+            /// More folders any process run from inside of counts as it running: its formats and standalone app.
+            public var otherPaths: [String] = []
+            /// Apps that must be closed too: plug-in hosts (Decision 51).
+            public var hosts: [RuleOwner] = []
+            /// The vendor's tool (Decision 50).
+            public var tool: String? = nil
+        }
     }
 
     /// The bundle IDs of what an app runs besides itself: `Contents/Library/LoginItems`, `Contents/Helpers`, `Contents/XPCServices`.
@@ -76,7 +81,7 @@ public enum AppUninstall {
               // An excluded app is never offered, nor its files (SPEC section 2).
               let volume = try? url.resourceValues(forKeys: [.volumeUUIDStringKey]).volumeUUIDString, !exclusions.covers(url, volumeID: volume) else { return [] }
         let catalog = Catalog(rules: rules), size = sizer.size(url)
-        var bundle = catalog.candidate(rules[0], url, info, logical: size.logicalBytes, allocated: size.allocatedBytes, complete: size.complete, lastUsed: nil)
+        var bundle = catalog.candidate(appRule, url, info, logical: size.logicalBytes, allocated: size.allocatedBytes, complete: size.complete, lastUsed: nil)
         bundle = bundle.found(under: url.deletingLastPathComponent())
         let skipped = Set(leftovers.map(\.url.path))
         let found = RemovedAppLeftovers.scan(home: home, apps: Without(app: app, url: url, in: apps), receipts: receipts, exclusions: exclusions,
@@ -92,7 +97,7 @@ public enum AppUninstall {
             guard Removability.canMoveToTrash(tool), lstat(tool.path, &info) == 0,
                   let volume = try? tool.resourceValues(forKeys: [.volumeUUIDStringKey]).volumeUUIDString, !exclusions.covers(tool, volumeID: volume) else { return nil }
             let size = sizer.size(tool)
-            return catalog.candidate(rules[0], tool, info, logical: size.logicalBytes, allocated: size.allocatedBytes, complete: size.complete, lastUsed: nil)
+            return catalog.candidate(appRule, tool, info, logical: size.logicalBytes, allocated: size.allocatedBytes, complete: size.complete, lastUsed: nil)
                 .found(under: tool.deletingLastPathComponent())
         }
         tool?.uninstall = target
@@ -103,20 +108,18 @@ public enum AppUninstall {
     /// the Trash without a password, whatever changed since the scan (Decision 50).
     /// An app's files keep the before-acting checks of a removed app's leftovers (#281), as if the app were gone: the tie still
     /// holds, a group container is still an exact match, and no other app of the maker, or second copy of this one, appeared.
-    static func refusal(for candidate: Candidate, below root: URL, apps: any AppPresence, receipts: LazyReceipts) -> CheckRefusal? {
+    static func refusal(for candidate: Candidate, rule: CleanupRule, below root: URL, apps: any AppPresence, receipts: LazyReceipts) -> CheckRefusal? {
         let url = candidate.url
         guard let app = candidate.uninstall else { return .changed }
-        if PlugInUninstall.rules.contains(where: { $0.id == candidate.ruleID }) { return PlugInUninstall.refusal(for: candidate, receipts: receipts) }
-        if candidate.ruleID != appRuleID {
+        if rule.family == .plugInUninstall { return PlugInUninstall.refusal(for: candidate, receipts: receipts) }
+        if rule.id != appRule.id {
             guard let tie = candidate.leftover else { return .changed }
             let gone = Without(app: InstalledApp(name: app.name, bundleID: app.bundleID, path: app.path), url: URL(fileURLWithPath: app.path), in: apps)
             // The app's own container goes in the same run, so its bundle ID stands as the proof it was an app's.
             let own = tie.bundleID?.lowercased() == app.bundleID.lowercased()
             if let refusal = RemovedAppLeftovers.refusal(for: url, tie: tie, below: root, apps: gone, appKnown: own) { return refusal }
         }
-        if let part = url.standardizedFileURL.pathComponents.dropFirst(root.standardizedFileURL.pathComponents.count).first(where: RemovedAppLeftovers.isNeverOffered) {
-            return .protected(part)
-        }
+        if let part = RemovedAppLeftovers.neverOfferedPart(of: url, below: root) { return .protected(part) }
         return Removability.canMoveToTrash(url) ? nil : .notPermitted
     }
 
@@ -136,7 +139,7 @@ public enum AppUninstall {
             let unticked = offered.filter { $0.isUninstalled(with: app.path) && !ids.contains($0.id) }.count
             let password: String = app.tool.map { "Needs \($0) or your password" } ?? "Needs your password"
             let reasons: [(String, Int, String)] = [("unticked", unticked, "Not ticked"), ("password", app.needsPassword, password),
-                                                    ("inside", app.insideApp, "Goes with the app it is in"),
+                                                    ("inside", app.plugIn?.insideApp ?? 0, "Goes with the app it is in"),
                                                     ("unrecognised", app.unrecognised, "Holds files CacheDrop doesn’t recognise"), ("plan", app.inPlan, "In the Cleanup plan")]
             return reasons
                 .filter { $0.1 > 0 }
