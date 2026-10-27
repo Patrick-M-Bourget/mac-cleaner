@@ -1084,6 +1084,28 @@ final class TrashSpaceUITests: XCTestCase {
 }
 
 extension CatalogCleanupUITests {
+    /// #229: "Choose items · N" counts the lines Smart clean lists, not the items behind them. Yarn's two cache folders
+    /// are one line, so the developer category's three items show as two lines.
+    @MainActor func testSmartCleanChooseItemsCountsItsLines() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        let state = try configureIsolatedState(app)
+        let home = try configureCatalogHome(app)
+        _ = try addDeveloperCaches(home, folders: ["Library/Caches/Yarn", ".yarn/berry/cache"])
+        defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
+        app.launch()
+        XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["catalogScanProgress"].waitForNonExistence(timeout: 60))
+        app.typeKey("2", modifierFlags: .command)
+        XCTAssertTrue(app.checkBoxes["smartCleanCategory-developer"].waitForExistence(timeout: 10))
+        let choose = app.disclosureTriangles.matching(NSPredicate(format: "label BEGINSWITH 'Choose items'")).firstMatch
+        XCTAssertTrue(choose.waitForExistence(timeout: 5))
+        XCTAssertEqual(choose.label, "Choose items · 2")
+        openDisclosure(choose, in: app)
+        XCTAssertTrue(app.checkBoxes["smartCleanLine-yarn-cache|"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.checkBoxes["smartCleanLine-npm-cache|"].exists)
+    }
+
     /// #137, #141: Smart clean, opened from Overview's link, lists only data that rebuilds itself, all ticked and each untickable.
     /// Its Clean up opens the review; the installer (Trash) and Homebrew (a tool) stay out. The Cleanup plan keeps its own selection.
     @MainActor func testSmartCleanReviewsOnlyRebuildableItemsAndKeepsThePlanSelection() throws {

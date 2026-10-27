@@ -86,8 +86,9 @@ struct SmartCleanView: View {
         return "Smart clean · " + SizeEstimate(sum: ticked.map(SizeEstimate.init)).text(upperBound: upperBound) + " ready to clean"
     }
 
-    /// The plan's category row (Decision 48): its checkbox ticks or unticks all of its recommended items; "Choose items"
-    /// opens one line per rule (or per app or profile when a rule groups them), unless the category has only one.
+    /// The plan's category row (Decision 48): its checkbox ticks or unticks all of its recommended items; "Choose items · N"
+    /// opens one line per rule (or per app or profile when a rule groups them), unless the category has only one. N counts
+    /// those lines, not the items behind them (#229).
     private func category(_ row: CatalogOverview.Row, items: [Candidate]) -> some View {
         let found = items.filter { candidate in row.rules.contains { $0.id == candidate.ruleID } }
         let ticked = found.filter(model.isInSmartClean).count
@@ -97,7 +98,7 @@ struct SmartCleanView: View {
                                set: { if $0 { presentation.expandedCategories.insert(row.category) } else { presentation.expandedCategories.remove(row.category) } })
         return CategoryRow(category: row.category.storageCategory, state: state, title: row.category.overviewTitle, detail: row.category.overviewDetail,
                            size: row.valueText, enabled: model.canEdit, identifier: "smartCleanCategory-" + row.id,
-                           itemCount: lines.count > 1 ? row.itemCount : nil, expanded: expanded,
+                           itemCount: lines.count > 1 ? lines.count : nil, expanded: expanded,
                            toggle: { model.setSmartClean(found, state != .checked) }) {
             EmptyView()
         } items: {
