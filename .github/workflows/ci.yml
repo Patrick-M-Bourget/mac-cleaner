@@ -20,7 +20,12 @@ jobs:
         run: xcrun swift test --package-path Packages/CacheDropCore
       # One cooperative thread: catches code that blocks the shared pool (#200).
       - name: CacheDropCore tests (strict pool)
-        run: xcrun swift test --package-path Packages/CacheDropCore
+        run: xcrun swift test --package-path Packages/CacheDropCore --skip aRunningToolLeavesTheConcurrencyPoolFree
+        env:
+          LIBDISPATCH_COOPERATIVE_POOL_STRICT: '1'
+      # The pool guard runs alone, so the rest of the suite can't hold the one thread it checks (#242).
+      - name: Concurrency pool guard (strict pool, alone)
+        run: xcrun swift test --package-path Packages/CacheDropCore --filter aRunningToolLeavesTheConcurrencyPoolFree
         env:
           LIBDISPATCH_COOPERATIVE_POOL_STRICT: '1'
       - name: StorageAlerts tests
