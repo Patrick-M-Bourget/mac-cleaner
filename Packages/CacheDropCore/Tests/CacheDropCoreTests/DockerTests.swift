@@ -144,6 +144,18 @@ private extension ToolCommand {
 /// Docker rules are built from these fields only (`DockerCatalog.swift`), so the copy with a shorter time limit is otherwise the same rule.
 private func dockerRun(_ home: URL, docker: URL, choose ruleIDs: Set<String>, volume: FakeVolume = FakeVolume(), previewOnly: Bool = false,
                        timeout: TimeInterval? = nil, cancellation: CleanupCancellation = CleanupCancellation()) async throws -> CatalogExecutionResult {
+    try await dockerRunning(home, docker: docker, choose: ruleIDs, volume: volume, previewOnly: previewOnly, timeout: timeout, cancellation: cancellation).result
+}
+/// A finished run with what measuring it again needs.
+private struct DockerRun {
+    let result: CatalogExecutionResult
+    let run: CleanupExecutor
+    let approval: CatalogApproval
+    let catalog: Catalog
+    let journal: SQLiteCleanupJournal
+}
+private func dockerRunning(_ home: URL, docker: URL, choose ruleIDs: Set<String>, volume: FakeVolume = FakeVolume(), previewOnly: Bool = false,
+                           timeout: TimeInterval? = nil, cancellation: CleanupCancellation = CleanupCancellation()) async throws -> DockerRun {
     let catalog = Catalog(rules: fixtureRules.map { rule in
         guard let timeout, ruleIDs.contains(rule.id), let tool = rule.tool else { return rule }
         return CleanupRule(id: rule.id, category: rule.category, title: rule.title, detail: rule.detail, consequence: rule.consequence, regen: rule.regen, action: rule.action,
@@ -153,7 +165,8 @@ private func dockerRun(_ home: URL, docker: URL, choose ruleIDs: Set<String>, vo
     try #require(chosen.count == ruleIDs.count)
     let journal = try SQLiteCleanupJournal(url: home.appendingPathComponent("journal.sqlite"))
     let run = CleanupExecutor(journal: journal, check: CandidateCheck(catalog: catalog, running: EverythingRunning()), measure: volume.read, trash: TrashNeverUsed(), cancellation: cancellation)
-    return await run.execute(CatalogApproval(candidates: chosen, previewOnly: previewOnly))
+    let approval = CatalogApproval(candidates: chosen, previewOnly: previewOnly)
+    return DockerRun(result: await run.execute(approval), run: run, approval: approval, catalog: catalog, journal: journal)
 }
 
 @Test func onlyTheChosenPruneRunsAndResultsShowItsOutputAndMeasuredSpace() async throws {
@@ -305,4 +318,85 @@ private func dockerRun(_ home: URL, docker: URL, choose ruleIDs: Set<String>, vo
     let daemonBacked = Set(tools.filter { $0.value.daemonBacked }.keys)
     #expect(daemonBacked == ["docker-images", "docker-build-cache", "docker-containers", "simulator-runtimes", "simulator-devices", "xcode-simulators", "ollama-models"])
     #expect(tools["homebrew"]?.daemonBacked == false)
+}
+
+/// #190: a stopped daemon-backed prune keeps "may still be finishing", then its item is measured again a little later,
+/// as the scan measures it, and the journal records what went. The wait is injected, so no test sleeps for it.
+@Test func aStoppedPruneIsMeasuredAgainLaterAndTheJournalRecordsWhatWent() async throws {
+    let home = try fixtureHome()
+    defer { try? FileManager.default.removeItem(at: home) }
+    let length = uniqueSleep()
+    let docker = try fakeDocker(home, prune: "sleep \(length)")
+    let done = try await dockerRunning(home, docker: docker, choose: ["docker-images", "docker-containers"], timeout: 0.5)
+    survivorsAfterSettling(length).forEach { kill($0, SIGKILL) }
+    #expect(done.result.records.allSatisfy { $0.mayStillBeFinishing == true && $0.laterMeasurement == nil })
+    // Meanwhile the daemon finished the images and half the containers.
+    try report.replacingOccurrences(of: "\"Reclaimable\":\"2.5GB (62%)\"", with: "\"Reclaimable\":\"0B (0%)\"")
+        .replacingOccurrences(of: "\"Reclaimable\":\"120MB (40%)\"", with: "\"Reclaimable\":\"50MB (20%)\"")
+        .write(to: home.appendingPathComponent("tools/df.json"), atomically: true, encoding: .utf8)
+    let waited = Counter()
+    let catalog = done.catalog, locate: @Sendable (ToolCommand) -> URL? = { $0.executables.contains("/usr/local/bin/docker") ? docker : nil }
+    let later = await done.run.measureAgainLater(done.result, of: done.approval, wait: { waited.increment(); return true }) { candidates in
+        catalog.measuredAgain(candidates, in: catalog.only(candidates).discovery(fixture: home, locateTool: locate))
+    }
+    #expect(waited.value == 1)
+    let byRule = Dictionary(uniqueKeysWithValues: later.records.map { ($0.ruleID ?? "", $0) })
+    #expect(byRule["docker-images"]?.laterMeasurement?.finding == .gone)
+    #expect(byRule["docker-containers"]?.laterMeasurement?.finding == .remaining(bytes: 50_000_000))
+    #expect(byRule["docker-images"]?.laterMeasurementText == "Measured again a minute later: it’s gone (2.5 GB at the scan).")
+    #expect(byRule["docker-containers"]?.laterMeasurementText == "Measured again a minute later: 70 MB of 120 MB went; 50 MB is left.")
+    // The outcome recorded at the stop stays; the journal gains the measurement.
+    #expect(later.records.allSatisfy { $0.state == .failed && $0.partlyRemoved == true && $0.message.contains("may still be finishing") })
+    let journaled = Dictionary(uniqueKeysWithValues: try done.journal.records().map { ($0.ruleID ?? "", $0) })
+    #expect(journaled["docker-images"]?.laterMeasurement?.finding == .gone)
+    #expect(journaled["docker-containers"]?.laterMeasurement?.finding == .remaining(bytes: 50_000_000))
+    #expect(journaled["docker-images"]?.state == .failed)
+}
+
+/// A daemon that doesn't answer later is never read as "gone".
+@Test func aStoppedPruneWhoseDaemonDoesntAnswerLaterIsUnmeasured() async throws {
+    let home = try fixtureHome()
+    defer { try? FileManager.default.removeItem(at: home) }
+    let length = uniqueSleep()
+    let docker = try fakeDocker(home, prune: "sleep \(length)")
+    let done = try await dockerRunning(home, docker: docker, choose: ["docker-images"], timeout: 0.5)
+    survivorsAfterSettling(length).forEach { kill($0, SIGKILL) }
+    let down = try fakeDocker(home, df: "echo 'Cannot connect to the Docker daemon' >&2; exit 1", prune: "exit 1")
+    let catalog = done.catalog, locate: @Sendable (ToolCommand) -> URL? = { $0.executables.contains("/usr/local/bin/docker") ? down : nil }
+    let later = await done.run.measureAgainLater(done.result, of: done.approval, wait: { true }) { candidates in
+        catalog.measuredAgain(candidates, in: catalog.only(candidates).discovery(fixture: home, locateTool: locate))
+    }
+    #expect(later.records.first?.laterMeasurement?.finding == .unmeasured)
+    #expect(later.records.first?.laterMeasurementText == "Couldn’t measure it again a minute later.")
+}
+
+/// Nothing to measure again means no wait; a cancelled wait measures nothing and records nothing.
+@Test func onlyStoppedDaemonWorkIsMeasuredAgainAndACancelledWaitRecordsNothing() async throws {
+    let home = try fixtureHome()
+    defer { try? FileManager.default.removeItem(at: home) }
+    let docker = try fakeDocker(home)
+    let finished = try await dockerRunning(home, docker: docker, choose: ["docker-images"])
+    #expect(finished.result.records.first?.state == .succeeded && finished.result.records.first?.mayStillBeFinishing == nil)
+    let waited = Counter()
+    let untouched = await finished.run.measureAgainLater(finished.result, of: finished.approval, wait: { waited.increment(); return true }) { _ in
+        Issue.record("measured an item whose tool finished"); return [:]
+    }
+    #expect(waited.value == 0 && untouched.records.first?.laterMeasurement == nil)
+
+    let length = uniqueSleep()
+    let slow = try fakeDocker(home, prune: "sleep \(length)")
+    let stopped = try await dockerRunning(home, docker: slow, choose: ["docker-build-cache"], timeout: 0.5)
+    survivorsAfterSettling(length).forEach { kill($0, SIGKILL) }
+    let cancelled = await stopped.run.measureAgainLater(stopped.result, of: stopped.approval, wait: { false }) { _ in
+        Issue.record("measured after a cancelled wait"); return [:]
+    }
+    #expect(cancelled.records.first?.laterMeasurement == nil)
+    #expect(try stopped.journal.records().first { $0.ruleID == "docker-build-cache" }?.laterMeasurement == nil)
+}
+/// Counts calls from any thread.
+private final class Counter: @unchecked Sendable {
+    private let lock = NSLock()
+    private var count = 0
+    func increment() { lock.lock(); count += 1; lock.unlock() }
+    var value: Int { lock.lock(); defer { lock.unlock() }; return count }
 }
