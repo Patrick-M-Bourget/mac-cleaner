@@ -29,9 +29,11 @@ private func fixture(_ rules: [CleanupRule]) throws -> (URL, Catalog, [Candidate
     #expect(ConsequenceGroup(.evict) == .localCopiesRemoved)
     let removed = try #require(groups.first)
     #expect(removed.lines.map(\.category) == [.developer, .browser])
-    #expect(removed.lines[0].rules.map(\.id) == ["npm", "yarn"])
-    #expect(removed.lines[0].candidates.count == 2)
-    #expect(groups[2].lines.map { $0.rules.map(\.id) } == [["brew"]])
+    let developer = try #require(removed.lines.first)
+    #expect(developer.rules.map(\.id) == ["npm", "yarn"])
+    #expect(developer.candidates.count == 2)
+    let commands = try #require(groups.last)
+    #expect(commands.lines.map { $0.rules.map(\.id) } == [["brew"]])
 }
 
 @Test func reviewGroupsLeaveOutConsequencesNothingChosenHas() throws {
@@ -49,6 +51,7 @@ private func fixture(_ rules: [CleanupRule]) throws -> (URL, Catalog, [Candidate
     defer { try? FileManager.default.removeItem(at: home) }
     let batch = UUID()
     var records = candidates.map { CleanupRecord(batchID: batch, approvedAt: Date(), candidate: $0, previewOnly: false) }
+    try #require(records.count == 4)
     records[0].state = .succeeded; records[1].state = .skipped; records[2].state = .succeeded; records[3].state = .failed
     #expect(records.attentionFirst.map(\.ruleID) == ["b", "d", "a", "c"])
     #expect(records[1].needsAttention && !records[0].needsAttention)

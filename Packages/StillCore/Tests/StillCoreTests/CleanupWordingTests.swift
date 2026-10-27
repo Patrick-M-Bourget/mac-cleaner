@@ -12,6 +12,8 @@ private func records(_ actions: [CleanupAction], previewOnly: Bool = false) thro
     }
     let batch = UUID()
     let made = Catalog(rules: rules).discover(fixture: home, locateTool: { _ in home.appendingPathComponent("tool") }).map { CleanupRecord(batchID: batch, approvedAt: Date(), candidate: $0, previewOnly: previewOnly) }
+    // One record per action, so tests can index them without crashing.
+    try #require(made.count == actions.count)
     return (home, made)
 }
 
