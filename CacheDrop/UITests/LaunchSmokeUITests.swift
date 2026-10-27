@@ -332,3 +332,44 @@ final class FirstRunWelcomeUITests: XCTestCase {
         XCTAssertFalse(welcome.waitForExistence(timeout: 2))
     }
 }
+
+/// #223: a remembered folder whose access went stale shows one row on Overview, and its Choose again… fixes it there.
+final class ScannedLocationsUITests: XCTestCase {
+    @MainActor func testAStaleFolderShowsOneRowAndChooseAgainRenewsIt() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        let state = try configureIsolatedState(app)
+        let home = try configureCatalogHome(app)
+        defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
+        // A remembered fixture Downloads folder whose bookmark no longer resolves, as after the app was renamed.
+        let folder = home.appendingPathComponent("Downloads")
+        let scopes = state.appendingPathComponent("Scopes")
+        try FileManager.default.createDirectory(at: scopes, withIntermediateDirectories: false, attributes: [.posixPermissions: 0o700])
+        let record: [String: Any] = ["version": 1, "scopes": [["id": UUID().uuidString, "path": folder.path, "isIncluded": true,
+                                                               "kind": "downloads", "bookmark": Data("stale".utf8).base64EncodedString()]]]
+        try JSONSerialization.data(withJSONObject: record).write(to: scopes.appendingPathComponent("scopes-v1.json"))
+        app.launch()
+        XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
+
+        // One message for one problem: the row names the folder and the reason, and carries the fix.
+        let row = app.staticTexts["overviewLocationRecovery"]
+        XCTAssertTrue(row.waitForExistence(timeout: 15))
+        XCTAssertEqual(row.value as? String, "Downloads · Access unavailable")
+        XCTAssertFalse(app.staticTexts.matching(NSPredicate(format: "value CONTAINS 'Current coverage'")).firstMatch.exists)
+        XCTAssertFalse(app.staticTexts.matching(NSPredicate(format: "value CONTAINS 'Recheck required'")).firstMatch.exists)
+        XCTAssertFalse(app.staticTexts.matching(NSPredicate(format: "value CONTAINS 'Choose again to renew'")).firstMatch.exists)
+
+        let chooseAgain = app.buttons["overviewChooseAgain"]
+        XCTAssertEqual(chooseAgain.label, "Choose again…")
+        revealAndClick(chooseAgain, in: app)
+        let panel = app.sheets.firstMatch.exists ? app.sheets.firstMatch : app.dialogs.firstMatch
+        XCTAssertTrue(panel.waitForExistence(timeout: 5))
+        panel.typeKey("g", modifierFlags: [.command, .shift])
+        app.typeText(folder.path + "\n")
+        panel.buttons["Remember folder"].click()
+
+        // Renewed and scanned in place: the row is gone and the folder can be explored.
+        XCTAssertTrue(app.links["Explore storage"].waitForExistence(timeout: 20))
+        XCTAssertFalse(row.exists)
+    }
+}

@@ -17,10 +17,23 @@ import CacheDropCore
             case .recheck: "Not scanned · Recheck required"
             }
         }
+        /// The short reason Overview's recovery row gives next to the location's name (#223).
+        var reason: String {
+            switch self {
+            case .chooseAgain: "Access unavailable"
+            case .unavailable: "Location unavailable"
+            default: text
+            }
+        }
         var needsRecovery: Bool { self == .chooseAgain || self == .unavailable }
     }
     private(set) var statuses: [UUID: AccessStatus] = [:]
-    private var notice: String?
+    /// The first included location that needs access renewed or its volume reconnected: Overview's one recovery row (#223).
+    var recovery: (scope: RememberedScope, status: AccessStatus)? {
+        for scope in included { if let status = statuses[scope.id], status.needsRecovery { return (scope, status) } }
+        return nil
+    }
+    private(set) var notice: String?
     var message: String? {
         get {
             if let notice { return notice }
