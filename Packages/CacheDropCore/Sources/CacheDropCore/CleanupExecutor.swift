@@ -24,7 +24,8 @@ public struct CatalogExecutionResult: Sendable {
     public let estimatedBytes: Int64
     /// Sum of the available-space change read around each removed item; nil when any reading is missing.
     public var measuredFreedBytes: Int64? {
-        let removed = records.filter { $0.state == .succeeded && $0.cleanupAction != .trash }
+        // An item that finished after the stop (#209) freed its space after the run, where nothing measured it.
+        let removed = records.filter { $0.state == .succeeded && $0.cleanupAction != .trash && !$0.finishedAfterStop }
         guard !previewOnly else { return nil }
         var total: Int64 = 0
         for record in removed {
@@ -128,7 +129,8 @@ public actor CleanupExecutor {
 
     /// After `result`, waits once (`wait`, by default `laterMeasurementDelay`), then measures every item whose
     /// daemon-backed tool was stopped again with `measure` and records what it found in the journal (#190). The outcome
-    /// recorded at the stop stays as it was. Bounded: one wait for the whole run and one measurement per item, never a retry.
+    /// recorded at the stop follows the measurement (#209): an item found gone becomes removed, finished after the stop;
+    /// one with some of it left stays partly removed. Bounded: one wait for the whole run and one measurement per item, never a retry.
     /// Returns `result` unchanged when nothing needs it, the wait was cancelled, or the journal couldn't record it.
     public func measureAgainLater(_ result: CatalogExecutionResult, of approval: CatalogApproval,
                                   wait: @Sendable () async -> Bool = { (try? await Task.sleep(for: CleanupExecutor.laterMeasurementDelay)) != nil },
@@ -142,6 +144,9 @@ public actor CleanupExecutor {
         for index in records.indices where stopped.contains(records[index].id) {
             var record = records[index]
             record.laterMeasurement = LaterMeasurement(measuredAt: measuredAt, finding: findings[record.candidateID] ?? .unmeasured)
+            if record.laterMeasurement?.finding == .gone {
+                record.state = .succeeded; record.partlyRemoved = nil; record.message = CleanupRecord.finishedAfterStopMessage
+            }
             // Shown only once the journal has it, so Results and History never disagree.
             do { try journal.outcome(record); records[index] = record } catch { continue }
         }

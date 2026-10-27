@@ -344,12 +344,20 @@ private func dockerRunning(_ home: URL, docker: URL, choose ruleIDs: Set<String>
     #expect(byRule["docker-containers"]?.laterMeasurement?.finding == .remaining(bytes: 50_000_000))
     #expect(byRule["docker-images"]?.laterMeasurementText == "Measured again a minute later: it’s gone (2.5 GB at the scan).")
     #expect(byRule["docker-containers"]?.laterMeasurementText == "Measured again a minute later: 70 MB of 120 MB went; 50 MB is left.")
-    // The outcome recorded at the stop stays; the journal gains the measurement.
-    #expect(later.records.allSatisfy { $0.state == .failed && $0.partlyRemoved == true && $0.message.contains("may still be finishing") })
+    // #209: the outcome follows the measurement. Gone reads "Removed", finished after the stop; some left stays partly removed.
+    let images = try #require(byRule["docker-images"]), containers = try #require(byRule["docker-containers"])
+    #expect(images.state == .succeeded && images.partlyRemoved == nil && images.outcomeTitle == "Removed")
+    #expect(images.message == "Finished after you stopped it.")
+    #expect(!images.needsAttention)
+    #expect(containers.state == .failed && containers.partlyRemoved == true && containers.outcomeTitle == "Partly removed")
+    #expect(containers.message.contains("may still be finishing"))
+    // The measured freed space stays what was measured during the run.
+    #expect(later.measuredFreedBytes == done.result.measuredFreedBytes)
     let journaled = Dictionary(uniqueKeysWithValues: try done.journal.records().map { ($0.ruleID ?? "", $0) })
     #expect(journaled["docker-images"]?.laterMeasurement?.finding == .gone)
     #expect(journaled["docker-containers"]?.laterMeasurement?.finding == .remaining(bytes: 50_000_000))
-    #expect(journaled["docker-images"]?.state == .failed)
+    #expect(journaled["docker-images"]?.state == .succeeded && journaled["docker-images"]?.outcomeTitle == "Removed")
+    #expect(journaled["docker-containers"]?.state == .failed)
 }
 
 /// A daemon that doesn't answer later is never read as "gone".
