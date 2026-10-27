@@ -655,7 +655,8 @@ struct CategorySelectionHeader: View {
 }
 
 /// A category in the Cleanup plan or Smart clean (Decision 48): the header, whose checkbox ticks the whole category, then
-/// an optional notice and the items behind "Choose items · N". A nil `itemCount` draws no "Choose items". Each screen
+/// an optional notice and the items behind "Choose items · N", or "Choose items · N · M stay(s)" when `staying` parts are listed
+/// that can't be chosen (#290). A nil `itemCount` draws no "Choose items". Each screen
 /// keeps its own selection and its own open/closed state.
 struct CategoryRow<Notice: View, Items: View>: View {
     let category: StorageCategory
@@ -667,6 +668,7 @@ struct CategoryRow<Notice: View, Items: View>: View {
     let enabled: Bool
     let identifier: String
     let itemCount: Int?
+    var staying = 0
     @Binding var expanded: Bool
     let toggle: () -> Void
     @ViewBuilder var notice: () -> Notice
@@ -677,7 +679,7 @@ struct CategoryRow<Notice: View, Items: View>: View {
                                     identifier: identifier, action: toggle)
             notice().padding(.leading, CacheDropDesign.Size.categoryContentIndent)
             if let itemCount {
-                ActionDisclosureGroup("Choose items · \(itemCount)", isExpanded: $expanded) {
+                ActionDisclosureGroup("Choose items · \(itemCount)" + (staying == 1 ? " · 1 stays" : staying > 1 ? " · \(staying) stay" : ""), isExpanded: $expanded) {
                     items().padding(.top, CacheDropDesign.Space.sm)
                 }.padding(.leading, CacheDropDesign.Size.categoryContentIndent)
             }

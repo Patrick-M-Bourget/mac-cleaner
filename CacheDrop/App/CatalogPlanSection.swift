@@ -67,10 +67,10 @@ struct PlanCategoryRow: View {
 struct PlanRunningOwners: View {
     let model: CatalogCleanupModel
     let rule: CleanupRule
-    /// Only this owner's line, as an app's row on the Applications page shows it (#177).
-    var only: String? = nil
+    /// Only these owners' lines, as an app's or plug-in product's row on the Applications page shows them (#177, #176).
+    var only: Set<String>? = nil
     var body: some View {
-        ForEach(model.runningOwnerNotices(for: rule).filter { only == nil || $0.name == only }, id: \.name) { owner in
+        ForEach(model.runningOwnerNotices(for: rule).filter { only?.contains($0.name) ?? true }, id: \.name) { owner in
             let quitting = model.quitStates[owner.name] == .quitting
             HStack(alignment: .firstTextBaseline, spacing: CacheDropDesign.Space.xs) {
                 Image(systemName: "exclamationmark.circle").foregroundStyle(StatusRole.caution.color).accessibilityHidden(true)

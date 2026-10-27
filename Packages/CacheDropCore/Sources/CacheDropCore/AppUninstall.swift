@@ -21,7 +21,8 @@ public enum AppUninstall {
                     consequence: consequence, regen: .userFile, action: .trash, locations: [], owner: nil, protectedDepth: AppCaches.liveWorkDepth,
                     itemByItem: true),
     ]
-    public static let ruleIDs: Set<String> = Set(rules.map(\.id))
+    /// Every uninstall rule's ID, an app's and a plug-in product's (#176): their items are chosen on the Applications page.
+    public static let ruleIDs: Set<String> = Set((rules + PlugInUninstall.rules).map(\.id))
 
     /// The app an item is uninstalled with.
     public struct Target: Sendable, Hashable {
@@ -34,8 +35,22 @@ public enum AppUninstall {
         /// Its files that stay whatever is ticked: those that need a password, and those the Cleanup plan already offers (#281).
         public var needsPassword = 0
         public var inPlan = 0
+        /// A plug-in product's AUv3 formats, which go with the app they are in (#176).
+        public var insideApp = 0
+        /// More folders any process run from inside of counts as it running: a plug-in product's formats and standalone app (#176).
+        public var otherPaths: [String] = []
+        /// Apps that must be closed too: plug-in hosts (#176, Decision 51).
+        public var hosts: [RuleOwner] = []
+        /// The vendor's tool, for "Needs <tool> or your password" (Decision 50).
+        public var tool: String? = nil
+        /// A plug-in product's support files that need a password, listed on its row as staying (#288).
+        public var passwordPaths: [String] = []
+        /// A plug-in product's support files weren't offered: an installer record couldn't be read (#291).
+        public var receiptsUnread = false
+        /// A plug-in product's files that stay because CacheDrop doesn't recognise their kind (#291, Decision 53).
+        public var unrecognised = 0
         /// The app must be closed first (Decision 29): its bundle ID, its helpers' and any process run from inside it (#281).
-        public var owner: RuleOwner { RuleOwner(name: name, bundleIDs: [bundleID] + helpers, paths: [path]) }
+        public var owner: RuleOwner { RuleOwner(name: name, bundleIDs: ([bundleID] + helpers).filter { !$0.isEmpty }, paths: [path] + otherPaths) }
     }
 
     /// The bundle IDs of what an app runs besides itself: `Contents/Library/LoginItems`, `Contents/Helpers`, `Contents/XPCServices`.
@@ -88,9 +103,10 @@ public enum AppUninstall {
     /// the Trash without a password, whatever changed since the scan (Decision 50).
     /// An app's files keep the before-acting checks of a removed app's leftovers (#281), as if the app were gone: the tie still
     /// holds, a group container is still an exact match, and no other app of the maker, or second copy of this one, appeared.
-    static func refusal(for candidate: Candidate, below root: URL, apps: any AppPresence) -> CheckRefusal? {
+    static func refusal(for candidate: Candidate, below root: URL, apps: any AppPresence, receipts: LazyReceipts) -> CheckRefusal? {
         let url = candidate.url
         guard let app = candidate.uninstall else { return .changed }
+        if PlugInUninstall.rules.contains(where: { $0.id == candidate.ruleID }) { return PlugInUninstall.refusal(for: candidate, receipts: receipts) }
         if candidate.ruleID != appRuleID {
             guard let tie = candidate.leftover else { return .changed }
             let gone = Without(app: InstalledApp(name: app.name, bundleID: app.bundleID, path: app.path), url: URL(fileURLWithPath: app.path), in: apps)
@@ -113,10 +129,16 @@ public enum AppUninstall {
     public static func staying(chosen: [Candidate], offered: [Candidate]) -> [Staying] {
         let ids = Set(chosen.map(\.id))
         var apps: [Target] = []
-        for item in chosen { if let app = item.uninstall, !apps.contains(app) { apps.append(app) } }
+        // The products being uninstalled: a shared item ticked with one names that one, never the sharer it was found with (#288).
+        let own = chosen.filter(\.sharedBy.isEmpty)
+        for item in own.isEmpty ? chosen : own { if let app = item.uninstall, !apps.contains(where: { $0.path == app.path }) { apps.append(app) } }
         return apps.flatMap { app in
-            let unticked = offered.filter { $0.uninstall == app && !ids.contains($0.id) }.count
-            return [("unticked", unticked, "Not ticked"), ("password", app.needsPassword, "Needs your password"), ("plan", app.inPlan, "In the Cleanup plan")]
+            let unticked = offered.filter { $0.isUninstalled(with: app.path) && !ids.contains($0.id) }.count
+            let password: String = app.tool.map { "Needs \($0) or your password" } ?? "Needs your password"
+            let reasons: [(String, Int, String)] = [("unticked", unticked, "Not ticked"), ("password", app.needsPassword, password),
+                                                    ("inside", app.insideApp, "Goes with the app it is in"),
+                                                    ("unrecognised", app.unrecognised, "Holds files CacheDrop doesn’t recognise"), ("plan", app.inPlan, "In the Cleanup plan")]
+            return reasons
                 .filter { $0.1 > 0 }
                 .map { Staying(id: app.path + "-" + $0.0, text: "\(app.name): " + ($0.1 == 1 ? "1 part stays" : "\($0.1) parts stay") + " · " + $0.2) }
         }

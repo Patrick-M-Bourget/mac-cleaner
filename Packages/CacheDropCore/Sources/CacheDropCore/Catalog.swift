@@ -196,7 +196,7 @@ public enum BuiltInCatalog {
     /// The catalog with installed apps found by `apps`. Tests pass a fake, so they never depend on this Mac's apps.
     public static func rules(apps: any AppLookup) -> [CleanupRule] { fixedRules + BrowserCaches.rules + AppDataCaches.rules(apps: apps) + AppCaches.rules(apps: apps) + dockerRules + developerDeviceRules + guidanceRules
         + TemporaryFiles.rules(apps: apps) + AITools.rules
-        + RemovedAppLeftovers.rules + AppUninstall.rules }
+        + RemovedAppLeftovers.rules + AppUninstall.rules + PlugInUninstall.rules }
     private static let fixedRules: [CleanupRule] = [
         CleanupRule(id: "npm-cache", category: .developer, title: "npm cache",
                     detail: "Packages npm downloaded for your projects.",
@@ -371,6 +371,11 @@ public struct Candidate: Sendable, Identifiable, Hashable {
     public internal(set) var leftover: LeftoverTie? = nil
     /// The installed app this item is uninstalled with (#177); nil for every other item.
     public internal(set) var uninstall: AppUninstall.Target? = nil
+    /// The rows of the products a shared plug-in item is uninstalled with, ticked one by one (#176); empty for every other item.
+    public internal(set) var sharedBy: [String] = []
+    /// The receipts that listed a plug-in support item, or anything in it, at the scan: it is moved only while no other receipt
+    /// lists it and they still list all of it, read again before acting (#288, #291).
+    public internal(set) var installedBy: Set<String>? = nil
 }
 
 public struct Catalog: Sendable {
