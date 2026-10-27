@@ -112,6 +112,15 @@ private struct WorkspaceView: View {
     private var nativeInspectionVisible: Bool { get { navigationState.explorerVisible } nonmutating set { navigationState.explorerVisible = newValue } }
     @State private var exclusionsVisible = false
     private var diagnosticsVisible: Bool { get { navigationState.diagnosticsVisible } nonmutating set { navigationState.diagnosticsVisible = newValue } }
+    /// Which page the scroll view shows, so each keeps its own scroll position. Out of the view builder, where the
+    /// chained ternary timed out CI's type checker (#264).
+    private var scrollIdentity: String {
+        if recoveryVisible { return "recovery" }
+        if diagnosticsVisible { return "diagnostics" }
+        if navigationState.localRecordsVisible { return "local-records" }
+        if navigationState.appManagedVisible { return "app-managed" }
+        return destination.rawValue
+    }
     @State private var overviewCloudExpanded = false
     @State private var overviewShowsAllCategories = false
     private var diagnostics: DiagnosticsModel { get { navigationState.diagnosticsModel } nonmutating set { navigationState.diagnosticsModel = newValue } }
@@ -265,7 +274,7 @@ private struct WorkspaceView: View {
                                 }
                             }
                         }
-                }.id(recoveryVisible ? "recovery" : diagnosticsVisible ? "diagnostics" : navigationState.localRecordsVisible ? "local-records" : navigationState.appManagedVisible ? "app-managed" : destination.rawValue)
+                }.id(scrollIdentity)
 
                 Group {
                     if exclusionsVisible {
