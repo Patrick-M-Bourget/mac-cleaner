@@ -11,6 +11,8 @@ public struct Guidance: Sendable {
         case localSnapshots
         /// Each location's whole tree, plus the git status of the agent workspaces inside (#140).
         case agentWorkspaces
+        /// The plug-in folders' trees, plus the per-product plug-in inventory (#174).
+        case plugIns
     }
     /// Where "Open …" goes.
     public enum Place: Sendable, Equatable {

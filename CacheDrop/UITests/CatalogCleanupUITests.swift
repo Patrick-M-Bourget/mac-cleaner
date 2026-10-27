@@ -848,6 +848,42 @@ final class GuidanceUITests: XCTestCase {
         }
         XCTAssertTrue(FileManager.default.fileExists(atPath: home.appendingPathComponent("Pictures/Photos Library.photoslibrary/originals/a.heic").path))
     }
+
+    /// #174: plug-ins are listed by product, with Reveal in Finder, and nothing is offered or changed.
+    @MainActor func testAudioPlugInsAreListedByProductAndLeftAsIs() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        let state = try configureIsolatedState(app)
+        let home = try configureCatalogHome(app)
+        defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
+        // The fixture home stands in for the system root too, so these are the only plug-ins the app sees.
+        var bundles: [URL] = []
+        for (folder, ext, id) in [("Components", "component", "com.maker.prosynth.au"), ("VST3", "vst3", "com.maker.vst3.prosynth")] {
+            let bundle = home.appendingPathComponent("Library/Audio/Plug-Ins/\(folder)/Pro Synth.\(ext)")
+            try FileManager.default.createDirectory(at: bundle.appendingPathComponent("Contents/MacOS"), withIntermediateDirectories: true)
+            let info: [String: Any] = ["CFBundleIdentifier": id, "CFBundleShortVersionString": "2.1", "CFBundleExecutable": "Pro Synth"]
+            try PropertyListSerialization.data(fromPropertyList: info, format: .xml, options: 0).write(to: bundle.appendingPathComponent("Contents/Info.plist"))
+            try Data(repeating: 1, count: 50_000).write(to: bundle.appendingPathComponent("Contents/MacOS/Pro Synth"))
+            bundles.append(bundle)
+        }
+        app.launch()
+
+        let entry = app.buttons["overviewAppManaged"]
+        XCTAssertTrue(entry.waitForExistence(timeout: 10))
+        revealAndClick(entry, in: app)
+        let row = app.buttons["guidance-audio-plug-ins"]
+        XCTAssertTrue(row.waitForExistence(timeout: 10))
+        XCTAssertTrue((row.value as? String)?.contains("1 product · AU, VST3") == true, String(describing: row.value))
+        openDisclosure(app.disclosureTriangles.matching(NSPredicate(format: "label == 'Show products · 1'")).firstMatch, in: app)
+        // #207: the label says what the click does, and the line is short: the place is in the tooltip.
+        let product = app.buttons["Reveal Pro Synth in Finder"]
+        XCTAssertTrue(product.waitForExistence(timeout: 5))
+        XCTAssertTrue((product.value as? String)?.hasPrefix("2.1 · AU, VST3,") == true, String(describing: product.value))
+        revealAndClick(product, in: app)
+        XCTAssertTrue(app.staticTexts["guidanceStatus"].waitForExistence(timeout: 5))
+        XCTAssertEqual(app.staticTexts["guidanceStatus"].value as? String, "Test run: would reveal Pro Synth.")
+        for bundle in bundles { XCTAssertTrue(FileManager.default.fileExists(atPath: bundle.appendingPathComponent("Contents/MacOS/Pro Synth").path)) }
+    }
 }
 
 final class TrashSpaceUITests: XCTestCase {

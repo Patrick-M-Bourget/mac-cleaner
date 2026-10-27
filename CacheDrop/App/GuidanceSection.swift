@@ -22,11 +22,13 @@ struct AppManagedStorageView: View {
                     if let rule = model.guidanceRule(finding), let guidance = rule.guidance {
                         if index > 0 { Divider().padding(.horizontal, CacheDropDesign.Space.lg) }
                         let needsAccess = finding.size == .notAccessible
-                        StorageReviewRow(category: rule.managedCategory, title: rule.title, detail: finding.workspaces?.summary ?? rule.detail.firstSentence,
+                        StorageReviewRow(category: rule.managedCategory, title: rule.title,
+                                         detail: finding.plugIns.map(\.summary) ?? finding.workspaces?.summary ?? rule.detail.firstSentence,
                                          value: needsAccess ? "Needs access" : finding.size.text,
                                          actionTitle: guidance.openTitle, action: { Task { await model.open(finding) } },
                                          identifier: "guidance-" + finding.id, mutedValue: needsAccess)
                             .help(rule.detail)
+                        if let plugIns = finding.plugIns, !plugIns.products.isEmpty { PlugInProductRows(model: model, inventory: plugIns) }
                     }
                 }
             }
