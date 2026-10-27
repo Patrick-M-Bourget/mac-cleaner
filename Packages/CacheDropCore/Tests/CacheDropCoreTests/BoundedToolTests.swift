@@ -82,7 +82,8 @@ func survivorsAfterSettling(_ marker: String) -> [pid_t] {
     defer { try? FileManager.default.removeItem(at: tool.deletingLastPathComponent()) }
     let cancellation = CleanupCancellation(), cancelledAt = CancelTime()
     // Cancel once the tool has printed and is running, never after a fixed delay a slow machine may outlast.
-    DispatchQueue.global().async { if waitForFile(running) { cancelledAt.mark(); cancellation.cancel() } }
+    let watcher = CancelWhenFileAppears(running, cancel: cancellation, at: cancelledAt)
+    defer { watcher.stop() }
     let error = #expect(throws: ToolCancelled.self) { try BoundedTool.capture(executable: tool, arguments: [marker], timeout: 60, cancellation: cancellation) }
     let sinceCancel = cancelledAt.elapsed
     let left = survivorsAfterSettling(marker)
@@ -117,7 +118,8 @@ func survivorsAfterSettling(_ marker: String) -> [pid_t] {
     let tool = try treeTool("p=$$\n( while :; do case \"$(ps -o stat= -p $p)\" in Z*|\"\") break;; esac; sleep 0.01; done; touch '\(exited.path)'; sleep \"$1\" ) &\necho done\nexit 0")
     defer { try? FileManager.default.removeItem(at: tool.deletingLastPathComponent()) }
     let cancellation = CleanupCancellation()
-    DispatchQueue.global().async { if waitForFile(exited) { cancellation.cancel() } }
+    let watcher = CancelWhenFileAppears(exited, cancel: cancellation)
+    defer { watcher.stop() }
     let result = try BoundedTool.capture(executable: tool, arguments: [marker], timeout: 20, cancellation: cancellation)
     let left = survivorsAfterSettling(marker)
     left.forEach { kill($0, SIGKILL) }
