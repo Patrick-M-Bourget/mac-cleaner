@@ -171,12 +171,15 @@ private struct WorkspaceView: View {
     @Bindable private var welcome = WelcomeModel.shared
     private var startupCapacity: StartupCapacityReading? { capacity.reading }
     /// The destination's own page shows: no records, recovery, inspection, diagnostics, exclusions or app-managed page covers it.
-    private func showsOwnPage(_ page: Destination) -> Bool {
-        destination == page && !navigationState.localRecordsVisible && !recoveryVisible && !nativeInspectionVisible && !diagnosticsVisible && !exclusionsVisible && !navigationState.appManagedVisible
+    private func showsOwnPage(_ page: Destination, evenUnderAppManaged: Bool = false) -> Bool {
+        destination == page && !navigationState.localRecordsVisible && !recoveryVisible && !nativeInspectionVisible && !diagnosticsVisible && !exclusionsVisible
+            && (evenUnderAppManaged || !navigationState.appManagedVisible)
     }
     private var showsSmartClean: Bool { showsOwnPage(.smartClean) }
     private var showsApplications: Bool { showsOwnPage(.applications) }
-    private var showsPlan: Bool { destination == .plan && !navigationState.localRecordsVisible && !recoveryVisible && !nativeInspectionVisible && !diagnosticsVisible && !exclusionsVisible }
+    /// The plan is the one page app-managed storage never covers: Explore storage's Review plan and Start a new plan switch
+    /// to it directly, without `navigate(_:)`, so `appManagedVisible` may still be set then, and the plan must show anyway.
+    private var showsPlan: Bool { showsOwnPage(.plan, evenUnderAppManaged: true) }
     /// The toolbar's note, which only reports state (Decision 25: no toolbar subtitles). A screen returns nil to show none.
     private var contextLabel: String? {
         if selection.workspaceRunning { return "Running approved cleanup" }
