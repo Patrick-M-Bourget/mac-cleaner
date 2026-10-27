@@ -51,6 +51,13 @@ public enum BoundedTool {
             // (something it started still holds the output open) reports its own result; what it left is still stopped.
             if cancellation?.isCancelled == true {
                 guard tool.reap() else { throw ToolCancelled(output: String(decoding: data, as: UTF8.self), started: true) }
+                // The tool's output still in the pipe is kept: read until it is empty (never waiting for EOF), at most `outputLimit` more.
+                var drained = 0
+                while drained < outputLimit, case let more = Darwin.read(descriptor, &buffer, buffer.count), more > 0 {
+                    guard keepTail || data.count + more <= outputLimit else { throw ToolPreviewError.outputLimit }
+                    data.append(contentsOf: buffer.prefix(more)); drained += more
+                    if data.count > outputLimit { data.removeFirst(data.count - outputLimit) }
+                }
                 tool.stop(); break
             }
             guard ProcessInfo.processInfo.systemUptime < deadline else { throw keepTail ? ToolTimeout(output: String(decoding: data, as: UTF8.self)) : ToolPreviewError.timeout }
