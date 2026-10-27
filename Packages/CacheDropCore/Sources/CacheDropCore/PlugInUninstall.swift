@@ -233,8 +233,10 @@ public enum PlugInUninstall {
                   let list = try? PropertyListSerialization.propertyList(from: data, format: nil) else { return .unrecognised(name) }
             return hasLicenceKeys(list) ? .protected(name) : nil
         }
-        return safeKinds.contains(kind) ? nil : .unrecognised(name)
+        return safeKinds.contains(kind) || finderFiles.contains(name) ? nil : .unrecognised(name)
     }
+    /// Finder's own files in any folder: a folder's custom icon and its view settings.
+    static let finderFiles: Set<String> = ["Icon\r", ".DS_Store"]
     /// File kinds known to hold only sound, presets, pictures or documents (Decision 53). Everything else stays.
     static let safeKinds: Set<String> = [
         // Audio and samples.

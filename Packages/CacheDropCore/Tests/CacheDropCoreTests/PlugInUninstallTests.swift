@@ -509,3 +509,16 @@ private func unreadableReceipt(_ id: String, in root: URL) throws {
     try receipt("com.other.app.pkg", listing: [folder + "/Sounds/Lead.wav"], in: root)
     #expect(check(home).check(content) == .changed)
 }
+
+@Test func aFolderOfOnlyKnownSafeKindsWithFindersIconAndDSStoreIsOffered() throws {
+    let (root, home) = try fixture()
+    defer { try? FileManager.default.removeItem(at: root) }
+    let folder = "Library/Application Support/Maker Content"
+    for name in ["Sounds/Pad.wav", "Kits/Drums.nki", "Art/Cover.png", "Icon\r", ".DS_Store", "Sounds/.DS_Store"] { try write(folder + "/" + name, in: root) }
+    let inventory = PlugInInventory.scan(home: home, systemRoot: root, sizer: KnownLocationSizer(timeBudget: 5))
+    let library = MusicContentItem(name: "Sounds", vendors: ["Maker"], url: root.appendingPathComponent(folder), kind: .installed,
+                                   state: .present(.unknown), owners: [try product("Pro Synth", inventory)], tie: .vendor)
+    let items = PlugInUninstall.scan(inventory, apps: [], receipts: ReceiptListings.read(under: root), content: [library], systemRoot: root)
+    let content = try #require(items.first { $0.url == library.url })
+    #expect(check(home).check(content) == nil)
+}
