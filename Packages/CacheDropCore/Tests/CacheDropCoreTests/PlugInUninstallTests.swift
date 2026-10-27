@@ -269,3 +269,23 @@ private func names(_ items: [Candidate]) -> Set<String> { Set(items.map(\.url.la
     let lines = AppUninstall.staying(chosen: chosen, offered: items).map(\.text)
     #expect(!lines.isEmpty && lines.allSatisfy { $0.hasPrefix("Pro Delay: ") }, "\(lines)")
 }
+
+@Test func sharedContentCountsProductsOnlyIsNamedForItsVendorAndIsKeptWhenItsFirstOwnerOffersNothingElse() throws {
+    let (root, home) = try fixture()
+    let delayVST3 = root.appendingPathComponent(plugIns + "VST3/Pro Delay.vst3")
+    defer { chmod(delayVST3.path, 0o755); try? FileManager.default.removeItem(at: root) }
+    // Pro Delay offers nothing of its own: its VST3 needs a password and its presets are gone.
+    chmod(delayVST3.path, 0o555)
+    try FileManager.default.removeItem(at: root.appendingPathComponent(support + "Pro Delay"))
+    try write("Library/Application Support/Maker Content/Sounds.pack", in: root)
+    let inventory = PlugInInventory.scan(home: home, systemRoot: root, sizer: KnownLocationSizer(timeBudget: 5))
+    let synth = try product("Pro Synth", inventory), delay = try product("Pro Delay", inventory)
+    let library = MusicContentItem(name: "Sounds", vendors: ["Maker"], url: root.appendingPathComponent("Library/Application Support/Maker Content"), kind: .installed,
+                                   state: .present(.unknown), owners: [delay, "/Applications/Maker Hub.app", synth], tie: .vendor)
+    let items = PlugInUninstall.scan(inventory, apps: [], listings: [:], content: [library], systemRoot: root)
+    let content = try #require(items.first { $0.url == library.url })
+
+    #expect(content.sharedBy == [delay, synth], "Products only, never an app")
+    #expect(content.sharedLabel == "Shared by Maker products")
+    #expect(content.uninstall != nil)
+}

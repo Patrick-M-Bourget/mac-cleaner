@@ -109,7 +109,7 @@ public enum PlugInUninstall {
         for piece in content where piece.kind == .installed {
             let ids = piece.owners.filter { id in products.contains { $0.id == id } }
             guard shared[piece.url.path] == nil, let target = sharedTarget(ids), var found = item(rules[2], piece.url) else { continue }
-            found = found.shared(by: ids, receipt: nil); found.uninstall = target
+            found = found.shared(by: ids, receipt: nil, vendor: piece.vendors.first); found.uninstall = target
             shared[piece.url.path] = found
         }
         let sharedItems = taken(offered + items, shared.values.sorted { $0.url.path < $1.url.path }).filter { Removability.canMoveToTrash($0.url) && $0.uninstall != nil }
@@ -205,10 +205,10 @@ public enum PlugInUninstall {
 
 extension Candidate {
     /// A shared item, under every product in `products` ("Shared with <N> products").
-    func shared(by products: [String], receipt: String?) -> Candidate {
+    func shared(by products: [String], receipt: String?, vendor: String? = nil) -> Candidate {
         var item = self
         item.sharedBy = products
-        item.leftover = LeftoverTie(app: "", bundleID: nil, vendor: receipt.map(RemovedAppLeftovers.vendor(of:)) ?? "", evidence: receipt.map { .receipt($0) } ?? .bundleID)
+        item.leftover = LeftoverTie(app: vendor ?? "", bundleID: nil, vendor: receipt.map(RemovedAppLeftovers.vendor(of:)) ?? "", evidence: receipt.map { .receipt($0) } ?? .bundleID)
         return item
     }
     /// With what its receipt lists at and below it, to check again before acting.
@@ -216,6 +216,12 @@ extension Candidate {
         var item = self
         item.listedByReceipt = paths.filter { $0 == url.path || $0.hasPrefix(url.path + "/") }
         return item
+    }
+    /// "Shared with <N> products", or vendor content's "Shared by <Vendor> products" (Decision 52); nil when not shared.
+    public var sharedLabel: String? {
+        guard !sharedBy.isEmpty else { return nil }
+        if let vendor = leftover?.app, !vendor.isEmpty { return "Shared by \(vendor) products" }
+        return "Shared with \(sharedBy.count) products"
     }
     /// Whether it is uninstalled with the app or product whose row is `id`: its own, or one it is shared with.
     public func isUninstalled(with id: String) -> Bool { uninstall?.path == id || sharedBy.contains(id) }
