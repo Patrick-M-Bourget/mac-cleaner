@@ -473,3 +473,48 @@ private func writeConfig(_ home: URL, _ relative: String, _ text: String) throws
     let refusal = CandidateCheck(catalog: catalog, running: NothingRunning()).check(candidate)
     #expect(refusal == nil, "\(String(describing: refusal))")
 }
+
+/// A folder pip or Homebrew named must still hold that tool's cache markers when it is cleaned, not only when it was found
+/// (#217): one whose markers vanished between the scan and the clean is refused, and Homebrew's cleanup never runs.
+@Test func aNamedFolderWhoseMarkersVanishBetweenScanAndCleanIsRefused() async throws {
+    let home = try fixtureHome()
+    defer { try? FileManager.default.removeItem(at: home) }
+    try makeFolder(home, ".pip-cache/http-v2")
+    try makeFolder(home, ".brew-cache/downloads")
+    let ran = home.appendingPathComponent("ran")
+    let python = try fakeTool(home, "python3", asked: "-m pip cache dir", query: "echo '\(home.path)/.pip-cache'")
+    let brew = try fakeTool(home, "brew", asked: "--cache", query: "echo '\(home.path)/.brew-cache'", otherwise: "echo \"$@\" > '\(ran.path)'")
+    let catalog = Catalog(rules: fixtureRules)
+    let pip = try #require(catalog.discovery(fixture: home, locateTool: onlyTool("python3", python)).candidates.first { $0.ruleID == "pip-cache" })
+    let homebrew = try #require(catalog.discovery(fixture: home, locateTool: onlyTool("brew", brew)).candidates.first { $0.ruleID == "homebrew" })
+    #expect(pip.folderSource == "Named by `python3 -m pip cache dir`" && homebrew.folderSource == "Named by `brew --cache`")
+    for (folder, marker) in [(".pip-cache", "http-v2"), (".brew-cache", "downloads")] {
+        try FileManager.default.removeItem(at: home.appendingPathComponent("\(folder)/\(marker)"))
+        try makeFolder(home, "\(folder)/notes")
+    }
+    let check = CandidateCheck(catalog: catalog, running: NothingRunning())
+    #expect(check.check(pip) == .notACache("It doesn’t look like pip’s cache, so it is kept."))
+    #expect(check.check(homebrew) == .notACache("It doesn’t look like Homebrew’s cache, so it is kept."))
+    #expect(try await execute(pip, catalog: catalog, home: home).state == .skipped)
+    #expect(try await execute(homebrew, catalog: catalog, home: home).state == .skipped)
+    #expect(!FileManager.default.fileExists(atPath: ran.path))
+    #expect(FileManager.default.fileExists(atPath: home.appendingPathComponent(".pip-cache/notes/entry").path))
+    #expect(FileManager.default.fileExists(atPath: home.appendingPathComponent(".brew-cache/notes/entry").path))
+}
+
+/// A named folder moved into one of the user's own folders since the scan, and reached at its old path through a link,
+/// is refused at clean time too (#217).
+@Test func aNamedFolderNowReachedInsideAUserFolderIsRefusedAtCleanTime() async throws {
+    let home = try fixtureHome()
+    defer { try? FileManager.default.removeItem(at: home) }
+    try makeFolder(home, "work/pip/http-v2")
+    try makeFolder(home, "Documents")
+    let python = try fakeTool(home, "python3", asked: "-m pip cache dir", query: "echo '\(home.path)/work/pip'")
+    let catalog = Catalog(rules: fixtureRules)
+    let pip = try #require(catalog.discovery(fixture: home, locateTool: onlyTool("python3", python)).candidates.first { $0.ruleID == "pip-cache" })
+    try FileManager.default.moveItem(at: home.appendingPathComponent("work"), to: home.appendingPathComponent("Documents/work"))
+    try FileManager.default.createSymbolicLink(at: home.appendingPathComponent("work"), withDestinationURL: home.appendingPathComponent("Documents/work"))
+    #expect(CandidateCheck(catalog: catalog, running: NothingRunning()).check(pip) != nil)
+    #expect(try await execute(pip, catalog: catalog, home: home).state == .skipped)
+    #expect(FileManager.default.fileExists(atPath: home.appendingPathComponent("Documents/work/pip/http-v2/entry").path))
+}
