@@ -23,10 +23,14 @@ import SwiftUI
     var position = Position()
     private var history: [Position] = []
     var canGoBack: Bool { !history.isEmpty }
+    /// The explorer's own title, which a page opened from it names when it goes back (#228).
+    var title: String { downloadsOnly ? "Explore Downloads" : "Explore storage" }
+    /// The list of locations the explorer starts at.
+    var rootName: String { downloadsOnly ? "Scanned Downloads locations" : "Selected locations" }
     /// Where back leads inside the explorer: the previous folder, or the list of locations; nil when back leaves it.
     var backDestination: String? {
         guard let previous = history.last else { return nil }
-        return previous.folder?.lastPathComponent ?? (downloadsOnly ? "Scanned Downloads locations" : "Selected locations")
+        return previous.folder?.lastPathComponent ?? rootName
     }
     var navigationID = UUID()
     func openDownloads() { reset(downloadsOnly: true, folder: nil) }
@@ -151,15 +155,18 @@ struct StorageExplorerView: View {
               folderAvailable, context.position.query.isEmpty || !visible.isEmpty else { return nil }
         return entries.first { $0.item.id == id && $0.item.resourceID == resource }
     }
+    /// Inside a folder that is no longer in the observations.
+    private var folderGone: Bool { context.position.folder != nil && !folderAvailable }
     var body: some View {
         GeometryReader { geometry in
             let wide = geometry.size.width >= 800
             VStack(alignment: .leading, spacing: CacheDropDesign.Space.lg) {
                 VStack(alignment: .leading, spacing: CacheDropDesign.Space.sm) {
-                    BackButton(destination: context.backDestination ?? caller) {
-                        if !context.backWithinExplorer() { back() }
+                    // A folder that is no longer observed leads back only to the list of locations (#227).
+                    BackButton(destination: folderGone ? context.rootName : context.backDestination ?? caller) {
+                        if folderGone { context.discardUnavailableFolder() } else if !context.backWithinExplorer() { back() }
                     }.accessibilityIdentifier("explorerBack")
-                    PageHeader(title: context.downloadsOnly ? "Explore Downloads" : "Explore storage", subtitle: "Inspect local allocations within your selected folders.")
+                    PageHeader(title: context.title, subtitle: "Inspect local allocations within your selected folders.")
                 }
                 ScanHistoryRecordingNotice()
                 breadcrumbs
@@ -182,7 +189,7 @@ struct StorageExplorerView: View {
     private var breadcrumbs: some View {
         VStack(alignment: .leading, spacing: CacheDropDesign.Space.sm) {
             HStack {
-                Button(context.downloadsOnly ? "Scanned Downloads locations" : "Selected locations") { context.returnToRoot() }
+                Button(context.rootName) { context.returnToRoot() }
                 if folderAvailable, let folder = context.position.folder {
                     Image(systemName: "chevron.right").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
                     ForEach(breadcrumbs(for: folder), id: \.self) { ancestor in
@@ -233,7 +240,6 @@ struct StorageExplorerView: View {
                     }
                 } else if !folderAvailable {
                     EmptyState(title: "This folder is no longer available in the observations", detail: "Its location may have been omitted, forgotten or changed during a refresh. Browsing cannot scan or restore access.", symbol: "folder.badge.questionmark")
-                    Button("Return to selected locations") { context.discardUnavailableFolder() }
                 } else if visible.isEmpty {
                     EmptyState(title: context.position.query.isEmpty ? "No observed entries here" : "No matches", detail: context.position.query.isEmpty ? "This describes existing observations only. Unscanned or unavailable contents remain unknown." : "No observed descendants match this search. Your selected files are unchanged.", symbol: "magnifyingglass")
                     if !context.position.query.isEmpty { Button("Clear search") { context.position.query = "" } }

@@ -858,6 +858,44 @@ extension CatalogCleanupUITests {
         XCTAssertTrue(openLargeAndOld(app).waitForExistence(timeout: 30))
     }
 
+    /// #227: the explorer's back button names its destination; a folder that went away leaves only the back button to
+    /// the list of locations.
+    @MainActor func testExplorerBackButtonsNameTheirDestination() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        let state = try configureIsolatedState(app)
+        let home = try configureCatalogHome(app)
+        let folder = FileManager.default.temporaryDirectory.resolvingSymlinksInPath().appendingPathComponent("CacheDropPicked-" + UUID().uuidString)
+        defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home); try? FileManager.default.removeItem(at: folder) }
+        try FileManager.default.createDirectory(at: folder.appendingPathComponent("Inner"), withIntermediateDirectories: true)
+        try Data(repeating: 1, count: 4_000).write(to: folder.appendingPathComponent("Inner/entry.zip"))
+        app.launch()
+        XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
+        app.buttons["overviewScanFolder"].click()
+        let panel = app.sheets.firstMatch.exists ? app.sheets.firstMatch : app.dialogs.firstMatch
+        XCTAssertTrue(panel.waitForExistence(timeout: 5))
+        panel.typeKey("g", modifierFlags: [.command, .shift])
+        app.typeText(folder.path + "\n")
+        panel.buttons["Scan folder"].click()
+        let explore = app.links["Explore storage"]
+        XCTAssertTrue(explore.waitForExistence(timeout: 20))
+        explore.click()
+        app.buttons["Open folder " + folder.lastPathComponent].click()
+        XCTAssertTrue(app.textFields["explorerSearch"].waitForExistence(timeout: 5))
+
+        // #227: the folder is gone after a recheck; only the shared back button leads to the list of locations.
+        try FileManager.default.removeItem(at: folder)
+        app.typeKey("r", modifierFlags: .command)
+        XCTAssertTrue(app.staticTexts["This folder is no longer available in the observations"].waitForExistence(timeout: 20))
+        XCTAssertFalse(app.buttons["Return to selected locations"].exists)
+        let explorerBack = app.buttons["explorerBack"]
+        XCTAssertEqual(explorerBack.label, "Back to Selected locations")
+        assertBackButton(explorerBack, isAbove: "Explore storage", in: app)
+        explorerBack.click()
+        XCTAssertFalse(app.staticTexts["This folder is no longer available in the observations"].waitForExistence(timeout: 2))
+        XCTAssertEqual(explorerBack.label, "Back to Overview")
+    }
+
     /// Opens Explore storage from Overview in its Large and old files mode; returns the fixture's old file toggle.
     @MainActor private func openLargeAndOld(_ app: XCUIApplication) -> XCUIElement {
         let explore = app.links["Explore storage"]
