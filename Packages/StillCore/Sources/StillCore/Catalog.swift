@@ -271,6 +271,8 @@ public enum BuiltInCatalog {
         iCloudLocalCopies,
         // Its items come only from folders the user picked (`UserFiles.candidates`); it has no locations of its own.
         UserFiles.rule,
+        // Build folders in projects inside picked folders (`ProjectBuilds.candidates`); no locations of its own either.
+        ProjectBuilds.rule,
     ]
     /// Kept from the Downloads-era policy: libraries and databases are never moved, even inside Downloads.
     static let downloadsProtectedExtensions = ["dsym", "library", "db", "sqlite", "sqlite3"]
