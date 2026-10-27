@@ -174,7 +174,7 @@ struct ApplicationsView: View {
                               identifier: "applicationsUnrecognised-" + entry.id)
                 }
                 // The app, or a plug-in product's own app and its hosts (#176), each with "Quit <App>".
-                if let rule = (AppUninstall.rules + PlugInUninstall.rules).first(where: { rule in uninstall.contains { $0.ruleID == rule.id } }) {
+                if let rule = AppRuleFamily.uninstallRules.first(where: { rule in uninstall.contains { $0.ruleID == rule.id } }) {
                     PlanRunningOwners(model: catalog, rule: rule, only: Set(uninstall.compactMap(\.uninstall).flatMap { [$0.owner.name] + $0.hosts.map(\.name) }))
                 }
             } else if !auv3.isEmpty, auv3.count == entry.parts.count {
@@ -187,7 +187,7 @@ struct ApplicationsView: View {
         } items: {
             if !uninstall.isEmpty {
                 VStack(alignment: .leading, spacing: CacheDropDesign.Space.sm) {
-                    ForEach((AppUninstall.rules + PlugInUninstall.rules).filter { rule in uninstall.contains { $0.ruleID == rule.id } }) { rule in
+                    ForEach(AppRuleFamily.uninstallRules.filter { rule in uninstall.contains { $0.ruleID == rule.id } }) { rule in
                         Text(rule.title).font(CacheDropDesign.TypeStyle.caption.weight(.medium))
                         CatalogItemRows(model: catalog, rule: rule, app: entry.id)
                     }

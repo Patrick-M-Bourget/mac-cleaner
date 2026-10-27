@@ -274,11 +274,11 @@ import SwiftUI
     /// A plug-in product's too, by its row's id, shared items included (#176).
     func uninstallItems(of appPath: String) -> [Candidate] { uninstallable.filter { $0.isUninstalled(with: appPath) } }
     func selectionState(ofApp appPath: String) -> CategorySelectionState {
-        CategorySelection(rules: AppUninstall.rules + PlugInUninstall.rules, candidates: uninstallItems(of: appPath), selected: selectedIDs).state
+        CategorySelection(rules: AppRuleFamily.uninstallRules, candidates: uninstallItems(of: appPath), selected: selectedIDs).state
     }
     /// An app's checkbox, as a category's (#240): returns true when only its possibly related items are left to choose one by one.
     func toggleApp(_ appPath: String) -> Bool {
-        toggle(CategorySelection(rules: AppUninstall.rules + PlugInUninstall.rules, candidates: uninstallItems(of: appPath), selected: selectedIDs))
+        toggle(CategorySelection(rules: AppRuleFamily.uninstallRules, candidates: uninstallItems(of: appPath), selected: selectedIDs))
     }
     func selectionState(for rules: [CleanupRule]) -> CategorySelectionState { categorySelection(rules).state }
     private func categorySelection(_ rules: [CleanupRule]) -> CategorySelection {

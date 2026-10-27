@@ -135,7 +135,7 @@ public struct CandidateCheck: Sendable {
     /// Whether checking this candidate asks what processes have open: leaked copies and old temporary items.
     public func needsInUseCheck(_ candidate: Candidate) -> Bool {
         guard let rule = catalog.rule(candidate.ruleID) else { return false }
-        return rule.copies != nil || rule.unused != nil || rule.id == ProjectBuilds.ruleID || RemovedAppLeftovers.ruleIDs.contains(rule.id)
+        return rule.copies != nil || rule.unused != nil || rule.id == ProjectBuilds.ruleID || rule.family == .removedAppLeftovers
     }
     public func check(_ candidate: Candidate) -> CheckRefusal? {
         // Guidance-only data is never acted on, whatever the candidate or its rule says (SPEC section 3).
@@ -197,10 +197,10 @@ public struct CandidateCheck: Sendable {
             if !used.isEmpty { return .inUse(RuleOwner.anyApp.name) }
         }
         // A removed app's leftover: never license or macOS data, and kept once its app is back (#173).
-        let uninstalling = AppUninstall.ruleIDs.contains(rule.id)
+        let uninstalling = rule.family?.isUninstall == true
         if !uninstalling, let tie = candidate.leftover, let refusal = RemovedAppLeftovers.refusal(for: candidate.url, tie: tie, below: root, apps: apps) { return refusal }
         // An app and its files (#177): removable without a password now, whoever owns them (Decision 50).
-        if uninstalling, let refusal = AppUninstall.refusal(for: candidate, below: root, apps: apps, receipts: receipts) { return refusal }
+        if uninstalling, let refusal = AppUninstall.refusal(for: candidate, rule: rule, below: root, apps: apps, receipts: receipts) { return refusal }
         // A project being worked on keeps its build folders (#157).
         if rule.id == ProjectBuilds.ruleID, let refusal = ProjectBuilds.refusal(for: candidate.url, inUse: inUse, home: home) { return refusal }
         // A system image a virtual device started using since the scan is kept (#134).

@@ -10,19 +10,16 @@ public enum AppUninstall {
     public static let filesRuleID = "uninstall-app-files"
     public static let possiblyRelatedRuleID = "uninstall-app-possibly-related"
     static let consequence = "Moved to Trash. You can put them back from History, or restore them from the Trash in Finder."
-    public static let rules: [CleanupRule] = [
-        CleanupRule(id: appRuleID, category: .apps, title: "App", detail: "The app itself.", consequence: consequence, regen: .userFile, action: .trash,
-                    locations: [], owner: nil, unprotectedExtensions: ["app"]),
-        CleanupRule(id: filesRuleID, category: .apps, title: "Its files",
-                    detail: "Settings, caches and data tied to the app by its bundle ID or installer receipt.",
-                    consequence: consequence, regen: .userFile, action: .trash, locations: [], owner: nil, protectedDepth: AppCaches.liveWorkDepth),
-        CleanupRule(id: possiblyRelatedRuleID, category: .apps, title: "Possibly related",
-                    detail: "Folders named like the app or its maker. Nothing ties them to it for sure, so check each one.",
-                    consequence: consequence, regen: .userFile, action: .trash, locations: [], owner: nil, protectedDepth: AppCaches.liveWorkDepth,
-                    itemByItem: true),
-    ]
-    /// Every uninstall rule's ID, an app's and a plug-in product's (#176): their items are chosen on the Applications page.
-    public static let ruleIDs: Set<String> = Set((rules + PlugInUninstall.rules).map(\.id))
+    static let appRule = CleanupRule(id: appRuleID, category: .apps, title: "App", detail: "The app itself.", consequence: consequence, regen: .userFile,
+        action: .trash, locations: [], owner: nil, unprotectedExtensions: ["app"], family: .appUninstall)
+    static let filesRule = CleanupRule(id: filesRuleID, category: .apps, title: "Its files",
+        detail: "Settings, caches and data tied to the app by its bundle ID or installer receipt.",
+        consequence: consequence, regen: .userFile, action: .trash, locations: [], owner: nil, protectedDepth: AppCaches.liveWorkDepth, family: .appUninstall)
+    static let possiblyRelatedRule = CleanupRule(id: possiblyRelatedRuleID, category: .apps, title: "Possibly related",
+        detail: "Folders named like the app or its maker. Nothing ties them to it for sure, so check each one.",
+        consequence: consequence, regen: .userFile, action: .trash, locations: [], owner: nil, protectedDepth: AppCaches.liveWorkDepth,
+        itemByItem: true, family: .appUninstall)
+    public static let rules: [CleanupRule] = [appRule, filesRule, possiblyRelatedRule]
 
     /// The app an item is uninstalled with.
     public struct Target: Sendable, Hashable {
@@ -76,7 +73,7 @@ public enum AppUninstall {
               // An excluded app is never offered, nor its files (SPEC section 2).
               let volume = try? url.resourceValues(forKeys: [.volumeUUIDStringKey]).volumeUUIDString, !exclusions.covers(url, volumeID: volume) else { return [] }
         let catalog = Catalog(rules: rules), size = sizer.size(url)
-        var bundle = catalog.candidate(rules[0], url, info, logical: size.logicalBytes, allocated: size.allocatedBytes, complete: size.complete, lastUsed: nil)
+        var bundle = catalog.candidate(appRule, url, info, logical: size.logicalBytes, allocated: size.allocatedBytes, complete: size.complete, lastUsed: nil)
         bundle = bundle.found(under: url.deletingLastPathComponent())
         let skipped = Set(leftovers.map(\.url.path))
         let found = RemovedAppLeftovers.scan(home: home, apps: Without(app: app, url: url, in: apps), receipts: receipts, exclusions: exclusions,
@@ -92,7 +89,7 @@ public enum AppUninstall {
             guard Removability.canMoveToTrash(tool), lstat(tool.path, &info) == 0,
                   let volume = try? tool.resourceValues(forKeys: [.volumeUUIDStringKey]).volumeUUIDString, !exclusions.covers(tool, volumeID: volume) else { return nil }
             let size = sizer.size(tool)
-            return catalog.candidate(rules[0], tool, info, logical: size.logicalBytes, allocated: size.allocatedBytes, complete: size.complete, lastUsed: nil)
+            return catalog.candidate(appRule, tool, info, logical: size.logicalBytes, allocated: size.allocatedBytes, complete: size.complete, lastUsed: nil)
                 .found(under: tool.deletingLastPathComponent())
         }
         tool?.uninstall = target
@@ -103,11 +100,11 @@ public enum AppUninstall {
     /// the Trash without a password, whatever changed since the scan (Decision 50).
     /// An app's files keep the before-acting checks of a removed app's leftovers (#281), as if the app were gone: the tie still
     /// holds, a group container is still an exact match, and no other app of the maker, or second copy of this one, appeared.
-    static func refusal(for candidate: Candidate, below root: URL, apps: any AppPresence, receipts: LazyReceipts) -> CheckRefusal? {
+    static func refusal(for candidate: Candidate, rule: CleanupRule, below root: URL, apps: any AppPresence, receipts: LazyReceipts) -> CheckRefusal? {
         let url = candidate.url
         guard let app = candidate.uninstall else { return .changed }
-        if PlugInUninstall.rules.contains(where: { $0.id == candidate.ruleID }) { return PlugInUninstall.refusal(for: candidate, receipts: receipts) }
-        if candidate.ruleID != appRuleID {
+        if rule.family == .plugInUninstall { return PlugInUninstall.refusal(for: candidate, receipts: receipts) }
+        if rule.id != appRule.id {
             guard let tie = candidate.leftover else { return .changed }
             let gone = Without(app: InstalledApp(name: app.name, bundleID: app.bundleID, path: app.path), url: URL(fileURLWithPath: app.path), in: apps)
             // The app's own container goes in the same run, so its bundle ID stands as the proof it was an app's.

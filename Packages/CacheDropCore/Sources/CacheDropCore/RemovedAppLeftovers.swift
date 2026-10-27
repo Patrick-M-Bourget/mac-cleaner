@@ -8,16 +8,15 @@ public enum RemovedAppLeftovers {
     public static let ruleID = "removed-app-leftovers"
     public static let possiblyRelatedRuleID = "removed-app-possibly-related"
     static let consequence = "Moved to Trash. The app is no longer installed; you can restore them from the Trash in Finder."
-    public static let rules: [CleanupRule] = [
-        CleanupRule(id: ruleID, category: .leftovers, title: "Leftovers of removed apps",
-                    detail: "Settings, caches and data of apps no longer on this Mac, tied to each app by its bundle ID or installer receipt.",
-                    consequence: consequence, regen: .userFile, action: .trash, locations: [], owner: nil, protectedDepth: AppCaches.liveWorkDepth),
-        CleanupRule(id: possiblyRelatedRuleID, category: .leftovers, title: "Possibly related",
-                    detail: "Folders named like a removed app or its maker. Nothing ties them to it for sure, so check each one.",
-                    consequence: consequence, regen: .userFile, action: .trash, locations: [], owner: nil, protectedDepth: AppCaches.liveWorkDepth,
-                    itemByItem: true),
-    ]
-    static let ruleIDs: Set<String> = [ruleID, possiblyRelatedRuleID]
+    static let leftoversRule = CleanupRule(id: ruleID, category: .leftovers, title: "Leftovers of removed apps",
+        detail: "Settings, caches and data of apps no longer on this Mac, tied to each app by its bundle ID or installer receipt.",
+        consequence: consequence, regen: .userFile, action: .trash, locations: [], owner: nil, protectedDepth: AppCaches.liveWorkDepth,
+        family: .removedAppLeftovers)
+    static let possiblyRelatedRule = CleanupRule(id: possiblyRelatedRuleID, category: .leftovers, title: "Possibly related",
+        detail: "Folders named like a removed app or its maker. Nothing ties them to it for sure, so check each one.",
+        consequence: consequence, regen: .userFile, action: .trash, locations: [], owner: nil, protectedDepth: AppCaches.liveWorkDepth,
+        itemByItem: true, family: .removedAppLeftovers)
+    public static let rules: [CleanupRule] = [leftoversRule, possiblyRelatedRule]
 
     /// The `~/Library` folders looked in; each entry directly inside one is an item.
     static let places = ["Application Support", "Caches", "Containers", "Group Containers", "Preferences", "Saved Application State",
@@ -67,7 +66,7 @@ public enum RemovedAppLeftovers {
                 guard !name.hasPrefix("."), !isNeverOffered(name), !launchAgentProgramExists(url), lstat(url.path, &info) == 0, info.st_uid == geteuid(),
                       [S_IFDIR, S_IFREG].contains(info.st_mode & S_IFMT),
                       let volume = try? url.resourceValues(forKeys: [.volumeUUIDStringKey]).volumeUUIDString, !exclusions.covers(url, volumeID: volume),
-                      info.st_mode & S_IFMT != S_IFDIR || CandidateCheck.protectedEntry(in: url, rule: rules[0]) == nil else { return nil }
+                      info.st_mode & S_IFMT != S_IFDIR || CandidateCheck.protectedEntry(in: url, rule: leftoversRule) == nil else { return nil }
                 return (url, info)
             }
         }
@@ -104,7 +103,7 @@ public enum RemovedAppLeftovers {
         }
         return entries.compactMap { url, info in
             guard !skipping.contains(url.path), let tie = tie(url) else { return nil }
-            let rule = tie.isNameOnly ? rules[1] : rules[0]
+            let rule = tie.isNameOnly ? possiblyRelatedRule : leftoversRule
             let size = sizer.size(url)
             var item = catalog.candidate(rule, url, info, logical: size.logicalBytes, allocated: size.allocatedBytes, complete: size.complete, lastUsed: nil)
             item.leftover = tie
@@ -259,11 +258,6 @@ public struct LeftoverTie: Sendable, Hashable {
     var isNameOnly: Bool { if case .nameOnly = evidence { true } else { false } }
     /// Why a possibly related item is shown; nil for a confirmed one.
     public var reason: String? { if case .nameOnly(let reason) = evidence { reason } else { nil } }
-}
-
-extension CleanupRule {
-    /// Its items are ticked one by one, never with their category, rule or app (#173: possibly related leftovers).
-    public var selectedOneByOne: Bool { [RemovedAppLeftovers.possiblyRelatedRuleID, AppUninstall.possiblyRelatedRuleID, PlugInUninstall.sharedRuleID].contains(id) }
 }
 
 /// Which apps are on this Mac, on every volume. Injected so tests never ask Launch Services or Spotlight.

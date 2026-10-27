@@ -97,7 +97,7 @@ extension CleanupHistoryRun {
         // An uninstall (#177, Decision 51): "Uninstalled <App> · N items".
         // An app's own uninstaller goes with it (#285) and isn't named.
         // A plug-in product (#176) is named once for all its formats.
-        let apps = done.filter { [AppUninstall.appRuleID, PlugInUninstall.formatsRuleID].contains($0.ruleID) }.map { $0.originalURL.deletingPathExtension().lastPathComponent }
+        let apps = done.filter { $0.ruleID.map(AppRuleFamily.namingRuleIDs.contains) == true }.map { $0.originalURL.deletingPathExtension().lastPathComponent }
             .filter { !ApplicationsInventory.isUninstallerName($0) }.reduce(into: [String]()) { if !$0.contains($1) { $0.append($1) } }
         if let first = apps.first {
             let names = apps.count == 1 ? first : apps.dropLast().joined(separator: ", ") + " and " + apps.last!
