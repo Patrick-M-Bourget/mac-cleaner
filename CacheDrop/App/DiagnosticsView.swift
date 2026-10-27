@@ -66,7 +66,7 @@ import UniformTypeIdentifiers
 struct DiagnosticsView: View {
     @Bindable var model: DiagnosticsModel
     var body: some View {
-        VStack(alignment: .leading, spacing: StillDesign.Space.xl) {
+        VStack(alignment: .leading, spacing: CacheDropDesign.Space.xl) {
             PageHeader(title: "Review diagnostics", subtitle: "A local snapshot with only allowlisted versions, counts, status and error codes.")
             SettingsRow(title: "Included", detail: "App/build and system versions, CPU architecture, session scope count, latest scan entry count, selected count and fixed status/error codes.") { EmptyView() }
             SettingsRow(title: "Excluded", detail: "File paths and names, resource/batch/account identities, raw errors, file or browser contents, credentials, cloud metadata and recovery records.") { EmptyView() }
@@ -79,7 +79,7 @@ struct DiagnosticsView: View {
                 }
             }
             StatusRow(text: model.status, symbol: "doc.text", role: model.export?.outcome == .failed || model.unavailable ? .caution : .neutral, identifier: "diagnosticsStatus")
-            Text("Saving diagnostics does not clear history, resolve interrupted work or grant permission to retry cleanup.").font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary)
+            Text("Saving diagnostics does not clear history, resolve interrupted work or grant permission to retry cleanup.").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
         }
     }
 }

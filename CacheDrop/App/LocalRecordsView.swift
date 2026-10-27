@@ -19,7 +19,7 @@ struct LocalRecordsView: View {
     var didReset: () -> Void
     var reviewDiagnostics: (() -> Void)? = nil
     var body: some View {
-        VStack(alignment: .leading, spacing: StillDesign.Space.xl) {
+        VStack(alignment: .leading, spacing: CacheDropDesign.Space.xl) {
             PageHeader(title: "Local records", subtitle: "Manage what CacheDrop stores on this Mac. Original files and macOS access grants stay unchanged.")
             if let error = model.loadError { StatusRow(text: error, symbol: "exclamationmark.triangle", role: .caution) }
             if let message = model.message {
@@ -50,12 +50,12 @@ struct LocalRecordsMaintenanceControls: View {
     var clear: () -> Void
     var reset: () -> Void
     var body: some View {
-        VStack(alignment: .leading, spacing: StillDesign.Space.xl) {
+        VStack(alignment: .leading, spacing: CacheDropDesign.Space.xl) {
             SettingsRow(title: "Completed history", detail: "Remove scan activity, completed cleanup results and retained growth baselines together. Recovery facts, consumed approvals, current selections, appearance, original files and Trash remain.") {
                 Button("Clear completed history…", action: clear).accessibilityIdentifier("clearHistory")
             }
             SettingsRow(title: "Reset CacheDrop", detail: "Forget preferences and selected locations, and stop alerts and login launch. Unfinished or unreadable recovery records block Reset.") {
-                Button("Reset CacheDrop…", action: reset).accessibilityIdentifier("resetStill")
+                Button("Reset CacheDrop…", action: reset).accessibilityIdentifier("resetCacheDrop")
             }
         }.disabled(!enabled)
     }

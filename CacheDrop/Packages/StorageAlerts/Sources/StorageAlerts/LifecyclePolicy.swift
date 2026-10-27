@@ -76,10 +76,10 @@ public enum MenuBarStatus {
     }
 
     public enum Item: Equatable, Sendable {
-        case openStill, scanAgain, smartClean, settings, quit
+        case openCacheDrop, scanAgain, smartClean, settings, quit
         public var title: String {
             switch self {
-            case .openStill: "Open CacheDrop"
+            case .openCacheDrop: "Open CacheDrop"
             case .scanAgain: "Scan again"
             case .smartClean: "Smart clean…"
             case .settings: "Settings…"

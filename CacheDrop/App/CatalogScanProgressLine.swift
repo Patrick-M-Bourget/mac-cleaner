@@ -8,9 +8,9 @@ import SwiftUI
 struct CatalogScanProgressLine: View {
     let model: CatalogCleanupModel
     var body: some View {
-        HStack(spacing: StillDesign.Space.sm) {
+        HStack(spacing: CacheDropDesign.Space.sm) {
             ProgressView().controlSize(.small).accessibilityHidden(true)
-            Text(model.scanProgressText).font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary).monospacedDigit().lineLimit(1).truncationMode(.middle)
+            Text(model.scanProgressText).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary).monospacedDigit().lineLimit(1).truncationMode(.middle)
                 .accessibilityIdentifier("catalogScanProgress")
         }
     }

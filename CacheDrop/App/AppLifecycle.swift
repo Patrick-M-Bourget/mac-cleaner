@@ -122,7 +122,7 @@ import CacheDropCore
     }
 }
 
-@MainActor final class StillApplicationDelegate: NSObject, NSApplicationDelegate {
+@MainActor final class CacheDropApplicationDelegate: NSObject, NSApplicationDelegate {
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
         let lifecycle = AppLifecycleController.shared
         return !AppLifecyclePolicy.shouldKeepRunning(effectiveAlerts: lifecycle.alerts.effectiveMonitoring, operationInProgress: lifecycle.operationInProgress || lifecycle.maintenanceInProgress, hasPendingPlan: lifecycle.hasPendingPlan, menuBarItemShown: lifecycle.menuBarItemShown)

@@ -25,7 +25,7 @@ struct MeterSegments: View {
             let bytes = breakdown.reclaimableBytes
             guard bytes > 0 else { return [] }
             return [Drawn(id: "reclaimable", title: "Reclaimable", help: "Reclaimable · up to " + CapacityMeter.bytes(bytes),
-                          color: StillDesign.meterReclaimable, bytes: bytes, highlighted: nil, part: nil)]
+                          color: CacheDropDesign.meterReclaimable, bytes: bytes, highlighted: nil, part: nil)]
         }
         return breakdown.segments.filter { $0.bytes > 0 }.map { segment in
             Drawn(id: segment.id, title: segment.part.title, help: segment.part.title + " · " + segment.sizeText, color: segment.part.color,
@@ -38,16 +38,16 @@ struct MeterSegments: View {
             let width = geometry.size.width, total = Double(breakdown.total)
             let usedWidth = width * CGFloat(Double(breakdown.used) / total)
             let segments = drawn
-            let gap = segments.isEmpty ? 0 : StillDesign.Size.meterGap
-            let widths = segments.map { max(StillDesign.Size.meterSegmentMinimum, width * CGFloat(Double($0.bytes) / total)) }
+            let gap = segments.isEmpty ? 0 : CacheDropDesign.Size.meterGap
+            let widths = segments.map { max(CacheDropDesign.Size.meterSegmentMinimum, width * CGFloat(Double($0.bytes) / total)) }
             let rest = max(0, usedWidth - widths.reduce(0, +) - gap * CGFloat(segments.count))
             ZStack(alignment: .leading) {
-                Capsule().fill(StillDesign.capacityTrack)
+                Capsule().fill(CacheDropDesign.capacityTrack)
                 HStack(spacing: gap) {
                     ForEach(Array(segments.enumerated()), id: \.element.id) { index, segment in
                         self.segment(segment).frame(width: widths[index])
                     }
-                    if rest > 0 { Rectangle().fill(StillDesign.capacityFill).frame(width: rest).accessibilityHidden(true) }
+                    if rest > 0 { Rectangle().fill(CacheDropDesign.capacityFill).frame(width: rest).accessibilityHidden(true) }
                 }.frame(width: max(usedWidth, widths.reduce(0, +)), alignment: .leading).clipShape(Capsule())
             }
         }
@@ -61,7 +61,7 @@ struct MeterSegments: View {
                 if let highlighted = segment.highlighted {
                     let lit = geometry.size.width * CGFloat(Double(highlighted) / Double(max(segment.bytes, 1)))
                     Rectangle().fill(segment.color).frame(width: lit)
-                    Rectangle().fill(segment.color.opacity(StillDesign.Opacity.meterDimmed))
+                    Rectangle().fill(segment.color.opacity(CacheDropDesign.Opacity.meterDimmed))
                 } else {
                     Rectangle().fill(segment.color)
                 }
@@ -90,8 +90,8 @@ extension StorageBreakdown.Part {
     var color: Color {
         switch self {
         case .category(let category): category.storageCategory.color
-        case .other: StillDesign.meterOther
-        case .trash: StillDesign.meterTrash
+        case .other: CacheDropDesign.meterOther
+        case .trash: CacheDropDesign.meterTrash
         }
     }
 }

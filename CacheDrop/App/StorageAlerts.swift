@@ -5,7 +5,7 @@ import Darwin
 import CacheDropCore
 
 extension Notification.Name {
-    static let stillAlertOpened = Notification.Name("Still.alertOpened")
+    static let cacheDropAlertOpened = Notification.Name("Still.alertOpened")
 }
 
 @MainActor private final class NativeAlertMonitoringSystem: AlertMonitoringSystem {
@@ -76,7 +76,7 @@ extension Notification.Name {
             AppLifecycleController.shared.openWorkspace?()
             NSApp.activate(ignoringOtherApps: true)
             NSApp.windows.first(where: { $0.canBecomeMain })?.makeKeyAndOrderFront(nil)
-            NotificationCenter.default.post(name: .stillAlertOpened, object: nil)
+            NotificationCenter.default.post(name: .cacheDropAlertOpened, object: nil)
     }
     nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification) async -> UNNotificationPresentationOptions { [.banner, .sound] }
 }
@@ -90,8 +90,8 @@ struct AlertThresholdEditor: View {
     let apply: () -> Void
     var body: some View {
         LabeledContent("Alert below") {
-            HStack(spacing: StillDesign.Space.sm) {
-                TextField("Alert below", text: $draft).labelsHidden().frame(width: StillDesign.Size.numberField)
+            HStack(spacing: CacheDropDesign.Space.sm) {
+                TextField("Alert below", text: $draft).labelsHidden().frame(width: CacheDropDesign.Size.numberField)
                     .multilineTextAlignment(.trailing).onSubmit { if canApply { apply() } }
                     .accessibilityIdentifier("lowSpaceThreshold")
                 Text("GB").foregroundStyle(.secondary)
@@ -159,7 +159,7 @@ struct LowSpaceAlertsSettings: View {
             Text("Low-space alerts")
         } footer: {
             Text("CacheDrop checks free space about every 15 minutes while it’s open. It never scans or cleans in the background.")
-                .font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary)
+                .font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
         }
         .task {
             controller.configure()
@@ -189,7 +189,7 @@ enum LowSpaceAlertsPresentation {
 }
 
 /// The menu bar item (#131): free space in a short, calm form. Shown by default; Settings can hide it.
-struct StillMenuBarLabel: View {
+struct CacheDropMenuBarLabel: View {
     let capacity: CapacityRefreshController
     var body: some View {
         if let title = MenuBarStatus.freeSpaceTitle(available: capacity.reading?.available) {
@@ -201,7 +201,7 @@ struct StillMenuBarLabel: View {
 }
 
 /// The menu bar item's menu: Open Still, Scan again, Smart clean… when it has something, Settings… and Quit.
-struct StillMenuBarMenu: View {
+struct CacheDropMenuBarMenu: View {
     @Environment(\.openWindow) private var openWindow
     let lifecycle: AppLifecycleController
     private var hasRecommendedPlan: Bool {
@@ -209,17 +209,17 @@ struct StillMenuBarMenu: View {
         return catalog.hasScanned && catalog.canEdit && !lifecycle.selection.workspaceRunning && !catalog.recommendedCandidates.isEmpty
     }
     var body: some View {
-        Button(MenuBarStatus.Item.openStill.title, action: openStill)
-        Button(MenuBarStatus.Item.scanAgain.title) { openStill(); lifecycle.scanAgain?() }
+        Button(MenuBarStatus.Item.openCacheDrop.title, action: openCacheDrop)
+        Button(MenuBarStatus.Item.scanAgain.title) { openCacheDrop(); lifecycle.scanAgain?() }
         if hasRecommendedPlan {
-            Button(MenuBarStatus.Item.smartClean.title) { openStill(); lifecycle.openSmartClean?() }
+            Button(MenuBarStatus.Item.smartClean.title) { openCacheDrop(); lifecycle.openSmartClean?() }
         }
         Divider()
         SettingsLink { Text(MenuBarStatus.Item.settings.title) }.keyboardShortcut(",")
         Divider()
         Button(MenuBarStatus.Item.quit.title) { NSApp.terminate(nil) }.keyboardShortcut("q")
     }
-    private func openStill() {
+    private func openCacheDrop() {
         openWindow(id: "workspace")
         NSApp.activate(ignoringOtherApps: true)
     }

@@ -9,12 +9,12 @@ struct CatalogPlanSection: View {
     @Bindable var model: CatalogCleanupModel
     @Binding var expanded: Set<CatalogCategory>
     var body: some View {
-        VStack(alignment: .leading, spacing: StillDesign.Space.lg) {
+        VStack(alignment: .leading, spacing: CacheDropDesign.Space.lg) {
             VStack(alignment: .leading, spacing: 0) {
                 ForEach(model.planCategories) { row in
                     PlanCategoryRow(model: model, row: row, expanded: Binding(get: { expanded.contains(row.category) },
                                                                              set: { if $0 { expanded.insert(row.category) } else { expanded.remove(row.category) } }))
-                    Divider().padding(.vertical, StillDesign.Space.md)
+                    Divider().padding(.vertical, CacheDropDesign.Space.md)
                 }
             }
             ForEach(model.overriddenRules) { rule in
@@ -22,7 +22,7 @@ struct CatalogPlanSection: View {
                           symbol: "info.circle", role: .neutral, identifier: "planOverridden-" + rule.id)
             }
             if !model.notAccessibleRules.isEmpty {
-                HStack(spacing: StillDesign.Space.sm) {
+                HStack(spacing: CacheDropDesign.Space.sm) {
                     StatusRow(text: ListFormatter.localizedString(byJoining: model.notAccessibleRules.map(\.title)) + " needs Full Disk Access.", symbol: "lock",
                               identifier: "planNotAccessible").fixedSize()
                     FullDiskAccessLink(title: "Learn more", symbol: nil)
@@ -43,7 +43,7 @@ private struct PlanCategoryRow: View {
     @Binding var expanded: Bool
     var body: some View {
         let state = model.selectionState(for: row.rules)
-        VStack(alignment: .leading, spacing: StillDesign.Space.sm) {
+        VStack(alignment: .leading, spacing: CacheDropDesign.Space.sm) {
             CategorySelectionHeader(category: row.category.storageCategory, state: state, title: row.category.overviewTitle, detail: row.category.overviewDetail,
                                     size: row.valueText, enabled: model.canEdit, identifier: "planCategory-" + row.id) { model.setSelected(row.rules, state != .checked) }
             switch row.planLayout {
@@ -51,17 +51,17 @@ private struct PlanCategoryRow: View {
                 ActionDisclosureGroup("Choose items · \(row.itemCount)", isExpanded: $expanded) {
                     VStack(alignment: .leading, spacing: 0) {
                         ForEach(row.rules) { rule in PlanRuleRows(model: model, rule: rule) }
-                    }.padding(.top, StillDesign.Space.sm)
-                }.padding(.leading, StillDesign.Size.categoryContentIndent)
+                    }.padding(.top, CacheDropDesign.Space.sm)
+                }.padding(.leading, CacheDropDesign.Size.categoryContentIndent)
             case .items:
                 if let rule = row.rules.first {
-                    PlanRunningOwners(model: model, rule: rule).padding(.leading, StillDesign.Size.categoryContentIndent)
+                    PlanRunningOwners(model: model, rule: rule).padding(.leading, CacheDropDesign.Size.categoryContentIndent)
                     ActionDisclosureGroup("Choose items · \(row.itemCount)", isExpanded: $expanded) {
-                        PlanRuleItems(model: model, rule: rule).padding(.top, StillDesign.Space.sm)
-                    }.padding(.leading, StillDesign.Size.categoryContentIndent)
+                        PlanRuleItems(model: model, rule: rule).padding(.top, CacheDropDesign.Space.sm)
+                    }.padding(.leading, CacheDropDesign.Size.categoryContentIndent)
                 }
             case .categoryOnly:
-                if let rule = row.rules.first { PlanRunningOwners(model: model, rule: rule).padding(.leading, StillDesign.Size.categoryContentIndent) }
+                if let rule = row.rules.first { PlanRunningOwners(model: model, rule: rule).padding(.leading, CacheDropDesign.Size.categoryContentIndent) }
             }
         }
     }
@@ -75,7 +75,7 @@ private struct PlanRunningOwners: View {
     var body: some View {
         ForEach(model.runningOwnerNotices(for: rule), id: \.name) { owner in
             let quitting = model.quitStates[owner.name] == .quitting
-            HStack(alignment: .firstTextBaseline, spacing: StillDesign.Space.xs) {
+            HStack(alignment: .firstTextBaseline, spacing: CacheDropDesign.Space.xs) {
                 Image(systemName: "exclamationmark.circle").foregroundStyle(StatusRole.caution.color).accessibilityHidden(true)
                 Text(owner.notice.text + " ·").foregroundStyle(.secondary).accessibilityIdentifier("planRunning-" + rule.id)
                 switch owner.notice.action {
@@ -86,7 +86,7 @@ private struct PlanRunningOwners: View {
                     Button("Check again") { Task { await model.checkRunningOwnersAgain() } }
                         .buttonStyle(.link).accessibilityIdentifier("planRunningCheck-" + rule.id)
                 }
-            }.font(StillDesign.TypeStyle.caption).frame(maxWidth: .infinity, alignment: .leading)
+            }.font(CacheDropDesign.TypeStyle.caption).frame(maxWidth: .infinity, alignment: .leading)
                 .accessibilityElement(children: .contain)
         }
     }
@@ -117,9 +117,9 @@ private struct PlanRuleRows: View {
                 MacroCategoryCheckbox(state: state, label: rule.title, enabled: model.canEdit, action: { model.setSelected(rule, state != .checked) },
                                       identifier: "planRule-" + rule.id, showsTitle: false).fixedSize()
             }
-            PlanRunningOwners(model: model, rule: rule).padding(.leading, StillDesign.Space.xl).padding(.bottom, StillDesign.Space.sm)
-            if rule.choosesItems && !rule.groupsByProject { CatalogItemRows(model: model, rule: rule).padding(.leading, StillDesign.Space.xl) }
-            else if items.contains(where: { $0.group != nil }) { CatalogProfileRows(model: model, rule: rule).padding(.leading, StillDesign.Space.xl) }
+            PlanRunningOwners(model: model, rule: rule).padding(.leading, CacheDropDesign.Space.xl).padding(.bottom, CacheDropDesign.Space.sm)
+            if rule.choosesItems && !rule.groupsByProject { CatalogItemRows(model: model, rule: rule).padding(.leading, CacheDropDesign.Space.xl) }
+            else if items.contains(where: { $0.group != nil }) { CatalogProfileRows(model: model, rule: rule).padding(.leading, CacheDropDesign.Space.xl) }
             Divider()
         }
     }

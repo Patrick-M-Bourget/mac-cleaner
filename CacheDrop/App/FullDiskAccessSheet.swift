@@ -10,36 +10,36 @@ struct FullDiskAccessSheet: View {
     let close: () -> Void
     var body: some View {
         let granted = model.status == .granted
-        VStack(alignment: .leading, spacing: StillDesign.Space.lg) {
-            HStack(spacing: StillDesign.Space.md) {
-                CategoryBadge(symbol: "lock.shield", color: StillDesign.blue)
-                Text(FullDiskAccessGuide.title).font(StillDesign.TypeStyle.sheet).accessibilityAddTraits(.isHeader)
-                Spacer(minLength: StillDesign.Space.md)
+        VStack(alignment: .leading, spacing: CacheDropDesign.Space.lg) {
+            HStack(spacing: CacheDropDesign.Space.md) {
+                CategoryBadge(symbol: "lock.shield", color: CacheDropDesign.blue)
+                Text(FullDiskAccessGuide.title).font(CacheDropDesign.TypeStyle.sheet).accessibilityAddTraits(.isHeader)
+                Spacer(minLength: CacheDropDesign.Space.md)
                 Button("Close", systemImage: "xmark", action: close).labelStyle(.iconOnly).buttonStyle(.borderless)
                     .foregroundStyle(.secondary).accessibilityIdentifier("dismissFullDiskAccess")
             }
-            Text(FullDiskAccessGuide.summary).font(StillDesign.TypeStyle.note).foregroundStyle(.secondary)
+            Text(FullDiskAccessGuide.summary).font(CacheDropDesign.TypeStyle.note).foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true).accessibilityIdentifier("fullDiskAccessSummary")
             RecommendationGroup {
                 ForEach(Array(FullDiskAccessGuide.coverage(model.status).enumerated()), id: \.offset) { index, row in
-                    if index > 0 { Divider().padding(.horizontal, StillDesign.Space.lg) }
-                    HStack(spacing: StillDesign.Space.md) {
+                    if index > 0 { Divider().padding(.horizontal, CacheDropDesign.Space.lg) }
+                    HStack(spacing: CacheDropDesign.Space.md) {
                         Image(systemName: row.included ? "checkmark.circle" : "minus.circle")
                             .foregroundStyle(row.included ? StatusRole.success.color : StatusRole.neutral.color)
-                            .frame(width: StillDesign.Size.rowIcon).accessibilityHidden(true)
+                            .frame(width: CacheDropDesign.Size.rowIcon).accessibilityHidden(true)
                         Text(row.title)
-                        Spacer(minLength: StillDesign.Space.md)
-                        Text(row.value).font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary)
+                        Spacer(minLength: CacheDropDesign.Space.md)
+                        Text(row.value).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
                             .accessibilityIdentifier(index == 0 ? "fullDiskAccessCoverage" : "fullDiskAccessSheetStatus")
                     }
-                    .padding(.horizontal, StillDesign.Space.lg).padding(.vertical, StillDesign.Space.md)
+                    .padding(.horizontal, CacheDropDesign.Space.lg).padding(.vertical, CacheDropDesign.Space.md)
                 }
             }
             if !granted {
                 StatusRow(text: FullDiskAccessGuide.howToTurnOn, identifier: "fullDiskAccessHowTo")
             }
             Divider()
-            HStack(spacing: StillDesign.Space.sm) {
+            HStack(spacing: CacheDropDesign.Space.sm) {
                 Spacer()
                 if granted {
                     Button("Done", action: close).keyboardShortcut(.defaultAction).accessibilityIdentifier("closeFullDiskAccess")
@@ -50,7 +50,7 @@ struct FullDiskAccessSheet: View {
                 }
             }
         }
-        .padding(StillDesign.Space.xl).frame(width: StillDesign.Size.sheetNarrow).background(StillDesign.reading)
+        .padding(CacheDropDesign.Space.xl).frame(width: CacheDropDesign.Size.sheetNarrow).background(CacheDropDesign.reading)
         .task { await model.refresh() }
         // Coming back from System Settings: check again without being asked.
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in Task { await model.refresh() } }

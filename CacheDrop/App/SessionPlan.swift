@@ -177,22 +177,22 @@ struct LiveCleanupPlanView: View {
         if selection.showsRun(for: .plan) {
             CleanupRunSection(selection: selection)
         } else {
-        VStack(alignment: .leading, spacing: StillDesign.Space.lg) {
+        VStack(alignment: .leading, spacing: CacheDropDesign.Space.lg) {
             if let backToExplorer { Button(backToExplorerTitle, systemImage: "chevron.left", action: backToExplorer) }
             PageHeader(title: "Cleanup plan", subtitle: "Choose categories, adjust items if needed, then review the changes.")
-                .padding(.bottom, StillDesign.Space.sm)
+                .padding(.bottom, CacheDropDesign.Space.sm)
             ScanHistoryRecordingNotice()
             SelectionSummary(value: selection.workspaceSelectedSize,
-                             detail: StillDesign.items(selection.catalog.selectedCount) + " selected",
+                             detail: CacheDropDesign.items(selection.catalog.selectedCount) + " selected",
                              identifier: "liveSelectionSummary", consequence: selection.workspaceTrashNote, title: "Potential space released",
                              consequenceIdentifier: "liveSelectionTrash")
                 .help("Sizes are estimates from the scan, not guaranteed space freed. Linked files count once. Each item is checked again just before CacheDrop acts on it.")
             if let approvalError { StatusRow(text: approvalError, symbol: "exclamationmark.circle", role: .caution) }
             CatalogPlanSection(model: selection.catalog, expanded: $presentation.expandedCategories)
-        }.padding(StillDesign.Space.page).frame(maxWidth: .infinity, alignment: .leading)
+        }.padding(CacheDropDesign.Space.page).frame(maxWidth: .infinity, alignment: .leading)
             .background(alignment: .topLeading) { DestinationViewport(offset: $presentation.offset).frame(width: 0, height: 0) }
         }
-        }.background(StillDesign.reading)
+        }.background(CacheDropDesign.reading)
         if selection.showsRun(for: .plan) && selection.workspaceRunning {
             CleanupStopStrip(selection: selection)
         } else if selection.showsRun(for: .plan) {
@@ -232,12 +232,12 @@ struct WorkspaceCleanupReview: Identifiable {
 struct CleanupRunSection: View {
     let selection: SessionPlan
     var body: some View {
-        VStack(alignment: .leading, spacing: StillDesign.Space.xl) {
+        VStack(alignment: .leading, spacing: CacheDropDesign.Space.xl) {
             PageHeader(title: selection.workspaceRunning ? "Running cleanup" : "Cleanup results")
             if selection.catalog.isRunning { ProgressView(selection.catalog.dryRun ? "Checking selected items…" : "Cleaning selected items…") }
             if let result = selection.catalog.result { CatalogResultsSection(result: result, catalog: selection.catalog.catalog) }
             if let message = selection.catalog.message { StatusRow(text: message, symbol: "exclamationmark.triangle", role: .caution) }
-        }.padding(StillDesign.Space.page)
+        }.padding(CacheDropDesign.Space.page)
     }
 }
 /// The running cleanup's one action.
@@ -254,15 +254,15 @@ struct WorkspaceCleanupConfirmationView: View {
     let cancel: () -> Void
     let approve: () -> Void
     var body: some View {
-        VStack(alignment: .leading, spacing: StillDesign.Space.lg) {
+        VStack(alignment: .leading, spacing: CacheDropDesign.Space.lg) {
             PageHeader(title: "Review your changes", subtitle: "Check what each action does. You can go back and change your selection.")
             ScrollView {
-                VStack(alignment: .leading, spacing: StillDesign.Space.xl) {
+                VStack(alignment: .leading, spacing: CacheDropDesign.Space.xl) {
                     if let items = review.catalog { CatalogConfirmationSection(review: items, catalog: Catalog(rules: BuiltInCatalog.rules)) }
                 }.frame(maxWidth: .infinity, alignment: .leading)
             }
             Divider()
             HStack { Button("Cancel", action: cancel).keyboardShortcut(.cancelAction); Spacer(); Button("Clean up", action: approve).buttonStyle(.borderedProminent) }
-        }.padding(StillDesign.Space.xl).frame(width: 640, height: 520).background(StillDesign.reading)
+        }.padding(CacheDropDesign.Space.xl).frame(width: 640, height: 520).background(CacheDropDesign.reading)
     }
 }

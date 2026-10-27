@@ -54,7 +54,7 @@ struct HomebrewInspectionView: View {
     @StateObject private var model = HomebrewInspection()
     let back: () -> Void
     var body: some View {
-        VStack(alignment: .leading, spacing: StillDesign.Space.xl) {
+        VStack(alignment: .leading, spacing: CacheDropDesign.Space.xl) {
             Button("Back to Overview", systemImage: "chevron.left", action: back)
             PageHeader(title: "Homebrew opportunities")
             Text("Read-only Homebrew cache inventory").foregroundStyle(.secondary)
@@ -66,32 +66,32 @@ struct HomebrewInspectionView: View {
                 Button("Inspect selected Homebrew") { Task { await model.inspect() } }.disabled(model.executable == nil || model.cache == nil || model.inspecting)
             }
             }
-            if let executable = model.executable { Text("Installation: \(executable.path)").textSelection(.enabled).font(StillDesign.TypeStyle.caption) }
-            if let cache = model.cache { Text("Explicit cache override: \(cache.path)").textSelection(.enabled).font(StillDesign.TypeStyle.caption) }
+            if let executable = model.executable { Text("Installation: \(executable.path)").textSelection(.enabled).font(CacheDropDesign.TypeStyle.caption) }
+            if let cache = model.cache { Text("Explicit cache override: \(cache.path)").textSelection(.enabled).font(CacheDropDesign.TypeStyle.caption) }
             StatusRow(text: model.status, symbol: "info.circle", identifier: "homebrewPreviewStatus")
             if let inventory = model.inventory {
                 if inventory.supported {
                 SummarySurface {
-                    VStack(alignment: .leading, spacing: StillDesign.Space.sm) {
+                    VStack(alignment: .leading, spacing: CacheDropDesign.Space.sm) {
                         Text("Observed regular files: \(inventory.regularFileCount)").font(.headline)
                         Text("Logical bytes: \(inventory.logicalBytes.map(String.init) ?? "Unknown")")
                         Text("Allocated bytes: \(inventory.allocatedBytes.map(String.init) ?? "Unknown")")
                         Text("Download files: \(inventory.downloadFileCount) · Top-level incomplete files: \(inventory.incompleteDownloadCount)")
                         Text("Reclaimable space: Unknown").foregroundStyle(.secondary)
-                        Text("Observed: \(inventory.observedAt.formatted())").font(StillDesign.TypeStyle.caption)
+                        Text("Observed: \(inventory.observedAt.formatted())").font(CacheDropDesign.TypeStyle.caption)
                     }
                 }
                 }
                 Text(inventory.version).font(.headline)
-                Text("Resolved installation prefix: \(inventory.prefix)").font(StillDesign.TypeStyle.caption).textSelection(.enabled)
-                Text("Queried explicit cache: \(inventory.cache)").font(StillDesign.TypeStyle.caption).textSelection(.enabled)
-                Text(inventory.guidance).font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary)
+                Text("Resolved installation prefix: \(inventory.prefix)").font(CacheDropDesign.TypeStyle.caption).textSelection(.enabled)
+                Text("Queried explicit cache: \(inventory.cache)").font(CacheDropDesign.TypeStyle.caption).textSelection(.enabled)
+                Text(inventory.guidance).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
                 if !inventory.incompleteDownloads.isEmpty {
                     Text("Incomplete download names · May still be active").font(.headline)
                     ForEach(Array(inventory.incompleteDownloads.prefix(20).enumerated()), id: \.offset) { _, entry in
-                        Text("\(entry.relativePath) · \(entry.logicalBytes) logical bytes").font(StillDesign.TypeStyle.caption).textSelection(.enabled)
+                        Text("\(entry.relativePath) · \(entry.logicalBytes) logical bytes").font(CacheDropDesign.TypeStyle.caption).textSelection(.enabled)
                     }
-                    if inventory.incompleteDownloadCount > 20 { Text("Showing up to 20 names; counts include all observed files.").font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary) }
+                    if inventory.incompleteDownloadCount > 20 { Text("Showing up to 20 names; counts include all observed files.").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary) }
                 }
             }
             if let report = model.report {
@@ -108,7 +108,7 @@ struct HomebrewInspectionView: View {
             }
             Divider()
             Button("Show disposable preview example") { model.showExample() }.disabled(model.inspecting)
-            Text("The example below uses synthetic vendor-format output. Real cache inventory measures metadata only; it does not predict brew cleanup or authorize deletion.").font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary)
+            Text("The example below uses synthetic vendor-format output. Real cache inventory measures metadata only; it does not predict brew cleanup or authorize deletion.").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
         }
     }
 }

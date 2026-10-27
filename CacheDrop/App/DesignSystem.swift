@@ -3,7 +3,7 @@ import SwiftUI
 import CacheDropCore
 
 /// Shared native presentation vocabulary. Reuse these components and tokens before adding UI; docs/visual/preview.html is the visual reference.
-enum StillDesign {
+enum CacheDropDesign {
     enum Space { static let xs: CGFloat = 4; static let sm: CGFloat = 8; static let md: CGFloat = 12; static let lg: CGFloat = 16; static let xl: CGFloat = 24; static let page: CGFloat = 32 }
     enum Radius { static let row: CGFloat = 8; static let surface: CGFloat = 12 }
     /// Fixed sizes: the capacity bar's heights (sidebar, card, prominent card) and the device card's icon tile.
@@ -72,11 +72,11 @@ enum StorageCategory {
     case deviceBackups, mail, messages, photos, timeMachine, xcodeArchives, audioPlugIns
     var color: Color {
         switch self {
-        case .cloud, .files: StillDesign.blue
-        case .developer: StillDesign.purple
-        case .downloads: StillDesign.orange
-        case .browser: StillDesign.teal
-        case .managed, .appCaches, .models, .appUpdates, .logs, .deviceBackups, .mail, .messages, .photos, .timeMachine, .xcodeArchives, .audioPlugIns: StillDesign.indigo
+        case .cloud, .files: CacheDropDesign.blue
+        case .developer: CacheDropDesign.purple
+        case .downloads: CacheDropDesign.orange
+        case .browser: CacheDropDesign.teal
+        case .managed, .appCaches, .models, .appUpdates, .logs, .deviceBackups, .mail, .messages, .photos, .timeMachine, .xcodeArchives, .audioPlugIns: CacheDropDesign.indigo
         }
     }
     var symbol: String {
@@ -103,22 +103,22 @@ enum StorageCategory {
 }
 private struct OpaqueChromeKey: EnvironmentKey { static let defaultValue = false }
 extension EnvironmentValues {
-    var stillOpaqueChrome: Bool { get { self[OpaqueChromeKey.self] } set { self[OpaqueChromeKey.self] = newValue } }
+    var cacheDropOpaqueChrome: Bool { get { self[OpaqueChromeKey.self] } set { self[OpaqueChromeKey.self] = newValue } }
 }
 enum ChromeRole { case chrome, sidebar }
 struct ChromeSurface: View {
     var role: ChromeRole = .chrome
     @Environment(\.colorScheme) private var appearance
     @Environment(\.accessibilityReduceTransparency) private var reduced
-    @Environment(\.stillOpaqueChrome) private var forcedOpaque
+    @Environment(\.cacheDropOpaqueChrome) private var forcedOpaque
     var body: some View {
         Group {
             if role == .sidebar && appearance == .light { Color.white }
-            else if reduced || forcedOpaque { role == .sidebar ? StillDesign.sidebar : StillDesign.summary }
+            else if reduced || forcedOpaque { role == .sidebar ? CacheDropDesign.sidebar : CacheDropDesign.summary }
             else {
                 Rectangle().fill(.regularMaterial)
-                    .overlay { if role == .sidebar { StillDesign.sidebar.opacity(0.65) } }
-                    .overlay { LinearGradient(colors: [StillDesign.highlight, .clear], startPoint: .topLeading, endPoint: .bottomTrailing) }
+                    .overlay { if role == .sidebar { CacheDropDesign.sidebar.opacity(0.65) } }
+                    .overlay { LinearGradient(colors: [CacheDropDesign.highlight, .clear], startPoint: .topLeading, endPoint: .bottomTrailing) }
             }
         }
     }
@@ -130,9 +130,9 @@ struct CategoryBadge: View {
     /// A badge for something other than a storage category, such as a review sheet's consequence group.
     init(symbol: String, color: Color) { self.symbol = symbol; self.color = color }
     var body: some View {
-        Image(systemName: symbol).font(StillDesign.TypeStyle.badgeIcon)
-            .foregroundStyle(color).frame(width: StillDesign.Size.badge, height: StillDesign.Size.badge)
-            .background(color.opacity(StillDesign.Opacity.badgeTint), in: RoundedRectangle(cornerRadius: StillDesign.Radius.row))
+        Image(systemName: symbol).font(CacheDropDesign.TypeStyle.badgeIcon)
+            .foregroundStyle(color).frame(width: CacheDropDesign.Size.badge, height: CacheDropDesign.Size.badge)
+            .background(color.opacity(CacheDropDesign.Opacity.badgeTint), in: RoundedRectangle(cornerRadius: CacheDropDesign.Radius.row))
             .accessibilityHidden(true)
     }
 }
@@ -140,8 +140,8 @@ struct PageHeader: View {
     let title: String
     var subtitle: String? = nil
     var body: some View {
-        VStack(alignment: .leading, spacing: StillDesign.Space.sm) {
-            Text(title).font(StillDesign.TypeStyle.page).tracking(-0.6)
+        VStack(alignment: .leading, spacing: CacheDropDesign.Space.sm) {
+            Text(title).font(CacheDropDesign.TypeStyle.page).tracking(-0.6)
             if let subtitle { Text(subtitle).font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true) }
         }.frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -150,9 +150,9 @@ struct SummarySurface<Content: View>: View {
     @Environment(\.colorSchemeContrast) private var contrast
     @ViewBuilder var content: () -> Content
     var body: some View {
-        content().padding(StillDesign.Space.lg).frame(maxWidth: .infinity, alignment: .leading)
-            .background(StillDesign.summary, in: RoundedRectangle(cornerRadius: StillDesign.Radius.surface))
-            .overlay { RoundedRectangle(cornerRadius: StillDesign.Radius.surface).strokeBorder(StillDesign.separator, lineWidth: contrast == .increased ? 1 : 0.5) }
+        content().padding(CacheDropDesign.Space.lg).frame(maxWidth: .infinity, alignment: .leading)
+            .background(CacheDropDesign.summary, in: RoundedRectangle(cornerRadius: CacheDropDesign.Radius.surface))
+            .overlay { RoundedRectangle(cornerRadius: CacheDropDesign.Radius.surface).strokeBorder(CacheDropDesign.separator, lineWidth: contrast == .increased ? 1 : 0.5) }
     }
 }
 struct SelectionSummary: View {
@@ -163,18 +163,18 @@ struct SelectionSummary: View {
     var title = "Selected for Trash"
     var consequenceIdentifier = ""
     var body: some View {
-        VStack(alignment: .leading, spacing: StillDesign.Space.md) {
+        VStack(alignment: .leading, spacing: CacheDropDesign.Space.md) {
         SummarySurface {
             HStack(alignment: .center) {
-                VStack(alignment: .leading, spacing: StillDesign.Space.sm) {
-                    Text(title).font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary)
-                    Text(value).font(StillDesign.TypeStyle.value).monospacedDigit()
+                VStack(alignment: .leading, spacing: CacheDropDesign.Space.sm) {
+                    Text(title).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
+                    Text(value).font(CacheDropDesign.TypeStyle.value).monospacedDigit()
                 }
-                Spacer(minLength: StillDesign.Space.lg)
-                Text(detail).font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary).multilineTextAlignment(.trailing).accessibilityIdentifier(identifier)
+                Spacer(minLength: CacheDropDesign.Space.lg)
+                Text(detail).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary).multilineTextAlignment(.trailing).accessibilityIdentifier(identifier)
             }
         }
-        if let consequence { Text(consequence).font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true).accessibilityIdentifier(consequenceIdentifier) }
+        if let consequence { Text(consequence).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true).accessibilityIdentifier(consequenceIdentifier) }
         }
     }
 }
@@ -214,11 +214,11 @@ struct SettingsRow<Content: View>: View {
     var detail: String? = nil
     @ViewBuilder var content: () -> Content
     var body: some View {
-        VStack(alignment: .leading, spacing: StillDesign.Space.md) {
-            Text(title).font(StillDesign.TypeStyle.section)
+        VStack(alignment: .leading, spacing: CacheDropDesign.Space.md) {
+            Text(title).font(CacheDropDesign.TypeStyle.section)
             if let detail { Text(detail).font(.callout).foregroundStyle(.secondary) }
             content()
-        }.padding(.vertical, StillDesign.Space.sm).frame(maxWidth: .infinity, alignment: .leading)
+        }.padding(.vertical, CacheDropDesign.Space.sm).frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 struct FindingRow<Accessory: View>: View {
@@ -228,15 +228,15 @@ struct FindingRow<Accessory: View>: View {
     var consequence: String? = nil
     @ViewBuilder var accessory: () -> Accessory
     var body: some View {
-        HStack(alignment: .top, spacing: StillDesign.Space.lg) {
+        HStack(alignment: .top, spacing: CacheDropDesign.Space.lg) {
             CategoryBadge(category: category)
-            VStack(alignment: .leading, spacing: StillDesign.Space.xs) {
-                Text(title).font(StillDesign.TypeStyle.section)
+            VStack(alignment: .leading, spacing: CacheDropDesign.Space.xs) {
+                Text(title).font(CacheDropDesign.TypeStyle.section)
                 Text(detail).font(.callout).foregroundStyle(.secondary)
-                if let consequence { Text(consequence).font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true) }
+                if let consequence { Text(consequence).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true) }
             }.frame(maxWidth: .infinity, alignment: .leading)
             accessory()
-        }.padding(.vertical, StillDesign.Space.md)
+        }.padding(.vertical, CacheDropDesign.Space.md)
     }
 }
 /// One quiet review group: category colors identify storage, never cleanup safety.
@@ -245,8 +245,8 @@ struct RecommendationGroup<Content: View>: View {
     @ViewBuilder let content: () -> Content
     var body: some View {
         VStack(spacing: 0, content: content)
-            .background(StillDesign.reading, in: RoundedRectangle(cornerRadius: StillDesign.Radius.surface))
-            .overlay { RoundedRectangle(cornerRadius: StillDesign.Radius.surface).strokeBorder(StillDesign.separator, lineWidth: contrast == .increased ? 1 : 0.5) }
+            .background(CacheDropDesign.reading, in: RoundedRectangle(cornerRadius: CacheDropDesign.Radius.surface))
+            .overlay { RoundedRectangle(cornerRadius: CacheDropDesign.Radius.surface).strokeBorder(CacheDropDesign.separator, lineWidth: contrast == .increased ? 1 : 0.5) }
     }
 }
 /// An empty `detail` or `meaning` draws no line. `mutedValue` draws the value as a secondary note, such as "Needs access".
@@ -275,19 +275,19 @@ struct StorageReviewRow: View {
     }
     private func spoken(_ parts: [String]) -> String { parts.filter { !$0.isEmpty }.joined(separator: " · ") }
     private var contents: some View {
-        HStack(spacing: StillDesign.Space.lg) {
+        HStack(spacing: CacheDropDesign.Space.lg) {
             CategoryBadge(category: category)
-            VStack(alignment: .leading, spacing: StillDesign.Space.xs) {
-                Text(title).font(StillDesign.TypeStyle.section)
-                if !detail.isEmpty { Text(detail).font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true) }
+            VStack(alignment: .leading, spacing: CacheDropDesign.Space.xs) {
+                Text(title).font(CacheDropDesign.TypeStyle.section)
+                if !detail.isEmpty { Text(detail).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true) }
             }.frame(maxWidth: .infinity, alignment: .leading)
-            VStack(alignment: .trailing, spacing: StillDesign.Space.xs) {
-                Text(value).font(mutedValue ? StillDesign.TypeStyle.caption : StillDesign.TypeStyle.section).monospacedDigit()
+            VStack(alignment: .trailing, spacing: CacheDropDesign.Space.xs) {
+                Text(value).font(mutedValue ? CacheDropDesign.TypeStyle.caption : CacheDropDesign.TypeStyle.section).monospacedDigit()
                     .foregroundStyle(mutedValue ? .secondary : .primary)
-                if !meaning.isEmpty { Text(meaning).font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true) }
+                if !meaning.isEmpty { Text(meaning).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true) }
             }.multilineTextAlignment(.trailing)
-            if action != nil { Image(systemName: "chevron.right").font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary) }
-        }.padding(StillDesign.Space.lg).frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
+            if action != nil { Image(systemName: "chevron.right").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary) }
+        }.padding(CacheDropDesign.Space.lg).frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
     }
 }
 
@@ -296,13 +296,13 @@ struct EmptyState: View {
     let detail: String
     var symbol = "tray"
     var body: some View {
-        HStack(alignment: .top, spacing: StillDesign.Space.lg) {
+        HStack(alignment: .top, spacing: CacheDropDesign.Space.lg) {
             Image(systemName: symbol).font(.title2).foregroundStyle(.secondary).frame(width: 32)
-            VStack(alignment: .leading, spacing: StillDesign.Space.sm) {
-                Text(title).font(StillDesign.TypeStyle.section)
+            VStack(alignment: .leading, spacing: CacheDropDesign.Space.sm) {
+                Text(title).font(CacheDropDesign.TypeStyle.section)
                 Text(detail).font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             }
-        }.frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, StillDesign.Space.xl)
+        }.frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, CacheDropDesign.Space.xl)
     }
 }
 /// A bottom bar: a leading note or control, then the actions.
@@ -312,12 +312,12 @@ struct ActionStrip<Leading: View, Actions: View>: View {
     var body: some View {
         VStack(spacing: 0) {
             Divider()
-            HStack(spacing: StillDesign.Space.lg) {
+            HStack(spacing: CacheDropDesign.Space.lg) {
                 leading()
-                Spacer(minLength: StillDesign.Space.sm)
+                Spacer(minLength: CacheDropDesign.Space.sm)
                 actions()
-            }.padding(.horizontal, StillDesign.Space.page).padding(.vertical, StillDesign.Space.lg)
-        }.background(StillDesign.reading).controlSize(.large).buttonBorderShape(.capsule)
+            }.padding(.horizontal, CacheDropDesign.Space.page).padding(.vertical, CacheDropDesign.Space.lg)
+        }.background(CacheDropDesign.reading).controlSize(.large).buttonBorderShape(.capsule)
     }
 }
 extension ActionStrip where Leading == ActionStripMessage {
@@ -327,7 +327,7 @@ extension ActionStrip where Leading == ActionStripMessage {
 /// A bottom bar's note; nothing when there is none.
 struct ActionStripMessage: View {
     let text: String?
-    var body: some View { if let text { Text(text).font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true) } }
+    var body: some View { if let text { Text(text).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true) } }
 }
 struct CapacityMeter: View {
     let available: Int64?
@@ -354,9 +354,9 @@ struct CapacityMeter: View {
         return "\(bytes(available)) available · Total capacity unavailable"
     }
     var body: some View {
-        VStack(alignment: .leading, spacing: StillDesign.Space.sm) {
+        VStack(alignment: .leading, spacing: CacheDropDesign.Space.sm) {
             if compact {
-                Text(amountText).font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary).lineLimit(2)
+                Text(amountText).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary).lineLimit(2)
                     .frame(height: 30, alignment: .topLeading).accessibilityIdentifier("sidebarCapacityAmount")
             } else if showsValue {
                 Text(amountText).font(.callout).foregroundStyle(.secondary)
@@ -366,11 +366,11 @@ struct CapacityMeter: View {
                     MeterSegments(breakdown: breakdown, reclaimableOnly: compact, open: open)
                 } else if let available, let total = validTotal {
                     ZStack(alignment: .leading) {
-                        Capsule().fill(StillDesign.capacityTrack)
-                        Capsule().fill(StillDesign.capacityFill).frame(width: geometry.size.width * CGFloat(Double(total - available) / Double(total)))
+                        Capsule().fill(CacheDropDesign.capacityTrack)
+                        Capsule().fill(CacheDropDesign.capacityFill).frame(width: geometry.size.width * CGFloat(Double(total - available) / Double(total)))
                     }
                 } else { Color.clear }
-            }.frame(height: compact ? StillDesign.Size.meterCompact : prominent ? StillDesign.Size.meterProminent : StillDesign.Size.meter)
+            }.frame(height: compact ? CacheDropDesign.Size.meterCompact : prominent ? CacheDropDesign.Size.meterProminent : CacheDropDesign.Size.meter)
                 .accessibilityElement(children: breakdown == nil || validTotal == nil ? .ignore : .contain)
                 .accessibilityLabel(validTotal == nil ? "Capacity meter unavailable" : amountText)
         }
@@ -396,38 +396,38 @@ struct VolumeSummary: View {
     }
     var body: some View {
         SummarySurface {
-            VStack(alignment: .leading, spacing: StillDesign.Space.lg) {
-                HStack(alignment: .top, spacing: StillDesign.Space.md) {
-                    Image(systemName: "internaldrive").font(StillDesign.TypeStyle.deviceIcon).foregroundStyle(.secondary)
-                        .frame(width: StillDesign.Size.deviceIcon, height: StillDesign.Size.deviceIcon).background(StillDesign.reading.gradient, in: RoundedRectangle(cornerRadius: StillDesign.Radius.row))
-                        .overlay { RoundedRectangle(cornerRadius: StillDesign.Radius.row).strokeBorder(StillDesign.separator, lineWidth: 0.5) }
+            VStack(alignment: .leading, spacing: CacheDropDesign.Space.lg) {
+                HStack(alignment: .top, spacing: CacheDropDesign.Space.md) {
+                    Image(systemName: "internaldrive").font(CacheDropDesign.TypeStyle.deviceIcon).foregroundStyle(.secondary)
+                        .frame(width: CacheDropDesign.Size.deviceIcon, height: CacheDropDesign.Size.deviceIcon).background(CacheDropDesign.reading.gradient, in: RoundedRectangle(cornerRadius: CacheDropDesign.Radius.row))
+                        .overlay { RoundedRectangle(cornerRadius: CacheDropDesign.Radius.row).strokeBorder(CacheDropDesign.separator, lineWidth: 0.5) }
                         .accessibilityHidden(true)
-                    VStack(alignment: .leading, spacing: StillDesign.Space.xs) {
-                        Text(name).font(StillDesign.TypeStyle.section)
-                        Text("Startup volume · " + (total.map(bytes) ?? "Total capacity unavailable")).font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary)
-                    }.frame(height: StillDesign.Size.deviceIcon)
-                    Spacer(minLength: StillDesign.Space.sm)
-                    VStack(alignment: .trailing, spacing: StillDesign.Space.xs) {
+                    VStack(alignment: .leading, spacing: CacheDropDesign.Space.xs) {
+                        Text(name).font(CacheDropDesign.TypeStyle.section)
+                        Text("Startup volume · " + (total.map(bytes) ?? "Total capacity unavailable")).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
+                    }.frame(height: CacheDropDesign.Size.deviceIcon)
+                    Spacer(minLength: CacheDropDesign.Space.sm)
+                    VStack(alignment: .trailing, spacing: CacheDropDesign.Space.xs) {
                         if let available, available >= 0 {
-                            Text(bytes(available)).font(StillDesign.TypeStyle.value).monospacedDigit().accessibilityIdentifier("startupCapacityAmount")
-                            Text("available").font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary)
+                            Text(bytes(available)).font(CacheDropDesign.TypeStyle.value).monospacedDigit().accessibilityIdentifier("startupCapacityAmount")
+                            Text("available").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
                         } else {
-                            Text("—").font(StillDesign.TypeStyle.value)
-                            Text(refreshing ? "Checking capacity…" : "Available space unavailable").font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary)
+                            Text("—").font(CacheDropDesign.TypeStyle.value)
+                            Text(refreshing ? "Checking capacity…" : "Available space unavailable").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
                         }
                     }
                 }
                 CapacityMeter(available: available, total: total, showsValue: false, prominent: true, breakdown: breakdown, open: open)
-                HStack(alignment: .firstTextBaseline, spacing: StillDesign.Space.md) {
-                    Text(used.map { bytes($0) + " used" } ?? "Used space unknown").font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary).monospacedDigit()
-                    Spacer(minLength: StillDesign.Space.sm)
-                    Text("Whole-disk capacity").font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary)
+                HStack(alignment: .firstTextBaseline, spacing: CacheDropDesign.Space.md) {
+                    Text(used.map { bytes($0) + " used" } ?? "Used space unknown").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary).monospacedDigit()
+                    Spacer(minLength: CacheDropDesign.Space.sm)
+                    Text("Whole-disk capacity").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
                         .help(observation).accessibilityValue(observation).accessibilityIdentifier("capacityObservation")
                 }
                 if !status.isEmpty {
-                    HStack(spacing: StillDesign.Space.md) {
-                        Text(status).font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary).accessibilityIdentifier("capacityRefreshStatus")
-                        Spacer(minLength: StillDesign.Space.sm)
+                    HStack(spacing: CacheDropDesign.Space.md) {
+                        Text(status).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary).accessibilityIdentifier("capacityRefreshStatus")
+                        Spacer(minLength: CacheDropDesign.Space.sm)
                         if let refresh, !refreshing {
                             Button(refreshTitle, action: refresh).accessibilityIdentifier("refreshCapacity")
                         }
@@ -437,30 +437,30 @@ struct VolumeSummary: View {
         }
     }
 }
-struct StillSidebarRow: View {
+struct CacheDropSidebarRow: View {
     let title: String
     let symbol: String
     let selected: Bool
-    var accent: Color = StillDesign.blue
+    var accent: Color = CacheDropDesign.blue
     var selectedCategories: Int? = nil
     let action: () -> Void
     var body: some View {
         Button(action: action) {
-            HStack(spacing: StillDesign.Space.sm) {
+            HStack(spacing: CacheDropDesign.Space.sm) {
                 Label { Text(title).foregroundStyle(selected ? .primary : .secondary) } icon: { Image(systemName: symbol).foregroundStyle(accent) }
                 Spacer(minLength: 0)
                 if let count = selectedCategories {
                     Text(String(max(0, count))).font(.caption2.weight(.medium)).monospacedDigit()
-                        .frame(width: 18, height: 18).background(StillDesign.summary, in: Capsule())
+                        .frame(width: 18, height: 18).background(CacheDropDesign.summary, in: Capsule())
                         .opacity(count > 0 ? 1 : 0).accessibilityHidden(true)
                 }
             }.font(.callout)
-                .frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, StillDesign.Space.sm).padding(.horizontal, StillDesign.Space.sm)
+                .frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, CacheDropDesign.Space.sm).padding(.horizontal, CacheDropDesign.Space.sm)
                 .background {
                     if selected {
-                        RoundedRectangle(cornerRadius: StillDesign.Radius.row).fill(StillDesign.selection)
-                            .overlay { RoundedRectangle(cornerRadius: StillDesign.Radius.row).fill(LinearGradient(colors: [StillDesign.highlight, .clear], startPoint: .top, endPoint: .bottom)) }
-                            .overlay { RoundedRectangle(cornerRadius: StillDesign.Radius.row).strokeBorder(StillDesign.highlight, lineWidth: 1) }
+                        RoundedRectangle(cornerRadius: CacheDropDesign.Radius.row).fill(CacheDropDesign.selection)
+                            .overlay { RoundedRectangle(cornerRadius: CacheDropDesign.Radius.row).fill(LinearGradient(colors: [CacheDropDesign.highlight, .clear], startPoint: .top, endPoint: .bottom)) }
+                            .overlay { RoundedRectangle(cornerRadius: CacheDropDesign.Radius.row).strokeBorder(CacheDropDesign.highlight, lineWidth: 1) }
                     }
                 }
                 .contentShape(Rectangle())
@@ -514,11 +514,11 @@ private struct NativeCategoryCheckbox: NSViewRepresentable {
     }
 }
 
-extension StillDesign.Size {
+extension CacheDropDesign.Size {
     /// A category badge and the gap after it: content under a badged header lines up with its title.
-    static let badgeIndent: CGFloat = 32 + StillDesign.Space.md
+    static let badgeIndent: CGFloat = 32 + CacheDropDesign.Space.md
     /// A checkbox, then a badge: content under a `CategorySelectionHeader` lines up with its title.
-    static let categoryContentIndent: CGFloat = 16 + StillDesign.Space.md + badgeIndent
+    static let categoryContentIndent: CGFloat = 16 + CacheDropDesign.Space.md + badgeIndent
 }
 /// Selection stays on the native checkbox; the badge/title never become extra toggles.
 struct CategorySelectionHeader: View {
@@ -531,13 +531,13 @@ struct CategorySelectionHeader: View {
     var identifier: String? = nil
     let action: () -> Void
     var body: some View {
-        HStack(alignment: .top, spacing: StillDesign.Space.md) {
+        HStack(alignment: .top, spacing: CacheDropDesign.Space.md) {
             MacroCategoryCheckbox(state: state, label: title, enabled: enabled, action: action, identifier: identifier ?? (category == .downloads ? "downloadsCategorySelection" : "\(category)-CategorySelection"), showsTitle: false)
-                .fixedSize().padding(.top, StillDesign.Space.sm)
+                .fixedSize().padding(.top, CacheDropDesign.Space.sm)
             CategoryBadge(category: category)
-            VStack(alignment: .leading, spacing: StillDesign.Space.xs) {
-                Text(title).font(StillDesign.TypeStyle.section)
-                Text(detail).font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary).lineLimit(1).help(detail)
+            VStack(alignment: .leading, spacing: CacheDropDesign.Space.xs) {
+                Text(title).font(CacheDropDesign.TypeStyle.section)
+                Text(detail).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary).lineLimit(1).help(detail)
             }.frame(maxWidth: .infinity, alignment: .leading)
             Text(size).font(.callout).monospacedDigit().fixedSize()
         }
@@ -547,12 +547,12 @@ struct CategorySelectionHeader: View {
 /// The sidebar header: the CacheDrop mark (the app icon's drop and check, #156) and the name.
 struct AppBrand: View {
     var body: some View {
-        HStack(spacing: StillDesign.Space.sm) {
+        HStack(spacing: CacheDropDesign.Space.sm) {
             Image("BrandMark").resizable().scaledToFit()
-                .frame(width: StillDesign.Size.brandMark, height: StillDesign.Size.brandMark)
+                .frame(width: CacheDropDesign.Size.brandMark, height: CacheDropDesign.Size.brandMark)
                 .foregroundStyle(.primary)
                 .accessibilityHidden(true)
-            Text("CacheDrop").font(StillDesign.TypeStyle.brand).tracking(-0.4)
+            Text("CacheDrop").font(CacheDropDesign.TypeStyle.brand).tracking(-0.4)
         }
     }
 }
@@ -621,23 +621,23 @@ struct InspectableItemRow<Selection: View>: View {
     var detailLineLimit = 2
     @ViewBuilder var selection: () -> Selection
     var body: some View {
-        HStack(alignment: .center, spacing: StillDesign.Space.md) {
+        HStack(alignment: .center, spacing: CacheDropDesign.Space.md) {
             selection()
             Button(action: inspect) {
-                HStack(spacing: StillDesign.Space.md) {
+                HStack(spacing: CacheDropDesign.Space.md) {
                     Image(systemName: symbol).foregroundStyle(.secondary).frame(width: 20)
-                    VStack(alignment: .leading, spacing: StillDesign.Space.xs) {
+                    VStack(alignment: .leading, spacing: CacheDropDesign.Space.xs) {
                         Text(name).foregroundStyle(.primary)
                         // An empty detail makes it a one-line row (Smart clean, #141).
-                        if !detail.isEmpty { Text(detail).font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary).lineLimit(detailLineLimit) }
+                        if !detail.isEmpty { Text(detail).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary).lineLimit(detailLineLimit) }
                     }.frame(maxWidth: .infinity, alignment: .leading)
                     Text(size).font(.callout).monospacedDigit().foregroundStyle(.secondary)
                 }.contentShape(Rectangle())
             }.buttonStyle(.plain).accessibilityLabel("Inspect " + name)
                 // The button hides its texts from accessibility; keep the detail (e.g. when it was last used) and size readable.
                 .accessibilityValue(detail.isEmpty ? size : detail + ", " + size)
-        }.padding(StillDesign.Space.md)
-            .background(inspected ? Color.accentColor.opacity(0.06) : .clear, in: RoundedRectangle(cornerRadius: StillDesign.Radius.row))
+        }.padding(CacheDropDesign.Space.md)
+            .background(inspected ? Color.accentColor.opacity(0.06) : .clear, in: RoundedRectangle(cornerRadius: CacheDropDesign.Radius.row))
     }
 }
 
@@ -678,16 +678,16 @@ struct ScanProgressSummary: View {
     var phaseMessage = "Reading file metadata…"
     var body: some View {
         SummarySurface {
-            VStack(alignment: .leading, spacing: StillDesign.Space.md) {
-                HStack(spacing: StillDesign.Space.sm) {
+            VStack(alignment: .leading, spacing: CacheDropDesign.Space.md) {
+                HStack(spacing: CacheDropDesign.Space.sm) {
                     ProgressView().controlSize(.small).accessibilityHidden(true)
                     Text(phaseMessage).accessibilityIdentifier("scanPhase")
                 }
                 StatusRow(text: "\(inspectedEntries) entries inspected so far · Preliminary observations", identifier: "scanProgressSummary")
                 Text("Known logical subtotal: \(logicalSubtotal) · Coverage incomplete")
-                    .font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary)
+                    .font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
                 ForEach(Array(recentNames.prefix(5).enumerated()), id: \.offset) { _, name in
-                    Text(name).font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
+                    Text(name).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
                 }
             }
         }
@@ -702,11 +702,11 @@ struct CategoryPrerequisite: View {
     let enabled: Bool
     let action: () -> Void
     var body: some View {
-        VStack(alignment: .leading, spacing: StillDesign.Space.md) {
+        VStack(alignment: .leading, spacing: CacheDropDesign.Space.md) {
             CategorySelectionHeader(category: .downloads, state: .unchecked, title: "Downloads", detail: detail,
                                     size: title, enabled: false, action: {})
             Button(actionTitle, action: action).disabled(!enabled)
-                .padding(.leading, StillDesign.Space.xl)
+                .padding(.leading, CacheDropDesign.Space.xl)
         }
     }
 }
@@ -719,10 +719,10 @@ struct ToolbarScanStatus: View {
     var returnToScan: (() -> Void)?
     let stop: () -> Void
     var body: some View {
-        HStack(spacing: StillDesign.Space.sm) {
+        HStack(spacing: CacheDropDesign.Space.sm) {
             ProgressView().controlSize(.small)
             VStack(alignment: .leading, spacing: 0) {
-                Text(phase).font(StillDesign.TypeStyle.caption).lineLimit(1).accessibilityIdentifier("scanPhase")
+                Text(phase).font(CacheDropDesign.TypeStyle.caption).lineLimit(1).accessibilityIdentifier("scanPhase")
                 Text(inspectedEntries.map { "\($0) entries inspected · " + location } ?? "Scanning " + location)
                     .font(.caption2).foregroundStyle(.secondary).lineLimit(1).accessibilityIdentifier("scanProgressSummary")
             }.frame(maxWidth: 240, alignment: .leading)
@@ -741,26 +741,26 @@ struct LocationScopeRow<Actions: View>: View {
     let enabled: Bool
     @ViewBuilder let actions: () -> Actions
     private var identity: some View {
-        VStack(alignment: .leading, spacing: StillDesign.Space.sm) {
-            Label(name, systemImage: "folder").font(StillDesign.TypeStyle.section)
-            Text(PathDisplay.shortLocation(of: path) + " · " + status).font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle).help(path)
-            if let overlap { Text(overlap).font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary) }
+        VStack(alignment: .leading, spacing: CacheDropDesign.Space.sm) {
+            Label(name, systemImage: "folder").font(CacheDropDesign.TypeStyle.section)
+            Text(PathDisplay.shortLocation(of: path) + " · " + status).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle).help(path)
+            if let overlap { Text(overlap).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary) }
         }.frame(maxWidth: .infinity, alignment: .leading)
     }
     var body: some View {
-        HStack(alignment: .top, spacing: StillDesign.Space.md) {
+        HStack(alignment: .top, spacing: CacheDropDesign.Space.md) {
             Toggle("Include " + name, isOn: $included).labelsHidden().disabled(!enabled)
             ViewThatFits(in: .horizontal) {
-                HStack(alignment: .top, spacing: StillDesign.Space.md) {
+                HStack(alignment: .top, spacing: CacheDropDesign.Space.md) {
                     identity.frame(minWidth: 240, idealWidth: 240, maxWidth: .infinity)
                     actions().fixedSize(horizontal: true, vertical: false).disabled(!enabled)
                 }
-                VStack(alignment: .leading, spacing: StillDesign.Space.md) {
+                VStack(alignment: .leading, spacing: CacheDropDesign.Space.md) {
                     identity
                     actions().fixedSize(horizontal: true, vertical: false).disabled(!enabled)
                 }
             }
-        }.padding(.vertical, StillDesign.Space.md)
+        }.padding(.vertical, CacheDropDesign.Space.md)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("locationScope:" + path)
     }
@@ -803,7 +803,7 @@ struct DestinationViewport: NSViewRepresentable {
     }
 }
 
-extension StillDesign.Size {
+extension CacheDropDesign.Size {
     /// The leading symbol column of a compact list row (History).
     static let rowIcon: CGFloat = 24
 }

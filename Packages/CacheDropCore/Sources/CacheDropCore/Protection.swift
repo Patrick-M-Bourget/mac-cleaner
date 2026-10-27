@@ -17,14 +17,14 @@ struct Protection {
     let macOSNamesAllowed: Set<String>
 
     init(_ rule: CleanupRule) {
-        names = Self.names.union(Catalog.neverOffered).union(AppCaches.stillNames).union(rule.protectedNames)
+        names = Self.names.union(Catalog.neverOffered).union(AppCaches.ownNames).union(rule.protectedNames)
         extensions = Self.extensions.subtracting(rule.unprotectedExtensions).union(rule.protectedExtensions.map { $0.lowercased() })
         macOSNamesAllowed = rule.unprotectedNames
     }
 
     /// Whether a single file or folder name is protected: by name, by extension, or as macOS's or Still's own folder.
     func protects(_ name: String) -> Bool {
-        names.contains(name) || extensions.contains((name as NSString).pathExtension.lowercased()) || (AppCaches.isMacOSOrStill(name) && !macOSNamesAllowed.contains(name))
+        names.contains(name) || extensions.contains((name as NSString).pathExtension.lowercased()) || (AppCaches.isMacOSOrOwn(name) && !macOSNamesAllowed.contains(name))
     }
 
     /// The Trash, the user's and a volume's: never acted on wherever it lies on the path, the base included,

@@ -22,12 +22,12 @@ struct FullDiskAccessLink: View {
 struct FullDiskAccessNote: View {
     let places: [String]
     var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: StillDesign.Space.xs) {
+        HStack(alignment: .firstTextBaseline, spacing: CacheDropDesign.Space.xs) {
             Image(systemName: "lock.shield").foregroundStyle(.secondary).accessibilityHidden(true)
             Text((places.count == 1 ? "1 location needs" : "\(places.count) locations need") + " Full Disk Access ·").foregroundStyle(.secondary)
                 .help(places.joined(separator: ", ")).accessibilityValue(places.joined(separator: ", "))
             FullDiskAccessLink(title: "Learn more", symbol: nil)
-        }.font(StillDesign.TypeStyle.caption).frame(maxWidth: .infinity, alignment: .leading)
+        }.font(CacheDropDesign.TypeStyle.caption).frame(maxWidth: .infinity, alignment: .leading)
             .accessibilityElement(children: .contain)
     }
 }

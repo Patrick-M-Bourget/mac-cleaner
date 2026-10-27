@@ -4,7 +4,7 @@ import Foundation
 /// Updater downloads, per-app caches and the user's logs (#103).
 public enum AppCaches {
     /// CacheDrop's own folders, and those of Still (its former name), never offered under any rule (`Protection`).
-    static let stillNames = ["CacheDrop", "com.patrickbourget.CacheDrop", "Still", "com.patrickbourget.Still", "com.patrickbourget.StillUITests"]
+    static let ownNames = ["CacheDrop", "com.patrickbourget.CacheDrop", "Still", "com.patrickbourget.Still", "com.patrickbourget.StillUITests"]
 
     /// Levels searched for a git checkout or other protected name inside a cache or log folder. A path under Caches
     /// doesn't prove a folder is disposable: the field scan found an agent's live checkout two levels down.
@@ -23,7 +23,7 @@ public enum AppCaches {
     }
     /// A folder of macOS's own or of Still's, by bundle identifier or name. Never offered under any rule,
     /// so logs and every other location leave them alone as app caches do.
-    static func isMacOSOrStill(_ name: String) -> Bool { isExcluded(name) || stillNames.contains(name) }
+    static func isMacOSOrOwn(_ name: String) -> Bool { isExcluded(name) || ownNames.contains(name) }
     /// The installed app a folder named by bundle identifier belongs to, or nil when that can't be determined.
     static func installedOwner(_ folder: String, apps: any AppLookup) -> RuleOwner? {
         guard isBundleID(folder), !isExcluded(folder), let app = apps.app(bundleID: folder) else { return nil }

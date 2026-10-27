@@ -101,18 +101,18 @@ struct GrowthChangeRow: View {
     let delta: Int64
     let maximum: Int64
     var body: some View {
-        HStack(alignment: .center, spacing: StillDesign.Space.lg) {
-            VStack(alignment: .leading, spacing: StillDesign.Space.xs) {
-                Text(label).font(StillDesign.TypeStyle.rowTitle).fixedSize(horizontal: false, vertical: true)
-                if let detail { Text(detail).font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary).lineLimit(1) }
+        HStack(alignment: .center, spacing: CacheDropDesign.Space.lg) {
+            VStack(alignment: .leading, spacing: CacheDropDesign.Space.xs) {
+                Text(label).font(CacheDropDesign.TypeStyle.rowTitle).fixedSize(horizontal: false, vertical: true)
+                if let detail { Text(detail).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary).lineLimit(1) }
             }.frame(maxWidth: .infinity, alignment: .leading)
             GeometryReader { geometry in
-                Capsule().fill(StillDesign.capacityTrack)
-                Capsule().fill(delta > 0 ? StillDesign.purple : StillDesign.teal)
+                Capsule().fill(CacheDropDesign.capacityTrack)
+                Capsule().fill(delta > 0 ? CacheDropDesign.purple : CacheDropDesign.teal)
                     .frame(width: geometry.size.width * min(1, Double(abs(delta)) / Double(max(1, maximum))))
-            }.frame(height: StillDesign.Size.meterCompact).frame(maxWidth: .infinity).accessibilityHidden(true)
+            }.frame(height: CacheDropDesign.Size.meterCompact).frame(maxWidth: .infinity).accessibilityHidden(true)
             Text(GrowthPresentation.signed(delta)).monospacedDigit().fixedSize()
-        }.padding(.vertical, StillDesign.Space.sm).accessibilityElement(children: .combine)
+        }.padding(.vertical, CacheDropDesign.Space.sm).accessibilityElement(children: .combine)
     }
 }
 
@@ -120,7 +120,7 @@ struct GrowthHistoryView: View {
     @Bindable var model: GrowthHistoryModel
     let catalog: CatalogCleanupModel
     var body: some View {
-        VStack(alignment: .leading, spacing: StillDesign.Space.xl) {
+        VStack(alignment: .leading, spacing: CacheDropDesign.Space.xl) {
             if let error = model.error, model.comparison == nil {
                 PageHeader(title: "Storage trends")
                 HistoryStoreFailure(message: error, retryTitle: "Try again") { Task { await model.load() } }
@@ -138,15 +138,15 @@ struct GrowthHistoryView: View {
                            detail: "The first completed scan records a baseline. Check back a day later to see trends. Nothing scans in the background.", symbol: "chart.line.uptrend.xyaxis")
             }
             if let error = model.error, model.comparison != nil { StatusRow(text: error, symbol: "exclamationmark.circle", role: .caution) }
-            Text(GrowthPresentation.retention).font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            Text(GrowthPresentation.retention).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
         }.task { await model.load() }
     }
 
     @ViewBuilder private func compared(_ comparison: GrowthComparison, from: Date, to: Date) -> some View {
         let days = max(1, Calendar.current.dateComponents([.day], from: from, to: to).day ?? 0)
         PageHeader(title: "Storage trends", subtitle: "Changes in your known locations since " + from.formatted(date: .long, time: .omitted) + ".")
-        HStack(alignment: .firstTextBaseline, spacing: StillDesign.Space.sm) {
-            Text(GrowthPresentation.signed(comparison.logicalDelta ?? 0)).font(StillDesign.TypeStyle.page).monospacedDigit().accessibilityIdentifier("growthNetChange")
+        HStack(alignment: .firstTextBaseline, spacing: CacheDropDesign.Space.sm) {
+            Text(GrowthPresentation.signed(comparison.logicalDelta ?? 0)).font(CacheDropDesign.TypeStyle.page).monospacedDigit().accessibilityIdentifier("growthNetChange")
             Text("net growth · " + (days == 1 ? "past day" : "past \(days) days")).foregroundStyle(.secondary)
         }
         Picker("Show growth by", selection: $model.dimension) {
@@ -168,22 +168,22 @@ struct GrowthHistoryView: View {
         }
         if let top = comparison.groups.filter({ $0.dimension == .category && $0.logicalDelta > 0 }).max(by: { $0.logicalDelta < $1.logicalDelta }) {
             SummarySurface {
-                HStack(alignment: .top, spacing: StillDesign.Space.md) {
+                HStack(alignment: .top, spacing: CacheDropDesign.Space.md) {
                     CategoryBadge(category: GrowthPresentation.storageCategory(top.category))
-                    VStack(alignment: .leading, spacing: StillDesign.Space.xs) {
-                        Text("Most growth is in " + GrowthPresentation.categoryTitle(top.category).lowercased() + ".").font(StillDesign.TypeStyle.rowTitle)
-                        Text("Review options shows what can be cleaned there now.").font(StillDesign.TypeStyle.note).foregroundStyle(.secondary)
+                    VStack(alignment: .leading, spacing: CacheDropDesign.Space.xs) {
+                        Text("Most growth is in " + GrowthPresentation.categoryTitle(top.category).lowercased() + ".").font(CacheDropDesign.TypeStyle.rowTitle)
+                        Text("Review options shows what can be cleaned there now.").font(CacheDropDesign.TypeStyle.note).foregroundStyle(.secondary)
                     }
                 }
             }
         }
         if !comparison.coverageChanges.isEmpty {
             DisclosureGroup("Coverage changed for \(comparison.coverageChanges.count) \(comparison.coverageChanges.count == 1 ? "location" : "locations") · Not counted as growth", isExpanded: $model.coverageExpanded) {
-                VStack(alignment: .leading, spacing: StillDesign.Space.sm) {
+                VStack(alignment: .leading, spacing: CacheDropDesign.Space.sm) {
                     ForEach(comparison.coverageChanges) { change in
                         StatusRow(text: GrowthPresentation.coverage(change), symbol: "eye.slash", role: .caution)
                     }
-                }.padding(.top, StillDesign.Space.sm)
+                }.padding(.top, CacheDropDesign.Space.sm)
             }.accessibilityIdentifier("growthCoverageChanges")
         }
     }
@@ -206,8 +206,8 @@ struct GrowthHistoryView: View {
 #if DEBUG
 struct GrowthGalleryExamples: View {
     var body: some View {
-        VStack(alignment: .leading, spacing: StillDesign.Space.md) {
-            Text("Synthetic growth examples · Inert, no scans or archive access").font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary)
+        VStack(alignment: .leading, spacing: CacheDropDesign.Space.md) {
+            Text("Synthetic growth examples · Inert, no scans or archive access").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
             GrowthChangeRow(label: "Downloaded iCloud files", detail: "iCloud Drive local copies", delta: 14_200_000_000, maximum: 14_200_000_000)
             GrowthChangeRow(label: "Developer caches and build files", detail: "Xcode build data", delta: 6_700_000_000, maximum: 14_200_000_000)
             GrowthChangeRow(label: "Browser caches", detail: "Chrome cache", delta: -1_000_000_000, maximum: 14_200_000_000)

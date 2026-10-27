@@ -155,7 +155,7 @@ final class LaunchSmokeUITests: XCTestCase {
 
     /// #124: Full Disk Access granted while Still was away: coming back rescans once, and the "needs Full Disk Access"
     /// line goes away without Scan again. The fixture's Safari folder opening again stands in for the grant.
-    @MainActor func testGrantingFullDiskAccessRescansWhenStillBecomesActive() throws {
+    @MainActor func testGrantingFullDiskAccessRescansWhenCacheDropBecomesActive() throws {
         continueAfterFailure = false
         let app = XCUIApplication()
         let state = try configureIsolatedState(app)

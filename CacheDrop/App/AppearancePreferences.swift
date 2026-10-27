@@ -43,7 +43,7 @@ struct AppearancePicker: View {
 
 /// The Settings window (⌘,). Appearance follows the system unless overridden here; the menu bar item is shown and
 /// low-space alerts are off unless changed here (#131); the dry run is off unless turned on here.
-struct StillSettingsView: View {
+struct CacheDropSettingsView: View {
     @State private var appearance = AppLifecycleController.shared.appearance
     @AppStorage(MenuBarItemPreference.key) private var showsMenuBarItem = true
     var body: some View {
@@ -57,7 +57,7 @@ struct StillSettingsView: View {
             // #131: low-space alerts live here, not in the sidebar.
             LowSpaceAlertsSettings(controller: AppLifecycleController.shared.alerts)
             Section { DryRunToggle(model: AppLifecycleController.shared.selection.catalog) }
-        }.formStyle(.grouped).frame(width: StillDesign.Size.sheetNarrow).fixedSize(horizontal: false, vertical: true)
+        }.formStyle(.grouped).frame(width: CacheDropDesign.Size.sheetNarrow).fixedSize(horizontal: false, vertical: true)
     }
 }
 
@@ -66,9 +66,9 @@ struct AppearancePreferenceNotice: View {
     let notice: AppearancePreferenceController.Notice?
     let retry: () -> Void
     var body: some View {
-        HStack(spacing: StillDesign.Space.sm) {
+        HStack(spacing: CacheDropDesign.Space.sm) {
             Spacer(minLength: 0)
-            Text(message).font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary).lineLimit(1)
+            Text(message).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary).lineLimit(1)
                 .accessibilityIdentifier("appearanceSaveNotice")
                 .accessibilityHidden(notice == nil)
             if notice == .saveFailed {

@@ -18,20 +18,20 @@ struct DesignGallery: View {
                 Spacer()
                 Toggle("Opaque chrome", isOn: $opaque)
                 AppearancePicker(choice: $appearance).labelsHidden().fixedSize()
-            }.padding(StillDesign.Space.lg).background { ChromeSurface() }
+            }.padding(CacheDropDesign.Space.lg).background { ChromeSurface() }
             ScrollView {
-                VStack(alignment: .leading, spacing: StillDesign.Space.xl) {
+                VStack(alignment: .leading, spacing: CacheDropDesign.Space.xl) {
                     PageHeader(title: "Native design system", subtitle: "Developer examples only · No personal storage measurements")
                     Button { shellExamplesExpanded.toggle() } label: {
                         Label("Synthetic shell and appearance examples", systemImage: shellExamplesExpanded ? "chevron.down" : "chevron.right")
                     }.buttonStyle(.plain).accessibilityValue(shellExamplesExpanded ? "Expanded" : "Collapsed")
                     if shellExamplesExpanded {
                         ShellAppearanceGalleryExamples()
-                        VStack(alignment: .leading, spacing: StillDesign.Space.sm) {
+                        VStack(alignment: .leading, spacing: CacheDropDesign.Space.sm) {
                             Text("Synthetic category badge · Inert examples").font(.headline)
-                            StillSidebarRow(title: "Cleanup plan", symbol: "checklist", selected: false, selectedCategories: 0) {}
-                            StillSidebarRow(title: "Cleanup plan", symbol: "checklist", selected: true, selectedCategories: 1) {}
-                            StillSidebarRow(title: "Cleanup plan", symbol: "checklist", selected: false, selectedCategories: 2) {}
+                            CacheDropSidebarRow(title: "Cleanup plan", symbol: "checklist", selected: false, selectedCategories: 0) {}
+                            CacheDropSidebarRow(title: "Cleanup plan", symbol: "checklist", selected: true, selectedCategories: 1) {}
+                            CacheDropSidebarRow(title: "Cleanup plan", symbol: "checklist", selected: false, selectedCategories: 2) {}
                         }.frame(width: 166)
                     }
                     DisclosureGroup("Synthetic History activity examples", isExpanded: $historyExamplesExpanded) {
@@ -59,21 +59,21 @@ struct DesignGallery: View {
                     CategoryPrerequisite(title: "Not scanned", detail: "Scan the included Downloads locations before choosing files.", actionTitle: "Scan Downloads…", enabled: true, action: {})
                     CategoryPrerequisite(title: "No eligible files", detail: "No eligible files in this inspected location.", actionTitle: "Scan Downloads again", enabled: true, action: {})
                     ExplorerInspector(name: "Camera guide.pdf", close: {}) {
-                        Text("Location").font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary)
+                        Text("Location").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
                         Text("/Example/Downloads/Camera guide.pdf")
-                        Text("Observed scope").font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary)
+                        Text("Observed scope").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
                         Text("/Example/Downloads")
                         Text("On disk: 8 MB observed")
                         Text("Logical size: 8 MB")
-                        Text("Why listed").font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary)
+                        Text("Why listed").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
                         Text("Observed during a manual scan")
-                        Text("Cleanup action").font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary)
+                        Text("Cleanup action").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
                         Text("Move this exact file to Trash after selection and confirmation.")
                     }.frame(height: 220)
                     ExplorerInspector(name: "Cloud metadata (synthetic)", close: {}) {
                         Text("Synthetic Gallery metadata; no provider certification.")
                         Text("On disk: Unknown")
-                        Text("Cleanup action").font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary)
+                        Text("Cleanup action").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
                         Text("Cloud-managed item. Cloud cleanup is unavailable; no eviction or synced deletion is offered.")
                     }.frame(height: 220)
                     ToolbarScanStatus(location: "Downloads", returnToScan: {}, stop: {})
@@ -98,7 +98,7 @@ struct DesignGallery: View {
 
                     SelectionSummary(value: "3 files", detail: "Example selection · No action will run", consequence: "Space stays occupied until Finder empties Trash.")
                     SelectionSummary(value: "Synthetic mixed selection", detail: "Downloads and browser caches · No action will run", consequence: "Caches are permanently removed; Downloads go to Trash.", title: "Selected for cleanup")
-                    HStack(spacing: StillDesign.Space.lg) {
+                    HStack(spacing: CacheDropDesign.Space.lg) {
                         ForEach(0..<5) { index in CategoryBadge(category: [StorageCategory.cloud, .developer, .downloads, .browser, .managed][index]) }
                     }
                     SettingsRow(title: "Selection states", detail: "Native controls retain focus, Space, disabled and mixed semantics.") {
@@ -110,7 +110,7 @@ struct DesignGallery: View {
                     }
                     FindingRow(category: .downloads, title: "Downloads", detail: "Example category", consequence: "Move exact files to Trash; space stays occupied until emptied.") { Button("Choose items") {} }
                     SummarySurface {
-                        VStack(alignment: .leading, spacing: StillDesign.Space.md) {
+                        VStack(alignment: .leading, spacing: CacheDropDesign.Space.md) {
                             StatusRow(text: "Completed selected-scope observation", symbol: "checkmark.circle", role: .success)
                             StatusRow(text: "Partial coverage · Remaining bytes unknown", symbol: "exclamationmark.circle", role: .caution)
                             StatusRow(text: "Access unavailable · Choose the folder again", symbol: "lock", role: .failure)
@@ -123,24 +123,24 @@ struct DesignGallery: View {
                     CapacityMeter(available: nil, total: nil)
                     SettingsRow(title: "Shared navigation and brand", detail: "Reference accents identify destinations; labels and selected traits carry meaning.") {
                         AppBrand()
-                        StillSidebarRow(title: "Overview", symbol: "internaldrive", selected: false) {}
-                        StillSidebarRow(title: "Cleanup plan", symbol: "checklist", selected: true, accent: StillDesign.teal) {}
+                        CacheDropSidebarRow(title: "Overview", symbol: "internaldrive", selected: false) {}
+                        CacheDropSidebarRow(title: "Cleanup plan", symbol: "checklist", selected: true, accent: CacheDropDesign.teal) {}
                     }
                     CategorySelectionHeader(category: .downloads, state: .mixed, title: "Downloads · Example mixed selection", detail: "The checkbox alone changes selection; filenames remain inspection controls.", size: "16 MB", enabled: true, action: {})
                     VolumeSummary(available: 40_000_000_000, total: 512_000_000_000, observation: "Synthetic gallery capacity · No category attribution")
                     VolumeSummary(available: nil, total: nil, observation: "No capacity observation · Unknown stays distinct from zero")
-                }.padding(StillDesign.Space.page).frame(maxWidth: .infinity, alignment: .leading)
-            }.background(StillDesign.reading)
+                }.padding(CacheDropDesign.Space.page).frame(maxWidth: .infinity, alignment: .leading)
+            }.background(CacheDropDesign.reading)
             ActionStrip(message: "Developer gallery · Actions are inert examples") { ReviewCleanupButton(enabled: false, focusRequest: 0, action: {}) }
         }
-        .environment(\.stillOpaqueChrome, opaque)
+        .environment(\.cacheDropOpaqueChrome, opaque)
         .preferredColorScheme(appearance == .automatic ? nil : appearance == .dark ? .dark : .light)
     }
 }
 /// Inert presentation examples reuse the live capacity components; no reads or timers.
 private struct CapacityGalleryExamples: View {
     var body: some View {
-        VStack(alignment: .leading, spacing: StillDesign.Space.xl) {
+        VStack(alignment: .leading, spacing: CacheDropDesign.Space.xl) {
             example("checking", available: nil, total: nil, observation: "Startup-volume capacity", status: "Checking capacity…", refreshing: true)
             example("refreshing", observation: "Observed 10:00 AM · Available for important usage", status: "Refreshing…", refreshing: true)
             example("important", observation: "Observed 10:00 AM · Available for important usage")
@@ -151,7 +151,7 @@ private struct CapacityGalleryExamples: View {
         }
     }
     private func example(_ name: String, available: Int64? = 40_000_000_000, total: Int64? = 512_000_000_000, observation: String, status: String = "", refreshing: Bool = false, retry: Bool = false) -> some View {
-        VStack(alignment: .leading, spacing: StillDesign.Space.sm) {
+        VStack(alignment: .leading, spacing: CacheDropDesign.Space.sm) {
             Text("Synthetic capacity " + name + " · Inert example").font(.headline)
             VolumeSummary(available: available, total: total, observation: observation, status: status,
                           refreshTitle: retry ? "Try again" : "Refresh capacity", refreshing: refreshing, refresh: {})
@@ -160,11 +160,11 @@ private struct CapacityGalleryExamples: View {
 }
 private struct ShellAppearanceGalleryExamples: View {
     var body: some View {
-        VStack(alignment: .leading, spacing: StillDesign.Space.lg) {
+        VStack(alignment: .leading, spacing: CacheDropDesign.Space.lg) {
             Text("Synthetic appearance controls · Inert examples").font(.headline)
             ForEach(Array([AppearancePreferenceController.Notice?.none, .invalidSavedValue, .unreadable, .saveFailed].enumerated()), id: \.offset) { index, notice in
-                VStack(alignment: .leading, spacing: StillDesign.Space.xs) {
-                    Text("Appearance notice example " + String(index)).font(StillDesign.TypeStyle.caption)
+                VStack(alignment: .leading, spacing: CacheDropDesign.Space.xs) {
+                    Text("Appearance notice example " + String(index)).font(CacheDropDesign.TypeStyle.caption)
                     AppearancePreferenceNotice(notice: notice, retry: {})
                 }.accessibilityElement(children: .contain).accessibilityIdentifier("appearanceGallery-" + String(index))
             }

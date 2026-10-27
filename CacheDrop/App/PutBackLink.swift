@@ -15,13 +15,13 @@ struct PutBackLink: View {
         let name = record.originalURL.lastPathComponent
         switch trash.putBackOutcomes[record.id] {
         case .restored:
-            Text("Put back").font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary).accessibilityIdentifier("putBackDone-" + name)
+            Text("Put back").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary).accessibilityIdentifier("putBackDone-" + name)
         case .refused(let refusal):
-            Text(refusal.reason).font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary)
+            Text(refusal.reason).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true).accessibilityIdentifier("putBackRefused-" + name)
         case nil:
             if alreadyPutBack {
-                Text("Put back").font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary).accessibilityIdentifier("putBackDone-" + name)
+                Text("Put back").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary).accessibilityIdentifier("putBackDone-" + name)
             } else if record.canPutBack {
                 Button("Put back") {
                     Task {

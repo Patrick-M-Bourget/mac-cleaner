@@ -8,10 +8,10 @@ struct AppManagedStorageView: View {
     let back: () -> Void
     var body: some View {
         let protected = model.guidance.filter { $0.size == .notAccessible }
-        VStack(alignment: .leading, spacing: StillDesign.Space.xl) {
+        VStack(alignment: .leading, spacing: CacheDropDesign.Space.xl) {
             HStack(alignment: .top) {
                 PageHeader(title: "App-managed storage", subtitle: "Review protected data in the app that owns it.")
-                Spacer(minLength: StillDesign.Space.md)
+                Spacer(minLength: CacheDropDesign.Space.md)
                 Button("Back to overview", action: back).accessibilityIdentifier("appManagedBack")
             }
             if !protected.isEmpty {
@@ -20,7 +20,7 @@ struct AppManagedStorageView: View {
             RecommendationGroup {
                 ForEach(Array(model.guidance.enumerated()), id: \.element.id) { index, finding in
                     if let rule = model.guidanceRule(finding), let guidance = rule.guidance {
-                        if index > 0 { Divider().padding(.horizontal, StillDesign.Space.lg) }
+                        if index > 0 { Divider().padding(.horizontal, CacheDropDesign.Space.lg) }
                         let needsAccess = finding.size == .notAccessible
                         StorageReviewRow(category: rule.managedCategory, title: rule.title, detail: finding.workspaces?.summary ?? rule.detail.firstSentence,
                                          value: needsAccess ? "Needs access" : finding.size.text,

@@ -153,7 +153,7 @@ struct CleanupHistoryView: View {
         switch model.filter { case .all: scans.records == nil || model.snapshot == nil; case .scans: scans.records == nil; case .cleanups: model.snapshot == nil }
     }
     var body: some View {
-        VStack(alignment: .leading, spacing: StillDesign.Space.xl) {
+        VStack(alignment: .leading, spacing: CacheDropDesign.Space.xl) {
             HStack(alignment: .firstTextBaseline) {
                 PageHeader(title: "History")
                 HistoryActivityFilterControl(selection: $model.filter)
@@ -215,11 +215,11 @@ struct CleanupHistoryView: View {
                 note("Observed startup-volume capacity change: " + (run.capacity?.observedChange.map { ($0 >= 0 ? "+" : "−") + bytes(abs($0)) } ?? "Unknown") + " · Other activity can affect it.")
             }
             ForEach(run.records) { record in
-                HStack(alignment: .firstTextBaseline, spacing: StillDesign.Space.md) {
-                    VStack(alignment: .leading, spacing: StillDesign.Space.xs) {
+                HStack(alignment: .firstTextBaseline, spacing: CacheDropDesign.Space.md) {
+                    VStack(alignment: .leading, spacing: CacheDropDesign.Space.xs) {
                         Text(record.originalURL.lastPathComponent + " · " + PathDisplay.shortLocation(of: record.originalURL.path))
                             .lineLimit(1).truncationMode(.middle).help(record.originalURL.path)
-                        Text(record.outcomeTitle + " · " + record.message).font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary)
+                        Text(record.outcomeTitle + " · " + record.message).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
                             .fixedSize(horizontal: false, vertical: true).help("Action: " + record.actionTitle + (record.previewOnly == true ? " · Dry run" : ""))
                     }.frame(maxWidth: .infinity, alignment: .leading)
                     let putBack = run.putBackIDs.contains(record.id) || TrashModel.shared.putBackOutcomes[record.id] == .restored(record.originalURL)
@@ -233,6 +233,6 @@ struct CleanupHistoryView: View {
             }
         }
     }
-    private func note(_ text: String) -> some View { Text(text).font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true) }
+    private func note(_ text: String) -> some View { Text(text).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true) }
     private func bytes(_ value: Int64) -> String { ByteCountFormatter.string(fromByteCount: value, countStyle: .decimal) }
 }

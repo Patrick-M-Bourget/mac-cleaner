@@ -84,18 +84,18 @@ import CacheDropCore
 struct ExclusionsView: View {
     @Bindable var model: ExclusionsModel
     var body: some View {
-        VStack(alignment: .leading, spacing: StillDesign.Space.xl) {
+        VStack(alignment: .leading, spacing: CacheDropDesign.Space.xl) {
             PageHeader(title: "Custom exclusions", subtitle: "Keep exact paths out of explicit folder scans. Choosing an item in a cleanup plan never creates a rule.")
             StatusRow(text: "Folder rules cover descendants on the same volume. Renamed or moved items stop matching; replacements at the saved path remain excluded. Missing volumes leave rules dormant.", symbol: "folder.badge.minus")
             if let error = model.error { StatusRow(text: error, symbol: "exclamationmark.circle", role: .caution) }
             SettingsRow(title: "Fixed protections", detail: "Protected libraries, packages, symlinks and volume boundaries remain protected independently of custom rules.") { Label("Always active", systemImage: "lock") }
             if let preview = model.preview {
                 SummarySurface {
-                    VStack(alignment: .leading, spacing: StillDesign.Space.md) {
-                        Text("Preview exclusion").font(StillDesign.TypeStyle.section)
+                    VStack(alignment: .leading, spacing: CacheDropDesign.Space.md) {
+                        Text("Preview exclusion").font(CacheDropDesign.TypeStyle.section)
                         Text(preview.path).textSelection(.enabled)
                         Text(preview.boundary == .folder ? "This folder and its descendants" : "This exact file path")
-                        Text("Volume: " + preview.volumeID).font(StillDesign.TypeStyle.caption).textSelection(.enabled)
+                        Text("Volume: " + preview.volumeID).font(CacheDropDesign.TypeStyle.caption).textSelection(.enabled)
                         Text("Saving invalidates current findings and approval. Selected choices remain pending until a complete recheck. Excluded bytes stay unknown.").font(.callout)
                     }
                 }

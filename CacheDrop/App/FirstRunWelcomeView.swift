@@ -9,7 +9,7 @@ import SwiftUI
     static let shared = WelcomeModel()
     var isShowing = false
 
-    /// Called from `StillApp.init`, before anything writes CacheDrop's state.
+    /// Called from `CacheDropApp.init`, before anything writes CacheDrop's state.
     func decideAtLaunch(migration: LegacyStillMigration.Outcome?, stateExisted: Bool) {
         #if DEBUG
         // Disposable UI test runs treat the welcome as seen, so it never covers a journey, unless a test asks for it.
@@ -48,7 +48,7 @@ struct FirstRunWelcomeView: View {
     @State private var access = FullDiskAccessModel()
 
     var body: some View {
-        VStack(alignment: .leading, spacing: StillDesign.Space.lg) {
+        VStack(alignment: .leading, spacing: CacheDropDesign.Space.lg) {
             switch step {
             case 0:
                 PageHeader(title: "Welcome to CacheDrop", subtitle: "CacheDrop finds space you can safely get back, and cleans only what you choose.")
@@ -62,7 +62,7 @@ struct FirstRunWelcomeView: View {
             }
             Divider()
             HStack {
-                Text("\(step + 1) of 3").font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary)
+                Text("\(step + 1) of 3").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
                 Spacer()
                 Button("Skip") { model.finish() }.accessibilityIdentifier("welcomeSkip")
                 if step < 2 {
@@ -72,6 +72,6 @@ struct FirstRunWelcomeView: View {
                 }
             }
         }
-        .padding(StillDesign.Space.xl).frame(width: StillDesign.Size.sheetNarrow).background(StillDesign.reading)
+        .padding(CacheDropDesign.Space.xl).frame(width: CacheDropDesign.Size.sheetNarrow).background(CacheDropDesign.reading)
     }
 }
