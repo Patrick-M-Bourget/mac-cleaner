@@ -57,6 +57,8 @@ private func names(_ items: [Candidate], _ rule: String) -> Set<String> { Set(it
     #expect(names(found, AppUninstall.appRuleID) == ["Synth.app"])
     #expect(names(found, AppUninstall.filesRuleID) == ["com.maker.synth", "com.maker.synth.plist"], "Tied by bundle ID; license data never offered")
     #expect(names(found, AppUninstall.possiblyRelatedRuleID) == ["Synth"])
+    // The app is installed: a possibly related item says only what ties it, not that the app is gone (#285).
+    #expect(found.first { $0.ruleID == AppUninstall.possiblyRelatedRuleID }?.leftover?.reason == "Named like Synth")
     #expect(!found.contains { $0.url.lastPathComponent == "com.gone.old" }, "A removed app's leftovers stay in Leftovers")
     #expect(found.allSatisfy { $0.uninstall?.path == synth.path && $0.action == .trash })
     #expect(found.allSatisfy { check(home).check($0) == nil })

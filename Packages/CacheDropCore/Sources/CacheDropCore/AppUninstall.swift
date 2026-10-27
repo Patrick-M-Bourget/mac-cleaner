@@ -143,6 +143,11 @@ extension Candidate {
     func uninstalled(with app: AppUninstall.Target, ruleID: String) -> Candidate {
         var item = self
         item.ruleID = ruleID; item.appName = app.name; item.uninstall = app
+        // The app is installed, so a possibly related item says only what ties it: "Named like Synth", never "no longer installed" (#285).
+        if let tie = leftover, let reason = tie.reason {
+            let tied = reason.components(separatedBy: " (")[0].components(separatedBy: ", ")[0]
+            item.leftover = LeftoverTie(app: tie.app, bundleID: tie.bundleID, vendor: tie.vendor, evidence: .nameOnly(tied))
+        }
         return item
     }
 }
