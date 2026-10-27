@@ -2,8 +2,8 @@ import AppKit
 import CacheDropCore
 import SwiftUI
 
-/// The apps and plug-in products the Applications page lists (Decision 51), read after each catalog scan. Read-only: this
-/// slice removes nothing here. Where it reads is injected: apps from `appPresence`, plug-ins from `home` and `systemRoot`.
+/// The apps and plug-in products the Applications page lists (Decision 51), read after each catalog scan. Apps are uninstalled
+/// through the catalog's items (#177); plug-ins are read-only so far. Where it reads is injected: apps from `appPresence`, plug-ins from `home` and `systemRoot`.
 @MainActor @Observable final class ApplicationsModel {
     /// The app's model, reading what the catalog reads (test runs inject a fixture home there).
     static let shared = ApplicationsModel(home: CatalogCleanupModel.home, appPresence: CatalogCleanupModel.appPresence, systemRoot: CatalogCleanupModel.systemRoot)
@@ -32,8 +32,8 @@ import SwiftUI
              ApplicationsInventory.plugIns(PlugInInventory.scan(home: home, systemRoot: system)))
         }.value
     }
-    /// The maker's own tool, when it is installed (Decision 50).
-    func vendorTool(for entry: InventoryEntry) -> InventoryEntry? { ApplicationsInventory.vendorTool(for: entry, among: apps) }
+    /// The app's own uninstaller or the maker's tool, when it is installed (Decisions 41, 50).
+    func uninstaller(for entry: InventoryEntry) -> InventoryEntry? { ApplicationsInventory.uninstaller(for: entry, among: apps) }
     /// Shows the entry's files selected in Finder. A debug test run reveals nothing.
     func reveal(_ name: String, _ urls: [URL]) {
         #if DEBUG
@@ -50,8 +50,8 @@ import SwiftUI
     }
 }
 
-/// Applications (Decision 51): apps, plug-in products and leftovers of removed apps on one page. Apps and plug-ins are
-/// read-only for now; leftovers are chosen and cleaned through the plan's rows, review sheet and run.
+/// Applications (Decision 51): apps, plug-in products and leftovers of removed apps on one page. Apps (#177) and leftovers
+/// are chosen and cleaned through the plan's selection, review sheet and run; plug-ins are read-only for now.
 struct ApplicationsView: View {
     let selection: SessionPlan
     let model: ApplicationsModel
@@ -134,16 +134,38 @@ struct ApplicationsView: View {
         EmptyState(title: title, detail: detail, symbol: symbol).accessibilityElement(children: .combine).accessibilityIdentifier(id)
     }
 
-    /// A row with no checkbox, since nothing here is removed yet; one that needs a password says so (Decision 50). Its
-    /// identifiers carry the entry's path, never its name, so same-named apps on two volumes stay apart (#271).
+    /// A row; an app CacheDrop can uninstall (#177) has a checkbox for the app and its files, the rest have none. One that
+    /// needs a password says so (Decision 50). Its identifiers carry the entry's path, never its name, so same-named apps on
+    /// two volumes stay apart (#271).
     private func row(_ entry: InventoryEntry, category: StorageCategory, identifier: String) -> some View {
         let isExpanded = Binding(get: { expanded.contains(entry.id) }, set: { if $0 { expanded.insert(entry.id) } else { expanded.remove(entry.id) } })
-        return CategoryRow(category: category, state: nil, title: entry.name, detail: [entry.maker, entry.volume].compactMap { $0 }.joined(separator: " · "),
-                           size: entry.size.text, enabled: true, identifier: identifier,
+        let uninstall = category == .apps ? catalog.uninstallItems(of: entry.id) : []
+        let count = uninstall.isEmpty ? entry.parts.count : uninstall.count
+        return CategoryRow(category: category, state: uninstall.isEmpty ? nil : catalog.selectionState(ofApp: entry.id), title: entry.name,
+                           detail: [entry.maker, entry.volume].compactMap { $0 }.joined(separator: " · "),
+                           size: uninstall.isEmpty ? entry.size.text : SizeEstimate(sum: uninstall.map(SizeEstimate.init)).text,
+                           enabled: uninstall.isEmpty || catalog.canEdit, identifier: identifier,
                            // An app alone is its only item: no "Choose items · 1" (#270).
-                           itemCount: entry.parts.count > 1 ? entry.parts.count : nil, expanded: isExpanded, toggle: {}) {
+                           itemCount: count > 1 ? count : nil, expanded: isExpanded,
+                           toggle: { if catalog.toggleApp(entry.id) { expanded.insert(entry.id) } }) {
             if entry.needsPassword { passwordLine(entry) }
+            else if !uninstall.isEmpty {
+                // Its own uninstaller comes first (Decision 41); a later scan's Leftovers shows what it left.
+                if let tool = model.uninstaller(for: entry) {
+                    StatusRow(text: "Its own uninstaller removes it best", symbol: "shippingbox", identifier: "applicationsUninstaller-" + entry.id,
+                              action: StatusAction(title: "Open " + tool.name, identifier: "applicationsOpen-" + entry.id) { model.open(tool) })
+                }
+                PlanRunningOwners(model: catalog, rule: AppUninstall.rules[0], only: entry.name)
+            }
         } items: {
+            if !uninstall.isEmpty {
+                VStack(alignment: .leading, spacing: CacheDropDesign.Space.sm) {
+                    ForEach(AppUninstall.rules.filter { rule in uninstall.contains { $0.ruleID == rule.id } }) { rule in
+                        Text(rule.title).font(CacheDropDesign.TypeStyle.caption.weight(.medium))
+                        CatalogItemRows(model: catalog, rule: rule, app: entry.id)
+                    }
+                }
+            } else {
             LazyVStack(alignment: .leading, spacing: 0) {
                 ForEach(entry.parts, id: \.url) { part in
                     InspectableItemRow(name: part.name, detail: PathDisplay.shortLocation(of: part.url, home: CatalogCleanupModel.checkHome), size: part.size.text,
@@ -152,12 +174,13 @@ struct ApplicationsView: View {
                         .help(part.url.path)
                 }
             }
+            }
         }
     }
 
     /// "Needs your password to remove · Reveal in Finder", or "Needs <tool> or your password · Open <tool>" when the vendor's tool is installed.
     private func passwordLine(_ entry: InventoryEntry) -> some View {
-        let tool = model.vendorTool(for: entry)
+        let tool = model.uninstaller(for: entry)
         let action = tool.map { tool in StatusAction(title: "Open " + tool.name, identifier: "applicationsOpen-" + entry.id) { model.open(tool) } }
             ?? StatusAction(title: "Reveal in Finder", identifier: "applicationsReveal-" + entry.id) { model.reveal(entry.name, entry.parts.map(\.url)) }
         return StatusRow(text: tool.map { "Needs \($0.name) or your password" } ?? "Needs your password to remove", symbol: "lock",

@@ -64,11 +64,13 @@ struct PlanCategoryRow: View {
 
 /// Why a rule can't be cleaned right now: its owner is open. One quiet line with one link, as `TrashLine` is drawn
 /// (Decision 25): "Quit <App>" for an open app, "Check again" for a command-line tool (#138).
-private struct PlanRunningOwners: View {
+struct PlanRunningOwners: View {
     let model: CatalogCleanupModel
     let rule: CleanupRule
+    /// Only this owner's line, as an app's row on the Applications page shows it (#177).
+    var only: String? = nil
     var body: some View {
-        ForEach(model.runningOwnerNotices(for: rule), id: \.name) { owner in
+        ForEach(model.runningOwnerNotices(for: rule).filter { only == nil || $0.name == only }, id: \.name) { owner in
             let quitting = model.quitStates[owner.name] == .quitting
             HStack(alignment: .firstTextBaseline, spacing: CacheDropDesign.Space.xs) {
                 Image(systemName: "exclamationmark.circle").foregroundStyle(StatusRole.caution.color).accessibilityHidden(true)
