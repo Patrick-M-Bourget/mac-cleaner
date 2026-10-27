@@ -88,7 +88,9 @@ private struct NothingRunning: RunningAppChecking { func isRunning(_ owner: Rule
 private func fakeTool(_ home: URL, _ script: String) throws -> URL {
     let tool = home.appendingPathComponent("tools/brew")
     try FileManager.default.createDirectory(at: tool.deletingLastPathComponent(), withIntermediateDirectories: true)
-    try ("#!/bin/sh\n" + script + "\n").write(to: tool, atomically: true, encoding: .utf8)
+    // `brew --cache`, asked at discovery (#170), names the usual folder; `script` is what any other call runs.
+    let answer = "[ \"$*\" = --cache ] && { echo '\(home.path)/Library/Caches/Homebrew'; exit 0; }\n"
+    try ("#!/bin/sh\n" + answer + script + "\n").write(to: tool, atomically: true, encoding: .utf8)
     try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: tool.path)
     return tool
 }
