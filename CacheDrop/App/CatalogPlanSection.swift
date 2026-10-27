@@ -35,32 +35,28 @@ struct CatalogPlanSection: View {
     }
 }
 
-/// A category: tri-state checkbox, badge, title, one short line and size, with "Choose items" inside.
+/// A plan category through the shared `CategoryRow` (Decision 48), with its rules or items under "Choose items".
 private struct PlanCategoryRow: View {
     @Bindable var model: CatalogCleanupModel
     let row: CatalogOverview.Row
     @Binding var expanded: Bool
     var body: some View {
         let state = model.selectionState(for: row.rules)
-        VStack(alignment: .leading, spacing: CacheDropDesign.Space.sm) {
-            CategorySelectionHeader(category: row.category.storageCategory, state: state, title: row.category.overviewTitle, detail: row.category.overviewDetail,
-                                    size: row.valueText, enabled: model.canEdit, identifier: "planCategory-" + row.id) { model.setSelected(row.rules, state != .checked) }
+        CategoryRow(category: row.category.storageCategory, state: state, title: row.category.overviewTitle, detail: row.category.overviewDetail,
+                    size: row.valueText, enabled: model.canEdit, identifier: "planCategory-" + row.id,
+                    itemCount: row.planLayout == .categoryOnly ? nil : row.itemCount, expanded: $expanded,
+                    toggle: { model.setSelected(row.rules, state != .checked) }) {
+            if row.planLayout != .ruleRows, let rule = row.rules.first { PlanRunningOwners(model: model, rule: rule) }
+        } items: {
             switch row.planLayout {
             case .ruleRows:
-                ActionDisclosureGroup("Choose items · \(row.itemCount)", isExpanded: $expanded) {
-                    VStack(alignment: .leading, spacing: 0) {
-                        ForEach(row.rules) { rule in PlanRuleRows(model: model, rule: rule) }
-                    }.padding(.top, CacheDropDesign.Space.sm)
-                }.padding(.leading, CacheDropDesign.Size.categoryContentIndent)
-            case .items:
-                if let rule = row.rules.first {
-                    PlanRunningOwners(model: model, rule: rule).padding(.leading, CacheDropDesign.Size.categoryContentIndent)
-                    ActionDisclosureGroup("Choose items · \(row.itemCount)", isExpanded: $expanded) {
-                        PlanRuleItems(model: model, rule: rule).padding(.top, CacheDropDesign.Space.sm)
-                    }.padding(.leading, CacheDropDesign.Size.categoryContentIndent)
+                VStack(alignment: .leading, spacing: 0) {
+                    ForEach(row.rules) { rule in PlanRuleRows(model: model, rule: rule) }
                 }
+            case .items:
+                if let rule = row.rules.first { PlanRuleItems(model: model, rule: rule) }
             case .categoryOnly:
-                if let rule = row.rules.first { PlanRunningOwners(model: model, rule: rule).padding(.leading, CacheDropDesign.Size.categoryContentIndent) }
+                EmptyView()
             }
         }
     }

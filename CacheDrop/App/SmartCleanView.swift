@@ -10,6 +10,7 @@ struct SmartCleanView: View {
     let openPlan: (CatalogCategory?) -> Void
     var viewHistory: (() -> Void)? = nil
     var reviewRecovery: (() -> Void)? = nil
+    var presentation = AppLifecycleController.shared.smartCleanPresentation
     @State private var review: WorkspaceCleanupReview?
     @State private var approvalError: String?
     private var model: CatalogCleanupModel { selection.catalog }
@@ -85,19 +86,22 @@ struct SmartCleanView: View {
         return "Smart clean · " + SizeEstimate(sum: ticked.map(SizeEstimate.init)).text(upperBound: upperBound) + " ready to clean"
     }
 
-    /// A category's checkbox ticks or unticks all of its recommended items; under it, one line per rule (or per app or
-    /// profile when a rule groups them), unless the category has only one.
+    /// The plan's category row (Decision 48): its checkbox ticks or unticks all of its recommended items; "Choose items"
+    /// opens one line per rule (or per app or profile when a rule groups them), unless the category has only one.
     private func category(_ row: CatalogOverview.Row, items: [Candidate]) -> some View {
         let found = items.filter { candidate in row.rules.contains { $0.id == candidate.ruleID } }
         let ticked = found.filter(model.isInSmartClean).count
         let state: CategorySelectionState = ticked == 0 ? .unchecked : ticked == found.count ? .checked : .mixed
         let lines = lines(row, found: found)
-        return VStack(alignment: .leading, spacing: CacheDropDesign.Space.sm) {
-            CategorySelectionHeader(category: row.category.storageCategory, state: state, title: row.category.overviewTitle, detail: row.category.overviewDetail,
-                                    size: row.valueText, enabled: model.canEdit, identifier: "smartCleanCategory-" + row.id) { model.setSmartClean(found, state != .checked) }
-            if lines.count > 1 {
-                VStack(alignment: .leading, spacing: 0) { ForEach(lines) { line($0) } }.padding(.leading, CacheDropDesign.Size.categoryContentIndent)
-            }
+        let expanded = Binding(get: { presentation.expandedCategories.contains(row.category) },
+                               set: { if $0 { presentation.expandedCategories.insert(row.category) } else { presentation.expandedCategories.remove(row.category) } })
+        return CategoryRow(category: row.category.storageCategory, state: state, title: row.category.overviewTitle, detail: row.category.overviewDetail,
+                           size: row.valueText, enabled: model.canEdit, identifier: "smartCleanCategory-" + row.id,
+                           itemCount: lines.count > 1 ? row.itemCount : nil, expanded: expanded,
+                           toggle: { model.setSmartClean(found, state != .checked) }) {
+            EmptyView()
+        } items: {
+            VStack(alignment: .leading, spacing: 0) { ForEach(lines) { line($0) } }
         }
     }
 

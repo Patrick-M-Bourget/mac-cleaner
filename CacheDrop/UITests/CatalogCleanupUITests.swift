@@ -1071,10 +1071,19 @@ extension CatalogCleanupUITests {
         XCTAssertEqual(developer.value as? Int, 1)
         XCTAssertFalse(app.checkBoxes["smartCleanCategory-downloads"].exists)
         XCTAssertTrue(app.descendants(matching: .any)["smartCleanNotIncluded-downloads"].exists)
+        // #219: the plan's category row; it starts collapsed and "Choose items" opens it.
         let yarn = app.checkBoxes["smartCleanLine-yarn-cache|"]
+        XCTAssertFalse(yarn.exists)
+        openDisclosure(app.disclosureTriangles.matching(NSPredicate(format: "label BEGINSWITH 'Choose items'")).firstMatch, in: app)
         XCTAssertTrue(yarn.waitForExistence(timeout: 5))
         XCTAssertEqual(app.checkBoxes["smartCleanLine-npm-cache|"].value as? Int, 1)
         revealAndClick(yarn, in: app)
+        XCTAssertEqual(yarn.value as? Int, 0)
+        // It stays open after leaving Smart clean and coming back.
+        app.typeKey("1", modifierFlags: .command)
+        XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
+        app.typeKey("2", modifierFlags: .command)
+        XCTAssertTrue(yarn.waitForExistence(timeout: 10))
         XCTAssertEqual(yarn.value as? Int, 0)
         app.buttons["smartCleanCleanUp"].click()
 
