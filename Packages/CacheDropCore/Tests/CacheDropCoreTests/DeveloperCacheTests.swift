@@ -178,12 +178,12 @@ private func homebrewRun(_ home: URL, script: String, timeout: TimeInterval? = n
     let home = try fixtureHome()
     defer { try? FileManager.default.removeItem(at: home) }
     try makeFolder(home, "Library/Caches/Homebrew")
-    let started = Date()
     // A stand-in brew that starts its own child, like the real one does.
-    let length = uniqueSleep()
+    let length = uniqueSleep(), lifetime = MarkedProcessLifetime(length)
     let result = try await homebrewRun(home, script: "echo started\nsleep \(length) &\nsleep \(length)", timeout: 0.5)
-    #expect(Date().timeIntervalSince(started) < 10)
     let left = survivorsAfterSettling(length)
+    // Stopped at the limit, not left to finish its sleep: the tool, timed alone, lived the limit plus the stop's grace at most.
+    #expect(lifetime.seconds < 0.5 + BoundedTool.stopGrace + 1)
     left.forEach { kill($0, SIGKILL) }
     #expect(left.isEmpty)
     let record = try #require(result.records.first)
@@ -214,7 +214,8 @@ private func cancellableRun(_ home: URL, brewScript: String, cancellation: Clean
     let length = uniqueSleep(), running = home.appendingPathComponent("running")
     let cancellation = CleanupCancellation(), cancelledAt = CancelTime()
     // Cancel once the stand-in brew, which starts its own child like the real one, is running.
-    DispatchQueue.global().async { if waitForFile(running) { cancelledAt.mark(); cancellation.cancel() } }
+    let watcher = CancelWhenFileAppears(running, cancel: cancellation, at: cancelledAt)
+    defer { watcher.stop() }
     let result = try await cancellableRun(home, brewScript: "echo cleaning\ntouch '\(running.path)'\nsleep \(length) &\nsleep \(length)", cancellation: cancellation)
     let sinceCancel = cancelledAt.elapsed
     let left = survivorsAfterSettling(length)
@@ -238,7 +239,8 @@ private func cancellableRun(_ home: URL, brewScript: String, cancellation: Clean
     let length = uniqueSleep(), exited = home.appendingPathComponent("exited")
     let cancellation = CleanupCancellation()
     // The stand-in brew succeeds, leaving a child that holds its output open; the cancel lands once brew has exited (#195).
-    DispatchQueue.global().async { if waitForFile(exited) { cancellation.cancel() } }
+    let watcher = CancelWhenFileAppears(exited, cancel: cancellation)
+    defer { watcher.stop() }
     let result = try await cancellableRun(home, brewScript: "p=$$\n( while :; do case \"$(ps -o stat= -p $p)\" in Z*|\"\") break;; esac; sleep 0.01; done; touch '\(exited.path)'; sleep \(length) ) &\necho cleaned\nexit 0", cancellation: cancellation)
     let left = survivorsAfterSettling(length)
     left.forEach { kill($0, SIGKILL) }

@@ -9,4 +9,6 @@ public struct GuidanceFinding: Sendable, Identifiable, Equatable {
     public let folder: URL?
     /// Agent workspaces' git status (#140); nil for every other rule.
     public var workspaces: AgentWorkspaces? = nil
+    /// The audio plug-ins by product (#174); nil for every other rule.
+    public var plugIns: PlugInInventory? = nil
 }

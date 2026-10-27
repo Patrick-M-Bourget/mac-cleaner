@@ -32,10 +32,11 @@ extension BuiltInCatalog {
                      detail: "Builds you archived to distribute. Keep the ones you may need to diagnose crashes; manage them in Xcode’s Organizer.",
                      locations: ["Library/Developer/Xcode/Archives"],
                      Guidance(place: .app(bundleID: "com.apple.dt.Xcode"), placeName: "Xcode")),
+        // AU, VST, VST3 and CLAP in /Library and ~/Library, AAX in Avid's folder; listed by product (#174, Decision 42).
         guidanceRule("audio-plug-ins", "Audio plug-ins",
                      detail: "Plug-ins you bought or installed. Remove them with the vendor’s uninstaller, and reinstall through the vendor.",
-                     locations: ["/Library/Audio/Plug-Ins", "Library/Audio/Plug-Ins"],
-                     Guidance(place: .folder, placeName: "in Finder")),
+                     locations: PlugInInventory.folders.map(\.location),
+                     Guidance(sizing: .plugIns, place: .folder, placeName: "in Finder")),
         // Reason Studios installs Rack Extensions here: `Optional REs` holds Reason 13's additional devices (Reason Studios
         // Help, "Installing Additional Content in Reason 13"); `RackExtensions` is the field scan's folder (17 GB).
         guidanceRule("rack-extensions", "Rack Extensions",

@@ -36,7 +36,8 @@ extension Catalog {
             // Nothing there, such as a Mail folder with no attachments, is no finding.
             guard total != .measured(0) else { return nil }
             let workspaces = guidance.sizing == .agentWorkspaces ? WorkspaceGit.workspaces(in: read) : nil
-            return GuidanceFinding(ruleID: rule.id, size: .estimate(total), folder: folder, workspaces: workspaces)
+            let plugIns = guidance.sizing == .plugIns ? PlugInInventory.scan(home: home, systemRoot: systemRoot, sizer: sizer) : nil
+            return GuidanceFinding(ruleID: rule.id, size: .estimate(total), folder: folder, workspaces: workspaces, plugIns: plugIns)
         }
     }
 
