@@ -71,15 +71,9 @@ public enum AppCaches {
     ///   and the User Library), so this rule never reaches them.
     /// - Steam, Microsoft Teams, Adobe apps: not installed on the audited Mac, so no layout to observe. Their folders keep today's
     ///   behavior until one is audited with vendor sources. Browsers have their own rules (`BrowserCaches`).
-    static let offlineContent: [String: (names: Set<String>, label: String)] = [
-        "com.spotify.client": (["Storage", "storage", "offline.bnk"], "Spotify’s offline downloads"),
+    static let knownOfflineContent: [String: OfflineContent] = [
+        "com.spotify.client": OfflineContent(names: ["Storage", "storage", "offline.bnk"], label: "Spotify’s offline downloads"),
     ]
-    /// What offline content an app keeps in its "App caches" folder, if any (`offlineContent`, keyed in lowercase as
-    /// LaunchServices matches bundle identifiers). Nil for every other rule and app.
-    static func offlineContent(in folder: URL, rule: CleanupRule) -> String? {
-        guard rule.id == appCachesRuleID, let content = offlineContent[folder.lastPathComponent.lowercased()] else { return nil }
-        return content.names.contains { FileManager.default.fileExists(atPath: folder.appendingPathComponent($0).path) } ? content.label : nil
-    }
     static let appCachesRuleID = "app-caches"
 
     public static func rules(apps: any AppLookup) -> [CleanupRule] {
@@ -94,7 +88,8 @@ public enum AppCaches {
                         detail: "Files apps keep in your Library to start and work faster, per app.",
                         consequence: "Permanently removed. Each app rebuilds its cache as you use it, so it may be slower at first. An app must be closed first; CacheDrop never quits it for you.",
                         regen: .cache, action: .delete, locations: ["Library/Caches/*"], owner: nil,
-                        itemOwner: { installedOwner($0.lastPathComponent, apps: apps) }, yieldsToOtherRules: true, protectedDepth: liveWorkDepth),
+                        itemOwner: { installedOwner($0.lastPathComponent, apps: apps) }, yieldsToOtherRules: true, protectedDepth: liveWorkDepth,
+                        offlineContent: knownOfflineContent),
             // Crash reports first, so ~/Library/Logs/DiagnosticReports is listed once, as crash reports.
             CleanupRule(id: "crash-reports", category: .logs, title: "Crash reports",
                         detail: "Reports macOS wrote when your apps crashed or stopped responding.",
@@ -199,4 +194,20 @@ public struct InstalledApp: Sendable, Hashable {
     /// The app bundle's path; a process run from inside it counts as the app.
     public let path: String
     public init(name: String, bundleID: String, path: String) { self.name = name; self.bundleID = bundleID; self.path = path }
+}
+
+/// Content an app keeps offline in its cache folder (#171): any of `names` inside the folder keeps it, and `label` says why.
+public struct OfflineContent: Sendable, Hashable {
+    public let names: Set<String>
+    public let label: String
+    public init(names: Set<String>, label: String) { self.names = names; self.label = label }
+}
+
+extension CleanupRule {
+    /// What offline content an app keeps in `folder`, if any (`offlineContent`, keyed in lowercase as LaunchServices matches
+    /// bundle identifiers). Nil for rules with none and for every other app.
+    func offlineContentLabel(in folder: URL) -> String? {
+        guard let content = offlineContent[folder.lastPathComponent.lowercased()] else { return nil }
+        return content.names.contains { FileManager.default.fileExists(atPath: folder.appendingPathComponent($0).path) } ? content.label : nil
+    }
 }
