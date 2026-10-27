@@ -188,12 +188,14 @@ final class FolderInspection {
             .max { $0.observedAt < $1.observedAt }
     }
 
+    /// Overview leaves this out while the location's recovery row already says it (#223).
+    static let unavailableMessage = "Current coverage: Unknown · This location is unavailable. Reconnect and recheck, or choose it again in Locations & access."
     func markUnavailable(_ url: URL) {
         scope = url
         let previous = scopeReports.first { $0.current.scope.path == url.path }
         lastComplete = previous?.lastComplete ?? previous.flatMap { $0.current.isComplete ? $0.current : nil }
         result = nil; selected = nil
-        message = "Current coverage: Unknown · This location is unavailable. Reconnect and recheck, or choose it again in Locations & access."
+        message = Self.unavailableMessage
     }
 
     func show(_ report: ScopeReport) {

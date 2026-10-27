@@ -188,7 +188,7 @@ private struct WorkspaceView: View {
                     StorageExplorerView(model: folderInspection, selection: selection, context: explorerContext,
                         backTitle: "Back to " + explorerCaller.rawValue, back: { nativeInspectionVisible = false; destination = explorerCaller })
                     ActionStrip(message: nil) {
-                        Button("View cleanup plan") {
+                        Button("Review plan") {
                             nativeInspectionVisible = false
                             planReturnsToExplorer = explorerCaller != .plan
                             destination = .plan
@@ -287,13 +287,13 @@ private struct WorkspaceView: View {
                         }
                     } else if nativeInspectionVisible {
                         ActionStrip(message: "Inspection only · \(CacheDropDesign.items(selection.workspaceSelectedCount)) in the cleanup plan") {
-                            Button("View cleanup plan") { nativeInspectionVisible = false; destination = .plan }.buttonStyle(.borderedProminent)
+                            Button("Review plan") { nativeInspectionVisible = false; destination = .plan }.buttonStyle(.borderedProminent)
                         }
                     } else if destination == .growth {
                         ActionStrip(message: nil) {
                             Button("Scan again", action: scanAgain).disabled(selection.catalog.isScanning || folderInspection.isScanning || selection.workspaceRunning || !selection.catalog.canEdit)
                                 .accessibilityIdentifier("growthScanAgain")
-                            Button("Review options") { navigate(.plan); navigationState.planReturnsToGrowth = true }.buttonStyle(.borderedProminent)
+                            Button("Review plan") { navigate(.plan); navigationState.planReturnsToGrowth = true }.buttonStyle(.borderedProminent)
                                 .accessibilityIdentifier("growthReviewOptions")
                         }
                     } else if showsPlan {
@@ -565,34 +565,40 @@ private struct WorkspaceView: View {
                 }
                 Spacer(minLength: 0)
                 // One clear action: pick a folder, remember it and scan it now (#125).
-                Button("Scan a folder…", systemImage: "folder.badge.plus", action: chooseFolderForScan)
+                Button("Scan a folder…", systemImage: "folder.badge.plus", action: chooseFolderForScan).controlSize(.small)
                     .disabled(folderInspection.isScanning || selection.workspaceRunning).accessibilityIdentifier("overviewScanFolder")
             }
             if selection.scans.values.contains(where: { !$0.isComplete }) || overviewObservation.map({ $0.excludedEntryCount > 0 || $0.hasUnmeasuredContents }) == true {
                 StatusRow(text: "Some locations have partial coverage. Uninspected bytes remain unknown.", symbol: "exclamationmark.circle", role: .caution)
             }
-            if let message = locationsModel.message { StatusRow(text: message, symbol: "info.circle", role: .caution) }
-            if let message = folderInspection.message { StatusRow(text: message, symbol: "info.circle") }
+            // One row per problem (#223): an unavailable location names itself and carries the fix.
+            if let (scope, status) = locationsModel.recovery {
+                StatusRow(text: URL(fileURLWithPath: scope.path).lastPathComponent + " · " + status.reason, symbol: "info.circle", role: .caution,
+                    identifier: "overviewLocationRecovery", actionTitle: "Choose again…", actionIdentifier: "overviewChooseAgain") {
+                    if chooseAgain(scope), let renewed = locationsModel.included.first(where: { $0.id == scope.id }) { scanLocations([renewed]) }
+                }.disabled(folderInspection.isScanning || selection.workspaceRunning)
+            }
+            if let notice = locationsModel.notice { StatusRow(text: notice, symbol: "info.circle", role: .caution) }
+            if let message = folderInspection.message, !(message == FolderInspection.unavailableMessage && locationsModel.recovery != nil) {
+                StatusRow(text: message, symbol: "info.circle")
+            }
         }
     }
-    /// Folders the user picked plus the catalog's known locations; unknown stays unknown.
+    /// Folders the user picked plus the catalog's known locations; unknown coverage is left to the recovery row (#223).
     private var scannedSummary: String {
-        var parts: [String] = []
-        if let result = overviewObservation {
-            parts.append(selection.scans.count == 1 ? "1 folder" : "\(selection.scans.count) folders")
-            parts.append(result.isComplete ? overviewBytes(result.totalLogicalBytes) + " observed" : "at least " + overviewBytes(result.logicalBytes) + " observed")
-        } else if folderInspection.scope != nil {
-            parts.append("Folder coverage unknown · Recheck required")
-        }
-        if let rows = selection.catalog.overview?.rows {
-            let found = rows.reduce(0) { $0 + $1.rules.count }
-            parts.append(found == 1 ? "1 recognized cache location" : "\(found) recognized cache locations")
-        } else if selection.catalog.isScanning {
-            parts.append("Checking recognized locations…")
-        }
-        return parts.isEmpty ? "No folders chosen yet" : parts.joined(separator: " · ")
+        let result = overviewObservation
+        return ScannedLocationsSummary.text(folders: result.map { _ in selection.scans.count },
+            observedBytes: result.map { $0.isComplete ? $0.totalLogicalBytes : $0.logicalBytes } ?? nil, complete: result?.isComplete ?? false,
+            knownCacheFolders: selection.catalog.overview?.rows.reduce(0) { $0 + $1.rules.count }, checking: selection.catalog.isScanning)
     }
 
+    /// Renews a remembered location's access: the user picks the same folder again. Shared by Locations & access and Overview (#223).
+    @discardableResult private func chooseAgain(_ scope: RememberedScope) -> Bool {
+        guard let url = FolderInspection.chooseFolder(remembering: true) else { return false }
+        if url.standardizedFileURL.path == scope.path { return locationsModel.remember(url, downloads: isDownloadsLocation(url)) }
+        locationsModel.message = "Choose the same location to renew access. Use Add folder for a different location."
+        return false
+    }
     private func isDownloadsLocation(_ url: URL) -> Bool {
         guard let root = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask).first else { return false }
         return url.standardizedFileURL.pathComponents.starts(with: root.standardizedFileURL.pathComponents)
@@ -664,12 +670,7 @@ private struct WorkspaceView: View {
                     }), enabled: !folderInspection.isScanning && !selection.workspaceRunning) {
                     HStack {
                         if locationsModel.statuses[scope.id]?.needsRecovery == true {
-                            Button("Choose again…") {
-                                if let url = FolderInspection.chooseFolder(remembering: true) {
-                                    if url.standardizedFileURL.path == scope.path { _ = locationsModel.remember(url, downloads: isDownloadsLocation(url)) }
-                                    else { locationsModel.message = "Choose the same location to renew access. Use Add folder for a different location." }
-                                }
-                            }
+                            Button("Choose again…") { chooseAgain(scope) }
                             Button("Reconnect and recheck") { scanLocations([scope]) }.disabled(!scope.isIncluded)
                         }
                         Menu("More") {

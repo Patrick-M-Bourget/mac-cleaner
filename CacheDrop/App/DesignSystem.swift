@@ -209,9 +209,16 @@ struct StatusRow: View {
     var symbol = "info.circle"
     var role: StatusRole = .neutral
     var identifier: String = ""
+    /// An optional small button that fixes the problem in place, such as "Choose again…" (#223).
+    var actionTitle: String? = nil
+    var actionIdentifier: String = ""
+    var action: () -> Void = {}
     var body: some View {
-        Label { Text(text).fixedSize(horizontal: false, vertical: true).accessibilityIdentifier(identifier) } icon: { Image(systemName: symbol).foregroundStyle(role.color) }
-            .font(.callout).foregroundStyle(.secondary).frame(maxWidth: .infinity, alignment: .leading)
+        HStack(alignment: .firstTextBaseline, spacing: CacheDropDesign.Space.sm) {
+            Label { Text(text).fixedSize(horizontal: false, vertical: true).accessibilityIdentifier(identifier) } icon: { Image(systemName: symbol).foregroundStyle(role.color) }
+                .font(.callout).foregroundStyle(.secondary)
+            if let actionTitle { Button(actionTitle, action: action).controlSize(.small).accessibilityIdentifier(actionIdentifier) }
+        }.frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 struct SettingsRow<Content: View>: View {

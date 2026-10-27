@@ -224,7 +224,7 @@ struct HistoryActivityEmptyState: View {
             EmptyState(title: title, detail: "Scans and cleanups appear here when they finish.", symbol: "clock")
             HStack {
                 if filter != .cleanups { Button("Go to Overview", action: goOverview) }
-                if filter != .scans { Button("View cleanup plan", action: viewPlan) }
+                if filter != .scans { Button("Review plan", action: viewPlan) }
             }
         }
     }
