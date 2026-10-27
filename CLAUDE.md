@@ -14,7 +14,7 @@ Full Xcode is installed, but `xcode-select` points at the Command Line Tools. Se
 ```sh
 export DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer
 swift test --package-path Packages/CacheDropCore
-xcodebuild build -project Still/Still.xcodeproj -scheme Still -destination 'platform=macOS' -derivedDataPath .build/xcode
+xcodebuild build -project CacheDrop/CacheDrop.xcodeproj -scheme CacheDrop -destination 'platform=macOS' -derivedDataPath .build/xcode
 open .build/xcode/Build/Products/Debug/CacheDrop.app
 ```
 

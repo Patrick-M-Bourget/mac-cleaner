@@ -1,7 +1,7 @@
 #!/bin/zsh
 # Re-exports AppIcon.appiconset from cachedrop-icon-light.svg (the source of truth).
 # Needs Google Chrome (headless, for SVG filters) and Python 3 with Pillow. Run from anywhere:
-#   Still/App/Branding/export-icons.sh
+#   CacheDrop/App/Branding/export-icons.sh
 set -euo pipefail
 here=${0:A:h}
 set=$here/../Assets.xcassets/AppIcon.appiconset
