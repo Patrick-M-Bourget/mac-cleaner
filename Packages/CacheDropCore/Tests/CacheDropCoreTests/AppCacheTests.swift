@@ -174,3 +174,10 @@ private func catalogWith(_ apps: Apps) -> Catalog {
                       caches + "/com.example.Chat.ShipIt") == .ownerRunning("Chat"))
     #expect(try check(Running(bundleIDs: ["com.native-instruments.NativeAccess2"]), caches + "/nativeaccess2-updater") == .ownerRunning("Native Access"))
 }
+
+/// #182: the UI-test runners' folders, Still's and CacheDrop's, are protected like the apps' own.
+@Test func ownTestRunnerFoldersAreNeverOffered() {
+    for name in ["com.patrickbourget.StillUITests", "com.patrickbourget.CacheDropUITests", "com.patrickbourget.CacheDropUITests.xctrunner"] {
+        #expect(AppCaches.isMacOSOrOwn(name))
+    }
+}
