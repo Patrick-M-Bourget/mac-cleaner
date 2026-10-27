@@ -21,6 +21,8 @@ public struct PlugInFile: Sendable, Equatable {
     /// "Apple silicon", "Intel": from the executable's header.
     public let architectures: [String]
     public let size: SizeEstimate
+    /// True when `name` is its Audio Unit's display name rather than the bundle's file name.
+    var isNamedByAudioUnit = false
     /// Apple's own Audio Units (bundle ID `com.apple.`): never offered for removal.
     public var isApple: Bool { bundleID?.lowercased().hasPrefix("com.apple.") == true }
     /// The bundle ID's first two parts, `com.maker`: who made it, as far as the bundle says.
@@ -70,15 +72,18 @@ public struct PlugInInventory: Sendable, Equatable {
         return PlugInInventory(products: group(files, receipts: receipts(under: systemRoot)))
     }
 
-    /// Groups files into products (Decision 42): files one installer receipt lists, then files with the same bundle ID
-    /// vendor (`com.maker`) and name. A file nothing ties stands alone; nothing is guessed from a name alone.
+    /// Groups files into products (Decision 42): files one installer receipt lists, files in different formats that share
+    /// a full bundle ID, then files with the same bundle ID vendor (`com.maker`) and name. A bundle ID two files of one
+    /// format share (a maker's template ID) ties nothing. A file nothing ties stands alone; nothing is guessed from a name alone.
     static func group(_ files: [PlugInFile], receipts: [String: Set<String>]) -> [PlugInProduct] {
         var parent = Array(files.indices)
         func root(_ i: Int) -> Int { parent[i] == i ? i : root(parent[i]) }
         var first: [String: Int] = [:]
         func tie(_ key: String, _ i: Int) { if let j = first[key] { parent[root(i)] = root(j) } else { first[key] = i } }
+        let perFormat = Dictionary(grouping: files.compactMap { f in f.bundleID.map { "\($0.lowercased())|\(f.format.rawValue)" } }, by: { $0 })
         for (i, file) in files.enumerated() {
             for id in receipts[file.url.standardizedFileURL.path] ?? [] { tie("receipt|" + id, i) }
+            if let id = file.bundleID?.lowercased(), perFormat["\(id)|\(file.format.rawValue)"]?.count == 1 { tie("id|" + id, i) }
             if let vendor = file.vendor { tie("bundle|\(vendor)|\(file.name.lowercased())", i) }
         }
         let groups = Dictionary(grouping: files.indices, by: root).values
@@ -149,7 +154,8 @@ public struct PlugInInventory: Sendable, Equatable {
         let executable = (info["CFBundleExecutable"] as? String).map { url.appendingPathComponent("Contents/MacOS/" + $0) }
         return PlugInFile(url: url, format: format, bundleID: info["CFBundleIdentifier"] as? String, name: name, maker: maker,
                           version: (info["CFBundleShortVersionString"] ?? info["CFBundleVersion"]) as? String,
-                          architectures: executable.map(MachOArchitectures.read) ?? [], size: Catalog.estimate(sizer.size(url)))
+                          architectures: executable.map(MachOArchitectures.read) ?? [], size: Catalog.estimate(sizer.size(url)),
+                          isNamedByAudioUnit: component?.count == 2)
     }
 
     /// A VST3's vendor, from its `moduleinfo.json` (VST 3.7 SDK) when it ships one.
@@ -196,9 +202,10 @@ public struct PlugInProduct: Sendable, Equatable, Identifiable {
     init(files: [PlugInFile], grouping: Grouping) {
         self.files = files.sorted { ($0.format, $0.url.path) < ($1.format, $1.url.path) }; self.grouping = grouping
     }
-    /// The most common name among its files.
+    /// The most common name among its files, preferring an Audio Unit's display name to bundle file names.
     public var name: String {
-        let counts = Dictionary(grouping: files.map(\.name), by: { $0 }).mapValues(\.count)
+        let named = files.filter(\.isNamedByAudioUnit)
+        let counts = Dictionary(grouping: (named.isEmpty ? files : named).map(\.name), by: { $0 }).mapValues(\.count)
         return counts.max { ($0.value, $1.key) < ($1.value, $0.key) }?.key ?? ""
     }
     public var maker: String? { files.lazy.compactMap(\.maker).first }

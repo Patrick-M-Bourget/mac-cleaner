@@ -175,3 +175,36 @@ private func receipt(_ id: String, listing paths: [String], in root: URL) throws
     #expect(finding.plugIns?.products.map(\.formats) == [[.vst3, .aax]])
     #expect(finding.plugIns?.summary == "1 product · VST3, AAX")
 }
+
+// Real shapes from the #199 printout (#239). Names, bundle IDs and versions are copied; the files are fixtures.
+private let components = "Library/Audio/Plug-Ins/Components/", vst = "Library/Audio/Plug-Ins/VST/", vst3s = "Library/Audio/Plug-Ins/VST3/",
+            aaxs = "Library/Application Support/Avid/Audio/Plug-Ins/"
+
+@Test func aUADxAudioUnitJoinsItsFormatsThatShareItsBundleID() throws {
+    let root = try fixtureFolder("Root"), home = try fixtureFolder("Home")
+    defer { try? FileManager.default.removeItem(at: root); try? FileManager.default.removeItem(at: home) }
+    try plugIn(components + "uaudio_polymax.component", in: root, id: "com.uaudio.effects.UI06", version: "1.0.16",
+               component: "Universal Audio (UADx): UADx PolyMAX Synth")
+    try plugIn(vst3s + "uaudio_polymax.vst3", in: root, id: "com.uaudio.effects.UI06", version: "1.0.16")
+    try plugIn(aaxs + "uaudio_polymax.aaxplugin", in: root, id: "com.uaudio.effects.UI06", version: "1.0.16")
+
+    let products = scan(root, home).products
+    #expect(products.count == 1)
+    let product = try #require(products.first)
+    #expect(product.formats == [.au, .vst3, .aax])
+    #expect(product.name == "UADx PolyMAX Synth")
+    #expect(product.maker == "Universal Audio (UADx)")
+    #expect(product.grouping == .bundleID)
+}
+
+@Test func aBundleIDSeveralProductsOfOneFormatShareTiesNothing() throws {
+    let root = try fixtureFolder("Root"), home = try fixtureFolder("Home")
+    defer { try? FileManager.default.removeItem(at: root); try? FileManager.default.removeItem(at: home) }
+    // Philspeiser ships every AAX with this one ID; Avid's AIR plug-ins share "com.wizoo.AIR" the same way.
+    try plugIn(aaxs + "THE_YEAR.aaxplugin", in: root, id: "com.myPhilspeiser.product", version: "1.1.0")
+    try plugIn(aaxs + "THE_FX.aaxplugin", in: root, id: "com.myPhilspeiser.product", version: "1.0.0")
+    try plugIn(vst3s + "THE_FX.vst3", in: root, id: "com.myPhilspeiser.product", version: "1.0.0")
+    let products = scan(root, home).products
+    #expect(products.map(\.name).sorted() == ["THE_FX", "THE_YEAR"])
+    #expect(products.first { $0.name == "THE_FX" }?.formats == [.vst3, .aax])
+}
