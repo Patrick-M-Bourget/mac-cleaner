@@ -153,8 +153,11 @@ public struct CandidateCheck: Sendable {
         // The same folder moved out of scope and reached through a symlink keeps its identity, so containment is checked too.
         guard let root = candidate.scopeRoot, ScopeContainment.contains(candidate.url, in: root) else { return .changed }
         if let part = Protection(rule).protectedComponent(of: candidate.url, below: root) { return .protected(part) }
-        // An app cache item is the app's whole folder or a web-view profile's cache part, nothing else (#203).
-        if rule.id == AppCaches.appCachesRuleID, !candidate.isLeftover, !AppCaches.isOfferedItem(candidate.url) { return .changed }
+        // An app cache item is the app's whole folder or an item the rule offers from it now (#203, #241); one that became a
+        // web-view profile or gained offline content says so.
+        if rule.id == AppCaches.appCachesRuleID, !candidate.isLeftover, !AppCaches.isOfferedItem(candidate.url, offlineContent: rule.offlineContent) {
+            return (candidate.isDirectory ? Self.protectedEntry(in: candidate.url, rule: rule) : nil).map(CheckRefusal.protected) ?? .changed
+        }
         if let refusal = catalog.notACacheRefusal(candidate, rule: rule, base: root) { return refusal }
         let picked = rule.fromPickedFolders
         if picked, let folder = UserFiles.protectedFolder(of: candidate.url, home: home) { return .protected(folder) }

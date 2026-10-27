@@ -222,7 +222,7 @@ private func catalogWith(_ apps: Apps) -> Catalog {
 }
 
 /// #203: a web-view profile in an app's cache folder (Cookies, Login Data or Local Storage) is never offered whole; only its
-/// Cache, Code Cache and GPUCache are, so cleaning never signs the user out of the app's web views. Placeholder files only.
+/// Cache, Code Cache and GPUCache are, with everything outside it (#241), so cleaning never signs the user out of the app's web views. Placeholder files only.
 @Test func onlyTheCachesOfAWebViewProfileAreOffered() async throws {
     let home = try fixtureHome()
     defer { try? FileManager.default.removeItem(at: home) }
@@ -237,7 +237,10 @@ private func catalogWith(_ apps: Apps) -> Catalog {
     try write(home, "Library/Caches/com.example.Editor/Cache.db")
     let caches = home.appendingPathComponent("Library/Caches").path
     let found = catalog.discover(fixture: home)
-    #expect(Set(found.map(\.url.path)) == [caches + "/com.example.Editor", caches + "/com.example.Chat/Default/Cache", caches + "/com.example.Chat/Default/Code Cache",
+    // Everything outside a profile is offered too (#241).
+    #expect(Set(found.map(\.url.path)) == [caches + "/com.example.Editor", caches + "/com.example.Chat/Cache.db", caches + "/com.example.Chat/Local State",
+                                           caches + "/com.example.Chat/Data",
+                                           caches + "/com.example.Chat/Default/Cache", caches + "/com.example.Chat/Default/Code Cache",
                                            caches + "/com.example.Chat/Default/GPUCache", caches + "/com.example.Chat/Partitions/help/GPUCache"])
     // Each part is the app's, so the plan shows them as one row for Chat.
     #expect(found.filter { $0.url.path.contains("com.example.Chat") }.allSatisfy { $0.appName == "Chat" && $0.ruleID == "app-caches" })
@@ -272,4 +275,58 @@ private func catalogWith(_ apps: Apps) -> Catalog {
     #expect(part.url.path.hasSuffix("com.example.Chat/Default/Cache"))
     try FileManager.default.removeItem(at: home.appendingPathComponent("Library/Caches/com.example.Chat/Default/Login Data"))
     #expect(check.check(part) == .changed)
+}
+
+/// #241: Spotify's cache folder, shaped as observed: two web-view profiles with sign-in data (`Default`, `Browser`), the
+/// streaming cache `Data`, `component_crx_cache` and `WasmTtsEngine`, plus downloads (#171) under a custom folder name.
+/// Everything outside a sign-in profile is offered; inside one, only its caches. Placeholder files only.
+private func writeSpotifyCache(_ home: URL) throws {
+    for entry in ["Default/Cookies", "Default/Login Data", "Default/Local Storage/leveldb/000003.log", "Default/Preferences",
+                  "Default/Cache/Cache_Data/data_0", "Default/Code Cache/js/index", "Default/GPUCache/data_1",
+                  "Browser/Cookies", "Browser/Local Storage/leveldb/000003.log", "Browser/Cache/Cache_Data/data_0", "Browser/GPUCache/data_1",
+                  "Data/0c/chunk", "component_crx_cache/abc/file", "WasmTtsEngine/engine", "My Music/v2/track", "My Music/offline.bnk"] {
+        try write(home, "Library/Caches/com.spotify.client/" + entry)
+    }
+}
+private let spotify = InstalledApp(name: "Spotify", bundleID: "com.spotify.client", path: "/Applications/Spotify.app")
+
+@Test func everythingOutsideASignInProfileIsOffered() async throws {
+    let home = try fixtureHome()
+    defer { try? FileManager.default.removeItem(at: home) }
+    try writeSpotifyCache(home)
+    let catalog = catalogWith(Apps(installed: [spotify]))
+    let app = home.appendingPathComponent("Library/Caches/com.spotify.client").path
+    let found = catalog.discover(fixture: home)
+    #expect(Set(found.map(\.url.path)) == Set(["Data", "component_crx_cache", "WasmTtsEngine", "Default/Cache", "Default/Code Cache", "Default/GPUCache",
+                                               "Browser/Cache", "Browser/GPUCache"].map { app + "/" + $0 }))
+    #expect(found.allSatisfy { $0.appName == "Spotify" && $0.ruleID == "app-caches" })
+
+    let check = CandidateCheck(catalog: catalog, running: Running())
+    let data = try #require(found.first { $0.url.lastPathComponent == "Data" })
+    #expect(check.check(data) == nil)
+    let journal = try SQLiteCleanupJournal(url: home.appendingPathComponent("journal.sqlite"))
+    let run = CleanupExecutor(journal: journal, check: check, measure: { _ in nil }, trash: TrashNeverUsed())
+    #expect(try #require(await run.execute(CatalogApproval(candidates: found, previewOnly: false)).records.allSatisfy { $0.state == .succeeded }))
+    for kept in ["Default/Cookies", "Default/Login Data", "Default/Local Storage/leveldb/000003.log", "Default/Preferences",
+                 "Browser/Cookies", "Browser/Local Storage/leveldb/000003.log", "My Music/v2/track", "My Music/offline.bnk"] {
+        #expect(FileManager.default.fileExists(atPath: app + "/" + kept), "\(kept)")
+    }
+    #expect(!FileManager.default.fileExists(atPath: app + "/Data"))
+}
+
+/// #241: the check just before acting re-applies the rule: a top-level item that became a profile with sign-in data, or
+/// that gained offline downloads, since the scan is refused.
+@Test func theCheckRefusesATopLevelItemThatBecameAProfileOrGainedDownloads() throws {
+    let home = try fixtureHome()
+    defer { try? FileManager.default.removeItem(at: home) }
+    try writeSpotifyCache(home)
+    let catalog = catalogWith(Apps(installed: [spotify]))
+    let check = CandidateCheck(catalog: catalog, running: Running())
+    let found = catalog.discover(fixture: home)
+    let data = try #require(found.first { $0.url.lastPathComponent == "Data" })
+    let engine = try #require(found.first { $0.url.lastPathComponent == "WasmTtsEngine" })
+    try write(home, "Library/Caches/com.spotify.client/Data/Cookies")
+    #expect(check.check(data) == .protected("Cookies"))
+    try write(home, "Library/Caches/com.spotify.client/WasmTtsEngine/sub/offline.bnk")
+    #expect(check.check(engine) == .protected("Spotify’s offline downloads"))
 }
