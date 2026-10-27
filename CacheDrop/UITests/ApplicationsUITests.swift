@@ -59,6 +59,7 @@ final class ApplicationsUITests: XCTestCase {
         XCTAssertFalse(app.descendants(matching: .any)["applicationsApp-Notes"].exists, "Apple's apps are never listed")
         XCTAssertFalse(app.descendants(matching: .any)["applicationsApp-CacheDrop"].exists, "CacheDrop never lists itself")
         XCTAssertFalse(app.checkBoxes.matching(NSPredicate(format: "identifier BEGINSWITH 'applications'")).firstMatch.exists, "Nothing new can be ticked yet")
+        XCTAssertFalse(app.disclosureTriangles.matching(NSPredicate(format: "label == 'Choose items · 1'")).firstMatch.exists, "An app alone has no Choose items")
 
         // An app that needs a password says so, with Reveal in Finder.
         let password = app.staticTexts["applicationsPassword-Locked Suite"]

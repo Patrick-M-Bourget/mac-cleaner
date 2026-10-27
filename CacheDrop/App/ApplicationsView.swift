@@ -139,7 +139,8 @@ struct ApplicationsView: View {
         let isExpanded = Binding(get: { expanded.contains(entry.id) }, set: { if $0 { expanded.insert(entry.id) } else { expanded.remove(entry.id) } })
         return CategoryRow(category: category, state: nil, title: entry.name, detail: [entry.maker, entry.volume].compactMap { $0 }.joined(separator: " · "),
                            size: entry.size.text, enabled: true, identifier: identifier,
-                           itemCount: entry.parts.count, expanded: isExpanded, toggle: {}) {
+                           // An app alone is its only item: no "Choose items · 1" (#270).
+                           itemCount: entry.parts.count > 1 ? entry.parts.count : nil, expanded: isExpanded, toggle: {}) {
             if entry.needsPassword { passwordLine(entry) }
         } items: {
             LazyVStack(alignment: .leading, spacing: 0) {
