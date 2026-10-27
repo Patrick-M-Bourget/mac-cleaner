@@ -5,7 +5,7 @@ import Darwin
 import CacheDropCore
 
 extension Notification.Name {
-    static let cacheDropAlertOpened = Notification.Name("Still.alertOpened")
+    static let cacheDropAlertOpened = Notification.Name("CacheDrop.alertOpened")
 }
 
 @MainActor private final class NativeAlertMonitoringSystem: AlertMonitoringSystem {
@@ -41,7 +41,7 @@ extension Notification.Name {
         let content = UNMutableNotificationContent()
         content.title = "Your Mac is running low on space"
         content.body = "Open CacheDrop to see what you can clean up."
-        content.sound = .default; content.categoryIdentifier = "Still.capacity"
+        content.sound = .default; content.categoryIdentifier = "CacheDrop.capacity"
         content.userInfo = AlertOpenContext(observedAt: observedAt).notificationUserInfo
         try await center.add(UNNotificationRequest(identifier: identifier, content: content, trigger: nil))
     }
@@ -57,15 +57,15 @@ extension Notification.Name {
     func configureNotifications() {
         let center = UNUserNotificationCenter.current()
         center.delegate = self
-        let open = UNNotificationAction(identifier: "Still.open", title: "Open CacheDrop", options: [.foreground])
-        let later = UNNotificationAction(identifier: "Still.remindLater", title: "Remind me later", options: [])
-        center.setNotificationCategories([UNNotificationCategory(identifier: "Still.capacity", actions: [open, later], intentIdentifiers: [])])
+        let open = UNNotificationAction(identifier: "CacheDrop.open", title: "Open CacheDrop", options: [.foreground])
+        let later = UNNotificationAction(identifier: "CacheDrop.remindLater", title: "Remind me later", options: [])
+        center.setNotificationCategories([UNNotificationCategory(identifier: "CacheDrop.capacity", actions: [open, later], intentIdentifiers: [])])
     }
     nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse) async {
         let action = response.actionIdentifier
         let context = AlertOpenContext(notificationUserInfo: response.notification.request.content.userInfo)
         await MainActor.run {
-            if action == "Still.remindLater" { remindLater(); return }
+            if action == "CacheDrop.remindLater" { remindLater(); return }
             openAlert(context: context)
         }
     }

@@ -214,7 +214,7 @@ public enum AlertShellState: Equatable, Sendable {
     }
     private func removePendingNotifications() {
         var identifiers = inFlightNotificationIDs.union(policy.notificationRequestIdentifiers ?? [])
-        identifiers.insert("Still.lowSpace") // Previous versions used this fixed identifier.
+        identifiers.insert("Still.lowSpace") // Still's early versions used this fixed identifier.
         system.removePendingNotifications(identifiers: Array(identifiers))
         policy.notificationRequestIdentifiers = nil
     }
@@ -255,7 +255,7 @@ public enum AlertShellState: Equatable, Sendable {
         }
         status = validCapacity ? "Monitoring startup-volume capacity while CacheDrop runs. Last available: \(String(format: "%.1f", Double(available) / 1_000_000_000)) GB." : "Capacity unavailable. Alert decisions are paused."
         let submit = policy.observe(available: available, total: total, at: system.now, volumeID: volumeID, metric: reading.metric)
-        let notificationID = submit ? "Still.lowSpace." + UUID().uuidString : nil
+        let notificationID = submit ? "CacheDrop.lowSpace." + UUID().uuidString : nil
         if let notificationID {
             var identifiers = policy.notificationRequestIdentifiers ?? []
             identifiers.insert(notificationID)

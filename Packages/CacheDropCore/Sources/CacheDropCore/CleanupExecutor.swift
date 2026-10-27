@@ -58,7 +58,7 @@ extension CleanupRecord {
 
 /// One executor for catalog candidates: claim, then per item record intent, recheck, act, record the outcome.
 public actor CleanupExecutor {
-    private static let log = Logger(subsystem: "Still", category: "cleanup")
+    private static let log = Logger(subsystem: "CacheDrop", category: "cleanup")
     private let journal: any CleanupJournaling
     private let check: CandidateCheck
     private let measure: @Sendable (URL) -> CapacitySample?

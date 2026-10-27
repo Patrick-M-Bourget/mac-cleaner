@@ -62,7 +62,7 @@ extension CleanupRecord {
 /// It only ever renames the one recorded item out of the Trash, with a no-overwrite rename; it never deletes anything,
 /// in the Trash or at the original location (SPEC section 2).
 public struct TrashPutBack: Sendable {
-    private static let log = Logger(subsystem: "Still", category: "putBack")
+    private static let log = Logger(subsystem: "CacheDrop", category: "putBack")
     private let journal: any CleanupJournaling
     private let clock: @Sendable () -> Date
     public init(journal: any CleanupJournaling, clock: @escaping @Sendable () -> Date = Date.init) {
