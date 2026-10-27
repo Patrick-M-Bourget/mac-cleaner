@@ -98,4 +98,39 @@ final class ApplicationsUITests: XCTestCase {
         }
         XCTAssertFalse(app.descendants(matching: .any)["applicationsLoading-apps"].exists)
     }
+
+    /// #270: a leftover ticked on Applications is reviewed and cleaned there (dry run), and Overview never calls it in the plan.
+    @MainActor func testALeftoverIsTickedAndCleanedFromApplications() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        let state = try configureIsolatedState(app)
+        let home = try configureCatalogHome(app)
+        turnOnDryRun(app)
+        defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
+        let leftover = home.appendingPathComponent("Library/Containers/com.gone.synth/Data/state.db")
+        try FileManager.default.createDirectory(at: leftover.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Data(repeating: 4, count: 60_000).write(to: leftover)
+        app.launch()
+        waitForCatalogScan(app)
+
+        app.typeKey("5", modifierFlags: .command)
+        let category = app.checkBoxes["planCategory-leftovers"]
+        XCTAssertTrue(category.waitForExistence(timeout: 10))
+        revealAndClick(category, in: app)
+        XCTAssertEqual(category.value as? Int, 1)
+        app.typeKey("1", modifierFlags: .command)
+        let row = app.buttons["overviewCategory-leftovers"]
+        XCTAssertTrue(row.waitForExistence(timeout: 5))
+        XCTAssertFalse((row.value as? String ?? "").contains("In cleanup plan"), String(describing: row.value))
+        app.typeKey("3", modifierFlags: .command)
+        XCTAssertFalse(app.buttons["Review cleanup"].isEnabled, "The plan has nothing chosen")
+
+        app.typeKey("5", modifierFlags: .command)
+        XCTAssertEqual(app.checkBoxes["planCategory-leftovers"].value as? Int, 1, "Its tick is kept")
+        app.buttons["Review cleanup"].click()
+        XCTAssertTrue(reviewLine(app, "movedToTrash", "leftovers").waitForExistence(timeout: 5))
+        cleanUpFromReview(app)
+        XCTAssertTrue(app.staticTexts["catalogPreviewNotice"].waitForExistence(timeout: 10))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: leftover.path), "A dry run moves nothing")
+    }
 }
