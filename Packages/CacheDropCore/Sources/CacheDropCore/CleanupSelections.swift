@@ -9,9 +9,10 @@ public struct CleanupSelections: Sendable, Equatable {
         /// The page that shows and cleans an item: leftovers of removed apps on Applications (Decision 51), the rest in the plan.
         public static func page(of candidate: Candidate) -> Source { page(ofID: candidate.id) }
         /// The same from a chosen id alone, which starts with its rule's ID, so it holds after a run, when nothing is found yet.
-        static func page(ofID id: String) -> Source {
-            RemovedAppLeftovers.ruleIDs.contains(String(id.prefix { $0 != "|" })) ? .applications : .plan
-        }
+        static func page(ofID id: String) -> Source { page(ofRule: String(id.prefix { $0 != "|" })) }
+        /// The page that shows a category row: the one its rules are on.
+        public static func page(of row: CatalogOverview.Row) -> Source { row.rules.first.map { page(ofRule: $0.id) } ?? .plan }
+        private static func page(ofRule ruleID: String) -> Source { RemovedAppLeftovers.ruleIDs.contains(ruleID) ? .applications : .plan }
     }
 
     /// The ticked candidate ids of both the Cleanup plan and the Applications page, in one set; each page shows and reviews

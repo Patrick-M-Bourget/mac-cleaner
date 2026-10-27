@@ -106,3 +106,10 @@ private let leftover = item(RemovedAppLeftovers.ruleID, name: "Synth"), related 
     selections.clear(.applications)
     #expect(selections.ticked.isEmpty)
 }
+
+/// #271: a category row is on the page its rules are on, so the app asks the core instead of checking the category.
+@Test func aCategoryRowIsOnThePageOfItsRules() {
+    let rows = CatalogOverview(catalog: Catalog(rules: fixtureRules + RemovedAppLeftovers.rules), candidates: scan + [leftover, related]).rows
+    #expect(rows.filter { CleanupSelections.Source.page(of: $0) == .applications }.map(\.category) == [.leftovers])
+    #expect(rows.filter { CleanupSelections.Source.page(of: $0) == .plan }.count == rows.count - 1)
+}

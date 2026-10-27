@@ -502,14 +502,15 @@ private struct WorkspaceView: View {
     }
     private func catalogRow(_ row: CatalogOverview.Row) -> some View {
         // Leftovers are chosen on Applications, never "In cleanup plan" (#270).
-        let inPlan = row.category != .leftovers && row.rules.contains { selection.catalog.isSelected($0) }
+        let onApplications = CleanupSelections.Source.page(of: row) == .applications
+        let inPlan = !onApplications && row.rules.contains { selection.catalog.isSelected($0) }
         return StorageReviewRow(category: row.category.storageCategory, title: row.category.overviewTitle, detail: row.category.overviewDetail,
             value: row.valueText,
             meaning: row.estimate == .unknown ? "Couldn’t be measured" : inPlan ? "In cleanup plan"
                 : row.rules.allSatisfy { $0.action == .delete } ? "Rebuildable" : row.rules.allSatisfy { $0.action == .evict } ? "Local copies" : "Review files",
-            actionTitle: row.category == .leftovers ? "Review \(row.category.overviewTitle) in Applications" : "Review \(row.category.overviewTitle) in the cleanup plan",
+            actionTitle: onApplications ? "Review \(row.category.overviewTitle) in Applications" : "Review \(row.category.overviewTitle) in the cleanup plan",
             // Leftovers of removed apps are on the Applications page (Decision 51).
-            action: { if row.category == .leftovers { navigate(.applications) } else { navigate(.plan); planPresentation.expandedCategories.insert(row.category) } },
+            action: { if onApplications { navigate(.applications) } else { navigate(.plan); planPresentation.expandedCategories.insert(row.category) } },
             identifier: "overviewCategory-" + row.id)
     }
     /// Opens the Cleanup plan from Smart clean's "Not included" note, with the category open when one is named.
