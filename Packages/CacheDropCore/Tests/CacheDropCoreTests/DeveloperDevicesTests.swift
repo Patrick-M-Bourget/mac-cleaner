@@ -176,6 +176,20 @@ private let nothingRunning = Running(names: [])
     #expect(discovery.notes.map(\.text) == [SimulatorInventory.notice])
 }
 
+/// #212, Decision 45: simctl failing when stopped work is measured again leaves both simulator rules unmeasured, never gone.
+@Test func bothSimulatorRulesAreUnmeasuredWhenSimctlFailsLater() throws {
+    let home = try fixtureHome()
+    defer { try? FileManager.default.removeItem(at: home) }
+    try makeDevice(home, shutdownUDID)
+    let catalog = Catalog(rules: fixtureRules)
+    let stopped = catalog.discover(fixture: home, locateTool: onlyTool("simctl", try standInSimctl(home))).filter { $0.ruleID.hasPrefix("simulator-") }
+    #expect(Set(stopped.map(\.ruleID)) == ["simulator-devices", "simulator-runtimes"])
+    let failing = try standInSimctl(home, devices: "not json")
+    let findings = catalog.measuredAgain(stopped, in: catalog.only(stopped).discovery(fixture: home, locateTool: onlyTool("simctl", failing)))
+    #expect(findings.count == stopped.count)
+    #expect(findings.values.allSatisfy { $0 == .unmeasured })
+}
+
 @Test func theCheckRefusesAPerItemToolArgumentThatLooksLikeAnOption() throws {
     let home = try fixtureHome()
     defer { try? FileManager.default.removeItem(at: home) }

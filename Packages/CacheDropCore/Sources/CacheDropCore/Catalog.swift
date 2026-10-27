@@ -439,7 +439,8 @@ public struct Catalog: Sendable {
                     let read = simulators[toolURL.path] ?? SimulatorInventory.read(toolURL)
                     if simulators[toolURL.path] == nil, case .failure = read { notes.append(CatalogNote(ruleID: rule.id, text: SimulatorInventory.notice)) }
                     simulators[toolURL.path] = read
-                    guard case .success(let inventory) = read else { return [] }
+                    // Every rule that reads simctl is unmeasured when it fails, never read as gone (Decision 45, #212).
+                    guard case .success(let inventory) = read else { notMeasured[rule.id, default: []].formUnion(rule.locations); return [] }
                     return rule.items == .simulatorDevices ? simulatorDevices(in: url, rule: rule, toolURL: toolURL, inventory: inventory, sizer: sizer)
                         : simulatorRuntimes(anchor: url, rule: rule, toolURL: toolURL, inventory: inventory)
                 }
