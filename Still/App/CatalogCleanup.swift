@@ -384,7 +384,7 @@ import SwiftUI
         defer { isRunning = false; executor = nil }
         guard let check = await currentCheck() else { return }
         do {
-            let run = CleanupExecutor(journal: try CleanupJournalLocation.writer(), check: check, cancellation: cancellation)
+            let run = CleanupExecutor(journal: try CleanupJournalLocation.writer(), check: check, trash: TrashModel.mover, cancellation: cancellation)
             executor = run
             let outcome = await run.execute(approval)
             result = outcome
