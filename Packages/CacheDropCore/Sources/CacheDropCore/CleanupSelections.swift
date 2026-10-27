@@ -12,9 +12,7 @@ public struct CleanupSelections: Sendable, Equatable {
         static func page(ofID id: String) -> Source { page(ofRule: String(id.prefix { $0 != "|" })) }
         /// The page that shows a category row: the one its rules are on.
         public static func page(of row: CatalogOverview.Row) -> Source { row.rules.first.map { page(ofRule: $0.id) } ?? .plan }
-        private static func page(ofRule ruleID: String) -> Source {
-            RemovedAppLeftovers.ruleIDs.contains(ruleID) || AppUninstall.ruleIDs.contains(ruleID) ? .applications : .plan
-        }
+        private static func page(ofRule ruleID: String) -> Source { AppRuleFamily.of(ruleID: ruleID) == nil ? .plan : .applications }
     }
 
     /// The ticked candidate ids of both the Cleanup plan and the Applications page, in one set; each page shows and reviews

@@ -88,6 +88,10 @@ extension CleanupHistoryRun {
     public var isPreview: Bool { !records.isEmpty && records.allSatisfy { $0.previewOnly == true } }
     /// A put back from the Trash (#159), recorded as its own run.
     public var isPutBack: Bool { !records.isEmpty && records.allSatisfy(\.isPutBack) }
+    /// "A", "A and B", "A, B and C".
+    private static func list(_ items: [String]) -> String {
+        items.count < 2 ? items.joined() : items.dropLast().joined(separator: ", ") + " and " + items[items.count - 1]
+    }
     public var title: String {
         if isPreview { return "Dry run · Nothing changed" }
         if isPutBack {
@@ -97,22 +101,21 @@ extension CleanupHistoryRun {
         // An uninstall (#177, Decision 51): "Uninstalled <App> · N items".
         // An app's own uninstaller goes with it (#285) and isn't named.
         // A plug-in product (#176) is named once for all its formats.
-        let apps = done.filter { [AppUninstall.appRuleID, PlugInUninstall.formatsRuleID].contains($0.ruleID) }.map { $0.originalURL.deletingPathExtension().lastPathComponent }
+        let apps = done.filter { $0.ruleID.map(AppRuleFamily.namingRuleIDs.contains) == true }.map { $0.originalURL.deletingPathExtension().lastPathComponent }
             .filter { !ApplicationsInventory.isUninstallerName($0) }.reduce(into: [String]()) { if !$0.contains($1) { $0.append($1) } }
-        if let first = apps.first {
-            let names = apps.count == 1 ? first : apps.dropLast().joined(separator: ", ") + " and " + apps.last!
-            return "Uninstalled \(names) · " + (done.count == 1 ? "1 item" : "\(done.count) items")
+        if !apps.isEmpty {
+            return "Uninstalled \(Self.list(apps)) · " + (done.count == 1 ? "1 item" : "\(done.count) items")
         }
         var parts: [String] = []
         for action in [CleanupAction.delete, .tool, .trash, .evict] where done.contains(where: { $0.cleanupAction == action }) {
             if let phrase = action.wording.historyPhrase, !parts.contains(phrase) { parts.append(phrase) }
         }
-        guard let first = parts.first else {
+        guard !parts.isEmpty else {
             let partly = records.filter { $0.partlyRemoved == true }
             if partly.isEmpty { return "Cleanup · Nothing changed" }
             return partly.allSatisfy { $0.cleanupAction == .evict } ? "Cleanup · Partly removed local iCloud copies" : "Cleanup · Partly deleted"
         }
-        let phrase = parts.count == 1 ? first : parts.dropLast().joined(separator: ", ") + " and " + parts.last!
+        let phrase = Self.list(parts)
         return "Cleanup · " + phrase.prefix(1).uppercased() + phrase.dropFirst()
     }
 }

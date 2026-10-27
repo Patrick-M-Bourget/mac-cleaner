@@ -135,7 +135,7 @@ public struct CandidateCheck: Sendable {
     /// Whether checking this candidate asks what processes have open: leaked copies and old temporary items.
     public func needsInUseCheck(_ candidate: Candidate) -> Bool {
         guard let rule = catalog.rule(candidate.ruleID) else { return false }
-        return rule.copies != nil || rule.unused != nil || rule.id == ProjectBuilds.ruleID || RemovedAppLeftovers.ruleIDs.contains(rule.id)
+        return rule.copies != nil || rule.unused != nil || rule.id == ProjectBuilds.ruleID || rule.family == .removedAppLeftovers
     }
     public func check(_ candidate: Candidate) -> CheckRefusal? {
         // Guidance-only data is never acted on, whatever the candidate or its rule says (SPEC section 3).
@@ -145,25 +145,21 @@ public struct CandidateCheck: Sendable {
         // A per-item command's argument is never an option, whatever the item says (#134).
         if candidate.action == .tool, rule.tool?.itemPlaceholder != nil, candidate.toolArgument.map({ $0.isEmpty || $0.hasPrefix("-") }) ?? true { return .changed }
         let ownership = Catalog.ownership(of: candidate, under: rule)
+        func runningRefusal(_ owner: RuleOwner) -> CheckRefusal? {
+            switch running.isRunning(owner) {
+            case nil: .ownerUnknown(owner.name)
+            case true?: .ownerRunning(owner.name)
+            case false?: nil
+            }
+        }
         switch ownership {
         // An item whose own owner can't be found any more (the app was removed) is refused, never guessed.
         case .unknown: return .ownerUnknown(candidate.appName ?? candidate.url.lastPathComponent)
-        case .mustBeClosed(let owner):
-            switch running.isRunning(owner) {
-            case nil: return .ownerUnknown(owner.name)
-            case true?: return .ownerRunning(owner.name)
-            case false?: break
-            }
+        case .mustBeClosed(let owner): if let refusal = runningRefusal(owner) { return refusal }
         case .mustNotUse, .none: break
         }
         // A plug-in product waits for every plug-in host to close too (#176, Decision 51).
-        for host in candidate.uninstall?.hosts ?? [] {
-            switch running.isRunning(host) {
-            case nil: return .ownerUnknown(host.name)
-            case true?: return .ownerRunning(host.name)
-            case false?: break
-            }
-        }
+        for host in candidate.uninstall?.plugIn?.hosts ?? [] { if let refusal = runningRefusal(host) { return refusal } }
         let path = candidate.url.path
         var info = stat()
         guard lstat(path, &info) == 0 else { return errno == ENOENT ? .missing : .notPermitted }
@@ -197,10 +193,10 @@ public struct CandidateCheck: Sendable {
             if !used.isEmpty { return .inUse(RuleOwner.anyApp.name) }
         }
         // A removed app's leftover: never license or macOS data, and kept once its app is back (#173).
-        let uninstalling = AppUninstall.ruleIDs.contains(rule.id)
+        let uninstalling = rule.family?.isUninstall == true
         if !uninstalling, let tie = candidate.leftover, let refusal = RemovedAppLeftovers.refusal(for: candidate.url, tie: tie, below: root, apps: apps) { return refusal }
         // An app and its files (#177): removable without a password now, whoever owns them (Decision 50).
-        if uninstalling, let refusal = AppUninstall.refusal(for: candidate, below: root, apps: apps, receipts: receipts) { return refusal }
+        if uninstalling, let refusal = AppUninstall.refusal(for: candidate, rule: rule, below: root, apps: apps, receipts: receipts) { return refusal }
         // A project being worked on keeps its build folders (#157).
         if rule.id == ProjectBuilds.ruleID, let refusal = ProjectBuilds.refusal(for: candidate.url, inUse: inUse, home: home) { return refusal }
         // A system image a virtual device started using since the scan is kept (#134).

@@ -270,15 +270,15 @@ import SwiftUI
     var planCategories: [CatalogOverview.Row] { CatalogOverview(catalog: catalog, candidates: candidates).rows.filter { CleanupSelections.Source.page(of: $0) == .plan } }
     /// The Applications page's Leftovers row; nil when none were found.
     var leftoversRow: CatalogOverview.Row? { CatalogOverview(catalog: catalog, candidates: candidates).rows.first { $0.category == .leftovers } }
-    /// An installed app's items to uninstall it with (#177), by the app's path; empty when it can't be uninstalled here.
-    /// A plug-in product's too, by its row's id, shared items included (#176).
-    func uninstallItems(of appPath: String) -> [Candidate] { uninstallable.filter { $0.isUninstalled(with: appPath) } }
-    func selectionState(ofApp appPath: String) -> CategorySelectionState {
-        CategorySelection(rules: AppUninstall.rules + PlugInUninstall.rules, candidates: uninstallItems(of: appPath), selected: selectedIDs).state
+    /// The items to uninstall an Applications row with, by its id (`AppUninstall.Target.path`): an installed app's (#177), or
+    /// a plug-in product's, shared items included (#176); empty when it can't be uninstalled here.
+    func uninstallItems(ofRow id: String) -> [Candidate] { uninstallable.filter { $0.isUninstalled(with: id) } }
+    func selectionState(ofRow id: String) -> CategorySelectionState {
+        CategorySelection(rules: AppRuleFamily.uninstallRules, candidates: uninstallItems(ofRow: id), selected: selectedIDs).state
     }
     /// An app's checkbox, as a category's (#240): returns true when only its possibly related items are left to choose one by one.
-    func toggleApp(_ appPath: String) -> Bool {
-        toggle(CategorySelection(rules: AppUninstall.rules + PlugInUninstall.rules, candidates: uninstallItems(of: appPath), selected: selectedIDs))
+    func toggleRow(_ id: String) -> Bool {
+        toggle(CategorySelection(rules: AppRuleFamily.uninstallRules, candidates: uninstallItems(ofRow: id), selected: selectedIDs))
     }
     func selectionState(for rules: [CleanupRule]) -> CategorySelectionState { categorySelection(rules).state }
     private func categorySelection(_ rules: [CleanupRule]) -> CategorySelection {
@@ -323,7 +323,7 @@ import SwiftUI
         let (steps, reporter) = AsyncStream.makeStream(of: CatalogDiscoveryProgress.self)
         let progress = Task { for await step in steps { scanProgress?.apply(step) } }
         let presence = Self.appPresence.snapshot(), receipts = Self.receipts(home: home), own = Bundle.main.bundleIdentifier
-        let scanned = await Task.detached(priority: .userInitiated) { () -> (CatalogDiscovery, [CleanupRule], ([String: RuleOwner], Set<String>), [String: [String]], FullDiskAccessStatus, [Candidate], [Candidate], PlugInInventory) in
+        let scanned = await Task.detached(priority: .userInitiated) { () -> CatalogScanResult in
             // Probed once per scan, at launch too, and shared with the guidance scan: it only opens a protected folder
             // and never prompts (#117).
             let access = FullDiskAccessProbe(home: home).status()
@@ -351,17 +351,37 @@ import SwiftUI
             for candidate in discovered.candidates + leftovers + apps + plugIns {
                 // A plug-in product's hosts must be closed too (#176).
                 guard let owner = catalog.owner(for: candidate) else { continue }
-                for owner in [owner] + (candidate.uninstall?.hosts ?? []) { owners[owner.name] = owner; names[candidate.id, default: []].append(owner.name) }
+                for owner in [owner] + (candidate.uninstall?.plugIn?.hosts ?? []) { owners[owner.name] = owner; names[candidate.id, default: []].append(owner.name) }
             }
-            return (discovered, catalog.overriddenRules(home: home, systemRoot: system), Self.running(owners, quitter: quitter), names, access, leftovers, apps + plugIns, inventory)
+            let running = Self.running(owners, quitter: quitter)
+            return CatalogScanResult(discovery: discovered, overriddenRules: catalog.overriddenRules(home: home, systemRoot: system), owners: running.0, openOwners: running.1,
+                                     ownerNames: names, access: access, leftovers: leftovers, uninstallable: apps + plugIns, plugIns: inventory)
         }.value
         await progress.value
-        await GrowthHistoryModel.shared.completeCatalog(scanned.0, catalog: catalog, fullDiskAccess: scanned.4, token: growth, afterCleanup: rescanFollowsCleanup)
+        await GrowthHistoryModel.shared.completeCatalog(scanned.discovery, catalog: catalog, fullDiskAccess: scanned.access, token: growth, afterCleanup: rescanFollowsCleanup)
         rescanFollowsCleanup = false
-        fullDiskAccessRescan.scanned(scanned.4)
-        discovered = scanned.0.candidates + scanned.5; uninstallable = scanned.6; plugInInventory = scanned.7; notes = scanned.0.notes; notAccessibleRules = scanned.0.notAccessible; overriddenRules = scanned.1; setRunning(scanned.2.0, open: scanned.2.1); ownerNames = scanned.3
+        fullDiskAccessRescan.scanned(scanned.access)
+        discovered = scanned.discovery.candidates + scanned.leftovers; uninstallable = scanned.uninstallable; plugInInventory = scanned.plugIns
+        notes = scanned.discovery.notes; notAccessibleRules = scanned.discovery.notAccessible; overriddenRules = scanned.overriddenRules
+        setRunning(scanned.owners, open: scanned.openOwners); ownerNames = scanned.ownerNames
         keepOnlyCurrentChoices()
-        await scanGuidance(home: home, fullDiskAccess: scanned.4)
+        await scanGuidance(home: home, fullDiskAccess: scanned.access)
+    }
+    /// What one catalog scan found, handed from the background task to the model.
+    private struct CatalogScanResult: Sendable {
+        let discovery: CatalogDiscovery
+        let overriddenRules: [CleanupRule]
+        /// Every owner to close, by name, and those running now.
+        let owners: [String: RuleOwner]
+        let openOwners: Set<String>
+        /// Each candidate's owners' names, by candidate id.
+        let ownerNames: [String: [String]]
+        let access: FullDiskAccessStatus
+        /// Leftovers of removed apps (#173).
+        let leftovers: [Candidate]
+        /// Installed apps' and plug-in products' items (#177, #176).
+        let uninstallable: [Candidate]
+        let plugIns: PlugInInventory
     }
     #if DEBUG
     /// A disposable test run can slow discovery down (`CACHEDROP_TEST_DISCOVERY_PAUSE`, seconds after each location), so a UI journey sees

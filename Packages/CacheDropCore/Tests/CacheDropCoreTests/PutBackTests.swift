@@ -188,3 +188,15 @@ private extension CleanupRecord {
         return try JSONDecoder().decode(CleanupRecord.self, from: JSONSerialization.data(withJSONObject: object))
     }
 }
+
+/// The real Trash can be searched but not listed without Full Disk Access, so Put back opens its folders for search only.
+/// A real-Mac check found Put back refusing an item that was in the Trash as "no longer in the Trash".
+@Test func putBackWorksWhenTheTrashCanBeSearchedButNotRead() async throws {
+    let (home, journal, record) = try await trashedInstaller()
+    let trash = home.appendingPathComponent(".Trash")
+    try FileManager.default.setAttributes([.posixPermissions: 0o311], ofItemAtPath: trash.path)
+    defer { try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: trash.path); try? FileManager.default.removeItem(at: home) }
+
+    #expect(TrashPutBack(journal: journal).putBack(record) == .restored(record.originalURL))
+    #expect(FileManager.default.fileExists(atPath: home.appendingPathComponent("Downloads/Setup.dmg").path))
+}
