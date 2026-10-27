@@ -46,7 +46,7 @@ public enum RemovedAppLeftovers {
     /// The leftovers under `home`. Read-only. Offers nothing when the installed apps can't be listed: an app counts as removed
     /// only when no copy is found, by Launch Services or Spotlight, on any volume.
     public static func scan(home: URL, apps: any AppPresence, receipts: any InstallerReceiptReading, exclusions: ExclusionPolicy = ExclusionPolicy(),
-                            sizer: KnownLocationSizer = KnownLocationSizer()) -> [Candidate] {
+                            sizer: KnownLocationSizer = KnownLocationSizer(), skipping: Set<String> = []) -> [Candidate] {
         guard let installed = apps.installedApps() else { return [] }
         let base = home.resolvingSymlinksInPath()
         let catalog = Catalog(rules: rules)
@@ -103,7 +103,7 @@ public enum RemovedAppLeftovers {
             return nil
         }
         return entries.compactMap { url, info in
-            guard let tie = tie(url) else { return nil }
+            guard !skipping.contains(url.path), let tie = tie(url) else { return nil }
             let rule = tie.isNameOnly ? rules[1] : rules[0]
             let size = sizer.size(url)
             var item = catalog.candidate(rule, url, info, logical: size.logicalBytes, allocated: size.allocatedBytes, complete: size.complete, lastUsed: nil)
@@ -140,7 +140,8 @@ public enum RemovedAppLeftovers {
 
     /// The check just before acting (#173): license, macOS and CacheDrop's own data are refused wherever a scan found them,
     /// and an app that is on this Mac again, or whose presence can't be read, keeps its leftovers.
-    static func refusal(for url: URL, tie: LeftoverTie, below root: URL, apps: any AppPresence) -> CheckRefusal? {
+    /// `appKnown`: the ID is an installed app's being uninstalled (#177), which proves it was an app's without its container.
+    static func refusal(for url: URL, tie: LeftoverTie, below root: URL, apps: any AppPresence, appKnown: Bool = false) -> CheckRefusal? {
         if let part = url.standardizedFileURL.pathComponents.dropFirst(root.standardizedFileURL.pathComponents.count).first(where: isNeverOffered) { return .protected(part) }
         guard let installed = apps.installedApps() else { return .appInstalled(tie.app) }
         let makers = InstalledMakers(installed)
@@ -152,7 +153,7 @@ public enum RemovedAppLeftovers {
         // state shows the ID was an app's (#251).
         let name = url.lastPathComponent
         if isGroupContainer(url), tie.isNameOnly || bundleID(inName: name)?.lowercased() != tie.bundleID?.lowercased() { return .protected(name) }
-        if tie.evidence == .bundleID, let id = tie.bundleID?.lowercased(), !hasAppEvidence(id, below: root) { return .protected(name) }
+        if tie.evidence == .bundleID, !appKnown, let id = tie.bundleID?.lowercased(), !hasAppEvidence(id, below: root) { return .protected(name) }
         return nil
     }
 
@@ -261,7 +262,7 @@ public struct LeftoverTie: Sendable, Hashable {
 
 extension CleanupRule {
     /// Its items are ticked one by one, never with their category, rule or app (#173: possibly related leftovers).
-    public var selectedOneByOne: Bool { id == RemovedAppLeftovers.possiblyRelatedRuleID }
+    public var selectedOneByOne: Bool { id == RemovedAppLeftovers.possiblyRelatedRuleID || id == AppUninstall.possiblyRelatedRuleID }
 }
 
 /// Which apps are on this Mac, on every volume. Injected so tests never ask Launch Services or Spotlight.

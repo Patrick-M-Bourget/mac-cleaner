@@ -28,11 +28,26 @@ public struct SystemRunningAppChecker: RunningAppChecking {
             guard let running = processes.processes() else { return nil }
             if RunningMakers(running, resolve: makers.products).runs(owner) { return true }
         }
-        guard !owner.executables.isEmpty || !owner.scripts.isEmpty || !owner.arguments.isEmpty || !owner.paths.isEmpty else { return false }
+        // An app's helpers and login items: any process, background ones included, by bundle ID or run from inside the app (#281).
+        let listed = owner.paths.isEmpty ? nil : processes.processes()
+        if let listed, listed.contains(where: { process in
+            process.bundleID.map(owner.bundleIDs.contains) == true || owner.paths.contains { process.path.hasPrefix($0.hasSuffix("/") ? $0 : $0 + "/") }
+        }) { return true }
+        // Every process's executable was listed, so a folder owner needs no command lines.
+        guard !owner.executables.isEmpty || !owner.scripts.isEmpty || !owner.arguments.isEmpty || (!owner.paths.isEmpty && listed == nil) else { return false }
         guard let commands = Self.userCommandLines() else { return nil }
         return commands.contains { owner.matches($0) }
     }
 
+    /// This checker with the process list read once, for checking many owners together at a scan.
+    public func listedOnce() -> SystemRunningAppChecker { SystemRunningAppChecker(processes: ListedProcesses(list: processes.processes())) }
+
     /// argv of every process the current user owns, or nil when the list can't be read.
     static func userCommandLines() -> [[String]]? { UserProcesses.pids()?.compactMap(UserProcesses.arguments) }
+}
+
+/// A process list read once.
+struct ListedProcesses: ProcessListing {
+    let list: [RunningProcess]?
+    func processes() -> [RunningProcess]? { list }
 }

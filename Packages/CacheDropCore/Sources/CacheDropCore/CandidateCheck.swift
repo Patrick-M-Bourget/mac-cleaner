@@ -178,7 +178,10 @@ public struct CandidateCheck: Sendable {
             if !used.isEmpty { return .inUse(RuleOwner.anyApp.name) }
         }
         // A removed app's leftover: never license or macOS data, and kept once its app is back (#173).
-        if let tie = candidate.leftover, let refusal = RemovedAppLeftovers.refusal(for: candidate.url, tie: tie, below: root, apps: apps) { return refusal }
+        let uninstalling = AppUninstall.ruleIDs.contains(rule.id)
+        if !uninstalling, let tie = candidate.leftover, let refusal = RemovedAppLeftovers.refusal(for: candidate.url, tie: tie, below: root, apps: apps) { return refusal }
+        // An app and its files (#177): removable without a password now, whoever owns them (Decision 50).
+        if uninstalling, let refusal = AppUninstall.refusal(for: candidate, below: root, apps: apps) { return refusal }
         // A project being worked on keeps its build folders (#157).
         if rule.id == ProjectBuilds.ruleID, let refusal = ProjectBuilds.refusal(for: candidate.url, inUse: inUse, home: home) { return refusal }
         // A system image a virtual device started using since the scan is kept (#134).
@@ -190,7 +193,7 @@ public struct CandidateCheck: Sendable {
            let refusal = SimulatorInventory.refusal(for: candidate, items: items) { return refusal }
         // An old temporary item that anything inside changed in since the scan is in use again (`TemporaryFiles`).
         if rule.unused != nil, !candidate.isLeftover, Catalog.lastChange(in: candidate.url).map({ $0 > candidate.observedAt }) ?? true { return .changed }
-        guard info.st_uid == geteuid(),
+        guard uninstalling || info.st_uid == geteuid(),
               info.st_flags & UInt32(UF_IMMUTABLE | SF_IMMUTABLE | UF_APPEND | SF_APPEND) == 0,
               access(candidate.url.deletingLastPathComponent().path, W_OK | X_OK) == 0 else { return .notPermitted }
         let values = try? candidate.url.resourceValues(forKeys: [.volumeUUIDStringKey, .isUbiquitousItemKey, .isPackageKey])

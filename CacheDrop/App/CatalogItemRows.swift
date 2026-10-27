@@ -8,8 +8,10 @@ import SwiftUI
 struct CatalogItemRows: View {
     @Bindable var model: CatalogCleanupModel
     let rule: CleanupRule
+    /// Only this installed app's items, on its Applications row (#177).
+    var app: String? = nil
     var body: some View {
-        let items = model.candidates(for: rule).sorted { $0.displayName.localizedStandardCompare($1.displayName) == .orderedAscending }
+        let items = model.candidates(for: rule).filter { app == nil || $0.uninstall?.path == app }.sorted { $0.displayName.localizedStandardCompare($1.displayName) == .orderedAscending }
         LazyVStack(alignment: .leading, spacing: 0) {
             ForEach(items) { item in
                 InspectableItemRow(name: item.displayName, detail: detail(item), size: catalogBytes(item.estimatedBytes, estimate: item.sizeIsEstimate),

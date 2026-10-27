@@ -64,7 +64,7 @@ final class ApplicationsUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Maker Audio Inc"].exists, "A row names its maker")
         XCTAssertFalse(element(app, "applicationsApp-" + home.appendingPathComponent("Applications/Notes.app").path).exists, "Apple's apps are never listed")
         XCTAssertFalse(element(app, "applicationsApp-" + home.appendingPathComponent("Applications/CacheDrop.app").path).exists, "CacheDrop never lists itself")
-        XCTAssertFalse(app.checkBoxes.matching(NSPredicate(format: "identifier BEGINSWITH 'applications'")).firstMatch.exists, "Nothing new can be ticked yet")
+        XCTAssertFalse(element(app, "applicationsApp-" + locked!.path, .checkBox).exists, "An app that needs a password has no checkbox")
         XCTAssertFalse(app.disclosureTriangles.matching(NSPredicate(format: "label == 'Choose items · 1'")).firstMatch.exists, "An app alone has no Choose items")
 
         // An app that needs a password says so, with Reveal in Finder.
@@ -85,6 +85,48 @@ final class ApplicationsUITests: XCTestCase {
         app.typeKey("5", modifierFlags: .command)
         XCTAssertTrue(app.descendants(matching: .any)["applicationsHeader"].waitForExistence(timeout: 5), "⌘5 opens Applications")
         XCTAssertTrue(FileManager.default.fileExists(atPath: leftover.path))
+    }
+
+    /// #177: an app is ticked with its confirmed files, reviewed grouped by place with what stays, moved to the fixture Trash,
+    /// and History says "Uninstalled <App> · N items". The possibly related folder stays unticked and in place.
+    @MainActor func testAnAppIsUninstalledWithItsFiles() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        let state = try configureIsolatedState(app)
+        let home = try configureCatalogHome(app)
+        defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
+        let synth = try addApp("Synth", id: "com.maker.synth", bytes: 90_000, in: home)
+        let files = ["Library/Containers/com.maker.synth/Data/state.db", "Library/Preferences/com.maker.synth.plist"].map(home.appendingPathComponent)
+        let related = home.appendingPathComponent("Library/Application Support/Synth/presets.db")
+        for file in files + [related] {
+            try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try Data(repeating: 4, count: 60_000).write(to: file)
+        }
+        app.launch()
+        waitForCatalogScan(app)
+        app.typeKey("5", modifierFlags: .command)
+
+        let row = element(app, "applicationsApp-" + synth.path, .checkBox)
+        XCTAssertTrue(row.waitForExistence(timeout: 10), "An app CacheDrop can uninstall has a checkbox")
+        XCTAssertEqual(row.value as? Int, 0, "Nothing is ticked when the page opens")
+        revealAndClick(row, in: app)
+        XCTAssertEqual(row.value as? Int, 1)
+        expandDisclosures(in: app)
+        XCTAssertEqual(app.checkBoxes["planItem-Synth"].value as? Int, 0, "A possibly related item is never ticked with its app")
+
+        app.buttons["Review cleanup"].click()
+        XCTAssertTrue(reviewLine(app, "movedToTrash", "apps").waitForExistence(timeout: 5))
+        let staying = element(app, "reviewStaying-" + synth.path + "-unticked", .staticText)
+        XCTAssertEqual(staying.value as? String, "Synth: 1 part stays · Not ticked", "The review says what stays")
+        cleanUpFromReview(app)
+        XCTAssertTrue(app.buttons["View history"].waitForExistence(timeout: 20))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: synth.path), "The app went to the Trash")
+        for file in files { XCTAssertFalse(FileManager.default.fileExists(atPath: file.path), file.path) }
+        XCTAssertTrue(FileManager.default.fileExists(atPath: related.path), "What wasn't ticked stays")
+
+        app.buttons["View history"].click()
+        // A History row is one combined button whose label starts with its title.
+        XCTAssertTrue(app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "Uninstalled Synth · 3 items")).firstMatch.waitForExistence(timeout: 10))
     }
 
     /// #270: while the scan runs each section says it is looking; a section that finds nothing says so.
