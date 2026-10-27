@@ -18,6 +18,11 @@ jobs:
           xcode-version: '26.6'
       - name: CacheDropCore tests
         run: xcrun swift test --package-path Packages/CacheDropCore
+      # One cooperative thread: catches code that blocks the shared pool (#200).
+      - name: CacheDropCore tests (strict pool)
+        run: xcrun swift test --package-path Packages/CacheDropCore
+        env:
+          LIBDISPATCH_COOPERATIVE_POOL_STRICT: '1'
       - name: StorageAlerts tests
         run: xcrun swift test --package-path CacheDrop/Packages/StorageAlerts
       - name: Build app
