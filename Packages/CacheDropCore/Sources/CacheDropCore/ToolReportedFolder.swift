@@ -1,9 +1,30 @@
 import Foundation
+import Darwin
 
-/// A tool that says where it keeps its data (`uv cache dir`, Decision 44), so CacheDrop never guesses the folder.
+/// What discovery does when a tool that names its own folder isn't found or doesn't say where it is.
+public enum UnansweredLocation: Sendable, Hashable {
+    /// Nothing is offered and the folder is never touched: uv's cache is changed only through uv (Decision 44).
+    case notOffered
+    /// The rule's default locations are offered instead, and the plan says so (#170): npm, pip, pnpm and Homebrew.
+    case defaultLocations
+}
+
+/// Where a rule whose tool names its folder looks, after asking (`Catalog.reportedLocation`).
+enum ReportedLocation: Equatable {
+    /// A folder the tool named that isn't one of the rule's defaults, with the note saying where it came from.
+    case folder(URL, CatalogNote)
+    /// The rule's own locations: the tool named one of them (no note), or it didn't answer and the rule falls back (a note,
+    /// shown only when something is offered there).
+    case defaults(CatalogNote?)
+    /// Nothing is offered. `notMeasured` when the rule's size is unknown rather than nothing.
+    case notOffered(CatalogNote, notMeasured: Bool)
+}
+
+/// A tool that says where it keeps its data (`uv cache dir`, Decision 44; `npm config get cache`, #170), so CacheDrop never guesses the folder.
 extension Catalog {
     /// The folder the tool prints for `query`: one absolute path with no `.` or `..` parts. Anything else is a failure,
-    /// and so is a tool that fails or doesn't answer within `timeout`. Run like the cleanup command, with the tool's folder on PATH.
+    /// and so is a tool that fails or doesn't answer within `timeout`. Run like the cleanup command, with the tool's folder on PATH
+    /// and no shell, so no shell startup file runs.
     static func reportedFolder(by tool: URL, query: [String], timeout: TimeInterval) -> Result<URL, ToolPreviewError> {
         var environment = BoundedTool.defaultEnvironment
         environment["PATH"] = tool.deletingLastPathComponent().path + ":" + (environment["PATH"] ?? "")
@@ -21,5 +42,56 @@ extension Catalog {
     static func locationQueryNotice(_ tool: ToolCommand, query: [String]) -> String {
         let name = tool.executables.first.map { URL(fileURLWithPath: $0).lastPathComponent } ?? ""
         return "\(name) didn’t say where its cache is (`\(([name] + query).joined(separator: " "))`), so it isn’t offered."
+    }
+
+    /// Asks `asker`, installed at `toolURL` (nil when it isn't in one of its known locations), where `rule`'s folder is.
+    /// Only the asker's own known executables are ever run. A named folder must pass the same scope checks as any other
+    /// candidate; one that is missing, outside `base`, or holds more than the tool's cache is never offered, whatever the rule.
+    func reportedLocation(of rule: CleanupRule, asking asker: ToolCommand, at toolURL: URL?, base: URL) -> ReportedLocation {
+        guard let query = asker.locationQuery else { return .defaults(nil) }
+        let name = rule.owner?.name ?? asker.executables.first.map { URL(fileURLWithPath: $0).lastPathComponent } ?? rule.title
+        let command = "`" + ([asker.executables.first.map { URL(fileURLWithPath: $0).lastPathComponent } ?? ""] + query).joined(separator: " ") + "`"
+        func unanswered(_ reason: String) -> ReportedLocation {
+            switch asker.whenLocationUnanswered {
+            case .notOffered: return .notOffered(CatalogNote(ruleID: rule.id, text: Self.locationQueryNotice(asker, query: query)), notMeasured: true)
+            case .defaultLocations: return .defaults(CatalogNote(ruleID: rule.id, text: reason))
+            }
+        }
+        guard let toolURL else { return unanswered("\(name) wasn’t found, so its usual folder is offered.") }
+        guard case .success(let named) = Self.reportedFolder(by: toolURL, query: query, timeout: asker.locationQueryTimeout) else {
+            return unanswered("\(name) didn’t say where its cache is (\(command)), so its usual folder is offered.")
+        }
+        let folder = asker.reportedSubfolder.map { named.appendingPathComponent($0) } ?? named
+        if rule.locations.contains(where: { base.appendingPathComponent($0).standardizedFileURL.path == folder.standardizedFileURL.path }) { return .defaults(nil) }
+        let shown = Self.tildePath(folder, base: base)
+        func refused(_ why: String) -> ReportedLocation { .notOffered(CatalogNote(ruleID: rule.id, text: "\(name) names \(shown) as its cache (\(command)), \(why), so it isn’t offered."), notMeasured: false) }
+        var info = stat()
+        guard lstat(folder.path, &info) == 0 else { return refused("but there’s no folder there") }
+        guard ScopeContainment.contains(folder, in: base) else { return refused("which is outside your home folder") }
+        if holdsMoreThanACache(folder, base: base, besides: rule) { return refused("which holds more than its cache") }
+        return .folder(folder, CatalogNote(ruleID: rule.id, text: "\(name) keeps its cache in \(shown), as \(command) says."))
+    }
+
+    /// Home folders a tool's cache never is, whatever it says: deleting one would take the user's own files.
+    static let homeFoldersNeverACache: Set<String> = ["Applications", "Desktop", "Developer", "Documents", "Downloads", "Library", "Movies", "Music", "Pictures", "Public"]
+
+    /// Whether a folder a tool named is the home folder itself, one of its standard folders, or holds another rule's location
+    /// (a cache set to `~/Library/Caches`), so cleaning it would take more than the tool's cache.
+    func holdsMoreThanACache(_ folder: URL, base: URL, besides rule: CleanupRule) -> Bool {
+        let parts = Array(folder.standardizedFileURL.pathComponents.dropFirst(base.standardizedFileURL.pathComponents.count))
+        if parts.isEmpty || (parts.count == 1 && Self.homeFoldersNeverACache.contains(parts[0])) { return true }
+        return rules.contains { other in
+            other.id != rule.id && other.base == rule.base && other.locations.contains { location in
+                let pattern = location.split(separator: "/").map(String.init)
+                guard pattern.count > parts.count else { return false }
+                return zip(pattern, parts).allSatisfy { fnmatch($0, $1, 0) == 0 }
+            }
+        }
+    }
+
+    /// `path` with the home folder shown as `~`.
+    static func tildePath(_ url: URL, base: URL) -> String {
+        let path = url.standardizedFileURL.path, home = base.standardizedFileURL.path
+        return path.hasPrefix(home + "/") ? "~" + path.dropFirst(home.count) : path
     }
 }
