@@ -175,12 +175,14 @@ private func homebrewRun(_ home: URL, script: String, timeout: TimeInterval? = n
     defer { try? FileManager.default.removeItem(at: home) }
     try makeFolder(home, "Library/Caches/Homebrew")
     // A stand-in brew that starts its own child, like the real one does.
-    let length = uniqueSleep(), lifetime = MarkedProcessLifetime(length)
-    let result = try await homebrewRun(home, script: "echo started\nsleep \(length) &\nsleep \(length)", timeout: 0.5)
-    let left = survivorsAfterSettling(length)
+    let length = uniqueSleep(), lifetime = MarkedProcessLifetime(length), pids = home.appendingPathComponent("pids")
+    let script = "echo started\n\(recordPid("$$", in: pids))\nsleep \(length) &\n\(recordPid("$!", in: pids))\nexec sleep \(length)"
+    let result = try await homebrewRun(home, script: script, timeout: 0.5)
+    let left = stillRunning(recordedPids(pids))
     // Stopped at the limit, not left to finish its sleep: the tool, timed alone, lived the limit plus the stop's grace at most.
     #expect(lifetime.seconds < 0.5 + BoundedTool.stopGrace + 1)
     left.forEach { kill($0, SIGKILL) }
+    #expect(recordedPids(pids).count == 2)
     #expect(left.isEmpty)
     let record = try #require(result.records.first)
     #expect(record.state == .failed)
@@ -242,16 +244,18 @@ private func cancellableRun(_ home: URL, brewScript: String, cancellation: Clean
 @Test func cancellingDuringAToolStopsItWithinTheGracePeriodAndRecordsItAsPartlyRemoved() async throws {
     let home = try fixtureHome()
     defer { try? FileManager.default.removeItem(at: home) }
-    let length = uniqueSleep(), running = home.appendingPathComponent("running")
+    let length = uniqueSleep(), running = home.appendingPathComponent("running"), pids = home.appendingPathComponent("pids")
     let cancellation = CleanupCancellation(), cancelledAt = CancelTime()
     // Cancel once the stand-in brew, which starts its own child like the real one, is running.
     let watcher = CancelWhenFileAppears(running, cancel: cancellation, at: cancelledAt)
     defer { watcher.stop() }
-    let result = try await cancellableRun(home, brewScript: "echo cleaning\ntouch '\(running.path)'\nsleep \(length) &\nsleep \(length)", cancellation: cancellation)
+    let script = "echo cleaning\n\(recordPid("$$", in: pids))\nsleep \(length) &\n\(recordPid("$!", in: pids))\ntouch '\(running.path)'\nexec sleep \(length)"
+    let result = try await cancellableRun(home, brewScript: script, cancellation: cancellation)
     let sinceCancel = cancelledAt.elapsed
-    let left = survivorsAfterSettling(length)
+    let left = stillRunning(recordedPids(pids))
     left.forEach { kill($0, SIGKILL) }
     #expect(sinceCancel < BoundedTool.stopGrace + 1)
+    #expect(recordedPids(pids).count == 2)
     #expect(left.isEmpty)
     let tool = try #require(result.records.first), next = try #require(result.records.last)
     #expect(tool.state == .failed)
@@ -267,15 +271,18 @@ private func cancellableRun(_ home: URL, brewScript: String, cancellation: Clean
 @Test func aCancelAfterAToolFinishedKeepsItsFolderAndStopsTheRun() async throws {
     let home = try fixtureHome()
     defer { try? FileManager.default.removeItem(at: home) }
-    let length = uniqueSleep(), exited = home.appendingPathComponent("exited")
+    let length = uniqueSleep(), exited = home.appendingPathComponent("exited"), pids = home.appendingPathComponent("pids")
     let cancellation = CleanupCancellation()
     // The stand-in brew succeeds, leaving a child that holds its output open; the cancel lands once brew has exited (#195).
     let watcher = CancelWhenFileAppears(exited, cancel: cancellation)
     defer { watcher.stop() }
-    let result = try await cancellableRun(home, brewScript: "p=$$\n( while :; do case \"$(ps -o stat= -p $p)\" in Z*|\"\") break;; esac; sleep 0.01; done; touch '\(exited.path)'; sleep \(length) ) &\necho cleaned\nexit 0", cancellation: cancellation)
-    let left = survivorsAfterSettling(length)
+    let script = "p=$$\n( while :; do case \"$(ps -o stat= -p $p)\" in Z*|\"\") break;; esac; sleep 0.01; done; touch '\(exited.path)'; exec sleep \(length) ) &\n"
+        + recordPid("$!", in: pids) + "\necho cleaned\nexit 0"
+    let result = try await cancellableRun(home, brewScript: script, cancellation: cancellation)
+    let left = stillRunning(recordedPids(pids))
     left.forEach { kill($0, SIGKILL) }
     #expect(cancellation.isCancelled)
+    #expect(recordedPids(pids).count == 1)
     #expect(left.isEmpty)
     let tool = try #require(result.records.first), next = try #require(result.records.last)
     #expect(tool.state == .succeeded)
