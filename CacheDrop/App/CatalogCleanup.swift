@@ -69,7 +69,7 @@ import SwiftUI
     /// Each candidate's owner name at the last scan, so views never look owners up while drawing.
     private var ownerNames: [String: String] = [:]
     private var executor: CleanupExecutor?
-    private static let dryRunKey = "StillDryRun"
+    private static let dryRunKey = "CacheDropDryRun"
     /// The Settings dry run, off by default: with it on, the whole flow runs and nothing changes on disk (Decision 27).
     var dryRun: Bool {
         didSet {

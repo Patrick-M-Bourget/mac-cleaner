@@ -53,8 +53,11 @@ private func legacyFixture(_ support: URL) throws {
         #expect(read("CacheDrop/" + relative, in: support) == text)
         #expect(read("Still/" + relative, in: support) == text) // copied, never moved
     }
-    #expect(preferences.object(forKey: "Still.showsMenuBarItem") as? Bool == false)
-    #expect(preferences.object(forKey: "StillDryRun") as? Bool == true)
+    // Carried over under CacheDrop's own key names (#150).
+    #expect(preferences.object(forKey: "CacheDrop.showsMenuBarItem") as? Bool == false)
+    #expect(preferences.object(forKey: "CacheDropDryRun") as? Bool == true)
+    #expect(preferences.object(forKey: "Still.showsMenuBarItem") == nil)
+    #expect(preferences.object(forKey: "StillDryRun") == nil)
 }
 
 @Test func cacheDropsOwnStateAndPreferencesAreNeverOverwritten() throws {
@@ -62,12 +65,12 @@ private func legacyFixture(_ support: URL) throws {
     defer { try? FileManager.default.removeItem(at: support) }
     try legacyFixture(support)
     try write("cachedrop journal", "CacheDrop/cleanup.sqlite", in: support)
-    let preferences = Preferences(["StillDryRun": false])
+    let preferences = Preferences(["CacheDropDryRun": false])
     let migration = LegacyStillMigration(applicationSupport: support, preferences: preferences, legacyPreferences: { ["StillDryRun": true] }, running: StillRunning(answer: false))
     #expect(migration.run() == .cacheDropHasState)
     #expect(read("CacheDrop/cleanup.sqlite", in: support) == "cachedrop journal")
     #expect(read("CacheDrop/Scopes/scopes.json", in: support) == nil)
-    #expect(preferences.object(forKey: "StillDryRun") as? Bool == false)
+    #expect(preferences.object(forKey: "CacheDropDryRun") as? Bool == false)
 }
 
 @Test func aFailedCopyLeavesStillsDataAndCacheDropEmptyAndIsTriedAgain() throws {
@@ -94,10 +97,10 @@ private func legacyFixture(_ support: URL) throws {
     #expect(migration.run() == .copied)
     // CacheDrop's state is then forgotten (Reset) and Still's changes: nothing is copied again.
     try FileManager.default.removeItem(at: support.appendingPathComponent("CacheDrop"))
-    preferences.set(nil, forKey: "StillDryRun")
+    preferences.set(nil, forKey: "CacheDropDryRun")
     #expect(migration.run() == .alreadyDone)
     #expect(!FileManager.default.fileExists(atPath: support.appendingPathComponent("CacheDrop").path))
-    #expect(preferences.object(forKey: "StillDryRun") == nil)
+    #expect(preferences.object(forKey: "CacheDropDryRun") == nil)
 }
 
 @Test func nothingIsCopiedWhenStillLeftNothing() throws {
@@ -117,7 +120,8 @@ private func legacyFixture(_ support: URL) throws {
                                          legacyPreferences: { ["Still.startAtLogin": true, "Still.showsMenuBarItem": false] }, running: StillRunning(answer: false))
     #expect(migration.run() == .copied)
     #expect(preferences.object(forKey: "Still.startAtLogin") == nil)
-    #expect(preferences.object(forKey: "Still.showsMenuBarItem") as? Bool == false)
+    #expect(preferences.object(forKey: "CacheDrop.startAtLogin") == nil)
+    #expect(preferences.object(forKey: "CacheDrop.showsMenuBarItem") as? Bool == false)
 }
 
 /// Whether Still's app is running, as the test says.

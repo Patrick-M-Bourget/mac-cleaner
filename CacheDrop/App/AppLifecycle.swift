@@ -56,7 +56,7 @@ import CacheDropCore
     private var monitoringSubscription: AnyCancellable?
     private let registration: LoginRegistration
     private init() {
-        let registration = LoginRegistration(service: NativeLoginService(), savedIntent: LocalStateLocation.isDisposableTest ? false : UserDefaults.standard.bool(forKey: "Still.startAtLogin"))
+        let registration = LoginRegistration(service: NativeLoginService(), savedIntent: LocalStateLocation.isDisposableTest ? false : UserDefaults.standard.bool(forKey: "CacheDrop.startAtLogin"))
         self.registration = registration
         loginIntent = registration.intent; loginStatus = registration.status
         capacity.request(.launch)
@@ -84,7 +84,7 @@ import CacheDropCore
             registration.refresh()
             if registration.status == .enabled || registration.status == .requiresApproval { try registration.choose(false) }
             else if registration.status == .unavailable && loginIntent { throw CleanupJournalError.unavailable }
-            UserDefaults.standard.removeObject(forKey: "Still.startAtLogin")
+            UserDefaults.standard.removeObject(forKey: "CacheDrop.startAtLogin")
         }
         loginIntent = false; loginStatus = LocalStateLocation.isDisposableTest ? .disabled : registration.status
         try alerts.resetPreferences()
@@ -96,7 +96,7 @@ import CacheDropCore
         do { try registration.choose(enabled); loginError = nil }
         catch { loginError = "Login registration could not be changed. You can continue using CacheDrop on demand." }
         loginIntent = registration.intent; loginStatus = registration.status
-        UserDefaults.standard.set(loginIntent, forKey: "Still.startAtLogin")
+        UserDefaults.standard.set(loginIntent, forKey: "CacheDrop.startAtLogin")
     }
     func monitoringChanged(_ effective: Bool) {
         guard !quitPending, !isTerminating else { return }
