@@ -285,10 +285,6 @@ private struct WorkspaceView: View {
                         ActionStrip(message: "Records are kept. Nothing resumes automatically.") { EmptyView() }
                     } else if navigationState.localRecordsVisible {
                         ActionStrip()
-                    } else if nativeInspectionVisible {
-                        ActionStrip(message: "Inspection only · \(CacheDropDesign.items(selection.workspaceSelectedCount)) in the cleanup plan") {
-                            Button("Review plan") { nativeInspectionVisible = false; destination = .plan }.buttonStyle(.borderedProminent)
-                        }
                     } else if destination == .growth {
                         ActionStrip(message: nil) {
                             Button("Scan again", action: scanAgain).disabled(selection.catalog.isScanning || folderInspection.isScanning || selection.workspaceRunning || !selection.catalog.canEdit)
