@@ -156,6 +156,22 @@ import SwiftUI
         return SystemUbiquitousItems()
     }
 
+    /// Which apps are installed, for leftovers of removed apps (#173). A debug test run never asks Spotlight or Launch Services:
+    /// only the bundle IDs listed in `<home>/.cachedrop-test-installed-apps`, one per line, are installed.
+    static var appPresence: any AppPresence {
+        #if DEBUG
+        if LocalStateLocation.isDisposableTest { return FixtureAppPresence(home: home) }
+        #endif
+        return SystemAppPresence()
+    }
+    /// Installer receipts; a debug test run reads none.
+    static func receipts(home: URL) -> any InstallerReceiptReading {
+        #if DEBUG
+        if LocalStateLocation.isDisposableTest { return FixtureAppPresence(home: home) }
+        #endif
+        return SystemInstallerReceipts(home: home)
+    }
+
     /// Overview's summary. While the first scan runs it covers the locations finished so far, so rows and the total fill in
     /// as each one completes (#128); nil until the first one has.
     var overview: CatalogOverview? {
@@ -234,7 +250,7 @@ import SwiftUI
     /// The plan's categories, grouped as Overview groups them, picked folders' files included.
     var planCategories: [CatalogOverview.Row] { CatalogOverview(catalog: catalog, candidates: candidates).rows }
     func selectionState(for rules: [CleanupRule]) -> CategorySelectionState {
-        let items = rules.flatMap(candidates(for:)), chosen = items.filter { selectedIDs.contains($0.id) }.count
+        let items = rules.filter { !$0.selectedOneByOne }.flatMap(candidates(for:)), chosen = items.filter { selectedIDs.contains($0.id) }.count
         return chosen == 0 ? .unchecked : chosen == items.count ? .checked : .mixed
     }
 
@@ -262,7 +278,8 @@ import SwiftUI
         // Discovery reports each location as it goes; the steps reach the main actor in order (#128).
         let (steps, reporter) = AsyncStream.makeStream(of: CatalogDiscoveryProgress.self)
         let progress = Task { for await step in steps { scanProgress?.apply(step) } }
-        let scanned = await Task.detached(priority: .userInitiated) { () -> (CatalogDiscovery, [CleanupRule], ([String: RuleOwner], Set<String>), [String: String], FullDiskAccessStatus) in
+        let presence = Self.appPresence, receipts = Self.receipts(home: home)
+        let scanned = await Task.detached(priority: .userInitiated) { () -> (CatalogDiscovery, [CleanupRule], ([String: RuleOwner], Set<String>), [String: String], FullDiskAccessStatus, [Candidate]) in
             // Probed once per scan, at launch too, and shared with the guidance scan: it only opens a protected folder
             // and never prompts (#117).
             let access = FullDiskAccessProbe(home: home).status()
@@ -274,15 +291,17 @@ import SwiftUI
                                                    #endif
                                                })
             reporter.finish()
+            // Leftovers of removed apps (#173), except what a catalog rule already offers, holds or sits inside.
+            let leftovers = RemovedAppLeftovers.notOffered(by: discovered.candidates, RemovedAppLeftovers.scan(home: home, apps: presence, receipts: receipts, exclusions: exclusions))
             var owners: [String: RuleOwner] = [:], names: [String: String] = [:]
-            for candidate in discovered.candidates { if let owner = catalog.owner(for: candidate) { owners[owner.name] = owner; names[candidate.id] = owner.name } }
-            return (discovered, catalog.overriddenRules(home: home, systemRoot: system), Self.running(owners, quitter: quitter), names, access)
+            for candidate in discovered.candidates + leftovers { if let owner = catalog.owner(for: candidate) { owners[owner.name] = owner; names[candidate.id] = owner.name } }
+            return (discovered, catalog.overriddenRules(home: home, systemRoot: system), Self.running(owners, quitter: quitter), names, access, leftovers)
         }.value
         await progress.value
         await GrowthHistoryModel.shared.completeCatalog(scanned.0, catalog: catalog, fullDiskAccess: scanned.4, token: growth, afterCleanup: rescanFollowsCleanup)
         rescanFollowsCleanup = false
         fullDiskAccessRescan.scanned(scanned.4)
-        discovered = scanned.0.candidates; notes = scanned.0.notes; notAccessibleRules = scanned.0.notAccessible; overriddenRules = scanned.1; setRunning(scanned.2.0, open: scanned.2.1); ownerNames = scanned.3
+        discovered = scanned.0.candidates + scanned.5; notes = scanned.0.notes; notAccessibleRules = scanned.0.notAccessible; overriddenRules = scanned.1; setRunning(scanned.2.0, open: scanned.2.1); ownerNames = scanned.3
         keepOnlyCurrentChoices()
         await scanGuidance(home: home, fullDiskAccess: scanned.4)
     }
@@ -321,9 +340,10 @@ import SwiftUI
     }
     /// Chooses or clears every item the rule found.
     func setSelected(_ rule: CleanupRule, _ selected: Bool) { setSelected([rule], selected) }
-    /// Chooses or clears every item the rules found, such as a whole category.
+    /// Chooses or clears every item the rules found, such as a whole category. Items chosen one by one (possibly related
+    /// leftovers, #173) are never chosen with them.
     func setSelected(_ rules: [CleanupRule], _ selected: Bool) {
-        let ids = rules.flatMap(candidates(for:)).map(\.id)
+        let ids = rules.filter { !$0.selectedOneByOne }.flatMap(candidates(for:)).map(\.id)
         guard canEdit, !ids.isEmpty else { return }
         if selected { selectedIDs.formUnion(ids) } else { selectedIDs.subtract(ids) }
         selectionRevision &+= 1
@@ -424,7 +444,7 @@ import SwiftUI
     }
     private func currentCheck() async -> CandidateCheck? {
         do { return CandidateCheck(catalog: catalog, running: SystemRunningAppChecker(), exclusions: try await ExclusionsModel.shared.policyForScan(), cloud: Self.cloud,
-                                    home: Self.checkHome) }
+                                    home: Self.checkHome, apps: Self.appPresence) }
         catch { message = "Exclusion settings are unavailable, so nothing can be checked. Try again."; return nil }
     }
 }
