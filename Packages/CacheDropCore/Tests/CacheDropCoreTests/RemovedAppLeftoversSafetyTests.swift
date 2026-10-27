@@ -178,3 +178,15 @@ private struct NothingRunning: RunningAppChecking { func isRunning(_ owner: Rule
 
     #expect(scan(home, Apps()).isEmpty)
 }
+
+// A cleanup run's check takes a snapshot of the installed apps, but only a leftover needs them: the snapshot reads them
+// (Spotlight, which can block for minutes on a Mac still indexing) on first use, once (#265).
+@Test func anAppSnapshotReadsTheInstalledAppsOnlyWhenAskedAndOnce() {
+    final class Reads: @unchecked Sendable { var count = 0 }
+    let reads = Reads()
+    let snapshot = FixedAppPresence(reading: { reads.count += 1; return [] }, registered: { _ in false })
+    #expect(reads.count == 0)
+    _ = snapshot.installedApps()
+    _ = snapshot.installedApps()
+    #expect(reads.count == 1)
+}

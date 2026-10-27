@@ -14,8 +14,8 @@ public struct SystemAppPresence: AppPresence {
         return indexed + Self.applicationFolders().flatMap(Self.bundles).compactMap(Self.app)
             + InstalledBundles.scan(home: URL(fileURLWithPath: NSHomeDirectory()))
     }
-    /// Spotlight is queried once; Launch Services still answers each bundle ID as it is asked.
-    public func snapshot() -> any AppPresence { FixedAppPresence(apps: installedApps(), registered: isRegistered) }
+    /// Spotlight is queried once, when first needed; Launch Services still answers each bundle ID as it is asked.
+    public func snapshot() -> any AppPresence { FixedAppPresence(reading: installedApps, registered: isRegistered) }
 
     static func spotlightApps() -> [InstalledApp]? {
         guard let query = MDQueryCreate(kCFAllocatorDefault, "kMDItemContentType == 'com.apple.application-bundle'" as CFString, nil, nil) else { return nil }
@@ -47,11 +47,29 @@ public struct SystemAppPresence: AppPresence {
     }
 }
 
-/// One reading of the installed apps, with Launch Services still asked per bundle ID.
+/// One reading of the installed apps, taken on first use so a run with no leftovers never queries Spotlight (#265), with
+/// Launch Services still asked per bundle ID.
 struct FixedAppPresence: AppPresence {
-    let apps: [InstalledApp]?
+    private final class Reading: @unchecked Sendable {
+        private let lock = NSLock()
+        private let read: @Sendable () -> [InstalledApp]?
+        private var apps: [InstalledApp]??
+        init(_ read: @escaping @Sendable () -> [InstalledApp]?) { self.read = read }
+        func value() -> [InstalledApp]? {
+            lock.lock(); defer { lock.unlock() }
+            if let apps { return apps }
+            let found = read()
+            apps = .some(found)
+            return found
+        }
+    }
+    private let reading: Reading
     let registered: @Sendable (String) -> Bool
-    func installedApps() -> [InstalledApp]? { apps }
+    init(reading: @escaping @Sendable () -> [InstalledApp]?, registered: @escaping @Sendable (String) -> Bool) {
+        self.reading = Reading(reading); self.registered = registered
+    }
+    init(apps: [InstalledApp]?, registered: @escaping @Sendable (String) -> Bool) { self.init(reading: { apps }, registered: registered) }
+    func installedApps() -> [InstalledApp]? { reading.value() }
     func isRegistered(bundleID: String) -> Bool { registered(bundleID) }
 }
 
