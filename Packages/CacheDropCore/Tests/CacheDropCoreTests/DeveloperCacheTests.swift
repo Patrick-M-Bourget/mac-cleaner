@@ -184,7 +184,7 @@ private func homebrewRun(_ home: URL, script: String, timeout: TimeInterval? = n
     #expect(left.isEmpty)
     let record = try #require(result.records.first)
     #expect(record.state == .failed)
-    #expect(record.message.contains("time limit"))
+    #expect(record.message == "Stopped at the 1-second time limit. brew cleanup -s may have cleaned part of it; the folder was left in place.")
     #expect(record.partlyRemoved == true)
     #expect(record.toolOutput == "started")
     #expect(FileManager.default.fileExists(atPath: home.appendingPathComponent("Library/Caches/Homebrew/entry").path))
