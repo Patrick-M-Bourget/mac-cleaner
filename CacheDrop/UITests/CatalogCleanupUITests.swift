@@ -34,7 +34,8 @@ import XCTest
     try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: tool.path)
 }
 
-/// Adds developer caches and a stand-in `brew` that would leave a marker if it ever ran.
+/// Adds developer caches and a stand-in `brew` that would leave a marker if it ever ran a cleanup. Asked `brew --cache`
+/// at discovery (#170), it names the usual folder and leaves no marker.
 @MainActor func addDeveloperCaches(_ home: URL, folders: [String]) throws -> URL {
     for folder in folders {
         let file = home.appendingPathComponent(folder + "/entry")
@@ -43,7 +44,7 @@ import XCTest
     }
     let marker = home.appendingPathComponent("brew-ran")
     let brew = home.appendingPathComponent(".cachedrop-test-tools/brew")
-    try writeStandInTool("#!/bin/sh\ntouch '\(marker.path)'\n", to: brew)
+    try writeStandInTool("#!/bin/sh\n[ \"$*\" = --cache ] && { echo '\(home.path)/Library/Caches/Homebrew'; exit 0; }\ntouch '\(marker.path)'\n", to: brew)
     return marker
 }
 

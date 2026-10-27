@@ -66,19 +66,23 @@ private func execute(_ candidate: Candidate, catalog: Catalog, home: URL, previe
     let uv = try fakeUV(home, dir: "echo '\(home.path)/Developer/uv-cache'")
     let found = Catalog(rules: fixtureRules).discover(fixture: home, locateTool: onlyTool("uv", uv)).filter { $0.ruleID == "uv-cache" }
     #expect(found.map(\.url.path) == [home.appendingPathComponent("Developer/uv-cache").path])
-    #expect(found.allSatisfy { $0.action == .tool })
+    #expect(found.allSatisfy { $0.action == .tool && $0.folderSource == "Named by `uv cache dir`" })
 }
 
 /// A folder uv names outside the home folder is out of CacheDrop's scope, and one that doesn't exist has nothing to prune.
+/// Either way the plan says why it isn't offered (#198).
 @Test func aUVCacheFolderOutsideHomeOrMissingIsNotOffered() throws {
     let home = try fixtureHome(), outside = try fixtureHome()
     defer { try? FileManager.default.removeItem(at: home); try? FileManager.default.removeItem(at: outside) }
     try makeFolder(home, ".cache/uv")
     try makeFolder(outside, "uv")
     let catalog = Catalog(rules: fixtureRules)
-    for named in ["\(outside.path)/uv", "\(home.path)/missing-uv"] {
+    for (named, why) in [("\(outside.path)/uv", "\(outside.path)/uv as its cache (`uv cache dir`), which is outside your home folder"),
+                         ("\(home.path)/missing-uv", "~/missing-uv as its cache (`uv cache dir`), but there’s no folder there")] {
         let uv = try fakeUV(home, dir: "echo '\(named)'")
-        #expect(!catalog.discover(fixture: home, locateTool: onlyTool("uv", uv)).contains { $0.ruleID == "uv-cache" }, "\(named)")
+        let discovery = catalog.discovery(fixture: home, locateTool: onlyTool("uv", uv))
+        #expect(!discovery.candidates.contains { $0.ruleID == "uv-cache" }, "\(named)")
+        #expect(discovery.notes == [CatalogNote(ruleID: "uv-cache", text: "uv names \(why), so it isn’t offered.")], "\(named)")
     }
 }
 
@@ -103,7 +107,8 @@ private func execute(_ candidate: Candidate, catalog: Catalog, home: URL, previe
     let rule = rules[index], tool = try #require(rule.tool)
     rules[index] = CleanupRule(id: rule.id, category: rule.category, title: rule.title, detail: rule.detail, consequence: rule.consequence, regen: rule.regen, action: rule.action,
                                locations: rule.locations, owner: rule.owner,
-                               tool: ToolCommand(executables: tool.executables, arguments: tool.arguments, timeout: tool.timeout, locationQuery: tool.locationQuery, locationQueryTimeout: 0.3))
+                               tool: ToolCommand(executables: tool.executables, arguments: tool.arguments, timeout: tool.timeout,
+                                                 locationQuery: LocationQuery(try #require(tool.locationQuery).arguments, timeout: 0.3)))
     let catalog = Catalog(rules: rules)
     for answer in ["echo 'error: no cache' >&2; exit 2", "sleep 5", "echo 'cache is somewhere'", "echo ''", "echo '\(home.path)/../uv'"] {
         let uv = try fakeUV(home, dir: answer)

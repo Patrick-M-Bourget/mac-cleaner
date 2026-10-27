@@ -108,15 +108,17 @@ private struct PlanRuleRows: View {
     let rule: CleanupRule
     var body: some View {
         let items = model.candidates(for: rule), state = model.selectionState(for: [rule])
+        // A tool-asked rule's line says where its folder came from (#206); what the rule covers moves to the tooltip.
+        let source = items.lazy.compactMap(\.folderSource).first
         VStack(alignment: .leading, spacing: 0) {
-            InspectableItemRow(name: rule.title, detail: rule.detail,
+            InspectableItemRow(name: rule.title, detail: source ?? rule.detail,
                                size: catalogBytes(model.estimatedBytes(for: rule), complete: model.sizeComplete(for: rule), upperBound: rule.estimateIsUpperBound,
                                                   estimate: model.sizeIsEstimate(for: rule)),
                                symbol: rule.offersFiles ? "doc.on.doc" : "folder", inspected: false,
                                inspect: { Finder.reveal(items.map(\.url)) }, detailLineLimit: 1) {
                 MacroCategoryCheckbox(state: state, label: rule.title, enabled: model.canEdit, action: { model.setSelected(rule, state != .checked) },
                                       identifier: "planRule-" + rule.id, showsTitle: false).fixedSize()
-            }
+            }.help(source.map { _ in rule.detail + "\n" + items.map(\.url.path).joined(separator: "\n") } ?? "")
             PlanRunningOwners(model: model, rule: rule).padding(.leading, CacheDropDesign.Space.xl).padding(.bottom, CacheDropDesign.Space.sm)
             if rule.choosesItems && !rule.groupsByProject { CatalogItemRows(model: model, rule: rule).padding(.leading, CacheDropDesign.Space.xl) }
             else if items.contains(where: { $0.group != nil }) { CatalogProfileRows(model: model, rule: rule).padding(.leading, CacheDropDesign.Space.xl) }
