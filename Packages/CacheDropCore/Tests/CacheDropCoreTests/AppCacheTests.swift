@@ -175,6 +175,21 @@ private func catalogWith(_ apps: Apps) -> Catalog {
     #expect(try check(Running(bundleIDs: ["com.native-instruments.NativeAccess2"]), caches + "/nativeaccess2-updater") == .ownerRunning("Native Access"))
 }
 
+/// #211: one of CacheDrop's or Still's folders a few levels down in an app's cache, by exact name or by ID prefix, is refused.
+@Test func ourOwnFolderDeepInsideACacheIsProtected() throws {
+    let home = try fixtureHome()
+    defer { try? FileManager.default.removeItem(at: home) }
+    try write(home, "Library/Caches/com.example.Editor/Cache.db")
+    let catalog = catalogWith(Apps(installed: [editor]))
+    let cache = try #require(catalog.discover(fixture: home).first)
+    for name in ["com.patrickbourget.CacheDropUITests.xctrunner", "com.patrickbourget.Still"] {
+        try write(home, "Library/Caches/com.example.Editor/runs/1/\(name)/data")
+        #expect(catalog.discover(fixture: home).isEmpty)
+        #expect(CandidateCheck(catalog: catalog, running: Running()).check(cache) == .protected(name))
+        try FileManager.default.removeItem(at: home.appendingPathComponent("Library/Caches/com.example.Editor/runs"))
+    }
+}
+
 /// #182: the UI-test runners' folders, Still's and CacheDrop's, are protected like the apps' own.
 @Test func ownTestRunnerFoldersAreNeverOffered() {
     for name in ["CacheDrop", "Still", "com.patrickbourget.CacheDrop", "com.patrickbourget.Still", "com.patrickbourget.StillUITests", "com.patrickbourget.CacheDropUITests", "com.patrickbourget.CacheDropUITests.xctrunner"] {

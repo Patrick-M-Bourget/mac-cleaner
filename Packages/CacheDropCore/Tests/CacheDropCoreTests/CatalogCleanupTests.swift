@@ -86,6 +86,19 @@ private func npmCandidate(_ home: URL) throws -> Candidate {
     #expect(CandidateCheck(catalog: Catalog(rules: fixtureRules), running: FakeRunning()).check(candidate) == .protected(".git"))
 }
 
+/// #211: a cache folder holding one of CacheDrop's or Still's own folders, the apps' or a UI-test runner's, is refused.
+@Test(arguments: ["CacheDrop", "Still", "com.patrickbourget.CacheDrop", "com.patrickbourget.Still",
+                  "com.patrickbourget.StillUITests", "com.patrickbourget.CacheDropUITests", "com.patrickbourget.CacheDropUITests.xctrunner"])
+func aCacheHoldingOneOfOurOwnFoldersIsProtected(name: String) throws {
+    let home = try fixtureHome()
+    defer { try? FileManager.default.removeItem(at: home) }
+    let cache = try writeNpmCache(in: home)
+    let candidate = try npmCandidate(home)
+    try FileManager.default.createDirectory(at: cache.appendingPathComponent(name), withIntermediateDirectories: true)
+    #expect(Catalog(rules: fixtureRules).discover(fixture: home).isEmpty)
+    #expect(CandidateCheck(catalog: Catalog(rules: fixtureRules), running: FakeRunning()).check(candidate) == .protected(name))
+}
+
 @Test func anExcludedCandidateOrOneHoldingAnExclusionIsRefused() throws {
     let home = try fixtureHome()
     defer { try? FileManager.default.removeItem(at: home) }

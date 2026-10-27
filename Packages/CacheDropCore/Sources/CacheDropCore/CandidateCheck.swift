@@ -63,26 +63,30 @@ public struct CandidateCheck: Sendable {
     /// The first protected entry inside a folder candidate: the rule's protected names to its own depth, and
     /// `.git` to `gitSearchDepth` whatever the rule. Discovery leaves such folders out; the check refuses them.
     static func protectedEntry(in folder: URL, rule: CleanupRule) -> String? {
-        if let found = protectedEntry(in: folder, names: Protection(rule).names, depth: rule.protectedDepth) { return found }
+        if let found = protectedEntry(in: folder, names: Protection(rule).names, depth: rule.protectedDepth, alsoProtected: AppCaches.isOwn) { return found }
         if rule.protectedDepth >= gitSearchDepth { return nil }
         // A package manager's own clones in its build folder are rebuilt, not live work (#160): only those `.git` folders are passed over.
         let clones = ProjectBuilds.managedClonesFolder(in: folder).map { $0.path + "/" }
-        return protectedEntry(in: folder, names: [".git"], depth: gitSearchDepth) { path, level, isFolder in
+        return protectedEntry(in: folder, names: [".git"], depth: gitSearchDepth, allowed: { path, level, isFolder in
             guard let clones, isFolder, level == 3, path.hasPrefix(clones) else { return false }
             return path.dropFirst(clones.count).split(separator: "/").count == 2
-        }
+        })
     }
 
     /// The first protected name among the entries up to `depth` levels inside `folder`, never following symlinks or crossing volumes.
     /// A folder that can't be fully searched answers with the reason, so it is refused rather than guessed at.
+    /// `alsoProtected` matches names beyond `names` (CacheDrop's and Still's IDs by prefix, as `isExcluded` does).
     /// `allowed` passes over a found entry (by path, level and whether it is a folder) without looking inside it.
-    static func protectedEntry(in folder: URL, names: Set<String>, depth: Int,
+    static func protectedEntry(in folder: URL, names: Set<String>, depth: Int, alsoProtected: ((String) -> Bool)? = nil,
                                allowed: (_ path: String, _ level: Int, _ isFolder: Bool) -> Bool = { _, _, _ in false }) -> String? {
         if depth <= 1 {
-            return names.sorted().first { name in
+            let named = names.sorted().first { name in
                 var inner = stat()
                 return lstat(folder.appendingPathComponent(name).path, &inner) == 0
             }
+            // An unreadable folder is answered as the exact-name lookups above answer it: it couldn't be cleaned either.
+            guard named == nil, let alsoProtected else { return named }
+            return (try? FileManager.default.contentsOfDirectory(atPath: folder.path))?.sorted().first(where: alsoProtected)
         }
         var seen = 0, found: String?
         let opened = FileTree.walk(folder) { entry in
@@ -91,7 +95,7 @@ public struct CandidateCheck: Sendable {
             seen += 1
             if seen > protectedSearchLimit { found = "too many items to check"; return .stop }
             let path = String(cString: entry.pointee.fts_path), name = path.split(separator: "/").last.map(String.init) ?? ""
-            if names.contains(name) {
+            if names.contains(name) || alsoProtected?(name) == true {
                 if allowed(path, level, kind == FTS_D) { return .skip }
                 found = name; return .stop
             }
