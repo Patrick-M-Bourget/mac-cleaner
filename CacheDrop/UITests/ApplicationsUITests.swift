@@ -15,6 +15,12 @@ final class ApplicationsUITests: XCTestCase {
         return bundle
     }
 
+    /// An element by identifier. Applications' identifiers carry paths (#271), longer than the 128 characters a
+    /// subscript query allows, so this matches with a predicate instead (#273).
+    private func element(_ app: XCUIApplication, _ identifier: String, _ type: XCUIElement.ElementType = .any) -> XCUIElement {
+        app.descendants(matching: type).matching(NSPredicate(format: "identifier == %@", identifier)).firstMatch
+    }
+
     @MainActor func testApplicationsListsAppsPlugInsAndLeftoversAndTheirOverviewRowOpensIt() throws {
         continueAfterFailure = false
         let app = XCUIApplication()
@@ -51,25 +57,25 @@ final class ApplicationsUITests: XCTestCase {
         XCTAssertTrue(app.checkBoxes["planCategory-leftovers"].waitForExistence(timeout: 5))
 
         // Apps: largest first, read-only, never Apple's or CacheDrop. Identifiers carry each entry's path, not its name (#271).
-        let big = app.descendants(matching: .any)["applicationsApp-" + bigApp.path], small = app.descendants(matching: .any)["applicationsApp-" + smallApp.path]
+        let big = element(app, "applicationsApp-" + bigApp.path), small = element(app, "applicationsApp-" + smallApp.path)
         XCTAssertTrue(big.waitForExistence(timeout: 10), "The apps are listed")
         XCTAssertTrue(small.exists)
         XCTAssertLessThan(big.frame.minY, small.frame.minY, "Largest first")
         XCTAssertTrue(app.staticTexts["Maker Audio Inc"].exists, "A row names its maker")
-        XCTAssertFalse(app.descendants(matching: .any)["applicationsApp-" + home.appendingPathComponent("Applications/Notes.app").path].exists, "Apple's apps are never listed")
-        XCTAssertFalse(app.descendants(matching: .any)["applicationsApp-" + home.appendingPathComponent("Applications/CacheDrop.app").path].exists, "CacheDrop never lists itself")
+        XCTAssertFalse(element(app, "applicationsApp-" + home.appendingPathComponent("Applications/Notes.app").path).exists, "Apple's apps are never listed")
+        XCTAssertFalse(element(app, "applicationsApp-" + home.appendingPathComponent("Applications/CacheDrop.app").path).exists, "CacheDrop never lists itself")
         XCTAssertFalse(app.checkBoxes.matching(NSPredicate(format: "identifier BEGINSWITH 'applications'")).firstMatch.exists, "Nothing new can be ticked yet")
         XCTAssertFalse(app.disclosureTriangles.matching(NSPredicate(format: "label == 'Choose items · 1'")).firstMatch.exists, "An app alone has no Choose items")
 
         // An app that needs a password says so, with Reveal in Finder.
-        let password = app.staticTexts["applicationsPassword-" + locked!.path]
+        let password = element(app, "applicationsPassword-" + locked!.path, .staticText)
         XCTAssertTrue(password.exists)
         XCTAssertEqual(password.value as? String, "Needs your password to remove")
-        XCTAssertTrue(app.buttons["applicationsReveal-" + locked!.path].exists)
+        XCTAssertTrue(element(app, "applicationsReveal-" + locked!.path, .button).exists)
 
         // Plug-ins: one row per product, its formats as items.
         // A product's identifier carries its first file's path.
-        let product = app.descendants(matching: .any)["applicationsPlugIn-" + home.appendingPathComponent("Library/Audio/Plug-Ins/Components/Pro Synth.component").path]
+        let product = element(app, "applicationsPlugIn-" + home.appendingPathComponent("Library/Audio/Plug-Ins/Components/Pro Synth.component").path)
         XCTAssertTrue(product.exists)
         XCTAssertTrue(app.disclosureTriangles.matching(NSPredicate(format: "label == 'Choose items · 2'")).firstMatch.exists, "AU and VST3")
 
