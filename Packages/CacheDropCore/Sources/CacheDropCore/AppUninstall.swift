@@ -72,7 +72,7 @@ public enum AppUninstall {
                             sizer: KnownLocationSizer = KnownLocationSizer()) -> [Candidate] {
         let url = URL(fileURLWithPath: app.path).standardizedFileURL
         var info = stat()
-        guard ApplicationsInventory.isListed(app, excluding: ownBundleID), Removability.canMoveToTrash(url), lstat(url.path, &info) == 0,
+        guard ApplicationsInventory.isListed(app, excluding: ownBundleID, home: home), Removability.canMoveToTrash(url), lstat(url.path, &info) == 0,
               // An excluded app is never offered, nor its files (SPEC section 2).
               let volume = try? url.resourceValues(forKeys: [.volumeUUIDStringKey]).volumeUUIDString, !exclusions.covers(url, volumeID: volume) else { return [] }
         let catalog = Catalog(rules: rules), size = sizer.size(url)

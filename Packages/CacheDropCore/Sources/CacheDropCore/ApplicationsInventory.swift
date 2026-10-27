@@ -1,3 +1,4 @@
+import DiskArbitration
 import Foundation
 
 /// Whether macOS lets the user move an item to the Trash without a password (Decision 50, #268): its folder is writable
@@ -51,15 +52,16 @@ public struct InventoryEntry: Sendable, Equatable, Identifiable {
 
 /// What the Applications page lists (Decision 51): apps and plug-in products, largest first. Nothing is called unused (42).
 public enum ApplicationsInventory {
-    /// The apps in an Applications folder (at its top or one folder down) on any volume, from `installed` (`AppPresence`):
+    /// The apps in an Applications folder (at its top or one folder down: `isInApplicationsFolder`), from `installed` (`AppPresence`):
     /// never Apple's, one in `/System`, one inside another bundle, CacheDrop itself, or one no longer on disk.
     /// An app's own uninstaller is one of its parts, never a row of its own (#285).
-    public static func apps(_ installed: [InstalledApp], excluding ownBundleID: String?, sizer: KnownLocationSizer = KnownLocationSizer()) -> [InventoryEntry] {
+    public static func apps(_ installed: [InstalledApp], excluding ownBundleID: String?, home: URL = FileManager.default.homeDirectoryForCurrentUser,
+                            sizer: KnownLocationSizer = KnownLocationSizer()) -> [InventoryEntry] {
         func part(_ app: InstalledApp) -> InventoryEntry.Part {
             let url = URL(fileURLWithPath: app.path).standardizedFileURL
             return .init(name: url.lastPathComponent, url: url, size: Catalog.estimate(sizer.size(url)), removable: Removability.canMoveToTrash(url))
         }
-        let entries = withUninstallers(installed, excluding: ownBundleID).map { app, uninstaller -> InventoryEntry in
+        let entries = withUninstallers(installed, excluding: ownBundleID, home: home).map { app, uninstaller -> InventoryEntry in
             let url = URL(fileURLWithPath: app.path).standardizedFileURL
             let maker = PlugInInventory.info(url).flatMap(PlugInInventory.copyrightHolder) ?? app.maker
             var entry = InventoryEntry(id: url.path, name: app.name, maker: maker, volume: volume(of: url), parts: [part(app)] + (uninstaller.map { [part($0)] } ?? []),
@@ -73,9 +75,10 @@ public enum ApplicationsInventory {
     /// The listed apps, once each, with each one's own uninstaller (#285): an "Uninstall…" app in the app's own folder (not the
     /// Applications folder itself), or one named exactly for it ("Uninstall <App>", "<App> Uninstaller"). An uninstaller goes
     /// with the first app it is found for and is not listed on its own.
-    public static func withUninstallers(_ installed: [InstalledApp], excluding ownBundleID: String?) -> [(app: InstalledApp, uninstaller: InstalledApp?)] {
+    public static func withUninstallers(_ installed: [InstalledApp], excluding ownBundleID: String?, home: URL = FileManager.default.homeDirectoryForCurrentUser)
+        -> [(app: InstalledApp, uninstaller: InstalledApp?)] {
         var seen = Set<String>()
-        let listed = installed.filter { seen.insert(URL(fileURLWithPath: $0.path).standardizedFileURL.path).inserted && isListed($0, excluding: ownBundleID) }
+        let listed = installed.filter { seen.insert(URL(fileURLWithPath: $0.path).standardizedFileURL.path).inserted && isListed($0, excluding: ownBundleID, home: home) }
         var claimed = Set<String>()
         let pairs = listed.map { app -> (app: InstalledApp, uninstaller: InstalledApp?) in
             guard !isUninstallerName(app.name) else { return (app, nil) }
@@ -98,9 +101,9 @@ public enum ApplicationsInventory {
     }
 
     /// Whether the page lists an app: in an Applications folder, still on disk, never Apple's, a system app or CacheDrop itself.
-    public static func isListed(_ app: InstalledApp, excluding ownBundleID: String?) -> Bool {
+    public static func isListed(_ app: InstalledApp, excluding ownBundleID: String?, home: URL = FileManager.default.homeDirectoryForCurrentUser) -> Bool {
         let url = URL(fileURLWithPath: app.path).standardizedFileURL
-        return isInApplicationsFolder(url) && !app.bundleID.lowercased().hasPrefix("com.apple.") && app.bundleID != ownBundleID
+        return isInApplicationsFolder(url, home: home) && !app.bundleID.lowercased().hasPrefix("com.apple.") && app.bundleID != ownBundleID
             && FileManager.default.fileExists(atPath: url.path)
     }
 
@@ -135,10 +138,26 @@ public enum ApplicationsInventory {
         return parts.count > 2 && parts[1] == "Volumes" ? parts[2] : nil
     }
 
-    static func isInApplicationsFolder(_ url: URL) -> Bool {
+    /// Whether a mounted volume is a disk image (`hdiutil attach`, an opened .dmg), as Disk Arbitration describes its device.
+    static func isDiskImage(_ volume: URL) -> Bool {
+        guard let session = DASessionCreate(kCFAllocatorDefault), let disk = DADiskCreateFromVolumePath(kCFAllocatorDefault, session, volume as CFURL),
+              let description = DADiskCopyDescription(disk) as? [String: Any] else { return false }
+        return description[kDADiskDescriptionDeviceModelKey as String] as? String == "Disk Image"
+    }
+
+    /// An app at the top of, or one folder down in, an Applications folder (#297): `/Applications`, `<home>/Applications` or a
+    /// volume's own `/Volumes/<name>/Applications`, never a link to another one, nor on a disk image. Not any folder named
+    /// Applications: a backup's, a test fixture's. Never `/System/Applications`, nor an app inside another bundle.
+    static func isInApplicationsFolder(_ url: URL, home: URL = FileManager.default.homeDirectoryForCurrentUser) -> Bool {
         let parts = url.pathComponents.dropLast()
-        guard url.pathExtension == "app", parts.count > 1, parts[1] != "System", !parts.contains(where: { $0.hasSuffix(".app") }) else { return false }
-        return parts.last == "Applications" || parts.dropLast().last == "Applications"
+        guard url.pathExtension == "app", parts.count > 1, !parts.contains(where: { $0.hasSuffix(".app") }) else { return false }
+        let inTop = parts.last == "Applications", inSubfolder = parts.dropLast().last == "Applications"
+        guard inTop || inSubfolder else { return false }
+        let folder = URL(fileURLWithPath: NSString.path(withComponents: Array(inTop ? parts : parts.dropLast()))).standardizedFileURL
+        if folder.path == "/Applications" || folder == home.appendingPathComponent("Applications").standardizedFileURL { return true }
+        let components = folder.pathComponents
+        guard components.count == 4, components[1] == "Volumes", folder.resolvingSymlinksInPath() == folder else { return false }
+        return !isDiskImage(folder.deletingLastPathComponent())
     }
 
     static func largestFirst(_ entries: [InventoryEntry]) -> [InventoryEntry] {

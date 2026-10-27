@@ -242,9 +242,9 @@ private struct Processes: ProcessListing {
     let tool = InstalledApp(name: "Uninstall Synth", bundleID: "com.maker.synth.uninstall", path: folder.appendingPathComponent("Uninstall Synth.app").path)
     let apps = Apps(installed: [tool, app])
 
-    let pairs = ApplicationsInventory.withUninstallers(apps.installed, excluding: nil)
+    let pairs = ApplicationsInventory.withUninstallers(apps.installed, excluding: nil, home: home)
     #expect(pairs.map(\.app) == [app] && pairs.first?.uninstaller == tool, "The uninstaller is the app's, not a row of its own")
-    let entries = ApplicationsInventory.apps(apps.installed, excluding: nil)
+    let entries = ApplicationsInventory.apps(apps.installed, excluding: nil, home: home)
     #expect(entries.map(\.name) == ["Synth"])
     #expect(ApplicationsInventory.uninstaller(for: entries[0], among: entries)?.name == "Uninstall Synth", "Open <uninstaller> still comes first")
 

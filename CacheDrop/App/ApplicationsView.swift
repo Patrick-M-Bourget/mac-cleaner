@@ -29,7 +29,7 @@ import SwiftUI
         guard let home else { apps = []; plugIns = []; return }
         let presence = appPresence, system = systemRoot, own = Bundle.main.bundleIdentifier
         (apps, plugIns) = await Task.detached(priority: .userInitiated) {
-            (ApplicationsInventory.apps(presence.installedApps() ?? [], excluding: own),
+            (ApplicationsInventory.apps(presence.installedApps() ?? [], excluding: own, home: home),
              ApplicationsInventory.plugIns(read ?? PlugInInventory.scan(home: home, systemRoot: system)))
         }.value
     }
