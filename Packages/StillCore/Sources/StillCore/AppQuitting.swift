@@ -84,6 +84,6 @@ public struct SystemAppQuitter: AppQuitting {
     }
 
     private static func open(_ bundleIDs: [String]) -> [NSRunningApplication] {
-        bundleIDs.flatMap { NSRunningApplication.runningApplications(withBundleIdentifier: $0) }.filter { !$0.isTerminated }
+        UserProcesses.apps(bundleIDs).filter { !$0.isTerminated }
     }
 }

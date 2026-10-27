@@ -55,25 +55,7 @@ final class SystemInUseSnapshot: InUseChecking, @unchecked Sendable {
 
     /// The pid and executable of each process the current user owns; nil when the list can't be read.
     private static func userProcesses() -> [(pid: pid_t, executable: String)]? {
-        let capacity = proc_listallpids(nil, 0)
-        guard capacity > 0 else { return nil }
-        var pids = [pid_t](repeating: 0, count: Int(capacity) + 128)
-        let count = pids.withUnsafeMutableBytes { proc_listallpids($0.baseAddress, Int32($0.count)) }
-        guard count > 0, Int(count) < pids.count else { return nil }
-        let uid = getuid()
-        return pids.prefix(Int(count)).compactMap { pid in
-            var details = proc_bsdinfo()
-            let size = Int32(MemoryLayout<proc_bsdinfo>.size)
-            guard pid > 0, proc_pidinfo(pid, PROC_PIDTBSDINFO, 0, &details, size) == size, details.pbi_uid == uid,
-                  let executable = executablePath(pid) else { return nil }
-            return (pid, executable)
-        }
-    }
-
-    private static func executablePath(_ pid: pid_t) -> String? {
-        var buffer = [CChar](repeating: 0, count: Int(4 * MAXPATHLEN))
-        let length = proc_pidpath(pid, &buffer, UInt32(buffer.count))
-        return length > 0 ? String(cString: buffer) : nil
+        UserProcesses.pids()?.compactMap { pid in UserProcesses.executablePath(pid).map { (pid, $0) } }
     }
 
     /// The current folder, open files and mapped files of one process; nil if they can't be read.
