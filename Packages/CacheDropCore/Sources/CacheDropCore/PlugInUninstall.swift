@@ -154,7 +154,7 @@ public enum PlugInUninstall {
     /// `unrecognised`: the listed files left out because CacheDrop doesn't know their kind is safe (Decision 53).
     static func supportRoots(_ listed: Set<String>, systemRoot: URL, receipts: ReceiptListings = ReceiptListings([:]), products: Set<String> = [])
         -> (roots: [URL], unrecognised: Int) {
-        let base = systemRoot.standardizedFileURL.path.hasSuffix("/") ? systemRoot.standardizedFileURL.path : systemRoot.standardizedFileURL.path + "/"
+        let root = systemRoot.standardizedFileURL.path, base = root.hasSuffix("/") ? root : root + "/"
         var roots: [String] = [], unrecognised = 0
         for path in listed.sorted(by: { ($0.split(separator: "/").count, $0) < ($1.split(separator: "/").count, $1) }) {
             guard path.hasPrefix(base), !roots.contains(where: { path.hasPrefix($0 + "/") }) else { continue }
@@ -271,7 +271,7 @@ public enum PlugInUninstall {
     /// Never offered or acted on: license and macOS data and Apple's folders anywhere on the path below the system root, and
     /// anything that is or holds an app or plug-in other than the item itself.
     static func isNeverTouched(_ url: URL, below systemRoot: URL) -> Bool {
-        let parts = url.standardizedFileURL.pathComponents.dropFirst(systemRoot.standardizedFileURL.pathComponents.count)
+        let parts = RemovedAppLeftovers.parts(of: url, below: systemRoot)
         return parts.contains { RemovedAppLeftovers.isNeverOffered($0) || appleFolders.contains($0.lowercased()) }
             || parts.dropLast().contains { $0.lowercased().hasSuffix(".app") }
     }

@@ -145,25 +145,21 @@ public struct CandidateCheck: Sendable {
         // A per-item command's argument is never an option, whatever the item says (#134).
         if candidate.action == .tool, rule.tool?.itemPlaceholder != nil, candidate.toolArgument.map({ $0.isEmpty || $0.hasPrefix("-") }) ?? true { return .changed }
         let ownership = Catalog.ownership(of: candidate, under: rule)
+        func runningRefusal(_ owner: RuleOwner) -> CheckRefusal? {
+            switch running.isRunning(owner) {
+            case nil: .ownerUnknown(owner.name)
+            case true?: .ownerRunning(owner.name)
+            case false?: nil
+            }
+        }
         switch ownership {
         // An item whose own owner can't be found any more (the app was removed) is refused, never guessed.
         case .unknown: return .ownerUnknown(candidate.appName ?? candidate.url.lastPathComponent)
-        case .mustBeClosed(let owner):
-            switch running.isRunning(owner) {
-            case nil: return .ownerUnknown(owner.name)
-            case true?: return .ownerRunning(owner.name)
-            case false?: break
-            }
+        case .mustBeClosed(let owner): if let refusal = runningRefusal(owner) { return refusal }
         case .mustNotUse, .none: break
         }
         // A plug-in product waits for every plug-in host to close too (#176, Decision 51).
-        for host in candidate.uninstall?.hosts ?? [] {
-            switch running.isRunning(host) {
-            case nil: return .ownerUnknown(host.name)
-            case true?: return .ownerRunning(host.name)
-            case false?: break
-            }
-        }
+        for host in candidate.uninstall?.hosts ?? [] { if let refusal = runningRefusal(host) { return refusal } }
         let path = candidate.url.path
         var info = stat()
         guard lstat(path, &info) == 0 else { return errno == ENOENT ? .missing : .notPermitted }

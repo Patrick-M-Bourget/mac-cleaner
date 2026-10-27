@@ -141,7 +141,7 @@ public enum RemovedAppLeftovers {
     /// and an app that is on this Mac again, or whose presence can't be read, keeps its leftovers.
     /// `appKnown`: the ID is an installed app's being uninstalled (#177), which proves it was an app's without its container.
     static func refusal(for url: URL, tie: LeftoverTie, below root: URL, apps: any AppPresence, appKnown: Bool = false) -> CheckRefusal? {
-        if let part = url.standardizedFileURL.pathComponents.dropFirst(root.standardizedFileURL.pathComponents.count).first(where: isNeverOffered) { return .protected(part) }
+        if let part = neverOfferedPart(of: url, below: root) { return .protected(part) }
         guard let installed = apps.installedApps() else { return .appInstalled(tie.app) }
         let makers = InstalledMakers(installed)
         if makers.makes(tie.vendor) { return .appInstalled(tie.app) }
@@ -164,6 +164,13 @@ public enum RemovedAppLeftovers {
                 .contains { appEvidence(library.appendingPathComponent(place).appendingPathComponent($0)) == id }
         }
     }
+
+    /// The folders and name of `url` below `root`: what the never-offered checks look at.
+    static func parts(of url: URL, below root: URL) -> ArraySlice<String> {
+        url.standardizedFileURL.pathComponents.dropFirst(root.standardizedFileURL.pathComponents.count)
+    }
+    /// The first of them that is never offered (`isNeverOffered`), wherever a scan found the item; nil when none is.
+    static func neverOfferedPart(of url: URL, below root: URL) -> String? { parts(of: url, below: root).first(where: isNeverOffered) }
 
     /// Names never offered, whatever ties them to a removed app: macOS's own (`com.apple.*`), CacheDrop's and Still's, and
     /// license and copy-protection data (iLok/PACE, eLicenser, CodeMeter and any name about a license or activation), which

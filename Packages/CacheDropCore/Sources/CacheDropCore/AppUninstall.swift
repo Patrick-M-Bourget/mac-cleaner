@@ -111,9 +111,7 @@ public enum AppUninstall {
             let own = tie.bundleID?.lowercased() == app.bundleID.lowercased()
             if let refusal = RemovedAppLeftovers.refusal(for: url, tie: tie, below: root, apps: gone, appKnown: own) { return refusal }
         }
-        if let part = url.standardizedFileURL.pathComponents.dropFirst(root.standardizedFileURL.pathComponents.count).first(where: RemovedAppLeftovers.isNeverOffered) {
-            return .protected(part)
-        }
+        if let part = RemovedAppLeftovers.neverOfferedPart(of: url, below: root) { return .protected(part) }
         return Removability.canMoveToTrash(url) ? nil : .notPermitted
     }
 
