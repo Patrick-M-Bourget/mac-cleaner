@@ -98,3 +98,14 @@ extension CandidateCheck {
 func onlyTool(_ name: String, _ standIn: URL) -> @Sendable (ToolCommand) -> URL? {
     { command in command.executables.contains { URL(fileURLWithPath: $0).lastPathComponent == name } ? standIn : nil }
 }
+
+/// Waits up to `timeout` for `file` to appear, which a stand-in tool writes to say it reached a point; true once it has.
+/// Bounded, so a tool that never gets there fails the test instead of hanging it.
+func waitForFile(_ file: URL, timeout: TimeInterval = 10) -> Bool {
+    let deadline = ProcessInfo.processInfo.systemUptime + timeout
+    while !FileManager.default.fileExists(atPath: file.path) {
+        guard ProcessInfo.processInfo.systemUptime < deadline else { return false }
+        usleep(10_000)
+    }
+    return true
+}

@@ -16,7 +16,8 @@ public enum BoundedTool {
 
     /// For tool actions: returns the exit status and the last `outputLimit` bytes of combined output,
     /// so a long run is never killed for printing a lot. A timeout still stops it and throws, with the output so far.
-    /// So does `cancellation`: once cancelled, the tool is stopped the same way and `ToolCancelled` is thrown.
+    /// So does `cancellation`: once cancelled, the tool is stopped the same way and `ToolCancelled` is thrown,
+    /// unless the tool had already exited, when its own status and output are returned.
     public static func capture(executable: URL, arguments: [String], timeout: TimeInterval, outputLimit: Int = 16_384, environment: [String: String]? = nil, cancellation: CleanupCancellation? = nil) throws -> (status: Int32, output: String) {
         let (status, output) = try launch(executable: executable, arguments: arguments, timeout: timeout, outputLimit: outputLimit, keepTail: true, environment: environment, cancellation: cancellation)
         return (status, String(decoding: output, as: UTF8.self))
@@ -46,8 +47,12 @@ public enum BoundedTool {
                 if data.count > outputLimit { data.removeFirst(data.count - outputLimit) }
             } else if count == 0 && tool.reap() { break }
             else if count < 0 && errno != EAGAIN && errno != EWOULDBLOCK { throw ToolPreviewError.failed }
-            // Polled with the read loop, so a cancel reaches the tool within about 5 ms.
-            if cancellation?.isCancelled == true { throw ToolCancelled(output: String(decoding: data, as: UTF8.self), started: true) }
+            // Polled with the read loop, so a cancel reaches the tool within about 5 ms. A tool that already exited
+            // (something it started still holds the output open) reports its own result; what it left is still stopped.
+            if cancellation?.isCancelled == true {
+                guard tool.reap() else { throw ToolCancelled(output: String(decoding: data, as: UTF8.self), started: true) }
+                tool.stop(); break
+            }
             guard ProcessInfo.processInfo.systemUptime < deadline else { throw keepTail ? ToolTimeout(output: String(decoding: data, as: UTF8.self)) : ToolPreviewError.timeout }
             if count <= 0 { usleep(5_000) }
         }

@@ -109,3 +109,24 @@ final class CancelTime: @unchecked Sendable {
     #expect(error?.started == false)
     #expect(!FileManager.default.fileExists(atPath: marker.path))
 }
+
+/// The tool exited but something it started still holds the output open, so there's no EOF yet. A cancel then
+/// reports the tool's own result, not a stop, and still ends what it left behind.
+@Test func aCancelAfterTheToolExitedReturnsItsOwnResult() throws {
+    let marker = uniqueSleep()
+    let folder = try treeTool("true").deletingLastPathComponent()
+    defer { try? FileManager.default.removeItem(at: folder) }
+    let exited = folder.appendingPathComponent("exited")
+    // The child writes `exited` once its parent, the tool, is a zombie waiting to be reaped.
+    let tool = try treeTool("p=$$\n( while :; do case \"$(ps -o stat= -p $p)\" in Z*) break;; esac; sleep 0.01; done; touch '\(exited.path)'; sleep \"$1\" ) &\necho done\nexit 0")
+    defer { try? FileManager.default.removeItem(at: tool.deletingLastPathComponent()) }
+    let cancellation = CleanupCancellation()
+    DispatchQueue.global().async { if waitForFile(exited) { cancellation.cancel() } }
+    let result = try BoundedTool.capture(executable: tool, arguments: [marker], timeout: 20, cancellation: cancellation)
+    let left = survivorsAfterSettling(marker)
+    left.forEach { kill($0, SIGKILL) }
+    #expect(cancellation.isCancelled)
+    #expect(result.status == 0)
+    #expect(result.output == "done\n")
+    #expect(left.isEmpty)
+}
