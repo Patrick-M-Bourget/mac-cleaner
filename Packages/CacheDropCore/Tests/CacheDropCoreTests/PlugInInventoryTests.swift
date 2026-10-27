@@ -107,7 +107,7 @@ private func receipt(_ id: String, listing paths: [String], in root: URL) throws
     #expect(product.versions == ["2.1", "2.0"])
     #expect(product.architectures == ["Apple silicon", "Intel"])
     #expect(product.grouping == .receipt)
-    #expect(product.removable)
+    #expect(!product.isApple)
     guard case .measured(let bytes) = product.size else { Issue.record("Expected a measured size, got \(product.size)"); return }
     #expect(bytes >= 3 * 4096)
 }
@@ -161,7 +161,7 @@ private func receipt(_ id: String, listing paths: [String], in root: URL) throws
     let products = scan(root, home).products
     #expect(products.count == 3)
     #expect(products.filter(\.isApple).count == 2)
-    #expect(products.filter(\.removable).map(\.name) == ["Synth"])
+    #expect(products.filter { !$0.isApple }.map(\.name) == ["Synth"])
 }
 
 @Test func theAudioPlugInsGuidanceCountsAAXAndCarriesTheInventory() throws {

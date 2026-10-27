@@ -874,9 +874,10 @@ final class GuidanceUITests: XCTestCase {
         XCTAssertTrue(row.waitForExistence(timeout: 10))
         XCTAssertTrue((row.value as? String)?.contains("1 product · AU, VST3") == true, String(describing: row.value))
         openDisclosure(app.disclosureTriangles.matching(NSPredicate(format: "label == 'Show products · 1'")).firstMatch, in: app)
-        let product = app.buttons["Inspect Pro Synth"]
+        // #207: the label says what the click does, and the line is short: the place is in the tooltip.
+        let product = app.buttons["Reveal Pro Synth in Finder"]
         XCTAssertTrue(product.waitForExistence(timeout: 5))
-        XCTAssertTrue((product.value as? String)?.contains("2.1 · AU, VST3") == true, String(describing: product.value))
+        XCTAssertTrue((product.value as? String)?.hasPrefix("2.1 · AU, VST3,") == true, String(describing: product.value))
         revealAndClick(product, in: app)
         XCTAssertTrue(app.staticTexts["guidanceStatus"].waitForExistence(timeout: 5))
         XCTAssertEqual(app.staticTexts["guidanceStatus"].value as? String, "Test run: would reveal Pro Synth.")
