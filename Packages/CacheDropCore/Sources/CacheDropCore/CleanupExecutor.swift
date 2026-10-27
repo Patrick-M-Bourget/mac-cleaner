@@ -196,7 +196,7 @@ public actor CleanupExecutor {
     }
 
     /// A tool stopped before it finished (time limit or cancel) ran until then, so it may have removed some files;
-    /// the folder is never deleted after it. `reason` says what stopped it. A daemon-backed tool's work goes on without it (SPEC section 4),
+    /// the folder is never deleted after it. `reason` says what stopped it. A daemon-backed tool's work goes on without it (SPEC section 3),
     /// so only the wait stopped and the work may still be finishing.
     private static func recordStopped(_ reason: String, output: String, _ command: ToolCommand, name: String, _ candidate: Candidate, into record: inout CleanupRecord) {
         record.toolOutput = trimmed(output)
