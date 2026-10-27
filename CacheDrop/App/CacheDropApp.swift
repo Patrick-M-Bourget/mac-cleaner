@@ -13,7 +13,7 @@ struct CacheDropApp: App {
     /// The first-run welcome is decided from what was there before (#158).
     init() {
         let stateExisted = LocalStateLocation.stateFolderExists
-        WelcomeModel.shared.decideAtLaunch(migration: LocalStateLocation.migrateFromStill(), stateExisted: stateExisted)
+        WelcomeModel.shared.decideAtLaunch(migration: LocalStateLocation.migrateFromOldNames(), stateExisted: stateExisted)
         AppLaunchPolicy.registerDefaults()
     }
     var body: some Scene {

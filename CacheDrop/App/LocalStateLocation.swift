@@ -21,10 +21,12 @@ enum LocalStateLocation {
         guard info.st_mode & S_IFMT == S_IFREG, file.path == file.resolvingSymlinksInPath().path, info.st_uid == geteuid() else { throw CocoaError(.fileWriteNoPermission) }
         try FileManager.default.removeItem(at: file)
     }
-    /// Copies Still's state and preferences into CacheDrop's on the first launch after the rename (#149).
+    /// Carries settings over from the app's former names, once: values this Mac saved under CacheDrop's pre-#150
+    /// keys move to the new keys (`RenamedPreferenceKeys`), then Still's state and preferences are copied into
+    /// CacheDrop's on the first launch after the rename (#149).
     /// Never in a disposable test run, which must not read the user's real state.
     /// Returns nil when it didn't run.
-    @discardableResult static func migrateFromStill() -> LegacyStillMigration.Outcome? {
+    @discardableResult static func migrateFromOldNames() -> LegacyStillMigration.Outcome? {
         guard !isDisposableTest else { return nil }
         // Settings this Mac saved under CacheDrop's pre-#150 keys move to the new keys first.
         RenamedPreferenceKeys(preferences: UserDefaults.standard).run()
