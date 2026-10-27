@@ -282,14 +282,16 @@ private func dockerRunning(_ home: URL, docker: URL, choose ruleIDs: Set<String>
 @Test func aCancelledPruneSaysDockerMayStillBeFinishing() async throws {
     let home = try fixtureHome()
     defer { try? FileManager.default.removeItem(at: home) }
-    let length = uniqueSleep(), running = home.appendingPathComponent("running")
-    let docker = try fakeDocker(home, prune: "echo pruning; touch '\(running.path)'; sleep \(length)")
-    let cancellation = CleanupCancellation(), cancelledAt = CancelTime()
+    let length = uniqueSleep(), running = home.appendingPathComponent("running"), pids = home.appendingPathComponent("pids")
+    let docker = try fakeDocker(home, prune: "echo pruning; \(recordPid("$$", in: pids)); touch '\(running.path)'; exec sleep \(length)")
+    let cancellation = CleanupCancellation(), cancelledAt = CancelTime(), stopped = RecordedPidsGone(pids, count: 1)
     let watcher = CancelWhenFileAppears(running, cancel: cancellation, at: cancelledAt)
     defer { watcher.stop() }
     // A short time limit, so a cancel that never fires fails within seconds rather than when the stand-in's sleep ends.
     let result = try await dockerRun(home, docker: docker, choose: ["docker-images"], timeout: 5, cancellation: cancellation)
-    let sinceCancel = cancelledAt.elapsed
+    // Timed from the cancel until the stand-in was gone, on a thread of its own: a busy run can take seconds more
+    // to resume this test afterwards, which says nothing about how fast the CLI was stopped (#224).
+    let sinceCancel = cancelledAt.elapsed(until: stopped.at)
     survivorsAfterSettling(length).forEach { kill($0, SIGKILL) }
     #expect(sinceCancel < BoundedTool.stopGrace + 1)
     let record = try #require(result.records.first)

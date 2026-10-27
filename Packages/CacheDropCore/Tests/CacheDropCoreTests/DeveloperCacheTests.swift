@@ -249,13 +249,15 @@ private func cancellableRun(_ home: URL, brewScript: String, cancellation: Clean
     let home = try fixtureHome()
     defer { try? FileManager.default.removeItem(at: home) }
     let length = uniqueSleep(), running = home.appendingPathComponent("running"), pids = home.appendingPathComponent("pids")
-    let cancellation = CleanupCancellation(), cancelledAt = CancelTime()
+    let cancellation = CleanupCancellation(), cancelledAt = CancelTime(), stopped = RecordedPidsGone(pids, count: 2)
     // Cancel once the stand-in brew, which starts its own child like the real one, is running.
     let watcher = CancelWhenFileAppears(running, cancel: cancellation, at: cancelledAt)
     defer { watcher.stop() }
     let script = "echo cleaning\n\(recordPid("$$", in: pids))\nsleep \(length) &\n\(recordPid("$!", in: pids))\ntouch '\(running.path)'\nexec sleep \(length)"
     let result = try await cancellableRun(home, brewScript: script, cancellation: cancellation)
-    let sinceCancel = cancelledAt.elapsed
+    // Timed from the cancel until the tool's processes were gone, on a thread of its own: a busy run can take
+    // seconds more to resume this test afterwards, which says nothing about how fast the tool was stopped (#224).
+    let sinceCancel = cancelledAt.elapsed(until: stopped.at)
     let left = stillRunning(recordedPids(pids))
     left.forEach { kill($0, SIGKILL) }
     #expect(sinceCancel < BoundedTool.stopGrace + 1)
