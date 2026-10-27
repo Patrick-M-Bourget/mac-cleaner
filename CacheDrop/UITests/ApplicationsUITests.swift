@@ -131,6 +131,7 @@ final class ApplicationsUITests: XCTestCase {
 
     /// #176: a plug-in product is ticked with its removable formats, its AU (which needs a password) is listed without a
     /// checkbox and the review says it stays, the VST3 goes to the fixture Trash, and History says "Uninstalled <Product>".
+    /// This is #176's one real check (#288): the real app's scan, check and run on a disposable plug-in built in a temp folder.
     @MainActor func testAPlugInProductIsUninstalledAndWhatNeedsAPasswordStays() throws {
         continueAfterFailure = false
         let app = XCUIApplication()
