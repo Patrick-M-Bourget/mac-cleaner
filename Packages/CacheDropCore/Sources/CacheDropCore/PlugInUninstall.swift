@@ -104,7 +104,9 @@ public enum PlugInUninstall {
             if !receipts.unread.isEmpty { target.receiptsUnread = true }
             for receipt in receipts.unread.isEmpty ? product.receipts : [] {
                 let listed = receipts.byReceipt[receipt] ?? []
-                for url in supportRoots(listed, systemRoot: systemRoot, receipts: receipts, products: productNames) {
+                let (roots, unrecognised) = supportRoots(listed, systemRoot: systemRoot, receipts: receipts, products: productNames)
+                target.unrecognised += unrecognised
+                for url in roots {
                     guard let listers = receipts.listers(of: url.path), let ids = sharers(url.path) else { continue }
                     if ids.count > 1 { if shared[url.path] == nil, let found = item(rules[2], url) { shared[url.path] = found.shared(by: ids, receipt: receipt).installed(by: listers) }; continue }
                     guard var file = item(rules[1], url).map({ $0.installed(by: listers) }) else { continue }
@@ -123,8 +125,12 @@ public enum PlugInUninstall {
         for piece in content where piece.kind == .installed && receipts.unread.isEmpty {
             let ids = piece.owners.filter { id in products.contains { $0.id == id } }
             let allowed = orphans.union(products.filter { ids.contains($0.id) }.flatMap(\.receipts))
-            guard shared[piece.url.path] == nil, let target = sharedTarget(ids), var found = item(rules[2], piece.url),
-                  contentRefusal(piece.url.path, allowed: allowed, receipts: receipts, refuseWhenTooLarge: false) == nil else { continue }
+            guard shared[piece.url.path] == nil, let target = sharedTarget(ids), var found = item(rules[2], piece.url) else { continue }
+            if let refusal = contentRefusal(piece.url.path, allowed: allowed, receipts: receipts, refuseWhenTooLarge: false) {
+                // Content with a file CacheDrop doesn't recognise stays, and its first owner's row says so (Decision 53).
+                if case .unrecognised = refusal, let first = ids.first { targets[first]?.unrecognised += 1 }
+                continue
+            }
             found = found.shared(by: ids, receipt: nil, vendor: piece.vendors.first).installed(by: allowed); found.uninstall = target
             shared[piece.url.path] = found
         }
@@ -142,17 +148,20 @@ public enum PlugInUninstall {
 
     /// The items a receipt installed whole: the shallowest listed paths in a support place whose every entry on disk the
     /// receipt lists, so a maker's folder that other products also fill is never taken, only this product's folder in it.
-    static func supportRoots(_ listed: Set<String>, systemRoot: URL, receipts: ReceiptListings = ReceiptListings([:]), products: Set<String> = []) -> [URL] {
+    /// `unrecognised`: the listed files left out because CacheDrop doesn't know their kind is safe (Decision 53).
+    static func supportRoots(_ listed: Set<String>, systemRoot: URL, receipts: ReceiptListings = ReceiptListings([:]), products: Set<String> = [])
+        -> (roots: [URL], unrecognised: Int) {
         let base = systemRoot.standardizedFileURL.path.hasSuffix("/") ? systemRoot.standardizedFileURL.path : systemRoot.standardizedFileURL.path + "/"
-        var roots: [String] = []
+        var roots: [String] = [], unrecognised = 0
         for path in listed.sorted(by: { ($0.split(separator: "/").count, $0) < ($1.split(separator: "/").count, $1) }) {
             guard path.hasPrefix(base), !roots.contains(where: { path.hasPrefix($0 + "/") }) else { continue }
             let relative = String(path.dropFirst(base.count))
-            guard let place = supportPlaces.first(where: relative.hasPrefix), relative.count > place.count, !touchesPlugIns(path, listed, systemRoot: systemRoot),
-                  isWhollyListed(path, listed), !holdsOthers(path, receipts: receipts, products: products) else { continue }
+            guard let place = supportPlaces.first(where: relative.hasPrefix), relative.count > place.count, !touchesPlugIns(path, listed, systemRoot: systemRoot) else { continue }
+            if case .unrecognised = fileRefusal(path) { unrecognised += 1; continue }
+            guard isWhollyListed(path, listed), !holdsOthers(path, receipts: receipts, products: products) else { continue }
             roots.append(path)
         }
-        return roots.map { URL(fileURLWithPath: $0) }
+        return (roots.map { URL(fileURLWithPath: $0) }, unrecognised)
     }
     /// Plug-ins are formats, never support files (#288): a path that is or is in a plug-in bundle or a plug-in folder (AAX's is
     /// in Application Support), or that holds either, is never a support root.
@@ -176,62 +185,65 @@ public enum PlugInUninstall {
         return false
     }
     static func isWhollyListed(_ path: String, _ listed: Set<String>) -> Bool { listed.contains(path) && listingRefusal(path, listed) == nil }
-    /// Why a support item may not be moved as its receipt installed it (#288): it holds license data (refused by name), or an
-    /// entry the receipt doesn't list, which may be the user's or another product's (or more than `limit` to look at).
+    /// Why a support item may not be moved as its receipt installed it (#288): a file CacheDrop doesn't know is safe, or
+    /// licence data (`fileRefusal`), or an entry the receipt doesn't list, which may be the user's or another product's (or more
+    /// than `limit` to look at).
     static func listingRefusal(_ path: String, _ listed: Set<String>, limit: Int = 20_000) -> CheckRefusal? {
-        if let name = licenceData(path) { return .protected(name) }
+        if let refusal = fileRefusal(path) { return refusal }
         guard let walk = FileManager.default.enumerator(atPath: path) else { return nil }
         var seen = 0
         while let relative = walk.nextObject() as? String {
             seen += 1
-            if let name = licenceData(path + "/" + relative) { return .protected(name) }
+            if let refusal = fileRefusal(path + "/" + relative) { return refusal }
             if seen > limit || !listed.contains(path + "/" + relative) { return .changed }
         }
         return nil
     }
 
-    /// Why vendor content may not be moved (#291), from its names alone, since it may be large media: licence data by name, an
-    /// opaque data file, or anything a receipt not in `allowed` lists. A folder with more than `limit` entries is refused when
-    /// `refuseWhenTooLarge` (before acting), and passed at the scan, where it would cost too much.
+    /// Why vendor content may not be moved (#291): a file CacheDrop doesn't know is safe, licence data, or anything a receipt not
+    /// in `allowed` lists. A folder with more than `limit` entries is refused when `refuseWhenTooLarge` (before acting), and
+    /// passed at the scan, where it would cost too much.
     static func contentRefusal(_ path: String, allowed: Set<String>, receipts: ReceiptListings, refuseWhenTooLarge: Bool, limit: Int = 200_000) -> CheckRefusal? {
-        func check(_ entry: String, isFile: Bool) -> CheckRefusal? {
-            let name = (entry as NSString).lastPathComponent
-            if RemovedAppLeftovers.isNeverOffered(name) || ["registration", "serial"].contains(where: entry.lowercased().contains) { return .protected(name) }
-            if isFile, !name.hasPrefix("."), opaqueKinds.contains((name as NSString).pathExtension.lowercased()) { return .protected(name) }
+        func check(_ entry: String) -> CheckRefusal? {
+            if let refusal = fileRefusal(entry) { return refusal }
             return (receipts.byPath[entry] ?? []).isSubset(of: allowed) ? nil : .changed
         }
-        if let refusal = check(path, isFile: false) { return refusal }
+        if let refusal = check(path) { return refusal }
         guard let walk = FileManager.default.enumerator(atPath: path) else { return nil }
         var seen = 0
         while let relative = walk.nextObject() as? String {
             seen += 1
             if seen > limit { return refuseWhenTooLarge ? .changed : nil }
-            if let refusal = check(path + "/" + relative, isFile: walk.fileAttributes?[.type] as? FileAttributeType != .typeDirectory) { return refusal }
+            if let refusal = check(path + "/" + relative) { return refusal }
         }
         return nil
     }
 
-    /// Licence and activation data, by name or by content (#291): a licence word in its name, "registration" or "serial" anywhere
-    /// in its path, a `.lic` or `.key` file, an opaque data file (`.dat`, `.bin`, a database, a file with no extension), a text
-    /// file (`.txt`, `.xml`, `.json`, `.plist`) with licence-like content, or one too large to read. Its name, or nil.
-    static func licenceData(_ path: String) -> String? {
+    /// Why a file may not go with a product (#291, Decision 53), an allow-list: licence data by name ("registration" or "serial"
+    /// anywhere in its path), a preference list with licence-like keys, or any file not of a kind known to be safe.
+    static func fileRefusal(_ path: String) -> CheckRefusal? {
         let url = URL(fileURLWithPath: path), name = url.lastPathComponent, kind = url.pathExtension.lowercased()
-        if RemovedAppLeftovers.isNeverOffered(name) || ["registration", "serial"].contains(where: path.lowercased().contains) { return name }
+        if RemovedAppLeftovers.isNeverOffered(name) || ["registration", "serial"].contains(where: path.lowercased().contains) { return .protected(name) }
         var info = stat()
         guard lstat(path, &info) == 0, info.st_mode & S_IFMT != S_IFDIR else { return nil }
-        if opaqueKinds.contains(kind) { return name }
-        guard textKinds.contains(kind) else { return nil }
-        guard info.st_size <= textReadLimit, let data = try? Data(contentsOf: url) else { return name }
-        if kind == "plist", let list = try? PropertyListSerialization.propertyList(from: data, format: nil), hasLicenceKeys(list) { return name }
-        let text = String(decoding: data, as: UTF8.self)
-        return text.range(of: licenceContent, options: [.regularExpression, .caseInsensitive]) != nil ? name : nil
+        if kind == "plist" {
+            guard info.st_size <= plistReadLimit, let data = try? Data(contentsOf: url),
+                  let list = try? PropertyListSerialization.propertyList(from: data, format: nil) else { return .unrecognised(name) }
+            return hasLicenceKeys(list) ? .protected(name) : nil
+        }
+        return safeKinds.contains(kind) ? nil : .unrecognised(name)
     }
-    /// Files whose content can't be read for licence data: never moved inside a support folder.
-    static let opaqueKinds: Set<String> = ["lic", "key", "dat", "bin", "sqlite", "sqlite3", "db", ""]
-    /// Text files read for licence-like content, up to `textReadLimit`; a larger one is opaque.
-    static let textKinds: Set<String> = ["txt", "xml", "json", "plist"]
-    static let textReadLimit: Int64 = 256 << 10
-    static let licenceContent = #"serial|licen[cs]e|activat|registration|authori[sz]ation|machine.?id"#
+    /// File kinds known to hold only sound, presets, pictures or documents (Decision 53). Everything else stays.
+    static let safeKinds: Set<String> = [
+        // Audio and samples.
+        "wav", "wave", "aif", "aiff", "aifc", "flac", "mp3", "m4a", "aac", "caf", "ogg", "w64", "rx2", "rex", "rcy", "ncw", "sfz", "sf2",
+        // Presets, patches and instruments: VST, AU, Native Instruments, Ableton, u-he, MIDI.
+        "fxp", "fxb", "vstpreset", "aupreset", "nmsv", "nksf", "nksn", "nki", "nkm", "nkx", "nkc", "nkr", "nkb", "nkp", "nks",
+        "adg", "adv", "als", "alp", "agr", "ams", "amxd", "h2p", "mid", "midi", "syx",
+        // Pictures and documents.
+        "png", "jpg", "jpeg", "gif", "tif", "tiff", "bmp", "icns", "svg", "webp", "heic", "pdf", "html", "htm", "rtf",
+    ]
+    static let plistReadLimit: Int64 = 1 << 20
     /// Keys such as SerialNumber, LicenseKey, ActivationCode, Registration, AuthToken or UserKey, at any depth.
     static func hasLicenceKeys(_ list: Any, depth: Int = 0) -> Bool {
         guard depth < 8 else { return true }

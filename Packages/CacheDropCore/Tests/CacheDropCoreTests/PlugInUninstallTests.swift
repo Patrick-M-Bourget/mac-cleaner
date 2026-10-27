@@ -63,10 +63,10 @@ private func fixture(in folder: String? = nil) throws -> (root: URL, home: URL) 
     try plugIn(plugIns + "Components/Pro Synth.component", id: "com.maker.prosynth.au", in: root)
     try plugIn(plugIns + "VST3/Pro Synth.vst3", id: "com.maker.prosynth.vst3", in: root)
     try plugIn(plugIns + "VST3/Pro Delay.vst3", id: "com.maker.prodelay.vst3", in: root)
-    try write(support + "Pro Synth/Presets/Init.preset", in: root)
+    try write(support + "Pro Synth/Presets/Init.fxp", in: root)
     try write(support + "Pro Synth/License.dat", in: root)
-    try write(support + "Pro Delay/Presets/Echo.preset", in: root)
-    try write(support + "Shared/Engine.res", in: root, bytes: 5000)
+    try write(support + "Pro Delay/Presets/Echo.fxp", in: root)
+    try write(support + "Shared/Engine.wav", in: root, bytes: 5000)
     try receipt("com.maker.prosynth.pkg", listing: [plugIns + "Components/Pro Synth.component", plugIns + "VST3/Pro Synth.vst3", support + "Pro Synth"], in: root)
     try receipt("com.maker.prodelay.pkg", listing: [plugIns + "VST3/Pro Delay.vst3", support + "Pro Delay"], in: root)
     // A suite receipt lists both products and their shared folder.
@@ -248,9 +248,9 @@ private func names(_ items: [Candidate]) -> Set<String> { Set(items.map(\.url.la
     let presets = try #require(items.first { $0.url.lastPathComponent == "Presets" })
     #expect(check(home).check(presets) == nil)
 
-    try write(support + "Pro Synth/Presets/My Sound.preset", in: root)
+    try write(support + "Pro Synth/Presets/My Sound.fxp", in: root)
     #expect(check(home).check(presets) == .changed, "A file the receipt doesn't list may be the user's")
-    try FileManager.default.removeItem(at: root.appendingPathComponent(support + "Pro Synth/Presets/My Sound.preset"))
+    try FileManager.default.removeItem(at: root.appendingPathComponent(support + "Pro Synth/Presets/My Sound.fxp"))
     try write(support + "Pro Synth/Presets/iLok Activation.dat", in: root)
     #expect(check(home).check(presets) == .protected("iLok Activation.dat"), "License data is never moved")
 }
@@ -279,7 +279,7 @@ private func names(_ items: [Candidate]) -> Set<String> { Set(items.map(\.url.la
     // Pro Delay offers nothing of its own: its VST3 needs a password and its presets are gone.
     chmod(delayVST3.path, 0o555)
     try FileManager.default.removeItem(at: root.appendingPathComponent(support + "Pro Delay"))
-    try write("Library/Application Support/Maker Content/Sounds.pack", in: root)
+    try write("Library/Application Support/Maker Content/Sounds.wav", in: root)
     let inventory = PlugInInventory.scan(home: home, systemRoot: root, sizer: KnownLocationSizer(timeBudget: 5))
     let synth = try product("Pro Synth", inventory), delay = try product("Pro Delay", inventory)
     let library = MusicContentItem(name: "Sounds", vendors: ["Maker"], url: root.appendingPathComponent("Library/Application Support/Maker Content"), kind: .installed,
@@ -310,7 +310,7 @@ private func names(_ items: [Candidate]) -> Set<String> { Set(items.map(\.url.la
     let (root, home) = try fixture()
     defer { try? FileManager.default.removeItem(at: root) }
     // A vendor's content pkg, with no plug-in, also lists one file inside Pro Synth's presets.
-    try receipt("com.maker.common.pkg", listing: [support + "Pro Synth/Presets/Init.preset"], in: root)
+    try receipt("com.maker.common.pkg", listing: [support + "Pro Synth/Presets/Init.fxp"], in: root)
     let (inventory, items) = scan(root, home)
     let presets = try #require(items.first { $0.url.lastPathComponent == "Presets" })
 
@@ -328,7 +328,7 @@ private func names(_ items: [Candidate]) -> Set<String> { Set(items.map(\.url.la
 
     // Pro Verb's installer, run after the scan, rewrote a preset Pro Synth's receipt also lists: nothing new on disk.
     try plugIn(plugIns + "VST3/Pro Verb.vst3", id: "com.maker.proverb.vst3", in: root)
-    try receipt("com.maker.proverb.pkg", listing: [plugIns + "VST3/Pro Verb.vst3", support + "Pro Synth/Presets/Init.preset"], in: root)
+    try receipt("com.maker.proverb.pkg", listing: [plugIns + "VST3/Pro Verb.vst3", support + "Pro Synth/Presets/Init.fxp"], in: root)
     #expect(check(home).check(presets) == .changed, "Read again before acting: it is shared now")
 }
 
@@ -358,7 +358,7 @@ private func plist(_ relative: String, _ value: [String: Any], in root: URL) thr
     defer { try? FileManager.default.removeItem(at: root) }
     let prefs = "Library/Preferences/com.maker.prosynth.plist"
     try plist(prefs, ["SerialNumber": "ABCD-1234", "Theme": "Dark"], in: root)
-    try write(support + "Pro Synth/Skins/Dark.skin", in: root)
+    try write(support + "Pro Synth/Skins/Dark.png", in: root)
     try write(support + "Pro Synth/Skins/state.dat", in: root)
     try write(support + "Pro Synth/Docs/Registration Info.txt", in: root)
     try write(support + "Pro Synth/Docs/Manual.pdf", in: root)
@@ -402,19 +402,19 @@ private func unreadableReceipt(_ id: String, in root: URL) throws {
     let (root, home) = try fixture()
     defer { try? FileManager.default.removeItem(at: root) }
     try Data("Serial: 1234-5678-ABCD".utf8).write(to: { try! write(support + "Pro Synth/Notes/notes.txt", in: root); return root.appendingPathComponent(support + "Pro Synth/Notes/notes.txt") }())
-    try write(support + "Pro Synth/Skins/Dark.skin", in: root)
+    try write(support + "Pro Synth/Skins/Dark.png", in: root)
     try write(support + "Pro Synth/Skins/cache.db", in: root)
     try write(support + "Pro Synth/Docs/manual.json", in: root, bytes: 2_000_000)
-    try Data("<settings/>".utf8).write(to: root.appendingPathComponent(support + "Pro Synth/Presets/Info.xml"))
+    try plist(support + "Pro Synth/Presets/Info.plist", ["Volume": 1], in: root)
     try receipt("com.maker.prosynth.pkg", listing: [plugIns + "Components/Pro Synth.component", plugIns + "VST3/Pro Synth.vst3", support + "Pro Synth"], in: root)
     let (_, items) = scan(root, home)
 
     #expect(!items.contains { ["Notes", "Skins", "Docs"].contains($0.url.lastPathComponent) }, "\(items.map(\.url.lastPathComponent))")
     let presets = try #require(items.first { $0.url.lastPathComponent == "Presets" })
     #expect(check(home).check(presets) == nil)
-    try Data("<settings><activation>XYZ</activation></settings>".utf8).write(to: root.appendingPathComponent(support + "Pro Synth/Presets/Info.xml"))
+    try plist(support + "Pro Synth/Presets/Info.plist", ["Volume": 1, "Activation": "XYZ"], in: root)
     // The listed placeholder is filled with activation data after the scan.
-    #expect(check(home).check(presets) == .protected("Info.xml"), "Before acting too")
+    #expect(check(home).check(presets) == .protected("Info.plist"), "Before acting too")
 }
 
 @Test func aSupportItemWithRegistrationOrSerialAnywhereInItsPathIsNeverMoved() throws {
@@ -446,8 +446,28 @@ private func unreadableReceipt(_ id: String, in root: URL) throws {
 
     // Before acting: opaque data appeared in it, or another product's receipt now lists a file in it.
     try write(folder + "/Sounds/state.db", in: root)
-    #expect(check(home).check(library) == .protected("state.db"))
+    #expect(check(home).check(library) == .unrecognised("state.db"))
     try FileManager.default.removeItem(at: root.appendingPathComponent(folder + "/Sounds/state.db"))
     try receipt("com.maker.prodelay.pkg", listing: [plugIns + "VST3/Pro Delay.vst3", support + "Pro Delay", folder + "/Sounds/Pad.wav"], in: root)
     #expect(check(home).check(library) == .changed)
+}
+
+@Test func onlyKnownSafeKindsAreOfferedAnythingElseStaysAndIsCounted() throws {
+    let (root, home) = try fixture()
+    defer { try? FileManager.default.removeItem(at: root) }
+    try Data("key=ABCD-1234".utf8).write(to: { try! write(support + "Pro Synth/Presets/engine.cfg", in: root); return root.appendingPathComponent(support + "Pro Synth/Presets/engine.cfg") }())
+    try receipt("com.maker.prosynth.pkg", listing: [plugIns + "Components/Pro Synth.component", plugIns + "VST3/Pro Synth.vst3", support + "Pro Synth"], in: root)
+    try write("Library/Application Support/Maker Content/Sounds/Pad.wav", in: root)
+    try Data("<library><id>9F2C-11AA</id></library>".utf8).write(to: { try! write("Library/Application Support/Maker Content/Library.xml", in: root)
+        return root.appendingPathComponent("Library/Application Support/Maker Content/Library.xml") }())
+    let inventory = PlugInInventory.scan(home: home, systemRoot: root, sizer: KnownLocationSizer(timeBudget: 5))
+    let synth = try product("Pro Synth", inventory)
+    let library = MusicContentItem(name: "Sounds", vendors: ["Maker"], url: root.appendingPathComponent("Library/Application Support/Maker Content"), kind: .installed,
+                                   state: .present(.unknown), owners: [synth], tie: .vendor)
+    let items = PlugInUninstall.scan(inventory, apps: [], receipts: ReceiptListings.read(under: root), content: [library], systemRoot: root)
+
+    #expect(!items.contains { ["Presets", "engine.cfg", "Maker Content"].contains($0.url.lastPathComponent) }, "\(items.map(\.url.lastPathComponent))")
+    let own = items.filter { $0.uninstall?.path == synth && $0.sharedBy.isEmpty }
+    #expect(names(own.filter { $0.ruleID == PlugInUninstall.filesRuleID }) == ["Init.fxp"], "What it recognises next to it is still offered")
+    #expect(AppUninstall.staying(chosen: own, offered: items).map(\.text).contains("Pro Synth: 1 part stays · Holds files CacheDrop doesn’t recognise"))
 }

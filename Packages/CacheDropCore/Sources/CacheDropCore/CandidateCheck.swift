@@ -18,6 +18,8 @@ public enum CheckRefusal: Sendable, Equatable {
     case appInstalled(String)
     /// A plug-in support item, while any installer record can't be read (#291): unread is never "lists nothing".
     case receiptsUnread
+    /// A plug-in support item or vendor content holding a file not of a kind known to be safe (#291, Decision 53).
+    case unrecognised(String)
     /// A folder a tool named or its config set that no longer passes the write-scope checks (#201, #205); the reason names the tool.
     case notACache(String)
     public var reason: String {
@@ -45,6 +47,7 @@ public enum CheckRefusal: Sendable, Equatable {
         case .trackedByGit: "Git tracks files in it. It is kept."
         case .appInstalled(let name): "\(name) is installed again, or CacheDrop couldn’t check. It is kept."
         case .receiptsUnread: "Couldn’t read every installer record, so it is kept."
+        case .unrecognised(let name): "Holds files CacheDrop doesn’t recognise (\(name)), so it is kept."
         case .notACache(let reason): reason
         }
     }

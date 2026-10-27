@@ -168,6 +168,11 @@ struct ApplicationsView: View {
                 if target?.receiptsUnread == true {
                     StatusRow(text: "Support files stay: couldn’t read every installer record", symbol: "info.circle", identifier: "applicationsReceiptsUnread-" + entry.id)
                 }
+                // Only files of kinds known to be safe go with it (#291, Decision 53).
+                if let count = target?.unrecognised, count > 0 {
+                    StatusRow(text: "Holds files CacheDrop doesn’t recognise: " + (count == 1 ? "1 stays" : "\(count) stay"), symbol: "info.circle",
+                              identifier: "applicationsUnrecognised-" + entry.id)
+                }
                 // The app, or a plug-in product's own app and its hosts (#176), each with "Quit <App>".
                 if let rule = (AppUninstall.rules + PlugInUninstall.rules).first(where: { rule in uninstall.contains { $0.ruleID == rule.id } }) {
                     PlanRunningOwners(model: catalog, rule: rule, only: Set(uninstall.compactMap(\.uninstall).flatMap { [$0.owner.name] + $0.hosts.map(\.name) }))
