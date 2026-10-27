@@ -109,3 +109,16 @@ func waitForFile(_ file: URL, timeout: TimeInterval = 10) -> Bool {
     }
     return true
 }
+
+/// When a test cancelled, so a stop is timed from the cancel rather than from a start a busy test run may delay.
+final class CancelTime: @unchecked Sendable {
+    private let lock = NSLock()
+    private var at: TimeInterval?
+    func mark() { lock.lock(); at = ProcessInfo.processInfo.systemUptime; lock.unlock() }
+    /// Seconds since the cancel. A cancel that never fired fails the test, and reads as forever so no time bound passes.
+    var elapsed: TimeInterval {
+        lock.lock(); let at = self.at; lock.unlock()
+        guard let at else { Issue.record("The cancel never fired"); return .infinity }
+        return ProcessInfo.processInfo.systemUptime - at
+    }
+}

@@ -276,7 +276,7 @@ private func dockerRun(_ home: URL, docker: URL, choose ruleIDs: Set<String>, vo
     let length = uniqueSleep(), running = home.appendingPathComponent("running")
     let docker = try fakeDocker(home, prune: "echo pruning; touch '\(running.path)'; sleep \(length)")
     let cancellation = CleanupCancellation()
-    Task.detached { if waitForFile(running) { cancellation.cancel() } }
+    DispatchQueue.global().async { if waitForFile(running) { cancellation.cancel() } }
     let result = try await dockerRun(home, docker: docker, choose: ["docker-images"], cancellation: cancellation)
     survivorsAfterSettling(length).forEach { kill($0, SIGKILL) }
     let record = try #require(result.records.first)

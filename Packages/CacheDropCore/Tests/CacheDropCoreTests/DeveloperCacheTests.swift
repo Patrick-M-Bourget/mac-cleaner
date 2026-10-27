@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-import CacheDropCore
+@testable import CacheDropCore
 
 /// A temp home folder; tests never read or write the real home.
 private func fixtureHome() throws -> URL {
@@ -210,15 +210,12 @@ private func cancellableRun(_ home: URL, brewScript: String, cancellation: Clean
     let length = uniqueSleep(), running = home.appendingPathComponent("running")
     let cancellation = CleanupCancellation(), cancelledAt = CancelTime()
     // Cancel once the stand-in brew, which starts its own child like the real one, is running.
-    Task.detached {
-        while !FileManager.default.fileExists(atPath: running.path) { try? await Task.sleep(for: .milliseconds(10)) }
-        cancelledAt.mark(); cancellation.cancel()
-    }
+    DispatchQueue.global().async { if waitForFile(running) { cancelledAt.mark(); cancellation.cancel() } }
     let result = try await cancellableRun(home, brewScript: "echo cleaning\ntouch '\(running.path)'\nsleep \(length) &\nsleep \(length)", cancellation: cancellation)
-    let sinceCancel = ProcessInfo.processInfo.systemUptime - cancelledAt.value
+    let sinceCancel = cancelledAt.elapsed
     let left = survivorsAfterSettling(length)
     left.forEach { kill($0, SIGKILL) }
-    #expect(sinceCancel < 2 + 1)
+    #expect(sinceCancel < BoundedTool.stopGrace + 1)
     #expect(left.isEmpty)
     let tool = try #require(result.records.first), next = try #require(result.records.last)
     #expect(tool.state == .failed)
