@@ -146,7 +146,8 @@ struct ApplicationsView: View {
         let count = uninstall.isEmpty ? entry.parts.count : uninstall.count + staying.count
         return CategoryRow(category: category, state: uninstall.isEmpty ? nil : catalog.selectionState(ofApp: entry.id), title: entry.name,
                            detail: [entry.maker, entry.volume].compactMap { $0 }.joined(separator: " · "),
-                           size: uninstall.isEmpty ? entry.size.text : SizeEstimate(sum: uninstall.map(SizeEstimate.init)).text,
+                           // Shared items count on no product's row, so the page counts them once (#288, Decisions 51 and 52).
+                           size: uninstall.isEmpty ? entry.size.text : SizeEstimate(sum: uninstall.filter(\.sharedBy.isEmpty).map(SizeEstimate.init)).text,
                            enabled: uninstall.isEmpty || catalog.canEdit, identifier: identifier,
                            // An app alone is its only item: no "Choose items · 1" (#270).
                            itemCount: count > 1 ? count : nil, expanded: isExpanded,
