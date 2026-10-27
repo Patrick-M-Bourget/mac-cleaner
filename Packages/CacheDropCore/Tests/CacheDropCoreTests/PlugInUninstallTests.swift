@@ -224,3 +224,16 @@ private func names(_ items: [Candidate]) -> Set<String> { Set(items.map(\.url.la
     #expect(items.filter { $0.url.lastPathComponent == "Pro Synth.aaxplugin" }.map(\.ruleID) == [PlugInUninstall.formatsRuleID], "Once, as a format")
     #expect(!items.contains { $0.ruleID != PlugInUninstall.formatsRuleID && $0.url.path.contains("/Avid") }, "Never Avid's plug-in folders")
 }
+
+@Test func aFolderAnotherProductsOwnReceiptAlsoListsIsSharedNotEitherProductsOwn() throws {
+    let (root, home) = try fixture()
+    defer { try? FileManager.default.removeItem(at: root) }
+    try write(support + "Common/Impulses.wav", in: root)
+    try receipt("com.maker.prosynth.pkg", listing: [plugIns + "Components/Pro Synth.component", plugIns + "VST3/Pro Synth.vst3", support + "Pro Synth",
+                                                    support + "Common"], in: root)
+    try receipt("com.maker.prodelay.pkg", listing: [plugIns + "VST3/Pro Delay.vst3", support + "Pro Delay", support + "Common"], in: root)
+    let (_, items) = scan(root, home)
+    let common = items.filter { $0.url.lastPathComponent == "Common" }
+
+    #expect(common.count == 1 && common[0].ruleID == PlugInUninstall.sharedRuleID && common[0].sharedBy.count == 2)
+}

@@ -50,8 +50,8 @@ public enum PlugInUninstall {
                             sizer: KnownLocationSizer = KnownLocationSizer()) -> [Candidate] {
         let products = inventory.products.filter { !$0.isApple }
         let catalog = Catalog(rules: rules)
-        var sharers: [String: [String]] = [:]
-        for product in products { for receipt in product.receipts { sharers[receipt, default: []].append(product.id) } }
+        // Every product whose receipts list a path shares it, by any receipt, its own included (#288).
+        func sharers(_ path: String) -> [String] { products.filter { $0.receipts.contains { listings[$0]?.contains(path) == true } }.map(\.id) }
         var shared: [String: Candidate] = [:], items: [Candidate] = []
         func item(_ rule: CleanupRule, _ url: URL) -> Candidate? {
             var info = stat()
@@ -80,8 +80,8 @@ public enum PlugInUninstall {
                 own.append(format)
             }
             for receipt in product.receipts {
-                let ids = sharers[receipt] ?? []
                 for url in supportRoots(listings[receipt] ?? [], systemRoot: systemRoot) {
+                    let ids = sharers(url.path)
                     if ids.count > 1 { if shared[url.path] == nil, let found = item(rules[2], url) { shared[url.path] = found.shared(by: ids, receipt: receipt) }; continue }
                     guard var file = item(rules[1], url) else { continue }
                     guard taken(offered, [file]).count == 1 else { target.inPlan += 1; continue }
