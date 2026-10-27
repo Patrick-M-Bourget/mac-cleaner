@@ -161,12 +161,12 @@ public actor CleanupExecutor {
             record.state = .skipped; record.message = CheckRefusal.changed.reason; return
         }
         let cancellation = self.cancellation
-        let outcome = await Task.detached(priority: .userInitiated) {
-            // The tool's own folder goes first on PATH, so `#!/usr/bin/env node` tools such as pnpm find their runtime.
-            var environment = BoundedTool.defaultEnvironment
-            environment["PATH"] = executable.deletingLastPathComponent().path + ":" + (environment["PATH"] ?? "")
-            return Result { try BoundedTool.capture(executable: executable, arguments: arguments, timeout: command.timeout, environment: environment, cancellation: cancellation) }
-        }.value
+        // The tool's own folder goes first on PATH, so `#!/usr/bin/env node` tools such as pnpm find their runtime.
+        var environment = BoundedTool.defaultEnvironment
+        environment["PATH"] = executable.deletingLastPathComponent().path + ":" + (environment["PATH"] ?? "")
+        let outcome = await Self.onOwnThread { [environment] in
+            Result { try BoundedTool.capture(executable: executable, arguments: arguments, timeout: command.timeout, environment: environment, cancellation: cancellation) }
+        }
         let name = command.commandLine(for: candidate.toolArgument)
         switch outcome {
         case .success(let (status, output)):
@@ -194,6 +194,16 @@ public actor CleanupExecutor {
             record.state = .skipped; record.message = "\(name) is no longer installed."
         case .failure:
             record.state = .failed; record.message = "Couldn’t run \(name). Nothing was changed."
+        }
+    }
+
+    /// Runs `work`, which blocks for as long as a tool runs (up to its time limit), on a thread of its own and resumes with its result.
+    /// Never on the Swift concurrency pool, whose few threads a long `brew cleanup` would otherwise hold (#200).
+    private static func onOwnThread<T: Sendable>(_ work: @escaping @Sendable () -> T) async -> T {
+        await withCheckedContinuation { continuation in
+            let thread = Thread { continuation.resume(returning: work()) }
+            thread.qualityOfService = .userInitiated
+            thread.start()
         }
     }
 

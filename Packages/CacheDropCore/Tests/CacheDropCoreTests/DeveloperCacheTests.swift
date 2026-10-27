@@ -190,6 +190,41 @@ private func homebrewRun(_ home: URL, script: String, timeout: TimeInterval? = n
     #expect(FileManager.default.fileExists(atPath: home.appendingPathComponent("Library/Caches/Homebrew/entry").path))
 }
 
+/// A running tool holds no Swift concurrency thread (#200): with as many tools running at once as the pool has threads,
+/// another async task still runs. Run under LIBDISPATCH_COOPERATIVE_POOL_STRICT=1 to hold the pool to that width.
+/// The tools wait for a release file; the async task writes it once it sees them all running. If the pool is held,
+/// it never gets to, and a plain thread releases them after a long wait so the test ends, failing.
+@Test func aRunningToolLeavesTheConcurrencyPoolFree() async throws {
+    let shared = try fixtureHome()
+    defer { try? FileManager.default.removeItem(at: shared) }
+    let release = shared.appendingPathComponent("release"), releasedByFallback = shared.appendingPathComponent("released-by-fallback")
+    let count = ProcessInfo.processInfo.activeProcessorCount
+    let homes = try (0..<count).map { _ in try fixtureHome() }
+    defer { homes.forEach { try? FileManager.default.removeItem(at: $0) } }
+    for home in homes { try makeFolder(home, "Library/Caches/Homebrew") }
+    Thread {
+        let deadline = ProcessInfo.processInfo.systemUptime + 30
+        while !FileManager.default.fileExists(atPath: release.path), ProcessInfo.processInfo.systemUptime < deadline { usleep(50_000) }
+        if !FileManager.default.fileExists(atPath: release.path) {
+            FileManager.default.createFile(atPath: releasedByFallback.path, contents: nil)
+            FileManager.default.createFile(atPath: release.path, contents: nil)
+        }
+    }.start()
+    try await withThrowingTaskGroup(of: CatalogExecutionResult.self) { group in
+        for home in homes {
+            let script = "touch '\(home.appendingPathComponent("running").path)'\nwhile [ ! -e '\(release.path)' ]; do sleep 0.05; done"
+            group.addTask { try await homebrewRun(home, script: script, timeout: 60) }
+        }
+        group.addTask {
+            while !homes.allSatisfy({ FileManager.default.fileExists(atPath: $0.appendingPathComponent("running").path) }) { try await Task.sleep(nanoseconds: 20_000_000) }
+            FileManager.default.createFile(atPath: release.path, contents: nil)
+            return CatalogExecutionResult(batchID: UUID(), records: [], previewOnly: false, rejectedReplay: false, journalFailure: nil, estimatedBytes: 0)
+        }
+        for try await result in group { #expect(result.records.allSatisfy { $0.state == .succeeded }) }
+    }
+    #expect(!FileManager.default.fileExists(atPath: releasedByFallback.path))
+}
+
 /// Homebrew's cleanup followed by a plain delete (pnpm's metadata cache), run with `cancellation`.
 private func cancellableRun(_ home: URL, brewScript: String, cancellation: CleanupCancellation, measure: @escaping @Sendable (URL) -> CapacitySample? = FakeVolume().read) async throws -> CatalogExecutionResult {
     try makeFolder(home, "Library/Caches/Homebrew")
