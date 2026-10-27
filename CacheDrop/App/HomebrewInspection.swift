@@ -55,8 +55,10 @@ struct HomebrewInspectionView: View {
     let back: () -> Void
     var body: some View {
         VStack(alignment: .leading, spacing: CacheDropDesign.Space.xl) {
-            Button("Back to Overview", systemImage: "chevron.left", action: back)
-            PageHeader(title: "Homebrew opportunities")
+            VStack(alignment: .leading, spacing: CacheDropDesign.Space.sm) {
+                BackButton(destination: Destination.overview.rawValue, action: back)
+                PageHeader(title: "Homebrew opportunities")
+            }
             Text("Read-only Homebrew cache inventory").foregroundStyle(.secondary)
             Text("CacheDrop inspects your chosen cache without running installed code, reading brew.env or loading formulae. Vendor cleanup remains unqualified.")
             SettingsRow(title: "Selected installation") {

@@ -9,10 +9,9 @@ struct AppManagedStorageView: View {
     var body: some View {
         let protected = model.guidance.filter { $0.size == .notAccessible }
         VStack(alignment: .leading, spacing: CacheDropDesign.Space.xl) {
-            HStack(alignment: .top) {
+            VStack(alignment: .leading, spacing: CacheDropDesign.Space.sm) {
+                BackButton(destination: Destination.overview.rawValue, action: back).accessibilityIdentifier("appManagedBack")
                 PageHeader(title: "App-managed storage", subtitle: "Review protected data in the app that owns it.")
-                Spacer(minLength: CacheDropDesign.Space.md)
-                Button("Back to overview", action: back).accessibilityIdentifier("appManagedBack")
             }
             if !protected.isEmpty {
                 FullDiskAccessNote(places: protected.compactMap { model.guidanceRule($0)?.title }).accessibilityIdentifier("guidanceAccess")

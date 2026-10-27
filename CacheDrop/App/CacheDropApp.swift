@@ -186,7 +186,7 @@ private struct WorkspaceView: View {
                     .padding(.horizontal, CacheDropDesign.Space.page)
                 if nativeInspectionVisible {
                     StorageExplorerView(model: folderInspection, selection: selection, context: explorerContext,
-                        backTitle: "Back to " + explorerCaller.rawValue, back: { nativeInspectionVisible = false; destination = explorerCaller })
+                        caller: explorerCaller.rawValue, back: { nativeInspectionVisible = false; destination = explorerCaller })
                     ActionStrip(message: nil) {
                         Button("Review plan") {
                             nativeInspectionVisible = false
@@ -199,7 +199,7 @@ private struct WorkspaceView: View {
                         viewHistory: { destination = .history }, newPlan: startNewPlan,
                         reviewRecovery: { openRecovery(caller: .plan) },
                         backToExplorer: navigationState.planReturnsToGrowth ? { navigationState.planReturnsToGrowth = false; destination = .growth } : planReturnsToExplorer ? { nativeInspectionVisible = true; planReturnsToExplorer = false } : nil,
-                        backToExplorerTitle: navigationState.planReturnsToGrowth ? "Back to Storage trends" : "Back to Explorer",
+                        backToExplorerDestination: navigationState.planReturnsToGrowth ? Destination.growth.rawValue : "Explorer",
                         presentation: planPresentation)
                 } else if showsSmartClean {
                     SmartCleanView(selection: selection, openPlan: { openPlan($0) }, viewHistory: { navigate(.history) }, reviewRecovery: { openRecovery(caller: .smartClean) })
@@ -207,13 +207,34 @@ private struct WorkspaceView: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: CacheDropDesign.Space.xl) {
                         if recoveryVisible {
-                            CleanupRecoveryView(model: recovery)
+                            VStack(alignment: .leading, spacing: CacheDropDesign.Space.sm) {
+                                BackButton(destination: navigationState.localRecordsVisible ? "Local records" : navigationState.recoveryCaller.rawValue) {
+                                    recoveryVisible = false; destination = navigationState.recoveryCaller; navigationState.recoveryCaller = .overview
+                                }
+                                CleanupRecoveryView(model: recovery)
+                            }
                         } else if navigationState.localRecordsVisible {
-                            LocalRecordsView(model: navigationState.historyModel, showRecovery: { openRecovery(caller: navigationState.localRecordsCaller) }, didReset: didResetLocalRecords, reviewDiagnostics: nil)
+                            VStack(alignment: .leading, spacing: CacheDropDesign.Space.sm) {
+                                BackButton(destination: navigationState.localRecordsCaller.rawValue) {
+                                    navigationState.localRecordsVisible = false
+                                    destination = navigationState.localRecordsCaller
+                                }
+                                LocalRecordsView(model: navigationState.historyModel, showRecovery: { openRecovery(caller: navigationState.localRecordsCaller) }, didReset: didResetLocalRecords, reviewDiagnostics: nil)
+                            }
                         } else if exclusionsVisible {
-                            ExclusionsView(model: ExclusionsModel.shared)
+                            VStack(alignment: .leading, spacing: CacheDropDesign.Space.sm) {
+                                BackButton(destination: Destination.locations.rawValue) { exclusionsVisible = false; destination = .locations }
+                                    .disabled(ExclusionsModel.shared.editingBlocked)
+                                ExclusionsView(model: ExclusionsModel.shared)
+                            }
                         } else if diagnosticsVisible {
-                            DiagnosticsView(model: diagnostics)
+                            VStack(alignment: .leading, spacing: CacheDropDesign.Space.sm) {
+                                BackButton(destination: navigationState.diagnosticsCaller.rawValue) {
+                                    diagnosticsVisible = false; navigationState.localRecordsVisible = false
+                                    destination = navigationState.diagnosticsCaller
+                                }.disabled(diagnostics.isSaving)
+                                DiagnosticsView(model: diagnostics)
+                            }
                         } else if navigationState.appManagedVisible {
                             AppManagedStorageView(model: selection.catalog) { navigationState.appManagedVisible = false }
                         } else if pipVisible {
@@ -252,7 +273,6 @@ private struct WorkspaceView: View {
                 Group {
                     if exclusionsVisible {
                         ActionStrip(message: "Custom rules change scan coverage; original files stay unchanged.") {
-                            Button("Back to Locations & access") { exclusionsVisible = false; destination = .locations }.disabled(ExclusionsModel.shared.editingBlocked)
                             if ExclusionsModel.shared.preview != nil {
                                 Button("Cancel") { ExclusionsModel.shared.preview = nil }.disabled(ExclusionsModel.shared.editingBlocked)
                                 Button("Save exclusion") { Task { await ExclusionsModel.shared.save() } }.buttonStyle(.borderedProminent).disabled(ExclusionsModel.shared.editingBlocked)
@@ -262,25 +282,12 @@ private struct WorkspaceView: View {
                         }
                     } else if diagnosticsVisible {
                         ActionStrip(message: "The reviewed payload stays on this Mac unless you explicitly save it.") {
-                            Button("Back to " + navigationState.diagnosticsCaller.rawValue) {
-                                diagnosticsVisible = false; navigationState.localRecordsVisible = false
-                                destination = navigationState.diagnosticsCaller
-                            }.disabled(diagnostics.isSaving)
                             Button("Save diagnostics…") { Task { await diagnostics.save() } }.buttonStyle(.borderedProminent).disabled(diagnostics.export == nil || diagnostics.isSaving)
                         }
                     } else if recoveryVisible {
-                        ActionStrip(message: "Recovery records are retained. Nothing resumes automatically.") {
-                            Button(navigationState.localRecordsVisible ? "Back to Local records" : navigationState.recoveryCaller == .overview ? "Return to Overview" : "Back to " + navigationState.recoveryCaller.rawValue) {
-                                recoveryVisible = false; destination = navigationState.recoveryCaller; navigationState.recoveryCaller = .overview
-                            }.buttonStyle(.borderedProminent)
-                        }
+                        ActionStrip(message: "Recovery records are retained. Nothing resumes automatically.") { EmptyView() }
                     } else if navigationState.localRecordsVisible {
-                        ActionStrip(message: nil) {
-                            Button("Back to " + navigationState.localRecordsCaller.rawValue) {
-                                navigationState.localRecordsVisible = false
-                                destination = navigationState.localRecordsCaller
-                            }.buttonStyle(.borderedProminent)
-                        }
+                        ActionStrip()
                     } else if nativeInspectionVisible && folderInspection.isScanning {
                         ActionStrip(message: "Preliminary observations · No cleanup is running") {
                             Button("Stop scan") { folderInspection.cancel() }.buttonStyle(.borderedProminent)

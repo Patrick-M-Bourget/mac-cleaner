@@ -95,6 +95,16 @@ import XCTest
     app.descendants(matching: .any).matching(identifier: "actionStrip").firstMatch
 }
 
+/// Decision 47: a back button sits just above its page's title, never in the bottom bar.
+@MainActor func assertBackButton(_ back: XCUIElement, isAbove title: String, in app: XCUIApplication, file: StaticString = #filePath, line: UInt = #line) {
+    XCTAssertTrue(back.waitForExistence(timeout: 5), "Back button exists", file: file, line: line)
+    let frame = back.frame
+    let titles = app.staticTexts.matching(NSPredicate(format: "label == %@ OR value == %@", title, title)).allElementsBoundByIndex
+    XCTAssertTrue(titles.contains { abs($0.frame.minX - frame.minX) < 20 && $0.frame.minY >= frame.maxY - 1 && $0.frame.minY - frame.maxY < 40 },
+                  "\(back.label) sits above \(title)", file: file, line: line)
+    XCTAssertFalse(actionStrip(app).frame.intersects(frame), "\(back.label) is not in the bottom bar", file: file, line: line)
+}
+
 /// The review sheet's line for a catalog category in a consequence group, e.g. `reviewLine(app, "permanentlyRemoved", "developer")`.
 @MainActor func reviewLine(_ app: XCUIApplication, _ group: String, _ category: String) -> XCUIElement {
     app.descendants(matching: .any)["reviewLine-\(group)-\(category)"]
@@ -782,6 +792,16 @@ extension CatalogCleanupUITests {
         let explore = app.links["Explore storage"]
         XCTAssertTrue(explore.waitForExistence(timeout: 20))
         explore.click()
+        // #222: inside a folder, back names where it goes, then leaves the explorer.
+        let back = app.buttons["explorerBack"]
+        assertBackButton(back, isAbove: "Explore storage", in: app)
+        XCTAssertEqual(back.label, "Back to Overview")
+        app.buttons["Open folder " + folder.lastPathComponent].click()
+        XCTAssertTrue(app.textFields["explorerSearch"].waitForExistence(timeout: 5))
+        XCTAssertEqual(back.label, "Back to Selected locations")
+        back.click()
+        XCTAssertTrue(app.buttons["Open folder " + folder.lastPathComponent].waitForExistence(timeout: 5))
+        XCTAssertEqual(back.label, "Back to Overview")
         // A segmented picker is a radio group to accessibility.
         let mode = app.radioGroups["explorerMode"]
         XCTAssertTrue(mode.waitForExistence(timeout: 10))
@@ -888,6 +908,8 @@ final class GuidanceUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["guidanceStatus"].waitForExistence(timeout: 5))
         XCTAssertEqual(app.staticTexts["guidanceStatus"].value as? String, "Test run: would open Photos.")
 
+        assertBackButton(app.buttons["appManagedBack"], isAbove: "App-managed storage", in: app)
+        XCTAssertEqual(app.buttons["appManagedBack"].label, "Back to Overview")
         app.buttons["appManagedBack"].click()
         revealAndClick(app.buttons["overviewCategory-developer"], in: app)
         XCTAssertTrue(app.descendants(matching: .any)["planCategory-developer"].waitForExistence(timeout: 5))

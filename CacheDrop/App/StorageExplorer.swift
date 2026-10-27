@@ -23,6 +23,11 @@ import SwiftUI
     var position = Position()
     private var history: [Position] = []
     var canGoBack: Bool { !history.isEmpty }
+    /// Where back leads inside the explorer: the previous folder, or the list of locations; nil when back leaves it.
+    var backDestination: String? {
+        guard let previous = history.last else { return nil }
+        return previous.folder?.lastPathComponent ?? (downloadsOnly ? "Scanned Downloads locations" : "Selected locations")
+    }
     var navigationID = UUID()
     func openDownloads() { reset(downloadsOnly: true, folder: nil) }
     func openLocations() { reset(downloadsOnly: false, folder: nil) }
@@ -116,7 +121,8 @@ struct StorageExplorerView: View {
     @Bindable var model: FolderInspection
     @Bindable var selection: SessionPlan
     @Bindable var context: StorageExplorerContext
-    let backTitle: String
+    /// The page the explorer was opened from, which back returns to.
+    let caller: String
     let back: () -> Void
     private typealias Entry = StorageExplorerObservations.Entry
     private var observations: StorageExplorerObservations {
@@ -149,10 +155,12 @@ struct StorageExplorerView: View {
         GeometryReader { geometry in
             let wide = geometry.size.width >= 800
             VStack(alignment: .leading, spacing: CacheDropDesign.Space.lg) {
-                Button(context.canGoBack ? "Back to previous folder" : backTitle, systemImage: "chevron.left") {
-                    if !context.backWithinExplorer() { back() }
-                }.accessibilityIdentifier("explorerBack")
-                PageHeader(title: context.downloadsOnly ? "Explore Downloads" : "Explore storage", subtitle: "Inspect local allocations within your selected folders.")
+                VStack(alignment: .leading, spacing: CacheDropDesign.Space.sm) {
+                    BackButton(destination: context.backDestination ?? caller) {
+                        if !context.backWithinExplorer() { back() }
+                    }.accessibilityIdentifier("explorerBack")
+                    PageHeader(title: context.downloadsOnly ? "Explore Downloads" : "Explore storage", subtitle: "Inspect local allocations within your selected folders.")
+                }
                 ScanHistoryRecordingNotice()
                 breadcrumbs
                 HStack(alignment: .top, spacing: CacheDropDesign.Space.lg) {

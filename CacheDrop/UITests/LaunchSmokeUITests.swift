@@ -223,7 +223,35 @@ final class WhatGrewUITests: XCTestCase {
         // #221: the button names where it goes.
         XCTAssertEqual(app.buttons["growthReviewOptions"].label, "Review plan")
         app.buttons["growthReviewOptions"].click()
-        XCTAssertTrue(app.buttons["Back to Storage trends"].waitForExistence(timeout: 5))
+        // #222: the quiet back button sits above the page title, and returns to Storage trends.
+        let back = app.buttons["Back to Storage trends"]
+        assertBackButton(back, isAbove: "Cleanup plan", in: app)
+        back.click()
+        XCTAssertTrue(app.buttons["growthReviewOptions"].waitForExistence(timeout: 5))
+    }
+}
+
+/// #222: a page reached from another keeps its back button above the title; its bottom bar stays, without it.
+final class BackButtonUITests: XCTestCase {
+    @MainActor func testLocalRecordsBackButtonSitsAboveTheTitleAndReturns() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        let state = try configureIsolatedState(app)
+        let home = try configureCatalogHome(app)
+        defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
+        app.launch()
+        XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
+
+        app.typeKey("6", modifierFlags: .command)
+        let manage = app.buttons["manageLocalRecords"]
+        XCTAssertTrue(manage.waitForExistence(timeout: 5))
+        revealAndClick(manage, in: app)
+        let back = app.buttons["Back to Locations & access"]
+        assertBackButton(back, isAbove: "Local records", in: app)
+        XCTAssertTrue(actionStrip(app).exists, "The bottom bar stays, empty")
+        back.click()
+        XCTAssertTrue(manage.waitForExistence(timeout: 5))
+        XCTAssertFalse(back.exists)
     }
 }
 

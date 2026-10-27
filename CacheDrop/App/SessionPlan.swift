@@ -171,7 +171,7 @@ struct LiveCleanupPlanView: View {
     var newPlan: (() -> Void)? = nil
     var reviewRecovery: (() -> Void)? = nil
     var backToExplorer: (() -> Void)? = nil
-    var backToExplorerTitle = "Back to Explorer"
+    var backToExplorerDestination = "Explorer"
     @Bindable var presentation: CleanupPlanPresentation
     @State private var review: WorkspaceCleanupReview?
     @State private var approvalError: String?
@@ -183,9 +183,10 @@ struct LiveCleanupPlanView: View {
             CleanupRunSection(selection: selection)
         } else {
         VStack(alignment: .leading, spacing: CacheDropDesign.Space.lg) {
-            if let backToExplorer { Button(backToExplorerTitle, systemImage: "chevron.left", action: backToExplorer) }
-            PageHeader(title: "Cleanup plan", subtitle: "Choose categories, adjust items if needed, then review the changes.")
-                .padding(.bottom, CacheDropDesign.Space.sm)
+            VStack(alignment: .leading, spacing: CacheDropDesign.Space.sm) {
+                if let backToExplorer { BackButton(destination: backToExplorerDestination, action: backToExplorer) }
+                PageHeader(title: "Cleanup plan", subtitle: "Choose categories, adjust items if needed, then review the changes.")
+            }.padding(.bottom, CacheDropDesign.Space.sm)
             ScanHistoryRecordingNotice()
             SelectionSummary(value: selection.workspaceSelectedSize,
                              detail: CacheDropDesign.items(selection.catalog.selectedCount) + " selected",
