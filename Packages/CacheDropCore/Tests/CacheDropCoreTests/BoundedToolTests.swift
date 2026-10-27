@@ -61,16 +61,25 @@ func survivorsAfterSettling(_ marker: String) -> [pid_t] {
 }
 
 /// Only a timeout (or an output-limit stop) ends the tree; a run that finished is left as it was before.
+/// The tool prints the pid of what it detached, so the test checks that process rather than searching argv for the
+/// marker: mid-exec, a process's argv can't be read for a moment, and a search then found nothing (#191).
 @Test func aToolThatFinishesLeavesWhatItDetachedAlone() throws {
     let marker = uniqueSleep()
-    let tool = try treeTool("sleep \"$1\" >/dev/null 2>&1 &\necho done")
+    let tool = try treeTool("sleep \"$1\" >/dev/null 2>&1 &\necho $!")
     defer { try? FileManager.default.removeItem(at: tool.deletingLastPathComponent()) }
     let result = try BoundedTool.capture(executable: tool, arguments: [marker], timeout: 5)
-    let left = survivors(marker)
-    left.forEach { kill($0, SIGKILL) }
+    let detached = try #require(pid_t(result.output.trimmingCharacters(in: .whitespacesAndNewlines)))
+    let running = isRunning(detached)
+    kill(detached, SIGKILL)
     #expect(result.status == 0)
-    #expect(result.output == "done\n")
-    #expect(left.count == 1)
+    #expect(running)
+}
+
+/// Alive and not a zombie: a process the stop had signalled is gone or dying by the time `capture` returns.
+private func isRunning(_ pid: pid_t) -> Bool {
+    var details = proc_bsdinfo()
+    let size = Int32(MemoryLayout<proc_bsdinfo>.size)
+    return proc_pidinfo(pid, PROC_PIDTBSDINFO, 0, &details, size) == size && details.pbi_status != SZOMB
 }
 
 @Test func aCancelledToolIsStoppedWithEveryProcessItStartedAndReturnsItsOutputSoFar() throws {
