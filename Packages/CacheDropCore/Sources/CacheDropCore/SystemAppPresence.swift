@@ -4,13 +4,15 @@ import Foundation
 
 /// The apps on this Mac (#173): every application bundle Spotlight indexes on any mounted volume, plus the bundles at the top
 /// of (or one folder down in) each volume's Applications folders, for volumes Spotlight doesn't index. Launch Services is asked
-/// about each bundle ID too. When Spotlight's query can't run, the list is unknown and nothing is offered.
+/// about each bundle ID too. When Spotlight's query can't run, the list is unknown and nothing is offered. Plug-ins and other
+/// installed bundles (`InstalledBundles`, #251) count too, so a plug-in's maker is never taken for a removed app.
 public struct SystemAppPresence: AppPresence {
     public init() {}
     public func isRegistered(bundleID: String) -> Bool { !NSWorkspace.shared.urlsForApplications(withBundleIdentifier: bundleID).isEmpty }
     public func installedApps() -> [InstalledApp]? {
         guard let indexed = Self.spotlightApps() else { return nil }
         return indexed + Self.applicationFolders().flatMap(Self.bundles).compactMap(Self.app)
+            + InstalledBundles.scan(home: URL(fileURLWithPath: NSHomeDirectory()))
     }
     /// Spotlight is queried once; Launch Services still answers each bundle ID as it is asked.
     public func snapshot() -> any AppPresence { FixedAppPresence(apps: installedApps(), registered: isRegistered) }
