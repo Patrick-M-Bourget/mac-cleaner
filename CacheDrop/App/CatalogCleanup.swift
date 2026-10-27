@@ -235,6 +235,8 @@ import SwiftUI
     func sizeIsEstimate(for rule: CleanupRule) -> Bool { candidates(for: rule).contains(where: \.sizeIsEstimate) }
     /// The Cleanup plan's chosen items; leftovers of removed apps are chosen on the Applications page (Decision 51).
     var selectedCandidates: [Candidate] { selections.chosen(on: .plan, from: candidates) }
+    /// Whether the plan or the Applications page has chosen items: what quitting would lose (#270).
+    var hasAnyChoices: Bool { selections.hasChoices(among: candidates) }
     /// The Applications page's chosen items.
     var applicationsSelected: [Candidate] { selections.chosen(on: .applications, from: candidates) }
     /// Rules with at least one chosen item.

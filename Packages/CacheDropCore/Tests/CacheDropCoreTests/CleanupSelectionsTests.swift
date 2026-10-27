@@ -87,6 +87,15 @@ private let leftover = item(RemovedAppLeftovers.ruleID, name: "Synth"), related 
     #expect(selections.plan == [leftover.id])
 }
 
+/// #270: quitting with only leftovers ticked still has choices to lose.
+@Test func leftoversTickedOnApplicationsCountAsChoices() {
+    var selections = CleanupSelections()
+    let found = scan + [leftover]
+    #expect(!selections.hasChoices(among: found))
+    selections.plan = [leftover.id]
+    #expect(selections.hasChoices(among: found))
+}
+
 /// #270: starting a new Cleanup plan clears only the plan's choices, never the Applications page's, even right after a
 /// run, when nothing is found until the next scan.
 @Test func clearingOnePageKeepsTheOtherPagesChoices() {

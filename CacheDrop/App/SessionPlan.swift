@@ -22,6 +22,8 @@ struct RefreshRequest: Sendable {
     private(set) var runSource = CleanupSelections.Source.plan
     func showsRun(for source: CleanupSelections.Source) -> Bool { runSource == source && (workspaceRunning || hasWorkspaceResult) }
     var hasPendingChoices: Bool { catalog.selectedCount > 0 }
+    /// Choices on the plan or the Applications page, which quitting would lose (#270).
+    var hasPendingChoicesOnAnyPage: Bool { catalog.hasAnyChoices }
     var workspaceSelectedCount: Int { catalog.selectedCount }
     var workspaceSelectedSize: String {
         if !hasPendingChoices { return "—" }
@@ -144,7 +146,7 @@ struct RefreshRequest: Sendable {
         workspaceRunning = true; workspaceFinished = false
         let lifecycle = AppLifecycleController.shared
         lifecycle.operationInProgress = true
-        defer { workspaceRunning = false; workspaceCancellation = nil; lifecycle.operationInProgress = false; lifecycle.hasPendingPlan = hasPendingChoices }
+        defer { workspaceRunning = false; workspaceCancellation = nil; lifecycle.operationInProgress = false; lifecycle.hasPendingPlan = hasPendingChoicesOnAnyPage }
         if let items = review.catalog { await catalog.execute(items.approval, from: review.source, cancellation: cancellation) }
         workspaceFinished = true
         lifecycle.capacity.request(.cleanupEnded)
@@ -158,7 +160,7 @@ struct RefreshRequest: Sendable {
     func endSession() {
         guard !workspaceRunning && !catalog.isRunning else { return }
         catalog.endSession(); scans.removeAll(); unavailableScopes.removeAll()
-        isRefreshingBatch = false; refreshRequests.removeAll(); AppLifecycleController.shared.hasPendingPlan = false
+        isRefreshingBatch = false; refreshRequests.removeAll(); AppLifecycleController.shared.hasPendingPlan = hasPendingChoicesOnAnyPage
     }
 }
 enum PlanReviewError: Error { case changed, nothingToClean }

@@ -39,6 +39,9 @@ public struct CleanupSelections: Sendable, Equatable {
         found.filter { plan.contains($0.id) && Source.page(of: $0) == page }
     }
 
+    /// Whether either page has chosen items among `found`: what quitting would lose (#270).
+    public func hasChoices(among found: [Candidate]) -> Bool { found.contains { plan.contains($0.id) } }
+
     /// Clears one page's choices: the plan's or the Applications page's, which share one set, or Smart clean's unticks.
     /// The other pages' are kept (#270), told apart by each chosen id's rule, so nothing needs to be found.
     public mutating func clear(_ page: Source) {
