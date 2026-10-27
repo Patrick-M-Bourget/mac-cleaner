@@ -181,3 +181,35 @@ private struct FolderTrash: TrashMoving {
         return destination
     }
 }
+
+/// A fake git clone: a `.git` folder with a `HEAD`, as SwiftPM leaves in `.build/checkouts`.
+private func gitClone(_ folder: URL, _ path: String) throws { try file(folder, path + "/.git/HEAD"); try file(folder, path + "/Sources/a.swift") }
+
+@Test func swiftPMsOwnDependencyClonesDontKeepItsBuildFolderButOtherGitWorkDoes() throws {
+    let folder = try pickedFolder()
+    defer { try? FileManager.default.removeItem(at: folder) }
+    // SwiftPM's clones of its dependencies, beside Package.swift: offered.
+    try file(folder, "pkg/Package.swift"); try file(folder, "pkg/.build/debug/app")
+    try gitClone(folder, "pkg/.build/checkouts/Foo"); try gitClone(folder, "pkg/.build/checkouts/Bar")
+    // The same clone anywhere else in a build folder: kept.
+    try file(folder, "other/Package.swift"); try file(folder, "other/.build/debug/app"); try gitClone(folder, "other/.build/other/Foo")
+    try file(folder, "deep/Package.swift"); try gitClone(folder, "deep/.build/checkouts/Foo/Vendor")
+    try file(folder, "web/package.json"); try gitClone(folder, "web/node_modules/pkg")
+    // A `checkouts` folder in a build folder that isn't SwiftPM's: kept.
+    try file(folder, "rust/Cargo.toml"); try gitClone(folder, "rust/target/checkouts/Foo")
+
+    let found = offered(folder)
+    #expect(Set(found.keys) == ["pkg/.build"])
+    let item = try #require(found["pkg/.build"])
+    let check = CandidateCheck(catalog: Catalog(rules: fixtureRules), running: NothingRunning(), inUse: FixtureNothingInUse(), home: fixtureNoHome)
+    #expect(check.check(item) == nil)
+
+    // A git working tree that appears elsewhere in it after the scan is refused at the check.
+    try gitClone(folder, "pkg/.build/repositories/Foo")
+    #expect(check.check(item) == .protected(".git"))
+    try FileManager.default.removeItem(at: folder.appendingPathComponent("pkg/.build/repositories"))
+    #expect(check.check(item) == nil)
+    // Without its Package.swift, its clones are git work again.
+    try FileManager.default.removeItem(at: folder.appendingPathComponent("pkg/Package.swift"))
+    #expect(check.check(item) != nil)
+}

@@ -23,6 +23,21 @@ public enum ProjectBuilds {
         (".venv", ["pyproject.toml", "requirements.txt", "setup.py"]), ("__pycache__", ["pyproject.toml", "requirements.txt", "setup.py"]),
         ("DerivedData", ["*.xcodeproj"]),
     ]
+    /// Git clones a package manager keeps in its build folder and fetches again on the next build (#160): a `.git`
+    /// folder is allowed only at `<clones>/<name>/.git` in such a build folder beside its marker. Any other git
+    /// working tree in a build folder still keeps it.
+    static let managedClones: [(folder: String, marker: String, clones: String)] = [(".build", "Package.swift", "checkouts")]
+
+    /// The folder in `buildFolder` whose direct subfolders are its package manager's own git clones, when it is such a
+    /// build folder beside its marker; nil otherwise.
+    static func managedClonesFolder(in buildFolder: URL) -> URL? {
+        let project = buildFolder.deletingLastPathComponent()
+        guard let kind = managedClones.first(where: { $0.folder == buildFolder.lastPathComponent }) else { return nil }
+        var info = stat()
+        guard lstat(project.appendingPathComponent(kind.marker).path, &info) == 0, info.st_mode & S_IFMT == S_IFREG else { return nil }
+        return buildFolder.appendingPathComponent(kind.clones)
+    }
+
     /// The walk for projects stays bounded: this many folder levels below the picked folder, this many folders in all,
     /// and this many projects.
     static let depth = 8
