@@ -66,7 +66,7 @@ extension Catalog {
         guard !found.isEmpty, case .mustNotUse(let owner) = Self.ownership(of: root, under: rule) else { return ([], nil) }
         guard let used = checker.inUse(found.map(\.0), by: owner) else {
             let count = found.count == 1 ? "its copy" : "all \(found.count) copies"
-            return ([], CatalogNote(ruleID: rule.id, text: "\(rule.title): kept \(count), because Still couldn’t tell which one \(owner.name) is using."))
+            return ([], CatalogNote(ruleID: rule.id, text: "\(rule.title): kept \(count), because CacheDrop couldn’t tell which one \(owner.name) is using."))
         }
         func created(_ info: stat) -> (Int, Int) { (info.st_birthtimespec.tv_sec, info.st_birthtimespec.tv_nsec) }
         let newest = Set(found.sorted { created($0.1) > created($1.1) }.prefix(copies.keepNewest).map(\.0.path))

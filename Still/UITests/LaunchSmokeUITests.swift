@@ -27,9 +27,13 @@ final class LaunchSmokeUITests: XCTestCase {
         XCTAssertTrue(app.buttons["Cleanup plan"].exists || app.staticTexts["Cleanup plan"].exists)
         XCTAssertTrue(app.staticTexts["Storage trends"].exists || app.buttons["Storage trends"].exists, "Storage trends is in the sidebar (#119, #127)")
         XCTAssertFalse(app.staticTexts["Storage alerts"].exists)
+        // #149: the app is CacheDrop, in the window title and the sidebar header.
+        XCTAssertEqual(app.windows.firstMatch.title, "CacheDrop")
+        XCTAssertTrue(app.staticTexts["CacheDrop"].exists, "The sidebar header names CacheDrop")
+        XCTAssertFalse(app.staticTexts["Still"].exists)
     }
 
-    /// #131: the menu bar item shows free space and keeps Still running after its window closes.
+    /// #131: the menu bar item shows free space and keeps CacheDrop running after its window closes.
     /// Low-space alerts are off by default, in the Settings window. Nothing here changes either preference.
     @MainActor func testMenuBarItemShowsFreeSpaceAndAlertsStartOff() throws {
         continueAfterFailure = false
@@ -45,9 +49,9 @@ final class LaunchSmokeUITests: XCTestCase {
         app.typeKey("w", modifierFlags: .command)
         XCTAssertFalse(app.staticTexts["Storage overview"].waitForExistence(timeout: 2))
         // The menu is checked, not clicked: on a crowded menu bar (the notch, or a menu bar manager) the item can be
-        // hidden, and XCUITest can't open it. Open Still from the menu is a hand smoke test.
-        for title in ["Open Still", "Scan again", "Settings…", "Quit Still"] { XCTAssertTrue(app.menuItems[title].exists, title) }
-        XCTAssertEqual(app.state, .runningForeground, "Closing the window keeps Still running with its menu bar item")
+        // hidden, and XCUITest can't open it. Open CacheDrop from the menu is a hand smoke test.
+        for title in ["Open CacheDrop", "Scan again", "Settings…", "Quit CacheDrop"] { XCTAssertTrue(app.menuItems[title].exists, title) }
+        XCTAssertEqual(app.state, .runningForeground, "Closing the window keeps CacheDrop running with its menu bar item")
 
         app.typeKey(",", modifierFlags: .command)
         let alerts = app.descendants(matching: .any)["lowSpaceAlertsToggle"]
@@ -96,7 +100,7 @@ final class LaunchSmokeUITests: XCTestCase {
 
         revealAndClick(app.links["fullDiskAccessLink"].firstMatch, in: app)
         XCTAssertTrue(app.staticTexts["Full Disk Access is optional"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.staticTexts["Still’s scans stay read-only. Nothing protected becomes eligible for cleanup, and Still only changes what you choose and review."].exists)
+        XCTAssertTrue(app.staticTexts["CacheDrop’s scans stay read-only. Nothing protected becomes eligible for cleanup, and CacheDrop only changes what you choose and review."].exists)
         XCTAssertTrue(app.buttons["openFullDiskAccessSettings"].exists) // Not pressed: tests never open System Settings.
         app.buttons["closeFullDiskAccess"].click()
         XCTAssertFalse(app.staticTexts["Full Disk Access is optional"].waitForExistence(timeout: 2))

@@ -114,7 +114,7 @@ private enum HistoryActivityItem: Identifiable {
             lifecycle.workspaceNavigation.explorerVisible = false
             lifecycle.workspaceNavigation.planReturnsToExplorer = false
             snapshot = CleanupHistorySnapshot(records: [])
-            message = "Still’s preferences, custom exclusions, selected locations and completed history were reset. Original files and macOS access grants are unchanged." + (result.1.completed ? "" : " Journal compaction did not finish; disk reclamation is not confirmed.")
+            message = "CacheDrop’s preferences, custom exclusions, selected locations and completed history were reset. Original files and macOS access grants are unchanged." + (result.1.completed ? "" : " Journal compaction did not finish; disk reclamation is not confirmed.")
             blocked = false
             return true
         } catch CleanupJournalError.recoveryRequired {

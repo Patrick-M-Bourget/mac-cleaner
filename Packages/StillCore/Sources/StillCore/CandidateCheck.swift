@@ -20,7 +20,7 @@ public enum CheckRefusal: Sendable, Equatable {
         case .ownerUnknown(let name): "Couldn’t check whether \(name) is running."
         case .protected(let name): "Contains protected data (\(name))."
         case .excluded: "Excluded in Settings."
-        case .notPermitted: "Still can’t change it without admin rights."
+        case .notPermitted: "CacheDrop can’t change it without admin rights."
         case .cloud: "Stored in iCloud."
         case .inUse(let name): "\(name) is using it. It is kept."
         case .inUseUnknown(let name): "Couldn’t check whether \(name) is using it, so it is kept."
@@ -29,7 +29,7 @@ public enum CheckRefusal: Sendable, Equatable {
         case .conflicted: "Has an iCloud conflict to resolve. Its local copy stays."
         case .notDownloaded: "No local copy to remove."
         case .cloudUnknown: "Couldn’t read its iCloud status. Its local copy stays."
-        case .guidanceOnly: "Guidance only. Still never changes it; manage it in its own app."
+        case .guidanceOnly: "Guidance only. CacheDrop never changes it; manage it in its own app."
         }
     }
 }

@@ -32,7 +32,7 @@ public enum TemporaryFiles {
                         itemByItem: true),
             CleanupRule(id: "temporary-app-caches", category: .system, title: "Old temporary app caches",
                         detail: "Caches your apps keep in your temporary folder, unchanged for \(unused.unusedDays) days.",
-                        consequence: "Permanently removed. Each app rebuilds its cache as you use it. An app must be closed first; Still never quits it for you.",
+                        consequence: "Permanently removed. Each app rebuilds its cache as you use it. An app must be closed first; CacheDrop never quits it for you.",
                         regen: .cache, action: .delete, locations: ["C"], owner: nil, base: .userFolder,
                         itemOwner: { AppCaches.installedOwner($0.lastPathComponent, apps: apps) },
                         yieldsToOtherRules: true, protectedDepth: AppCaches.liveWorkDepth, unused: unused),
@@ -65,7 +65,7 @@ extension Catalog {
         }
         guard !found.isEmpty else { return ([], nil) }
         guard let used = checker.inUse(found.map(\.0), by: .anyApp) else {
-            return ([], CatalogNote(ruleID: rule.id, text: "\(rule.title): kept all, because Still couldn’t tell which ones apps are using."))
+            return ([], CatalogNote(ruleID: rule.id, text: "\(rule.title): kept all, because CacheDrop couldn’t tell which ones apps are using."))
         }
         return (found.filter { !used.contains($0.0.path) }.map { url, info, size in
             var found = candidate(rule, url, info, logical: size.logicalBytes, allocated: size.allocatedBytes, complete: size.complete, lastUsed: nil)

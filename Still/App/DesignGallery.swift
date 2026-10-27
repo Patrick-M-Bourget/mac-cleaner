@@ -14,7 +14,7 @@ struct DesignGallery: View {
     var body: some View {
         VStack(spacing: 0) {
             HStack {
-                Text("Still · Component gallery").font(.headline)
+                Text("CacheDrop · Component gallery").font(.headline)
                 Spacer()
                 Toggle("Opaque chrome", isOn: $opaque)
                 AppearancePicker(choice: $appearance).labelsHidden().fixedSize()

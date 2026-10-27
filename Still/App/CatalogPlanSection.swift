@@ -18,7 +18,7 @@ struct CatalogPlanSection: View {
                 }
             }
             ForEach(model.overriddenRules) { rule in
-                StatusRow(text: "\(rule.owner?.name ?? rule.title) keeps its data in a custom location, so Still leaves it alone.",
+                StatusRow(text: "\(rule.owner?.name ?? rule.title) keeps its data in a custom location, so CacheDrop leaves it alone.",
                           symbol: "info.circle", role: .neutral, identifier: "planOverridden-" + rule.id)
             }
             if !model.notAccessibleRules.isEmpty {

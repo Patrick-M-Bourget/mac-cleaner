@@ -103,7 +103,7 @@ private func temporaryFiles(_ candidates: [Candidate]) -> [String] {
     #expect(temporaryFiles(catalog.discover(fixture: fixtureHome(), userFolder: folder, inUse: FakeInUse(open: [open.path]), now: now)) == [idle.path])
     let discovery = catalog.discovery(fixture: fixtureHome(), userFolder: folder, inUse: FakeInUse(unknown: true), now: now)
     #expect(temporaryFiles(discovery.candidates).isEmpty)
-    #expect(discovery.notes.contains(CatalogNote(ruleID: "temporary-files", text: "Old temporary files: kept all, because Still couldn’t tell which ones apps are using.")))
+    #expect(discovery.notes.contains(CatalogNote(ruleID: "temporary-files", text: "Old temporary files: kept all, because CacheDrop couldn’t tell which ones apps are using.")))
 }
 
 @Test func aFolderWithAnythingChangedInsideRecentlyIsNotOffered() throws {

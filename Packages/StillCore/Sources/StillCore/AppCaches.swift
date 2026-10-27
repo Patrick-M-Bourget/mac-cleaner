@@ -60,7 +60,7 @@ public enum AppCaches {
                         itemOwner: { updaterOwner($0, apps: apps) }, protectedDepth: liveWorkDepth),
             CleanupRule(id: "app-caches", category: .system, title: "App caches",
                         detail: "Files apps keep in your Library to start and work faster, per app.",
-                        consequence: "Permanently removed. Each app rebuilds its cache as you use it, so it may be slower at first. An app must be closed first; Still never quits it for you.",
+                        consequence: "Permanently removed. Each app rebuilds its cache as you use it, so it may be slower at first. An app must be closed first; CacheDrop never quits it for you.",
                         regen: .cache, action: .delete, locations: ["Library/Caches/*"], owner: nil,
                         itemOwner: { installedOwner($0.lastPathComponent, apps: apps) }, yieldsToOtherRules: true, protectedDepth: liveWorkDepth),
             // Crash reports first, so ~/Library/Logs/DiagnosticReports is listed once, as crash reports.

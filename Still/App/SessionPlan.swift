@@ -186,7 +186,7 @@ struct LiveCleanupPlanView: View {
                              detail: StillDesign.items(selection.catalog.selectedCount) + " selected",
                              identifier: "liveSelectionSummary", consequence: selection.workspaceTrashNote, title: "Potential space released",
                              consequenceIdentifier: "liveSelectionTrash")
-                .help("Sizes are estimates from the scan, not guaranteed space freed. Linked files count once. Each item is checked again just before Still acts on it.")
+                .help("Sizes are estimates from the scan, not guaranteed space freed. Linked files count once. Each item is checked again just before CacheDrop acts on it.")
             if let approvalError { StatusRow(text: approvalError, symbol: "exclamationmark.circle", role: .caution) }
             CatalogPlanSection(model: selection.catalog, expanded: $presentation.expandedCategories)
         }.padding(StillDesign.Space.page).frame(maxWidth: .infinity, alignment: .leading)

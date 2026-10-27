@@ -14,7 +14,7 @@ import StillCore
     func choose(isCache: Bool) {
         let panel = NSOpenPanel()
         panel.title = isCache ? "Choose pip cache folder" : "Choose Apple developer tools Python"
-        panel.message = isCache ? "Choose the exact cache to inspect. Still overrides pip’s configured cache for this read-only inventory." : "Only Apple-signed Command Line Tools Python with its bundled pip is supported. Other interpreters are never executed."
+        panel.message = isCache ? "Choose the exact cache to inspect. CacheDrop overrides pip’s configured cache for this read-only inventory." : "Only Apple-signed Command Line Tools Python with its bundled pip is supported. Other interpreters are never executed."
         if !isCache { panel.directoryURL = URL(fileURLWithPath: "/Library/Developer/CommandLineTools/usr/bin") }
         panel.canChooseFiles = !isCache; panel.canChooseDirectories = isCache; panel.allowsMultipleSelection = false
         guard panel.runModal() == .OK, let url = panel.url else { return }
@@ -41,7 +41,7 @@ import StillCore
             switch error as? ToolPreviewError {
             case .timeout: status = "Inventory timed out. Choose a smaller cache and retry explicitly; no cleanup is enabled."
             case .outputLimit: status = "Inventory exceeded a bounded metadata or output limit. Choose a smaller cache and retry explicitly; no cleanup is enabled."
-            default: status = "Inventory unavailable: interpreter provenance, cache access or output could not be verified. Rechoose the paths; Still never installs packages or requests elevated access."
+            default: status = "Inventory unavailable: interpreter provenance, cache access or output could not be verified. Rechoose the paths; CacheDrop never installs packages or requests elevated access."
             }
         }
     }
@@ -60,7 +60,7 @@ struct PipInspectionView: View {
             Button("Back to Overview", systemImage: "chevron.left", action: back)
             PageHeader(title: "pip cache opportunities")
             Text("Read-only cache inventory").foregroundStyle(.secondary)
-            Text("Supports Apple developer tools Python with its bundled pip. Still verifies Apple signatures and the bundled tool before running read-only commands. Other interpreters are not executed.")
+            Text("Supports Apple developer tools Python with its bundled pip. CacheDrop verifies Apple signatures and the bundled tool before running read-only commands. Other interpreters are not executed.")
             SettingsRow(title: "Selected installation") {
             HStack {
                 Button("Choose Python interpreter…") { model.choose(isCache: false) }

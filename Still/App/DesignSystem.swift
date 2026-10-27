@@ -525,7 +525,7 @@ struct AppBrand: View {
                 .background(LinearGradient(colors: [Color(red: 0.565, green: 0.741, blue: 1), Color(red: 0.329, green: 0.518, blue: 0.910), Color(red: 0.455, green: 0.427, blue: 0.882)], startPoint: .topLeading, endPoint: .bottomTrailing), in: RoundedRectangle(cornerRadius: StillDesign.Radius.row))
                 .overlay { RoundedRectangle(cornerRadius: StillDesign.Radius.row).strokeBorder(.white.opacity(0.3), lineWidth: 0.5) }
                 .accessibilityHidden(true)
-            Text("Still").font(.system(size: 17, weight: .medium)).tracking(-0.4)
+            Text("CacheDrop").font(.system(size: 17, weight: .medium)).tracking(-0.4)
         }
     }
 }

@@ -224,7 +224,7 @@ public actor CleanupExecutor {
         } catch {
             // Never "not changed": part of it is gone. The rest is offered again on the next scan, under the same rule.
             record.state = .failed; record.partlyRemoved = true
-            record.message = "Partly removed. The rest is at \(aside.path); Still offers it again on the next scan."
+            record.message = "Partly removed. The rest is at \(aside.path); CacheDrop offers it again on the next scan."
         }
     }
 

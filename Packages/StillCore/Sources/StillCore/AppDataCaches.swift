@@ -131,7 +131,7 @@ public enum AppDataCaches {
     static func sandboxedCaches(apps: any AppLookup) -> CleanupRule {
         CleanupRule(id: "container-caches", category: .system, title: "Sandboxed app caches",
                     detail: "Files sandboxed apps keep to start and work faster, per app.",
-                    consequence: "Permanently removed. Only each app’s caches folder; its documents, settings and other data are kept. An app must be closed first; Still never quits it for you.",
+                    consequence: "Permanently removed. Only each app’s caches folder; its documents, settings and other data are kept. An app must be closed first; CacheDrop never quits it for you.",
                     regen: .cache, action: .delete, locations: [containerCaches], owner: nil,
                     itemOwner: { containerOwner($0, apps: apps) }, protectedDepth: AppCaches.liveWorkDepth, requiresFullDiskAccess: true)
     }

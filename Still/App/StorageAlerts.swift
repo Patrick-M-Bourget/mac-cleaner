@@ -40,7 +40,7 @@ extension Notification.Name {
     func submitLowSpaceNotification(identifier: String, observedAt: Date) async throws {
         let content = UNMutableNotificationContent()
         content.title = "Your Mac is running low on space"
-        content.body = "Open Still to see what you can clean up."
+        content.body = "Open CacheDrop to see what you can clean up."
         content.sound = .default; content.categoryIdentifier = "Still.capacity"
         content.userInfo = AlertOpenContext(observedAt: observedAt).notificationUserInfo
         try await center.add(UNNotificationRequest(identifier: identifier, content: content, trigger: nil))
@@ -57,7 +57,7 @@ extension Notification.Name {
     func configureNotifications() {
         let center = UNUserNotificationCenter.current()
         center.delegate = self
-        let open = UNNotificationAction(identifier: "Still.open", title: "Open Still", options: [.foreground])
+        let open = UNNotificationAction(identifier: "Still.open", title: "Open CacheDrop", options: [.foreground])
         let later = UNNotificationAction(identifier: "Still.remindLater", title: "Remind me later", options: [])
         center.setNotificationCategories([UNNotificationCategory(identifier: "Still.capacity", actions: [open, later], intentIdentifiers: [])])
     }
@@ -115,7 +115,7 @@ struct AlertPermissionDetails: View {
             LabeledContent {
                 Button("Open System Settings", action: openSettings)
             } label: {
-                Text("Notifications are off for Still")
+                Text("Notifications are off for CacheDrop")
                 Text("Allow them in System Settings › Notifications.")
             }.accessibilityIdentifier("notificationPermissionStatus")
             if !settingsFeedback.isEmpty { StatusRow(text: settingsFeedback, symbol: "info.circle") }
@@ -145,7 +145,7 @@ struct LowSpaceAlertsSettings: View {
                                        settingsFeedback: settingsFeedback) {
                     Task {
                         let opened = await WorkspaceGuidanceOpener().open(.app(bundleID: "com.apple.systempreferences"))
-                        settingsFeedback = opened ? "" : "System Settings couldn’t be opened. Open it from the Apple menu, then Notifications › Still."
+                        settingsFeedback = opened ? "" : "System Settings couldn’t be opened. Open it from the Apple menu, then Notifications › CacheDrop."
                     }
                 }
                 LabeledContent {
@@ -158,7 +158,7 @@ struct LowSpaceAlertsSettings: View {
         } header: {
             Text("Low-space alerts")
         } footer: {
-            Text("Still checks free space about every 15 minutes while it’s open. It never scans or cleans in the background.")
+            Text("CacheDrop checks free space about every 15 minutes while it’s open. It never scans or cleans in the background.")
                 .font(StillDesign.TypeStyle.caption).foregroundStyle(.secondary)
         }
         .task {
@@ -195,7 +195,7 @@ struct StillMenuBarLabel: View {
         if let title = MenuBarStatus.freeSpaceTitle(available: capacity.reading?.available) {
             Label(title, systemImage: "internaldrive").labelStyle(.titleAndIcon)
         } else {
-            Image(systemName: "internaldrive").accessibilityLabel("Still")
+            Image(systemName: "internaldrive").accessibilityLabel("CacheDrop")
         }
     }
 }

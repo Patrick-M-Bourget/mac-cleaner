@@ -12,14 +12,14 @@ struct StillApp: App {
     /// Still's state is copied first, before anything reads CacheDrop's (#149).
     init() { LocalStateLocation.migrateFromStill(); AppLaunchPolicy.registerDefaults() }
     var body: some Scene {
-        Window("Still", id: "workspace") {
+        Window("CacheDrop", id: "workspace") {
             WorkspaceView(alerts: lifecycle.alerts)
                 .frame(minWidth: 900).background { NativeWindowContract() }
         }
         .defaultSize(width: 1120, height: 760)
         .commands {
             CommandGroup(after: .windowArrangement) {
-                Button("Show Still") { lifecycle.openWorkspace?() }
+                Button("Show CacheDrop") { lifecycle.openWorkspace?() }
             }
             CommandGroup(after: .toolbar) {
                 Button("Scan again") { lifecycle.scanAgain?() }.keyboardShortcut("r")
@@ -626,14 +626,14 @@ private struct WorkspaceView: View {
 
     private var locations: some View {
         VStack(alignment: .leading, spacing: StillDesign.Space.xl) {
-            PageHeader(title: "Locations & access", subtitle: "Folders Still scans at launch and when you scan again.")
+            PageHeader(title: "Locations & access", subtitle: "Folders CacheDrop scans at launch and when you scan again.")
             ScanHistoryRecordingNotice()
             HStack {
                 Button("Add folder…", action: chooseFolderForScan).disabled(folderInspection.isScanning || selection.workspaceRunning)
                 Button("Scan selected locations") { scanLocations(locationsModel.included) }
                     .disabled(locationsModel.included.isEmpty || folderInspection.isScanning || selection.workspaceRunning)
             }
-            if locationsModel.scopes.isEmpty { EmptyState(title: "No locations yet", detail: "Add a folder to scan it now and each time Still opens.", symbol: "folder.badge.plus") }
+            if locationsModel.scopes.isEmpty { EmptyState(title: "No locations yet", detail: "Add a folder to scan it now and each time CacheDrop opens.", symbol: "folder.badge.plus") }
             ForEach(locationsModel.scopes) { scope in
                 LocationScopeRow(name: URL(fileURLWithPath: scope.path).lastPathComponent, path: scope.path,
                     status: locationStatus(scope), overlap: locationOverlap(scope), included: Binding(get: { scope.isIncluded }, set: { included in
@@ -670,7 +670,7 @@ private struct WorkspaceView: View {
             }
         } message: {
             if let scope = locationToForget {
-                Text("Forget " + URL(fileURLWithPath: scope.path).lastPathComponent + "? Still stops scanning it. No files will be deleted.")
+                Text("Forget " + URL(fileURLWithPath: scope.path).lastPathComponent + "? CacheDrop stops scanning it. No files will be deleted.")
             }
         }
     }

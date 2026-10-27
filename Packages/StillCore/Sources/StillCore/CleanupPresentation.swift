@@ -28,7 +28,7 @@ public enum ConsequenceGroup: Int, CaseIterable, Sendable, Comparable {
         case .permanentlyRemoved: "Apps download or rebuild these as needed, so the next use may take longer. They can’t be restored from the Trash."
         case .movedToTrash: "Recoverable in Finder until you empty the Trash. The space stays used until then."
         case .localCopiesRemoved: "The files stay in iCloud and download again when you open them, which needs an internet connection."
-        case .commandsRun: "Still runs each tool’s own cleanup command, shown with the files. What a command removes is permanently removed."
+        case .commandsRun: "CacheDrop runs each tool’s own cleanup command, shown with the files. What a command removes is permanently removed."
         }
     }
     public static func < (lhs: Self, rhs: Self) -> Bool { lhs.rawValue < rhs.rawValue }

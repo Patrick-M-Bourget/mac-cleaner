@@ -79,11 +79,11 @@ public enum MenuBarStatus {
         case openStill, scanAgain, smartClean, settings, quit
         public var title: String {
             switch self {
-            case .openStill: "Open Still"
+            case .openStill: "Open CacheDrop"
             case .scanAgain: "Scan again"
             case .smartClean: "Smart clean…"
             case .settings: "Settings…"
-            case .quit: "Quit Still"
+            case .quit: "Quit CacheDrop"
             }
         }
     }

@@ -44,7 +44,7 @@ import UniformTypeIdentifiers
         isSaving = true
         let panel = NSSavePanel()
         panel.allowedContentTypes = [.json]
-        panel.nameFieldStringValue = "Still-diagnostics.json"
+        panel.nameFieldStringValue = "CacheDrop-diagnostics.json"
         panel.message = "Save exactly the redacted payload you reviewed. Nothing is uploaded."
         let destination = panel.runModal() == .OK ? panel.url : nil
         let saved = await Task.detached(priority: .utility) { var copy = reviewed; copy.save(to: destination); return copy }.value
@@ -56,7 +56,7 @@ import UniformTypeIdentifiers
         switch export?.outcome {
         case .saved: return "Saved the exact reviewed payload locally. Nothing was uploaded."
         case .cancelled: return "Save cancelled. The reviewed payload is unchanged."
-        case .failed where !stateProtectionAvailable: return "Could not verify local state protection. The reviewed payload is unchanged; reopen Still before saving."
+        case .failed where !stateProtectionAvailable: return "Could not verify local state protection. The reviewed payload is unchanged; reopen CacheDrop before saving."
         case .failed: return "Could not save there. The reviewed payload is unchanged; choose a destination again."
         case .notSaved, nil: return "Review the exact payload before choosing Save. Nothing is uploaded."
         }

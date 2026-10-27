@@ -229,7 +229,7 @@ public enum AlertShellState: Equatable, Sendable {
         guard settings == .allowed else {
             cancelPolling?(); cancelPolling = nil; effectiveMonitoring = false
             shellState = .attention(.notificationsUnavailable)
-            status = "Notifications are unavailable. Enable Still alerts in System Settings > Notifications. Capacity polling is stopped."
+            status = "Notifications are unavailable. Enable CacheDrop alerts in System Settings > Notifications. Capacity polling is stopped."
             return
         }
         effectiveMonitoring = appliedThresholdValid
@@ -253,7 +253,7 @@ public enum AlertShellState: Equatable, Sendable {
         else if shellState != .attention(.submissionFailed) || available >= policy.thresholdBytes {
             shellState = policy.snoozedUntil.flatMap { $0 > system.now ? .snoozed(until: $0) : nil } ?? .on
         }
-        status = validCapacity ? "Monitoring startup-volume capacity while Still runs. Last available: \(String(format: "%.1f", Double(available) / 1_000_000_000)) GB." : "Capacity unavailable. Alert decisions are paused."
+        status = validCapacity ? "Monitoring startup-volume capacity while CacheDrop runs. Last available: \(String(format: "%.1f", Double(available) / 1_000_000_000)) GB." : "Capacity unavailable. Alert decisions are paused."
         let submit = policy.observe(available: available, total: total, at: system.now, volumeID: volumeID, metric: reading.metric)
         let notificationID = submit ? "Still.lowSpace." + UUID().uuidString : nil
         if let notificationID {

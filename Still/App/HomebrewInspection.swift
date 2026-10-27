@@ -14,7 +14,7 @@ import StillCore
     func chooseExecutable(isCache: Bool = false) {
         let panel = NSOpenPanel()
         panel.title = isCache ? "Choose Homebrew cache folder" : "Choose Homebrew executable"
-        panel.message = isCache ? "This explicitly overrides Homebrew cache settings. Still does not discover or read brew.env." : "Choose the brew executable in your Homebrew prefix. Installed code is never executed."
+        panel.message = isCache ? "This explicitly overrides Homebrew cache settings. CacheDrop does not discover or read brew.env." : "Choose the brew executable in your Homebrew prefix. Installed code is never executed."
         panel.canChooseDirectories = isCache; panel.canChooseFiles = !isCache; panel.allowsMultipleSelection = false
         guard panel.runModal() == .OK, let url = panel.url else { return }
         if isCache { cache = url } else { executable = url }; report = nil; inventory = nil; isExample = false
@@ -38,7 +38,7 @@ import StillCore
             switch error as? ToolPreviewError {
             case .timeout: status = "Inspection timed out. Choose a smaller cache and retry explicitly. No cleanup is available."
             case .outputLimit: status = "Inspection exceeded a bounded output limit. Retry explicitly; no cleanup is available."
-            default: status = "Inspection unavailable: source provenance or cache access could not be verified. Rechoose the paths; Still never installs tools or requests elevated access."
+            default: status = "Inspection unavailable: source provenance or cache access could not be verified. Rechoose the paths; CacheDrop never installs tools or requests elevated access."
             }
         }
     }
@@ -58,7 +58,7 @@ struct HomebrewInspectionView: View {
             Button("Back to Overview", systemImage: "chevron.left", action: back)
             PageHeader(title: "Homebrew opportunities")
             Text("Read-only Homebrew cache inventory").foregroundStyle(.secondary)
-            Text("Still inspects your chosen cache without running installed code, reading brew.env or loading formulae. Vendor cleanup remains unqualified.")
+            Text("CacheDrop inspects your chosen cache without running installed code, reading brew.env or loading formulae. Vendor cleanup remains unqualified.")
             SettingsRow(title: "Selected installation") {
             HStack {
                 Button("Choose Homebrew executable…") { model.chooseExecutable() }.disabled(model.inspecting)

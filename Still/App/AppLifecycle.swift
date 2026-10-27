@@ -94,7 +94,7 @@ import StillCore
     }
     func chooseLogin(_ enabled: Bool) {
         do { try registration.choose(enabled); loginError = nil }
-        catch { loginError = "Login registration could not be changed. You can continue using Still on demand." }
+        catch { loginError = "Login registration could not be changed. You can continue using CacheDrop on demand." }
         loginIntent = registration.intent; loginStatus = registration.status
         UserDefaults.standard.set(loginIntent, forKey: "Still.startAtLogin")
     }
@@ -169,7 +169,7 @@ import StillCore
 struct LoginSettingsView: View {
     @ObservedObject var lifecycle = AppLifecycleController.shared
     var body: some View {
-        Toggle("Start Still at Login", isOn: Binding(get: { lifecycle.loginIntent }, set: { lifecycle.chooseLogin($0) }))
+        Toggle("Start CacheDrop at Login", isOn: Binding(get: { lifecycle.loginIntent }, set: { lifecycle.chooseLogin($0) }))
             .accessibilityIdentifier("startAtLoginToggle")
             .task { lifecycle.refreshLogin() }
         if let error = lifecycle.loginError { StatusRow(text: error, symbol: "exclamationmark.circle") }
@@ -178,7 +178,7 @@ struct LoginSettingsView: View {
                 Button("Review Login Items") { SMAppService.openSystemSettingsLoginItems() }
             }
         } else if lifecycle.loginStatus == .unavailable {
-            StatusRow(text: "Start at Login isn’t available for this copy of Still.", symbol: "info.circle", identifier: "loginRegistrationStatus")
+            StatusRow(text: "Start at Login isn’t available for this copy of CacheDrop.", symbol: "info.circle", identifier: "loginRegistrationStatus")
         }
     }
 }
