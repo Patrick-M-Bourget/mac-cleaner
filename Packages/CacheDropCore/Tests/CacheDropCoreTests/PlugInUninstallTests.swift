@@ -75,8 +75,7 @@ private func fixture() throws -> (root: URL, home: URL) {
 }
 private func scan(_ root: URL, _ home: URL, apps: [InstalledApp] = []) -> (inventory: PlugInInventory, items: [Candidate]) {
     let inventory = PlugInInventory.scan(home: home, systemRoot: root, sizer: KnownLocationSizer(timeBudget: 5))
-    let listings = PlugInUninstall.listings(of: Set(inventory.products.flatMap(\.receipts)), under: root)
-    return (inventory, PlugInUninstall.scan(inventory, apps: apps, listings: listings, systemRoot: root))
+    return (inventory, PlugInUninstall.scan(inventory, apps: apps, receipts: ReceiptListings.read(under: root), systemRoot: root))
 }
 private func product(_ name: String, _ inventory: PlugInInventory) throws -> String { try #require(inventory.products.first { $0.name == name }).id }
 private func check(_ home: URL, running: Running = Running()) -> CandidateCheck {
@@ -282,7 +281,7 @@ private func names(_ items: [Candidate]) -> Set<String> { Set(items.map(\.url.la
     let synth = try product("Pro Synth", inventory), delay = try product("Pro Delay", inventory)
     let library = MusicContentItem(name: "Sounds", vendors: ["Maker"], url: root.appendingPathComponent("Library/Application Support/Maker Content"), kind: .installed,
                                    state: .present(.unknown), owners: [delay, "/Applications/Maker Hub.app", synth], tie: .vendor)
-    let items = PlugInUninstall.scan(inventory, apps: [], listings: [:], content: [library], systemRoot: root)
+    let items = PlugInUninstall.scan(inventory, apps: [], receipts: ReceiptListings([:]), content: [library], systemRoot: root)
     let content = try #require(items.first { $0.url == library.url })
 
     #expect(content.sharedBy == [delay, synth], "Products only, never an app")
@@ -302,4 +301,17 @@ private func names(_ items: [Candidate]) -> Set<String> { Set(items.map(\.url.la
     #expect(items.first { try! $0.uninstall?.path == product("Kontakt", inventory) }?.uninstall?.tool == "Native Access")
     let synth = try #require(items.first { try! $0.uninstall?.path == product("Pro Synth", inventory) }?.uninstall)
     #expect(synth.passwordPaths == [presets.path] && synth.tool == nil)
+}
+
+@Test func aPathAnyOtherReceiptListsEvenOneWithNoPlugInIsShared() throws {
+    let (root, home) = try fixture()
+    defer { try? FileManager.default.removeItem(at: root) }
+    // A vendor's content pkg, with no plug-in, also lists one file inside Pro Synth's presets.
+    try receipt("com.maker.common.pkg", listing: [support + "Pro Synth/Presets/Init.preset"], in: root)
+    let (inventory, items) = scan(root, home)
+    let presets = try #require(items.first { $0.url.lastPathComponent == "Presets" })
+
+    #expect(presets.ruleID == PlugInUninstall.sharedRuleID, "Never Pro Synth's own")
+    #expect(presets.isUninstalled(with: try product("Pro Synth", inventory)))
+    #expect(presets.sharedLabel == "Shared with another installer")
 }

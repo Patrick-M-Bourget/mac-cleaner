@@ -43,15 +43,21 @@ public enum PlugInUninstall {
     /// Apple's folders (Decision 41): its loops and the Logic library, never offered even when a receipt lists them.
     static let appleFolders: Set<String> = ["apple", "logic", "garageband", "mainstage", "apple loops", "logic pro library.bundle"]
 
-    /// Every product's items, ready to tick. `listings` is each receipt's listed paths (`listings(of:under:)`); `content`
+    /// Every product's items, ready to tick. `receipts` is every installer receipt's listing (`ReceiptListings.read`); `content`
     /// the vendor content tied to products (`MusicContent`, by product ID). What `offered` already holds stays there.
-    public static func scan(_ inventory: PlugInInventory, apps: [InstalledApp], listings: [String: Set<String>], content: [MusicContentItem] = [],
+    public static func scan(_ inventory: PlugInInventory, apps: [InstalledApp], receipts: ReceiptListings, content: [MusicContentItem] = [],
                             systemRoot: URL, offered: [Candidate] = [], exclusions: ExclusionPolicy = ExclusionPolicy(),
                             sizer: KnownLocationSizer = KnownLocationSizer()) -> [Candidate] {
         let products = inventory.products.filter { !$0.isApple }
         let catalog = Catalog(rules: rules)
-        // Every product whose receipts list a path shares it, by any receipt, its own included (#288).
-        func sharers(_ path: String) -> [String] { products.filter { $0.receipts.contains { listings[$0]?.contains(path) == true } }.map(\.id) }
+        // Every product whose receipts list a path, or anything in it, shares it (#288); so does any other receipt, one that
+        // installs no plug-in included (#291). Nil: too much in it to tell.
+        func sharers(_ path: String) -> [String]? {
+            guard let listers = receipts.listers(of: path) else { return nil }
+            let owned = products.filter { !listers.isDisjoint(with: $0.receipts) }
+            let others = listers.subtracting(owned.flatMap(\.receipts)).sorted().map { "receipt:" + $0 }
+            return owned.map(\.id) + others
+        }
         var shared: [String: Candidate] = [:], items: [Candidate] = []
         func item(_ rule: CleanupRule, _ url: URL) -> Candidate? {
             var info = stat()
@@ -94,9 +100,9 @@ public enum PlugInUninstall {
                 own.append(format)
             }
             for receipt in product.receipts {
-                let listed = listings[receipt] ?? []
+                let listed = receipts.byReceipt[receipt] ?? []
                 for url in supportRoots(listed, systemRoot: systemRoot) {
-                    let ids = sharers(url.path)
+                    guard let ids = sharers(url.path) else { continue }
                     if ids.count > 1 { if shared[url.path] == nil, let found = item(rules[2], url) { shared[url.path] = found.shared(by: ids, receipt: receipt).listed(listed) }; continue }
                     guard var file = item(rules[1], url).map({ $0.listed(listed) }) else { continue }
                     guard taken(offered, [file]).count == 1 else { target.inPlan += 1; continue }
@@ -186,24 +192,6 @@ public enum PlugInUninstall {
         if let listed = candidate.listedByReceipt, let refusal = listingRefusal(url.path, listed) { return refusal }
         return Removability.canMoveToTrash(url) ? nil : .notPermitted
     }
-
-    /// Each receipt's listed paths (`lsbom`), absolute, for the receipts `ids` names. A receipt that can't be read lists nothing.
-    public static func listings(of ids: Set<String>, under systemRoot: URL) -> [String: Set<String>] {
-        let folder = systemRoot.appendingPathComponent("var/db/receipts"), lsbom = URL(fileURLWithPath: "/usr/bin/lsbom")
-        var found: [String: Set<String>] = [:]
-        for name in ((try? FileManager.default.contentsOfDirectory(atPath: folder.path)) ?? []).sorted() where name.hasSuffix(".plist") {
-            guard let data = try? Data(contentsOf: folder.appendingPathComponent(name)),
-                  let info = (try? PropertyListSerialization.propertyList(from: data, format: nil)) as? [String: Any],
-                  let id = info["PackageIdentifier"] as? String, ids.contains(id), let prefix = info["InstallPrefixPath"] as? String, prefix.hasPrefix("/") || prefix.isEmpty,
-                  let listing = try? BoundedTool.run(executable: lsbom, arguments: ["-s", folder.appendingPathComponent(String(name.dropLast(6)) + ".bom").path],
-                                                     timeout: 5, outputLimit: 8 << 20) else { continue }
-            let base = systemRoot.appendingPathComponent(String(prefix.drop { $0 == "/" }))
-            found[id] = Set(listing.split(separator: "\n").map { line in
-                base.appendingPathComponent(line.hasPrefix("./") ? String(line.dropFirst(2)) : String(line)).standardizedFileURL.path
-            })
-        }
-        return found
-    }
 }
 
 extension Candidate {
@@ -224,7 +212,10 @@ extension Candidate {
     public var sharedLabel: String? {
         guard !sharedBy.isEmpty else { return nil }
         if let vendor = leftover?.app, !vendor.isEmpty { return "Shared by \(vendor) products" }
-        return "Shared with \(sharedBy.count) products"
+        // Another receipt that installs no plug-in (a vendor's content or app pkg) shares it too (#291).
+        let products = sharedBy.filter { !$0.hasPrefix("receipt:") }.count, others = sharedBy.count - products
+        if others == 0 { return "Shared with \(products) products" }
+        return products > 1 ? "Shared with \(products) products and another installer" : "Shared with another installer"
     }
     /// Whether it is uninstalled with the app or product whose row is `id`: its own, or one it is shared with.
     public func isUninstalled(with id: String) -> Bool { uninstall?.path == id || sharedBy.contains(id) }

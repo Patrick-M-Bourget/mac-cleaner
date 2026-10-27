@@ -208,10 +208,9 @@ import SwiftUI
     nonisolated private static func plugIns(home: URL, system: URL, installed: [InstalledApp], offered: [Candidate],
                                             exclusions: ExclusionPolicy) -> (PlugInInventory, [Candidate]) {
         let inventory = PlugInInventory.scan(home: home, systemRoot: system)
-        let listings = PlugInUninstall.listings(of: Set(inventory.products.flatMap(\.receipts)), under: system)
         let owners = ApplicationsInventory.plugIns(inventory).map { ContentOwner($0) } + installed.map { ContentOwner($0) }
         let content = MusicContent.scan(owners: owners, home: home, systemRoot: system).items
-        return (inventory, PlugInUninstall.scan(inventory, apps: installed, listings: listings, content: content, systemRoot: system, offered: offered, exclusions: exclusions))
+        return (inventory, PlugInUninstall.scan(inventory, apps: installed, receipts: ReceiptListings.read(under: system), content: content, systemRoot: system, offered: offered, exclusions: exclusions))
     }
 
     /// Which owners are running, and which of them as an open app.
