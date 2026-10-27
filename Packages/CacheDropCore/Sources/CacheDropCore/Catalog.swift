@@ -153,6 +153,8 @@ public struct CleanupRule: Sendable, Identifiable {
     /// A tool asked where a rule's folder is when the rule doesn't run a tool of its own (`npm config get cache`, #170).
     /// Only its query is ever run. A `.tool` rule asks its own `tool` instead.
     public let locationTool: LocationTool?
+    /// Folders (by lowercased name) that hold an app's offline content, which keeps the folder out (`AppCaches`, #171).
+    public let offlineContent: [String: OfflineContent]
     /// The tool asked where this rule's folder is, if any, decided here only: its own `tool` when that has a `locationQuery`
     /// (`isOwnTool`, so discovery uses the executable it already found), else `locationTool`.
     public var locationAsker: (tool: LocationTool, isOwnTool: Bool)? {
@@ -161,7 +163,8 @@ public struct CleanupRule: Sendable, Identifiable {
     }
     public init(id: String, category: CatalogCategory, title: String, detail: String, consequence: String, regen: RegenClass, action: CleanupAction, locations: [String], owner: RuleOwner?, protectedNames: [String] = [], tool: ToolCommand? = nil, protectedExtensions: [String] = [], contents: ContentsMatch? = nil, keepNewestVersions: Int? = nil, layoutOverrides: [LayoutOverride] = [], base: LocationBase = .home, copies: LeakedCopies? = nil, itemName: (@Sendable (String) -> String?)? = nil, items: CatalogItems? = nil, unprotectedExtensions: Set<String> = [],
                 itemOwner: (@Sendable (URL) -> RuleOwner?)? = nil, yieldsToOtherRules: Bool = false, protectedDepth: Int = 1, requiresFullDiskAccess: Bool = false, guidance: Guidance? = nil,
-                unprotectedNames: Set<String> = [], fromPickedFolders: Bool = false, unused: UnusedItems? = nil, itemByItem: Bool = false, locationTool: LocationTool? = nil) {
+                unprotectedNames: Set<String> = [], fromPickedFolders: Bool = false, unused: UnusedItems? = nil, itemByItem: Bool = false, locationTool: LocationTool? = nil,
+                offlineContent: [String: OfflineContent] = [:]) {
         self.id = id; self.category = category; self.title = title; self.detail = detail; self.consequence = consequence
         self.regen = regen; self.action = action; self.locations = locations; self.owner = owner; self.protectedNames = protectedNames; self.tool = tool
         self.protectedExtensions = protectedExtensions; self.contents = contents; self.keepNewestVersions = keepNewestVersions; self.layoutOverrides = layoutOverrides
@@ -170,7 +173,7 @@ public struct CleanupRule: Sendable, Identifiable {
         self.itemOwner = itemOwner; self.yieldsToOtherRules = yieldsToOtherRules; self.protectedDepth = protectedDepth
         self.requiresFullDiskAccess = requiresFullDiskAccess; self.unprotectedNames = unprotectedNames
         self.guidance = guidance; self.fromPickedFolders = fromPickedFolders
-        self.unused = unused; self.itemByItem = itemByItem; self.locationTool = locationTool
+        self.unused = unused; self.itemByItem = itemByItem; self.locationTool = locationTool; self.offlineContent = offlineContent
     }
 }
 
