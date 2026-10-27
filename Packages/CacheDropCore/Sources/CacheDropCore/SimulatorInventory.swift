@@ -107,6 +107,26 @@ extension Catalog {
         }
     }
 
+    /// What `simctl delete unavailable` removes, as one item anchored on `devices`: the folders of the devices simctl lists
+    /// as unavailable, sized on disk (#209). Nothing when no unavailable device takes space.
+    func unavailableSimulators(in devices: URL, rule: CleanupRule, toolURL: URL?, inventory: SimulatorInventory, sizer: KnownLocationSizer) -> [Candidate] {
+        var info = stat()
+        guard lstat(devices.path, &info) == 0, info.st_uid == geteuid(), info.st_mode & S_IFMT == S_IFDIR else { return [] }
+        var logical: Int64 = 0, allocated: Int64? = 0, complete = true
+        for device in inventory.devices.values.joined() where device.isAvailable == false && SimulatorInventory.isIdentifier(device.udid) {
+            let folder = devices.appendingPathComponent(device.udid)
+            var folderInfo = stat()
+            // A device without a folder here takes no space here.
+            guard lstat(folder.path, &folderInfo) == 0, folderInfo.st_mode & S_IFMT == S_IFDIR else { continue }
+            let size = sizer.size(folder)
+            logical += size.logicalBytes
+            allocated = allocated.flatMap { total in size.allocatedBytes.map { total + $0 } }
+            complete = complete && size.complete
+        }
+        guard logical > 0 || !complete else { return [] }
+        return [candidate(rule, devices, info, logical: logical, allocated: allocated, complete: complete, lastUsed: nil, toolURL: toolURL)]
+    }
+
     /// Each deletable runtime no simulator uses, anchored on the user's CoreSimulator folder, sized as simctl reports it.
     func simulatorRuntimes(anchor: URL, rule: CleanupRule, toolURL: URL?, inventory: SimulatorInventory) -> [Candidate] {
         var info = stat()

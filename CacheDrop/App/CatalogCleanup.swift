@@ -414,13 +414,14 @@ import SwiftUI
             projectBuilds = projectBuilds.mapValues { UserFiles.remaining($0, after: outcome) }; hasScanned = false; selectionRevision &+= 1
         } catch { message = "The cleanup journal is unavailable. Nothing was changed." }
     }
-    /// A stopped daemon-backed tool's work may still be finishing, so its item is measured again a minute later,
-    /// as the scan measures it, and the journal records what went (#190). Results show it if they are still open.
+    /// A stopped daemon-backed tool's work may still be finishing, so its item is measured again a minute later, and
+    /// once more at about 5 minutes if it was still shrinking, as the scan measures it; the journal records what went
+    /// (#190, #209). Results show each finding if they are still open.
     private func measureStoppedWorkAgain(_ outcome: CatalogExecutionResult, of approval: CatalogApproval, run: CleanupExecutor) {
         guard outcome.records.contains(where: { $0.mayStillBeFinishing == true }), let home = Self.home else { return }
         let catalog = catalog, userFolder = Self.userFolder, locate = Self.locateTool, system = Self.systemRoot, cloud = Self.cloud
         Task {
-            let later = await run.measureAgainLater(outcome, of: approval) { candidates in
+            let later = await run.measureAgainLater(outcome, of: approval, update: { [weak self] partial in await self?.showLaterMeasurement(partial) }) { candidates in
                 // Without the exclusions the scan used, nothing is measured: every item stays unmeasured.
                 guard let exclusions = try? await ExclusionsModel.shared.policyForScan() else { return [:] }
                 return await Task.detached(priority: .utility) {
@@ -429,8 +430,11 @@ import SwiftUI
                                                                                   systemRoot: system, cloud: cloud))
                 }.value
             }
-            if result?.batchID == later.batchID { result = later }
+            showLaterMeasurement(later)
         }
+    }
+    private func showLaterMeasurement(_ later: CatalogExecutionResult) {
+        if result?.batchID == later.batchID { result = later }
     }
     func cancel() { executor?.cancel() }
     /// Leaves a finished run's results without starting a new plan: both selections are kept.

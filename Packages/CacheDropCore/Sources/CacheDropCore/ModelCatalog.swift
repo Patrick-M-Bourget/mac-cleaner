@@ -54,6 +54,8 @@ public enum CatalogItems: Sendable, Equatable {
     case docker(DockerPruneKind)
     /// Simulator runtimes and devices, from `simctl`'s own lists (#134).
     case simulatorRuntimes, simulatorDevices
+    /// The devices `simctl delete unavailable` removes, as one item sized from simctl's list (#209).
+    case unavailableSimulators
     /// Android virtual devices and the system images none of them uses (#134).
     case androidVirtualDevices, androidSystemImages
 }

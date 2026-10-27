@@ -280,7 +280,8 @@ public enum BuiltInCatalog {
                     detail: "Simulator devices whose OS version is no longer installed, so they can’t run.",
                     consequence: "Runs `simctl delete unavailable`. Only devices that can’t run are removed, with their apps and data; available simulators are not touched.",
                     regen: .build, action: .tool, locations: ["Library/Developer/CoreSimulator/Devices"], owner: nil,
-                    tool: ToolCommand(executables: simctlExecutables, arguments: ["delete", "unavailable"], timeout: 300, daemonBacked: true)),
+                    tool: ToolCommand(executables: simctlExecutables, arguments: ["delete", "unavailable"], timeout: 300, daemonBacked: true),
+                    items: .unavailableSimulators),
         // RESET Decision 18. Installers come first so a large old installer is listed once, as an installer.
         CleanupRule(id: "downloads-installers", category: .downloads, title: "Installers in Downloads",
                     detail: "Disk images, packages and archives you downloaded, at any age.",
@@ -505,6 +506,17 @@ public struct Catalog: Sendable {
                     guard case .success(let inventory) = read else { notMeasured[rule.id, default: []].formUnion(rule.locations); return [] }
                     return rule.items == .simulatorDevices ? simulatorDevices(in: url, rule: rule, toolURL: toolURL, inventory: inventory, sizer: sizer)
                         : simulatorRuntimes(anchor: url, rule: rule, toolURL: toolURL, inventory: inventory)
+                }
+                if rule.items == .unavailableSimulators, let toolURL {
+                    let read = simulators[toolURL.path] ?? SimulatorInventory.read(toolURL)
+                    // Sized from the list, so measuring it again after a stopped run has a baseline (#209).
+                    if case .success(let inventory) = read {
+                        simulators[toolURL.path] = read
+                        return unavailableSimulators(in: url, rule: rule, toolURL: toolURL, inventory: inventory, sizer: sizer)
+                    }
+                    // Without the list it is offered at an unknown size, as before, and is never measured as gone. The
+                    // simulator rules read the list again and say why.
+                    notMeasured[rule.id, default: []].formUnion(rule.locations)
                 }
                 if case .docker(let kind) = rule.items, let toolURL {
                     guard case .success(let rows)? = dockerUsage[toolURL.path] else { return [] }

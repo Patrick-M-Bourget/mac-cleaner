@@ -24,7 +24,8 @@ public struct CatalogExecutionResult: Sendable {
     public let estimatedBytes: Int64
     /// Sum of the available-space change read around each removed item; nil when any reading is missing.
     public var measuredFreedBytes: Int64? {
-        let removed = records.filter { $0.state == .succeeded && $0.cleanupAction != .trash }
+        // An item that finished after the stop (#209) freed its space after the run, where nothing measured it.
+        let removed = records.filter { $0.state == .succeeded && $0.cleanupAction != .trash && !$0.finishedAfterStop }
         guard !previewOnly else { return nil }
         var total: Int64 = 0
         for record in removed {
@@ -125,23 +126,51 @@ public actor CleanupExecutor {
     /// How long after a run a stopped daemon-backed tool's item is measured again (#190): long enough for a daemon to
     /// finish a typical removal, short enough that the results are still open.
     public static let laterMeasurementDelay: Duration = .seconds(60)
+    /// When an item still shrinking at `laterMeasurementDelay` is measured the second and last time, after the run (#209):
+    /// Docker's prunes can take minutes.
+    public static let lastLaterMeasurementDelay: Duration = .seconds(300)
 
-    /// After `result`, waits once (`wait`, by default `laterMeasurementDelay`), then measures every item whose
-    /// daemon-backed tool was stopped again with `measure` and records what it found in the journal (#190). The outcome
-    /// recorded at the stop stays as it was. Bounded: one wait for the whole run and one measurement per item, never a retry.
-    /// Returns `result` unchanged when nothing needs it, the wait was cancelled, or the journal couldn't record it.
+    /// After `result`, waits (`wait`, given how long), then measures every item whose daemon-backed tool was stopped again
+    /// with `measure` and records what it found in the journal (#190). An item still shrinking compared with its size at the
+    /// scan is measured once more at `lastLaterMeasurementDelay`; `update` gets the result in between (#209). The outcome
+    /// recorded at the stop follows the measurement (#209): an item found gone becomes removed, finished after the stop;
+    /// one with some of it left stays partly removed. Bounded: at most two waits per run and two measurements per item,
+    /// never a retry. Returns `result` unchanged when nothing needs it, the wait was cancelled, or the journal couldn't record it.
     public func measureAgainLater(_ result: CatalogExecutionResult, of approval: CatalogApproval,
-                                  wait: @Sendable () async -> Bool = { (try? await Task.sleep(for: CleanupExecutor.laterMeasurementDelay)) != nil },
+                                  wait: @Sendable (Duration) async -> Bool = { (try? await Task.sleep(for: $0)) != nil },
+                                  update: @Sendable (CatalogExecutionResult) async -> Void = { _ in },
                                   measure: @Sendable ([Candidate]) async -> [String: LaterMeasurement.Finding]) async -> CatalogExecutionResult {
         let stopped = Set(result.records.filter { $0.mayStillBeFinishing == true && $0.laterMeasurement == nil }.map(\.id))
-        let candidates = approval.candidates.filter { stopped.contains(CleanupRecord.id(batchID: approval.id, candidateID: $0.id)) }
-        guard !candidates.isEmpty, await wait() else { return result }
+        let first = await measureAgain(stopped, in: result, of: approval, after: Self.laterMeasurementDelay, waiting: Self.laterMeasurementDelay, wait: wait, measure: measure)
+        // Still shrinking: some went since the scan, and some is left.
+        let shrinking = Set(first.records.filter { record in
+            guard stopped.contains(record.id), case .remaining(let bytes)? = record.laterMeasurement?.finding else { return false }
+            return bytes < (record.allocatedBytes ?? record.logicalBytes)
+        }.map(\.id))
+        guard !shrinking.isEmpty else { return first }
+        await update(first)
+        return await measureAgain(shrinking, in: first, of: approval, after: Self.lastLaterMeasurementDelay,
+                                  waiting: Self.lastLaterMeasurementDelay - Self.laterMeasurementDelay, wait: wait, measure: measure)
+    }
+
+    /// One wait, then one measurement of the records `ids` names, journaled. A finding that couldn't be measured never
+    /// replaces an earlier one.
+    private func measureAgain(_ ids: Set<String>, in result: CatalogExecutionResult, of approval: CatalogApproval, after: Duration, waiting: Duration,
+                              wait: @Sendable (Duration) async -> Bool,
+                              measure: @Sendable ([Candidate]) async -> [String: LaterMeasurement.Finding]) async -> CatalogExecutionResult {
+        let candidates = approval.candidates.filter { ids.contains(CleanupRecord.id(batchID: approval.id, candidateID: $0.id)) }
+        guard !candidates.isEmpty, await wait(waiting) else { return result }
         let findings = await measure(candidates)
         let measuredAt = clock()
         var records = result.records
-        for index in records.indices where stopped.contains(records[index].id) {
+        for index in records.indices where ids.contains(records[index].id) {
             var record = records[index]
-            record.laterMeasurement = LaterMeasurement(measuredAt: measuredAt, finding: findings[record.candidateID] ?? .unmeasured)
+            let finding = findings[record.candidateID] ?? .unmeasured
+            if finding == .unmeasured, record.laterMeasurement != nil { continue }
+            record.laterMeasurement = LaterMeasurement(measuredAt: measuredAt, finding: finding, afterSeconds: Int(after.components.seconds))
+            if finding == .gone {
+                record.state = .succeeded; record.partlyRemoved = nil; record.message = CleanupRecord.finishedAfterStopMessage
+            }
             // Shown only once the journal has it, so Results and History never disagree.
             do { try journal.outcome(record); records[index] = record } catch { continue }
         }
