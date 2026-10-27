@@ -16,6 +16,8 @@ import Testing
     #expect(UnavailableScannedFolder.text(reason: "Folder not found", lastObserved: "27 Oct 2026 at 10:02")
         == "Folder not found · last observed 27 Oct 2026 at 10:02")
     #expect(UnavailableScannedFolder.text(reason: "Folder not found", lastObserved: nil) == "Folder not found")
+    // #257: a folder that is there but unreadable gives its reason alone, as Overview does; a date wouldn't explain it.
+    #expect(UnavailableScannedFolder.text(reason: "Access unavailable", lastObserved: "27 Oct 2026 at 10:02") == "Access unavailable")
 }
 
 /// #254: Overview tells a deleted or moved folder from one that is there but unreadable, in the explorer's words.
