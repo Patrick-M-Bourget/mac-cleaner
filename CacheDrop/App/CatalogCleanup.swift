@@ -401,9 +401,12 @@ import SwiftUI
         let catalog = catalog, userFolder = Self.userFolder, locate = Self.locateTool, system = Self.systemRoot, cloud = Self.cloud
         Task {
             let later = await run.measureAgainLater(outcome, of: approval) { candidates in
-                await Task.detached(priority: .utility) {
+                // Without the exclusions the scan used, nothing is measured: every item stays unmeasured.
+                guard let exclusions = try? await ExclusionsModel.shared.policyForScan() else { return [:] }
+                return await Task.detached(priority: .utility) {
                     let only = catalog.only(candidates)
-                    return catalog.measuredAgain(candidates, in: only.discovery(home: home, userFolder: userFolder, locateTool: locate, systemRoot: system, cloud: cloud))
+                    return catalog.measuredAgain(candidates, in: only.discovery(home: home, userFolder: userFolder, exclusions: exclusions, locateTool: locate,
+                                                                                  systemRoot: system, cloud: cloud))
                 }.value
             }
             if result?.batchID == later.batchID { result = later }
