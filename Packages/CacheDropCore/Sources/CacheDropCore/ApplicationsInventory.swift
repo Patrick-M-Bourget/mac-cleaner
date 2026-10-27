@@ -77,7 +77,7 @@ public enum ApplicationsInventory {
     /// The maker's own tool, when it is among `apps` (Decision 41): tied to the entry by its bundle ID's vendor, never by name.
     public static func vendorTool(for entry: InventoryEntry, among apps: [InventoryEntry]) -> InventoryEntry? {
         guard let tool = VendorTool.known.first(where: { $0.makes(entry.bundleID) }) else { return nil }
-        return apps.first { $0 != entry && tool.makes($0.bundleID) && $0.name == tool.name }
+        return apps.first { $0 != entry && $0.bundleID?.lowercased() == tool.bundleID }
     }
 
     /// The volume a path is on, when it isn't the startup disk: "/Volumes/Studio/…" reads "Studio".
@@ -104,14 +104,15 @@ public enum ApplicationsInventory {
 public struct VendorTool: Sendable, Equatable {
     /// The vendor's part of a bundle ID, lowercased: `com.native-instruments` for `com.native-instruments.kontakt-8.vst3`.
     public let vendor: String
-    /// The tool's app name, which must also carry the vendor's bundle ID.
-    public let name: String
+    /// The tool app's own bundle ID, lowercased: the tool is the installed app with exactly this ID.
+    public let bundleID: String
 
-    public static let known = [VendorTool(vendor: "com.native-instruments", name: "Native Access"),
-                               VendorTool(vendor: "com.wavesaudio", name: "Waves Central"),
-                               VendorTool(vendor: "com.arturia", name: "Arturia Software Center"),
-                               VendorTool(vendor: "com.softube", name: "Softube Central"),
-                               VendorTool(vendor: "com.uaudio", name: "UA Connect")]
+    public static let known = [VendorTool(vendor: "com.native-instruments", bundleID: "com.native-instruments.nativeaccess2"),  // checked on this Mac
+                               VendorTool(vendor: "com.uaudio", bundleID: "com.uaudio.ua-connect"),                            // checked on this Mac
+                               // Not checked: none of these is installed on the Mac this was written on.
+                               VendorTool(vendor: "com.wavesaudio", bundleID: "com.wavesaudio.wavescentral"),
+                               VendorTool(vendor: "com.arturia", bundleID: "com.arturia.arturiasoftwarecenter"),
+                               VendorTool(vendor: "com.softube", bundleID: "com.softube.softubecentral")]
 
     /// Whether a bundle ID is this vendor's.
     func makes(_ bundleID: String?) -> Bool { bundleID.map { RemovedAppLeftovers.vendor(of: $0) == vendor } ?? false }

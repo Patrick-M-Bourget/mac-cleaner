@@ -125,15 +125,16 @@ private func plugIn(_ url: URL, _ format: PlugInFormat, id: String, maker: Strin
 }
 
 /// Decision 41: a product's vendor, and the vendor's own tool, are known by bundle ID, never by name ("Waves" isn't
-/// "Wavesfactory", and an app merely named "Native Access" isn't Native Instruments' tool).
+/// "Wavesfactory"). The tool is the app with the tool's exact bundle ID, whatever it is named (#273).
 @Test func aVendorsOwnToolIsFoundAmongTheAppsByBundleID() {
     func entry(_ name: String, _ bundleID: String?) -> InventoryEntry { InventoryEntry(id: name, name: name, maker: nil, volume: nil, parts: [], bundleID: bundleID) }
-    let nativeAccess = entry("Native Access", "com.native-instruments.nativeaccess2")
-    let apps = [nativeAccess, entry("Big Synth", "com.bigsynth.app"), entry("UA Connect", "com.example.fake-connect")]
+    let nativeAccess = entry("Native Access 2", "com.native-instruments.nativeaccess2")
+    let apps = [entry("Native Access", "com.native-instruments.other-tool"), nativeAccess, entry("Big Synth", "com.bigsynth.app"),
+                entry("UA Connect", "com.uaudio.ua-connect-helper")]
     #expect(ApplicationsInventory.vendorTool(for: entry("Kontakt 8", "com.native-instruments.kontakt-8.component"), among: apps) == nativeAccess)
     #expect(ApplicationsInventory.vendorTool(for: entry("Kontakt 8", "com.Native-Instruments.Kontakt"), among: apps) == nativeAccess)
     #expect(ApplicationsInventory.vendorTool(for: entry("Pulse", "com.wavesfactory.pulse"), among: apps) == nil, "Wavesfactory isn't Waves")
-    #expect(ApplicationsInventory.vendorTool(for: entry("Console", "com.uaudio.console"), among: apps) == nil, "That UA Connect isn't Universal Audio's")
-    #expect(ApplicationsInventory.vendorTool(for: entry("Native Access", "com.native-instruments.nativeaccess2"), among: apps) == nil, "The tool needs no tool")
+    #expect(ApplicationsInventory.vendorTool(for: entry("Console", "com.uaudio.console"), among: apps) == nil, "Only UA Connect's own bundle ID is UA's tool")
+    #expect(ApplicationsInventory.vendorTool(for: nativeAccess, among: apps) == nil, "The tool needs no tool")
     #expect(ApplicationsInventory.vendorTool(for: entry("Unknown", nil), among: apps) == nil)
 }
