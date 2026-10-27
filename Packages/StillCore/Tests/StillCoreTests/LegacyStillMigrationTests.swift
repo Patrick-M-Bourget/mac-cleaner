@@ -35,7 +35,7 @@ private final class FailingCopies: FileManager, @unchecked Sendable {
     }
 }
 
-private let legacyState = ["cleanup.sqlite": "journal", "Scopes/scopes.json": "bookmarks", "Exclusions/exclusions.json": "excluded"]
+private let legacyState = ["Growth/history.json": "growth", "Scopes/scopes.json": "bookmarks", "Exclusions/exclusions.json": "excluded"]
 
 private func legacyFixture(_ support: URL) throws {
     for (relative, text) in legacyState { try write(text, "Still/" + relative, in: support) }
@@ -47,7 +47,7 @@ private func legacyFixture(_ support: URL) throws {
     try legacyFixture(support)
     let preferences = Preferences()
     let migration = LegacyStillMigration(applicationSupport: support, preferences: preferences,
-                                         legacyPreferences: { ["Still.showsMenuBarItem": false, "StillDryRun": true] })
+                                         legacyPreferences: { ["Still.showsMenuBarItem": false, "StillDryRun": true] }, running: StillRunning(answer: false))
     #expect(migration.run() == .copied)
     for (relative, text) in legacyState {
         #expect(read("CacheDrop/" + relative, in: support) == text)
@@ -63,7 +63,7 @@ private func legacyFixture(_ support: URL) throws {
     try legacyFixture(support)
     try write("cachedrop journal", "CacheDrop/cleanup.sqlite", in: support)
     let preferences = Preferences(["StillDryRun": false])
-    let migration = LegacyStillMigration(applicationSupport: support, preferences: preferences, legacyPreferences: { ["StillDryRun": true] })
+    let migration = LegacyStillMigration(applicationSupport: support, preferences: preferences, legacyPreferences: { ["StillDryRun": true] }, running: StillRunning(answer: false))
     #expect(migration.run() == .cacheDropHasState)
     #expect(read("CacheDrop/cleanup.sqlite", in: support) == "cachedrop journal")
     #expect(read("CacheDrop/Scopes/scopes.json", in: support) == nil)
@@ -76,12 +76,12 @@ private func legacyFixture(_ support: URL) throws {
     try legacyFixture(support)
     let preferences = Preferences()
     let failing = LegacyStillMigration(applicationSupport: support, fileManager: FailingCopies(), preferences: preferences,
-                                       legacyPreferences: { ["StillDryRun": true] })
+                                       legacyPreferences: { ["StillDryRun": true] }, running: StillRunning(answer: false))
     #expect(failing.run() == .failed)
     for (relative, text) in legacyState { #expect(read("Still/" + relative, in: support) == text) }
     #expect(try FileManager.default.contentsOfDirectory(atPath: support.path) == ["Still"]) // no CacheDrop, no staging copy
     #expect(preferences.values.isEmpty) // nothing copied, nothing recorded
-    let retry = LegacyStillMigration(applicationSupport: support, preferences: preferences, legacyPreferences: { ["StillDryRun": true] })
+    let retry = LegacyStillMigration(applicationSupport: support, preferences: preferences, legacyPreferences: { ["StillDryRun": true] }, running: StillRunning(answer: false))
     #expect(retry.run() == .copied)
 }
 
@@ -90,7 +90,7 @@ private func legacyFixture(_ support: URL) throws {
     defer { try? FileManager.default.removeItem(at: support) }
     try legacyFixture(support)
     let preferences = Preferences()
-    let migration = LegacyStillMigration(applicationSupport: support, preferences: preferences, legacyPreferences: { ["StillDryRun": true] })
+    let migration = LegacyStillMigration(applicationSupport: support, preferences: preferences, legacyPreferences: { ["StillDryRun": true] }, running: StillRunning(answer: false))
     #expect(migration.run() == .copied)
     // CacheDrop's state is then forgotten (Reset) and Still's changes: nothing is copied again.
     try FileManager.default.removeItem(at: support.appendingPathComponent("CacheDrop"))
@@ -104,7 +104,7 @@ private func legacyFixture(_ support: URL) throws {
     let support = try applicationSupport()
     defer { try? FileManager.default.removeItem(at: support) }
     let preferences = Preferences()
-    #expect(LegacyStillMigration(applicationSupport: support, preferences: preferences, legacyPreferences: { nil }).run() == .nothingToCopy)
+    #expect(LegacyStillMigration(applicationSupport: support, preferences: preferences, legacyPreferences: { nil }, running: StillRunning(answer: false)).run() == .nothingToCopy)
     #expect(try FileManager.default.contentsOfDirectory(atPath: support.path).isEmpty)
     #expect(preferences.object(forKey: LegacyStillMigration.completedKey) as? Bool == true)
 }
@@ -114,8 +114,54 @@ private func legacyFixture(_ support: URL) throws {
     defer { try? FileManager.default.removeItem(at: support) }
     let preferences = Preferences()
     let migration = LegacyStillMigration(applicationSupport: support, preferences: preferences,
-                                         legacyPreferences: { ["Still.startAtLogin": true, "Still.showsMenuBarItem": false] })
+                                         legacyPreferences: { ["Still.startAtLogin": true, "Still.showsMenuBarItem": false] }, running: StillRunning(answer: false))
     #expect(migration.run() == .copied)
     #expect(preferences.object(forKey: "Still.startAtLogin") == nil)
     #expect(preferences.object(forKey: "Still.showsMenuBarItem") as? Bool == false)
+}
+
+/// Whether Still's app is running, as the test says.
+private struct StillRunning: RunningAppChecking {
+    let answer: Bool?
+    func isRunning(_ owner: RuleOwner) -> Bool? { owner.bundleIDs == [LegacyStillMigration.legacyDomain] ? answer : false }
+}
+
+@Test func theMigrationWaitsWhileStillIsRunningAndRetriesOnTheNextLaunch() throws {
+    let support = try applicationSupport()
+    defer { try? FileManager.default.removeItem(at: support) }
+    try legacyFixture(support)
+    let preferences = Preferences()
+    func migration(_ answer: Bool?) -> LegacyStillMigration {
+        LegacyStillMigration(applicationSupport: support, preferences: preferences, legacyPreferences: { ["StillDryRun": true] }, running: StillRunning(answer: answer))
+    }
+    // Running, or unknown: Still could be writing its journal, so nothing is copied or recorded.
+    for answer in [true, nil] as [Bool?] {
+        #expect(migration(answer).run() == .stillRunning)
+        #expect(try FileManager.default.contentsOfDirectory(atPath: support.path) == ["Still"])
+        #expect(preferences.values.isEmpty)
+    }
+    #expect(migration(false).run() == .copied)
+    #expect(read("CacheDrop/Scopes/scopes.json", in: support) == "bookmarks")
+}
+
+@Test func theCopiedJournalHoldsEveryRecordIncludingThoseStillInItsWriteAheadLog() throws {
+    let support = try applicationSupport()
+    defer { try? FileManager.default.removeItem(at: support) }
+    let home = support.appendingPathComponent("home").resolvingSymlinksInPath()
+    for name in ["a.dmg", "b.pkg", "c.dmg"] { try write("x", "Downloads/" + name, in: home) }
+    let candidates = Catalog(rules: fixtureRules).discover(fixture: home)
+    #expect(candidates.count == 3)
+    let legacy = support.appendingPathComponent("Still")
+    try FileManager.default.createDirectory(at: legacy, withIntermediateDirectories: true)
+    let journal = try SQLiteCleanupJournal(url: legacy.appendingPathComponent("cleanup.sqlite"))
+    let batch = UUID()
+    #expect(try journal.claim(batchID: batch, records: candidates.map { CleanupRecord(batchID: batch, approvedAt: Date(), candidate: $0, previewOnly: false) }))
+    // Still's connection stays open, so its records are still in the write-ahead log, not the main file.
+    let wal = try FileManager.default.attributesOfItem(atPath: legacy.appendingPathComponent("cleanup.sqlite-wal").path)[.size] as? Int
+    #expect((wal ?? 0) > 0)
+    let migration = LegacyStillMigration(applicationSupport: support, preferences: Preferences(), legacyPreferences: { nil }, running: StillRunning(answer: false))
+    #expect(withExtendedLifetime(journal) { migration.run() } == .copied)
+    let copy = try SQLiteCleanupJournal(url: support.appendingPathComponent("CacheDrop/cleanup.sqlite"), readOnly: true)
+    #expect(try copy.records().count == 3)
+    #expect(try journal.records().count == 3) // Still's journal is untouched.
 }
