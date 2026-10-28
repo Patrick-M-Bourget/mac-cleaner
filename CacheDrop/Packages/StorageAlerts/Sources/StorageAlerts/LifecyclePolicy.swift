@@ -36,9 +36,12 @@ public enum AppLifecyclePolicy {
 /// A normal launch always opens the main window (#110). macOS's saved window state could restore
 /// the app with no main window, so CacheDrop ignores it, as `-ApplePersistenceIgnoreState YES` does.
 /// Registered defaults rank lowest, so an explicit setting can still override this.
+/// Tooltips show after a short hover (#344), not macOS's default of about a second: AppKit reads `NSInitialToolTipDelay`.
 public enum AppLaunchPolicy {
+    /// How long a hover waits before its tooltip shows.
+    public static let tooltipDelayMilliseconds = 250
     public static func registerDefaults(in defaults: UserDefaults = .standard) {
-        defaults.register(defaults: ["ApplePersistenceIgnoreState": true])
+        defaults.register(defaults: ["ApplePersistenceIgnoreState": true, "NSInitialToolTipDelay": tooltipDelayMilliseconds])
     }
 }
 

@@ -1378,11 +1378,13 @@ final class TrashSpaceUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
         let developer = app.buttons["meterSegment-developer"]
         XCTAssertTrue(developer.waitForExistence(timeout: 15))
-        XCTAssertTrue(developer.label.hasPrefix("Developer caches and build files, up to "), developer.label)
+        // #344: the label says what the tooltip says.
+        XCTAssertTrue(developer.label.hasPrefix("Developer caches and build files · up to "), developer.label)
         XCTAssertTrue(app.buttons["meterSegment-downloads"].exists)
         let trash = app.descendants(matching: .any)["meterSegment-trash"]
         XCTAssertTrue(trash.waitForExistence(timeout: 10))
-        XCTAssertTrue(trash.label.hasPrefix("In Trash, "), trash.label)
+        XCTAssertTrue(trash.label.hasPrefix("In Trash · "), trash.label)
+        XCTAssertGreaterThan(trash.frame.minX, developer.frame.maxX, "#343: the Trash ends what was found, at the tip")
         XCTAssertFalse(app.buttons["meterSegment-trash"].exists, "The Trash segment opens nothing")
         XCTAssertTrue(app.descendants(matching: .any)["sidebarMeterSegments"].exists, "The sidebar meter shows one reclaimable segment")
 
@@ -1529,6 +1531,31 @@ extension CatalogCleanupUITests {
         XCTAssertTrue(installer.waitForExistence(timeout: 15))
         let chosen = NSPredicate(format: "value == 1")
         XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: chosen, object: installer)], timeout: 15), .completed, "The installer is still chosen")
+    }
+
+    /// #343, #344, #347: what CacheDrop found ends at the right tip of the used space, each segment's label names it (the
+    /// tooltip carries the same text; this journey reads the label), and Smart clean shows Overview's whole startup volume card.
+    @MainActor func testStorageBarsPutWhatWasFoundAtTheTipNameEachSegmentAndSmartCleanReusesTheCard() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        let state = try configureIsolatedState(app)
+        let home = try configureCatalogHome(app)
+        defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
+        app.launch()
+        XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
+        waitForCatalogScan(app)
+
+        let meter = app.descendants(matching: .any)["meterSegments"].firstMatch
+        let developer = app.descendants(matching: .any)["meterSegment-developer"].firstMatch
+        XCTAssertTrue(developer.waitForExistence(timeout: 10))
+        XCTAssertGreaterThan(developer.frame.minX, meter.frame.minX + 10, "The rest of the used space comes first; what was found sits at the tip")
+        XCTAssertTrue(developer.label.hasPrefix("Developer caches and build files · up to "), developer.label)
+
+        app.typeKey("2", modifierFlags: .command)
+        let card = app.descendants(matching: .any)["smartCleanMeter"]
+        XCTAssertTrue(card.waitForExistence(timeout: 10))
+        XCTAssertTrue(card.staticTexts["startupCapacityAmount"].exists, "The whole card: its available space too")
+        XCTAssertTrue(card.descendants(matching: .any)["meterSegment-developer"].exists)
     }
 
     /// #348: a click anywhere on a category row toggles it as its checkbox does, on Smart clean and the plan: all on when any
@@ -1725,6 +1752,12 @@ extension CatalogCleanupUITests {
         func text(_ line: String) -> XCUIElementQuery { app.staticTexts.matching(NSPredicate(format: "label == %@ OR value == %@", line, line)) }
         XCTAssertEqual(text("Goes to the Trash; Put back works").count, 2, "Installers and leftovers")
         XCTAssertEqual(text("Comes back on its own when your tools and Xcode need it; some tools clean their own").count, 1)
+        // #343: the ticked installers and leftover go to the Trash, so the bar draws them as the Trash's, at the tip.
+        let toTrash = app.descendants(matching: .any)["meterSegment-goingToTrash"].firstMatch
+        XCTAssertTrue(toTrash.exists)
+        XCTAssertTrue(toTrash.label.hasPrefix("Goes to the Trash · "), toTrash.label)
+        let releasing = app.descendants(matching: .any)["smartCleanMeter"].descendants(matching: .any)["meterSegment-developer"]
+        XCTAssertGreaterThan(toTrash.frame.minX, releasing.frame.maxX, "After the categories, at the tip, beside the Trash")
         // #350: the title counts only what is released, so unticking the Trash-bound installers leaves it as it is.
         let header = app.descendants(matching: .any)["smartCleanHeader"], titleBefore = header.label
 

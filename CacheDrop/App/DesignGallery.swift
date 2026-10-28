@@ -164,6 +164,12 @@ struct DesignGallery: View {
                     } items: { EmptyView() }
                     VolumeSummary(available: 40_000_000_000, total: 512_000_000_000, observation: "Synthetic gallery capacity · No category attribution")
                     VolumeSummary(available: nil, total: nil, observation: "No capacity observation · Unknown stays distinct from zero")
+                    // Every segment kind at the tip, as Smart clean draws a selection (#343): lit, dimmed, going to the Trash, in Trash.
+                    VolumeSummary(available: 40_000_000_000, total: 512_000_000_000, observation: "Synthetic found items · Selection highlighted",
+                                  breakdown: StorageBreakdown(used: 472_000_000_000, total: 512_000_000_000, categories: [
+                                      (.developer, .measured(60_000_000_000)), (.browser, .measured(20_000_000_000)), (.downloads, .measured(25_000_000_000)),
+                                      (.logs, .measured(8_000_000_000)),
+                                  ], trash: .holds(12_000_000_000), highlighted: [.developer: 45_000_000_000, .logs: 8_000_000_000], toTrash: [.downloads: 15_000_000_000]))
                 }.padding(CacheDropDesign.Space.page).frame(maxWidth: .infinity, alignment: .leading)
             }.background(CacheDropDesign.reading)
             // While background work runs, its progress line takes the note's place (Decision 46).
