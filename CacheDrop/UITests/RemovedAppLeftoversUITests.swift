@@ -34,7 +34,7 @@ final class RemovedAppLeftoversUITests: XCTestCase {
         XCTAssertTrue(possible.exists)
         XCTAssertFalse(app.descendants(matching: .any).matching(NSPredicate(format: "identifier CONTAINS 'com.here.editor' OR identifier CONTAINS 'PACE'")).firstMatch.exists)
 
-        revealAndClick(category, in: app)
+        tick(category, in: app)
         XCTAssertEqual(possible.value as? Int, 0, "A possibly related item is never ticked with its category")
         XCTAssertEqual(app.checkBoxes["planProfile-removed-app-leftovers-Synth"].value as? Int, 1)
         app.buttons["Review cleanup"].click()

@@ -294,9 +294,12 @@ final class WhatGrewUITests: XCTestCase {
         app.radioButtons["Locations"].firstMatch.click()
         XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "value BEGINSWITH '~/.npm/_cacache'")).firstMatch.waitForExistence(timeout: 5))
 
-        // #221: the button names where it goes.
-        XCTAssertEqual(app.buttons["growthReviewOptions"].label, "Review plan")
+        // #221, #351: the button names the category that grew and opens it in the plan.
+        XCTAssertEqual(app.buttons["growthReviewOptions"].label, "Review developer caches and build files in the cleanup plan")
+        XCTAssertFalse(app.staticTexts["Review plan shows what can be cleaned there now."].exists)
         app.buttons["growthReviewOptions"].click()
+        XCTAssertTrue(app.checkBoxes["planCategory-developer"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.checkBoxes["planCategory-developer"].isHittable, "Scrolled to the category that grew")
         // #222: the quiet back button sits above the page title, and returns to Storage trends.
         let back = app.buttons["Back to Storage trends"]
         assertBackButton(back, isAbove: "Cleanup plan", in: app)

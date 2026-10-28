@@ -75,6 +75,10 @@ public struct GrowthComparison: Sendable {
     /// Catalog locations whose coverage changed; left out of `groups` and `logicalDelta`.
     public var coverageChanges: [GrowthCoverageChange] = []
     public var logicalDelta: Int64? { state == .compared ? groups.filter { $0.dimension != .category }.reduce(0) { $0 + $1.logicalDelta } : nil }
+    /// The category that grew most, which Storage trends names and opens in the plan (#351); nil when none grew.
+    public var mostGrowth: GrowthChange? {
+        groups.filter { $0.dimension == .category && $0.logicalDelta > 0 }.max { $0.logicalDelta < $1.logicalDelta }
+    }
 }
 public struct GrowthRetention: Sendable {
     public let days, baselines, bytes: Int

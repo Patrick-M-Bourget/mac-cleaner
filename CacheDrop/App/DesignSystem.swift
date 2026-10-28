@@ -74,13 +74,6 @@ enum CacheDropDesign {
     /// mode so a meter segment keeps 3:1 against the track (#164).
     static var indigo: Color { adaptive(light: 0x5856D6, dark: 0x8583F5) }
     static func files(_ count: Int) -> String { "\(count) \(count == 1 ? "file" : "files")" }
-    /// "X of this goes to Trash" under a selection's total, only when some of `selection` goes to the Trash (Decision 25),
-    /// where that space stays used until the Trash is emptied.
-    static func goesToTrash(_ selection: [Candidate]) -> String? {
-        let trash = selection.filter { $0.action == .trash }
-        guard !trash.isEmpty else { return nil }
-        return SmartCleanConsequence.goesToTrash(ByteCountFormatter.string(fromByteCount: trash.reduce(0) { $0 + $1.estimatedBytes }, countStyle: .decimal))
-    }
     static func items(_ count: Int) -> String { "\(count) \(count == 1 ? "item" : "items")" }
     static var capacityFill: Color { adaptive(light: 0x969BA7, dark: 0x858997) }
     static var capacityTrack: Color { adaptive(light: 0xECEEF2, dark: 0x33343D) }
@@ -238,20 +231,19 @@ struct SelectionSummary: View {
     var identifier = ""
     var consequence: String? = nil
     var title = "Selected for Trash"
-    var consequenceIdentifier = ""
     var body: some View {
         VStack(alignment: .leading, spacing: CacheDropDesign.Space.md) {
         SummarySurface {
             HStack(alignment: .center) {
                 VStack(alignment: .leading, spacing: CacheDropDesign.Space.sm) {
                     Text(title).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
-                    Text(value).font(CacheDropDesign.TypeStyle.value).monospacedDigit()
+                    Text(value).font(CacheDropDesign.TypeStyle.value).monospacedDigit().accessibilityIdentifier(identifier.isEmpty ? "" : identifier + "Value")
                 }
                 Spacer(minLength: CacheDropDesign.Space.lg)
                 Text(detail).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary).multilineTextAlignment(.trailing).accessibilityIdentifier(identifier)
             }
         }
-        if let consequence { Text(consequence).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true).accessibilityIdentifier(consequenceIdentifier) }
+        if let consequence { Text(consequence).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true) }
         }
     }
 }
@@ -654,9 +646,9 @@ extension CacheDropDesign.Size {
     /// A category checkbox's width, kept as a gap when a row has none (#267, #270).
     static let checkbox: CGFloat = 16
 }
-/// Selection stays on the native checkbox; the badge/title never become extra toggles. A nil `state` draws no checkbox, for a
-/// row that can't be chosen (Decision 51), and the identifier then names the row. `below` goes under the title and detail, in
-/// their column (#298).
+/// The native checkbox ticks the row, and so does a click anywhere else on it (#348): the same toggle, never a second one, and
+/// links in `below` keep their own clicks. A nil `state` draws no checkbox and takes no click, for a row that can't be chosen
+/// (Decision 51), and the identifier then names the row. `below` goes under the title and detail, in their column (#298).
 struct CategorySelectionHeader<Below: View>: View {
     let category: StorageCategory
     let state: CategorySelectionState?
@@ -667,12 +659,21 @@ struct CategorySelectionHeader<Below: View>: View {
     var identifier: String? = nil
     let action: () -> Void
     @ViewBuilder var below: () -> Below
+    /// A parent's `.disabled` (a scan dimming the rows), which the native checkbox follows too.
+    @Environment(\.isEnabled) private var environmentEnabled
     var body: some View {
         let row = HStack(alignment: .top, spacing: CacheDropDesign.Space.md) {
             if let state {
                 MacroCategoryCheckbox(state: state, label: title, enabled: enabled, action: action, identifier: identifier ?? (category == .downloads ? "downloadsCategorySelection" : "\(category)-CategorySelection"), showsTitle: false)
                     .fixedSize().padding(.top, CacheDropDesign.Space.sm)
             }
+            clickable
+        }
+        if state == nil, let identifier { row.accessibilityElement(children: .contain).accessibilityIdentifier(identifier) } else { row }
+    }
+    /// Everything right of the checkbox: a click here toggles the row as the checkbox does (#348).
+    private var clickable: some View {
+        HStack(alignment: .top, spacing: CacheDropDesign.Space.md) {
             // Without a checkbox, the badge keeps its place, so titles line up with the rows that have one.
             CategoryBadge(category: category).padding(.leading, state == nil ? CacheDropDesign.Size.checkbox + CacheDropDesign.Space.md : 0)
             VStack(alignment: .leading, spacing: CacheDropDesign.Space.xs) {
@@ -684,8 +685,7 @@ struct CategorySelectionHeader<Below: View>: View {
                 below()
             }.frame(maxWidth: .infinity, alignment: .leading)
             Text(size).font(.callout).monospacedDigit().fixedSize()
-        }
-        if state == nil, let identifier { row.accessibilityElement(children: .contain).accessibilityIdentifier(identifier) } else { row }
+        }.contentShape(Rectangle()).onTapGesture { if state != nil && enabled && environmentEnabled { action() } }
     }
 }
 extension CategorySelectionHeader where Below == EmptyView {

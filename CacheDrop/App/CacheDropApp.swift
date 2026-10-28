@@ -445,12 +445,12 @@ private struct WorkspaceView: View {
             }
     }
     private func catalogRow(_ row: CatalogOverview.Row) -> some View {
-        // Leftovers are chosen on Applications, never "In cleanup plan" (#270).
         let onApplications = CleanupSelections.Source.page(of: row) == .applications
-        let inPlan = !onApplications && row.rules.contains { selection.catalog.isSelected($0) }
+        // "Selected" only once its ticks differ from the recommended default, on whichever page they were made (#349).
+        let selected = selection.catalog.selectionDiffersFromRecommended(row.rules)
         return StorageReviewRow(category: row.category.storageCategory, title: row.category.overviewTitle, detail: row.category.overviewDetail,
             value: row.valueText,
-            meaning: row.estimate == .unknown ? "Couldn’t be measured" : inPlan ? "In cleanup plan"
+            meaning: row.estimate == .unknown ? "Couldn’t be measured" : selected ? "Selected"
                 : row.rules.allSatisfy { $0.action == .delete } ? "Rebuildable" : row.rules.allSatisfy { $0.action == .evict } ? "Local copies" : "Review files",
             actionTitle: onApplications ? "Review \(row.category.overviewTitle) in Applications" : "Review \(row.category.overviewTitle) in the cleanup plan",
             // Leftovers of removed apps are on the Applications page (Decision 51).
@@ -693,7 +693,7 @@ private struct WorkspaceView: View {
             ActionStrip(message: nil) {
                 Button("Scan again", action: scanAgain).disabled(!canScanAgain).help(scanAgainHelp)
                     .accessibilityIdentifier("growthScanAgain")
-                Button("Review plan") { navigate(.plan); navigationState.planReturnsToGrowth = true }.buttonStyle(.borderedProminent)
+                Button(growthReview.title, action: growthReview.open).buttonStyle(.borderedProminent)
                     .accessibilityIdentifier("growthReviewOptions")
             }
         } else {
@@ -702,6 +702,19 @@ private struct WorkspaceView: View {
     }
     }
 
+    /// Storage trends' one review button (#351): the category that grew most, opened and scrolled to where it can be cleaned
+    /// (the plan, or Applications for leftovers), named in the button; the plan alone when that category offers nothing now.
+    private var growthReview: (title: String, open: () -> Void) {
+        let grew = GrowthHistoryModel.shared.comparison?.mostGrowth?.category
+        if let grew, let row = selection.catalog.leftoversRow, row.category == grew {
+            return ("Review " + GrowthPresentation.inSentence(grew) + " in Applications", { navigate(.applications) })
+        }
+        let returnHere = { navigationState.planReturnsToGrowth = true }
+        guard let grew, selection.catalog.plans(grew) else {
+            return ("Review plan", { navigate(.plan); returnHere() })
+        }
+        return ("Review " + GrowthPresentation.inSentence(grew) + " in the cleanup plan", { navigate(.plan); returnHere(); planPresentation.reveal(grew) })
+    }
     /// The plan's back button: to Storage trends or Explore storage when the plan was opened from there, otherwise none.
     private var planBack: (() -> Void)? {
         if navigationState.planReturnsToGrowth { return { navigationState.planReturnsToGrowth = false; destination = .growth } }

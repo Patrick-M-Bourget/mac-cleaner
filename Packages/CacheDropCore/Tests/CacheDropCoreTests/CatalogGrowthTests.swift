@@ -232,3 +232,15 @@ private func recordCatalogScan(_ catalog: Catalog, home: URL, recorder: GrowthSc
     #expect(rescan.current?.afterCleanup == true)
     #expect(try await store.snapshots().last?.afterCleanup == true)
 }
+
+/// #351: Storage trends names the category that grew most and opens it in the plan; one that only shrank names none.
+@Test func theCategoryThatGrewMostIsTheOneStorageTrendsOpens() async throws {
+    let (store, directory) = growthStore()
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let first = catalogSnapshot(100, [location("npm", .developer, 100), location("yarn", .developer, 50), location("chrome", .browser, 10)])
+    _ = try await store.record(first, now: first.observedAt, expectedEpoch: try await store.recordingEpoch())
+    let second = catalogSnapshot(200, [location("npm", .developer, 400), location("yarn", .developer, 20), location("chrome", .browser, 30)])
+    #expect(try await store.record(second, now: second.observedAt, expectedEpoch: try await store.recordingEpoch()).mostGrowth?.category == .developer)
+    let third = catalogSnapshot(300, [location("npm", .developer, 10), location("yarn", .developer, 20), location("chrome", .browser, 5)])
+    #expect(try await store.record(third, now: third.observedAt, expectedEpoch: try await store.recordingEpoch()).mostGrowth == nil, "Everything shrank")
+}

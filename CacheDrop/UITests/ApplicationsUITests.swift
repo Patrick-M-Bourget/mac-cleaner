@@ -122,8 +122,9 @@ final class ApplicationsUITests: XCTestCase {
 
         revealAndClick(rows[1], in: app)
         XCTAssertEqual(rows[1].value as? Int, 1)
+        // The leftover's container ties it to its removed app, so it arrives ticked (#349).
         let count = app.staticTexts["actionStripNote"]
-        XCTAssertEqual(count.value as? String, "1 item selected")
+        XCTAssertEqual(count.value as? String, "2 items selected")
 
         let search = app.textFields["applicationsSearch"]
         search.click(); search.typeText("maker audio")
@@ -132,7 +133,7 @@ final class ApplicationsUITests: XCTestCase {
         XCTAssertFalse(rows[2].exists)
         XCTAssertTrue(app.descendants(matching: .any)["applicationsNoMatches-leftovers"].exists, "A section with no matches says so")
         XCTAssertFalse(app.checkBoxes["planCategory-leftovers"].exists)
-        XCTAssertEqual(count.value as? String, "1 item selected", "The hidden ticked row is still counted")
+        XCTAssertEqual(count.value as? String, "2 items selected", "The hidden ticked rows are still counted")
         XCTAssertTrue(app.buttons["Review cleanup"].isEnabled)
 
         search.typeKey("a", modifierFlags: .command); search.typeKey(.delete, modifierFlags: [])
@@ -406,7 +407,8 @@ final class ApplicationsUITests: XCTestCase {
         XCTAssertFalse(notice.exists)
     }
 
-    /// #270: a leftover ticked on Applications is reviewed and cleaned there (dry run), and Overview never calls it in the plan.
+    /// #270, #349: a leftover ticked on Applications is reviewed and cleaned there (dry run); Overview calls it "Selected"
+    /// only once its tick differs from the recommended default.
     @MainActor func testALeftoverIsTickedAndCleanedFromApplications() throws {
         continueAfterFailure = false
         let app = XCUIApplication()
@@ -423,14 +425,12 @@ final class ApplicationsUITests: XCTestCase {
         app.typeKey("5", modifierFlags: .command)
         let category = app.checkBoxes["planCategory-leftovers"]
         XCTAssertTrue(category.waitForExistence(timeout: 10))
-        revealAndClick(category, in: app)
+        // Tied to its removed app by its container, so it arrives ticked: the recommended default, not "Selected".
         XCTAssertEqual(category.value as? Int, 1)
         app.typeKey("1", modifierFlags: .command)
         let row = app.buttons["overviewCategory-leftovers"]
         XCTAssertTrue(row.waitForExistence(timeout: 5))
-        XCTAssertFalse((row.value as? String ?? "").contains("In cleanup plan"), String(describing: row.value))
-        app.typeKey("3", modifierFlags: .command)
-        XCTAssertFalse(app.buttons["Review cleanup"].isEnabled, "The plan has nothing chosen")
+        XCTAssertFalse((row.value as? String ?? "").contains("Selected"), String(describing: row.value))
 
         app.typeKey("5", modifierFlags: .command)
         XCTAssertEqual(app.checkBoxes["planCategory-leftovers"].value as? Int, 1, "Its tick is kept")

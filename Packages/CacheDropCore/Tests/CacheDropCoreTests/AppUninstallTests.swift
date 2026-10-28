@@ -215,7 +215,7 @@ private struct Processes: ProcessListing {
     defer { try? FileManager.default.removeItem(at: home) }
     let found = scan(home, synth, apps)
     var selections = CleanupSelections()
-    selections.ticked = Set(found.map(\.id))
+    selections.set(found, ticked: true)
 
     #expect(selections.chosen(on: .applications, from: found).count == found.count)
     #expect(selections.chosen(on: .plan, from: found).isEmpty)

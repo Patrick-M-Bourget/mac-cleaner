@@ -49,14 +49,9 @@ struct SmartCleanView: View {
         let items = model.recommendedCandidates
         let rows = CatalogOverview(catalog: model.catalog, candidates: items).rows
         return VStack(alignment: .leading, spacing: CacheDropDesign.Space.lg) {
-            VStack(alignment: .leading, spacing: CacheDropDesign.Space.sm) {
-                PageHeader(title: title, subtitle: "A safe plan from what takes up space. Untick anything you want to keep.")
-                    .accessibilityElement(children: .combine).accessibilityIdentifier("smartCleanHeader")
-                // "X of this goes to Trash", as under the plan's total (Decision 25).
-                if let trash = CacheDropDesign.goesToTrash(model.smartCleanCandidates) {
-                    Text(trash).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary).accessibilityIdentifier("smartCleanTrash")
-                }
-            }.padding(.bottom, CacheDropDesign.Space.sm)
+            PageHeader(title: title, subtitle: "A safe plan from what takes up space. Untick anything you want to keep.")
+                .accessibilityElement(children: .combine).accessibilityIdentifier("smartCleanHeader")
+                .padding(.bottom, CacheDropDesign.Space.sm)
             meter
             SettingsUnreadableNotice(model: model)
             if let approvalError { StatusRow(text: approvalError, symbol: "exclamationmark.circle", role: .caution, identifier: "smartCleanError") }
@@ -91,9 +86,10 @@ struct SmartCleanView: View {
         }
     }
 
-    /// "Smart clean · X ready to clean": the ticked items' size; "Up to" when part of it is copies that share disk blocks.
+    /// "Smart clean · X ready to clean": the space the ticked items release, never what goes to the Trash (#350, SPEC
+    /// section 6); "Up to" when part of it is copies that share disk blocks.
     private var title: String {
-        let ticked = model.smartCleanCandidates
+        let ticked = model.smartCleanCandidates.filter(\.releasesSpace)
         guard !ticked.isEmpty else { return "Smart clean" }
         let upperBound = ticked.contains { model.catalog.rule($0.ruleID)?.estimateIsUpperBound == true }
         return "Smart clean · " + SizeEstimate(sum: ticked.map(SizeEstimate.init)).text(upperBound: upperBound) + " ready to clean"
@@ -104,7 +100,7 @@ struct SmartCleanView: View {
     /// those lines, not the items behind them (#229).
     private func category(_ row: CatalogOverview.Row, items: [Candidate]) -> some View {
         let found = items.filter { candidate in row.rules.contains { $0.id == candidate.ruleID } }
-        let ticked = found.filter(model.isInSmartClean).count
+        let ticked = found.filter(model.isSelected).count
         let state: CategorySelectionState = ticked == 0 ? .unchecked : ticked == found.count ? .checked : .mixed
         let lines = lines(row, found: found)
         let expanded = Binding(get: { presentation.expandedCategories.contains(row.category) },
@@ -114,7 +110,7 @@ struct SmartCleanView: View {
         return CategoryRow(category: row.category.storageCategory, state: state, title: row.category.overviewTitle, detail: consequence,
                            size: row.valueText, enabled: model.canEdit, identifier: "smartCleanCategory-" + row.id,
                            itemCount: lines.count > 1 ? lines.count : nil, expanded: expanded,
-                           toggle: { model.setSmartClean(found, state != .checked) }) {
+                           toggle: { model.setSelected(found, state != .checked) }) {
             EmptyView()
         } items: {
             VStack(alignment: .leading, spacing: 0) { ForEach(lines) { line($0) } }
@@ -142,7 +138,7 @@ struct SmartCleanView: View {
                            size: catalogBytes(line.items.reduce(0) { $0 + $1.estimatedBytes }, complete: line.items.allSatisfy(\.sizeComplete),
                                               upperBound: line.rule.estimateIsUpperBound, estimate: line.items.contains(where: \.sizeIsEstimate)),
                            symbol: "folder", inspected: false, inspect: { Finder.reveal(line.items.map(\.url)) }) {
-            Toggle("Include " + line.name, isOn: Binding(get: { line.items.allSatisfy(model.isInSmartClean) }, set: { model.setSmartClean(line.items, $0) }))
+            Toggle("Include " + line.name, isOn: Binding(get: { line.items.allSatisfy(model.isSelected) }, set: { model.setSelected(line.items, $0) }))
                 .labelsHidden().disabled(!model.canEdit).accessibilityIdentifier("smartCleanLine-" + line.id)
         }.help(line.items.map(\.url.path).sorted().joined(separator: "\n"))
     }

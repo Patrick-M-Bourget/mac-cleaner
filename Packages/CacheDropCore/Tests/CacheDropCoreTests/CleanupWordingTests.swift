@@ -67,6 +67,7 @@ private func records(_ actions: [CleanupAction], previewOnly: Bool = false) thro
     #expect(result.records.map(\.outcomeTitle) == ["Would delete", "Would move to Trash"])
     #expect(result.records.allSatisfy { $0.message.hasPrefix("Dry run: would ") })
     #expect(result.records.first?.recoveryStateText == "Dry run · Would delete")
+    #expect(Set(result.cleanedCandidateIDs) == Set(candidates.map(\.id)), "What a dry run would clean leaves the selection as a real run's does (#349)")
     let run = try #require(try journal.completedHistory().completedRuns.first)
     #expect(run.isPreview)
     #expect(run.title == "Dry run · Nothing changed")
