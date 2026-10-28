@@ -178,7 +178,7 @@ struct StorageExplorerView: View {
     }
     var body: some View {
         GeometryReader { geometry in
-            let wide = geometry.size.width >= 800
+            let wide = geometry.size.width >= CacheDropDesign.Size.explorerWide
             VStack(alignment: .leading, spacing: CacheDropDesign.Space.lg) {
                 // A folder that is no longer observed leads back only to the list of locations (#227).
                 PageHeader(title: context.title,
@@ -193,9 +193,9 @@ struct StorageExplorerView: View {
                 // The inspector is always there, showing one path (#320).
                 HStack(alignment: .top, spacing: CacheDropDesign.Space.lg) {
                     list.frame(maxWidth: .infinity, maxHeight: .infinity)
-                    if wide { inspector.frame(width: 280) }
+                    if wide { inspector.frame(width: CacheDropDesign.Size.inspector) }
                 }.frame(maxHeight: .infinity)
-                if !wide { inspector.frame(maxHeight: min(220, geometry.size.height * 0.35)) }
+                if !wide { inspector.frame(maxHeight: min(CacheDropDesign.Size.inspectorStacked, geometry.size.height * CacheDropDesign.Size.inspectorStackedShare)) }
             }.padding(CacheDropDesign.Space.page)
         }
         .quickLookPreview($model.previewURL)

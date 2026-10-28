@@ -19,13 +19,27 @@ enum CacheDropDesign {
         /// A page header's search field (#295), as wide as the prototype's.
         static let searchField: CGFloat = 210
         /// A skeleton row's title and detail bars (#308), about the height of the text they stand in for.
-        static let skeletonTitle: CGFloat = 11; static let skeletonDetail: CGFloat = 8 }
+        static let skeletonTitle: CGFloat = 11; static let skeletonDetail: CGFloat = 8
+        /// How much wider a skeleton row's detail bar is than its title bar, as a share of the column (#308).
+        static let skeletonDetailExtra: CGFloat = 0.22
+        /// A hairline: the least height a spacer needs to keep its width in a row.
+        static let hairline: CGFloat = 1
+        /// The cleanup confirmation sheet (#334).
+        static let sheetWide = CGSize(width: 640, height: 520)
+        /// The storage explorer's inspector: its width beside the list once the page is at least `explorerWide` wide, and
+        /// below the list otherwise, at most `inspectorStacked` tall or `inspectorStackedShare` of the page (#320).
+        static let explorerWide: CGFloat = 800; static let inspector: CGFloat = 280; static let inspectorStacked: CGFloat = 220
+        static let inspectorStackedShare: CGFloat = 0.35 }
     /// How strongly a colour tints a surface behind its symbol, as in a category badge.
     enum Opacity { static let badgeTint: Double = 0.10
         /// A meter segment's part that Smart clean wouldn't free (#164).
         static let meterDimmed: Double = 0.30
         /// Rows from the last scan while a rescan runs: visible, plainly not live (#308).
-        static let waiting: Double = 0.45 }
+        static let waiting: Double = 0.45
+        /// The skeleton shimmer's band at its brightest (#308).
+        static let shimmer: Double = 0.6 }
+    /// How long motion takes: the skeleton's shimmer crossing once, and rows dimming as a rescan starts or ends (#308).
+    enum Motion { static let shimmer: Double = 2.4; static let waiting: Double = 0.2 }
     enum TypeStyle {
         /// The app name in the sidebar header.
         static let brand = Font.system(size: 17, weight: .medium)
@@ -363,7 +377,7 @@ struct EmptyState: View {
     var identifier = "emptyState"
     var body: some View {
         HStack(alignment: .top, spacing: CacheDropDesign.Space.lg) {
-            Image(systemName: symbol).font(.title2).foregroundStyle(.secondary).frame(width: 32).accessibilityHidden(true)
+            Image(systemName: symbol).font(.title2).foregroundStyle(.secondary).frame(width: CacheDropDesign.Size.badge).accessibilityHidden(true)
             VStack(alignment: .leading, spacing: CacheDropDesign.Space.sm) {
                 Text(title).font(CacheDropDesign.TypeStyle.section)
                 if !detail.isEmpty { Text(detail).font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true) }
@@ -982,7 +996,7 @@ private struct SkeletonRow: View {
     let width: CGFloat
     var body: some View {
         HStack(alignment: layout == .category ? .top : .center, spacing: layout == .review ? CacheDropDesign.Space.lg : CacheDropDesign.Space.md) {
-            if layout == .category { Color.clear.frame(width: CacheDropDesign.Size.checkbox, height: 1) }
+            if layout == .category { Color.clear.frame(width: CacheDropDesign.Size.checkbox, height: CacheDropDesign.Size.hairline) }
             if layout != .line {
                 RoundedRectangle(cornerRadius: CacheDropDesign.Radius.row).fill(CacheDropDesign.skeleton)
                     .frame(width: CacheDropDesign.Size.badge, height: CacheDropDesign.Size.badge)
@@ -990,10 +1004,10 @@ private struct SkeletonRow: View {
             GeometryReader { geometry in
                 VStack(alignment: .leading, spacing: CacheDropDesign.Space.sm) {
                     bar(geometry.size.width * width, CacheDropDesign.Size.skeletonTitle)
-                    bar(geometry.size.width * (width + 0.22), CacheDropDesign.Size.skeletonDetail)
+                    bar(geometry.size.width * (width + CacheDropDesign.Size.skeletonDetailExtra), CacheDropDesign.Size.skeletonDetail)
                 }.frame(maxHeight: .infinity, alignment: .center)
             }.frame(height: CacheDropDesign.Size.badge)
-            Text("—").font(.callout).foregroundStyle(.secondary)
+            Text("—").font(CacheDropDesign.TypeStyle.note).foregroundStyle(.secondary)
         }.padding(layout == .review ? CacheDropDesign.Space.lg : 0).padding(.vertical, layout == .line ? CacheDropDesign.Space.sm : 0)
     }
     private func bar(_ width: CGFloat, _ height: CGFloat) -> some View {
@@ -1009,11 +1023,11 @@ private struct SkeletonShimmer: ViewModifier {
         content.overlay {
             if !reduceMotion {
                 GeometryReader { geometry in
-                    LinearGradient(colors: [.clear, CacheDropDesign.skeletonShimmer.opacity(0.6), .clear], startPoint: .leading, endPoint: .trailing)
+                    LinearGradient(colors: [.clear, CacheDropDesign.skeletonShimmer.opacity(CacheDropDesign.Opacity.shimmer), .clear], startPoint: .leading, endPoint: .trailing)
                         .frame(width: geometry.size.width / 3)
                         .offset(x: -geometry.size.width / 3 + travel * geometry.size.width * 4 / 3)
                 }.mask(content).allowsHitTesting(false).accessibilityHidden(true)
-                    .onAppear { withAnimation(.linear(duration: 2.4).repeatForever(autoreverses: false)) { travel = 1 } }
+                    .onAppear { withAnimation(.linear(duration: CacheDropDesign.Motion.shimmer).repeatForever(autoreverses: false)) { travel = 1 } }
             }
         }
     }
@@ -1024,7 +1038,7 @@ extension View {
     /// ends. Never rows that look final but ignore clicks.
     func waitingForScan(_ waiting: Bool) -> some View {
         disabled(waiting).opacity(waiting ? CacheDropDesign.Opacity.waiting : 1).allowsHitTesting(!waiting)
-            .animation(.easeInOut(duration: 0.2), value: waiting)
+            .animation(.easeInOut(duration: CacheDropDesign.Motion.waiting), value: waiting)
     }
 }
 
