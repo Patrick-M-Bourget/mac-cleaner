@@ -1558,6 +1558,41 @@ extension CatalogCleanupUITests {
         XCTAssertTrue(card.descendants(matching: .any)["meterSegment-developer"].exists)
     }
 
+    /// #355: while a cleanup runs, Cleaning up shows Overview's card with an "X freed" tag at the bar's tip and the run's
+    /// categories ticking off, then the results. A dry run, held a moment per item, so every file stays.
+    @MainActor func testCleaningUpShowsTheCardAndTicksCategoriesOff() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        let state = try configureIsolatedState(app)
+        let home = try configureCatalogHome(app)
+        turnOnDryRun(app)
+        _ = try addDeveloperCaches(home, folders: ["Library/Caches/Yarn"])
+        app.launchEnvironment["CACHEDROP_TEST_CLEANUP_PAUSE"] = "5"
+        defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
+        app.launch()
+        XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
+        waitForCatalogScan(app)
+
+        app.typeKey("2", modifierFlags: .command)
+        XCTAssertTrue(app.buttons["smartCleanCleanUp"].waitForExistence(timeout: 10))
+        app.buttons["smartCleanCleanUp"].click()
+        XCTAssertTrue(reviewLine(app, "permanentlyRemoved", "developer").waitForExistence(timeout: 10))
+        cleanUpFromReview(app)
+
+        XCTAssertTrue(app.staticTexts["Cleaning up…"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.descendants(matching: .any)["cleaningUpCard"].waitForExistence(timeout: 5), "Overview's card")
+        // Each item is held 5 s, since every check here takes about a second; the core tests cover each step of the count.
+        XCTAssertTrue(app.staticTexts["cleaningUpCategory-developer"].waitForExistence(timeout: 5), "The run's categories")
+        let tag = app.descendants(matching: .any)["meterTipTag"].firstMatch
+        XCTAssertTrue(tag.waitForExistence(timeout: 5), "The freed tag rides the tip once an item is done")
+        XCTAssertTrue((tag.value as? String ?? tag.label).hasSuffix("would be freed"), tag.debugDescription)
+
+        XCTAssertTrue(app.staticTexts["catalogPreviewNotice"].waitForExistence(timeout: 15), "Then the results")
+        for kept in [".npm/_cacache/content-v2/sha512/ab/blob", "Library/Caches/Yarn/entry"] {
+            XCTAssertTrue(FileManager.default.fileExists(atPath: home.appendingPathComponent(kept).path), kept)
+        }
+    }
+
     /// #348: a click anywhere on a category row toggles it as its checkbox does, on Smart clean and the plan: all on when any
     /// are off, and a partly ticked category shows mixed. A dry run; nothing is cleaned.
     @MainActor func testClickingACategoryRowTogglesItOnSmartCleanAndThePlan() throws {

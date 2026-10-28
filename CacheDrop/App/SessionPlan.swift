@@ -308,16 +308,75 @@ struct WorkspaceCleanupReview: Identifiable {
 /// A running or finished cleanup, from either selection: the header, progress and outcomes.
 struct CleanupRunSection: View {
     let selection: SessionPlan
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     var body: some View {
         VStack(alignment: .leading, spacing: CacheDropDesign.Space.xl) {
             PageHeader(title: selection.workspaceRunning ? "Cleaning up…" : "Cleanup results")
-            if selection.catalog.isRunning { ProgressView(selection.catalog.dryRun ? "Checking selected items…" : "Cleaning selected items…") }
+            if selection.catalog.isRunning {
+                if let progress = selection.catalog.runProgress { running(progress) }
+                else { ProgressView(selection.catalog.dryRun ? "Checking selected items…" : "Cleaning selected items…") }
+            }
             if let result = selection.catalog.result { CatalogResultsSection(result: result, catalog: selection.catalog.catalog) }
             if let message = selection.catalog.message { StatusRow(text: message, symbol: "exclamationmark.triangle", role: .caution) }
             SettingsUnreadableNotice(model: selection.catalog)
         }.padding(CacheDropDesign.Space.page)
     }
 }
+extension CleanupRunSection {
+    /// Variant A (#355): Overview's startup volume card, its bar shaving down at the tip as items finish, a tag at the tip
+    /// saying what the run freed (the card's footer says it instead with Reduce Motion), and the run's categories below.
+    @ViewBuilder fileprivate func running(_ progress: CleanupRunProgress) -> some View {
+        card(progress)
+        categories(progress)
+    }
+    /// The card. A dry run's bar stays still: nothing is released, only counted.
+    @ViewBuilder private func card(_ progress: CleanupRunProgress) -> some View {
+        let dryRun = selection.catalog.dryRun, said = Self.freed(progress, dryRun: dryRun)
+        if let capacity = selection.catalog.runCapacity {
+            let used = dryRun ? capacity.usedAtStart : max(0, capacity.usedAtStart - progress.releasedBytes)
+            VolumeSummary(available: capacity.total - used, total: capacity.total, observation: reduceMotion ? said ?? "" : "",
+                          breakdown: progress.breakdown(usedAtStart: capacity.usedAtStart, total: capacity.total,
+                                                        trash: TrashModel.shared.contents ?? .unknown, releasing: !dryRun),
+                          tipLabel: reduceMotion ? nil : said ?? "")
+                .accessibilityElement(children: .contain).accessibilityIdentifier("cleaningUpCard")
+        } else if let said {
+            Text(said).font(CacheDropDesign.TypeStyle.value).monospacedDigit().accessibilityIdentifier("cleaningUpFreed")
+        }
+    }
+    private func categories(_ progress: CleanupRunProgress) -> some View {
+        let dryRun = selection.catalog.dryRun
+        return RecommendationGroup {
+            ForEach(Array(progress.categories.enumerated()), id: \.offset) { index, category in
+                if index > 0 { Divider().padding(.horizontal, CacheDropDesign.Space.lg) }
+                StorageReviewRow(category: category.category.storageCategory, title: category.category.overviewTitle, detail: "",
+                                 value: Self.value(category), meaning: Self.meaning(category, dryRun: dryRun),
+                                 identifier: "cleaningUpCategory-" + category.category.rawValue, mutedValue: category.state == .waiting)
+            }
+        }
+    }
+    /// What the run has done so far: what it freed, or else what it moved to the Trash (Decision 69: that frees nothing
+    /// until the Trash is emptied); nil before anything finished. A dry run says what it would do.
+    fileprivate static func freed(_ progress: CleanupRunProgress, dryRun: Bool) -> String? {
+        if progress.releasedBytes > 0 { return CapacityMeter.bytes(progress.releasedBytes) + (dryRun ? " would be freed" : " freed") }
+        if progress.movedToTrashBytes > 0 { return CapacityMeter.bytes(progress.movedToTrashBytes) + (dryRun ? " would go to the Trash" : " moved to the Trash") }
+        return nil
+    }
+    /// "2 of 3", or "Done" once every item in the category is finished.
+    fileprivate static func value(_ category: CleanupRunProgress.Category) -> String {
+        category.state == .done ? "Done" : "\(category.finished) of \(category.total)"
+    }
+    /// What the category is doing: waiting, being cleaned (checked, in a dry run), or what it skipped or never started.
+    fileprivate static func meaning(_ category: CleanupRunProgress.Category, dryRun: Bool) -> String {
+        switch category.state {
+        case .waiting: return "Waiting"
+        case .cleaning: return dryRun ? "Checking…" : "Cleaning…"
+        case .done:
+            return [category.skipped > 0 ? CacheDropDesign.items(category.skipped) + " skipped" : nil,
+                    category.notStarted > 0 ? CacheDropDesign.items(category.notStarted) + " not started" : nil].compactMap { $0 }.joined(separator: " · ")
+        }
+    }
+}
+
 /// The bottom bar of a page that cleans (Decision 46): Stop while its run goes, the result's buttons after it, and the
 /// page's own actions otherwise. `finish` is the result's last button: Done, or Start a new plan.
 struct CleanupActionBar<Finish: View, Idle: View>: View {

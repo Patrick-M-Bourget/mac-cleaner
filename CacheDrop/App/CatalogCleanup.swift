@@ -57,6 +57,11 @@ import SwiftUI
     /// A cleanup changed files since the last catalog scan, so the next one is recorded as a post-cleanup rescan (#126).
     private var rescanFollowsCleanup = false
     private(set) var result: CatalogExecutionResult?
+    /// The running cleanup as the Cleaning up screen draws it (#355); nil when none runs.
+    private(set) var runProgress: CleanupRunProgress?
+    /// The startup disk's used space and total when the run began, which the screen's bar shaves from (#355).
+    private(set) var runCapacity: (usedAtStart: Int64, total: Int64)?
+    private var runRecords: [CleanupRecord] = []
     private(set) var message: String?
     /// The Protected items settings couldn't be read, so nothing could be scanned or checked (#310). Every page that cleans
     /// and Overview say so once, with Try again; never "Your choices changed" or "Nothing to review".
@@ -447,6 +452,12 @@ import SwiftUI
         guard LocalStateLocation.isDisposableTest, let pause = ProcessInfo.processInfo.environment["CACHEDROP_TEST_DISCOVERY_PAUSE"].flatMap(Double.init), pause > 0 else { return }
         Thread.sleep(forTimeInterval: min(pause, 2))
     }
+    /// A disposable test run can hold each finished cleanup item (`CACHEDROP_TEST_CLEANUP_PAUSE`, seconds), so a UI journey
+    /// sees the Cleaning up screen tick off (#355). Never set outside tests.
+    nonisolated private static func cleanupPauseForTests() async {
+        guard LocalStateLocation.isDisposableTest, let pause = ProcessInfo.processInfo.environment["CACHEDROP_TEST_CLEANUP_PAUSE"].flatMap(Double.init), pause > 0 else { return }
+        try? await Task.sleep(for: .seconds(min(pause, 5)))
+    }
     #endif
     /// Drops chosen items that are no longer offered, and says so. The revision moves only when a page's choices changed (#307).
     private func keepOnlyCurrentChoices() {
@@ -529,12 +540,25 @@ import SwiftUI
     func execute(_ approval: CatalogApproval, cancellation: CleanupCancellation) async {
         guard !isRunning else { return }
         isRunning = true
-        defer { isRunning = false; executor = nil }
+        let reading = AppLifecycleController.shared.capacity.reading
+        runCapacity = reading.flatMap { reading in
+            guard let available = reading.available, let total = CapacityMeter.validTotal(available: available, total: reading.total) else { return nil }
+            return (total - available, total)
+        }
+        runRecords = []; runProgress = CleanupRunProgress(approval: approval, catalog: catalog, records: [])
+        defer { isRunning = false; executor = nil; runProgress = nil; runRecords = [] }
         guard let check = await currentCheck() else { return }
         do {
             let run = CleanupExecutor(journal: try CleanupJournalLocation.writer(), check: check, trash: TrashModel.mover, cancellation: cancellation)
             executor = run
-            let outcome = await run.execute(approval)
+            // Each finished item ticks its category off and shaves the bar (#355).
+            let outcome = await run.execute(approval) { [weak self] progress in
+                guard let record = progress.last else { return }
+                await self?.progressed(record, of: approval)
+                #if DEBUG
+                await Self.cleanupPauseForTests()
+                #endif
+            }
             result = outcome
             measureStoppedWorkAgain(outcome, of: approval, run: run)
             if !approval.previewOnly { rescanFollowsCleanup = true }
@@ -561,6 +585,11 @@ import SwiftUI
             }
             showLaterMeasurement(later)
         }
+    }
+    private func progressed(_ record: CleanupRecord, of approval: CatalogApproval) {
+        guard runProgress != nil else { return }
+        runRecords.append(record)
+        runProgress = CleanupRunProgress(approval: approval, catalog: catalog, records: runRecords)
     }
     private func showLaterMeasurement(_ later: CatalogExecutionResult) {
         if result?.batchID == later.batchID { result = later }

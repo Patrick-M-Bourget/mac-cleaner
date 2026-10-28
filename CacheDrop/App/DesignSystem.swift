@@ -461,6 +461,10 @@ struct CapacityMeter: View {
     var breakdown: StorageBreakdown? = nil
     /// Opens a segment's category in the Cleanup plan.
     var open: ((StorageBreakdown.Part) -> Void)? = nil
+    /// A short tag riding the tip of the used space, such as "12.4 GB freed" while a cleanup shaves it (#355). An empty
+    /// one keeps its place; the caller passes none with Reduce Motion and says it elsewhere.
+    var tipLabel: String? = nil
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     static func bytes(_ value: Int64) -> String { ByteCountFormatter.string(fromByteCount: value, countStyle: .decimal) }
     /// The total, when it and the available space are a consistent whole-disk reading.
     static func validTotal(available: Int64?, total: Int64?) -> Int64? {
@@ -492,8 +496,34 @@ struct CapacityMeter: View {
             }.frame(height: compact ? CacheDropDesign.Size.meterCompact : prominent ? CacheDropDesign.Size.meterProminent : CacheDropDesign.Size.meter)
                 .accessibilityElement(children: breakdown == nil || validTotal == nil ? .ignore : .contain)
                 .accessibilityLabel(validTotal == nil ? "Capacity meter unavailable" : amountText)
+                .overlay(alignment: .topLeading) { tip }
+                // Only a cleanup's bar eases as it shaves; every other meter changes as it always did.
+                .animation(reduceMotion || tipLabel == nil ? nil : .easeOut(duration: CacheDropDesign.Motion.waiting), value: available)
         }
     }
+}
+
+extension CapacityMeter {
+    /// The tip tag, above the bar, ending at the tip of the used space (kept inside the bar's width).
+    @ViewBuilder fileprivate var tip: some View {
+        if let tipLabel, !tipLabel.isEmpty, !reduceMotion, let available, let total = validTotal {
+            GeometryReader { geometry in
+                let tipX = geometry.size.width * CGFloat(Double(total - available) / Double(total))
+                // Ends at the tip, never past either end of the bar; a long tag shrinks rather than spill.
+                let width = min(CacheDropDesign.Size.tipTag, geometry.size.width)
+                Text(tipLabel).font(CacheDropDesign.TypeStyle.caption).monospacedDigit().foregroundStyle(.secondary)
+                    .lineLimit(1).minimumScaleFactor(CacheDropDesign.Scale.oneLineCaption)
+                    .frame(width: width, alignment: .trailing)
+                    .offset(x: min(max(0, tipX - width), geometry.size.width - width), y: -CacheDropDesign.Size.tipTagRise)
+                    .accessibilityIdentifier("meterTipTag")
+            }
+        }
+    }
+}
+extension CacheDropDesign.Size {
+    /// The tip tag's width, and how far above the bar it sits (#355).
+    static let tipTag: CGFloat = 180
+    static let tipTagRise: CGFloat = 18
 }
 
 /// The prototype's device card: the whole disk, used against available, with what CacheDrop found inside the used space (#164).
@@ -508,6 +538,8 @@ struct VolumeSummary: View {
     var name = StartupVolumeCapacity.name ?? "This Mac"
     var breakdown: StorageBreakdown? = nil
     var open: ((StorageBreakdown.Part) -> Void)? = nil
+    /// The bar's tip tag, while a cleanup shaves it (#355).
+    var tipLabel: String? = nil
     private func bytes(_ value: Int64) -> String { CapacityMeter.bytes(value) }
     private var used: Int64? {
         guard let available, let total = CapacityMeter.validTotal(available: available, total: total) else { return nil }
@@ -536,7 +568,9 @@ struct VolumeSummary: View {
                         }
                     }
                 }
-                CapacityMeter(available: available, total: total, showsValue: false, prominent: true, breakdown: breakdown, open: open)
+                CapacityMeter(available: available, total: total, showsValue: false, prominent: true, breakdown: breakdown, open: open, tipLabel: tipLabel)
+                    // Room for the tag from the run's start, so the card never jumps when it appears (#355).
+                    .padding(.top, tipLabel == nil ? 0 : CacheDropDesign.Size.tipTagRise)
                 HStack(alignment: .firstTextBaseline, spacing: CacheDropDesign.Space.md) {
                     Text(used.map { bytes($0) + " used" } ?? "Used space unknown").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary).monospacedDigit()
                     Spacer(minLength: CacheDropDesign.Space.sm)
