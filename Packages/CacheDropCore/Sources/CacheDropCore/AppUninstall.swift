@@ -186,25 +186,28 @@ public enum AppUninstall {
         for item in own.isEmpty ? chosen : own { if let app = item.uninstall, !apps.contains(where: { $0.path == app.path }) { apps.append(app) } }
         return apps.flatMap { app in
             let unticked = offered.filter { $0.isUninstalled(with: app.path) && !ids.contains($0.id) }.count
-            // "1 of Synth’s files stays because …" or "2 of Synth’s files stay because …", then what to do about it.
-            func line(_ reason: String, _ count: Int, _ noun: String, _ one: String, _ many: String, link: Staying.Link? = nil) -> Staying? {
+            // One line per reason, singular or plural: what stays, why, and what to do about it.
+            func line(_ reason: String, _ count: Int, _ one: String, _ many: String, link: Staying.Link? = nil) -> Staying? {
                 guard count > 0 else { return nil }
-                return Staying(id: app.path + "-" + reason, text: "\(count) of \(app.name)’s \(noun)s " + (count == 1 ? one : many), link: link)
+                return Staying(id: app.path + "-" + reason, text: count == 1 ? one : many, link: link)
             }
+            let name = app.name, n = app.needsPassword
             let password = app.tool.map { "\($0) or your password" } ?? "your password"
-            let removeIt = app.tool.map { "with \($0), or yourself in Finder" } ?? "yourself in Finder"
+            let removeWith = app.tool.map { "with \($0) or in Finder" } ?? "in Finder"
+            let inside = app.plugIn?.insideApp ?? 0, unknown = app.unrecognised, plan = app.inPlan
             return [
-                line("unticked", unticked, "item", "isn’t ticked, so it stays. To remove it too, go back and tick it.",
-                     "aren’t ticked, so they stay. To remove them too, go back and tick them."),
-                line("password", app.needsPassword, "file", "stays because removing it needs \(password). You can remove it \(removeIt).",
-                     "stay because removing them needs \(password). You can remove them \(removeIt).",
+                line("unticked", unticked, "\(name): 1 item you didn’t tick stays. Go back and tick it to remove it too.",
+                     "\(name): \(unticked) items you didn’t tick stay. Go back and tick them to remove them too."),
+                line("password", n, "\(name): 1 file needs \(password) to remove, so it stays. Remove it \(removeWith) if you want it gone.",
+                     "\(name): \(n) files need \(password) to remove, so they stay. Remove them \(removeWith) if you want them gone.",
                      link: app.passwordPaths.isEmpty ? nil : .finder(paths: app.passwordPaths)),
-                line("inside", app.plugIn?.insideApp ?? 0, "plug-in", "stays because it is inside an app. It goes when you uninstall that app.",
-                     "stay because they are inside an app. They go when you uninstall that app."),
-                line("unrecognised", app.unrecognised, "file", "stays because CacheDrop doesn’t recognize what it is. CacheDrop keeps it to be safe; leaving it is fine.",
-                     "stay because CacheDrop doesn’t recognize what they are. CacheDrop keeps them to be safe; leaving them is fine."),
-                line("plan", app.inPlan, "file", "isn’t removed here because the Cleanup plan already lists it. Clean it there.",
-                     "aren’t removed here because the Cleanup plan already lists them. Clean them there.",
+                line("inside", inside, "\(name): 1 plug-in lives inside its app and goes when you uninstall that app.",
+                     "\(name): \(inside) plug-ins live inside their app and go when you uninstall that app."),
+                line("unrecognised", unknown, "\(name): 1 file is kept to be safe because CacheDrop doesn’t know what it is. You don’t need to do anything.",
+                     "\(name): \(unknown) files are kept to be safe because CacheDrop doesn’t know what they are. You don’t need to do anything."),
+                // The count says it isn't all of its files: the rest go with the app.
+                line("plan", plan, "1 of \(name)’s files isn’t removed here; clean it in the Cleanup plan.",
+                     "\(plan) of \(name)’s files aren’t removed here; clean them in the Cleanup plan.",
                      link: app.inPlanRuleIDs.isEmpty ? nil : .cleanupPlan(ruleIDs: app.inPlanRuleIDs)),
             ].compactMap { $0 }
         }
