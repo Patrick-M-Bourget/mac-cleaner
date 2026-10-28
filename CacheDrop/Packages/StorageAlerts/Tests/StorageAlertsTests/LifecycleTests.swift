@@ -62,6 +62,16 @@ import Testing
     #expect(defaults.bool(forKey: "ApplePersistenceIgnoreState"))
 }
 
+/// #344: tooltips (a storage bar's segments, a truncated note) show after a short hover, not macOS's default second.
+@Test func launchDefaultsShortenTheTooltipDelay() throws {
+    let suite = "CacheDropLaunchDefaultsTest-" + UUID().uuidString
+    let defaults = try #require(UserDefaults(suiteName: suite))
+    defer { defaults.removePersistentDomain(forName: suite) }
+    AppLaunchPolicy.registerDefaults(in: defaults)
+    #expect(defaults.integer(forKey: "NSInitialToolTipDelay") == AppLaunchPolicy.tooltipDelayMilliseconds)
+    #expect(AppLaunchPolicy.tooltipDelayMilliseconds <= 300)
+}
+
 /// #130: ⌘Q during a cleanup asks first; a confirmed stop is not asked again while the current item ends (#186).
 @Test func quittingDuringACleanupAsksBeforeStopping() {
     #expect(AppLifecyclePolicy.quitDecision(cleanupRunning: false, maintenanceInProgress: false, stopConfirmed: false) == .quitNow)
