@@ -19,6 +19,9 @@ struct PutBackLink: View {
         case .refused(let refusal):
             Text(refusal.reason).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true).accessibilityIdentifier("putBackRefused-" + name)
+        // Deleted from the Trash this session (#359): nothing is left to put back.
+        case nil where trash.emptiedIDs.contains(record.id):
+            EmptyView()
         case nil:
             if alreadyPutBack {
                 Text("Put back").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary).accessibilityIdentifier("putBackDone-" + name)

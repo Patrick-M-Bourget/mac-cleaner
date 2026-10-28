@@ -77,12 +77,19 @@ private func write(_ url: URL, bytes: Int) throws {
     #expect(TrashContents.unknown.overviewText == nil)
 }
 
-@Test func resultsSayHowMuchEmptyingTheTrashWouldFree() {
-    #expect(TrashContents.holds(3_000_000_000).emptyHint(movedBytes: 0) == nil)
-    #expect(TrashContents.holds(3_000_000_000).emptyHint(movedBytes: 1_000_000_000) == "Empty the Trash in Finder to free 3 GB")
-    // Unreadable: what this run moved is a lower bound, never 0.
-    #expect(TrashContents.unknown.emptyHint(movedBytes: 1_000_000_000) == "Empty the Trash in Finder to free at least 1 GB")
-    #expect(TrashContents.empty.emptyHint(movedBytes: 1_000_000_000) == "Empty the Trash in Finder to free at least 1 GB")
+/// #359: Overview names CacheDrop's own part of the Trash, from its recorded sizes; the whole Trash shows only when readable.
+@Test func overviewNamesWhatCacheDropMovedToTheTrash() {
+    #expect(TrashContents.holds(9_400_000_000).overviewText(fromCacheDrop: 7_100_000_000) == "Trash holds 9.4 GB · 7.1 GB from CacheDrop")
+    #expect(TrashContents.unknown.overviewText(fromCacheDrop: 7_100_000_000) == "7.1 GB from CacheDrop")
+    // Nothing of CacheDrop's left: the line is unchanged.
+    #expect(TrashContents.holds(9_400_000_000).overviewText(fromCacheDrop: 0) == "Trash holds 9.4 GB")
+    #expect(TrashContents.unknown.overviewText(fromCacheDrop: 0) == nil)
+}
+
+/// #359: Results says what CacheDrop's items hold in the Trash, never the whole Trash's size, and nothing when none is left.
+@Test func resultsSayWhatIsInTheTrashUntilItIsEmptied() {
+    #expect(TrashSpace.emptyHint(bytes: 7_100_000_000) == "7.1 GB is in the Trash. Empty it to free the space.")
+    #expect(TrashSpace.emptyHint(bytes: 0) == nil)
 }
 
 private final class RecordingOpener: TrashOpening, @unchecked Sendable {
@@ -98,8 +105,9 @@ private final class RecordingOpener: TrashOpening, @unchecked Sendable {
     #expect(opener.opened == [home.appendingPathComponent(".Trash", isDirectory: true)])
 }
 
-// SPEC section 2: CacheDrop never empties the Trash and never deletes anything from it. Every path that could act on an
-// item goes through discovery or a picked folder's listing, and then the check; each is held to that here.
+// SPEC section 2, Decision 68: CacheDrop never empties the Trash, and no cleanup acts on anything in it. Every path that
+// could act on an item goes through discovery or a picked folder's listing, and then the check; each is held to that here.
+// Deleting CacheDrop's own items from the Trash, when asked, is `TrashEmptying` (TrashEmptyingTests).
 
 /// A home whose Trash holds what rules would otherwise take: an old installer, a large file and a cache folder.
 private func homeWithAFullTrash(now: Date) throws -> URL {

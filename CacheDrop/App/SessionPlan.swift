@@ -421,15 +421,27 @@ struct WorkspaceCleanupConfirmationView: View {
     /// Follows a staying line's link (#354).
     var follow: ((AppUninstall.Staying.Link) -> Void)? = nil
     var body: some View {
+        ReviewSheetFrame(title: "Review your changes", subtitle: "Check what each action does. You can go back and change your selection.") {
+            if let items = review.catalog { CatalogConfirmationSection(review: items, catalog: Catalog(rules: BuiltInCatalog.rules), follow: follow) }
+        } actions: {
+            Button("Cancel", action: cancel).keyboardShortcut(.cancelAction); Button("Clean up", action: approve).buttonStyle(.borderedProminent)
+        }
+    }
+}
+/// The review sheet's frame: its header, the scrolling list, then its footer. Emptying from the Trash reuses it (#359).
+struct ReviewSheetFrame<Content: View, Actions: View>: View {
+    let title: String
+    var subtitle: String? = nil
+    @ViewBuilder var content: () -> Content
+    @ViewBuilder var actions: () -> Actions
+    var body: some View {
         VStack(alignment: .leading, spacing: CacheDropDesign.Space.lg) {
-            PageHeader(title: "Review your changes", subtitle: "Check what each action does. You can go back and change your selection.")
+            PageHeader(title: title, subtitle: subtitle)
             ScrollView {
-                VStack(alignment: .leading, spacing: CacheDropDesign.Space.xl) {
-                    if let items = review.catalog { CatalogConfirmationSection(review: items, catalog: Catalog(rules: BuiltInCatalog.rules), follow: follow) }
-                }.frame(maxWidth: .infinity, alignment: .leading)
+                VStack(alignment: .leading, spacing: CacheDropDesign.Space.xl) { content() }.frame(maxWidth: .infinity, alignment: .leading)
             }
             Divider()
-            SheetFooter { Button("Cancel", action: cancel).keyboardShortcut(.cancelAction); Button("Clean up", action: approve).buttonStyle(.borderedProminent) }
+            SheetFooter(actions: actions)
         }.padding(CacheDropDesign.Space.xl).frame(width: CacheDropDesign.Size.sheetWide.width, height: CacheDropDesign.Size.sheetWide.height).background(CacheDropDesign.reading).cacheDropButtonRule()
     }
 }

@@ -84,6 +84,7 @@ struct TrashLedger {
 /// CacheDrop's own items still in the Trash: what Results and Overview offer to empty, and the sheet lists (#359).
 public struct TrashEmptyingReview: Sendable {
     public let items: [CleanupRecord]
+    public init(items: [CleanupRecord]) { self.items = items }
     /// Their recorded sizes, from the journal: the whole Trash's size is never offered.
     public var bytes: Int64 { items.reduce(0) { $0 + $1.recordedBytes } }
 }
@@ -94,6 +95,9 @@ public struct TrashEmptyingResult: Sendable {
     public let previewOnly: Bool
     /// Set when the journal couldn't record the emptying, or what happened.
     public let journalFailure: String?
+    public init(records: [CleanupRecord], previewOnly: Bool, journalFailure: String? = nil) {
+        self.records = records; self.previewOnly = previewOnly; self.journalFailure = journalFailure
+    }
     public var deletedCount: Int { records.filter { $0.state == .succeeded }.count }
     /// The available-space change read around each deleted item, as a cleanup measures it; nil when any reading is missing.
     public var measuredFreedBytes: Int64? {

@@ -201,13 +201,16 @@ struct CleanupHistoryView: View {
         _ = await (cleanup, scanRecords)
     }
     private func cleanup(_ run: CleanupHistoryRun) -> some View {
-        HistoryRow(symbol: run.isPreview ? "eye" : run.isPutBack ? "arrow.uturn.backward" : "checklist", title: run.title, date: run.date, size: bytes(run.plannedBytes),
-                   sizeNote: run.isPutBack ? "From Trash" : "Estimated",
+        HistoryRow(symbol: run.isPreview ? "eye" : run.isPutBack ? "arrow.uturn.backward" : run.isEmptyFromTrash ? "xmark.bin" : "checklist", title: run.title, date: run.date,
+                   size: bytes(run.plannedBytes), sizeNote: run.isPutBack || run.isEmptyFromTrash ? "From Trash" : "Estimated",
                    expanded: Binding(get: { expandedRuns.contains(run.id) }, set: { if $0 { expandedRuns.insert(run.id) } else { expandedRuns.remove(run.id) } }),
                    identifier: "cleanupRun:" + run.id.uuidString) {
             if run.usesApprovalDate { note("Shows when you started the cleanup; this version of CacheDrop didn’t record when it finished.") }
             if run.isPreview {
                 note("Dry run · Nothing on disk changed. No space was freed.")
+            } else if run.isEmptyFromTrash {
+                // Measured around each item, as Results measures a cleanup (#359).
+                note("Measured freed space: " + (run.measuredFreedBytes.map(bytes) ?? "Unknown") + " · Other activity can affect it.")
             } else if !run.isPutBack {
                 if run.records.contains(where: { $0.cleanupAction == .trash }) {
                     note("In Trash until you empty it: " + (run.trashHeldAllocatedBytes.map(bytes) ?? "Unknown"))
@@ -223,10 +226,12 @@ struct CleanupHistoryView: View {
                             .fixedSize(horizontal: false, vertical: true).help("Action: " + record.actionTitle + (record.previewOnly == true ? " · Dry run" : ""))
                     }.frame(maxWidth: .infinity, alignment: .leading)
                     let putBack = run.putBackIDs.contains(record.id) || TrashModel.shared.putBackOutcomes[record.id] == .restored(record.originalURL)
-                    if let trash = record.trashURL, !putBack, !record.isPutBack {
+                    // Deleted from the Trash (#359): no Reveal in Trash and no Put back.
+                    let emptied = run.emptiedIDs.contains(record.id) || TrashModel.shared.emptiedIDs.contains(record.id)
+                    if let trash = record.trashURL, !putBack, !emptied, !record.isPutBack {
                         Button("Reveal in Trash") { Finder.reveal([trash]) }.buttonStyle(.link).help(trash.path)
                     }
-                    if record.canPutBack {
+                    if record.canPutBack, !emptied {
                         PutBackLink(record: record, alreadyPutBack: run.putBackIDs.contains(record.id)) { Task { await model.load(maintainCompleted: false) } }
                     }
                 }
