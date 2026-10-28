@@ -117,14 +117,11 @@ struct ApplicationsView: View {
 
     private var page: some View {
         VStack(alignment: .leading, spacing: CacheDropDesign.Space.lg) {
-            HStack(alignment: .bottom, spacing: CacheDropDesign.Space.lg) {
-                PageHeader(title: "Applications", subtitle: "Apps, plug-ins and files from deleted apps.")
-                    .accessibilityElement(children: .combine).accessibilityIdentifier("applicationsHeader")
-                listControls
-            }.padding(.bottom, CacheDropDesign.Space.sm)
+            header
             SettingsUnreadableNotice(model: catalog)
             if let approvalError { StatusRow(text: approvalError, symbol: "exclamationmark.circle", role: .caution) }
             if let status = model.status { StatusRow(text: status, identifier: "applicationsStatus") }
+            columnHeader
             section("Apps", id: "apps", entries: model.apps, category: .apps, identifier: "applicationsApp-",
                     empty: ("No apps to list", "Only Apple’s apps are in the Applications folders."))
             section("Plug-ins", id: "plugIns", entries: model.plugIns, category: .audioPlugIns, identifier: "applicationsPlugIn-",
@@ -143,15 +140,20 @@ struct ApplicationsView: View {
         }.padding(CacheDropDesign.Space.page).frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    /// One search and one Sort for Apps, Plug-ins and Files from deleted apps (#295), searching by name or maker.
-    private var listControls: some View {
-        HStack(spacing: CacheDropDesign.Space.sm) {
-            TextField("Search apps, plug-ins and files from deleted apps", text: Bindable(model).listing.search, prompt: Text("Name or maker"))
-                .labelsHidden().textFieldStyle(.roundedBorder).frame(width: CacheDropDesign.Size.searchField)
-                .accessibilityIdentifier("applicationsSearch")
-            Picker("Sort", selection: Bindable(model).listing.order) {
-                ForEach(ApplicationsListing.Order.allCases) { Text($0.rawValue).tag($0) }
-            }.fixedSize().accessibilityIdentifier("applicationsSort")
+    /// The title and description, then under them the one search for Apps, Plug-ins and Files from deleted apps (#295, #352),
+    /// by name or maker.
+    private var header: some View {
+        VStack(alignment: .leading, spacing: CacheDropDesign.Space.md) {
+            PageHeader(title: "Applications", subtitle: "Apps, plug-ins and files from deleted apps.")
+                .accessibilityElement(children: .combine).accessibilityIdentifier("applicationsHeader")
+            PageSearchField(label: "Search apps, plug-ins and files from deleted apps", prompt: "Name or maker", text: Bindable(model).listing.search,
+                            identifier: "applicationsSearch")
+        }.padding(.bottom, CacheDropDesign.Space.sm)
+    }
+    /// The list's header, with the one Sort for every section right-aligned in it (#295, #352); "Name" sits over the rows' titles.
+    private var columnHeader: some View {
+        ColumnHeader(leading: "Name", insets: EdgeInsets(top: 0, leading: CacheDropDesign.Size.categoryContentIndent, bottom: 0, trailing: 0)) {
+            SortMenu(order: Bindable(model).listing.order, identifier: "applicationsSort")
         }
     }
     private func noMatches(_ id: String) -> some View {
