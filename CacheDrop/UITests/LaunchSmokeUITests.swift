@@ -591,7 +591,7 @@ final class ScannedLocationsUITests: XCTestCase {
         XCTAssertTrue(rows.firstMatch.waitForExistence(timeout: 15))
         let texts = Set(rows.allElementsBoundByIndex.compactMap { $0.value as? String })
         XCTAssertEqual(texts, ["Downloads · Access unavailable", "Projects · Access unavailable"])
-        XCTAssertEqual(app.buttons.matching(identifier: "overviewChooseAgain").count, 2)
+        XCTAssertEqual(app.links.matching(identifier: "overviewChooseAgain").count, 2)
         XCTAssertFalse(app.staticTexts.matching(NSPredicate(format: "value CONTAINS 'Current coverage'")).firstMatch.exists)
     }
 }

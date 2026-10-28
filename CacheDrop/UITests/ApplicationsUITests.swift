@@ -71,7 +71,7 @@ final class ApplicationsUITests: XCTestCase {
         let password = element(app, "applicationsPassword-" + locked!.path, .staticText)
         XCTAssertTrue(password.exists)
         XCTAssertEqual(password.value as? String, "Needs your password to remove")
-        XCTAssertTrue(element(app, "applicationsReveal-" + locked!.path, .button).exists)
+        XCTAssertTrue(element(app, "applicationsReveal-" + locked!.path, .link).exists)
         // With no maker, no empty line is left: the password line sits right under the name (#298).
         let lockedTitle = element(app, "applicationsApp-" + locked!.path).staticTexts["Locked Suite"], maker = app.staticTexts["Maker Audio Inc"]
         XCTAssertLessThan(password.frame.minY - lockedTitle.frame.maxY, maker.frame.height, "No gap where the maker line would be")
@@ -344,7 +344,7 @@ final class ApplicationsUITests: XCTestCase {
         XCTAssertEqual(app.checkBoxes["planItem-Pro Synth.vst3"].value as? Int, 1, "Its removable format is ticked with it")
         XCTAssertFalse(app.checkBoxes["planItem-Pro Synth.component"].exists, "A format that needs a password has no checkbox")
         XCTAssertEqual(element(app, "applicationsPassword-" + au.path, .staticText).value as? String, "AU: Needs your password to remove")
-        XCTAssertTrue(element(app, "applicationsReveal-" + au.path, .button).exists, "Reveal in Finder, with no vendor tool installed")
+        XCTAssertTrue(element(app, "applicationsReveal-" + au.path, .link).exists, "Reveal in Finder, with no vendor tool installed")
         // A product that is only an AUv3 goes with its app (#288).
         XCTAssertEqual(element(app, "applicationsInsideApp-" + appex.path, .staticText).value as? String, "Goes with Pad")
 
