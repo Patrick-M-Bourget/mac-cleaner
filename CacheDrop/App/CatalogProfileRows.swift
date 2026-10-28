@@ -16,11 +16,15 @@ struct CatalogProfileRows: View {
         VStack(alignment: .leading, spacing: 0) {
             ForEach(order.ordered(Array(groups.keys), name: { $0 }, bytes: { groups[$0, default: []].reduce(0) { $0 + $1.estimatedBytes } }), id: \.self) { profile in
                 let items = groups[profile] ?? []
+                let ticked = Binding(get: { items.allSatisfy(model.isSelected) }, set: { on in items.forEach { model.setSelected($0, on) } })
+                // Clicking the row ticks the group, as its checkbox does; Finder is its own Reveal link (#367, Decision 72).
                 InspectableItemRow(name: profile, detail: detail(items),
                                    size: catalogBytes(items.reduce(0) { $0 + $1.estimatedBytes }, complete: items.allSatisfy(\.sizeComplete)),
                                    symbol: rule.groupsByProject ? "folder" : items.contains { $0.appName != nil } ? "app" : "person.crop.circle", inspected: false,
-                                   inspect: { Finder.reveal(items.map(\.url)) }, detailLineLimit: 1) {
-                    Toggle("Select " + profile, isOn: Binding(get: { items.allSatisfy(model.isSelected) }, set: { on in items.forEach { model.setSelected($0, on) } }))
+                                   inspect: rule.itemRowClick == .tick ? { if model.canEdit { ticked.wrappedValue.toggle() } } : nil, detailLineLimit: 1,
+                                   actionLabel: "Select " + profile, reveal: { Finder.reveal(items.map(\.url)) },
+                                   revealIdentifier: "planProfileReveal-\(rule.id)-\(profile)") {
+                    Toggle("Select " + profile, isOn: ticked)
                         .labelsHidden().disabled(!model.canEdit).accessibilityIdentifier("planProfile-\(rule.id)-\(profile)")
                 }.help(items.map(\.url.path).sorted().joined(separator: "\n"))
             }

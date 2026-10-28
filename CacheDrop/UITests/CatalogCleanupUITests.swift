@@ -1223,10 +1223,10 @@ final class GuidanceUITests: XCTestCase {
         XCTAssertTrue((photos.value as? String)?.contains("3 libraries") == true, String(describing: photos.value))
         // Each library with its volume and size, revealed in Finder, never offered (#180).
         openDisclosure(app.disclosureTriangles.matching(NSPredicate(format: "label == 'Show libraries · 3'")).firstMatch, in: app)
-        let external = app.buttons["Reveal Family in Finder"]
+        let external = app.links["Reveal Family in Finder"]
         XCTAssertTrue(external.waitForExistence(timeout: 5))
         XCTAssertTrue((external.value as? String)?.hasPrefix("External") == true, String(describing: external.value))
-        XCTAssertTrue(app.buttons["Reveal Trip 2019 in Finder"].exists)
+        XCTAssertTrue(app.links["Reveal Trip 2019 in Finder"].exists)
         XCTAssertTrue(app.links["guidanceLearnMore-photos-library"].exists)
         revealAndClick(external, in: app)
         XCTAssertTrue(app.staticTexts["guidanceStatus"].waitForExistence(timeout: 5))
@@ -1279,7 +1279,7 @@ final class GuidanceUITests: XCTestCase {
         XCTAssertEqual(row.label, "Open Final Cut Pro")
         XCTAssertTrue((row.value as? String)?.contains("2 libraries") == true, String(describing: row.value))
         openDisclosure(app.disclosureTriangles.matching(NSPredicate(format: "label == 'Show libraries · 2'")).firstMatch, in: app)
-        let external = app.buttons["Reveal Client Cut in Finder"]
+        let external = app.links["Reveal Client Cut in Finder"]
         XCTAssertTrue(external.waitForExistence(timeout: 5))
         XCTAssertTrue((external.value as? String)?.hasPrefix("Shuttle") == true, String(describing: external.value))
         XCTAssertTrue(app.staticTexts.containing(NSPredicate(format: "value CONTAINS 'Delete Generated Library Files'")).firstMatch.exists)
@@ -1317,10 +1317,10 @@ final class GuidanceUITests: XCTestCase {
         XCTAssertEqual(previews.label, "Open Lightroom Classic")
         XCTAssertTrue((previews.value as? String)?.contains("1 catalog") == true, String(describing: previews.value))
         openDisclosure(app.disclosureTriangles.matching(NSPredicate(format: "label == 'Show catalogs · 1'")).firstMatch, in: app)
-        XCTAssertTrue(app.buttons["Reveal Lightroom Catalog Previews in Finder"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.links["Reveal Lightroom Catalog Previews in Finder"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts.containing(NSPredicate(format: "value CONTAINS 'Discard 1:1 Previews'")).firstMatch.exists)
         XCTAssertTrue(app.links["guidanceLearnMore-lightroom-previews"].exists)
-        XCTAssertFalse(app.buttons["Reveal Lightroom Catalog in Finder"].exists)
+        XCTAssertFalse(app.links["Reveal Lightroom Catalog in Finder"].exists)
         revealAndClick(smart, in: app)
         XCTAssertTrue(app.staticTexts["guidanceStatus"].waitForExistence(timeout: 5))
         XCTAssertEqual(app.staticTexts["guidanceStatus"].value as? String, "Test run: would open Lightroom Classic.")
@@ -1355,7 +1355,7 @@ final class GuidanceUITests: XCTestCase {
         XCTAssertTrue((row.value as? String)?.contains("1 product · AU, VST3") == true, String(describing: row.value))
         openDisclosure(app.disclosureTriangles.matching(NSPredicate(format: "label == 'Show products · 1'")).firstMatch, in: app)
         // #207: the label says what the click does, and the line is short: the place is in the tooltip.
-        let product = app.buttons["Reveal Pro Synth in Finder"]
+        let product = app.links["Reveal Pro Synth in Finder"]
         XCTAssertTrue(product.waitForExistence(timeout: 5))
         XCTAssertTrue((product.value as? String)?.hasPrefix("2.1 · AU, VST3,") == true, String(describing: product.value))
         revealAndClick(product, in: app)
