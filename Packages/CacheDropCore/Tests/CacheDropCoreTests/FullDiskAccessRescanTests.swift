@@ -40,3 +40,23 @@ func noRescanWhenFullDiskAccessDidNotBecomeGranted(scanned: FullDiskAccessStatus
     #expect(!revoked)
     #expect(granted)
 }
+
+/// #310: Full Disk Access granted from the welcome while the launch scan runs is picked up when that scan ends, once.
+@Test func rescansOnceWhenAccessChangedDuringTheScan() {
+    var rescan = FullDiskAccessRescan()
+    rescan.scanned(.notGranted)
+    let probe = FakeProbe(.granted)
+    let first = rescan.scanEnded(probing: probe)
+    rescan.scanned(.granted) // The rescan it asked for.
+    let second = rescan.scanEnded(probing: probe)
+    #expect(first)
+    #expect(!second, "One rescan per change")
+}
+
+@Test(arguments: [FullDiskAccessStatus.notGranted, .granted, .unknown])
+func noRescanWhenAccessIsUnchangedAtTheScansEnd(status: FullDiskAccessStatus) {
+    var rescan = FullDiskAccessRescan()
+    rescan.scanned(status)
+    let decision = rescan.scanEnded(probing: FakeProbe(status))
+    #expect(!decision)
+}

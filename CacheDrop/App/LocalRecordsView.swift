@@ -17,7 +17,6 @@ struct LocalRecordsView: View {
     @State private var confirmingReset = false
     var showRecovery: () -> Void
     var didReset: () -> Void
-    var reviewDiagnostics: (() -> Void)? = nil
     /// The back button above the title, from the page that opened this one.
     var back: BackButton? = nil
     var body: some View {
@@ -28,13 +27,12 @@ struct LocalRecordsView: View {
                 StatusRow(text: message, symbol: model.blocked ? "exclamationmark.triangle" : "info.circle", role: model.blocked ? .caution : .neutral, identifier: "historyStatus")
             }
             if model.blocked || (model.snapshot?.protectedRecordCount ?? 0) > 0 {
-                SettingsRow(title: "Recovery facts are protected", detail: "Unfinished runs are excluded from Clear and retention. Reset requires them to be resolved.") {
-                    Button("Open recovery review", action: showRecovery).accessibilityIdentifier("localRecordsRecovery")
+                SettingsRow(title: "An interrupted cleanup needs review", detail: "History keeps it until you review it.") {
+                    Button("Review interrupted cleanup", action: showRecovery).accessibilityIdentifier("localRecordsRecovery")
                 }
             }
             LocalRecordsMaintenanceControls(enabled: !model.busy && !lifecycle.operationInProgress,
                 clear: { confirmingClear = true }, reset: { confirmingReset = true })
-            if let reviewDiagnostics { LocalRecordsDiagnosticsEntry(action: reviewDiagnostics) }
         }
         .task { await model.load(maintainCompleted: false) }
         .confirmationDialog("Clear completed history?", isPresented: $confirmingClear, titleVisibility: .visible) {
@@ -60,14 +58,5 @@ struct LocalRecordsMaintenanceControls: View {
                 Button("Reset CacheDrop…", action: reset).accessibilityIdentifier("resetCacheDrop")
             }
         }.disabled(!enabled)
-    }
-}
-
-struct LocalRecordsDiagnosticsEntry: View {
-    var action: () -> Void
-    var body: some View {
-        SettingsRow(title: "Diagnostics", detail: "Review a redacted snapshot before choosing whether to save it locally. Nothing is uploaded.") {
-            Button("Review diagnostics", action: action)
-        }
     }
 }

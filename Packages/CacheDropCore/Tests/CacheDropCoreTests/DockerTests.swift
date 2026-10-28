@@ -296,7 +296,7 @@ private func dockerRunning(_ home: URL, docker: URL, choose ruleIDs: Set<String>
     #expect(sinceCancel < BoundedTool.stopGrace + 1)
     let record = try #require(result.records.first)
     #expect(record.state == .failed && record.partlyRemoved == true)
-    #expect(record.message.hasPrefix("Stopped waiting when you cancelled. docker image prune -a -f hands its work to a background service, which may still be finishing"))
+    #expect(record.message.hasPrefix("Stopped waiting when you canceled. docker image prune -a -f hands its work to a background service, which may still be finishing"))
     #expect(record.toolOutput == "pruning")
 }
 

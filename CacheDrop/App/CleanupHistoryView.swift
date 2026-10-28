@@ -40,11 +40,11 @@ private enum HistoryActivityItem: Identifiable {
                 }.value
             }
             snapshot = loaded.0; loadError = nil
-            if loaded.1 { message = "Expired completed history was removed, but journal compaction did not finish. Disk reclamation is not confirmed." }
+            if loaded.1 { message = "Older history was removed, but CacheDrop couldn’t finish shrinking its history file." }
             blocked = false
         } catch {
             snapshot = nil; blocked = true
-            loadError = "Cleanup history is unavailable. The local journal cannot be read. Clear and reset are unavailable; keep its recovery records."
+            loadError = "CacheDrop couldn’t read its cleanup history. Clear and Reset are off until it can."
         }
     }
 
@@ -65,7 +65,7 @@ private enum HistoryActivityItem: Identifiable {
             }.value
             clearedRuns = result.0.removedRuns; compactionCompleted = result.1
             snapshot = result.2
-            if snapshot == nil { blocked = true; loadError = "Cleanup history is unavailable. The local journal cannot be read. Clear and reset are unavailable; keep its recovery records." }
+            if snapshot == nil { blocked = true; loadError = "CacheDrop couldn’t read its cleanup history. Clear and Reset are off until it can." }
             else { blocked = false; loadError = nil }
             try await GrowthHistoryModel.shared.clearCompletedHistory()
             await ScanActivityHistory.shared.load(maintain: false)
@@ -110,7 +110,7 @@ private enum HistoryActivityItem: Identifiable {
             lifecycle.selection.endSession()
             await lifecycle.inspection.resetSession()
             lifecycle.planPresentation.reset()
-            lifecycle.downloadsExplorer.openDownloads(); lifecycle.locationsExplorer.openLocations()
+            lifecycle.locationsExplorer.openLocations()
             lifecycle.workspaceNavigation.explorerVisible = false
             lifecycle.workspaceNavigation.planReturnsToExplorer = false
             snapshot = CleanupHistorySnapshot(records: [])
@@ -118,7 +118,7 @@ private enum HistoryActivityItem: Identifiable {
             blocked = false
             return true
         } catch CleanupJournalError.recoveryRequired {
-            blocked = true; message = "Reset is blocked by unfinished cleanup records. Open recovery review; no operations will resume automatically."
+            blocked = true; message = "Reset waits until the interrupted cleanup is reviewed. Nothing restarts by itself."
         } catch {
             blocked = true
             switch resetStage {
@@ -143,7 +143,6 @@ struct CleanupHistoryView: View {
     @Bindable private var scans = ScanActivityHistory.shared
     var showRecovery: () -> Void
     var goOverview: () -> Void
-    var viewPlan: () -> Void
     private var items: [HistoryActivityItem] {
         let scanItems: [HistoryActivityItem] = model.filter == .cleanups ? [] : (scans.records ?? []).map(HistoryActivityItem.scan)
         let cleanupItems: [HistoryActivityItem] = model.filter == .scans ? [] : (model.snapshot?.completedRuns ?? []).map(HistoryActivityItem.cleanup)
@@ -168,10 +167,11 @@ struct CleanupHistoryView: View {
             if let error = scans.loadError {
                 HistoryStoreFailure(message: error, retryTitle: "Try scan history again", enabled: !scans.isLoading) { Task { await scans.load() } }
             }
-            if readingHistory { ProgressView("Reading local history…") }
+            // Nothing known yet: skeleton rows (#308).
+            if readingHistory && items.isEmpty { SkeletonRows(.line, identifier: "historySkeleton") }
             if model.blocked || (model.snapshot?.protectedRecordCount ?? 0) > 0 {
-                SettingsRow(title: "Recovery facts are protected", detail: "Unfinished runs are excluded from Clear and retention. Reset requires them to be resolved.") {
-                    Button("Open recovery review", action: showRecovery).accessibilityIdentifier("historyRecovery")
+                SettingsRow(title: "An interrupted cleanup needs review", detail: "History keeps it until you review it.") {
+                    Button("Review interrupted cleanup", action: showRecovery).accessibilityIdentifier("historyRecovery")
                 }
             }
             if !items.isEmpty {
@@ -187,7 +187,7 @@ struct CleanupHistoryView: View {
                 }
             } else if !readingHistory {
                 if unavailable { HistoryActivityUnavailableState() }
-                else { HistoryActivityEmptyState(filter: model.filter, goOverview: goOverview, viewPlan: viewPlan) }
+                else { HistoryActivityEmptyState(filter: model.filter, goOverview: goOverview) }
             }
             HistoryRetentionNote()
         }.task { await reload() }
@@ -201,30 +201,30 @@ struct CleanupHistoryView: View {
         _ = await (cleanup, scanRecords)
     }
     private func cleanup(_ run: CleanupHistoryRun) -> some View {
-        HistoryRow(symbol: run.isPreview ? "eye" : run.isPutBack ? "arrow.uturn.backward" : "checklist", title: run.title, date: run.date, size: bytes(run.plannedLogicalBytes),
+        HistoryRow(symbol: run.isPreview ? "eye" : run.isPutBack ? "arrow.uturn.backward" : "checklist", title: run.title, date: run.date, size: bytes(run.plannedBytes),
                    sizeNote: run.isPutBack ? "From Trash" : "Estimated",
                    expanded: Binding(get: { expandedRuns.contains(run.id) }, set: { if $0 { expandedRuns.insert(run.id) } else { expandedRuns.remove(run.id) } }),
                    identifier: "cleanupRun:" + run.id.uuidString) {
-            if run.usesApprovalDate { note("Approval date shown; outcome time was not recorded by this version.") }
+            if run.usesApprovalDate { note("Shows when you started the cleanup; this version of CacheDrop didn’t record when it finished.") }
             if run.isPreview {
                 note("Dry run · Nothing on disk changed. No space was freed.")
             } else if !run.isPutBack {
                 if run.records.contains(where: { $0.cleanupAction == .trash }) {
                     note("In Trash until you empty it: " + (run.trashHeldAllocatedBytes.map(bytes) ?? "Unknown"))
                 }
-                note("Observed startup-volume capacity change: " + (run.capacity?.observedChange.map { ($0 >= 0 ? "+" : "−") + bytes(abs($0)) } ?? "Unknown") + " · Other activity can affect it.")
+                note("Free space change: " + (run.capacity?.observedChange.map { ($0 >= 0 ? "+" : "−") + bytes(abs($0)) } ?? "Unknown") + " · Other activity can affect it.")
             }
             ForEach(run.records) { record in
                 HStack(alignment: .firstTextBaseline, spacing: CacheDropDesign.Space.md) {
                     VStack(alignment: .leading, spacing: CacheDropDesign.Space.xs) {
                         Text(record.originalURL.lastPathComponent + " · " + PathDisplay.shortLocation(of: record.originalURL.path))
                             .lineLimit(1).truncationMode(.middle).help(record.originalURL.path)
-                        Text(record.outcomeTitle + " · " + record.message + (record.laterMeasurementText.map { " " + $0 } ?? "")).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
+                        Text(record.outcomeLine + (record.laterMeasurementText.map { " " + $0 } ?? "")).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
                             .fixedSize(horizontal: false, vertical: true).help("Action: " + record.actionTitle + (record.previewOnly == true ? " · Dry run" : ""))
                     }.frame(maxWidth: .infinity, alignment: .leading)
                     let putBack = run.putBackIDs.contains(record.id) || TrashModel.shared.putBackOutcomes[record.id] == .restored(record.originalURL)
                     if let trash = record.trashURL, !putBack, !record.isPutBack {
-                        Button("Show in Finder") { Finder.reveal([trash]) }.controlSize(.small).help(trash.path)
+                        Button("Reveal in Trash") { Finder.reveal([trash]) }.buttonStyle(.link).help(trash.path)
                     }
                     if record.canPutBack {
                         PutBackLink(record: record, alreadyPutBack: run.putBackIDs.contains(record.id)) { Task { await model.load(maintainCompleted: false) } }

@@ -184,7 +184,7 @@ extension Catalog {
 
     /// Why a rule whose tool names its folder offers nothing: the tool didn't say where it is. Never a size of 0.
     static func locationQueryNotice(_ tool: LocationTool) -> String {
-        "\(tool.name) didn’t say where its cache is (\(tool.commandLine)), so it isn’t offered."
+        "\(tool.name) didn’t say where its cache is, so it isn’t offered."
     }
 
     /// Asks `asker`, installed at `toolURL` (nil when it isn't in one of its known locations), where `rule`'s folder is.
@@ -192,7 +192,7 @@ extension Catalog {
     /// A named or configured folder must pass the same scope checks as any other candidate; one that is missing,
     /// outside `base`, or holds more than the tool's cache is never offered, whatever the rule.
     func reportedLocation(of rule: CleanupRule, asking asker: LocationTool, at toolURL: URL?, base: URL) -> ReportedLocation {
-        let query = asker.query, name = rule.owner?.name ?? asker.name, command = asker.commandLine
+        let query = asker.query, name = rule.owner?.name ?? asker.name
         func unanswered(_ reason: String) -> ReportedLocation {
             switch query.whenUnanswered {
             case .notOffered: return .notOffered(CatalogNote(ruleID: rule.id, text: Self.locationQueryNotice(asker)), notMeasured: true)
@@ -202,16 +202,16 @@ extension Catalog {
         let named: URL, source: String, says: (String) -> String
         if let toolURL {
             guard case .success(let folder) = Self.reportedFolder(by: toolURL, query: query.arguments, timeout: query.timeout) else {
-                return unanswered("\(name) didn’t say where its cache is (\(command)), so its usual folder is offered.")
+                return unanswered("\(name) didn’t say where its cache is, so its default folder is shown.")
             }
-            named = folder; source = Self.namedBy(asker); says = { "\(name) names \($0) as its cache (\(command))" }
+            named = folder; source = Self.namedBy(name); says = { "\(name) names \($0) as its cache" }
         } else if let setting = query.configuredIn?.setting(home: base) {
             guard let folder = setting.folder else {
                 return .notOffered(CatalogNote(ruleID: rule.id, text: "\(setting.file) sets \(name)’s cache in a way CacheDrop can’t follow, so it isn’t offered."), notMeasured: true)
             }
             named = folder; source = "Set in " + setting.file; says = { "\(setting.file) sets \($0) as \(name)’s cache" }
         } else {
-            return unanswered("\(name) wasn’t found in a known location, so its usual folder is offered: that’s where \(name) keeps its cache unless it was set otherwise.")
+            return unanswered("CacheDrop couldn’t find \(name), so its default cache folder is shown.")
         }
         let folder = query.reportedSubfolder.map { named.appendingPathComponent($0) } ?? named
         // A folder inside a usual location is that location: `pnpm store path` names `~/Library/pnpm/store/v10` (#206).
@@ -261,7 +261,7 @@ extension Catalog {
     }
 
     /// What a tool-asked item shows as its folder's source when the tool named it (#206).
-    static func namedBy(_ asker: LocationTool) -> String { "Named by " + asker.commandLine }
+    static func namedBy(_ name: String) -> String { "Location from " + name }
 
     /// Home folders a tool's cache never is, whatever it says: deleting one would take the user's own files.
     static let homeFoldersNeverACache: Set<String> = ["Applications", "Desktop", "Developer", "Documents", "Downloads", "Library", "Movies", "Music", "Pictures", "Public"]

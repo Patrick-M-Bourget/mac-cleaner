@@ -48,30 +48,26 @@ struct DesignGallery: View {
                     CapacityGalleryExamples()
                     Text("Synthetic Local records entry · Inert example").font(.headline)
                     LocalRecordsEntry(action: {})
+                    Text("Synthetic Protected items entry · Inert example").font(.headline)
+                    ProtectedItemsEntry(action: {})
                     Text("Synthetic Local records controls · Inert enabled example").font(.headline)
                     LocalRecordsMaintenanceControls(clear: {}, reset: {})
-                    StatusRow(text: "Reset is blocked by unfinished cleanup records. Open recovery review; no operations will resume automatically.", symbol: "exclamationmark.triangle", role: .caution)
+                    StatusRow(text: "Reset waits until the interrupted cleanup is reviewed. Nothing restarts by itself.", symbol: "exclamationmark.triangle", role: .caution)
                     StatusRow(text: "Downloads · Access unavailable", role: .caution, action: StatusAction(title: "Choose again…") {})
                     Text("Synthetic unavailable controls · Cleanup or maintenance in progress").font(.headline)
                     LocalRecordsMaintenanceControls(enabled: false, clear: {}, reset: {})
-                    Text("Synthetic future-gated diagnostics entry · Inert example").font(.headline)
-                    LocalRecordsDiagnosticsEntry(action: {})
                     Text("Synthetic Full Disk Access row · Live status check only").font(.headline)
                     FullDiskAccessSetting()
-                    NotAccessibleRow(title: "Safari cache")
-                    CategoryPrerequisite(title: "Not scanned", detail: "Scan the included Downloads locations before choosing files.", actionTitle: "Scan Downloads…", enabled: true, action: {})
-                    CategoryPrerequisite(title: "No eligible files", detail: "No eligible files in this inspected location.", actionTitle: "Scan Downloads again", enabled: true, action: {})
-                    ExplorerInspector(name: "Camera guide.pdf", close: {}) {
+                    // Explore storage's inspector (#320): always open, one path.
+                    ExplorerInspector(name: "Camera guide.pdf") {
                         Text("Location").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
                         Text("/Example/Downloads/Camera guide.pdf")
-                        Text("Observed scope").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
-                        Text("/Example/Downloads")
-                        Text("On disk: 8 MB observed")
-                        Text("Logical size: 8 MB")
-                        Text("Why listed").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
-                        Text("Observed during a manual scan")
-                        Text("Cleanup action").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
-                        Text("Move this exact file to Trash after selection and confirmation.")
+                        Text("On disk").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
+                        Text("8 MB")
+                        Text("Why it’s listed").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
+                        Text("Not opened since Mar 2, 2026.")
+                        Text("Action").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
+                        Text("Move to Trash. The space stays used until you empty the Trash.")
                     }.frame(height: 220)
                     ExplorerInspector(name: "Cloud metadata (synthetic)", close: {}) {
                         Text("Synthetic Gallery metadata; no provider certification.")
@@ -110,7 +106,6 @@ struct DesignGallery: View {
                         MacroCategoryCheckbox(state: .unchecked, label: "Unavailable · Access required", enabled: false, action: {}, identifier: "galleryDisabled")
                         Toggle("Interactive native checkbox", isOn: $selected)
                     }
-                    FindingRow(category: .downloads, title: "Downloads", detail: "Example category", consequence: "Move exact files to Trash; space stays occupied until emptied.") { Button("Choose items") {} }
                     SummarySurface {
                         VStack(alignment: .leading, spacing: CacheDropDesign.Space.md) {
                             StatusRow(text: "Completed selected-scope observation", symbol: "checkmark.circle", role: .success)
@@ -119,9 +114,30 @@ struct DesignGallery: View {
                             ProgressView("Reading metadata…")
                         }
                     }
-                    ScanProgressSummary(inspectedEntries: 1240, logicalSubtotal: "16 MB", recentNames: ["Example document.pdf", "Example archive.zip"])
-                    ScanProgressSummary(inspectedEntries: 2480, logicalSubtotal: "16 MB", recentNames: ["Example document.pdf"], phaseMessage: "Rechecking changed coverage (one attempt)…")
-                    EmptyState(title: "No findings yet", detail: "Choose a folder to begin. Unknown measurements stay distinct from zero.", symbol: "folder")
+                    // #311: one button rule, one example of each kind.
+                    Text("Buttons · One rule").font(.headline)
+                    ButtonRuleGalleryExamples()
+                    // #321: one empty state, saying what's true with at most one action that leads where the user can act.
+                    Text("Empty states · One way forward").font(.headline)
+                    EmptyState(title: "No scans yet", detail: "A completed scan records a baseline. Check back a day later to see trends.",
+                               symbol: "chart.line.uptrend.xyaxis", action: EmptyStateAction("Scan now") {}, identifier: "galleryEmptyAction")
+                    NothingToCleanUp(identifier: "galleryNothingToCleanUp", action: EmptyStateAction("Explore storage") {})
+                    EmptyState(title: "Nothing to review", symbol: "checkmark.circle", identifier: "galleryEmptyPlain")
+                    // #308: nothing known yet, skeleton rows in each page's layout; a rescan dims the rows already shown.
+                    Text("Waiting for a scan · Skeleton rows").font(.headline)
+                    SkeletonRows(.category, count: 2, identifier: "gallerySkeletonCategory")
+                    SkeletonRows(.review, count: 2, identifier: "gallerySkeletonReview")
+                    SkeletonRows(.line, count: 2, identifier: "gallerySkeletonLine")
+                    Text("Waiting for a scan · Rows from the last scan").font(.headline)
+                    CategoryRow(category: .browser, state: .unchecked, title: "Browser caches · Example during a rescan", detail: "Dimmed, and can’t be clicked until the scan ends.",
+                                size: "640 MB", enabled: false, identifier: "galleryWaitingRow", itemCount: nil, expanded: .constant(false), toggle: {}) {
+                        EmptyView()
+                    } items: { EmptyView() }.waitingForScan(true)
+                    Text("Busy action · Checks running after a click").font(.headline)
+                    HStack {
+                        BusyAction(busy: true) { Button("Clean up") {}.buttonStyle(.borderedProminent) }
+                        ReviewCleanupButton(enabled: false, focusRequest: 0, tooltip: CacheDropDesign.waitForScanHelp, action: {}).fixedSize()
+                    }.controlSize(.large)
                     CapacityMeter(available: nil, total: nil)
                     SettingsRow(title: "Shared navigation and brand", detail: "Reference accents identify destinations; labels and selected traits carry meaning.") {
                         AppBrand()
@@ -157,6 +173,7 @@ struct DesignGallery: View {
                 .environment(\.cacheDropBackgroundWork, BackgroundWorkStatus(line: .init(parts: [.init(id: "galleryFolderScan", text: "Scanning Downloads"), .init(id: "galleryPhase", text: "Reading file metadata…"), .init(id: "galleryCount", text: "1240 entries inspected")], runsFolderScan: true), stop: {}, returnToScan: {}))
             ActionStrip(message: "Developer gallery · Actions are inert examples") { ReviewCleanupButton(enabled: false, focusRequest: 0, action: {}) }
         }
+        .cacheDropButtonRule()
         .environment(\.cacheDropOpaqueChrome, opaque)
         .preferredColorScheme(appearance == .automatic ? nil : appearance == .dark ? .dark : .light)
     }
@@ -165,13 +182,13 @@ struct DesignGallery: View {
 private struct CapacityGalleryExamples: View {
     var body: some View {
         VStack(alignment: .leading, spacing: CacheDropDesign.Space.xl) {
-            example("checking", available: nil, total: nil, observation: "Startup-volume capacity", status: "Checking capacity…", refreshing: true)
-            example("refreshing", observation: "Observed 10:00 AM · Available for important usage", status: "Refreshing…", refreshing: true)
-            example("important", observation: "Observed 10:00 AM · Available for important usage")
-            example("fallback", observation: "Observed 10:00 AM · Available capacity fallback")
-            example("partial", total: nil, observation: "Observed 10:00 AM · Available capacity fallback")
-            example("stale", observation: "Last observed 10:00 AM · Available for important usage", status: "Couldn’t refresh capacity", retry: true)
-            example("unavailable", available: nil, total: nil, observation: "Capacity unavailable", status: "Couldn’t refresh capacity", retry: true)
+            example("checking", available: nil, total: nil, observation: "Checking free space…", status: "Checking capacity…", refreshing: true)
+            example("refreshing", observation: "Updated 10:00 AM", status: "Refreshing…", refreshing: true)
+            example("important", observation: "Updated 10:00 AM")
+            example("fallback", observation: "Updated 10:00 AM")
+            example("partial", total: nil, observation: "Updated 10:00 AM")
+            example("stale", observation: "Last updated 10:00 AM", status: "Couldn’t refresh capacity", retry: true)
+            example("unavailable", available: nil, total: nil, observation: "Free space unavailable", status: "Couldn’t refresh capacity", retry: true)
         }
     }
     private func example(_ name: String, available: Int64? = 40_000_000_000, total: Int64? = 512_000_000_000, observation: String, status: String = "", refreshing: Bool = false, retry: Bool = false) -> some View {
@@ -180,6 +197,28 @@ private struct CapacityGalleryExamples: View {
             VolumeSummary(available: available, total: total, observation: observation, status: status,
                           refreshTitle: retry ? "Try again" : "Refresh capacity", refreshing: refreshing, refresh: {})
         }.accessibilityElement(children: .contain).accessibilityIdentifier("capacityGallery-" + name)
+    }
+}
+/// One of each button kind (#311): capsules large in the bar and sheet footers and regular in a page body, links inside a
+/// row or status line, and the one close style.
+private struct ButtonRuleGalleryExamples: View {
+    var body: some View {
+        VStack(alignment: .leading, spacing: CacheDropDesign.Space.lg) {
+            Text("Page body · Regular capsule").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
+            HStack { Button("Add folder…") {}; Button("Scan selected locations") {} }
+            Text("Row and status line · Link").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
+            StatusRow(text: "Downloads · Access unavailable", role: .caution, action: StatusAction(title: "Choose again…") {})
+            Text("Sheet footer · Large capsules, Cancel then the primary button").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
+            SummarySurface {
+                VStack(alignment: .leading, spacing: CacheDropDesign.Space.md) {
+                    HStack { Text("Example sheet").font(CacheDropDesign.TypeStyle.section); Spacer(); CloseButton {} }
+                    Divider()
+                    SheetFooter { Button("Cancel") {}; Button("Clean up") {}.buttonStyle(.borderedProminent) }
+                }
+            }.frame(maxWidth: CacheDropDesign.Size.sheetNarrow)
+            Text("Bottom bar · Large capsules").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
+            ActionStrip(message: "Example note") { Button("Scan again") {}; Button("Review plan") {}.buttonStyle(.borderedProminent) }
+        }
     }
 }
 private struct ShellAppearanceGalleryExamples: View {

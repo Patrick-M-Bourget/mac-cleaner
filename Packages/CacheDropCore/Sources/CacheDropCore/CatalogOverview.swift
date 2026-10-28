@@ -82,9 +82,9 @@ public struct CatalogOverview: Sendable {
     }
 }
 
-private extension SizeEstimate {
-    /// Unknown sorts below every known size, a 0-byte one included.
-    var sortBytes: Int64 {
+extension SizeEstimate {
+    /// Unknown sorts below every known size, a 0-byte one included (Overview's rows, Applications' Size order, #295).
+    public var sortBytes: Int64 {
         switch self {
         case .measured(let bytes), .about(let bytes), .atLeast(let bytes): bytes
         case .unknown: -1

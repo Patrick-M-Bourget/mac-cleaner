@@ -52,16 +52,12 @@ extension StartupVolumeCapacity {
 }
 
 extension CapacityRefreshController {
+    /// When the free space was last read, in plain words (#312): "Updated 10:42", or "Last updated 10:42" after a failed refresh.
     var observationText: String {
-        guard let reading else { return isRefreshing ? "Startup-volume capacity" : "Capacity unavailable" }
-        let prefix = failed ? "Last observed " : "Observed "
-        let metric = reading.metric == "important" ? "Available for important usage" : "Available capacity fallback"
-        return prefix + reading.observedAt.formatted() + " · " + metric
+        guard let reading else { return isRefreshing ? "Checking free space…" : "Free space unavailable" }
+        return (failed ? "Last updated " : "Updated ") + reading.observedAt.formatted(date: .omitted, time: .shortened)
     }
-    var sidebarObservationText: String {
-        guard let reading else { return "Not yet observed" }
-        return (failed ? "Last observed " : "Observed ") + reading.observedAt.formatted(date: .omitted, time: .shortened)
-    }
+    var sidebarObservationText: String { reading == nil ? "Not checked yet" : observationText }
     var statusText: String {
         if isRefreshing { return reading == nil ? "Checking capacity…" : "Refreshing…" }
         return failed ? "Couldn’t refresh capacity" : ""

@@ -109,6 +109,8 @@ func aCacheHoldingOneOfOurOwnFoldersIsProtected(name: String) throws {
     #expect(CandidateCheck(catalog: catalog, running: FakeRunning(), exclusions: outer).check(candidate) == .excluded)
     let inner = ExclusionPolicy(rules: [try ExclusionRule.capture(cache.appendingPathComponent("index-v5"))])
     #expect(CandidateCheck(catalog: catalog, running: FakeRunning(), exclusions: inner).check(candidate) == .excluded)
+    // #313: the reason names where exclusions live, Locations & access's Protected items.
+    #expect(CheckRefusal.excluded.reason == "In Protected items, in Locations & access.")
 }
 
 @Test func npmIsMatchedByItsScriptNotByEveryNodeProcess() throws {

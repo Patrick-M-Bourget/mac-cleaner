@@ -66,7 +66,7 @@ private func execute(_ candidate: Candidate, catalog: Catalog, home: URL, previe
     let uv = try fakeUV(home, dir: "echo '\(home.path)/Developer/uv-cache'")
     let found = Catalog(rules: fixtureRules).discover(fixture: home, locateTool: onlyTool("uv", uv)).filter { $0.ruleID == "uv-cache" }
     #expect(found.map(\.url.path) == [home.appendingPathComponent("Developer/uv-cache").path])
-    #expect(found.allSatisfy { $0.action == .tool && $0.folderSource == "Named by `uv cache dir`" })
+    #expect(found.allSatisfy { $0.action == .tool && $0.folderSource == "Location from uv" })
 }
 
 /// A folder uv names outside the home folder is out of CacheDrop's scope, and one that doesn't exist has nothing to prune.
@@ -77,8 +77,8 @@ private func execute(_ candidate: Candidate, catalog: Catalog, home: URL, previe
     try makeFolder(home, ".cache/uv")
     try makeFolder(outside, "uv")
     let catalog = Catalog(rules: fixtureRules)
-    for (named, why) in [("\(outside.path)/uv", "\(outside.path)/uv as its cache (`uv cache dir`), which is outside your home folder"),
-                         ("\(home.path)/missing-uv", "~/missing-uv as its cache (`uv cache dir`), but there’s no folder there")] {
+    for (named, why) in [("\(outside.path)/uv", "\(outside.path)/uv as its cache, which is outside your home folder"),
+                         ("\(home.path)/missing-uv", "~/missing-uv as its cache, but there’s no folder there")] {
         let uv = try fakeUV(home, dir: "echo '\(named)'")
         let discovery = catalog.discovery(fixture: home, locateTool: onlyTool("uv", uv))
         #expect(!discovery.candidates.contains { $0.ruleID == "uv-cache" }, "\(named)")
@@ -114,7 +114,7 @@ private func execute(_ candidate: Candidate, catalog: Catalog, home: URL, previe
         let uv = try fakeUV(home, dir: answer)
         let discovery = catalog.discovery(fixture: home, locateTool: onlyTool("uv", uv))
         #expect(!discovery.candidates.contains { $0.ruleID == "uv-cache" }, "\(answer)")
-        #expect(discovery.notes == [CatalogNote(ruleID: "uv-cache", text: "uv didn’t say where its cache is (`uv cache dir`), so it isn’t offered.")], "\(answer)")
+        #expect(discovery.notes == [CatalogNote(ruleID: "uv-cache", text: "uv didn’t say where its cache is, so it isn’t offered.")], "\(answer)")
         #expect(discovery.notMeasured["uv-cache"] == [".cache/uv"], "\(answer)")
     }
 }

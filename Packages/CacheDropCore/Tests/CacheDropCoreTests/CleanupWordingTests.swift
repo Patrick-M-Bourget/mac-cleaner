@@ -37,7 +37,8 @@ private func records(_ actions: [CleanupAction], previewOnly: Bool = false) thro
     var tool = try #require(toolRecords.first)
     #expect(tool.actionTitle == "Run its cleanup command")
     tool.state = .succeeded
-    #expect(tool.outcomeTitle == "Cleaned")
+    // #312: one verb for the same kind of result; a cleanup command's removal is permanent too.
+    #expect(tool.outcomeTitle == "Deleted")
     tool.state = .unknown
     #expect(tool.recoveryStateText == "Unresolved · It may be partly deleted")
     #expect(delete.recoveryStateText == "Recorded skip · Not changed")
@@ -127,4 +128,19 @@ private struct ArrayJournal: CleanupJournaling {
     #expect(CleanupHistorySnapshot(records: [delete, tool]).completedRuns.first?.title == "Cleanup · Partly deleted")
     delete.partlyRemoved = nil
     #expect(delete.recoveryStateText == "Recorded failure · Not changed")
+}
+
+/// #312: History shows a record's message only when it adds to its outcome ("Moved to Trash · Moved to Trash" read twice).
+@Test func historyShowsAMessageOnlyWhenItAddsToTheOutcome() throws {
+    let (home, made) = try records([.trash, .delete, .tool])
+    defer { try? FileManager.default.removeItem(at: home) }
+    var trash = made[0], delete = made[1], tool = made[2]
+    trash.state = .succeeded; trash.message = "Moved to Trash"
+    delete.state = .succeeded; delete.message = "Permanently removed"
+    tool.state = .succeeded; tool.message = "Ran brew"
+    #expect(trash.outcomeLine == "Moved to Trash")
+    #expect(delete.outcomeLine == "Deleted")
+    #expect(tool.outcomeLine == "Deleted · Ran brew")
+    delete.state = .failed; delete.message = "Couldn’t remove it (Permission denied). Left unchanged."
+    #expect(delete.outcomeLine == "Failed · Couldn’t remove it (Permission denied). Left unchanged.")
 }

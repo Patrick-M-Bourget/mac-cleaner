@@ -17,7 +17,7 @@ public enum UnavailableScannedFolder {
     /// unreadable keeps its reason alone, such as "Access unavailable" (#254, #257).
     public static func text(reason: String, lastObserved: String?) -> String {
         guard reason == notFound, let lastObserved else { return reason }
-        return reason + " · last observed " + lastObserved
+        return reason + " · last scanned " + lastObserved
     }
     /// Overview's recovery row (#254): the location's name, then the explorer's wording.
     public static func overviewText(name: String, reason: String, lastObserved: String?) -> String {

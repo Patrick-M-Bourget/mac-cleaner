@@ -20,6 +20,7 @@ struct CacheDropApp: App {
         Window("CacheDrop", id: "workspace") {
             WorkspaceView(alerts: lifecycle.alerts)
                 .frame(minWidth: 900).background { NativeWindowContract() }
+                .cacheDropButtonRule()
         }
         .defaultSize(width: 1120, height: 760)
         .commands {
@@ -27,7 +28,7 @@ struct CacheDropApp: App {
                 Button("Show CacheDrop") { lifecycle.openWorkspace?() }
             }
             CommandGroup(after: .toolbar) {
-                Button("Scan again") { lifecycle.scanAgain?() }.keyboardShortcut("r")
+                ScanAgainCommand(lifecycle: lifecycle)
             }
             CommandGroup(after: .help) {
                 Button("Welcome to CacheDrop") { lifecycle.openWorkspace?(); WelcomeModel.shared.isShowing = true }
@@ -40,6 +41,15 @@ struct CacheDropApp: App {
         MenuBarExtra(isInserted: Binding(get: { showsMenuBarItem }, set: { if $0 != showsMenuBarItem { showsMenuBarItem = $0 } })) {
             CacheDropMenuBarMenu(lifecycle: lifecycle)
         } label: { CacheDropMenuBarLabel(capacity: lifecycle.capacity) }
+    }
+}
+
+/// ⌘R: disabled while a scan or cleanup runs, with the reason as its tooltip (#310).
+private struct ScanAgainCommand: View {
+    let lifecycle: AppLifecycleController
+    var body: some View {
+        Button("Scan again") { lifecycle.scanAgain?() }.keyboardShortcut("r")
+            .disabled(lifecycle.scanAgainBlockedReason != nil).help(lifecycle.scanAgainBlockedReason ?? "")
     }
 }
 
@@ -78,7 +88,6 @@ enum Destination: String, CaseIterable, Identifiable {
     var explorerCaller = Destination.overview
     var planReturnsToExplorer = false
     var scanOrigin = Destination.overview
-    var downloadsExplorerActive = true
     var recoveryVisible = false
     var recoveryCaller = Destination.overview
     let historyModel = CleanupHistoryModel()
@@ -92,10 +101,6 @@ enum Destination: String, CaseIterable, Identifiable {
     var localRecordsVisible = false
     var localRecordsCaller = Destination.history
     var localRecordsOffset: CGPoint?
-    var diagnosticsVisible = false
-    var diagnosticsCaller = Destination.overview
-    var diagnosticsOffset: CGPoint?
-    var diagnosticsModel = DiagnosticsModel()
     /// Overview's App-managed storage page (Decision 25).
     var appManagedVisible = false
 }
@@ -113,12 +118,10 @@ private struct WorkspaceView: View {
     private var recoveryVisible: Bool { get { navigationState.recoveryVisible } nonmutating set { navigationState.recoveryVisible = newValue } }
     private var nativeInspectionVisible: Bool { get { navigationState.explorerVisible } nonmutating set { navigationState.explorerVisible = newValue } }
     @State private var exclusionsVisible = false
-    private var diagnosticsVisible: Bool { get { navigationState.diagnosticsVisible } nonmutating set { navigationState.diagnosticsVisible = newValue } }
     /// Where the page on show keeps its scroll position; nil for a page that keeps none. Out of the view builder, where
     /// the if-chain timed out CI's type checker (#264).
     private var scrollOffset: Binding<CGPoint?>? {
         if recoveryVisible { return nil }
-        if diagnosticsVisible { return $navigationState.diagnosticsOffset }
         if navigationState.localRecordsVisible { return $navigationState.localRecordsOffset }
         if exclusionsVisible || navigationState.appManagedVisible { return nil }
         switch destination {
@@ -133,16 +136,15 @@ private struct WorkspaceView: View {
     /// chained ternary timed out CI's type checker (#264).
     private var scrollIdentity: String {
         if recoveryVisible { return "recovery" }
-        if diagnosticsVisible { return "diagnostics" }
         if navigationState.localRecordsVisible { return "local-records" }
+        if exclusionsVisible { return "exclusions" }
         if navigationState.appManagedVisible { return "app-managed" }
         return destination.rawValue
     }
     @State private var overviewCloudExpanded = false
     @State private var overviewShowsAllCategories = false
-    private var diagnostics: DiagnosticsModel { get { navigationState.diagnosticsModel } nonmutating set { navigationState.diagnosticsModel = newValue } }
     @State private var locationsModel = AppLifecycleController.shared.locations
-    private var explorerContext: StorageExplorerContext { navigationState.downloadsExplorerActive ? AppLifecycleController.shared.downloadsExplorer : AppLifecycleController.shared.locationsExplorer }
+    private var explorerContext: StorageExplorerContext { AppLifecycleController.shared.locationsExplorer }
     @State private var planPresentation = AppLifecycleController.shared.planPresentation
     @State private var smartCleanPresentation = AppLifecycleController.shared.smartCleanPresentation
     private var explorerCaller: Destination { get { navigationState.explorerCaller } nonmutating set { navigationState.explorerCaller = newValue } }
@@ -170,9 +172,9 @@ private struct WorkspaceView: View {
     @State private var capacity = AppLifecycleController.shared.capacity
     @Bindable private var welcome = WelcomeModel.shared
     private var startupCapacity: StartupCapacityReading? { capacity.reading }
-    /// The destination's own page shows: no records, recovery, inspection, diagnostics, exclusions or app-managed page covers it.
+    /// The destination's own page shows: no records, recovery, inspection, exclusions or app-managed page covers it.
     private func showsOwnPage(_ page: Destination, evenUnderAppManaged: Bool = false) -> Bool {
-        destination == page && !navigationState.localRecordsVisible && !recoveryVisible && !nativeInspectionVisible && !diagnosticsVisible && !exclusionsVisible
+        destination == page && !navigationState.localRecordsVisible && !recoveryVisible && !nativeInspectionVisible && !exclusionsVisible
             && (evenUnderAppManaged || !navigationState.appManagedVisible)
     }
     private var showsSmartClean: Bool { showsOwnPage(.smartClean) }
@@ -182,13 +184,12 @@ private struct WorkspaceView: View {
     private var showsPlan: Bool { showsOwnPage(.plan, evenUnderAppManaged: true) }
     /// The toolbar's note, which only reports state (Decision 25: no toolbar subtitles). A screen returns nil to show none.
     private var contextLabel: String? {
-        if selection.workspaceRunning { return "Running approved cleanup" }
+        if selection.workspaceRunning { return "Cleaning up…" }
         if navigationState.localRecordsVisible && !recoveryVisible { return "" }
-        if diagnosticsVisible { return "Redacted diagnostics · Explicit local Save" }
-        if recoveryVisible { return "Recovery review · Recorded facts only" }
+        if recoveryVisible { return "Review interrupted cleanup" }
         if selection.hasWorkspaceResult && showsPlan { return nil }
         if nativeInspectionVisible { return nil }
-        if exclusionsVisible { return "Custom scan exclusions" }
+        if exclusionsVisible { return nil }
         if navigationState.appManagedVisible { return nil }
         switch destination {
         case .overview: return nil
@@ -198,140 +199,75 @@ private struct WorkspaceView: View {
         }
     }
 
-    var body: some View {
+    /// The sidebar, the divider and the page; `body` adds the modifiers, so neither expression grows too large to type-check (Xcode 26).
+    private var workspace: some View {
         HStack(spacing: 0) {
-            VStack(alignment: .leading, spacing: CacheDropDesign.Space.sm) {
-                AppBrand().padding(.horizontal, CacheDropDesign.Space.sm).padding(.bottom, CacheDropDesign.Space.xl)
-                Text("Storage").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary).padding(.horizontal, CacheDropDesign.Space.sm)
-                ForEach(Destination.allCases.filter { $0 != .locations }) { navigation($0) }
-                Text("Settings").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary).padding(.horizontal, CacheDropDesign.Space.sm).padding(.top, CacheDropDesign.Space.xl)
-                navigation(.locations)
-                Spacer()
-                VStack(alignment: .leading, spacing: CacheDropDesign.Space.md) {
-                    Label("This Mac", systemImage: "laptopcomputer").font(.callout)
-                    CapacityMeter(available: startupCapacity?.available, total: startupCapacity?.total, compact: true,
-                                  breakdown: selection.catalog.breakdown(available: startupCapacity?.available, total: startupCapacity?.total, trash: TrashModel.shared.contents))
-                    Text(capacity.sidebarObservationText).font(.caption2).foregroundStyle(.secondary)
-                        .lineLimit(1).frame(height: 14, alignment: .leading)
-                        .help(capacity.observationText).accessibilityLabel(capacity.observationText)
-                        .accessibilityIdentifier("sidebarCapacityObservation")
-                    Text(capacity.statusText.isEmpty ? " " : capacity.statusText).font(.caption2).foregroundStyle(.secondary)
-                        .frame(height: 14, alignment: .leading)
-                }.padding(.horizontal, CacheDropDesign.Space.sm)
-
-            }
-            .padding(.horizontal, CacheDropDesign.Space.md).padding(.vertical, CacheDropDesign.Space.lg)
-            .frame(width: 190)
-            .frame(maxHeight: .infinity)
-            .background { ChromeSurface(role: .sidebar) }
+            sidebar
             Divider()
-            VStack(alignment: .leading, spacing: 0) {
-                AppearancePreferenceNotice(notice: appearance.notice, retry: { appearance.retrySaving() })
-                    .padding(.horizontal, CacheDropDesign.Space.page)
-                if nativeInspectionVisible {
-                    StorageExplorerView(model: folderInspection, selection: selection, context: explorerContext,
-                        caller: explorerCaller.rawValue, back: { nativeInspectionVisible = false; destination = explorerCaller }, unavailable: explorerUnavailable)
-                    ActionStrip(message: nil) {
-                        Button("Review plan") {
-                            nativeInspectionVisible = false
-                            planReturnsToExplorer = explorerCaller != .plan
-                            destination = .plan
-                        }.buttonStyle(.borderedProminent)
-                    }
-                } else if showsPlan {
-                    LiveCleanupPlanView(selection: selection,
-                        viewHistory: { destination = .history }, newPlan: startNewPlan,
-                        reviewRecovery: { openRecovery(caller: .plan) },
-                        backToExplorer: navigationState.planReturnsToGrowth ? { navigationState.planReturnsToGrowth = false; destination = .growth } : planReturnsToExplorer ? { nativeInspectionVisible = true; planReturnsToExplorer = false } : nil,
-                        backToExplorerDestination: navigationState.planReturnsToGrowth ? Destination.growth.rawValue : explorerContext.title,
-                        presentation: planPresentation)
-                } else if showsSmartClean {
-                    SmartCleanView(selection: selection, openPlan: { openPlan($0) }, viewHistory: { navigate(.history) }, reviewRecovery: { openRecovery(caller: .smartClean) },
-                                   presentation: smartCleanPresentation)
-                } else if showsApplications {
-                    ApplicationsView(selection: selection, model: ApplicationsModel.shared, viewHistory: { navigate(.history) }, reviewRecovery: { openRecovery(caller: .applications) })
-                } else {
-                ScrollView {
-                    VStack(alignment: .leading, spacing: CacheDropDesign.Space.xl) {
-                        if recoveryVisible {
-                            CleanupRecoveryView(model: recovery, back: BackButton(destination: navigationState.localRecordsVisible ? "Local records" : navigationState.recoveryCaller.rawValue) {
-                                recoveryVisible = false; destination = navigationState.recoveryCaller; navigationState.recoveryCaller = .overview
-                            })
-                        } else if navigationState.localRecordsVisible {
-                            LocalRecordsView(model: navigationState.historyModel, showRecovery: { openRecovery(caller: navigationState.localRecordsCaller) }, didReset: didResetLocalRecords, reviewDiagnostics: nil,
-                                             back: BackButton(destination: navigationState.localRecordsCaller.rawValue) {
-                                                 navigationState.localRecordsVisible = false
-                                                 destination = navigationState.localRecordsCaller
-                                             })
-                        } else if exclusionsVisible {
-                            ExclusionsView(model: ExclusionsModel.shared, back: BackButton(destination: Destination.locations.rawValue, enabled: !ExclusionsModel.shared.editingBlocked) {
-                                exclusionsVisible = false; destination = .locations
-                            })
-                        } else if diagnosticsVisible {
-                            DiagnosticsView(model: diagnostics, back: BackButton(destination: navigationState.diagnosticsCaller.rawValue, enabled: !diagnostics.isSaving) {
-                                diagnosticsVisible = false; navigationState.localRecordsVisible = false
-                                destination = navigationState.diagnosticsCaller
-                            })
-                        } else if navigationState.appManagedVisible {
-                            AppManagedStorageView(model: selection.catalog) { navigationState.appManagedVisible = false }
-                        } else {
-                            switch destination {
-                            case .growth: GrowthHistoryView(model: GrowthHistoryModel.shared, catalog: selection.catalog)
-                            case .overview: overview
-                            case .plan, .smartClean, .applications: EmptyView()
-                            case .history: history
-                            case .locations: locations
-                            }
-                        }
-                    }.padding(CacheDropDesign.Space.page).frame(maxWidth: .infinity, alignment: .leading)
-                        .background(alignment: .topLeading) {
-                            if let offset = scrollOffset { DestinationViewport(offset: offset).frame(width: 0, height: 0) }
-                        }
-                }.id(scrollIdentity)
-
-                Group {
-                    if exclusionsVisible {
-                        ActionStrip(message: "Exclusions change scan coverage. Files stay unchanged.") {
-                            if ExclusionsModel.shared.preview != nil {
-                                Button("Cancel") { ExclusionsModel.shared.preview = nil }.disabled(ExclusionsModel.shared.editingBlocked)
-                                Button("Save exclusion") { Task { await ExclusionsModel.shared.save() } }.buttonStyle(.borderedProminent).disabled(ExclusionsModel.shared.editingBlocked)
-                            } else {
-                                Button("Choose file or folder…") { Task { await ExclusionsModel.shared.choose() } }.buttonStyle(.borderedProminent).disabled(ExclusionsModel.shared.editingBlocked).accessibilityIdentifier("chooseExclusion")
-                            }
-                        }
-                    } else if diagnosticsVisible {
-                        ActionStrip(message: "It stays on this Mac unless you save it.") {
-                            Button("Save diagnostics…") { Task { await diagnostics.save() } }.buttonStyle(.borderedProminent).disabled(diagnostics.export == nil || diagnostics.isSaving)
-                        }
-                    } else if recoveryVisible {
-                        ActionStrip(message: "Records are kept. Nothing resumes automatically.") { EmptyView() }
-                    } else if navigationState.localRecordsVisible {
-                        ActionStrip()
-                    } else if destination == .growth {
-                        ActionStrip(message: nil) {
-                            Button("Scan again", action: scanAgain).disabled(selection.catalog.isScanning || folderInspection.isScanning || selection.workspaceRunning || !selection.catalog.canEdit)
-                                .accessibilityIdentifier("growthScanAgain")
-                            Button("Review plan") { navigate(.plan); navigationState.planReturnsToGrowth = true }.buttonStyle(.borderedProminent)
-                                .accessibilityIdentifier("growthReviewOptions")
-                        }
-                    } else if showsPlan {
-                        ActionStrip(message: nil) { Button("Review cleanup") {}.disabled(true) }
-                    } else {
-                        ActionStrip()
-                    }
-                }
-                }
-            }.frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(CacheDropDesign.reading)
+            page
         }
+    }
+
+    private var sidebar: some View {
+        VStack(alignment: .leading, spacing: CacheDropDesign.Space.sm) {
+            AppBrand().padding(.horizontal, CacheDropDesign.Space.sm).padding(.bottom, CacheDropDesign.Space.xl)
+            Text("Storage").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary).padding(.horizontal, CacheDropDesign.Space.sm)
+            ForEach(Destination.allCases.filter { $0 != .locations }) { navigation($0) }
+            Text("Settings").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary).padding(.horizontal, CacheDropDesign.Space.sm).padding(.top, CacheDropDesign.Space.xl)
+            navigation(.locations)
+            Spacer()
+            VStack(alignment: .leading, spacing: CacheDropDesign.Space.md) {
+                Label("This Mac", systemImage: "laptopcomputer").font(.callout)
+                CapacityMeter(available: startupCapacity?.available, total: startupCapacity?.total, compact: true,
+                              breakdown: selection.catalog.breakdown(available: startupCapacity?.available, total: startupCapacity?.total, trash: TrashModel.shared.contents))
+                Text(capacity.sidebarObservationText).font(.caption2).foregroundStyle(.secondary)
+                    .lineLimit(1).frame(height: 14, alignment: .leading)
+                    .help(capacity.observationText).accessibilityLabel(capacity.observationText)
+                    .accessibilityIdentifier("sidebarCapacityObservation")
+                Text(capacity.statusText.isEmpty ? " " : capacity.statusText).font(.caption2).foregroundStyle(.secondary)
+                    .frame(height: 14, alignment: .leading)
+            }.padding(.horizontal, CacheDropDesign.Space.sm)
+        
+        }
+        .padding(.horizontal, CacheDropDesign.Space.md).padding(.vertical, CacheDropDesign.Space.lg)
+        .frame(width: 190)
+        .frame(maxHeight: .infinity)
+        .background { ChromeSurface(role: .sidebar) }
+    }
+
+    /// The page on the right: the appearance notice, then the destination with its bar.
+    private var page: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            AppearancePreferenceNotice(notice: appearance.notice, retry: { appearance.retrySaving() })
+                .padding(.horizontal, CacheDropDesign.Space.page)
+            if nativeInspectionVisible {
+                explorerPage
+            } else if showsPlan {
+                planPage
+            } else if showsSmartClean {
+                smartCleanPage
+            } else if showsApplications {
+                applicationsPage
+            } else {
+            scrollingPage
+            pageBar
+            }
+        }.frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(CacheDropDesign.reading)
+    }
+
+    var body: some View {
+        workspace
         .environment(\.cacheDropBackgroundWork, backgroundWorkStatus)
         .onChange(of: runningTasks, initial: true) { _, tasks in backgroundWork.update(running: tasks) }
-        .onChange(of: selection.catalog.selectionRevision) { _, _ in AppLifecycleController.shared.hasPendingPlan = selection.hasPendingChoicesOnAnyPage }
-        .task { if await recovery.loadOnce() { openRecovery(caller: .overview, refresh: false) } }
+        .onChange(of: selection.catalog.selectionRevisions) { _, _ in AppLifecycleController.shared.hasPendingPlan = selection.hasPendingChoicesOnAnyPage }
+        // Launch stays on Overview; its banner opens Recovery, which checks against disk (#309).
+        .task { _ = await recovery.loadOnce() }
+        // The launch scan, whichever page opens first; later scans start in the model when something changes (#306).
+        .task { await selection.catalog.scanIfNeeded() }
         .task { locationsModel.load() }
         .onChange(of: locationsModel.scopes) { _, _ in
             explorerContext.allowedScopes = Set(locationsModel.included.map { URL(fileURLWithPath: $0.path).standardizedFileURL })
-            explorerContext.downloadsScopes = Set(locationsModel.includedDownloads.map { URL(fileURLWithPath: $0.path).standardizedFileURL })
         }
         .onAppear {
             AppLifecycleController.shared.openWorkspace = { openWindow(id: "workspace") }
@@ -339,12 +275,12 @@ private struct WorkspaceView: View {
             AppLifecycleController.shared.openSmartClean = { navigate(.smartClean) }
             selection.catalog.scanRememberedFolders = { scanRememberedFolders() }
         }
-        .onReceive(NotificationCenter.default.publisher(for: .cacheDropAlertOpened)) { _ in destination = .overview; navigationState.localRecordsVisible = false; navigationState.appManagedVisible = false; exclusionsVisible = false; diagnosticsVisible = false; recoveryVisible = false; nativeInspectionVisible = false }
+        .onReceive(NotificationCenter.default.publisher(for: .cacheDropAlertOpened)) { _ in destination = .overview; navigationState.localRecordsVisible = false; navigationState.appManagedVisible = false; exclusionsVisible = false; recoveryVisible = false; nativeInspectionVisible = false }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in Task { await alerts.activated() } }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in Task { await selection.catalog.rescanIfFullDiskAccessGranted() } }
         .onReceive(NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.didWakeNotification)) { _ in Task { await alerts.activated() } }
         .toolbar { contextToolbar }
-        .sheet(isPresented: $welcome.isShowing) { FirstRunWelcomeView(model: welcome) { AppLifecycleController.shared.scanAgain?() } }
+        .sheet(isPresented: $welcome.isShowing) { FirstRunWelcomeView(model: welcome, catalog: selection.catalog) }
     }
 
     @ToolbarContentBuilder private var contextToolbar: some ToolbarContent {
@@ -360,7 +296,7 @@ private struct WorkspaceView: View {
     }
 
     private var scanReturnAction: (() -> Void)? {
-        let atOrigin = destination == scanOrigin && !navigationState.localRecordsVisible && !navigationState.appManagedVisible && !nativeInspectionVisible && !diagnosticsVisible && !exclusionsVisible && !recoveryVisible
+        let atOrigin = destination == scanOrigin && !navigationState.localRecordsVisible && !navigationState.appManagedVisible && !nativeInspectionVisible && !exclusionsVisible && !recoveryVisible
         if atOrigin { return nil }
         return { returnToScanOrigin() }
     }
@@ -368,7 +304,7 @@ private struct WorkspaceView: View {
     private func returnToScanOrigin() {
         destination = scanOrigin
         navigationState.localRecordsVisible = false; navigationState.appManagedVisible = false
-        nativeInspectionVisible = false; diagnosticsVisible = false
+        nativeInspectionVisible = false
         exclusionsVisible = false; recoveryVisible = false
         planReturnsToExplorer = false
     }
@@ -382,7 +318,7 @@ private struct WorkspaceView: View {
         if value == .smartClean && selection.showsRun(for: .smartClean) { selection.dismissResult() }
         if value == .applications && selection.showsRun(for: .applications) { selection.dismissResult() }
         navigationState.localRecordsVisible = false; navigationState.appManagedVisible = false
-        diagnosticsVisible = false; exclusionsVisible = false
+        exclusionsVisible = false
         recoveryVisible = false; navigationState.recoveryCaller = .overview; nativeInspectionVisible = false
     }
 
@@ -411,18 +347,14 @@ private struct WorkspaceView: View {
 
     private var overview: some View {
         VStack(alignment: .leading, spacing: CacheDropDesign.Space.xl) {
-            HStack(alignment: .top) {
-                PageHeader(title: "Storage overview", subtitle: "A clearer picture of what’s on your Mac.")
-                Spacer(minLength: CacheDropDesign.Space.md)
-                Button("Scan again", action: scanAgain).disabled(!canScanAgain)
-            }
+            PageHeader(title: "Storage overview", subtitle: "A clearer picture of what’s on your Mac.")
             ScanHistoryRecordingNotice()
             if let context = alerts.openedAlertContext {
                 SummarySurface {
                     VStack(alignment: .leading, spacing: CacheDropDesign.Space.md) {
                         StatusRow(text: context.observedAt.map { "Space was low at \($0.formatted(date: .omitted, time: .shortened))" } ?? "Space was low", symbol: "bell", identifier: "openedStorageAlert")
                         HStack {
-                            Button("Scan again") { alerts.dismissOpenedAlert(); scanAgain() }.disabled(!canScanAgain)
+                            Button("Scan again") { alerts.dismissOpenedAlert(); scanAgain() }.disabled(!canScanAgain).help(scanAgainHelp)
                             Button("Dismiss", action: alerts.dismissOpenedAlert)
                         }
                     }
@@ -443,9 +375,9 @@ private struct WorkspaceView: View {
                           breakdown: selection.catalog.breakdown(available: startupCapacity?.available, total: startupCapacity?.total, trash: TrashModel.shared.contents),
                           open: { openPlan($0.categories) })
             scannedLocations
+            SettingsUnreadableNotice(model: selection.catalog)
             overviewRecommendations
-        }.task { await selection.catalog.scanIfNeeded() }
-            .task { await TrashModel.shared.refresh() }
+        }.task { await TrashModel.shared.refresh() }
     }
 
     private var overviewRecommendations: some View {
@@ -461,7 +393,8 @@ private struct WorkspaceView: View {
                 HStack(alignment: .firstTextBaseline) {
                     Text("Recommended for review").font(CacheDropDesign.TypeStyle.section)
                     Spacer(minLength: CacheDropDesign.Space.md)
-                    Text(summary.map { recommendedText($0.recommended) } ?? (catalog.isScanning ? "Checking known locations…" : "Not measured yet"))
+                    // Nothing known yet: the size is "—" and the rows are skeletons (#308).
+                    Text(summary.map { recommendedText($0.recommended) } ?? "—")
                         .font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary).monospacedDigit().accessibilityIdentifier("overviewRecommendedTotal")
                     // The recommended plan lives on its own page (#141): one quiet link to it.
                     if summary != nil, !catalog.recommendedCandidates.isEmpty {
@@ -469,7 +402,11 @@ private struct WorkspaceView: View {
                             .buttonStyle(.link).font(CacheDropDesign.TypeStyle.caption).accessibilityIdentifier("overviewSmartClean")
                     }
                 }
-                if showsCloudInventory || !shown.isEmpty {
+                if catalog.settingsUnreadable {
+                    EmptyView() // Nothing was read: the line above says why, never "nothing" (#310).
+                } else if summary == nil {
+                    SkeletonRows(.review, identifier: "overviewSkeleton")
+                } else if showsCloudInventory || !shown.isEmpty {
                     RecommendationGroup {
                         if showsCloudInventory {
                             overviewCloudRow
@@ -486,9 +423,9 @@ private struct WorkspaceView: View {
                                 .buttonStyle(.link).font(.callout).padding(CacheDropDesign.Space.lg).frame(maxWidth: .infinity, alignment: .leading)
                                 .accessibilityIdentifier("overviewShowMore")
                         }
-                    }
-                } else if summary != nil, !catalog.isScanning {
-                    Text("Nothing to review in the known locations.").font(.callout).foregroundStyle(.secondary)
+                    }.waitingForScan(catalog.isScanning)
+                } else if !catalog.isScanning {
+                    NothingToCleanUp(identifier: "overviewEmpty", action: EmptyStateAction("Explore storage") { exploreStorage(caller: .overview) })
                 }
                 // Places macOS protects (Safari's cache) without Full Disk Access: one line, never a 0-byte row.
                 if !catalog.notAccessibleRules.isEmpty {
@@ -496,14 +433,14 @@ private struct WorkspaceView: View {
                 }
                 TrashNote()
                 if let trash = summary?.proposedForTrash, trash != .measured(0) {
-                    Text("Estimated release excludes " + trash.text + " proposed for Trash.").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
+                    Text("Doesn’t include " + trash.text + " that would go to the Trash.").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
                 }
                 if !catalog.guidance.isEmpty {
                     RecommendationGroup {
                         StorageReviewRow(category: .managed, title: "App-managed storage", detail: "", value: CacheDropDesign.items(catalog.guidance.count),
                                          actionTitle: "Review app-managed storage", action: { navigationState.appManagedVisible = true },
                                          identifier: "overviewAppManaged", mutedValue: true)
-                    }
+                    }.waitingForScan(catalog.isScanning)
                 }
             }
     }
@@ -541,9 +478,9 @@ private struct WorkspaceView: View {
         let action: (() -> Void)? = overviewObservation == nil ? nil : { overviewCloudExpanded.toggle() }
         let value = overviewObservation.map { result in
             let report = result.cloudInventory
-            return report.unknownMembershipCount > 0 || report.unknownStateCount > 0 ? "Unknown" : overviewBytes(report.localAllocatedBytes)
-        } ?? "Not inspected"
-        return StorageReviewRow(category: .cloud, title: "Downloaded iCloud files", detail: "Local copies in this location · Cleanup unavailable.", value: value, meaning: "Local allocation · Unknown metadata stays unknown", actionTitle: overviewCloudExpanded ? "Hide iCloud inventory" : "Review iCloud inventory", action: action, identifier: "overviewCloudFinding")
+            return report.totalIsUnknown ? "Unknown" : overviewBytes(report.localAllocatedBytes)
+        } ?? "Not scanned"
+        return StorageReviewRow(category: .cloud, title: "Downloaded iCloud files", detail: "Copies of iCloud files kept on this Mac", value: value, meaning: "On this Mac", actionTitle: overviewCloudExpanded ? "Hide iCloud files" : "Review iCloud files", action: action, identifier: "overviewCloudFinding")
     }
     private func overviewBytes(_ bytes: Int64?) -> String {
         bytes.map { ByteCountFormatter.string(fromByteCount: $0, countStyle: .decimal) } ?? "Unknown"
@@ -553,7 +490,9 @@ private struct WorkspaceView: View {
     }
     /// Rechecks capacity, the catalog's known locations and any included folders. Read-only.
     /// The same conditions that enable the Overview's Scan again button.
-    private var canScanAgain: Bool { !folderInspection.isScanning && !selection.workspaceRunning && selection.catalog.canEdit }
+    private var canScanAgain: Bool { AppLifecycleController.shared.scanAgainBlockedReason == nil }
+    /// "A scan is already running" while one runs (#310).
+    private var scanAgainHelp: String { AppLifecycleController.shared.scanAgainBlockedReason ?? "" }
     private func scanAgain() {
         capacity.request(.manual)
         Task { await selection.catalog.scan() }
@@ -571,16 +510,17 @@ private struct WorkspaceView: View {
                 Text("Scanned locations").font(.caption.weight(.medium))
                 Text(scannedSummary).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
                     .help(overviewObservation?.scope.path ?? "").accessibilityIdentifier("overviewScopeCoverage")
-                if overviewObservation != nil {
-                    Button("Explore storage") { openExplorer(downloads: false, caller: .overview) }.buttonStyle(.link).font(CacheDropDesign.TypeStyle.caption).disabled(selection.workspaceRunning)
-                }
+                // Always there (#320): with no scanned folder it leads to Locations & access, where folders are added.
+                Button("Explore storage") { exploreStorage(caller: .overview) }
+                    .buttonStyle(.link).font(CacheDropDesign.TypeStyle.caption).disabled(selection.workspaceRunning)
                 Spacer(minLength: 0)
                 // One clear action: pick a folder, remember it and scan it now (#125).
-                Button("Scan a folder…", systemImage: "folder.badge.plus", action: chooseFolderForScan).controlSize(.small)
+                Button("Scan a folder…", systemImage: "folder.badge.plus", action: chooseFolderForScan)
+                    .buttonStyle(.link).font(CacheDropDesign.TypeStyle.caption)
                     .disabled(folderInspection.isScanning || selection.workspaceRunning).accessibilityIdentifier("overviewScanFolder")
             }
             if selection.scans.values.contains(where: { !$0.isComplete }) || overviewObservation.map({ $0.excludedEntryCount > 0 || $0.hasUnmeasuredContents }) == true {
-                StatusRow(text: "Some locations have partial coverage. Uninspected bytes remain unknown.", symbol: "exclamationmark.circle", role: .caution)
+                StatusRow(text: "Some places couldn’t be read in full, so they may hold more than shown.", symbol: "exclamationmark.circle", role: .caution)
             }
             // One row per problem (#223, #231): each unavailable location names itself and carries the fix.
             ForEach(locationsModel.recoveries, id: \.scope.id) { scope, status in
@@ -601,7 +541,7 @@ private struct WorkspaceView: View {
             ExplorerUnavailableLocation(scope: URL(fileURLWithPath: scope.path).standardizedFileURL, reason: locationsModel.recoveryReasons[scope.id] ?? status.reason) { renewAndScan(scope) }
         }
     }
-    /// "Folder not found · last observed <time>" for a deleted or moved folder, "Access unavailable" for an unreadable one (#254).
+    /// "Folder not found · last scanned <time>" for a deleted or moved folder, "Access unavailable" for an unreadable one (#254).
     private func recoveryText(_ scope: RememberedScope, status: RememberedLocations.AccessStatus) -> String {
         let observed = Array(selection.scans.values) + folderInspection.scopeReports.map(\.current)
         return UnavailableScannedFolder.overviewText(name: URL(fileURLWithPath: scope.path).lastPathComponent,
@@ -638,6 +578,11 @@ private struct WorkspaceView: View {
     }
     private func scanLocations(_ scopes: [RememberedScope]) {
         guard !folderInspection.isScanning, !selection.workspaceRunning else { return }
+        // Asked while History holds the maintenance lease: rechecked once it lets go, with access resolved then (#310).
+        if AppLifecycleController.shared.maintenanceInProgress {
+            AppLifecycleController.shared.afterMaintenance.waitFor("folderRecheck") { scanLocations(scopes) }
+            return
+        }
         let leases = scopes.compactMap { locationsModel.resolve($0) }
         let resolved = Set(leases.map { $0.url.standardizedFileURL.path })
         for scope in scopes where !resolved.contains(scope.path) {
@@ -649,23 +594,149 @@ private struct WorkspaceView: View {
         let unavailable = scopes.filter { !resolved.contains($0.path) }.map { URL(fileURLWithPath: $0.path) }
         folderInspection.scanAgain(scopes: leases.map(\.url), leases: leases, unavailable: unavailable)
     }
-    private func openExplorer(downloads: Bool, caller: Destination) {
-        navigationState.downloadsExplorerActive = downloads
-        if explorerContext.downloadsOnly != downloads { if downloads { explorerContext.openDownloads() } else { explorerContext.openLocations() } }
+    /// Opens Explore storage; from a location's Explore link (#320), at that folder.
+    private func openExplorer(caller: Destination, at folder: URL? = nil) {
         explorerContext.allowedScopes = Set(locationsModel.included.map { URL(fileURLWithPath: $0.path).standardizedFileURL })
-        explorerContext.downloadsScopes = Set(locationsModel.includedDownloads.map { URL(fileURLWithPath: $0.path).standardizedFileURL })
+        if let folder { explorerContext.openLocation(folder) }
         explorerCaller = caller; nativeInspectionVisible = true; planReturnsToExplorer = false
     }
+    /// Explore storage, as Overview's link and the empty states lead there (#320, #321): with no scanned folder yet,
+    /// Locations & access, where folders are added.
+    /// Explore storage with its bar: "N selected", then Add to cleanup plan once something is ticked (#320).
+    @ViewBuilder private var explorerPage: some View {
+        StorageExplorerView(model: folderInspection, selection: selection, context: explorerContext,
+            caller: explorerCaller.rawValue, back: { nativeInspectionVisible = false; destination = explorerCaller }, unavailable: explorerUnavailable)
+        ActionStrip(message: explorerSelectedMessage) {
+            Button("Add to cleanup plan", action: addExplorerSelectionToPlan).buttonStyle(.borderedProminent).disabled(!canAddExplorerSelection)
+        }
+    }
+    private var explorerSelectedMessage: String? { explorerSelectedCount > 0 ? "\(explorerSelectedCount) selected" : nil }
+    private var canAddExplorerSelection: Bool { explorerSelectedCount > 0 && !selection.workspaceRunning }
+
+    private var planPage: some View {
+        let backDestination: String = navigationState.planReturnsToGrowth ? Destination.growth.rawValue : explorerContext.title
+        return LiveCleanupPlanView(selection: selection,
+            viewHistory: { destination = .history }, newPlan: startNewPlan,
+            reviewRecovery: { openRecovery(caller: .plan) },
+            backToExplorer: planBack,
+            backToExplorerDestination: backDestination,
+            presentation: planPresentation, exploreStorage: { exploreStorage(caller: .plan) })
+    }
+
+    private var smartCleanPage: some View {
+        SmartCleanView(selection: selection, openPlan: { openPlan($0) }, viewHistory: { navigate(.history) }, reviewRecovery: { openRecovery(caller: .smartClean) },
+                       presentation: smartCleanPresentation, scanAgain: { if canScanAgain { scanAgain() } })
+    }
+
+    private var applicationsPage: some View {
+        ApplicationsView(selection: selection, model: ApplicationsModel.shared, viewHistory: { navigate(.history) }, reviewRecovery: { openRecovery(caller: .applications) })
+    }
+
+    /// The pages that scroll above the bar: Recovery, Local records, Protected items, App-managed storage and the sidebar destinations.
+    @ViewBuilder private var scrollingPage: some View {
+    ScrollView {
+        VStack(alignment: .leading, spacing: CacheDropDesign.Space.xl) {
+            if recoveryVisible {
+                CleanupRecoveryView(model: recovery, back: BackButton(destination: navigationState.localRecordsVisible ? "Local records" : navigationState.recoveryCaller.rawValue) {
+                    recoveryVisible = false; destination = navigationState.recoveryCaller; navigationState.recoveryCaller = .overview
+                }, viewHistory: { navigate(.history) })
+            } else if navigationState.localRecordsVisible {
+                LocalRecordsView(model: navigationState.historyModel, showRecovery: { openRecovery(caller: navigationState.localRecordsCaller) }, didReset: didResetLocalRecords,
+                                 back: BackButton(destination: navigationState.localRecordsCaller.rawValue) {
+                                     navigationState.localRecordsVisible = false
+                                     destination = navigationState.localRecordsCaller
+                                 })
+            } else if exclusionsVisible {
+                ExclusionsView(model: ExclusionsModel.shared, back: BackButton(destination: Destination.locations.rawValue, enabled: !ExclusionsModel.shared.editingBlocked) {
+                    exclusionsVisible = false; destination = .locations
+                })
+            } else if navigationState.appManagedVisible {
+                AppManagedStorageView(model: selection.catalog) { navigationState.appManagedVisible = false }
+            } else {
+                switch destination {
+                case .growth: GrowthHistoryView(model: GrowthHistoryModel.shared, catalog: selection.catalog, scanNow: { if canScanAgain { scanAgain() } })
+                case .overview: overview
+                case .plan, .smartClean, .applications: EmptyView()
+                case .history: history
+                case .locations: locations
+                }
+            }
+        }.padding(CacheDropDesign.Space.page).frame(maxWidth: .infinity, alignment: .leading)
+            .background(alignment: .topLeading) {
+                if let offset = scrollOffset { DestinationViewport(offset: offset).frame(width: 0, height: 0) }
+            }
+    }.id(scrollIdentity)
+    }
+
+    /// The bottom bar under a scrolling page.
+    @ViewBuilder private var pageBar: some View {
+    Group {
+        if exclusionsVisible {
+            ActionStrip(message: "Protecting an item never changes it.") {
+                if ExclusionsModel.shared.preview != nil {
+                    Button("Cancel") { ExclusionsModel.shared.preview = nil }.disabled(ExclusionsModel.shared.editingBlocked)
+                    Button("Protect") { Task { await ExclusionsModel.shared.save() } }.buttonStyle(.borderedProminent).disabled(ExclusionsModel.shared.editingBlocked)
+                } else {
+                    Button("Choose file or folder…") { Task { await ExclusionsModel.shared.choose() } }.buttonStyle(.borderedProminent).disabled(ExclusionsModel.shared.editingBlocked).accessibilityIdentifier("chooseExclusion")
+                }
+            }
+        } else if recoveryVisible {
+            ActionStrip(message: "Nothing restarts by itself.") { EmptyView() }
+        } else if navigationState.localRecordsVisible {
+            ActionStrip()
+        } else if destination == .overview && !navigationState.appManagedVisible {
+            // Scan again sits in the bar, as on Storage trends (#311).
+            ActionStrip(message: nil) {
+                Button("Scan again", action: scanAgain).disabled(!canScanAgain).help(scanAgainHelp).accessibilityIdentifier("overviewScanAgain")
+            }
+        } else if destination == .growth {
+            ActionStrip(message: nil) {
+                Button("Scan again", action: scanAgain).disabled(!canScanAgain).help(scanAgainHelp)
+                    .accessibilityIdentifier("growthScanAgain")
+                Button("Review plan") { navigate(.plan); navigationState.planReturnsToGrowth = true }.buttonStyle(.borderedProminent)
+                    .accessibilityIdentifier("growthReviewOptions")
+            }
+        } else {
+            ActionStrip()
+        }
+    }
+    }
+
+    /// The plan's back button: to Storage trends or Explore storage when the plan was opened from there, otherwise none.
+    private var planBack: (() -> Void)? {
+        if navigationState.planReturnsToGrowth { return { navigationState.planReturnsToGrowth = false; destination = .growth } }
+        if planReturnsToExplorer { return { nativeInspectionVisible = true; planReturnsToExplorer = false } }
+        return nil
+    }
+
+    /// Explore storage's "Add to cleanup plan" (#320): opens the plan on Large and old files, with a way back to the explorer.
+    private func addExplorerSelectionToPlan() {
+        nativeInspectionVisible = false
+        planReturnsToExplorer = explorerCaller != .plan
+        planPresentation.expandedCategories.insert(UserFiles.rule.category)
+        destination = .plan
+    }
+
+    private func exploreStorage(caller: Destination) {
+        if hasScannedFolder { openExplorer(caller: caller) } else { navigate(.locations) }
+    }
+    /// An included location that has been scanned, so Explore storage has something to show.
+    private func isScanned(_ scope: RememberedScope) -> Bool {
+        scope.isIncluded && (selection.scans[URL(fileURLWithPath: scope.path)] != nil || folderInspection.scopeReports.contains { $0.current.scope.path == scope.path })
+    }
+    private var hasScannedFolder: Bool { locationsModel.included.contains(where: isScanned) }
+    /// Large and old files ticked for the plan, which the explorer's bar counts.
+    private var explorerSelectedCount: Int { selection.catalog.pickedCandidates.filter { selection.catalog.isSelected($0) }.count }
     private func startNewPlan() {
         planPresentation.reset(); selection.startNewPlan(); planReturnsToExplorer = false; nativeInspectionVisible = false; destination = .plan
         Task { await folderInspection.resetSession() }
     }
 
-    private func openRecovery(caller: Destination, refresh: Bool = true) {
+    private func openRecovery(caller: Destination) {
         navigationState.recoveryCaller = caller
         destination = caller
         recoveryVisible = true
-        if refresh { Task { await recovery.refresh() } }
+        Task { await recovery.refresh() }
     }
 
     private func openLocalRecords(caller: Destination) {
@@ -678,12 +749,12 @@ private struct WorkspaceView: View {
 
     private func didResetLocalRecords() {
         nativeInspectionVisible = false
-        diagnosticsVisible = false; diagnostics = DiagnosticsModel(); exclusionsVisible = false
+        exclusionsVisible = false
     }
 
     private var history: some View {
         CleanupHistoryView(model: navigationState.historyModel, expandedRuns: $navigationState.historyExpandedRuns,
-            showRecovery: { openRecovery(caller: .history) }, goOverview: { navigate(.overview) }, viewPlan: { navigate(.plan) })
+            showRecovery: { openRecovery(caller: .history) }, goOverview: { navigate(.overview) })
     }
 
     private var locations: some View {
@@ -702,13 +773,18 @@ private struct WorkspaceView: View {
                         if locationsModel.setIncluded(included, scope: scope) { selection.suspendScope(URL(fileURLWithPath: scope.path)) }
                     }), enabled: !folderInspection.isScanning && !selection.workspaceRunning) {
                     HStack {
+                        if isScanned(scope), locationsModel.statuses[scope.id]?.needsRecovery != true {
+                            Button("Explore") { openExplorer(caller: .locations, at: URL(fileURLWithPath: scope.path)) }
+                                .buttonStyle(.link).accessibilityIdentifier("locationExplore:" + scope.path)
+                        }
                         if locationsModel.statuses[scope.id]?.needsRecovery == true {
-                            Button("Choose again…") { chooseAgain(scope) }
-                            Button("Reconnect and recheck") { scanLocations([scope]) }.disabled(!scope.isIncluded)
+                            // A row's actions are links (#311).
+                            Button("Choose again…") { chooseAgain(scope) }.buttonStyle(.link)
+                            Button("Reconnect and recheck") { scanLocations([scope]) }.buttonStyle(.link).disabled(!scope.isIncluded)
                         }
                         Menu("More") {
                             Button("Forget location") { locationToForget = scope }
-                        }.accessibilityIdentifier("locationActions:" + scope.path)
+                        }.menuStyle(.borderlessButton).fixedSize().accessibilityIdentifier("locationActions:" + scope.path)
                     }
                 }
                 if locationsModel.statuses[scope.id]?.needsRecovery == true,
@@ -719,6 +795,7 @@ private struct WorkspaceView: View {
             }
             if let message = locationsModel.message { StatusRow(text: message, symbol: "info.circle") }
             FullDiskAccessSetting()
+            ProtectedItemsEntry { exclusionsVisible = true }
             LocalRecordsEntry { openLocalRecords(caller: .locations) }
         }.confirmationDialog("Forget location?", isPresented: Binding(get: { locationToForget != nil }, set: { if !$0 { locationToForget = nil } }), titleVisibility: .visible) {
             if let scope = locationToForget {

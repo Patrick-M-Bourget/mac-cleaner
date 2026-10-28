@@ -119,6 +119,8 @@ struct GrowthChangeRow: View {
 struct GrowthHistoryView: View {
     @Bindable var model: GrowthHistoryModel
     let catalog: CatalogCleanupModel
+    /// The empty state's Scan now (#321): the same scan as the bar's Scan again.
+    var scanNow: () -> Void = {}
     var body: some View {
         VStack(alignment: .leading, spacing: CacheDropDesign.Space.xl) {
             if let error = model.error, model.comparison == nil {
@@ -126,16 +128,22 @@ struct GrowthHistoryView: View {
                 HistoryStoreFailure(message: error, retryTitle: "Try again") { Task { await model.load() } }
             } else if let comparison = model.comparison, let current = comparison.current {
                 if comparison.state == .compared, let from = comparison.from {
-                    compared(comparison, from: from, to: current.observedAt)
+                    // A rescan dims the last comparison until it ends (#308).
+                    VStack(alignment: .leading, spacing: CacheDropDesign.Space.xl) { compared(comparison, from: from, to: current.observedAt) }
+                        .waitingForScan(catalog.isScanning)
                 } else {
                     PageHeader(title: "Storage trends", subtitle: "Changes in your known locations between two completed scans.")
                     EmptyState(title: "Baseline recorded", detail: GrowthPresentation.baseline(comparison.state),
-                               symbol: "chart.line.uptrend.xyaxis").accessibilityIdentifier("growthBaselineRecorded")
+                               symbol: "chart.line.uptrend.xyaxis", identifier: "growthBaselineRecorded")
                 }
-            } else if !model.loading {
+            } else if model.loading || catalog.isScanning {
+                // Nothing known yet: skeleton rows, never a blank page (#308).
                 PageHeader(title: "Storage trends", subtitle: "Changes in your known locations between two completed scans.")
-                EmptyState(title: catalog.isScanning ? "Scanning known locations…" : "No scan recorded yet",
-                           detail: "The first completed scan records a baseline. Check back a day later to see trends. Nothing scans in the background.", symbol: "chart.line.uptrend.xyaxis")
+                SkeletonRows(.line, identifier: "growthSkeleton")
+            } else {
+                PageHeader(title: "Storage trends", subtitle: "Changes in your known locations between two completed scans.")
+                EmptyState(title: "No scans yet", detail: "A completed scan records a baseline. Check back a day later to see trends.",
+                           symbol: "chart.line.uptrend.xyaxis", action: EmptyStateAction("Scan now", perform: scanNow), identifier: "growthEmpty")
             }
             if let error = model.error, model.comparison != nil { StatusRow(text: error, symbol: "exclamationmark.circle", role: .caution) }
             Text(GrowthPresentation.retention).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)

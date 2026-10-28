@@ -73,7 +73,9 @@ public actor ExclusionStore {
         guard flock(descriptor, LOCK_EX) == 0 else { throw CocoaError(.fileWriteNoPermission) }
         return try body()
     }
-    private func read() throws -> ExclusionPolicy {
+    private func read() throws -> ExclusionPolicy { try Self.policy(readingOnly: directory) }
+    /// The saved rules without the lock or creating anything, for a read-only report (#319): a missing file means none.
+    public static func policy(readingOnly directory: URL) throws -> ExclusionPolicy {
         let file = directory.appendingPathComponent("rules-v1.json")
         var info = stat()
         if lstat(file.path, &info) != 0 {

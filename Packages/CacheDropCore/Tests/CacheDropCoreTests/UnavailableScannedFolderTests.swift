@@ -14,7 +14,7 @@ import Testing
 
 @Test func theExplorerRowNamesTheReasonAndWhenTheFolderWasLastObserved() {
     #expect(UnavailableScannedFolder.text(reason: "Folder not found", lastObserved: "27 Oct 2026 at 10:02")
-        == "Folder not found · last observed 27 Oct 2026 at 10:02")
+        == "Folder not found · last scanned 27 Oct 2026 at 10:02")
     #expect(UnavailableScannedFolder.text(reason: "Folder not found", lastObserved: nil) == "Folder not found")
     // #257: a folder that is there but unreadable gives its reason alone, as Overview does; a date wouldn't explain it.
     #expect(UnavailableScannedFolder.text(reason: "Access unavailable", lastObserved: "27 Oct 2026 at 10:02") == "Access unavailable")
@@ -23,7 +23,7 @@ import Testing
 /// #254: Overview tells a deleted or moved folder from one that is there but unreadable, in the explorer's words.
 @Test func overviewSaysFolderNotFoundWithTheLastObservationOnlyWhenTheFolderIsGone() {
     #expect(UnavailableScannedFolder.overviewText(name: "Picked", reason: "Folder not found", lastObserved: "27 Oct 2026 at 10:02")
-        == "Picked · Folder not found · last observed 27 Oct 2026 at 10:02")
+        == "Picked · Folder not found · last scanned 27 Oct 2026 at 10:02")
     #expect(UnavailableScannedFolder.overviewText(name: "Picked", reason: "Folder not found", lastObserved: nil) == "Picked · Folder not found")
     // Present but unreadable keeps today's row: no last observation, which wouldn't explain the problem.
     #expect(UnavailableScannedFolder.overviewText(name: "Downloads", reason: "Access unavailable", lastObserved: "27 Oct 2026 at 10:02")

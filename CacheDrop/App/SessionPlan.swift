@@ -31,7 +31,7 @@ struct RefreshRequest: Sendable {
     }
     /// "X of this goes to Trash", only when the selection includes Trash-bound items (that space stays used until Trash is emptied).
     var workspaceTrashNote: String? {
-        catalog.selectedTrashBytes.map { ByteCountFormatter.string(fromByteCount: $0, countStyle: .decimal) + " of this goes to Trash" }
+        CacheDropDesign.goesToTrash(catalog.selectedCandidates)
     }
     /// The last run left records whose outcome is unknown; they must be reviewed before another plan.
     var requiresRecoveryReview: Bool {
@@ -54,7 +54,7 @@ struct RefreshRequest: Sendable {
     func invalidateCoverage() {
         refreshRequests.removeAll(); scans.removeAll()
         catalog.forgetPickedFiles()
-        message = "Exclusion settings changed. Recheck selected locations to see the new coverage."
+        message = "Protected items changed. Scan again to see what’s offered now."
     }
     func expectExclusions(_ fingerprint: String) {
         if expectedExclusionFingerprint != fingerprint { invalidateCoverage(); expectedExclusionFingerprint = fingerprint }
@@ -114,34 +114,53 @@ struct RefreshRequest: Sendable {
     func canReview(_ source: CleanupSelections.Source) -> Bool {
         switch source { case .plan: canReview; case .smartClean: canReviewSmartClean; case .applications: canReviewApplications }
     }
+    /// A page's Review cleanup or Clean up is running its click-time checks (#308): the button shows it is busy and
+    /// ignores more clicks until they end.
+    private(set) var isCheckingReview = false
+    /// Runs one page's click-time checks; nil when another page's are already running.
+    func checkingReview(_ prepare: () async throws -> WorkspaceCleanupReview) async throws -> WorkspaceCleanupReview? {
+        guard !isCheckingReview else { return nil }
+        isCheckingReview = true
+        defer { isCheckingReview = false }
+        return try await prepare()
+    }
     /// Smart clean's review (#141): its own selection, checked now, through the same review and executor as the plan.
     func prepareSmartCleanReview() async throws -> WorkspaceCleanupReview {
         guard canReviewSmartClean else { throw PlanReviewError.changed }
-        let catalogVersion = catalog.selectionRevision
-        guard let items = await catalog.smartCleanCheckedNow() else { throw PlanReviewError.changed }
+        let catalogVersion = catalog.selectionRevision(for: .smartClean)
+        guard let items = await catalog.smartCleanCheckedNow() else { throw failure }
         guard !items.isEmpty else { throw PlanReviewError.nothingToClean }
         return try await review(items, from: .smartClean, catalogVersion: catalogVersion)
     }
     /// The Applications page's review: its chosen items, through the plan's review and executor.
     func prepareApplicationsReview() async throws -> WorkspaceCleanupReview {
         guard canReviewApplications else { throw PlanReviewError.changed }
-        return try await review(catalog.applicationsSelected, from: .applications, catalogVersion: catalog.selectionRevision)
+        return try await review(catalog.applicationsSelected, from: .applications, catalogVersion: catalog.selectionRevision(for: .applications))
     }
     /// A page's review of `items` through the plan's review, refused when the page's choices changed meanwhile.
     private func review(_ items: [Candidate], from source: CleanupSelections.Source, catalogVersion: UInt64) async throws -> WorkspaceCleanupReview {
         let review = await catalog.prepareReview(of: items)
-        guard let review, canReview(source), catalog.selectionRevision == catalogVersion else { throw PlanReviewError.changed }
+        guard let review else { throw failure }
+        guard canReview(source), catalog.selectionRevision(for: source) == catalogVersion else { throw PlanReviewError.changed }
         return WorkspaceCleanupReview(catalog: review, catalogVersion: catalogVersion, source: source)
     }
     func prepareWorkspaceReview() async throws -> WorkspaceCleanupReview {
         guard canReview else { throw PlanReviewError.changed }
-        let catalogVersion = catalog.selectionRevision
+        let catalogVersion = catalog.selectionRevision(for: .plan)
         let items = catalog.selectedCount > 0 ? await catalog.prepareReview() : nil
-        guard canReview, catalog.selectionRevision == catalogVersion, catalog.selectedCount == 0 || items != nil else { throw PlanReviewError.changed }
+        if catalog.selectedCount > 0, items == nil, catalog.settingsUnreadable { throw PlanReviewError.settingsUnreadable }
+        guard canReview, catalog.selectionRevision(for: .plan) == catalogVersion, catalog.selectedCount == 0 || items != nil else { throw PlanReviewError.changed }
         return WorkspaceCleanupReview(catalog: items, catalogVersion: catalogVersion)
     }
+    /// Why a review couldn't be built: the settings couldn't be read, or the choices changed meanwhile.
+    private var failure: PlanReviewError { catalog.settingsUnreadable ? .settingsUnreadable : .changed }
     func executeWorkspace(_ review: WorkspaceCleanupReview) async throws {
-        guard canReview(review.source), catalog.selectionRevision == review.catalogVersion else { throw PlanReviewError.changed }
+        guard canReview(review.source), catalog.selectionRevision(for: review.source) == review.catalogVersion else { throw PlanReviewError.changed }
+        await run(review)
+        // A run empties the catalog, so CacheDrop scans again by itself, whichever page is open (#306).
+        await catalog.rescan()
+    }
+    private func run(_ review: WorkspaceCleanupReview) async {
         runSource = review.source
         let cancellation = CleanupCancellation()
         workspaceCancellation = cancellation; workspaceStopRequested = false
@@ -165,7 +184,21 @@ struct RefreshRequest: Sendable {
         isRefreshingBatch = false; refreshRequests.removeAll(); AppLifecycleController.shared.hasPendingPlan = hasPendingChoicesOnAnyPage
     }
 }
-enum PlanReviewError: Error { case changed, nothingToClean }
+enum PlanReviewError: Error {
+    case changed, nothingToClean
+    /// The Protected items settings couldn't be read; the page shows `SettingsUnreadableNotice` instead (#310).
+    case settingsUnreadable
+    /// What every page that cleans says when its choices changed before or under its review sheet (#307).
+    static let changedMessage = "Your choices changed. Check the items and try again."
+    /// The page's line for a review that couldn't open; nil when `SettingsUnreadableNotice` already says why (#310).
+    static func message(for error: Error) -> String? {
+        switch error as? PlanReviewError {
+        case .settingsUnreadable: nil
+        case .nothingToClean: "Nothing here can be cleaned right now. Scan again."
+        default: changedMessage
+        }
+    }
+}
 
 @MainActor @Observable final class CleanupPlanPresentation {
     var search = ""
@@ -190,6 +223,8 @@ struct LiveCleanupPlanView: View {
     var backToExplorer: (() -> Void)? = nil
     var backToExplorerDestination = "Explore storage"
     @Bindable var presentation: CleanupPlanPresentation
+    /// Where the plan's empty state leads (#321).
+    var exploreStorage: (() -> Void)? = nil
     @State private var review: WorkspaceCleanupReview?
     @State private var approvalError: String?
     @State private var reviewFocusRequest = 0
@@ -209,8 +244,9 @@ struct LiveCleanupPlanView: View {
                              identifier: "liveSelectionSummary", consequence: selection.workspaceTrashNote, title: "Potential space released",
                              consequenceIdentifier: "liveSelectionTrash")
                 .help("Sizes are estimates from the scan, not guaranteed space freed. Linked files count once. Each item is checked again just before CacheDrop acts on it.")
+            SettingsUnreadableNotice(model: selection.catalog)
             if let approvalError { StatusRow(text: approvalError, symbol: "exclamationmark.circle", role: .caution) }
-            CatalogPlanSection(model: selection.catalog, expanded: $presentation.expandedCategories)
+            CatalogPlanSection(model: selection.catalog, expanded: $presentation.expandedCategories, exploreStorage: exploreStorage)
         }.padding(CacheDropDesign.Space.page).frame(maxWidth: .infinity, alignment: .leading)
             .background(alignment: .topLeading) { DestinationViewport(offset: $presentation.offset).frame(width: 0, height: 0) }
         }
@@ -218,19 +254,26 @@ struct LiveCleanupPlanView: View {
         CleanupActionBar(selection: selection, source: .plan, viewHistory: viewHistory, reviewRecovery: reviewRecovery) {
             if let newPlan { Button("Start a new plan", action: newPlan).buttonStyle(.borderedProminent) }
         } idle: {
-            ReviewCleanupButton(enabled: selection.canReview, focusRequest: reviewFocusRequest) { Task { await openReview() } }.fixedSize()
+            BusyAction(busy: selection.isCheckingReview) {
+                ReviewCleanupButton(enabled: selection.canReview && !selection.isCheckingReview, focusRequest: reviewFocusRequest,
+                                    tooltip: selection.catalog.isScanning ? CacheDropDesign.waitForScanHelp : nil) { Task { await openReview() } }.fixedSize()
+            }
         }
         }
         .sheet(item: $review, onDismiss: { reviewFocusRequest += 1 }) { snapshot in
             WorkspaceCleanupConfirmationView(review: snapshot, cancel: { review = nil }) {
                 review = nil
-                Task { do { try await selection.executeWorkspace(snapshot) } catch { approvalError = "The plan changed. Review the latest items before approving." } }
+                Task { do { try await selection.executeWorkspace(snapshot) } catch { approvalError = PlanReviewError.changedMessage } }
             }
         }
-        .onChange(of: selection.catalog.selectionRevision) { _, _ in if review != nil { review = nil } }
+        // The sheet closes only when the choices it was built from changed, and the page says so (#307).
+        .onChange(of: selection.catalog.selectionRevision(for: .plan)) { _, _ in if review != nil { review = nil; approvalError = PlanReviewError.changedMessage } }
     }
     private func openReview() async {
-        do { review = try await selection.prepareWorkspaceReview(); approvalError = nil } catch { approvalError = "Your choices changed. Review the latest items and try again." }
+        do {
+            guard let checked = try await selection.checkingReview(selection.prepareWorkspaceReview) else { return }
+            review = checked; approvalError = nil
+        } catch { approvalError = PlanReviewError.message(for: error) }
     }
 }
 
@@ -247,10 +290,11 @@ struct CleanupRunSection: View {
     let selection: SessionPlan
     var body: some View {
         VStack(alignment: .leading, spacing: CacheDropDesign.Space.xl) {
-            PageHeader(title: selection.workspaceRunning ? "Running cleanup" : "Cleanup results")
+            PageHeader(title: selection.workspaceRunning ? "Cleaning up…" : "Cleanup results")
             if selection.catalog.isRunning { ProgressView(selection.catalog.dryRun ? "Checking selected items…" : "Cleaning selected items…") }
             if let result = selection.catalog.result { CatalogResultsSection(result: result, catalog: selection.catalog.catalog) }
             if let message = selection.catalog.message { StatusRow(text: message, symbol: "exclamationmark.triangle", role: .caution) }
+            SettingsUnreadableNotice(model: selection.catalog)
         }.padding(CacheDropDesign.Space.page)
     }
 }
@@ -261,6 +305,8 @@ struct CleanupActionBar<Finish: View, Idle: View>: View {
     let source: CleanupSelections.Source
     var viewHistory: (() -> Void)? = nil
     var reviewRecovery: (() -> Void)? = nil
+    /// The idle bar's note, such as how many items are ticked (#295).
+    var idleNote: String? = nil
     @ViewBuilder var finish: () -> Finish
     @ViewBuilder var idle: () -> Idle
     var body: some View {
@@ -269,22 +315,22 @@ struct CleanupActionBar<Finish: View, Idle: View>: View {
         } else if selection.showsRun(for: source) {
             ActionStrip(message: selection.requiresRecoveryReview ? recoveryNote : nil) {
                 if let viewHistory { Button("View history", action: viewHistory) }
-                if selection.requiresRecoveryReview, let reviewRecovery { Button("Review recovery", action: reviewRecovery) }
+                if selection.requiresRecoveryReview, let reviewRecovery { Button("Review interrupted cleanup", action: reviewRecovery) }
                 finish()
             }
         } else {
-            ActionStrip(message: nil) { idle() }
+            ActionStrip(message: idleNote) { idle() }
         }
     }
     private var recoveryNote: String {
-        source == .plan ? "Review unresolved records before making another plan." : "Review unresolved records before cleaning again."
+        source == .plan ? "Review the interrupted cleanup before making another plan." : "Review the interrupted cleanup before cleaning again."
     }
 }
 /// The running cleanup's one action.
 struct CleanupStopStrip: View {
     let selection: SessionPlan
     var body: some View {
-        ActionStrip(message: "Stopping starts no new items and stops a running cleanup tool, which may have cleaned part of its cache; work it handed to Docker or the Simulator may still finish. Completed Trash moves and cache removals are not rolled back.", showsBackgroundWork: false, wrapsNote: true) {
+        ActionStrip(message: "Stopping won’t undo what’s done. A tool stopped midway may have removed part of its cache.", showsBackgroundWork: false, wrapsNote: true) {
             Button(selection.workspaceStopRequested ? "Stop requested" : "Stop cleanup") { selection.cancelWorkspace() }.disabled(selection.workspaceStopRequested)
         }
     }
@@ -302,7 +348,7 @@ struct WorkspaceCleanupConfirmationView: View {
                 }.frame(maxWidth: .infinity, alignment: .leading)
             }
             Divider()
-            HStack { Button("Cancel", action: cancel).keyboardShortcut(.cancelAction); Spacer(); Button("Clean up", action: approve).buttonStyle(.borderedProminent) }
-        }.padding(CacheDropDesign.Space.xl).frame(width: 640, height: 520).background(CacheDropDesign.reading)
+            SheetFooter { Button("Cancel", action: cancel).keyboardShortcut(.cancelAction); Button("Clean up", action: approve).buttonStyle(.borderedProminent) }
+        }.padding(CacheDropDesign.Space.xl).frame(width: 640, height: 520).background(CacheDropDesign.reading).cacheDropButtonRule()
     }
 }

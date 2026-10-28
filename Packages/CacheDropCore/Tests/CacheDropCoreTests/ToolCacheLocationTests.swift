@@ -45,7 +45,7 @@ private func execute(_ candidate: Candidate, catalog: Catalog, home: URL) async 
     #expect(found.map(\.url.path) == [home.appendingPathComponent("Developer/npm-cache/_cacache").path])
     #expect(found.first?.logicalBytes == 3000)
     // Where the folder came from is on the item, so the plan stays quiet (#206).
-    #expect(found.first?.folderSource == "Named by `npm config get cache`")
+    #expect(found.first?.folderSource == "Location from npm")
     #expect(!discovery.notes.contains { $0.ruleID == "npm-cache" })
 
     let record = try await execute(try #require(found.first), catalog: catalog, home: home)
@@ -63,7 +63,7 @@ private func execute(_ candidate: Candidate, catalog: Catalog, home: URL) async 
     #expect(discovery.candidates.filter { $0.ruleID == "npm-cache" }.map(\.url.path) == [home.appendingPathComponent(".npm/_cacache").path])
     #expect(!discovery.notes.contains { $0.ruleID == "npm-cache" })
     // The tool confirmed it, and the item says so (#206).
-    #expect(discovery.candidates.first { $0.ruleID == "npm-cache" }?.folderSource == "Named by `npm config get cache`")
+    #expect(discovery.candidates.first { $0.ruleID == "npm-cache" }?.folderSource == "Location from npm")
 }
 
 /// npm with a short time limit on its question, so a stand-in that hangs is stopped quickly.
@@ -90,7 +90,7 @@ private func npmRuleAskingWithin(_ timeout: TimeInterval) throws -> Catalog {
         let npm = try fakeNPM(home, answer: answer)
         let discovery = catalog.discovery(fixture: home, locateTool: onlyTool("npm", npm))
         #expect(discovery.candidates.filter { $0.ruleID == "npm-cache" }.map(\.url.path) == [home.appendingPathComponent(".npm/_cacache").path], "\(answer)")
-        #expect(discovery.notes == [CatalogNote(ruleID: "npm-cache", text: "npm didn’t say where its cache is (`npm config get cache`), so its usual folder is offered.")], "\(answer)")
+        #expect(discovery.notes == [CatalogNote(ruleID: "npm-cache", text: "npm didn’t say where its cache is, so its default folder is shown.")], "\(answer)")
     }
 }
 
@@ -101,8 +101,8 @@ private func npmRuleAskingWithin(_ timeout: TimeInterval) throws -> Catalog {
     try makeFolder(home, ".npm/_cacache")
     let discovery = Catalog(rules: fixtureRules).discovery(fixture: home)
     #expect(discovery.candidates.contains { $0.ruleID == "npm-cache" })
-    #expect(discovery.notes == [CatalogNote(ruleID: "npm-cache", text: "npm wasn’t found in a known location, so its usual folder is offered: that’s where npm keeps its cache unless it was set otherwise.")])
-    #expect(discovery.candidates.first { $0.ruleID == "npm-cache" }?.folderSource == "Usual folder")
+    #expect(discovery.notes == [CatalogNote(ruleID: "npm-cache", text: "CacheDrop couldn’t find npm, so its default cache folder is shown.")])
+    #expect(discovery.candidates.first { $0.ruleID == "npm-cache" }?.folderSource == "Default location")
 }
 
 /// Only each tool's known install locations are asked, never whatever is on a PATH.
@@ -134,9 +134,9 @@ private func npmRuleAskingWithin(_ timeout: TimeInterval) throws -> Catalog {
     try FileManager.default.createSymbolicLink(at: home.appendingPathComponent("linked"), withDestinationURL: outside.appendingPathComponent("npm"))
     let catalog = Catalog(rules: fixtureRules)
     let cases: [(String, String)] = [
-        ("\(outside.path)/npm", "npm names \(outside.path)/npm/_cacache as its cache (`npm config get cache`), which is outside your home folder, so it isn’t offered."),
-        ("\(home.path)/linked", "npm names ~/linked/_cacache as its cache (`npm config get cache`), which is outside your home folder, so it isn’t offered."),
-        ("\(home.path)/missing", "npm names ~/missing/_cacache as its cache (`npm config get cache`), but there’s no folder there, so it isn’t offered."),
+        ("\(outside.path)/npm", "npm names \(outside.path)/npm/_cacache as its cache, which is outside your home folder, so it isn’t offered."),
+        ("\(home.path)/linked", "npm names ~/linked/_cacache as its cache, which is outside your home folder, so it isn’t offered."),
+        ("\(home.path)/missing", "npm names ~/missing/_cacache as its cache, but there’s no folder there, so it isn’t offered."),
     ]
     for (answer, note) in cases {
         let npm = try fakeNPM(home, answer: "echo '\(answer)'")
@@ -150,7 +150,7 @@ private func npmRuleAskingWithin(_ timeout: TimeInterval) throws -> Catalog {
         let python = try fakeTool(home, "python3", asked: "-m pip cache dir", query: "echo '\(answer)'")
         let discovery = catalog.discovery(fixture: home, locateTool: onlyTool("python3", python))
         #expect(!discovery.candidates.contains { $0.ruleID == "pip-cache" }, "\(answer)")
-        #expect(discovery.notes.filter { $0.ruleID == "pip-cache" } == [CatalogNote(ruleID: "pip-cache", text: "pip names \(shown) as its cache (`python3 -m pip cache dir`), which holds more than its cache, so it isn’t offered.")], "\(answer)")
+        #expect(discovery.notes.filter { $0.ruleID == "pip-cache" } == [CatalogNote(ruleID: "pip-cache", text: "pip names \(shown) as its cache, which holds more than its cache, so it isn’t offered.")], "\(answer)")
     }
 }
 
@@ -164,7 +164,7 @@ private func npmRuleAskingWithin(_ timeout: TimeInterval) throws -> Catalog {
     let discovery = catalog.discovery(fixture: home, locateTool: onlyTool("python3", python))
     let candidate = try #require(discovery.candidates.first { $0.ruleID == "pip-cache" })
     #expect(candidate.url.path == home.appendingPathComponent(".pip-cache").path && candidate.logicalBytes == 700)
-    #expect(candidate.folderSource == "Named by `python3 -m pip cache dir`" && discovery.notes.isEmpty)
+    #expect(candidate.folderSource == "Location from pip" && discovery.notes.isEmpty)
     #expect(try await execute(candidate, catalog: catalog, home: home).state == .succeeded)
     #expect(!FileManager.default.fileExists(atPath: home.appendingPathComponent(".pip-cache").path))
     #expect(FileManager.default.fileExists(atPath: home.appendingPathComponent("Library/Caches/pip/entry").path))
@@ -181,7 +181,7 @@ private func npmRuleAskingWithin(_ timeout: TimeInterval) throws -> Catalog {
     let discovery = catalog.discovery(fixture: home, locateTool: onlyTool("pnpm", pnpm))
     let candidate = try #require(discovery.candidates.first { $0.ruleID == "pnpm-store" })
     #expect(candidate.url.path == home.appendingPathComponent("Developer/pnpm-store/v10").path)
-    #expect(candidate.folderSource == "Named by `pnpm store path`" && discovery.notes.isEmpty)
+    #expect(candidate.folderSource == "Location from pnpm" && discovery.notes.isEmpty)
     #expect(try await execute(candidate, catalog: catalog, home: home).state == .succeeded)
     #expect(try String(contentsOf: marker, encoding: .utf8) == "store prune\n")
     #expect(FileManager.default.fileExists(atPath: home.appendingPathComponent("Developer/pnpm-store/v10/entry").path))
@@ -199,7 +199,7 @@ private func npmRuleAskingWithin(_ timeout: TimeInterval) throws -> Catalog {
     let discovery = catalog.discovery(fixture: home, locateTool: onlyTool("brew", brew))
     let candidate = try #require(discovery.candidates.first { $0.ruleID == "homebrew" })
     #expect(candidate.url.path == home.appendingPathComponent(".brew-cache").path)
-    #expect(candidate.folderSource == "Named by `brew --cache`" && discovery.notes.isEmpty)
+    #expect(candidate.folderSource == "Location from Homebrew" && discovery.notes.isEmpty)
     #expect(try await execute(candidate, catalog: catalog, home: home).state == .succeeded)
     #expect(try String(contentsOf: marker, encoding: .utf8) == "cleanup -s\n")
     #expect(!FileManager.default.fileExists(atPath: home.appendingPathComponent(".brew-cache").path))
@@ -230,12 +230,12 @@ private func npmRuleAskingWithin(_ timeout: TimeInterval) throws -> Catalog {
         let pip = catalog.discovery(fixture: home, locateTool: onlyTool("python3", python))
         #expect(!pip.candidates.contains { $0.ruleID == "pip-cache" }, "\(folder)")
         #expect(pip.notes.filter { $0.ruleID == "pip-cache" }
-                == [CatalogNote(ruleID: "pip-cache", text: "pip names ~/\(folder) as its cache (`python3 -m pip cache dir`), \(why), so it isn’t offered.")], "\(folder)")
+                == [CatalogNote(ruleID: "pip-cache", text: "pip names ~/\(folder) as its cache, \(why), so it isn’t offered.")], "\(folder)")
         let brew = try fakeTool(home, "brew", asked: "--cache", query: "echo '\(home.path)/\(folder)'")
         let homebrew = catalog.discovery(fixture: home, locateTool: onlyTool("brew", brew))
         #expect(!homebrew.candidates.contains { $0.ruleID == "homebrew" }, "\(folder)")
         #expect(homebrew.notes.filter { $0.ruleID == "homebrew" }
-                == [CatalogNote(ruleID: "homebrew", text: "Homebrew names ~/\(folder) as its cache (`brew --cache`), \(why), so it isn’t offered.")], "\(folder)")
+                == [CatalogNote(ruleID: "homebrew", text: "Homebrew names ~/\(folder) as its cache, \(why), so it isn’t offered.")], "\(folder)")
     }
 }
 
@@ -248,7 +248,7 @@ private func npmRuleAskingWithin(_ timeout: TimeInterval) throws -> Catalog {
     let discovery = Catalog(rules: fixtureRules).discovery(fixture: home, locateTool: onlyTool("npm", npm))
     #expect(!discovery.candidates.contains { $0.ruleID == "npm-cache" })
     #expect(discovery.notes == [CatalogNote(ruleID: "npm-cache",
-                                            text: "npm names ~/Documents/proj/_cacache as its cache (`npm config get cache`), which is inside your Documents folder, so it isn’t offered.")])
+                                            text: "npm names ~/Documents/proj/_cacache as its cache, which is inside your Documents folder, so it isn’t offered.")])
 }
 
 /// Each tool's real cache layout is still offered: any one entry its docs describe is enough (#205).
@@ -286,7 +286,7 @@ private func npmRuleAskingWithin(_ timeout: TimeInterval) throws -> Catalog {
     let discovery = Catalog(rules: fixtureRules).discovery(fixture: home, locateTool: onlyTool("pnpm", pnpm))
     let candidate = try #require(discovery.candidates.first { $0.ruleID == "pnpm-store" })
     #expect(candidate.url.path == home.appendingPathComponent("Library/pnpm/store").path)
-    #expect(candidate.folderSource == "Named by `pnpm store path`")
+    #expect(candidate.folderSource == "Location from pnpm")
     #expect(!discovery.notes.contains { $0.ruleID == "pnpm-store" })
 }
 
@@ -390,7 +390,7 @@ private func writeConfig(_ home: URL, _ relative: String, _ text: String) throws
     try writeConfig(home, ".npmrc", "registry=https://registry.npmjs.org/\n# cache=~/Documents\n")
     let discovery = Catalog(rules: fixtureRules).discovery(fixture: home)
     #expect(discovery.candidates.filter { $0.ruleID == "npm-cache" }.map(\.url.path) == [home.appendingPathComponent(".npm/_cacache").path])
-    #expect(discovery.notes == [CatalogNote(ruleID: "npm-cache", text: "npm wasn’t found in a known location, so its usual folder is offered: that’s where npm keeps its cache unless it was set otherwise.")])
+    #expect(discovery.notes == [CatalogNote(ruleID: "npm-cache", text: "CacheDrop couldn’t find npm, so its default cache folder is shown.")])
 }
 
 /// The write-scope checks run again just before acting: a configured pip cache that no longer looks like one is kept.
@@ -487,7 +487,7 @@ private func writeConfig(_ home: URL, _ relative: String, _ text: String) throws
     let catalog = Catalog(rules: fixtureRules)
     let pip = try #require(catalog.discovery(fixture: home, locateTool: onlyTool("python3", python)).candidates.first { $0.ruleID == "pip-cache" })
     let homebrew = try #require(catalog.discovery(fixture: home, locateTool: onlyTool("brew", brew)).candidates.first { $0.ruleID == "homebrew" })
-    #expect(pip.folderSource == "Named by `python3 -m pip cache dir`" && homebrew.folderSource == "Named by `brew --cache`")
+    #expect(pip.folderSource == "Location from pip" && homebrew.folderSource == "Location from Homebrew")
     for (folder, marker) in [(".pip-cache", "http-v2"), (".brew-cache", "downloads")] {
         try FileManager.default.removeItem(at: home.appendingPathComponent("\(folder)/\(marker)"))
         try makeFolder(home, "\(folder)/notes")

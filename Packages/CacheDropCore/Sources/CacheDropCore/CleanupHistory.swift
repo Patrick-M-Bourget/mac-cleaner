@@ -5,15 +5,20 @@ public struct CleanupHistoryRun: Sendable, Identifiable {
     public let records: [CleanupRecord]
     /// Ids of this run's Trash moves that were put back since (#159).
     public var putBackIDs: Set<String> = []
+    /// The reviewed records appended after this run was interrupted (#309); `records` already shows their findings.
+    public var reviewRecords: [CleanupRecord] = []
     public var capacity: CleanupCapacityObservation? { records.compactMap(\.capacityObservation).first }
-    public var plannedLogicalBytes: Int64 {
+    public var plannedLogicalBytes: Int64 { distinctSpaces.reduce(0) { $0 + $1.logicalBytes } }
+    /// What the run planned, in the size Results shows (allocated where known), so both read the same (#312).
+    public var plannedBytes: Int64 { distinctSpaces.reduce(0) { $0 + $1.recordedBytes } }
+    private var distinctSpaces: [CleanupRecord] {
         var seen = Set<String>()
         // Docker's prunes share the folder that anchors them, but each is its own space (`SpaceKey`).
-        return records.filter { seen.insert(SpaceKey.of(resourceID: $0.resourceID, ruleID: $0.ruleID, action: $0.cleanupAction, item: $0.toolItem)).inserted }.reduce(0) { $0 + $1.logicalBytes }
+        return records.filter { seen.insert(SpaceKey.of(resourceID: $0.resourceID, ruleID: $0.ruleID, action: $0.cleanupAction, item: $0.toolItem)).inserted }
     }
     public var trashHeldAllocatedBytes: Int64? {
         var seen = Set<String>()
-        let successes = records.filter { $0.state == .succeeded && $0.cleanupAction == .trash && !putBackIDs.contains($0.id) && seen.insert($0.resourceID).inserted }
+        let successes = records.filter { $0.state == .succeeded && $0.cleanupAction == .trash && $0.recoveryFinding != .gone && !putBackIDs.contains($0.id) && seen.insert($0.resourceID).inserted }
         guard successes.allSatisfy({ $0.allocatedBytes != nil }) else { return nil }
         return successes.reduce(0) { $0 + ($1.allocatedBytes ?? 0) }
     }
@@ -32,8 +37,11 @@ public struct CleanupHistorySnapshot: Sendable {
         var completed: [CleanupHistoryRun] = []
         var protected = 0
         for (id, records) in groups {
-            if records.contains(where: { [.pending, .intent, .unknown].contains($0.state) }) { protected += records.count }
-            else { completed.append(CleanupHistoryRun(id: id, records: records, putBackIDs: putBack.intersection(records.map(\.id)))) }
+            let batch = ReviewedBatch(records)
+            if batch.isInterrupted { protected += records.count }
+            else {
+                completed.append(CleanupHistoryRun(id: id, records: batch.shown, putBackIDs: putBack.intersection(batch.items.map(\.id)), reviewRecords: batch.reviews))
+            }
         }
         completedRuns = completed.sorted { $0.date > $1.date }
         protectedRecordCount = protected

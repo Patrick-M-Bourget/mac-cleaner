@@ -82,11 +82,11 @@ private func rule(requiringFullDiskAccess: Bool) -> CleanupRule {
 }
 
 @Test func theCoverageTableSaysWhetherProtectedAppDataIsIncluded() {
-    #expect(FullDiskAccessGuide.coverage(nil).map(\.title) == ["Current coverage", "Protected app data"])
-    #expect(FullDiskAccessGuide.coverage(.granted).map(\.value) == ["Your folders and known locations", "Included"])
-    #expect(FullDiskAccessGuide.coverage(.notGranted).map(\.value) == ["Your folders and known locations", "Not included"])
-    #expect(FullDiskAccessGuide.coverage(.unknown).map(\.value) == ["Your folders and known locations", "Couldn’t check"])
-    #expect(FullDiskAccessGuide.coverage(nil).map(\.value) == ["Your folders and known locations", "Checking…"])
+    #expect(FullDiskAccessGuide.coverage(nil).map(\.title) == ["Scanned now", "Protected app data"])
+    #expect(FullDiskAccessGuide.coverage(.granted).map(\.value) == ["Your folders and app caches", "Included"])
+    #expect(FullDiskAccessGuide.coverage(.notGranted).map(\.value) == ["Your folders and app caches", "Not included"])
+    #expect(FullDiskAccessGuide.coverage(.unknown).map(\.value) == ["Your folders and app caches", "Couldn’t check"])
+    #expect(FullDiskAccessGuide.coverage(nil).map(\.value) == ["Your folders and app caches", "Checking…"])
     #expect(FullDiskAccessGuide.coverage(.granted).map(\.included) == [true, true])
     #expect(FullDiskAccessGuide.coverage(.notGranted).map(\.included) == [true, false])
 }

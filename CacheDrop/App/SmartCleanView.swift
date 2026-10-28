@@ -2,8 +2,8 @@ import AppKit
 import CacheDropCore
 import SwiftUI
 
-/// Smart clean (#141): the recommended plan on its own page. Only data that rebuilds itself, grouped by category, all ticked
-/// and each untickable, with one Clean up that opens the review sheet. Its selection is its own; the Cleanup plan's never changes.
+/// Smart clean (#141, #319): the recommended plan on its own page, grouped by category with one consequence line each, all
+/// ticked and each untickable, with one Clean up that opens the review sheet. Its selection is its own; the Cleanup plan's never changes.
 struct SmartCleanView: View {
     let selection: SessionPlan
     /// Opens the Cleanup plan, with a category open when one is named.
@@ -12,8 +12,12 @@ struct SmartCleanView: View {
     var reviewRecovery: (() -> Void)? = nil
     /// Which categories are open, kept by the caller like the plan's `CleanupPlanPresentation` (Decision 48).
     let presentation: SmartCleanPresentation
+    /// The workspace's Scan again, for the state that says nothing here can be cleaned (#321).
+    var scanAgain: () -> Void = {}
     @State private var review: WorkspaceCleanupReview?
     @State private var approvalError: String?
+    /// Clean up found nothing it can clean since the scan: the page says so, with Scan again (#321).
+    @State private var nothingToClean = false
     private var model: CatalogCleanupModel { selection.catalog }
 
     var body: some View {
@@ -24,38 +28,54 @@ struct SmartCleanView: View {
             CleanupActionBar(selection: selection, source: .smartClean, viewHistory: viewHistory, reviewRecovery: reviewRecovery) {
                 Button("Done") { selection.dismissResult() }.buttonStyle(.borderedProminent).accessibilityIdentifier("smartCleanDone")
             } idle: {
-                Button("Clean up") { Task { await openReview() } }.buttonStyle(.borderedProminent).controlSize(.large)
-                    .disabled(!selection.canReviewSmartClean).accessibilityIdentifier("smartCleanCleanUp")
+                BusyAction(busy: selection.isCheckingReview) {
+                    Button("Clean up") { Task { await openReview() } }.buttonStyle(.borderedProminent).controlSize(.large)
+                        .disabled(!selection.canReviewSmartClean).accessibilityIdentifier("smartCleanCleanUp")
+                }.help(model.isScanning ? CacheDropDesign.waitForScanHelp : "")
             }
         }
         .sheet(item: $review) { snapshot in
             WorkspaceCleanupConfirmationView(review: snapshot, cancel: { review = nil }) {
                 review = nil
-                Task { do { try await selection.executeWorkspace(snapshot) } catch { approvalError = "Smart clean changed. Review the latest items before cleaning." } }
+                Task { do { try await selection.executeWorkspace(snapshot) } catch { approvalError = PlanReviewError.changedMessage } }
             }
         }
-        .onChange(of: model.selectionRevision) { _, _ in if review != nil { review = nil } }
-        .task { await model.scanIfNeeded() }
+        // The sheet closes only when the choices it was built from changed, and the page says so (#307).
+        .onChange(of: model.selectionRevision(for: .smartClean)) { _, _ in if review != nil { review = nil; approvalError = PlanReviewError.changedMessage } }
+        .onChange(of: model.isScanning) { _, scanning in if scanning { nothingToClean = false } }
     }
 
     private var page: some View {
         let items = model.recommendedCandidates
         let rows = CatalogOverview(catalog: model.catalog, candidates: items).rows
         return VStack(alignment: .leading, spacing: CacheDropDesign.Space.lg) {
-            PageHeader(title: title, subtitle: "Rebuildable caches, build files and logs. Never your files.")
-                .accessibilityElement(children: .combine).accessibilityIdentifier("smartCleanHeader")
-                .padding(.bottom, CacheDropDesign.Space.sm)
-            meter
-            if let approvalError { StatusRow(text: approvalError, symbol: "exclamationmark.circle", role: .caution, identifier: "smartCleanError") }
-            VStack(alignment: .leading, spacing: 0) {
-                ForEach(rows) { row in
-                    category(row, items: items)
-                    Divider().padding(.vertical, CacheDropDesign.Space.md)
+            VStack(alignment: .leading, spacing: CacheDropDesign.Space.sm) {
+                PageHeader(title: title, subtitle: "A safe plan from what takes up space. Untick anything you want to keep.")
+                    .accessibilityElement(children: .combine).accessibilityIdentifier("smartCleanHeader")
+                // "X of this goes to Trash", as under the plan's total (Decision 25).
+                if let trash = CacheDropDesign.goesToTrash(model.smartCleanCandidates) {
+                    Text(trash).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary).accessibilityIdentifier("smartCleanTrash")
                 }
+            }.padding(.bottom, CacheDropDesign.Space.sm)
+            meter
+            SettingsUnreadableNotice(model: model)
+            if let approvalError { StatusRow(text: approvalError, symbol: "exclamationmark.circle", role: .caution, identifier: "smartCleanError") }
+            if nothingToClean {
+                EmptyState(title: "Nothing here can be cleaned right now", symbol: "arrow.clockwise",
+                           action: EmptyStateAction("Scan again", perform: scanAgain), identifier: "smartCleanNothingToClean")
             }
-            if rows.isEmpty && model.hasScanned && !model.isScanning {
-                Text("Nothing to clean right now.").font(.callout).foregroundStyle(.secondary)
+            // Nothing known yet: skeleton rows; a rescan dims the rows already shown (#308).
+            if !model.hasScanned {
+                SkeletonRows(.category, identifier: "smartCleanSkeleton")
+            } else {
+                VStack(alignment: .leading, spacing: 0) {
+                    ForEach(rows) { row in
+                        category(row, items: items)
+                        Divider().padding(.vertical, CacheDropDesign.Space.md)
+                    }
+                }.waitingForScan(model.isScanning)
             }
+            if rows.isEmpty && model.hasScanned && !model.isScanning && !model.settingsUnreadable { NothingToCleanUp(identifier: "smartCleanEmpty") }
             notIncluded
         }.padding(CacheDropDesign.Space.page).frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -89,7 +109,9 @@ struct SmartCleanView: View {
         let lines = lines(row, found: found)
         let expanded = Binding(get: { presentation.expandedCategories.contains(row.category) },
                                set: { if $0 { presentation.expandedCategories.insert(row.category) } else { presentation.expandedCategories.remove(row.category) } })
-        return CategoryRow(category: row.category.storageCategory, state: state, title: row.category.overviewTitle, detail: row.category.overviewDetail,
+        // One consequence line per category (#319), from what its rules do.
+        let consequence = SmartCleanConsequence.line(for: row.category, rules: row.rules)
+        return CategoryRow(category: row.category.storageCategory, state: state, title: row.category.overviewTitle, detail: consequence,
                            size: row.valueText, enabled: model.canEdit, identifier: "smartCleanCategory-" + row.id,
                            itemCount: lines.count > 1 ? lines.count : nil, expanded: expanded,
                            toggle: { model.setSmartClean(found, state != .checked) }) {
@@ -127,7 +149,7 @@ struct SmartCleanView: View {
 
     /// What Smart clean leaves out, each a link to the Cleanup plan, where it can be chosen by hand.
     private var notIncluded: some View {
-        let kinds: [(title: String, category: CatalogCategory?)] = [("Trash items", .downloads), ("models", .models), ("iCloud copies", .icloud),
+        let kinds: [(title: String, category: CatalogCategory?)] = [("newer downloads", .downloads), ("models", .models), ("iCloud copies", .icloud),
                                                                     ("your files", .files), ("anything a running app is using", nil)]
         return HStack(alignment: .firstTextBaseline, spacing: CacheDropDesign.Space.xs) {
             Text("Not included:").foregroundStyle(.secondary)
@@ -140,8 +162,11 @@ struct SmartCleanView: View {
     }
 
     private func openReview() async {
-        do { review = try await selection.prepareSmartCleanReview(); approvalError = nil }
-        catch PlanReviewError.nothingToClean { approvalError = "Nothing here can be cleaned right now. Scan again." }
-        catch { approvalError = "Smart clean changed. Review the latest items and try again." }
+        do {
+            guard let checked = try await selection.checkingReview(selection.prepareSmartCleanReview) else { return }
+            review = checked; approvalError = nil; nothingToClean = false
+        }
+        catch PlanReviewError.nothingToClean { approvalError = nil; nothingToClean = true }
+        catch { approvalError = PlanReviewError.message(for: error); nothingToClean = false }
     }
 }

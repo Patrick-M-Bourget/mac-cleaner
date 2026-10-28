@@ -29,7 +29,7 @@ public enum CheckRefusal: Sendable, Equatable {
         case .ownerRunning(let name): "\(name) is running. Quit it, then scan again."
         case .ownerUnknown(let name): "Couldn’t check whether \(name) is running."
         case .protected(let name): "Contains protected data (\(name))."
-        case .excluded: "Excluded in Settings."
+        case .excluded: "In Protected items, in Locations & access."
         case .notPermitted: "CacheDrop can’t change it without admin rights."
         case .cloud: "Stored in iCloud."
         case .inUse(let name): "\(name) is using it. It is kept."
@@ -46,8 +46,8 @@ public enum CheckRefusal: Sendable, Equatable {
         case .uncommittedChanges: "Its project has uncommitted changes. It is kept."
         case .trackedByGit: "Git tracks files in it. It is kept."
         case .appInstalled(let name): "\(name) is installed again, or CacheDrop couldn’t check. It is kept."
-        case .receiptsUnread: "Couldn’t read every installer record, so it is kept."
-        case .unrecognised(let name): "Holds files CacheDrop doesn’t recognise (\(name)), so it is kept."
+        case .receiptsUnread: "Couldn’t read every installer receipt, so it is kept."
+        case .unrecognised(let name): "Holds files CacheDrop doesn’t recognize (\(name)), so it is kept."
         case .notACache(let reason): reason
         }
     }

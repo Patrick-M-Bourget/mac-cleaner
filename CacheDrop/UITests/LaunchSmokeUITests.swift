@@ -1,5 +1,6 @@
 import XCTest
 import Darwin
+import CacheDropCore
 
 /// A fresh, owned state root so a launch never reads or writes the user's real app state.
 /// #299: the fixture folders a UI test makes in the runner's temp folder are removed after every test, whether it passed,
@@ -199,7 +200,7 @@ final class LaunchSmokeUITests: XCTestCase {
         XCTAssertTrue(sheet.staticTexts["Broader access is optional"].waitForExistence(timeout: 5))
         let summary = sheet.staticTexts["fullDiskAccessSummary"]
         XCTAssertTrue((summary.value as? String ?? summary.label).contains("It’s broad authority, not read-only. CacheDrop’s scans stay read-only either way."))
-        XCTAssertTrue(sheet.staticTexts["Your folders and known locations"].exists)
+        XCTAssertTrue(sheet.staticTexts["Your folders and app caches"].exists)
         let protected = sheet.staticTexts["fullDiskAccessSheetStatus"]
         XCTAssertEqual(protected.value as? String ?? protected.label, "Not included")
         let howTo = sheet.staticTexts["fullDiskAccessHowTo"]
@@ -328,6 +329,30 @@ final class BackButtonUITests: XCTestCase {
     }
 }
 
+/// #313: custom exclusions are reached from Locations & access, as its Protected items row.
+final class ProtectedItemsUITests: XCTestCase {
+    @MainActor func testProtectedItemsOpensExclusionsFromLocationsAndReturns() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        let state = try configureIsolatedState(app)
+        let home = try configureCatalogHome(app)
+        defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
+        app.launch()
+        XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
+
+        app.typeKey("7", modifierFlags: .command)
+        let open = app.buttons["openProtectedItems"]
+        XCTAssertTrue(open.waitForExistence(timeout: 5))
+        revealAndClick(open, in: app)
+        let back = app.buttons["Back to Locations & access"]
+        assertBackButton(back, isAbove: "Protected items", in: app)
+        XCTAssertTrue(app.buttons["chooseExclusion"].waitForExistence(timeout: 5), "The page offers adding an exclusion")
+        back.click()
+        XCTAssertTrue(open.waitForExistence(timeout: 5))
+        XCTAssertFalse(back.exists)
+    }
+}
+
 /// Decision 25: appearance follows the system; the override lives in the Settings window (⌘,).
 final class AppearanceSettingsUITests: XCTestCase {
     @MainActor func testAppearanceOverrideLivesInTheSettingsWindow() throws {
@@ -381,20 +406,49 @@ final class KeyboardShortcutsUITests: XCTestCase {
     }
 }
 
-/// #158: the welcome shows on a first launch, never again once finished, and the Help menu opens it again.
-/// Other journeys never see it: disposable test runs treat it as seen unless `CACHEDROP_TEST_SHOW_WELCOME` asks for it.
-final class FirstRunWelcomeUITests: XCTestCase {
-    @MainActor func testWelcomeShowsOnceStartsTheScanAndOpensFromHelp() throws {
+/// #310: Scan again is disabled while a scan runs, on Overview and as the ⌘R menu command, never a silent no-op; it is
+/// enabled again once the scan ends. Its tooltip says "A scan is already running".
+final class ScanAgainUITests: XCTestCase {
+    @MainActor func testScanAgainIsDisabledWhileAScanRuns() throws {
         continueAfterFailure = false
         let app = XCUIApplication()
         let state = try configureIsolatedState(app)
         let home = try configureCatalogHome(app)
-        // The fixture's Safari folder refuses to open, as without Full Disk Access; opening it before step 3 shows
-        // that Start scan scanned again.
+        app.launchEnvironment["CACHEDROP_TEST_DISCOVERY_PAUSE"] = "0.3"
+        defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
+        app.launch()
+        XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
+        let button = app.buttons["overviewScanAgain"], command = app.menuBars.menuBarItems["View"].menuItems["Scan again"]
+        // #311: Overview's Scan again sits in the bottom bar, as on Storage trends.
+        XCTAssertTrue(button.waitForExistence(timeout: 5))
+        XCTAssertTrue(actionStrip(app).frame.contains(button.frame), "Overview's Scan again is in the bottom bar")
+        XCTAssertTrue(app.staticTexts["catalogScanProgress"].waitForExistence(timeout: 10), "The launch scan is running")
+        XCTAssertFalse(button.isEnabled, "Overview's Scan again waits for the running scan")
+        XCTAssertFalse(command.isEnabled, "⌘R waits for the running scan")
+        let enabled = NSPredicate(format: "isEnabled == true")
+        XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: enabled, object: button)], timeout: 120), .completed)
+        // The menu item's enabled state is validated separately from the button, so it may follow a moment later.
+        XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: enabled, object: command)], timeout: 10), .completed, "⌘R is enabled again")
+    }
+}
+
+/// #158: the welcome shows on a first launch, never again once finished, and the Help menu opens it again.
+/// #310: the launch scan runs behind it from the start, so its last step shows that scan's progress and ends with Done; Full
+/// Disk Access granted while that scan runs is picked up by one rescan when it ends, without CacheDrop becoming active again.
+/// Other journeys never see it: disposable test runs treat it as seen unless `CACHEDROP_TEST_SHOW_WELCOME` asks for it.
+final class FirstRunWelcomeUITests: XCTestCase {
+    @MainActor func testWelcomeShowsTheRunningScanPicksUpAGrantAndOpensFromHelp() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        let state = try configureIsolatedState(app)
+        let home = try configureCatalogHome(app)
+        // The fixture's Safari folder refuses to open, as without Full Disk Access, until the test grants it mid-scan.
         let safari = home.appendingPathComponent("Library/Safari")
         try FileManager.default.createDirectory(at: safari, withIntermediateDirectories: true)
         try FileManager.default.setAttributes([.posixPermissions: 0], ofItemAtPath: safari.path)
         app.launchEnvironment["CACHEDROP_TEST_SHOW_WELCOME"] = "1"
+        // Slow enough that the launch scan is still running at the last step.
+        app.launchEnvironment["CACHEDROP_TEST_DISCOVERY_PAUSE"] = "0.4"
         defer {
             app.terminate(); try? FileManager.default.removeItem(at: state)
             try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: safari.path); try? FileManager.default.removeItem(at: home)
@@ -411,15 +465,22 @@ final class FirstRunWelcomeUITests: XCTestCase {
         XCTAssertTrue(app.buttons["openFullDiskAccessSettings"].waitForExistence(timeout: 5)) // Not pressed: tests never open System Settings.
         app.buttons["closeFullDiskAccess"].click()
         XCTAssertFalse(app.buttons["openFullDiskAccessSettings"].waitForExistence(timeout: 2))
-
-        let denied = app.descendants(matching: .any)["overviewNotAccessible"]
-        XCTAssertTrue(denied.waitForExistence(timeout: 15), "The launch scan finished without Safari")
-        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: safari.path)
         app.buttons["welcomeContinue"].click()
-        app.buttons["welcomeStartScan"].click()
+
+        // Step 3: the launch scan is already running; there is no second scan to start.
+        XCTAssertTrue(app.descendants(matching: .any)["welcomeScanProgress"].waitForExistence(timeout: 5), "The last step shows the running scan")
+        XCTAssertTrue(app.sheets.staticTexts["Your first scan is running"].exists)
+        XCTAssertFalse(app.buttons["welcomeStartScan"].exists)
+        // Granted while the scan runs, as from step 2's System Settings link.
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: safari.path)
+        app.buttons["welcomeDone"].click()
         XCTAssertFalse(welcome.waitForExistence(timeout: 2))
+        XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 5))
+        // The scan that began without access ends without Safari, sees the grant and scans once more, by itself.
+        let denied = app.descendants(matching: .any)["overviewNotAccessible"]
+        XCTAssertTrue(denied.waitForExistence(timeout: 60), "The launch scan began without access")
         let gone = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"), object: denied)
-        XCTAssertEqual(XCTWaiter.wait(for: [gone], timeout: 15), .completed, "Start scan scanned again")
+        XCTAssertEqual(XCTWaiter.wait(for: [gone], timeout: 60), .completed, "The grant during the launch scan was picked up when it ended")
 
         app.terminate()
         app.launch()
@@ -462,7 +523,7 @@ final class ScannedLocationsUITests: XCTestCase {
         XCTAssertFalse(app.staticTexts.matching(NSPredicate(format: "value CONTAINS 'Recheck required'")).firstMatch.exists)
         XCTAssertFalse(app.staticTexts.matching(NSPredicate(format: "value CONTAINS 'Choose again to renew'")).firstMatch.exists)
 
-        let chooseAgain = app.buttons["overviewChooseAgain"]
+        let chooseAgain = app.links["overviewChooseAgain"]
         XCTAssertEqual(chooseAgain.label, "Choose again…")
         revealAndClick(chooseAgain, in: app)
         let panel = app.sheets.firstMatch.exists ? app.sheets.firstMatch : app.dialogs.firstMatch
@@ -471,12 +532,12 @@ final class ScannedLocationsUITests: XCTestCase {
         app.typeText(folder.path + "\n")
         panel.buttons["Remember folder"].click()
 
-        // Renewed and scanned in place: the row is gone and the folder can be explored.
-        XCTAssertTrue(app.links["Explore storage"].waitForExistence(timeout: 20))
+        // Renewed and scanned in place: the row is gone and the folder shows on Overview.
+        waitForScannedFolder(app)
         XCTAssertFalse(row.exists)
     }
 
-    /// #254: a scanned folder deleted since its scan says, as in the explorer, "Folder not found · last observed <time>",
+    /// #254: a scanned folder deleted since its scan says, as in the explorer, "Folder not found · last scanned <time>",
     /// with Choose again…, rather than "Access unavailable".
     @MainActor func testADeletedFolderSaysFolderNotFoundWithItsLastObservation() throws {
         continueAfterFailure = false
@@ -489,13 +550,13 @@ final class ScannedLocationsUITests: XCTestCase {
         try Data(repeating: 1, count: 4_000).write(to: folder.appendingPathComponent("entry.zip"))
         app.launch()
         XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
-        app.buttons["overviewScanFolder"].click()
+        app.links["overviewScanFolder"].click()
         let panel = app.sheets.firstMatch.exists ? app.sheets.firstMatch : app.dialogs.firstMatch
         XCTAssertTrue(panel.waitForExistence(timeout: 5))
         panel.typeKey("g", modifierFlags: [.command, .shift])
         app.typeText(folder.path + "\n")
         panel.buttons["Scan folder"].click()
-        XCTAssertTrue(app.links["Explore storage"].waitForExistence(timeout: 20))
+        waitForScannedFolder(app)
 
         // Deleted, then Scan again can't find it.
         try FileManager.default.removeItem(at: folder)
@@ -503,12 +564,12 @@ final class ScannedLocationsUITests: XCTestCase {
         let row = app.staticTexts["overviewLocationRecovery"]
         XCTAssertTrue(row.waitForExistence(timeout: 20))
         let text = row.value as? String ?? ""
-        XCTAssertTrue(text.hasPrefix(folder.lastPathComponent + " · Folder not found · last observed "), text)
+        XCTAssertTrue(text.hasPrefix(folder.lastPathComponent + " · Folder not found · last scanned "), text)
         XCTAssertFalse(text.contains("Access unavailable"), text)
-        XCTAssertEqual(app.buttons["overviewChooseAgain"].label, "Choose again…")
+        XCTAssertEqual(app.links["overviewChooseAgain"].label, "Choose again…")
     }
 
-    /// #231: two stale folders get a row each, each with its own Choose again…, and no grey "Current coverage" row.
+    /// #231: two stale folders get a row each, each with its own Choose again…, and no grey "Scanned now" row.
     @MainActor func testTwoStaleFoldersShowARowEach() throws {
         continueAfterFailure = false
         let app = XCUIApplication()
@@ -531,7 +592,68 @@ final class ScannedLocationsUITests: XCTestCase {
         XCTAssertTrue(rows.firstMatch.waitForExistence(timeout: 15))
         let texts = Set(rows.allElementsBoundByIndex.compactMap { $0.value as? String })
         XCTAssertEqual(texts, ["Downloads · Access unavailable", "Projects · Access unavailable"])
-        XCTAssertEqual(app.buttons.matching(identifier: "overviewChooseAgain").count, 2)
+        XCTAssertEqual(app.links.matching(identifier: "overviewChooseAgain").count, 2)
         XCTAssertFalse(app.staticTexts.matching(NSPredicate(format: "value CONTAINS 'Current coverage'")).firstMatch.exists)
+    }
+}
+
+/// #309: an interrupted cleanup is checked against disk when Recovery opens, then marked reviewed. Launch stays on Overview.
+final class RecoveryReviewUITests: XCTestCase {
+    /// A pending record for `file`, as a run claims it, then `state`, as a run left it.
+    private func record(_ file: URL, batch: UUID, state: String) throws -> CleanupRecord {
+        var info = stat(), folder = stat()
+        guard lstat(file.path, &info) == 0, lstat(file.deletingLastPathComponent().path, &folder) == 0 else { throw CocoaError(.fileReadNoSuchFile) }
+        let json: [String: Any] = [
+            "id": batch.uuidString + "|" + file.path, "batchID": batch.uuidString, "originalURL": file.absoluteString, "resourceID": "\(info.st_dev):\(info.st_ino)",
+            "logicalBytes": 3, "state": state, "message": "Started; outcome not yet recorded", "observedAt": 0, "approvedAt": 0,
+            "scopeURL": file.deletingLastPathComponent().absoluteString, "scopeResourceID": "\(folder.st_dev):\(folder.st_ino)",
+            "modifiedSeconds": Int64(info.st_mtimespec.tv_sec), "modifiedNanoseconds": Int64(info.st_mtimespec.tv_nsec),
+            "action": "moveToTrash", "policyVersion": 2, "ruleID": "downloads-installers",
+        ]
+        return try JSONDecoder().decode(CleanupRecord.self, from: JSONSerialization.data(withJSONObject: json))
+    }
+
+    @MainActor func testInterruptedCleanupIsCheckedAgainstDiskAndMarkedReviewed() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        let state = try configureIsolatedState(app)
+        let home = FileManager.default.temporaryDirectory.resolvingSymlinksInPath().appendingPathComponent("CacheDropTestHome-" + UUID().uuidString)
+        FixtureFolders.track(home)
+        let downloads = home.appendingPathComponent("Downloads"), trash = home.appendingPathComponent(".Trash")
+        for folder in [downloads, trash] { try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true) }
+        let files = ["Kept.dmg", "Trashed.dmg", "Gone.dmg"].map { downloads.appendingPathComponent($0) }
+        for file in files { try Data([1, 2, 3]).write(to: file) }
+        let batch = UUID()
+        let records = try files.map { try record($0, batch: batch, state: "intent") }
+        let journal = try SQLiteCleanupJournal(url: state.appendingPathComponent("cleanup.sqlite"))
+        XCTAssertTrue(try journal.claim(batchID: batch, records: records))
+        // The run quit after starting each item: one stayed, one reached the Trash, one is gone.
+        try FileManager.default.moveItem(at: files[1], to: trash.appendingPathComponent("Trashed.dmg"))
+        try FileManager.default.removeItem(at: files[2])
+        app.launchEnvironment["CACHEDROP_TEST_CATALOG_HOME"] = home.path
+        defer { app.terminate() }
+        app.launch()
+
+        XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10), "Launch opens on Overview, never on Recovery")
+        let review = app.buttons["Review interrupted cleanup"]
+        XCTAssertTrue(review.waitForExistence(timeout: 10), "Overview shows the interrupted cleanup banner")
+        review.click()
+        let expected = ["Kept.dmg": "Not removed", "Trashed.dmg": "Moved to Trash", "Gone.dmg": "Removed"]
+        for (name, title) in expected {
+            let row = app.staticTexts["recoveryState-" + name]
+            XCTAssertTrue(row.waitForExistence(timeout: 10), "\(name) shows its finding")
+            XCTAssertTrue((row.value as? String ?? row.label).hasPrefix(title + " · "), "\(name): \(row.value ?? row.label)")
+        }
+        app.buttons["recoveryMarkReviewed"].click()
+        XCTAssertTrue(app.staticTexts["recoveryMessage"].waitForExistence(timeout: 10))
+
+        // The banner is gone, and the journal holds the reviewed records beside the unchanged originals.
+        app.buttons["Overview"].firstMatch.click()
+        XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
+        XCTAssertFalse(app.buttons["Review interrupted cleanup"].exists)
+        let reader = try SQLiteCleanupJournal(url: state.appendingPathComponent("cleanup.sqlite"), readOnly: true)
+        XCTAssertTrue(try CleanupRecoverySnapshot(journal: reader).interruptedBatches.isEmpty)
+        XCTAssertEqual(try reader.records().filter { $0.reviewOf == nil }.map(\.state), [.intent, .intent, .intent])
+        XCTAssertEqual(try reader.completedHistory().completedRuns.first?.records.map(\.outcomeTitle), ["Not removed", "Moved to Trash", "Removed"])
     }
 }

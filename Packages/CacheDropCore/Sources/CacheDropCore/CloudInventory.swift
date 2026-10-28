@@ -41,6 +41,15 @@ public struct CloudInventoryReport: Sendable {
     public let unknownStateCount: Int
     /// The disposable feasibility gate does not establish safe eviction/pinning.
     public var evictionAvailable: Bool { false }
+    /// Overview's iCloud total reads "Unknown" while any file's membership or download state is unknown.
+    public var totalIsUnknown: Bool { unknownMembershipCount > 0 || unknownStateCount > 0 }
+    /// One plain line saying why the total is Unknown (#331); nil when it isn't. Counts only, never a file list.
+    public var unknownReason: String? {
+        func files(_ count: Int) -> String { count == 1 ? "1 file is" : "\(count) files are" }
+        let parts = [unknownMembershipCount > 0 ? "whether " + files(unknownMembershipCount) + " in iCloud" : nil,
+                     unknownStateCount > 0 ? "whether " + files(unknownStateCount) + " downloaded" : nil].compactMap { $0 }
+        return parts.isEmpty ? nil : "CacheDrop couldn't tell " + parts.joined(separator: ", or ") + "."
+    }
 }
 
 public extension ScanResult {

@@ -121,10 +121,15 @@ private func names(_ items: [Candidate], _ rule: String) -> Set<String> { Set(it
     #expect(!files.isEmpty && files.allSatisfy { check(home).check($0) == nil })
     let editor = InstalledApp(name: "Editor", bundleID: "com.maker.editor", path: "/Applications/Editor.app")
     let copy = InstalledApp(name: "Synth", bundleID: "com.maker.synth", path: "/Volumes/Studio/Applications/Synth.app")
+    let namesake = InstalledApp(name: "Synth", bundleID: "com.other.synth", path: "/Applications/Other Synth.app")
 
-    // Another app of the same maker, or a second copy of Synth, appeared since the scan: the files may be its.
-    #expect(files.allSatisfy { check(home, apps: Apps(installed: [synth, editor])).check($0) == .appInstalled("Synth") })
+    // A second copy of Synth appeared since the scan: the files may be its.
     #expect(files.allSatisfy { check(home, apps: Apps(installed: [synth, copy])).check($0) == .appInstalled("Synth") })
+    // Another app of the same maker: files named for Synth's own bundle ID are still Synth's (#305).
+    #expect(files.allSatisfy { check(home, apps: Apps(installed: [synth, editor])).check($0) == nil })
+    // Another maker's app named Synth: the folder only named like Synth may be its.
+    let folder = try #require(files.first { $0.url.lastPathComponent == "Synth" })
+    #expect(check(home, apps: Apps(installed: [synth, namesake])).check(folder) == .changed)
 }
 
 private struct Processes: ProcessListing {
@@ -169,6 +174,9 @@ private struct Processes: ProcessListing {
     #expect(!FileManager.default.fileExists(atPath: synth.path))
     let run = try #require(try journal.completedHistory().completedRuns.first)
     #expect(run.title == "Uninstalled Synth · 3 items")
+    // #312: the result row names the app, not the rule ("App · ~/Applications").
+    #expect(result.records.first { $0.ruleID == AppUninstall.appRuleID }?.uninstalledName == "Synth")
+    #expect(result.records.filter { $0.ruleID == AppUninstall.filesRuleID }.allSatisfy { $0.uninstalledName == nil })
     for record in result.records { #expect(TrashPutBack(journal: journal).putBack(record) == .restored(record.originalURL)) }
     #expect(chosen.allSatisfy { FileManager.default.fileExists(atPath: $0.url.path) })
 }
@@ -278,7 +286,7 @@ private struct Processes: ProcessListing {
     let found = scan(home, synth, Apps(installed: [synth]))
 
     #expect(names(found, AppUninstall.filesRuleID) == ["com.maker.synth.plist", "com.maker.synth", "com.maker.synthhelper.plist"], "Its files, ticked with the app")
-    #expect(names(found, AppUninstall.possiblyRelatedRuleID) == ["com.maker.other.plist"], "Another ID is only possibly related")
+    #expect(names(found, AppUninstall.possiblyRelatedRuleID).isEmpty, "Another ID's file is never offered with it (#305)")
     let chosen = found.filter { $0.ruleID != AppUninstall.possiblyRelatedRuleID }
     #expect(chosen.allSatisfy { check(home).check($0) == nil }, "The check before acting agrees")
     let journal = try SQLiteCleanupJournal(url: home.appendingPathComponent("journal.sqlite"))
@@ -286,4 +294,68 @@ private struct Processes: ProcessListing {
         .execute(CatalogApproval(candidates: chosen, previewOnly: false))
     #expect(result.records.count == 4 && result.records.allSatisfy { $0.state == .succeeded })
     #expect(!FileManager.default.fileExists(atPath: home.appendingPathComponent("Library/Preferences/com.maker.synth.plist").path))
+}
+
+/// #305: two apps of one maker, each with its own preferences, container and support folder.
+private func twoApps() throws -> (home: URL, synth: InstalledApp, pad: InstalledApp) {
+    let home = FileManager.default.temporaryDirectory.appendingPathComponent("CacheDropUninstall-\(UUID())").resolvingSymlinksInPath()
+    for relative in ["Applications/Synth.app/Contents/MacOS/Synth", "Applications/Pad.app/Contents/MacOS/Pad",
+                     "Library/Preferences/com.maker.synth.plist", "Library/Containers/com.maker.synth/Data/x", "Library/Application Support/Synth/presets",
+                     "Library/Preferences/com.maker.pad.plist", "Library/Containers/com.maker.pad/Data/x", "Library/Application Support/Pad/presets",
+                     "Library/Group Containers/group.com.maker.synth/x"] {
+        let file = home.appendingPathComponent(relative)
+        try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Data(repeating: 1, count: 200).write(to: file)
+    }
+    try FileManager.default.createDirectory(at: home.appendingPathComponent(".Trash"), withIntermediateDirectories: true)
+    let synth = InstalledApp(name: "Synth", bundleID: "com.maker.synth", path: home.appendingPathComponent("Applications/Synth.app").path)
+    let pad = InstalledApp(name: "Pad", bundleID: "com.maker.pad", path: home.appendingPathComponent("Applications/Pad.app").path)
+    return (home, synth, pad)
+}
+
+@Test func anAppOfAMakerWithAnotherAppInstalledIsUninstalledWithOnlyItsOwnFiles() throws {
+    let (home, synth, pad) = try twoApps()
+    defer { try? FileManager.default.removeItem(at: home) }
+    let apps = Apps(installed: [synth, pad])
+
+    let synths = scan(home, synth, apps), pads = scan(home, pad, apps)
+
+    #expect(names(synths, AppUninstall.filesRuleID) == ["com.maker.synth.plist", "com.maker.synth"], "Its own bundle ID's files, though Pad is installed")
+    #expect(names(synths, AppUninstall.possiblyRelatedRuleID) == ["Synth"])
+    #expect(names(pads, AppUninstall.filesRuleID) == ["com.maker.pad.plist", "com.maker.pad"])
+    #expect(names(pads, AppUninstall.possiblyRelatedRuleID) == ["Pad"])
+    #expect(!(synths + pads).contains { $0.url.lastPathComponent == "group.com.maker.synth" }, "The maker's apps may share a group container")
+    #expect((synths + pads).allSatisfy { check(home, apps: apps).check($0) == nil }, "The check before acting agrees")
+}
+
+@Test func onceOneAppOfAMakerIsGoneTheOthersItemsDoNotChange() async throws {
+    let (home, synth, pad) = try twoApps()
+    defer { try? FileManager.default.removeItem(at: home) }
+    let before = Set(scan(home, pad, Apps(installed: [synth, pad])).map(\.url))
+    let synths = scan(home, synth, Apps(installed: [synth, pad]))
+    let journal = try SQLiteCleanupJournal(url: home.appendingPathComponent("journal.sqlite"))
+    let result = await CleanupExecutor(journal: journal, check: check(home, apps: Apps(installed: [synth, pad])), measure: { _ in nil }, trash: HomeTrash(home: home))
+        .execute(CatalogApproval(candidates: synths.filter { $0.ruleID != AppUninstall.possiblyRelatedRuleID }, previewOnly: false))
+    #expect(result.records.count == 3 && result.records.allSatisfy { $0.state == .succeeded })
+    // Synth's support folder stays, as it wasn't ticked. Pad is installed, so its maker's files are no removed app's leftovers either.
+    let apps = Apps(installed: [pad])
+    #expect(RemovedAppLeftovers.scan(home: home, apps: apps, receipts: NoReceipts()).isEmpty)
+
+    let after = scan(home, pad, apps)
+
+    #expect(Set(after.map(\.url)) == before, "Synth's files are never Pad's")
+    #expect(!after.contains { $0.url.lastPathComponent.lowercased().contains("synth") })
+}
+
+@Test func aStaleScanCantUninstallAnotherAppsFileWithAnApp() throws {
+    let (home, synth, pad) = try twoApps()
+    defer { try? FileManager.default.removeItem(at: home) }
+    let apps = Apps(installed: [synth, pad])
+    let padTarget = try #require(scan(home, pad, apps).first?.uninstall)
+    // Synth's files, as a stale or wrong scan might have offered them with Pad.
+    let stale = scan(home, synth, apps).filter { $0.ruleID != AppUninstall.appRuleID }.map { $0.uninstalled(with: padTarget, ruleID: AppUninstall.filesRuleID) }
+    #expect(stale.count == 3)
+
+    #expect(stale.allSatisfy { check(home, apps: apps).check($0) == .changed })
+    #expect(stale.allSatisfy { check(home, apps: Apps(installed: [pad])).check($0) == .changed }, "Also once Synth is gone")
 }

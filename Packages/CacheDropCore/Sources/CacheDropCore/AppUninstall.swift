@@ -40,7 +40,7 @@ public enum AppUninstall {
         public var passwordPaths: [String] = []
         /// A plug-in product's support files weren't offered: an installer record couldn't be read (#291).
         public var receiptsUnread = false
-        /// A plug-in product's files that stay because CacheDrop doesn't recognise their kind (#291, Decision 53).
+        /// A plug-in product's files that stay because CacheDrop doesn't recognize their kind (#291, Decision 53).
         public var unrecognised = 0
         /// The app must be closed first (Decision 29): its bundle ID, its helpers' and any process run from inside it (#281).
         public var owner: RuleOwner { RuleOwner(name: name, bundleIDs: ([bundleID] + helpers).filter { !$0.isEmpty }, paths: [path] + (plugIn?.otherPaths ?? [])) }
@@ -87,8 +87,10 @@ public enum AppUninstall {
         // The app being uninstalled proves its own and its helpers' bundle IDs were an app's (#301): files named for them are its
         // files, without the container or saved state a removed app's would need (#251).
         let helpers = helperIDs(of: url), ownIDs = Set(([app.bundleID] + helpers).map { $0.lowercased() })
-        let found = RemovedAppLeftovers.scan(home: home, apps: Without(app: app, url: url, in: apps), receipts: receipts, exclusions: exclusions,
-                                             sizer: sizer, skipping: skipped).map { confirmingOwn($0, ids: ownIDs) }
+        let gone = Without(app: app, url: url, in: apps, own: ownIDs)
+        let found = RemovedAppLeftovers.scan(home: home, apps: gone, receipts: receipts, exclusions: exclusions, sizer: sizer, skipping: skipped)
+            .map { confirmingOwn($0, ids: ownIDs) }
+            .filter { item in item.leftover.map { gone.isOwn(item.url, tie: $0) } ?? false }
         let notInPlan = RemovedAppLeftovers.notOffered(by: offered, found), removable = notInPlan.filter { Removability.canMoveToTrash($0.url) }
         let target = Target(name: app.name, bundleID: app.bundleID, path: url.path, helpers: helpers,
                             needsPassword: notInPlan.count - removable.count, inPlan: found.count - notInPlan.count)
@@ -121,16 +123,20 @@ public enum AppUninstall {
     /// The check just before acting: never macOS's, CacheDrop's or license data, and only what macOS still lets the user move to
     /// the Trash without a password, whatever changed since the scan (Decision 50).
     /// An app's files keep the before-acting checks of a removed app's leftovers (#281), as if the app were gone: the tie still
-    /// holds, a group container is still an exact match, and no other app of the maker, or second copy of this one, appeared.
+    /// holds, a group container is still an exact match, and no second copy of it appeared. Only what is still its own by
+    /// `Without.isOwn` passes, so another app of its maker appearing keeps only what may be that app's (#305).
     static func refusal(for candidate: Candidate, rule: CleanupRule, below root: URL, apps: any AppPresence, receipts: LazyReceipts) -> CheckRefusal? {
         let url = candidate.url
         guard let app = candidate.uninstall else { return .changed }
         if rule.family == .plugInUninstall { return PlugInUninstall.refusal(for: candidate, receipts: receipts) }
         if rule.id != appRule.id {
             guard let tie = candidate.leftover else { return .changed }
-            let gone = Without(app: InstalledApp(name: app.name, bundleID: app.bundleID, path: app.path), url: URL(fileURLWithPath: app.path), in: apps)
+            let ids = Set(([app.bundleID] + app.helpers).map { $0.lowercased() })
+            let gone = Without(app: InstalledApp(name: app.name, bundleID: app.bundleID, path: app.path), url: URL(fileURLWithPath: app.path), in: apps, own: ids)
+            // Only what is still the app's own, whatever a stale scan tied it to (#305).
+            guard gone.isOwn(url, tie: tie) else { return .changed }
             // The app goes in the same run, so its own and its helpers' bundle IDs stand as the proof they were an app's (#301).
-            let own = tie.bundleID.map { ([app.bundleID] + app.helpers).map { $0.lowercased() }.contains($0.lowercased()) } ?? false
+            let own = tie.bundleID.map { ids.contains($0.lowercased()) } ?? false
             if let refusal = RemovedAppLeftovers.refusal(for: url, tie: tie, below: root, apps: gone, appKnown: own) { return refusal }
         }
         if let part = RemovedAppLeftovers.neverOfferedPart(of: url, below: root) { return .protected(part) }
@@ -154,7 +160,7 @@ public enum AppUninstall {
             let password: String = app.tool.map { "Needs \($0) or your password" } ?? "Needs your password"
             let reasons: [(String, Int, String)] = [("unticked", unticked, "Not ticked"), ("password", app.needsPassword, password),
                                                     ("inside", app.plugIn?.insideApp ?? 0, "Goes with the app it is in"),
-                                                    ("unrecognised", app.unrecognised, "Holds files CacheDrop doesn’t recognise"), ("plan", app.inPlan, "In the Cleanup plan")]
+                                                    ("unrecognised", app.unrecognised, "Holds files CacheDrop doesn’t recognize"), ("plan", app.inPlan, "In the Cleanup plan")]
             return reasons
                 .filter { $0.1 > 0 }
                 .map { Staying(id: app.path + "-" + $0.0, text: "\(app.name): " + ($0.1 == 1 ? "1 part stays" : "\($0.1) parts stay") + " · " + $0.2) }
@@ -172,17 +178,43 @@ public enum AppUninstall {
     }
 
     /// The installed apps as they would be with `app` gone: this copy is hidden; another copy of it still counts.
+    /// The maker's other apps are hidden too, so the app's own files are found although they keep the maker installed (#305);
+    /// `isOwn` then keeps only what is tied to the app's `own` bundle IDs, so nothing of theirs is ever offered with it.
     struct Without: AppPresence {
         let app: InstalledApp
         let url: URL
         let base: any AppPresence
-        init(app: InstalledApp, url: URL, in base: any AppPresence) { self.app = app; self.url = url; self.base = base }
+        /// The app's own and its helpers' bundle IDs, lowercased.
+        let own: Set<String>
+        let vendor: String
+        init(app: InstalledApp, url: URL, in base: any AppPresence, own: Set<String>) {
+            self.app = app; self.url = url.standardizedFileURL; self.base = base; self.own = own
+            vendor = RemovedAppLeftovers.vendor(of: app.bundleID)
+        }
+        /// Another app of the maker: not this one, nor a copy of it or of its helpers.
+        func isOtherOfMaker(_ bundleID: String) -> Bool {
+            !own.contains(bundleID.lowercased()) && RemovedAppLeftovers.vendor(of: bundleID) == vendor
+        }
         func installedApps() -> [InstalledApp]? {
-            base.installedApps()?.filter { URL(fileURLWithPath: $0.path).standardizedFileURL.path != url.path }
+            base.installedApps()?.filter { URL(fileURLWithPath: $0.path).standardizedFileURL.path != url.path && !isOtherOfMaker($0.bundleID) }
         }
         func isRegistered(bundleID: String) -> Bool {
+            if isOtherOfMaker(bundleID) { return false }
             guard bundleID.lowercased() == app.bundleID.lowercased() else { return base.isRegistered(bundleID: bundleID) }
             return installedApps()?.contains { $0.bundleID.lowercased() == bundleID.lowercased() } ?? true
+        }
+        /// Decision 41 as an allow-list (#305): an item goes with the app only when it is tied to one of the app's own bundle IDs,
+        /// and its name names no other. One named only like the app or its maker, and a group container, stay when anything
+        /// else installed, the maker's other apps included, goes by that name or maker. Anything else, a receipt's item included,
+        /// stays; so does everything when the installed apps can't be listed.
+        func isOwn(_ item: URL, tie: LeftoverTie) -> Bool {
+            guard let id = tie.bundleID?.lowercased(), own.contains(id), let installed = base.installedApps() else { return false }
+            let others = InstalledMakers(installed.filter { URL(fileURLWithPath: $0.path).standardizedFileURL.path != url.path && !own.contains($0.bundleID.lowercased()) })
+            let name = item.lastPathComponent
+            if let named = RemovedAppLeftovers.bundleID(inName: name) {
+                guard own.contains(named.lowercased()) else { return false }
+            } else if others.goesBy(RemovedAppLeftovers.token(name)) { return false }
+            return !RemovedAppLeftovers.isGroupContainer(item) || !others.makes(tie.vendor)
         }
     }
 }
@@ -206,5 +238,16 @@ extension Candidate {
 public struct ReadReceipts: InstallerReceiptReading {
     let all: [InstallerReceipt]
     public init(_ all: [InstallerReceipt]) { self.all = all }
+    /// The scan's one read of the receipts (#318): the app bundles each installed and what it put in the user's Library.
+    public init(_ listings: ReceiptListings, home: URL) {
+        let library = home.resolvingSymlinksInPath().path + "/Library/"
+        all = listings.listed.map { receipt in
+            var apps = Set<String>()
+            for path in receipt.paths {
+                if let app = path.range(of: ".app/").map({ String(path[..<$0.lowerBound]) + ".app" }) ?? (path.hasSuffix(".app") ? path : nil) { apps.insert(app) }
+            }
+            return InstallerReceipt(id: receipt.id, apps: apps.sorted(), paths: receipt.paths.filter { $0.hasPrefix(library) })
+        }
+    }
     public func receipts() -> [InstallerReceipt] { all }
 }

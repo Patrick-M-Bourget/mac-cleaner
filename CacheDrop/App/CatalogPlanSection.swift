@@ -8,14 +8,22 @@ import SwiftUI
 struct CatalogPlanSection: View {
     @Bindable var model: CatalogCleanupModel
     @Binding var expanded: Set<CatalogCategory>
+    /// Where the empty state leads (#321).
+    var exploreStorage: (() -> Void)? = nil
     var body: some View {
         VStack(alignment: .leading, spacing: CacheDropDesign.Space.lg) {
-            VStack(alignment: .leading, spacing: 0) {
-                ForEach(model.planCategories) { row in
-                    PlanCategoryRow(model: model, row: row, expanded: Binding(get: { expanded.contains(row.category) },
-                                                                             set: { if $0 { expanded.insert(row.category) } else { expanded.remove(row.category) } }))
-                    Divider().padding(.vertical, CacheDropDesign.Space.md)
-                }
+            // Nothing known yet: skeleton rows; a rescan dims the rows already shown (#308).
+            if !model.hasScanned {
+                SkeletonRows(.category, identifier: "planSkeleton")
+            } else {
+                VStack(alignment: .leading, spacing: 0) {
+                    ForEach(model.planCategories) { row in
+                        PlanCategoryRow(model: model, row: row, expanded: Binding(get: { expanded.contains(row.category) },
+                                                                                 set: { if $0 { expanded.insert(row.category) } else { expanded.remove(row.category) } }))
+                        Divider().padding(.vertical, CacheDropDesign.Space.md)
+                    }
+                }.waitingForScan(model.isScanning)
+                if model.planCategories.isEmpty && !model.isScanning && !model.settingsUnreadable { NothingToCleanUp(identifier: "planEmpty", action: exploreStorage.map { EmptyStateAction("Explore storage", perform: $0) }) }
             }
             ForEach(model.overriddenRules) { rule in
                 StatusRow(text: "\(rule.owner?.name ?? rule.title) keeps its data in a custom location, so CacheDrop leaves it alone.",
@@ -31,7 +39,20 @@ struct CatalogPlanSection: View {
             }
             ForEach(model.notes, id: \.ruleID) { note in StatusRow(text: note.text, symbol: "info.circle", role: .neutral, identifier: "planNote-" + note.ruleID) }
             if let message = model.message { StatusRow(text: message, symbol: "info.circle", role: .caution) }
-        }.task { await model.scanIfNeeded() }
+        }
+    }
+}
+
+/// The one line every page that cleans, and Overview, shows when the Protected items settings couldn't be read (#310),
+/// with Try again, which scans again.
+struct SettingsUnreadableNotice: View {
+    let model: CatalogCleanupModel
+    var body: some View {
+        if model.settingsUnreadable {
+            StatusRow(text: CatalogCleanupModel.settingsUnreadableText, symbol: "exclamationmark.triangle", role: .caution, identifier: "settingsUnreadable",
+                      action: StatusAction(title: "Try again", identifier: "settingsUnreadableTryAgain") { Task { await model.rescan() } })
+                .disabled(model.isScanning)
+        }
     }
 }
 
@@ -40,6 +61,8 @@ struct PlanCategoryRow: View {
     @Bindable var model: CatalogCleanupModel
     let row: CatalogOverview.Row
     @Binding var expanded: Bool
+    /// The Applications page's Sort and search, for its leftovers (#295); nil lists everything.
+    var listing: ApplicationsListing? = nil
     var body: some View {
         let state = model.selectionState(for: row.rules)
         CategoryRow(category: row.category.storageCategory, state: state, title: row.category.overviewTitle, detail: row.category.overviewDetail,
@@ -51,10 +74,10 @@ struct PlanCategoryRow: View {
             switch row.planLayout {
             case .ruleRows:
                 VStack(alignment: .leading, spacing: 0) {
-                    ForEach(row.rules) { rule in PlanRuleRows(model: model, rule: rule) }
+                    ForEach(row.rules) { rule in PlanRuleRows(model: model, rule: rule, listing: listing) }
                 }
             case .items:
-                if let rule = row.rules.first { PlanRuleItems(model: model, rule: rule) }
+                if let rule = row.rules.first { PlanRuleItems(model: model, rule: rule, listing: listing) }
             case .categoryOnly:
                 EmptyView()
             }
@@ -93,9 +116,10 @@ struct PlanRunningOwners: View {
 private struct PlanRuleItems: View {
     @Bindable var model: CatalogCleanupModel
     let rule: CleanupRule
+    var listing: ApplicationsListing? = nil
     var body: some View {
-        if !rule.selectedOneByOne, model.candidates(for: rule).contains(where: { $0.group != nil }) { CatalogProfileRows(model: model, rule: rule) }
-        else { CatalogItemRows(model: model, rule: rule) }
+        if !rule.selectedOneByOne, model.candidates(for: rule).contains(where: { $0.group != nil }) { CatalogProfileRows(model: model, rule: rule, listing: listing) }
+        else { CatalogItemRows(model: model, rule: rule, listing: listing) }
     }
 }
 
@@ -103,8 +127,11 @@ private struct PlanRuleItems: View {
 private struct PlanRuleRows: View {
     @Bindable var model: CatalogCleanupModel
     let rule: CleanupRule
+    /// A search that matches none of the rule's items hides its row (#295).
+    var listing: ApplicationsListing? = nil
     var body: some View {
         let items = model.candidates(for: rule), state = model.selectionState(for: [rule])
+        if !items.contains(where: { listing?.matches($0) ?? true }) { EmptyView() } else {
         // A tool-asked rule's line says where its folder came from (#206); what the rule covers moves to the tooltip.
         let source = items.lazy.compactMap(\.folderSource).first
         VStack(alignment: .leading, spacing: 0) {
@@ -117,9 +144,10 @@ private struct PlanRuleRows: View {
                                       identifier: "planRule-" + rule.id, showsTitle: false).fixedSize()
             }.help(source.map { _ in rule.detail + "\n" + items.map(\.url.path).joined(separator: "\n") } ?? "")
             PlanRunningOwners(model: model, rule: rule).padding(.leading, CacheDropDesign.Space.xl).padding(.bottom, CacheDropDesign.Space.sm)
-            if rule.choosesItems && !rule.groupsByProject { CatalogItemRows(model: model, rule: rule).padding(.leading, CacheDropDesign.Space.xl) }
-            else if items.contains(where: { $0.group != nil }) { CatalogProfileRows(model: model, rule: rule).padding(.leading, CacheDropDesign.Space.xl) }
+            if rule.choosesItems && !rule.groupsByProject { CatalogItemRows(model: model, rule: rule, listing: listing).padding(.leading, CacheDropDesign.Space.xl) }
+            else if items.contains(where: { $0.group != nil }) { CatalogProfileRows(model: model, rule: rule, listing: listing).padding(.leading, CacheDropDesign.Space.xl) }
             Divider()
+        }
         }
     }
 }

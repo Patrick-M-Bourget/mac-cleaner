@@ -23,7 +23,7 @@ public enum FullDiskAccessGuide {
         case .unknown: "Couldn’t check"
         case nil: "Checking…"
         }
-        return [CoverageRow(title: "Current coverage", value: "Your folders and known locations", included: true),
+        return [CoverageRow(title: "Scanned now", value: "Your folders and app caches", included: true),
                 CoverageRow(title: "Protected app data", value: protected, included: status == .granted)]
     }
     /// The Full Disk Access list in Privacy & Security. The System Settings pane still answers to its legacy id on macOS 14 and later.

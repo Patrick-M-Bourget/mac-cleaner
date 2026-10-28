@@ -6,7 +6,7 @@ This spec covers behavior the prototype can't show. The screens, layout and copy
 
 - CacheDrop answers four questions: what takes space, what can be removed, what happens if it is, and how much space came back.
 - Size, age and location only suggest candidates. Every candidate is judged on three questions: who owns it, how it comes back, and whether anything uses it now.
-- Nothing is preselected in the Cleanup plan. The user picks categories or items there, or opens Smart clean, the recommended plan on its own page (only deleted data that rebuilds itself and passes the checks: caches, build data, updater downloads, logs, leaked app copies, never an item the user chooses one by one, such as an older JetBrains version's folder, which holds local history, or an old temporary file (#144); all ticked, each can be unticked). Either way the user reviews the consequences before anything changes. The two selections are separate: neither ever changes the other (#141, Decision 31).
+- Nothing is preselected in the Cleanup plan. The user picks categories or items there, or opens Smart clean, the recommended plan on its own page (a safe plan that passes the checks: caches, build data, updater downloads, logs, leaked app copies, caches a tool cleans with its own command, Downloads installers not opened or changed in 90 days and leftovers a bundle ID or receipt ties to a removed app (#319), never an item the user chooses one by one, such as an older JetBrains version's folder, which holds local history, or an old temporary file (#144); all ticked, each can be unticked). Either way the user reviews the consequences before anything changes. The two selections are separate: neither ever changes the other (#141, Decision 31).
 - Every item is checked again just before CacheDrop acts on it (section 4).
 - Scanning never writes. Choosing scan locations never means consent to clean.
 - Unknown is shown as unknown, never as 0. A location CacheDrop can't read is listed as not accessible, not left out of the picture.
@@ -59,7 +59,8 @@ Other actions:
 
 Notes per category:
 
-- **Browsers** (Chrome, Safari, Firefox, Arc, Edge): cache folders only, per profile, only while that browser is closed. Sizes show per browser and per profile. Review says caches are permanently removed, will refill, and pages may load slower at first.
+- **Browsers** (Chrome, Safari, Firefox): cache folders only, per profile, only while that browser is closed. Sizes show per browser and per profile. Review says caches are permanently removed, will refill, and pages may load slower at first.
+- **Arc and Edge** aren't covered yet (#116): their makers don't document where the macOS caches live, so neither has a rule.
 - **Safari** (#117): only WebKit's HTTP cache, `~/Library/Caches/com.apple.Safari/WebKit/NetworkCache`. The rest of that folder (CacheStorage, HSTS), history, bookmarks, cookies and website data are protected. Safari's container and per-profile caches aren't offered until their layout is confirmed. macOS protects Safari's data, so without Full Disk Access the row says not accessible, with the explanation, and nothing there is read.
 - **Chrome code-sign clones** live in the user's own folder under `/private/var/folders`. The copy the running browser has open and the newest copy are always kept.
 - **Old temporary files and app caches** (#132), under App caches: each file or folder at the top of the user's own `T` folder, and in its `C` folder only a folder named after an installed app's bundle identifier, with that app closed (macOS's own daemon caches there, such as `assessmentagent` or `clang`, are never offered). Either is deleted only when the user owns all of it, nothing inside was modified or changed in 3 days, no process of the user's has a file in it open or mapped, it isn't empty, and it isn't macOS's (`com.apple.*`) or another rule's. When open files can't be read, nothing is offered. Open and mapped files are read through the documented libproc calls, once per scan and once per review. A cleanup run reads them again before each item that needs this check once the last reading is more than 5 seconds old, so an item that comes after a long step is checked against what is open then (#142). The check just before acting repeats the in-use check and refuses an item anything inside changed in since the scan. `X` is never touched except by the Chrome rule.
@@ -96,6 +97,8 @@ An item that fails any check is skipped, and the results say which check failed.
 
 **Cancel** stops new items from starting. A cleanup tool that is running is stopped at once and recorded as partly removed, its folder left in place; one not yet launched never starts (#166). Docker's prunes, `simctl` and `ollama rm` hand their work to a daemon, so for them only the wait stops and the work may still be finishing; a minute later the item is measured again and the journal records what went (section 3, #185, #189, #190). Any other item in progress finishes or reports its failure. Every item's outcome (done, skipped, failed, not started) goes into the cleanup journal. Quitting during a run asks first, "A cleanup is running. Stop it and quit?", with Cancel as the default; confirming cancels as above and quits once the current item ends (#130). If CacheDrop quits in the middle of a run anyway, it recovers the journal on next launch and reports what happened.
 
+**Interrupted cleanup** (#309). A run whose items have no recorded outcome (not started, started, or unknown) is interrupted until it is reviewed. Launch stays on Overview, which shows "Interrupted cleanup needs review"; Recovery opens from there, from History or from a page's run. Opening Recovery checks each such item against disk, read-only: at its original location with the identity it had at approval is "Not removed"; in the Trash (its recorded Trash location, its own name there, or any Trash item with its identity) is "Moved to Trash"; gone from both is "Removed"; never started is "Not started". Anything CacheDrop can't tell stays "Unknown": something else at its path, a delete's renamed-aside copy still there, a tool or iCloud item still in place, or a location or Trash it can't read. **Mark as reviewed** checks again, and records the findings only if they are unchanged; for an unknown item it is the user's confirmation. Recording appends one reviewed record per item to the journal; the original records are never rewritten. A reviewed run no longer counts as interrupted: the banner goes, Reset works, and History shows the run with its findings, with Put back for an item found in the Trash.
+
 ## 5. Dry-run switch
 
 - The review sheet is the preview: it lists exactly what will happen, and **Clean up** runs it for real (Decision 27). The plan has no preview mode.
@@ -131,12 +134,12 @@ In M1 (tickets #97–#105):
 - npm cache (#97); remaining developer caches and Homebrew (#99);
 - Downloads installers and old large files to Trash (#98);
 - Xcode DerivedData, unavailable simulators, old iOS DeviceSupport (#100);
-- browser caches for Chrome, Safari, Firefox, Arc and Edge (#101);
+- browser caches for Chrome, Safari and Firefox (#101; Arc and Edge wait on #116);
 - Chrome code-sign clones (#102);
 - updater downloads, per-app caches, logs and crash reports (#103);
 - Hugging Face and Ollama models, VM and disk images (#104);
 - Overview with the storage bar and recommended total (#105);
-- Smart clean (#141, Decision 31): the sidebar reads Overview, Smart clean, Cleanup plan, Storage trends, Applications (#270), History, then Locations & access, and ⌘1–⌘7 follow it. The page says "Smart clean · X ready to clean" and "Rebuildable caches, build files and logs. Never your files.", lists the recommended items by category, one line each with its size, all ticked, notes what is not included (Trash items, models, iCloud copies, your files, anything a running app is using), each a link to the Cleanup plan, and has one Clean up button that opens the review sheet. The full checks run at that click;
+- Smart clean (#141, Decision 31): the sidebar reads Overview, Smart clean, Cleanup plan, Storage trends, Applications (#270), History, then Locations & access, and ⌘1–⌘7 follow it. The page says "Smart clean · X ready to clean" (with "X of this goes to Trash" beneath when it applies) and "A safe plan from what takes up space. Untick anything you want to keep.", lists the recommended items by category, each category with one consequence line and each item one line with its size, all ticked (#319), notes what is not included (newer downloads, models, iCloud copies, your files, anything a running app is using), each a link to the Cleanup plan, and has one Clean up button that opens the review sheet. The full checks run at that click;
 - iCloud local copies: inventory only, no eviction (Decision 13).
 
 After M1 (#92), in rough order:
@@ -152,7 +155,7 @@ After M1 (#92), in rough order:
 
 ## 9. Out of scope
 
-- Uninstaller, duplicate finder, treemap, automatic or scheduled cleanup.
+- Duplicate finder, treemap, automatic or scheduled cleanup. (Uninstalling was listed here; RESET Decisions 41, 50 and 51 brought it into scope: apps, plug-ins and leftovers go to the Trash from the Applications page.)
 - Emptying the Trash.
 - Admin helpers, root daemons, system extensions, anything that needs an admin password.
 - Other users' data and system files; blanket cleanup of System Data, Application Support, containers, snapshots or swap.

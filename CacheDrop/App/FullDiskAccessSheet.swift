@@ -15,8 +15,7 @@ struct FullDiskAccessSheet: View {
                 CategoryBadge(symbol: "lock.shield", color: CacheDropDesign.blue)
                 Text(FullDiskAccessGuide.title).font(CacheDropDesign.TypeStyle.sheet).accessibilityAddTraits(.isHeader)
                 Spacer(minLength: CacheDropDesign.Space.md)
-                Button("Close", systemImage: "xmark", action: close).labelStyle(.iconOnly).buttonStyle(.borderless)
-                    .foregroundStyle(.secondary).accessibilityIdentifier("dismissFullDiskAccess")
+                CloseButton(identifier: "dismissFullDiskAccess", action: close)
             }
             Text(FullDiskAccessGuide.summary).font(CacheDropDesign.TypeStyle.note).foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true).accessibilityIdentifier("fullDiskAccessSummary")
@@ -39,8 +38,7 @@ struct FullDiskAccessSheet: View {
                 StatusRow(text: FullDiskAccessGuide.howToTurnOn, identifier: "fullDiskAccessHowTo")
             }
             Divider()
-            HStack(spacing: CacheDropDesign.Space.sm) {
-                Spacer()
+            SheetFooter {
                 if granted {
                     Button("Done", action: close).keyboardShortcut(.defaultAction).accessibilityIdentifier("closeFullDiskAccess")
                 } else {
@@ -50,7 +48,7 @@ struct FullDiskAccessSheet: View {
                 }
             }
         }
-        .padding(CacheDropDesign.Space.xl).frame(width: CacheDropDesign.Size.sheetNarrow).background(CacheDropDesign.reading)
+        .padding(CacheDropDesign.Space.xl).frame(width: CacheDropDesign.Size.sheetNarrow).background(CacheDropDesign.reading).cacheDropButtonRule()
         .task { await model.refresh() }
         // Coming back from System Settings: check again without being asked.
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in Task { await model.refresh() } }

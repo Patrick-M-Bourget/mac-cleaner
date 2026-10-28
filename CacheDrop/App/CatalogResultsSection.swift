@@ -18,16 +18,20 @@ struct CatalogResultsSection: View {
                           symbol: "eye", role: .neutral, identifier: "catalogPreviewNotice")
             } else {
                 // SPEC section 6: measured and estimated, reported separately; Trash is never counted as freed.
+                // Everything went to the Trash (#312): nothing is freed yet, so no "Zero KB · Measured freed space".
+                let onlyTrashed = result.movedToTrashBytes > 0 && result.records.allSatisfy { $0.state != .succeeded || $0.cleanupAction == .trash }
                 SummarySurface {
                     HStack(alignment: .top, spacing: CacheDropDesign.Space.xl) {
-                        metric(result.measuredFreedBytes.map { catalogBytes($0) } ?? SizeEstimate.unknown.text, "Measured freed space")
+                        if !onlyTrashed { metric(result.measuredFreedBytes.map { catalogBytes($0) } ?? SizeEstimate.unknown.text, "Measured freed space") }
                         let upperBound = upperBound(result.records)
                         metric(catalogBytes(result.estimatedBytes, upperBound: upperBound), upperBound ? "Estimated before cleanup · Upper bound" : "Estimated before cleanup")
-                        if result.movedToTrashBytes > 0 { metric(catalogBytes(result.movedToTrashBytes), "Moved to Trash · Not yet freed") }
+                        if result.movedToTrashBytes > 0 { metric(catalogBytes(result.movedToTrashBytes), "In the Trash · Freed when you empty it") }
                     }
                 }
-                Text("Measured from the change in available space around each item. Other activity on this Mac can affect it.")
-                    .font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
+                if !onlyTrashed {
+                    Text("Measured from the change in available space around each item. Other activity on this Mac can affect it.")
+                        .font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
+                }
                 if result.movedToTrashBytes > 0 { TrashEmptyHint(movedBytes: result.movedToTrashBytes) }
             }
             VStack(alignment: .leading, spacing: 0) {
@@ -60,7 +64,7 @@ private struct CatalogResultRow: View {
     let showsDetails: Bool
     private var name: String {
         let file = record.originalURL.lastPathComponent
-        return record.itemName ?? rule?.itemName?(file) ?? (rule?.choosesItems == true ? file : rule?.title ?? file)
+        return record.itemName ?? record.uninstalledName ?? rule?.itemName?(file) ?? (rule?.choosesItems == true ? file : rule?.title ?? file)
     }
     var body: some View {
         let role: StatusRole = record.state == .succeeded ? .success : record.wasPreviewed ? .neutral : .caution

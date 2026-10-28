@@ -16,8 +16,12 @@ import SwiftUI
     }
     private(set) var apps: [InventoryEntry] = []
     private(set) var plugIns: [InventoryEntry] = []
+    /// The page's Sort and search (#295): kept while CacheDrop runs, never across launches.
+    var listing = ApplicationsListing()
     private(set) var hasLoaded = false
     private(set) var isLoading = false
+    /// The list of apps couldn't be read (Spotlight didn't answer): unknown, never "no apps" (#310).
+    private(set) var appsUnreadable = false
     /// What a debug test run would have revealed or opened.
     private(set) var status: String?
 
@@ -28,10 +32,11 @@ import SwiftUI
         defer { isLoading = false; hasLoaded = true }
         guard let home else { apps = []; plugIns = []; return }
         let presence = appPresence, system = systemRoot, own = Bundle.main.bundleIdentifier
-        (apps, plugIns) = await Task.detached(priority: .userInitiated) {
-            (ApplicationsInventory.apps(presence.installedApps() ?? [], excluding: own, home: home),
-             ApplicationsInventory.plugIns(read ?? PlugInInventory.scan(home: home, systemRoot: system)))
+        let (listed, products) = await Task.detached(priority: .userInitiated) {
+            (presence.installedApps().map { ApplicationsInventory.apps($0, excluding: own, home: home) },
+             ApplicationsInventory.plugIns(read ?? PlugInInventory.scan(home: home, systemRoot: system, receipts: ReceiptListings.read(under: system))))
         }.value
+        apps = listed ?? []; plugIns = products; appsUnreadable = listed == nil
     }
     /// The app's own uninstaller or the maker's tool, when it is installed (Decisions 41, 50).
     func uninstaller(for entry: InventoryEntry) -> InventoryEntry? { ApplicationsInventory.uninstaller(for: entry, among: apps) }
@@ -70,29 +75,39 @@ struct ApplicationsView: View {
             ScrollView {
                 if selection.showsRun(for: .applications) { CleanupRunSection(selection: selection) } else { page }
             }.background(CacheDropDesign.reading)
-            CleanupActionBar(selection: selection, source: .applications, viewHistory: viewHistory, reviewRecovery: reviewRecovery) {
+            // Every ticked item is counted, those the search hides too (#295).
+            CleanupActionBar(selection: selection, source: .applications, viewHistory: viewHistory, reviewRecovery: reviewRecovery,
+                             idleNote: catalog.applicationsSelected.isEmpty ? nil : CacheDropDesign.items(catalog.applicationsSelected.count) + " selected") {
                 Button("Done") { selection.dismissResult() }.buttonStyle(.borderedProminent)
             } idle: {
-                ReviewCleanupButton(enabled: selection.canReviewApplications, focusRequest: reviewFocusRequest) { Task { await openReview() } }.fixedSize()
+                BusyAction(busy: selection.isCheckingReview) {
+                    ReviewCleanupButton(enabled: selection.canReviewApplications && !selection.isCheckingReview, focusRequest: reviewFocusRequest,
+                                        tooltip: catalog.isScanning ? CacheDropDesign.waitForScanHelp : nil) { Task { await openReview() } }.fixedSize()
+                }
             }
         }
         .sheet(item: $review, onDismiss: { reviewFocusRequest += 1 }) { snapshot in
             WorkspaceCleanupConfirmationView(review: snapshot, cancel: { review = nil }) {
                 review = nil
-                Task { do { try await selection.executeWorkspace(snapshot) } catch { approvalError = "Your choices changed. Review the latest items before cleaning." } }
+                Task { do { try await selection.executeWorkspace(snapshot) } catch { approvalError = PlanReviewError.changedMessage } }
             }
         }
-        .onChange(of: catalog.selectionRevision) { _, _ in if review != nil { review = nil } }
-        .task { await catalog.scanIfNeeded() }
+        // The sheet closes only when the choices it was built from changed, and the page says so (#307).
+        .onChange(of: catalog.selectionRevision(for: .applications)) { _, _ in if review != nil { review = nil; approvalError = PlanReviewError.changedMessage } }
         // Read again after each catalog scan, so Scan again refreshes the lists too.
         .task(id: catalog.isScanning) { if !catalog.isScanning { await model.load(plugIns: catalog.plugInInventory) } }
+        // A search opens Leftovers, so its matching groups show.
+        .onChange(of: model.listing.isSearching) { _, searching in if searching { leftoversExpanded = true } }
     }
 
     private var page: some View {
         VStack(alignment: .leading, spacing: CacheDropDesign.Space.lg) {
-            PageHeader(title: "Applications", subtitle: "Apps, plug-ins and files that removed apps left behind.")
-                .accessibilityElement(children: .combine).accessibilityIdentifier("applicationsHeader")
-                .padding(.bottom, CacheDropDesign.Space.sm)
+            HStack(alignment: .bottom, spacing: CacheDropDesign.Space.lg) {
+                PageHeader(title: "Applications", subtitle: "Apps, plug-ins and files that removed apps left behind.")
+                    .accessibilityElement(children: .combine).accessibilityIdentifier("applicationsHeader")
+                listControls
+            }.padding(.bottom, CacheDropDesign.Space.sm)
+            SettingsUnreadableNotice(model: catalog)
             if let approvalError { StatusRow(text: approvalError, symbol: "exclamationmark.circle", role: .caution) }
             if let status = model.status { StatusRow(text: status, identifier: "applicationsStatus") }
             section("Apps", id: "apps", entries: model.apps, category: .apps, identifier: "applicationsApp-",
@@ -101,7 +116,10 @@ struct ApplicationsView: View {
                     empty: ("No plug-ins to list", "No audio plug-ins other than Apple’s were found."))
             Text("Leftovers").font(CacheDropDesign.TypeStyle.section)
             if let row = catalog.leftoversRow {
-                PlanCategoryRow(model: catalog, row: row, expanded: $leftoversExpanded)
+                if model.listing.isSearching, !row.rules.flatMap(catalog.candidates(for:)).contains(where: model.listing.matches) { noMatches("leftovers") }
+                else { PlanCategoryRow(model: catalog, row: row, expanded: $leftoversExpanded, listing: model.listing).waitingForScan(catalog.isScanning) }
+            } else if catalog.settingsUnreadable {
+                EmptyView() // The notice above says why nothing was read (#310).
             } else if catalog.hasScanned && !catalog.isScanning {
                 state("No leftovers", "Apps you removed left nothing behind that CacheDrop can tie to them.", symbol: "checkmark.circle", id: "applicationsEmpty-leftovers")
             } else {
@@ -110,29 +128,60 @@ struct ApplicationsView: View {
         }.padding(CacheDropDesign.Space.page).frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    /// A section's lists come after the catalog scan; until then, and while they are read, it says it is looking (#270).
+    /// One search and one Sort for Apps, Plug-ins and Leftovers (#295), searching by name or maker.
+    private var listControls: some View {
+        HStack(spacing: CacheDropDesign.Space.sm) {
+            TextField("Search apps, plug-ins and leftovers", text: Bindable(model).listing.search, prompt: Text("Name or maker"))
+                .labelsHidden().textFieldStyle(.roundedBorder).frame(width: CacheDropDesign.Size.searchField)
+                .accessibilityIdentifier("applicationsSearch")
+            Picker("Sort", selection: Bindable(model).listing.order) {
+                ForEach(ApplicationsListing.Order.allCases) { Text($0.rawValue).tag($0) }
+            }.fixedSize().accessibilityIdentifier("applicationsSort")
+        }
+    }
+    private func noMatches(_ id: String) -> some View {
+        state("No matches", "Nothing here has “\(model.listing.search.trimmingCharacters(in: .whitespaces))” in its name or maker.", symbol: "magnifyingglass",
+              id: "applicationsNoMatches-" + id)
+    }
+
+    /// A section's lists come after the catalog scan; until then, and while they are read, it shows skeleton rows (#270, #308).
     private var listsLoading: Bool { !model.hasLoaded || model.isLoading || catalog.isScanning }
 
     @ViewBuilder private func section(_ title: String, id: String, entries: [InventoryEntry], category: StorageCategory, identifier: String,
                                       empty: (title: String, detail: String)) -> some View {
+        let shown = model.listing.arranged(entries, name: \.name, maker: \.maker, bytes: { size(of: $0).sortBytes })
         Text(title).font(CacheDropDesign.TypeStyle.section)
         if entries.isEmpty {
-            if listsLoading { loading(id) } else { state(empty.title, empty.detail, symbol: "tray", id: "applicationsEmpty-" + id) }
+            if listsLoading { loading(id) }
+            else if id == "apps", model.appsUnreadable {
+                // Spotlight didn't answer: unknown, never "Only Apple's apps" (#310), as the one empty state (#321). Try again
+                // scans again, so uninstalls are read too.
+                EmptyState(title: "CacheDrop couldn’t read the list of apps", detail: "Spotlight didn’t answer.", symbol: "exclamationmark.triangle",
+                           action: EmptyStateAction("Try again") { Task { await catalog.rescan() } }, identifier: "applicationsUnreadable")
+            } else { state(empty.title, empty.detail, symbol: "tray", id: "applicationsEmpty-" + id) }
+        } else if shown.isEmpty {
+            noMatches(id)
         } else {
+            // Rows from the last scan stay, dimmed, until the rescan says what can go with each (#303, #308).
             VStack(alignment: .leading, spacing: 0) {
-                ForEach(entries) { entry in
+                ForEach(shown) { entry in
                     row(entry, category: category, identifier: identifier + entry.id)
                     Divider().padding(.vertical, CacheDropDesign.Space.md)
                 }
-            }
+            }.waitingForScan(listsLoading)
         }
     }
 
-    private func loading(_ id: String) -> some View {
-        state("Looking…", "This fills in when the scan finishes.", symbol: "hourglass", id: "applicationsLoading-" + id)
-    }
+    private func loading(_ id: String) -> some View { SkeletonRows(.category, count: 2, identifier: "applicationsLoading-" + id) }
     private func state(_ title: String, _ detail: String, symbol: String, id: String) -> some View {
-        EmptyState(title: title, detail: detail, symbol: symbol).accessibilityElement(children: .combine).accessibilityIdentifier(id)
+        EmptyState(title: title, detail: detail, symbol: symbol, identifier: id)
+    }
+
+    /// The size a row shows, and Size sorts by: shared items count on no product's row, so the page counts them once
+    /// (#288, Decisions 51 and 52).
+    private func size(of entry: InventoryEntry) -> SizeEstimate {
+        let uninstall = catalog.uninstallItems(ofRow: entry.id)
+        return uninstall.isEmpty ? entry.size : SizeEstimate(sum: uninstall.filter(\.sharedBy.isEmpty).map(SizeEstimate.init))
     }
 
     /// A row; an app CacheDrop can uninstall (#177) has a checkbox for the app and its files, the rest have none. One that
@@ -151,8 +200,7 @@ struct ApplicationsView: View {
         let count = uninstall.isEmpty ? entry.parts.count : uninstall.count
         return CategoryRow(category: category, state: uninstall.isEmpty ? nil : catalog.selectionState(ofRow: entry.id), title: entry.name,
                            detail: [entry.maker, entry.volume].compactMap { $0 }.joined(separator: " · "),
-                           // Shared items count on no product's row, so the page counts them once (#288, Decisions 51 and 52).
-                           size: uninstall.isEmpty ? entry.size.text : SizeEstimate(sum: uninstall.filter(\.sharedBy.isEmpty).map(SizeEstimate.init)).text,
+                           size: size(of: entry).text,
                            enabled: uninstall.isEmpty || catalog.canEdit, identifier: identifier,
                            // An app alone is its only item: no "Choose items · 1" (#270).
                            itemCount: count > 1 || !staying.isEmpty ? count : nil, staying: staying.count, expanded: isExpanded,
@@ -166,11 +214,11 @@ struct ApplicationsView: View {
                 }
                 // Unread is never "lists nothing" (#291).
                 if target?.receiptsUnread == true {
-                    StatusRow(text: "Support files stay: couldn’t read every installer record", symbol: "info.circle", identifier: "applicationsReceiptsUnread-" + entry.id)
+                    StatusRow(text: "Support files stay: couldn’t read every installer receipt", symbol: "info.circle", identifier: "applicationsReceiptsUnread-" + entry.id)
                 }
                 // Only files of kinds known to be safe go with it (#291, Decision 53).
                 if let count = target?.unrecognised, count > 0 {
-                    StatusRow(text: "Holds files CacheDrop doesn’t recognise: " + (count == 1 ? "1 stays" : "\(count) stay"), symbol: "info.circle",
+                    StatusRow(text: "Holds files CacheDrop doesn’t recognize: " + (count == 1 ? "1 stays" : "\(count) stay"), symbol: "info.circle",
                               identifier: "applicationsUnrecognised-" + entry.id)
                 }
                 // The app, or a plug-in product's own app and its hosts (#176), each with "Quit <App>".
@@ -182,8 +230,9 @@ struct ApplicationsView: View {
                 StatusRow(text: "Goes with " + Self.app(of: auv3[0]), identifier: "applicationsInsideApp-" + entry.id)
             } else if catalog.hasScanned, !catalog.isScanning {
                 // A removable app the scan didn't offer says why, rather than showing a bare row (#281).
-                StatusRow(text: "Not offered: excluded in Settings, or changed since the scan", identifier: "applicationsNotOffered-" + entry.id)
+                StatusRow(text: "Not offered: in Protected items, or changed since the scan", identifier: "applicationsNotOffered-" + entry.id)
             }
+            // Until the scan says what can go with it, the row is dimmed rather than looking final (#303, #308).
         } items: {
             if !uninstall.isEmpty {
                 VStack(alignment: .leading, spacing: CacheDropDesign.Space.sm) {
@@ -226,7 +275,9 @@ struct ApplicationsView: View {
     }
 
     private func openReview() async {
-        do { review = try await selection.prepareApplicationsReview(); approvalError = nil }
-        catch { approvalError = "Your choices changed. Review the latest items and try again." }
+        do {
+            guard let checked = try await selection.checkingReview(selection.prepareApplicationsReview) else { return }
+            review = checked; approvalError = nil
+        } catch { approvalError = PlanReviewError.message(for: error) }
     }
 }

@@ -15,11 +15,17 @@ enum CacheDropDesign {
         /// The surface gap between a meter's segments, and the narrowest segment it draws (#164).
         static let meterGap: CGFloat = 2; static let meterSegmentMinimum: CGFloat = 3
         /// The bottom bar's row: a large button's height, so the bar is the same with or without buttons or progress (#220).
-        static let actionStripRow: CGFloat = 32 }
+        static let actionStripRow: CGFloat = 32
+        /// A page header's search field (#295), as wide as the prototype's.
+        static let searchField: CGFloat = 210
+        /// A skeleton row's title and detail bars (#308), about the height of the text they stand in for.
+        static let skeletonTitle: CGFloat = 11; static let skeletonDetail: CGFloat = 8 }
     /// How strongly a colour tints a surface behind its symbol, as in a category badge.
     enum Opacity { static let badgeTint: Double = 0.10
         /// A meter segment's part that Smart clean wouldn't free (#164).
-        static let meterDimmed: Double = 0.30 }
+        static let meterDimmed: Double = 0.30
+        /// Rows from the last scan while a rescan runs: visible, plainly not live (#308).
+        static let waiting: Double = 0.45 }
     enum TypeStyle {
         /// The app name in the sidebar header.
         static let brand = Font.system(size: 17, weight: .medium)
@@ -54,6 +60,13 @@ enum CacheDropDesign {
     /// mode so a meter segment keeps 3:1 against the track (#164).
     static var indigo: Color { adaptive(light: 0x5856D6, dark: 0x8583F5) }
     static func files(_ count: Int) -> String { "\(count) \(count == 1 ? "file" : "files")" }
+    /// "X of this goes to Trash" under a selection's total, only when some of `selection` goes to the Trash (Decision 25),
+    /// where that space stays used until the Trash is emptied.
+    static func goesToTrash(_ selection: [Candidate]) -> String? {
+        let trash = selection.filter { $0.action == .trash }
+        guard !trash.isEmpty else { return nil }
+        return ByteCountFormatter.string(fromByteCount: trash.reduce(0) { $0 + $1.estimatedBytes }, countStyle: .decimal) + " of this goes to Trash"
+    }
     static func items(_ count: Int) -> String { "\(count) \(count == 1 ? "item" : "items")" }
     static var capacityFill: Color { adaptive(light: 0x969BA7, dark: 0x858997) }
     static var capacityTrack: Color { adaptive(light: 0xECEEF2, dark: 0x33343D) }
@@ -64,6 +77,10 @@ enum CacheDropDesign {
     /// The sidebar meter's one "Reclaimable" segment.
     static var meterReclaimable: Color { .accentColor }
     static var separator: Color { Color(nsColor: .separatorColor) }
+    /// A skeleton row's placeholder bars and tiles (#308): the meter's track grey.
+    static var skeleton: Color { capacityTrack }
+    /// The skeleton's shimmer, low-contrast in both appearances (#308).
+    static var skeletonShimmer: Color { adaptive(light: 0xFFFFFF, dark: 0x4A4B55) }
 }
 enum StorageCategory {
     /// `files`: files from folders the user picked, shown as the prototype shows a chosen folder.
@@ -245,7 +262,7 @@ struct ActionDisclosureGroup<Content: View>: View {
         }
     }
 }
-/// A small button that fixes a status row's problem in place, such as "Choose again…" (#223).
+/// A link that fixes a status row's problem in place, such as "Choose again…" (#223, #311).
 struct StatusAction {
     let title: String
     var identifier = ""
@@ -261,7 +278,7 @@ struct StatusRow: View {
         HStack(alignment: .firstTextBaseline, spacing: CacheDropDesign.Space.sm) {
             Label { Text(text).fixedSize(horizontal: false, vertical: true).accessibilityIdentifier(identifier) } icon: { Image(systemName: symbol).foregroundStyle(role.color) }
                 .font(.callout).foregroundStyle(.secondary)
-            if let action { Button(action.title, action: action.action).controlSize(.small).accessibilityIdentifier(action.identifier) }
+            if let action { Button(action.title, action: action.action).buttonStyle(.link).accessibilityIdentifier(action.identifier) }
         }.frame(maxWidth: .infinity, alignment: .leading)
     }
 }
@@ -275,24 +292,6 @@ struct SettingsRow<Content: View>: View {
             if let detail { Text(detail).font(.callout).foregroundStyle(.secondary) }
             content()
         }.padding(.vertical, CacheDropDesign.Space.sm).frame(maxWidth: .infinity, alignment: .leading)
-    }
-}
-struct FindingRow<Accessory: View>: View {
-    let category: StorageCategory
-    let title: String
-    let detail: String
-    var consequence: String? = nil
-    @ViewBuilder var accessory: () -> Accessory
-    var body: some View {
-        HStack(alignment: .top, spacing: CacheDropDesign.Space.lg) {
-            CategoryBadge(category: category)
-            VStack(alignment: .leading, spacing: CacheDropDesign.Space.xs) {
-                Text(title).font(CacheDropDesign.TypeStyle.section)
-                Text(detail).font(.callout).foregroundStyle(.secondary)
-                if let consequence { Text(consequence).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true) }
-            }.frame(maxWidth: .infinity, alignment: .leading)
-            accessory()
-        }.padding(.vertical, CacheDropDesign.Space.md)
     }
 }
 /// One quiet review group: category colors identify storage, never cleanup safety.
@@ -347,18 +346,33 @@ struct StorageReviewRow: View {
     }
 }
 
+/// An empty state's one way forward (#321): a button that leads where the user can act.
+struct EmptyStateAction {
+    let title: String
+    let perform: () -> Void
+    init(_ title: String, perform: @escaping () -> Void) { self.title = title; self.perform = perform }
+}
+
+/// The one empty state (#321): what's true, then at most one action that leads where the user can act. While a page's
+/// content isn't known yet it shows `SkeletonRows` instead, never this. The action is `identifier` + "Action".
 struct EmptyState: View {
     let title: String
-    let detail: String
+    var detail = ""
     var symbol = "tray"
+    var action: EmptyStateAction? = nil
+    var identifier = "emptyState"
     var body: some View {
         HStack(alignment: .top, spacing: CacheDropDesign.Space.lg) {
-            Image(systemName: symbol).font(.title2).foregroundStyle(.secondary).frame(width: 32)
+            Image(systemName: symbol).font(.title2).foregroundStyle(.secondary).frame(width: 32).accessibilityHidden(true)
             VStack(alignment: .leading, spacing: CacheDropDesign.Space.sm) {
                 Text(title).font(CacheDropDesign.TypeStyle.section)
-                Text(detail).font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                if !detail.isEmpty { Text(detail).font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true) }
+                if let action {
+                    Button(action.title, action: action.perform).accessibilityIdentifier(identifier + "Action").padding(.top, CacheDropDesign.Space.xs)
+                }
             }
         }.frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, CacheDropDesign.Space.xl)
+            .accessibilityElement(children: .contain).accessibilityIdentifier(identifier)
     }
 }
 /// The bottom bar every screen has, always the same height (Decision 46): a leading note or control, then the actions.
@@ -380,7 +394,7 @@ struct ActionStrip<Leading: View, Actions: View>: View {
                 actions()
             }.frame(minHeight: CacheDropDesign.Size.actionStripRow, maxHeight: wrapsNote ? nil : CacheDropDesign.Size.actionStripRow)
                 .padding(.horizontal, CacheDropDesign.Space.page).padding(.vertical, CacheDropDesign.Space.lg)
-        }.background(CacheDropDesign.reading).controlSize(.large).buttonBorderShape(.capsule)
+        }.background(CacheDropDesign.reading).controlSize(.large)
             .accessibilityElement(children: .contain).accessibilityIdentifier("actionStrip")
     }
 }
@@ -408,9 +422,10 @@ struct BackgroundWorkLine: View {
                 }
             }.font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary).monospacedDigit().lineLimit(1).truncationMode(.middle)
                 .help(status.line.text)
-            if let stop = status.stop { Button("Stop scan", action: stop) }
-            if let returnToScan = status.returnToScan { Button("Return to scan", action: returnToScan) }
-        }.controlSize(.small).buttonBorderShape(.automatic)
+            // The bar's work line holds links, never bordered buttons (#311).
+            if let stop = status.stop { Button("Stop scan", action: stop).buttonStyle(.link) }
+            if let returnToScan = status.returnToScan { Button("Return to scan", action: returnToScan).buttonStyle(.link) }
+        }.font(CacheDropDesign.TypeStyle.caption)
     }
 }
 /// A bottom bar's note; nothing when there is none. One line, truncated, with the full text in a tooltip (#234), unless it
@@ -447,7 +462,7 @@ struct CapacityMeter: View {
     private func bytes(_ value: Int64) -> String { Self.bytes(value) }
     private var validTotal: Int64? { Self.validTotal(available: available, total: total) }
     private var amountText: String {
-        guard let available, available >= 0 else { return "Capacity unavailable" }
+        guard let available, available >= 0 else { return "Free space unavailable" }
         if let total = validTotal { return "\(bytes(available)) available of \(bytes(total))" }
         return "\(bytes(available)) available · Total capacity unavailable"
     }
@@ -519,7 +534,7 @@ struct VolumeSummary: View {
                 HStack(alignment: .firstTextBaseline, spacing: CacheDropDesign.Space.md) {
                     Text(used.map { bytes($0) + " used" } ?? "Used space unknown").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary).monospacedDigit()
                     Spacer(minLength: CacheDropDesign.Space.sm)
-                    Text("Whole-disk capacity").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
+                    Text(observation).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
                         .help(observation).accessibilityValue(observation).accessibilityIdentifier("capacityObservation")
                 }
                 if !status.isEmpty {
@@ -527,7 +542,7 @@ struct VolumeSummary: View {
                         Text(status).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary).accessibilityIdentifier("capacityRefreshStatus")
                         Spacer(minLength: CacheDropDesign.Space.sm)
                         if let refresh, !refreshing {
-                            Button(refreshTitle, action: refresh).accessibilityIdentifier("refreshCapacity")
+                            Button(refreshTitle, action: refresh).buttonStyle(.link).accessibilityIdentifier("refreshCapacity")
                         }
                     }
                 }
@@ -721,9 +736,11 @@ struct AppBrand: View {
 struct ReviewCleanupButton: View {
     let enabled: Bool
     let focusRequest: Int
+    /// Why it is disabled, such as `CacheDropDesign.waitForScanHelp` (#308).
+    var tooltip: String? = nil
     let action: () -> Void
     var body: some View {
-        NativeReviewCleanupButton(enabled: enabled, focusRequest: focusRequest, action: action)
+        NativeReviewCleanupButton(enabled: enabled, focusRequest: focusRequest, tooltip: tooltip, action: action)
             .disabled(!enabled)
     }
 }
@@ -731,12 +748,14 @@ struct ReviewCleanupButton: View {
 private struct NativeReviewCleanupButton: NSViewRepresentable {
     let enabled: Bool
     let focusRequest: Int
+    let tooltip: String?
     let action: () -> Void
     func makeCoordinator() -> Coordinator { Coordinator(action) }
     func makeNSView(context: Context) -> FocusButton {
         let view = FocusButton(title: "Review cleanup", target: context.coordinator, action: #selector(Coordinator.clicked))
         view.bezelStyle = .rounded
         view.controlSize = .large
+        if #available(macOS 26, *) { view.borderShape = .capsule }
         view.bezelColor = .controlAccentColor
         view.setAccessibilityLabel("Review cleanup")
         return view
@@ -744,6 +763,7 @@ private struct NativeReviewCleanupButton: NSViewRepresentable {
     func sizeThatFits(_ proposal: ProposedViewSize, nsView: FocusButton, context: Context) -> CGSize? { nsView.intrinsicContentSize }
     func updateNSView(_ view: FocusButton, context: Context) {
         view.isEnabled = enabled
+        view.toolTip = tooltip
         view.bezelColor = enabled ? .controlAccentColor : nil
         context.coordinator.action = action
         if context.coordinator.appliedFocusRequest != focusRequest {
@@ -838,48 +858,6 @@ struct NativeWindowContract: NSViewRepresentable {
     }
 }
 
-/// Bounded preliminary evidence; never offers selection or execution controls.
-struct ScanProgressSummary: View {
-    let inspectedEntries: Int
-    let logicalSubtotal: String
-    let recentNames: [String]
-    var phaseMessage = "Reading file metadata…"
-    var body: some View {
-        SummarySurface {
-            VStack(alignment: .leading, spacing: CacheDropDesign.Space.md) {
-                HStack(spacing: CacheDropDesign.Space.sm) {
-                    ProgressView().controlSize(.small).accessibilityHidden(true)
-                    Text(phaseMessage).accessibilityIdentifier("scanPhase")
-                }
-                StatusRow(text: "\(inspectedEntries) entries inspected so far · Preliminary observations", identifier: "scanProgressSummary")
-                Text("Known logical subtotal: \(logicalSubtotal) · Coverage incomplete")
-                    .font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
-                ForEach(Array(recentNames.prefix(5).enumerated()), id: \.offset) { _, name in
-                    Text(name).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
-                }
-            }
-        }
-    }
-}
-
-/// A category before it has usable scan evidence: still recognizable, with the action that gets the evidence.
-struct CategoryPrerequisite: View {
-    let title: String
-    let detail: String
-    let actionTitle: String
-    let enabled: Bool
-    let action: () -> Void
-    var body: some View {
-        VStack(alignment: .leading, spacing: CacheDropDesign.Space.md) {
-            CategorySelectionHeader(category: .downloads, state: .unchecked, title: "Downloads", detail: detail,
-                                    size: title, enabled: false, action: {})
-            Button(actionTitle, action: action).disabled(!enabled)
-                .padding(.leading, CacheDropDesign.Space.xl)
-        }
-    }
-}
-
-
 struct LocationScopeRow<Actions: View>: View {
     let name: String
     let path: String
@@ -954,4 +932,160 @@ struct DestinationViewport: NSViewRepresentable {
 extension CacheDropDesign.Size {
     /// The leading symbol column of a compact list row (History).
     static let rowIcon: CGFloat = 24
+}
+
+// MARK: - Waiting for a scan (#308)
+
+/// Which page layout a skeleton stands in for, so the page keeps its shape while its content isn't known yet.
+enum SkeletonLayout {
+    /// A `CategoryRow`: the checkbox's gap, a badge, title and detail, the size. The plan, Smart clean and Applications.
+    case category
+    /// A `StorageReviewRow` in a `RecommendationGroup`: Overview and App-managed storage.
+    case review
+    /// A plain list row, title and detail then the size: Storage trends, History and Recovery.
+    case line
+}
+
+/// What a page shows while its content isn't known yet, the first scan or right after a cleanup (#308): grey placeholder
+/// rows in the page's own layout, with no checkboxes, nothing clickable and every size "—", under a slow, calm shimmer
+/// (none with Reduce Motion). Never a blank page. `identifier` names the whole group; VoiceOver hears "Loading".
+struct SkeletonRows: View {
+    let layout: SkeletonLayout
+    var count = 3
+    var identifier = "skeleton"
+    init(_ layout: SkeletonLayout, count: Int = 3, identifier: String = "skeleton") { self.layout = layout; self.count = count; self.identifier = identifier }
+    var body: some View {
+        Group {
+            if layout == .review {
+                RecommendationGroup { rows(divider: { Divider().padding(.horizontal, CacheDropDesign.Space.lg) }) }
+            } else {
+                VStack(alignment: .leading, spacing: 0) { rows(divider: { Divider().padding(.vertical, layout == .category ? CacheDropDesign.Space.md : 0) }) }
+            }
+        }.skeletonShimmer()
+            .accessibilityElement(children: .ignore).accessibilityLabel("Loading").accessibilityIdentifier(identifier)
+    }
+    @ViewBuilder private func rows(divider: @escaping () -> some View) -> some View {
+        ForEach(0..<count, id: \.self) { index in
+            // The plan's rows each end with a divider; listed rows only sit between them.
+            if layout != .category && index > 0 { divider() }
+            SkeletonRow(layout: layout, width: Self.widths[index % Self.widths.count])
+            if layout == .category { divider() }
+        }
+    }
+    /// Each row's title width, as a share of its column, so the rows don't look stamped.
+    private static let widths: [CGFloat] = [0.46, 0.32, 0.4, 0.28]
+}
+
+/// One skeleton row; `SkeletonRows` lays them out.
+private struct SkeletonRow: View {
+    let layout: SkeletonLayout
+    let width: CGFloat
+    var body: some View {
+        HStack(alignment: layout == .category ? .top : .center, spacing: layout == .review ? CacheDropDesign.Space.lg : CacheDropDesign.Space.md) {
+            if layout == .category { Color.clear.frame(width: CacheDropDesign.Size.checkbox, height: 1) }
+            if layout != .line {
+                RoundedRectangle(cornerRadius: CacheDropDesign.Radius.row).fill(CacheDropDesign.skeleton)
+                    .frame(width: CacheDropDesign.Size.badge, height: CacheDropDesign.Size.badge)
+            }
+            GeometryReader { geometry in
+                VStack(alignment: .leading, spacing: CacheDropDesign.Space.sm) {
+                    bar(geometry.size.width * width, CacheDropDesign.Size.skeletonTitle)
+                    bar(geometry.size.width * (width + 0.22), CacheDropDesign.Size.skeletonDetail)
+                }.frame(maxHeight: .infinity, alignment: .center)
+            }.frame(height: CacheDropDesign.Size.badge)
+            Text("—").font(.callout).foregroundStyle(.secondary)
+        }.padding(layout == .review ? CacheDropDesign.Space.lg : 0).padding(.vertical, layout == .line ? CacheDropDesign.Space.sm : 0)
+    }
+    private func bar(_ width: CGFloat, _ height: CGFloat) -> some View {
+        Capsule().fill(CacheDropDesign.skeleton).frame(width: max(0, width), height: height)
+    }
+}
+
+/// The skeleton's shimmer: one soft band crossing slowly, low-contrast. Off with Reduce Motion (#308).
+private struct SkeletonShimmer: ViewModifier {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var travel: CGFloat = 0
+    func body(content: Content) -> some View {
+        content.overlay {
+            if !reduceMotion {
+                GeometryReader { geometry in
+                    LinearGradient(colors: [.clear, CacheDropDesign.skeletonShimmer.opacity(0.6), .clear], startPoint: .leading, endPoint: .trailing)
+                        .frame(width: geometry.size.width / 3)
+                        .offset(x: -geometry.size.width / 3 + travel * geometry.size.width * 4 / 3)
+                }.mask(content).allowsHitTesting(false).accessibilityHidden(true)
+                    .onAppear { withAnimation(.linear(duration: 2.4).repeatForever(autoreverses: false)) { travel = 1 } }
+            }
+        }
+    }
+}
+extension View {
+    fileprivate func skeletonShimmer() -> some View { modifier(SkeletonShimmer()) }
+    /// Rows from the last scan while a rescan runs (#308): they stay where they are, dimmed, and can't be clicked until it
+    /// ends. Never rows that look final but ignore clicks.
+    func waitingForScan(_ waiting: Bool) -> some View {
+        disabled(waiting).opacity(waiting ? CacheDropDesign.Opacity.waiting : 1).allowsHitTesting(!waiting)
+            .animation(.easeInOut(duration: 0.2), value: waiting)
+    }
+}
+
+extension CacheDropDesign {
+    /// What a disabled Review cleanup or Clean up says while a scan runs (#308).
+    static let waitForScanHelp = "Wait for the scan to finish"
+}
+
+/// A bar's main action while its click-time checks run (#308): a small spinner beside it, and the action ignores more
+/// clicks until they end.
+struct BusyAction<Content: View>: View {
+    let busy: Bool
+    @ViewBuilder var content: () -> Content
+    var body: some View {
+        HStack(spacing: CacheDropDesign.Space.sm) {
+            if busy { ProgressView().controlSize(.small).accessibilityLabel("Checking") }
+            content().disabled(busy)
+        }
+    }
+}
+
+/// What Overview, Smart clean and the plan show when a finished scan found nothing to clean (#308), as the one empty
+/// state (#321). Overview and the plan lead on to Explore storage; Smart clean has its "Not included" links instead.
+struct NothingToCleanUp: View {
+    var identifier = "nothingToCleanUp"
+    var action: EmptyStateAction? = nil
+    var body: some View {
+        EmptyState(title: "Nothing to clean up right now", symbol: "checkmark.circle", action: action, identifier: identifier)
+    }
+}
+
+/// The one button rule (#311). 1: every bordered button is a capsule, set once per root (the workspace window, each sheet,
+/// the Settings form) with `cacheDropButtonRule()`. 2: large in the bottom bar (`ActionStrip`) and sheet footers
+/// (`SheetFooter`), regular in page bodies, never small and bordered. 3: anything inside a row, status line, breadcrumb or
+/// the bar's work line is a link (`.buttonStyle(.link)`). 4: a sheet's footer is right-aligned, Cancel then the primary
+/// button; its one close style is `CloseButton`.
+extension View {
+    func cacheDropButtonRule() -> some View { buttonBorderShape(.capsule) }
+}
+/// A sheet's footer (#311): an optional leading note, then its buttons right-aligned and large, Cancel then the primary one.
+struct SheetFooter<Leading: View, Actions: View>: View {
+    @ViewBuilder var leading: () -> Leading
+    @ViewBuilder var actions: () -> Actions
+    var body: some View {
+        HStack(spacing: CacheDropDesign.Space.sm) {
+            leading()
+            Spacer(minLength: CacheDropDesign.Space.md)
+            actions()
+        }.controlSize(.large).accessibilityElement(children: .contain).accessibilityIdentifier("sheetFooter")
+    }
+}
+extension SheetFooter where Leading == EmptyView {
+    init(@ViewBuilder actions: @escaping () -> Actions) { self.init(leading: { EmptyView() }, actions: actions) }
+}
+/// The one close style (#311): a borderless xmark in secondary text, at a sheet's or panel's top trailing corner.
+struct CloseButton: View {
+    var label = "Close"
+    var identifier: String? = nil
+    let action: () -> Void
+    var body: some View {
+        Button(label, systemImage: "xmark", action: action).labelStyle(.iconOnly).buttonStyle(.borderless)
+            .foregroundStyle(.secondary).modifier(OptionalIdentifier(identifier: identifier))
+    }
 }

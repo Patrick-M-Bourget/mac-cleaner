@@ -95,7 +95,7 @@ public actor CleanupExecutor {
         let pending = approval.candidates.map { CleanupRecord(batchID: approval.id, approvedAt: approval.approvedAt, candidate: $0, previewOnly: approval.previewOnly) }
         await progress(.init(resolved: 0, total: total, last: nil))
         do { guard try journal.claim(batchID: approval.id, records: pending) else { return result([], replay: true) } }
-        catch { return result([], failure: "Could not record the cleanup. Nothing was changed.") }
+        catch { return result([], failure: "CacheDrop couldn’t save the cleanup before starting, so nothing was changed.") }
         var records: [CleanupRecord] = [], failure: String?
         // One reading of what processes have open serves many items, but never one older than `inUseReadingMaxAge`.
         var reading: (check: CandidateCheck, takenAt: Date)?
@@ -104,18 +104,18 @@ public actor CleanupExecutor {
             var record = initial
             if cancellation.isCancelled || failure != nil {
                 record.state = .cancelled; record.message = "Not started"
-                if failure == nil { do { try journal.outcome(record) } catch { failure = "Cancellation outcome could not be recorded" } }
+                if failure == nil { do { try journal.outcome(record) } catch { failure = "CacheDrop couldn’t save that the cleanup stopped." } }
                 records.append(record); await progress(.init(resolved: records.count, total: total, last: record)); continue
             }
             record.state = .intent; record.message = "Started; outcome not yet recorded"
             do { try journal.intent(record) }
-            catch { record.state = .cancelled; record.message = "Could not record the start; not changed"; failure = record.message; records.append(record); await progress(.init(resolved: records.count, total: total, last: record)); continue }
+            catch { record.state = .cancelled; record.message = "CacheDrop couldn’t save its progress, so it stopped. This item wasn’t changed."; failure = record.message; records.append(record); await progress(.init(resolved: records.count, total: total, last: record)); continue }
             if self.check.needsInUseCheck(candidate), reading.map({ clock().timeIntervalSince($0.takenAt) > Self.inUseReadingMaxAge }) ?? true {
                 reading = (self.check.snapshotted(), clock())
             }
             await perform(candidate, check: reading?.check ?? self.check, previewOnly: approval.previewOnly, into: &record)
             do { try journal.outcome(record) }
-            catch { record.state = .unknown; record.message = "Outcome could not be recorded. Review recovery; do not repeat automatically."; failure = record.message }
+            catch { record.state = .unknown; record.message = "CacheDrop couldn’t save what happened. Review the interrupted cleanup before cleaning again."; failure = record.message }
             if record.state == .unknown { failure = record.message }
             records.append(record)
             await progress(.init(resolved: records.count, total: total, last: record))
@@ -239,7 +239,7 @@ public actor CleanupExecutor {
             }
             guard command.deletesLocationAfter else { record.state = .succeeded; record.message = "Ran \(name)"; return }
             // A cancel that landed as the tool finished starts no new destructive step (#195).
-            guard !cancellation.isCancelled else { record.state = .succeeded; record.message = "Ran \(name). Stopped before removing the folder, since you cancelled."; return }
+            guard !cancellation.isCancelled else { record.state = .succeeded; record.message = "Ran \(name). Stopped before removing the folder, since you canceled."; return }
             var info = stat()
             if lstat(candidate.url.path, &info) != 0, errno == ENOENT { record.state = .succeeded; record.message = "Ran \(name); it removed the folder itself"; return }
             delete(candidate, into: &record)
@@ -271,11 +271,11 @@ public actor CleanupExecutor {
     /// What stopped a tool before it finished.
     private enum StopCause {
         case timeLimit(seconds: Int), cancelled
-        /// How results say it: "Stopped at the 300-second time limit", "Stopped waiting when you cancelled".
+        /// How results say it: "Stopped at the 300-second time limit", "Stopped waiting when you canceled".
         var phrase: String {
             switch self {
             case .timeLimit(let seconds): "at the \(seconds)-second time limit"
-            case .cancelled: "when you cancelled"
+            case .cancelled: "when you canceled"
             }
         }
     }
@@ -343,7 +343,7 @@ public actor CleanupExecutor {
             record.trashURL = resulting
             var moved = stat()
             if let resulting, lstat(resulting.path, &moved) != 0 || moved.resourceID != candidate.resourceID {
-                record.state = .unknown; record.message = "The item in the Trash isn’t the one approved. Review it before cleaning again."
+                record.state = .unknown; record.message = "The item in the Trash isn’t the one you chose. Review it before cleaning again."
                 return
             }
             record.state = .succeeded; record.message = "Moved to Trash"

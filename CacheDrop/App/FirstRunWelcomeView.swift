@@ -40,10 +40,11 @@ import SwiftUI
     #endif
 }
 
-/// The calm three-step welcome (Decision 25): few words, one primary action per step, Skip on every step.
+/// The calm three-step welcome (Decision 25): few words, one primary action per step, Skip on every step. The launch scan
+/// runs behind it from the start, so the last step shows its progress and ends with Done (#310).
 struct FirstRunWelcomeView: View {
     let model: WelcomeModel
-    let startScan: () -> Void
+    let catalog: CatalogCleanupModel
     @State private var step = 0
     @State private var access = FullDiskAccessModel()
 
@@ -58,20 +59,24 @@ struct FirstRunWelcomeView: View {
                 PageHeader(title: FullDiskAccessGuide.title, subtitle: FullDiskAccessGuide.summary)
                 FullDiskAccessLink(title: "Learn more", model: access, symbol: nil)
             default:
-                PageHeader(title: "Start your first scan", subtitle: "Scans only read. Nothing is cleaned until you review it.")
+                PageHeader(title: catalog.isScanning ? "Your first scan is running" : "Your first scan is done",
+                           subtitle: "Scans only read. Nothing is cleaned until you review it.")
+                if catalog.isScanning {
+                    ProgressView(catalog.scanProgressText).controlSize(.small).accessibilityIdentifier("welcomeScanProgress")
+                }
             }
             Divider()
-            HStack {
+            SheetFooter {
                 Text("\(step + 1) of 3").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
-                Spacer()
+            } actions: {
                 Button("Skip") { model.finish() }.accessibilityIdentifier("welcomeSkip")
                 if step < 2 {
                     Button("Continue") { step += 1 }.keyboardShortcut(.defaultAction).accessibilityIdentifier("welcomeContinue")
                 } else {
-                    Button("Start scan") { model.finish(); startScan() }.keyboardShortcut(.defaultAction).accessibilityIdentifier("welcomeStartScan")
+                    Button("Done") { model.finish() }.keyboardShortcut(.defaultAction).accessibilityIdentifier("welcomeDone")
                 }
             }
         }
-        .padding(CacheDropDesign.Space.xl).frame(width: CacheDropDesign.Size.sheetNarrow).background(CacheDropDesign.reading)
+        .padding(CacheDropDesign.Space.xl).frame(width: CacheDropDesign.Size.sheetNarrow).background(CacheDropDesign.reading).cacheDropButtonRule()
     }
 }

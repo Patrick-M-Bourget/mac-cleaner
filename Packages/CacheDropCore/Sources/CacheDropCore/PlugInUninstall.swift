@@ -128,7 +128,7 @@ public enum PlugInUninstall {
             let allowed = owners.union(others)
             guard shared[piece.url.path] == nil, let target = sharedTarget(ids), var found = item(sharedRule, piece.url) else { continue }
             if let refusal = contentRefusal(piece.url.path, allowed: allowed, receipts: receipts, refuseWhenTooLarge: false) {
-                // Content with a file CacheDrop doesn't recognise stays, and its first owner's row says so (Decision 53).
+                // Content with a file CacheDrop doesn't recognize stays, and its first owner's row says so (Decision 53).
                 if case .unrecognised = refusal, let first = ids.first { targets[first]?.unrecognised += 1 }
                 continue
             }

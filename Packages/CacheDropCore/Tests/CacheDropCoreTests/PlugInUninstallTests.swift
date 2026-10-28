@@ -75,7 +75,7 @@ private func fixture(in folder: String? = nil) throws -> (root: URL, home: URL) 
     return (root, home)
 }
 private func scan(_ root: URL, _ home: URL, apps: [InstalledApp] = []) -> (inventory: PlugInInventory, items: [Candidate]) {
-    let inventory = PlugInInventory.scan(home: home, systemRoot: root, sizer: KnownLocationSizer(timeBudget: 5))
+    let inventory = PlugInInventory.scan(home: home, systemRoot: root, sizer: KnownLocationSizer(timeBudget: 5), receipts: ReceiptListings.read(under: root))
     return (inventory, PlugInUninstall.scan(inventory, apps: apps, receipts: ReceiptListings.read(under: root), systemRoot: root))
 }
 private func product(_ name: String, _ inventory: PlugInInventory) throws -> String { try #require(inventory.products.first { $0.name == name }).id }
@@ -280,7 +280,7 @@ private func names(_ items: [Candidate]) -> Set<String> { Set(items.map(\.url.la
     chmod(delayVST3.path, 0o555)
     try FileManager.default.removeItem(at: root.appendingPathComponent(support + "Pro Delay"))
     try write("Library/Application Support/Maker Content/Sounds.wav", in: root)
-    let inventory = PlugInInventory.scan(home: home, systemRoot: root, sizer: KnownLocationSizer(timeBudget: 5))
+    let inventory = PlugInInventory.scan(home: home, systemRoot: root, sizer: KnownLocationSizer(timeBudget: 5), receipts: ReceiptListings.read(under: root))
     let synth = try product("Pro Synth", inventory), delay = try product("Pro Delay", inventory)
     let library = MusicContentItem(name: "Sounds", vendors: ["Maker"], url: root.appendingPathComponent("Library/Application Support/Maker Content"), kind: .installed,
                                    state: .present(.unknown), owners: [delay, "/Applications/Maker Hub.app", synth], tie: .vendor)
@@ -431,7 +431,7 @@ private func unreadableReceipt(_ id: String, in root: URL) throws {
     try write(folder + "/Sounds/Pad.wav", in: root)
     try write("Library/Application Support/Locked Content/Sounds/Pad.wav", in: root)
     try write("Library/Application Support/Locked Content/auth.lic", in: root)
-    let inventory = PlugInInventory.scan(home: home, systemRoot: root, sizer: KnownLocationSizer(timeBudget: 5))
+    let inventory = PlugInInventory.scan(home: home, systemRoot: root, sizer: KnownLocationSizer(timeBudget: 5), receipts: ReceiptListings.read(under: root))
     let synth = try product("Pro Synth", inventory)
     func content(_ name: String) -> MusicContentItem {
         MusicContentItem(name: name, vendors: ["Maker"], url: root.appendingPathComponent("Library/Application Support/" + name), kind: .installed,
@@ -460,7 +460,7 @@ private func unreadableReceipt(_ id: String, in root: URL) throws {
     try write("Library/Application Support/Maker Content/Sounds/Pad.wav", in: root)
     try Data("<library><id>9F2C-11AA</id></library>".utf8).write(to: { try! write("Library/Application Support/Maker Content/Library.xml", in: root)
         return root.appendingPathComponent("Library/Application Support/Maker Content/Library.xml") }())
-    let inventory = PlugInInventory.scan(home: home, systemRoot: root, sizer: KnownLocationSizer(timeBudget: 5))
+    let inventory = PlugInInventory.scan(home: home, systemRoot: root, sizer: KnownLocationSizer(timeBudget: 5), receipts: ReceiptListings.read(under: root))
     let synth = try product("Pro Synth", inventory)
     let library = MusicContentItem(name: "Sounds", vendors: ["Maker"], url: root.appendingPathComponent("Library/Application Support/Maker Content"), kind: .installed,
                                    state: .present(.unknown), owners: [synth], tie: .vendor)
@@ -469,7 +469,7 @@ private func unreadableReceipt(_ id: String, in root: URL) throws {
     #expect(!items.contains { ["Presets", "engine.cfg", "Maker Content"].contains($0.url.lastPathComponent) }, "\(items.map(\.url.lastPathComponent))")
     let own = items.filter { $0.uninstall?.path == synth && $0.sharedBy.isEmpty }
     #expect(names(own.filter { $0.ruleID == PlugInUninstall.filesRuleID }) == ["Init.fxp"], "What it recognises next to it is still offered")
-    #expect(AppUninstall.staying(chosen: own, offered: items).map(\.text).contains("Pro Synth: 1 part stays · Holds files CacheDrop doesn’t recognise"))
+    #expect(AppUninstall.staying(chosen: own, offered: items).map(\.text).contains("Pro Synth: 1 part stays · Holds files CacheDrop doesn’t recognize"))
 }
 
 @Test func anUnreadableFolderAtAnyDepthRefusesTheItemAtTheScanAndBeforeActing() throws {
@@ -496,7 +496,7 @@ private func unreadableReceipt(_ id: String, in root: URL) throws {
     try write(folder + "/Sounds/Lead.wav", in: root)
     // The vendor's standalone app's pkg, which installs no plug-in, wrote a file into the content folder.
     try receipt("com.maker.hub.pkg", listing: [folder + "/Sounds/Pad.wav"], in: root)
-    let inventory = PlugInInventory.scan(home: home, systemRoot: root, sizer: KnownLocationSizer(timeBudget: 5))
+    let inventory = PlugInInventory.scan(home: home, systemRoot: root, sizer: KnownLocationSizer(timeBudget: 5), receipts: ReceiptListings.read(under: root))
     let synth = try product("Pro Synth", inventory)
     let library = MusicContentItem(name: "Sounds", vendors: ["Maker"], url: root.appendingPathComponent(folder), kind: .installed,
                                    state: .present(.unknown), owners: [synth], tie: .vendor)
@@ -515,7 +515,7 @@ private func unreadableReceipt(_ id: String, in root: URL) throws {
     defer { try? FileManager.default.removeItem(at: root) }
     let folder = "Library/Application Support/Maker Content"
     for name in ["Sounds/Pad.wav", "Kits/Drums.nki", "Art/Cover.png", "Icon\r", ".DS_Store", "Sounds/.DS_Store"] { try write(folder + "/" + name, in: root) }
-    let inventory = PlugInInventory.scan(home: home, systemRoot: root, sizer: KnownLocationSizer(timeBudget: 5))
+    let inventory = PlugInInventory.scan(home: home, systemRoot: root, sizer: KnownLocationSizer(timeBudget: 5), receipts: ReceiptListings.read(under: root))
     let library = MusicContentItem(name: "Sounds", vendors: ["Maker"], url: root.appendingPathComponent(folder), kind: .installed,
                                    state: .present(.unknown), owners: [try product("Pro Synth", inventory)], tie: .vendor)
     let items = PlugInUninstall.scan(inventory, apps: [], receipts: ReceiptListings.read(under: root), content: [library], systemRoot: root)

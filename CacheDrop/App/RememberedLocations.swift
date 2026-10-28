@@ -60,7 +60,6 @@ import CacheDropCore
         } catch { message = "This location could not be remembered. Choose it again or check access."; return false }
     }
     var included: [RememberedScope] { scopes.filter(\.isIncluded) }
-    var includedDownloads: [RememberedScope] { included.filter { $0.kind == .downloads } }
     func resolve(_ scope: RememberedScope) -> ScopeAccessLease? {
         do { let lease = try registry().resolveForScan(id: scope.id); statuses[scope.id] = .ready; recoveryReasons[scope.id] = nil; return lease }
         catch ScopeRegistryError.chooseAgain { statuses[scope.id] = .chooseAgain }
