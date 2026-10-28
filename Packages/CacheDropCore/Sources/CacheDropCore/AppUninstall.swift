@@ -32,11 +32,13 @@ public enum AppUninstall {
         /// Its files that stay whatever is ticked: those that need a password, and those the Cleanup plan already offers (#281).
         public var needsPassword = 0
         public var inPlan = 0
+        /// The rules that already offer its files in the Cleanup plan, for "Clean in the Cleanup plan" (#354).
+        public var inPlanRuleIDs: [String] = []
         /// What only a plug-in product has (#176); nil for an app.
         public var plugIn: PlugIn? = nil
         /// The vendor's tool, for "Needs <tool> or your password" (Decision 50).
         public var tool: String? { plugIn?.tool }
-        /// A plug-in product's support files that need a password, listed on its row as staying (#288).
+        /// Its files that need a password: a plug-in product's row lists them as staying (#288), the review reveals them (#354).
         public var passwordPaths: [String] = []
         /// A plug-in product's support files weren't offered: an installer record couldn't be read (#291).
         public var receiptsUnread = false
@@ -92,8 +94,10 @@ public enum AppUninstall {
             .map { confirmingOwn($0, ids: ownIDs) }
             .filter { item in item.leftover.map { gone.isOwn(item.url, tie: $0) } ?? false }
         let notInPlan = RemovedAppLeftovers.notOffered(by: offered, found), removable = notInPlan.filter { Removability.canMoveToTrash($0.url) }
-        let target = Target(name: app.name, bundleID: app.bundleID, path: url.path, helpers: helpers,
+        var target = Target(name: app.name, bundleID: app.bundleID, path: url.path, helpers: helpers,
                             needsPassword: notInPlan.count - removable.count, inPlan: found.count - notInPlan.count)
+        target.passwordPaths = notInPlan.filter { !Removability.canMoveToTrash($0.url) }.map(\.url.path)
+        target.inPlanRuleIDs = planRuleIDs(offering: found, among: offered)
         let files = removable.map { $0.uninstalled(with: target, ruleID: $0.ruleID == RemovedAppLeftovers.ruleID ? filesRuleID : possiblyRelatedRuleID) }
         bundle.uninstall = target
         // Its own uninstaller, when macOS lets the user move it to the Trash and it isn't excluded.
@@ -143,10 +147,35 @@ public enum AppUninstall {
         return Removability.canMoveToTrash(url) ? nil : .notPermitted
     }
 
-    /// One line of the review's "what stays and why" (Decision 51: "<N> parts stay"), one per app and reason.
+    /// The rules of `offered` that hold any of `items`, in first-seen order: the plan's own items stay there (#354).
+    static func planRuleIDs(offering items: [Candidate], among offered: [Candidate]) -> [String] {
+        let paths = items.map { $0.url.standardizedFileURL.path }
+        var ids: [String] = []
+        for item in offered where !ids.contains(item.ruleID) {
+            let path = item.url.standardizedFileURL.path
+            if paths.contains(where: { $0 == path || $0.hasPrefix(path + "/") || path.hasPrefix($0 + "/") }) { ids.append(item.ruleID) }
+        }
+        return ids
+    }
+
+    /// One line of the review's "what stays and why" (Decision 51, #354): what stays, why and what to do, one per app and reason.
     public struct Staying: Sendable, Equatable, Identifiable {
         public let id: String
         public let text: String
+        /// Where it can be cleaned, when CacheDrop can lead there.
+        public var link: Link? = nil
+        public enum Link: Sendable, Equatable {
+            /// The Cleanup plan, with these rules' categories revealed.
+            case cleanupPlan(ruleIDs: [String])
+            /// Finder, with these items selected.
+            case finder(paths: [String])
+            public var title: String {
+                switch self {
+                case .cleanupPlan: "Clean in the Cleanup plan"
+                case .finder: "Reveal in Finder"
+                }
+            }
+        }
     }
     /// For each app being uninstalled: its items left unticked, those that need a password, and those the plan offers.
     public static func staying(chosen: [Candidate], offered: [Candidate]) -> [Staying] {
@@ -157,13 +186,27 @@ public enum AppUninstall {
         for item in own.isEmpty ? chosen : own { if let app = item.uninstall, !apps.contains(where: { $0.path == app.path }) { apps.append(app) } }
         return apps.flatMap { app in
             let unticked = offered.filter { $0.isUninstalled(with: app.path) && !ids.contains($0.id) }.count
-            let password: String = app.tool.map { "Needs \($0) or your password" } ?? "Needs your password"
-            let reasons: [(String, Int, String)] = [("unticked", unticked, "Not ticked"), ("password", app.needsPassword, password),
-                                                    ("inside", app.plugIn?.insideApp ?? 0, "Goes with the app it is in"),
-                                                    ("unrecognised", app.unrecognised, "Holds files CacheDrop doesn’t recognize"), ("plan", app.inPlan, "In the Cleanup plan")]
-            return reasons
-                .filter { $0.1 > 0 }
-                .map { Staying(id: app.path + "-" + $0.0, text: "\(app.name): " + ($0.1 == 1 ? "1 part stays" : "\($0.1) parts stay") + " · " + $0.2) }
+            // "1 of Synth’s files stays because …" or "2 of Synth’s files stay because …", then what to do about it.
+            func line(_ reason: String, _ count: Int, _ noun: String, _ one: String, _ many: String, link: Staying.Link? = nil) -> Staying? {
+                guard count > 0 else { return nil }
+                return Staying(id: app.path + "-" + reason, text: "\(count) of \(app.name)’s \(noun)s " + (count == 1 ? one : many), link: link)
+            }
+            let password = app.tool.map { "\($0) or your password" } ?? "your password"
+            let removeIt = app.tool.map { "with \($0), or yourself in Finder" } ?? "yourself in Finder"
+            return [
+                line("unticked", unticked, "item", "isn’t ticked, so it stays. To remove it too, go back and tick it.",
+                     "aren’t ticked, so they stay. To remove them too, go back and tick them."),
+                line("password", app.needsPassword, "file", "stays because removing it needs \(password). You can remove it \(removeIt).",
+                     "stay because removing them needs \(password). You can remove them \(removeIt).",
+                     link: app.passwordPaths.isEmpty ? nil : .finder(paths: app.passwordPaths)),
+                line("inside", app.plugIn?.insideApp ?? 0, "plug-in", "stays because it is inside an app. It goes when you uninstall that app.",
+                     "stay because they are inside an app. They go when you uninstall that app."),
+                line("unrecognised", app.unrecognised, "file", "stays because CacheDrop doesn’t recognize what it is. CacheDrop keeps it to be safe; leaving it is fine.",
+                     "stay because CacheDrop doesn’t recognize what they are. CacheDrop keeps them to be safe; leaving them is fine."),
+                line("plan", app.inPlan, "file", "isn’t removed here because the Cleanup plan already lists it. Clean it there.",
+                     "aren’t removed here because the Cleanup plan already lists them. Clean them there.",
+                     link: app.inPlanRuleIDs.isEmpty ? nil : .cleanupPlan(ruleIDs: app.inPlanRuleIDs)),
+            ].compactMap { $0 }
         }
     }
 

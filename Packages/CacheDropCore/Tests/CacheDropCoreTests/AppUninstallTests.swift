@@ -187,7 +187,12 @@ private struct Processes: ProcessListing {
     let found = scan(home, synth, apps)
     let chosen = found.filter { $0.ruleID != AppUninstall.possiblyRelatedRuleID }
 
-    #expect(AppUninstall.staying(chosen: chosen, offered: found).map(\.text) == ["Synth: 1 part stays · Not ticked"])
+    // #354: what stays, why and what to do, in plain words.
+    let unticked = AppUninstall.staying(chosen: chosen, offered: found)
+    #expect(unticked.map(\.text) == ["1 of Synth’s items isn’t ticked, so it stays. To remove it too, go back and tick it."])
+    #expect(unticked.map(\.link) == [nil], "Going back is the sheet's own Cancel")
+    let two = AppUninstall.staying(chosen: chosen.filter { $0.url.pathExtension != "plist" }, offered: found).map(\.text)
+    #expect(two == ["2 of Synth’s items aren’t ticked, so they stay. To remove them too, go back and tick them."])
     #expect(AppUninstall.staying(chosen: found, offered: found).isEmpty)
     #expect(AppUninstall.byPlace(chosen).map(\.place.lastPathComponent) == ["Applications", "Containers", "Preferences"])
 }
@@ -206,7 +211,12 @@ private struct Processes: ProcessListing {
 
     #expect(!found.contains { $0.url == container || $0.url.deletingLastPathComponent() == prefs })
     let lines = AppUninstall.staying(chosen: found, offered: found)
-    #expect(lines.map(\.text) == ["Synth: 1 part stays · Needs your password", "Synth: 1 part stays · In the Cleanup plan"])
+    // #354: each says what stays, why and what to do, with a link to where it can be cleaned.
+    #expect(lines.map(\.text) == ["1 of Synth’s files stays because removing it needs your password. You can remove it yourself in Finder.",
+                                  "1 of Synth’s files isn’t removed here because the Cleanup plan already lists it. Clean it there."])
+    #expect(lines.map(\.link) == [.finder(paths: [prefs.appendingPathComponent("com.maker.synth.plist").path]),
+                                  .cleanupPlan(ruleIDs: [planItem.ruleID])])
+    #expect(lines.compactMap(\.link?.title) == ["Reveal in Finder", "Clean in the Cleanup plan"])
     #expect(Set(lines.map(\.id)).count == 2, "Each line has its own identifier")
 }
 

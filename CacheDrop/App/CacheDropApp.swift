@@ -629,7 +629,8 @@ private struct WorkspaceView: View {
     }
 
     private var applicationsPage: some View {
-        ApplicationsView(selection: selection, model: ApplicationsModel.shared, viewHistory: { navigate(.history) }, reviewRecovery: { openRecovery(caller: .applications) })
+        ApplicationsView(selection: selection, model: ApplicationsModel.shared, viewHistory: { navigate(.history) }, reviewRecovery: { openRecovery(caller: .applications) },
+                         openPlan: { categories in openPlan(categories); if let first = categories.first { planPresentation.reveal(first) } })
     }
 
     /// The pages that scroll above the bar: Recovery, Local records, Protected items, App-managed storage and the sidebar destinations.

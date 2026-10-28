@@ -19,6 +19,8 @@ extension ConsequenceGroup {
 struct CatalogConfirmationSection: View {
     let review: CatalogReview
     let catalog: Catalog
+    /// Follows a staying line's link (#354); without it the lines show no link.
+    var follow: ((AppUninstall.Staying.Link) -> Void)? = nil
     var body: some View {
         VStack(alignment: .leading, spacing: CacheDropDesign.Space.lg) {
             if review.approval.previewOnly {
@@ -55,8 +57,11 @@ struct CatalogConfirmationSection: View {
                 }
                 Divider()
             }
-            // What an uninstall leaves, and why (#177).
-            ForEach(review.staying) { line in StatusRow(text: line.text, symbol: "info.circle", identifier: "reviewStaying-" + line.id) }
+            // What an uninstall leaves, why and what to do, with a link to where it can be cleaned (#177, #354).
+            ForEach(review.staying) { line in
+                StatusRow(text: line.text, symbol: "info.circle", identifier: "reviewStaying-" + line.id,
+                          action: line.link.flatMap { link in follow.map { follow in StatusAction(title: link.title, identifier: "reviewStayingLink-" + line.id) { follow(link) } } })
+            }
         }
     }
     private func files(_ rule: CleanupRule, _ items: [Candidate]) -> some View {

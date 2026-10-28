@@ -172,7 +172,8 @@ final class ApplicationsUITests: XCTestCase {
         app.buttons["Review cleanup"].click()
         XCTAssertTrue(reviewLine(app, "movedToTrash", "apps").waitForExistence(timeout: 5))
         let staying = element(app, "reviewStaying-" + synth.path + "-unticked", .staticText)
-        XCTAssertEqual(staying.value as? String, "Synth: 1 part stays · Not ticked", "The review says what stays")
+        XCTAssertEqual(staying.value as? String, "1 of Synth’s items isn’t ticked, so it stays. To remove it too, go back and tick it.",
+                       "The review says what stays, why and what to do (#354)")
         cleanUpFromReview(app)
         XCTAssertTrue(app.buttons["View history"].waitForExistence(timeout: 20))
         XCTAssertFalse(FileManager.default.fileExists(atPath: synth.path), "The app went to the Trash")
@@ -354,7 +355,9 @@ final class ApplicationsUITests: XCTestCase {
         XCTAssertTrue(staying.waitForExistence(timeout: 5))
         let line = reviewLine(app, "movedToTrash", "apps").value as? String ?? ""
         XCTAssertTrue(line.hasPrefix("Apps, plug-ins and their files"), "The review names plug-ins too: " + line)
-        XCTAssertEqual(staying.value as? String, "Pro Synth: 1 part stays · Needs your password", "The review says what stays")
+        XCTAssertEqual(staying.value as? String, "1 of Pro Synth’s files stays because removing it needs your password. You can remove it yourself in Finder.",
+                       "The review says what stays, why and what to do (#354)")
+        XCTAssertTrue(element(app, "reviewStayingLink-" + au.path + "-password", .link).exists, "With Reveal in Finder (#354)")
         cleanUpFromReview(app)
         XCTAssertTrue(app.buttons["View history"].waitForExistence(timeout: 20))
         XCTAssertFalse(FileManager.default.fileExists(atPath: vst3.path), "The VST3 went to the Trash")
