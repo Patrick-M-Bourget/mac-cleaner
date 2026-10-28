@@ -24,7 +24,7 @@ import SwiftUI
     /// The explorer's own title, which a page opened from it names when it goes back (#228).
     var title: String { "Explore storage" }
     /// The list of locations the explorer starts at.
-    var rootName: String { "Selected locations" }
+    var rootName: String { "Scanned folders" }
     /// Where back leads inside the explorer: the previous folder, or the list of locations; nil when back leaves it.
     var backDestination: String? {
         guard let previous = history.last else { return nil }
@@ -359,7 +359,7 @@ struct StorageExplorerView: View {
     private var largeAndOldFiles: some View {
         let files = offeredHere
         return VStack(alignment: .leading, spacing: 0) {
-            if files.isEmpty { EmptyState(title: "No large or old files here", detail: "Nothing here is 500 MB or more or unopened for 90 days.", symbol: "doc") }
+            if files.isEmpty { EmptyState(title: "No large or old files here", detail: "Nothing here is 500 MB or more, or unopened for 90 days.", symbol: "doc") }
             LazyVStack(alignment: .leading, spacing: 0) {
                 ForEach(files, id: \.file.id) { file, entry in
                     InspectableItemRow(name: file.displayName, detail: fileDetail(file), size: catalogBytes(file.estimatedBytes), symbol: "doc",

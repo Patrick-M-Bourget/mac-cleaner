@@ -927,7 +927,7 @@ extension CatalogCleanupUITests {
         XCTAssertEqual(back.label, "Back to Overview")
         app.buttons["Open folder " + folder.lastPathComponent].click()
         XCTAssertTrue(app.textFields["explorerSearch"].waitForExistence(timeout: 5))
-        XCTAssertEqual(back.label, "Back to Selected locations")
+        XCTAssertEqual(back.label, "Back to Scanned folders")
         back.click()
         XCTAssertTrue(app.buttons["Open folder " + folder.lastPathComponent].waitForExistence(timeout: 5))
         XCTAssertEqual(back.label, "Back to Overview")
@@ -1001,7 +1001,7 @@ extension CatalogCleanupUITests {
         XCTAssertTrue(app.staticTexts["This folder is no longer there"].waitForExistence(timeout: 20))
         XCTAssertFalse(app.buttons["Return to selected locations"].exists)
         let explorerBack = app.buttons["explorerBack"]
-        XCTAssertEqual(explorerBack.label, "Back to Selected locations")
+        XCTAssertEqual(explorerBack.label, "Back to Scanned folders")
         assertBackButton(explorerBack, isAbove: "Explore storage", in: app)
         explorerBack.click()
         XCTAssertFalse(app.staticTexts["This folder is no longer there"].waitForExistence(timeout: 2))
@@ -1038,14 +1038,14 @@ extension CatalogCleanupUITests {
         app.typeKey("r", modifierFlags: .command)
         let row = app.staticTexts["explorerLocationRecovery"]
         XCTAssertTrue(row.waitForExistence(timeout: 20))
-        XCTAssertTrue((row.value as? String ?? "").hasPrefix("Folder not found · last observed "), "\(String(describing: row.value))")
+        XCTAssertTrue((row.value as? String ?? "").hasPrefix("Folder not found · last scanned "), "\(String(describing: row.value))")
         XCTAssertEqual(app.links["explorerChooseAgain"].label, "Choose again…")
         XCTAssertFalse(app.buttons["Open folder Inner"].exists)
         XCTAssertFalse(app.staticTexts["This folder is no longer there"].exists)
 
         // The list of locations marks it the same way and doesn't offer to open its old contents.
         let explorerBack = app.buttons["explorerBack"]
-        XCTAssertEqual(explorerBack.label, "Back to Selected locations")
+        XCTAssertEqual(explorerBack.label, "Back to Scanned folders")
         explorerBack.click()
         XCTAssertTrue(row.waitForExistence(timeout: 5))
         XCTAssertFalse(app.buttons["Open folder " + folder.lastPathComponent].exists)
