@@ -56,8 +56,6 @@ struct DesignGallery: View {
                     StatusRow(text: "Downloads · Access unavailable", role: .caution, action: StatusAction(title: "Choose again…") {})
                     Text("Synthetic unavailable controls · Cleanup or maintenance in progress").font(.headline)
                     LocalRecordsMaintenanceControls(enabled: false, clear: {}, reset: {})
-                    Text("Synthetic future-gated diagnostics entry · Inert example").font(.headline)
-                    LocalRecordsDiagnosticsEntry(action: {})
                     Text("Synthetic Full Disk Access row · Live status check only").font(.headline)
                     FullDiskAccessSetting()
                     NotAccessibleRow(title: "Safari cache")
