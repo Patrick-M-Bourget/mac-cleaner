@@ -62,6 +62,17 @@ public final class SQLiteCleanupJournal: CleanupJournaling, @unchecked Sendable 
         } catch { try? run("ROLLBACK"); throw error }
     }
     public func intent(_ record: CleanupRecord) throws { try write(record, replace: true) }
+    public func append(_ records: [CleanupRecord]) throws {
+        guard !isReadOnly else { throw CleanupJournalError.unavailable }
+        lock.lock(); defer { lock.unlock() }
+        try run("BEGIN IMMEDIATE")
+        do {
+            for record in records {
+                try run("INSERT INTO records(payload,id) VALUES(?,?)", values: [try JSONEncoder().encode(record), Data(record.id.utf8)])
+            }
+            try run("COMMIT")
+        } catch { try? run("ROLLBACK"); throw error }
+    }
     public func outcome(_ record: CleanupRecord) throws {
         var recorded = record
         if recorded.outcomeRecordedAt == nil { recorded.outcomeRecordedAt = Date() }
@@ -114,7 +125,7 @@ public final class SQLiteCleanupJournal: CleanupJournaling, @unchecked Sendable 
         var retainedBytes = 0
         let cutoff = now.addingTimeInterval(-Double(max(0, days)) * 86400)
         return try maintain(requireNoRecovery: false) { run in
-            let bytes = run.records.reduce(0) { $0 + ((try? JSONEncoder().encode($1).count) ?? 0) }
+            let bytes = (run.records + run.reviewRecords).reduce(0) { $0 + ((try? JSONEncoder().encode($1).count) ?? 0) }
             if run.date < cutoff || retainedBytes + bytes > max(0, maximumBytes) { return true }
             retainedBytes += bytes
             return false
@@ -128,7 +139,7 @@ public final class SQLiteCleanupJournal: CleanupJournaling, @unchecked Sendable 
             let snapshot = CleanupHistorySnapshot(records: try readRecords())
             if requireNoRecovery && snapshot.protectedRecordCount > 0 { throw CleanupJournalError.recoveryRequired }
             let removed = snapshot.completedRuns.filter(remove)
-            for batch in removed { for record in batch.records {
+            for batch in removed { for record in batch.records + batch.reviewRecords {
                 try run("DELETE FROM records WHERE id=?", values: [Data(record.id.utf8)])
             } }
             // batches intentionally survives: a cleared approval must never execute again.

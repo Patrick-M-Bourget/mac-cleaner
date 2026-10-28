@@ -165,7 +165,11 @@ struct RefreshRequest: Sendable {
         isRefreshingBatch = false; refreshRequests.removeAll(); AppLifecycleController.shared.hasPendingPlan = hasPendingChoicesOnAnyPage
     }
 }
-enum PlanReviewError: Error { case changed, nothingToClean }
+enum PlanReviewError: Error {
+    case changed, nothingToClean
+    /// What every page that cleans says when its choices changed before or under its review sheet (#307).
+    static let changedMessage = "Your choices changed. Check the items and try again."
+}
 
 @MainActor @Observable final class CleanupPlanPresentation {
     var search = ""
@@ -224,13 +228,14 @@ struct LiveCleanupPlanView: View {
         .sheet(item: $review, onDismiss: { reviewFocusRequest += 1 }) { snapshot in
             WorkspaceCleanupConfirmationView(review: snapshot, cancel: { review = nil }) {
                 review = nil
-                Task { do { try await selection.executeWorkspace(snapshot) } catch { approvalError = "The plan changed. Review the latest items before approving." } }
+                Task { do { try await selection.executeWorkspace(snapshot) } catch { approvalError = PlanReviewError.changedMessage } }
             }
         }
-        .onChange(of: selection.catalog.selectionRevision) { _, _ in if review != nil { review = nil } }
+        // The sheet closes only when the choices it was built from changed, and the page says so (#307).
+        .onChange(of: selection.catalog.selectionRevision) { _, _ in if review != nil { review = nil; approvalError = PlanReviewError.changedMessage } }
     }
     private func openReview() async {
-        do { review = try await selection.prepareWorkspaceReview(); approvalError = nil } catch { approvalError = "Your choices changed. Review the latest items and try again." }
+        do { review = try await selection.prepareWorkspaceReview(); approvalError = nil } catch { approvalError = PlanReviewError.changedMessage }
     }
 }
 

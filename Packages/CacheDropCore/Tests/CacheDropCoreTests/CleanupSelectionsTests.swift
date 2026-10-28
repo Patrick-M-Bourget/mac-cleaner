@@ -113,3 +113,49 @@ private let leftover = item(RemovedAppLeftovers.ruleID, name: "Synth"), related 
     #expect(rows.filter { CleanupSelections.Source.page(of: $0) == .applications }.map(\.category) == [.leftovers])
     #expect(rows.filter { CleanupSelections.Source.page(of: $0) == .plan }.count == rows.count - 1)
 }
+
+/// #307: an open review sheet closes only when what it was built from changed, never because a scan ended.
+@Test func aScanThatKeepsEveryChoiceLeavesTheRevisionAlone() {
+    var selections = CleanupSelections()
+    selections.ticked = [installer.id, leftover.id]
+    selections.noteChoices(among: scan + [leftover], smartClean: [npm, logs])
+    let revision = selections.revision
+    let dropped = selections.keepOnly(scan + [leftover, related], smartClean: [npm, logs])
+    #expect(!dropped, "Nothing chosen was dropped")
+    #expect(selections.revision == revision)
+    #expect(selections.ticked == [installer.id, leftover.id])
+}
+
+@Test func aScanThatDropsAChoiceMovesTheRevision() {
+    var selections = CleanupSelections()
+    selections.ticked = [installer.id, leftover.id]
+    selections.noteChoices(among: scan + [leftover], smartClean: [npm, logs])
+    let revision = selections.revision
+    let dropped = selections.keepOnly(scan, smartClean: [npm, logs])
+    #expect(dropped)
+    #expect(selections.ticked == [installer.id])
+    #expect(selections.revision != revision)
+}
+
+@Test func aScanThatChangesSmartCleansItemsMovesTheRevision() {
+    var selections = CleanupSelections()
+    selections.noteChoices(among: scan, smartClean: [npm, logs])
+    let revision = selections.revision
+    let dropped = selections.keepOnly(scan, smartClean: [npm])
+    #expect(!dropped)
+    #expect(selections.revision != revision)
+}
+
+@Test func choosingAnItemMovesTheRevisionAndChoosingNothingNewDoesNot() {
+    var selections = CleanupSelections()
+    selections.noteChoices(among: scan, smartClean: [])
+    let revision = selections.revision
+    selections.ticked.insert(npm.id)
+    selections.noteChoices(among: scan, smartClean: [])
+    #expect(selections.revision != revision)
+    let chosen = selections.revision
+    selections.noteChoices(among: scan, smartClean: [])
+    #expect(selections.revision == chosen)
+    selections.revise()
+    #expect(selections.revision != chosen, "A change to what the review would do moves it regardless")
+}

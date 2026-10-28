@@ -17,7 +17,6 @@ struct LocalRecordsView: View {
     @State private var confirmingReset = false
     var showRecovery: () -> Void
     var didReset: () -> Void
-    var reviewDiagnostics: (() -> Void)? = nil
     /// The back button above the title, from the page that opened this one.
     var back: BackButton? = nil
     var body: some View {
@@ -34,7 +33,6 @@ struct LocalRecordsView: View {
             }
             LocalRecordsMaintenanceControls(enabled: !model.busy && !lifecycle.operationInProgress,
                 clear: { confirmingClear = true }, reset: { confirmingReset = true })
-            if let reviewDiagnostics { LocalRecordsDiagnosticsEntry(action: reviewDiagnostics) }
         }
         .task { await model.load(maintainCompleted: false) }
         .confirmationDialog("Clear completed history?", isPresented: $confirmingClear, titleVisibility: .visible) {
@@ -60,14 +58,5 @@ struct LocalRecordsMaintenanceControls: View {
                 Button("Reset CacheDrop…", action: reset).accessibilityIdentifier("resetCacheDrop")
             }
         }.disabled(!enabled)
-    }
-}
-
-struct LocalRecordsDiagnosticsEntry: View {
-    var action: () -> Void
-    var body: some View {
-        SettingsRow(title: "Diagnostics", detail: "Review a redacted snapshot before choosing whether to save it locally. Nothing is uploaded.") {
-            Button("Review diagnostics", action: action)
-        }
     }
 }

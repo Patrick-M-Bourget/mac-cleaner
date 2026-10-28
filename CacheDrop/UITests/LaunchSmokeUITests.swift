@@ -1,5 +1,6 @@
 import XCTest
 import Darwin
+import CacheDropCore
 
 /// A fresh, owned state root so a launch never reads or writes the user's real app state.
 /// #299: the fixture folders a UI test makes in the runner's temp folder are removed after every test, whether it passed,
@@ -328,6 +329,30 @@ final class BackButtonUITests: XCTestCase {
     }
 }
 
+/// #313: custom exclusions are reached from Locations & access, as its Protected items row.
+final class ProtectedItemsUITests: XCTestCase {
+    @MainActor func testProtectedItemsOpensExclusionsFromLocationsAndReturns() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        let state = try configureIsolatedState(app)
+        let home = try configureCatalogHome(app)
+        defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
+        app.launch()
+        XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
+
+        app.typeKey("7", modifierFlags: .command)
+        let open = app.buttons["openProtectedItems"]
+        XCTAssertTrue(open.waitForExistence(timeout: 5))
+        revealAndClick(open, in: app)
+        let back = app.buttons["Back to Locations & access"]
+        assertBackButton(back, isAbove: "Custom exclusions", in: app)
+        XCTAssertTrue(app.buttons["chooseExclusion"].waitForExistence(timeout: 5), "The page offers adding an exclusion")
+        back.click()
+        XCTAssertTrue(open.waitForExistence(timeout: 5))
+        XCTAssertFalse(back.exists)
+    }
+}
+
 /// Decision 25: appearance follows the system; the override lives in the Settings window (⌘,).
 final class AppearanceSettingsUITests: XCTestCase {
     @MainActor func testAppearanceOverrideLivesInTheSettingsWindow() throws {
@@ -533,5 +558,66 @@ final class ScannedLocationsUITests: XCTestCase {
         XCTAssertEqual(texts, ["Downloads · Access unavailable", "Projects · Access unavailable"])
         XCTAssertEqual(app.buttons.matching(identifier: "overviewChooseAgain").count, 2)
         XCTAssertFalse(app.staticTexts.matching(NSPredicate(format: "value CONTAINS 'Current coverage'")).firstMatch.exists)
+    }
+}
+
+/// #309: an interrupted cleanup is checked against disk when Recovery opens, then marked reviewed. Launch stays on Overview.
+final class RecoveryReviewUITests: XCTestCase {
+    /// A pending record for `file`, as a run claims it, then `state`, as a run left it.
+    private func record(_ file: URL, batch: UUID, state: String) throws -> CleanupRecord {
+        var info = stat(), folder = stat()
+        guard lstat(file.path, &info) == 0, lstat(file.deletingLastPathComponent().path, &folder) == 0 else { throw CocoaError(.fileReadNoSuchFile) }
+        let json: [String: Any] = [
+            "id": batch.uuidString + "|" + file.path, "batchID": batch.uuidString, "originalURL": file.absoluteString, "resourceID": "\(info.st_dev):\(info.st_ino)",
+            "logicalBytes": 3, "state": state, "message": "Started; outcome not yet recorded", "observedAt": 0, "approvedAt": 0,
+            "scopeURL": file.deletingLastPathComponent().absoluteString, "scopeResourceID": "\(folder.st_dev):\(folder.st_ino)",
+            "modifiedSeconds": Int64(info.st_mtimespec.tv_sec), "modifiedNanoseconds": Int64(info.st_mtimespec.tv_nsec),
+            "action": "moveToTrash", "policyVersion": 2, "ruleID": "downloads-installers",
+        ]
+        return try JSONDecoder().decode(CleanupRecord.self, from: JSONSerialization.data(withJSONObject: json))
+    }
+
+    @MainActor func testInterruptedCleanupIsCheckedAgainstDiskAndMarkedReviewed() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        let state = try configureIsolatedState(app)
+        let home = FileManager.default.temporaryDirectory.resolvingSymlinksInPath().appendingPathComponent("CacheDropTestHome-" + UUID().uuidString)
+        FixtureFolders.track(home)
+        let downloads = home.appendingPathComponent("Downloads"), trash = home.appendingPathComponent(".Trash")
+        for folder in [downloads, trash] { try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true) }
+        let files = ["Kept.dmg", "Trashed.dmg", "Gone.dmg"].map { downloads.appendingPathComponent($0) }
+        for file in files { try Data([1, 2, 3]).write(to: file) }
+        let batch = UUID()
+        let records = try files.map { try record($0, batch: batch, state: "intent") }
+        let journal = try SQLiteCleanupJournal(url: state.appendingPathComponent("cleanup.sqlite"))
+        XCTAssertTrue(try journal.claim(batchID: batch, records: records))
+        // The run quit after starting each item: one stayed, one reached the Trash, one is gone.
+        try FileManager.default.moveItem(at: files[1], to: trash.appendingPathComponent("Trashed.dmg"))
+        try FileManager.default.removeItem(at: files[2])
+        app.launchEnvironment["CACHEDROP_TEST_CATALOG_HOME"] = home.path
+        defer { app.terminate() }
+        app.launch()
+
+        XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10), "Launch opens on Overview, never on Recovery")
+        let review = app.buttons["Review interrupted cleanup"]
+        XCTAssertTrue(review.waitForExistence(timeout: 10), "Overview shows the interrupted cleanup banner")
+        review.click()
+        let expected = ["Kept.dmg": "Not removed", "Trashed.dmg": "Moved to Trash", "Gone.dmg": "Removed"]
+        for (name, title) in expected {
+            let row = app.staticTexts["recoveryState-" + name]
+            XCTAssertTrue(row.waitForExistence(timeout: 10), "\(name) shows its finding")
+            XCTAssertTrue((row.value as? String ?? row.label).hasPrefix(title + " · "), "\(name): \(row.value ?? row.label)")
+        }
+        app.buttons["recoveryMarkReviewed"].click()
+        XCTAssertTrue(app.staticTexts["recoveryMessage"].waitForExistence(timeout: 10))
+
+        // The banner is gone, and the journal holds the reviewed records beside the unchanged originals.
+        app.buttons["Overview"].firstMatch.click()
+        XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
+        XCTAssertFalse(app.buttons["Review interrupted cleanup"].exists)
+        let reader = try SQLiteCleanupJournal(url: state.appendingPathComponent("cleanup.sqlite"), readOnly: true)
+        XCTAssertTrue(try CleanupRecoverySnapshot(journal: reader).interruptedBatches.isEmpty)
+        XCTAssertEqual(try reader.records().filter { $0.reviewOf == nil }.map(\.state), [.intent, .intent, .intent])
+        XCTAssertEqual(try reader.completedHistory().completedRuns.first?.records.map(\.outcomeTitle), ["Not removed", "Moved to Trash", "Removed"])
     }
 }

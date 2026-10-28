@@ -79,10 +79,11 @@ struct ApplicationsView: View {
         .sheet(item: $review, onDismiss: { reviewFocusRequest += 1 }) { snapshot in
             WorkspaceCleanupConfirmationView(review: snapshot, cancel: { review = nil }) {
                 review = nil
-                Task { do { try await selection.executeWorkspace(snapshot) } catch { approvalError = "Your choices changed. Review the latest items before cleaning." } }
+                Task { do { try await selection.executeWorkspace(snapshot) } catch { approvalError = PlanReviewError.changedMessage } }
             }
         }
-        .onChange(of: catalog.selectionRevision) { _, _ in if review != nil { review = nil } }
+        // The sheet closes only when the choices it was built from changed, and the page says so (#307).
+        .onChange(of: catalog.selectionRevision) { _, _ in if review != nil { review = nil; approvalError = PlanReviewError.changedMessage } }
         // Read again after each catalog scan, so Scan again refreshes the lists too.
         .task(id: catalog.isScanning) { if !catalog.isScanning { await model.load(plugIns: catalog.plugInInventory) } }
     }
@@ -183,7 +184,7 @@ struct ApplicationsView: View {
                 StatusRow(text: "Goes with " + Self.app(of: auv3[0]), identifier: "applicationsInsideApp-" + entry.id)
             } else if catalog.hasScanned, !catalog.isScanning {
                 // A removable app the scan didn't offer says why, rather than showing a bare row (#281).
-                StatusRow(text: "Not offered: excluded in Settings, or changed since the scan", identifier: "applicationsNotOffered-" + entry.id)
+                StatusRow(text: "Not offered: in Protected items, or changed since the scan", identifier: "applicationsNotOffered-" + entry.id)
             } else {
                 // Until the scan says what can go with it, the row says so rather than looking final (#303).
                 StatusRow(text: "Checking what can be removed…", symbol: "hourglass", identifier: "applicationsChecking-" + entry.id)
@@ -231,6 +232,6 @@ struct ApplicationsView: View {
 
     private func openReview() async {
         do { review = try await selection.prepareApplicationsReview(); approvalError = nil }
-        catch { approvalError = "Your choices changed. Review the latest items and try again." }
+        catch { approvalError = PlanReviewError.changedMessage }
     }
 }
