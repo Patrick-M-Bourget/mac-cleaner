@@ -648,7 +648,7 @@ private struct NativeCategoryCheckbox: NSViewRepresentable {
 
 extension CacheDropDesign.Size {
     /// A category badge and the gap after it: content under a badged header lines up with its title.
-    static let badgeIndent: CGFloat = 32 + CacheDropDesign.Space.md
+    static let badgeIndent: CGFloat = CacheDropDesign.Size.badge + CacheDropDesign.Space.md
     /// A checkbox, then a badge: content under a `CategorySelectionHeader` lines up with its title.
     static let categoryContentIndent: CGFloat = checkbox + CacheDropDesign.Space.md + badgeIndent
     /// A category checkbox's width, kept as a gap when a row has none (#267, #270).
