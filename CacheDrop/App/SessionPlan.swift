@@ -287,6 +287,8 @@ struct CleanupActionBar<Finish: View, Idle: View>: View {
     let source: CleanupSelections.Source
     var viewHistory: (() -> Void)? = nil
     var reviewRecovery: (() -> Void)? = nil
+    /// The idle bar's note, such as how many items are ticked (#295).
+    var idleNote: String? = nil
     @ViewBuilder var finish: () -> Finish
     @ViewBuilder var idle: () -> Idle
     var body: some View {
@@ -299,7 +301,7 @@ struct CleanupActionBar<Finish: View, Idle: View>: View {
                 finish()
             }
         } else {
-            ActionStrip(message: nil) { idle() }
+            ActionStrip(message: idleNote) { idle() }
         }
     }
     private var recoveryNote: String {

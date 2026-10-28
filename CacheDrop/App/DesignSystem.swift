@@ -16,6 +16,8 @@ enum CacheDropDesign {
         static let meterGap: CGFloat = 2; static let meterSegmentMinimum: CGFloat = 3
         /// The bottom bar's row: a large button's height, so the bar is the same with or without buttons or progress (#220).
         static let actionStripRow: CGFloat = 32
+        /// A page header's search field (#295), as wide as the prototype's.
+        static let searchField: CGFloat = 210
         /// A skeleton row's title and detail bars (#308), about the height of the text they stand in for.
         static let skeletonTitle: CGFloat = 11; static let skeletonDetail: CGFloat = 8 }
     /// How strongly a colour tints a surface behind its symbol, as in a category badge.

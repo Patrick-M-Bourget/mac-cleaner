@@ -8,10 +8,13 @@ import SwiftUI
 struct CatalogProfileRows: View {
     @Bindable var model: CatalogCleanupModel
     let rule: CleanupRule
+    /// The Applications page's Sort and search, for its leftover groups (#295); nil lists every group by name.
+    var listing: ApplicationsListing? = nil
     var body: some View {
-        let groups = Dictionary(grouping: model.candidates(for: rule)) { $0.group ?? "" }
+        let groups = Dictionary(grouping: model.candidates(for: rule).filter { listing?.matches($0) ?? true }) { $0.group ?? "" }
+        let order = ApplicationsListing(order: listing?.order ?? .name)
         VStack(alignment: .leading, spacing: 0) {
-            ForEach(groups.keys.sorted { $0.localizedStandardCompare($1) == .orderedAscending }, id: \.self) { profile in
+            ForEach(order.ordered(Array(groups.keys), name: { $0 }, bytes: { groups[$0, default: []].reduce(0) { $0 + $1.estimatedBytes } }), id: \.self) { profile in
                 let items = groups[profile] ?? []
                 InspectableItemRow(name: profile, detail: detail(items),
                                    size: catalogBytes(items.reduce(0) { $0 + $1.estimatedBytes }, complete: items.allSatisfy(\.sizeComplete)),

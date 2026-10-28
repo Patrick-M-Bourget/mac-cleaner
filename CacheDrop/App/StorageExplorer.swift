@@ -181,19 +181,21 @@ struct StorageExplorerView: View {
             let wide = geometry.size.width >= 800
             VStack(alignment: .leading, spacing: CacheDropDesign.Space.lg) {
                 // A folder that is no longer observed leads back only to the list of locations (#227).
-                PageHeader(title: context.title, subtitle: "Inspect local allocations within your selected folders.",
+                PageHeader(title: context.title,
                            back: BackButton(destination: folderGone ? context.rootName : context.backDestination ?? caller, identifier: "explorerBack") {
                                if folderGone { context.discardUnavailableFolder() } else if !context.backWithinExplorer() { back() }
                            })
                 ScanHistoryRecordingNotice()
                 breadcrumbs
+                // The screen's one explanation (Decision 25).
+                Text(showsLargeAndOld ? "Files of 500 MB or more, or not opened in 90 days." : "Click a name to open or inspect it. Tick a file to add it to your cleanup plan.")
+                    .font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary).lineLimit(1).accessibilityIdentifier("explorerHint")
+                // The inspector is always there, showing one path (#320).
                 HStack(alignment: .top, spacing: CacheDropDesign.Space.lg) {
                     list.frame(maxWidth: .infinity, maxHeight: .infinity)
-                    if wide, let entry = inspected { inspector(entry).frame(width: 280) }
+                    if wide { inspector.frame(width: 280) }
                 }.frame(maxHeight: .infinity)
-                if !wide, let entry = inspected {
-                    inspector(entry).frame(maxHeight: min(220, geometry.size.height * 0.35))
-                }
+                if !wide { inspector.frame(maxHeight: min(220, geometry.size.height * 0.35)) }
             }.padding(CacheDropDesign.Space.page)
         }
         .quickLookPreview($model.previewURL)
@@ -203,124 +205,130 @@ struct StorageExplorerView: View {
         }
         .onDisappear { model.previewURL = nil; model.closePreviewAccess() }
     }
+    /// Text-link breadcrumbs (Decision 47's back button is the only back control), with the quiet Large and old files toggle.
     private var breadcrumbs: some View {
         VStack(alignment: .leading, spacing: CacheDropDesign.Space.sm) {
-            HStack {
-                Button(context.rootName) { context.returnToRoot() }
+            HStack(spacing: CacheDropDesign.Space.sm) {
+                if context.position.folder == nil {
+                    Text(context.rootName).foregroundStyle(.secondary)
+                } else {
+                    Button(context.rootName) { context.returnToRoot() }.buttonStyle(.link)
+                }
                 if folderAvailable, let folder = context.position.folder {
-                    Image(systemName: "chevron.right").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
                     ForEach(breadcrumbs(for: folder), id: \.self) { ancestor in
-                        Button(ancestor.lastPathComponent) { if ancestor != folder { context.enter(ancestor) } }
-                            .lineLimit(1).help(ancestor.path)
-                        if ancestor != folder { Image(systemName: "chevron.right").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary) }
+                        Image(systemName: "chevron.right").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
+                        if ancestor == folder {
+                            Text(ancestor.lastPathComponent).lineLimit(1).help(ancestor.path)
+                        } else {
+                            Button(ancestor.lastPathComponent) { context.enter(ancestor) }.buttonStyle(.link).lineLimit(1).help(ancestor.path)
+                        }
                     }
                 }
-            }
+                Spacer(minLength: CacheDropDesign.Space.md)
+                if !selection.catalog.pickedByResource.isEmpty {
+                    if context.showsLargeAndOld {
+                        Picker("Sort", selection: $context.fileOrder) {
+                            ForEach(StorageExplorerContext.FileOrder.allCases) { Text($0.rawValue).tag($0) }
+                        }.labelsHidden().fixedSize().accessibilityIdentifier("explorerFileOrder")
+                    }
+                    Button(context.showsLargeAndOld ? "All files" : "Large and old files") { context.showsLargeAndOld.toggle() }
+                        .buttonStyle(.link).accessibilityIdentifier("explorerMode")
+                }
+            }.font(.callout)
             if folderAvailable, let folder = context.position.folder {
                 TextField("Search this folder", text: $context.position.query).help(folder.path)
                     .accessibilityIdentifier("explorerSearch")
             }
-            if !selection.catalog.pickedByResource.isEmpty {
-                HStack {
-                    Picker("Show", selection: $context.showsLargeAndOld) {
-                        Text("Folders").tag(false)
-                        Text("Large and old files").tag(true)
-                    }.pickerStyle(.segmented).fixedSize().accessibilityIdentifier("explorerMode")
-                    if context.showsLargeAndOld {
-                        Picker("Sort", selection: $context.fileOrder) {
-                            ForEach(StorageExplorerContext.FileOrder.allCases) { Text($0.rawValue).tag($0) }
-                        }.fixedSize().accessibilityIdentifier("explorerFileOrder")
-                    }
-                }
-            }
         }
     }
     private var list: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 0) {
-                ExplorerViewport(context: context).frame(height: 0)
-                if showsLargeAndOld {
-                    largeAndOldFiles
-                } else if context.position.folder == nil {
-                    if scans.isEmpty && goneLocations.isEmpty { EmptyState(title: "No scanned folders", detail: "Use Scan a folder on Overview to choose one. Browsing never starts a scan.", symbol: "folder") }
-                    ForEach(scans, id: \.scope) { scan in
-                        VStack(alignment: .leading, spacing: CacheDropDesign.Space.sm) {
-                            Button(scan.scope.lastPathComponent, systemImage: "folder") { context.enter(scan.scope) }
-                                .accessibilityLabel("Open folder " + scan.scope.lastPathComponent).help(scan.scope.path)
-                            // One short line: the size, then only the caveats that apply.
-                            Text(([scan.totalAllocatedBytes.map { bytes($0) + " on disk" } ?? "At least " + bytes(scan.allocatedBytes) + " on disk",
-                                   scan.isComplete ? nil : "Partial coverage",
-                                   observations.overlaps(scan.scope) ? "Overlaps another location" : nil] as [String?]).compactMap { $0 }.joined(separator: " · "))
-                                .font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
-                        }.padding(CacheDropDesign.Space.md)
-                        Divider()
-                    }
-                    ForEach(goneLocations, id: \.location.scope) { gone in
-                        VStack(alignment: .leading, spacing: CacheDropDesign.Space.sm) {
-                            Label(gone.location.scope.lastPathComponent, systemImage: "folder").foregroundStyle(.secondary).help(gone.location.scope.path)
-                            recoveryRow(gone.location, lastObserved: gone.lastObserved)
-                        }.padding(CacheDropDesign.Space.md)
-                        Divider()
-                    }
-                } else if !folderAvailable {
-                    if let folder = context.position.folder, let scope = UnavailableScannedFolder.location(holding: folder, among: goneLocations.map(\.location.scope)),
-                       let gone = goneLocations.first(where: { $0.location.scope == scope }) {
-                        recoveryRow(gone.location, lastObserved: gone.lastObserved).padding(CacheDropDesign.Space.md)
+        VStack(alignment: .leading, spacing: 0) {
+            HStack {
+                Text("Name"); Spacer(); Text("On disk")
+            }.font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
+                .padding(.horizontal, CacheDropDesign.Space.md).padding(.bottom, CacheDropDesign.Space.sm)
+            Divider()
+            ScrollView {
+                VStack(alignment: .leading, spacing: 0) {
+                    ExplorerViewport(context: context).frame(height: 0)
+                    if showsLargeAndOld {
+                        largeAndOldFiles
+                    } else if context.position.folder == nil {
+                        if scans.isEmpty && goneLocations.isEmpty { EmptyState(title: "No scanned folders", detail: "Add a folder in Locations & access to explore it.", symbol: "folder") }
+                        ForEach(scans, id: \.scope) { scan in
+                            // The size, then only the caveats that apply.
+                            InspectableItemRow(name: scan.scope.lastPathComponent,
+                                               detail: ([scan.isComplete ? nil : "Partly scanned", observations.overlaps(scan.scope) ? "Overlaps another location" : nil] as [String?]).compactMap { $0 }.joined(separator: " · "),
+                                               size: scan.totalAllocatedBytes.map { bytes($0) } ?? "At least " + bytes(scan.allocatedBytes), symbol: "folder",
+                                               inspected: false, inspect: { context.enter(scan.scope) }, actionLabel: "Open folder " + scan.scope.lastPathComponent) { EmptyView() }
+                                .help(scan.scope.path)
+                            Divider()
+                        }
+                        ForEach(goneLocations, id: \.location.scope) { gone in
+                            VStack(alignment: .leading, spacing: CacheDropDesign.Space.sm) {
+                                Label(gone.location.scope.lastPathComponent, systemImage: "folder").foregroundStyle(.secondary).help(gone.location.scope.path)
+                                recoveryRow(gone.location, lastObserved: gone.lastObserved)
+                            }.padding(CacheDropDesign.Space.md)
+                            Divider()
+                        }
+                    } else if !folderAvailable {
+                        if let folder = context.position.folder, let scope = UnavailableScannedFolder.location(holding: folder, among: goneLocations.map(\.location.scope)),
+                           let gone = goneLocations.first(where: { $0.location.scope == scope }) {
+                            recoveryRow(gone.location, lastObserved: gone.lastObserved).padding(CacheDropDesign.Space.md)
+                        } else {
+                            EmptyState(title: "This folder is no longer there", detail: "It was moved or deleted since the last scan.", symbol: "folder.badge.questionmark")
+                        }
+                    } else if visible.isEmpty {
+                        EmptyState(title: context.position.query.isEmpty ? "Nothing here" : "No matches", detail: context.position.query.isEmpty ? "This folder was empty when it was scanned." : "Nothing in this folder matches your search.", symbol: "magnifyingglass")
+                        if !context.position.query.isEmpty { Button("Clear search") { context.position.query = "" }.buttonStyle(.link) }
                     } else {
-                        EmptyState(title: "This folder is no longer available in the observations", detail: "Its location may have been omitted, forgotten or changed during a refresh. Browsing cannot scan or restore access.", symbol: "folder.badge.questionmark")
+                        ForEach(visible) { entry in row(entry); Divider() }
                     }
-                } else if visible.isEmpty {
-                    EmptyState(title: context.position.query.isEmpty ? "No observed entries here" : "No matches", detail: context.position.query.isEmpty ? "This describes existing observations only. Unscanned or unavailable contents remain unknown." : "No observed descendants match this search. Your selected files are unchanged.", symbol: "magnifyingglass")
-                    if !context.position.query.isEmpty { Button("Clear search") { context.position.query = "" } }
-                } else {
-                    ForEach(visible) { entry in row(entry); Divider() }
-                }
-            }.frame(maxWidth: .infinity, alignment: .leading)
-        }.accessibilityIdentifier("explorerList")
+                }.frame(maxWidth: .infinity, alignment: .leading)
+            }.accessibilityIdentifier("explorerList")
+        }
     }
+    /// A plain row: the checkbox when the file can go in the plan, the name, and its size on disk.
     private func row(_ entry: Entry) -> some View {
         let item = entry.item
-        return HStack(spacing: CacheDropDesign.Space.md) {
+        let folder = item.kind == .folder
+        return InspectableItemRow(name: item.url.lastPathComponent,
+                                  detail: !context.position.query.isEmpty ? PathDisplay.shortLocation(of: item.url.path) : "",
+                                  size: folder ? folderAllocation(item.url) : bytes(item.allocatedBytes), symbol: folder ? "folder" : "doc",
+                                  inspected: context.position.inspectedID == item.id && context.position.inspectedResource == item.resourceID,
+                                  inspect: { if folder { context.enter(item.url) } else { context.inspect(item) } },
+                                  detailLineLimit: 1, actionLabel: (folder ? "Open folder " : "Inspect ") + item.url.lastPathComponent) {
             if let offered = offered(item) { planToggle(offered) }
-            Image(systemName: item.kind == .folder ? "folder" : "doc").foregroundStyle(.secondary).frame(width: 20).accessibilityLabel(offered(item) == nil ? "Browse only" : "Large or old file")
-            Button {
-                if item.kind == .folder { context.enter(item.url) } else { context.inspect(item) }
-            } label: {
-                VStack(alignment: .leading, spacing: CacheDropDesign.Space.xs) {
-                    Text(item.url.lastPathComponent).foregroundStyle(.primary)
-                    if context.position.folder != nil, !context.position.query.isEmpty { Text(PathDisplay.shortLocation(of: item.url.path)).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle) }
-                }.frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
-            }.buttonStyle(.plain).accessibilityLabel((item.kind == .folder ? "Open folder " : "Inspect ") + item.url.lastPathComponent)
-            Text(item.kind == .folder ? folderAllocation(item.url) : bytes(item.allocatedBytes)).font(.callout).monospacedDigit().foregroundStyle(.secondary)
-            if item.kind == .folder {
-                Button { context.inspect(item) } label: { Image(systemName: "info.circle") }.buttonStyle(.plain).accessibilityLabel("Inspect " + item.url.lastPathComponent)
-            }
-        }.padding(CacheDropDesign.Space.md)
-            .background(context.position.inspectedID == item.id && context.position.inspectedResource == item.resourceID ? Color.accentColor.opacity(0.06) : .clear, in: RoundedRectangle(cornerRadius: CacheDropDesign.Radius.row))
+        }.help(item.url.path)
     }
-    private func inspector(_ entry: Entry) -> some View {
-        ExplorerInspector(name: entry.item.url.lastPathComponent, close: { context.clearInspector() }) {
-            inspectorField("Location", entry.item.url.path)
-            inspectorField("Observed scope", entry.scan.scope.path)
-            inspectorField("Observed", entry.scan.observedAt.formatted(date: .abbreviated, time: .shortened))
-            let offered = offered(entry.item)
-            inspectorField("Why listed", offered.map(whyListed) ?? "Observed during your manual scan of this location. Browsing uses saved metadata only.")
-            Text("On disk: " + (entry.item.kind == .folder ? folderAllocation(entry.item.url) : bytes(entry.item.allocatedBytes)))
-            Text("Logical size: " + (entry.item.kind == .folder ? folderSubtotal(entry.item.url, logical: true) : bytes(entry.item.logicalBytes)))
-            if let offered {
-                inspectorField("Cleanup action", UserFiles.rule.consequence)
-                Toggle("Add to cleanup plan", isOn: Binding(get: { selection.catalog.isSelected(offered) }, set: { selection.catalog.setSelected(offered, $0) }))
-                    .toggleStyle(.checkbox).disabled(!selection.catalog.canEdit).accessibilityIdentifier("explorerInspectorChoose")
-            } else {
-                inspectorField("Cleanup action", "Inspection only. Large and old files, and Downloads installers, can be added to the cleanup plan.")
+    /// The inspected item, or else the folder on show, or else the list of locations.
+    @ViewBuilder private var inspector: some View {
+        if let entry = inspected {
+            ExplorerInspector(name: entry.item.url.lastPathComponent) {
+                inspectorField("Location", entry.item.url.path)
+                inspectorField("On disk", entry.item.kind == .folder ? folderAllocation(entry.item.url) : bytes(entry.item.allocatedBytes))
+                if let offered = offered(entry.item) {
+                    inspectorField("Why it’s listed", whyListed(offered))
+                    inspectorField("Action", "Move to Trash. The space stays used until you empty the Trash.")
+                    Toggle("Add to cleanup plan", isOn: Binding(get: { selection.catalog.isSelected(offered) }, set: { selection.catalog.setSelected(offered, $0) }))
+                        .toggleStyle(.checkbox).disabled(!selection.catalog.canEdit).accessibilityIdentifier("explorerInspectorChoose")
+                }
+                if entry.item.isDuplicateResource { Text("Shared with another item, so it counts once.").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary) }
+                if entry.item.kind == .package || entry.item.kind == .symbolicLink { Text("CacheDrop doesn’t look inside it.").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary) }
+                if entry.item.previewAvailability != .local { Text("Not downloaded. Quick Look won’t download it.").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary) }
+                HStack {
+                    Button("Quick Look") { model.showObserved(entry.scan); model.preview(entry.item) }.disabled(entry.item.kind != .file || entry.item.previewAvailability != .local || model.isScanning)
+                    Button("Reveal in Finder") { model.reveal(entry.item) }
+                }
             }
-            Text("Observed allocation is not reclaimable space. Trash may retain storage until emptied.").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
-            if entry.item.isDuplicateResource { Text("Shared resource · allocation counts once within a total.") }
-            if entry.item.kind == .package || entry.item.kind == .symbolicLink { Text("Protected boundary · contents not inspected.") }
-            if entry.item.previewAvailability != .local { Text("Local contents are " + entry.item.previewAvailability.rawValue + ". Preview will not request a download.") }
-            HStack {
-                Button("Quick Look") { model.showObserved(entry.scan); model.preview(entry.item) }.disabled(entry.item.kind != .file || entry.item.previewAvailability != .local || model.isScanning)
-                Button("Reveal in Finder") { model.reveal(entry.item) }
+        } else if folderAvailable, let folder = context.position.folder {
+            ExplorerInspector(name: folder.lastPathComponent) {
+                inspectorField("Location", folder.path)
+                inspectorField("On disk", folderAllocation(folder))
+            }
+        } else {
+            ExplorerInspector(name: context.rootName) {
+                Text(scans.count == 1 ? "1 scanned folder" : "\(scans.count) scanned folders").font(.callout).foregroundStyle(.secondary)
             }
         }
     }
@@ -346,9 +354,7 @@ struct StorageExplorerView: View {
     private var largeAndOldFiles: some View {
         let files = offeredHere
         return VStack(alignment: .leading, spacing: 0) {
-            Text("Files of 500 MB or more, or not opened in 90 days.")
-                .font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary).padding(.bottom, CacheDropDesign.Space.sm)
-            if files.isEmpty { EmptyState(title: "No large or old files here", detail: "Nothing in this folder is 500 MB or more or unopened for 90 days. Protected files and git checkouts are never listed.", symbol: "doc") }
+            if files.isEmpty { EmptyState(title: "No large or old files here", detail: "Nothing here is 500 MB or more or unopened for 90 days.", symbol: "doc") }
             LazyVStack(alignment: .leading, spacing: 0) {
                 ForEach(files, id: \.file.id) { file, entry in
                     InspectableItemRow(name: file.displayName, detail: fileDetail(file), size: catalogBytes(file.estimatedBytes), symbol: "doc",
@@ -358,7 +364,7 @@ struct StorageExplorerView: View {
                     Divider()
                 }
             }
-            if files.count == UserFiles.listLimit { Text("Showing the \(UserFiles.listLimit) largest. Pick a smaller folder to see more.").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary) }
+            if files.count == UserFiles.listLimit { Text("Showing the \(UserFiles.listLimit) largest. Pick a smaller folder to see more.").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary).padding(.top, CacheDropDesign.Space.sm) }
         }.accessibilityIdentifier("explorerLargeAndOld")
     }
     private func planToggle(_ file: Candidate) -> some View {
@@ -382,10 +388,10 @@ struct StorageExplorerView: View {
             Text(value).font(.callout).textSelection(.enabled)
         }
     }
-    private func folderAllocation(_ folder: URL) -> String { folderSubtotal(folder, logical: false) }
-    private func folderSubtotal(_ folder: URL, logical: Bool) -> String {
-        let subtotal = observations.subtotal(in: folder, logical: logical)
-        return bytes(subtotal.bytes) + (subtotal.hasUnknownRemainder ? " observed · remaining unknown" : " observed")
+    /// A folder's size on disk; "At least" when part of it couldn't be measured.
+    private func folderAllocation(_ folder: URL) -> String {
+        let subtotal = observations.subtotal(in: folder, logical: false)
+        return (subtotal.hasUnknownRemainder ? "At least " : "") + bytes(subtotal.bytes)
     }
 
     private func breadcrumbs(for folder: URL) -> [URL] {
@@ -397,15 +403,18 @@ struct StorageExplorerView: View {
     private func bytes(_ value: Int64?) -> String { value.map { ByteCountFormatter.string(fromByteCount: $0, countStyle: .decimal) } ?? "Unknown" }
 }
 
-/// Shared bounded inspector surface: the host chooses a side pane or compact panel.
+/// Shared bounded inspector surface: the host chooses a side pane or compact panel. Without `close` it stays open.
 struct ExplorerInspector<Content: View>: View {
     let name: String
-    let close: () -> Void
+    var close: (() -> Void)? = nil
     @ViewBuilder var content: () -> Content
     var body: some View {
         SummarySurface {
             VStack(alignment: .leading, spacing: CacheDropDesign.Space.sm) {
-                HStack { Text(name).font(CacheDropDesign.TypeStyle.section).lineLimit(2); Spacer(); Button("Close inspector", systemImage: "xmark", action: close).labelStyle(.iconOnly) }
+                HStack {
+                    Text(name).font(CacheDropDesign.TypeStyle.section).lineLimit(2); Spacer()
+                    if let close { Button("Close inspector", systemImage: "xmark", action: close).labelStyle(.iconOnly).buttonStyle(.borderless) }
+                }
                 ScrollView {
                     VStack(alignment: .leading, spacing: CacheDropDesign.Space.sm) { content() }
                         // Selectable native text extends its accessibility frame beyond
