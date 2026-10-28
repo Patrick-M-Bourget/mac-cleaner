@@ -81,6 +81,16 @@ import CacheDropCore
     }
 }
 
+/// Locations & access's way to custom exclusions (#313).
+struct ProtectedItemsEntry: View {
+    var action: () -> Void
+    var body: some View {
+        SettingsRow(title: "Protected items", detail: "Files and folders CacheDrop leaves out of its scans.") {
+            Button("Manage protected items", action: action).accessibilityIdentifier("openProtectedItems")
+        }
+    }
+}
+
 struct ExclusionsView: View {
     @Bindable var model: ExclusionsModel
     /// The back button above the title, from the page that opened this one.

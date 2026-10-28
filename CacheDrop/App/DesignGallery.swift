@@ -48,6 +48,8 @@ struct DesignGallery: View {
                     CapacityGalleryExamples()
                     Text("Synthetic Local records entry · Inert example").font(.headline)
                     LocalRecordsEntry(action: {})
+                    Text("Synthetic Protected items entry · Inert example").font(.headline)
+                    ProtectedItemsEntry(action: {})
                     Text("Synthetic Local records controls · Inert enabled example").font(.headline)
                     LocalRecordsMaintenanceControls(clear: {}, reset: {})
                     StatusRow(text: "Reset is blocked by unfinished cleanup records. Open recovery review; no operations will resume automatically.", symbol: "exclamationmark.triangle", role: .caution)

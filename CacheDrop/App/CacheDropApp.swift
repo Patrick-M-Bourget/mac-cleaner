@@ -135,6 +135,7 @@ private struct WorkspaceView: View {
         if recoveryVisible { return "recovery" }
         if diagnosticsVisible { return "diagnostics" }
         if navigationState.localRecordsVisible { return "local-records" }
+        if exclusionsVisible { return "exclusions" }
         if navigationState.appManagedVisible { return "app-managed" }
         return destination.rawValue
     }
@@ -719,6 +720,7 @@ private struct WorkspaceView: View {
             }
             if let message = locationsModel.message { StatusRow(text: message, symbol: "info.circle") }
             FullDiskAccessSetting()
+            ProtectedItemsEntry { exclusionsVisible = true }
             LocalRecordsEntry { openLocalRecords(caller: .locations) }
         }.confirmationDialog("Forget location?", isPresented: Binding(get: { locationToForget != nil }, set: { if !$0 { locationToForget = nil } }), titleVisibility: .visible) {
             if let scope = locationToForget {

@@ -328,6 +328,30 @@ final class BackButtonUITests: XCTestCase {
     }
 }
 
+/// #313: custom exclusions are reached from Locations & access, as its Protected items row.
+final class ProtectedItemsUITests: XCTestCase {
+    @MainActor func testProtectedItemsOpensExclusionsFromLocationsAndReturns() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        let state = try configureIsolatedState(app)
+        let home = try configureCatalogHome(app)
+        defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
+        app.launch()
+        XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
+
+        app.typeKey("7", modifierFlags: .command)
+        let open = app.buttons["openProtectedItems"]
+        XCTAssertTrue(open.waitForExistence(timeout: 5))
+        revealAndClick(open, in: app)
+        let back = app.buttons["Back to Locations & access"]
+        assertBackButton(back, isAbove: "Custom exclusions", in: app)
+        XCTAssertTrue(app.buttons["chooseExclusion"].waitForExistence(timeout: 5), "The page offers adding an exclusion")
+        back.click()
+        XCTAssertTrue(open.waitForExistence(timeout: 5))
+        XCTAssertFalse(back.exists)
+    }
+}
+
 /// Decision 25: appearance follows the system; the override lives in the Settings window (⌘,).
 final class AppearanceSettingsUITests: XCTestCase {
     @MainActor func testAppearanceOverrideLivesInTheSettingsWindow() throws {
