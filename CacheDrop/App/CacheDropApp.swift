@@ -680,7 +680,7 @@ private struct WorkspaceView: View {
 
     private var history: some View {
         CleanupHistoryView(model: navigationState.historyModel, expandedRuns: $navigationState.historyExpandedRuns,
-            showRecovery: { openRecovery(caller: .history) }, goOverview: { navigate(.overview) }, viewPlan: { navigate(.plan) })
+            showRecovery: { openRecovery(caller: .history) }, goOverview: { navigate(.overview) })
     }
 
     private var locations: some View {
