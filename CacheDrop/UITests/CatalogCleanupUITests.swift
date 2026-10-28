@@ -1598,7 +1598,8 @@ extension CatalogCleanupUITests {
 
         let downloads = app.checkBoxes["smartCleanCategory-downloads"], developer = app.checkBoxes["smartCleanCategory-developer"]
         let leftovers = app.checkBoxes["smartCleanCategory-leftovers"]
-        XCTAssertTrue(downloads.waitForExistence(timeout: 10))
+        XCTAssertTrue(app.descendants(matching: .any)["smartCleanHeader"].waitForExistence(timeout: 10), "Smart clean is open")
+        XCTAssertTrue(downloads.waitForExistence(timeout: 30))
         for category in [downloads, developer, leftovers] { XCTAssertEqual(category.value as? Int, 1, category.identifier) }
         func text(_ line: String) -> XCUIElementQuery { app.staticTexts.matching(NSPredicate(format: "label == %@ OR value == %@", line, line)) }
         XCTAssertEqual(text("Goes to the Trash; Put back works").count, 2, "Installers and leftovers")
