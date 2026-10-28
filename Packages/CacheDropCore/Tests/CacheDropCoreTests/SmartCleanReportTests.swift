@@ -84,6 +84,23 @@ private func snapshot(_ root: URL) -> [String: String] {
     #expect(!text.contains("Gone"))
 }
 
+/// #336: reading a file sets its access time (Spotlight's import, a backup, an antivirus scan), so an installer's age is the
+/// newest of its change and creation times and Spotlight's last-opened date only. One just read is still old.
+@Test func anOldInstallerReadRecentlyIsStillOld() throws {
+    let now = Date()
+    let (home, sources) = try fixture(now: now)
+    defer { try? FileManager.default.removeItem(at: home) }
+    let installer = home.appendingPathComponent("Downloads/Old Setup.dmg")
+    let old = Int(now.addingTimeInterval(-200 * day).timeIntervalSince1970)
+    var times = [timeval(tv_sec: Int(now.timeIntervalSince1970), tv_usec: 0), timeval(tv_sec: old, tv_usec: 0)]
+    #expect(utimes(installer.path, &times) == 0)
+
+    let report = SmartCleanReport.run(sources, now: now)
+
+    #expect(report.picked.contains { $0.candidate.url.lastPathComponent == "Old Setup.dmg" })
+    #expect(report.text.contains("not opened or changed in 200 days"))
+}
+
 @Test func theReportChangesNothingOnDisk() throws {
     let now = Date()
     let (home, sources) = try fixture(now: now)
