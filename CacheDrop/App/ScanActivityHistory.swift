@@ -38,7 +38,7 @@ import CacheDropCore
             records = value; loadError = nil
         } catch {
             guard loadRequest == request, !Task.isCancelled else { return }
-            records = nil; loadError = "Scan history is unavailable. Recorded scan activity could not be read."
+            records = nil; loadError = "CacheDrop couldn’t read its scan history."
         }
     }
 }
@@ -87,7 +87,7 @@ struct ScanActivitySummary: View {
     @Binding var expanded: Bool
     var exampleIdentifier = ""
     var body: some View {
-        HistoryRow(symbol: "viewfinder", title: title + " · " + locationSummary, date: activity.completedAt, size: size, sizeNote: "Observed",
+        HistoryRow(symbol: "viewfinder", title: title + " · " + locationSummary, date: activity.completedAt, size: size, sizeNote: "Scanned",
                    expanded: $expanded, identifier: "scanActivity:" + activity.id.uuidString) {
             ForEach(activity.locations) { location in
                 VStack(alignment: .leading, spacing: CacheDropDesign.Space.xs) {
@@ -100,7 +100,7 @@ struct ScanActivitySummary: View {
                     }
                 }.accessibilityElement(children: .combine)
             }
-            Text("Recorded observations, not reclaimable or released space.").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary).accessibilityIdentifier(exampleIdentifier)
+            Text("What the scan found, not space you can get back.").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary).accessibilityIdentifier(exampleIdentifier)
         }
     }
     private var size: String {
@@ -108,7 +108,7 @@ struct ScanActivitySummary: View {
         return (size.complete ? "" : "At least ") + ByteCountFormatter.string(fromByteCount: size.bytes, countStyle: .decimal)
     }
     private func locationDetail(_ location: ScanActivityLocation) -> String {
-        var parts = [location.outcome.map { $0 == .complete ? "Complete" : $0.rawValue.capitalized + " · Coverage incomplete" } ?? "Not attempted"]
+        var parts = [location.outcome.map { $0 == .complete ? "Complete" : $0.rawValue.capitalized + " · Not fully read" } ?? "Not attempted"]
         if let count = location.entryCount { parts.append("\(count) entries") }
         if let bytes = location.logicalBytes { parts.append(format(bytes)) }
         else if let known = location.knownLogicalBytes { parts.append("At least " + format(known)) }
@@ -123,12 +123,12 @@ struct ScanActivitySummary: View {
     }
     private func reasonLabel(_ reason: String) -> String {
         switch reason {
-        case "excludedScope": "Excluded scopes"
-        case "exclusionUnavailable": "Exclusion checks unavailable"
+        case "excludedScope": "Protected items"
+        case "exclusionUnavailable": "Protected items unreadable"
         case "directoryChanged": "Directory changed during scanning"
         case "timeLimit": "Scan time limit reached"
         case "entryLimit": "Entry limit reached"
-        case "issueLimit": "Coverage issue limit reached"
+        case "issueLimit": "Too many unreadable items"
         case "depthLimit": "Folder depth limit reached"
         case "readFailed": "Unreadable locations"
         case "metadataUnavailable": "Metadata unavailable"
@@ -136,9 +136,9 @@ struct ScanActivitySummary: View {
         case "accessDenied": "Access denied"
         case "accessRevoked": "Access changed during scanning"
         case "locationUnavailable": "Location unavailable"
-        case "customExcludedBoundary": "Custom-excluded boundaries"
+        case "customExcludedBoundary": "Inside Protected items"
         case "unmeasuredContents": "Unmeasured package or other entries"
-        default: "Coverage issues"
+        default: "Couldn’t read everything"
         }
     }
     private func format(_ value: Int64) -> String { ByteCountFormatter.string(fromByteCount: value, countStyle: .decimal) }
@@ -209,7 +209,7 @@ struct HistoryStoreFailure: View {
 }
 struct HistoryActivityUnavailableState: View {
     var body: some View {
-        EmptyState(title: "History unavailable", detail: "Some recorded activity could not be read. Trying again reloads records only; it does not scan or clean files.", symbol: "exclamationmark.triangle")
+        EmptyState(title: "History unavailable", detail: "CacheDrop couldn’t read some of its history. Trying again only reads it again; it doesn’t scan or clean.", symbol: "exclamationmark.triangle")
     }
 }
 /// History with nothing to show (#321): one empty state whose one action is Go to Overview.
@@ -226,7 +226,7 @@ struct HistoryActivityEmptyState: View {
 }
 struct HistoryRetentionNote: View {
     var body: some View {
-        Text("History is kept on this Mac for up to 90 days. Recovery records are kept separately until resolved.").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
+        Text("History is kept on this Mac for up to 90 days. An interrupted cleanup stays until you review it.").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
     }
 }
 
@@ -260,8 +260,8 @@ struct HistoryActivityGalleryExamples: View {
             }
             VStack(alignment: .leading, spacing: CacheDropDesign.Space.md) {
                 heading("unavailable", "Independent unavailable stores")
-                HistoryStoreFailure(message: "Scan history is unavailable. Recorded scan activity could not be read.", retryTitle: "Try scan history again", retry: {})
-                HistoryStoreFailure(message: "Cleanup history is unavailable. The local journal cannot be read. Clear and reset are unavailable; keep its recovery records.", retryTitle: "Try cleanup history again", retry: {})
+                HistoryStoreFailure(message: "CacheDrop couldn’t read its scan history.", retryTitle: "Try scan history again", retry: {})
+                HistoryStoreFailure(message: "CacheDrop couldn’t read its cleanup history. Clear and Reset are off until it can.", retryTitle: "Try cleanup history again", retry: {})
                 HistoryActivityUnavailableState()
                 end("unavailable", "Each action reloads its own records only.")
             }

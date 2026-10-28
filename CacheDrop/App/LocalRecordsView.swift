@@ -27,8 +27,8 @@ struct LocalRecordsView: View {
                 StatusRow(text: message, symbol: model.blocked ? "exclamationmark.triangle" : "info.circle", role: model.blocked ? .caution : .neutral, identifier: "historyStatus")
             }
             if model.blocked || (model.snapshot?.protectedRecordCount ?? 0) > 0 {
-                SettingsRow(title: "Recovery facts are protected", detail: "Unfinished runs are excluded from Clear and retention. Reset requires them to be resolved.") {
-                    Button("Open recovery review", action: showRecovery).accessibilityIdentifier("localRecordsRecovery")
+                SettingsRow(title: "An interrupted cleanup needs review", detail: "History keeps it until you review it.") {
+                    Button("Review interrupted cleanup", action: showRecovery).accessibilityIdentifier("localRecordsRecovery")
                 }
             }
             LocalRecordsMaintenanceControls(enabled: !model.busy && !lifecycle.operationInProgress,

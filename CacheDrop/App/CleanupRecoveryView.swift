@@ -32,7 +32,7 @@ import SwiftUI
                 return try CleanupRecoverySnapshot(journal: reader)
             }.value
         } catch {
-            self.error = "The local cleanup journal could not be read. Outcomes cannot be confirmed. Nothing will resume automatically."
+            self.error = "CacheDrop couldn’t read its cleanup history, so it can’t tell what happened to these items. Nothing restarts by itself."
         }
         return requiresReview
     }
@@ -98,7 +98,7 @@ struct CleanupRecoveryView: View {
     var viewHistory: () -> Void = {}
     var body: some View {
         VStack(alignment: .leading, spacing: CacheDropDesign.Space.xl) {
-            PageHeader(title: "Review interrupted cleanup", subtitle: "CacheDrop checked where each unfinished item is now. Nothing will resume or repeat automatically.", back: back)
+            PageHeader(title: "Review interrupted cleanup", subtitle: "CacheDrop checked where each unfinished item is now. Nothing restarts by itself.", back: back)
             if let message = model.message {
                 StatusRow(text: message, symbol: model.markFailed ? "exclamationmark.triangle" : "checkmark.circle", role: model.markFailed ? .caution : .success, identifier: "recoveryMessage",
                           action: model.markFailed ? nil : StatusAction(title: "View History", identifier: "recoveryViewHistory", action: viewHistory))
@@ -108,12 +108,12 @@ struct CleanupRecoveryView: View {
                 SkeletonRows(.line, identifier: "recoverySkeleton")
             } else if let error = model.error {
                 StatusRow(text: error, symbol: "exclamationmark.triangle", role: .failure)
-                Text("Keep the journal for recovery. Reopening CacheDrop may help; do not clear or reset unresolved records.").font(.callout).foregroundStyle(.secondary)
+                Text("Reopening CacheDrop may help. Don’t clear history or reset CacheDrop until this is reviewed.").font(.callout).foregroundStyle(.secondary)
             } else if let snapshot = model.snapshot, !snapshot.interruptedBatches.isEmpty {
                 if let findings = model.findings {
                     let items = snapshot.interruptedBatches.flatMap { findings[$0.id] ?? [] }
                     ForEach(snapshot.interruptedBatches) { batch in
-                        Text("Approved " + (batch.records.first?.approvedAt.formatted(date: .abbreviated, time: .shortened) ?? "Unknown date")).font(CacheDropDesign.TypeStyle.section)
+                        Text("Started " + (batch.records.first?.approvedAt.formatted(date: .abbreviated, time: .shortened) ?? "Unknown date")).font(CacheDropDesign.TypeStyle.section)
                         LazyVStack(alignment: .leading, spacing: CacheDropDesign.Space.lg) {
                             ForEach(findings[batch.id] ?? []) { item in
                                 row(item)
