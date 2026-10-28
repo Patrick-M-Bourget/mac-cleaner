@@ -247,6 +247,28 @@ private struct FixtureHomeTrash: TrashMoving {
     #expect(FileManager.default.fileExists(atPath: home.appendingPathComponent("Library/Caches/com.gone.synth/Cache.db").path))
 }
 
+/// #356: a possibly related item ticked on its own goes to the Trash like any leftover, journaled, and Put back restores it.
+@Test func aPossiblyRelatedItemTickedOnItsOwnGoesToTrashAndPutBackRestoresIt() async throws {
+    let home = try fixtureHome()
+    defer { try? FileManager.default.removeItem(at: home) }
+    try write(home, "Library/Saved Application State/com.gone.synth.savedState/data.data")
+    try write(home, "Library/Application Support/Gone/presets.db", bytes: 2_000)
+    let chosen = scan(home).filter { $0.ruleID == RemovedAppLeftovers.possiblyRelatedRuleID }
+    #expect(names(chosen) == ["Gone"])
+    let journal = try SQLiteCleanupJournal(url: home.appendingPathComponent("journal.sqlite"))
+    let executor = CleanupExecutor(journal: journal, check: check(home), measure: { _ in nil }, trash: FixtureHomeTrash(home: home))
+
+    let result = await executor.execute(CatalogApproval(candidates: chosen, previewOnly: false))
+    let record = try #require(result.records.first)
+    #expect(result.records.count == 1 && record.state == .succeeded && record.trashURL != nil)
+    #expect(!FileManager.default.fileExists(atPath: home.appendingPathComponent("Library/Application Support/Gone").path))
+    #expect(FileManager.default.fileExists(atPath: home.appendingPathComponent("Library/Saved Application State/com.gone.synth.savedState").path),
+            "Only what was ticked goes")
+
+    #expect(TrashPutBack(journal: journal).putBack(record) == .restored(record.originalURL))
+    #expect(FileManager.default.fileExists(atPath: home.appendingPathComponent("Library/Application Support/Gone/presets.db").path))
+}
+
 @Test func aLeftoverAnotherRuleOffersHoldsOrSitsInsideIsLeftToThatRule() throws {
     let home = try fixtureHome()
     defer { try? FileManager.default.removeItem(at: home) }
