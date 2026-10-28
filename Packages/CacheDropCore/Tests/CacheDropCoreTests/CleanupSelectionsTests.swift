@@ -78,34 +78,52 @@ private let recommended = [npm, logs, derived]
     selections.set([logs], ticked: false)
     let run = selections.smartClean(catalog: catalog, found: scan) { _ in nil }
     #expect(run.map(\.ruleID) == ["npm-cache", "xcode-derived-data"])
-    selections.finishRun(run)
+    selections.finishRun(cleaned: run.map(\.id))
     #expect(selections.ticked == [installer.id])
     selections.keepOnly([logs, installer], recommended: [logs])
     #expect(!selections.isTicked(logs), "Its untick outlives another page's run")
 }
 
-/// #349: what a run took leaves every page; an item it skipped that is still recommended comes back ticked.
+/// #349: what a run cleaned leaves every page, what it skipped keeps its tick, and a cleaned item found again that is
+/// still recommended comes back ticked.
 @Test func aFinishedRunClearsWhatItTookFromEveryPage() {
     var selections = CleanupSelections()
     selections.noteChoices(among: scan, recommended: recommended)
     selections.set([installer], ticked: true)
-    selections.finishRun(selections.chosen(on: .plan, from: scan))
+    selections.finishRun(cleaned: [npm, logs, derived].map(\.id))
+    #expect(selections.ticked == [installer.id], "The installer was skipped, so it keeps its tick")
+    selections.finishRun(cleaned: [installer.id])
     #expect(selections.ticked.isEmpty)
     selections.keepOnly([npm], recommended: [npm])
-    #expect(selections.isTicked(npm), "Skipped, found again and still recommended")
+    #expect(selections.isTicked(npm), "Found again and still recommended")
+}
+
+/// #349: an item ticked as recommended stays the default when its owner starts running and it leaves the recommended
+/// plan: Overview never says "Selected" and quitting never warns for it, and a scan that no longer finds it says nothing.
+@Test func anItemTickedForYouStaysTheDefaultWhenItLeavesTheRecommendedPlan() {
+    var selections = CleanupSelections()
+    selections.keepOnly(scan, recommended: recommended)
+    selections.keepOnly(scan, recommended: [npm, derived])
+    #expect(selections.isTicked(logs))
+    #expect(!selections.differsFromRecommended(scan))
+    let droppedForYou = selections.keepOnly([npm, installer, derived], recommended: [npm, derived])
+    #expect(!droppedForYou, "Only an item the user ticked is worth a message")
+    selections.set([installer], ticked: true)
+    let droppedYours = selections.keepOnly([npm, derived], recommended: [npm, derived])
+    #expect(droppedYours)
 }
 
 /// #349: Overview's "Selected" and the quit warning (#270) show only once the ticks differ from the recommended default.
 @Test func ticksDifferFromTheRecommendedDefaultOnlyOnceTheUserChangesThem() {
     var selections = CleanupSelections()
     selections.noteChoices(among: scan, recommended: recommended)
-    #expect(!selections.differsFromRecommended(scan, recommended: recommended))
+    #expect(!selections.differsFromRecommended(scan))
     selections.set([installer], ticked: true)
-    #expect(selections.differsFromRecommended(scan, recommended: recommended))
-    #expect(!selections.differsFromRecommended([npm, logs], recommended: recommended), "Only the category that changed")
+    #expect(selections.differsFromRecommended(scan))
+    #expect(!selections.differsFromRecommended([npm, logs]), "Only the category that changed")
     selections.set([installer], ticked: false)
     selections.set([logs], ticked: false)
-    #expect(selections.differsFromRecommended([logs], recommended: recommended))
+    #expect(selections.differsFromRecommended([logs]))
 }
 
 /// Decision 51: leftovers of removed apps are chosen and cleaned on the Applications page, the rest in the Cleanup plan.
@@ -120,7 +138,7 @@ private let leftover = item(RemovedAppLeftovers.ruleID, name: "Synth"), related 
 }
 
 /// #349: a leftover tied to its removed app is in Smart clean, ticked, and its tick is the Applications page's too.
-@Test func aLeftoverSmartCleanTakesSharesItsTickWithApplications() {
+@Test func aLeftoverInSmartCleanSharesItsTickWithApplications() {
     var selections = CleanupSelections()
     selections.noteChoices(among: scan + [leftover], recommended: recommended + [leftover])
     #expect(selections.chosen(on: .applications, from: scan + [leftover]) == [leftover])
@@ -132,9 +150,9 @@ private let leftover = item(RemovedAppLeftovers.ruleID, name: "Synth"), related 
 @Test func leftoversTickedOnApplicationsCountAsChoices() {
     var selections = CleanupSelections()
     let found = scan + [leftover]
-    #expect(!selections.differsFromRecommended(found, recommended: []))
+    #expect(!selections.differsFromRecommended(found))
     selections.set([leftover], ticked: true)
-    #expect(selections.differsFromRecommended(found, recommended: []))
+    #expect(selections.differsFromRecommended(found))
 }
 
 /// #270: starting a new Cleanup plan starts only the plan over, never the Applications page, even right after a run,

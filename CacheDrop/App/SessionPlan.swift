@@ -23,7 +23,7 @@ struct RefreshRequest: Sendable {
     func showsRun(for source: CleanupSelections.Source) -> Bool { runSource == source && (workspaceRunning || hasWorkspaceResult) }
     var hasPendingChoices: Bool { catalog.selectedCount > 0 }
     /// Choices on the plan or the Applications page, which quitting would lose (#270).
-    var hasPendingChoicesOnAnyPage: Bool { catalog.hasAnyChoices }
+    var hasPendingChoicesOnAnyPage: Bool { catalog.anyPageDiffersFromRecommended }
     var workspaceSelectedCount: Int { catalog.selectedCount }
     var workspaceSelectedSize: String {
         if !hasPendingChoices { return "—" }

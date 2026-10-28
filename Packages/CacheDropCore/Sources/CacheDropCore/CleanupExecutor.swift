@@ -34,6 +34,8 @@ public struct CatalogExecutionResult: Sendable {
         }
         return total
     }
+    /// The candidates the run cleaned, or would have in a dry run, by id: they leave every page's selection (#349).
+    public var cleanedCandidateIDs: [String] { records.filter { $0.state == .succeeded || $0.wasPreviewed }.map(\.candidateID) }
     /// Space held in Trash, never counted as freed.
     public var movedToTrashBytes: Int64 {
         records.filter { $0.state == .succeeded && $0.cleanupAction == .trash }.reduce(0) { $0 + ($1.allocatedBytes ?? $1.logicalBytes) }

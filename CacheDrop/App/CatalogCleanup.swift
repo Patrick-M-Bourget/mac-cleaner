@@ -231,6 +231,8 @@ import SwiftUI
         let owners = runningOwnerDetails, quitter = Self.quitter
         let (running, open) = await Task.detached(priority: .userInitiated) { Self.running(owners, quitter: quitter) }.value
         setRunning(running, open: open)
+        // An owner that quit puts its items back in the recommended plan, ticked unless the user unticked them (#349).
+        noteChoices()
     }
 
     /// Sends the owner's app a normal quit request, like ⌘Q, only because the user asked. When it quits, CacheDrop checks again;
@@ -250,12 +252,10 @@ import SwiftUI
     func sizeIsEstimate(for rule: CleanupRule) -> Bool { candidates(for: rule).contains(where: \.sizeIsEstimate) }
     /// The Cleanup plan's chosen items; leftovers of removed apps are chosen on the Applications page (Decision 51).
     var selectedCandidates: [Candidate] { selections.chosen(on: .plan, from: candidates) }
-    /// Whether any page's ticks differ from the recommended default: what quitting would lose (#270, #349).
-    var hasAnyChoices: Bool { selections.differsFromRecommended(candidates, recommended: recommendedCandidates) }
-    /// Whether a category's ticks differ from the recommended default, for Overview's "Selected" (#349).
-    func selectionDiffersFromRecommended(_ rules: [CleanupRule]) -> Bool {
-        selections.differsFromRecommended(rules.flatMap(candidates(for:)), recommended: recommendedCandidates)
-    }
+    /// Whether the user changed any page's ticks from the recommended default: what quitting would lose (#270, #349).
+    var anyPageDiffersFromRecommended: Bool { selections.differsFromRecommended(candidates) }
+    /// Whether the user changed a category's ticks from the recommended default, for Overview's "Selected" (#349).
+    func selectionDiffersFromRecommended(_ rules: [CleanupRule]) -> Bool { selections.differsFromRecommended(rules.flatMap(candidates(for:))) }
     /// The Applications page's chosen items.
     var applicationsSelected: [Candidate] { selections.chosen(on: .applications, from: candidates) }
     /// Rules with at least one chosen item.
@@ -473,17 +473,14 @@ import SwiftUI
     /// Chooses or clears every item the rules found, such as a whole category. Items chosen one by one (possibly related
     /// leftovers, #173) are never chosen with them.
     func setSelected(_ rules: [CleanupRule], _ selected: Bool) {
-        let ids = rules.filter { !$0.selectedOneByOne }.flatMap(candidates(for:)).map(\.id)
-        guard canEdit, !ids.isEmpty else { return }
-        selections.set(ids, ticked: selected)
-        noteChoices()
+        setSelected(rules.filter { !$0.selectedOneByOne }.flatMap(candidates(for:)), selected)
     }
     func setSelected(_ candidate: Candidate, _ selected: Bool) { setSelected([candidate], selected) }
     /// Ticks or unticks found items on any page; every page that lists them shows it (#349).
     func setSelected(_ items: [Candidate], _ selected: Bool) {
-        let found = Set(candidates.map(\.id)), ids = items.map(\.id).filter(found.contains)
-        guard canEdit, !ids.isEmpty else { return }
-        selections.set(ids, ticked: selected)
+        let found = Set(candidates.map(\.id)), items = items.filter { found.contains($0.id) }
+        guard canEdit, !items.isEmpty else { return }
+        selections.set(items, ticked: selected)
         noteChoices()
     }
 
@@ -538,8 +535,8 @@ import SwiftUI
             result = outcome
             measureStoppedWorkAgain(outcome, of: approval, run: run)
             if !approval.previewOnly { rescanFollowsCleanup = true }
-            // What the run took leaves every page (#349). Picked folders keep the large and old files this run didn't act on (#125).
-            selections.finishRun(approval.candidates); selections.revise(); discovered = []; uninstallable = []; pickedFiles = pickedFiles.mapValues { UserFiles.remaining($0, after: outcome) }
+            // What the run cleaned leaves every page; what it skipped keeps its tick (#349). Picked folders keep the large and old files this run didn't act on (#125).
+            selections.finishRun(cleaned: outcome.cleanedCandidateIDs); selections.revise(); discovered = []; uninstallable = []; pickedFiles = pickedFiles.mapValues { UserFiles.remaining($0, after: outcome) }
             projectBuilds = projectBuilds.mapValues { UserFiles.remaining($0, after: outcome) }; hasScanned = false; noteChoices()
         } catch { message = "CacheDrop couldn’t open its cleanup history, so nothing was changed." }
     }
