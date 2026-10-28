@@ -396,7 +396,7 @@ final class ApplicationsUITests: XCTestCase {
         XCTAssertFalse(element(app, "applicationsEmpty-apps").exists, "Never \"Only Apple's apps\"")
 
         try FileManager.default.removeItem(at: unreadable)
-        element(app, "applicationsTryAgain", .button).click()
+        element(app, "applicationsUnreadableAction", .button).click()
         XCTAssertTrue(element(app, "applicationsApp-" + pad.path).waitForExistence(timeout: 60), "Try again listed the app")
         XCTAssertFalse(notice.exists)
     }

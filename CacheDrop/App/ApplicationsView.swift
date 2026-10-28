@@ -154,9 +154,10 @@ struct ApplicationsView: View {
         if entries.isEmpty {
             if listsLoading { loading(id) }
             else if id == "apps", model.appsUnreadable {
-                // Spotlight didn't answer: unknown, never "Only Apple's apps" (#310). Try again scans again, so uninstalls are read too.
-                StatusRow(text: "CacheDrop couldn’t read the list of apps.", symbol: "exclamationmark.triangle", role: .caution, identifier: "applicationsUnreadable",
-                          action: StatusAction(title: "Try again", identifier: "applicationsTryAgain") { Task { await catalog.rescan() } })
+                // Spotlight didn't answer: unknown, never "Only Apple's apps" (#310), as the one empty state (#321). Try again
+                // scans again, so uninstalls are read too.
+                EmptyState(title: "CacheDrop couldn’t read the list of apps", detail: "Spotlight didn’t answer.", symbol: "exclamationmark.triangle",
+                           action: EmptyStateAction("Try again") { Task { await catalog.rescan() } }, identifier: "applicationsUnreadable")
             } else { state(empty.title, empty.detail, symbol: "tray", id: "applicationsEmpty-" + id) }
         } else if shown.isEmpty {
             noMatches(id)
@@ -173,7 +174,7 @@ struct ApplicationsView: View {
 
     private func loading(_ id: String) -> some View { SkeletonRows(.category, count: 2, identifier: "applicationsLoading-" + id) }
     private func state(_ title: String, _ detail: String, symbol: String, id: String) -> some View {
-        EmptyState(title: title, detail: detail, symbol: symbol).accessibilityElement(children: .combine).accessibilityIdentifier(id)
+        EmptyState(title: title, detail: detail, symbol: symbol, identifier: id)
     }
 
     /// The size a row shows, and Size sorts by: shared items count on no product's row, so the page counts them once

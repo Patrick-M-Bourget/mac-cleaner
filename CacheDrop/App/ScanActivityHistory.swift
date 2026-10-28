@@ -212,21 +212,16 @@ struct HistoryActivityUnavailableState: View {
         EmptyState(title: "History unavailable", detail: "Some recorded activity could not be read. Trying again reloads records only; it does not scan or clean files.", symbol: "exclamationmark.triangle")
     }
 }
+/// History with nothing to show (#321): one empty state whose one action is Go to Overview.
 struct HistoryActivityEmptyState: View {
     let filter: HistoryActivityFilter
     var goOverview: () -> Void
-    var viewPlan: () -> Void
     private var title: String {
-        switch filter { case .all: "No retained history."; case .scans: "No recorded scans."; case .cleanups: "No recorded cleanup runs." }
+        switch filter { case .all: "No activity yet"; case .scans: "No scans yet"; case .cleanups: "No cleanups yet" }
     }
     var body: some View {
-        VStack(alignment: .leading, spacing: CacheDropDesign.Space.lg) {
-            EmptyState(title: title, detail: "Scans and cleanups appear here when they finish.", symbol: "clock")
-            HStack {
-                if filter != .cleanups { Button("Go to Overview", action: goOverview) }
-                if filter != .scans { Button("Review plan", action: viewPlan) }
-            }
-        }
+        EmptyState(title: title, detail: "Scans and cleanups appear here when they finish.", symbol: "clock",
+                   action: EmptyStateAction("Go to Overview", perform: goOverview), identifier: "historyEmpty")
     }
 }
 struct HistoryRetentionNote: View {
@@ -274,7 +269,7 @@ struct HistoryActivityGalleryExamples: View {
                 let id = filter == .all ? "empty-all" : filter == .scans ? "empty-scans" : "empty-cleanups"
                 VStack(alignment: .leading, spacing: CacheDropDesign.Space.md) {
                     heading(id, filter.rawValue + " · No retained records")
-                    HistoryActivityEmptyState(filter: filter, goOverview: {}, viewPlan: {})
+                    HistoryActivityEmptyState(filter: filter, goOverview: {})
                     if filter == .all { HistoryRetentionNote() }
                     end(id, "Retained records, not a lifetime activity count.")
                 }

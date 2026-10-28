@@ -346,18 +346,33 @@ struct StorageReviewRow: View {
     }
 }
 
+/// An empty state's one way forward (#321): a button that leads where the user can act.
+struct EmptyStateAction {
+    let title: String
+    let perform: () -> Void
+    init(_ title: String, perform: @escaping () -> Void) { self.title = title; self.perform = perform }
+}
+
+/// The one empty state (#321): what's true, then at most one action that leads where the user can act. While a page's
+/// content isn't known yet it shows `SkeletonRows` instead, never this. The action is `identifier` + "Action".
 struct EmptyState: View {
     let title: String
-    let detail: String
+    var detail = ""
     var symbol = "tray"
+    var action: EmptyStateAction? = nil
+    var identifier = "emptyState"
     var body: some View {
         HStack(alignment: .top, spacing: CacheDropDesign.Space.lg) {
-            Image(systemName: symbol).font(.title2).foregroundStyle(.secondary).frame(width: 32)
+            Image(systemName: symbol).font(.title2).foregroundStyle(.secondary).frame(width: 32).accessibilityHidden(true)
             VStack(alignment: .leading, spacing: CacheDropDesign.Space.sm) {
                 Text(title).font(CacheDropDesign.TypeStyle.section)
-                Text(detail).font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                if !detail.isEmpty { Text(detail).font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true) }
+                if let action {
+                    Button(action.title, action: action.perform).accessibilityIdentifier(identifier + "Action").padding(.top, CacheDropDesign.Space.xs)
+                }
             }
         }.frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, CacheDropDesign.Space.xl)
+            .accessibilityElement(children: .contain).accessibilityIdentifier(identifier)
     }
 }
 /// The bottom bar every screen has, always the same height (Decision 46): a leading note or control, then the actions.
@@ -1029,10 +1044,12 @@ struct BusyAction<Content: View>: View {
     }
 }
 
-/// The one line Overview, Smart clean and the plan show when a finished scan found nothing to clean (#308).
+/// What Overview, Smart clean and the plan show when a finished scan found nothing to clean (#308), as the one empty
+/// state (#321). Overview and the plan lead on to Explore storage; Smart clean has its "Not included" links instead.
 struct NothingToCleanUp: View {
     var identifier = "nothingToCleanUp"
+    var action: EmptyStateAction? = nil
     var body: some View {
-        Text("Nothing to clean up right now.").font(.callout).foregroundStyle(.secondary).accessibilityIdentifier(identifier)
+        EmptyState(title: "Nothing to clean up right now", symbol: "checkmark.circle", action: action, identifier: identifier)
     }
 }

@@ -1761,3 +1761,71 @@ final class ReviewSheetUITests: XCTestCase {
         XCTAssertTrue(line.waitForNonExistence(timeout: 5))
     }
 }
+
+/// #321: an empty state says what's true and offers one action that leads where the user can act.
+final class EmptyStateUITests: XCTestCase {
+    /// A fixture home with nothing in it, read only through the DEBUG-only CACHEDROP_TEST_CATALOG_HOME seam.
+    @MainActor private func configureEmptyCatalogHome(_ app: XCUIApplication) throws -> URL {
+        let home = FileManager.default.temporaryDirectory.resolvingSymlinksInPath().appendingPathComponent("CacheDropTestHome-" + UUID().uuidString)
+        FixtureFolders.track(home)
+        try FileManager.default.createDirectory(at: home, withIntermediateDirectories: true)
+        app.launchEnvironment["CACHEDROP_TEST_CATALOG_HOME"] = home.path
+        return home
+    }
+
+    /// The plan on an empty home says there's nothing to clean up, and Explore storage leads to Locations & access,
+    /// where a folder can be added, since no folder is scanned yet.
+    @MainActor func testThePlanOnAnEmptyHomeSaysNothingToCleanUpAndLeadsToExploreStorage() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        let state = try configureIsolatedState(app)
+        let home = try configureEmptyCatalogHome(app)
+        defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
+        app.launch()
+        XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
+
+        app.typeKey("3", modifierFlags: .command)
+        let empty = app.descendants(matching: .any)["planEmpty"]
+        XCTAssertTrue(empty.waitForExistence(timeout: 60), "The plan says nothing was found")
+        XCTAssertTrue(empty.staticTexts["Nothing to clean up right now"].exists)
+        XCTAssertFalse(app.descendants(matching: .any)["planSkeleton"].exists, "Never a skeleton and an empty state together")
+        let explore = empty.buttons["planEmptyAction"]
+        XCTAssertEqual(explore.label, "Explore storage")
+        explore.click()
+        XCTAssertTrue(app.buttons["manageLocalRecords"].waitForExistence(timeout: 5), "With no scanned folder, it opens Locations & access")
+    }
+
+    /// Storage trends with no recorded scan says so and offers Scan now, which records the first baseline.
+    @MainActor func testStorageTrendsWithNoScanOffersScanNowWhichRecordsABaseline() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        let state = try configureIsolatedState(app)
+        let home = try configureEmptyCatalogHome(app)
+        defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
+        app.launch()
+        XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
+        app.typeKey("4", modifierFlags: .command)
+        XCTAssertTrue(app.staticTexts["Baseline recorded"].waitForExistence(timeout: 60), "The launch scan recorded a baseline")
+
+        // Clearing completed history forgets the baseline, so no scan is recorded.
+        app.typeKey("7", modifierFlags: .command)
+        let manage = app.buttons["manageLocalRecords"]
+        XCTAssertTrue(manage.waitForExistence(timeout: 5))
+        revealAndClick(manage, in: app)
+        app.buttons["clearHistory"].click()
+        let confirm = app.windows.firstMatch.sheets.buttons["Clear completed history"].firstMatch
+        XCTAssertTrue(confirm.waitForExistence(timeout: 5))
+        confirm.click()
+        XCTAssertTrue(confirm.waitForNonExistence(timeout: 5))
+
+        app.typeKey("4", modifierFlags: .command)
+        let empty = app.descendants(matching: .any)["growthEmpty"]
+        XCTAssertTrue(empty.waitForExistence(timeout: 10), "Storage trends says no scan is recorded")
+        XCTAssertTrue(empty.staticTexts["No scans yet"].exists)
+        let scanNow = empty.buttons["growthEmptyAction"]
+        XCTAssertEqual(scanNow.label, "Scan now")
+        scanNow.click()
+        XCTAssertTrue(app.staticTexts["Baseline recorded"].waitForExistence(timeout: 60), "Scan now records a new baseline")
+        XCTAssertFalse(empty.exists)
+    }
+}

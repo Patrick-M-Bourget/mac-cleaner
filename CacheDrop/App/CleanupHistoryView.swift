@@ -143,7 +143,6 @@ struct CleanupHistoryView: View {
     @Bindable private var scans = ScanActivityHistory.shared
     var showRecovery: () -> Void
     var goOverview: () -> Void
-    var viewPlan: () -> Void
     private var items: [HistoryActivityItem] {
         let scanItems: [HistoryActivityItem] = model.filter == .cleanups ? [] : (scans.records ?? []).map(HistoryActivityItem.scan)
         let cleanupItems: [HistoryActivityItem] = model.filter == .scans ? [] : (model.snapshot?.completedRuns ?? []).map(HistoryActivityItem.cleanup)
@@ -188,7 +187,7 @@ struct CleanupHistoryView: View {
                 }
             } else if !readingHistory {
                 if unavailable { HistoryActivityUnavailableState() }
-                else { HistoryActivityEmptyState(filter: model.filter, goOverview: goOverview, viewPlan: viewPlan) }
+                else { HistoryActivityEmptyState(filter: model.filter, goOverview: goOverview) }
             }
             HistoryRetentionNote()
         }.task { await reload() }
