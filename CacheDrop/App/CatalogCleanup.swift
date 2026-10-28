@@ -256,11 +256,6 @@ import SwiftUI
     var selectedRuleCount: Int { Set(selectedCandidates.map(\.ruleID)).count }
     var selectedCount: Int { selectedCandidates.count }
     var estimatedBytes: Int64 { selectedCandidates.reduce(0) { $0 + $1.estimatedBytes } }
-    /// The chosen items that go to Trash and their size; nil when none do.
-    var selectedTrashBytes: Int64? {
-        let trash = selectedCandidates.filter { $0.action == .trash }
-        return trash.isEmpty ? nil : trash.reduce(0) { $0 + $1.estimatedBytes }
-    }
     var canEdit: Bool { !isScanning && !isRunning && !AppLifecycleController.shared.operationInProgress && !AppLifecycleController.shared.maintenanceInProgress }
     var canReview: Bool { canEdit && selectedCount > 0 }
     /// Why choices and the dry run can't be changed now, for a disabled control's tooltip; nil when they can (#310).
