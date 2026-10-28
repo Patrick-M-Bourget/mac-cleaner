@@ -73,6 +73,28 @@ import XCTest
     return marker
 }
 
+/// Writes an installer receipt under the fixture home's `var/db/receipts`, installed at `/` (so under the home, which stands in
+/// for the system root in a test run), listing `paths`: its plist, and a BOM `mkbom` builds from a skeleton of those paths.
+@MainActor func writeFixtureReceipt(_ id: String, listing paths: [String], in home: URL) throws {
+    let receipts = home.appendingPathComponent("var/db/receipts")
+    try FileManager.default.createDirectory(at: receipts, withIntermediateDirectories: true)
+    let plist = try PropertyListSerialization.data(fromPropertyList: ["PackageIdentifier": id, "InstallPrefixPath": "/"], format: .xml, options: 0)
+    try plist.write(to: receipts.appendingPathComponent(id + ".plist"))
+    let skeleton = FileManager.default.temporaryDirectory.appendingPathComponent("CacheDropReceipt-" + UUID().uuidString)
+    defer { try? FileManager.default.removeItem(at: skeleton) }
+    for path in paths {
+        let url = skeleton.appendingPathComponent(path)
+        if url.pathExtension == "app" { try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true); continue }
+        try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Data().write(to: url)
+    }
+    let mkbom = Process()
+    mkbom.executableURL = URL(fileURLWithPath: "/usr/bin/mkbom")
+    mkbom.arguments = [skeleton.path, receipts.appendingPathComponent(id + ".bom").path]
+    try mkbom.run(); mkbom.waitUntilExit()
+    XCTAssertEqual(mkbom.terminationStatus, 0, "mkbom built the receipt's BOM")
+}
+
 /// Scrolls `element` fully into view before a click. CacheDrop's window may open at its 900×640 minimum (the saved frame is
 /// shared with the user's own runs). Overview rows and plan rules then sit below the visible area or on the window's bottom
 /// resize edge, where a synthesized click does nothing. `nearTop` leaves room below it, e.g. for a disclosure group's
@@ -1487,6 +1509,66 @@ extension CatalogCleanupUITests {
         XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: chosen, object: installer)], timeout: 15), .completed, "The installer is still chosen")
     }
 
+    /// #310: unreadable Protected items settings read as one error line with Try again, on Overview and on the page the user
+    /// is on, never "Nothing to review" or "Nothing to clean"; once they can be read, Try again scans and the line goes.
+    @MainActor func testUnreadableSettingsSayWhyWithTryAgainNeverNothing() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        let state = try configureIsolatedState(app)
+        let home = try configureCatalogHome(app)
+        let rules = state.appendingPathComponent("Exclusions/rules-v1.json")
+        try FileManager.default.createDirectory(at: rules.deletingLastPathComponent(), withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+        try Data("not settings".utf8).write(to: rules)
+        defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
+        app.launch()
+        XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
+        let notice = app.staticTexts["settingsUnreadable"]
+        XCTAssertTrue(notice.waitForExistence(timeout: 30), "Overview says the settings couldn't be read")
+        XCTAssertFalse(app.descendants(matching: .any)["overviewEmpty"].exists, "Never \"nothing to clean\"")
+        XCTAssertFalse(app.descendants(matching: .any)["overviewSkeleton"].exists, "Never still loading")
+        XCTAssertTrue(app.buttons["settingsUnreadableTryAgain"].exists)
+
+        app.typeKey("2", modifierFlags: .command)
+        XCTAssertTrue(notice.waitForExistence(timeout: 5), "Smart clean says it too")
+        XCTAssertFalse(app.descendants(matching: .any)["smartCleanEmpty"].exists)
+        XCTAssertFalse(app.staticTexts["smartCleanError"].exists)
+
+        try FileManager.default.removeItem(at: rules)
+        app.buttons["settingsUnreadableTryAgain"].click()
+        XCTAssertTrue(notice.waitForNonExistence(timeout: 30), "Try again scanned with the settings readable")
+        XCTAssertTrue(app.checkBoxes["smartCleanCategory-developer"].waitForExistence(timeout: 30))
+    }
+
+    /// #310: an item Smart clean lists that the check at Clean up refuses is in its review as "will be skipped: <reason>", as
+    /// in the plan's, never dropped without a word. The stand-in npm (a shell running npm-cli.js) starts after the scan.
+    @MainActor func testSmartCleanReviewSaysWhyAnItemRefusedAtTheClickWillBeSkipped() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        let state = try configureIsolatedState(app)
+        let home = try configureCatalogHome(app)
+        turnOnDryRun(app)
+        let script = home.appendingPathComponent(".cachedrop-test-npm/npm-cli.js")
+        try FileManager.default.createDirectory(at: script.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try "while :; do sleep 1; done\n".write(to: script, atomically: true, encoding: .utf8)
+        let npm = Process()
+        npm.executableURL = URL(fileURLWithPath: "/bin/sh")
+        npm.arguments = [script.path]
+        defer { if npm.isRunning { npm.terminate() }; app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
+        app.launch()
+        XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
+        waitForCatalogScan(app)
+        app.typeKey("2", modifierFlags: .command)
+        let developer = app.checkBoxes["smartCleanCategory-developer"]
+        XCTAssertTrue(developer.waitForExistence(timeout: 10), "The npm cache is listed: npm wasn't running at the scan")
+
+        try npm.run()
+        app.buttons["smartCleanCleanUp"].click()
+        let skipped = app.staticTexts["reviewSkipped-npm-cache"]
+        XCTAssertTrue(skipped.waitForExistence(timeout: 10), "The review says the npm cache will be skipped")
+        XCTAssertTrue((skipped.value as? String ?? skipped.label).contains("will be skipped: "), skipped.debugDescription)
+        app.buttons["Cancel"].click()
+    }
+
     /// #319: Smart clean's wider plan. An installer not opened in 90 days, Homebrew's cache and a leftover an installer receipt
     /// ties to its removed app all start ticked, each category with its consequence line. Unticking the installer leaves the
     /// rest, which the review groups by consequence. A dry run, so nothing changes and the stand-in `brew` never runs.
@@ -1505,12 +1587,11 @@ extension CatalogCleanupUITests {
         try FileManager.default.setAttributes([.creationDate: old, .modificationDate: old], ofItemAtPath: installer.path)
         var times = [timeval(tv_sec: Int(old.timeIntervalSince1970), tv_usec: 0), timeval(tv_sec: Int(old.timeIntervalSince1970), tv_usec: 0)]
         XCTAssertEqual(utimes(installer.path, &times), 0)
-        // A leftover the receipt of a removed app lists (DEBUG seam: `.cachedrop-test-receipts`).
+        // A leftover the receipt of a removed app lists. A debug test run reads receipts under the fixture home (#318).
         let leftover = home.appendingPathComponent("Library/Application Support/FooData/presets.db")
         try FileManager.default.createDirectory(at: leftover.deletingLastPathComponent(), withIntermediateDirectories: true)
         try Data(repeating: 4, count: 60_000).write(to: leftover)
-        try "com.foocorp.foo.pkg\t\(home.path)/Applications/Foo.app\t\(leftover.path)\n"
-            .write(to: home.appendingPathComponent(".cachedrop-test-receipts"), atomically: true, encoding: .utf8)
+        try writeFixtureReceipt("com.foocorp.foo.pkg", listing: ["Applications/Foo.app", "Library/Application Support/FooData/presets.db"], in: home)
         app.launch()
         waitForCatalogScan(app)
         app.typeKey("2", modifierFlags: .command)

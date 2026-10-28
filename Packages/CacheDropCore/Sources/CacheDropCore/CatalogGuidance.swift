@@ -6,17 +6,18 @@ extension Catalog {
     /// A rule appears when one of its locations exists; one CacheDrop can't read is `.notAccessible`, never 0.
     /// Without Full Disk Access, a rule that needs it is `.notAccessible` without being touched, so no privacy prompt appears,
     /// unless it is only for an app that isn't installed (#245): `appPresence` answers that from Launch Services.
+    /// `receipts` is the catalog scan's read of the installer receipts, for the plug-in products (#318); nil reads them here.
     public func guidance(home: URL, systemRoot: URL = URL(fileURLWithPath: "/"), sizer: KnownLocationSizer = KnownLocationSizer(),
                          snapshots: any LocalSnapshotListing = TmutilSnapshots(), fullDiskAccess: FullDiskAccessStatus = .unknown,
-                         appPresence: any AppPresence = SystemAppPresence()) -> [GuidanceFinding] {
+                         appPresence: any AppPresence = SystemAppPresence(), receipts: ReceiptListings? = nil) -> [GuidanceFinding] {
         guidance(home: home, systemRoot: systemRoot, sizer: sizer, snapshots: snapshots, fullDiskAccess: fullDiskAccess, appPresence: appPresence,
-                 libraryVolumes: .system)
+                 libraryVolumes: .system, receipts: receipts)
     }
 
     /// `guidance(home:…)` with the volumes the library search reaches, which tests stand in (#244).
     func guidance(home: URL, systemRoot: URL, sizer: KnownLocationSizer, snapshots: any LocalSnapshotListing,
                   fullDiskAccess: FullDiskAccessStatus = .unknown, appPresence: any AppPresence,
-                  libraryVolumes: LibraryVolumes) -> [GuidanceFinding] {
+                  libraryVolumes: LibraryVolumes, receipts: ReceiptListings? = nil) -> [GuidanceFinding] {
         // One search finds every library rule's packages, and only for rules CacheDrop may read.
         let extensions = Set(rules.compactMap { rule -> String? in
             guard rule.access(given: fullDiskAccess) == .available else { return nil }
@@ -62,7 +63,8 @@ extension Catalog {
             // Nothing there, such as a Mail folder with no attachments, is no finding.
             guard total != .measured(0) else { return nil }
             let workspaces = guidance.sizing == .agentWorkspaces ? WorkspaceGit.workspaces(in: read) : nil
-            let plugIns = guidance.sizing == .plugIns ? PlugInInventory.scan(home: home, systemRoot: systemRoot, sizer: sizer) : nil
+            let plugIns = guidance.sizing == .plugIns ? PlugInInventory.scan(home: home, systemRoot: systemRoot, sizer: sizer,
+                                                                                 receipts: receipts ?? ReceiptListings.read(under: systemRoot)) : nil
             return GuidanceFinding(ruleID: rule.id, size: .estimate(total), folder: folder, workspaces: workspaces, plugIns: plugIns)
         }
     }

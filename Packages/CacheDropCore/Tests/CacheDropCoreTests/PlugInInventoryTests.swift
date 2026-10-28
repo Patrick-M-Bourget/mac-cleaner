@@ -40,7 +40,7 @@ private func plugIn(_ relative: String, in root: URL, id: String?, version: Stri
 }
 
 private func scan(_ root: URL, _ home: URL) -> PlugInInventory {
-    PlugInInventory.scan(home: home, systemRoot: root, sizer: KnownLocationSizer(timeBudget: 5))
+    PlugInInventory.scan(home: home, systemRoot: root, sizer: KnownLocationSizer(timeBudget: 5), receipts: ReceiptListings.read(under: root))
 }
 
 @Test func allSixFormatsAreFoundInSystemAndUserFolders() throws {

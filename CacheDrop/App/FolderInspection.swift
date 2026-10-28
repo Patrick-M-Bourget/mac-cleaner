@@ -56,7 +56,12 @@ final class FolderInspection {
     }
 
     func scan(_ url: URL) {
-        guard !AppLifecycleController.shared.operationInProgress, !AppLifecycleController.shared.maintenanceInProgress else { return }
+        guard !AppLifecycleController.shared.operationInProgress else { return }
+        // A folder picked while History holds the maintenance lease is scanned once it lets go (#310).
+        if AppLifecycleController.shared.maintenanceInProgress {
+            AppLifecycleController.shared.afterMaintenance.waitFor("folderScan") { [weak self] in self?.scan(url) }
+            return
+        }
         guard !selection.workspaceRunning else { return }
         cancel()
         startScan(url)

@@ -35,7 +35,7 @@ public struct SmartCleanReport: Sendable {
             let support = try FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask, appropriateFor: nil, create: false)
             let exclusions = try ExclusionStore.policy(readingOnly: support.appendingPathComponent(LegacyStillMigration.folder).appendingPathComponent("Exclusions"))
             return Sources(catalog: Catalog(rules: BuiltInCatalog.rules), home: home, userFolder: Catalog.currentUserFolder(), exclusions: exclusions,
-                           apps: SystemAppPresence(), receipts: SystemInstallerReceipts(home: home), locateTool: ToolCommand.installed,
+                           apps: SystemAppPresence(), receipts: ReadReceipts(ReceiptListings.read(under: URL(fileURLWithPath: "/")), home: home), locateTool: ToolCommand.installed,
                            systemRoot: URL(fileURLWithPath: "/"), cloud: SystemUbiquitousItems(), inUse: SystemInUseChecker(), running: SystemRunningAppChecker(),
                            access: FullDiskAccessProbe(home: home).status())
         }

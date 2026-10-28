@@ -9,6 +9,6 @@ struct DryRunToggle: View {
     @Bindable var model: CatalogCleanupModel
     var body: some View {
         Toggle("Dry run (nothing changes)", isOn: $model.dryRun)
-            .disabled(!model.canEdit).accessibilityIdentifier("dryRunToggle")
+            .disabled(!model.canEdit).help(model.editBlockedReason ?? "").accessibilityIdentifier("dryRunToggle")
     }
 }

@@ -41,6 +41,19 @@ struct CatalogPlanSection: View {
     }
 }
 
+/// The one line every page that cleans, and Overview, shows when the Protected items settings couldn't be read (#310),
+/// with Try again, which scans again.
+struct SettingsUnreadableNotice: View {
+    let model: CatalogCleanupModel
+    var body: some View {
+        if model.settingsUnreadable {
+            StatusRow(text: CatalogCleanupModel.settingsUnreadableText, symbol: "exclamationmark.triangle", role: .caution, identifier: "settingsUnreadable",
+                      action: StatusAction(title: "Try again", identifier: "settingsUnreadableTryAgain") { Task { await model.rescan() } })
+                .disabled(model.isScanning)
+        }
+    }
+}
+
 /// A plan category through the shared `CategoryRow` (Decision 48), with its rules or items under "Choose items".
 struct PlanCategoryRow: View {
     @Bindable var model: CatalogCleanupModel

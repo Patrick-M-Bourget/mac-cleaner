@@ -128,7 +128,7 @@ struct RefreshRequest: Sendable {
     func prepareSmartCleanReview() async throws -> WorkspaceCleanupReview {
         guard canReviewSmartClean else { throw PlanReviewError.changed }
         let catalogVersion = catalog.selectionRevision
-        guard let items = await catalog.smartCleanCheckedNow() else { throw PlanReviewError.changed }
+        guard let items = await catalog.smartCleanCheckedNow() else { throw failure }
         guard !items.isEmpty else { throw PlanReviewError.nothingToClean }
         return try await review(items, from: .smartClean, catalogVersion: catalogVersion)
     }
@@ -140,16 +140,20 @@ struct RefreshRequest: Sendable {
     /// A page's review of `items` through the plan's review, refused when the page's choices changed meanwhile.
     private func review(_ items: [Candidate], from source: CleanupSelections.Source, catalogVersion: UInt64) async throws -> WorkspaceCleanupReview {
         let review = await catalog.prepareReview(of: items)
-        guard let review, canReview(source), catalog.selectionRevision == catalogVersion else { throw PlanReviewError.changed }
+        guard let review else { throw failure }
+        guard canReview(source), catalog.selectionRevision == catalogVersion else { throw PlanReviewError.changed }
         return WorkspaceCleanupReview(catalog: review, catalogVersion: catalogVersion, source: source)
     }
     func prepareWorkspaceReview() async throws -> WorkspaceCleanupReview {
         guard canReview else { throw PlanReviewError.changed }
         let catalogVersion = catalog.selectionRevision
         let items = catalog.selectedCount > 0 ? await catalog.prepareReview() : nil
+        if catalog.selectedCount > 0, items == nil, catalog.settingsUnreadable { throw PlanReviewError.settingsUnreadable }
         guard canReview, catalog.selectionRevision == catalogVersion, catalog.selectedCount == 0 || items != nil else { throw PlanReviewError.changed }
         return WorkspaceCleanupReview(catalog: items, catalogVersion: catalogVersion)
     }
+    /// Why a review couldn't be built: the settings couldn't be read, or the choices changed meanwhile.
+    private var failure: PlanReviewError { catalog.settingsUnreadable ? .settingsUnreadable : .changed }
     func executeWorkspace(_ review: WorkspaceCleanupReview) async throws {
         guard canReview(review.source), catalog.selectionRevision == review.catalogVersion else { throw PlanReviewError.changed }
         await run(review)
@@ -182,8 +186,18 @@ struct RefreshRequest: Sendable {
 }
 enum PlanReviewError: Error {
     case changed, nothingToClean
+    /// The Protected items settings couldn't be read; the page shows `SettingsUnreadableNotice` instead (#310).
+    case settingsUnreadable
     /// What every page that cleans says when its choices changed before or under its review sheet (#307).
     static let changedMessage = "Your choices changed. Check the items and try again."
+    /// The page's line for a review that couldn't open; nil when `SettingsUnreadableNotice` already says why (#310).
+    static func message(for error: Error) -> String? {
+        switch error as? PlanReviewError {
+        case .settingsUnreadable: nil
+        case .nothingToClean: "Nothing here can be cleaned right now. Scan again."
+        default: changedMessage
+        }
+    }
 }
 
 @MainActor @Observable final class CleanupPlanPresentation {
@@ -228,6 +242,7 @@ struct LiveCleanupPlanView: View {
                              identifier: "liveSelectionSummary", consequence: selection.workspaceTrashNote, title: "Potential space released",
                              consequenceIdentifier: "liveSelectionTrash")
                 .help("Sizes are estimates from the scan, not guaranteed space freed. Linked files count once. Each item is checked again just before CacheDrop acts on it.")
+            SettingsUnreadableNotice(model: selection.catalog)
             if let approvalError { StatusRow(text: approvalError, symbol: "exclamationmark.circle", role: .caution) }
             CatalogPlanSection(model: selection.catalog, expanded: $presentation.expandedCategories)
         }.padding(CacheDropDesign.Space.page).frame(maxWidth: .infinity, alignment: .leading)
@@ -256,7 +271,7 @@ struct LiveCleanupPlanView: View {
         do {
             guard let checked = try await selection.checkingReview(selection.prepareWorkspaceReview) else { return }
             review = checked; approvalError = nil
-        } catch { approvalError = PlanReviewError.changedMessage }
+        } catch { approvalError = PlanReviewError.message(for: error) }
     }
 }
 
@@ -277,6 +292,7 @@ struct CleanupRunSection: View {
             if selection.catalog.isRunning { ProgressView(selection.catalog.dryRun ? "Checking selected items…" : "Cleaning selected items…") }
             if let result = selection.catalog.result { CatalogResultsSection(result: result, catalog: selection.catalog.catalog) }
             if let message = selection.catalog.message { StatusRow(text: message, symbol: "exclamationmark.triangle", role: .caution) }
+            SettingsUnreadableNotice(model: selection.catalog)
         }.padding(CacheDropDesign.Space.page)
     }
 }
