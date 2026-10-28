@@ -1487,6 +1487,66 @@ extension CatalogCleanupUITests {
         XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: chosen, object: installer)], timeout: 15), .completed, "The installer is still chosen")
     }
 
+    /// #310: unreadable Protected items settings read as one error line with Try again, on Overview and on the page the user
+    /// is on, never "Nothing to review" or "Nothing to clean"; once they can be read, Try again scans and the line goes.
+    @MainActor func testUnreadableSettingsSayWhyWithTryAgainNeverNothing() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        let state = try configureIsolatedState(app)
+        let home = try configureCatalogHome(app)
+        let rules = state.appendingPathComponent("Exclusions/rules-v1.json")
+        try FileManager.default.createDirectory(at: rules.deletingLastPathComponent(), withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+        try Data("not settings".utf8).write(to: rules)
+        defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
+        app.launch()
+        XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
+        let notice = app.staticTexts["settingsUnreadable"]
+        XCTAssertTrue(notice.waitForExistence(timeout: 30), "Overview says the settings couldn't be read")
+        XCTAssertFalse(app.descendants(matching: .any)["overviewEmpty"].exists, "Never \"nothing to clean\"")
+        XCTAssertFalse(app.descendants(matching: .any)["overviewSkeleton"].exists, "Never still loading")
+        XCTAssertTrue(app.buttons["settingsUnreadableTryAgain"].exists)
+
+        app.typeKey("2", modifierFlags: .command)
+        XCTAssertTrue(notice.waitForExistence(timeout: 5), "Smart clean says it too")
+        XCTAssertFalse(app.descendants(matching: .any)["smartCleanEmpty"].exists)
+        XCTAssertFalse(app.staticTexts["smartCleanError"].exists)
+
+        try FileManager.default.removeItem(at: rules)
+        app.buttons["settingsUnreadableTryAgain"].click()
+        XCTAssertTrue(notice.waitForNonExistence(timeout: 30), "Try again scanned with the settings readable")
+        XCTAssertTrue(app.checkBoxes["smartCleanCategory-developer"].waitForExistence(timeout: 30))
+    }
+
+    /// #310: an item Smart clean lists that the check at Clean up refuses is in its review as "will be skipped: <reason>", as
+    /// in the plan's, never dropped without a word. The stand-in npm (a shell running npm-cli.js) starts after the scan.
+    @MainActor func testSmartCleanReviewSaysWhyAnItemRefusedAtTheClickWillBeSkipped() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        let state = try configureIsolatedState(app)
+        let home = try configureCatalogHome(app)
+        turnOnDryRun(app)
+        let script = home.appendingPathComponent(".cachedrop-test-npm/npm-cli.js")
+        try FileManager.default.createDirectory(at: script.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try "while :; do sleep 1; done\n".write(to: script, atomically: true, encoding: .utf8)
+        let npm = Process()
+        npm.executableURL = URL(fileURLWithPath: "/bin/sh")
+        npm.arguments = [script.path]
+        defer { if npm.isRunning { npm.terminate() }; app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
+        app.launch()
+        XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
+        waitForCatalogScan(app)
+        app.typeKey("2", modifierFlags: .command)
+        let developer = app.checkBoxes["smartCleanCategory-developer"]
+        XCTAssertTrue(developer.waitForExistence(timeout: 10), "The npm cache is listed: npm wasn't running at the scan")
+
+        try npm.run()
+        app.buttons["smartCleanCleanUp"].click()
+        let skipped = app.staticTexts["reviewSkipped-npm-cache"]
+        XCTAssertTrue(skipped.waitForExistence(timeout: 10), "The review says the npm cache will be skipped")
+        XCTAssertTrue((skipped.value as? String ?? skipped.label).contains("will be skipped: "), skipped.debugDescription)
+        app.buttons["Cancel"].click()
+    }
+
     /// #306: a Smart clean run rescans by itself. After Done the page waits for that scan, with its progress in the bar,
     /// then fills again and can be cleaned once more. A dry run, so the caches are still there to find.
     @MainActor func testSmartCleanRescansAfterARunAndThePageFillsAgain() throws {

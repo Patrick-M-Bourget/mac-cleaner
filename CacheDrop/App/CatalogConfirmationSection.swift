@@ -43,7 +43,8 @@ struct CatalogConfirmationSection: View {
                             }.font(CacheDropDesign.TypeStyle.note).accessibilityElement(children: .combine).accessibilityIdentifier("reviewLine-\(group.consequence)-\(line.id)")
                         }
                         ForEach(group.candidates.filter { review.refusals[$0.id] != nil }) { item in
-                            StatusRow(text: item.displayName + " will be skipped: " + (review.refusals[item.id]?.reason ?? ""), symbol: "exclamationmark.circle", role: .caution)
+                            StatusRow(text: item.displayName + " will be skipped: " + (review.refusals[item.id]?.reason ?? ""), symbol: "exclamationmark.circle", role: .caution,
+                                      identifier: "reviewSkipped-" + item.ruleID)
                         }
                         ActionDisclosureGroup(CacheDropDesign.items(group.candidates.count) + " · Show files") {
                             VStack(alignment: .leading, spacing: CacheDropDesign.Space.md) {

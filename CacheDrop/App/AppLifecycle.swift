@@ -34,6 +34,13 @@ import CacheDropCore
     var openWorkspace: (() -> Void)?
     /// The workspace's Scan again, for the ⌘R menu command (#127).
     var scanAgain: (() -> Void)?
+    /// Why Scan again (⌘R, the menu bar, Overview, Storage trends) is disabled, for its tooltip; nil when it can run (#310).
+    /// A scan asked for while History holds the maintenance lease waits for it instead (`afterMaintenance`).
+    var scanAgainBlockedReason: String? {
+        if selection.catalog.isScanning || inspection.isScanning { return "A scan is already running" }
+        if selection.workspaceRunning || selection.catalog.isRunning { return "A cleanup is running" }
+        return nil
+    }
     /// Opens the Smart clean page, for the menu bar item (#131, #141).
     var openSmartClean: (() -> Void)?
     /// The menu bar item is shown unless turned off in Settings (#131).
@@ -47,8 +54,14 @@ import CacheDropCore
     }
     @Published var hasPendingPlan = false
     @Published var maintenanceInProgress = false {
-        didSet { if !maintenanceInProgress, quitPending, !operationInProgress { NSApp.terminate(nil) } }
+        didSet {
+            if !maintenanceInProgress, quitPending, !operationInProgress { NSApp.terminate(nil); return }
+            // Scans asked for while the lease was held run now (#310).
+            if oldValue, !maintenanceInProgress { afterMaintenance.released() }
+        }
     }
+    /// Scans asked for while the maintenance lease is held, run once it is released (#310).
+    let afterMaintenance = WorkAfterMaintenance()
     var quitPending = false
     /// #130: asked before quitting stops a running cleanup.
     let quitDuringCleanup = QuitDuringCleanupPrompt(ask: QuitDuringCleanupAlert.ask)

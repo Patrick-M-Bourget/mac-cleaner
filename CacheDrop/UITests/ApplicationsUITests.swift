@@ -377,6 +377,30 @@ final class ApplicationsUITests: XCTestCase {
         XCTAssertFalse(app.descendants(matching: .any)["applicationsLoading-apps"].exists)
     }
 
+    /// #310: when the list of apps can't be read (Spotlight didn't answer), Apps says so with Try again, never "no apps";
+    /// once it can be read, Try again lists them.
+    @MainActor func testAppsSayTheListCouldntBeReadAndTryAgainListsThem() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        let state = try configureIsolatedState(app)
+        let home = try configureCatalogHome(app)
+        let pad = try addApp("Pad", id: "com.example.pad", bytes: 10_000, in: home)
+        let unreadable = home.appendingPathComponent(".cachedrop-test-apps-unreadable")
+        try Data().write(to: unreadable)
+        defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
+        app.launch()
+        XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
+        app.typeKey("5", modifierFlags: .command)
+        let notice = element(app, "applicationsUnreadable")
+        XCTAssertTrue(notice.waitForExistence(timeout: 60), "Apps say the list couldn't be read")
+        XCTAssertFalse(element(app, "applicationsEmpty-apps").exists, "Never \"Only Apple's apps\"")
+
+        try FileManager.default.removeItem(at: unreadable)
+        element(app, "applicationsTryAgain", .button).click()
+        XCTAssertTrue(element(app, "applicationsApp-" + pad.path).waitForExistence(timeout: 60), "Try again listed the app")
+        XCTAssertFalse(notice.exists)
+    }
+
     /// #270: a leftover ticked on Applications is reviewed and cleaned there (dry run), and Overview never calls it in the plan.
     @MainActor func testALeftoverIsTickedAndCleanedFromApplications() throws {
         continueAfterFailure = false
