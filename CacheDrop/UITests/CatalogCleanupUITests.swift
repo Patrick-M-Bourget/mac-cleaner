@@ -1418,15 +1418,15 @@ extension CatalogCleanupUITests {
         XCTAssertTrue(app.checkBoxes["smartCleanLine-npm-cache|"].exists)
     }
 
-    /// #137, #141: Smart clean, opened from Overview's link, lists only data that rebuilds itself, all ticked and each untickable.
-    /// Its Clean up opens the review; the installer (Trash) and Homebrew (a tool) stay out. The Cleanup plan keeps its own selection.
+    /// #137, #141: Smart clean, opened from Overview's link, lists what it recommends, all ticked and each untickable.
+    /// Its Clean up opens the review; a new installer stays out (#319). The Cleanup plan keeps its own selection.
     @MainActor func testSmartCleanReviewsOnlyRebuildableItemsAndKeepsThePlanSelection() throws {
         continueAfterFailure = false
         let app = XCUIApplication()
         let state = try configureIsolatedState(app)
         let home = try configureCatalogHome(app)
         turnOnDryRun(app)
-        let marker = try addDeveloperCaches(home, folders: ["Library/Caches/Homebrew", "Library/Caches/Yarn"])
+        let marker = try addDeveloperCaches(home, folders: ["Library/Caches/Yarn"])
         defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
         app.launch()
         XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
@@ -1444,7 +1444,7 @@ extension CatalogCleanupUITests {
         XCTAssertTrue(link.label.hasPrefix("Smart clean · "), link.label)
         revealAndClick(link, in: app)
 
-        // Only rebuildable data, all ticked; the installer is not in it, and Yarn can be unticked.
+        // All ticked; the new installer is not in it, and Yarn can be unticked.
         let developer = app.checkBoxes["smartCleanCategory-developer"]
         XCTAssertTrue(developer.waitForExistence(timeout: 10))
         XCTAssertEqual(developer.value as? Int, 1)
@@ -1476,7 +1476,7 @@ extension CatalogCleanupUITests {
 
         XCTAssertTrue(app.staticTexts["catalogPreviewNotice"].waitForExistence(timeout: 10))
         XCTAssertFalse(FileManager.default.fileExists(atPath: marker.path))
-        for kept in [".npm/_cacache/content-v2/sha512/ab/blob", "Downloads/Setup.dmg", "Library/Caches/Homebrew/entry", "Library/Caches/Yarn/entry"] {
+        for kept in [".npm/_cacache/content-v2/sha512/ab/blob", "Downloads/Setup.dmg", "Library/Caches/Yarn/entry"] {
             XCTAssertTrue(FileManager.default.fileExists(atPath: home.appendingPathComponent(kept).path), kept)
         }
 
@@ -1485,6 +1485,61 @@ extension CatalogCleanupUITests {
         XCTAssertTrue(installer.waitForExistence(timeout: 15))
         let chosen = NSPredicate(format: "value == 1")
         XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: chosen, object: installer)], timeout: 15), .completed, "The installer is still chosen")
+    }
+
+    /// #319: Smart clean's wider plan. An installer not opened in 90 days, Homebrew's cache and a leftover an installer receipt
+    /// ties to its removed app all start ticked, each category with its consequence line. Unticking the installer leaves the
+    /// rest, which the review groups by consequence. A dry run, so nothing changes and the stand-in `brew` never runs.
+    @MainActor func testSmartCleanTicksAnOldInstallerAHomebrewCacheAndAReceiptTiedLeftover() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        let state = try configureIsolatedState(app)
+        let home = try configureCatalogHome(app)
+        turnOnDryRun(app)
+        let marker = try addDeveloperCaches(home, folders: ["Library/Caches/Homebrew"])
+        defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
+        // An installer nothing has opened or changed for 200 days.
+        let installer = home.appendingPathComponent("Downloads/Old Setup.dmg")
+        try Data(repeating: 5, count: 90_000).write(to: installer)
+        let old = Date().addingTimeInterval(-200 * 86_400)
+        try FileManager.default.setAttributes([.creationDate: old, .modificationDate: old], ofItemAtPath: installer.path)
+        var times = [timeval(tv_sec: Int(old.timeIntervalSince1970), tv_usec: 0), timeval(tv_sec: Int(old.timeIntervalSince1970), tv_usec: 0)]
+        XCTAssertEqual(utimes(installer.path, &times), 0)
+        // A leftover the receipt of a removed app lists (DEBUG seam: `.cachedrop-test-receipts`).
+        let leftover = home.appendingPathComponent("Library/Application Support/FooData/presets.db")
+        try FileManager.default.createDirectory(at: leftover.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Data(repeating: 4, count: 60_000).write(to: leftover)
+        try "com.foocorp.foo.pkg\t\(home.path)/Applications/Foo.app\t\(leftover.path)\n"
+            .write(to: home.appendingPathComponent(".cachedrop-test-receipts"), atomically: true, encoding: .utf8)
+        app.launch()
+        waitForCatalogScan(app)
+        app.typeKey("2", modifierFlags: .command)
+
+        let downloads = app.checkBoxes["smartCleanCategory-downloads"], developer = app.checkBoxes["smartCleanCategory-developer"]
+        let leftovers = app.checkBoxes["smartCleanCategory-leftovers"]
+        XCTAssertTrue(downloads.waitForExistence(timeout: 10))
+        for category in [downloads, developer, leftovers] { XCTAssertEqual(category.value as? Int, 1, category.identifier) }
+        func text(_ line: String) -> XCUIElementQuery { app.staticTexts.matching(NSPredicate(format: "label == %@ OR value == %@", line, line)) }
+        XCTAssertEqual(text("Goes to the Trash; Put back works").count, 2, "Installers and leftovers")
+        XCTAssertEqual(text("Comes back on its own when your tools and Xcode need it; some tools clean their own").count, 1)
+        XCTAssertTrue(app.staticTexts["smartCleanTrash"].exists, "X of this goes to Trash")
+
+        revealAndClick(downloads, in: app)
+        XCTAssertEqual(downloads.value as? Int, 0)
+        XCTAssertEqual(developer.value as? Int, 1)
+        app.buttons["smartCleanCleanUp"].click()
+
+        XCTAssertTrue(reviewLine(app, "permanentlyRemoved", "developer").waitForExistence(timeout: 10), "The npm cache")
+        XCTAssertTrue(reviewLine(app, "commandsRun", "developer").exists, "Homebrew's cache")
+        XCTAssertTrue(reviewLine(app, "movedToTrash", "leftovers").exists, "The receipt-tied leftover")
+        XCTAssertFalse(reviewLine(app, "movedToTrash", "downloads").exists, "The unticked installer")
+        app.buttons.matching(NSPredicate(format: "label == 'Clean up' AND identifier != 'smartCleanCleanUp'")).firstMatch.click()
+
+        XCTAssertTrue(app.staticTexts["catalogPreviewNotice"].waitForExistence(timeout: 10))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: marker.path))
+        for kept in [installer, leftover, home.appendingPathComponent("Library/Caches/Homebrew/entry")] {
+            XCTAssertTrue(FileManager.default.fileExists(atPath: kept.path), kept.path)
+        }
     }
 
     /// #306: a Smart clean run rescans by itself. After Done the page waits for that scan, with its progress in the bar,
