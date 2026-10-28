@@ -12,8 +12,12 @@ struct SmartCleanView: View {
     var reviewRecovery: (() -> Void)? = nil
     /// Which categories are open, kept by the caller like the plan's `CleanupPlanPresentation` (Decision 48).
     let presentation: SmartCleanPresentation
+    /// The workspace's Scan again, for the state that says nothing here can be cleaned (#321).
+    var scanAgain: () -> Void = {}
     @State private var review: WorkspaceCleanupReview?
     @State private var approvalError: String?
+    /// Clean up found nothing it can clean since the scan: the page says so, with Scan again (#321).
+    @State private var nothingToClean = false
     private var model: CatalogCleanupModel { selection.catalog }
 
     var body: some View {
@@ -38,6 +42,7 @@ struct SmartCleanView: View {
         }
         // The sheet closes only when the choices it was built from changed, and the page says so (#307).
         .onChange(of: model.selectionRevision) { _, _ in if review != nil { review = nil; approvalError = PlanReviewError.changedMessage } }
+        .onChange(of: model.isScanning) { _, scanning in if scanning { nothingToClean = false } }
     }
 
     private var page: some View {
@@ -49,6 +54,10 @@ struct SmartCleanView: View {
                 .padding(.bottom, CacheDropDesign.Space.sm)
             meter
             if let approvalError { StatusRow(text: approvalError, symbol: "exclamationmark.circle", role: .caution, identifier: "smartCleanError") }
+            if nothingToClean {
+                EmptyState(title: "Nothing here can be cleaned right now", symbol: "arrow.clockwise",
+                           action: EmptyStateAction("Scan again", perform: scanAgain), identifier: "smartCleanNothingToClean")
+            }
             // Nothing known yet: skeleton rows; a rescan dims the rows already shown (#308).
             if !model.hasScanned {
                 SkeletonRows(.category, identifier: "smartCleanSkeleton")
@@ -147,9 +156,9 @@ struct SmartCleanView: View {
     private func openReview() async {
         do {
             guard let checked = try await selection.checkingReview(selection.prepareSmartCleanReview) else { return }
-            review = checked; approvalError = nil
+            review = checked; approvalError = nil; nothingToClean = false
         }
-        catch PlanReviewError.nothingToClean { approvalError = "Nothing here can be cleaned right now. Scan again." }
-        catch { approvalError = PlanReviewError.changedMessage }
+        catch PlanReviewError.nothingToClean { approvalError = nil; nothingToClean = true }
+        catch { approvalError = PlanReviewError.changedMessage; nothingToClean = false }
     }
 }

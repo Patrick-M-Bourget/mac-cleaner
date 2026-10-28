@@ -1659,6 +1659,33 @@ final class EmptyStateUITests: XCTestCase {
         XCTAssertTrue(app.buttons["manageLocalRecords"].waitForExistence(timeout: 5), "With no scanned folder, it opens Locations & access")
     }
 
+    /// Smart clean's Clean up, finding nothing left to clean since the scan, says so with Scan again in the state; the
+    /// rescan then shows Smart clean's nothing-to-clean-up state.
+    @MainActor func testSmartCleanWithNothingLeftToCleanOffersScanAgain() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        let state = try configureIsolatedState(app)
+        let home = try configureCatalogHome(app)
+        defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
+        app.launch()
+        XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
+        waitForCatalogScan(app)
+        app.typeKey("2", modifierFlags: .command)
+        let cleanUp = app.buttons["smartCleanCleanUp"]
+        XCTAssertTrue(app.descendants(matching: .any)["smartCleanCategory-developer"].waitForExistence(timeout: 10))
+
+        try FileManager.default.removeItem(at: home.appendingPathComponent(".npm"))
+        cleanUp.click()
+        let nothing = app.descendants(matching: .any)["smartCleanNothingToClean"]
+        XCTAssertTrue(nothing.waitForExistence(timeout: 10), "Smart clean says nothing here can be cleaned")
+        let scanAgain = nothing.buttons["smartCleanNothingToCleanAction"]
+        XCTAssertEqual(scanAgain.label, "Scan again")
+        scanAgain.click()
+        XCTAssertTrue(app.descendants(matching: .any)["smartCleanEmpty"].waitForExistence(timeout: 60), "The rescan found nothing to clean")
+        XCTAssertFalse(nothing.exists)
+        XCTAssertTrue(app.descendants(matching: .any)["smartCleanNotIncluded"].exists, "Smart clean keeps its Not included links")
+    }
+
     /// Storage trends with no recorded scan says so and offers Scan now, which records the first baseline.
     @MainActor func testStorageTrendsWithNoScanOffersScanNowWhichRecordsABaseline() throws {
         continueAfterFailure = false

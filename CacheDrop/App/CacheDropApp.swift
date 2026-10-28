@@ -240,7 +240,7 @@ private struct WorkspaceView: View {
                         presentation: planPresentation, exploreStorage: { exploreStorage(caller: .plan) })
                 } else if showsSmartClean {
                     SmartCleanView(selection: selection, openPlan: { openPlan($0) }, viewHistory: { navigate(.history) }, reviewRecovery: { openRecovery(caller: .smartClean) },
-                                   presentation: smartCleanPresentation)
+                                   presentation: smartCleanPresentation, scanAgain: { if canScanAgain { scanAgain() } })
                 } else if showsApplications {
                     ApplicationsView(selection: selection, model: ApplicationsModel.shared, viewHistory: { navigate(.history) }, reviewRecovery: { openRecovery(caller: .applications) })
                 } else {
