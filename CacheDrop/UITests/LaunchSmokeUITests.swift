@@ -406,6 +406,28 @@ final class KeyboardShortcutsUITests: XCTestCase {
     }
 }
 
+/// #310: Scan again is disabled while a scan runs, on Overview and as the ⌘R menu command, never a silent no-op; it is
+/// enabled again once the scan ends. Its tooltip says "A scan is already running".
+final class ScanAgainUITests: XCTestCase {
+    @MainActor func testScanAgainIsDisabledWhileAScanRuns() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        let state = try configureIsolatedState(app)
+        let home = try configureCatalogHome(app)
+        app.launchEnvironment["CACHEDROP_TEST_DISCOVERY_PAUSE"] = "0.3"
+        defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
+        app.launch()
+        XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
+        let button = app.buttons["overviewScanAgain"], command = app.menuBars.menuBarItems["View"].menuItems["Scan again"]
+        XCTAssertTrue(app.staticTexts["catalogScanProgress"].waitForExistence(timeout: 10), "The launch scan is running")
+        XCTAssertFalse(button.isEnabled, "Overview's Scan again waits for the running scan")
+        XCTAssertFalse(command.isEnabled, "⌘R waits for the running scan")
+        let enabled = NSPredicate(format: "isEnabled == true")
+        XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: enabled, object: button)], timeout: 120), .completed)
+        XCTAssertTrue(command.isEnabled)
+    }
+}
+
 /// #158: the welcome shows on a first launch, never again once finished, and the Help menu opens it again.
 /// #310: the launch scan runs behind it from the start, so its last step shows that scan's progress and ends with Done; Full
 /// Disk Access granted while that scan runs is picked up by one rescan when it ends, without CacheDrop becoming active again.

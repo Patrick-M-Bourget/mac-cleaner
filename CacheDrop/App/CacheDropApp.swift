@@ -27,7 +27,7 @@ struct CacheDropApp: App {
                 Button("Show CacheDrop") { lifecycle.openWorkspace?() }
             }
             CommandGroup(after: .toolbar) {
-                Button("Scan again") { lifecycle.scanAgain?() }.keyboardShortcut("r")
+                ScanAgainCommand(lifecycle: lifecycle)
             }
             CommandGroup(after: .help) {
                 Button("Welcome to CacheDrop") { lifecycle.openWorkspace?(); WelcomeModel.shared.isShowing = true }
@@ -40,6 +40,15 @@ struct CacheDropApp: App {
         MenuBarExtra(isInserted: Binding(get: { showsMenuBarItem }, set: { if $0 != showsMenuBarItem { showsMenuBarItem = $0 } })) {
             CacheDropMenuBarMenu(lifecycle: lifecycle)
         } label: { CacheDropMenuBarLabel(capacity: lifecycle.capacity) }
+    }
+}
+
+/// ⌘R: disabled while a scan or cleanup runs, with the reason as its tooltip (#310).
+private struct ScanAgainCommand: View {
+    let lifecycle: AppLifecycleController
+    var body: some View {
+        Button("Scan again") { lifecycle.scanAgain?() }.keyboardShortcut("r")
+            .disabled(lifecycle.scanAgainBlockedReason != nil).help(lifecycle.scanAgainBlockedReason ?? "")
     }
 }
 
@@ -291,7 +300,7 @@ private struct WorkspaceView: View {
                         ActionStrip()
                     } else if destination == .growth {
                         ActionStrip(message: nil) {
-                            Button("Scan again", action: scanAgain).disabled(selection.catalog.isScanning || folderInspection.isScanning || selection.workspaceRunning || !selection.catalog.canEdit)
+                            Button("Scan again", action: scanAgain).disabled(!canScanAgain).help(scanAgainHelp)
                                 .accessibilityIdentifier("growthScanAgain")
                             Button("Review plan") { navigate(.plan); navigationState.planReturnsToGrowth = true }.buttonStyle(.borderedProminent)
                                 .accessibilityIdentifier("growthReviewOptions")
@@ -396,7 +405,7 @@ private struct WorkspaceView: View {
             HStack(alignment: .top) {
                 PageHeader(title: "Storage overview", subtitle: "A clearer picture of what’s on your Mac.")
                 Spacer(minLength: CacheDropDesign.Space.md)
-                Button("Scan again", action: scanAgain).disabled(!canScanAgain)
+                Button("Scan again", action: scanAgain).disabled(!canScanAgain).help(scanAgainHelp).accessibilityIdentifier("overviewScanAgain")
             }
             ScanHistoryRecordingNotice()
             if let context = alerts.openedAlertContext {
@@ -404,7 +413,7 @@ private struct WorkspaceView: View {
                     VStack(alignment: .leading, spacing: CacheDropDesign.Space.md) {
                         StatusRow(text: context.observedAt.map { "Space was low at \($0.formatted(date: .omitted, time: .shortened))" } ?? "Space was low", symbol: "bell", identifier: "openedStorageAlert")
                         HStack {
-                            Button("Scan again") { alerts.dismissOpenedAlert(); scanAgain() }.disabled(!canScanAgain)
+                            Button("Scan again") { alerts.dismissOpenedAlert(); scanAgain() }.disabled(!canScanAgain).help(scanAgainHelp)
                             Button("Dismiss", action: alerts.dismissOpenedAlert)
                         }
                     }
@@ -535,7 +544,9 @@ private struct WorkspaceView: View {
     }
     /// Rechecks capacity, the catalog's known locations and any included folders. Read-only.
     /// The same conditions that enable the Overview's Scan again button.
-    private var canScanAgain: Bool { !folderInspection.isScanning && !selection.workspaceRunning && selection.catalog.canEdit }
+    private var canScanAgain: Bool { AppLifecycleController.shared.scanAgainBlockedReason == nil }
+    /// "A scan is already running" while one runs (#310).
+    private var scanAgainHelp: String { AppLifecycleController.shared.scanAgainBlockedReason ?? "" }
     private func scanAgain() {
         capacity.request(.manual)
         Task { await selection.catalog.scan() }

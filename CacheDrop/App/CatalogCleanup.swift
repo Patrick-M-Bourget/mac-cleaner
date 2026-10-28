@@ -273,6 +273,13 @@ import SwiftUI
     }
     var canEdit: Bool { !isScanning && !isRunning && !AppLifecycleController.shared.operationInProgress && !AppLifecycleController.shared.maintenanceInProgress }
     var canReview: Bool { canEdit && selectedCount > 0 }
+    /// Why choices and the dry run can't be changed now, for a disabled control's tooltip; nil when they can (#310).
+    var editBlockedReason: String? {
+        if isScanning { return "Wait for the scan to finish" }
+        if isRunning || AppLifecycleController.shared.operationInProgress { return "Wait for the cleanup to finish" }
+        if AppLifecycleController.shared.maintenanceInProgress { return "Wait while CacheDrop updates its records" }
+        return nil
+    }
     func isSelected(_ rule: CleanupRule) -> Bool { candidates(for: rule).contains { selectedIDs.contains($0.id) } }
     func isSelected(_ candidate: Candidate) -> Bool { selectedIDs.contains(candidate.id) }
     /// The plan's categories, grouped as Overview groups them, picked folders' files included. Leftovers of removed apps

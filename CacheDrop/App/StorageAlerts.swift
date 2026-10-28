@@ -211,6 +211,7 @@ struct CacheDropMenuBarMenu: View {
     var body: some View {
         Button(MenuBarStatus.Item.openCacheDrop.title, action: openCacheDrop)
         Button(MenuBarStatus.Item.scanAgain.title) { openCacheDrop(); lifecycle.scanAgain?() }
+            .disabled(lifecycle.scanAgainBlockedReason != nil).help(lifecycle.scanAgainBlockedReason ?? "")
         if hasRecommendedPlan {
             Button(MenuBarStatus.Item.smartClean.title) { openCacheDrop(); lifecycle.openSmartClean?() }
         }
