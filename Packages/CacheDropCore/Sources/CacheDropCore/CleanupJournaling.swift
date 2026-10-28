@@ -3,7 +3,7 @@ import Darwin
 
 public enum CleanupTargetState: String, Codable, Sendable { case pending, intent, succeeded, failed, skipped, cancelled, unknown }
 public struct CleanupRecord: Codable, Sendable, Identifiable {
-    public let id: String
+    public internal(set) var id: String
     public let batchID: UUID
     public let originalURL: URL
     public let resourceID: String
@@ -48,6 +48,10 @@ public struct CleanupRecord: Codable, Sendable, Identifiable {
     public var mayStillBeFinishing: Bool? = nil
     /// What such an item measured a little after the run (#190); nil until then, and in older journals.
     public var laterMeasurement: LaterMeasurement? = nil
+    /// On a reviewed record (#309), the id of the interrupted record it resolves; nil on every other record and in older journals.
+    public var reviewOf: String? = nil
+    /// On a reviewed record, and on the record History shows for it, what checking against disk found (#309).
+    public var recoveryFinding: RecoveryFinding? = nil
 }
 public protocol CleanupJournaling: Sendable {
     /// Writes every record as pending in one transaction; false when the batch was already claimed.
@@ -55,6 +59,11 @@ public protocol CleanupJournaling: Sendable {
     func intent(_ record: CleanupRecord) throws
     func outcome(_ record: CleanupRecord) throws
     func records() throws -> [CleanupRecord]
+    /// Adds new records in one transaction, never replacing one (#309); throws, adding none, when any id is taken.
+    func append(_ records: [CleanupRecord]) throws
+}
+extension CleanupJournaling {
+    public func append(_ records: [CleanupRecord]) throws { throw CleanupJournalError.unavailable }
 }
 public final class CleanupCancellation: @unchecked Sendable {
     private let lock = NSLock()

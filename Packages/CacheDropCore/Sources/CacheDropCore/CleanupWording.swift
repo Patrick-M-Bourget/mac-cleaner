@@ -63,6 +63,7 @@ extension CleanupRecord {
     public var actionTitle: String { cleanupAction?.wording.title ?? (isPutBack ? ActionWording.putBack.title : action) }
     public var outcomeTitle: String {
         if wasPreviewed { return wording.previewOutcome }
+        if let recoveryFinding { return recoveryFinding.title(putBack: isPutBack) }
         switch state {
         case .succeeded: return finishedAfterStop ? "Removed" : wording.succeeded
         case .skipped: return "Skipped"
