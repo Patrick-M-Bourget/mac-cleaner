@@ -418,7 +418,7 @@ struct ExplorerInspector<Content: View>: View {
             VStack(alignment: .leading, spacing: CacheDropDesign.Space.sm) {
                 HStack {
                     Text(name).font(CacheDropDesign.TypeStyle.section).lineLimit(2); Spacer()
-                    if let close { Button("Close inspector", systemImage: "xmark", action: close).labelStyle(.iconOnly).buttonStyle(.borderless) }
+                    if let close { CloseButton(label: "Close inspector", action: close) }
                 }
                 ScrollView {
                     VStack(alignment: .leading, spacing: CacheDropDesign.Space.sm) { content() }

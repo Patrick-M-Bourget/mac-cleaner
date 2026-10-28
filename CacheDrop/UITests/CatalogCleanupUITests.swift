@@ -44,11 +44,19 @@ import XCTest
     app.descendants(matching: .any)["explorerMode"]
 }
 
-/// The review sheet has two buttons, Cancel and Clean up, and no preview mode.
-@MainActor func cleanUpFromReview(_ app: XCUIApplication) {
-    XCTAssertTrue(app.buttons["Cancel"].exists)
-    XCTAssertFalse(app.buttons["Run preview"].exists)
-    app.buttons["Clean up"].click()
+/// The review sheet has two buttons, Cancel and Clean up, and no preview mode. Its footer is right-aligned, Cancel then
+/// Clean up (#311).
+@MainActor func cleanUpFromReview(_ app: XCUIApplication, file: StaticString = #filePath, line: UInt = #line) {
+    let footer = app.descendants(matching: .any).matching(identifier: "sheetFooter").firstMatch
+    XCTAssertTrue(footer.waitForExistence(timeout: 5), "The review sheet has the one sheet footer", file: file, line: line)
+    let cancel = footer.buttons["Cancel"], cleanUp = footer.buttons["Clean up"]
+    XCTAssertTrue(cancel.exists, file: file, line: line)
+    XCTAssertFalse(app.buttons["Run preview"].exists, file: file, line: line)
+    XCTAssertLessThan(cancel.frame.maxX, cleanUp.frame.minX, "Cancel comes before Clean up", file: file, line: line)
+    let sheet = app.sheets.firstMatch
+    XCTAssertTrue(sheet.exists, "The review is a sheet", file: file, line: line)
+    XCTAssertGreaterThan(cancel.frame.minX, sheet.frame.midX, "The footer's buttons are right-aligned", file: file, line: line)
+    cleanUp.click()
 }
 
 /// Writes an executable stand-in tool into the fixture home's `.cachedrop-test-tools`. The sandboxed runner quarantines every

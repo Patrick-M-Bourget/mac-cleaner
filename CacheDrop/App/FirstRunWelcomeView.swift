@@ -66,9 +66,9 @@ struct FirstRunWelcomeView: View {
                 }
             }
             Divider()
-            HStack {
+            SheetFooter {
                 Text("\(step + 1) of 3").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
-                Spacer()
+            } actions: {
                 Button("Skip") { model.finish() }.accessibilityIdentifier("welcomeSkip")
                 if step < 2 {
                     Button("Continue") { step += 1 }.keyboardShortcut(.defaultAction).accessibilityIdentifier("welcomeContinue")
