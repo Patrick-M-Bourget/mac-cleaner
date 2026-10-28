@@ -471,12 +471,13 @@ import SwiftUI
         guard canEdit, !items.isEmpty else { return }
         selections.setSmartClean(items, included: included); noteChoices()
     }
-    /// Smart clean's selection checked now: the recommended plan with the full checks, minus what was unticked.
-    /// Nil when nothing could be checked or the scan changed meanwhile. Never touches the Cleanup plan's selection.
+    /// Smart clean's selection checked now: the recommended plan with the full checks, minus what was unticked, plus what the
+    /// page listed that the checks now refuse, for the review to explain. Nil when nothing could be checked or the scan changed meanwhile. Never touches the Cleanup plan's selection.
     func smartCleanCheckedNow() async -> [Candidate]? {
         guard canEdit, let check = await currentCheck()?.snapshotted() else { return nil }
-        let catalog = catalog, found = discovered, selections = selections
-        let items = await Task.detached { selections.smartClean(catalog: catalog, found: found, check: check.check) }.value
+        // What the page listed stays in when the check now refuses it, so the review says why it will be skipped (#310).
+        let catalog = catalog, found = discovered, selections = selections, listed = smartCleanCandidates
+        let items = await Task.detached { selections.smartClean(catalog: catalog, found: found, listed: listed, check: check.check) }.value
         guard canEdit, discovered == found else { return nil }
         return items
     }

@@ -62,8 +62,13 @@ public struct CleanupSelections: Sendable, Equatable {
     }
 
     /// What Smart clean's Clean up takes: the recommended plan with `check` run now (`RecommendedPlan`), minus what was unticked.
-    public func smartClean(catalog: Catalog, found: [Candidate], check: (Candidate) -> CheckRefusal?) -> [Candidate] {
-        RecommendedPlan(catalog: catalog, candidates: found, check: check).candidates.filter(isInSmartClean)
+    /// An item the page `listed` that `check` now refuses stays in, so the review says it will be skipped and why (#310);
+    /// the run's own check refuses it again.
+    public func smartClean(catalog: Catalog, found: [Candidate], listed: [Candidate] = [], check: (Candidate) -> CheckRefusal?) -> [Candidate] {
+        let shown = Set(listed.map(\.id))
+        let passing = Set(RecommendedPlan(catalog: catalog, candidates: found, check: check).candidates.map(\.id))
+        let refused = Set(RecommendedPlan(catalog: catalog, candidates: found.filter { shown.contains($0.id) }) { _ in nil }.candidates.map(\.id)).subtracting(passing)
+        return found.filter { (passing.contains($0.id) || refused.contains($0.id)) && isInSmartClean($0) }
     }
 
     /// The chosen items among `found` that `page` shows (the plan or Applications).

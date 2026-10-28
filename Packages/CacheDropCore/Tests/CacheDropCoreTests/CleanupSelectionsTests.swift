@@ -33,6 +33,16 @@ private let scan = [npm, logs, installer, derived]
     #expect(selections.smartClean(catalog: catalog, found: scan) { $0.ruleID == "npm-cache" ? .ownerRunning("npm") : nil }.map(\.ruleID) == ["app-logs", "xcode-derived-data"])
 }
 
+/// #310: an item the page listed that the click-time check refuses stays in, so its review says why it will be skipped,
+/// as the plan's does. One the page never listed (refused at the scan too), or unticked, stays out.
+@Test func aListedItemTheCheckRefusesAtClickTimeStaysInForItsReviewToExplain() {
+    var selections = CleanupSelections()
+    let refused: (Candidate) -> CheckRefusal? = { $0.ruleID == "npm-cache" || $0.ruleID == "app-logs" ? .ownerRunning("Chrome") : nil }
+    #expect(selections.smartClean(catalog: catalog, found: scan, listed: [npm, derived], check: refused).map(\.ruleID) == ["npm-cache", "xcode-derived-data"])
+    selections.setSmartClean([npm], included: false)
+    #expect(selections.smartClean(catalog: catalog, found: scan, listed: [npm, derived], check: refused).map(\.ruleID) == ["xcode-derived-data"])
+}
+
 @Test func buildingOrUntickingASmartCleanNeverChangesTheCleanupPlan() {
     var selections = CleanupSelections()
     selections.ticked = [installer.id, npm.id]
