@@ -108,7 +108,7 @@ struct CleanupRecoveryView: View {
                 SkeletonRows(.line, identifier: "recoverySkeleton")
             } else if let error = model.error {
                 StatusRow(text: error, symbol: "exclamationmark.triangle", role: .failure)
-                Text("Reopening CacheDrop may help. Don’t clear history or reset CacheDrop until this is reviewed.").font(.callout).foregroundStyle(.secondary)
+                Text("Reopening CacheDrop may help. Don’t clear history or reset CacheDrop until this is reviewed.").font(CacheDropDesign.TypeStyle.note).foregroundStyle(.secondary)
             } else if let snapshot = model.snapshot, !snapshot.interruptedBatches.isEmpty {
                 if let findings = model.findings {
                     let items = snapshot.interruptedBatches.flatMap { findings[$0.id] ?? [] }

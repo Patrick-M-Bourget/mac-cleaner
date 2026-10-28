@@ -349,6 +349,6 @@ struct WorkspaceCleanupConfirmationView: View {
             }
             Divider()
             SheetFooter { Button("Cancel", action: cancel).keyboardShortcut(.cancelAction); Button("Clean up", action: approve).buttonStyle(.borderedProminent) }
-        }.padding(CacheDropDesign.Space.xl).frame(width: 640, height: 520).background(CacheDropDesign.reading).cacheDropButtonRule()
+        }.padding(CacheDropDesign.Space.xl).frame(width: CacheDropDesign.Size.sheetWide.width, height: CacheDropDesign.Size.sheetWide.height).background(CacheDropDesign.reading).cacheDropButtonRule()
     }
 }

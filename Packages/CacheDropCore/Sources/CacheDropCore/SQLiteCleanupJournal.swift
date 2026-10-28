@@ -123,7 +123,7 @@ public final class SQLiteCleanupJournal: CleanupJournaling, @unchecked Sendable 
     }
     public func retainCompletedRuns(now: Date = Date(), days: Int = 90, maximumBytes: Int = 250_000_000) throws -> CleanupHistoryMaintenance {
         var retainedBytes = 0
-        let cutoff = now.addingTimeInterval(-Double(max(0, days)) * 86400)
+        let cutoff = now.addingTimeInterval(-Double(max(0, days)) * .secondsPerDay)
         return try maintain(requireNoRecovery: false) { run in
             let bytes = (run.records + run.reviewRecords).reduce(0) { $0 + ((try? JSONEncoder().encode($1).count) ?? 0) }
             if run.date < cutoff || retainedBytes + bytes > max(0, maximumBytes) { return true }

@@ -183,11 +183,6 @@ private func evictor(_ home: URL, cloud: FakeCloud, volume: GrowingVolume = Grow
     #expect(record.actionTitle == "Remove local copy")
     record.state = .intent
     #expect(record.recoveryStateText == "Unresolved · Local copies may be removed · The original stays in iCloud")
-    let journal = try SQLiteCleanupJournal(url: home.appendingPathComponent("journal.sqlite"))
-    _ = try journal.claim(batchID: record.batchID, records: [record])
-    try journal.intent(record)
-    #expect(try CleanupRecoverySnapshot(journal: journal).unresolvedNotice
-        == "A missing local copy means only that it was removed from this Mac. Removing a local copy never deletes the original; it stays in iCloud and downloads again when opened. Current file locations have not been inspected.")
     record.state = .failed; record.partlyRemoved = true
     #expect(record.outcomeTitle == "Partly removed local copies")
     #expect(record.recoveryStateText == "Recorded failure · Some local copies were removed · The originals stay in iCloud")

@@ -47,7 +47,7 @@ extension Catalog {
         var rootInfo = stat()
         guard lstat(root.path, &rootInfo) == 0, rootInfo.st_mode & S_IFMT == S_IFDIR, rootInfo.st_uid == geteuid() else { return ([], nil) }
         let protection = Protection(rule)
-        let cutoff = now.addingTimeInterval(-Double(unused.unusedDays) * 86_400)
+        let cutoff = now.addingTimeInterval(-Double(unused.unusedDays) * .secondsPerDay)
         let names = ((try? FileManager.default.contentsOfDirectory(atPath: root.path)) ?? []).sorted().prefix(Self.childLimit)
         let found = names.compactMap { name -> (URL, stat, ItemSize)? in
             var info = stat()

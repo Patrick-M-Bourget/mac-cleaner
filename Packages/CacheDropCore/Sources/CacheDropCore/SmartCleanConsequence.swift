@@ -4,6 +4,9 @@ import Foundation
 /// The review sheet still explains each consequence in full, grouped by consequence (Decision 25).
 public enum SmartCleanConsequence {
     public static let trash = "Goes to the Trash; Put back works"
+    /// "X of this goes to Trash" under a total that includes Trash-bound items (Decision 25): that space stays used until
+    /// the Trash is emptied. The plan, Smart clean and the report all say it this way.
+    public static func goesToTrash(_ size: String) -> String { size + " of this goes to Trash" }
 
     /// The line for `category`, whose ticked items `rules` found.
     public static func line(for category: CatalogCategory, rules: [CleanupRule]) -> String {

@@ -120,7 +120,7 @@ public enum ProjectBuilds {
         // Any process working in the project counts: its editor, a build tool, a shell or a running build.
         guard let used = inUse.inUse([project], by: .anyApp) else { return .projectUnchecked }
         if !used.isEmpty { return .projectOpen }
-        if lastChange > now.addingTimeInterval(-Double(recentDays) * 86_400) { return .recentlyEdited }
+        if lastChange > now.addingTimeInterval(-Double(recentDays) * .secondsPerDay) { return .recentlyEdited }
         guard GitCheckout.encloses(project.appendingPathComponent(".git"), upTo: nil, home: home) else { return nil }
         guard let changes = git(project, ["status", "--porcelain", "--untracked-files=no", "--ignore-submodules=dirty", "--no-renames"]) else { return .projectUnchecked }
         return changes.isEmpty ? nil : .uncommittedChanges

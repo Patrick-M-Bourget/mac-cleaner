@@ -27,7 +27,7 @@ public enum UserFiles {
         let protection = Protection(rule)
         // A folder picked inside a git working tree (a project's build folder) offers nothing.
         if GitCheckout.encloses(scope, upTo: nil, home: home) { return [] }
-        let cutoff = now.addingTimeInterval(-Double(unusedDays) * 86_400)
+        let cutoff = now.addingTimeInterval(-Double(unusedDays) * .secondsPerDay)
         var seen = Set<String>(), found: [Candidate] = []
         for item in scan.observations.filter({ $0.kind == .file }).sorted(by: { ($0.logicalBytes ?? 0) > ($1.logicalBytes ?? 0) }) {
             guard found.count < listLimit else { break }

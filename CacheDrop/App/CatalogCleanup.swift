@@ -322,7 +322,7 @@ import SwiftUI
         // History holds the maintenance lease for a moment: scan once it lets go, never not at all (#310). A rescan
         // waits as a rescan, so it still rechecks the remembered folders once when it runs (#332).
         if lifecycle.maintenanceInProgress, !isScanning, !isRunning, !lifecycle.operationInProgress {
-            lifecycle.afterMaintenance.waitFor("catalogScan", rescan: rescan) { asRescan in
+            lifecycle.afterMaintenance.waitFor(.catalogScan, rescan: rescan) { asRescan in
                 Task { if asRescan { await self.rescan() } else { await self.scan() } }
             }
             return false

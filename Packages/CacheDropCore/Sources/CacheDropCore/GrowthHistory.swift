@@ -132,7 +132,7 @@ public actor GrowthHistoryStore {
                   snapshot.observedAt <= now, value.entries.last.map({ $0.snapshot.observedAt < snapshot.observedAt }) ?? true else {
                 return GrowthComparison(state: .unknown, current: snapshot, from: nil, groups: [])
             }
-            value.entries.removeAll { now.timeIntervalSince($0.snapshot.observedAt) > Double(policy.days) * 86400 }
+            value.entries.removeAll { now.timeIntervalSince($0.snapshot.observedAt) > Double(policy.days) * .secondsPerDay }
             let hasLocationHistory = value.entries.contains { $0.snapshot.fingerprint.scopeID == snapshot.fingerprint.scopeID }
             let origin: GrowthComparisonState = value.cleared ? .clearedBaseline
                 : hasLocationHistory ? .missingBaseline : .firstBaseline
@@ -238,8 +238,8 @@ public actor GrowthHistoryStore {
         return result
     }
     private func trim(_ value: inout Archive, now: Date) throws {
-        value.entries.removeAll { now.timeIntervalSince($0.snapshot.observedAt) > Double(policy.days) * 86400 }
-        value.activities = (value.activities ?? []).filter { now.timeIntervalSince($0.completedAt) <= Double(policy.days) * 86400 }.sorted { $0.completedAt < $1.completedAt }
+        value.entries.removeAll { now.timeIntervalSince($0.snapshot.observedAt) > Double(policy.days) * .secondsPerDay }
+        value.activities = (value.activities ?? []).filter { now.timeIntervalSince($0.completedAt) <= Double(policy.days) * .secondsPerDay }.sorted { $0.completedAt < $1.completedAt }
         while try JSONEncoder().encode(value).count > policy.bytes {
             let scanDate = value.activities?.first?.completedAt
             let baselineDate = value.entries.first?.snapshot.observedAt

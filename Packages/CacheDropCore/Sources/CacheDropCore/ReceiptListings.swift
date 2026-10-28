@@ -11,11 +11,13 @@ public struct ReceiptListings: Sendable {
     public let unread: [String]
     /// Every receipt `lsbom` listed, by receipt name, relative install prefixes included (read under the system root):
     /// what leftovers and app uninstall read (#318). `byReceipt` leaves those prefixes out.
-    let listed: [(id: String, paths: Set<String>)]
+    let listed: [Listed]
+    /// One receipt as `lsbom` listed it.
+    struct Listed: Sendable { let id: String; let paths: Set<String> }
     public init(_ byReceipt: [String: Set<String>], unread: [String] = []) {
-        self.init(byReceipt, unread: unread, listed: byReceipt.sorted { $0.key < $1.key }.map { ($0.key, $0.value) })
+        self.init(byReceipt, unread: unread, listed: byReceipt.sorted { $0.key < $1.key }.map { Listed(id: $0.key, paths: $0.value) })
     }
-    init(_ byReceipt: [String: Set<String>], unread: [String], listed: [(id: String, paths: Set<String>)]) {
+    init(_ byReceipt: [String: Set<String>], unread: [String], listed: [Listed]) {
         self.byReceipt = byReceipt; self.unread = unread; self.listed = listed
         var byPath: [String: Set<String>] = [:]
         for (id, paths) in byReceipt { for path in paths { byPath[path, default: []].insert(id) } }
@@ -35,7 +37,7 @@ public struct ReceiptListings: Sendable {
     /// `lsbom` stands in for the tool in tests: it gets the BOM and returns what `lsbom -s` prints, nil when it fails.
     public static func read(under systemRoot: URL, lsbom: (URL) -> String? = Self.lsbom) -> ReceiptListings {
         let folder = systemRoot.appendingPathComponent("var/db/receipts")
-        var found: [String: Set<String>] = [:], unread: [String] = [], listed: [(id: String, paths: Set<String>)] = []
+        var found: [String: Set<String>] = [:], unread: [String] = [], listed: [Listed] = []
         for name in ((try? FileManager.default.contentsOfDirectory(atPath: folder.path)) ?? []).sorted() where name.hasSuffix(".plist") && !name.hasPrefix("com.apple.") {
             guard let data = try? Data(contentsOf: folder.appendingPathComponent(name)),
                   let info = (try? PropertyListSerialization.propertyList(from: data, format: nil)) as? [String: Any],
@@ -47,7 +49,7 @@ public struct ReceiptListings: Sendable {
             let paths = Set(lines.map { line in
                 base.appendingPathComponent(line.hasPrefix("./") ? String(line.dropFirst(2)) : String(line)).standardizedFileURL.path
             })
-            listed.append((id, paths))
+            listed.append(Listed(id: id, paths: paths))
             if prefix.hasPrefix("/") || prefix.isEmpty { found[id] = paths } else { unread.append(name) }
         }
         return ReceiptListings(found, unread: unread, listed: listed)

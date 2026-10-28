@@ -62,7 +62,6 @@ private func recoveryApproval(_ root: URL) async throws -> FixtureBatch { fixtur
     #expect(snapshot.interruptedBatches.count == 1)
     #expect(snapshot.unresolvedCount == 2)
     #expect(snapshot.pendingCount == 1)
-    #expect(snapshot.knownResultCount == 4)
     #expect(snapshot.interruptedBatches.first?.records.map(\.state) == [.succeeded, .failed, .skipped, .cancelled, .pending, .intent, .unknown])
     #expect(snapshot.interruptedBatches.first?.records.allSatisfy { $0.trashURL == nil } == true)
     #expect(try reopened.claim(batchID: approval.id, records: approval.records) == false)

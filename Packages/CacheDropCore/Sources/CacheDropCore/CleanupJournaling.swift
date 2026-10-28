@@ -62,9 +62,6 @@ public protocol CleanupJournaling: Sendable {
     /// Adds new records in one transaction, never replacing one (#309); throws, adding none, when any id is taken.
     func append(_ records: [CleanupRecord]) throws
 }
-extension CleanupJournaling {
-    public func append(_ records: [CleanupRecord]) throws { throw CleanupJournalError.unavailable }
-}
 public final class CleanupCancellation: @unchecked Sendable {
     private let lock = NSLock()
     private var stopped = false

@@ -14,7 +14,6 @@ public struct CleanupRecoverySnapshot: Sendable {
     }
     public var unresolvedCount: Int { interruptedBatches.reduce(0) { $0 + $1.unresolvedCount } }
     public var pendingCount: Int { interruptedBatches.reduce(0) { $0 + $1.pendingCount } }
-    public var knownResultCount: Int { interruptedBatches.reduce(0) { $0 + $1.records.count - $1.unresolvedCount - $1.pendingCount } }
 }
 public struct CleanupRecoveryBatch: Sendable, Identifiable {
     public let id: UUID

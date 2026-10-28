@@ -231,7 +231,7 @@ private func dockerRunning(_ home: URL, docker: URL, choose ruleIDs: Set<String>
     let docker = try fakeDocker(home)
     let result = try await dockerRun(home, docker: docker, choose: ["docker-images", "docker-containers"])
     let run = try #require(CleanupHistorySnapshot(records: result.records).completedRuns.first)
-    #expect(run.plannedLogicalBytes == 2_500_000_000 + 120_000_000)
+    #expect(run.plannedBytes == 2_500_000_000 + 120_000_000)
 }
 
 @Test func dockerGoingDownThenUpIsCoverageNeverGrowth() async throws {

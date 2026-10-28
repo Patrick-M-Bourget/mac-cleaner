@@ -8,7 +8,6 @@ public struct CleanupHistoryRun: Sendable, Identifiable {
     /// The reviewed records appended after this run was interrupted (#309); `records` already shows their findings.
     public var reviewRecords: [CleanupRecord] = []
     public var capacity: CleanupCapacityObservation? { records.compactMap(\.capacityObservation).first }
-    public var plannedLogicalBytes: Int64 { distinctSpaces.reduce(0) { $0 + $1.logicalBytes } }
     /// What the run planned, in the size Results shows (allocated where known), so both read the same (#312).
     public var plannedBytes: Int64 { distinctSpaces.reduce(0) { $0 + $1.recordedBytes } }
     private var distinctSpaces: [CleanupRecord] {
