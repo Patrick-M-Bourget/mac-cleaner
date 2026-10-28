@@ -638,7 +638,7 @@ extension CatalogCategory {
         case .icloud: "Local copies of files that stay in iCloud"
         case .files: "Files of 500 MB or more, or not opened in 90 days"
         case .managed: "Data the apps that own it look after"
-        case .leftovers: "Files apps you removed left behind"
+        case .leftovers: "Settings and data they left behind"
         case .apps: "Installed apps you chose to uninstall"
         }
     }
