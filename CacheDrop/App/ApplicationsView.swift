@@ -79,10 +79,11 @@ struct ApplicationsView: View {
         .sheet(item: $review, onDismiss: { reviewFocusRequest += 1 }) { snapshot in
             WorkspaceCleanupConfirmationView(review: snapshot, cancel: { review = nil }) {
                 review = nil
-                Task { do { try await selection.executeWorkspace(snapshot) } catch { approvalError = "Your choices changed. Review the latest items before cleaning." } }
+                Task { do { try await selection.executeWorkspace(snapshot) } catch { approvalError = PlanReviewError.changedMessage } }
             }
         }
-        .onChange(of: catalog.selectionRevision) { _, _ in if review != nil { review = nil } }
+        // The sheet closes only when the choices it was built from changed, and the page says so (#307).
+        .onChange(of: catalog.selectionRevision) { _, _ in if review != nil { review = nil; approvalError = PlanReviewError.changedMessage } }
         // Read again after each catalog scan, so Scan again refreshes the lists too.
         .task(id: catalog.isScanning) { if !catalog.isScanning { await model.load(plugIns: catalog.plugInInventory) } }
     }
@@ -231,6 +232,6 @@ struct ApplicationsView: View {
 
     private func openReview() async {
         do { review = try await selection.prepareApplicationsReview(); approvalError = nil }
-        catch { approvalError = "Your choices changed. Review the latest items and try again." }
+        catch { approvalError = PlanReviewError.changedMessage }
     }
 }

@@ -21,7 +21,38 @@ public struct CleanupSelections: Sendable, Equatable {
     /// Recommended items unticked on Smart clean; every other recommended item is ticked.
     public private(set) var smartCleanUnticked: Set<String> = []
 
+    /// Moves on only when a page's choices really change (#307), so an open review sheet built from them knows they did,
+    /// and a scan that keeps every choice never closes it.
+    public private(set) var revision: UInt64 = 0
+    /// The choices `revision` was last moved for: the ticked items among those found, and Smart clean's items.
+    private var revisedFor = Choices()
+    private struct Choices: Sendable, Equatable {
+        var ticked: Set<String> = []
+        var smartClean: Set<String> = []
+    }
+
     public init() {}
+
+    /// Notes the pages' choices after an edit, a run or a scan: the ticked items among `found`, and `smartClean`, the items
+    /// Smart clean would take. `revision` moves only when they differ from the ones it last moved for.
+    public mutating func noteChoices(among found: [Candidate], smartClean: [Candidate]) {
+        let ids = Set(found.map(\.id))
+        let now = Choices(ticked: ticked.intersection(ids), smartClean: Set(smartClean.map(\.id)))
+        guard now != revisedFor else { return }
+        revisedFor = now; revision &+= 1
+    }
+
+    /// A scan ended: drops the chosen items no longer among `found` and notes the choices left. Returns whether any were dropped.
+    @discardableResult public mutating func keepOnly(_ found: [Candidate], smartClean: [Candidate]) -> Bool {
+        let ids = Set(found.map(\.id))
+        let dropped = !ticked.isSubset(of: ids)
+        if dropped { ticked.formIntersection(ids) }
+        noteChoices(among: found, smartClean: smartClean)
+        return dropped
+    }
+
+    /// What a review would do changed without any choice changing (the dry run was turned on or off): moves `revision` anyway.
+    public mutating func revise() { revision &+= 1 }
 
     public func isInSmartClean(_ candidate: Candidate) -> Bool { !smartCleanUnticked.contains(candidate.id) }
 
