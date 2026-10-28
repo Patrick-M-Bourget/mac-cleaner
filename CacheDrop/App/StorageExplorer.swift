@@ -14,6 +14,41 @@ import SwiftUI
         var offset = CGPoint.zero
     }
     var allowedScopes: Set<URL>?
+    /// The scans' index, built off the main thread when they change (#346); nil until the first one is ready. A rebuild
+    /// keeps the last one on screen, and `indexRevision` moves when a new one lands.
+    private(set) var index: StorageExplorerIndex?
+    private(set) var indexRevision = 0
+    private var indexInputs: IndexInputs?
+    /// What the index is built from: each scan's location, time and observation count, the gone locations and the allowed ones.
+    struct IndexInputs: Hashable {
+        struct Stamp: Hashable { let scope: URL; let observedAt: Date; let observationCount: Int }
+        let scans: [Stamp], reports: [Stamp], gone: [URL], allowed: Set<URL>?
+        init(scans: [ScanResult], reports: [ScanResult], gone: [URL], allowed: Set<URL>?) {
+            let stamp = { (scan: ScanResult) in Stamp(scope: scan.scope, observedAt: scan.observedAt, observationCount: scan.observations.count) }
+            let ordered = { (stamps: [Stamp]) in stamps.sorted { ($0.scope.path, $0.observedAt) < ($1.scope.path, $1.observedAt) } }
+            self.scans = ordered(scans.map(stamp)); self.reports = ordered(reports.map(stamp)); self.gone = gone.sorted { $0.path < $1.path }; self.allowed = allowed
+        }
+    }
+    /// Rebuilds the index when what it is built from changed; the build never runs on the main thread.
+    func updateIndex(scans: [ScanResult], reports: [ScanResult], gone: [URL]) async {
+        let inputs = IndexInputs(scans: scans, reports: reports, gone: gone, allowed: allowedScopes)
+        guard inputs != indexInputs else { return }
+        indexInputs = inputs
+        let allowed = allowedScopes
+        let built = await Task.detached(priority: .userInitiated) {
+            StorageExplorerIndex(scans: scans, reports: reports, gone: gone, allowedScopes: allowed) { _, _ in false }
+        }.value
+        guard inputs == indexInputs else { return }
+        index = built; indexRevision &+= 1
+    }
+    /// The last search's matches, so redraws while typing don't filter every entry again (#346).
+    @ObservationIgnored private var lastSearch: (revision: Int, folder: URL, query: String, matches: [StorageExplorerIndex.Entry])?
+    func matches(in folder: URL, query: String) -> [StorageExplorerIndex.Entry] {
+        if let last = lastSearch, last.revision == indexRevision, last.folder == folder, last.query == query { return last.matches }
+        let found = index?.matches(in: folder, query: query) ?? []
+        lastSearch = (indexRevision, folder, query, found)
+        return found
+    }
     /// Lists the large and old files offered from picked folders instead of the folder's contents.
     var showsLargeAndOld = false
     enum FileOrder: String, CaseIterable, Identifiable { case size = "Largest first", lastUsed = "Oldest first"; var id: Self { self } }
@@ -56,66 +91,6 @@ import SwiftUI
     func clearInspector() { position.inspectedID = nil; position.inspectedResource = nil }
 }
 
-/// A read-only evidence snapshot: overlap, scope membership and totals share one owner.
-/// It uses supplied observations only and never reads filesystem metadata.
-private struct StorageExplorerObservations {
-    struct Entry: Identifiable {
-        let item: FileObservation
-        let scan: ScanResult
-        var id: String { item.id + "|" + item.resourceID }
-    }
-    struct Subtotal {
-        let bytes: Int64
-        let hasUnknownRemainder: Bool
-    }
-    let scans: [ScanResult]
-    let entries: [Entry]
-    init(scans selected: [URL: ScanResult], reports: [ScanResult], gone: [URL] = [], allowedScopes: Set<URL>?,
-         eligible: (FileObservation, ScanResult) -> Bool) {
-        // A location a recheck couldn't reach keeps no current observation (#249).
-        var latest = Dictionary(UnavailableScannedFolder.current(Array(selected.values), gone: gone).map { ($0.scope, $0) }, uniquingKeysWith: { first, _ in first })
-        for scan in UnavailableScannedFolder.current(reports, gone: gone) {
-            if latest[scan.scope].map({ $0.observedAt < scan.observedAt }) ?? true { latest[scan.scope] = scan }
-        }
-        scans = latest.values.filter { scan in
-            allowedScopes?.contains(scan.scope.standardizedFileURL) ?? true
-        }.sorted { $0.scope.path < $1.scope.path }
-        var representatives: [String: Entry] = [:]
-        for scan in scans.sorted(by: { $0.observedAt > $1.observedAt }) {
-            for item in scan.observations {
-                let entry = Entry(item: item, scan: scan)
-                if let existing = representatives[entry.id] {
-                    // One failed overlapping location must not suppress independent valid evidence.
-                    if !eligible(existing.item, existing.scan), eligible(item, scan) { representatives[entry.id] = entry }
-                } else { representatives[entry.id] = entry }
-            }
-        }
-        entries = representatives.values.sorted { left, right in
-            if (left.item.kind == .folder) != (right.item.kind == .folder) { return left.item.kind == .folder }
-            return left.item.url.path.localizedStandardCompare(right.item.url.path) == .orderedAscending
-        }
-    }
-    func overlaps(_ scope: URL) -> Bool {
-        scans.contains { $0.scope != scope && ($0.scope.pathComponents.starts(with: scope.pathComponents) || scope.pathComponents.starts(with: $0.scope.pathComponents)) }
-    }
-    func subtotal(in folder: URL, logical: Bool) -> Subtotal {
-        let children = entries.filter { $0.item.url != folder && $0.item.url.pathComponents.starts(with: folder.pathComponents) }
-        var seen = Set<String>(); var total: Int64 = 0; var unknown = false
-        for entry in children where entry.item.kind != .folder && seen.insert(entry.item.resourceID).inserted {
-            guard entry.item.kind == .file, let size = (logical ? entry.item.logicalBytes : entry.item.allocatedBytes) else { unknown = true; continue }
-            let sum = total.addingReportingOverflow(size)
-            if sum.overflow { unknown = true } else { total = sum.partialValue }
-        }
-        let partial = scans.contains { scan in
-            let related = folder.pathComponents.starts(with: scan.scope.pathComponents) || scan.scope.pathComponents.starts(with: folder.pathComponents)
-            return (related && scan.excludedEntryCount > 0) || scan.issues.contains {
-                $0.url.pathComponents.starts(with: folder.pathComponents) || folder.pathComponents.starts(with: $0.url.pathComponents)
-            }
-        }
-        return Subtotal(bytes: total, hasUnknownRemainder: unknown || partial)
-    }
-}
-
 /// An included location a recheck couldn't reach, and how to fix it: Overview's Choose again… (#223, #249).
 struct ExplorerUnavailableLocation {
     let scope: URL
@@ -135,29 +110,27 @@ struct StorageExplorerView: View {
     let back: () -> Void
     /// Included locations a recheck couldn't reach, from Overview's recovery rows (#249).
     var unavailable: [ExplorerUnavailableLocation] = []
-    private typealias Entry = StorageExplorerObservations.Entry
-    private var observations: StorageExplorerObservations {
-        StorageExplorerObservations(scans: selection.scans, reports: model.scopeReports.map(\.current), gone: unavailable.map(\.scope),
-            allowedScopes: context.allowedScopes,
-            eligible: { _, _ in false })
-    }
-    private var scans: [ScanResult] { observations.scans }
-    private var entries: [Entry] { observations.entries }
+    private typealias Entry = StorageExplorerIndex.Entry
+    /// Built once per change in the scans, off the main thread (#346); every lookup below is then cheap.
+    private var index: StorageExplorerIndex? { context.index }
+    private var scans: [ScanResult] { index?.scans ?? [] }
+    /// While the first index is built, a folder counts as there, so nothing says it's gone.
     private var folderAvailable: Bool {
-        guard let folder = context.position.folder else { return true }
-        return scans.contains { $0.scope.standardizedFileURL == folder }
-            || entries.contains { $0.item.url.standardizedFileURL == folder && $0.item.kind == .folder }
+        guard let folder = context.position.folder, let index else { return true }
+        return index.contains(folder: folder)
     }
     private var visible: [Entry] {
-        guard folderAvailable, let folder = context.position.folder else { return [] }
-        let descendants = entries.filter { $0.item.url != folder && $0.item.url.pathComponents.starts(with: folder.pathComponents) }
-        if context.position.query.isEmpty { return descendants.filter { $0.item.url.deletingLastPathComponent().standardizedFileURL == folder } }
-        return descendants.filter { relative($0.item.url, to: folder).localizedCaseInsensitiveContains(context.position.query) }
+        guard folderAvailable, let folder = context.position.folder, let index else { return [] }
+        return context.position.query.isEmpty ? index.children(of: folder) : context.matches(in: folder, query: context.position.query)
     }
     private var inspected: Entry? {
         guard let id = context.position.inspectedID, let resource = context.position.inspectedResource,
               folderAvailable, context.position.query.isEmpty || !visible.isEmpty else { return nil }
-        return entries.first { $0.item.id == id && $0.item.resourceID == resource }
+        return index?.entry(id: id, resource: resource)
+    }
+    /// What the explorer's index is built from, gathered once per redraw (#346).
+    private var indexSource: (scans: [ScanResult], reports: [ScanResult], gone: [URL]) {
+        (Array(selection.scans.values), model.scopeReports.map(\.current), unavailable.map(\.scope))
     }
     /// Inside a folder that is no longer in the observations.
     private var folderGone: Bool { context.position.folder != nil && !folderAvailable }
@@ -200,7 +173,12 @@ struct StorageExplorerView: View {
         }
         .quickLookPreview($model.previewURL)
         .onChange(of: model.previewURL) { _, value in if value == nil { model.closePreviewAccess() } }
-        .onChange(of: entries.map(\.id)) { _, _ in
+        // The index is rebuilt off the main thread whenever the scans change (#346).
+        .task(id: StorageExplorerContext.IndexInputs(scans: indexSource.scans, reports: indexSource.reports, gone: indexSource.gone, allowed: context.allowedScopes)) {
+            let source = indexSource
+            await context.updateIndex(scans: source.scans, reports: source.reports, gone: source.gone)
+        }
+        .onChange(of: context.indexRevision) { _, _ in
             if context.position.inspectedID != nil && inspected == nil { context.clearInspector() }
         }
         .onDisappear { model.previewURL = nil; model.closePreviewAccess() }
@@ -251,14 +229,17 @@ struct StorageExplorerView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
                     ExplorerViewport(context: context).frame(height: 0)
-                    if showsLargeAndOld {
+                    if index == nil && !(selection.scans.isEmpty && model.scopeReports.isEmpty) {
+                        // The scans are being indexed, off the main thread (#346): no list, large and old ones included, says empty yet.
+                        SkeletonRows(.line, count: 6, identifier: "explorerSkeleton")
+                    } else if showsLargeAndOld {
                         largeAndOldFiles
                     } else if context.position.folder == nil {
                         if scans.isEmpty && goneLocations.isEmpty { EmptyState(title: "No scanned folders", detail: "Add a folder in Locations & access to explore it.", symbol: "folder") }
                         ForEach(scans, id: \.scope) { scan in
                             // The size, then only the caveats that apply.
                             InspectableItemRow(name: scan.scope.lastPathComponent,
-                                               detail: ([scan.isComplete ? nil : "Partly scanned", observations.overlaps(scan.scope) ? "Overlaps another location" : nil] as [String?]).compactMap { $0 }.joined(separator: " · "),
+                                               detail: ([scan.isComplete ? nil : "Partly scanned", (index?.overlaps(scan.scope) ?? false) ? "Overlaps another location" : nil] as [String?]).compactMap { $0 }.joined(separator: " · "),
                                                size: scan.totalAllocatedBytes.map { bytes($0) } ?? "At least " + bytes(scan.allocatedBytes), symbol: "folder",
                                                inspected: false, inspect: { context.enter(scan.scope) }, actionLabel: "Open folder " + scan.scope.lastPathComponent) { EmptyView() }
                                 .help(scan.scope.path)
@@ -345,9 +326,8 @@ struct StorageExplorerView: View {
     /// Files offered from picked folders, under the current folder, in the chosen order. Nothing is preselected.
     /// Only files observed in the explorer's selected locations are listed, each with its observation.
     private var offeredHere: [(file: Candidate, entry: Entry)] {
-        let observed = Dictionary(entries.map { ($0.item.resourceID, $0) }, uniquingKeysWith: { first, _ in first })
         let all = selection.catalog.pickedCandidates.compactMap { file -> (file: Candidate, entry: Entry)? in
-            guard let entry = observed[file.resourceID] else { return nil }
+            guard let entry = index?.entry(resource: file.resourceID) else { return nil }
             if let folder = context.position.folder, !entry.item.url.pathComponents.starts(with: folder.pathComponents) { return nil }
             return (file, entry)
         }
@@ -395,7 +375,7 @@ struct StorageExplorerView: View {
     }
     /// A folder's size on disk; "At least" when part of it couldn't be measured.
     private func folderAllocation(_ folder: URL) -> String {
-        let subtotal = observations.subtotal(in: folder, logical: false)
+        guard let subtotal = index?.allocatedSubtotal(in: folder) else { return "—" }
         return (subtotal.hasUnknownRemainder ? "At least " : "") + bytes(subtotal.bytes)
     }
 
