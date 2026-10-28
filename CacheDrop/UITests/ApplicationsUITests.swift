@@ -90,6 +90,57 @@ final class ApplicationsUITests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: leftover.path))
     }
 
+    /// #295: one Sort (Size or Name) and one search orders and filters every section; a ticked row the search hides stays
+    /// ticked and counted in the bar, and clearing the search shows it again.
+    @MainActor func testApplicationsSortByNameOrSizeAndSearchByMakerKeepsTicks() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        let state = try configureIsolatedState(app)
+        let home = try configureCatalogHome(app)
+        defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
+        let big = try addApp("Big Synth", id: "com.maker.bigsynth", bytes: 900_000, copyright: "© 2025 Maker Audio Inc. All rights reserved.", in: home)
+        let apex = try addApp("Apex", id: "com.other.apex", bytes: 90_000, in: home)
+        let zed = try addApp("Zed Tool", id: "com.third.zed", bytes: 300_000, in: home)
+        let leftover = home.appendingPathComponent("Library/Containers/com.gone.synth/Data/state.db")
+        try FileManager.default.createDirectory(at: leftover.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Data(repeating: 4, count: 60_000).write(to: leftover)
+        app.launch()
+        waitForCatalogScan(app)
+        app.typeKey("5", modifierFlags: .command)
+
+        let rows = [big, apex, zed].map { element(app, "applicationsApp-" + $0.path, .checkBox) }
+        XCTAssertTrue(rows[0].waitForExistence(timeout: 10))
+        func order() -> [CGFloat] { rows.map(\.frame.minY) }
+        XCTAssertTrue(order()[0] < order()[2] && order()[2] < order()[1], "Size, largest first, by default")
+
+        let sort = app.popUpButtons["applicationsSort"]
+        XCTAssertTrue(sort.exists)
+        sort.click(); app.menuItems["Name"].click()
+        XCTAssertTrue(order()[1] < order()[0] && order()[0] < order()[2], "Name: Apex, Big Synth, Zed Tool")
+        sort.click(); app.menuItems["Size"].click()
+        XCTAssertTrue(order()[0] < order()[2] && order()[2] < order()[1], "Back to largest first")
+
+        revealAndClick(rows[1], in: app)
+        XCTAssertEqual(rows[1].value as? Int, 1)
+        let count = app.staticTexts["actionStripNote"]
+        XCTAssertEqual(count.value as? String, "1 item selected")
+
+        let search = app.textFields["applicationsSearch"]
+        search.click(); search.typeText("maker audio")
+        XCTAssertTrue(rows[1].waitForNonExistence(timeout: 5), "A row whose name and maker don't match is hidden")
+        XCTAssertTrue(rows[0].exists, "Searched by maker")
+        XCTAssertFalse(rows[2].exists)
+        XCTAssertTrue(app.descendants(matching: .any)["applicationsNoMatches-leftovers"].exists, "A section with no matches says so")
+        XCTAssertFalse(app.checkBoxes["planCategory-leftovers"].exists)
+        XCTAssertEqual(count.value as? String, "1 item selected", "The hidden ticked row is still counted")
+        XCTAssertTrue(app.buttons["Review cleanup"].isEnabled)
+
+        search.typeKey("a", modifierFlags: .command); search.typeKey(.delete, modifierFlags: [])
+        XCTAssertTrue(rows[1].waitForExistence(timeout: 5), "Clearing the search shows everything again")
+        XCTAssertEqual(rows[1].value as? Int, 1, "Still ticked")
+        XCTAssertTrue(app.checkBoxes["planCategory-leftovers"].exists)
+    }
+
     /// #177: an app is ticked with its confirmed files, reviewed grouped by place with what stays, moved to the fixture Trash,
     /// and History says "Uninstalled <App> · N items". The possibly related folder stays unticked and in place.
     @MainActor func testAnAppIsUninstalledWithItsFiles() throws {
@@ -182,8 +233,8 @@ final class ApplicationsUITests: XCTestCase {
     }
 
     /// #303, #306: an uninstall rescans when it ends. After Done, while that scan runs, the bar shows its progress and the
-    /// other app's row says it is being checked; then its checkbox comes back.
-    @MainActor func testApplicationsRescansAfterAnUninstallAndRowsSayTheyAreBeingChecked() throws {
+    /// other app's row stays, dimmed (#308); then its checkbox comes back.
+    @MainActor func testApplicationsRescansAfterAnUninstallAndRowsWaitDimmed() throws {
         continueAfterFailure = false
         let app = XCUIApplication()
         let state = try configureIsolatedState(app)
@@ -206,10 +257,11 @@ final class ApplicationsUITests: XCTestCase {
         app.buttons["Done"].click()
 
         XCTAssertTrue(app.staticTexts["catalogScanProgress"].waitForExistence(timeout: 10), "The run rescans, and the bar shows its progress")
-        XCTAssertTrue(element(app, "applicationsChecking-" + pad.path).waitForExistence(timeout: 5), "A row says it is being checked")
+        // #308: the row stays listed, dimmed and without its checkbox, until the rescan says what can go with it.
+        XCTAssertTrue(element(app, "applicationsApp-" + pad.path).waitForExistence(timeout: 5), "The row stays listed during the rescan")
         let padRow = element(app, "applicationsApp-" + pad.path, .checkBox)
+        XCTAssertFalse(padRow.exists, "No checkbox until the scan says what can go with it")
         XCTAssertTrue(padRow.waitForExistence(timeout: 120), "Its checkbox comes back after the scan")
-        XCTAssertFalse(element(app, "applicationsChecking-" + pad.path).exists)
     }
 
     /// #306: Put back from History rescans, so the app it returned is listed on Applications again without Scan again.
@@ -306,7 +358,7 @@ final class ApplicationsUITests: XCTestCase {
         XCTAssertTrue(app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "Uninstalled Pro Synth · 1 item")).firstMatch.waitForExistence(timeout: 10))
     }
 
-    /// #270: while the scan runs each section says it is looking; a section that finds nothing says so.
+    /// #270, #308: while the scan runs each section shows skeleton rows; a section that finds nothing says so.
     @MainActor func testSectionsShowLoadingThenEmptyStates() throws {
         continueAfterFailure = false
         let app = XCUIApplication()

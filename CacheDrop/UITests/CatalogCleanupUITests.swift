@@ -24,11 +24,24 @@ import XCTest
 /// can't fail a journey. The scan has started once Overview's total is measured, and finished once the bottom bar's
 /// progress line is gone; checking both means a scan that has not started yet never counts as done.
 @MainActor func waitForCatalogScan(_ app: XCUIApplication, timeout: TimeInterval = 120, file: StaticString = #filePath, line: UInt = #line) {
-    let measured = NSPredicate(format: "exists == true AND NOT (value IN %@)", ["Not measured yet", "Checking known locations…"])
+    let measured = NSPredicate(format: "exists == true AND NOT (value IN %@)", ["—"])
     let total = app.staticTexts["overviewRecommendedTotal"]
     XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: measured, object: total)], timeout: timeout), .completed,
                    "The catalog scan measured the known locations", file: file, line: line)
     XCTAssertTrue(app.staticTexts["catalogScanProgress"].waitForNonExistence(timeout: timeout), "The catalog scan finished", file: file, line: line)
+}
+
+/// #320: Overview's Explore storage link is always there, so a journey waits for the scanned folder to show on Overview
+/// ("… in 1 folder") before it uses the link to open the explorer, which with no scanned folder opens Locations & access.
+@MainActor func waitForScannedFolder(_ app: XCUIApplication, timeout: TimeInterval = 20, file: StaticString = #filePath, line: UInt = #line) {
+    let scanned = NSPredicate(format: "value MATCHES %@", ".*[0-9]+ folders?( .*)?")
+    XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: scanned, object: app.staticTexts["overviewScopeCoverage"])], timeout: timeout), .completed,
+                   "Overview shows the scanned folder", file: file, line: line)
+}
+
+/// The explorer's quiet Large and old files toggle (#320), a text link.
+@MainActor func explorerMode(_ app: XCUIApplication) -> XCUIElement {
+    app.descendants(matching: .any)["explorerMode"]
 }
 
 /// The review sheet has two buttons, Cancel and Clean up, and no preview mode.
@@ -157,13 +170,50 @@ final class CatalogCleanupUITests: XCTestCase {
         let rowTop = developer.frame.minY
         let total = app.staticTexts["overviewRecommendedTotal"]
         XCTAssertTrue((total.value as? String)?.hasPrefix("Up to ") == true, total.debugDescription)
-        XCTAssertFalse(app.staticTexts["Nothing to review in the known locations."].exists)
+        XCTAssertFalse(app.staticTexts["overviewEmpty"].exists)
 
         XCTAssertTrue(progress.waitForNonExistence(timeout: 60))
         XCTAssertTrue(app.buttons["overviewCategory-downloads"].exists)
         // Nothing shifts when the scan ends: the rows stay put and the bar keeps its height.
         XCTAssertEqual(developer.frame.minY, rowTop, accuracy: 0.5)
         XCTAssertEqual(actionStrip(app).frame.height, stripHeight, accuracy: 0.5)
+    }
+
+    /// #308: while the first scan runs, Smart clean and the plan show skeleton rows rather than a blank page, and their
+    /// actions say to wait; after discovery the bar names the phase it is in. When it ends, the rows replace the skeleton.
+    @MainActor func testPlanAndSmartCleanShowSkeletonRowsAndTheBarNamesEachPhase() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        let state = try configureIsolatedState(app)
+        let home = try configureCatalogHome(app)
+        app.launchEnvironment["CACHEDROP_TEST_DISCOVERY_PAUSE"] = "0.5"
+        defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
+        app.launch()
+
+        let progress = app.staticTexts["catalogScanProgress"]
+        XCTAssertTrue(progress.waitForExistence(timeout: 10))
+        app.typeKey("2", modifierFlags: .command)
+        XCTAssertTrue(app.descendants(matching: .any)["smartCleanSkeleton"].waitForExistence(timeout: 5), "Smart clean shows skeleton rows")
+        let cleanUp = app.buttons["smartCleanCleanUp"]
+        XCTAssertFalse(cleanUp.isEnabled)
+        app.typeKey("3", modifierFlags: .command)
+        XCTAssertTrue(app.descendants(matching: .any)["planSkeleton"].waitForExistence(timeout: 5), "The plan shows skeleton rows")
+        XCTAssertFalse(app.buttons["Review cleanup"].isEnabled)
+        XCTAssertFalse(app.descendants(matching: .any)["planCategory-developer"].exists, "No live rows while nothing is known")
+
+        // After its last location the scan names what it is doing, never "… N of N" while it reads apps and plug-ins.
+        let phases = ["Checking leftovers of removed apps…", "Checking apps and plug-ins…", "Checking which apps are open…",
+                      "Recording storage trends…", "Checking app-managed storage…"]
+        let phase = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value IN %@", phases), object: progress)
+        XCTAssertEqual(XCTWaiter.wait(for: [phase], timeout: 60), .completed, progress.debugDescription)
+        XCTAssertTrue(app.descendants(matching: .any)["planSkeleton"].exists, "Still waiting during the later phases")
+
+        XCTAssertTrue(progress.waitForNonExistence(timeout: 60))
+        XCTAssertTrue(app.descendants(matching: .any)["planCategory-developer"].waitForExistence(timeout: 5), "The rows replace the skeleton")
+        XCTAssertFalse(app.descendants(matching: .any)["planSkeleton"].exists)
+        app.typeKey("2", modifierFlags: .command)
+        XCTAssertTrue(app.descendants(matching: .any)["smartCleanCategory-developer"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.descendants(matching: .any)["smartCleanSkeleton"].exists)
     }
 
     /// #220, #234: every screen has the same bottom bar at the same height, even at the minimum window width, and the
@@ -212,6 +262,7 @@ final class CatalogCleanupUITests: XCTestCase {
         panel.typeKey("g", modifierFlags: [.command, .shift])
         app.typeText(folder.path + "\n")
         panel.buttons["Scan folder"].click()
+        waitForScannedFolder(app)
         let explore = app.links["Explore storage"]
         XCTAssertTrue(explore.waitForExistence(timeout: 20))
         explore.click()
@@ -836,6 +887,7 @@ extension CatalogCleanupUITests {
         app.typeText(folder.path + "\n")
         panel.buttons["Scan folder"].click()
 
+        waitForScannedFolder(app)
         let explore = app.links["Explore storage"]
         XCTAssertTrue(explore.waitForExistence(timeout: 20))
         explore.click()
@@ -849,10 +901,9 @@ extension CatalogCleanupUITests {
         back.click()
         XCTAssertTrue(app.buttons["Open folder " + folder.lastPathComponent].waitForExistence(timeout: 5))
         XCTAssertEqual(back.label, "Back to Overview")
-        // A segmented picker is a radio group to accessibility.
-        let mode = app.radioGroups["explorerMode"]
+        let mode = explorerMode(app)
         XCTAssertTrue(mode.waitForExistence(timeout: 10))
-        mode.radioButtons["Large and old files"].click()
+        mode.click()
 
         // Only the old file is listed, and nothing is preselected.
         let item = app.checkBoxes["explorerChoose-old-archive.zip"]
@@ -861,7 +912,7 @@ extension CatalogCleanupUITests {
         XCTAssertEqual(item.value as? Int, 0)
         item.click()
         XCTAssertEqual(item.value as? Int, 1)
-        app.buttons["Review plan"].click()
+        actionStrip(app).buttons["Add to cleanup plan"].click()
 
         app.buttons["Review cleanup"].click()
         XCTAssertTrue(reviewLine(app, "movedToTrash", "files").waitForExistence(timeout: 5))
@@ -901,18 +952,15 @@ extension CatalogCleanupUITests {
         panel.typeKey("g", modifierFlags: [.command, .shift])
         app.typeText(folder.path + "\n")
         panel.buttons["Scan folder"].click()
+        waitForScannedFolder(app)
         let explore = app.links["Explore storage"]
         XCTAssertTrue(explore.waitForExistence(timeout: 20))
         explore.click()
         app.buttons["Open folder " + folder.lastPathComponent].click()
         XCTAssertTrue(app.textFields["explorerSearch"].waitForExistence(timeout: 5))
 
-        // #228: the plan's back button names the explorer page by its title.
-        actionStrip(app).buttons["Review plan"].click()
-        let back = app.buttons["Back to Explore storage"]
-        assertBackButton(back, isAbove: "Cleanup plan", in: app)
-        back.click()
-        XCTAssertTrue(app.textFields["explorerSearch"].waitForExistence(timeout: 5))
+        // #228's plan back button ("‹ Explore storage") is checked from Add to cleanup plan (#320) in
+        // testExploreFromLocationsAddsALargeFileToThePlan; nothing here can be ticked.
 
         // #227: a subfolder is gone after a recheck; only the shared back button leads to the list of locations.
         // (Removing the scanned folder itself keeps its last observation, so the subfolder is what goes away.)
@@ -920,13 +968,13 @@ extension CatalogCleanupUITests {
         XCTAssertTrue(app.buttons["Inspect entry.zip"].firstMatch.waitForExistence(timeout: 5))
         try FileManager.default.removeItem(at: folder.appendingPathComponent("Inner"))
         app.typeKey("r", modifierFlags: .command)
-        XCTAssertTrue(app.staticTexts["This folder is no longer available in the observations"].waitForExistence(timeout: 20))
+        XCTAssertTrue(app.staticTexts["This folder is no longer there"].waitForExistence(timeout: 20))
         XCTAssertFalse(app.buttons["Return to selected locations"].exists)
         let explorerBack = app.buttons["explorerBack"]
         XCTAssertEqual(explorerBack.label, "Back to Selected locations")
         assertBackButton(explorerBack, isAbove: "Explore storage", in: app)
         explorerBack.click()
-        XCTAssertFalse(app.staticTexts["This folder is no longer available in the observations"].waitForExistence(timeout: 2))
+        XCTAssertFalse(app.staticTexts["This folder is no longer there"].waitForExistence(timeout: 2))
         XCTAssertEqual(explorerBack.label, "Back to Overview")
     }
 
@@ -949,6 +997,7 @@ extension CatalogCleanupUITests {
         panel.typeKey("g", modifierFlags: [.command, .shift])
         app.typeText(folder.path + "\n")
         panel.buttons["Scan folder"].click()
+        waitForScannedFolder(app)
         let explore = app.links["Explore storage"]
         XCTAssertTrue(explore.waitForExistence(timeout: 20))
         explore.click()
@@ -962,7 +1011,7 @@ extension CatalogCleanupUITests {
         XCTAssertTrue((row.value as? String ?? "").hasPrefix("Folder not found · last observed "), "\(String(describing: row.value))")
         XCTAssertEqual(app.buttons["explorerChooseAgain"].label, "Choose again…")
         XCTAssertFalse(app.buttons["Open folder Inner"].exists)
-        XCTAssertFalse(app.staticTexts["This folder is no longer available in the observations"].exists)
+        XCTAssertFalse(app.staticTexts["This folder is no longer there"].exists)
 
         // The list of locations marks it the same way and doesn't offer to open its old contents.
         let explorerBack = app.buttons["explorerBack"]
@@ -972,14 +1021,77 @@ extension CatalogCleanupUITests {
         XCTAssertFalse(app.buttons["Open folder " + folder.lastPathComponent].exists)
     }
 
+    /// #320: Explore storage's home is Locations & access. A scanned folder's Explore link opens it at that folder; ticking
+    /// a large file enables Add to cleanup plan, which lands on the plan with the file ticked and "‹ Explore storage".
+    @MainActor func testExploreFromLocationsAddsALargeFileToThePlan() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        let state = try configureIsolatedState(app)
+        let home = try configureCatalogHome(app)
+        let folder = FileManager.default.temporaryDirectory.resolvingSymlinksInPath().appendingPathComponent("CacheDropPicked-" + UUID().uuidString)
+        defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home); try? FileManager.default.removeItem(at: folder) }
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        // Sparse: 600 MB long, so it is large, but it takes no real disk space.
+        let large = folder.appendingPathComponent("large-video.mov")
+        try Data(repeating: 1, count: 4_000).write(to: large)
+        let handle = try FileHandle(forWritingTo: large); try handle.truncate(atOffset: 600_000_000); try handle.close()
+        app.launch()
+        XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
+
+        // With no scanned folder, Overview's quiet link leads to Locations & access, where folders are added.
+        let overviewExplore = app.links["Explore storage"]
+        XCTAssertTrue(overviewExplore.waitForExistence(timeout: 10))
+        overviewExplore.click()
+        XCTAssertTrue(app.staticTexts["Locations & access"].waitForExistence(timeout: 5))
+        app.buttons["Add folder…"].click()
+        let panel = app.sheets.firstMatch.exists ? app.sheets.firstMatch : app.dialogs.firstMatch
+        XCTAssertTrue(panel.waitForExistence(timeout: 5))
+        panel.typeKey("g", modifierFlags: [.command, .shift])
+        app.typeText(folder.path + "\n")
+        panel.buttons["Scan folder"].click()
+
+        // A predicate: the identifier is longer than a subscript query allows.
+        let explore = app.descendants(matching: .any).matching(NSPredicate(format: "identifier == %@", "locationExplore:" + folder.path)).firstMatch
+        XCTAssertTrue(explore.waitForExistence(timeout: 20))
+        explore.click()
+        let back = app.buttons["explorerBack"]
+        assertBackButton(back, isAbove: "Explore storage", in: app)
+        XCTAssertEqual(back.label, "Back to Locations & access")
+        // The inspector is always there, and the bar's button waits for a tick.
+        XCTAssertTrue(app.descendants(matching: .any)["explorerInspector"].waitForExistence(timeout: 5))
+        let add = actionStrip(app).buttons["Add to cleanup plan"]
+        XCTAssertTrue(add.waitForExistence(timeout: 5))
+        XCTAssertFalse(add.isEnabled)
+
+        let item = app.checkBoxes["explorerChoose-large-video.mov"]
+        XCTAssertTrue(item.waitForExistence(timeout: 10))
+        XCTAssertEqual(item.value as? Int, 0)
+        item.click()
+        XCTAssertTrue(actionStrip(app).staticTexts["1 selected"].waitForExistence(timeout: 5))
+        XCTAssertTrue(add.isEnabled)
+        add.click()
+
+        let planBack = app.buttons["Back to Explore storage"]
+        assertBackButton(planBack, isAbove: "Cleanup plan", in: app)
+        // One file in its category: the category's checkbox is the file's (Decision 25).
+        let planned = app.checkBoxes["planCategory-files"]
+        XCTAssertTrue(planned.waitForExistence(timeout: 5))
+        XCTAssertEqual(planned.value as? Int, 1)
+        planBack.click()
+        XCTAssertTrue(item.waitForExistence(timeout: 5))
+        XCTAssertEqual(back.label, "Back to Locations & access")
+    }
+
     /// Opens Explore storage from Overview in its Large and old files mode; returns the fixture's old file toggle.
     @MainActor private func openLargeAndOld(_ app: XCUIApplication) -> XCUIElement {
+        waitForScannedFolder(app, timeout: 30)
         let explore = app.links["Explore storage"]
         XCTAssertTrue(explore.waitForExistence(timeout: 30))
         explore.click()
-        let mode = app.radioGroups["explorerMode"]
+        let mode = explorerMode(app)
         XCTAssertTrue(mode.waitForExistence(timeout: 20))
-        mode.radioButtons["Large and old files"].click()
+        // The explorer keeps its mode within a run; turn it on only when it's off.
+        if mode.label == "Large and old files" { mode.click() }
         return app.checkBoxes["explorerChoose-old-archive.zip"]
     }
 }
@@ -1390,12 +1502,13 @@ extension CatalogCleanupUITests {
         XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
         let notice = app.staticTexts["settingsUnreadable"]
         XCTAssertTrue(notice.waitForExistence(timeout: 30), "Overview says the settings couldn't be read")
-        XCTAssertFalse(app.staticTexts["Nothing to review in the known locations."].exists)
+        XCTAssertFalse(app.descendants(matching: .any)["overviewEmpty"].exists, "Never \"nothing to clean\"")
+        XCTAssertFalse(app.descendants(matching: .any)["overviewSkeleton"].exists, "Never still loading")
         XCTAssertTrue(app.buttons["settingsUnreadableTryAgain"].exists)
 
         app.typeKey("2", modifierFlags: .command)
         XCTAssertTrue(notice.waitForExistence(timeout: 5), "Smart clean says it too")
-        XCTAssertFalse(app.staticTexts["Nothing to clean right now."].exists)
+        XCTAssertFalse(app.descendants(matching: .any)["smartCleanEmpty"].exists)
         XCTAssertFalse(app.staticTexts["smartCleanError"].exists)
 
         try FileManager.default.removeItem(at: rules)

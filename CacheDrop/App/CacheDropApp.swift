@@ -231,12 +231,14 @@ private struct WorkspaceView: View {
                 if nativeInspectionVisible {
                     StorageExplorerView(model: folderInspection, selection: selection, context: explorerContext,
                         caller: explorerCaller.rawValue, back: { nativeInspectionVisible = false; destination = explorerCaller }, unavailable: explorerUnavailable)
-                    ActionStrip(message: nil) {
-                        Button("Review plan") {
+                    // "N selected", then Add to cleanup plan once something is ticked (#320).
+                    ActionStrip(message: explorerSelectedCount > 0 ? "\(explorerSelectedCount) selected" : nil) {
+                        Button("Add to cleanup plan") {
                             nativeInspectionVisible = false
                             planReturnsToExplorer = explorerCaller != .plan
+                            planPresentation.expandedCategories.insert(UserFiles.rule.category)
                             destination = .plan
-                        }.buttonStyle(.borderedProminent)
+                        }.buttonStyle(.borderedProminent).disabled(explorerSelectedCount == 0 || selection.workspaceRunning)
                     }
                 } else if showsPlan {
                     LiveCleanupPlanView(selection: selection,
@@ -452,7 +454,8 @@ private struct WorkspaceView: View {
                 HStack(alignment: .firstTextBaseline) {
                     Text("Recommended for review").font(CacheDropDesign.TypeStyle.section)
                     Spacer(minLength: CacheDropDesign.Space.md)
-                    Text(summary.map { recommendedText($0.recommended) } ?? (catalog.isScanning ? "Checking known locations…" : "Not measured yet"))
+                    // Nothing known yet: the size is "—" and the rows are skeletons (#308).
+                    Text(summary.map { recommendedText($0.recommended) } ?? "—")
                         .font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary).monospacedDigit().accessibilityIdentifier("overviewRecommendedTotal")
                     // The recommended plan lives on its own page (#141): one quiet link to it.
                     if summary != nil, !catalog.recommendedCandidates.isEmpty {
@@ -460,7 +463,11 @@ private struct WorkspaceView: View {
                             .buttonStyle(.link).font(CacheDropDesign.TypeStyle.caption).accessibilityIdentifier("overviewSmartClean")
                     }
                 }
-                if showsCloudInventory || !shown.isEmpty {
+                if catalog.settingsUnreadable {
+                    EmptyView() // Nothing was read: the line above says why, never "nothing" (#310).
+                } else if summary == nil {
+                    SkeletonRows(.review, identifier: "overviewSkeleton")
+                } else if showsCloudInventory || !shown.isEmpty {
                     RecommendationGroup {
                         if showsCloudInventory {
                             overviewCloudRow
@@ -477,9 +484,9 @@ private struct WorkspaceView: View {
                                 .buttonStyle(.link).font(.callout).padding(CacheDropDesign.Space.lg).frame(maxWidth: .infinity, alignment: .leading)
                                 .accessibilityIdentifier("overviewShowMore")
                         }
-                    }
-                } else if summary != nil, !catalog.isScanning {
-                    Text("Nothing to review in the known locations.").font(.callout).foregroundStyle(.secondary)
+                    }.waitingForScan(catalog.isScanning)
+                } else if !catalog.isScanning {
+                    NothingToCleanUp(identifier: "overviewEmpty")
                 }
                 // Places macOS protects (Safari's cache) without Full Disk Access: one line, never a 0-byte row.
                 if !catalog.notAccessibleRules.isEmpty {
@@ -494,7 +501,7 @@ private struct WorkspaceView: View {
                         StorageReviewRow(category: .managed, title: "App-managed storage", detail: "", value: CacheDropDesign.items(catalog.guidance.count),
                                          actionTitle: "Review app-managed storage", action: { navigationState.appManagedVisible = true },
                                          identifier: "overviewAppManaged", mutedValue: true)
-                    }
+                    }.waitingForScan(catalog.isScanning)
                 }
             }
     }
@@ -564,9 +571,9 @@ private struct WorkspaceView: View {
                 Text("Scanned locations").font(.caption.weight(.medium))
                 Text(scannedSummary).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
                     .help(overviewObservation?.scope.path ?? "").accessibilityIdentifier("overviewScopeCoverage")
-                if overviewObservation != nil {
-                    Button("Explore storage") { openExplorer(caller: .overview) }.buttonStyle(.link).font(CacheDropDesign.TypeStyle.caption).disabled(selection.workspaceRunning)
-                }
+                // Always there (#320): with no scanned folder it leads to Locations & access, where folders are added.
+                Button("Explore storage") { if hasScannedFolder { openExplorer(caller: .overview) } else { navigate(.locations) } }
+                    .buttonStyle(.link).font(CacheDropDesign.TypeStyle.caption).disabled(selection.workspaceRunning)
                 Spacer(minLength: 0)
                 // One clear action: pick a folder, remember it and scan it now (#125).
                 Button("Scan a folder…", systemImage: "folder.badge.plus", action: chooseFolderForScan).controlSize(.small)
@@ -647,10 +654,19 @@ private struct WorkspaceView: View {
         let unavailable = scopes.filter { !resolved.contains($0.path) }.map { URL(fileURLWithPath: $0.path) }
         folderInspection.scanAgain(scopes: leases.map(\.url), leases: leases, unavailable: unavailable)
     }
-    private func openExplorer(caller: Destination) {
+    /// Opens Explore storage; from a location's Explore link (#320), at that folder.
+    private func openExplorer(caller: Destination, at folder: URL? = nil) {
         explorerContext.allowedScopes = Set(locationsModel.included.map { URL(fileURLWithPath: $0.path).standardizedFileURL })
+        if let folder { explorerContext.openLocation(folder) }
         explorerCaller = caller; nativeInspectionVisible = true; planReturnsToExplorer = false
     }
+    /// An included location that has been scanned, so Explore storage has something to show.
+    private func isScanned(_ scope: RememberedScope) -> Bool {
+        scope.isIncluded && (selection.scans[URL(fileURLWithPath: scope.path)] != nil || folderInspection.scopeReports.contains { $0.current.scope.path == scope.path })
+    }
+    private var hasScannedFolder: Bool { locationsModel.included.contains(where: isScanned) }
+    /// Large and old files ticked for the plan, which the explorer's bar counts.
+    private var explorerSelectedCount: Int { selection.catalog.pickedCandidates.filter { selection.catalog.isSelected($0) }.count }
     private func startNewPlan() {
         planPresentation.reset(); selection.startNewPlan(); planReturnsToExplorer = false; nativeInspectionVisible = false; destination = .plan
         Task { await folderInspection.resetSession() }
@@ -697,6 +713,10 @@ private struct WorkspaceView: View {
                         if locationsModel.setIncluded(included, scope: scope) { selection.suspendScope(URL(fileURLWithPath: scope.path)) }
                     }), enabled: !folderInspection.isScanning && !selection.workspaceRunning) {
                     HStack {
+                        if isScanned(scope), locationsModel.statuses[scope.id]?.needsRecovery != true {
+                            Button("Explore") { openExplorer(caller: .locations, at: URL(fileURLWithPath: scope.path)) }
+                                .buttonStyle(.link).accessibilityIdentifier("locationExplore:" + scope.path)
+                        }
                         if locationsModel.statuses[scope.id]?.needsRecovery == true {
                             Button("Choose again…") { chooseAgain(scope) }
                             Button("Reconnect and recheck") { scanLocations([scope]) }.disabled(!scope.isIncluded)

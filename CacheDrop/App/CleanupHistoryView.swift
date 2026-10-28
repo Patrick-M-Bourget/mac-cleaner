@@ -168,7 +168,8 @@ struct CleanupHistoryView: View {
             if let error = scans.loadError {
                 HistoryStoreFailure(message: error, retryTitle: "Try scan history again", enabled: !scans.isLoading) { Task { await scans.load() } }
             }
-            if readingHistory { ProgressView("Reading local history…") }
+            // Nothing known yet: skeleton rows (#308).
+            if readingHistory && items.isEmpty { SkeletonRows(.line, identifier: "historySkeleton") }
             if model.blocked || (model.snapshot?.protectedRecordCount ?? 0) > 0 {
                 SettingsRow(title: "Recovery facts are protected", detail: "Unfinished runs are excluded from Clear and retention. Reset requires them to be resolved.") {
                     Button("Open recovery review", action: showRecovery).accessibilityIdentifier("historyRecovery")

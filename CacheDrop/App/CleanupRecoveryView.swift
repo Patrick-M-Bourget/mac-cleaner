@@ -15,8 +15,13 @@ import SwiftUI
     private(set) var markFailed = false
     private(set) var busy = false
     var requiresReview: Bool { error != nil || snapshot?.interruptedBatches.isEmpty == false }
+    /// Opening Recovery is reading the journal again and checking against disk; its page shows skeleton rows meanwhile (#308).
+    private(set) var reading = false
     /// Opening Recovery reads the journal again and checks each unresolved item against disk, read-only.
-    func refresh() async { loaded = false; error = nil; findings = nil; message = nil; _ = await loadOnce(); await check() }
+    func refresh() async {
+        reading = true; defer { reading = false }
+        loaded = false; error = nil; findings = nil; message = nil; _ = await loadOnce(); await check()
+    }
     /// Runs once per process; opening another window is not a second recovery session.
     func loadOnce() async -> Bool {
         guard !loaded else { return false }
@@ -98,7 +103,10 @@ struct CleanupRecoveryView: View {
                 StatusRow(text: message, symbol: model.markFailed ? "exclamationmark.triangle" : "checkmark.circle", role: model.markFailed ? .caution : .success, identifier: "recoveryMessage",
                           action: model.markFailed ? nil : StatusAction(title: "View History", identifier: "recoveryViewHistory", action: viewHistory))
             }
-            if let error = model.error {
+            if model.reading && model.findings == nil {
+                // Nothing known yet: skeleton rows, never last time's answer (#308).
+                SkeletonRows(.line, identifier: "recoverySkeleton")
+            } else if let error = model.error {
                 StatusRow(text: error, symbol: "exclamationmark.triangle", role: .failure)
                 Text("Keep the journal for recovery. Reopening CacheDrop may help; do not clear or reset unresolved records.").font(.callout).foregroundStyle(.secondary)
             } else if let snapshot = model.snapshot, !snapshot.interruptedBatches.isEmpty {
@@ -121,7 +129,7 @@ struct CleanupRecoveryView: View {
                     Button("Mark as reviewed") { Task { await model.markReviewed() } }
                         .buttonStyle(.borderedProminent).disabled(model.busy).accessibilityIdentifier("recoveryMarkReviewed")
                 } else {
-                    ProgressView("Checking where each item is…")
+                    SkeletonRows(.line, identifier: "recoverySkeleton")
                 }
             } else if model.message == nil {
                 EmptyState(title: "No interrupted cleanup recorded", detail: "A new cleanup still requires a manual scan and approval.", symbol: "checkmark.circle")

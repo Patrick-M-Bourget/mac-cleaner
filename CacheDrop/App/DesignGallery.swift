@@ -58,17 +58,16 @@ struct DesignGallery: View {
                     LocalRecordsMaintenanceControls(enabled: false, clear: {}, reset: {})
                     Text("Synthetic Full Disk Access row · Live status check only").font(.headline)
                     FullDiskAccessSetting()
-                    ExplorerInspector(name: "Camera guide.pdf", close: {}) {
+                    // Explore storage's inspector (#320): always open, one path.
+                    ExplorerInspector(name: "Camera guide.pdf") {
                         Text("Location").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
                         Text("/Example/Downloads/Camera guide.pdf")
-                        Text("Observed scope").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
-                        Text("/Example/Downloads")
-                        Text("On disk: 8 MB observed")
-                        Text("Logical size: 8 MB")
-                        Text("Why listed").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
-                        Text("Observed during a manual scan")
-                        Text("Cleanup action").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
-                        Text("Move this exact file to Trash after selection and confirmation.")
+                        Text("On disk").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
+                        Text("8 MB")
+                        Text("Why it’s listed").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
+                        Text("Not opened since Mar 2, 2026.")
+                        Text("Action").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
+                        Text("Move to Trash. The space stays used until you empty the Trash.")
                     }.frame(height: 220)
                     ExplorerInspector(name: "Cloud metadata (synthetic)", close: {}) {
                         Text("Synthetic Gallery metadata; no provider certification.")
@@ -116,6 +115,21 @@ struct DesignGallery: View {
                         }
                     }
                     EmptyState(title: "No findings yet", detail: "Choose a folder to begin. Unknown measurements stay distinct from zero.", symbol: "folder")
+                    // #308: nothing known yet, skeleton rows in each page's layout; a rescan dims the rows already shown.
+                    Text("Waiting for a scan · Skeleton rows").font(.headline)
+                    SkeletonRows(.category, count: 2, identifier: "gallerySkeletonCategory")
+                    SkeletonRows(.review, count: 2, identifier: "gallerySkeletonReview")
+                    SkeletonRows(.line, count: 2, identifier: "gallerySkeletonLine")
+                    Text("Waiting for a scan · Rows from the last scan").font(.headline)
+                    CategoryRow(category: .browser, state: .unchecked, title: "Browser caches · Example during a rescan", detail: "Dimmed, and can’t be clicked until the scan ends.",
+                                size: "640 MB", enabled: false, identifier: "galleryWaitingRow", itemCount: nil, expanded: .constant(false), toggle: {}) {
+                        EmptyView()
+                    } items: { EmptyView() }.waitingForScan(true)
+                    Text("Busy action · Checks running after a click").font(.headline)
+                    HStack {
+                        BusyAction(busy: true) { Button("Clean up") {}.buttonStyle(.borderedProminent) }
+                        ReviewCleanupButton(enabled: false, focusRequest: 0, tooltip: CacheDropDesign.waitForScanHelp, action: {}).fixedSize()
+                    }.controlSize(.large)
                     CapacityMeter(available: nil, total: nil)
                     SettingsRow(title: "Shared navigation and brand", detail: "Reference accents identify destinations; labels and selected traits carry meaning.") {
                         AppBrand()

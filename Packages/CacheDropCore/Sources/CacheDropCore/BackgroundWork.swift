@@ -86,3 +86,26 @@ extension ScanPhase {
         }
     }
 }
+
+/// Where the catalog scan is, for the bar's line (#308): discovery counts its known locations, then each later phase is
+/// named, so the scan's longest part never shows the last location as if it had hung.
+public enum CatalogScanPhase: Equatable, Sendable {
+    /// Before discovery has named its first location.
+    case starting
+    /// Discovery is checking location `number` of `total`.
+    case location(title: String, number: Int, total: Int)
+    /// After discovery, in the order the scan runs them.
+    case removedAppLeftovers, appsAndPlugIns, openApps, storageTrends, appManagedStorage
+
+    public var progressText: String {
+        switch self {
+        case .starting: "Checking known locations…"
+        case .location(let title, let number, let total): "Checking \(title)… \(number) of \(total)"
+        case .removedAppLeftovers: "Checking leftovers of removed apps…"
+        case .appsAndPlugIns: "Checking apps and plug-ins…"
+        case .openApps: "Checking which apps are open…"
+        case .storageTrends: "Recording storage trends…"
+        case .appManagedStorage: "Checking app-managed storage…"
+        }
+    }
+}
