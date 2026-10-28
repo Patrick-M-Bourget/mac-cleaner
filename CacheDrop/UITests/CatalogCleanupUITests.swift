@@ -133,6 +133,13 @@ import XCTest
     element.click()
 }
 
+/// #349: ticks a checkbox the journey wants chosen. Recommended items arrive ticked, and whether one is recommended can
+/// depend on what runs on this Mac (an owner running leaves it out), so a plain click could untick it instead.
+@MainActor func tick(_ box: XCUIElement, in app: XCUIApplication, file: StaticString = #filePath, line: UInt = #line) {
+    if box.value as? Int != 1 { revealAndClick(box, in: app) }
+    XCTAssertEqual(box.value as? Int, 1, box.identifier, file: file, line: line)
+}
+
 /// Reveals and opens a disclosure group, then waits until it reports open. A synthesized click on a sheet is sometimes
 /// routed to the window behind it: macOS shakes the sheet and the group stays closed (#152), so a rejected click is retried.
 @MainActor func openDisclosure(_ triangle: XCUIElement, in app: XCUIApplication) {
@@ -323,11 +330,8 @@ final class CatalogCleanupUITests: XCTestCase {
         for present in ["npm-cache", "yarn-cache", "cargo-cache", "gradle-cache"] { XCTAssertTrue(app.descendants(matching: .any)["planRule-" + present].exists, present) }
         for absent in ["pnpm-store", "uv-cache", "pip-cache", "cocoapods-cache"] { XCTAssertFalse(app.descendants(matching: .any)["planRule-" + absent].exists, absent) }
         XCTAssertFalse(app.descendants(matching: .any).matching(NSPredicate(format: "identifier CONTAINS 'ccache'")).firstMatch.exists)
-        // Opening a category from Overview never preselects it.
-        let homebrew = app.checkBoxes["planRule-homebrew"]
-        XCTAssertEqual(homebrew.value as? Int, 0)
-        revealAndClick(homebrew, in: app)
-        XCTAssertEqual(homebrew.value as? Int, 1)
+        // Homebrew's own cleanup is recommended, so it is ticked unless brew is running (#349).
+        tick(app.checkBoxes["planRule-homebrew"], in: app)
         app.buttons["Review cleanup"].click()
 
         XCTAssertTrue(reviewLine(app, "commandsRun", "developer").waitForExistence(timeout: 5))
@@ -387,7 +391,7 @@ final class CatalogCleanupUITests: XCTestCase {
         for rule in ["xcode-derived-data", "xcode-simulators"] {
             let box = app.checkBoxes["planRule-" + rule]
             XCTAssertTrue(box.waitForExistence(timeout: 5), rule)
-            revealAndClick(box, in: app)
+            tick(box, in: app)
         }
         // The plan says why DerivedData will be refused: this journey runs under xcodebuild or Xcode.
         let running = app.staticTexts["planRunning-xcode-derived-data"]
@@ -455,11 +459,10 @@ final class CatalogCleanupUITests: XCTestCase {
         XCTAssertFalse(app.staticTexts["0 bytes"].exists)
         revealAndClick(row, in: app)
 
-        // Opening a category from Overview never preselects it. One rule with one item: the category checkbox is the choice.
+        // One rule with one item: the category checkbox is the choice. The npm cache is recommended, so it arrives ticked (#349).
         let category = app.checkBoxes["planCategory-developer"]
         XCTAssertTrue(category.waitForExistence(timeout: 5))
-        XCTAssertEqual(category.value as? Int, 0)
-        revealAndClick(category, in: app)
+        XCTAssertEqual(category.value as? Int, 1)
 
         // The plan's bottom bar has only Review cleanup.
         XCTAssertFalse(app.descendants(matching: .any)["previewOnlyToggle"].exists)
@@ -496,7 +499,7 @@ final class CatalogCleanupUITests: XCTestCase {
         // One rule with one item: the category checkbox is the choice.
         let rule = app.checkBoxes["planCategory-developer"]
         XCTAssertTrue(rule.waitForExistence(timeout: 5))
-        revealAndClick(rule, in: app)
+        tick(rule, in: app)
         app.buttons["Review cleanup"].click()
         XCTAssertTrue(reviewLine(app, "permanentlyRemoved", "developer").waitForExistence(timeout: 5))
         cleanUpFromReview(app)
@@ -507,10 +510,11 @@ final class CatalogCleanupUITests: XCTestCase {
         XCTAssertTrue(row.waitForExistence(timeout: 10))
         revealAndClick(row, in: app)
 
-        // A fresh plan: the category is open and nothing is ticked.
+        // A fresh plan: the category is open, and the dry run's npm cache, found again by the rescan, is ticked as
+        // recommended again (#349).
         XCTAssertTrue(rule.waitForExistence(timeout: 5), "The category opened from Overview shows its items")
         XCTAssertFalse(app.staticTexts["catalogPreviewNotice"].exists, "The last run's results are gone")
-        XCTAssertEqual(rule.value as? Int, 0)
+        XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == 1"), object: rule)], timeout: 15), .completed)
     }
 
     /// The dry run lives in Settings, off by default. Turned on there, the whole flow runs and the installer stays in place.
@@ -538,7 +542,7 @@ final class CatalogCleanupUITests: XCTestCase {
         XCTAssertTrue(row.waitForExistence(timeout: 10))
         revealAndClick(row, in: app)
 
-        // Nothing is preselected; the installer is chosen on its own.
+        // A new installer isn't recommended, so nothing here starts ticked; the installer is chosen on its own.
         let category = app.checkBoxes["planCategory-downloads"]
         XCTAssertTrue(category.waitForExistence(timeout: 5))
         XCTAssertEqual(category.value as? Int, 0)
@@ -590,9 +594,12 @@ final class CatalogCleanupUITests: XCTestCase {
         // One copy is offered (the newest is kept), so the category checkbox is the choice.
         let rule = app.checkBoxes["planCategory-browser"]
         XCTAssertTrue(rule.waitForExistence(timeout: 5))
-        XCTAssertEqual(rule.value as? Int, 0)
         XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "value BEGINSWITH 'Up to '")).firstMatch.exists)
-        revealAndClick(rule, in: app)
+        tick(rule, in: app)
+        // Only the copies: the fixture's npm cache arrives ticked as recommended too (#349).
+        let developer = app.checkBoxes["planCategory-developer"]
+        if developer.value as? Int != 0 { revealAndClick(developer, in: app) }
+        XCTAssertEqual(developer.value as? Int, 0)
         app.buttons["Review cleanup"].click()
 
         XCTAssertTrue(reviewLine(app, "permanentlyRemoved", "browser").waitForExistence(timeout: 5))
@@ -649,8 +656,7 @@ final class CatalogCleanupUITests: XCTestCase {
         XCTAssertTrue(profile.exists)
         XCTAssertTrue(app.checkBoxes["planProfile-chrome-cache-Profile 1"].exists)
         XCTAssertFalse(app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS 'Cookies' OR label CONTAINS 'Local Storage' OR value CONTAINS 'Cookies' OR value CONTAINS 'Local Storage'")).firstMatch.exists)
-        XCTAssertEqual(profile.value as? Int, 0)
-        revealAndClick(profile, in: app)
+        tick(profile, in: app)
         app.buttons["Review cleanup"].click()
 
         XCTAssertTrue(reviewLine(app, "permanentlyRemoved", "browser").waitForExistence(timeout: 5))
@@ -705,7 +711,7 @@ final class CatalogCleanupUITests: XCTestCase {
         revealAndClick(row, in: app)
         let rule = app.checkBoxes["planCategory-browser"]
         XCTAssertTrue(rule.waitForExistence(timeout: 5))
-        revealAndClick(rule, in: app)
+        tick(rule, in: app)
         app.buttons["Review cleanup"].click()
         XCTAssertTrue(reviewLine(app, "permanentlyRemoved", "browser").waitForExistence(timeout: 5))
         cleanUpFromReview(app)
@@ -746,8 +752,9 @@ final class CatalogCleanupUITests: XCTestCase {
         XCTAssertTrue(app.checkBoxes["planRule-crash-reports"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.checkBoxes["planRule-app-logs"].exists)
         XCTAssertFalse(app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS 'FixtureAgent' OR value CONTAINS 'FixtureAgent' OR identifier CONTAINS 'FixtureAgent'")).firstMatch.exists)
-        revealAndClick(update, in: app)
-        revealAndClick(app.checkBoxes["planRule-crash-reports"], in: app)
+        // Updater downloads and logs are recommended, so they arrive ticked (#349).
+        XCTAssertEqual(update.value as? Int, 1)
+        XCTAssertEqual(app.checkBoxes["planRule-crash-reports"].value as? Int, 1)
         app.buttons["Review cleanup"].click()
 
         XCTAssertTrue(reviewLine(app, "permanentlyRemoved", "updaters").waitForExistence(timeout: 5))
@@ -1448,7 +1455,7 @@ extension CatalogCleanupUITests {
         XCTAssertTrue(app.checkBoxes["smartCleanLine-npm-cache|"].exists)
     }
 
-    /// #137, #141: Smart clean, opened from Overview's link, lists what it recommends, all ticked and each untickable.
+    /// #137, #349: Smart clean, opened from Overview's link, lists what it recommends, all ticked and each untickable.
     /// Its Clean up opens the review; a new installer stays out (#319). The Cleanup plan keeps its own selection.
     @MainActor func testSmartCleanReviewsOnlyRebuildableItemsAndKeepsThePlanSelection() throws {
         continueAfterFailure = false
@@ -1510,11 +1517,68 @@ extension CatalogCleanupUITests {
             XCTAssertTrue(FileManager.default.fileExists(atPath: home.appendingPathComponent(kept).path), kept)
         }
 
-        // The Smart clean run left the Cleanup plan's choice alone.
+        // The Smart clean run took only its own ticked items and left the plan's installer ticked (#349).
         app.typeKey("3", modifierFlags: .command)
         XCTAssertTrue(installer.waitForExistence(timeout: 15))
         let chosen = NSPredicate(format: "value == 1")
         XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: chosen, object: installer)], timeout: 15), .completed, "The installer is still chosen")
+    }
+
+    /// #349: one selection. What is unticked in Smart clean is unticked in the plan, the plan adds to it and cleans it, and
+    /// the untick outlives the run's rescan. A dry run, so every fixture file stays.
+    @MainActor func testSmartCleansTicksCarryIntoThePlanWhichAddsMoreAndCleans() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        let state = try configureIsolatedState(app)
+        let home = try configureCatalogHome(app)
+        turnOnDryRun(app)
+        _ = try addDeveloperCaches(home, folders: ["Library/Caches/Yarn"])
+        defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
+        app.launch()
+        XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
+        waitForCatalogScan(app)
+
+        // Smart clean: untick Yarn.
+        app.typeKey("2", modifierFlags: .command)
+        XCTAssertTrue(app.checkBoxes["smartCleanCategory-developer"].waitForExistence(timeout: 10))
+        let yarnInSmartClean = app.checkBoxes["smartCleanLine-yarn-cache|"]
+        openDisclosure(app.disclosureTriangles.matching(NSPredicate(format: "label BEGINSWITH 'Choose items'")).firstMatch, in: app)
+        XCTAssertTrue(yarnInSmartClean.waitForExistence(timeout: 5))
+        revealAndClick(yarnInSmartClean, in: app)
+        XCTAssertEqual(yarnInSmartClean.value as? Int, 0)
+
+        // Overview says the category no longer matches the recommended default, and opens it in the plan.
+        app.typeKey("1", modifierFlags: .command)
+        let row = app.buttons["overviewCategory-developer"]
+        XCTAssertTrue(row.waitForExistence(timeout: 10))
+        XCTAssertTrue((row.value as? String ?? "").contains("Selected"), String(describing: row.value))
+        revealAndClick(row, in: app)
+        let yarn = app.checkBoxes["planRule-yarn-cache"], npm = app.checkBoxes["planRule-npm-cache"]
+        XCTAssertTrue(yarn.waitForExistence(timeout: 5))
+        XCTAssertEqual(yarn.value as? Int, 0, "Unticked in Smart clean, unticked here")
+        XCTAssertEqual(npm.value as? Int, 1, "Ticked in Smart clean, ticked here")
+
+        // The plan adds the installer, which Smart clean never takes, and cleans both.
+        let installer = app.checkBoxes["planCategory-downloads"]
+        XCTAssertEqual(installer.value as? Int, 0)
+        revealAndClick(installer, in: app)
+        XCTAssertEqual(installer.value as? Int, 1)
+        app.buttons["Review cleanup"].click()
+        XCTAssertTrue(reviewLine(app, "permanentlyRemoved", "developer").waitForExistence(timeout: 10))
+        XCTAssertTrue(reviewLine(app, "movedToTrash", "downloads").exists)
+        cleanUpFromReview(app)
+        XCTAssertTrue(app.staticTexts["catalogPreviewNotice"].waitForExistence(timeout: 10))
+        for kept in [".npm/_cacache/content-v2/sha512/ab/blob", "Downloads/Setup.dmg", "Library/Caches/Yarn/entry"] {
+            XCTAssertTrue(FileManager.default.fileExists(atPath: home.appendingPathComponent(kept).path), kept)
+        }
+
+        // The run's rescan keeps Yarn unticked in Smart clean.
+        app.typeKey("2", modifierFlags: .command)
+        XCTAssertTrue(yarnInSmartClean.waitForExistence(timeout: 30))
+        let npmInSmartClean = app.checkBoxes["smartCleanLine-npm-cache|"]
+        XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == 1"), object: npmInSmartClean)], timeout: 30),
+                       .completed, "The npm cache, found again, is ticked as recommended")
+        XCTAssertEqual(yarnInSmartClean.value as? Int, 0, "The untick outlives the rescan")
     }
 
     /// #310: unreadable Protected items settings read as one error line with Try again, on Overview and on the page the user
