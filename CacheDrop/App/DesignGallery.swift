@@ -114,7 +114,12 @@ struct DesignGallery: View {
                             ProgressView("Reading metadata…")
                         }
                     }
-                    EmptyState(title: "No findings yet", detail: "Choose a folder to begin. Unknown measurements stay distinct from zero.", symbol: "folder")
+                    // #321: one empty state, saying what's true with at most one action that leads where the user can act.
+                    Text("Empty states · One way forward").font(.headline)
+                    EmptyState(title: "No scans yet", detail: "A completed scan records a baseline. Check back a day later to see trends.",
+                               symbol: "chart.line.uptrend.xyaxis", action: EmptyStateAction("Scan now") {}, identifier: "galleryEmptyAction")
+                    NothingToCleanUp(identifier: "galleryNothingToCleanUp", action: EmptyStateAction("Explore storage") {})
+                    EmptyState(title: "Nothing to review", symbol: "checkmark.circle", identifier: "galleryEmptyPlain")
                     // #308: nothing known yet, skeleton rows in each page's layout; a rescan dims the rows already shown.
                     Text("Waiting for a scan · Skeleton rows").font(.headline)
                     SkeletonRows(.category, count: 2, identifier: "gallerySkeletonCategory")

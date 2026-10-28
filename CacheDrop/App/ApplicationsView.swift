@@ -162,7 +162,7 @@ struct ApplicationsView: View {
 
     private func loading(_ id: String) -> some View { SkeletonRows(.category, count: 2, identifier: "applicationsLoading-" + id) }
     private func state(_ title: String, _ detail: String, symbol: String, id: String) -> some View {
-        EmptyState(title: title, detail: detail, symbol: symbol).accessibilityElement(children: .combine).accessibilityIdentifier(id)
+        EmptyState(title: title, detail: detail, symbol: symbol, identifier: id)
     }
 
     /// The size a row shows, and Size sorts by: shared items count on no product's row, so the page counts them once
