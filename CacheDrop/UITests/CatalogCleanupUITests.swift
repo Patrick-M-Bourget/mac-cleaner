@@ -803,6 +803,10 @@ final class CatalogCleanupUITests: XCTestCase {
             XCTAssertEqual(header.value as? Int, 0, rule)
         }
         XCTAssertFalse(app.checkBoxes["planRule-docker-containers"].exists)
+        // Only Docker in the review: the fixture's npm cache arrives ticked as recommended (#349).
+        let npm = app.checkBoxes["planRule-npm-cache"]
+        if npm.value as? Int != 0 { revealAndClick(npm, in: app) }
+        XCTAssertEqual(npm.value as? Int, 0)
         revealAndClick(app.checkBoxes["planRule-docker-build-cache"], in: app)
         XCTAssertEqual(app.checkBoxes["planRule-docker-images"].value as? Int, 0)
         app.buttons["Review cleanup"].click()
