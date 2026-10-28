@@ -63,6 +63,8 @@ struct ApplicationsView: View {
     let model: ApplicationsModel
     var viewHistory: (() -> Void)? = nil
     var reviewRecovery: (() -> Void)? = nil
+    /// Opens the Cleanup plan with these categories revealed, for the review's "Clean in the Cleanup plan" (#354).
+    var openPlan: (([CatalogCategory]) -> Void)? = nil
     @State private var expanded: Set<String> = []
     @State private var leftoversExpanded = false
     @State private var review: WorkspaceCleanupReview?
@@ -90,7 +92,7 @@ struct ApplicationsView: View {
             WorkspaceCleanupConfirmationView(review: snapshot, cancel: { review = nil }) {
                 review = nil
                 Task { do { try await selection.executeWorkspace(snapshot) } catch { approvalError = PlanReviewError.changedMessage } }
-            }
+            } follow: { link in follow(link) }
         }
         // The sheet closes only when the choices it was built from changed, and the page says so (#307).
         .onChange(of: catalog.selectionRevision(for: .applications)) { _, _ in if review != nil { review = nil; approvalError = PlanReviewError.changedMessage } }
@@ -98,6 +100,19 @@ struct ApplicationsView: View {
         .task(id: catalog.isScanning) { if !catalog.isScanning { await model.load(plugIns: catalog.plugInInventory) } }
         // A search opens Files from deleted apps, so its matching groups show.
         .onChange(of: model.listing.isSearching) { _, searching in if searching { leftoversExpanded = true } }
+    }
+
+    /// A staying line's link (#354): the plan closes the review and opens there; Finder shows the files over it.
+    private func follow(_ link: AppUninstall.Staying.Link) {
+        switch link {
+        case .cleanupPlan(let ruleIDs):
+            var categories: [CatalogCategory] = []
+            for id in ruleIDs { if let category = catalog.catalog.rule(id)?.category, catalog.plans(category), !categories.contains(category) { categories.append(category) } }
+            review = nil
+            openPlan?(categories)
+        case .finder(let paths):
+            model.reveal(paths.map { URL(fileURLWithPath: $0).lastPathComponent }.joined(separator: ", "), paths.map { URL(fileURLWithPath: $0) })
+        }
     }
 
     private var page: some View {
@@ -192,8 +207,10 @@ struct ApplicationsView: View {
         let uninstall = catalog.uninstallItems(ofRow: entry.id)
         // A partly removable product also lists what stays (#176, #288): formats and support files that need a password, and AUv3s.
         let target = uninstall.lazy.compactMap(\.uninstall).first { $0.path == entry.id }
+        // Its password paths hold its formats too (#354); each is listed once.
+        let listed = Set(entry.parts.map(\.url.standardizedFileURL.path))
         let locked = (entry.parts.filter { !$0.removable && $0.name != PlugInFormat.auv3.rawValue }
-            + (target?.passwordPaths ?? []).map { InventoryEntry.Part(name: URL(fileURLWithPath: $0).lastPathComponent, url: URL(fileURLWithPath: $0), size: .unknown, removable: false) })
+            + (target?.passwordPaths ?? []).filter { !listed.contains(URL(fileURLWithPath: $0).standardizedFileURL.path) }.map { InventoryEntry.Part(name: URL(fileURLWithPath: $0).lastPathComponent, url: URL(fileURLWithPath: $0), size: .unknown, removable: false) })
         let auv3 = category == .apps ? [] : entry.parts.filter { $0.name == PlugInFormat.auv3.rawValue }
         let staying = uninstall.isEmpty || category == .apps ? [] : locked + auv3
         // "Choose items" counts what can be chosen, and says how many listed parts stay (#290).
