@@ -15,11 +15,15 @@ enum CacheDropDesign {
         /// The surface gap between a meter's segments, and the narrowest segment it draws (#164).
         static let meterGap: CGFloat = 2; static let meterSegmentMinimum: CGFloat = 3
         /// The bottom bar's row: a large button's height, so the bar is the same with or without buttons or progress (#220).
-        static let actionStripRow: CGFloat = 32 }
+        static let actionStripRow: CGFloat = 32
+        /// A skeleton row's title and detail bars (#308), about the height of the text they stand in for.
+        static let skeletonTitle: CGFloat = 11; static let skeletonDetail: CGFloat = 8 }
     /// How strongly a colour tints a surface behind its symbol, as in a category badge.
     enum Opacity { static let badgeTint: Double = 0.10
         /// A meter segment's part that Smart clean wouldn't free (#164).
-        static let meterDimmed: Double = 0.30 }
+        static let meterDimmed: Double = 0.30
+        /// Rows from the last scan while a rescan runs: visible, plainly not live (#308).
+        static let waiting: Double = 0.45 }
     enum TypeStyle {
         /// The app name in the sidebar header.
         static let brand = Font.system(size: 17, weight: .medium)
@@ -64,6 +68,10 @@ enum CacheDropDesign {
     /// The sidebar meter's one "Reclaimable" segment.
     static var meterReclaimable: Color { .accentColor }
     static var separator: Color { Color(nsColor: .separatorColor) }
+    /// A skeleton row's placeholder bars and tiles (#308): the meter's track grey.
+    static var skeleton: Color { capacityTrack }
+    /// The skeleton's shimmer, low-contrast in both appearances (#308).
+    static var skeletonShimmer: Color { adaptive(light: 0xFFFFFF, dark: 0x4A4B55) }
 }
 enum StorageCategory {
     /// `files`: files from folders the user picked, shown as the prototype shows a chosen folder.
@@ -703,9 +711,11 @@ struct AppBrand: View {
 struct ReviewCleanupButton: View {
     let enabled: Bool
     let focusRequest: Int
+    /// Why it is disabled, such as `CacheDropDesign.waitForScanHelp` (#308).
+    var tooltip: String? = nil
     let action: () -> Void
     var body: some View {
-        NativeReviewCleanupButton(enabled: enabled, focusRequest: focusRequest, action: action)
+        NativeReviewCleanupButton(enabled: enabled, focusRequest: focusRequest, tooltip: tooltip, action: action)
             .disabled(!enabled)
     }
 }
@@ -713,6 +723,7 @@ struct ReviewCleanupButton: View {
 private struct NativeReviewCleanupButton: NSViewRepresentable {
     let enabled: Bool
     let focusRequest: Int
+    let tooltip: String?
     let action: () -> Void
     func makeCoordinator() -> Coordinator { Coordinator(action) }
     func makeNSView(context: Context) -> FocusButton {
@@ -726,6 +737,7 @@ private struct NativeReviewCleanupButton: NSViewRepresentable {
     func sizeThatFits(_ proposal: ProposedViewSize, nsView: FocusButton, context: Context) -> CGSize? { nsView.intrinsicContentSize }
     func updateNSView(_ view: FocusButton, context: Context) {
         view.isEnabled = enabled
+        view.toolTip = tooltip
         view.bezelColor = enabled ? .controlAccentColor : nil
         context.coordinator.action = action
         if context.coordinator.appliedFocusRequest != focusRequest {
@@ -894,4 +906,116 @@ struct DestinationViewport: NSViewRepresentable {
 extension CacheDropDesign.Size {
     /// The leading symbol column of a compact list row (History).
     static let rowIcon: CGFloat = 24
+}
+
+// MARK: - Waiting for a scan (#308)
+
+/// Which page layout a skeleton stands in for, so the page keeps its shape while its content isn't known yet.
+enum SkeletonLayout {
+    /// A `CategoryRow`: the checkbox's gap, a badge, title and detail, the size. The plan, Smart clean and Applications.
+    case category
+    /// A `StorageReviewRow` in a `RecommendationGroup`: Overview and App-managed storage.
+    case review
+    /// A plain list row, title and detail then the size: Storage trends, History and Recovery.
+    case line
+}
+
+/// What a page shows while its content isn't known yet, the first scan or right after a cleanup (#308): grey placeholder
+/// rows in the page's own layout, with no checkboxes, nothing clickable and every size "—", under a slow, calm shimmer
+/// (none with Reduce Motion). Never a blank page. `identifier` names the whole group; VoiceOver hears "Loading".
+struct SkeletonRows: View {
+    let layout: SkeletonLayout
+    var count = 3
+    var identifier = "skeleton"
+    init(_ layout: SkeletonLayout, count: Int = 3, identifier: String = "skeleton") { self.layout = layout; self.count = count; self.identifier = identifier }
+    var body: some View {
+        Group {
+            if layout == .review {
+                RecommendationGroup { rows(divider: { Divider().padding(.horizontal, CacheDropDesign.Space.lg) }) }
+            } else {
+                VStack(alignment: .leading, spacing: 0) { rows(divider: { Divider().padding(.vertical, layout == .category ? CacheDropDesign.Space.md : 0) }) }
+            }
+        }.skeletonShimmer()
+            .accessibilityElement(children: .ignore).accessibilityLabel("Loading").accessibilityIdentifier(identifier)
+    }
+    @ViewBuilder private func rows(divider: @escaping () -> some View) -> some View {
+        ForEach(0..<count, id: \.self) { index in
+            // The plan's rows each end with a divider; listed rows only sit between them.
+            if layout != .category && index > 0 { divider() }
+            SkeletonRow(layout: layout, width: Self.widths[index % Self.widths.count])
+            if layout == .category { divider() }
+        }
+    }
+    /// Each row's title width, as a share of its column, so the rows don't look stamped.
+    private static let widths: [CGFloat] = [0.46, 0.32, 0.4, 0.28]
+}
+
+/// One skeleton row; `SkeletonRows` lays them out.
+private struct SkeletonRow: View {
+    let layout: SkeletonLayout
+    let width: CGFloat
+    var body: some View {
+        HStack(alignment: layout == .category ? .top : .center, spacing: layout == .review ? CacheDropDesign.Space.lg : CacheDropDesign.Space.md) {
+            if layout == .category { Color.clear.frame(width: CacheDropDesign.Size.checkbox, height: 1) }
+            if layout != .line {
+                RoundedRectangle(cornerRadius: CacheDropDesign.Radius.row).fill(CacheDropDesign.skeleton)
+                    .frame(width: CacheDropDesign.Size.badge, height: CacheDropDesign.Size.badge)
+            }
+            GeometryReader { geometry in
+                VStack(alignment: .leading, spacing: CacheDropDesign.Space.sm) {
+                    bar(geometry.size.width * width, CacheDropDesign.Size.skeletonTitle)
+                    bar(geometry.size.width * (width + 0.22), CacheDropDesign.Size.skeletonDetail)
+                }.frame(maxHeight: .infinity, alignment: .center)
+            }.frame(height: CacheDropDesign.Size.badge)
+            Text("—").font(.callout).foregroundStyle(.secondary)
+        }.padding(layout == .review ? CacheDropDesign.Space.lg : 0).padding(.vertical, layout == .line ? CacheDropDesign.Space.sm : 0)
+    }
+    private func bar(_ width: CGFloat, _ height: CGFloat) -> some View {
+        Capsule().fill(CacheDropDesign.skeleton).frame(width: max(0, width), height: height)
+    }
+}
+
+/// The skeleton's shimmer: one soft band crossing slowly, low-contrast. Off with Reduce Motion (#308).
+private struct SkeletonShimmer: ViewModifier {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var travel: CGFloat = 0
+    func body(content: Content) -> some View {
+        content.overlay {
+            if !reduceMotion {
+                GeometryReader { geometry in
+                    LinearGradient(colors: [.clear, CacheDropDesign.skeletonShimmer.opacity(0.6), .clear], startPoint: .leading, endPoint: .trailing)
+                        .frame(width: geometry.size.width / 3)
+                        .offset(x: -geometry.size.width / 3 + travel * geometry.size.width * 4 / 3)
+                }.mask(content).allowsHitTesting(false).accessibilityHidden(true)
+                    .onAppear { withAnimation(.linear(duration: 2.4).repeatForever(autoreverses: false)) { travel = 1 } }
+            }
+        }
+    }
+}
+extension View {
+    fileprivate func skeletonShimmer() -> some View { modifier(SkeletonShimmer()) }
+    /// Rows from the last scan while a rescan runs (#308): they stay where they are, dimmed, and can't be clicked until it
+    /// ends. Never rows that look final but ignore clicks.
+    func waitingForScan(_ waiting: Bool) -> some View {
+        disabled(waiting).opacity(waiting ? CacheDropDesign.Opacity.waiting : 1).allowsHitTesting(!waiting)
+            .animation(.easeInOut(duration: 0.2), value: waiting)
+    }
+}
+
+extension CacheDropDesign {
+    /// What a disabled Review cleanup or Clean up says while a scan runs (#308).
+    static let waitForScanHelp = "Wait for the scan to finish"
+}
+
+/// A bar's main action while its click-time checks run (#308): a small spinner beside it, and the action ignores more
+/// clicks until they end.
+struct BusyAction<Content: View>: View {
+    let busy: Bool
+    @ViewBuilder var content: () -> Content
+    var body: some View {
+        HStack(spacing: CacheDropDesign.Space.sm) {
+            if busy { ProgressView().controlSize(.small).accessibilityLabel("Checking") }
+            content().disabled(busy)
+        }
+    }
 }

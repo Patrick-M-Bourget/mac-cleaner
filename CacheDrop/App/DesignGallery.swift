@@ -116,6 +116,21 @@ struct DesignGallery: View {
                         }
                     }
                     EmptyState(title: "No findings yet", detail: "Choose a folder to begin. Unknown measurements stay distinct from zero.", symbol: "folder")
+                    // #308: nothing known yet, skeleton rows in each page's layout; a rescan dims the rows already shown.
+                    Text("Waiting for a scan · Skeleton rows").font(.headline)
+                    SkeletonRows(.category, count: 2, identifier: "gallerySkeletonCategory")
+                    SkeletonRows(.review, count: 2, identifier: "gallerySkeletonReview")
+                    SkeletonRows(.line, count: 2, identifier: "gallerySkeletonLine")
+                    Text("Waiting for a scan · Rows from the last scan").font(.headline)
+                    CategoryRow(category: .browser, state: .unchecked, title: "Browser caches · Example during a rescan", detail: "Dimmed, and can’t be clicked until the scan ends.",
+                                size: "640 MB", enabled: false, identifier: "galleryWaitingRow", itemCount: nil, expanded: .constant(false), toggle: {}) {
+                        EmptyView()
+                    } items: { EmptyView() }.waitingForScan(true)
+                    Text("Busy action · Checks running after a click").font(.headline)
+                    HStack {
+                        BusyAction(busy: true) { Button("Clean up") {}.buttonStyle(.borderedProminent) }
+                        ReviewCleanupButton(enabled: false, focusRequest: 0, tooltip: CacheDropDesign.waitForScanHelp, action: {}).fixedSize()
+                    }.controlSize(.large)
                     CapacityMeter(available: nil, total: nil)
                     SettingsRow(title: "Shared navigation and brand", detail: "Reference accents identify destinations; labels and selected traits carry meaning.") {
                         AppBrand()
