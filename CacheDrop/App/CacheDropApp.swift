@@ -620,6 +620,11 @@ private struct WorkspaceView: View {
     }
     private func scanLocations(_ scopes: [RememberedScope]) {
         guard !folderInspection.isScanning, !selection.workspaceRunning else { return }
+        // Asked while History holds the maintenance lease: rechecked once it lets go, with access resolved then (#310).
+        if AppLifecycleController.shared.maintenanceInProgress {
+            AppLifecycleController.shared.afterMaintenance.waitFor("folderRecheck") { scanLocations(scopes) }
+            return
+        }
         let leases = scopes.compactMap { locationsModel.resolve($0) }
         let resolved = Set(leases.map { $0.url.standardizedFileURL.path })
         for scope in scopes where !resolved.contains(scope.path) {

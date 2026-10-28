@@ -47,8 +47,14 @@ import CacheDropCore
     }
     @Published var hasPendingPlan = false
     @Published var maintenanceInProgress = false {
-        didSet { if !maintenanceInProgress, quitPending, !operationInProgress { NSApp.terminate(nil) } }
+        didSet {
+            if !maintenanceInProgress, quitPending, !operationInProgress { NSApp.terminate(nil); return }
+            // Scans asked for while the lease was held run now (#310).
+            if oldValue, !maintenanceInProgress { afterMaintenance.released() }
+        }
     }
+    /// Scans asked for while the maintenance lease is held, run once it is released (#310).
+    let afterMaintenance = WorkAfterMaintenance()
     var quitPending = false
     /// #130: asked before quitting stops a running cleanup.
     let quitDuringCleanup = QuitDuringCleanupPrompt(ask: QuitDuringCleanupAlert.ask)

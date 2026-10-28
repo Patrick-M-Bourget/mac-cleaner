@@ -323,6 +323,12 @@ import SwiftUI
     }
     /// Read-only sizing of the catalog's known locations. False when it couldn't start: a scan or a cleanup is running.
     @discardableResult func scan() async -> Bool {
+        let lifecycle = AppLifecycleController.shared
+        // History holds the maintenance lease for a moment: scan once it lets go, never not at all (#310).
+        if lifecycle.maintenanceInProgress, !isScanning, !isRunning, !lifecycle.operationInProgress {
+            lifecycle.afterMaintenance.waitFor("catalogScan") { Task { await self.scan() } }
+            return false
+        }
         guard canEdit else { return false }
         await scanCatalog()
         // Something changed on disk while it ran, such as a Put back: scan again, as its own rescan.
