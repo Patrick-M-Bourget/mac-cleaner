@@ -365,6 +365,9 @@ public struct Candidate: Sendable, Identifiable, Hashable {
     public internal(set) var fileBytes: Int64? = nil
     /// What the scan sized: allocated bytes where known, else logical bytes.
     public var estimatedBytes: Int64 { allocatedBytes ?? logicalBytes }
+    /// Whether cleaning it frees space: anything but a move to the Trash, whose space stays used until the Trash is emptied
+    /// (SPEC section 6). Only these count in a total of space released (#350).
+    public var releasesSpace: Bool { action != .trash }
     /// Where a tool-asked rule's folder came from, shown on the item (#206): "Location from npm", or "Default location"
     /// when the tool wasn't asked successfully. Nil for every other rule.
     public internal(set) var folderSource: String? = nil

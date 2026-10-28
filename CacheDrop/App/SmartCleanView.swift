@@ -49,14 +49,9 @@ struct SmartCleanView: View {
         let items = model.recommendedCandidates
         let rows = CatalogOverview(catalog: model.catalog, candidates: items).rows
         return VStack(alignment: .leading, spacing: CacheDropDesign.Space.lg) {
-            VStack(alignment: .leading, spacing: CacheDropDesign.Space.sm) {
-                PageHeader(title: title, subtitle: "A safe plan from what takes up space. Untick anything you want to keep.")
-                    .accessibilityElement(children: .combine).accessibilityIdentifier("smartCleanHeader")
-                // "X of this goes to Trash", as under the plan's total (Decision 25).
-                if let trash = CacheDropDesign.goesToTrash(model.smartCleanCandidates) {
-                    Text(trash).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary).accessibilityIdentifier("smartCleanTrash")
-                }
-            }.padding(.bottom, CacheDropDesign.Space.sm)
+            PageHeader(title: title, subtitle: "A safe plan from what takes up space. Untick anything you want to keep.")
+                .accessibilityElement(children: .combine).accessibilityIdentifier("smartCleanHeader")
+                .padding(.bottom, CacheDropDesign.Space.sm)
             meter
             SettingsUnreadableNotice(model: model)
             if let approvalError { StatusRow(text: approvalError, symbol: "exclamationmark.circle", role: .caution, identifier: "smartCleanError") }
@@ -91,9 +86,10 @@ struct SmartCleanView: View {
         }
     }
 
-    /// "Smart clean · X ready to clean": the ticked items' size; "Up to" when part of it is copies that share disk blocks.
+    /// "Smart clean · X ready to clean": the space the ticked items release, never what goes to the Trash (#350, SPEC
+    /// section 6); "Up to" when part of it is copies that share disk blocks.
     private var title: String {
-        let ticked = model.smartCleanCandidates
+        let ticked = model.smartCleanCandidates.filter(\.releasesSpace)
         guard !ticked.isEmpty else { return "Smart clean" }
         let upperBound = ticked.contains { model.catalog.rule($0.ruleID)?.estimateIsUpperBound == true }
         return "Smart clean · " + SizeEstimate(sum: ticked.map(SizeEstimate.init)).text(upperBound: upperBound) + " ready to clean"

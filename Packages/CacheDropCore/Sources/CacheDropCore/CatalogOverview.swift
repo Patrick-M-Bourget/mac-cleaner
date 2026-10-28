@@ -59,8 +59,8 @@ public struct CatalogOverview: Sendable {
         for rule in catalog.rules where !order.contains(rule.category) && candidates.contains(where: { $0.ruleID == rule.id }) {
             order.append(rule.category)
         }
-        recommended = SizeEstimate(sum: candidates.filter { $0.action != .trash }.map(SizeEstimate.init))
-        proposedForTrash = SizeEstimate(sum: candidates.filter { $0.action == .trash }.map(SizeEstimate.init))
+        recommended = SizeEstimate(sum: candidates.filter(\.releasesSpace).map(SizeEstimate.init))
+        proposedForTrash = SizeEstimate(sum: candidates.filter { !$0.releasesSpace }.map(SizeEstimate.init))
         rows = order.map { category in
             let rules = catalog.rules.filter { rule in rule.category == category && candidates.contains { $0.ruleID == rule.id } }
             let ids = Set(rules.map(\.id))

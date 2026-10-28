@@ -74,13 +74,6 @@ enum CacheDropDesign {
     /// mode so a meter segment keeps 3:1 against the track (#164).
     static var indigo: Color { adaptive(light: 0x5856D6, dark: 0x8583F5) }
     static func files(_ count: Int) -> String { "\(count) \(count == 1 ? "file" : "files")" }
-    /// "X of this goes to Trash" under a selection's total, only when some of `selection` goes to the Trash (Decision 25),
-    /// where that space stays used until the Trash is emptied.
-    static func goesToTrash(_ selection: [Candidate]) -> String? {
-        let trash = selection.filter { $0.action == .trash }
-        guard !trash.isEmpty else { return nil }
-        return SmartCleanConsequence.goesToTrash(ByteCountFormatter.string(fromByteCount: trash.reduce(0) { $0 + $1.estimatedBytes }, countStyle: .decimal))
-    }
     static func items(_ count: Int) -> String { "\(count) \(count == 1 ? "item" : "items")" }
     static var capacityFill: Color { adaptive(light: 0x969BA7, dark: 0x858997) }
     static var capacityTrack: Color { adaptive(light: 0xECEEF2, dark: 0x33343D) }
@@ -238,20 +231,19 @@ struct SelectionSummary: View {
     var identifier = ""
     var consequence: String? = nil
     var title = "Selected for Trash"
-    var consequenceIdentifier = ""
     var body: some View {
         VStack(alignment: .leading, spacing: CacheDropDesign.Space.md) {
         SummarySurface {
             HStack(alignment: .center) {
                 VStack(alignment: .leading, spacing: CacheDropDesign.Space.sm) {
                     Text(title).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
-                    Text(value).font(CacheDropDesign.TypeStyle.value).monospacedDigit()
+                    Text(value).font(CacheDropDesign.TypeStyle.value).monospacedDigit().accessibilityIdentifier(identifier.isEmpty ? "" : identifier + "Value")
                 }
                 Spacer(minLength: CacheDropDesign.Space.lg)
                 Text(detail).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary).multilineTextAlignment(.trailing).accessibilityIdentifier(identifier)
             }
         }
-        if let consequence { Text(consequence).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true).accessibilityIdentifier(consequenceIdentifier) }
+        if let consequence { Text(consequence).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true) }
         }
     }
 }

@@ -550,13 +550,16 @@ final class CatalogCleanupUITests: XCTestCase {
         if !item.waitForExistence(timeout: 2) { expandDisclosures(in: app) }
         XCTAssertTrue(item.waitForExistence(timeout: 5))
         XCTAssertEqual(item.value as? Int, 0)
-        XCTAssertFalse(app.staticTexts["liveSelectionTrash"].exists)
+        // #350: the installer goes to the Trash, so the total doesn't count it, and nothing on the page moves.
+        let total = app.staticTexts["liveSelectionSummaryValue"], before = total.value as? String
+        let below = app.checkBoxes["planCategory-developer"], top = below.frame.minY
         revealAndClick(item, in: app)
         XCTAssertEqual(item.value as? Int, 1)
         XCTAssertEqual(app.checkBoxes["planItem-Other.pkg"].value as? Int, 0)
         // The installer goes to Trash, so the summary says how much of the total does.
-        XCTAssertTrue(app.staticTexts["liveSelectionTrash"].waitForExistence(timeout: 5))
-        XCTAssertTrue((app.staticTexts["liveSelectionTrash"].value as? String)?.hasSuffix(" of this goes to Trash") == true)
+        XCTAssertEqual(total.value as? String, before, "The Trash-bound installer releases nothing until the Trash is emptied")
+        XCTAssertFalse(app.staticTexts.matching(NSPredicate(format: "value ENDSWITH 'of this goes to Trash'")).firstMatch.exists)
+        XCTAssertEqual(below.frame.minY, top, "The rows stay where they were")
         app.buttons["Review cleanup"].click()
 
         XCTAssertTrue(reviewLine(app, "movedToTrash", "downloads").waitForExistence(timeout: 5))
@@ -1679,11 +1682,16 @@ extension CatalogCleanupUITests {
         func text(_ line: String) -> XCUIElementQuery { app.staticTexts.matching(NSPredicate(format: "label == %@ OR value == %@", line, line)) }
         XCTAssertEqual(text("Goes to the Trash; Put back works").count, 2, "Installers and leftovers")
         XCTAssertEqual(text("Comes back on its own when your tools and Xcode need it; some tools clean their own").count, 1)
-        XCTAssertTrue(app.staticTexts["smartCleanTrash"].exists, "X of this goes to Trash")
+        // #350: the title counts only what is released, so unticking the Trash-bound installers leaves it as it is.
+        let header = app.descendants(matching: .any)["smartCleanHeader"], titleBefore = header.label
 
+        // #350: unticking the Trash-bound installers changes nothing above the bar.
+        let developerTop = developer.frame.minY
         revealAndClick(downloads, in: app)
         XCTAssertEqual(downloads.value as? Int, 0)
         XCTAssertEqual(developer.value as? Int, 1)
+        XCTAssertEqual(developer.frame.minY, developerTop, "Nothing above the bar moved")
+        XCTAssertEqual(header.label, titleBefore, "Installers go to the Trash and were never in the total")
         app.buttons["smartCleanCleanUp"].click()
 
         XCTAssertTrue(reviewLine(app, "permanentlyRemoved", "developer").waitForExistence(timeout: 10), "The npm cache")
