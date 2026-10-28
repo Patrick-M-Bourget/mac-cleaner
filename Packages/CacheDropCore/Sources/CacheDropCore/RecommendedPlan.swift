@@ -11,8 +11,9 @@ public struct RecommendedPlan: Sendable {
     /// `now` dates the installers: one is taken only when nothing opened or changed it in `installerUnusedDays`.
     public init(catalog: Catalog, candidates: [Candidate], now: Date = Date(), check: (Candidate) -> CheckRefusal?) {
         self.candidates = candidates.filter { candidate in
-            // Unknown is never 0, and never recommended (SPEC section 1).
-            guard SizeEstimate(candidate) != .unknown, let rule = catalog.rule(candidate.ruleID), Self.recommends(candidate, rule: rule, now: now) else { return false }
+            // Unknown is never 0, and never recommended (SPEC section 1); nor is an item that measures 0 bytes, which frees nothing (#319).
+            let size = SizeEstimate(candidate)
+            guard size != .unknown, size != .measured(0), let rule = catalog.rule(candidate.ruleID), Self.recommends(candidate, rule: rule, now: now) else { return false }
             return check(candidate) == nil
         }
     }

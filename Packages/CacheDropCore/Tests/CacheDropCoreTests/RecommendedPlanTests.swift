@@ -33,6 +33,12 @@ private func recommended(_ items: [Candidate], refusing refused: [String: CheckR
     #expect(recommended([item("npm-cache", bytes: 5_000, complete: false)]) == ["npm-cache"])
 }
 
+@Test func anItemThatMeasuresZeroBytesIsNotRecommended() {
+    // #319: nothing to free, so nothing to list (owner's review of the real-home report).
+    #expect(recommended([item("npm-cache", bytes: 0)]).isEmpty)
+    #expect(recommended([item("homebrew", bytes: 0), item("app-logs", bytes: 1)]) == ["app-logs"])
+}
+
 @Test func anItemTheChecksWouldRefuseIsNotRecommended() {
     #expect(recommended([item("npm-cache")], refusing: ["npm-cache": .ownerRunning("npm")]).isEmpty)
     #expect(recommended([item("npm-cache")], refusing: ["npm-cache": .ownerUnknown("npm")]).isEmpty)
