@@ -230,24 +230,13 @@ private struct WorkspaceView: View {
                 AppearancePreferenceNotice(notice: appearance.notice, retry: { appearance.retrySaving() })
                     .padding(.horizontal, CacheDropDesign.Space.page)
                 if nativeInspectionVisible {
-                    StorageExplorerView(model: folderInspection, selection: selection, context: explorerContext,
-                        caller: explorerCaller.rawValue, back: { nativeInspectionVisible = false; destination = explorerCaller }, unavailable: explorerUnavailable)
-                    // "N selected", then Add to cleanup plan once something is ticked (#320).
-                    ActionStrip(message: explorerSelectedCount > 0 ? "\(explorerSelectedCount) selected" : nil) {
-                        Button("Add to cleanup plan", action: addExplorerSelectionToPlan).buttonStyle(.borderedProminent).disabled(explorerSelectedCount == 0 || selection.workspaceRunning)
-                    }
+                    explorerPage
                 } else if showsPlan {
-                    LiveCleanupPlanView(selection: selection,
-                        viewHistory: { destination = .history }, newPlan: startNewPlan,
-                        reviewRecovery: { openRecovery(caller: .plan) },
-                        backToExplorer: planBack,
-                        backToExplorerDestination: navigationState.planReturnsToGrowth ? Destination.growth.rawValue : explorerContext.title,
-                        presentation: planPresentation, exploreStorage: { exploreStorage(caller: .plan) })
+                    planPage
                 } else if showsSmartClean {
-                    SmartCleanView(selection: selection, openPlan: { openPlan($0) }, viewHistory: { navigate(.history) }, reviewRecovery: { openRecovery(caller: .smartClean) },
-                                   presentation: smartCleanPresentation, scanAgain: { if canScanAgain { scanAgain() } })
+                    smartCleanPage
                 } else if showsApplications {
-                    ApplicationsView(selection: selection, model: ApplicationsModel.shared, viewHistory: { navigate(.history) }, reviewRecovery: { openRecovery(caller: .applications) })
+                    applicationsPage
                 } else {
                 scrollingPage
                 pageBar
@@ -599,6 +588,36 @@ private struct WorkspaceView: View {
     }
     /// Explore storage, as Overview's link and the empty states lead there (#320, #321): with no scanned folder yet,
     /// Locations & access, where folders are added.
+    /// Explore storage with its bar: "N selected", then Add to cleanup plan once something is ticked (#320).
+    @ViewBuilder private var explorerPage: some View {
+        StorageExplorerView(model: folderInspection, selection: selection, context: explorerContext,
+            caller: explorerCaller.rawValue, back: { nativeInspectionVisible = false; destination = explorerCaller }, unavailable: explorerUnavailable)
+        ActionStrip(message: explorerSelectedMessage) {
+            Button("Add to cleanup plan", action: addExplorerSelectionToPlan).buttonStyle(.borderedProminent).disabled(!canAddExplorerSelection)
+        }
+    }
+    private var explorerSelectedMessage: String? { explorerSelectedCount > 0 ? "\(explorerSelectedCount) selected" : nil }
+    private var canAddExplorerSelection: Bool { explorerSelectedCount > 0 && !selection.workspaceRunning }
+
+    private var planPage: some View {
+        let backDestination: String = navigationState.planReturnsToGrowth ? Destination.growth.rawValue : explorerContext.title
+        return LiveCleanupPlanView(selection: selection,
+            viewHistory: { destination = .history }, newPlan: startNewPlan,
+            reviewRecovery: { openRecovery(caller: .plan) },
+            backToExplorer: planBack,
+            backToExplorerDestination: backDestination,
+            presentation: planPresentation, exploreStorage: { exploreStorage(caller: .plan) })
+    }
+
+    private var smartCleanPage: some View {
+        SmartCleanView(selection: selection, openPlan: { openPlan($0) }, viewHistory: { navigate(.history) }, reviewRecovery: { openRecovery(caller: .smartClean) },
+                       presentation: smartCleanPresentation, scanAgain: { if canScanAgain { scanAgain() } })
+    }
+
+    private var applicationsPage: some View {
+        ApplicationsView(selection: selection, model: ApplicationsModel.shared, viewHistory: { navigate(.history) }, reviewRecovery: { openRecovery(caller: .applications) })
+    }
+
     /// The pages that scroll above the bar: Recovery, Local records, Protected items, App-managed storage and the sidebar destinations.
     @ViewBuilder private var scrollingPage: some View {
     ScrollView {
