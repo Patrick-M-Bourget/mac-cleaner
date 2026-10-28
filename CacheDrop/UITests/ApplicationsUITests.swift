@@ -182,8 +182,8 @@ final class ApplicationsUITests: XCTestCase {
     }
 
     /// #303, #306: an uninstall rescans when it ends. After Done, while that scan runs, the bar shows its progress and the
-    /// other app's row says it is being checked; then its checkbox comes back.
-    @MainActor func testApplicationsRescansAfterAnUninstallAndRowsSayTheyAreBeingChecked() throws {
+    /// other app's row stays, dimmed (#308); then its checkbox comes back.
+    @MainActor func testApplicationsRescansAfterAnUninstallAndRowsWaitDimmed() throws {
         continueAfterFailure = false
         let app = XCUIApplication()
         let state = try configureIsolatedState(app)
@@ -206,10 +206,11 @@ final class ApplicationsUITests: XCTestCase {
         app.buttons["Done"].click()
 
         XCTAssertTrue(app.staticTexts["catalogScanProgress"].waitForExistence(timeout: 10), "The run rescans, and the bar shows its progress")
-        XCTAssertTrue(element(app, "applicationsChecking-" + pad.path).waitForExistence(timeout: 5), "A row says it is being checked")
+        // #308: the row stays listed, dimmed and without its checkbox, until the rescan says what can go with it.
+        XCTAssertTrue(element(app, "applicationsApp-" + pad.path).waitForExistence(timeout: 5), "The row stays listed during the rescan")
         let padRow = element(app, "applicationsApp-" + pad.path, .checkBox)
+        XCTAssertFalse(padRow.exists, "No checkbox until the scan says what can go with it")
         XCTAssertTrue(padRow.waitForExistence(timeout: 120), "Its checkbox comes back after the scan")
-        XCTAssertFalse(element(app, "applicationsChecking-" + pad.path).exists)
     }
 
     /// #306: Put back from History rescans, so the app it returned is listed on Applications again without Scan again.
@@ -306,7 +307,7 @@ final class ApplicationsUITests: XCTestCase {
         XCTAssertTrue(app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "Uninstalled Pro Synth · 1 item")).firstMatch.waitForExistence(timeout: 10))
     }
 
-    /// #270: while the scan runs each section says it is looking; a section that finds nothing says so.
+    /// #270, #308: while the scan runs each section shows skeleton rows; a section that finds nothing says so.
     @MainActor func testSectionsShowLoadingThenEmptyStates() throws {
         continueAfterFailure = false
         let app = XCUIApplication()

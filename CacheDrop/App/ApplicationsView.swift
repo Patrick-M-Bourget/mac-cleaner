@@ -73,7 +73,10 @@ struct ApplicationsView: View {
             CleanupActionBar(selection: selection, source: .applications, viewHistory: viewHistory, reviewRecovery: reviewRecovery) {
                 Button("Done") { selection.dismissResult() }.buttonStyle(.borderedProminent)
             } idle: {
-                ReviewCleanupButton(enabled: selection.canReviewApplications, focusRequest: reviewFocusRequest) { Task { await openReview() } }.fixedSize()
+                BusyAction(busy: selection.isCheckingReview) {
+                    ReviewCleanupButton(enabled: selection.canReviewApplications && !selection.isCheckingReview, focusRequest: reviewFocusRequest,
+                                        tooltip: catalog.isScanning ? CacheDropDesign.waitForScanHelp : nil) { Task { await openReview() } }.fixedSize()
+                }
             }
         }
         .sheet(item: $review, onDismiss: { reviewFocusRequest += 1 }) { snapshot in
@@ -101,7 +104,7 @@ struct ApplicationsView: View {
                     empty: ("No plug-ins to list", "No audio plug-ins other than Apple’s were found."))
             Text("Leftovers").font(CacheDropDesign.TypeStyle.section)
             if let row = catalog.leftoversRow {
-                PlanCategoryRow(model: catalog, row: row, expanded: $leftoversExpanded)
+                PlanCategoryRow(model: catalog, row: row, expanded: $leftoversExpanded).waitingForScan(catalog.isScanning)
             } else if catalog.hasScanned && !catalog.isScanning {
                 state("No leftovers", "Apps you removed left nothing behind that CacheDrop can tie to them.", symbol: "checkmark.circle", id: "applicationsEmpty-leftovers")
             } else {
@@ -110,7 +113,7 @@ struct ApplicationsView: View {
         }.padding(CacheDropDesign.Space.page).frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    /// A section's lists come after the catalog scan; until then, and while they are read, it says it is looking (#270).
+    /// A section's lists come after the catalog scan; until then, and while they are read, it shows skeleton rows (#270, #308).
     private var listsLoading: Bool { !model.hasLoaded || model.isLoading || catalog.isScanning }
 
     @ViewBuilder private func section(_ title: String, id: String, entries: [InventoryEntry], category: StorageCategory, identifier: String,
@@ -119,18 +122,17 @@ struct ApplicationsView: View {
         if entries.isEmpty {
             if listsLoading { loading(id) } else { state(empty.title, empty.detail, symbol: "tray", id: "applicationsEmpty-" + id) }
         } else {
+            // Rows from the last scan stay, dimmed, until the rescan says what can go with each (#303, #308).
             VStack(alignment: .leading, spacing: 0) {
                 ForEach(entries) { entry in
                     row(entry, category: category, identifier: identifier + entry.id)
                     Divider().padding(.vertical, CacheDropDesign.Space.md)
                 }
-            }
+            }.waitingForScan(listsLoading)
         }
     }
 
-    private func loading(_ id: String) -> some View {
-        state("Looking…", "This fills in when the scan finishes.", symbol: "hourglass", id: "applicationsLoading-" + id)
-    }
+    private func loading(_ id: String) -> some View { SkeletonRows(.category, count: 2, identifier: "applicationsLoading-" + id) }
     private func state(_ title: String, _ detail: String, symbol: String, id: String) -> some View {
         EmptyState(title: title, detail: detail, symbol: symbol).accessibilityElement(children: .combine).accessibilityIdentifier(id)
     }
@@ -183,10 +185,8 @@ struct ApplicationsView: View {
             } else if catalog.hasScanned, !catalog.isScanning {
                 // A removable app the scan didn't offer says why, rather than showing a bare row (#281).
                 StatusRow(text: "Not offered: in Protected items, or changed since the scan", identifier: "applicationsNotOffered-" + entry.id)
-            } else {
-                // Until the scan says what can go with it, the row says so rather than looking final (#303).
-                StatusRow(text: "Checking what can be removed…", symbol: "hourglass", identifier: "applicationsChecking-" + entry.id)
             }
+            // Until the scan says what can go with it, the row is dimmed rather than looking final (#303, #308).
         } items: {
             if !uninstall.isEmpty {
                 VStack(alignment: .leading, spacing: CacheDropDesign.Space.sm) {
@@ -229,7 +229,9 @@ struct ApplicationsView: View {
     }
 
     private func openReview() async {
-        do { review = try await selection.prepareApplicationsReview(); approvalError = nil }
-        catch { approvalError = PlanReviewError.changedMessage }
+        do {
+            guard let checked = try await selection.checkingReview(selection.prepareApplicationsReview) else { return }
+            review = checked; approvalError = nil
+        } catch { approvalError = PlanReviewError.changedMessage }
     }
 }
