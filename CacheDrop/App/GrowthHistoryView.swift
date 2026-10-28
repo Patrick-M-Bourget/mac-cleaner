@@ -72,6 +72,8 @@ enum GrowthPresentation {
     }
     /// A category group's title, as in Overview.
     static func categoryTitle(_ category: CatalogCategory?) -> String { category?.overviewTitle ?? "Other" }
+    /// The title mid-sentence: only its first letter lowered, so "Downloaded iCloud files" keeps its "iCloud".
+    static func inSentence(_ category: CatalogCategory?) -> String { let title = categoryTitle(category); return title.prefix(1).lowercased() + title.dropFirst() }
     static func storageCategory(_ category: CatalogCategory?) -> StorageCategory { category?.storageCategory ?? .managed }
     static func coverage(_ change: GrowthCoverageChange) -> String {
         switch change.kind {
@@ -174,14 +176,11 @@ struct GrowthHistoryView: View {
                 }
             }
         }
-        if let top = comparison.groups.filter({ $0.dimension == .category && $0.logicalDelta > 0 }).max(by: { $0.logicalDelta < $1.logicalDelta }) {
+        if let top = comparison.mostGrowth {
             SummarySurface {
                 HStack(alignment: .top, spacing: CacheDropDesign.Space.md) {
                     CategoryBadge(category: GrowthPresentation.storageCategory(top.category))
-                    VStack(alignment: .leading, spacing: CacheDropDesign.Space.xs) {
-                        Text("Most growth is in " + GrowthPresentation.categoryTitle(top.category).lowercased() + ".").font(CacheDropDesign.TypeStyle.rowTitle)
-                        Text("Review plan shows what can be cleaned there now.").font(CacheDropDesign.TypeStyle.note).foregroundStyle(.secondary)
-                    }
+                    Text("Most growth is in " + GrowthPresentation.inSentence(top.category) + ".").font(CacheDropDesign.TypeStyle.rowTitle)
                 }
             }
         }

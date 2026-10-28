@@ -200,6 +200,25 @@ enum PlanReviewError: Error {
     }
 }
 
+/// Scrolls the plan to `presentation.scrollTarget` once its row is drawn, after the viewport settles (#351). A target the
+/// plan can't show now (a run's results, or nothing found there) is dropped, so it never jumps the plan later.
+private struct PlanScrollTarget: ViewModifier {
+    let selection: SessionPlan
+    let presentation: CleanupPlanPresentation
+    let proxy: ScrollViewProxy
+    func body(content: Content) -> some View {
+        content.onAppear(perform: scroll)
+            .onChange(of: presentation.scrollTarget) { _, _ in scroll() }
+            .onChange(of: selection.catalog.hasScanned) { _, _ in scroll() }
+    }
+    private func scroll() {
+        guard let target = presentation.scrollTarget, selection.catalog.hasScanned else { return }
+        presentation.scrollTarget = nil
+        guard !selection.showsRun(for: .plan), selection.catalog.plans(target) else { return }
+        DispatchQueue.main.async { withAnimation(nil) { proxy.scrollTo(target, anchor: .top) } }
+    }
+}
+
 @MainActor @Observable final class CleanupPlanPresentation {
     var search = ""
     var choosingItems = false
@@ -207,7 +226,11 @@ enum PlanReviewError: Error {
     var offset: CGPoint?
     /// Categories whose "Choose items" is open; opening a category from Overview opens it.
     var expandedCategories: Set<CatalogCategory> = []
-    func reset() { search = ""; choosingItems = false; inspected = nil; offset = nil; expandedCategories = [] }
+    /// A category to bring into view once the plan shows it (#351); cleared once scrolled to.
+    var scrollTarget: CatalogCategory?
+    func reset() { search = ""; choosingItems = false; inspected = nil; offset = nil; expandedCategories = []; scrollTarget = nil }
+    /// Opens `category` and scrolls to it, instead of restoring where the plan was left (#351).
+    func reveal(_ category: CatalogCategory) { expandedCategories.insert(category); scrollTarget = category; offset = nil }
 }
 
 /// Smart clean's open categories (#219): its own, separate from the plan's, kept until CacheDrop quits. Categories start collapsed.
@@ -230,6 +253,7 @@ struct LiveCleanupPlanView: View {
     @State private var reviewFocusRequest = 0
     var body: some View {
         VStack(spacing: 0) {
+        ScrollViewReader { proxy in
         ScrollView {
         if selection.showsRun(for: .plan) {
             CleanupRunSection(selection: selection)
@@ -250,7 +274,8 @@ struct LiveCleanupPlanView: View {
         }.padding(CacheDropDesign.Space.page).frame(maxWidth: .infinity, alignment: .leading)
             .background(alignment: .topLeading) { DestinationViewport(offset: $presentation.offset).frame(width: 0, height: 0) }
         }
-        }.background(CacheDropDesign.reading)
+        }.background(CacheDropDesign.reading).modifier(PlanScrollTarget(selection: selection, presentation: presentation, proxy: proxy))
+        }
         CleanupActionBar(selection: selection, source: .plan, viewHistory: viewHistory, reviewRecovery: reviewRecovery) {
             if let newPlan { Button("Start a new plan", action: newPlan).buttonStyle(.borderedProminent) }
         } idle: {

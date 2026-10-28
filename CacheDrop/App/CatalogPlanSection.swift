@@ -20,6 +20,7 @@ struct CatalogPlanSection: View {
                     ForEach(model.planCategories) { row in
                         PlanCategoryRow(model: model, row: row, expanded: Binding(get: { expanded.contains(row.category) },
                                                                                  set: { if $0 { expanded.insert(row.category) } else { expanded.remove(row.category) } }))
+                            .id(row.category)
                         Divider().padding(.vertical, CacheDropDesign.Space.md)
                     }
                 }.waitingForScan(model.isScanning)

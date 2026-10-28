@@ -276,6 +276,8 @@ import SwiftUI
     /// The plan's categories, grouped as Overview groups them, picked folders' files included. Leftovers of removed apps
     /// are on the Applications page instead (Decision 51).
     var planCategories: [CatalogOverview.Row] { CatalogOverview(catalog: catalog, candidates: candidates).rows.filter { CleanupSelections.Source.page(of: $0) == .plan } }
+    /// Whether the plan has a row for `category` now.
+    func plans(_ category: CatalogCategory) -> Bool { planCategories.contains { $0.category == category } }
     /// The Applications page's Leftovers row; nil when none were found.
     var leftoversRow: CatalogOverview.Row? { CatalogOverview(catalog: catalog, candidates: candidates).rows.first { $0.category == .leftovers } }
     /// The items to uninstall an Applications row with, by its id (`AppUninstall.Target.path`): an installed app's (#177), or
