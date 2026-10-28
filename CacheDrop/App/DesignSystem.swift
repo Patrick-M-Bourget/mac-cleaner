@@ -16,7 +16,7 @@ enum CacheDropDesign {
         static let meterGap: CGFloat = 2; static let meterSegmentMinimum: CGFloat = 3
         /// The bottom bar's row: a large button's height, so the bar is the same with or without buttons or progress (#220).
         static let actionStripRow: CGFloat = 32
-        /// A page header's search field (#295), as wide as the prototype's.
+        /// A page's search field (#295), under its header's description (#352), as wide as the prototype's.
         static let searchField: CGFloat = 210
         /// A skeleton row's title and detail bars (#308), about the height of the text they stand in for.
         static let skeletonTitle: CGFloat = 11; static let skeletonDetail: CGFloat = 8
@@ -188,6 +188,53 @@ struct PageHeader: View {
             Text(title).font(CacheDropDesign.TypeStyle.page).tracking(-0.6)
             if let subtitle { Text(subtitle).font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true) }
         }.frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+/// A page's one search field (#295), just under its header's description (#352): a rounded field with a plain prompt.
+struct PageSearchField: View {
+    let label: String
+    let prompt: String
+    @Binding var text: String
+    let identifier: String
+    var body: some View {
+        TextField(label, text: $text, prompt: Text(prompt)).labelsHidden().textFieldStyle(.roundedBorder)
+            .frame(width: CacheDropDesign.Size.searchField).accessibilityIdentifier(identifier)
+    }
+}
+/// A list's column header, as Explore storage's "Name … On disk" (#352): the name column's label, then, right-aligned, the
+/// value column's label or a control in its place, such as the list's `SortMenu`; a divider closes it. `insets` line the
+/// labels up with the rows' own columns.
+struct ColumnHeader<Trailing: View>: View {
+    let leading: String
+    var insets = EdgeInsets(top: 0, leading: CacheDropDesign.Space.md, bottom: 0, trailing: CacheDropDesign.Space.md)
+    @ViewBuilder var trailing: () -> Trailing
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: CacheDropDesign.Space.md) {
+                Text(leading)
+                Spacer(minLength: CacheDropDesign.Space.md)
+                trailing()
+            }.font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
+                .padding(insets).padding(.bottom, CacheDropDesign.Space.sm)
+            Divider()
+        }
+    }
+}
+extension ColumnHeader where Trailing == Text {
+    /// A header whose value column has a plain label, such as "On disk".
+    init(_ leading: String, trailing: String,
+         insets: EdgeInsets = EdgeInsets(top: 0, leading: CacheDropDesign.Space.md, bottom: 0, trailing: CacheDropDesign.Space.md)) {
+        self.init(leading: leading, insets: insets) { Text(trailing) }
+    }
+}
+/// A list's Sort (#352), right-aligned in its `ColumnHeader` rather than a separate control: a small menu, "Sort by <order>".
+struct SortMenu<Order: Hashable & CaseIterable & RawRepresentable<String>>: View where Order.AllCases: RandomAccessCollection {
+    @Binding var order: Order
+    let identifier: String
+    var body: some View {
+        Picker("Sort by", selection: $order) {
+            ForEach(Order.allCases, id: \.self) { Text($0.rawValue).tag($0) }
+        }.pickerStyle(.menu).controlSize(.small).fixedSize().accessibilityIdentifier(identifier)
     }
 }
 /// The one back button (Decision 47): small, borderless and secondary, just above the page title, reading
