@@ -19,7 +19,7 @@ import CacheDropCore
 @Test func sidebarCapacityWithoutAConsistentTotalShowsAvailableAlone() {
     for total: Int64? in [nil, 0, 100_000_000_000] {
         let text = SidebarCapacityText(available: 312_000_000_000, total: total)
-        #expect(text.line == "312 GB available")
+        #expect(text.line == "312 GB free", "As the line with a total, and the menu bar")
         #expect(text.description == "312 GB available · Total capacity unavailable")
     }
 }

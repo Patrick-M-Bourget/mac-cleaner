@@ -14,8 +14,8 @@ public struct SidebarCapacityText: Sendable, Equatable {
             line = "\(bytes(available)) free of \(bytes(total))"
             description = "\(bytes(available)) available of \(bytes(total))"
         } else {
-            line = "\(bytes(available)) available"
-            description = line + " · Total capacity unavailable"
+            line = "\(bytes(available)) free"
+            description = "\(bytes(available)) available · Total capacity unavailable"
         }
     }
     /// The total, when it and the available space are a consistent whole-disk reading.
