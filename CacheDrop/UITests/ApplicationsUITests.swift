@@ -132,6 +132,55 @@ final class ApplicationsUITests: XCTestCase {
         XCTAssertTrue(app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "Uninstalled Synth · 3 items")).firstMatch.waitForExistence(timeout: 10))
     }
 
+    /// #305: two apps of one maker. Each row offers only its own files, though the other keeps the maker installed, and once
+    /// Synth is uninstalled, Pad's row is unchanged: Synth's untouched support folder is offered nowhere while Pad is installed.
+    @MainActor func testAppsOfOneMakerAreEachUninstalledWithOnlyTheirOwnFiles() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        let state = try configureIsolatedState(app)
+        let home = try configureCatalogHome(app)
+        defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
+        let synth = try addApp("Synth", id: "com.maker.synth", bytes: 90_000, in: home)
+        let pad = try addApp("Pad", id: "com.maker.pad", bytes: 90_000, in: home)
+        let synthFiles = ["Library/Preferences/com.maker.synth.plist", "Library/Containers/com.maker.synth/Data/state.db"].map(home.appendingPathComponent)
+        let padFiles = ["Library/Preferences/com.maker.pad.plist", "Library/Containers/com.maker.pad/Data/state.db"].map(home.appendingPathComponent)
+        let related = home.appendingPathComponent("Library/Application Support/Synth/presets.db")
+        for file in synthFiles + padFiles + [related] {
+            try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try Data(repeating: 4, count: 60_000).write(to: file)
+        }
+        app.launch()
+        waitForCatalogScan(app)
+        app.typeKey("5", modifierFlags: .command)
+
+        let synthRow = element(app, "applicationsApp-" + synth.path, .checkBox)
+        XCTAssertTrue(synthRow.waitForExistence(timeout: 10))
+        func choose(_ count: Int) -> XCUIElement { app.disclosureTriangles.matching(NSPredicate(format: "label == %@", "Choose items · \(count)")).firstMatch }
+        XCTAssertTrue(choose(4).exists, "Synth: the app, its preferences and container, and the folder named like it")
+        XCTAssertTrue(choose(3).exists, "Pad: the app, its preferences and container")
+        revealAndClick(synthRow, in: app)
+        expandDisclosures(in: app)
+        XCTAssertEqual(app.checkBoxes["planItem-com.maker.synth.plist"].value as? Int, 1, "Its own preferences are ticked with it")
+        XCTAssertEqual(app.checkBoxes["planItem-com.maker.pad.plist"].value as? Int, 0, "Pad's are Pad's")
+
+        app.buttons["Review cleanup"].click()
+        XCTAssertTrue(app.buttons["Clean up"].waitForExistence(timeout: 5))
+        cleanUpFromReview(app)
+        XCTAssertTrue(app.buttons["Done"].waitForExistence(timeout: 20))
+        for file in synthFiles { XCTAssertFalse(FileManager.default.fileExists(atPath: file.path), file.path) }
+        for file in padFiles + [related] { XCTAssertTrue(FileManager.default.fileExists(atPath: file.path), file.path) }
+        app.buttons["Done"].click()
+
+        let padRow = element(app, "applicationsApp-" + pad.path, .checkBox)
+        XCTAssertTrue(padRow.waitForExistence(timeout: 120), "The rescan lists Pad again")
+        XCTAssertFalse(synthRow.exists)
+        XCTAssertTrue(choose(3).waitForExistence(timeout: 5), "Pad's row is unchanged")
+        XCTAssertFalse(choose(4).exists)
+        expandDisclosures(in: app)
+        XCTAssertFalse(app.checkBoxes["planItem-Synth"].exists, "Synth's folder is never offered as Pad's, nor as a leftover while Pad is installed")
+        XCTAssertFalse(app.checkBoxes["planCategory-leftovers"].exists)
+    }
+
     /// #303, #306: an uninstall rescans when it ends. After Done, while that scan runs, the bar shows its progress and the
     /// other app's row says it is being checked; then its checkbox comes back.
     @MainActor func testApplicationsRescansAfterAnUninstallAndRowsSayTheyAreBeingChecked() throws {
