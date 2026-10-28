@@ -277,24 +277,6 @@ struct SettingsRow<Content: View>: View {
         }.padding(.vertical, CacheDropDesign.Space.sm).frame(maxWidth: .infinity, alignment: .leading)
     }
 }
-struct FindingRow<Accessory: View>: View {
-    let category: StorageCategory
-    let title: String
-    let detail: String
-    var consequence: String? = nil
-    @ViewBuilder var accessory: () -> Accessory
-    var body: some View {
-        HStack(alignment: .top, spacing: CacheDropDesign.Space.lg) {
-            CategoryBadge(category: category)
-            VStack(alignment: .leading, spacing: CacheDropDesign.Space.xs) {
-                Text(title).font(CacheDropDesign.TypeStyle.section)
-                Text(detail).font(.callout).foregroundStyle(.secondary)
-                if let consequence { Text(consequence).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true) }
-            }.frame(maxWidth: .infinity, alignment: .leading)
-            accessory()
-        }.padding(.vertical, CacheDropDesign.Space.md)
-    }
-}
 /// One quiet review group: category colors identify storage, never cleanup safety.
 struct RecommendationGroup<Content: View>: View {
     @Environment(\.colorSchemeContrast) private var contrast
@@ -837,48 +819,6 @@ struct NativeWindowContract: NSViewRepresentable {
         }
     }
 }
-
-/// Bounded preliminary evidence; never offers selection or execution controls.
-struct ScanProgressSummary: View {
-    let inspectedEntries: Int
-    let logicalSubtotal: String
-    let recentNames: [String]
-    var phaseMessage = "Reading file metadata…"
-    var body: some View {
-        SummarySurface {
-            VStack(alignment: .leading, spacing: CacheDropDesign.Space.md) {
-                HStack(spacing: CacheDropDesign.Space.sm) {
-                    ProgressView().controlSize(.small).accessibilityHidden(true)
-                    Text(phaseMessage).accessibilityIdentifier("scanPhase")
-                }
-                StatusRow(text: "\(inspectedEntries) entries inspected so far · Preliminary observations", identifier: "scanProgressSummary")
-                Text("Known logical subtotal: \(logicalSubtotal) · Coverage incomplete")
-                    .font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
-                ForEach(Array(recentNames.prefix(5).enumerated()), id: \.offset) { _, name in
-                    Text(name).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
-                }
-            }
-        }
-    }
-}
-
-/// A category before it has usable scan evidence: still recognizable, with the action that gets the evidence.
-struct CategoryPrerequisite: View {
-    let title: String
-    let detail: String
-    let actionTitle: String
-    let enabled: Bool
-    let action: () -> Void
-    var body: some View {
-        VStack(alignment: .leading, spacing: CacheDropDesign.Space.md) {
-            CategorySelectionHeader(category: .downloads, state: .unchecked, title: "Downloads", detail: detail,
-                                    size: title, enabled: false, action: {})
-            Button(actionTitle, action: action).disabled(!enabled)
-                .padding(.leading, CacheDropDesign.Space.xl)
-        }
-    }
-}
-
 
 struct LocationScopeRow<Actions: View>: View {
     let name: String

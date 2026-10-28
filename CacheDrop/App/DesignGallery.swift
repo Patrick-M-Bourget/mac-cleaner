@@ -58,9 +58,6 @@ struct DesignGallery: View {
                     LocalRecordsMaintenanceControls(enabled: false, clear: {}, reset: {})
                     Text("Synthetic Full Disk Access row · Live status check only").font(.headline)
                     FullDiskAccessSetting()
-                    NotAccessibleRow(title: "Safari cache")
-                    CategoryPrerequisite(title: "Not scanned", detail: "Scan the included Downloads locations before choosing files.", actionTitle: "Scan Downloads…", enabled: true, action: {})
-                    CategoryPrerequisite(title: "No eligible files", detail: "No eligible files in this inspected location.", actionTitle: "Scan Downloads again", enabled: true, action: {})
                     ExplorerInspector(name: "Camera guide.pdf", close: {}) {
                         Text("Location").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
                         Text("/Example/Downloads/Camera guide.pdf")
@@ -110,7 +107,6 @@ struct DesignGallery: View {
                         MacroCategoryCheckbox(state: .unchecked, label: "Unavailable · Access required", enabled: false, action: {}, identifier: "galleryDisabled")
                         Toggle("Interactive native checkbox", isOn: $selected)
                     }
-                    FindingRow(category: .downloads, title: "Downloads", detail: "Example category", consequence: "Move exact files to Trash; space stays occupied until emptied.") { Button("Choose items") {} }
                     SummarySurface {
                         VStack(alignment: .leading, spacing: CacheDropDesign.Space.md) {
                             StatusRow(text: "Completed selected-scope observation", symbol: "checkmark.circle", role: .success)
@@ -119,8 +115,6 @@ struct DesignGallery: View {
                             ProgressView("Reading metadata…")
                         }
                     }
-                    ScanProgressSummary(inspectedEntries: 1240, logicalSubtotal: "16 MB", recentNames: ["Example document.pdf", "Example archive.zip"])
-                    ScanProgressSummary(inspectedEntries: 2480, logicalSubtotal: "16 MB", recentNames: ["Example document.pdf"], phaseMessage: "Rechecking changed coverage (one attempt)…")
                     EmptyState(title: "No findings yet", detail: "Choose a folder to begin. Unknown measurements stay distinct from zero.", symbol: "folder")
                     CapacityMeter(available: nil, total: nil)
                     SettingsRow(title: "Shared navigation and brand", detail: "Reference accents identify destinations; labels and selected traits carry meaning.") {
