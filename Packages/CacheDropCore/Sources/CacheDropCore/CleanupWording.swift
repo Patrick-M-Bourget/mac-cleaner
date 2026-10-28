@@ -20,6 +20,10 @@ public struct ActionWording: Sendable {
     static let putBack = ActionWording(title: "Put back from Trash", previewOutcome: "Would put back", succeeded: "Put back",
                                        partlyFailed: "Failed", unresolved: "Unresolved · It is either back in its folder or still in the Trash",
                                        partlyFailedRecovery: "Recorded failure · Not changed", historyPhrase: nil)
+    /// Deleting an item CacheDrop moved to the Trash from the Trash (#359).
+    static let emptyFromTrash = ActionWording(title: "Delete from the Trash", previewOutcome: "Would delete from the Trash", succeeded: "Deleted from the Trash",
+                                              partlyFailed: "Partly deleted", unresolved: "Unresolved · It may be partly deleted",
+                                              partlyFailedRecovery: "Recorded failure · It may be partly deleted", historyPhrase: nil)
 }
 
 extension CleanupAction {
@@ -55,7 +59,7 @@ extension CleanupRecord {
     static let previewPrefix = "Dry run:"
     /// What dry-run records journaled before the switch moved to Settings start with.
     static let legacyPreviewPrefix = "Preview only:"
-    private var wording: ActionWording { cleanupAction?.wording ?? (isPutBack ? .putBack : .unknown) }
+    private var wording: ActionWording { cleanupAction?.wording ?? (isPutBack ? .putBack : isEmptyFromTrash ? .emptyFromTrash : .unknown) }
     /// Checked with the dry run on: every check passed and nothing changed.
     public var wasPreviewed: Bool {
         previewOnly == true && state == .skipped && (message.hasPrefix(Self.previewPrefix) || message.hasPrefix(Self.legacyPreviewPrefix))
@@ -64,10 +68,10 @@ extension CleanupRecord {
     public var uninstalledName: String? {
         ruleID.map(AppRuleFamily.namingRuleIDs.contains) == true ? originalURL.deletingPathExtension().lastPathComponent : nil
     }
-    public var actionTitle: String { cleanupAction?.wording.title ?? (isPutBack ? ActionWording.putBack.title : action) }
+    public var actionTitle: String { cleanupAction?.wording.title ?? (isPutBack || isEmptyFromTrash ? wording.title : action) }
     public var outcomeTitle: String {
         if wasPreviewed { return wording.previewOutcome }
-        if let recoveryFinding { return recoveryFinding.title(putBack: isPutBack) }
+        if let recoveryFinding { return recoveryFinding.title(putBack: isPutBack, emptying: isEmptyFromTrash) }
         switch state {
         case .succeeded: return finishedAfterStop ? "Removed" : wording.succeeded
         case .skipped: return "Skipped"
@@ -77,7 +81,7 @@ extension CleanupRecord {
         }
     }
     /// Success messages that only restate the outcome, which History leaves out (#312).
-    private static let restatesOutcome: Set<String> = ["Permanently removed", "Moved to Trash", "Put back from the Trash"]
+    private static let restatesOutcome: Set<String> = ["Permanently removed", "Moved to Trash", "Put back from the Trash", "Deleted from the Trash"]
     /// History's line for a record: its outcome, then its message when that adds something (#312).
     public var outcomeLine: String {
         let restates = message == outcomeTitle || (state == .succeeded && Self.restatesOutcome.contains(message))
@@ -100,12 +104,18 @@ extension CleanupHistoryRun {
     public var isPreview: Bool { !records.isEmpty && records.allSatisfy { $0.previewOnly == true } }
     /// A put back from the Trash (#159), recorded as its own run.
     public var isPutBack: Bool { !records.isEmpty && records.allSatisfy(\.isPutBack) }
+    /// A deletion of CacheDrop's own items from the Trash (#359), recorded as its own run.
+    public var isEmptyFromTrash: Bool { !records.isEmpty && records.allSatisfy(\.isEmptyFromTrash) }
     /// "A", "A and B", "A, B and C".
     private static func list(_ items: [String]) -> String {
         items.count < 2 ? items.joined() : items.dropLast().joined(separator: ", ") + " and " + items[items.count - 1]
     }
     public var title: String {
         if isPreview { return "Dry run · Nothing changed" }
+        if isEmptyFromTrash {
+            let deleted = records.filter { $0.state == .succeeded }.count
+            return deleted == 0 ? "Empty from the Trash · Nothing changed" : "Emptied from the Trash · " + (deleted == 1 ? "1 item" : "\(deleted) items")
+        }
         if isPutBack {
             return records.contains { $0.state == .succeeded } ? "Put back from Trash" : "Put back · Nothing changed"
         }

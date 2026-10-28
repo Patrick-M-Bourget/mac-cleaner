@@ -132,7 +132,7 @@ private func trashedInstaller(named name: String = "Setup.dmg") async throws -> 
     #expect(try journal.records().count == records.count, "A refusal before acting writes nothing")
 }
 
-// SPEC section 2: CacheDrop never empties the Trash and never deletes anything from it. Put back only ever renames one
+// SPEC section 2: CacheDrop never empties the Trash. Put back never deletes anything from it; it only ever renames one
 // item out of it; every refusal leaves the Trash exactly as it was.
 @Test func putBackNeverDeletesAnythingFromTheTrash() async throws {
     let (home, journal, record) = try await trashedInstaller()

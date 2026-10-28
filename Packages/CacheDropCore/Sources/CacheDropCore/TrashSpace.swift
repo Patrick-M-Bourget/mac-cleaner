@@ -8,8 +8,9 @@ public enum TrashContents: Equatable, Sendable {
     case unknown
 }
 
-/// The Finder Trash, sized read-only. CacheDrop never empties the Trash or deletes anything from it (SPEC section 2):
-/// this only reads it, and `Protection` keeps every rule and the check away from it.
+/// The Finder Trash, sized read-only. CacheDrop never empties the Trash (SPEC section 2, Decision 68): this only reads it,
+/// and `Protection` keeps every rule and the check away from it. CacheDrop deletes from the Trash only items it moved there
+/// itself, and only when you ask (`TrashEmptying`); the user's own trashed files are never touched.
 public enum TrashSpace {
     /// The user's Trash folder in `home`.
     public static func folder(home: URL) -> URL { home.appendingPathComponent(".Trash", isDirectory: true) }
@@ -34,7 +35,7 @@ public protocol TrashOpening: Sendable {
 }
 
 extension TrashSpace {
-    /// Opens `home`'s Trash folder. Only ever opens it; emptying the Trash is left to Finder.
+    /// Opens `home`'s Trash folder. Only ever opens it; emptying the whole Trash is left to Finder.
     @discardableResult
     public static func open(home: URL, with opener: any TrashOpening) -> Bool { opener.open(folder(home: home)) }
 }
@@ -44,14 +45,20 @@ extension TrashContents {
     /// Access the Trash is usually unreadable, so an unknown line would be permanent noise (Decision 25).
     public var overviewText: String? {
         guard case .holds(let bytes) = self else { return nil }
-        return "Trash holds " + Self.bytes(bytes)
+        return "Trash holds " + TrashSpace.bytes(bytes)
     }
-    /// The results line after a run moved `movedBytes` to the Trash; nil when it moved nothing. With the Trash
-    /// unreadable, what the run moved is a lower bound.
-    public func emptyHint(movedBytes: Int64) -> String? {
-        guard movedBytes > 0 else { return nil }
-        if case .holds(let bytes) = self { return "Empty the Trash in Finder to free " + Self.bytes(bytes) }
-        return "Empty the Trash in Finder to free at least " + Self.bytes(movedBytes)
+    /// Overview's line with CacheDrop's own items in the Trash (#359), e.g. "Trash holds 9.4 GB · 7.1 GB from CacheDrop";
+    /// the whole Trash's part only when it can be read. With none of CacheDrop's items left, `overviewText`.
+    public func overviewText(fromCacheDrop bytes: Int64) -> String? {
+        guard bytes > 0 else { return overviewText }
+        return (overviewText.map { $0 + " · " } ?? "") + TrashSpace.bytes(bytes) + " from CacheDrop"
     }
-    private static func bytes(_ value: Int64) -> String { ByteCountFormatter.string(fromByteCount: value, countStyle: .decimal) }
+}
+
+extension TrashSpace {
+    /// The results line while CacheDrop's own items hold `bytes` in the Trash (#359), from their recorded sizes; nil with none.
+    public static func emptyHint(bytes: Int64) -> String? {
+        bytes > 0 ? Self.bytes(bytes) + " is in the Trash. Empty it to free the space." : nil
+    }
+    static func bytes(_ value: Int64) -> String { ByteCountFormatter.string(fromByteCount: value, countStyle: .decimal) }
 }

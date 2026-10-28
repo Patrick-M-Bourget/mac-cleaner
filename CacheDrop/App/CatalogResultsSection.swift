@@ -32,7 +32,7 @@ struct CatalogResultsSection: View {
                     Text("Measured from the change in available space around each item. Other activity on this Mac can affect it.")
                         .font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
                 }
-                if result.movedToTrashBytes > 0 { TrashEmptyHint(movedBytes: result.movedToTrashBytes) }
+                if result.movedToTrashBytes > 0 { TrashEmptyHint() }
             }
             VStack(alignment: .leading, spacing: 0) {
                 HStack {
@@ -77,7 +77,7 @@ private struct CatalogResultRow: View {
                     .lineLimit(1).help(record.originalURL.path)
                 Spacer(minLength: CacheDropDesign.Space.md)
                 if record.state == .succeeded, let trashed = record.trashURL {
-                    if TrashModel.shared.putBackOutcomes[record.id] == nil {
+                    if TrashModel.shared.putBackOutcomes[record.id] == nil, !TrashModel.shared.emptiedIDs.contains(record.id) {
                         Button("Reveal in Trash") { Finder.reveal([trashed]) }.buttonStyle(.link)
                             .accessibilityLabel("Reveal \(record.originalURL.lastPathComponent) in Trash")
                     }

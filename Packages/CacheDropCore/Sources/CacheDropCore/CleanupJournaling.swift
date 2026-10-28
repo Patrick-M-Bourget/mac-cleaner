@@ -44,6 +44,9 @@ public struct CleanupRecord: Codable, Sendable, Identifiable {
     public var toolItem: String? = nil
     /// On a put-back record (#159), the id of the Trash move it undoes; nil on every other record and in older journals.
     public var putBackOf: String? = nil
+    /// On a record of deleting an item from the Trash (#359), the id of the Trash move whose item it deletes; nil on every
+    /// other record and in older journals.
+    public var emptyOf: String? = nil
     /// True when a daemon-backed tool was stopped: only the wait stopped, and the work may still be finishing (#185, #190).
     public var mayStillBeFinishing: Bool? = nil
     /// What such an item measured a little after the run (#190); nil until then, and in older journals.
