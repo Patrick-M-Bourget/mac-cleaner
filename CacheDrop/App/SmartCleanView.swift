@@ -75,15 +75,11 @@ struct SmartCleanView: View {
         }.padding(CacheDropDesign.Space.page).frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    /// The same meter as Overview's, with what Smart clean would free in full colour and the rest dimmed (#164).
-    @ViewBuilder private var meter: some View {
-        let reading = AppLifecycleController.shared.capacity.reading
-        if let breakdown = model.breakdown(available: reading?.available, total: reading?.total, trash: TrashModel.shared.contents, highlightingSmartClean: true),
-           breakdown.segments.contains(where: { $0.bytes > 0 }) {
-            CapacityMeter(available: reading?.available, total: reading?.total, showsValue: false, prominent: true, breakdown: breakdown,
-                          open: { part in part.categories.forEach { openPlan($0) } })
-                .accessibilityIdentifier("smartCleanMeter").padding(.bottom, CacheDropDesign.Space.sm)
-        }
+    /// Overview's startup volume card (#347), with what Smart clean would free in full colour, what it sends to the Trash
+    /// in the Trash's grey (#343), and the rest dimmed (#164).
+    private var meter: some View {
+        StartupVolumeCard(catalog: model, highlightingSmartClean: true, open: { part in part.categories.forEach { openPlan($0) } })
+            .accessibilityElement(children: .contain).accessibilityIdentifier("smartCleanMeter").padding(.bottom, CacheDropDesign.Space.sm)
     }
 
     /// "Smart clean · X ready to clean": the space the ticked items release, never what goes to the Trash (#350, SPEC

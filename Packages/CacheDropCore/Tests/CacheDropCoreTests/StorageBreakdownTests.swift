@@ -110,3 +110,49 @@ private let GB: Int64 = 1_000_000_000
     ], trash: .holds(2 * GB))
     #expect(breakdown.segments.map(\.sizeText) == ["up to 12.2 GB", "at least 5 GB", "about 3 GB", "2 GB"])
 }
+
+/// #343: a selection's Trash-bound items free nothing until the Trash is emptied (SPEC section 6), so they leave their
+/// category's segment for their own, drawn whole, just before the Trash at the tip.
+@Test func aSelectionsTrashBoundItemsGetTheirOwnSegmentBesideTheTrash() {
+    let breakdown = StorageBreakdown(used: 400 * GB, total: 1000 * GB, categories: [(.developer, .measured(12 * GB)), (.downloads, .measured(5 * GB))],
+                                     trash: .holds(GB), highlighted: [.developer: 10 * GB], toTrash: [.downloads: 4 * GB])
+    #expect(breakdown.segments.map(\.part) == [.category(.developer), .category(.downloads), .goingToTrash, .trash])
+    #expect(breakdown.segments.map(\.bytes) == [12 * GB, 1 * GB, 4 * GB, 1 * GB])
+    #expect(breakdown.segments.map(\.highlightedBytes) == [10 * GB, 0, 4 * GB, 0])
+    #expect(breakdown.segments.map(\.sizeText) == ["up to 12 GB", "up to 1 GB", "up to 4 GB", "1 GB"], "Downloads names what stays, never the 4 GB twice")
+    #expect(breakdown.reclaimableBytes == 13 * GB, "Neither Trash part is reclaimable yet")
+}
+
+@Test func withoutTrashBoundItemsThereIsNoSuchSegment() {
+    let breakdown = StorageBreakdown(used: 400 * GB, total: 1000 * GB, categories: [(.developer, .measured(12 * GB))], trash: .empty,
+                                     highlighted: [.developer: 2 * GB], toTrash: [:])
+    #expect(breakdown.segments.map(\.part) == [.category(.developer)])
+}
+
+@Test func aSelectionOfFoundItemsSplitsWhatGoesToTheTrash() throws {
+    let home = FileManager.default.temporaryDirectory.appendingPathComponent("CacheDropBreakdown-\(UUID())").resolvingSymlinksInPath()
+    defer { try? FileManager.default.removeItem(at: home) }
+    for (folder, bytes) in [("cache", 40_960), ("installers", 16_384)] {
+        let file = home.appendingPathComponent(folder + "/f")
+        try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Data(repeating: 1, count: bytes).write(to: file)
+    }
+    let catalog = Catalog(rules: [
+        CleanupRule(id: "cache", category: .developer, title: "cache", detail: "", consequence: "", regen: .cache, action: .delete, locations: ["cache"], owner: nil),
+        CleanupRule(id: "installers", category: .downloads, title: "installers", detail: "", consequence: "", regen: .userFile, action: .trash, locations: ["installers"], owner: nil),
+    ])
+    let found = catalog.discover(fixture: home)
+    let breakdown = StorageBreakdown(used: 400 * GB, total: 1000 * GB, overview: CatalogOverview(catalog: catalog, candidates: found), trash: .empty,
+                                     highlighting: found)
+    let installer = try #require(found.first { $0.ruleID == "installers" })
+    #expect(breakdown.segments.map(\.part) == [.category(.developer), .goingToTrash])
+    #expect(breakdown.segments.last?.bytes == installer.estimatedBytes)
+}
+
+/// #343: a category ranks by what stays once its Trash-bound items leave, so a bigger one takes its place among the 3.
+@Test func whatStaysDecidesWhichCategoriesGetTheirOwnSegment() {
+    let breakdown = StorageBreakdown(used: 400 * GB, total: 1000 * GB, categories: [
+        (.developer, .measured(12 * GB)), (.downloads, .measured(10 * GB)), (.browser, .measured(3 * GB)), (.logs, .measured(2 * GB)),
+    ], trash: .empty, highlighted: [:], toTrash: [.downloads: 9 * GB])
+    #expect(breakdown.segments.map(\.part) == [.category(.developer), .category(.browser), .category(.logs), .other([.downloads]), .goingToTrash])
+}

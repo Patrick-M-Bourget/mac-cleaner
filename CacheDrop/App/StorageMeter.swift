@@ -2,12 +2,13 @@ import CacheDropCore
 import SwiftUI
 
 /// The coloured segments a capacity meter draws inside the used space (#164): what CacheDrop found, never a whole-disk
-/// breakdown. No legend: each segment has a tooltip, opens its category in the Cleanup plan, and VoiceOver reads them as a list.
+/// breakdown, at the right tip of the used space, the part a cleanup shaves off (#343). No legend: each segment has a
+/// tooltip naming it (#344), opens its category in the Cleanup plan, and VoiceOver reads them as a list.
 struct MeterSegments: View {
     let breakdown: StorageBreakdown
     /// The sidebar's mini meter: one accent segment, "Reclaimable", no breakdown.
     var reclaimableOnly = false
-    /// Opens a segment's category, or Other's categories, in the Cleanup plan. The Trash segment never opens anything.
+    /// Opens a segment's category, or Other's categories, in the Cleanup plan. The Trash segments never open anything.
     var open: ((StorageBreakdown.Part) -> Void)? = nil
 
     private struct Drawn: Identifiable {
@@ -43,11 +44,12 @@ struct MeterSegments: View {
             let rest = max(0, usedWidth - widths.reduce(0, +) - gap * CGFloat(segments.count))
             ZStack(alignment: .leading) {
                 Capsule().fill(CacheDropDesign.capacityTrack)
+                // The rest of the used space first, so what CacheDrop found ends at the tip (#343).
                 HStack(spacing: gap) {
+                    if rest > 0 { Rectangle().fill(CacheDropDesign.capacityFill).frame(width: rest).accessibilityHidden(true) }
                     ForEach(Array(segments.enumerated()), id: \.element.id) { index, segment in
                         self.segment(segment).frame(width: widths[index])
                     }
-                    if rest > 0 { Rectangle().fill(CacheDropDesign.capacityFill).frame(width: rest).accessibilityHidden(true) }
                 }.frame(width: max(usedWidth, widths.reduce(0, +)), alignment: .leading).clipShape(Capsule())
             }
         }
@@ -66,14 +68,15 @@ struct MeterSegments: View {
                     Rectangle().fill(segment.color)
                 }
             }
-        }.contentShape(Rectangle()).help(segment.help)
-        let label = segment.help.replacingOccurrences(of: " · ", with: ", ")
-        if let open, let part = segment.part, part != .trash {
-            Button { open(part) } label: { fill }.buttonStyle(.plain)
-                .accessibilityLabel(label).accessibilityHint("Opens in the cleanup plan")
+        }.contentShape(Rectangle())
+        // The tooltip and the label say the same (#344). The tooltip sits on the outermost view, the button itself, not
+        // inside its label, where the 0.9.0 build showed none.
+        if let open, let part = segment.part, !part.isTrash {
+            Button { open(part) } label: { fill }.buttonStyle(.plain).help(segment.help)
+                .accessibilityLabel(segment.help).accessibilityHint("Opens in the cleanup plan")
                 .accessibilityIdentifier("meterSegment-" + segment.id)
         } else {
-            fill.accessibilityElement().accessibilityLabel(label).accessibilityIdentifier("meterSegment-" + segment.id)
+            fill.help(segment.help).accessibilityElement().accessibilityLabel(segment.help).accessibilityIdentifier("meterSegment-" + segment.id)
         }
     }
 }
@@ -83,6 +86,7 @@ extension StorageBreakdown.Part {
         switch self {
         case .category(let category): category.overviewTitle
         case .other: "Other reclaimable"
+        case .goingToTrash: "Goes to the Trash"
         case .trash: "In Trash"
         }
     }
@@ -91,7 +95,8 @@ extension StorageBreakdown.Part {
         switch self {
         case .category(let category): category.storageCategory.color
         case .other: CacheDropDesign.meterOther
-        case .trash: CacheDropDesign.meterTrash
+        // What a selection sends to the Trash looks like the Trash: it frees nothing until it is emptied (#343).
+        case .goingToTrash, .trash: CacheDropDesign.meterTrash
         }
     }
 }
@@ -102,8 +107,25 @@ extension StorageBreakdown.Part {
         switch self {
         case .category(let category): [category]
         case .other(let categories): categories
-        case .trash: []
+        case .goingToTrash, .trash: []
         }
+    }
+}
+
+/// The startup volume's card, on Overview and on Smart clean (#347): one component, reading one capacity, so both show
+/// the same bar. Smart clean's highlights what its ticked items would free.
+struct StartupVolumeCard: View {
+    let catalog: CatalogCleanupModel
+    var highlightingSmartClean = false
+    let open: (StorageBreakdown.Part) -> Void
+    private var capacity: CapacityRefreshController { AppLifecycleController.shared.capacity }
+    var body: some View {
+        let reading = capacity.reading
+        VolumeSummary(available: reading?.available, total: reading?.total, observation: capacity.observationText, status: capacity.statusText,
+                      refreshTitle: "Try again", refreshing: capacity.isRefreshing, refresh: { capacity.request(.manual) },
+                      breakdown: catalog.breakdown(available: reading?.available, total: reading?.total, trash: TrashModel.shared.contents,
+                                                   highlightingSmartClean: highlightingSmartClean),
+                      open: open)
     }
 }
 

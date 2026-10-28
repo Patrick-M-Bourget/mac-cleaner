@@ -2,11 +2,14 @@ import Foundation
 
 /// What a storage meter draws inside the disk's used space (#164): only what CacheDrop found, never a whole-disk breakdown.
 /// The 3 largest categories get their own segment, the rest fold into one "Other reclaimable", and the Trash gets its own.
+/// A selection's Trash-bound items get one more, "Goes to the Trash", just before the Trash (#343).
 public struct StorageBreakdown: Sendable, Equatable {
     public enum Part: Sendable, Hashable {
         case category(CatalogCategory)
         /// The categories past the largest 3, largest first.
         case other([CatalogCategory])
+        /// A selection's items that go to the Trash: they free nothing until it is emptied (#343).
+        case goingToTrash
         case trash
     }
     public struct Segment: Sendable, Equatable, Identifiable {
@@ -21,6 +24,7 @@ public struct StorageBreakdown: Sendable, Equatable {
             switch part {
             case .category(let category): category.rawValue
             case .other: "other"
+            case .goingToTrash: "goingToTrash"
             case .trash: "trash"
             }
         }
@@ -32,36 +36,49 @@ public struct StorageBreakdown: Sendable, Equatable {
     public let segments: [Segment]
     /// The estimates were larger than the used space (copies that share disk blocks) and were scaled to fit.
     public let isScaled: Bool
-    /// The sidebar's one "Reclaimable" segment: every category, without the Trash.
-    public var reclaimableBytes: Int64 { segments.filter { $0.part != .trash }.reduce(0) { $0 + $1.bytes } }
+    /// The sidebar's one "Reclaimable" segment: every category, without the Trash or what a selection sends there.
+    public var reclaimableBytes: Int64 { segments.filter { !$0.part.isTrash }.reduce(0) { $0 + $1.bytes } }
 
-    /// Overview's categories, with what `highlighting` (Smart clean's ticked items) would free in each.
+    /// Overview's categories, with what `highlighting` (Smart clean's ticked items) would free in each; its Trash-bound
+    /// items go to their own segment instead (#343).
     public init(used: Int64, total: Int64, overview: CatalogOverview, trash: TrashContents, highlighting: [Candidate]? = nil) {
-        let highlighted = highlighting.map { items in
+        let perCategory = { (items: [Candidate]) in
             Dictionary(overview.rows.map { row in
                 let ids = Set(row.rules.map(\.id))
                 return (row.category, items.filter { ids.contains($0.ruleID) }.reduce(0) { $0 + $1.estimatedBytes })
             }, uniquingKeysWith: +)
         }
-        self.init(used: used, total: total, categories: overview.rows.map { ($0.category, $0.estimate) }, trash: trash, highlighted: highlighted)
+        self.init(used: used, total: total, categories: overview.rows.map { ($0.category, $0.estimate) }, trash: trash,
+                  highlighted: highlighting.map { perCategory($0.filter(\.releasesSpace)) },
+                  toTrash: highlighting.map { perCategory($0.filter { !$0.releasesSpace }).filter { $0.value > 0 } })
     }
 
     /// `categories` in catalog order, which breaks ties between equal sizes. `highlighted` is how much of each category a
-    /// selection would free (Smart clean); nil draws every segment in full.
+    /// selection would free (Smart clean); nil draws every segment in full. `toTrash` is how much of each the selection
+    /// sends to the Trash: it leaves its category's segment for "Goes to the Trash" (#343).
     public init(used: Int64, total: Int64, categories: [(category: CatalogCategory, estimate: SizeEstimate)], trash: TrashContents,
-                highlighted: [CatalogCategory: Int64]? = nil) {
+                highlighted: [CatalogCategory: Int64]? = nil, toTrash: [CatalogCategory: Int64]? = nil) {
         self.used = used
         self.total = total
-        let sized = categories.enumerated().compactMap { index, entry in entry.estimate.drawnBytes.map { (index, entry.category, entry.estimate, $0) } }
-            .sorted { $0.3 != $1.3 ? $0.3 > $1.3 : $0.0 < $1.0 }
+        // What each category sends to the Trash, never more than it holds; it leaves the category, whose segment is drawn,
+        // ranked and named at what stays (#343), so the tooltips never count it twice.
+        let toTheTrash = { (entry: (category: CatalogCategory, estimate: SizeEstimate)) in
+            min(max(0, toTrash?[entry.category] ?? 0), entry.estimate.drawnBytes ?? 0)
+        }
+        let staying = categories.enumerated().compactMap { index, entry -> (order: Int, category: CatalogCategory, estimate: SizeEstimate, bytes: Int64)? in
+            guard let bytes = entry.estimate.drawnBytes, bytes > toTheTrash(entry) else { return nil }
+            return (index, entry.category, entry.estimate.less(toTheTrash(entry)), bytes - toTheTrash(entry))
+        }.sorted { $0.bytes != $1.bytes ? $0.bytes > $1.bytes : $0.order < $1.order }
         let marked = { (categories: [CatalogCategory]) in highlighted.map { selection in categories.reduce(0) { $0 + max(0, selection[$1] ?? 0) } } }
         var parts: [(part: Part, estimate: SizeEstimate, bytes: Int64, highlighted: Int64?)] =
-            sized.prefix(Self.leadingCategoryCount).map { (.category($0.1), $0.2, $0.3, marked([$0.1])) }
-        let rest = sized.dropFirst(Self.leadingCategoryCount)
+            staying.prefix(Self.leadingCategoryCount).map { (.category($0.category), $0.estimate, $0.bytes, marked([$0.category])) }
+        let rest = staying.dropFirst(Self.leadingCategoryCount)
         if !rest.isEmpty {
-            parts.append((.other(rest.map(\.1)), SizeEstimate(sum: rest.map(\.2)), rest.reduce(0) { $0 + $1.3 }, marked(rest.map(\.1))))
+            parts.append((.other(rest.map(\.category)), SizeEstimate(sum: rest.map(\.estimate)), rest.reduce(0) { $0 + $1.bytes }, marked(rest.map(\.category))))
         }
-        // Smart clean never touches the Trash.
+        let sentBytes = categories.reduce(0) { $0 + toTheTrash($1) }
+        if sentBytes > 0 { parts.append((.goingToTrash, .measured(sentBytes), sentBytes, sentBytes)) }
+        // Smart clean never empties the Trash.
         if case .holds(let bytes) = trash, bytes > 0 { parts.append((.trash, .measured(bytes), bytes, highlighted.map { _ in 0 })) }
         guard total > 0, used > 0, used <= total else { segments = []; isScaled = false; return }
         let found = parts.reduce(0) { $0 + $1.bytes }
@@ -76,11 +93,30 @@ public struct StorageBreakdown: Sendable, Equatable {
 }
 
 private extension SizeEstimate {
+    /// The same kind of estimate, `bytes` smaller: what stays in a category once a selection sends `bytes` to the Trash.
+    func less(_ bytes: Int64) -> SizeEstimate {
+        switch self {
+        case .measured(let value): .measured(max(0, value - bytes))
+        case .about(let value): .about(max(0, value - bytes))
+        case .atLeast(let value): .atLeast(max(0, value - bytes))
+        case .unknown: .unknown
+        }
+    }
     /// The bytes a meter may draw; nil for an unknown or 0-byte size, which is never drawn.
     var drawnBytes: Int64? {
         switch self {
         case .measured(let bytes), .about(let bytes), .atLeast(let bytes): bytes > 0 ? bytes : nil
         case .unknown: nil
+        }
+    }
+}
+
+extension StorageBreakdown.Part {
+    /// The Trash, or what a selection sends there: space that stays used until the Trash is emptied.
+    public var isTrash: Bool {
+        switch self {
+        case .trash, .goingToTrash: true
+        case .category, .other: false
         }
     }
 }

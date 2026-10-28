@@ -368,12 +368,7 @@ private struct WorkspaceView: View {
                     }
                 }
             }
-            VolumeSummary(available: startupCapacity?.available, total: startupCapacity?.total,
-                          observation: capacity.observationText, status: capacity.statusText,
-                          refreshTitle: "Try again", refreshing: capacity.isRefreshing,
-                          refresh: { capacity.request(.manual) },
-                          breakdown: selection.catalog.breakdown(available: startupCapacity?.available, total: startupCapacity?.total, trash: TrashModel.shared.contents),
-                          open: { openPlan($0.categories) })
+            StartupVolumeCard(catalog: selection.catalog, open: { openPlan($0.categories) })
             scannedLocations
             SettingsUnreadableNotice(model: selection.catalog)
             overviewRecommendations
