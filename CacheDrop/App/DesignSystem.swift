@@ -39,6 +39,8 @@ enum CacheDropDesign {
         /// The skeleton shimmer's band at its brightest (#308).
         static let shimmer: Double = 0.6 }
     /// How long motion takes: the skeleton's shimmer crossing once, and rows dimming as a rescan starts or ends (#308).
+    /// How far a one-line caption may shrink before it truncates, so it stays one line at larger text sizes (#353).
+    enum Scale { static let oneLineCaption: CGFloat = 0.75 }
     enum Motion { static let shimmer: Double = 2.4; static let waiting: Double = 0.2 }
     enum TypeStyle {
         /// The app name in the sidebar header.
@@ -462,21 +464,19 @@ struct CapacityMeter: View {
     static func bytes(_ value: Int64) -> String { ByteCountFormatter.string(fromByteCount: value, countStyle: .decimal) }
     /// The total, when it and the available space are a consistent whole-disk reading.
     static func validTotal(available: Int64?, total: Int64?) -> Int64? {
-        guard let available, let total, total > 0, available >= 0, available <= total else { return nil }
-        return total
+        SidebarCapacityText.validTotal(available: available, total: total)
     }
-    private func bytes(_ value: Int64) -> String { Self.bytes(value) }
     private var validTotal: Int64? { Self.validTotal(available: available, total: total) }
-    private var amountText: String {
-        guard let available, available >= 0 else { return "Free space unavailable" }
-        if let total = validTotal { return "\(bytes(available)) available of \(bytes(total))" }
-        return "\(bytes(available)) available · Total capacity unavailable"
-    }
+    private var capacityText: SidebarCapacityText { SidebarCapacityText(available: available, total: total) }
+    /// The full wording ("312 GB available of 1 TB"), for labels, tooltips and the non-compact value.
+    private var amountText: String { capacityText.description }
     var body: some View {
         VStack(alignment: .leading, spacing: CacheDropDesign.Space.sm) {
             if compact {
-                Text(amountText).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary).lineLimit(2)
-                    .frame(height: 30, alignment: .topLeading).accessibilityIdentifier("sidebarCapacityAmount")
+                // One line, "312 GB of 1 TB"; "available" is in the label and tooltip (#353).
+                Text(capacityText.line).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
+                    .lineLimit(1).minimumScaleFactor(CacheDropDesign.Scale.oneLineCaption).truncationMode(.tail)
+                    .help(amountText).accessibilityLabel(amountText).accessibilityIdentifier("sidebarCapacityAmount")
             } else if showsValue {
                 Text(amountText).font(.callout).foregroundStyle(.secondary)
             }
