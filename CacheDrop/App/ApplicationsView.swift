@@ -183,7 +183,7 @@ struct ApplicationsView: View {
                 StatusRow(text: "Goes with " + Self.app(of: auv3[0]), identifier: "applicationsInsideApp-" + entry.id)
             } else if catalog.hasScanned, !catalog.isScanning {
                 // A removable app the scan didn't offer says why, rather than showing a bare row (#281).
-                StatusRow(text: "Not offered: excluded in Settings, or changed since the scan", identifier: "applicationsNotOffered-" + entry.id)
+                StatusRow(text: "Not offered: in Protected items, or changed since the scan", identifier: "applicationsNotOffered-" + entry.id)
             } else {
                 // Until the scan says what can go with it, the row says so rather than looking final (#303).
                 StatusRow(text: "Checking what can be removed…", symbol: "hourglass", identifier: "applicationsChecking-" + entry.id)

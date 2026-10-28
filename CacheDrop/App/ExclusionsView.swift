@@ -21,7 +21,7 @@ import CacheDropCore
             rules = policy.rules; error = nil
             return policy
         } catch {
-            self.error = "Exclusion settings are unavailable. Scanning is blocked; open Custom exclusions to review settings or use guarded Reset."
+            self.error = "Exclusion settings are unavailable. Scanning is blocked; review Protected items in Locations & access, or reset CacheDrop in Local records."
             throw error
         }
     }
