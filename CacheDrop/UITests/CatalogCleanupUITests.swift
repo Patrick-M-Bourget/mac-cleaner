@@ -1378,11 +1378,13 @@ final class TrashSpaceUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
         let developer = app.buttons["meterSegment-developer"]
         XCTAssertTrue(developer.waitForExistence(timeout: 15))
-        XCTAssertTrue(developer.label.hasPrefix("Developer caches and build files, up to "), developer.label)
+        // #344: the label says what the tooltip says.
+        XCTAssertTrue(developer.label.hasPrefix("Developer caches and build files · up to "), developer.label)
         XCTAssertTrue(app.buttons["meterSegment-downloads"].exists)
         let trash = app.descendants(matching: .any)["meterSegment-trash"]
         XCTAssertTrue(trash.waitForExistence(timeout: 10))
-        XCTAssertTrue(trash.label.hasPrefix("In Trash, "), trash.label)
+        XCTAssertTrue(trash.label.hasPrefix("In Trash · "), trash.label)
+        XCTAssertGreaterThan(trash.frame.minX, developer.frame.maxX, "#343: the Trash ends what was found, at the tip")
         XCTAssertFalse(app.buttons["meterSegment-trash"].exists, "The Trash segment opens nothing")
         XCTAssertTrue(app.descendants(matching: .any)["sidebarMeterSegments"].exists, "The sidebar meter shows one reclaimable segment")
 
