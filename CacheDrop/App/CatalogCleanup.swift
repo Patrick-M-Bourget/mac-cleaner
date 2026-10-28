@@ -46,9 +46,11 @@ import SwiftUI
     private(set) var selections = CleanupSelections()
     /// The Cleanup plan's chosen candidate ids. Nothing is preselected (Decision 28).
     private(set) var selectedIDs: Set<String> { get { selections.ticked } set { selections.ticked = newValue } }
-    /// Moves on only when a page's chosen items change, or the dry run does, so an open review sheet stays open while
-    /// background work ends (#307).
-    var selectionRevision: UInt64 { selections.revision }
+    /// Moves on only when `page`'s chosen items change, or the dry run or a run does, so its open review sheet stays open
+    /// while background work ends or another page's choices change (#307, #333).
+    func selectionRevision(for page: CleanupSelections.Source) -> UInt64 { selections.revision(of: page) }
+    /// Every page's revision, for watching whether any page's choices changed.
+    var selectionRevisions: [UInt64] { CleanupSelections.Source.allCases.map(selections.revision(of:)) }
     /// Notes each page's choices after a change; the revision moves only if they differ.
     private func noteChoices() { selections.noteChoices(among: candidates, smartClean: smartCleanCandidates) }
     private(set) var isRunning = false
@@ -535,7 +537,7 @@ import SwiftUI
             measureStoppedWorkAgain(outcome, of: approval, run: run)
             if !approval.previewOnly { rescanFollowsCleanup = true }
             // Picked folders keep the large and old files this run didn't act on (#125).
-            selections.finishRun(from: source); discovered = []; uninstallable = []; pickedFiles = pickedFiles.mapValues { UserFiles.remaining($0, after: outcome) }
+            selections.finishRun(from: source); selections.revise(); discovered = []; uninstallable = []; pickedFiles = pickedFiles.mapValues { UserFiles.remaining($0, after: outcome) }
             projectBuilds = projectBuilds.mapValues { UserFiles.remaining($0, after: outcome) }; hasScanned = false; noteChoices()
         } catch { message = "CacheDrop couldn’t open its cleanup history, so nothing was changed." }
     }

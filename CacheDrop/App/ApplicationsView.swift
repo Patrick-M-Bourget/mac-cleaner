@@ -93,7 +93,7 @@ struct ApplicationsView: View {
             }
         }
         // The sheet closes only when the choices it was built from changed, and the page says so (#307).
-        .onChange(of: catalog.selectionRevision) { _, _ in if review != nil { review = nil; approvalError = PlanReviewError.changedMessage } }
+        .onChange(of: catalog.selectionRevision(for: .applications)) { _, _ in if review != nil { review = nil; approvalError = PlanReviewError.changedMessage } }
         // Read again after each catalog scan, so Scan again refreshes the lists too.
         .task(id: catalog.isScanning) { if !catalog.isScanning { await model.load(plugIns: catalog.plugInInventory) } }
         // A search opens Leftovers, so its matching groups show.

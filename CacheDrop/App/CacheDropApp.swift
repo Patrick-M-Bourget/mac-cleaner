@@ -323,7 +323,7 @@ private struct WorkspaceView: View {
         }
         .environment(\.cacheDropBackgroundWork, backgroundWorkStatus)
         .onChange(of: runningTasks, initial: true) { _, tasks in backgroundWork.update(running: tasks) }
-        .onChange(of: selection.catalog.selectionRevision) { _, _ in AppLifecycleController.shared.hasPendingPlan = selection.hasPendingChoicesOnAnyPage }
+        .onChange(of: selection.catalog.selectionRevisions) { _, _ in AppLifecycleController.shared.hasPendingPlan = selection.hasPendingChoicesOnAnyPage }
         // Launch stays on Overview; its banner opens Recovery, which checks against disk (#309).
         .task { _ = await recovery.loadOnce() }
         // The launch scan, whichever page opens first; later scans start in the model when something changes (#306).

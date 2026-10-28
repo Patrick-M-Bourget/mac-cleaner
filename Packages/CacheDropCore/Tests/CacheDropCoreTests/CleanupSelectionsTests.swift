@@ -124,48 +124,71 @@ private let leftover = item(RemovedAppLeftovers.ruleID, name: "Synth"), related 
     #expect(rows.filter { CleanupSelections.Source.page(of: $0) == .plan }.count == rows.count - 1)
 }
 
+/// Each page's revision (#307, #333).
+private func revisions(_ selections: CleanupSelections) -> [UInt64] { CleanupSelections.Source.allCases.map(selections.revision(of:)) }
+
 /// #307: an open review sheet closes only when what it was built from changed, never because a scan ended.
-@Test func aScanThatKeepsEveryChoiceLeavesTheRevisionAlone() {
+@Test func aScanThatKeepsEveryChoiceLeavesTheRevisionsAlone() {
     var selections = CleanupSelections()
     selections.ticked = [installer.id, leftover.id]
     selections.noteChoices(among: scan + [leftover], smartClean: [npm, logs])
-    let revision = selections.revision
+    let before = revisions(selections)
     let dropped = selections.keepOnly(scan + [leftover, related], smartClean: [npm, logs])
     #expect(!dropped, "Nothing chosen was dropped")
-    #expect(selections.revision == revision)
+    #expect(revisions(selections) == before)
     #expect(selections.ticked == [installer.id, leftover.id])
 }
 
-@Test func aScanThatDropsAChoiceMovesTheRevision() {
+/// #333: a scan that drops one of the plan's choices moves only the plan's revision.
+@Test func aScanThatDropsAPlanChoiceMovesOnlyThePlansRevision() {
     var selections = CleanupSelections()
     selections.ticked = [installer.id, leftover.id]
     selections.noteChoices(among: scan + [leftover], smartClean: [npm, logs])
-    let revision = selections.revision
-    let dropped = selections.keepOnly(scan, smartClean: [npm, logs])
+    let smart = selections.revision(of: .smartClean), apps = selections.revision(of: .applications), plan = selections.revision(of: .plan)
+    let dropped = selections.keepOnly([npm, logs, derived, leftover], smartClean: [npm, logs])
     #expect(dropped)
-    #expect(selections.ticked == [installer.id])
-    #expect(selections.revision != revision)
+    #expect(selections.ticked == [leftover.id])
+    #expect(selections.revision(of: .plan) != plan)
+    #expect(selections.revision(of: .smartClean) == smart)
+    #expect(selections.revision(of: .applications) == apps)
 }
 
-@Test func aScanThatChangesSmartCleansItemsMovesTheRevision() {
+/// #333: Applications' choices changing moves only its revision.
+@Test func aScanThatDropsAnApplicationsChoiceMovesOnlyItsRevision() {
     var selections = CleanupSelections()
-    selections.noteChoices(among: scan, smartClean: [npm, logs])
-    let revision = selections.revision
-    let dropped = selections.keepOnly(scan, smartClean: [npm])
-    #expect(!dropped)
-    #expect(selections.revision != revision)
+    selections.ticked = [installer.id, leftover.id]
+    selections.noteChoices(among: scan + [leftover], smartClean: [npm, logs])
+    let smart = selections.revision(of: .smartClean), apps = selections.revision(of: .applications), plan = selections.revision(of: .plan)
+    selections.keepOnly(scan, smartClean: [npm, logs])
+    #expect(selections.revision(of: .applications) != apps)
+    #expect(selections.revision(of: .plan) == plan)
+    #expect(selections.revision(of: .smartClean) == smart)
 }
 
-@Test func choosingAnItemMovesTheRevisionAndChoosingNothingNewDoesNot() {
+/// #333: Smart clean's picks changing (a recheck drops one, or an owner starts running) moves only Smart clean's revision.
+@Test func aChangeToSmartCleansPicksMovesOnlyItsRevision() {
+    var selections = CleanupSelections()
+    selections.ticked = [installer.id, leftover.id]
+    selections.noteChoices(among: scan + [leftover], smartClean: [npm, logs])
+    let smart = selections.revision(of: .smartClean), apps = selections.revision(of: .applications), plan = selections.revision(of: .plan)
+    let dropped = selections.keepOnly(scan + [leftover], smartClean: [npm])
+    #expect(!dropped)
+    #expect(selections.revision(of: .smartClean) != smart)
+    #expect(selections.revision(of: .plan) == plan)
+    #expect(selections.revision(of: .applications) == apps)
+}
+
+@Test func choosingAnItemMovesItsPagesRevisionAndChoosingNothingNewDoesNot() {
     var selections = CleanupSelections()
     selections.noteChoices(among: scan, smartClean: [])
-    let revision = selections.revision
+    let plan = selections.revision(of: .plan), smart = selections.revision(of: .smartClean)
     selections.ticked.insert(npm.id)
     selections.noteChoices(among: scan, smartClean: [])
-    #expect(selections.revision != revision)
-    let chosen = selections.revision
+    #expect(selections.revision(of: .plan) != plan)
+    #expect(selections.revision(of: .smartClean) == smart)
+    let chosen = revisions(selections)
     selections.noteChoices(among: scan, smartClean: [])
-    #expect(selections.revision == chosen)
+    #expect(revisions(selections) == chosen)
     selections.revise()
-    #expect(selections.revision != chosen, "A change to what the review would do moves it regardless")
+    #expect(zip(revisions(selections), chosen).allSatisfy { $0 != $1 }, "A change to what every review would do, a dry run or a run, moves all three")
 }

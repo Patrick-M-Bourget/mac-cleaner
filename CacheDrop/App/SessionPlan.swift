@@ -127,7 +127,7 @@ struct RefreshRequest: Sendable {
     /// Smart clean's review (#141): its own selection, checked now, through the same review and executor as the plan.
     func prepareSmartCleanReview() async throws -> WorkspaceCleanupReview {
         guard canReviewSmartClean else { throw PlanReviewError.changed }
-        let catalogVersion = catalog.selectionRevision
+        let catalogVersion = catalog.selectionRevision(for: .smartClean)
         guard let items = await catalog.smartCleanCheckedNow() else { throw failure }
         guard !items.isEmpty else { throw PlanReviewError.nothingToClean }
         return try await review(items, from: .smartClean, catalogVersion: catalogVersion)
@@ -135,27 +135,27 @@ struct RefreshRequest: Sendable {
     /// The Applications page's review: its chosen items, through the plan's review and executor.
     func prepareApplicationsReview() async throws -> WorkspaceCleanupReview {
         guard canReviewApplications else { throw PlanReviewError.changed }
-        return try await review(catalog.applicationsSelected, from: .applications, catalogVersion: catalog.selectionRevision)
+        return try await review(catalog.applicationsSelected, from: .applications, catalogVersion: catalog.selectionRevision(for: .applications))
     }
     /// A page's review of `items` through the plan's review, refused when the page's choices changed meanwhile.
     private func review(_ items: [Candidate], from source: CleanupSelections.Source, catalogVersion: UInt64) async throws -> WorkspaceCleanupReview {
         let review = await catalog.prepareReview(of: items)
         guard let review else { throw failure }
-        guard canReview(source), catalog.selectionRevision == catalogVersion else { throw PlanReviewError.changed }
+        guard canReview(source), catalog.selectionRevision(for: source) == catalogVersion else { throw PlanReviewError.changed }
         return WorkspaceCleanupReview(catalog: review, catalogVersion: catalogVersion, source: source)
     }
     func prepareWorkspaceReview() async throws -> WorkspaceCleanupReview {
         guard canReview else { throw PlanReviewError.changed }
-        let catalogVersion = catalog.selectionRevision
+        let catalogVersion = catalog.selectionRevision(for: .plan)
         let items = catalog.selectedCount > 0 ? await catalog.prepareReview() : nil
         if catalog.selectedCount > 0, items == nil, catalog.settingsUnreadable { throw PlanReviewError.settingsUnreadable }
-        guard canReview, catalog.selectionRevision == catalogVersion, catalog.selectedCount == 0 || items != nil else { throw PlanReviewError.changed }
+        guard canReview, catalog.selectionRevision(for: .plan) == catalogVersion, catalog.selectedCount == 0 || items != nil else { throw PlanReviewError.changed }
         return WorkspaceCleanupReview(catalog: items, catalogVersion: catalogVersion)
     }
     /// Why a review couldn't be built: the settings couldn't be read, or the choices changed meanwhile.
     private var failure: PlanReviewError { catalog.settingsUnreadable ? .settingsUnreadable : .changed }
     func executeWorkspace(_ review: WorkspaceCleanupReview) async throws {
-        guard canReview(review.source), catalog.selectionRevision == review.catalogVersion else { throw PlanReviewError.changed }
+        guard canReview(review.source), catalog.selectionRevision(for: review.source) == review.catalogVersion else { throw PlanReviewError.changed }
         await run(review)
         // A run empties the catalog, so CacheDrop scans again by itself, whichever page is open (#306).
         await catalog.rescan()
@@ -267,7 +267,7 @@ struct LiveCleanupPlanView: View {
             }
         }
         // The sheet closes only when the choices it was built from changed, and the page says so (#307).
-        .onChange(of: selection.catalog.selectionRevision) { _, _ in if review != nil { review = nil; approvalError = PlanReviewError.changedMessage } }
+        .onChange(of: selection.catalog.selectionRevision(for: .plan)) { _, _ in if review != nil { review = nil; approvalError = PlanReviewError.changedMessage } }
     }
     private func openReview() async {
         do {
