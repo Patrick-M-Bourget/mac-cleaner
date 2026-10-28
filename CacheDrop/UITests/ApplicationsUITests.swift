@@ -1,6 +1,6 @@
 import XCTest
 
-/// #267, Decision 51: the Applications page lists apps, plug-in products and leftovers of removed apps from a fixture home.
+/// #267, Decision 51: the Applications page lists apps, plug-in products and files from deleted apps from a fixture home.
 /// Installed apps come only from the home's `Applications` folder and `.cachedrop-test-installed-apps` (DEBUG seam), and the
 /// home stands in for the system root, so the journey never reads this Mac's apps or plug-ins.
 final class ApplicationsUITests: XCTestCase {
@@ -50,7 +50,7 @@ final class ApplicationsUITests: XCTestCase {
         app.launch()
         waitForCatalogScan(app)
 
-        // Overview's leftovers row opens Applications, where the leftovers are; the Cleanup plan no longer shows them.
+        // Overview's Files from deleted apps row opens Applications, where those files are; the Cleanup plan no longer shows them.
         revealAndClick(app.buttons["overviewCategory-leftovers"], in: app)
         XCTAssertTrue(app.descendants(matching: .any)["applicationsHeader"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons["Applications"].isSelected)

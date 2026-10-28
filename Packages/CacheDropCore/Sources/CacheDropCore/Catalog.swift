@@ -156,7 +156,7 @@ public struct CleanupRule: Sendable, Identifiable {
     /// The user picks each item on its own (#144): set for rules whose items aren't all data that rebuilds itself
     /// (a JetBrains folder holds local history), on top of the kinds `choosesItems` already counts.
     public let itemByItem: Bool
-    /// The app or plug-in product its items are tied to (#289): leftovers of a removed app, or an uninstall; nil for every other rule.
+    /// The app or plug-in product its items are tied to (#289): files from a deleted app, or an uninstall; nil for every other rule.
     public let family: AppRuleFamily?
     /// A tool asked where a rule's folder is when the rule doesn't run a tool of its own (`npm config get cache`, #170).
     /// Only its query is ever run. A `.tool` rule asks its own `tool` instead.

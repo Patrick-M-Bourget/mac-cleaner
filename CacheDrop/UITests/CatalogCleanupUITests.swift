@@ -239,7 +239,7 @@ final class CatalogCleanupUITests: XCTestCase {
         XCTAssertFalse(app.descendants(matching: .any)["planCategory-developer"].exists, "No live rows while nothing is known")
 
         // After its last location the scan names what it is doing, never "… N of N" while it reads apps and plug-ins.
-        let phases = ["Checking leftovers of removed apps…", "Checking apps and plug-ins…", "Checking which apps are open…",
+        let phases = ["Checking files from deleted apps…", "Checking apps and plug-ins…", "Checking which apps are open…",
                       "Recording storage trends…", "Checking app-managed storage…"]
         let phase = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value IN %@", phases), object: progress)
         XCTAssertEqual(XCTWaiter.wait(for: [phase], timeout: 60), .completed, progress.debugDescription)
