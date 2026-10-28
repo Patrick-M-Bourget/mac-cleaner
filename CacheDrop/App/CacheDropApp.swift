@@ -643,7 +643,7 @@ private struct WorkspaceView: View {
         guard !folderInspection.isScanning, !selection.workspaceRunning else { return }
         // Asked while History holds the maintenance lease: rechecked once it lets go, with access resolved then (#310).
         if AppLifecycleController.shared.maintenanceInProgress {
-            AppLifecycleController.shared.afterMaintenance.waitFor("folderRecheck") { scanLocations(scopes) }
+            AppLifecycleController.shared.afterMaintenance.waitFor(.folderRecheck) { scanLocations(scopes) }
             return
         }
         let leases = scopes.compactMap { locationsModel.resolve($0) }

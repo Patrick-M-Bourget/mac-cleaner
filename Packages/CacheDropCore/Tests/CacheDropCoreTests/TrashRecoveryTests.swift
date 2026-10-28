@@ -74,6 +74,7 @@ private struct FailOutcomeJournal: CleanupJournaling {
     func intent(_ record: CleanupRecord) throws { try base.intent(record) }
     func outcome(_ record: CleanupRecord) throws { throw CleanupJournalError.unavailable }
     func records() throws -> [CleanupRecord] { try base.records() }
+    func append(_ records: [CleanupRecord]) throws { throw CleanupJournalError.unavailable }
 }
 private func twoInstallers() throws -> (URL, [Candidate]) {
     let (home, downloads) = try fixtureDownloads()

@@ -286,7 +286,7 @@ public enum BuiltInCatalog {
                     tool: ToolCommand(executables: simctlExecutables, arguments: ["delete", "unavailable"], timeout: 300, daemonBacked: true),
                     items: .unavailableSimulators),
         // RESET Decision 18. Installers come first so a large old installer is listed once, as an installer.
-        CleanupRule(id: "downloads-installers", category: .downloads, title: "Installers in Downloads",
+        CleanupRule(id: CleanupRule.downloadsInstallersID, category: .downloads, title: "Installers in Downloads",
                     detail: "Disk images, packages and archives you downloaded, at any age.",
                     consequence: "Moved to Trash. The space stays used until you empty the Trash; you can restore them from the Trash in Finder.",
                     regen: .installer, action: .trash, locations: ["Downloads"], owner: nil,
@@ -658,7 +658,7 @@ public struct Catalog: Sendable {
             if let minimum = match.minimumBytes, Int64(info.st_size) < minimum { return .continue }
             if match.besideCompressedSource, !Self.hasCompressedSource(url, size: Int64(info.st_size)) { return .continue }
             let lastUsed = Self.lastUsed(url, info)
-            if let days = match.unusedDays, lastUsed > now.addingTimeInterval(-Double(days) * 86_400) { return .continue }
+            if let days = match.unusedDays, lastUsed > now.addingTimeInterval(-Double(days) * .secondsPerDay) { return .continue }
             found.append(candidate(rule, url, info, logical: Int64(info.st_size), allocated: Int64(info.st_blocks) * 512, complete: true, lastUsed: lastUsed))
             return .continue
         }

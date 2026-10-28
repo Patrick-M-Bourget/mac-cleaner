@@ -79,7 +79,7 @@ enum CacheDropDesign {
     static func goesToTrash(_ selection: [Candidate]) -> String? {
         let trash = selection.filter { $0.action == .trash }
         guard !trash.isEmpty else { return nil }
-        return ByteCountFormatter.string(fromByteCount: trash.reduce(0) { $0 + $1.estimatedBytes }, countStyle: .decimal) + " of this goes to Trash"
+        return SmartCleanConsequence.goesToTrash(ByteCountFormatter.string(fromByteCount: trash.reduce(0) { $0 + $1.estimatedBytes }, countStyle: .decimal))
     }
     static func items(_ count: Int) -> String { "\(count) \(count == 1 ? "item" : "items")" }
     static var capacityFill: Color { adaptive(light: 0x969BA7, dark: 0x858997) }

@@ -5,9 +5,9 @@ import CacheDropCore
 @Test @MainActor func workAskedForDuringMaintenanceRunsOnceWhenItIsReleased() {
     let waiting = WorkAfterMaintenance()
     var ran: [String] = []
-    waiting.waitFor("catalog") { ran.append("catalog") }
-    waiting.waitFor("folder") { ran.append("folder") }
-    waiting.waitFor("catalog") { ran.append("catalog again") } // Asked twice: runs once, as last asked.
+    waiting.waitFor(.catalogScan) { ran.append("catalog") }
+    waiting.waitFor(.folderScan) { ran.append("folder") }
+    waiting.waitFor(.catalogScan) { ran.append("catalog again") } // Asked twice: runs once, as last asked.
     #expect(ran.isEmpty)
     waiting.released()
     waiting.released()
@@ -18,7 +18,7 @@ import CacheDropCore
     let waiting = WorkAfterMaintenance()
     var ran = 0
     waiting.released()
-    waiting.waitFor("catalog") { ran += 1 }
+    waiting.waitFor(.catalogScan) { ran += 1 }
     #expect(ran == 0)
     waiting.released()
     #expect(ran == 1)
@@ -29,13 +29,13 @@ import CacheDropCore
 @Test @MainActor func aRescanDeferredByTheLeaseStillRechecksRememberedFolders() {
     let waiting = WorkAfterMaintenance()
     var runs: [Bool] = []
-    waiting.waitFor("catalogScan", rescan: true) { runs.append($0) }
-    waiting.waitFor("catalogScan", rescan: false) { runs.append($0) }
+    waiting.waitFor(.catalogScan, rescan: true) { runs.append($0) }
+    waiting.waitFor(.catalogScan, rescan: false) { runs.append($0) }
     waiting.released()
     waiting.released()
     #expect(runs == [true])
 
-    waiting.waitFor("catalogScan", rescan: false) { runs.append($0) }
+    waiting.waitFor(.catalogScan, rescan: false) { runs.append($0) }
     waiting.released()
     #expect(runs == [true, false])
 }

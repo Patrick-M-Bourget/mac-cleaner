@@ -383,7 +383,7 @@ struct StorageExplorerView: View {
     }
     private func whyListed(_ file: Candidate) -> String {
         let large = file.logicalBytes >= UserFiles.largeBytes ? "500 MB or more" : nil
-        let old = file.lastUsed.flatMap { $0 < Date().addingTimeInterval(-Double(UserFiles.unusedDays) * 86_400) ? "not opened since " + $0.formatted(date: .abbreviated, time: .omitted) : nil }
+        let old = file.lastUsed.flatMap { $0 < Date().addingTimeInterval(-Double(UserFiles.unusedDays) * .secondsPerDay) ? "not opened since " + $0.formatted(date: .abbreviated, time: .omitted) : nil }
         return ([large, old].compactMap { $0 }.joined(separator: " and ") + ".").capitalizedFirst + " Age and size don’t mean it’s unwanted; you decide."
     }
     private func relative(_ url: URL, to root: URL) -> String { url.pathComponents.dropFirst(root.pathComponents.count).joined(separator: "/") }

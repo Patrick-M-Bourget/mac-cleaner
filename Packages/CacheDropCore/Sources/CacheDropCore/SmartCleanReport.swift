@@ -80,21 +80,21 @@ public struct SmartCleanReport: Sendable {
         return SmartCleanReport(catalog: sources.catalog, home: sources.home, found: found, now: now, check: check.check)
     }
 
+    /// Why Smart clean takes `candidate`, from the plan's own `RecommendedPlan.Basis` so the two never disagree.
     static func reason(_ candidate: Candidate, rule: CleanupRule, now: Date) -> String {
-        switch rule.action {
-        case .tool:
-            return rule.title + ", cleaned by `" + (rule.tool?.commandLine(for: candidate.toolArgument) ?? "its tool") + "`"
-        case .trash where rule.id == RemovedAppLeftovers.ruleID:
-            guard let tie = candidate.leftover else { return rule.title }
+        switch RecommendedPlan.basis(candidate, rule: rule, now: now) {
+        case .leftover(let tie):
             switch tie.evidence {
             case .bundleID: return "Leftover tied to \(tie.app) by bundle ID \(tie.bundleID ?? "")"
             case .receipt(let id): return "Leftover tied to \(tie.app) by installer receipt \(id)"
             case .nameOnly(let why): return why
             }
-        case .trash:
-            let days = candidate.lastUsed.map { Int(now.timeIntervalSince($0) / 86_400) } ?? 0
+        case .oldInstaller:
+            let days = candidate.lastUsed.map { Int(now.timeIntervalSince($0) / .secondsPerDay) } ?? 0
             return "Installer not opened or changed in \(days) days"
-        default:
+        case .rebuildsItself where rule.action == .tool:
+            return rule.title + ", cleaned by `" + (rule.tool?.commandLine(for: candidate.toolArgument) ?? "its tool") + "`"
+        case .rebuildsItself, nil:
             let kind: String = switch rule.regen {
             case .build: "build files"
             case .updaterDownload: "an update download"
@@ -121,7 +121,7 @@ public struct SmartCleanReport: Sendable {
         let all = picked.map(\.candidate), trash = all.filter { $0.action == .trash }
         var lines = ["Smart clean report for \(home), \(ISO8601DateFormatter().string(from: date))",
                      "Read-only: it scanned and checked as Clean up would. Nothing on disk was changed, and this text is not saved.",
-                     "Would pick \(all.count) \(all.count == 1 ? "item" : "items"), \(size(all))" + (trash.isEmpty ? "" : "; \(size(trash)) of this goes to Trash"), ""]
+                     "Would pick \(all.count) \(all.count == 1 ? "item" : "items"), \(size(all))" + (trash.isEmpty ? "" : "; " + SmartCleanConsequence.goesToTrash(size(trash))), ""]
         var order: [CatalogCategory] = []
         for rule in catalog.rules where !order.contains(rule.category) && all.contains(where: { $0.ruleID == rule.id }) { order.append(rule.category) }
         for category in order {
