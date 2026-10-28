@@ -496,8 +496,8 @@ final class ScannedLocationsUITests: XCTestCase {
         app.typeText(folder.path + "\n")
         panel.buttons["Remember folder"].click()
 
-        // Renewed and scanned in place: the row is gone and the folder can be explored.
-        XCTAssertTrue(app.links["Explore storage"].waitForExistence(timeout: 20))
+        // Renewed and scanned in place: the row is gone and the folder shows on Overview.
+        waitForScannedFolder(app)
         XCTAssertFalse(row.exists)
     }
 
@@ -520,7 +520,7 @@ final class ScannedLocationsUITests: XCTestCase {
         panel.typeKey("g", modifierFlags: [.command, .shift])
         app.typeText(folder.path + "\n")
         panel.buttons["Scan folder"].click()
-        XCTAssertTrue(app.links["Explore storage"].waitForExistence(timeout: 20))
+        waitForScannedFolder(app)
 
         // Deleted, then Scan again can't find it.
         try FileManager.default.removeItem(at: folder)

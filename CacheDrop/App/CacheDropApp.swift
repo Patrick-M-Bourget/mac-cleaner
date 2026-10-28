@@ -222,12 +222,14 @@ private struct WorkspaceView: View {
                 if nativeInspectionVisible {
                     StorageExplorerView(model: folderInspection, selection: selection, context: explorerContext,
                         caller: explorerCaller.rawValue, back: { nativeInspectionVisible = false; destination = explorerCaller }, unavailable: explorerUnavailable)
-                    ActionStrip(message: nil) {
-                        Button("Review plan") {
+                    // "N selected", then Add to cleanup plan once something is ticked (#320).
+                    ActionStrip(message: explorerSelectedCount > 0 ? "\(explorerSelectedCount) selected" : nil) {
+                        Button("Add to cleanup plan") {
                             nativeInspectionVisible = false
                             planReturnsToExplorer = explorerCaller != .plan
+                            planPresentation.expandedCategories.insert(UserFiles.rule.category)
                             destination = .plan
-                        }.buttonStyle(.borderedProminent)
+                        }.buttonStyle(.borderedProminent).disabled(explorerSelectedCount == 0 || selection.workspaceRunning)
                     }
                 } else if showsPlan {
                     LiveCleanupPlanView(selection: selection,
@@ -551,9 +553,9 @@ private struct WorkspaceView: View {
                 Text("Scanned locations").font(.caption.weight(.medium))
                 Text(scannedSummary).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
                     .help(overviewObservation?.scope.path ?? "").accessibilityIdentifier("overviewScopeCoverage")
-                if overviewObservation != nil {
-                    Button("Explore storage") { openExplorer(caller: .overview) }.buttonStyle(.link).font(CacheDropDesign.TypeStyle.caption).disabled(selection.workspaceRunning)
-                }
+                // Always there (#320): with no scanned folder it leads to Locations & access, where folders are added.
+                Button("Explore storage") { if hasScannedFolder { openExplorer(caller: .overview) } else { navigate(.locations) } }
+                    .buttonStyle(.link).font(CacheDropDesign.TypeStyle.caption).disabled(selection.workspaceRunning)
                 Spacer(minLength: 0)
                 // One clear action: pick a folder, remember it and scan it now (#125).
                 Button("Scan a folder…", systemImage: "folder.badge.plus", action: chooseFolderForScan).controlSize(.small)
@@ -629,10 +631,19 @@ private struct WorkspaceView: View {
         let unavailable = scopes.filter { !resolved.contains($0.path) }.map { URL(fileURLWithPath: $0.path) }
         folderInspection.scanAgain(scopes: leases.map(\.url), leases: leases, unavailable: unavailable)
     }
-    private func openExplorer(caller: Destination) {
+    /// Opens Explore storage; from a location's Explore link (#320), at that folder.
+    private func openExplorer(caller: Destination, at folder: URL? = nil) {
         explorerContext.allowedScopes = Set(locationsModel.included.map { URL(fileURLWithPath: $0.path).standardizedFileURL })
+        if let folder { explorerContext.openLocation(folder) }
         explorerCaller = caller; nativeInspectionVisible = true; planReturnsToExplorer = false
     }
+    /// An included location that has been scanned, so Explore storage has something to show.
+    private func isScanned(_ scope: RememberedScope) -> Bool {
+        scope.isIncluded && (selection.scans[URL(fileURLWithPath: scope.path)] != nil || folderInspection.scopeReports.contains { $0.current.scope.path == scope.path })
+    }
+    private var hasScannedFolder: Bool { locationsModel.included.contains(where: isScanned) }
+    /// Large and old files ticked for the plan, which the explorer's bar counts.
+    private var explorerSelectedCount: Int { selection.catalog.pickedCandidates.filter { selection.catalog.isSelected($0) }.count }
     private func startNewPlan() {
         planPresentation.reset(); selection.startNewPlan(); planReturnsToExplorer = false; nativeInspectionVisible = false; destination = .plan
         Task { await folderInspection.resetSession() }
@@ -679,6 +690,10 @@ private struct WorkspaceView: View {
                         if locationsModel.setIncluded(included, scope: scope) { selection.suspendScope(URL(fileURLWithPath: scope.path)) }
                     }), enabled: !folderInspection.isScanning && !selection.workspaceRunning) {
                     HStack {
+                        if isScanned(scope), locationsModel.statuses[scope.id]?.needsRecovery != true {
+                            Button("Explore") { openExplorer(caller: .locations, at: URL(fileURLWithPath: scope.path)) }
+                                .buttonStyle(.link).accessibilityIdentifier("locationExplore:" + scope.path)
+                        }
                         if locationsModel.statuses[scope.id]?.needsRecovery == true {
                             Button("Choose again…") { chooseAgain(scope) }
                             Button("Reconnect and recheck") { scanLocations([scope]) }.disabled(!scope.isIncluded)

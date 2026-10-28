@@ -58,17 +58,16 @@ struct DesignGallery: View {
                     LocalRecordsMaintenanceControls(enabled: false, clear: {}, reset: {})
                     Text("Synthetic Full Disk Access row · Live status check only").font(.headline)
                     FullDiskAccessSetting()
-                    ExplorerInspector(name: "Camera guide.pdf", close: {}) {
+                    // Explore storage's inspector (#320): always open, one path.
+                    ExplorerInspector(name: "Camera guide.pdf") {
                         Text("Location").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
                         Text("/Example/Downloads/Camera guide.pdf")
-                        Text("Observed scope").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
-                        Text("/Example/Downloads")
-                        Text("On disk: 8 MB observed")
-                        Text("Logical size: 8 MB")
-                        Text("Why listed").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
-                        Text("Observed during a manual scan")
-                        Text("Cleanup action").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
-                        Text("Move this exact file to Trash after selection and confirmation.")
+                        Text("On disk").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
+                        Text("8 MB")
+                        Text("Why it’s listed").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
+                        Text("Not opened since Mar 2, 2026.")
+                        Text("Action").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
+                        Text("Move to Trash. The space stays used until you empty the Trash.")
                     }.frame(height: 220)
                     ExplorerInspector(name: "Cloud metadata (synthetic)", close: {}) {
                         Text("Synthetic Gallery metadata; no provider certification.")
