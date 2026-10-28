@@ -891,29 +891,41 @@ struct InspectableItemRow<Selection: View>: View {
     let size: String
     let symbol: String
     let inspected: Bool
-    let inspect: () -> Void
+    /// What clicking the row does; nil makes it a plain, unclickable row (a rule of items ticked one by one, #356).
+    let inspect: (() -> Void)?
     var detailLineLimit = 2
     /// What VoiceOver says the click does, when it isn't inspecting the item (Reveal in Finder, #207).
     var actionLabel: String? = nil
+    /// A link after the size, such as Reveal in Finder beside an item whose click ticks it (#356).
+    var secondary: StatusAction? = nil
     @ViewBuilder var selection: () -> Selection
     var body: some View {
         HStack(alignment: .center, spacing: CacheDropDesign.Space.md) {
             selection()
-            Button(action: inspect) {
-                HStack(spacing: CacheDropDesign.Space.md) {
-                    Image(systemName: symbol).foregroundStyle(.secondary).frame(width: 20)
-                    VStack(alignment: .leading, spacing: CacheDropDesign.Space.xs) {
-                        Text(name).foregroundStyle(.primary)
-                        // An empty detail makes it a one-line row (Smart clean, #141).
-                        if !detail.isEmpty { Text(detail).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary).lineLimit(detailLineLimit) }
-                    }.frame(maxWidth: .infinity, alignment: .leading)
-                    Text(size).font(.callout).monospacedDigit().foregroundStyle(.secondary)
-                }.contentShape(Rectangle())
-            }.buttonStyle(.plain).accessibilityLabel(actionLabel ?? "Inspect " + name)
-                // The button hides its texts from accessibility; keep the detail (e.g. when it was last used) and size readable.
-                .accessibilityValue(detail.isEmpty ? size : detail + ", " + size)
+            if let inspect {
+                Button(action: inspect) { content }.buttonStyle(.plain).accessibilityLabel(actionLabel ?? "Inspect " + name)
+                    // The button hides its texts from accessibility; keep the detail (e.g. when it was last used) and size readable.
+                    .accessibilityValue(detail.isEmpty ? size : detail + ", " + size)
+            } else {
+                content.accessibilityElement(children: .combine)
+            }
+            if let secondary {
+                Button(secondary.title, action: secondary.action).buttonStyle(.link).font(CacheDropDesign.TypeStyle.caption)
+                    .accessibilityLabel(secondary.title + " " + name).accessibilityIdentifier(secondary.identifier)
+            }
         }.padding(CacheDropDesign.Space.md)
             .background(inspected ? Color.accentColor.opacity(0.06) : .clear, in: RoundedRectangle(cornerRadius: CacheDropDesign.Radius.row))
+    }
+    private var content: some View {
+        HStack(spacing: CacheDropDesign.Space.md) {
+            Image(systemName: symbol).foregroundStyle(.secondary).frame(width: 20)
+            VStack(alignment: .leading, spacing: CacheDropDesign.Space.xs) {
+                Text(name).foregroundStyle(.primary)
+                // An empty detail makes it a one-line row (Smart clean, #141).
+                if !detail.isEmpty { Text(detail).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary).lineLimit(detailLineLimit) }
+            }.frame(maxWidth: .infinity, alignment: .leading)
+            Text(size).font(.callout).monospacedDigit().foregroundStyle(.secondary)
+        }.contentShape(Rectangle())
     }
 }
 
