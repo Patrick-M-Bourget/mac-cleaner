@@ -249,69 +249,8 @@ private struct WorkspaceView: View {
                 } else if showsApplications {
                     ApplicationsView(selection: selection, model: ApplicationsModel.shared, viewHistory: { navigate(.history) }, reviewRecovery: { openRecovery(caller: .applications) })
                 } else {
-                ScrollView {
-                    VStack(alignment: .leading, spacing: CacheDropDesign.Space.xl) {
-                        if recoveryVisible {
-                            CleanupRecoveryView(model: recovery, back: BackButton(destination: navigationState.localRecordsVisible ? "Local records" : navigationState.recoveryCaller.rawValue) {
-                                recoveryVisible = false; destination = navigationState.recoveryCaller; navigationState.recoveryCaller = .overview
-                            }, viewHistory: { navigate(.history) })
-                        } else if navigationState.localRecordsVisible {
-                            LocalRecordsView(model: navigationState.historyModel, showRecovery: { openRecovery(caller: navigationState.localRecordsCaller) }, didReset: didResetLocalRecords,
-                                             back: BackButton(destination: navigationState.localRecordsCaller.rawValue) {
-                                                 navigationState.localRecordsVisible = false
-                                                 destination = navigationState.localRecordsCaller
-                                             })
-                        } else if exclusionsVisible {
-                            ExclusionsView(model: ExclusionsModel.shared, back: BackButton(destination: Destination.locations.rawValue, enabled: !ExclusionsModel.shared.editingBlocked) {
-                                exclusionsVisible = false; destination = .locations
-                            })
-                        } else if navigationState.appManagedVisible {
-                            AppManagedStorageView(model: selection.catalog) { navigationState.appManagedVisible = false }
-                        } else {
-                            switch destination {
-                            case .growth: GrowthHistoryView(model: GrowthHistoryModel.shared, catalog: selection.catalog, scanNow: { if canScanAgain { scanAgain() } })
-                            case .overview: overview
-                            case .plan, .smartClean, .applications: EmptyView()
-                            case .history: history
-                            case .locations: locations
-                            }
-                        }
-                    }.padding(CacheDropDesign.Space.page).frame(maxWidth: .infinity, alignment: .leading)
-                        .background(alignment: .topLeading) {
-                            if let offset = scrollOffset { DestinationViewport(offset: offset).frame(width: 0, height: 0) }
-                        }
-                }.id(scrollIdentity)
-
-                Group {
-                    if exclusionsVisible {
-                        ActionStrip(message: "Protecting an item never changes it.") {
-                            if ExclusionsModel.shared.preview != nil {
-                                Button("Cancel") { ExclusionsModel.shared.preview = nil }.disabled(ExclusionsModel.shared.editingBlocked)
-                                Button("Protect") { Task { await ExclusionsModel.shared.save() } }.buttonStyle(.borderedProminent).disabled(ExclusionsModel.shared.editingBlocked)
-                            } else {
-                                Button("Choose file or folder…") { Task { await ExclusionsModel.shared.choose() } }.buttonStyle(.borderedProminent).disabled(ExclusionsModel.shared.editingBlocked).accessibilityIdentifier("chooseExclusion")
-                            }
-                        }
-                    } else if recoveryVisible {
-                        ActionStrip(message: "Nothing restarts by itself.") { EmptyView() }
-                    } else if navigationState.localRecordsVisible {
-                        ActionStrip()
-                    } else if destination == .overview && !navigationState.appManagedVisible {
-                        // Scan again sits in the bar, as on Storage trends (#311).
-                        ActionStrip(message: nil) {
-                            Button("Scan again", action: scanAgain).disabled(!canScanAgain).help(scanAgainHelp).accessibilityIdentifier("overviewScanAgain")
-                        }
-                    } else if destination == .growth {
-                        ActionStrip(message: nil) {
-                            Button("Scan again", action: scanAgain).disabled(!canScanAgain).help(scanAgainHelp)
-                                .accessibilityIdentifier("growthScanAgain")
-                            Button("Review plan") { navigate(.plan); navigationState.planReturnsToGrowth = true }.buttonStyle(.borderedProminent)
-                                .accessibilityIdentifier("growthReviewOptions")
-                        }
-                    } else {
-                        ActionStrip()
-                    }
-                }
+                scrollingPage
+                pageBar
                 }
             }.frame(maxWidth: .infinity, maxHeight: .infinity)
                 .background(CacheDropDesign.reading)
@@ -660,6 +599,76 @@ private struct WorkspaceView: View {
     }
     /// Explore storage, as Overview's link and the empty states lead there (#320, #321): with no scanned folder yet,
     /// Locations & access, where folders are added.
+    /// The pages that scroll above the bar: Recovery, Local records, Protected items, App-managed storage and the sidebar destinations.
+    @ViewBuilder private var scrollingPage: some View {
+    ScrollView {
+        VStack(alignment: .leading, spacing: CacheDropDesign.Space.xl) {
+            if recoveryVisible {
+                CleanupRecoveryView(model: recovery, back: BackButton(destination: navigationState.localRecordsVisible ? "Local records" : navigationState.recoveryCaller.rawValue) {
+                    recoveryVisible = false; destination = navigationState.recoveryCaller; navigationState.recoveryCaller = .overview
+                }, viewHistory: { navigate(.history) })
+            } else if navigationState.localRecordsVisible {
+                LocalRecordsView(model: navigationState.historyModel, showRecovery: { openRecovery(caller: navigationState.localRecordsCaller) }, didReset: didResetLocalRecords,
+                                 back: BackButton(destination: navigationState.localRecordsCaller.rawValue) {
+                                     navigationState.localRecordsVisible = false
+                                     destination = navigationState.localRecordsCaller
+                                 })
+            } else if exclusionsVisible {
+                ExclusionsView(model: ExclusionsModel.shared, back: BackButton(destination: Destination.locations.rawValue, enabled: !ExclusionsModel.shared.editingBlocked) {
+                    exclusionsVisible = false; destination = .locations
+                })
+            } else if navigationState.appManagedVisible {
+                AppManagedStorageView(model: selection.catalog) { navigationState.appManagedVisible = false }
+            } else {
+                switch destination {
+                case .growth: GrowthHistoryView(model: GrowthHistoryModel.shared, catalog: selection.catalog, scanNow: { if canScanAgain { scanAgain() } })
+                case .overview: overview
+                case .plan, .smartClean, .applications: EmptyView()
+                case .history: history
+                case .locations: locations
+                }
+            }
+        }.padding(CacheDropDesign.Space.page).frame(maxWidth: .infinity, alignment: .leading)
+            .background(alignment: .topLeading) {
+                if let offset = scrollOffset { DestinationViewport(offset: offset).frame(width: 0, height: 0) }
+            }
+    }.id(scrollIdentity)
+    }
+
+    /// The bottom bar under a scrolling page.
+    @ViewBuilder private var pageBar: some View {
+    Group {
+        if exclusionsVisible {
+            ActionStrip(message: "Protecting an item never changes it.") {
+                if ExclusionsModel.shared.preview != nil {
+                    Button("Cancel") { ExclusionsModel.shared.preview = nil }.disabled(ExclusionsModel.shared.editingBlocked)
+                    Button("Protect") { Task { await ExclusionsModel.shared.save() } }.buttonStyle(.borderedProminent).disabled(ExclusionsModel.shared.editingBlocked)
+                } else {
+                    Button("Choose file or folder…") { Task { await ExclusionsModel.shared.choose() } }.buttonStyle(.borderedProminent).disabled(ExclusionsModel.shared.editingBlocked).accessibilityIdentifier("chooseExclusion")
+                }
+            }
+        } else if recoveryVisible {
+            ActionStrip(message: "Nothing restarts by itself.") { EmptyView() }
+        } else if navigationState.localRecordsVisible {
+            ActionStrip()
+        } else if destination == .overview && !navigationState.appManagedVisible {
+            // Scan again sits in the bar, as on Storage trends (#311).
+            ActionStrip(message: nil) {
+                Button("Scan again", action: scanAgain).disabled(!canScanAgain).help(scanAgainHelp).accessibilityIdentifier("overviewScanAgain")
+            }
+        } else if destination == .growth {
+            ActionStrip(message: nil) {
+                Button("Scan again", action: scanAgain).disabled(!canScanAgain).help(scanAgainHelp)
+                    .accessibilityIdentifier("growthScanAgain")
+                Button("Review plan") { navigate(.plan); navigationState.planReturnsToGrowth = true }.buttonStyle(.borderedProminent)
+                    .accessibilityIdentifier("growthReviewOptions")
+            }
+        } else {
+            ActionStrip()
+        }
+    }
+    }
+
     /// The plan's back button: to Storage trends or Explore storage when the plan was opened from there, otherwise none.
     private var planBack: (() -> Void)? {
         if navigationState.planReturnsToGrowth { return { navigationState.planReturnsToGrowth = false; destination = .growth } }
