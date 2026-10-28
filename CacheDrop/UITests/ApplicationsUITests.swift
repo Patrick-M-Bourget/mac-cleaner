@@ -177,6 +177,11 @@ final class ApplicationsUITests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: synth.path), "The app went to the Trash")
         for file in files { XCTAssertFalse(FileManager.default.fileExists(atPath: file.path), file.path) }
         XCTAssertTrue(FileManager.default.fileExists(atPath: related.path), "What wasn't ticked stays")
+        // #312: the app's result row names the app, never the rule ("App · ~/Applications").
+        let named = NSPredicate(format: "label BEGINSWITH %@ OR value BEGINSWITH %@", "Synth · ", "Synth · ")
+        XCTAssertTrue(app.staticTexts.matching(named).firstMatch.exists, "Results name the app")
+        let ruleNamed = NSPredicate(format: "label BEGINSWITH %@ OR value BEGINSWITH %@", "App · ", "App · ")
+        XCTAssertFalse(app.staticTexts.matching(ruleNamed).firstMatch.exists, "Results never name the rule")
 
         app.buttons["View history"].click()
         // A History row is one combined button whose label starts with its title.

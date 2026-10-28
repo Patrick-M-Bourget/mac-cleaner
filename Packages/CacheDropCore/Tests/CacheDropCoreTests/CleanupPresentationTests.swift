@@ -25,7 +25,7 @@ private func fixture(_ rules: [CleanupRule]) throws -> (URL, Catalog, [Candidate
     defer { try? FileManager.default.removeItem(at: home) }
     let groups = ReviewGroup.groups(catalog: catalog, candidates: candidates)
     #expect(groups.map(\.consequence) == [.permanentlyRemoved, .movedToTrash, .commandsRun])
-    #expect(ConsequenceGroup.allCases.map(\.title) == ["Permanently removed", "Moved to Trash", "Local copies removed", "Commands run"])
+    #expect(ConsequenceGroup.allCases.map(\.title) == ["Delete permanently", "Move to Trash", "Remove local copies", "Run cleanup commands"])
     #expect(ConsequenceGroup(.evict) == .localCopiesRemoved)
     let removed = try #require(groups.first)
     #expect(removed.lines.map(\.category) == [.developer, .browser])

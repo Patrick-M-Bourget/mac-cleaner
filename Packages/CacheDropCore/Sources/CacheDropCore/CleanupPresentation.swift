@@ -16,10 +16,10 @@ public enum ConsequenceGroup: Int, CaseIterable, Sendable, Comparable {
     }
     public var title: String {
         switch self {
-        case .permanentlyRemoved: "Permanently removed"
-        case .movedToTrash: "Moved to Trash"
-        case .localCopiesRemoved: "Local copies removed"
-        case .commandsRun: "Commands run"
+        case .permanentlyRemoved: "Delete permanently"
+        case .movedToTrash: "Move to Trash"
+        case .localCopiesRemoved: "Remove local copies"
+        case .commandsRun: "Run cleanup commands"
         }
     }
     /// The one sentence the review shows for the group.

@@ -30,7 +30,7 @@ extension CleanupAction {
                           partlyFailed: "Partly removed", unresolved: "Unresolved · It may be partly deleted",
                           partlyFailedRecovery: "Recorded failure · It may be partly deleted", historyPhrase: "deleted")
         case .tool:
-            ActionWording(title: "Run its cleanup command", previewOutcome: "Would run", succeeded: "Cleaned",
+            ActionWording(title: "Run its cleanup command", previewOutcome: "Would run", succeeded: "Deleted",
                           partlyFailed: "Partly removed", unresolved: "Unresolved · It may be partly deleted",
                           partlyFailedRecovery: "Recorded failure · It may be partly deleted", historyPhrase: "deleted")
         case .trash:
@@ -60,6 +60,10 @@ extension CleanupRecord {
     public var wasPreviewed: Bool {
         previewOnly == true && state == .skipped && (message.hasPrefix(Self.previewPrefix) || message.hasPrefix(Self.legacyPreviewPrefix))
     }
+    /// The app or plug-in product an uninstall removed, by name (e.g. "Synth"); nil for its files and for any other record.
+    public var uninstalledName: String? {
+        ruleID.map(AppRuleFamily.namingRuleIDs.contains) == true ? originalURL.deletingPathExtension().lastPathComponent : nil
+    }
     public var actionTitle: String { cleanupAction?.wording.title ?? (isPutBack ? ActionWording.putBack.title : action) }
     public var outcomeTitle: String {
         if wasPreviewed { return wording.previewOutcome }
@@ -71,6 +75,13 @@ extension CleanupRecord {
         case .cancelled, .pending: return "Not started"
         case .intent, .unknown: return "Unresolved"
         }
+    }
+    /// Success messages that only restate the outcome, which History leaves out (#312).
+    private static let restatesOutcome: Set<String> = ["Permanently removed", "Moved to Trash", "Put back from the Trash"]
+    /// History's line for a record: its outcome, then its message when that adds something (#312).
+    public var outcomeLine: String {
+        let restates = message == outcomeTitle || (state == .succeeded && Self.restatesOutcome.contains(message))
+        return restates ? outcomeTitle : outcomeTitle + " · " + message
     }
     public var recoveryStateText: String {
         switch state {
@@ -102,7 +113,7 @@ extension CleanupHistoryRun {
         // An uninstall (#177, Decision 51): "Uninstalled <App> · N items".
         // An app's own uninstaller goes with it (#285) and isn't named.
         // A plug-in product (#176) is named once for all its formats.
-        let apps = done.filter { $0.ruleID.map(AppRuleFamily.namingRuleIDs.contains) == true }.map { $0.originalURL.deletingPathExtension().lastPathComponent }
+        let apps = done.compactMap(\.uninstalledName)
             .filter { !ApplicationsInventory.isUninstallerName($0) }.reduce(into: [String]()) { if !$0.contains($1) { $0.append($1) } }
         if !apps.isEmpty {
             return "Uninstalled \(Self.list(apps)) · " + (done.count == 1 ? "1 item" : "\(done.count) items")

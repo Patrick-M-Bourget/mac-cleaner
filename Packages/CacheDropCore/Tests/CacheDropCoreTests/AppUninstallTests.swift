@@ -174,6 +174,9 @@ private struct Processes: ProcessListing {
     #expect(!FileManager.default.fileExists(atPath: synth.path))
     let run = try #require(try journal.completedHistory().completedRuns.first)
     #expect(run.title == "Uninstalled Synth · 3 items")
+    // #312: the result row names the app, not the rule ("App · ~/Applications").
+    #expect(result.records.first { $0.ruleID == AppUninstall.appRuleID }?.uninstalledName == "Synth")
+    #expect(result.records.filter { $0.ruleID == AppUninstall.filesRuleID }.allSatisfy { $0.uninstalledName == nil })
     for record in result.records { #expect(TrashPutBack(journal: journal).putBack(record) == .restored(record.originalURL)) }
     #expect(chosen.allSatisfy { FileManager.default.fileExists(atPath: $0.url.path) })
 }
