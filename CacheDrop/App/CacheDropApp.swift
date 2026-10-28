@@ -78,7 +78,6 @@ enum Destination: String, CaseIterable, Identifiable {
     var explorerCaller = Destination.overview
     var planReturnsToExplorer = false
     var scanOrigin = Destination.overview
-    var downloadsExplorerActive = true
     var recoveryVisible = false
     var recoveryCaller = Destination.overview
     let historyModel = CleanupHistoryModel()
@@ -135,7 +134,7 @@ private struct WorkspaceView: View {
     @State private var overviewCloudExpanded = false
     @State private var overviewShowsAllCategories = false
     @State private var locationsModel = AppLifecycleController.shared.locations
-    private var explorerContext: StorageExplorerContext { navigationState.downloadsExplorerActive ? AppLifecycleController.shared.downloadsExplorer : AppLifecycleController.shared.locationsExplorer }
+    private var explorerContext: StorageExplorerContext { AppLifecycleController.shared.locationsExplorer }
     @State private var planPresentation = AppLifecycleController.shared.planPresentation
     @State private var smartCleanPresentation = AppLifecycleController.shared.smartCleanPresentation
     private var explorerCaller: Destination { get { navigationState.explorerCaller } nonmutating set { navigationState.explorerCaller = newValue } }
@@ -312,7 +311,6 @@ private struct WorkspaceView: View {
         .task { locationsModel.load() }
         .onChange(of: locationsModel.scopes) { _, _ in
             explorerContext.allowedScopes = Set(locationsModel.included.map { URL(fileURLWithPath: $0.path).standardizedFileURL })
-            explorerContext.downloadsScopes = Set(locationsModel.includedDownloads.map { URL(fileURLWithPath: $0.path).standardizedFileURL })
         }
         .onAppear {
             AppLifecycleController.shared.openWorkspace = { openWindow(id: "workspace") }
@@ -553,7 +551,7 @@ private struct WorkspaceView: View {
                 Text(scannedSummary).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
                     .help(overviewObservation?.scope.path ?? "").accessibilityIdentifier("overviewScopeCoverage")
                 if overviewObservation != nil {
-                    Button("Explore storage") { openExplorer(downloads: false, caller: .overview) }.buttonStyle(.link).font(CacheDropDesign.TypeStyle.caption).disabled(selection.workspaceRunning)
+                    Button("Explore storage") { openExplorer(caller: .overview) }.buttonStyle(.link).font(CacheDropDesign.TypeStyle.caption).disabled(selection.workspaceRunning)
                 }
                 Spacer(minLength: 0)
                 // One clear action: pick a folder, remember it and scan it now (#125).
@@ -630,11 +628,8 @@ private struct WorkspaceView: View {
         let unavailable = scopes.filter { !resolved.contains($0.path) }.map { URL(fileURLWithPath: $0.path) }
         folderInspection.scanAgain(scopes: leases.map(\.url), leases: leases, unavailable: unavailable)
     }
-    private func openExplorer(downloads: Bool, caller: Destination) {
-        navigationState.downloadsExplorerActive = downloads
-        if explorerContext.downloadsOnly != downloads { if downloads { explorerContext.openDownloads() } else { explorerContext.openLocations() } }
+    private func openExplorer(caller: Destination) {
         explorerContext.allowedScopes = Set(locationsModel.included.map { URL(fileURLWithPath: $0.path).standardizedFileURL })
-        explorerContext.downloadsScopes = Set(locationsModel.includedDownloads.map { URL(fileURLWithPath: $0.path).standardizedFileURL })
         explorerCaller = caller; nativeInspectionVisible = true; planReturnsToExplorer = false
     }
     private func startNewPlan() {

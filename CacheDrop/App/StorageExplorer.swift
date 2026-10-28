@@ -14,8 +14,6 @@ import SwiftUI
         var offset = CGPoint.zero
     }
     var allowedScopes: Set<URL>?
-    var downloadsScopes: Set<URL>?
-    var downloadsOnly = false
     /// Lists the large and old files offered from picked folders instead of the folder's contents.
     var showsLargeAndOld = false
     enum FileOrder: String, CaseIterable, Identifiable { case size = "Largest first", lastUsed = "Oldest first"; var id: Self { self } }
@@ -24,20 +22,19 @@ import SwiftUI
     private var history: [Position] = []
     var canGoBack: Bool { !history.isEmpty }
     /// The explorer's own title, which a page opened from it names when it goes back (#228).
-    var title: String { downloadsOnly ? "Explore Downloads" : "Explore storage" }
+    var title: String { "Explore storage" }
     /// The list of locations the explorer starts at.
-    var rootName: String { downloadsOnly ? "Scanned Downloads locations" : "Selected locations" }
+    var rootName: String { "Selected locations" }
     /// Where back leads inside the explorer: the previous folder, or the list of locations; nil when back leaves it.
     var backDestination: String? {
         guard let previous = history.last else { return nil }
         return previous.folder?.lastPathComponent ?? rootName
     }
     var navigationID = UUID()
-    func openDownloads() { reset(downloadsOnly: true, folder: nil) }
-    func openLocations() { reset(downloadsOnly: false, folder: nil) }
-    func openLocation(_ url: URL) { reset(downloadsOnly: false, folder: url.standardizedFileURL) }
-    private func reset(downloadsOnly: Bool, folder: URL?) {
-        self.downloadsOnly = downloadsOnly; position = Position(folder: folder); history = []; navigationID = UUID()
+    func openLocations() { reset(folder: nil) }
+    func openLocation(_ url: URL) { reset(folder: url.standardizedFileURL) }
+    private func reset(folder: URL?) {
+        position = Position(folder: folder); history = []; navigationID = UUID()
     }
     func enter(_ url: URL) {
         history.append(position); position = Position(folder: url.standardizedFileURL); navigationID = UUID()
@@ -74,16 +71,14 @@ private struct StorageExplorerObservations {
     let scans: [ScanResult]
     let entries: [Entry]
     init(scans selected: [URL: ScanResult], reports: [ScanResult], gone: [URL] = [], allowedScopes: Set<URL>?,
-         downloadsOnly: Bool, downloadsScopes: Set<URL>?, observedDownloadsScopes: Set<URL>,
-         configuredDownloads: URL?, eligible: (FileObservation, ScanResult) -> Bool) {
+         eligible: (FileObservation, ScanResult) -> Bool) {
         // A location a recheck couldn't reach keeps no current observation (#249).
         var latest = Dictionary(UnavailableScannedFolder.current(Array(selected.values), gone: gone).map { ($0.scope, $0) }, uniquingKeysWith: { first, _ in first })
         for scan in UnavailableScannedFolder.current(reports, gone: gone) {
             if latest[scan.scope].map({ $0.observedAt < scan.observedAt }) ?? true { latest[scan.scope] = scan }
         }
         scans = latest.values.filter { scan in
-            (allowedScopes?.contains(scan.scope.standardizedFileURL) ?? true) && (!downloadsOnly || downloadsScopes?.contains(scan.scope.standardizedFileURL) == true || observedDownloadsScopes.contains(scan.scope.standardizedFileURL)
-                || configuredDownloads.map { scan.scope.standardizedFileURL.pathComponents.starts(with: $0.pathComponents) } == true)
+            allowedScopes?.contains(scan.scope.standardizedFileURL) ?? true
         }.sorted { $0.scope.path < $1.scope.path }
         var representatives: [String: Entry] = [:]
         for scan in scans.sorted(by: { $0.observedAt > $1.observedAt }) {
@@ -143,10 +138,7 @@ struct StorageExplorerView: View {
     private typealias Entry = StorageExplorerObservations.Entry
     private var observations: StorageExplorerObservations {
         StorageExplorerObservations(scans: selection.scans, reports: model.scopeReports.map(\.current), gone: unavailable.map(\.scope),
-            allowedScopes: context.allowedScopes, downloadsOnly: context.downloadsOnly,
-            downloadsScopes: context.downloadsScopes,
-            observedDownloadsScopes: [],
-            configuredDownloads: FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask).first?.standardizedFileURL,
+            allowedScopes: context.allowedScopes,
             eligible: { _, _ in false })
     }
     private var scans: [ScanResult] { observations.scans }
@@ -173,8 +165,7 @@ struct StorageExplorerView: View {
     private var goneLocations: [(location: ExplorerUnavailableLocation, lastObserved: Date)] {
         let observed = Array(selection.scans.values) + model.scopeReports.map(\.current)
         return unavailable.compactMap { location in
-            guard !context.downloadsOnly || context.downloadsScopes?.contains(location.scope.standardizedFileURL) == true,
-                  let date = UnavailableScannedFolder.lastObserved(location.scope, in: observed) else { return nil }
+            guard let date = UnavailableScannedFolder.lastObserved(location.scope, in: observed) else { return nil }
             return (location, date)
         }.sorted { $0.location.scope.path < $1.location.scope.path }
     }
@@ -229,7 +220,7 @@ struct StorageExplorerView: View {
                 TextField("Search this folder", text: $context.position.query).help(folder.path)
                     .accessibilityIdentifier("explorerSearch")
             }
-            if !selection.catalog.pickedByResource.isEmpty && !context.downloadsOnly {
+            if !selection.catalog.pickedByResource.isEmpty {
                 HStack {
                     Picker("Show", selection: $context.showsLargeAndOld) {
                         Text("Folders").tag(false)
@@ -337,7 +328,7 @@ struct StorageExplorerView: View {
     private func offered(_ item: FileObservation) -> Candidate? {
         item.kind == .file ? selection.catalog.pickedByResource[item.resourceID] : nil
     }
-    private var showsLargeAndOld: Bool { context.showsLargeAndOld && !context.downloadsOnly && !selection.catalog.pickedByResource.isEmpty }
+    private var showsLargeAndOld: Bool { context.showsLargeAndOld && !selection.catalog.pickedByResource.isEmpty }
     /// Files offered from picked folders, under the current folder, in the chosen order. Nothing is preselected.
     /// Only files observed in the explorer's selected locations are listed, each with its observation.
     private var offeredHere: [(file: Candidate, entry: Entry)] {
