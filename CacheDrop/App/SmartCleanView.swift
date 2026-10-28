@@ -35,7 +35,6 @@ struct SmartCleanView: View {
             }
         }
         .onChange(of: model.selectionRevision) { _, _ in if review != nil { review = nil } }
-        .task { await model.scanIfNeeded() }
     }
 
     private var page: some View {

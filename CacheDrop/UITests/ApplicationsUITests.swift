@@ -132,8 +132,8 @@ final class ApplicationsUITests: XCTestCase {
         XCTAssertTrue(app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "Uninstalled Synth · 3 items")).firstMatch.waitForExistence(timeout: 10))
     }
 
-    /// #303: after an uninstall, Done rescans. While it runs the bar shows its progress and the other app's row says it is
-    /// being checked; then its checkbox comes back.
+    /// #303, #306: an uninstall rescans when it ends. After Done, while that scan runs, the bar shows its progress and the
+    /// other app's row says it is being checked; then its checkbox comes back.
     @MainActor func testApplicationsRescansAfterAnUninstallAndRowsSayTheyAreBeingChecked() throws {
         continueAfterFailure = false
         let app = XCUIApplication()
@@ -156,7 +156,7 @@ final class ApplicationsUITests: XCTestCase {
         XCTAssertTrue(app.buttons["Done"].waitForExistence(timeout: 20))
         app.buttons["Done"].click()
 
-        XCTAssertTrue(app.staticTexts["catalogScanProgress"].waitForExistence(timeout: 10), "Done rescans, and the bar shows its progress")
+        XCTAssertTrue(app.staticTexts["catalogScanProgress"].waitForExistence(timeout: 10), "The run rescans, and the bar shows its progress")
         XCTAssertTrue(element(app, "applicationsChecking-" + pad.path).waitForExistence(timeout: 5), "A row says it is being checked")
         let padRow = element(app, "applicationsApp-" + pad.path, .checkBox)
         XCTAssertTrue(padRow.waitForExistence(timeout: 120), "Its checkbox comes back after the scan")

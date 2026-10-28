@@ -107,8 +107,6 @@ struct ApplicationsView: View {
                 loading("leftovers")
             }
         }.padding(CacheDropDesign.Space.page).frame(maxWidth: .infinity, alignment: .leading)
-            // On the page, not the whole view, so Done after a run, which empties the catalog, scans again (#303).
-            .task { await catalog.scanIfNeeded() }
     }
 
     /// A section's lists come after the catalog scan; until then, and while they are read, it says it is looking (#270).

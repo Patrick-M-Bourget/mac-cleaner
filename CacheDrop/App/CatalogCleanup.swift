@@ -298,13 +298,28 @@ import SwiftUI
         return false
     }
 
-    /// Rescans the remembered, included folders. Set by the workspace; called after each scan `scanIfNeeded` starts,
-    /// at launch and after a cleanup, so those folders are scanned along with the catalog (#125).
+    /// Rescans the remembered, included folders. Set by the workspace; called once after each scan `rescan` starts,
+    /// so those folders are scanned along with the catalog (#125, #306).
     var scanRememberedFolders: (() -> Void)?
-    func scanIfNeeded() async { if !hasScanned { await scan(); scanRememberedFolders?() } }
-    /// Read-only sizing of the catalog's known locations.
-    func scan() async {
-        guard canEdit else { return }
+    /// A rescan asked for while a scan ran; it starts once that scan ends (#306).
+    private var rescanPending = false
+    /// The launch scan: once, until a scan has finished.
+    func scanIfNeeded() async { if !hasScanned { await rescan() } }
+    /// CacheDrop scans again by itself (#306): at launch, when a run ends and after a Put back, whichever page is open.
+    /// Asked while a scan runs, it scans again once that one ends. Each scan it starts rechecks the remembered folders once.
+    func rescan() async {
+        if isScanning { rescanPending = true; return }
+        if await scan() { scanRememberedFolders?() }
+    }
+    /// Read-only sizing of the catalog's known locations. False when it couldn't start: a scan or a cleanup is running.
+    @discardableResult func scan() async -> Bool {
+        guard canEdit else { return false }
+        await scanCatalog()
+        // Something changed on disk while it ran, such as a Put back: scan again, as its own rescan.
+        if rescanPending { rescanPending = false; Task { await rescan() } }
+        return true
+    }
+    private func scanCatalog() async {
         isScanning = true; message = nil; scanProgress = CatalogScanProgress()
         defer { isScanning = false; hasScanned = true; scanProgress = nil }
         guard let home = Self.home else { discovered = []; uninstallable = []; notes = []; overriddenRules = []; notAccessibleRules = []; setRunning([:], open: []); ownerNames = [:]; return }
