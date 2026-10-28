@@ -24,7 +24,7 @@ import XCTest
 /// can't fail a journey. The scan has started once Overview's total is measured, and finished once the bottom bar's
 /// progress line is gone; checking both means a scan that has not started yet never counts as done.
 @MainActor func waitForCatalogScan(_ app: XCUIApplication, timeout: TimeInterval = 120, file: StaticString = #filePath, line: UInt = #line) {
-    let measured = NSPredicate(format: "exists == true AND NOT (value IN %@)", ["Not measured yet", "Checking known locations…"])
+    let measured = NSPredicate(format: "exists == true AND NOT (value IN %@)", ["—"])
     let total = app.staticTexts["overviewRecommendedTotal"]
     XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: measured, object: total)], timeout: timeout), .completed,
                    "The catalog scan measured the known locations", file: file, line: line)
@@ -157,13 +157,50 @@ final class CatalogCleanupUITests: XCTestCase {
         let rowTop = developer.frame.minY
         let total = app.staticTexts["overviewRecommendedTotal"]
         XCTAssertTrue((total.value as? String)?.hasPrefix("Up to ") == true, total.debugDescription)
-        XCTAssertFalse(app.staticTexts["Nothing to review in the known locations."].exists)
+        XCTAssertFalse(app.staticTexts["overviewEmpty"].exists)
 
         XCTAssertTrue(progress.waitForNonExistence(timeout: 60))
         XCTAssertTrue(app.buttons["overviewCategory-downloads"].exists)
         // Nothing shifts when the scan ends: the rows stay put and the bar keeps its height.
         XCTAssertEqual(developer.frame.minY, rowTop, accuracy: 0.5)
         XCTAssertEqual(actionStrip(app).frame.height, stripHeight, accuracy: 0.5)
+    }
+
+    /// #308: while the first scan runs, Smart clean and the plan show skeleton rows rather than a blank page, and their
+    /// actions say to wait; after discovery the bar names the phase it is in. When it ends, the rows replace the skeleton.
+    @MainActor func testPlanAndSmartCleanShowSkeletonRowsAndTheBarNamesEachPhase() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        let state = try configureIsolatedState(app)
+        let home = try configureCatalogHome(app)
+        app.launchEnvironment["CACHEDROP_TEST_DISCOVERY_PAUSE"] = "0.5"
+        defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
+        app.launch()
+
+        let progress = app.staticTexts["catalogScanProgress"]
+        XCTAssertTrue(progress.waitForExistence(timeout: 10))
+        app.typeKey("2", modifierFlags: .command)
+        XCTAssertTrue(app.descendants(matching: .any)["smartCleanSkeleton"].waitForExistence(timeout: 5), "Smart clean shows skeleton rows")
+        let cleanUp = app.buttons["smartCleanCleanUp"]
+        XCTAssertFalse(cleanUp.isEnabled)
+        app.typeKey("3", modifierFlags: .command)
+        XCTAssertTrue(app.descendants(matching: .any)["planSkeleton"].waitForExistence(timeout: 5), "The plan shows skeleton rows")
+        XCTAssertFalse(app.buttons["Review cleanup"].isEnabled)
+        XCTAssertFalse(app.descendants(matching: .any)["planCategory-developer"].exists, "No live rows while nothing is known")
+
+        // After its last location the scan names what it is doing, never "… N of N" while it reads apps and plug-ins.
+        let phases = ["Checking leftovers of removed apps…", "Checking apps and plug-ins…", "Checking which apps are open…",
+                      "Recording storage trends…", "Checking app-managed storage…"]
+        let phase = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value IN %@", phases), object: progress)
+        XCTAssertEqual(XCTWaiter.wait(for: [phase], timeout: 60), .completed, progress.debugDescription)
+        XCTAssertTrue(app.descendants(matching: .any)["planSkeleton"].exists, "Still waiting during the later phases")
+
+        XCTAssertTrue(progress.waitForNonExistence(timeout: 60))
+        XCTAssertTrue(app.descendants(matching: .any)["planCategory-developer"].waitForExistence(timeout: 5), "The rows replace the skeleton")
+        XCTAssertFalse(app.descendants(matching: .any)["planSkeleton"].exists)
+        app.typeKey("2", modifierFlags: .command)
+        XCTAssertTrue(app.descendants(matching: .any)["smartCleanCategory-developer"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.descendants(matching: .any)["smartCleanSkeleton"].exists)
     }
 
     /// #220, #234: every screen has the same bottom bar at the same height, even at the minimum window width, and the

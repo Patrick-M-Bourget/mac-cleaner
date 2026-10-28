@@ -24,8 +24,10 @@ struct SmartCleanView: View {
             CleanupActionBar(selection: selection, source: .smartClean, viewHistory: viewHistory, reviewRecovery: reviewRecovery) {
                 Button("Done") { selection.dismissResult() }.buttonStyle(.borderedProminent).accessibilityIdentifier("smartCleanDone")
             } idle: {
-                Button("Clean up") { Task { await openReview() } }.buttonStyle(.borderedProminent).controlSize(.large)
-                    .disabled(!selection.canReviewSmartClean).accessibilityIdentifier("smartCleanCleanUp")
+                BusyAction(busy: selection.isCheckingReview) {
+                    Button("Clean up") { Task { await openReview() } }.buttonStyle(.borderedProminent).controlSize(.large)
+                        .disabled(!selection.canReviewSmartClean).accessibilityIdentifier("smartCleanCleanUp")
+                }.help(model.isScanning ? CacheDropDesign.waitForScanHelp : "")
             }
         }
         .sheet(item: $review) { snapshot in
@@ -47,15 +49,18 @@ struct SmartCleanView: View {
                 .padding(.bottom, CacheDropDesign.Space.sm)
             meter
             if let approvalError { StatusRow(text: approvalError, symbol: "exclamationmark.circle", role: .caution, identifier: "smartCleanError") }
-            VStack(alignment: .leading, spacing: 0) {
-                ForEach(rows) { row in
-                    category(row, items: items)
-                    Divider().padding(.vertical, CacheDropDesign.Space.md)
-                }
+            // Nothing known yet: skeleton rows; a rescan dims the rows already shown (#308).
+            if !model.hasScanned {
+                SkeletonRows(.category, identifier: "smartCleanSkeleton")
+            } else {
+                VStack(alignment: .leading, spacing: 0) {
+                    ForEach(rows) { row in
+                        category(row, items: items)
+                        Divider().padding(.vertical, CacheDropDesign.Space.md)
+                    }
+                }.waitingForScan(model.isScanning)
             }
-            if rows.isEmpty && model.hasScanned && !model.isScanning {
-                Text("Nothing to clean right now.").font(.callout).foregroundStyle(.secondary)
-            }
+            if rows.isEmpty && model.hasScanned && !model.isScanning { NothingToCleanUp(identifier: "smartCleanEmpty") }
             notIncluded
         }.padding(CacheDropDesign.Space.page).frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -140,7 +145,10 @@ struct SmartCleanView: View {
     }
 
     private func openReview() async {
-        do { review = try await selection.prepareSmartCleanReview(); approvalError = nil }
+        do {
+            guard let checked = try await selection.checkingReview(selection.prepareSmartCleanReview) else { return }
+            review = checked; approvalError = nil
+        }
         catch PlanReviewError.nothingToClean { approvalError = "Nothing here can be cleaned right now. Scan again." }
         catch { approvalError = PlanReviewError.changedMessage }
     }

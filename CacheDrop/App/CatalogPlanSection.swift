@@ -10,12 +10,18 @@ struct CatalogPlanSection: View {
     @Binding var expanded: Set<CatalogCategory>
     var body: some View {
         VStack(alignment: .leading, spacing: CacheDropDesign.Space.lg) {
-            VStack(alignment: .leading, spacing: 0) {
-                ForEach(model.planCategories) { row in
-                    PlanCategoryRow(model: model, row: row, expanded: Binding(get: { expanded.contains(row.category) },
-                                                                             set: { if $0 { expanded.insert(row.category) } else { expanded.remove(row.category) } }))
-                    Divider().padding(.vertical, CacheDropDesign.Space.md)
-                }
+            // Nothing known yet: skeleton rows; a rescan dims the rows already shown (#308).
+            if !model.hasScanned {
+                SkeletonRows(.category, identifier: "planSkeleton")
+            } else {
+                VStack(alignment: .leading, spacing: 0) {
+                    ForEach(model.planCategories) { row in
+                        PlanCategoryRow(model: model, row: row, expanded: Binding(get: { expanded.contains(row.category) },
+                                                                                 set: { if $0 { expanded.insert(row.category) } else { expanded.remove(row.category) } }))
+                        Divider().padding(.vertical, CacheDropDesign.Space.md)
+                    }
+                }.waitingForScan(model.isScanning)
+                if model.planCategories.isEmpty && !model.isScanning { NothingToCleanUp(identifier: "planEmpty") }
             }
             ForEach(model.overriddenRules) { rule in
                 StatusRow(text: "\(rule.owner?.name ?? rule.title) keeps its data in a custom location, so CacheDrop leaves it alone.",

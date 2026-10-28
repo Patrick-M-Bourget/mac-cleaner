@@ -114,6 +114,16 @@ struct RefreshRequest: Sendable {
     func canReview(_ source: CleanupSelections.Source) -> Bool {
         switch source { case .plan: canReview; case .smartClean: canReviewSmartClean; case .applications: canReviewApplications }
     }
+    /// A page's Review cleanup or Clean up is running its click-time checks (#308): the button shows it is busy and
+    /// ignores more clicks until they end.
+    private(set) var isCheckingReview = false
+    /// Runs one page's click-time checks; nil when another page's are already running.
+    func checkingReview(_ prepare: () async throws -> WorkspaceCleanupReview) async throws -> WorkspaceCleanupReview? {
+        guard !isCheckingReview else { return nil }
+        isCheckingReview = true
+        defer { isCheckingReview = false }
+        return try await prepare()
+    }
     /// Smart clean's review (#141): its own selection, checked now, through the same review and executor as the plan.
     func prepareSmartCleanReview() async throws -> WorkspaceCleanupReview {
         guard canReviewSmartClean else { throw PlanReviewError.changed }
@@ -227,7 +237,10 @@ struct LiveCleanupPlanView: View {
         CleanupActionBar(selection: selection, source: .plan, viewHistory: viewHistory, reviewRecovery: reviewRecovery) {
             if let newPlan { Button("Start a new plan", action: newPlan).buttonStyle(.borderedProminent) }
         } idle: {
-            ReviewCleanupButton(enabled: selection.canReview, focusRequest: reviewFocusRequest) { Task { await openReview() } }.fixedSize()
+            BusyAction(busy: selection.isCheckingReview) {
+                ReviewCleanupButton(enabled: selection.canReview && !selection.isCheckingReview, focusRequest: reviewFocusRequest,
+                                    tooltip: selection.catalog.isScanning ? CacheDropDesign.waitForScanHelp : nil) { Task { await openReview() } }.fixedSize()
+            }
         }
         }
         .sheet(item: $review, onDismiss: { reviewFocusRequest += 1 }) { snapshot in
@@ -240,7 +253,10 @@ struct LiveCleanupPlanView: View {
         .onChange(of: selection.catalog.selectionRevision) { _, _ in if review != nil { review = nil; approvalError = PlanReviewError.changedMessage } }
     }
     private func openReview() async {
-        do { review = try await selection.prepareWorkspaceReview(); approvalError = nil } catch { approvalError = PlanReviewError.changedMessage }
+        do {
+            guard let checked = try await selection.checkingReview(selection.prepareWorkspaceReview) else { return }
+            review = checked; approvalError = nil
+        } catch { approvalError = PlanReviewError.changedMessage }
     }
 }
 

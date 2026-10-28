@@ -1019,3 +1019,11 @@ struct BusyAction<Content: View>: View {
         }
     }
 }
+
+/// The one line Overview, Smart clean and the plan show when a finished scan found nothing to clean (#308).
+struct NothingToCleanUp: View {
+    var identifier = "nothingToCleanUp"
+    var body: some View {
+        Text("Nothing to clean up right now.").font(.callout).foregroundStyle(.secondary).accessibilityIdentifier(identifier)
+    }
+}

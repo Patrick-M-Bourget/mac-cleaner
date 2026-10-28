@@ -442,7 +442,8 @@ private struct WorkspaceView: View {
                 HStack(alignment: .firstTextBaseline) {
                     Text("Recommended for review").font(CacheDropDesign.TypeStyle.section)
                     Spacer(minLength: CacheDropDesign.Space.md)
-                    Text(summary.map { recommendedText($0.recommended) } ?? (catalog.isScanning ? "Checking known locations…" : "Not measured yet"))
+                    // Nothing known yet: the size is "—" and the rows are skeletons (#308).
+                    Text(summary.map { recommendedText($0.recommended) } ?? "—")
                         .font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary).monospacedDigit().accessibilityIdentifier("overviewRecommendedTotal")
                     // The recommended plan lives on its own page (#141): one quiet link to it.
                     if summary != nil, !catalog.recommendedCandidates.isEmpty {
@@ -450,7 +451,9 @@ private struct WorkspaceView: View {
                             .buttonStyle(.link).font(CacheDropDesign.TypeStyle.caption).accessibilityIdentifier("overviewSmartClean")
                     }
                 }
-                if showsCloudInventory || !shown.isEmpty {
+                if summary == nil {
+                    SkeletonRows(.review, identifier: "overviewSkeleton")
+                } else if showsCloudInventory || !shown.isEmpty {
                     RecommendationGroup {
                         if showsCloudInventory {
                             overviewCloudRow
@@ -467,9 +470,9 @@ private struct WorkspaceView: View {
                                 .buttonStyle(.link).font(.callout).padding(CacheDropDesign.Space.lg).frame(maxWidth: .infinity, alignment: .leading)
                                 .accessibilityIdentifier("overviewShowMore")
                         }
-                    }
-                } else if summary != nil, !catalog.isScanning {
-                    Text("Nothing to review in the known locations.").font(.callout).foregroundStyle(.secondary)
+                    }.waitingForScan(catalog.isScanning)
+                } else if !catalog.isScanning {
+                    NothingToCleanUp(identifier: "overviewEmpty")
                 }
                 // Places macOS protects (Safari's cache) without Full Disk Access: one line, never a 0-byte row.
                 if !catalog.notAccessibleRules.isEmpty {
@@ -484,7 +487,7 @@ private struct WorkspaceView: View {
                         StorageReviewRow(category: .managed, title: "App-managed storage", detail: "", value: CacheDropDesign.items(catalog.guidance.count),
                                          actionTitle: "Review app-managed storage", action: { navigationState.appManagedVisible = true },
                                          identifier: "overviewAppManaged", mutedValue: true)
-                    }
+                    }.waitingForScan(catalog.isScanning)
                 }
             }
     }
