@@ -256,7 +256,7 @@ private struct WorkspaceView: View {
                         if recoveryVisible {
                             CleanupRecoveryView(model: recovery, back: BackButton(destination: navigationState.localRecordsVisible ? "Local records" : navigationState.recoveryCaller.rawValue) {
                                 recoveryVisible = false; destination = navigationState.recoveryCaller; navigationState.recoveryCaller = .overview
-                            })
+                            }, viewHistory: { navigate(.history) })
                         } else if navigationState.localRecordsVisible {
                             LocalRecordsView(model: navigationState.historyModel, showRecovery: { openRecovery(caller: navigationState.localRecordsCaller) }, didReset: didResetLocalRecords, reviewDiagnostics: nil,
                                              back: BackButton(destination: navigationState.localRecordsCaller.rawValue) {
@@ -327,7 +327,8 @@ private struct WorkspaceView: View {
         .environment(\.cacheDropBackgroundWork, backgroundWorkStatus)
         .onChange(of: runningTasks, initial: true) { _, tasks in backgroundWork.update(running: tasks) }
         .onChange(of: selection.catalog.selectionRevision) { _, _ in AppLifecycleController.shared.hasPendingPlan = selection.hasPendingChoicesOnAnyPage }
-        .task { if await recovery.loadOnce() { openRecovery(caller: .overview, refresh: false) } }
+        // Launch stays on Overview; its banner opens Recovery, which checks against disk (#309).
+        .task { _ = await recovery.loadOnce() }
         .task { locationsModel.load() }
         .onChange(of: locationsModel.scopes) { _, _ in
             explorerContext.allowedScopes = Set(locationsModel.included.map { URL(fileURLWithPath: $0.path).standardizedFileURL })
@@ -661,11 +662,11 @@ private struct WorkspaceView: View {
         Task { await folderInspection.resetSession() }
     }
 
-    private func openRecovery(caller: Destination, refresh: Bool = true) {
+    private func openRecovery(caller: Destination) {
         navigationState.recoveryCaller = caller
         destination = caller
         recoveryVisible = true
-        if refresh { Task { await recovery.refresh() } }
+        Task { await recovery.refresh() }
     }
 
     private func openLocalRecords(caller: Destination) {
