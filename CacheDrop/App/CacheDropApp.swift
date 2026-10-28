@@ -452,8 +452,8 @@ private struct WorkspaceView: View {
             value: row.valueText,
             meaning: row.estimate == .unknown ? "Couldn’t be measured" : selected ? "Selected"
                 : row.rules.allSatisfy { $0.action == .delete } ? "Rebuildable" : row.rules.allSatisfy { $0.action == .evict } ? "Local copies" : "Review files",
-            actionTitle: onApplications ? "Review \(row.category.overviewTitle) in Applications" : "Review \(row.category.overviewTitle) in the cleanup plan",
-            // Leftovers of removed apps are on the Applications page (Decision 51).
+            actionTitle: "Review " + GrowthPresentation.inSentence(row.category) + (onApplications ? " in Applications" : " in the cleanup plan"),
+            // Files from deleted apps are on the Applications page (Decision 51).
             action: { if onApplications { navigate(.applications) } else { navigate(.plan); planPresentation.expandedCategories.insert(row.category) } },
             identifier: "overviewCategory-" + row.id)
     }
@@ -703,7 +703,7 @@ private struct WorkspaceView: View {
     }
 
     /// Storage trends' one review button (#351): the category that grew most, opened and scrolled to where it can be cleaned
-    /// (the plan, or Applications for leftovers), named in the button; the plan alone when that category offers nothing now.
+    /// (the plan, or Applications for files from deleted apps), named in the button; the plan alone when that category offers nothing now.
     private var growthReview: (title: String, open: () -> Void) {
         let grew = GrowthHistoryModel.shared.comparison?.mostGrowth?.category
         if let grew, let row = selection.catalog.leftoversRow, row.category == grew {

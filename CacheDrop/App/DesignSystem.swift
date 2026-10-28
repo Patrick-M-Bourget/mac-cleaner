@@ -94,7 +94,7 @@ enum StorageCategory {
     case cloud, developer, downloads, browser, managed, files
     /// Catalog categories that share the app-managed colour but each have their own symbol.
     case appCaches, models, appUpdates, logs
-    /// Leftovers of apps you removed (#173), and the apps themselves on the Applications page (#267).
+    /// Files from deleted apps (#173), and the apps themselves on the Applications page (#267).
     case leftovers, apps
     /// App-managed storage rows (SPEC section 3): each place keeps the app-managed colour with its own symbol.
     case deviceBackups, mail, messages, photos, timeMachine, xcodeArchives, audioPlugIns
