@@ -23,7 +23,7 @@ struct CatalogPlanSection: View {
                         Divider().padding(.vertical, CacheDropDesign.Space.md)
                     }
                 }.waitingForScan(model.isScanning)
-                if model.planCategories.isEmpty && !model.isScanning { NothingToCleanUp(identifier: "planEmpty", action: exploreStorage.map { EmptyStateAction("Explore storage", perform: $0) }) }
+                if model.planCategories.isEmpty && !model.isScanning && !model.settingsUnreadable { NothingToCleanUp(identifier: "planEmpty", action: exploreStorage.map { EmptyStateAction("Explore storage", perform: $0) }) }
             }
             ForEach(model.overriddenRules) { rule in
                 StatusRow(text: "\(rule.owner?.name ?? rule.title) keeps its data in a custom location, so CacheDrop leaves it alone.",
@@ -39,6 +39,19 @@ struct CatalogPlanSection: View {
             }
             ForEach(model.notes, id: \.ruleID) { note in StatusRow(text: note.text, symbol: "info.circle", role: .neutral, identifier: "planNote-" + note.ruleID) }
             if let message = model.message { StatusRow(text: message, symbol: "info.circle", role: .caution) }
+        }
+    }
+}
+
+/// The one line every page that cleans, and Overview, shows when the Protected items settings couldn't be read (#310),
+/// with Try again, which scans again.
+struct SettingsUnreadableNotice: View {
+    let model: CatalogCleanupModel
+    var body: some View {
+        if model.settingsUnreadable {
+            StatusRow(text: CatalogCleanupModel.settingsUnreadableText, symbol: "exclamationmark.triangle", role: .caution, identifier: "settingsUnreadable",
+                      action: StatusAction(title: "Try again", identifier: "settingsUnreadableTryAgain") { Task { await model.rescan() } })
+                .disabled(model.isScanning)
         }
     }
 }

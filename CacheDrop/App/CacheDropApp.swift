@@ -27,7 +27,7 @@ struct CacheDropApp: App {
                 Button("Show CacheDrop") { lifecycle.openWorkspace?() }
             }
             CommandGroup(after: .toolbar) {
-                Button("Scan again") { lifecycle.scanAgain?() }.keyboardShortcut("r")
+                ScanAgainCommand(lifecycle: lifecycle)
             }
             CommandGroup(after: .help) {
                 Button("Welcome to CacheDrop") { lifecycle.openWorkspace?(); WelcomeModel.shared.isShowing = true }
@@ -40,6 +40,15 @@ struct CacheDropApp: App {
         MenuBarExtra(isInserted: Binding(get: { showsMenuBarItem }, set: { if $0 != showsMenuBarItem { showsMenuBarItem = $0 } })) {
             CacheDropMenuBarMenu(lifecycle: lifecycle)
         } label: { CacheDropMenuBarLabel(capacity: lifecycle.capacity) }
+    }
+}
+
+/// ⌘R: disabled while a scan or cleanup runs, with the reason as its tooltip (#310).
+private struct ScanAgainCommand: View {
+    let lifecycle: AppLifecycleController
+    var body: some View {
+        Button("Scan again") { lifecycle.scanAgain?() }.keyboardShortcut("r")
+            .disabled(lifecycle.scanAgainBlockedReason != nil).help(lifecycle.scanAgainBlockedReason ?? "")
     }
 }
 
@@ -293,7 +302,7 @@ private struct WorkspaceView: View {
                         ActionStrip()
                     } else if destination == .growth {
                         ActionStrip(message: nil) {
-                            Button("Scan again", action: scanAgain).disabled(selection.catalog.isScanning || folderInspection.isScanning || selection.workspaceRunning || !selection.catalog.canEdit)
+                            Button("Scan again", action: scanAgain).disabled(!canScanAgain).help(scanAgainHelp)
                                 .accessibilityIdentifier("growthScanAgain")
                             Button("Review plan") { navigate(.plan); navigationState.planReturnsToGrowth = true }.buttonStyle(.borderedProminent)
                                 .accessibilityIdentifier("growthReviewOptions")
@@ -328,7 +337,7 @@ private struct WorkspaceView: View {
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in Task { await selection.catalog.rescanIfFullDiskAccessGranted() } }
         .onReceive(NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.didWakeNotification)) { _ in Task { await alerts.activated() } }
         .toolbar { contextToolbar }
-        .sheet(isPresented: $welcome.isShowing) { FirstRunWelcomeView(model: welcome) { AppLifecycleController.shared.scanAgain?() } }
+        .sheet(isPresented: $welcome.isShowing) { FirstRunWelcomeView(model: welcome, catalog: selection.catalog) }
     }
 
     @ToolbarContentBuilder private var contextToolbar: some ToolbarContent {
@@ -398,7 +407,7 @@ private struct WorkspaceView: View {
             HStack(alignment: .top) {
                 PageHeader(title: "Storage overview", subtitle: "A clearer picture of what’s on your Mac.")
                 Spacer(minLength: CacheDropDesign.Space.md)
-                Button("Scan again", action: scanAgain).disabled(!canScanAgain)
+                Button("Scan again", action: scanAgain).disabled(!canScanAgain).help(scanAgainHelp).accessibilityIdentifier("overviewScanAgain")
             }
             ScanHistoryRecordingNotice()
             if let context = alerts.openedAlertContext {
@@ -406,7 +415,7 @@ private struct WorkspaceView: View {
                     VStack(alignment: .leading, spacing: CacheDropDesign.Space.md) {
                         StatusRow(text: context.observedAt.map { "Space was low at \($0.formatted(date: .omitted, time: .shortened))" } ?? "Space was low", symbol: "bell", identifier: "openedStorageAlert")
                         HStack {
-                            Button("Scan again") { alerts.dismissOpenedAlert(); scanAgain() }.disabled(!canScanAgain)
+                            Button("Scan again") { alerts.dismissOpenedAlert(); scanAgain() }.disabled(!canScanAgain).help(scanAgainHelp)
                             Button("Dismiss", action: alerts.dismissOpenedAlert)
                         }
                     }
@@ -427,6 +436,7 @@ private struct WorkspaceView: View {
                           breakdown: selection.catalog.breakdown(available: startupCapacity?.available, total: startupCapacity?.total, trash: TrashModel.shared.contents),
                           open: { openPlan($0.categories) })
             scannedLocations
+            SettingsUnreadableNotice(model: selection.catalog)
             overviewRecommendations
         }.task { await TrashModel.shared.refresh() }
     }
@@ -453,7 +463,9 @@ private struct WorkspaceView: View {
                             .buttonStyle(.link).font(CacheDropDesign.TypeStyle.caption).accessibilityIdentifier("overviewSmartClean")
                     }
                 }
-                if summary == nil {
+                if catalog.settingsUnreadable {
+                    EmptyView() // Nothing was read: the line above says why, never "nothing" (#310).
+                } else if summary == nil {
                     SkeletonRows(.review, identifier: "overviewSkeleton")
                 } else if showsCloudInventory || !shown.isEmpty {
                     RecommendationGroup {
@@ -539,7 +551,9 @@ private struct WorkspaceView: View {
     }
     /// Rechecks capacity, the catalog's known locations and any included folders. Read-only.
     /// The same conditions that enable the Overview's Scan again button.
-    private var canScanAgain: Bool { !folderInspection.isScanning && !selection.workspaceRunning && selection.catalog.canEdit }
+    private var canScanAgain: Bool { AppLifecycleController.shared.scanAgainBlockedReason == nil }
+    /// "A scan is already running" while one runs (#310).
+    private var scanAgainHelp: String { AppLifecycleController.shared.scanAgainBlockedReason ?? "" }
     private func scanAgain() {
         capacity.request(.manual)
         Task { await selection.catalog.scan() }
@@ -624,6 +638,11 @@ private struct WorkspaceView: View {
     }
     private func scanLocations(_ scopes: [RememberedScope]) {
         guard !folderInspection.isScanning, !selection.workspaceRunning else { return }
+        // Asked while History holds the maintenance lease: rechecked once it lets go, with access resolved then (#310).
+        if AppLifecycleController.shared.maintenanceInProgress {
+            AppLifecycleController.shared.afterMaintenance.waitFor("folderRecheck") { scanLocations(scopes) }
+            return
+        }
         let leases = scopes.compactMap { locationsModel.resolve($0) }
         let resolved = Set(leases.map { $0.url.standardizedFileURL.path })
         for scope in scopes where !resolved.contains(scope.path) {

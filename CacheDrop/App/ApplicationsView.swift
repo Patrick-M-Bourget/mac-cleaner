@@ -18,10 +18,10 @@ import SwiftUI
     private(set) var plugIns: [InventoryEntry] = []
     /// The page's Sort and search (#295): kept while CacheDrop runs, never across launches.
     var listing = ApplicationsListing()
-    /// The list of apps couldn't be read (Spotlight didn't answer): never "no apps" (#310, #321).
-    private(set) var appsUnreadable = false
     private(set) var hasLoaded = false
     private(set) var isLoading = false
+    /// The list of apps couldn't be read (Spotlight didn't answer): unknown, never "no apps" (#310).
+    private(set) var appsUnreadable = false
     /// What a debug test run would have revealed or opened.
     private(set) var status: String?
 
@@ -30,15 +30,13 @@ import SwiftUI
         guard !isLoading else { return }
         isLoading = true
         defer { isLoading = false; hasLoaded = true }
-        guard let home else { apps = []; plugIns = []; appsUnreadable = false; return }
+        guard let home else { apps = []; plugIns = []; return }
         let presence = appPresence, system = systemRoot, own = Bundle.main.bundleIdentifier
-        let installed: [InstalledApp]?
-        (installed, apps, plugIns) = await Task.detached(priority: .userInitiated) {
-            let installed = presence.installedApps()
-            return (installed, ApplicationsInventory.apps(installed ?? [], excluding: own, home: home),
-                    ApplicationsInventory.plugIns(read ?? PlugInInventory.scan(home: home, systemRoot: system)))
+        let (listed, products) = await Task.detached(priority: .userInitiated) {
+            (presence.installedApps().map { ApplicationsInventory.apps($0, excluding: own, home: home) },
+             ApplicationsInventory.plugIns(read ?? PlugInInventory.scan(home: home, systemRoot: system, receipts: ReceiptListings.read(under: system))))
         }.value
-        appsUnreadable = installed == nil
+        apps = listed ?? []; plugIns = products; appsUnreadable = listed == nil
     }
     /// The app's own uninstaller or the maker's tool, when it is installed (Decisions 41, 50).
     func uninstaller(for entry: InventoryEntry) -> InventoryEntry? { ApplicationsInventory.uninstaller(for: entry, among: apps) }
@@ -109,16 +107,19 @@ struct ApplicationsView: View {
                     .accessibilityElement(children: .combine).accessibilityIdentifier("applicationsHeader")
                 listControls
             }.padding(.bottom, CacheDropDesign.Space.sm)
+            SettingsUnreadableNotice(model: catalog)
             if let approvalError { StatusRow(text: approvalError, symbol: "exclamationmark.circle", role: .caution) }
             if let status = model.status { StatusRow(text: status, identifier: "applicationsStatus") }
             section("Apps", id: "apps", entries: model.apps, category: .apps, identifier: "applicationsApp-",
-                    empty: ("No apps to list", "Only Apple’s apps are in the Applications folders."), unreadable: model.appsUnreadable)
+                    empty: ("No apps to list", "Only Apple’s apps are in the Applications folders."))
             section("Plug-ins", id: "plugIns", entries: model.plugIns, category: .audioPlugIns, identifier: "applicationsPlugIn-",
                     empty: ("No plug-ins to list", "No audio plug-ins other than Apple’s were found."))
             Text("Leftovers").font(CacheDropDesign.TypeStyle.section)
             if let row = catalog.leftoversRow {
                 if model.listing.isSearching, !row.rules.flatMap(catalog.candidates(for:)).contains(where: model.listing.matches) { noMatches("leftovers") }
                 else { PlanCategoryRow(model: catalog, row: row, expanded: $leftoversExpanded, listing: model.listing).waitingForScan(catalog.isScanning) }
+            } else if catalog.settingsUnreadable {
+                EmptyView() // The notice above says why nothing was read (#310).
             } else if catalog.hasScanned && !catalog.isScanning {
                 state("No leftovers", "Apps you removed left nothing behind that CacheDrop can tie to them.", symbol: "checkmark.circle", id: "applicationsEmpty-leftovers")
             } else {
@@ -147,17 +148,17 @@ struct ApplicationsView: View {
     private var listsLoading: Bool { !model.hasLoaded || model.isLoading || catalog.isScanning }
 
     @ViewBuilder private func section(_ title: String, id: String, entries: [InventoryEntry], category: StorageCategory, identifier: String,
-                                      empty: (title: String, detail: String), unreadable: Bool = false) -> some View {
+                                      empty: (title: String, detail: String)) -> some View {
         let shown = model.listing.arranged(entries, name: \.name, maker: \.maker, bytes: { size(of: $0).sortBytes })
         Text(title).font(CacheDropDesign.TypeStyle.section)
         if entries.isEmpty {
             if listsLoading { loading(id) }
-            // Try again scans again, so the uninstall offers are read with the list (#321).
-            else if unreadable {
+            else if id == "apps", model.appsUnreadable {
+                // Spotlight didn't answer: unknown, never "Only Apple's apps" (#310), as the one empty state (#321). Try again
+                // scans again, so uninstalls are read too.
                 EmptyState(title: "CacheDrop couldn’t read the list of apps", detail: "Spotlight didn’t answer.", symbol: "exclamationmark.triangle",
-                           action: EmptyStateAction("Try again") { Task { await catalog.rescan() } }, identifier: "applicationsAppsUnreadable")
-            }
-            else { state(empty.title, empty.detail, symbol: "tray", id: "applicationsEmpty-" + id) }
+                           action: EmptyStateAction("Try again") { Task { await catalog.rescan() } }, identifier: "applicationsUnreadable")
+            } else { state(empty.title, empty.detail, symbol: "tray", id: "applicationsEmpty-" + id) }
         } else if shown.isEmpty {
             noMatches(id)
         } else {
@@ -277,6 +278,6 @@ struct ApplicationsView: View {
         do {
             guard let checked = try await selection.checkingReview(selection.prepareApplicationsReview) else { return }
             review = checked; approvalError = nil
-        } catch { approvalError = PlanReviewError.changedMessage }
+        } catch { approvalError = PlanReviewError.message(for: error) }
     }
 }

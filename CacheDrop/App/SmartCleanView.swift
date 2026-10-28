@@ -53,6 +53,7 @@ struct SmartCleanView: View {
                 .accessibilityElement(children: .combine).accessibilityIdentifier("smartCleanHeader")
                 .padding(.bottom, CacheDropDesign.Space.sm)
             meter
+            SettingsUnreadableNotice(model: model)
             if let approvalError { StatusRow(text: approvalError, symbol: "exclamationmark.circle", role: .caution, identifier: "smartCleanError") }
             if nothingToClean {
                 EmptyState(title: "Nothing here can be cleaned right now", symbol: "arrow.clockwise",
@@ -69,7 +70,7 @@ struct SmartCleanView: View {
                     }
                 }.waitingForScan(model.isScanning)
             }
-            if rows.isEmpty && model.hasScanned && !model.isScanning { NothingToCleanUp(identifier: "smartCleanEmpty") }
+            if rows.isEmpty && model.hasScanned && !model.isScanning && !model.settingsUnreadable { NothingToCleanUp(identifier: "smartCleanEmpty") }
             notIncluded
         }.padding(CacheDropDesign.Space.page).frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -159,6 +160,6 @@ struct SmartCleanView: View {
             review = checked; approvalError = nil; nothingToClean = false
         }
         catch PlanReviewError.nothingToClean { approvalError = nil; nothingToClean = true }
-        catch { approvalError = PlanReviewError.changedMessage; nothingToClean = false }
+        catch { approvalError = PlanReviewError.message(for: error); nothingToClean = false }
     }
 }

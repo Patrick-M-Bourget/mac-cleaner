@@ -14,4 +14,11 @@ public struct FullDiskAccessRescan: Sendable {
         defer { lastStatus = now }
         return lastStatus == .notGranted && now == .granted
     }
+    /// A scan ended: probes again and says whether to rescan, once, because access changed while it ran (#310), such as
+    /// a grant from the welcome during the launch scan.
+    public mutating func scanEnded(probing detector: any FullDiskAccessDetecting) -> Bool {
+        let now = detector.status()
+        defer { lastStatus = now }
+        return lastStatus != nil && lastStatus != now
+    }
 }

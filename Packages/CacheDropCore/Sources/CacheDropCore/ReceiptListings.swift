@@ -9,8 +9,14 @@ public struct ReceiptListings: Sendable {
     /// Installer records that couldn't be read (#291): while there is any, no support item is offered or moved, since an
     /// unread record is never "lists nothing".
     public let unread: [String]
+    /// Every receipt `lsbom` listed, by receipt name, relative install prefixes included (read under the system root):
+    /// what leftovers and app uninstall read (#318). `byReceipt` leaves those prefixes out.
+    let listed: [(id: String, paths: Set<String>)]
     public init(_ byReceipt: [String: Set<String>], unread: [String] = []) {
-        self.byReceipt = byReceipt; self.unread = unread
+        self.init(byReceipt, unread: unread, listed: byReceipt.sorted { $0.key < $1.key }.map { ($0.key, $0.value) })
+    }
+    init(_ byReceipt: [String: Set<String>], unread: [String], listed: [(id: String, paths: Set<String>)]) {
+        self.byReceipt = byReceipt; self.unread = unread; self.listed = listed
         var byPath: [String: Set<String>] = [:]
         for (id, paths) in byReceipt { for path in paths { byPath[path, default: []].insert(id) } }
         self.byPath = byPath
@@ -24,24 +30,30 @@ public struct ReceiptListings: Sendable {
         return ending == .finished ? found : nil
     }
 
-    /// Every non-Apple receipt in `<systemRoot>/var/db/receipts`, listed with `lsbom`. One that can't be read, or lists more than
-    /// 64 MB or takes over 20 seconds, is `unread`.
-    public static func read(under systemRoot: URL) -> ReceiptListings {
-        let folder = systemRoot.appendingPathComponent("var/db/receipts"), lsbom = URL(fileURLWithPath: "/usr/bin/lsbom")
-        var found: [String: Set<String>] = [:], unread: [String] = []
+    /// Every non-Apple receipt in `<systemRoot>/var/db/receipts`, listed with `lsbom` once each (#318). One that can't be read, or
+    /// lists more than 64 MB or takes over 20 seconds, is `unread`, as is one with a relative install prefix (#291).
+    /// `lsbom` stands in for the tool in tests: it gets the BOM and returns what `lsbom -s` prints, nil when it fails.
+    public static func read(under systemRoot: URL, lsbom: (URL) -> String? = Self.lsbom) -> ReceiptListings {
+        let folder = systemRoot.appendingPathComponent("var/db/receipts")
+        var found: [String: Set<String>] = [:], unread: [String] = [], listed: [(id: String, paths: Set<String>)] = []
         for name in ((try? FileManager.default.contentsOfDirectory(atPath: folder.path)) ?? []).sorted() where name.hasSuffix(".plist") && !name.hasPrefix("com.apple.") {
             guard let data = try? Data(contentsOf: folder.appendingPathComponent(name)),
                   let info = (try? PropertyListSerialization.propertyList(from: data, format: nil)) as? [String: Any],
-                  let id = info["PackageIdentifier"] as? String, let prefix = info["InstallPrefixPath"] as? String, prefix.hasPrefix("/") || prefix.isEmpty,
-                  let listing = try? BoundedTool.run(executable: lsbom, arguments: ["-s", folder.appendingPathComponent(String(name.dropLast(6)) + ".bom").path],
-                                                     timeout: 20, outputLimit: 64 << 20),
+                  let id = info["PackageIdentifier"] as? String, let prefix = info["InstallPrefixPath"] as? String,
+                  let listing = lsbom(folder.appendingPathComponent(String(name.dropLast(6)) + ".bom")),
                   // lsbom exits 0 when it can't read a BOM, with only its complaint; a real one lists `.` and paths under it (#291).
                   case let lines = listing.split(separator: "\n"), !lines.isEmpty, lines.allSatisfy({ $0.hasPrefix(".") }) else { unread.append(name); continue }
             let base = systemRoot.appendingPathComponent(String(prefix.drop { $0 == "/" }))
-            found[id] = Set(lines.map { line in
+            let paths = Set(lines.map { line in
                 base.appendingPathComponent(line.hasPrefix("./") ? String(line.dropFirst(2)) : String(line)).standardizedFileURL.path
             })
+            listed.append((id, paths))
+            if prefix.hasPrefix("/") || prefix.isEmpty { found[id] = paths } else { unread.append(name) }
         }
-        return ReceiptListings(found, unread: unread)
+        return ReceiptListings(found, unread: unread, listed: listed)
+    }
+    /// `lsbom -s` on a BOM, nil when it fails, takes over 20 seconds or prints more than 64 MB.
+    public static func lsbom(_ bom: URL) -> String? {
+        try? BoundedTool.run(executable: URL(fileURLWithPath: "/usr/bin/lsbom"), arguments: ["-s", bom.path], timeout: 20, outputLimit: 64 << 20)
     }
 }

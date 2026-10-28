@@ -56,6 +56,10 @@ import SwiftUI
     private var rescanFollowsCleanup = false
     private(set) var result: CatalogExecutionResult?
     private(set) var message: String?
+    /// The Protected items settings couldn't be read, so nothing could be scanned or checked (#310). Every page that cleans
+    /// and Overview say so once, with Try again; never "Your choices changed" or "Nothing to review".
+    private(set) var settingsUnreadable = false
+    static let settingsUnreadableText = "CacheDrop couldn’t read your Protected items settings, so it can’t check anything."
     /// Why a rule kept items back, such as copies whose use couldn't be checked.
     private(set) var notes: [CatalogNote] = []
     /// Guidance-only categories found at the last scan. Never candidates, never in a plan. Set only by the guidance
@@ -172,17 +176,12 @@ import SwiftUI
         #endif
         return SystemAppPresence()
     }
-    /// Installer receipts; a debug test run reads none.
-    static func receipts(home: URL) -> any InstallerReceiptReading {
-        #if DEBUG
-        if LocalStateLocation.isDisposableTest { return FixtureAppPresence(home: home) }
-        #endif
-        return SystemInstallerReceipts(home: home)
-    }
 
     /// Overview's summary. While the first scan runs it covers the locations finished so far, so rows and the total fill in
     /// as each one completes (#128); nil until the first one has.
     var overview: CatalogOverview? {
+        // Nothing was read, so nothing is "nothing to review" (#310).
+        if settingsUnreadable { return nil }
         if hasScanned { return CatalogOverview(catalog: catalog, candidates: discovered) }
         return scanProgress.flatMap { $0.finished > 0 ? CatalogOverview(catalog: catalog, candidates: $0.found) : nil }
     }
@@ -206,12 +205,12 @@ import SwiftUI
     }
 
     /// Plug-in products to uninstall (#176): their formats, own support files and shared items, never what is `offered` elsewhere.
-    nonisolated private static func plugIns(home: URL, system: URL, installed: [InstalledApp], offered: [Candidate],
+    nonisolated private static func plugIns(home: URL, system: URL, installed: [InstalledApp], receipts: ReceiptListings, offered: [Candidate],
                                             exclusions: ExclusionPolicy) -> (PlugInInventory, [Candidate]) {
-        let inventory = PlugInInventory.scan(home: home, systemRoot: system)
+        let inventory = PlugInInventory.scan(home: home, systemRoot: system, receipts: receipts)
         let owners = ApplicationsInventory.plugIns(inventory).map { ContentOwner($0) } + installed.map { ContentOwner($0) }
         let content = MusicContent.scan(owners: owners, home: home, systemRoot: system).items
-        return (inventory, PlugInUninstall.scan(inventory, apps: installed, receipts: ReceiptListings.read(under: system), content: content, systemRoot: system, offered: offered, exclusions: exclusions))
+        return (inventory, PlugInUninstall.scan(inventory, apps: installed, receipts: receipts, content: content, systemRoot: system, offered: offered, exclusions: exclusions))
     }
 
     /// Which owners are running, and which of them as an open app.
@@ -264,6 +263,13 @@ import SwiftUI
     }
     var canEdit: Bool { !isScanning && !isRunning && !AppLifecycleController.shared.operationInProgress && !AppLifecycleController.shared.maintenanceInProgress }
     var canReview: Bool { canEdit && selectedCount > 0 }
+    /// Why choices and the dry run can't be changed now, for a disabled control's tooltip; nil when they can (#310).
+    var editBlockedReason: String? {
+        if isScanning { return "Wait for the scan to finish" }
+        if isRunning || AppLifecycleController.shared.operationInProgress { return "Wait for the cleanup to finish" }
+        if AppLifecycleController.shared.maintenanceInProgress { return "Wait while CacheDrop updates its records" }
+        return nil
+    }
     func isSelected(_ rule: CleanupRule) -> Bool { candidates(for: rule).contains { selectedIDs.contains($0.id) } }
     func isSelected(_ candidate: Candidate) -> Bool { selectedIDs.contains(candidate.id) }
     /// The plan's categories, grouped as Overview groups them, picked folders' files included. Leftovers of removed apps
@@ -314,6 +320,12 @@ import SwiftUI
     }
     /// Read-only sizing of the catalog's known locations. False when it couldn't start: a scan or a cleanup is running.
     @discardableResult func scan() async -> Bool {
+        let lifecycle = AppLifecycleController.shared
+        // History holds the maintenance lease for a moment: scan once it lets go, never not at all (#310).
+        if lifecycle.maintenanceInProgress, !isScanning, !isRunning, !lifecycle.operationInProgress {
+            lifecycle.afterMaintenance.waitFor("catalogScan") { Task { await self.scan() } }
+            return false
+        }
         guard canEdit else { return false }
         await scanCatalog()
         // Something changed on disk while it ran, such as a Put back: scan again, as its own rescan.
@@ -327,8 +339,9 @@ import SwiftUI
         // Excluded items are never offered (SPEC section 2); without the settings nothing can be offered safely.
         guard let exclusions = try? await ExclusionsModel.shared.policyForScan() else {
             discovered = []; uninstallable = []; notes = []; overriddenRules = []; notAccessibleRules = []; setRunning([:], open: []); ownerNames = [:]
-            message = "Exclusion settings are unavailable, so nothing can be checked. Try again."; return
+            settingsUnreadable = true; return
         }
+        settingsUnreadable = false
         let catalog = catalog
         let locate = Self.locateTool, system = Self.systemRoot
         let userFolder = Self.userFolder, cloud = Self.cloud
@@ -339,7 +352,7 @@ import SwiftUI
         // After discovery, each later phase is named too (#308).
         let (steps, reporter) = AsyncStream.makeStream(of: CatalogScanStep.self)
         let progress = Task { for await step in steps { scanProgress?.apply(step) } }
-        let presence = Self.appPresence.snapshot(), receipts = Self.receipts(home: home), own = Bundle.main.bundleIdentifier
+        let presence = Self.appPresence.snapshot(), own = Bundle.main.bundleIdentifier
         let scanned = await Task.detached(priority: .userInitiated) { () -> CatalogScanResult in
             // Probed once per scan, at launch too, and shared with the guidance scan: it only opens a protected folder
             // and never prompts (#117).
@@ -358,18 +371,21 @@ import SwiftUI
                 #endif
             }
             enter(.removedAppLeftovers)
+            // Installer receipts, read once for leftovers, app uninstall, plug-ins and their guidance (#318). A debug test run reads the
+            // fixture system root's, so never this Mac's.
+            let listings = ReceiptListings.read(under: system), receipts = ReadReceipts(listings, home: home)
             // Leftovers of removed apps (#173), except what a catalog rule already offers, holds or sits inside.
             let found = RemovedAppLeftovers.scan(home: home, apps: presence, receipts: receipts, exclusions: exclusions)
             let leftovers = RemovedAppLeftovers.notOffered(by: discovered.candidates, found)
-            // Installed apps with their files (#177), each read once; receipts are read once for all of them.
+            // Installed apps with their files (#177), each read once.
             enter(.appsAndPlugIns)
-            let readReceipts = ReadReceipts(receipts.receipts())
             let apps = ApplicationsInventory.withUninstallers(presence.installedApps() ?? [], excluding: own, home: home).flatMap { app, uninstaller in
-                AppUninstall.scan(app, uninstaller: uninstaller, excluding: own, home: home, apps: presence, receipts: readReceipts, leftovers: found, offered: discovered.candidates,
+                AppUninstall.scan(app, uninstaller: uninstaller, excluding: own, home: home, apps: presence, receipts: receipts, leftovers: found, offered: discovered.candidates,
                                   exclusions: exclusions)
             }
             // Plug-in products (#176): their formats, own support files and shared items, never what is offered above.
-            let (inventory, plugIns) = Self.plugIns(home: home, system: system, installed: presence.installedApps() ?? [], offered: discovered.candidates + found + apps,
+            let (inventory, plugIns) = Self.plugIns(home: home, system: system, installed: presence.installedApps() ?? [], receipts: listings,
+                                                    offered: discovered.candidates + found + apps,
                                                     exclusions: exclusions)
             var owners: [String: RuleOwner] = [:], names: [String: [String]] = [:]
             for candidate in discovered.candidates + leftovers + apps + plugIns {
@@ -381,7 +397,8 @@ import SwiftUI
             let running = Self.running(owners, quitter: quitter)
             reporter.finish()
             return CatalogScanResult(discovery: discovered, overriddenRules: catalog.overriddenRules(home: home, systemRoot: system), owners: running.0, openOwners: running.1,
-                                     ownerNames: names, access: access, leftovers: leftovers, uninstallable: apps + plugIns, plugIns: inventory)
+                                     ownerNames: names, access: access, leftovers: leftovers, uninstallable: apps + plugIns, plugIns: inventory,
+                                     receipts: listings)
         }.value
         await progress.value
         scanProgress?.phase = .storageTrends
@@ -393,7 +410,9 @@ import SwiftUI
         setRunning(scanned.owners, open: scanned.openOwners); ownerNames = scanned.ownerNames
         keepOnlyCurrentChoices()
         scanProgress?.phase = .appManagedStorage
-        await scanGuidance(home: home, fullDiskAccess: scanned.access)
+        await scanGuidance(home: home, fullDiskAccess: scanned.access, receipts: scanned.receipts)
+        // Full Disk Access granted while it ran (from the welcome, during the launch scan): scan again once, by itself (#310).
+        if fullDiskAccessRescan.scanEnded(probing: FullDiskAccessProbe(home: home)) { rescanPending = true }
     }
     /// What one catalog scan found, handed from the background task to the model.
     private struct CatalogScanResult: Sendable {
@@ -410,6 +429,8 @@ import SwiftUI
         /// Installed apps' and plug-in products' items (#177, #176).
         let uninstallable: [Candidate]
         let plugIns: PlugInInventory
+        /// The scan's one read of the installer receipts, for the guidance scan's plug-in products (#318).
+        let receipts: ReceiptListings
     }
     #if DEBUG
     /// A disposable test run can slow discovery down (`CACHEDROP_TEST_DISCOVERY_PAUSE`, seconds after each location), so a UI journey sees
@@ -478,12 +499,13 @@ import SwiftUI
         guard canEdit, !items.isEmpty else { return }
         selections.setSmartClean(items, included: included); noteChoices()
     }
-    /// Smart clean's selection checked now: the recommended plan with the full checks, minus what was unticked.
-    /// Nil when nothing could be checked or the scan changed meanwhile. Never touches the Cleanup plan's selection.
+    /// Smart clean's selection checked now: the recommended plan with the full checks, minus what was unticked, plus what the
+    /// page listed that the checks now refuse, for the review to explain. Nil when nothing could be checked or the scan changed meanwhile. Never touches the Cleanup plan's selection.
     func smartCleanCheckedNow() async -> [Candidate]? {
         guard canEdit, let check = await currentCheck()?.snapshotted() else { return nil }
-        let catalog = catalog, found = discovered, selections = selections
-        let items = await Task.detached { selections.smartClean(catalog: catalog, found: found, check: check.check) }.value
+        // What the page listed stays in when the check now refuses it, so the review says why it will be skipped (#310).
+        let catalog = catalog, found = discovered, selections = selections, listed = smartCleanCandidates
+        let items = await Task.detached { selections.smartClean(catalog: catalog, found: found, listed: listed, check: check.check) }.value
         guard canEdit, discovered == found else { return nil }
         return items
     }
@@ -554,7 +576,7 @@ import SwiftUI
     private func currentCheck() async -> CandidateCheck? {
         do { return CandidateCheck(catalog: catalog, running: SystemRunningAppChecker(), exclusions: try await ExclusionsModel.shared.policyForScan(), cloud: Self.cloud,
                                     home: Self.checkHome, apps: Self.appPresence, systemRoot: Self.systemRoot) }
-        catch { message = "Exclusion settings are unavailable, so nothing can be checked. Try again."; return nil }
+        catch { settingsUnreadable = true; return nil }
     }
 }
 

@@ -72,29 +72,3 @@ struct FixedAppPresence: AppPresence {
     func installedApps() -> [InstalledApp]? { reading.value() }
     func isRegistered(bundleID: String) -> Bool { registered(bundleID) }
 }
-
-/// The installer receipts in `/var/db/receipts` (what `pkgutil` reads), except Apple's, each listed with `lsbom`: the app
-/// bundles it installed and what it put in the user's Library. A receipt that can't be read is skipped.
-public struct SystemInstallerReceipts: InstallerReceiptReading {
-    let home: URL
-    public init(home: URL) { self.home = home.resolvingSymlinksInPath() }
-    public func receipts() -> [InstallerReceipt] {
-        let folder = URL(fileURLWithPath: "/var/db/receipts"), lsbom = URL(fileURLWithPath: "/usr/bin/lsbom"), library = home.path + "/Library/"
-        return ((try? FileManager.default.contentsOfDirectory(atPath: folder.path)) ?? []).sorted().compactMap { name -> InstallerReceipt? in
-            guard name.hasSuffix(".plist"), !name.hasPrefix("com.apple."), let data = try? Data(contentsOf: folder.appendingPathComponent(name)),
-                  let info = (try? PropertyListSerialization.propertyList(from: data, format: nil)) as? [String: Any],
-                  let id = info["PackageIdentifier"] as? String, let prefix = info["InstallPrefixPath"] as? String,
-                  let listing = try? BoundedTool.run(executable: lsbom, arguments: ["-s", folder.appendingPathComponent(String(name.dropLast(6)) + ".bom").path],
-                                                     timeout: 5, outputLimit: 8 << 20) else { return nil }
-            let base = URL(fileURLWithPath: "/" + prefix.drop { $0 == "/" })
-            var apps = Set<String>(), paths = Set<String>()
-            for line in listing.split(separator: "\n") {
-                let relative = line.hasPrefix("./") ? String(line.dropFirst(2)) : String(line)
-                let path = base.appendingPathComponent(relative).standardizedFileURL.path
-                if let app = path.range(of: ".app/").map({ String(path[..<$0.lowerBound]) + ".app" }) ?? (path.hasSuffix(".app") ? path : nil) { apps.insert(app) }
-                if path.hasPrefix(library) { paths.insert(path) }
-            }
-            return InstallerReceipt(id: id, apps: apps.sorted(), paths: paths)
-        }
-    }
-}

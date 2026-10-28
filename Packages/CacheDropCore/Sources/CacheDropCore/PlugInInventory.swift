@@ -57,8 +57,10 @@ public struct PlugInInventory: Sendable, Equatable {
 
     /// Finds every plug-in in `folders` and every AUv3 extension in apps in `/Applications` and `~/Applications`.
     /// Folders that don't exist or can't be read are skipped. Reads metadata only.
-    public static func scan(home: URL, systemRoot: URL = URL(fileURLWithPath: "/"), sizer: KnownLocationSizer = KnownLocationSizer()) -> PlugInInventory {
-        PlugInInventory(products: group(files(home: home, systemRoot: systemRoot, sizer: sizer), receipts: receipts(under: systemRoot)))
+    /// `receipts` is the scan's one read of the installer receipts (`ReceiptListings.read`, #318).
+    public static func scan(home: URL, systemRoot: URL = URL(fileURLWithPath: "/"), sizer: KnownLocationSizer = KnownLocationSizer(),
+                            receipts: ReceiptListings) -> PlugInInventory {
+        PlugInInventory(products: group(files(home: home, systemRoot: systemRoot, sizer: sizer), receipts: owners(receipts)))
     }
 
     /// Every plug-in file `scan` finds, ungrouped. Without a sizer, sizes are left unknown, so nothing is walked: for telling
@@ -116,26 +118,11 @@ public struct PlugInInventory: Sendable, Equatable {
         }.sorted { (bytes($0.size), $1.name) > (bytes($1.size), $0.name) }
     }
 
-    /// Plug-in bundle paths each non-Apple installer receipt in `/var/db/receipts` lists, from its BOM via `lsbom`.
-    /// Receipts that can't be read are skipped, so their files stand alone or group by bundle ID.
-    static func receipts(under systemRoot: URL) -> [String: Set<String>] {
-        let folder = systemRoot.appendingPathComponent("var/db/receipts"), lsbom = URL(fileURLWithPath: "/usr/bin/lsbom")
+    /// The receipts that list each plug-in bundle path. Receipts that can't be read are left out, so their files stand alone
+    /// or group by bundle ID.
+    static func owners(_ receipts: ReceiptListings) -> [String: Set<String>] {
         let extensions = Set(PlugInFormat.allCases.filter { $0 != .auv3 }.map(\.bundleExtension))
-        var owners: [String: Set<String>] = [:]
-        for name in ((try? FileManager.default.contentsOfDirectory(atPath: folder.path)) ?? []).sorted() where name.hasSuffix(".plist") && !name.hasPrefix("com.apple.") {
-            guard let data = try? Data(contentsOf: folder.appendingPathComponent(name)),
-                  let info = (try? PropertyListSerialization.propertyList(from: data, format: nil)) as? [String: Any],
-                  let id = info["PackageIdentifier"] as? String, let prefix = info["InstallPrefixPath"] as? String, prefix.hasPrefix("/") || prefix.isEmpty,
-                  let listing = try? BoundedTool.run(executable: lsbom, arguments: ["-s", "-d", folder.appendingPathComponent(String(name.dropLast(6)) + ".bom").path],
-                                                     timeout: 5, outputLimit: 8 << 20) else { continue }
-            let base = systemRoot.appendingPathComponent(String(prefix.drop { $0 == "/" }))
-            for line in listing.split(separator: "\n") {
-                let path = line.hasPrefix("./") ? String(line.dropFirst(2)) : String(line)
-                guard extensions.contains(URL(fileURLWithPath: path).pathExtension.lowercased()) else { continue }
-                owners[base.appendingPathComponent(path).standardizedFileURL.path, default: []].insert(id)
-            }
-        }
-        return owners
+        return receipts.byPath.filter { extensions.contains(URL(fileURLWithPath: $0.key).pathExtension.lowercased()) }
     }
 
     /// Bundles with `ext` in `folder`, also inside vendor subfolders, never inside a bundle.
