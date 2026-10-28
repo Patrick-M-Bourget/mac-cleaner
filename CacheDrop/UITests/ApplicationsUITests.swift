@@ -377,6 +377,31 @@ final class ApplicationsUITests: XCTestCase {
         XCTAssertFalse(app.descendants(matching: .any)["applicationsLoading-apps"].exists)
     }
 
+    /// #321: when the list of apps can't be read, Apps says so rather than "no apps", with Try again, which reads it again.
+    @MainActor func testAnUnreadableAppListSaysSoAndTryAgainReadsItAgain() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        let state = try configureIsolatedState(app)
+        let home = try configureCatalogHome(app)
+        // DEBUG seam: while this marker exists, the fixture's list of apps can't be read.
+        let unreadable = home.appendingPathComponent(".cachedrop-test-apps-unreadable")
+        try Data().write(to: unreadable)
+        defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
+        app.launch()
+        XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
+        app.typeKey("5", modifierFlags: .command)
+        let error = app.descendants(matching: .any)["applicationsAppsUnreadable"]
+        XCTAssertTrue(error.waitForExistence(timeout: 120), "Apps says the list couldn't be read")
+        XCTAssertFalse(app.descendants(matching: .any)["applicationsEmpty-apps"].exists, "Never \"no apps\" when the list wasn't read")
+        let tryAgain = error.buttons["applicationsAppsUnreadableAction"]
+        XCTAssertEqual(tryAgain.label, "Try again")
+
+        try FileManager.default.removeItem(at: unreadable)
+        tryAgain.click()
+        XCTAssertTrue(app.descendants(matching: .any)["applicationsEmpty-apps"].waitForExistence(timeout: 120), "Read again, the list has no apps")
+        XCTAssertFalse(error.exists)
+    }
+
     /// #270: a leftover ticked on Applications is reviewed and cleaned there (dry run), and Overview never calls it in the plan.
     @MainActor func testALeftoverIsTickedAndCleanedFromApplications() throws {
         continueAfterFailure = false

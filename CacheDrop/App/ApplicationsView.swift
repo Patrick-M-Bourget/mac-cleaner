@@ -18,6 +18,8 @@ import SwiftUI
     private(set) var plugIns: [InventoryEntry] = []
     /// The page's Sort and search (#295): kept while CacheDrop runs, never across launches.
     var listing = ApplicationsListing()
+    /// The list of apps couldn't be read (Spotlight didn't answer): never "no apps" (#310, #321).
+    private(set) var appsUnreadable = false
     private(set) var hasLoaded = false
     private(set) var isLoading = false
     /// What a debug test run would have revealed or opened.
@@ -28,12 +30,15 @@ import SwiftUI
         guard !isLoading else { return }
         isLoading = true
         defer { isLoading = false; hasLoaded = true }
-        guard let home else { apps = []; plugIns = []; return }
+        guard let home else { apps = []; plugIns = []; appsUnreadable = false; return }
         let presence = appPresence, system = systemRoot, own = Bundle.main.bundleIdentifier
-        (apps, plugIns) = await Task.detached(priority: .userInitiated) {
-            (ApplicationsInventory.apps(presence.installedApps() ?? [], excluding: own, home: home),
-             ApplicationsInventory.plugIns(read ?? PlugInInventory.scan(home: home, systemRoot: system)))
+        let installed: [InstalledApp]?
+        (installed, apps, plugIns) = await Task.detached(priority: .userInitiated) {
+            let installed = presence.installedApps()
+            return (installed, ApplicationsInventory.apps(installed ?? [], excluding: own, home: home),
+                    ApplicationsInventory.plugIns(read ?? PlugInInventory.scan(home: home, systemRoot: system)))
         }.value
+        appsUnreadable = installed == nil
     }
     /// The app's own uninstaller or the maker's tool, when it is installed (Decisions 41, 50).
     func uninstaller(for entry: InventoryEntry) -> InventoryEntry? { ApplicationsInventory.uninstaller(for: entry, among: apps) }
@@ -107,7 +112,7 @@ struct ApplicationsView: View {
             if let approvalError { StatusRow(text: approvalError, symbol: "exclamationmark.circle", role: .caution) }
             if let status = model.status { StatusRow(text: status, identifier: "applicationsStatus") }
             section("Apps", id: "apps", entries: model.apps, category: .apps, identifier: "applicationsApp-",
-                    empty: ("No apps to list", "Only Apple’s apps are in the Applications folders."))
+                    empty: ("No apps to list", "Only Apple’s apps are in the Applications folders."), unreadable: model.appsUnreadable)
             section("Plug-ins", id: "plugIns", entries: model.plugIns, category: .audioPlugIns, identifier: "applicationsPlugIn-",
                     empty: ("No plug-ins to list", "No audio plug-ins other than Apple’s were found."))
             Text("Leftovers").font(CacheDropDesign.TypeStyle.section)
@@ -142,11 +147,17 @@ struct ApplicationsView: View {
     private var listsLoading: Bool { !model.hasLoaded || model.isLoading || catalog.isScanning }
 
     @ViewBuilder private func section(_ title: String, id: String, entries: [InventoryEntry], category: StorageCategory, identifier: String,
-                                      empty: (title: String, detail: String)) -> some View {
+                                      empty: (title: String, detail: String), unreadable: Bool = false) -> some View {
         let shown = model.listing.arranged(entries, name: \.name, maker: \.maker, bytes: { size(of: $0).sortBytes })
         Text(title).font(CacheDropDesign.TypeStyle.section)
         if entries.isEmpty {
-            if listsLoading { loading(id) } else { state(empty.title, empty.detail, symbol: "tray", id: "applicationsEmpty-" + id) }
+            if listsLoading { loading(id) }
+            // Try again scans again, so the uninstall offers are read with the list (#321).
+            else if unreadable {
+                EmptyState(title: "CacheDrop couldn’t read the list of apps", detail: "Spotlight didn’t answer.", symbol: "exclamationmark.triangle",
+                           action: EmptyStateAction("Try again") { Task { await catalog.rescan() } }, identifier: "applicationsAppsUnreadable")
+            }
+            else { state(empty.title, empty.detail, symbol: "tray", id: "applicationsEmpty-" + id) }
         } else if shown.isEmpty {
             noMatches(id)
         } else {
