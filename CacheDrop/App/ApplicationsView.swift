@@ -18,6 +18,8 @@ import SwiftUI
     private(set) var plugIns: [InventoryEntry] = []
     private(set) var hasLoaded = false
     private(set) var isLoading = false
+    /// The list of apps couldn't be read (Spotlight didn't answer): unknown, never "no apps" (#310).
+    private(set) var appsUnreadable = false
     /// What a debug test run would have revealed or opened.
     private(set) var status: String?
 
@@ -28,10 +30,11 @@ import SwiftUI
         defer { isLoading = false; hasLoaded = true }
         guard let home else { apps = []; plugIns = []; return }
         let presence = appPresence, system = systemRoot, own = Bundle.main.bundleIdentifier
-        (apps, plugIns) = await Task.detached(priority: .userInitiated) {
-            (ApplicationsInventory.apps(presence.installedApps() ?? [], excluding: own, home: home),
+        let (listed, products) = await Task.detached(priority: .userInitiated) {
+            (presence.installedApps().map { ApplicationsInventory.apps($0, excluding: own, home: home) },
              ApplicationsInventory.plugIns(read ?? PlugInInventory.scan(home: home, systemRoot: system)))
         }.value
+        apps = listed ?? []; plugIns = products; appsUnreadable = listed == nil
     }
     /// The app's own uninstaller or the maker's tool, when it is installed (Decisions 41, 50).
     func uninstaller(for entry: InventoryEntry) -> InventoryEntry? { ApplicationsInventory.uninstaller(for: entry, among: apps) }
@@ -120,7 +123,12 @@ struct ApplicationsView: View {
                                       empty: (title: String, detail: String)) -> some View {
         Text(title).font(CacheDropDesign.TypeStyle.section)
         if entries.isEmpty {
-            if listsLoading { loading(id) } else { state(empty.title, empty.detail, symbol: "tray", id: "applicationsEmpty-" + id) }
+            if listsLoading { loading(id) }
+            else if id == "apps", model.appsUnreadable {
+                // Spotlight didn't answer: unknown, never "Only Apple's apps" (#310). Try again scans again, so uninstalls are read too.
+                StatusRow(text: "CacheDrop couldn’t read the list of apps.", symbol: "exclamationmark.triangle", role: .caution, identifier: "applicationsUnreadable",
+                          action: StatusAction(title: "Try again", identifier: "applicationsTryAgain") { Task { await catalog.rescan() } })
+            } else { state(empty.title, empty.detail, symbol: "tray", id: "applicationsEmpty-" + id) }
         } else {
             VStack(alignment: .leading, spacing: 0) {
                 ForEach(entries) { entry in
