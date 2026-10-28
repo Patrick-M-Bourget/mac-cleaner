@@ -4,7 +4,8 @@ import Foundation
 /// Discovery, leaked copies, Downloads files and the check all use this one computation, so a scan never offers
 /// what the check would refuse.
 struct Protection {
-    /// Never acted on: git work, the Trash, backups (spec section 2).
+    /// Never acted on by a rule: git work, the Trash, backups (spec section 2). CacheDrop never empties the Trash; it
+    /// deletes from it only items it moved there itself, when you ask (Decision 68).
     static let names: Set<String> = [".git", ".Trash", ".Trashes", "Backups.backupdb"]
     /// Packages and libraries that are never acted on, whatever folder holds them.
     static let extensions: Set<String> = ["app", "bundle", "framework", "xcarchive", "photoslibrary", "photolibrary", "musiclibrary", "backupbundle", "sparsebundle", "band", "logicx"]
@@ -27,8 +28,9 @@ struct Protection {
         names.contains(name) || extensions.contains((name as NSString).pathExtension.lowercased()) || (AppCaches.isMacOSOrOwn(name) && !macOSNamesAllowed.contains(name))
     }
 
-    /// The Trash, the user's and a volume's: never acted on wherever it lies on the path, the base included,
-    /// so a picked `~/.Trash` or a folder inside it offers nothing (#129).
+    /// The Trash, the user's and a volume's: no rule or check acts on it wherever it lies on the path, the base included,
+    /// so a picked `~/.Trash` or a folder inside it offers nothing (#129). The only deletions from the Trash are of items
+    /// CacheDrop moved there itself, when you ask (`TrashEmptying`, Decision 68).
     static let trashNames: Set<String> = [".Trash", ".Trashes"]
 
     /// The first protected component of `url` below `base`, the item itself included; a Trash anywhere on the path.
