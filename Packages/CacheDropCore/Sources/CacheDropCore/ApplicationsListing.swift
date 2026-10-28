@@ -32,7 +32,10 @@ public struct ApplicationsListing: Sendable, Equatable {
 
     /// The `items` the search matches, in this order.
     public func arranged<T>(_ items: [T], name: (T) -> String, maker: (T) -> String?, bytes: (T) -> Int64) -> [T] {
-        let items = items.filter { matches(name: name($0), maker: maker($0)) }
+        ordered(items.filter { matches(name: name($0), maker: maker($0)) }, name: name, bytes: bytes)
+    }
+    /// `items` in this order, none left out: for rows already matched another way, such as leftovers.
+    public func ordered<T>(_ items: [T], name: (T) -> String, bytes: (T) -> Int64) -> [T] {
         func byName(_ left: T, _ right: T) -> Bool { name(left).localizedStandardCompare(name(right)) == .orderedAscending }
         switch order {
         case .name: return items.sorted(by: byName)

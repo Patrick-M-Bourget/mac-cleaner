@@ -16,6 +16,8 @@ import SwiftUI
     }
     private(set) var apps: [InventoryEntry] = []
     private(set) var plugIns: [InventoryEntry] = []
+    /// The page's Sort and search (#295): kept while CacheDrop runs, never across launches.
+    var listing = ApplicationsListing()
     private(set) var hasLoaded = false
     private(set) var isLoading = false
     /// What a debug test run would have revealed or opened.
@@ -70,7 +72,9 @@ struct ApplicationsView: View {
             ScrollView {
                 if selection.showsRun(for: .applications) { CleanupRunSection(selection: selection) } else { page }
             }.background(CacheDropDesign.reading)
-            CleanupActionBar(selection: selection, source: .applications, viewHistory: viewHistory, reviewRecovery: reviewRecovery) {
+            // Every ticked item is counted, those the search hides too (#295).
+            CleanupActionBar(selection: selection, source: .applications, viewHistory: viewHistory, reviewRecovery: reviewRecovery,
+                             idleNote: catalog.applicationsSelected.isEmpty ? nil : CacheDropDesign.items(catalog.applicationsSelected.count) + " selected") {
                 Button("Done") { selection.dismissResult() }.buttonStyle(.borderedProminent)
             } idle: {
                 ReviewCleanupButton(enabled: selection.canReviewApplications, focusRequest: reviewFocusRequest) { Task { await openReview() } }.fixedSize()
@@ -86,13 +90,17 @@ struct ApplicationsView: View {
         .onChange(of: catalog.selectionRevision) { _, _ in if review != nil { review = nil; approvalError = PlanReviewError.changedMessage } }
         // Read again after each catalog scan, so Scan again refreshes the lists too.
         .task(id: catalog.isScanning) { if !catalog.isScanning { await model.load(plugIns: catalog.plugInInventory) } }
+        // A search opens Leftovers, so its matching groups show.
+        .onChange(of: model.listing.isSearching) { _, searching in if searching { leftoversExpanded = true } }
     }
 
     private var page: some View {
         VStack(alignment: .leading, spacing: CacheDropDesign.Space.lg) {
-            PageHeader(title: "Applications", subtitle: "Apps, plug-ins and files that removed apps left behind.")
-                .accessibilityElement(children: .combine).accessibilityIdentifier("applicationsHeader")
-                .padding(.bottom, CacheDropDesign.Space.sm)
+            HStack(alignment: .bottom, spacing: CacheDropDesign.Space.lg) {
+                PageHeader(title: "Applications", subtitle: "Apps, plug-ins and files that removed apps left behind.")
+                    .accessibilityElement(children: .combine).accessibilityIdentifier("applicationsHeader")
+                listControls
+            }.padding(.bottom, CacheDropDesign.Space.sm)
             if let approvalError { StatusRow(text: approvalError, symbol: "exclamationmark.circle", role: .caution) }
             if let status = model.status { StatusRow(text: status, identifier: "applicationsStatus") }
             section("Apps", id: "apps", entries: model.apps, category: .apps, identifier: "applicationsApp-",
@@ -101,7 +109,8 @@ struct ApplicationsView: View {
                     empty: ("No plug-ins to list", "No audio plug-ins other than Apple’s were found."))
             Text("Leftovers").font(CacheDropDesign.TypeStyle.section)
             if let row = catalog.leftoversRow {
-                PlanCategoryRow(model: catalog, row: row, expanded: $leftoversExpanded)
+                if model.listing.isSearching, !row.rules.flatMap(catalog.candidates(for:)).contains(where: model.listing.matches) { noMatches("leftovers") }
+                else { PlanCategoryRow(model: catalog, row: row, expanded: $leftoversExpanded, listing: model.listing) }
             } else if catalog.hasScanned && !catalog.isScanning {
                 state("No leftovers", "Apps you removed left nothing behind that CacheDrop can tie to them.", symbol: "checkmark.circle", id: "applicationsEmpty-leftovers")
             } else {
@@ -110,17 +119,36 @@ struct ApplicationsView: View {
         }.padding(CacheDropDesign.Space.page).frame(maxWidth: .infinity, alignment: .leading)
     }
 
+    /// One search and one Sort for Apps, Plug-ins and Leftovers (#295), searching by name or maker.
+    private var listControls: some View {
+        HStack(spacing: CacheDropDesign.Space.sm) {
+            TextField("Search apps, plug-ins and leftovers", text: Bindable(model).listing.search, prompt: Text("Name or maker"))
+                .labelsHidden().textFieldStyle(.roundedBorder).frame(width: CacheDropDesign.Size.searchField)
+                .accessibilityIdentifier("applicationsSearch")
+            Picker("Sort", selection: Bindable(model).listing.order) {
+                ForEach(ApplicationsListing.Order.allCases) { Text($0.rawValue).tag($0) }
+            }.fixedSize().accessibilityIdentifier("applicationsSort")
+        }
+    }
+    private func noMatches(_ id: String) -> some View {
+        state("No matches", "Nothing here has “\(model.listing.search.trimmingCharacters(in: .whitespaces))” in its name or maker.", symbol: "magnifyingglass",
+              id: "applicationsNoMatches-" + id)
+    }
+
     /// A section's lists come after the catalog scan; until then, and while they are read, it says it is looking (#270).
     private var listsLoading: Bool { !model.hasLoaded || model.isLoading || catalog.isScanning }
 
     @ViewBuilder private func section(_ title: String, id: String, entries: [InventoryEntry], category: StorageCategory, identifier: String,
                                       empty: (title: String, detail: String)) -> some View {
+        let shown = model.listing.arranged(entries, name: \.name, maker: \.maker, bytes: { size(of: $0).sortBytes })
         Text(title).font(CacheDropDesign.TypeStyle.section)
         if entries.isEmpty {
             if listsLoading { loading(id) } else { state(empty.title, empty.detail, symbol: "tray", id: "applicationsEmpty-" + id) }
+        } else if shown.isEmpty {
+            noMatches(id)
         } else {
             VStack(alignment: .leading, spacing: 0) {
-                ForEach(entries) { entry in
+                ForEach(shown) { entry in
                     row(entry, category: category, identifier: identifier + entry.id)
                     Divider().padding(.vertical, CacheDropDesign.Space.md)
                 }
@@ -133,6 +161,13 @@ struct ApplicationsView: View {
     }
     private func state(_ title: String, _ detail: String, symbol: String, id: String) -> some View {
         EmptyState(title: title, detail: detail, symbol: symbol).accessibilityElement(children: .combine).accessibilityIdentifier(id)
+    }
+
+    /// The size a row shows, and Size sorts by: shared items count on no product's row, so the page counts them once
+    /// (#288, Decisions 51 and 52).
+    private func size(of entry: InventoryEntry) -> SizeEstimate {
+        let uninstall = catalog.uninstallItems(ofRow: entry.id)
+        return uninstall.isEmpty ? entry.size : SizeEstimate(sum: uninstall.filter(\.sharedBy.isEmpty).map(SizeEstimate.init))
     }
 
     /// A row; an app CacheDrop can uninstall (#177) has a checkbox for the app and its files, the rest have none. One that
@@ -151,8 +186,7 @@ struct ApplicationsView: View {
         let count = uninstall.isEmpty ? entry.parts.count : uninstall.count
         return CategoryRow(category: category, state: uninstall.isEmpty ? nil : catalog.selectionState(ofRow: entry.id), title: entry.name,
                            detail: [entry.maker, entry.volume].compactMap { $0 }.joined(separator: " · "),
-                           // Shared items count on no product's row, so the page counts them once (#288, Decisions 51 and 52).
-                           size: uninstall.isEmpty ? entry.size.text : SizeEstimate(sum: uninstall.filter(\.sharedBy.isEmpty).map(SizeEstimate.init)).text,
+                           size: size(of: entry).text,
                            enabled: uninstall.isEmpty || catalog.canEdit, identifier: identifier,
                            // An app alone is its only item: no "Choose items · 1" (#270).
                            itemCount: count > 1 || !staying.isEmpty ? count : nil, staying: staying.count, expanded: isExpanded,

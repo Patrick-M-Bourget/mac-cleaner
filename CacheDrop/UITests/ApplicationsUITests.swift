@@ -90,6 +90,57 @@ final class ApplicationsUITests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: leftover.path))
     }
 
+    /// #295: one Sort (Size or Name) and one search orders and filters every section; a ticked row the search hides stays
+    /// ticked and counted in the bar, and clearing the search shows it again.
+    @MainActor func testApplicationsSortByNameOrSizeAndSearchByMakerKeepsTicks() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        let state = try configureIsolatedState(app)
+        let home = try configureCatalogHome(app)
+        defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
+        let big = try addApp("Big Synth", id: "com.maker.bigsynth", bytes: 900_000, copyright: "© 2025 Maker Audio Inc. All rights reserved.", in: home)
+        let apex = try addApp("Apex", id: "com.other.apex", bytes: 90_000, in: home)
+        let zed = try addApp("Zed Tool", id: "com.third.zed", bytes: 300_000, in: home)
+        let leftover = home.appendingPathComponent("Library/Containers/com.gone.synth/Data/state.db")
+        try FileManager.default.createDirectory(at: leftover.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Data(repeating: 4, count: 60_000).write(to: leftover)
+        app.launch()
+        waitForCatalogScan(app)
+        app.typeKey("5", modifierFlags: .command)
+
+        let rows = [big, apex, zed].map { element(app, "applicationsApp-" + $0.path, .checkBox) }
+        XCTAssertTrue(rows[0].waitForExistence(timeout: 10))
+        func order() -> [CGFloat] { rows.map(\.frame.minY) }
+        XCTAssertTrue(order()[0] < order()[2] && order()[2] < order()[1], "Size, largest first, by default")
+
+        let sort = app.popUpButtons["applicationsSort"]
+        XCTAssertTrue(sort.exists)
+        sort.click(); app.menuItems["Name"].click()
+        XCTAssertTrue(order()[1] < order()[0] && order()[0] < order()[2], "Name: Apex, Big Synth, Zed Tool")
+        sort.click(); app.menuItems["Size"].click()
+        XCTAssertTrue(order()[0] < order()[2] && order()[2] < order()[1], "Back to largest first")
+
+        revealAndClick(rows[1], in: app)
+        XCTAssertEqual(rows[1].value as? Int, 1)
+        let count = app.staticTexts["actionStripNote"]
+        XCTAssertEqual(count.value as? String, "1 item selected")
+
+        let search = app.textFields["applicationsSearch"]
+        search.click(); search.typeText("maker audio")
+        XCTAssertTrue(rows[1].waitForNonExistence(timeout: 5), "A row whose name and maker don't match is hidden")
+        XCTAssertTrue(rows[0].exists, "Searched by maker")
+        XCTAssertFalse(rows[2].exists)
+        XCTAssertTrue(app.descendants(matching: .any)["applicationsNoMatches-leftovers"].exists, "A section with no matches says so")
+        XCTAssertFalse(app.checkBoxes["planCategory-leftovers"].exists)
+        XCTAssertEqual(count.value as? String, "1 item selected", "The hidden ticked row is still counted")
+        XCTAssertTrue(app.buttons["Review cleanup"].isEnabled)
+
+        search.typeKey("a", modifierFlags: .command); search.typeKey(.delete, modifierFlags: [])
+        XCTAssertTrue(rows[1].waitForExistence(timeout: 5), "Clearing the search shows everything again")
+        XCTAssertEqual(rows[1].value as? Int, 1, "Still ticked")
+        XCTAssertTrue(app.checkBoxes["planCategory-leftovers"].exists)
+    }
+
     /// #177: an app is ticked with its confirmed files, reviewed grouped by place with what stays, moved to the fixture Trash,
     /// and History says "Uninstalled <App> · N items". The possibly related folder stays unticked and in place.
     @MainActor func testAnAppIsUninstalledWithItsFiles() throws {

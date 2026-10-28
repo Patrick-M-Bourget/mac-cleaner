@@ -15,7 +15,9 @@ enum CacheDropDesign {
         /// The surface gap between a meter's segments, and the narrowest segment it draws (#164).
         static let meterGap: CGFloat = 2; static let meterSegmentMinimum: CGFloat = 3
         /// The bottom bar's row: a large button's height, so the bar is the same with or without buttons or progress (#220).
-        static let actionStripRow: CGFloat = 32 }
+        static let actionStripRow: CGFloat = 32
+        /// A page header's search field (#295), as wide as the prototype's.
+        static let searchField: CGFloat = 210 }
     /// How strongly a colour tints a surface behind its symbol, as in a category badge.
     enum Opacity { static let badgeTint: Double = 0.10
         /// A meter segment's part that Smart clean wouldn't free (#164).

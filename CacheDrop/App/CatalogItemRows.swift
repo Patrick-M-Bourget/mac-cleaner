@@ -10,8 +10,12 @@ struct CatalogItemRows: View {
     let rule: CleanupRule
     /// Only this installed app's items, on its Applications row (#177).
     var app: String? = nil
+    /// The Applications page's Sort and search, for its leftovers (#295); nil lists every item by name.
+    var listing: ApplicationsListing? = nil
     var body: some View {
-        let items = model.candidates(for: rule).filter { app.map($0.isUninstalled(with:)) ?? true }.sorted { $0.displayName.localizedStandardCompare($1.displayName) == .orderedAscending }
+        let found = model.candidates(for: rule).filter { app.map($0.isUninstalled(with:)) ?? true }
+        let items = listing.map { $0.ordered(found.filter($0.matches), name: \.displayName, bytes: \.estimatedBytes) }
+            ?? found.sorted { $0.displayName.localizedStandardCompare($1.displayName) == .orderedAscending }
         LazyVStack(alignment: .leading, spacing: 0) {
             ForEach(items) { item in
                 InspectableItemRow(name: item.displayName, detail: detail(item), size: catalogBytes(item.estimatedBytes, estimate: item.sizeIsEstimate),
