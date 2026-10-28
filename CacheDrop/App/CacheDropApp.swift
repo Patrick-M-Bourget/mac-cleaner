@@ -541,7 +541,7 @@ private struct WorkspaceView: View {
         let action: (() -> Void)? = overviewObservation == nil ? nil : { overviewCloudExpanded.toggle() }
         let value = overviewObservation.map { result in
             let report = result.cloudInventory
-            return report.unknownMembershipCount > 0 || report.unknownStateCount > 0 ? "Unknown" : overviewBytes(report.localAllocatedBytes)
+            return report.totalIsUnknown ? "Unknown" : overviewBytes(report.localAllocatedBytes)
         } ?? "Not scanned"
         return StorageReviewRow(category: .cloud, title: "Downloaded iCloud files", detail: "Copies of iCloud files kept on this Mac", value: value, meaning: "On this Mac", actionTitle: overviewCloudExpanded ? "Hide iCloud files" : "Review iCloud files", action: action, identifier: "overviewCloudFinding")
     }

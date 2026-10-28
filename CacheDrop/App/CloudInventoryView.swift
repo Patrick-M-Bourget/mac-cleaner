@@ -1,7 +1,7 @@
 import CacheDropCore
 import SwiftUI
 
-/// Overview's iCloud summary for a scanned folder: two plain lines (#312).
+/// Overview's iCloud summary for a scanned folder: two plain lines (#312), plus why the total is Unknown (#331).
 struct CloudInventoryView: View {
     let report: CloudInventoryReport
 
@@ -17,6 +17,11 @@ struct CloudInventoryView: View {
                         .monospacedDigit()
                     Text(files(report.cloudOnlyItemCount) + " only in iCloud, taking no space here.")
                         .font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
+                    // Why the row's total reads "Unknown": counts only, no per-file list (#331).
+                    if let reason = report.unknownReason {
+                        Text(reason).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
+                            .accessibilityIdentifier("overviewCloudUnknownReason")
+                    }
                 }
             }
         }

@@ -58,3 +58,42 @@ private struct DeniedCloudScope: ScanAccessChecking {
     #expect(item.cloud.membership == false)
     #expect(item.previewAvailability == .local)
 }
+
+private struct UndecidedCloudMetadata: MetadataSupplementReading {
+    func read(_ url: URL) throws -> MetadataSupplement {
+        switch url.lastPathComponent {
+        case "membership.bin":
+            return .init(allocatedBytes: 10, locality: .local, cloud: .init(membership: nil))
+        case "current.bin":
+            return .init(allocatedBytes: 200, locality: .local, cloud: .init(membership: true, downloadState: .current))
+        default:
+            return .init(allocatedBytes: 10, locality: .local, cloud: .init(membership: true, downloadState: .unknown))
+        }
+    }
+}
+
+private func cloudReport(_ names: [String]) async throws -> CloudInventoryReport {
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent("CacheDropCloudUnknown-\(UUID().uuidString)", isDirectory: true)
+    try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: root) }
+    for name in names { try Data(repeating: 1, count: 100).write(to: root.appendingPathComponent(name)) }
+    return try await FolderScanner(supplement: UndecidedCloudMetadata()).scan(root).cloudInventory
+}
+
+/// #331: the Overview row reads "Unknown" and adds one plain line saying why.
+@Test func unknownCloudTotalSaysWhyInOnePlainLine() async throws {
+    let known = try await cloudReport(["current.bin"])
+    #expect(!known.totalIsUnknown)
+    #expect(known.unknownReason == nil)
+
+    let state = try await cloudReport(["current.bin", "a.bin", "b.bin", "c.bin"])
+    #expect(state.totalIsUnknown)
+    #expect(state.unknownReason == "CacheDrop couldn't tell whether 3 files are downloaded.")
+
+    let membership = try await cloudReport(["current.bin", "membership.bin"])
+    #expect(membership.totalIsUnknown)
+    #expect(membership.unknownReason == "CacheDrop couldn't tell whether 1 file is in iCloud.")
+
+    let both = try await cloudReport(["membership.bin", "a.bin"])
+    #expect(both.unknownReason == "CacheDrop couldn't tell whether 1 file is in iCloud, or whether 1 file is downloaded.")
+}
