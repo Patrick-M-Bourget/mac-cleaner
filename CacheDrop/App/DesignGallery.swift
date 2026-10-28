@@ -144,7 +144,7 @@ struct DesignGallery: View {
                         CacheDropSidebarRow(title: "Overview", symbol: "internaldrive", selected: false) {}
                         CacheDropSidebarRow(title: "Cleanup plan", symbol: "checklist", selected: true, accent: CacheDropDesign.teal) {}
                     }
-                    CategorySelectionHeader(category: .downloads, state: .mixed, title: "Downloads · Example mixed selection", detail: "The checkbox alone changes selection; filenames remain inspection controls.", size: "16 MB", enabled: true, action: {})
+                    CategorySelectionHeader(category: .downloads, state: .mixed, title: "Downloads · Example mixed selection", detail: "The checkbox or a click on the row changes selection; filenames remain inspection controls.", size: "16 MB", enabled: true, action: {})
                     CategoryRow(category: .developer, state: .checked, title: "Developer · Example category row", detail: "Plan and Smart clean share this row; each keeps its own selection.",
                                 size: "1.2 GB", enabled: true, identifier: "galleryCategoryRow", itemCount: 2, staying: 1, expanded: $categoryRowExpanded, toggle: {}) {
                         EmptyView()

@@ -646,9 +646,9 @@ extension CacheDropDesign.Size {
     /// A category checkbox's width, kept as a gap when a row has none (#267, #270).
     static let checkbox: CGFloat = 16
 }
-/// Selection stays on the native checkbox; the badge/title never become extra toggles. A nil `state` draws no checkbox, for a
-/// row that can't be chosen (Decision 51), and the identifier then names the row. `below` goes under the title and detail, in
-/// their column (#298).
+/// The native checkbox ticks the row, and so does a click anywhere else on it (#348): the same toggle, never a second one, and
+/// links in `below` keep their own clicks. A nil `state` draws no checkbox and takes no click, for a row that can't be chosen
+/// (Decision 51), and the identifier then names the row. `below` goes under the title and detail, in their column (#298).
 struct CategorySelectionHeader<Below: View>: View {
     let category: StorageCategory
     let state: CategorySelectionState?
@@ -659,12 +659,21 @@ struct CategorySelectionHeader<Below: View>: View {
     var identifier: String? = nil
     let action: () -> Void
     @ViewBuilder var below: () -> Below
+    /// A parent's `.disabled` (a scan dimming the rows), which the native checkbox follows too.
+    @Environment(\.isEnabled) private var environmentEnabled
     var body: some View {
         let row = HStack(alignment: .top, spacing: CacheDropDesign.Space.md) {
             if let state {
                 MacroCategoryCheckbox(state: state, label: title, enabled: enabled, action: action, identifier: identifier ?? (category == .downloads ? "downloadsCategorySelection" : "\(category)-CategorySelection"), showsTitle: false)
                     .fixedSize().padding(.top, CacheDropDesign.Space.sm)
             }
+            clickable
+        }
+        if state == nil, let identifier { row.accessibilityElement(children: .contain).accessibilityIdentifier(identifier) } else { row }
+    }
+    /// Everything right of the checkbox: a click here toggles the row as the checkbox does (#348).
+    private var clickable: some View {
+        HStack(alignment: .top, spacing: CacheDropDesign.Space.md) {
             // Without a checkbox, the badge keeps its place, so titles line up with the rows that have one.
             CategoryBadge(category: category).padding(.leading, state == nil ? CacheDropDesign.Size.checkbox + CacheDropDesign.Space.md : 0)
             VStack(alignment: .leading, spacing: CacheDropDesign.Space.xs) {
@@ -676,8 +685,7 @@ struct CategorySelectionHeader<Below: View>: View {
                 below()
             }.frame(maxWidth: .infinity, alignment: .leading)
             Text(size).font(.callout).monospacedDigit().fixedSize()
-        }
-        if state == nil, let identifier { row.accessibilityElement(children: .contain).accessibilityIdentifier(identifier) } else { row }
+        }.contentShape(Rectangle()).onTapGesture { if state != nil && enabled && environmentEnabled { action() } }
     }
 }
 extension CategorySelectionHeader where Below == EmptyView {
