@@ -114,6 +114,9 @@ struct DesignGallery: View {
                             ProgressView("Reading metadata…")
                         }
                     }
+                    // #311: one button rule, one example of each kind.
+                    Text("Buttons · One rule").font(.headline)
+                    ButtonRuleGalleryExamples()
                     // #321: one empty state, saying what's true with at most one action that leads where the user can act.
                     Text("Empty states · One way forward").font(.headline)
                     EmptyState(title: "No scans yet", detail: "A completed scan records a baseline. Check back a day later to see trends.",
@@ -170,6 +173,7 @@ struct DesignGallery: View {
                 .environment(\.cacheDropBackgroundWork, BackgroundWorkStatus(line: .init(parts: [.init(id: "galleryFolderScan", text: "Scanning Downloads"), .init(id: "galleryPhase", text: "Reading file metadata…"), .init(id: "galleryCount", text: "1240 entries inspected")], runsFolderScan: true), stop: {}, returnToScan: {}))
             ActionStrip(message: "Developer gallery · Actions are inert examples") { ReviewCleanupButton(enabled: false, focusRequest: 0, action: {}) }
         }
+        .cacheDropButtonRule()
         .environment(\.cacheDropOpaqueChrome, opaque)
         .preferredColorScheme(appearance == .automatic ? nil : appearance == .dark ? .dark : .light)
     }
@@ -193,6 +197,28 @@ private struct CapacityGalleryExamples: View {
             VolumeSummary(available: available, total: total, observation: observation, status: status,
                           refreshTitle: retry ? "Try again" : "Refresh capacity", refreshing: refreshing, refresh: {})
         }.accessibilityElement(children: .contain).accessibilityIdentifier("capacityGallery-" + name)
+    }
+}
+/// One of each button kind (#311): capsules large in the bar and sheet footers and regular in a page body, links inside a
+/// row or status line, and the one close style.
+private struct ButtonRuleGalleryExamples: View {
+    var body: some View {
+        VStack(alignment: .leading, spacing: CacheDropDesign.Space.lg) {
+            Text("Page body · Regular capsule").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
+            HStack { Button("Add folder…") {}; Button("Scan selected locations") {} }
+            Text("Row and status line · Link").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
+            StatusRow(text: "Downloads · Access unavailable", role: .caution, action: StatusAction(title: "Choose again…") {})
+            Text("Sheet footer · Large capsules, Cancel then the primary button").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
+            SummarySurface {
+                VStack(alignment: .leading, spacing: CacheDropDesign.Space.md) {
+                    HStack { Text("Example sheet").font(CacheDropDesign.TypeStyle.section); Spacer(); CloseButton {} }
+                    Divider()
+                    SheetFooter { Button("Cancel") {}; Button("Clean up") {}.buttonStyle(.borderedProminent) }
+                }
+            }.frame(maxWidth: CacheDropDesign.Size.sheetNarrow)
+            Text("Bottom bar · Large capsules").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
+            ActionStrip(message: "Example note") { Button("Scan again") {}; Button("Review plan") {}.buttonStyle(.borderedProminent) }
+        }
     }
 }
 private struct ShellAppearanceGalleryExamples: View {

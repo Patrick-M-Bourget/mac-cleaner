@@ -58,6 +58,7 @@ struct CacheDropSettingsView: View {
             LowSpaceAlertsSettings(controller: AppLifecycleController.shared.alerts)
             Section { DryRunToggle(model: AppLifecycleController.shared.selection.catalog) }
         }.formStyle(.grouped).frame(width: CacheDropDesign.Size.sheetNarrow).fixedSize(horizontal: false, vertical: true)
+            .cacheDropButtonRule()
     }
 }
 

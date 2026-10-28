@@ -20,6 +20,7 @@ struct CacheDropApp: App {
         Window("CacheDrop", id: "workspace") {
             WorkspaceView(alerts: lifecycle.alerts)
                 .frame(minWidth: 900).background { NativeWindowContract() }
+                .cacheDropButtonRule()
         }
         .defaultSize(width: 1120, height: 760)
         .commands {

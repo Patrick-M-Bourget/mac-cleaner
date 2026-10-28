@@ -255,7 +255,7 @@ struct ActionDisclosureGroup<Content: View>: View {
         }
     }
 }
-/// A small button that fixes a status row's problem in place, such as "Choose again…" (#223).
+/// A link that fixes a status row's problem in place, such as "Choose again…" (#223, #311).
 struct StatusAction {
     let title: String
     var identifier = ""
@@ -271,7 +271,7 @@ struct StatusRow: View {
         HStack(alignment: .firstTextBaseline, spacing: CacheDropDesign.Space.sm) {
             Label { Text(text).fixedSize(horizontal: false, vertical: true).accessibilityIdentifier(identifier) } icon: { Image(systemName: symbol).foregroundStyle(role.color) }
                 .font(.callout).foregroundStyle(.secondary)
-            if let action { Button(action.title, action: action.action).controlSize(.small).accessibilityIdentifier(action.identifier) }
+            if let action { Button(action.title, action: action.action).buttonStyle(.link).accessibilityIdentifier(action.identifier) }
         }.frame(maxWidth: .infinity, alignment: .leading)
     }
 }
@@ -387,7 +387,7 @@ struct ActionStrip<Leading: View, Actions: View>: View {
                 actions()
             }.frame(minHeight: CacheDropDesign.Size.actionStripRow, maxHeight: wrapsNote ? nil : CacheDropDesign.Size.actionStripRow)
                 .padding(.horizontal, CacheDropDesign.Space.page).padding(.vertical, CacheDropDesign.Space.lg)
-        }.background(CacheDropDesign.reading).controlSize(.large).buttonBorderShape(.capsule)
+        }.background(CacheDropDesign.reading).controlSize(.large)
             .accessibilityElement(children: .contain).accessibilityIdentifier("actionStrip")
     }
 }
@@ -415,9 +415,10 @@ struct BackgroundWorkLine: View {
                 }
             }.font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary).monospacedDigit().lineLimit(1).truncationMode(.middle)
                 .help(status.line.text)
-            if let stop = status.stop { Button("Stop scan", action: stop) }
-            if let returnToScan = status.returnToScan { Button("Return to scan", action: returnToScan) }
-        }.controlSize(.small).buttonBorderShape(.automatic)
+            // The bar's work line holds links, never bordered buttons (#311).
+            if let stop = status.stop { Button("Stop scan", action: stop).buttonStyle(.link) }
+            if let returnToScan = status.returnToScan { Button("Return to scan", action: returnToScan).buttonStyle(.link) }
+        }.font(CacheDropDesign.TypeStyle.caption)
     }
 }
 /// A bottom bar's note; nothing when there is none. One line, truncated, with the full text in a tooltip (#234), unless it
@@ -534,7 +535,7 @@ struct VolumeSummary: View {
                         Text(status).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary).accessibilityIdentifier("capacityRefreshStatus")
                         Spacer(minLength: CacheDropDesign.Space.sm)
                         if let refresh, !refreshing {
-                            Button(refreshTitle, action: refresh).accessibilityIdentifier("refreshCapacity")
+                            Button(refreshTitle, action: refresh).buttonStyle(.link).accessibilityIdentifier("refreshCapacity")
                         }
                     }
                 }
@@ -747,6 +748,7 @@ private struct NativeReviewCleanupButton: NSViewRepresentable {
         let view = FocusButton(title: "Review cleanup", target: context.coordinator, action: #selector(Coordinator.clicked))
         view.bezelStyle = .rounded
         view.controlSize = .large
+        if #available(macOS 26, *) { view.borderShape = .capsule }
         view.bezelColor = .controlAccentColor
         view.setAccessibilityLabel("Review cleanup")
         return view
@@ -1044,5 +1046,39 @@ struct NothingToCleanUp: View {
     var action: EmptyStateAction? = nil
     var body: some View {
         EmptyState(title: "Nothing to clean up right now", symbol: "checkmark.circle", action: action, identifier: identifier)
+    }
+}
+
+/// The one button rule (#311). 1: every bordered button is a capsule, set once per root (the workspace window, each sheet,
+/// the Settings form) with `cacheDropButtonRule()`. 2: large in the bottom bar (`ActionStrip`) and sheet footers
+/// (`SheetFooter`), regular in page bodies, never small and bordered. 3: anything inside a row, status line, breadcrumb or
+/// the bar's work line is a link (`.buttonStyle(.link)`). 4: a sheet's footer is right-aligned, Cancel then the primary
+/// button; its one close style is `CloseButton`.
+extension View {
+    func cacheDropButtonRule() -> some View { buttonBorderShape(.capsule) }
+}
+/// A sheet's footer (#311): an optional leading note, then its buttons right-aligned and large, Cancel then the primary one.
+struct SheetFooter<Leading: View, Actions: View>: View {
+    @ViewBuilder var leading: () -> Leading
+    @ViewBuilder var actions: () -> Actions
+    var body: some View {
+        HStack(spacing: CacheDropDesign.Space.sm) {
+            leading()
+            Spacer(minLength: CacheDropDesign.Space.md)
+            actions()
+        }.controlSize(.large).accessibilityElement(children: .contain).accessibilityIdentifier("sheetFooter")
+    }
+}
+extension SheetFooter where Leading == EmptyView {
+    init(@ViewBuilder actions: @escaping () -> Actions) { self.init(leading: { EmptyView() }, actions: actions) }
+}
+/// The one close style (#311): a borderless xmark in secondary text, at a sheet's or panel's top trailing corner.
+struct CloseButton: View {
+    var label = "Close"
+    var identifier: String? = nil
+    let action: () -> Void
+    var body: some View {
+        Button(label, systemImage: "xmark", action: action).labelStyle(.iconOnly).buttonStyle(.borderless)
+            .foregroundStyle(.secondary).modifier(OptionalIdentifier(identifier: identifier))
     }
 }
