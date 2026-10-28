@@ -199,51 +199,65 @@ private struct WorkspaceView: View {
         }
     }
 
-    var body: some View {
+    /// The sidebar, the divider and the page; `body` adds the modifiers, so neither expression grows too large to type-check (Xcode 26).
+    private var workspace: some View {
         HStack(spacing: 0) {
-            VStack(alignment: .leading, spacing: CacheDropDesign.Space.sm) {
-                AppBrand().padding(.horizontal, CacheDropDesign.Space.sm).padding(.bottom, CacheDropDesign.Space.xl)
-                Text("Storage").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary).padding(.horizontal, CacheDropDesign.Space.sm)
-                ForEach(Destination.allCases.filter { $0 != .locations }) { navigation($0) }
-                Text("Settings").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary).padding(.horizontal, CacheDropDesign.Space.sm).padding(.top, CacheDropDesign.Space.xl)
-                navigation(.locations)
-                Spacer()
-                VStack(alignment: .leading, spacing: CacheDropDesign.Space.md) {
-                    Label("This Mac", systemImage: "laptopcomputer").font(.callout)
-                    CapacityMeter(available: startupCapacity?.available, total: startupCapacity?.total, compact: true,
-                                  breakdown: selection.catalog.breakdown(available: startupCapacity?.available, total: startupCapacity?.total, trash: TrashModel.shared.contents))
-                    Text(capacity.sidebarObservationText).font(.caption2).foregroundStyle(.secondary)
-                        .lineLimit(1).frame(height: 14, alignment: .leading)
-                        .help(capacity.observationText).accessibilityLabel(capacity.observationText)
-                        .accessibilityIdentifier("sidebarCapacityObservation")
-                    Text(capacity.statusText.isEmpty ? " " : capacity.statusText).font(.caption2).foregroundStyle(.secondary)
-                        .frame(height: 14, alignment: .leading)
-                }.padding(.horizontal, CacheDropDesign.Space.sm)
-
-            }
-            .padding(.horizontal, CacheDropDesign.Space.md).padding(.vertical, CacheDropDesign.Space.lg)
-            .frame(width: 190)
-            .frame(maxHeight: .infinity)
-            .background { ChromeSurface(role: .sidebar) }
+            sidebar
             Divider()
-            VStack(alignment: .leading, spacing: 0) {
-                AppearancePreferenceNotice(notice: appearance.notice, retry: { appearance.retrySaving() })
-                    .padding(.horizontal, CacheDropDesign.Space.page)
-                if nativeInspectionVisible {
-                    explorerPage
-                } else if showsPlan {
-                    planPage
-                } else if showsSmartClean {
-                    smartCleanPage
-                } else if showsApplications {
-                    applicationsPage
-                } else {
-                scrollingPage
-                pageBar
-                }
-            }.frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(CacheDropDesign.reading)
+            page
         }
+    }
+
+    private var sidebar: some View {
+        VStack(alignment: .leading, spacing: CacheDropDesign.Space.sm) {
+            AppBrand().padding(.horizontal, CacheDropDesign.Space.sm).padding(.bottom, CacheDropDesign.Space.xl)
+            Text("Storage").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary).padding(.horizontal, CacheDropDesign.Space.sm)
+            ForEach(Destination.allCases.filter { $0 != .locations }) { navigation($0) }
+            Text("Settings").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary).padding(.horizontal, CacheDropDesign.Space.sm).padding(.top, CacheDropDesign.Space.xl)
+            navigation(.locations)
+            Spacer()
+            VStack(alignment: .leading, spacing: CacheDropDesign.Space.md) {
+                Label("This Mac", systemImage: "laptopcomputer").font(.callout)
+                CapacityMeter(available: startupCapacity?.available, total: startupCapacity?.total, compact: true,
+                              breakdown: selection.catalog.breakdown(available: startupCapacity?.available, total: startupCapacity?.total, trash: TrashModel.shared.contents))
+                Text(capacity.sidebarObservationText).font(.caption2).foregroundStyle(.secondary)
+                    .lineLimit(1).frame(height: 14, alignment: .leading)
+                    .help(capacity.observationText).accessibilityLabel(capacity.observationText)
+                    .accessibilityIdentifier("sidebarCapacityObservation")
+                Text(capacity.statusText.isEmpty ? " " : capacity.statusText).font(.caption2).foregroundStyle(.secondary)
+                    .frame(height: 14, alignment: .leading)
+            }.padding(.horizontal, CacheDropDesign.Space.sm)
+        
+        }
+        .padding(.horizontal, CacheDropDesign.Space.md).padding(.vertical, CacheDropDesign.Space.lg)
+        .frame(width: 190)
+        .frame(maxHeight: .infinity)
+        .background { ChromeSurface(role: .sidebar) }
+    }
+
+    /// The page on the right: the appearance notice, then the destination with its bar.
+    private var page: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            AppearancePreferenceNotice(notice: appearance.notice, retry: { appearance.retrySaving() })
+                .padding(.horizontal, CacheDropDesign.Space.page)
+            if nativeInspectionVisible {
+                explorerPage
+            } else if showsPlan {
+                planPage
+            } else if showsSmartClean {
+                smartCleanPage
+            } else if showsApplications {
+                applicationsPage
+            } else {
+            scrollingPage
+            pageBar
+            }
+        }.frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(CacheDropDesign.reading)
+    }
+
+    var body: some View {
+        workspace
         .environment(\.cacheDropBackgroundWork, backgroundWorkStatus)
         .onChange(of: runningTasks, initial: true) { _, tasks in backgroundWork.update(running: tasks) }
         .onChange(of: selection.catalog.selectionRevisions) { _, _ in AppLifecycleController.shared.hasPendingPlan = selection.hasPendingChoicesOnAnyPage }
