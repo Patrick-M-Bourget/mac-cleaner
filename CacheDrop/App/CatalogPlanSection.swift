@@ -140,7 +140,8 @@ private struct PlanRuleRows: View {
                                size: catalogBytes(model.estimatedBytes(for: rule), complete: model.sizeComplete(for: rule), upperBound: rule.estimateIsUpperBound,
                                                   estimate: model.sizeIsEstimate(for: rule)),
                                symbol: rule.offersFiles ? "doc.on.doc" : "folder", inspected: false,
-                               inspect: { Finder.reveal(items.map(\.url)) }, detailLineLimit: 1) {
+                               // A rule of items ticked one by one reveals nothing: each item is chosen and revealed on its own (#356).
+                               inspect: rule.ruleRowReveals ? { Finder.reveal(items.map(\.url)) } : nil, detailLineLimit: 1) {
                 MacroCategoryCheckbox(state: state, label: rule.title, enabled: model.canEdit && !rule.selectedOneByOne, action: { model.setSelected(rule, state != .checked) },
                                       identifier: "planRule-" + rule.id, showsTitle: false).fixedSize()
             }.help(source.map { _ in rule.detail + "\n" + items.map(\.url.path).joined(separator: "\n") } ?? "")
