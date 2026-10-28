@@ -385,6 +385,8 @@ import SwiftUI
         setRunning(scanned.owners, open: scanned.openOwners); ownerNames = scanned.ownerNames
         keepOnlyCurrentChoices()
         await scanGuidance(home: home, fullDiskAccess: scanned.access)
+        // Full Disk Access granted while it ran (from the welcome, during the launch scan): scan again once, by itself (#310).
+        if fullDiskAccessRescan.scanEnded(probing: FullDiskAccessProbe(home: home)) { rescanPending = true }
     }
     /// What one catalog scan found, handed from the background task to the model.
     private struct CatalogScanResult: Sendable {

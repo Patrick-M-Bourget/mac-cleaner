@@ -326,7 +326,7 @@ private struct WorkspaceView: View {
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in Task { await selection.catalog.rescanIfFullDiskAccessGranted() } }
         .onReceive(NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.didWakeNotification)) { _ in Task { await alerts.activated() } }
         .toolbar { contextToolbar }
-        .sheet(isPresented: $welcome.isShowing) { FirstRunWelcomeView(model: welcome) { AppLifecycleController.shared.scanAgain?() } }
+        .sheet(isPresented: $welcome.isShowing) { FirstRunWelcomeView(model: welcome, catalog: selection.catalog) }
     }
 
     @ToolbarContentBuilder private var contextToolbar: some ToolbarContent {

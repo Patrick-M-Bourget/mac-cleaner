@@ -407,19 +407,22 @@ final class KeyboardShortcutsUITests: XCTestCase {
 }
 
 /// #158: the welcome shows on a first launch, never again once finished, and the Help menu opens it again.
+/// #310: the launch scan runs behind it from the start, so its last step shows that scan's progress and ends with Done; Full
+/// Disk Access granted while that scan runs is picked up by one rescan when it ends, without CacheDrop becoming active again.
 /// Other journeys never see it: disposable test runs treat it as seen unless `CACHEDROP_TEST_SHOW_WELCOME` asks for it.
 final class FirstRunWelcomeUITests: XCTestCase {
-    @MainActor func testWelcomeShowsOnceStartsTheScanAndOpensFromHelp() throws {
+    @MainActor func testWelcomeShowsTheRunningScanPicksUpAGrantAndOpensFromHelp() throws {
         continueAfterFailure = false
         let app = XCUIApplication()
         let state = try configureIsolatedState(app)
         let home = try configureCatalogHome(app)
-        // The fixture's Safari folder refuses to open, as without Full Disk Access; opening it before step 3 shows
-        // that Start scan scanned again.
+        // The fixture's Safari folder refuses to open, as without Full Disk Access, until the test grants it mid-scan.
         let safari = home.appendingPathComponent("Library/Safari")
         try FileManager.default.createDirectory(at: safari, withIntermediateDirectories: true)
         try FileManager.default.setAttributes([.posixPermissions: 0], ofItemAtPath: safari.path)
         app.launchEnvironment["CACHEDROP_TEST_SHOW_WELCOME"] = "1"
+        // Slow enough that the launch scan is still running at the last step.
+        app.launchEnvironment["CACHEDROP_TEST_DISCOVERY_PAUSE"] = "0.4"
         defer {
             app.terminate(); try? FileManager.default.removeItem(at: state)
             try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: safari.path); try? FileManager.default.removeItem(at: home)
@@ -436,15 +439,22 @@ final class FirstRunWelcomeUITests: XCTestCase {
         XCTAssertTrue(app.buttons["openFullDiskAccessSettings"].waitForExistence(timeout: 5)) // Not pressed: tests never open System Settings.
         app.buttons["closeFullDiskAccess"].click()
         XCTAssertFalse(app.buttons["openFullDiskAccessSettings"].waitForExistence(timeout: 2))
-
-        let denied = app.descendants(matching: .any)["overviewNotAccessible"]
-        XCTAssertTrue(denied.waitForExistence(timeout: 15), "The launch scan finished without Safari")
-        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: safari.path)
         app.buttons["welcomeContinue"].click()
-        app.buttons["welcomeStartScan"].click()
+
+        // Step 3: the launch scan is already running; there is no second scan to start.
+        XCTAssertTrue(app.descendants(matching: .any)["welcomeScanProgress"].waitForExistence(timeout: 5), "The last step shows the running scan")
+        XCTAssertTrue(app.sheets.staticTexts["Your first scan is running"].exists)
+        XCTAssertFalse(app.buttons["welcomeStartScan"].exists)
+        // Granted while the scan runs, as from step 2's System Settings link.
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: safari.path)
+        app.buttons["welcomeDone"].click()
         XCTAssertFalse(welcome.waitForExistence(timeout: 2))
+        XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 5))
+        // The scan that began without access ends without Safari, sees the grant and scans once more, by itself.
+        let denied = app.descendants(matching: .any)["overviewNotAccessible"]
+        XCTAssertTrue(denied.waitForExistence(timeout: 60), "The launch scan began without access")
         let gone = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"), object: denied)
-        XCTAssertEqual(XCTWaiter.wait(for: [gone], timeout: 15), .completed, "Start scan scanned again")
+        XCTAssertEqual(XCTWaiter.wait(for: [gone], timeout: 60), .completed, "The grant during the launch scan was picked up when it ended")
 
         app.terminate()
         app.launch()
