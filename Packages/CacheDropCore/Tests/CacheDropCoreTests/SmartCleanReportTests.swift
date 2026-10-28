@@ -108,6 +108,7 @@ private func snapshot(_ root: URL) -> [String: String] {
     #expect(report.text.contains("will be skipped: npm is running."))
 }
 
+#if DEBUG
 /// Opt-in: the owner's own run against the real home (`CACHEDROP_SMART_CLEAN_REPORT=1`), printed only, never saved.
 /// Read-only like the tests above: it scans and checks, and nothing in it can act. Off in every normal test run.
 @Test(.enabled(if: ProcessInfo.processInfo.environment["CACHEDROP_SMART_CLEAN_REPORT"] == "1", "Runs only when the owner asks"))
@@ -115,6 +116,7 @@ func smartCleanReportForThisMac() throws {
     let report = SmartCleanReport.run(try SmartCleanReport.Sources.thisMac())
     print(report.text)
 }
+#endif
 
 /// #319, #312: the reason agrees with what comes back: "build files that come back", "a cache that comes back".
 @Test func theReasonAgreesWithWhatComesBack() throws {

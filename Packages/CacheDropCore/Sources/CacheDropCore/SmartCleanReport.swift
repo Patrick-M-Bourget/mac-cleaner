@@ -29,16 +29,18 @@ public struct SmartCleanReport: Sendable {
             self.catalog = catalog; self.home = home; self.userFolder = userFolder; self.exclusions = exclusions; self.apps = apps; self.receipts = receipts
             self.locateTool = locateTool; self.systemRoot = systemRoot; self.cloud = cloud; self.inUse = inUse; self.running = running; self.access = access
         }
+        #if DEBUG
         /// This Mac as the app scans it, with the exclusions the user saved, read without the store's lock.
+        /// Debug only: the owner's opt-in report test calls it, and Release never does (#334).
         public static func thisMac() throws -> Sources {
             let home = FileManager.default.homeDirectoryForCurrentUser.resolvingSymlinksInPath()
-            let support = try FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask, appropriateFor: nil, create: false)
-            let exclusions = try ExclusionStore.policy(readingOnly: support.appendingPathComponent(LegacyStillMigration.folder).appendingPathComponent("Exclusions"))
+            let exclusions = try ExclusionStore.policy(readingOnly: LocalStateLocation.root(create: false).appendingPathComponent("Exclusions", isDirectory: true))
             return Sources(catalog: Catalog(rules: BuiltInCatalog.rules), home: home, userFolder: Catalog.currentUserFolder(), exclusions: exclusions,
                            apps: SystemAppPresence(), receipts: ReadReceipts(ReceiptListings.read(under: URL(fileURLWithPath: "/")), home: home), locateTool: ToolCommand.installed,
                            systemRoot: URL(fileURLWithPath: "/"), cloud: SystemUbiquitousItems(), inUse: SystemInUseChecker(), running: SystemRunningAppChecker(),
                            access: FullDiskAccessProbe(home: home).status())
         }
+        #endif
     }
 
     public let home: URL
