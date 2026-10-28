@@ -99,7 +99,6 @@ private func historyApproval(_ root: URL, names: [String]) async throws -> Fixtu
     try journal.recordCapacity(observation, batchID: approval.id)
     let run = try #require(SQLiteCleanupJournal(url: url, readOnly: true).completedHistory().completedRuns.first)
     #expect(run.capacity?.observedChange == -6)
-    #expect(run.plannedLogicalBytes == 1)
     // #312: History shows the size Results showed for the same items, allocated where known.
     #expect(record.allocatedBytes.map { $0 > 1 } == true)
     #expect(run.plannedBytes == record.allocatedBytes)

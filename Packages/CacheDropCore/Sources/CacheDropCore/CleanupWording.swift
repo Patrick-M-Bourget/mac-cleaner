@@ -131,20 +131,3 @@ extension CleanupHistoryRun {
         return "Cleanup · " + phrase.prefix(1).uppercased() + phrase.dropFirst()
     }
 }
-
-extension CleanupRecoverySnapshot {
-    /// What a missing original can and can't mean, for the actions the unresolved items were taking.
-    public var unresolvedNotice: String {
-        let unresolved = interruptedBatches.flatMap(\.records).filter { $0.state == .intent || $0.state == .unknown }
-        let actions = Set(unresolved.compactMap(\.cleanupAction))
-        let deletes = actions.contains(.delete) || actions.contains(.tool), trashes = actions.contains(.trash)
-        let tail = (actions.contains(.evict) ? " Removing a local copy never deletes the original; it stays in iCloud and downloads again when opened." : "")
-            + " Current file locations have not been inspected."
-        if deletes && trashes { return "A missing original may have reached the Trash or been permanently deleted, possibly only in part." + tail }
-        if deletes { return "A missing original may have been permanently deleted, possibly only in part. Deleted items can’t be restored from the Trash." + tail }
-        if trashes { return "A missing original does not prove it reached the Trash." + tail }
-        if unresolved.contains(where: \.isPutBack) { return "An item being put back is either back in its folder or still in the Trash. Nothing was deleted." + tail }
-        if actions.contains(.evict) { return "A missing local copy means only that it was removed from this Mac." + tail }
-        return "Nothing was started for the unfinished items." + tail
-    }
-}

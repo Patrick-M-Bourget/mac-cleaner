@@ -34,10 +34,8 @@ public struct CloudInventoryReport: Sendable {
     public let unknownMembershipCount: Int
     public let localItemCount: Int
     public let localAllocatedBytes: Int64?
-    public let observedLocalAllocatedBytes: Int64?
     public let cloudOnlyItemCount: Int
     public let cloudOnlyLogicalBytes: Int64?
-    public let cloudOnlyAllocatedBytes: Int64?
     public let unknownStateCount: Int
     /// The disposable feasibility gate does not establish safe eviction/pinning.
     public var evictionAvailable: Bool { false }
@@ -72,9 +70,7 @@ public extension ScanResult {
         return CloudInventoryReport(observedAt: observedAt, isComplete: completeCloudCoverage, items: cloud,
             unknownMembershipCount: files.filter { $0.cloud.membership == nil }.count,
             localItemCount: local.count, localAllocatedBytes: completeCloudCoverage ? sum(local, \.allocatedBytes) : nil,
-            observedLocalAllocatedBytes: sum(local, \.allocatedBytes),
             cloudOnlyItemCount: remote.count, cloudOnlyLogicalBytes: completeCloudCoverage ? sum(remote, \.logicalBytes) : nil,
-            cloudOnlyAllocatedBytes: completeCloudCoverage ? sum(remote, \.allocatedBytes) : nil,
             unknownStateCount: cloud.filter { !knownState.contains($0.resourceID) }.count)
     }
 }

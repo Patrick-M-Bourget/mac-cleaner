@@ -96,25 +96,6 @@ private func records(_ actions: [CleanupAction], previewOnly: Bool = false) thro
     #expect(snapshot.completedRuns.first?.title == "Cleanup · Deleted")
 }
 
-private struct ArrayJournal: CleanupJournaling {
-    let stored: [CleanupRecord]
-    func claim(batchID: UUID, records: [CleanupRecord]) throws -> Bool { false }
-    func intent(_ record: CleanupRecord) throws {}
-    func outcome(_ record: CleanupRecord) throws {}
-    func records() throws -> [CleanupRecord] { stored }
-}
-
-@Test func recoveryExplainsAnUnresolvedDeleteDifferentlyFromAnUnresolvedTrashMove() throws {
-    let (home, made) = try records([.delete, .trash])
-    defer { try? FileManager.default.removeItem(at: home) }
-    func notice(_ records: [CleanupRecord]) throws -> String { try CleanupRecoverySnapshot(journal: ArrayJournal(stored: records)).unresolvedNotice }
-    var delete = made[0], trash = made[1]
-    delete.state = .intent; trash.state = .unknown
-    #expect(try notice([delete]) == "A missing original may have been permanently deleted, possibly only in part. Deleted items can’t be restored from the Trash. Current file locations have not been inspected.")
-    #expect(try notice([trash]) == "A missing original does not prove it reached the Trash. Current file locations have not been inspected.")
-    #expect(try notice([delete, trash]).hasPrefix("A missing original may have reached the Trash or been permanently deleted"))
-}
-
 @Test func aPartlyRemovedRecordNeverReadsAsNotChanged() throws {
     let (home, made) = try records([.delete, .tool])
     defer { try? FileManager.default.removeItem(at: home) }
