@@ -365,7 +365,7 @@ public struct Candidate: Sendable, Identifiable, Hashable {
     public internal(set) var fileBytes: Int64? = nil
     /// What the scan sized: allocated bytes where known, else logical bytes.
     public var estimatedBytes: Int64 { allocatedBytes ?? logicalBytes }
-    /// Where a tool-asked rule's folder came from, shown on the item (#206): "Named by `npm config get cache`", or "Usual folder"
+    /// Where a tool-asked rule's folder came from, shown on the item (#206): "Location from npm", or "Default location"
     /// when the tool wasn't asked successfully. Nil for every other rule.
     public internal(set) var folderSource: String? = nil
     /// The base folder the item was found under (home or the user's folder); the check refuses an item without one.
@@ -476,7 +476,7 @@ public struct Catalog: Sendable {
                 if let named = location.named { leftovers += self.leftovers(of: rule, nextTo: named, in: base, sizer: sizer) }
                 switch location {
                 case .folder(let folder, let source): reported = folder; folderSource = source
-                case .defaults(let note, let source): defaultsNote = note; folderSource = source ?? "Usual folder"
+                case .defaults(let note, let source): defaultsNote = note; folderSource = source ?? "Default location"
                 case .notOffered(let note, let unmeasured, _):
                     notes.append(note)
                     if unmeasured { notMeasured[rule.id, default: []].formUnion(rule.locations) }
