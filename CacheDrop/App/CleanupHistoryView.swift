@@ -110,7 +110,7 @@ private enum HistoryActivityItem: Identifiable {
             lifecycle.selection.endSession()
             await lifecycle.inspection.resetSession()
             lifecycle.planPresentation.reset()
-            lifecycle.downloadsExplorer.openDownloads(); lifecycle.locationsExplorer.openLocations()
+            lifecycle.locationsExplorer.openLocations()
             lifecycle.workspaceNavigation.explorerVisible = false
             lifecycle.workspaceNavigation.planReturnsToExplorer = false
             snapshot = CleanupHistorySnapshot(records: [])

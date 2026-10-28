@@ -21,7 +21,7 @@ import CacheDropCore
             rules = policy.rules; error = nil
             return policy
         } catch {
-            self.error = "Exclusion settings are unavailable. Scanning is blocked; open Custom exclusions to review settings or use guarded Reset."
+            self.error = "Exclusion settings are unavailable. Scanning is blocked; review Protected items in Locations & access, or reset CacheDrop in Local records."
             throw error
         }
     }
@@ -78,6 +78,16 @@ import CacheDropCore
         try await open().reset()
         rules = []; preview = nil; error = nil
         AppLifecycleController.shared.selection.expectExclusions("none")
+    }
+}
+
+/// Locations & access's way to custom exclusions (#313).
+struct ProtectedItemsEntry: View {
+    var action: () -> Void
+    var body: some View {
+        SettingsRow(title: "Protected items", detail: "Files and folders CacheDrop leaves out of its scans.") {
+            Button("Manage protected items", action: action).accessibilityIdentifier("openProtectedItems")
+        }
     }
 }
 

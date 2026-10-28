@@ -29,7 +29,7 @@ public enum CheckRefusal: Sendable, Equatable {
         case .ownerRunning(let name): "\(name) is running. Quit it, then scan again."
         case .ownerUnknown(let name): "Couldn’t check whether \(name) is running."
         case .protected(let name): "Contains protected data (\(name))."
-        case .excluded: "Excluded in Settings."
+        case .excluded: "In Protected items, in Locations & access."
         case .notPermitted: "CacheDrop can’t change it without admin rights."
         case .cloud: "Stored in iCloud."
         case .inUse(let name): "\(name) is using it. It is kept."
