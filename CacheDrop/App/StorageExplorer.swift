@@ -279,8 +279,13 @@ struct StorageExplorerView: View {
                             EmptyState(title: "This folder is no longer there", detail: "It was moved or deleted since the last scan.", symbol: "folder.badge.questionmark")
                         }
                     } else if visible.isEmpty {
-                        EmptyState(title: context.position.query.isEmpty ? "Nothing here" : "No matches", detail: context.position.query.isEmpty ? "This folder was empty when it was scanned." : "Nothing in this folder matches your search.", symbol: "magnifyingglass")
-                        if !context.position.query.isEmpty { Button("Clear search") { context.position.query = "" }.buttonStyle(.link) }
+                        // Back leaves an empty folder; a search that matches nothing offers Clear search (#321).
+                        if context.position.query.isEmpty {
+                            EmptyState(title: "Nothing here", detail: "This folder was empty when it was scanned.", symbol: "folder", identifier: "explorerEmpty")
+                        } else {
+                            EmptyState(title: "No matches", detail: "Nothing in this folder matches your search.", symbol: "magnifyingglass",
+                                       action: EmptyStateAction("Clear search") { context.position.query = "" }, identifier: "explorerNoMatches")
+                        }
                     } else {
                         ForEach(visible) { entry in row(entry); Divider() }
                     }

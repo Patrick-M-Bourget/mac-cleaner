@@ -16,23 +16,29 @@ struct AppManagedStorageView: View {
             }
             // Nothing known yet: skeleton rows; a rescan dims the rows already shown (#308).
             if !model.hasScanned { SkeletonRows(.review, identifier: "guidanceSkeleton") }
-            RecommendationGroup {
-                ForEach(Array(model.guidance.enumerated()), id: \.element.id) { index, finding in
-                    if let rule = model.guidanceRule(finding), let guidance = rule.guidance {
-                        if index > 0 { Divider().padding(.horizontal, CacheDropDesign.Space.lg) }
-                        let needsAccess = finding.size == .notAccessible
-                        StorageReviewRow(category: rule.managedCategory, title: rule.title,
-                                         detail: finding.libraries.map { FoundLibrary.summary($0, nouns: rule.libraryNouns, notSearched: finding.notSearched) } ?? finding.plugIns.map(\.summary) ?? finding.workspaces?.summary
-                                             ?? rule.detail.firstSentence,
-                                         value: needsAccess ? "Needs access" : finding.size.text,
-                                         actionTitle: guidance.openTitle, action: { Task { await model.open(finding) } },
-                                         identifier: "guidance-" + finding.id, mutedValue: needsAccess)
-                            .help(rule.detail)
-                        if let plugIns = finding.plugIns, !plugIns.products.isEmpty { PlugInProductRows(model: model, inventory: plugIns) }
-                        if let libraries = finding.libraries { LibraryRows(model: model, rule: rule, guidance: guidance, libraries: libraries) }
+            // A plain empty state: nothing here to act on (#321).
+            else if model.guidance.isEmpty && !model.isScanning {
+                EmptyState(title: "No app-managed storage found", symbol: "checkmark.circle", identifier: "guidanceEmpty")
+            }
+            if !model.guidance.isEmpty {
+                RecommendationGroup {
+                    ForEach(Array(model.guidance.enumerated()), id: \.element.id) { index, finding in
+                        if let rule = model.guidanceRule(finding), let guidance = rule.guidance {
+                            if index > 0 { Divider().padding(.horizontal, CacheDropDesign.Space.lg) }
+                            let needsAccess = finding.size == .notAccessible
+                            StorageReviewRow(category: rule.managedCategory, title: rule.title,
+                                             detail: finding.libraries.map { FoundLibrary.summary($0, nouns: rule.libraryNouns, notSearched: finding.notSearched) } ?? finding.plugIns.map(\.summary) ?? finding.workspaces?.summary
+                                                 ?? rule.detail.firstSentence,
+                                             value: needsAccess ? "Needs access" : finding.size.text,
+                                             actionTitle: guidance.openTitle, action: { Task { await model.open(finding) } },
+                                             identifier: "guidance-" + finding.id, mutedValue: needsAccess)
+                                .help(rule.detail)
+                            if let plugIns = finding.plugIns, !plugIns.products.isEmpty { PlugInProductRows(model: model, inventory: plugIns) }
+                            if let libraries = finding.libraries { LibraryRows(model: model, rule: rule, guidance: guidance, libraries: libraries) }
+                        }
                     }
-                }
-            }.waitingForScan(model.isScanning)
+                }.waitingForScan(model.isScanning)
+            }
             if let status = model.guidanceStatus { StatusRow(text: status, symbol: "info.circle", identifier: "guidanceStatus") }
         }
     }

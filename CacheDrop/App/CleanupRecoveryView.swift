@@ -132,7 +132,7 @@ struct CleanupRecoveryView: View {
                     SkeletonRows(.line, identifier: "recoverySkeleton")
                 }
             } else if model.message == nil {
-                EmptyState(title: "No interrupted cleanup recorded", detail: "A new cleanup still requires a manual scan and approval.", symbol: "checkmark.circle")
+                EmptyState(title: "Nothing to review", detail: "No cleanup was interrupted.", symbol: "checkmark.circle", identifier: "recoveryEmpty")
             }
         }
     }
