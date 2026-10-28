@@ -657,7 +657,7 @@ public struct Catalog: Sendable {
             if !match.extensions.isEmpty, !match.extensions.contains(ext) { return .continue }
             if let minimum = match.minimumBytes, Int64(info.st_size) < minimum { return .continue }
             if match.besideCompressedSource, !Self.hasCompressedSource(url, size: Int64(info.st_size)) { return .continue }
-            let lastUsed = Self.lastUsed(url, info)
+            let lastUsed = rule.regen == .installer ? Self.lastOpenedOrChanged(url, info) : Self.lastUsed(url, info)
             if let days = match.unusedDays, lastUsed > now.addingTimeInterval(-Double(days) * 86_400) { return .continue }
             found.append(candidate(rule, url, info, logical: Int64(info.st_size), allocated: Int64(info.st_blocks) * 512, complete: true, lastUsed: lastUsed))
             return .continue
@@ -669,6 +669,15 @@ public struct Catalog: Sendable {
     static func lastUsed(_ url: URL, _ info: stat) -> Date {
         func date(_ time: timespec) -> Date { Date(timeIntervalSince1970: Double(time.tv_sec) + Double(time.tv_nsec) / 1e9) }
         var dates = [date(info.st_atimespec), date(info.st_mtimespec), date(info.st_birthtimespec)]
+        if let item = MDItemCreateWithURL(nil, url as CFURL), let opened = MDItemCopyAttribute(item, kMDItemLastUsedDate) as? Date { dates.append(opened) }
+        return dates.max()!
+    }
+    /// An installer's age (#336): the latest of Spotlight's last-opened date, change and creation times. Not its access time,
+    /// which anything that reads the file sets (Spotlight's import, a backup, an antivirus scan), so an old installer would
+    /// never look old.
+    static func lastOpenedOrChanged(_ url: URL, _ info: stat) -> Date {
+        func date(_ time: timespec) -> Date { Date(timeIntervalSince1970: Double(time.tv_sec) + Double(time.tv_nsec) / 1e9) }
+        var dates = [date(info.st_mtimespec), date(info.st_birthtimespec)]
         if let item = MDItemCreateWithURL(nil, url as CFURL), let opened = MDItemCopyAttribute(item, kMDItemLastUsedDate) as? Date { dates.append(opened) }
         return dates.max()!
     }
