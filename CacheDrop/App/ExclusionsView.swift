@@ -117,7 +117,7 @@ struct ExclusionsView: View {
             } else {
                 ForEach(model.rules) { rule in
                     SettingsRow(title: rule.path, detail: (rule.boundary == .folder ? "Folder and descendants" : "Exact file") + " · volume " + rule.volumeID) {
-                        Button("Remove rule") { Task { await model.remove(rule) } }.accessibilityLabel("Remove exclusion for " + rule.path)
+                        Button("Remove rule") { Task { await model.remove(rule) } }.buttonStyle(.link).accessibilityLabel("Remove exclusion for " + rule.path)
                     }
                 }
             }

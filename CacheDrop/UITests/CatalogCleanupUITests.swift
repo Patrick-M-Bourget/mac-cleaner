@@ -264,7 +264,7 @@ final class CatalogCleanupUITests: XCTestCase {
         }
         // #234: the explorer's bar is the same height too. It carries no note by design (617288f).
         app.typeKey("1", modifierFlags: .command)
-        app.buttons["overviewScanFolder"].click()
+        app.links["overviewScanFolder"].click()
         let panel = app.sheets.firstMatch.exists ? app.sheets.firstMatch : app.dialogs.firstMatch
         XCTAssertTrue(panel.waitForExistence(timeout: 5))
         panel.typeKey("g", modifierFlags: [.command, .shift])
@@ -888,7 +888,7 @@ extension CatalogCleanupUITests {
 
         XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
         // #125: a clear Scan a folder action on Overview picks the folder and scans it right away.
-        app.buttons["overviewScanFolder"].click()
+        app.links["overviewScanFolder"].click()
         let panel = app.sheets.firstMatch.exists ? app.sheets.firstMatch : app.dialogs.firstMatch
         XCTAssertTrue(panel.waitForExistence(timeout: 5))
         panel.typeKey("g", modifierFlags: [.command, .shift])
@@ -954,7 +954,7 @@ extension CatalogCleanupUITests {
         try Data(repeating: 1, count: 4_000).write(to: folder.appendingPathComponent("Inner/entry.zip"))
         app.launch()
         XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
-        app.buttons["overviewScanFolder"].click()
+        app.links["overviewScanFolder"].click()
         let panel = app.sheets.firstMatch.exists ? app.sheets.firstMatch : app.dialogs.firstMatch
         XCTAssertTrue(panel.waitForExistence(timeout: 5))
         panel.typeKey("g", modifierFlags: [.command, .shift])
@@ -999,7 +999,7 @@ extension CatalogCleanupUITests {
         try Data(repeating: 1, count: 4_000).write(to: folder.appendingPathComponent("Inner/entry.zip"))
         app.launch()
         XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
-        app.buttons["overviewScanFolder"].click()
+        app.links["overviewScanFolder"].click()
         let panel = app.sheets.firstMatch.exists ? app.sheets.firstMatch : app.dialogs.firstMatch
         XCTAssertTrue(panel.waitForExistence(timeout: 5))
         panel.typeKey("g", modifierFlags: [.command, .shift])
@@ -1017,7 +1017,7 @@ extension CatalogCleanupUITests {
         let row = app.staticTexts["explorerLocationRecovery"]
         XCTAssertTrue(row.waitForExistence(timeout: 20))
         XCTAssertTrue((row.value as? String ?? "").hasPrefix("Folder not found · last observed "), "\(String(describing: row.value))")
-        XCTAssertEqual(app.buttons["explorerChooseAgain"].label, "Choose again…")
+        XCTAssertEqual(app.links["explorerChooseAgain"].label, "Choose again…")
         XCTAssertFalse(app.buttons["Open folder Inner"].exists)
         XCTAssertFalse(app.staticTexts["This folder is no longer there"].exists)
 
@@ -1512,7 +1512,7 @@ extension CatalogCleanupUITests {
         XCTAssertTrue(notice.waitForExistence(timeout: 30), "Overview says the settings couldn't be read")
         XCTAssertFalse(app.descendants(matching: .any)["overviewEmpty"].exists, "Never \"nothing to clean\"")
         XCTAssertFalse(app.descendants(matching: .any)["overviewSkeleton"].exists, "Never still loading")
-        XCTAssertTrue(app.buttons["settingsUnreadableTryAgain"].exists)
+        XCTAssertTrue(app.links["settingsUnreadableTryAgain"].exists)
 
         app.typeKey("2", modifierFlags: .command)
         XCTAssertTrue(notice.waitForExistence(timeout: 5), "Smart clean says it too")
@@ -1520,7 +1520,7 @@ extension CatalogCleanupUITests {
         XCTAssertFalse(app.staticTexts["smartCleanError"].exists)
 
         try FileManager.default.removeItem(at: rules)
-        app.buttons["settingsUnreadableTryAgain"].click()
+        app.links["settingsUnreadableTryAgain"].click()
         XCTAssertTrue(notice.waitForNonExistence(timeout: 30), "Try again scanned with the settings readable")
         XCTAssertTrue(app.checkBoxes["smartCleanCategory-developer"].waitForExistence(timeout: 30))
     }
@@ -1609,7 +1609,7 @@ final class FolderScanProgressUITests: XCTestCase {
         let before = toolbarItems()
         let height = actionStrip(app).frame.height
 
-        app.buttons["overviewScanFolder"].click()
+        app.links["overviewScanFolder"].click()
         let panel = app.sheets.firstMatch.exists ? app.sheets.firstMatch : app.dialogs.firstMatch
         XCTAssertTrue(panel.waitForExistence(timeout: 5))
         panel.typeKey("g", modifierFlags: [.command, .shift])
@@ -1621,26 +1621,26 @@ final class FolderScanProgressUITests: XCTestCase {
         XCTAssertTrue(line.waitForExistence(timeout: 10))
         XCTAssertEqual(line.value as? String, "Scanning " + folder.lastPathComponent)
         let strip = actionStrip(app)
-        for element in [line, app.staticTexts["scanPhase"], app.staticTexts["scanProgressSummary"], strip.buttons["Stop scan"]] {
+        for element in [line, app.staticTexts["scanPhase"], app.staticTexts["scanProgressSummary"], strip.links["Stop scan"]] {
             XCTAssertTrue(element.waitForExistence(timeout: 5), element.debugDescription)
             XCTAssertTrue(strip.frame.contains(element.frame), element.debugDescription)
         }
         XCTAssertTrue((app.staticTexts["scanProgressSummary"].value as? String)?.hasSuffix("inspected") == true)
-        XCTAssertFalse(strip.buttons["Return to scan"].exists)
+        XCTAssertFalse(strip.links["Return to scan"].exists)
         XCTAssertEqual(strip.frame.height, height, accuracy: 0.5)
         XCTAssertEqual(toolbarItems(), before, "The toolbar is unchanged during the scan")
 
         // Away from it, on Storage trends and History: Stop scan and Return to scan.
         for key in ["4", "6"] {
             app.typeKey(key, modifierFlags: .command)
-            XCTAssertTrue(actionStrip(app).buttons["Return to scan"].waitForExistence(timeout: 5), key)
-            XCTAssertTrue(actionStrip(app).buttons["Stop scan"].exists, key)
+            XCTAssertTrue(actionStrip(app).links["Return to scan"].waitForExistence(timeout: 5), key)
+            XCTAssertTrue(actionStrip(app).links["Stop scan"].exists, key)
             XCTAssertTrue(app.staticTexts["scanPhase"].exists, key)
             XCTAssertEqual(actionStrip(app).frame.height, height, accuracy: 0.5, key)
         }
-        actionStrip(app).buttons["Return to scan"].click()
+        actionStrip(app).links["Return to scan"].click()
         XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 5))
-        actionStrip(app).buttons["Stop scan"].click()
+        actionStrip(app).links["Stop scan"].click()
         XCTAssertTrue(line.waitForNonExistence(timeout: 10))
         XCTAssertEqual(actionStrip(app).frame.height, height, accuracy: 0.5)
         XCTAssertEqual(toolbarItems(), before, "The toolbar is unchanged after the scan")
@@ -1665,7 +1665,7 @@ final class ReviewSheetUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
         waitForCatalogScan(app)
 
-        app.buttons["overviewScanFolder"].click()
+        app.links["overviewScanFolder"].click()
         let panel = app.sheets.firstMatch.exists ? app.sheets.firstMatch : app.dialogs.firstMatch
         XCTAssertTrue(panel.waitForExistence(timeout: 5))
         panel.typeKey("g", modifierFlags: [.command, .shift])

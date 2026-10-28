@@ -95,8 +95,9 @@ private struct NativeAppearanceRetryButton: NSViewRepresentable {
     func makeCoordinator() -> Coordinator { Coordinator(action) }
     func makeNSView(context: Context) -> AccessibleButton {
         let button = AccessibleButton(title: "Retry saving", target: context.coordinator, action: #selector(Coordinator.clicked))
-        button.bezelStyle = .rounded
-        button.controlSize = .small
+        // A status line's action is a link, never a small bordered button (#311).
+        button.isBordered = false
+        button.contentTintColor = .linkColor
         button.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
         button.setAccessibilityLabel("Retry saving")
         return button

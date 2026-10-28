@@ -578,7 +578,8 @@ private struct WorkspaceView: View {
                     .buttonStyle(.link).font(CacheDropDesign.TypeStyle.caption).disabled(selection.workspaceRunning)
                 Spacer(minLength: 0)
                 // One clear action: pick a folder, remember it and scan it now (#125).
-                Button("Scan a folder…", systemImage: "folder.badge.plus", action: chooseFolderForScan).controlSize(.small)
+                Button("Scan a folder…", systemImage: "folder.badge.plus", action: chooseFolderForScan)
+                    .buttonStyle(.link).font(CacheDropDesign.TypeStyle.caption)
                     .disabled(folderInspection.isScanning || selection.workspaceRunning).accessibilityIdentifier("overviewScanFolder")
             }
             if selection.scans.values.contains(where: { !$0.isComplete }) || overviewObservation.map({ $0.excludedEntryCount > 0 || $0.hasUnmeasuredContents }) == true {
@@ -725,12 +726,13 @@ private struct WorkspaceView: View {
                                 .buttonStyle(.link).accessibilityIdentifier("locationExplore:" + scope.path)
                         }
                         if locationsModel.statuses[scope.id]?.needsRecovery == true {
-                            Button("Choose again…") { chooseAgain(scope) }
-                            Button("Reconnect and recheck") { scanLocations([scope]) }.disabled(!scope.isIncluded)
+                            // A row's actions are links (#311).
+                            Button("Choose again…") { chooseAgain(scope) }.buttonStyle(.link)
+                            Button("Reconnect and recheck") { scanLocations([scope]) }.buttonStyle(.link).disabled(!scope.isIncluded)
                         }
                         Menu("More") {
                             Button("Forget location") { locationToForget = scope }
-                        }.accessibilityIdentifier("locationActions:" + scope.path)
+                        }.menuStyle(.borderlessButton).fixedSize().accessibilityIdentifier("locationActions:" + scope.path)
                     }
                 }
                 if locationsModel.statuses[scope.id]?.needsRecovery == true,

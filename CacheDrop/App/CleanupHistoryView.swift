@@ -224,7 +224,7 @@ struct CleanupHistoryView: View {
                     }.frame(maxWidth: .infinity, alignment: .leading)
                     let putBack = run.putBackIDs.contains(record.id) || TrashModel.shared.putBackOutcomes[record.id] == .restored(record.originalURL)
                     if let trash = record.trashURL, !putBack, !record.isPutBack {
-                        Button("Show in Finder") { Finder.reveal([trash]) }.controlSize(.small).help(trash.path)
+                        Button("Show in Finder") { Finder.reveal([trash]) }.buttonStyle(.link).help(trash.path)
                     }
                     if record.canPutBack {
                         PutBackLink(record: record, alreadyPutBack: run.putBackIDs.contains(record.id)) { Task { await model.load(maintainCompleted: false) } }

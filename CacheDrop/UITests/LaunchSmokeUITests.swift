@@ -522,7 +522,7 @@ final class ScannedLocationsUITests: XCTestCase {
         XCTAssertFalse(app.staticTexts.matching(NSPredicate(format: "value CONTAINS 'Recheck required'")).firstMatch.exists)
         XCTAssertFalse(app.staticTexts.matching(NSPredicate(format: "value CONTAINS 'Choose again to renew'")).firstMatch.exists)
 
-        let chooseAgain = app.buttons["overviewChooseAgain"]
+        let chooseAgain = app.links["overviewChooseAgain"]
         XCTAssertEqual(chooseAgain.label, "Choose again…")
         revealAndClick(chooseAgain, in: app)
         let panel = app.sheets.firstMatch.exists ? app.sheets.firstMatch : app.dialogs.firstMatch
@@ -549,7 +549,7 @@ final class ScannedLocationsUITests: XCTestCase {
         try Data(repeating: 1, count: 4_000).write(to: folder.appendingPathComponent("entry.zip"))
         app.launch()
         XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
-        app.buttons["overviewScanFolder"].click()
+        app.links["overviewScanFolder"].click()
         let panel = app.sheets.firstMatch.exists ? app.sheets.firstMatch : app.dialogs.firstMatch
         XCTAssertTrue(panel.waitForExistence(timeout: 5))
         panel.typeKey("g", modifierFlags: [.command, .shift])
@@ -565,7 +565,7 @@ final class ScannedLocationsUITests: XCTestCase {
         let text = row.value as? String ?? ""
         XCTAssertTrue(text.hasPrefix(folder.lastPathComponent + " · Folder not found · last observed "), text)
         XCTAssertFalse(text.contains("Access unavailable"), text)
-        XCTAssertEqual(app.buttons["overviewChooseAgain"].label, "Choose again…")
+        XCTAssertEqual(app.links["overviewChooseAgain"].label, "Choose again…")
     }
 
     /// #231: two stale folders get a row each, each with its own Choose again…, and no grey "Current coverage" row.
