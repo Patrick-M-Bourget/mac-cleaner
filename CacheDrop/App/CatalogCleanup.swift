@@ -186,11 +186,8 @@ import SwiftUI
         if hasScanned { return CatalogOverview(catalog: catalog, candidates: discovered) }
         return scanProgress.flatMap { $0.finished > 0 ? CatalogOverview(catalog: catalog, candidates: $0.found) : nil }
     }
-    /// "Checking Xcode DerivedData… 4 of 31": one quiet line while the catalog scan runs (Decision 25).
-    var scanProgressText: String {
-        guard let progress = scanProgress, progress.total > 0 else { return "Checking known locations…" }
-        return "Checking \(progress.title)… \(progress.number) of \(progress.total)"
-    }
+    /// "Checking Xcode DerivedData… 4 of 31", then each phase after discovery (#308): one quiet line while the catalog scan runs (Decision 25).
+    var scanProgressText: String { (scanProgress?.phase ?? .starting).progressText }
     /// Owners of the rule's items that were running at the last scan, in name order.
     func runningOwnerNames(for rule: CleanupRule) -> [String] {
         Set(candidates(for: rule).flatMap { ownerNames[$0.id] ?? [] }).intersection(runningOwners).sorted()
@@ -339,7 +336,8 @@ import SwiftUI
         let growth = await GrowthHistoryModel.shared.beginCatalog(home: home, exclusionFingerprint: exclusions.fingerprint)
         let quitter = Self.quitter
         // Discovery reports each location as it goes; the steps reach the main actor in order (#128).
-        let (steps, reporter) = AsyncStream.makeStream(of: CatalogDiscoveryProgress.self)
+        // After discovery, each later phase is named too (#308).
+        let (steps, reporter) = AsyncStream.makeStream(of: CatalogScanStep.self)
         let progress = Task { for await step in steps { scanProgress?.apply(step) } }
         let presence = Self.appPresence.snapshot(), receipts = Self.receipts(home: home), own = Bundle.main.bundleIdentifier
         let scanned = await Task.detached(priority: .userInitiated) { () -> CatalogScanResult in
@@ -348,16 +346,23 @@ import SwiftUI
             let access = FullDiskAccessProbe(home: home).status()
             let discovered = catalog.discovery(home: home, userFolder: userFolder, exclusions: exclusions, locateTool: locate, systemRoot: system, cloud: cloud,
                                                access: access, progress: { step in
-                                                   reporter.yield(step)
+                                                   reporter.yield(.discovery(step))
                                                    #if DEBUG
                                                    if case .finished = step { Self.pauseForTests() }
                                                    #endif
                                                })
-            reporter.finish()
+            func enter(_ phase: CatalogScanPhase) {
+                reporter.yield(.phase(phase))
+                #if DEBUG
+                Self.pauseForTests()
+                #endif
+            }
+            enter(.removedAppLeftovers)
             // Leftovers of removed apps (#173), except what a catalog rule already offers, holds or sits inside.
             let found = RemovedAppLeftovers.scan(home: home, apps: presence, receipts: receipts, exclusions: exclusions)
             let leftovers = RemovedAppLeftovers.notOffered(by: discovered.candidates, found)
             // Installed apps with their files (#177), each read once; receipts are read once for all of them.
+            enter(.appsAndPlugIns)
             let readReceipts = ReadReceipts(receipts.receipts())
             let apps = ApplicationsInventory.withUninstallers(presence.installedApps() ?? [], excluding: own, home: home).flatMap { app, uninstaller in
                 AppUninstall.scan(app, uninstaller: uninstaller, excluding: own, home: home, apps: presence, receipts: readReceipts, leftovers: found, offered: discovered.candidates,
@@ -372,11 +377,14 @@ import SwiftUI
                 guard let owner = catalog.owner(for: candidate) else { continue }
                 for owner in [owner] + (candidate.uninstall?.plugIn?.hosts ?? []) { owners[owner.name] = owner; names[candidate.id, default: []].append(owner.name) }
             }
+            enter(.openApps)
             let running = Self.running(owners, quitter: quitter)
+            reporter.finish()
             return CatalogScanResult(discovery: discovered, overriddenRules: catalog.overriddenRules(home: home, systemRoot: system), owners: running.0, openOwners: running.1,
                                      ownerNames: names, access: access, leftovers: leftovers, uninstallable: apps + plugIns, plugIns: inventory)
         }.value
         await progress.value
+        scanProgress?.phase = .storageTrends
         await GrowthHistoryModel.shared.completeCatalog(scanned.discovery, catalog: catalog, fullDiskAccess: scanned.access, token: growth, afterCleanup: rescanFollowsCleanup)
         rescanFollowsCleanup = false
         fullDiskAccessRescan.scanned(scanned.access)
@@ -384,6 +392,7 @@ import SwiftUI
         notes = scanned.discovery.notes; notAccessibleRules = scanned.discovery.notAccessible; overriddenRules = scanned.overriddenRules
         setRunning(scanned.owners, open: scanned.openOwners); ownerNames = scanned.ownerNames
         keepOnlyCurrentChoices()
+        scanProgress?.phase = .appManagedStorage
         await scanGuidance(home: home, fullDiskAccess: scanned.access)
     }
     /// What one catalog scan found, handed from the background task to the model.
@@ -656,17 +665,23 @@ extension Candidate {
     var group: String? { appName ?? profile }
 }
 
-/// How far the catalog scan is: the location being checked, its number, and what the finished ones found.
+/// One step the background scan reports: discovery's progress, or a later phase (#308).
+enum CatalogScanStep: Sendable {
+    case discovery(CatalogDiscoveryProgress)
+    case phase(CatalogScanPhase)
+}
+
+/// How far the catalog scan is: its phase (during discovery, the location being checked and its number), and what the
+/// finished locations found.
 struct CatalogScanProgress {
-    var title = ""
-    var number = 0
-    var total = 0
+    var phase = CatalogScanPhase.starting
     var finished = 0
     var found: [Candidate] = []
-    mutating func apply(_ step: CatalogDiscoveryProgress) {
+    mutating func apply(_ step: CatalogScanStep) {
         switch step {
-        case .checking(_, let title, let number, let total): self.title = title; self.number = number; self.total = total
-        case .finished(_, let number, _, let found): finished = number; self.found += found
+        case .discovery(.checking(_, let title, let number, let total)): phase = .location(title: title, number: number, total: total)
+        case .discovery(.finished(_, let number, _, let found)): finished = number; self.found += found
+        case .phase(let next): phase = next
         }
     }
 }

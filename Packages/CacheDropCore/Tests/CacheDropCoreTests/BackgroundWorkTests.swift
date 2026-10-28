@@ -105,3 +105,19 @@ private let catalog = "Checking npm cache… 4 of 31"
     work.update(running: [.catalogScan])
     #expect(work.line(catalogProgress: catalog)?.runsFolderScan == false)
 }
+
+// #308: after discovery the catalog scan goes on reading apps, plug-ins and app-managed storage; the line names each phase.
+
+@Test func theCatalogLineCountsLocationsDuringDiscovery() {
+    #expect(CatalogScanPhase.starting.progressText == "Checking known locations…")
+    #expect(CatalogScanPhase.location(title: "npm cache", number: 4, total: 31).progressText == "Checking npm cache… 4 of 31")
+}
+
+@Test func theCatalogLineNamesEachPhaseAfterDiscovery() {
+    #expect(CatalogScanPhase.removedAppLeftovers.progressText == "Checking leftovers of removed apps…")
+    #expect(CatalogScanPhase.appsAndPlugIns.progressText == "Checking apps and plug-ins…")
+    #expect(CatalogScanPhase.openApps.progressText == "Checking which apps are open…")
+    #expect(CatalogScanPhase.storageTrends.progressText == "Recording storage trends…")
+    #expect(CatalogScanPhase.appManagedStorage.progressText == "Checking app-managed storage…")
+}
+
