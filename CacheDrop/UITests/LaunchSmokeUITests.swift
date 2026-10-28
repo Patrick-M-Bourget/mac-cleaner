@@ -200,7 +200,7 @@ final class LaunchSmokeUITests: XCTestCase {
         XCTAssertTrue(sheet.staticTexts["Broader access is optional"].waitForExistence(timeout: 5))
         let summary = sheet.staticTexts["fullDiskAccessSummary"]
         XCTAssertTrue((summary.value as? String ?? summary.label).contains("It’s broad authority, not read-only. CacheDrop’s scans stay read-only either way."))
-        XCTAssertTrue(sheet.staticTexts["Your folders and known locations"].exists)
+        XCTAssertTrue(sheet.staticTexts["Your folders and app caches"].exists)
         let protected = sheet.staticTexts["fullDiskAccessSheetStatus"]
         XCTAssertEqual(protected.value as? String ?? protected.label, "Not included")
         let howTo = sheet.staticTexts["fullDiskAccessHowTo"]
@@ -345,7 +345,7 @@ final class ProtectedItemsUITests: XCTestCase {
         XCTAssertTrue(open.waitForExistence(timeout: 5))
         revealAndClick(open, in: app)
         let back = app.buttons["Back to Locations & access"]
-        assertBackButton(back, isAbove: "Custom exclusions", in: app)
+        assertBackButton(back, isAbove: "Protected items", in: app)
         XCTAssertTrue(app.buttons["chooseExclusion"].waitForExistence(timeout: 5), "The page offers adding an exclusion")
         back.click()
         XCTAssertTrue(open.waitForExistence(timeout: 5))
@@ -536,7 +536,7 @@ final class ScannedLocationsUITests: XCTestCase {
         XCTAssertFalse(row.exists)
     }
 
-    /// #254: a scanned folder deleted since its scan says, as in the explorer, "Folder not found · last observed <time>",
+    /// #254: a scanned folder deleted since its scan says, as in the explorer, "Folder not found · last scanned <time>",
     /// with Choose again…, rather than "Access unavailable".
     @MainActor func testADeletedFolderSaysFolderNotFoundWithItsLastObservation() throws {
         continueAfterFailure = false
@@ -563,12 +563,12 @@ final class ScannedLocationsUITests: XCTestCase {
         let row = app.staticTexts["overviewLocationRecovery"]
         XCTAssertTrue(row.waitForExistence(timeout: 20))
         let text = row.value as? String ?? ""
-        XCTAssertTrue(text.hasPrefix(folder.lastPathComponent + " · Folder not found · last observed "), text)
+        XCTAssertTrue(text.hasPrefix(folder.lastPathComponent + " · Folder not found · last scanned "), text)
         XCTAssertFalse(text.contains("Access unavailable"), text)
         XCTAssertEqual(app.links["overviewChooseAgain"].label, "Choose again…")
     }
 
-    /// #231: two stale folders get a row each, each with its own Choose again…, and no grey "Current coverage" row.
+    /// #231: two stale folders get a row each, each with its own Choose again…, and no grey "Scanned now" row.
     @MainActor func testTwoStaleFoldersShowARowEach() throws {
         continueAfterFailure = false
         let app = XCUIApplication()
