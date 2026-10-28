@@ -1,6 +1,6 @@
 import Foundation
 
-/// The sidebar's storage text (#353): one short `line` ("312 GB of 1 TB", the available space first) and the full
+/// The sidebar's storage text (#353): one short `line` ("312 GB free of 1 TB", the owner's choice) and the full
 /// `description` ("312 GB available of 1 TB") for its accessibility label and tooltip. Decimal units, as Finder.
 public struct SidebarCapacityText: Sendable, Equatable {
     public let line: String
@@ -11,7 +11,7 @@ public struct SidebarCapacityText: Sendable, Equatable {
             line = "Free space unavailable"; description = line; return
         }
         if let total = Self.validTotal(available: available, total: total) {
-            line = "\(bytes(available)) of \(bytes(total))"
+            line = "\(bytes(available)) free of \(bytes(total))"
             description = "\(bytes(available)) available of \(bytes(total))"
         } else {
             line = "\(bytes(available)) available"

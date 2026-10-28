@@ -473,7 +473,7 @@ struct CapacityMeter: View {
     var body: some View {
         VStack(alignment: .leading, spacing: CacheDropDesign.Space.sm) {
             if compact {
-                // One line, "312 GB of 1 TB"; "available" is in the label and tooltip (#353).
+                // One line, "312 GB free of 1 TB"; "available" is in the label and tooltip (#353).
                 Text(capacityText.line).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
                     .lineLimit(1).minimumScaleFactor(CacheDropDesign.Scale.oneLineCaption).truncationMode(.tail)
                     .help(amountText).accessibilityLabel(amountText).accessibilityIdentifier("sidebarCapacityAmount")

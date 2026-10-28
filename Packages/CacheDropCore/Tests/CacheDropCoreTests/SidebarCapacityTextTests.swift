@@ -4,7 +4,7 @@ import CacheDropCore
 /// The sidebar's storage line fits one line; "available" moves to its label and tooltip (#353).
 @Test func sidebarCapacityReadsAvailableOfTotalOnOneLine() {
     let text = SidebarCapacityText(available: 312_000_000_000, total: 1_000_000_000_000)
-    #expect(text.line == "312 GB of 1 TB")
+    #expect(text.line == "312 GB free of 1 TB")
     #expect(text.description == "312 GB available of 1 TB")
 }
 
