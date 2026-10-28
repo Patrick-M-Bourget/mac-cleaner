@@ -184,12 +184,12 @@ private struct WorkspaceView: View {
     private var showsPlan: Bool { showsOwnPage(.plan, evenUnderAppManaged: true) }
     /// The toolbar's note, which only reports state (Decision 25: no toolbar subtitles). A screen returns nil to show none.
     private var contextLabel: String? {
-        if selection.workspaceRunning { return "Running approved cleanup" }
+        if selection.workspaceRunning { return "Cleaning up…" }
         if navigationState.localRecordsVisible && !recoveryVisible { return "" }
-        if recoveryVisible { return "Recovery review · Recorded facts only" }
+        if recoveryVisible { return "Review interrupted cleanup" }
         if selection.hasWorkspaceResult && showsPlan { return nil }
         if nativeInspectionVisible { return nil }
-        if exclusionsVisible { return "Custom scan exclusions" }
+        if exclusionsVisible { return nil }
         if navigationState.appManagedVisible { return nil }
         switch destination {
         case .overview: return nil
@@ -289,16 +289,16 @@ private struct WorkspaceView: View {
 
                 Group {
                     if exclusionsVisible {
-                        ActionStrip(message: "Exclusions change scan coverage. Files stay unchanged.") {
+                        ActionStrip(message: "Protecting an item never changes it.") {
                             if ExclusionsModel.shared.preview != nil {
                                 Button("Cancel") { ExclusionsModel.shared.preview = nil }.disabled(ExclusionsModel.shared.editingBlocked)
-                                Button("Save exclusion") { Task { await ExclusionsModel.shared.save() } }.buttonStyle(.borderedProminent).disabled(ExclusionsModel.shared.editingBlocked)
+                                Button("Protect") { Task { await ExclusionsModel.shared.save() } }.buttonStyle(.borderedProminent).disabled(ExclusionsModel.shared.editingBlocked)
                             } else {
                                 Button("Choose file or folder…") { Task { await ExclusionsModel.shared.choose() } }.buttonStyle(.borderedProminent).disabled(ExclusionsModel.shared.editingBlocked).accessibilityIdentifier("chooseExclusion")
                             }
                         }
                     } else if recoveryVisible {
-                        ActionStrip(message: "Records are kept. Nothing resumes automatically.") { EmptyView() }
+                        ActionStrip(message: "Nothing restarts by itself.") { EmptyView() }
                     } else if navigationState.localRecordsVisible {
                         ActionStrip()
                     } else if destination == .overview && !navigationState.appManagedVisible {
@@ -496,7 +496,7 @@ private struct WorkspaceView: View {
                 }
                 TrashNote()
                 if let trash = summary?.proposedForTrash, trash != .measured(0) {
-                    Text("Estimated release excludes " + trash.text + " proposed for Trash.").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
+                    Text("Doesn’t include " + trash.text + " that would go to the Trash.").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
                 }
                 if !catalog.guidance.isEmpty {
                     RecommendationGroup {
@@ -542,8 +542,8 @@ private struct WorkspaceView: View {
         let value = overviewObservation.map { result in
             let report = result.cloudInventory
             return report.unknownMembershipCount > 0 || report.unknownStateCount > 0 ? "Unknown" : overviewBytes(report.localAllocatedBytes)
-        } ?? "Not inspected"
-        return StorageReviewRow(category: .cloud, title: "Downloaded iCloud files", detail: "Local copies in this location · Cleanup unavailable.", value: value, meaning: "Local allocation · Unknown metadata stays unknown", actionTitle: overviewCloudExpanded ? "Hide iCloud inventory" : "Review iCloud inventory", action: action, identifier: "overviewCloudFinding")
+        } ?? "Not scanned"
+        return StorageReviewRow(category: .cloud, title: "Downloaded iCloud files", detail: "Copies of iCloud files kept on this Mac", value: value, meaning: "On this Mac", actionTitle: overviewCloudExpanded ? "Hide iCloud files" : "Review iCloud files", action: action, identifier: "overviewCloudFinding")
     }
     private func overviewBytes(_ bytes: Int64?) -> String {
         bytes.map { ByteCountFormatter.string(fromByteCount: $0, countStyle: .decimal) } ?? "Unknown"
@@ -583,7 +583,7 @@ private struct WorkspaceView: View {
                     .disabled(folderInspection.isScanning || selection.workspaceRunning).accessibilityIdentifier("overviewScanFolder")
             }
             if selection.scans.values.contains(where: { !$0.isComplete }) || overviewObservation.map({ $0.excludedEntryCount > 0 || $0.hasUnmeasuredContents }) == true {
-                StatusRow(text: "Some locations have partial coverage. Uninspected bytes remain unknown.", symbol: "exclamationmark.circle", role: .caution)
+                StatusRow(text: "Some places couldn’t be read in full, so they may hold more than shown.", symbol: "exclamationmark.circle", role: .caution)
             }
             // One row per problem (#223, #231): each unavailable location names itself and carries the fix.
             ForEach(locationsModel.recoveries, id: \.scope.id) { scope, status in
@@ -604,7 +604,7 @@ private struct WorkspaceView: View {
             ExplorerUnavailableLocation(scope: URL(fileURLWithPath: scope.path).standardizedFileURL, reason: locationsModel.recoveryReasons[scope.id] ?? status.reason) { renewAndScan(scope) }
         }
     }
-    /// "Folder not found · last observed <time>" for a deleted or moved folder, "Access unavailable" for an unreadable one (#254).
+    /// "Folder not found · last scanned <time>" for a deleted or moved folder, "Access unavailable" for an unreadable one (#254).
     private func recoveryText(_ scope: RememberedScope, status: RememberedLocations.AccessStatus) -> String {
         let observed = Array(selection.scans.values) + folderInspection.scopeReports.map(\.current)
         return UnavailableScannedFolder.overviewText(name: URL(fileURLWithPath: scope.path).lastPathComponent,

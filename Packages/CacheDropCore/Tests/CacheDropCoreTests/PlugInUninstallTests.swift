@@ -469,7 +469,7 @@ private func unreadableReceipt(_ id: String, in root: URL) throws {
     #expect(!items.contains { ["Presets", "engine.cfg", "Maker Content"].contains($0.url.lastPathComponent) }, "\(items.map(\.url.lastPathComponent))")
     let own = items.filter { $0.uninstall?.path == synth && $0.sharedBy.isEmpty }
     #expect(names(own.filter { $0.ruleID == PlugInUninstall.filesRuleID }) == ["Init.fxp"], "What it recognises next to it is still offered")
-    #expect(AppUninstall.staying(chosen: own, offered: items).map(\.text).contains("Pro Synth: 1 part stays · Holds files CacheDrop doesn’t recognise"))
+    #expect(AppUninstall.staying(chosen: own, offered: items).map(\.text).contains("Pro Synth: 1 part stays · Holds files CacheDrop doesn’t recognize"))
 }
 
 @Test func anUnreadableFolderAtAnyDepthRefusesTheItemAtTheScanAndBeforeActing() throws {

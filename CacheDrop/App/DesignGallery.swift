@@ -52,7 +52,7 @@ struct DesignGallery: View {
                     ProtectedItemsEntry(action: {})
                     Text("Synthetic Local records controls · Inert enabled example").font(.headline)
                     LocalRecordsMaintenanceControls(clear: {}, reset: {})
-                    StatusRow(text: "Reset is blocked by unfinished cleanup records. Open recovery review; no operations will resume automatically.", symbol: "exclamationmark.triangle", role: .caution)
+                    StatusRow(text: "Reset waits until the interrupted cleanup is reviewed. Nothing restarts by itself.", symbol: "exclamationmark.triangle", role: .caution)
                     StatusRow(text: "Downloads · Access unavailable", role: .caution, action: StatusAction(title: "Choose again…") {})
                     Text("Synthetic unavailable controls · Cleanup or maintenance in progress").font(.headline)
                     LocalRecordsMaintenanceControls(enabled: false, clear: {}, reset: {})
@@ -182,13 +182,13 @@ struct DesignGallery: View {
 private struct CapacityGalleryExamples: View {
     var body: some View {
         VStack(alignment: .leading, spacing: CacheDropDesign.Space.xl) {
-            example("checking", available: nil, total: nil, observation: "Startup-volume capacity", status: "Checking capacity…", refreshing: true)
-            example("refreshing", observation: "Observed 10:00 AM · Available for important usage", status: "Refreshing…", refreshing: true)
-            example("important", observation: "Observed 10:00 AM · Available for important usage")
-            example("fallback", observation: "Observed 10:00 AM · Available capacity fallback")
-            example("partial", total: nil, observation: "Observed 10:00 AM · Available capacity fallback")
-            example("stale", observation: "Last observed 10:00 AM · Available for important usage", status: "Couldn’t refresh capacity", retry: true)
-            example("unavailable", available: nil, total: nil, observation: "Capacity unavailable", status: "Couldn’t refresh capacity", retry: true)
+            example("checking", available: nil, total: nil, observation: "Checking free space…", status: "Checking capacity…", refreshing: true)
+            example("refreshing", observation: "Updated 10:00 AM", status: "Refreshing…", refreshing: true)
+            example("important", observation: "Updated 10:00 AM")
+            example("fallback", observation: "Updated 10:00 AM")
+            example("partial", total: nil, observation: "Updated 10:00 AM")
+            example("stale", observation: "Last updated 10:00 AM", status: "Couldn’t refresh capacity", retry: true)
+            example("unavailable", available: nil, total: nil, observation: "Free space unavailable", status: "Couldn’t refresh capacity", retry: true)
         }
     }
     private func example(_ name: String, available: Int64? = 40_000_000_000, total: Int64? = 512_000_000_000, observation: String, status: String = "", refreshing: Bool = false, retry: Bool = false) -> some View {

@@ -100,7 +100,7 @@ public struct SmartCleanReport: Sendable {
             case .leakedCopy: "a leftover app copy"
             default: "a cache"
             }
-            return rule.title + ", " + kind + " that comes back on its own"
+            return rule.title + ", " + kind + (rule.regen == .build ? " that come back on their own" : " that comes back on its own")
         }
     }
 

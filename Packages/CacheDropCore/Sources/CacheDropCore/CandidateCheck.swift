@@ -46,8 +46,8 @@ public enum CheckRefusal: Sendable, Equatable {
         case .uncommittedChanges: "Its project has uncommitted changes. It is kept."
         case .trackedByGit: "Git tracks files in it. It is kept."
         case .appInstalled(let name): "\(name) is installed again, or CacheDrop couldn’t check. It is kept."
-        case .receiptsUnread: "Couldn’t read every installer record, so it is kept."
-        case .unrecognised(let name): "Holds files CacheDrop doesn’t recognise (\(name)), so it is kept."
+        case .receiptsUnread: "Couldn’t read every installer receipt, so it is kept."
+        case .unrecognised(let name): "Holds files CacheDrop doesn’t recognize (\(name)), so it is kept."
         case .notACache(let reason): reason
         }
     }

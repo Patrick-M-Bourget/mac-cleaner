@@ -59,7 +59,7 @@ import SwiftUI
     /// The Protected items settings couldn't be read, so nothing could be scanned or checked (#310). Every page that cleans
     /// and Overview say so once, with Try again; never "Your choices changed" or "Nothing to review".
     private(set) var settingsUnreadable = false
-    static let settingsUnreadableText = "CacheDrop couldn’t read your Protected items settings, so it can’t check anything."
+    static let settingsUnreadableText = "CacheDrop couldn’t read your Protected items, so it can’t check what’s safe to clean."
     /// Why a rule kept items back, such as copies whose use couldn't be checked.
     private(set) var notes: [CatalogNote] = []
     /// Guidance-only categories found at the last scan. Never candidates, never in a plan. Set only by the guidance
@@ -262,7 +262,7 @@ import SwiftUI
     var editBlockedReason: String? {
         if isScanning { return "Wait for the scan to finish" }
         if isRunning || AppLifecycleController.shared.operationInProgress { return "Wait for the cleanup to finish" }
-        if AppLifecycleController.shared.maintenanceInProgress { return "Wait while CacheDrop updates its records" }
+        if AppLifecycleController.shared.maintenanceInProgress { return "Wait while CacheDrop tidies its history" }
         return nil
     }
     func isSelected(_ rule: CleanupRule) -> Bool { candidates(for: rule).contains { selectedIDs.contains($0.id) } }
@@ -533,7 +533,7 @@ import SwiftUI
             // Picked folders keep the large and old files this run didn't act on (#125).
             selections.finishRun(from: source); discovered = []; uninstallable = []; pickedFiles = pickedFiles.mapValues { UserFiles.remaining($0, after: outcome) }
             projectBuilds = projectBuilds.mapValues { UserFiles.remaining($0, after: outcome) }; hasScanned = false; noteChoices()
-        } catch { message = "The cleanup journal is unavailable. Nothing was changed." }
+        } catch { message = "CacheDrop couldn’t open its cleanup history, so nothing was changed." }
     }
     /// A stopped daemon-backed tool's work may still be finishing, so its item is measured again a minute later, and
     /// once more at about 5 minutes if it was still shrinking, as the scan measures it; the journal records what went
@@ -628,7 +628,7 @@ extension CatalogCategory {
         case .updaters: "Updates apps downloaded and kept"
         case .logs: "Logs and crash reports apps wrote"
         case .icloud: "Local copies of files that stay in iCloud"
-        case .files: "Large files you haven’t opened in a while"
+        case .files: "Files of 500 MB or more, or not opened in 90 days"
         case .managed: "Data the apps that own it look after"
         case .leftovers: "Files apps you removed left behind"
         case .apps: "Installed apps you chose to uninstall"

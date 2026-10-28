@@ -9,15 +9,15 @@ public enum ScannedLocationsSummary {
         if let folders {
             let count = folders == 1 ? "1 folder" : "\(folders) folders"
             if let observedSize {
-                parts.append((complete ? "" : "at least ") + observedSize + " observed in " + count)
+                parts.append((complete ? "" : "at least ") + observedSize + " in " + count)
             } else {
                 parts.append(count)
             }
         }
         if let knownCacheFolders {
-            parts.append(knownCacheFolders == 1 ? "1 known cache folder" : "\(knownCacheFolders) known cache folders")
+            parts.append(knownCacheFolders == 1 ? "1 cache folder" : "\(knownCacheFolders) cache folders")
         } else if checking {
-            parts.append("Checking known cache folders…")
+            parts.append("Checking cache folders…")
         }
         return parts.isEmpty ? "No folders chosen yet" : parts.joined(separator: " · ")
     }

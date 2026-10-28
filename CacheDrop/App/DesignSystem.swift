@@ -462,7 +462,7 @@ struct CapacityMeter: View {
     private func bytes(_ value: Int64) -> String { Self.bytes(value) }
     private var validTotal: Int64? { Self.validTotal(available: available, total: total) }
     private var amountText: String {
-        guard let available, available >= 0 else { return "Capacity unavailable" }
+        guard let available, available >= 0 else { return "Free space unavailable" }
         if let total = validTotal { return "\(bytes(available)) available of \(bytes(total))" }
         return "\(bytes(available)) available · Total capacity unavailable"
     }
@@ -534,7 +534,7 @@ struct VolumeSummary: View {
                 HStack(alignment: .firstTextBaseline, spacing: CacheDropDesign.Space.md) {
                     Text(used.map { bytes($0) + " used" } ?? "Used space unknown").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary).monospacedDigit()
                     Spacer(minLength: CacheDropDesign.Space.sm)
-                    Text("Whole-disk capacity").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
+                    Text(observation).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
                         .help(observation).accessibilityValue(observation).accessibilityIdentifier("capacityObservation")
                 }
                 if !status.isEmpty {

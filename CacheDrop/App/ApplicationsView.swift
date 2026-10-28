@@ -214,11 +214,11 @@ struct ApplicationsView: View {
                 }
                 // Unread is never "lists nothing" (#291).
                 if target?.receiptsUnread == true {
-                    StatusRow(text: "Support files stay: couldn’t read every installer record", symbol: "info.circle", identifier: "applicationsReceiptsUnread-" + entry.id)
+                    StatusRow(text: "Support files stay: couldn’t read every installer receipt", symbol: "info.circle", identifier: "applicationsReceiptsUnread-" + entry.id)
                 }
                 // Only files of kinds known to be safe go with it (#291, Decision 53).
                 if let count = target?.unrecognised, count > 0 {
-                    StatusRow(text: "Holds files CacheDrop doesn’t recognise: " + (count == 1 ? "1 stays" : "\(count) stay"), symbol: "info.circle",
+                    StatusRow(text: "Holds files CacheDrop doesn’t recognize: " + (count == 1 ? "1 stays" : "\(count) stay"), symbol: "info.circle",
                               identifier: "applicationsUnrecognised-" + entry.id)
                 }
                 // The app, or a plug-in product's own app and its hosts (#176), each with "Quit <App>".

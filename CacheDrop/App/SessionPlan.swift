@@ -54,7 +54,7 @@ struct RefreshRequest: Sendable {
     func invalidateCoverage() {
         refreshRequests.removeAll(); scans.removeAll()
         catalog.forgetPickedFiles()
-        message = "Exclusion settings changed. Recheck selected locations to see the new coverage."
+        message = "Protected items changed. Scan again to see what’s offered now."
     }
     func expectExclusions(_ fingerprint: String) {
         if expectedExclusionFingerprint != fingerprint { invalidateCoverage(); expectedExclusionFingerprint = fingerprint }
@@ -290,7 +290,7 @@ struct CleanupRunSection: View {
     let selection: SessionPlan
     var body: some View {
         VStack(alignment: .leading, spacing: CacheDropDesign.Space.xl) {
-            PageHeader(title: selection.workspaceRunning ? "Running cleanup" : "Cleanup results")
+            PageHeader(title: selection.workspaceRunning ? "Cleaning up…" : "Cleanup results")
             if selection.catalog.isRunning { ProgressView(selection.catalog.dryRun ? "Checking selected items…" : "Cleaning selected items…") }
             if let result = selection.catalog.result { CatalogResultsSection(result: result, catalog: selection.catalog.catalog) }
             if let message = selection.catalog.message { StatusRow(text: message, symbol: "exclamationmark.triangle", role: .caution) }
@@ -315,7 +315,7 @@ struct CleanupActionBar<Finish: View, Idle: View>: View {
         } else if selection.showsRun(for: source) {
             ActionStrip(message: selection.requiresRecoveryReview ? recoveryNote : nil) {
                 if let viewHistory { Button("View history", action: viewHistory) }
-                if selection.requiresRecoveryReview, let reviewRecovery { Button("Review recovery", action: reviewRecovery) }
+                if selection.requiresRecoveryReview, let reviewRecovery { Button("Review interrupted cleanup", action: reviewRecovery) }
                 finish()
             }
         } else {
@@ -323,14 +323,14 @@ struct CleanupActionBar<Finish: View, Idle: View>: View {
         }
     }
     private var recoveryNote: String {
-        source == .plan ? "Review unresolved records before making another plan." : "Review unresolved records before cleaning again."
+        source == .plan ? "Review the interrupted cleanup before making another plan." : "Review the interrupted cleanup before cleaning again."
     }
 }
 /// The running cleanup's one action.
 struct CleanupStopStrip: View {
     let selection: SessionPlan
     var body: some View {
-        ActionStrip(message: "Stopping starts no new items and stops a running cleanup tool, which may have cleaned part of its cache; work it handed to Docker or the Simulator may still finish. Completed Trash moves and cache removals are not rolled back.", showsBackgroundWork: false, wrapsNote: true) {
+        ActionStrip(message: "Stopping won’t undo what’s done. A tool stopped midway may have removed part of its cache.", showsBackgroundWork: false, wrapsNote: true) {
             Button(selection.workspaceStopRequested ? "Stop requested" : "Stop cleanup") { selection.cancelWorkspace() }.disabled(selection.workspaceStopRequested)
         }
     }

@@ -115,3 +115,23 @@ func smartCleanReportForThisMac() throws {
     let report = SmartCleanReport.run(try SmartCleanReport.Sources.thisMac())
     print(report.text)
 }
+
+/// #319, #312: the reason agrees with what comes back: "build files that come back", "a cache that comes back".
+@Test func theReasonAgreesWithWhatComesBack() throws {
+    let home = FileManager.default.temporaryDirectory.appendingPathComponent("CacheDropReason-\(UUID())").resolvingSymlinksInPath()
+    defer { try? FileManager.default.removeItem(at: home) }
+    var rules: [CleanupRule] = []
+    for (id, regen) in [("build", RegenClass.build), ("cache", .cache)] {
+        try FileManager.default.createDirectory(at: home.appendingPathComponent(id), withIntermediateDirectories: true)
+        try Data(repeating: 1, count: 100).write(to: home.appendingPathComponent(id + "/entry"))
+        rules.append(CleanupRule(id: id, category: .developer, title: id, detail: "", consequence: "", regen: regen, action: .delete, locations: [id], owner: nil))
+    }
+    let catalog = Catalog(rules: rules)
+    let found = catalog.discover(fixture: home, locateTool: { _ in nil })
+    func reason(_ id: String) throws -> String {
+        let candidate = try #require(found.first { $0.ruleID == id })
+        return SmartCleanReport.reason(candidate, rule: rules.first { $0.id == id }!, now: Date())
+    }
+    #expect(try reason("build") == "build, build files that come back on their own")
+    #expect(try reason("cache") == "cache, a cache that comes back on its own")
+}

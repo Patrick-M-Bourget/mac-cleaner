@@ -40,7 +40,7 @@ public enum AppUninstall {
         public var passwordPaths: [String] = []
         /// A plug-in product's support files weren't offered: an installer record couldn't be read (#291).
         public var receiptsUnread = false
-        /// A plug-in product's files that stay because CacheDrop doesn't recognise their kind (#291, Decision 53).
+        /// A plug-in product's files that stay because CacheDrop doesn't recognize their kind (#291, Decision 53).
         public var unrecognised = 0
         /// The app must be closed first (Decision 29): its bundle ID, its helpers' and any process run from inside it (#281).
         public var owner: RuleOwner { RuleOwner(name: name, bundleIDs: ([bundleID] + helpers).filter { !$0.isEmpty }, paths: [path] + (plugIn?.otherPaths ?? [])) }
@@ -160,7 +160,7 @@ public enum AppUninstall {
             let password: String = app.tool.map { "Needs \($0) or your password" } ?? "Needs your password"
             let reasons: [(String, Int, String)] = [("unticked", unticked, "Not ticked"), ("password", app.needsPassword, password),
                                                     ("inside", app.plugIn?.insideApp ?? 0, "Goes with the app it is in"),
-                                                    ("unrecognised", app.unrecognised, "Holds files CacheDrop doesn’t recognise"), ("plan", app.inPlan, "In the Cleanup plan")]
+                                                    ("unrecognised", app.unrecognised, "Holds files CacheDrop doesn’t recognize"), ("plan", app.inPlan, "In the Cleanup plan")]
             return reasons
                 .filter { $0.1 > 0 }
                 .map { Staying(id: app.path + "-" + $0.0, text: "\(app.name): " + ($0.1 == 1 ? "1 part stays" : "\($0.1) parts stay") + " · " + $0.2) }
