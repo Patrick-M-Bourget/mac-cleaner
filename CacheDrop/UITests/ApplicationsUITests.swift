@@ -163,6 +163,43 @@ final class ApplicationsUITests: XCTestCase {
         XCTAssertFalse(element(app, "applicationsChecking-" + pad.path).exists)
     }
 
+    /// #306: Put back from History rescans, so the app it returned is listed on Applications again without Scan again.
+    @MainActor func testPutBackFromHistoryListsTheAppOnApplicationsAgain() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        let state = try configureIsolatedState(app)
+        let home = try configureCatalogHome(app)
+        defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
+        let synth = try addApp("Synth", id: "com.maker.synth", bytes: 90_000, in: home)
+        app.launch()
+        waitForCatalogScan(app)
+        app.typeKey("5", modifierFlags: .command)
+
+        let row = element(app, "applicationsApp-" + synth.path, .checkBox)
+        XCTAssertTrue(row.waitForExistence(timeout: 10))
+        revealAndClick(row, in: app)
+        app.buttons["Review cleanup"].click()
+        XCTAssertTrue(app.buttons["Clean up"].waitForExistence(timeout: 5))
+        cleanUpFromReview(app)
+        XCTAssertTrue(app.buttons["View history"].waitForExistence(timeout: 20))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: synth.path), "The app went to the Trash")
+        // The run's own rescan ends before the put back, so only the put back can bring the app back.
+        XCTAssertTrue(app.staticTexts["catalogScanProgress"].waitForNonExistence(timeout: 120), "The rescan after the run finished")
+
+        app.buttons["View history"].click()
+        let run = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "Uninstalled Synth")).firstMatch
+        XCTAssertTrue(run.waitForExistence(timeout: 10))
+        revealAndClick(run, in: app)
+        let putBack = app.descendants(matching: .any)["putBack-Synth.app"]
+        XCTAssertTrue(putBack.waitForExistence(timeout: 10))
+        revealAndClick(putBack, in: app)
+        XCTAssertTrue(app.staticTexts["putBackDone-Synth.app"].waitForExistence(timeout: 10))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: synth.path), "The app is back where it was")
+
+        app.typeKey("5", modifierFlags: .command)
+        XCTAssertTrue(row.waitForExistence(timeout: 120), "The app is listed on Applications again")
+    }
+
     /// #176: a plug-in product is ticked with its removable formats, its AU (which needs a password) is listed without a
     /// checkbox and the review says it stays, the VST3 goes to the fixture Trash, and History says "Uninstalled <Product>".
     /// This is #176's one real check (#288): the real app's scan, check and run on a disposable plug-in built in a temp folder.

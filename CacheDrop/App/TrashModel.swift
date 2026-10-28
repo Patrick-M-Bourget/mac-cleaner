@@ -24,7 +24,8 @@ import SwiftUI
     private(set) var putBackOutcomes: [String: PutBackOutcome] = [:]
     private(set) var puttingBack: Set<String> = []
 
-    /// Puts an item a run moved to the Trash back where it was, then measures the Trash again for Overview's line.
+    /// Puts an item a run moved to the Trash back where it was, then measures the Trash again for Overview's line. A restored
+    /// item starts a catalog rescan, so an app or installer it returned is offered again without Scan again (#306).
     func putBack(_ record: CleanupRecord) async {
         guard !puttingBack.contains(record.id), putBackOutcomes[record.id] != .restored(record.originalURL) else { return }
         puttingBack.insert(record.id)
@@ -34,6 +35,7 @@ import SwiftUI
             return TrashPutBack(journal: journal).putBack(record)
         }.value
         putBackOutcomes[record.id] = outcome
+        if case .restored = outcome { Task { await AppLifecycleController.shared.selection.catalog.rescan() } }
         await refresh()
     }
 
