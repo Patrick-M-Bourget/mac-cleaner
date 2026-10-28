@@ -8,6 +8,8 @@ import SwiftUI
 struct CatalogPlanSection: View {
     @Bindable var model: CatalogCleanupModel
     @Binding var expanded: Set<CatalogCategory>
+    /// Where the empty state leads (#321).
+    var exploreStorage: (() -> Void)? = nil
     var body: some View {
         VStack(alignment: .leading, spacing: CacheDropDesign.Space.lg) {
             // Nothing known yet: skeleton rows; a rescan dims the rows already shown (#308).
@@ -21,7 +23,7 @@ struct CatalogPlanSection: View {
                         Divider().padding(.vertical, CacheDropDesign.Space.md)
                     }
                 }.waitingForScan(model.isScanning)
-                if model.planCategories.isEmpty && !model.isScanning { NothingToCleanUp(identifier: "planEmpty") }
+                if model.planCategories.isEmpty && !model.isScanning { NothingToCleanUp(identifier: "planEmpty", action: exploreStorage.map { EmptyStateAction("Explore storage", perform: $0) }) }
             }
             ForEach(model.overriddenRules) { rule in
                 StatusRow(text: "\(rule.owner?.name ?? rule.title) keeps its data in a custom location, so CacheDrop leaves it alone.",

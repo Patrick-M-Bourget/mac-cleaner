@@ -119,6 +119,8 @@ struct GrowthChangeRow: View {
 struct GrowthHistoryView: View {
     @Bindable var model: GrowthHistoryModel
     let catalog: CatalogCleanupModel
+    /// The empty state's Scan now (#321): the same scan as the bar's Scan again.
+    var scanNow: () -> Void = {}
     var body: some View {
         VStack(alignment: .leading, spacing: CacheDropDesign.Space.xl) {
             if let error = model.error, model.comparison == nil {
@@ -132,7 +134,7 @@ struct GrowthHistoryView: View {
                 } else {
                     PageHeader(title: "Storage trends", subtitle: "Changes in your known locations between two completed scans.")
                     EmptyState(title: "Baseline recorded", detail: GrowthPresentation.baseline(comparison.state),
-                               symbol: "chart.line.uptrend.xyaxis").accessibilityIdentifier("growthBaselineRecorded")
+                               symbol: "chart.line.uptrend.xyaxis", identifier: "growthBaselineRecorded")
                 }
             } else if model.loading || catalog.isScanning {
                 // Nothing known yet: skeleton rows, never a blank page (#308).
@@ -140,8 +142,8 @@ struct GrowthHistoryView: View {
                 SkeletonRows(.line, identifier: "growthSkeleton")
             } else {
                 PageHeader(title: "Storage trends", subtitle: "Changes in your known locations between two completed scans.")
-                EmptyState(title: "No scan recorded yet",
-                           detail: "The first completed scan records a baseline. Check back a day later to see trends. Nothing scans in the background.", symbol: "chart.line.uptrend.xyaxis")
+                EmptyState(title: "No scans yet", detail: "A completed scan records a baseline. Check back a day later to see trends.",
+                           symbol: "chart.line.uptrend.xyaxis", action: EmptyStateAction("Scan now", perform: scanNow), identifier: "growthEmpty")
             }
             if let error = model.error, model.comparison != nil { StatusRow(text: error, symbol: "exclamationmark.circle", role: .caution) }
             Text(GrowthPresentation.retention).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)

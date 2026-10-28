@@ -209,6 +209,8 @@ struct LiveCleanupPlanView: View {
     var backToExplorer: (() -> Void)? = nil
     var backToExplorerDestination = "Explore storage"
     @Bindable var presentation: CleanupPlanPresentation
+    /// Where the plan's empty state leads (#321).
+    var exploreStorage: (() -> Void)? = nil
     @State private var review: WorkspaceCleanupReview?
     @State private var approvalError: String?
     @State private var reviewFocusRequest = 0
@@ -229,7 +231,7 @@ struct LiveCleanupPlanView: View {
                              consequenceIdentifier: "liveSelectionTrash")
                 .help("Sizes are estimates from the scan, not guaranteed space freed. Linked files count once. Each item is checked again just before CacheDrop acts on it.")
             if let approvalError { StatusRow(text: approvalError, symbol: "exclamationmark.circle", role: .caution) }
-            CatalogPlanSection(model: selection.catalog, expanded: $presentation.expandedCategories)
+            CatalogPlanSection(model: selection.catalog, expanded: $presentation.expandedCategories, exploreStorage: exploreStorage)
         }.padding(CacheDropDesign.Space.page).frame(maxWidth: .infinity, alignment: .leading)
             .background(alignment: .topLeading) { DestinationViewport(offset: $presentation.offset).frame(width: 0, height: 0) }
         }

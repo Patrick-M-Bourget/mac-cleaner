@@ -237,7 +237,7 @@ private struct WorkspaceView: View {
                         reviewRecovery: { openRecovery(caller: .plan) },
                         backToExplorer: navigationState.planReturnsToGrowth ? { navigationState.planReturnsToGrowth = false; destination = .growth } : planReturnsToExplorer ? { nativeInspectionVisible = true; planReturnsToExplorer = false } : nil,
                         backToExplorerDestination: navigationState.planReturnsToGrowth ? Destination.growth.rawValue : explorerContext.title,
-                        presentation: planPresentation)
+                        presentation: planPresentation, exploreStorage: { exploreStorage(caller: .plan) })
                 } else if showsSmartClean {
                     SmartCleanView(selection: selection, openPlan: { openPlan($0) }, viewHistory: { navigate(.history) }, reviewRecovery: { openRecovery(caller: .smartClean) },
                                    presentation: smartCleanPresentation)
@@ -264,7 +264,7 @@ private struct WorkspaceView: View {
                             AppManagedStorageView(model: selection.catalog) { navigationState.appManagedVisible = false }
                         } else {
                             switch destination {
-                            case .growth: GrowthHistoryView(model: GrowthHistoryModel.shared, catalog: selection.catalog)
+                            case .growth: GrowthHistoryView(model: GrowthHistoryModel.shared, catalog: selection.catalog, scanNow: { if canScanAgain { scanAgain() } })
                             case .overview: overview
                             case .plan, .smartClean, .applications: EmptyView()
                             case .history: history
@@ -474,7 +474,7 @@ private struct WorkspaceView: View {
                         }
                     }.waitingForScan(catalog.isScanning)
                 } else if !catalog.isScanning {
-                    NothingToCleanUp(identifier: "overviewEmpty")
+                    NothingToCleanUp(identifier: "overviewEmpty", action: EmptyStateAction("Explore storage") { exploreStorage(caller: .overview) })
                 }
                 // Places macOS protects (Safari's cache) without Full Disk Access: one line, never a 0-byte row.
                 if !catalog.notAccessibleRules.isEmpty {
@@ -558,7 +558,7 @@ private struct WorkspaceView: View {
                 Text(scannedSummary).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
                     .help(overviewObservation?.scope.path ?? "").accessibilityIdentifier("overviewScopeCoverage")
                 // Always there (#320): with no scanned folder it leads to Locations & access, where folders are added.
-                Button("Explore storage") { if hasScannedFolder { openExplorer(caller: .overview) } else { navigate(.locations) } }
+                Button("Explore storage") { exploreStorage(caller: .overview) }
                     .buttonStyle(.link).font(CacheDropDesign.TypeStyle.caption).disabled(selection.workspaceRunning)
                 Spacer(minLength: 0)
                 // One clear action: pick a folder, remember it and scan it now (#125).
@@ -640,6 +640,11 @@ private struct WorkspaceView: View {
         explorerContext.allowedScopes = Set(locationsModel.included.map { URL(fileURLWithPath: $0.path).standardizedFileURL })
         if let folder { explorerContext.openLocation(folder) }
         explorerCaller = caller; nativeInspectionVisible = true; planReturnsToExplorer = false
+    }
+    /// Explore storage, as Overview's link and the empty states lead there (#320, #321): with no scanned folder yet,
+    /// Locations & access, where folders are added.
+    private func exploreStorage(caller: Destination) {
+        if hasScannedFolder { openExplorer(caller: caller) } else { navigate(.locations) }
     }
     /// An included location that has been scanned, so Explore storage has something to show.
     private func isScanned(_ scope: RememberedScope) -> Bool {
