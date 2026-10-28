@@ -72,9 +72,11 @@ final class RemovedAppLeftoversUITests: XCTestCase {
         XCTAssertTrue(item.waitForExistence(timeout: 5))
         XCTAssertEqual(item.value as? Int, 0, "A possibly related item is never recommended")
         XCTAssertTrue(app.descendants(matching: .any)["planItemReveal-Gone"].exists, "Reveal in Finder is beside it")
-        XCTAssertFalse(app.buttons["Inspect Possibly related"].exists, "The rule's row is no Finder link")
-        // Synth's confirmed file is recommended, so it may arrive ticked (#349); untick it to clean the one item alone.
-        if group.value as? Int == 1 { revealAndClick(group, in: app) }
+        XCTAssertFalse(app.buttons["Select Possibly related"].exists, "The rule's row is inert")
+        XCTAssertFalse(app.links["planRuleReveal-removed-app-possibly-related"].exists, "and no Finder link")
+        // Synth's confirmed file is recommended, so it may arrive ticked (#349); untick it, by clicking its row (#367), to clean
+        // the one item alone.
+        if group.value as? Int == 1 { revealAndClick(app.buttons["Select Synth"], in: app) }
         XCTAssertEqual(group.value as? Int, 0)
 
         revealAndClick(app.buttons["Select Gone"], in: app)

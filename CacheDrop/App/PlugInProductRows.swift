@@ -12,7 +12,8 @@ struct PlugInProductRows: View {
             LazyVStack(alignment: .leading, spacing: 0) {
                 ForEach(inventory.products) { product in
                     InspectableItemRow(name: product.name, detail: detail(product), size: product.size.text, symbol: "pianokeys",
-                                       inspected: false, inspect: { model.reveal(product) }, actionLabel: "Reveal \(product.name) in Finder") { EmptyView() }
+                                       // Read-only: an inert row with its own Reveal link (#367, Decision 72).
+                                       inspected: false, inspect: nil, reveal: { model.reveal(product) }) { EmptyView() }
                         .help(([more(product)] + product.files.map(\.url.path)).filter { !$0.isEmpty }.joined(separator: "\n"))
                 }
             }

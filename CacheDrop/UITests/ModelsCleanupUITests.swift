@@ -44,9 +44,12 @@ final class ModelsCleanupUITests: XCTestCase {
             if !item.waitForExistence(timeout: 2) { expandDisclosures(in: app) }
             XCTAssertTrue(item.waitForExistence(timeout: 5), name)
             XCTAssertEqual(item.value as? Int, 0, name)
-            revealAndClick(item, in: app)
+            // #367: clicking the item's row ticks it, as its checkbox does; Finder is its own Reveal link.
+            revealAndClick(app.buttons["Select " + name], in: app)
+            XCTAssertEqual(item.value as? Int, 1, name)
+            XCTAssertTrue(app.links["planItemReveal-" + name].exists, name)
         }
-        XCTAssertTrue(app.buttons.matching(NSPredicate(format: "label == 'Inspect org/tiny' AND value CONTAINS 'Last used'")).firstMatch.exists)
+        XCTAssertTrue(app.buttons.matching(NSPredicate(format: "label == 'Select org/tiny' AND value CONTAINS 'Last used'")).firstMatch.exists)
         app.buttons["Review cleanup"].click()
 
         XCTAssertTrue(reviewLine(app, "movedToTrash", "models").waitForExistence(timeout: 5))

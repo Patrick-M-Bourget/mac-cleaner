@@ -13,13 +13,19 @@ import Testing
     #expect(fixtureRules.contains { $0.itemByItem && $0.family == nil })
 }
 
-// #356: an item ticked one by one is chosen in the app: clicking its row ticks it, Reveal in Finder sits beside it, and its
-// rule's own row reveals nothing. Every other rule keeps its rows as Finder links, its items chosen by their checkboxes.
-@Test func itemsTickedOneByOneAreChosenByClickingTheirRowsAndTheirRuleRowRevealsNothing() {
-    let oneByOne: Set = ["removed-app-possibly-related", "uninstall-app-possibly-related", "uninstall-plugin-shared"]
-    for rule in fixtureRules {
-        let ticks = oneByOne.contains(rule.id)
-        #expect(rule.itemRowClick == (ticks ? .tick : .reveal), "\(rule.id)")
-        #expect(rule.ruleRowReveals == !ticks, "\(rule.id)")
+// #356, #367: clicking an item's row ticks it, as its checkbox does; Finder is always its own Reveal link, never a row click.
+// A rule's own row ticks the rule, except a rule of items ticked one by one (Decision 49), whose row is inert. What can't be
+// chosen (a guidance rule's libraries) has inert rows.
+@Test func clickingAChoosableRowTicksItAndEverythingElseIsInert() throws {
+    let rules = Dictionary(uniqueKeysWithValues: fixtureRules.map { ($0.id, $0) })
+    let expected: [(id: String, item: CleanupRule.RowClick, rule: CleanupRule.RowClick)] = [
+        ("removed-app-leftovers", .tick, .tick), ("removed-app-possibly-related", .tick, .inert),
+        ("uninstall-app-possibly-related", .tick, .inert), ("uninstall-plugin-shared", .tick, .inert),
+        (CleanupRule.downloadsInstallersID, .tick, .tick), ("photos-library", .inert, .inert),
+    ]
+    for (id, item, rule) in expected {
+        let found = try #require(rules[id], "\(id)")
+        #expect(found.itemRowClick == item, "\(id)")
+        #expect(found.ruleRowClick == rule, "\(id)")
     }
 }

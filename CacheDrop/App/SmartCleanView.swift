@@ -133,7 +133,10 @@ struct SmartCleanView: View {
         InspectableItemRow(name: line.name, detail: "",
                            size: catalogBytes(line.items.reduce(0) { $0 + $1.estimatedBytes }, complete: line.items.allSatisfy(\.sizeComplete),
                                               upperBound: line.rule.estimateIsUpperBound, estimate: line.items.contains(where: \.sizeIsEstimate)),
-                           symbol: "folder", inspected: false, inspect: { Finder.reveal(line.items.map(\.url)) }) {
+                           symbol: "folder", inspected: false,
+                           // Clicking the line ticks it, as its checkbox does; Finder is its own Reveal link (#367, Decision 72).
+                           inspect: line.rule.itemRowClick == .tick ? { if model.canEdit { model.setSelected(line.items, !line.items.allSatisfy(model.isSelected)) } } : nil,
+                           actionLabel: "Include " + line.name, reveal: { Finder.reveal(line.items.map(\.url)) }, revealIdentifier: "smartCleanLineReveal-" + line.id) {
             Toggle("Include " + line.name, isOn: Binding(get: { line.items.allSatisfy(model.isSelected) }, set: { model.setSelected(line.items, $0) }))
                 .labelsHidden().disabled(!model.canEdit).accessibilityIdentifier("smartCleanLine-" + line.id)
         }.help(line.items.map(\.url.path).sorted().joined(separator: "\n"))
