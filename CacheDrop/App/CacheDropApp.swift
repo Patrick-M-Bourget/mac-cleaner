@@ -234,18 +234,13 @@ private struct WorkspaceView: View {
                         caller: explorerCaller.rawValue, back: { nativeInspectionVisible = false; destination = explorerCaller }, unavailable: explorerUnavailable)
                     // "N selected", then Add to cleanup plan once something is ticked (#320).
                     ActionStrip(message: explorerSelectedCount > 0 ? "\(explorerSelectedCount) selected" : nil) {
-                        Button("Add to cleanup plan") {
-                            nativeInspectionVisible = false
-                            planReturnsToExplorer = explorerCaller != .plan
-                            planPresentation.expandedCategories.insert(UserFiles.rule.category)
-                            destination = .plan
-                        }.buttonStyle(.borderedProminent).disabled(explorerSelectedCount == 0 || selection.workspaceRunning)
+                        Button("Add to cleanup plan", action: addExplorerSelectionToPlan).buttonStyle(.borderedProminent).disabled(explorerSelectedCount == 0 || selection.workspaceRunning)
                     }
                 } else if showsPlan {
                     LiveCleanupPlanView(selection: selection,
                         viewHistory: { destination = .history }, newPlan: startNewPlan,
                         reviewRecovery: { openRecovery(caller: .plan) },
-                        backToExplorer: navigationState.planReturnsToGrowth ? { navigationState.planReturnsToGrowth = false; destination = .growth } : planReturnsToExplorer ? { nativeInspectionVisible = true; planReturnsToExplorer = false } : nil,
+                        backToExplorer: planBack,
                         backToExplorerDestination: navigationState.planReturnsToGrowth ? Destination.growth.rawValue : explorerContext.title,
                         presentation: planPresentation, exploreStorage: { exploreStorage(caller: .plan) })
                 } else if showsSmartClean {
@@ -665,6 +660,21 @@ private struct WorkspaceView: View {
     }
     /// Explore storage, as Overview's link and the empty states lead there (#320, #321): with no scanned folder yet,
     /// Locations & access, where folders are added.
+    /// The plan's back button: to Storage trends or Explore storage when the plan was opened from there, otherwise none.
+    private var planBack: (() -> Void)? {
+        if navigationState.planReturnsToGrowth { return { navigationState.planReturnsToGrowth = false; destination = .growth } }
+        if planReturnsToExplorer { return { nativeInspectionVisible = true; planReturnsToExplorer = false } }
+        return nil
+    }
+
+    /// Explore storage's "Add to cleanup plan" (#320): opens the plan on Large and old files, with a way back to the explorer.
+    private func addExplorerSelectionToPlan() {
+        nativeInspectionVisible = false
+        planReturnsToExplorer = explorerCaller != .plan
+        planPresentation.expandedCategories.insert(UserFiles.rule.category)
+        destination = .plan
+    }
+
     private func exploreStorage(caller: Destination) {
         if hasScannedFolder { openExplorer(caller: caller) } else { navigate(.locations) }
     }
