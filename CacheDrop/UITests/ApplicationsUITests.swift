@@ -132,6 +132,37 @@ final class ApplicationsUITests: XCTestCase {
         XCTAssertTrue(app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "Uninstalled Synth · 3 items")).firstMatch.waitForExistence(timeout: 10))
     }
 
+    /// #303: after an uninstall, Done rescans. While it runs the bar shows its progress and the other app's row says it is
+    /// being checked; then its checkbox comes back.
+    @MainActor func testApplicationsRescansAfterAnUninstallAndRowsSayTheyAreBeingChecked() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        let state = try configureIsolatedState(app)
+        let home = try configureCatalogHome(app)
+        defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
+        let synth = try addApp("Synth", id: "com.maker.synth", bytes: 90_000, in: home)
+        let pad = try addApp("Pad", id: "com.maker.pad", bytes: 90_000, in: home)
+        app.launchEnvironment["CACHEDROP_TEST_DISCOVERY_PAUSE"] = "0.5"
+        app.launch()
+        waitForCatalogScan(app)
+        app.typeKey("5", modifierFlags: .command)
+
+        let synthRow = element(app, "applicationsApp-" + synth.path, .checkBox)
+        XCTAssertTrue(synthRow.waitForExistence(timeout: 10))
+        revealAndClick(synthRow, in: app)
+        app.buttons["Review cleanup"].click()
+        XCTAssertTrue(app.buttons["Clean up"].waitForExistence(timeout: 5))
+        cleanUpFromReview(app)
+        XCTAssertTrue(app.buttons["Done"].waitForExistence(timeout: 20))
+        app.buttons["Done"].click()
+
+        XCTAssertTrue(app.staticTexts["catalogScanProgress"].waitForExistence(timeout: 10), "Done rescans, and the bar shows its progress")
+        XCTAssertTrue(element(app, "applicationsChecking-" + pad.path).waitForExistence(timeout: 5), "A row says it is being checked")
+        let padRow = element(app, "applicationsApp-" + pad.path, .checkBox)
+        XCTAssertTrue(padRow.waitForExistence(timeout: 120), "Its checkbox comes back after the scan")
+        XCTAssertFalse(element(app, "applicationsChecking-" + pad.path).exists)
+    }
+
     /// #176: a plug-in product is ticked with its removable formats, its AU (which needs a password) is listed without a
     /// checkbox and the review says it stays, the VST3 goes to the fixture Trash, and History says "Uninstalled <Product>".
     /// This is #176's one real check (#288): the real app's scan, check and run on a disposable plug-in built in a temp folder.

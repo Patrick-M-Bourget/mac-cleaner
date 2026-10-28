@@ -83,7 +83,6 @@ struct ApplicationsView: View {
             }
         }
         .onChange(of: catalog.selectionRevision) { _, _ in if review != nil { review = nil } }
-        .task { await catalog.scanIfNeeded() }
         // Read again after each catalog scan, so Scan again refreshes the lists too.
         .task(id: catalog.isScanning) { if !catalog.isScanning { await model.load(plugIns: catalog.plugInInventory) } }
     }
@@ -108,6 +107,8 @@ struct ApplicationsView: View {
                 loading("leftovers")
             }
         }.padding(CacheDropDesign.Space.page).frame(maxWidth: .infinity, alignment: .leading)
+            // On the page, not the whole view, so Done after a run, which empties the catalog, scans again (#303).
+            .task { await catalog.scanIfNeeded() }
     }
 
     /// A section's lists come after the catalog scan; until then, and while they are read, it says it is looking (#270).
@@ -183,6 +184,9 @@ struct ApplicationsView: View {
             } else if catalog.hasScanned, !catalog.isScanning {
                 // A removable app the scan didn't offer says why, rather than showing a bare row (#281).
                 StatusRow(text: "Not offered: excluded in Settings, or changed since the scan", identifier: "applicationsNotOffered-" + entry.id)
+            } else {
+                // Until the scan says what can go with it, the row says so rather than looking final (#303).
+                StatusRow(text: "Checking what can be removed…", symbol: "hourglass", identifier: "applicationsChecking-" + entry.id)
             }
         } items: {
             if !uninstall.isEmpty {
