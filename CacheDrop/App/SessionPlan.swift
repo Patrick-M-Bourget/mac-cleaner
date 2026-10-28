@@ -31,7 +31,7 @@ struct RefreshRequest: Sendable {
     }
     /// "X of this goes to Trash", only when the selection includes Trash-bound items (that space stays used until Trash is emptied).
     var workspaceTrashNote: String? {
-        catalog.selectedTrashBytes.map { ByteCountFormatter.string(fromByteCount: $0, countStyle: .decimal) + " of this goes to Trash" }
+        CacheDropDesign.goesToTrash(catalog.selectedCandidates)
     }
     /// The last run left records whose outcome is unknown; they must be reviewed before another plan.
     var requiresRecoveryReview: Bool {
