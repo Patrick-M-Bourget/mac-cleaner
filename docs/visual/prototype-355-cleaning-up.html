@@ -1,0 +1,653 @@
+<!doctype html>
+<!--
+  PROTOTYPE for #355 (throwaway, lives only on branch prototype/355-cleaning-up, never in main).
+  Question: what should the "Cleaning up…" in-progress state look like, within the owner's direction (a):
+  the disk bar shaves down at its right tip as space is freed, a "freed" count goes up beside it, and the
+  category list ticks off below. Respects Reduce Motion. Design-system tokens only.
+  Three variants on one page, switchable with ?variant=A|B|C, the floating bottom bar, or the ← → keys.
+  Everything is fake: a simulated run of 8 items. No Swift code was touched.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PROTOTYPE #355 Cleaning up</title>
+<style>
+/* Tokens mirror CacheDrop/App/DesignSystem.swift (CacheDropDesign). Text colours and the window chrome come from
+   docs/visual/preview.html (full mode), since SwiftUI takes those from the system. */
+:root {
+  color-scheme: light dark;
+  --space-xs: 4px; --space-sm: 8px; --space-md: 12px; --space-lg: 16px; --space-xl: 24px; --space-page: 32px;
+  --radius-row: 8px; --radius-surface: 12px;
+  --size-meter-compact: 4px; --size-meter: 8px; --size-meter-prominent: 12px;
+  --size-meter-gap: 2px; --size-meter-segment-min: 3px; --size-badge: 32px; --size-device-icon: 44px; --size-hairline: 1px;
+  --opacity-badge-tint: .10; --opacity-meter-dimmed: .30; --opacity-waiting: .45;
+  --font-page: 500 26px/1.25 -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-value: 500 22px/1.2 -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-section: 500 13px/1.35 -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-body: 400 13px/1.4 -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-callout: 400 12px/1.4 -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-caption: 400 10px/1.35 -apple-system, BlinkMacSystemFont, sans-serif;
+  /* Motion: the app's only motion tokens are shimmer 2.4 s and waiting 0.2 s; the shave uses a guessed 0.6 s. */
+  --motion-shave: 600ms;
+  --motion-waiting: 200ms;
+
+  --reading: light-dark(#FFFFFF, #171719);
+  --summary: light-dark(#F7F8FA, #232328);
+  --sidebar: light-dark(#FFFFFF, #242428);
+  --selection: light-dark(#E5EDFA, #353E51);
+  --blue: light-dark(#0877ED, #60A9FF);
+  --purple: light-dark(#9360D8, #B290ED);
+  --teal: light-dark(#2C8C8D, #61C3C2);
+  --orange: light-dark(#BD7527, #E2A35E);
+  --indigo: light-dark(#5856D6, #8583F5);
+  --capacity-fill: light-dark(#969BA7, #858997);
+  --capacity-track: light-dark(#ECEEF2, #33343D);
+  --meter-other: light-dark(#5F6577, #B4B8C5);
+  --meter-trash: light-dark(#C4C8D1, #5A5D69);
+  --accent: light-dark(#007AFF, #0A84FF);          /* .accentColor (system blue) */
+  --success: light-dark(#34C759, #30D158);         /* StatusRole.success = .green */
+  --caution: light-dark(#FF9500, #FF9F0A);         /* StatusRole.caution = .orange */
+  --text: light-dark(#202126, #F3F3F5);            /* preview.html --st-text */
+  --secondary: light-dark(#686B75, #A6A7B2);       /* preview.html --st-secondary */
+  --separator: light-dark(#E7E8EC, #34343C);       /* preview.html --st-line */
+  --chrome: light-dark(#F8F9FB, #26262C);
+  --shadow: light-dark(#1B284B12, #00000040);
+  --highlight: light-dark(#FFFFFFD9, #FFFFFF14);
+}
+:root[data-theme="light"] { color-scheme: light; }
+:root[data-theme="dark"] { color-scheme: dark; }
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { background: light-dark(#E9EBF0, #0E0E10); color: var(--text); font: var(--font-body); padding: 44px 16px 120px; }
+.numeric { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.secondary { color: var(--secondary); }
+.caption { font: var(--font-caption); }
+.callout { font: var(--font-callout); }
+.section { font: var(--font-section); }
+svg.icon { width: 16px; height: 16px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+
+/* PROTOTYPE marking */
+.proto-ribbon { position: fixed; top: 0; left: 0; right: 0; z-index: 50; background: repeating-linear-gradient(45deg, #FFD60A, #FFD60A 14px, #1C1C1E 14px, #1C1C1E 28px); padding: 4px 0; }
+.proto-ribbon span { display: block; width: max-content; margin: 0 auto; background: #1C1C1E; color: #FFD60A; font: 600 11px/1.6 ui-monospace, Menlo, monospace; letter-spacing: .08em; padding: 2px 12px; border-radius: 4px; }
+
+/* Window, after preview.html's .st-window */
+.window { max-width: 980px; margin: 0 auto; background: var(--reading); border: 1px solid var(--separator); border-radius: 19px; overflow: hidden; box-shadow: 0 16px 48px var(--shadow), inset 0 1px 0 var(--highlight); }
+.chrome { display: grid; grid-template-columns: 190px minmax(0, 1fr); min-height: 52px; background: var(--chrome); border-bottom: 1px solid var(--separator); }
+.lights { display: flex; align-items: center; gap: 8px; padding: 0 21px; }
+.lights span { width: 12px; height: 12px; border-radius: 50%; }
+.lights span:nth-child(1) { background: #FF6058; } .lights span:nth-child(2) { background: #FEBC2E; } .lights span:nth-child(3) { background: #28C840; }
+.toolbar { display: flex; align-items: center; padding: 0 24px; font: var(--font-section); }
+.layout { display: grid; grid-template-columns: 190px minmax(0, 1fr); min-height: 640px; }
+.sidebar { background: var(--sidebar); border-right: 1px solid var(--separator); padding: 19px 12px; display: flex; flex-direction: column; gap: 4px; }
+.brand { display: flex; align-items: center; gap: 10px; padding: 0 9px 24px; font: 500 17px/1 -apple-system, sans-serif; letter-spacing: -.4px; }
+.brand-mark { width: 24px; height: 24px; border-radius: 7px; background: linear-gradient(145deg, #90BDFF, #5484E8 60%, #746DE1); }
+.nav { display: flex; align-items: center; gap: 9px; padding: 8px 10px; border-radius: var(--radius-row); color: var(--secondary); }
+.nav[aria-current] { background: var(--selection); color: var(--text); }
+.nav svg { color: var(--blue); }
+.main { display: flex; flex-direction: column; min-width: 0; background: var(--reading); }
+.page { flex: 1; padding: var(--space-page); display: flex; flex-direction: column; gap: var(--space-xl); }
+h1 { margin: 0; font: var(--font-page); letter-spacing: -.6px; }
+.subtitle { font: var(--font-callout); color: var(--secondary); margin-top: var(--space-xs); }
+
+/* ActionStrip */
+.strip { display: flex; align-items: center; gap: var(--space-md); border-top: 1px solid var(--separator); padding: var(--space-md) var(--space-page); min-height: 56px; }
+.strip .note { flex: 1; font: var(--font-caption); color: var(--secondary); }
+.btn { font: var(--font-body); border: 1px solid var(--separator); background: var(--summary); color: var(--text); border-radius: 6px; padding: 4px 12px; cursor: pointer; }
+.btn.prominent { background: var(--accent); border-color: var(--accent); color: #fff; }
+.btn:disabled { opacity: var(--opacity-waiting); cursor: default; }
+
+/* SummarySurface */
+.surface { background: var(--summary); border: 1px solid var(--separator); border-radius: var(--radius-surface); padding: var(--space-lg); }
+
+/* The meter (#343): grey used fill, the detected part at the right tip of the used space, free space is the track.
+   Pieces are absolutely placed so the same component can show the whole disk or a magnified window of it. */
+.meter { position: relative; background: var(--capacity-track); border-radius: 999px; overflow: hidden; }
+.meter.prominent { height: var(--size-meter-prominent); }
+.meter.regular { height: var(--size-meter); }
+.meter .piece { position: absolute; top: 0; bottom: 0; transition: left var(--motion-shave) cubic-bezier(.3,.7,.2,1), width var(--motion-shave) cubic-bezier(.3,.7,.2,1), background-color var(--motion-shave) ease; }
+.meter .used-clip { position: absolute; top: 0; bottom: 0; left: 0; border-radius: 999px; overflow: hidden; transition: width var(--motion-shave) cubic-bezier(.3,.7,.2,1); }
+.meter.lens .used-clip { border-top-left-radius: 0; border-bottom-left-radius: 0; }
+.meter .piece.rest { background: var(--capacity-fill); }
+.meter .piece.active { animation: waiting 1.4s ease-in-out infinite alternate; }
+@keyframes waiting { to { opacity: var(--opacity-waiting); } }
+
+/* Category badge */
+.badge { width: var(--size-badge); height: var(--size-badge); border-radius: var(--radius-row); display: grid; place-items: center; flex: none; color: var(--c); background: color-mix(in srgb, var(--c) calc(var(--opacity-badge-tint) * 100%), transparent); }
+
+/* Row status glyphs */
+.status { width: 16px; height: 16px; flex: none; display: grid; place-items: center; }
+.status .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--capacity-track); box-shadow: inset 0 0 0 1px var(--capacity-fill); }
+.status .spin { width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--capacity-track); border-top-color: var(--accent); animation: spin .9s linear infinite; }
+.status .working { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
+.status .ok { color: var(--success); } .status .skip { color: var(--caution); } .status .none { color: var(--secondary); }
+@keyframes spin { to { transform: rotate(360deg); } }
+.status .ok svg, .status .skip svg, .status .none svg { width: 16px; height: 16px; }
+.tick-in { animation: tick .35s cubic-bezier(.3,1.4,.5,1); }
+@keyframes tick { from { transform: scale(.4); opacity: 0; } }
+
+/* Reduce Motion: nothing moves; values step. */
+.reduce-motion *, .reduce-motion *::before, .reduce-motion *::after { transition: none !important; animation: none !important; }
+
+/* ---------- Variant A: device card, freed tag riding the tip ---------- */
+.a-top { display: flex; align-items: flex-start; gap: var(--space-md); }
+.device-icon { width: var(--size-device-icon); height: var(--size-device-icon); border-radius: var(--radius-row); border: .5px solid var(--separator); background: linear-gradient(var(--reading), var(--summary)); display: grid; place-items: center; color: var(--secondary); }
+.a-avail { margin-left: auto; text-align: right; }
+.a-avail strong { display: block; font: var(--font-value); }
+.a-meter-wrap { position: relative; margin-top: var(--space-xl); padding-top: 26px; }
+.a-tag { position: absolute; top: 0; transform: translateX(-100%); white-space: nowrap; font: var(--font-callout); font-weight: 500; transition: left var(--motion-shave) cubic-bezier(.3,.7,.2,1); padding-right: 6px; border-right: var(--size-hairline) solid var(--secondary); height: 34px; line-height: 18px; }
+.a-tag.pinned { position: static; transform: none; border: 0; padding: 0; height: auto; }
+.a-foot { display: flex; justify-content: space-between; gap: var(--space-md); margin-top: var(--space-md); }
+.a-list { border: 1px solid var(--separator); border-radius: var(--radius-surface); overflow: hidden; }
+.a-row { display: grid; grid-template-columns: 16px var(--size-badge) minmax(0, 1fr) auto; gap: var(--space-md); align-items: center; padding: var(--space-md) var(--space-lg); border-bottom: 1px solid var(--separator); transition: background-color var(--motion-shave); }
+.a-row:last-child { border-bottom: 0; }
+.a-row.current { background: color-mix(in srgb, var(--selection) 55%, transparent); }
+.a-row .size { text-align: right; }
+.a-row.waiting .badge, .a-row.waiting .title { opacity: var(--opacity-waiting); }
+.a-done { display: flex; align-items: center; gap: var(--space-sm); font: var(--font-callout); }
+
+/* ---------- Variant B: counter beside the bar, live log ---------- */
+.b-hero { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: var(--space-xl); align-items: center; }
+.b-count strong { display: block; font: var(--font-page); letter-spacing: -.6px; }
+.b-bar-col .row { display: flex; justify-content: space-between; margin-top: var(--space-sm); }
+.b-now { display: flex; align-items: center; gap: var(--space-md); padding: var(--space-md) 0; border-top: 1px solid var(--separator); border-bottom: 1px solid var(--separator); }
+.b-now .grow { flex: 1; min-width: 0; }
+.b-log { display: flex; flex-direction: column; }
+.b-entry { display: grid; grid-template-columns: 16px minmax(0, 1fr) auto; gap: var(--space-md); align-items: center; padding: var(--space-sm) 0; }
+.b-entry.enter { animation: enter .4s cubic-bezier(.3,.7,.2,1); }
+@keyframes enter { from { opacity: 0; transform: translateY(-6px); } }
+.b-cat { margin-top: var(--space-md); }
+.b-cat:first-child { margin-top: 0; }
+.b-catline { display: flex; align-items: center; gap: var(--space-sm); padding: var(--space-sm) 0; border-bottom: 1px solid var(--separator); }
+.b-catline .sw { width: 8px; height: 8px; border-radius: 2px; background: var(--c); }
+.b-more { padding: var(--space-sm) 0 0 28px; }
+
+/* ---------- Variant C: magnified tip + receipt ---------- */
+.c-whole { display: flex; align-items: center; gap: var(--space-md); }
+.c-whole .meter { flex: 1; }
+.c-lens-wrap { position: relative; margin-top: var(--space-sm); }
+.c-lens-guides { height: 14px; position: relative; }
+.c-lens-guides svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.c-lens-head { display: flex; justify-content: space-between; align-items: baseline; margin: var(--space-sm) 0 var(--space-sm); }
+.c-lens-head strong { font: var(--font-value); }
+.c-lens-scale { display: flex; justify-content: space-between; margin-top: var(--space-xs); }
+.c-receipt { border-top: 1px solid var(--separator); }
+.c-line { display: grid; grid-template-columns: 16px minmax(0, 1fr) 96px 80px; gap: var(--space-md); align-items: baseline; padding: var(--space-sm) 0; border-bottom: 1px dashed var(--separator); }
+.c-line .amt, .c-line .run { text-align: right; }
+.c-line.head { border-bottom: 1px solid var(--separator); padding-top: var(--space-md); }
+.c-line.struck .amt { text-decoration: line-through; color: var(--secondary); }
+.c-total { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--space-md); padding: var(--space-md) 0 0; border-top: 2px solid var(--text); margin-top: -1px; clip-path: inset(0 100% 0 0); transition: clip-path 700ms ease; }
+.c-total.show { clip-path: inset(0 0 0 0); }
+.c-total strong { font: var(--font-value); }
+
+/* ---------- Prototype controls (deliberately not CacheDrop's look) ---------- */
+.switcher { position: fixed; left: 50%; bottom: 16px; transform: translateX(-50%); z-index: 60; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; justify-content: center; max-width: calc(100vw - 32px); background: #1C1C1E; color: #F2F2F7; padding: 6px 8px; border-radius: 999px; box-shadow: 0 8px 28px #0007, 0 0 0 1px #FFD60A88; font: 500 12px/1 ui-monospace, Menlo, monospace; }
+.switcher button, .switcher select { font: inherit; color: inherit; background: #3A3A3C; border: 0; border-radius: 999px; padding: 6px 10px; cursor: pointer; }
+.switcher .label { padding: 0 6px; min-width: 190px; text-align: center; color: #FFD60A; }
+.switcher label { display: flex; align-items: center; gap: 4px; padding: 0 4px; }
+.switcher .sep { width: 1px; height: 18px; background: #48484A; }
+.statepanel { max-width: 980px; margin: 16px auto 0; overflow: auto; background: #1C1C1EEE; color: #D1D1D6; font: 11px/1.45 ui-monospace, Menlo, monospace; padding: 10px 12px; border-radius: 10px; box-shadow: 0 0 0 1px #FFD60A66; white-space: pre; }
+.statepanel b { color: #FFD60A; font-weight: 600; }
+.statepanel[hidden] { display: none; }
+
+@media (max-width: 760px) {
+  .chrome, .layout { grid-template-columns: minmax(0, 1fr); }
+  .a-top { flex-wrap: wrap; } .a-avail { margin-left: 0; width: 100%; text-align: left; }
+  .switcher .label { min-width: 0; }
+  .lights { padding: 12px 16px; } .toolbar { display: none; }
+  .sidebar { display: none; }
+  .page { padding: var(--space-xl) var(--space-lg); }
+  .strip { padding: var(--space-md) var(--space-lg); flex-wrap: wrap; }
+  .b-hero { grid-template-columns: 1fr; gap: var(--space-md); }
+  .c-line { grid-template-columns: 16px minmax(0, 1fr) 72px 64px; gap: var(--space-sm); }
+}
+</style>
+</head>
+<body>
+<div class="proto-ribbon"><span>PROTOTYPE · #355 · throwaway · sample data, not the app</span></div>
+
+<div class="window" aria-label="CacheDrop (prototype)">
+  <header class="chrome"><div class="lights" aria-hidden="true"><span></span><span></span><span></span></div><div class="toolbar" id="toolbarTitle">Cleanup plan</div></header>
+  <div class="layout">
+    <aside class="sidebar" aria-label="Sidebar (static)">
+      <div class="brand"><span class="brand-mark"></span>CacheDrop</div>
+      <div class="nav"><svg class="icon" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>Overview</div>
+      <div class="nav"><svg class="icon" viewBox="0 0 24 24"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/></svg>Smart clean</div>
+      <div class="nav" aria-current="page"><svg class="icon" viewBox="0 0 24 24"><path d="M9 11l3 3 8-8"/><path d="M20 12v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h9"/></svg>Cleanup plan</div>
+      <div class="nav"><svg class="icon" viewBox="0 0 24 24"><path d="M3 17l6-6 4 4 8-8"/><path d="M14 7h7v7"/></svg>Storage trends</div>
+      <div class="nav"><svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>History</div>
+      <div class="nav"><svg class="icon" viewBox="0 0 24 24"><path d="M12 21s-7-6.2-7-11a7 7 0 0 1 14 0c0 4.8-7 11-7 11z"/><circle cx="12" cy="10" r="2.5"/></svg>Locations &amp; access</div>
+    </aside>
+    <div class="main">
+      <div class="page" id="page"></div>
+      <div class="strip" id="strip"></div>
+    </div>
+  </div>
+</div>
+
+<pre class="statepanel" id="statepanel" aria-live="off"></pre>
+
+<div class="switcher" role="toolbar" aria-label="Prototype controls">
+  <button id="prev" aria-label="Previous variant">←</button>
+  <span class="label" id="variantLabel"></span>
+  <button id="next" aria-label="Next variant">→</button>
+  <span class="sep"></span>
+  <button id="replay">↻ Replay</button>
+  <select id="speed" aria-label="Speed"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option><option value="4">4×</option></select>
+  <label><input type="checkbox" id="rm"> Reduce Motion</label>
+  <select id="theme" aria-label="Appearance"><option value="">System</option><option value="light">Light</option><option value="dark">Dark</option></select>
+  <select id="disk" aria-label="Disk"><option value="256">256 GB Mac</option><option value="1000">1 TB Mac</option></select>
+  <button id="stateToggle">State</button>
+</div>
+
+<script>
+(() => {
+// ---------- Fake data ----------
+const GB = 1e9;
+const CAT = {
+  developer: { title: 'Developer files', color: '--purple', icon: 'hammer' },
+  browser:   { title: 'Browser caches',  color: '--teal',   icon: 'globe' },
+  downloads: { title: 'Old downloads',   color: '--orange', icon: 'box' },
+  leftovers: { title: 'Leftovers of removed apps', color: '--indigo', icon: 'dashed' },
+};
+// Order = the order the executor resolves them. action: delete (frees now) or trash (stays used until the Trash is emptied).
+const PLAN = [
+  { id: 'derived',   cat: 'developer', title: 'Xcode DerivedData',        detail: 'Rebuilds on your next build', bytes: 12.4, action: 'delete', ms: 2600 },
+  { id: 'npm',       cat: 'developer', title: 'npm cache',                detail: 'npm cache clean --force',     bytes: 3.1,  action: 'delete', ms: 2200 },
+  { id: 'brew',      cat: 'developer', title: 'Homebrew downloads',       detail: 'brew cleanup',                bytes: 0.8,  action: 'delete', ms: 1300 },
+  { id: 'chrome',    cat: 'browser',   title: 'Chrome cache',             detail: 'Default profile',             bytes: 1.2,  action: 'delete', ms: 1000 },
+  { id: 'safari',    cat: 'browser',   title: 'Safari cache',             detail: 'Safari is open',              bytes: 0.6,  action: 'delete', ms: 500, skip: 'Skipped · Safari is open' },
+  { id: 'installers',cat: 'downloads', title: 'Installers (.dmg, .pkg)',  detail: '14 files in Downloads',       bytes: 4.1,  action: 'trash',  ms: 900 },
+  { id: 'oldfiles',  cat: 'downloads', title: 'Large files over a year old', detail: '6 files in Downloads',     bytes: 2.1,  action: 'trash',  ms: 900 },
+  { id: 'gonesynth', cat: 'leftovers', title: 'Gone Synth',               detail: '~/Library/Application Support', bytes: 0.9, action: 'trash', ms: 700 },
+];
+const DISKS = { '256': { name: 'Macintosh HD', total: 245.1, available: 14.2 }, '1000': { name: 'Macintosh HD', total: 994.7, available: 61.3 } };
+const PLAN_TOTAL = PLAN.reduce((s, i) => s + i.bytes, 0);
+
+const ICON = {
+  hammer: '<path d="M15 12l-8.5 8.5a2.1 2.1 0 0 1-3-3L12 9"/><path d="M17.6 15L22 10.6"/><path d="M20.9 11.7l-1.3-1.3a2.4 2.4 0 0 1-.7-1.7V7.4l-2.3-2.3A5.6 5.6 0 0 0 12.6 3H9l.9.8A6.2 6.2 0 0 1 12 8.4v1.7l2 2h1.2a2.4 2.4 0 0 1 1.7.7l1.3 1.3"/>',
+  globe: '<circle cx="12" cy="12" r="9"/><path d="M3 12h18"/><path d="M12 3a14 14 0 0 1 0 18a14 14 0 0 1 0-18"/>',
+  box: '<path d="M21 8l-9-5-9 5v8l9 5 9-5z"/><path d="M3 8l9 5 9-5"/><path d="M12 13v8"/>',
+  dashed: '<path d="M5 3h2M11 3h2M17 3h2M5 21h2M11 21h2M17 21h2M3 5v2M3 11v2M3 17v2M21 5v2M21 11v2M21 17v2"/>',
+  drive: '<rect x="2" y="13" width="20" height="7" rx="2"/><path d="M5 13l2.5-8h9L19 13"/><path d="M17 16.5h.01"/>',
+  check: '<circle cx="12" cy="12" r="9" fill="currentColor" stroke="none"/><path d="M8 12.5l2.7 2.7L16 9.5" stroke="var(--reading)" stroke-width="2"/>',
+  skip: '<circle cx="12" cy="12" r="9"/><path d="M12 8v5"/><path d="M12 16h.01"/>',
+  none: '<circle cx="12" cy="12" r="9"/><path d="M8 12h8"/>',
+  trash: '<path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M6 6l1 14h10l1-14"/>',
+};
+const svg = (name, cls = '') => `<svg class="${cls}" viewBox="0 0 24 24">${ICON[name]}</svg>`.replace('class=""', 'class="icon"');
+const fmt = (gb) => gb <= 0.0001 ? '0 GB' : gb < 1 ? Math.round(gb * 1000) + ' MB' : gb.toFixed(1) + ' GB';
+const cssVar = (v) => `var(${v})`;
+
+// ---------- Controls & URL ----------
+const params = new URLSearchParams(location.search);
+const VARIANTS = [
+  { key: 'A', name: 'Tip tag + category list' },
+  { key: 'B', name: 'Counter beside bar + live log' },
+  { key: 'C', name: 'Magnified tip + receipt' },
+];
+let variant = VARIANTS.find(v => v.key === (params.get('variant') || 'A').toUpperCase()) || VARIANTS[0];
+let speed = Number(params.get('speed')) || 1;
+const mq = matchMedia('(prefers-reduced-motion: reduce)');
+let reduceMotion = params.has('rm') ? params.get('rm') === '1' : mq.matches;
+let theme = params.get('theme') || '';
+let diskKey = params.get('disk') === '1000' ? '1000' : '256';
+const $ = (id) => document.getElementById(id);
+$('speed').value = String(speed); $('rm').checked = reduceMotion; $('theme').value = theme; $('disk').value = diskKey;
+
+function writeURL() {
+  const p = new URLSearchParams(location.search);
+  p.set('variant', variant.key);
+  speed === 1 ? p.delete('speed') : p.set('speed', speed);
+  theme ? p.set('theme', theme) : p.delete('theme');
+  diskKey === '256' ? p.delete('disk') : p.set('disk', diskKey);
+  reduceMotion === mq.matches ? p.delete('rm') : p.set('rm', reduceMotion ? '1' : '0');
+  history.replaceState(null, '', '?' + p.toString());
+}
+function applyEnv() {
+  document.documentElement.classList.toggle('reduce-motion', reduceMotion);
+  theme ? document.documentElement.setAttribute('data-theme', theme) : document.documentElement.removeAttribute('data-theme');
+  document.documentElement.style.setProperty('--motion-shave', Math.round(600 / Math.max(speed, 1)) + 'ms');
+  $('variantLabel').textContent = `${variant.key} (${variant.name})`;
+}
+function cycle(d) { const i = VARIANTS.indexOf(variant); variant = VARIANTS[(i + d + VARIANTS.length) % VARIANTS.length]; writeURL(); applyEnv(); start(); }
+$('prev').onclick = () => cycle(-1); $('next').onclick = () => cycle(1);
+$('replay').onclick = () => start();
+$('speed').onchange = (e) => { speed = Number(e.target.value); writeURL(); applyEnv(); };
+$('rm').onchange = (e) => { reduceMotion = e.target.checked; writeURL(); applyEnv(); mount(); };
+mq.addEventListener('change', () => { reduceMotion = mq.matches; $('rm').checked = reduceMotion; applyEnv(); mount(); });
+$('theme').onchange = (e) => { theme = e.target.value; writeURL(); applyEnv(); };
+$('disk').onchange = (e) => { diskKey = e.target.value; writeURL(); start(); };
+$('stateToggle').onclick = () => { $('statepanel').hidden = !$('statepanel').hidden; };
+addEventListener('keydown', (e) => {
+  if (e.target.closest('input, textarea, select, [contenteditable]')) return;
+  if (e.key === 'ArrowLeft') cycle(-1); if (e.key === 'ArrowRight') cycle(1);
+});
+
+// ---------- Simulated run (what CleanupExecutor's progress callback would give: resolved/total/last record) ----------
+let S, timers = [];
+function fresh() {
+  const disk = DISKS[diskKey];
+  return { phase: 'preparing', disk, current: -1, resolved: 0, total: PLAN.length, stopRequested: false,
+    items: PLAN.map(p => ({ ...p, status: 'waiting' })), freed: 0, trashed: 0, skipped: 0, last: null };
+}
+const later = (fn, ms) => timers.push(setTimeout(fn, ms / speed));
+function start() {
+  timers.forEach(clearTimeout); timers = [];
+  S = fresh(); mount();
+  later(() => step(0), 500);
+}
+function step(i) {
+  if (i >= S.items.length || S.stopRequested) return finish();
+  S.phase = 'running'; S.current = i; S.items[i].status = 'active'; emit({ type: 'start', i });
+  later(() => {
+    const it = S.items[i];
+    if (it.skip) { it.status = 'skipped'; S.skipped += it.bytes; }
+    else { it.status = 'done'; if (it.action === 'delete') S.freed += it.bytes; else S.trashed += it.bytes; }
+    S.resolved++; S.last = it.id; emit({ type: 'resolve', i });
+    later(() => step(i + 1), 250);
+  }, S.items[i].ms);
+}
+function finish() {
+  S.items.forEach(it => { if (it.status === 'waiting') it.status = 'notStarted'; });
+  S.current = -1; S.phase = 'settling'; emit({ type: 'settling' });
+  later(() => { S.phase = 'finished'; emit({ type: 'finished' }); }, 800);
+}
+function stopRun() { S.stopRequested = true; emit({ type: 'stopRequested' }); }
+
+// ---------- Shared pieces: the #343 meter, the action strip, the counter ----------
+// Draws used space as grey fill with the plan's items at the right tip, in reverse resolve order so the item being
+// cleaned is always the outermost one: freed items shrink to nothing, Trash items turn the Trash grey and stay.
+function makeMeter(host, { size = 'prominent', lens = false } = {}) {
+  host.innerHTML = `<div class="meter ${size}${lens ? ' lens' : ''}" role="progressbar" aria-label="Macintosh HD used space"><div class="used-clip"><div class="piece rest"></div>${
+    [...S.items].reverse().map(it => `<div class="piece" data-id="${it.id}"></div>`).join('')}</div></div>`;
+  const el = host.firstElementChild, clip = el.firstElementChild, rest = clip.firstElementChild;
+  const pieces = Object.fromEntries([...clip.querySelectorAll('[data-id]')].map(p => [p.dataset.id, p]));
+  function update() {
+    const W = el.clientWidth, d = S.disk;
+    const used0 = d.total - d.available;
+    // Window shown: whole disk, or (lens) the last stretch of used space around the plan.
+    const from = lens ? Math.max(0, used0 - PLAN_TOTAL * 1.35) : 0, to = lens ? used0 + PLAN_TOTAL * 0.04 : d.total;
+    const px = (gb) => (gb - from) / (to - from) * W;
+    const used = used0 - S.freed;
+    clip.style.width = Math.max(0, px(used)) + 'px';
+    const shown = S.items.filter(it => !(it.status === 'done' && it.action === 'delete'));
+    const shownBytes = shown.reduce((s, it) => s + it.bytes, 0);
+    let x = used - shownBytes; // where the plan's part starts
+    rest.style.left = '0px'; rest.style.width = Math.max(0, px(x)) + 'px';
+    const gap = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--size-meter-gap')) || 2;
+    const minW = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--size-meter-segment-min')) || 3;
+    for (const it of [...S.items].reverse()) {
+      const p = pieces[it.id];
+      const gone = it.status === 'done' && it.action === 'delete';
+      const left = px(x);
+      const w = gone ? 0 : Math.max(minW, px(x + it.bytes) - left - gap);
+      p.style.left = (left + (gone ? 0 : gap)) + 'px';
+      p.style.width = w + 'px';
+      p.style.backgroundColor = (it.status === 'done' && it.action === 'trash') ? cssVar('--meter-trash') : cssVar(CAT[it.cat].color);
+      p.classList.toggle('active', it.status === 'active');
+      p.title = `${it.title} · ${fmt(it.bytes)}` + (it.status === 'done' && it.action === 'trash' ? ' · In Trash' : '');
+      if (!gone) x += it.bytes;
+    }
+    el.setAttribute('aria-valuetext', `${fmt(S.freed)} freed`);
+  }
+  update();
+  return { update, el, px: () => null };
+}
+function renderStrip() {
+  const strip = $('strip');
+  if (S.phase === 'finished') {
+    strip.innerHTML = `<span class="note"></span><button class="btn">View history</button><button class="btn prominent" id="doneBtn">Start a new plan</button>`;
+    $('doneBtn').onclick = () => start();
+  } else {
+    strip.innerHTML = `<span class="note">Stopping won’t undo what’s done. A tool stopped midway may have removed part of its cache.</span>
+      <button class="btn" id="stopBtn" ${S.stopRequested || S.phase === 'settling' ? 'disabled' : ''}>${S.stopRequested ? 'Stop requested' : 'Stop cleanup'}</button>`;
+    const b = $('stopBtn'); if (b) b.onclick = stopRun;
+  }
+}
+// A number that rolls up to its new value, or just changes under Reduce Motion.
+function counter(el, init = 0) {
+  let shown = init, raf = 0;
+  el.textContent = fmt(init);
+  return (to) => {
+    cancelAnimationFrame(raf);
+    if (reduceMotion) { shown = to; el.textContent = fmt(to); return; }
+    const from = shown, t0 = performance.now(), dur = 600 / Math.max(speed, 1);
+    const tick = (t) => { const k = Math.min(1, (t - t0) / dur), e = 1 - Math.pow(1 - k, 3); shown = from + (to - from) * e; el.textContent = fmt(shown); if (k < 1) raf = requestAnimationFrame(tick); };
+    raf = requestAnimationFrame(tick);
+    clearTimeout(el._settle); el._settle = setTimeout(() => { if (shown !== to) { cancelAnimationFrame(raf); shown = to; el.textContent = fmt(to); } }, dur + 120);
+  };
+}
+function statusGlyph(it, { spinner = true } = {}) {
+  switch (it.status) {
+    case 'active': return reduceMotion || !spinner ? '<span class="working"></span>' : '<span class="spin"></span>';
+    case 'done': return `<span class="ok ${reduceMotion ? '' : 'tick-in'}">${svg('check', '')}</span>`;
+    case 'skipped': return `<span class="skip">${svg('skip', '')}</span>`;
+    case 'notStarted': return `<span class="none">${svg('none', '')}</span>`;
+    default: return '<span class="dot"></span>';
+  }
+}
+const header = () => `<div><h1>${S.phase === 'finished' ? 'Cleanup results' : 'Cleaning up…'}</h1><div class="subtitle">${
+  S.phase === 'finished' ? 'Sizes are estimates from the scan.' : `${S.resolved} of ${S.total} items`}</div></div>`;
+function outcomeLine() {
+  const parts = [`${fmt(S.freed)} freed`];
+  if (S.trashed) parts.push(`${fmt(S.trashed)} moved to Trash, freed when you empty it`);
+  const notStarted = S.items.filter(i => i.status === 'notStarted').length;
+  const skipped = S.items.filter(i => i.status === 'skipped');
+  if (skipped.length) parts.push(`${skipped.length} skipped`);
+  if (notStarted) parts.push(`${notStarted} not started`);
+  return parts.join(' · ');
+}
+
+// ---------- Variant A: device card; the freed tag rides the bar's tip; category rows tick off ----------
+const A = {
+  mount(page) {
+    page.innerHTML = `${header()}
+      <div class="surface">
+        <div class="a-top"><div class="device-icon">${svg('drive')}</div>
+          <div><div class="section">${S.disk.name}</div><div class="caption secondary">Startup volume · ${fmt(S.disk.total)}</div></div>
+          <div class="a-avail"><strong class="numeric" id="aAvail"></strong><span class="caption secondary">available</span></div></div>
+        <div class="a-meter-wrap" id="aWrap" ${reduceMotion ? 'style="padding-top:0"' : ''}>
+          ${reduceMotion ? '' : '<div class="a-tag numeric" id="aTag"><span id="aTagNum"></span> <span class="secondary" style="font-weight:400">freed</span></div>'}
+          <div id="aMeter"></div></div>
+        <div class="a-foot"><span class="caption secondary numeric" id="aUsed"></span>
+          ${reduceMotion ? '<span class="callout numeric"><strong id="aTagNum"></strong> <span class="secondary">freed</span></span>' : '<span class="caption secondary">Estimates from the scan</span>'}</div>
+      </div>
+      <div class="a-list" id="aList"></div>
+      <div id="aDone"></div>`;
+    this.meter = makeMeter($('aMeter'));
+    this.count = counter($('aTagNum'), S.freed);
+    this.avail = counter($('aAvail'), S.disk.available + S.freed);
+    this.update({});
+  },
+  cats() {
+    return Object.keys(CAT).map(k => {
+      const items = S.items.filter(i => i.cat === k);
+      const res = items.filter(i => i.status !== 'waiting' && i.status !== 'active');
+      const active = items.find(i => i.status === 'active');
+      let status = 'waiting';
+      if (active) status = 'active';
+      else if (res.length === items.length) status = items.every(i => i.status === 'notStarted') ? 'notStarted' : items.some(i => i.status === 'skipped' || i.status === 'notStarted') ? 'skipped' : 'done';
+      const freed = items.filter(i => i.status === 'done' && i.action === 'delete').reduce((s, i) => s + i.bytes, 0);
+      const trashed = items.filter(i => i.status === 'done' && i.action === 'trash').reduce((s, i) => s + i.bytes, 0);
+      const total = items.reduce((s, i) => s + i.bytes, 0);
+      let detail;
+      if (active) detail = `${active.title} · ${res.length + 1} of ${items.length}`;
+      else if (status === 'waiting') detail = `${items.length} ${items.length === 1 ? 'item' : 'items'} · waiting`;
+      else detail = [freed && `${fmt(freed)} freed`, trashed && `${fmt(trashed)} moved to Trash`,
+        ...items.filter(i => i.status === 'skipped').map(i => i.skip), items.some(i => i.status === 'notStarted') && 'Not started'].filter(Boolean).join(' · ');
+      return { k, status, detail, total, done: status !== 'waiting' && status !== 'active' };
+    });
+  },
+  update(ev) {
+    const d = S.disk;
+    this.meter.update();
+    this.count(S.freed); this.avail(d.available + S.freed);
+    $('aUsed').textContent = `${fmt(d.total - d.available - S.freed)} used`;
+    const tag = $('aTag');
+    if (tag) {
+      const W = this.meter.el.clientWidth, x = (d.total - d.available - S.freed) / d.total * W;
+      tag.style.left = Math.max(tag.offsetWidth, x) + 'px';
+    }
+    const prev = this.prevCats || {};
+    $('aList').innerHTML = this.cats().map(c => {
+      const color = cssVar(CAT[c.k].color);
+      const ticked = c.done && prev[c.k] !== c.status;
+      const g = statusGlyph({ status: c.status });
+      return `<div class="a-row ${c.status === 'active' ? 'current' : ''} ${c.status === 'waiting' ? 'waiting' : ''}">
+        <span class="status">${ticked ? g : g.replace('tick-in', '')}</span>
+        <span class="badge" style="--c:${color}">${svg(CAT[c.k].icon)}</span>
+        <span style="min-width:0"><div class="section title">${CAT[c.k].title}</div><div class="caption secondary">${c.detail}</div></span>
+        <span class="size callout numeric ${c.done ? 'secondary' : ''}">${fmt(c.total)}</span></div>`;
+    }).join('');
+    this.prevCats = Object.fromEntries(this.cats().map(c => [c.k, c.status]));
+    $('aDone').innerHTML = S.phase === 'finished'
+      ? `<div class="a-done"><span class="status"><span class="ok">${svg('check', '')}</span></span><span>${outcomeLine()}</span></div>` : '';
+  },
+};
+
+// ---------- Variant B: big freed counter sits beside the bar; one "now" line; finished items stack as a log ----------
+const B = {
+  mount(page) {
+    page.innerHTML = `${header()}
+      <div class="b-hero">
+        <div class="b-count"><strong class="numeric" id="bCount"></strong><span class="caption secondary" id="bCountSub">freed</span></div>
+        <div class="b-bar-col"><div id="bMeter"></div>
+          <div class="row caption secondary numeric"><span>${S.disk.name}</span><span id="bAvail"></span></div></div>
+      </div>
+      <div class="b-now" id="bNow"></div>
+      <div class="b-log" id="bLog"></div>`;
+    this.meter = makeMeter($('bMeter'));
+    this.count = counter($('bCount'), S.freed);
+    this.logged = new Set();
+    this.update({});
+  },
+  update(ev) {
+    this.meter.update(); this.count(S.freed);
+    $('bAvail').textContent = `${fmt(S.disk.available + S.freed)} available`;
+    $('bCountSub').textContent = S.phase === 'finished' ? 'freed' : `freed of up to ${fmt(S.items.filter(i => i.action === 'delete').reduce((s, i) => s + i.bytes, 0))}`;
+    const active = S.items.find(i => i.status === 'active');
+    const waiting = S.items.filter(i => i.status === 'waiting').length;
+    const now = $('bNow');
+    if (S.phase === 'finished' || S.phase === 'settling') {
+      now.innerHTML = `<span class="status"><span class="ok">${svg('check', '')}</span></span><span class="grow callout">${outcomeLine()}</span>`;
+    } else if (active) {
+      now.innerHTML = `<span class="status">${statusGlyph(active)}</span><span class="badge" style="--c:${cssVar(CAT[active.cat].color)}">${svg(CAT[active.cat].icon)}</span>
+        <span class="grow"><div class="section">${active.action === 'trash' ? 'Moving to Trash: ' : 'Cleaning '}${active.title}</div><div class="caption secondary">${active.detail}</div></span>
+        <span class="callout numeric secondary">${fmt(active.bytes)}</span>`;
+    } else {
+      now.innerHTML = `<span class="status"><span class="dot"></span></span><span class="grow callout secondary">Checking each item again before acting on it…</span>`;
+    }
+    // Log: during the run, newest first, flat; once finished it regroups by category.
+    const log = $('bLog');
+    if (S.phase === 'finished') {
+      log.innerHTML = Object.keys(CAT).map(k => {
+        const items = S.items.filter(i => i.cat === k);
+        return `<div class="b-cat"><div class="b-catline"><span class="sw" style="--c:${cssVar(CAT[k].color)}"></span><span class="section">${CAT[k].title}</span></div>${
+          items.map(i => this.entry(i, false)).join('')}</div>`;
+      }).join('');
+      return;
+    }
+    const resolved = S.items.filter(i => ['done', 'skipped', 'notStarted'].includes(i.status) && i.status !== 'notStarted').reverse();
+    log.innerHTML = resolved.map(i => { const fresh = !this.logged.has(i.id); this.logged.add(i.id); return this.entry(i, fresh && !reduceMotion); }).join('')
+      + (waiting ? `<div class="b-more caption secondary">${waiting} more ${waiting === 1 ? 'item' : 'items'} waiting</div>` : '');
+  },
+  entry(i, animate) {
+    const what = i.status === 'skipped' ? i.skip : i.status === 'notStarted' ? 'Not started' : i.action === 'trash' ? 'Moved to Trash' : 'Freed';
+    return `<div class="b-entry ${animate ? 'enter' : ''}"><span class="status">${statusGlyph(i).replace('tick-in', '')}</span>
+      <span class="callout">${i.title} <span class="secondary">· ${what}</span></span><span class="callout numeric secondary">${fmt(i.bytes)}</span></div>`;
+  },
+};
+
+// ---------- Variant C: compact whole-disk bar plus a magnified window on its tip; items as a running receipt ----------
+const C = {
+  mount(page) {
+    const used0 = S.disk.total - S.disk.available;
+    const from = Math.max(0, used0 - PLAN_TOTAL * 1.35);
+    page.innerHTML = `${header()}
+      <div class="surface">
+        <div class="c-whole"><span class="caption secondary">${S.disk.name}</span><div id="cWhole" style="flex:1"></div><span class="caption secondary numeric" id="cAvail"></span></div>
+        <div class="c-lens-wrap"><div class="c-lens-guides"><svg id="cGuides" preserveAspectRatio="none"></svg></div>
+          <div class="c-lens-head"><span class="callout secondary">The end of your used space, magnified</span><span><strong class="numeric" id="cCount"></strong> <span class="callout secondary">freed</span></span></div>
+          <div id="cLens"></div>
+          <div class="c-lens-scale caption secondary numeric"><span>${fmt(from)}</span><span>${fmt(used0)} before cleanup</span></div></div>
+      </div>
+      <div class="c-receipt" id="cReceipt"></div>`;
+    this.whole = makeMeter($('cWhole'), { size: 'regular' });
+    this.lens = makeMeter($('cLens'), { lens: true });
+    this.count = counter($('cCount'), S.freed);
+    this.update({});
+  },
+  update(ev) {
+    this.whole.update(); this.lens.update(); this.count(S.freed);
+    $('cAvail').textContent = `${fmt(S.disk.available + S.freed)} available`;
+    // Guides from the whole bar's tip region down to the lens edges.
+    const d = S.disk, used0 = d.total - d.available, from = Math.max(0, used0 - PLAN_TOTAL * 1.35), to = used0 + PLAN_TOTAL * 0.04;
+    const wb = this.whole.el.getBoundingClientRect(), gb = $('cGuides').getBoundingClientRect();
+    const x1 = wb.left - gb.left + from / d.total * wb.width, x2 = wb.left - gb.left + to / d.total * wb.width;
+    $('cGuides').setAttribute('viewBox', `0 0 ${gb.width} ${gb.height}`);
+    $('cGuides').innerHTML = `<path d="M${x1} 0 L0 ${gb.height} M${x2} 0 L${gb.width} ${gb.height}" stroke="var(--separator)" stroke-width="1" fill="none"/>`;
+    let running = 0;
+    const rows = S.items.map(i => {
+      const freedHere = i.status === 'done' && i.action === 'delete';
+      if (freedHere) running += i.bytes;
+      const state = i.status === 'active' ? (i.action === 'trash' ? 'Moving to Trash…' : 'Cleaning…') : i.status === 'done' ? (i.action === 'trash' ? 'To Trash' : 'Freed')
+        : i.status === 'skipped' ? 'Skipped' : i.status === 'notStarted' ? 'Not started' : '';
+      const struck = i.status === 'skipped' || i.status === 'notStarted' || (i.status === 'done' && i.action === 'trash');
+      return `<div class="c-line ${struck ? 'struck' : ''}" ${i.status === 'waiting' ? 'style="opacity:var(--opacity-waiting)"' : ''}>
+        <span class="status">${statusGlyph(i, { spinner: false }).replace('tick-in', ev.type === 'resolve' && ev.i === S.items.indexOf(i) ? 'tick-in' : '')}</span>
+        <span style="min-width:0"><span class="callout">${i.title}</span> <span class="caption secondary">${i.status === 'skipped' ? i.skip.replace('Skipped · ', '') : state}</span></span>
+        <span class="amt callout numeric">${fmt(i.bytes)}</span>
+        <span class="run callout numeric secondary">${freedHere ? fmt(running) : ''}</span></div>`;
+    }).join('');
+    $('cReceipt').innerHTML = `<div class="c-line head caption secondary"><span></span><span>Item</span><span style="text-align:right">Size</span><span style="text-align:right">Freed so far</span></div>${rows}
+      <div class="c-total ${S.phase === 'finished' || (reduceMotion && S.phase === 'settling') ? 'show' : ''}" id="cTotal">
+        <span class="callout"><div class="section">Freed</div><div class="caption secondary">${outcomeLine().split(' · ').slice(1).join(' · ') || 'Sizes are estimates from the scan.'}</div></span>
+        <strong class="numeric">${fmt(S.freed)}</strong></div>`;
+    if (ev.type === 'finished' && !reduceMotion) { const t = $('cTotal'); t.classList.remove('show'); requestAnimationFrame(() => requestAnimationFrame(() => t.classList.add('show'))); }
+  },
+};
+
+// ---------- Wiring ----------
+const IMPL = { A, B, C };
+let lastPhase = null;
+function mount() {
+  applyEnv();
+  IMPL[variant.key].mount($('page'));
+  $('toolbarTitle').textContent = 'Cleanup plan';
+  lastPhase = S.phase; renderStrip(); renderState();
+}
+function emit(ev) {
+  const v = IMPL[variant.key];
+  v.update(ev);
+  // Header subtitle and title follow the run.
+  const h = $('page').querySelector('h1'); if (h) h.textContent = S.phase === 'finished' ? 'Cleanup results' : 'Cleaning up…';
+  const sub = $('page').querySelector('.subtitle'); if (sub) sub.textContent = S.phase === 'finished' ? 'Sizes are estimates from the scan.' : `${S.resolved} of ${S.total} items`;
+  if (S.phase !== lastPhase || ev.type === 'stopRequested') renderStrip();
+  lastPhase = S.phase;
+  renderState(ev);
+}
+function renderState(ev = {}) {
+  const icon = { waiting: '·', active: '▶', done: '✓', skipped: '!', notStarted: '–' };
+  $('statepanel').innerHTML = `<b>Simulated run</b>  (event: ${ev.type || 'mount'})
+phase       ${S.phase}${S.stopRequested ? '  (stop requested)' : ''}
+progress    resolved ${S.resolved} / total ${S.total}
+last        ${S.last || 'nil'}
+freed       ${fmt(S.freed)}
+to Trash    ${fmt(S.trashed)}
+skipped     ${fmt(S.skipped)}
+disk        ${fmt(S.disk.total)}, ${fmt(S.disk.available + S.freed)} available
+env         speed ${speed}× · reduceMotion ${reduceMotion} · theme ${theme || 'system'}
+<b>Items</b>
+${S.items.map(i => `${icon[i.status]} ${i.title.padEnd(27).slice(0, 27)} ${fmt(i.bytes).padStart(7)} ${i.action}`).join('\n')}`;
+}
+addEventListener('resize', () => {
+  document.documentElement.classList.add('reduce-motion');
+  IMPL[variant.key].update({ type: 'resize' });
+  requestAnimationFrame(() => document.documentElement.classList.toggle('reduce-motion', reduceMotion));
+});
+writeURL(); applyEnv(); start();
+})();
+</script>
+</body>
+</html>
