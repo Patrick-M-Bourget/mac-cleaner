@@ -32,7 +32,7 @@ import SwiftUI
         let presence = appPresence, system = systemRoot, own = Bundle.main.bundleIdentifier
         (apps, plugIns) = await Task.detached(priority: .userInitiated) {
             (ApplicationsInventory.apps(presence.installedApps() ?? [], excluding: own, home: home),
-             ApplicationsInventory.plugIns(read ?? PlugInInventory.scan(home: home, systemRoot: system)))
+             ApplicationsInventory.plugIns(read ?? PlugInInventory.scan(home: home, systemRoot: system, receipts: ReceiptListings.read(under: system))))
         }.value
     }
     /// The app's own uninstaller or the maker's tool, when it is installed (Decisions 41, 50).

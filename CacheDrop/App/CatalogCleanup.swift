@@ -172,13 +172,6 @@ import SwiftUI
         #endif
         return SystemAppPresence()
     }
-    /// Installer receipts; a debug test run reads none.
-    static func receipts(home: URL) -> any InstallerReceiptReading {
-        #if DEBUG
-        if LocalStateLocation.isDisposableTest { return FixtureAppPresence(home: home) }
-        #endif
-        return SystemInstallerReceipts(home: home)
-    }
 
     /// Overview's summary. While the first scan runs it covers the locations finished so far, so rows and the total fill in
     /// as each one completes (#128); nil until the first one has.
@@ -206,12 +199,12 @@ import SwiftUI
     }
 
     /// Plug-in products to uninstall (#176): their formats, own support files and shared items, never what is `offered` elsewhere.
-    nonisolated private static func plugIns(home: URL, system: URL, installed: [InstalledApp], offered: [Candidate],
+    nonisolated private static func plugIns(home: URL, system: URL, installed: [InstalledApp], receipts: ReceiptListings, offered: [Candidate],
                                             exclusions: ExclusionPolicy) -> (PlugInInventory, [Candidate]) {
-        let inventory = PlugInInventory.scan(home: home, systemRoot: system)
+        let inventory = PlugInInventory.scan(home: home, systemRoot: system, receipts: receipts)
         let owners = ApplicationsInventory.plugIns(inventory).map { ContentOwner($0) } + installed.map { ContentOwner($0) }
         let content = MusicContent.scan(owners: owners, home: home, systemRoot: system).items
-        return (inventory, PlugInUninstall.scan(inventory, apps: installed, receipts: ReceiptListings.read(under: system), content: content, systemRoot: system, offered: offered, exclusions: exclusions))
+        return (inventory, PlugInUninstall.scan(inventory, apps: installed, receipts: receipts, content: content, systemRoot: system, offered: offered, exclusions: exclusions))
     }
 
     /// Which owners are running, and which of them as an open app.
@@ -339,7 +332,7 @@ import SwiftUI
         // After discovery, each later phase is named too (#308).
         let (steps, reporter) = AsyncStream.makeStream(of: CatalogScanStep.self)
         let progress = Task { for await step in steps { scanProgress?.apply(step) } }
-        let presence = Self.appPresence.snapshot(), receipts = Self.receipts(home: home), own = Bundle.main.bundleIdentifier
+        let presence = Self.appPresence.snapshot(), own = Bundle.main.bundleIdentifier
         let scanned = await Task.detached(priority: .userInitiated) { () -> CatalogScanResult in
             // Probed once per scan, at launch too, and shared with the guidance scan: it only opens a protected folder
             // and never prompts (#117).
@@ -358,18 +351,21 @@ import SwiftUI
                 #endif
             }
             enter(.removedAppLeftovers)
+            // Installer receipts, read once for leftovers, app uninstall, plug-ins and their guidance (#318). A debug test run reads the
+            // fixture system root's, so never this Mac's.
+            let listings = ReceiptListings.read(under: system), receipts = ReadReceipts(listings, home: home)
             // Leftovers of removed apps (#173), except what a catalog rule already offers, holds or sits inside.
             let found = RemovedAppLeftovers.scan(home: home, apps: presence, receipts: receipts, exclusions: exclusions)
             let leftovers = RemovedAppLeftovers.notOffered(by: discovered.candidates, found)
-            // Installed apps with their files (#177), each read once; receipts are read once for all of them.
+            // Installed apps with their files (#177), each read once.
             enter(.appsAndPlugIns)
-            let readReceipts = ReadReceipts(receipts.receipts())
             let apps = ApplicationsInventory.withUninstallers(presence.installedApps() ?? [], excluding: own, home: home).flatMap { app, uninstaller in
-                AppUninstall.scan(app, uninstaller: uninstaller, excluding: own, home: home, apps: presence, receipts: readReceipts, leftovers: found, offered: discovered.candidates,
+                AppUninstall.scan(app, uninstaller: uninstaller, excluding: own, home: home, apps: presence, receipts: receipts, leftovers: found, offered: discovered.candidates,
                                   exclusions: exclusions)
             }
             // Plug-in products (#176): their formats, own support files and shared items, never what is offered above.
-            let (inventory, plugIns) = Self.plugIns(home: home, system: system, installed: presence.installedApps() ?? [], offered: discovered.candidates + found + apps,
+            let (inventory, plugIns) = Self.plugIns(home: home, system: system, installed: presence.installedApps() ?? [], receipts: listings,
+                                                    offered: discovered.candidates + found + apps,
                                                     exclusions: exclusions)
             var owners: [String: RuleOwner] = [:], names: [String: [String]] = [:]
             for candidate in discovered.candidates + leftovers + apps + plugIns {
@@ -381,7 +377,8 @@ import SwiftUI
             let running = Self.running(owners, quitter: quitter)
             reporter.finish()
             return CatalogScanResult(discovery: discovered, overriddenRules: catalog.overriddenRules(home: home, systemRoot: system), owners: running.0, openOwners: running.1,
-                                     ownerNames: names, access: access, leftovers: leftovers, uninstallable: apps + plugIns, plugIns: inventory)
+                                     ownerNames: names, access: access, leftovers: leftovers, uninstallable: apps + plugIns, plugIns: inventory,
+                                     receipts: listings)
         }.value
         await progress.value
         scanProgress?.phase = .storageTrends
@@ -393,7 +390,7 @@ import SwiftUI
         setRunning(scanned.owners, open: scanned.openOwners); ownerNames = scanned.ownerNames
         keepOnlyCurrentChoices()
         scanProgress?.phase = .appManagedStorage
-        await scanGuidance(home: home, fullDiskAccess: scanned.access)
+        await scanGuidance(home: home, fullDiskAccess: scanned.access, receipts: scanned.receipts)
     }
     /// What one catalog scan found, handed from the background task to the model.
     private struct CatalogScanResult: Sendable {
@@ -410,6 +407,8 @@ import SwiftUI
         /// Installed apps' and plug-in products' items (#177, #176).
         let uninstallable: [Candidate]
         let plugIns: PlugInInventory
+        /// The scan's one read of the installer receipts, for the guidance scan's plug-in products (#318).
+        let receipts: ReceiptListings
     }
     #if DEBUG
     /// A disposable test run can slow discovery down (`CACHEDROP_TEST_DISCOVERY_PAUSE`, seconds after each location), so a UI journey sees

@@ -238,5 +238,16 @@ extension Candidate {
 public struct ReadReceipts: InstallerReceiptReading {
     let all: [InstallerReceipt]
     public init(_ all: [InstallerReceipt]) { self.all = all }
+    /// The scan's one read of the receipts (#318): the app bundles each installed and what it put in the user's Library.
+    public init(_ listings: ReceiptListings, home: URL) {
+        let library = home.resolvingSymlinksInPath().path + "/Library/"
+        all = listings.listed.map { receipt in
+            var apps = Set<String>()
+            for path in receipt.paths {
+                if let app = path.range(of: ".app/").map({ String(path[..<$0.lowerBound]) + ".app" }) ?? (path.hasSuffix(".app") ? path : nil) { apps.insert(app) }
+            }
+            return InstallerReceipt(id: receipt.id, apps: apps.sorted(), paths: receipt.paths.filter { $0.hasPrefix(library) })
+        }
+    }
     public func receipts() -> [InstallerReceipt] { all }
 }

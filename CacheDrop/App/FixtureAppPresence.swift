@@ -4,8 +4,7 @@ import Foundation
 #if DEBUG
 /// Installed apps for a disposable test run (#173): only the bundle IDs listed in `<home>/.cachedrop-test-installed-apps`, one per
 /// line, and the app bundles in `<home>/Applications` (#267), so a UI test never asks Spotlight or Launch Services about this Mac.
-/// No installer receipts.
-struct FixtureAppPresence: AppPresence, InstallerReceiptReading {
+struct FixtureAppPresence: AppPresence {
     let installed: [InstalledApp]?
     init(home: URL?) {
         guard let home else { installed = nil; return }
@@ -15,6 +14,5 @@ struct FixtureAppPresence: AppPresence, InstallerReceiptReading {
     }
     func installedApps() -> [InstalledApp]? { installed }
     func isRegistered(bundleID: String) -> Bool { false }
-    func receipts() -> [InstallerReceipt] { [] }
 }
 #endif
