@@ -2,7 +2,7 @@ import Foundation
 
 /// The plan CacheDrop recommends from the latest scan, Smart clean's (#319, amending Decisions 28 and 31): data that comes
 /// back on its own, a tool's own cleanup of its cache, old installers in Downloads and leftovers tied to a removed app, that
-/// pass the checks now. Everything else is left to the user, and nothing is preselected on the Cleanup plan.
+/// pass the checks now. Everything else is left to the user. Its items start ticked on every page (#349, `CleanupSelections`).
 public struct RecommendedPlan: Sendable {
     /// The scan's candidates the plan takes, in scan order.
     public let candidates: [Candidate]

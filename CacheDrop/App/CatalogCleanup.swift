@@ -42,17 +42,17 @@ import SwiftUI
     private(set) var scanProgress: CatalogScanProgress?
     /// Watches for Full Disk Access being granted while CacheDrop was away (#124, `rescanIfFullDiskAccessGranted`).
     var fullDiskAccessRescan = FullDiskAccessRescan()
-    /// The Cleanup plan's selection and Smart clean's, kept apart (#141).
+    /// The one selection Smart clean, the Cleanup plan and Applications share, recommended items ticked to start (#349).
     private(set) var selections = CleanupSelections()
-    /// The Cleanup plan's chosen candidate ids. Nothing is preselected (Decision 28).
-    private(set) var selectedIDs: Set<String> { get { selections.ticked } set { selections.ticked = newValue } }
+    /// Every page's ticked candidate ids.
+    private var selectedIDs: Set<String> { selections.ticked }
     /// Moves on only when `page`'s chosen items change, or the dry run or a run does, so its open review sheet stays open
     /// while background work ends or another page's choices change (#307, #333).
     func selectionRevision(for page: CleanupSelections.Source) -> UInt64 { selections.revision(of: page) }
     /// Every page's revision, for watching whether any page's choices changed.
     var selectionRevisions: [UInt64] { CleanupSelections.Source.allCases.map(selections.revision(of:)) }
-    /// Notes each page's choices after a change; the revision moves only if they differ.
-    private func noteChoices() { selections.noteChoices(among: candidates, smartClean: smartCleanCandidates) }
+    /// Ticks newly recommended items and notes each page's choices after a change; the revision moves only if they differ.
+    private func noteChoices() { selections.noteChoices(among: candidates, recommended: recommendedCandidates) }
     private(set) var isRunning = false
     /// A cleanup changed files since the last catalog scan, so the next one is recorded as a post-cleanup rescan (#126).
     private var rescanFollowsCleanup = false
@@ -250,8 +250,12 @@ import SwiftUI
     func sizeIsEstimate(for rule: CleanupRule) -> Bool { candidates(for: rule).contains(where: \.sizeIsEstimate) }
     /// The Cleanup plan's chosen items; leftovers of removed apps are chosen on the Applications page (Decision 51).
     var selectedCandidates: [Candidate] { selections.chosen(on: .plan, from: candidates) }
-    /// Whether the plan or the Applications page has chosen items: what quitting would lose (#270).
-    var hasAnyChoices: Bool { selections.hasChoices(among: candidates) }
+    /// Whether any page's ticks differ from the recommended default: what quitting would lose (#270, #349).
+    var hasAnyChoices: Bool { selections.differsFromRecommended(candidates, recommended: recommendedCandidates) }
+    /// Whether a category's ticks differ from the recommended default, for Overview's "Selected" (#349).
+    func selectionDiffersFromRecommended(_ rules: [CleanupRule]) -> Bool {
+        selections.differsFromRecommended(rules.flatMap(candidates(for:)), recommended: recommendedCandidates)
+    }
     /// The Applications page's chosen items.
     var applicationsSelected: [Candidate] { selections.chosen(on: .applications, from: candidates) }
     /// Rules with at least one chosen item.
@@ -294,8 +298,8 @@ import SwiftUI
     private func toggle(_ selection: CategorySelection) -> Bool {
         guard canEdit else { return false }
         switch selection.toggle {
-        case .choose(let ids): selectedIDs.formUnion(ids)
-        case .clear(let ids): selectedIDs.subtract(ids)
+        case .choose(let ids): selections.set(ids, ticked: true)
+        case .clear(let ids): selections.set(ids, ticked: false)
         case .showItems: return true
         }
         noteChoices()
@@ -443,7 +447,7 @@ import SwiftUI
     #endif
     /// Drops chosen items that are no longer offered, and says so. The revision moves only when a page's choices changed (#307).
     private func keepOnlyCurrentChoices() {
-        if selections.keepOnly(candidates, smartClean: smartCleanCandidates) { message = "Some items changed or are no longer on this Mac and were removed from your plan." }
+        if selections.keepOnly(candidates, recommended: recommendedCandidates) { message = "Some items changed or are no longer on this Mac and were removed from your plan." }
     }
 
     /// Lists a picked folder's large and old files from its finished scan, and its projects' build folders. Read-only; nothing is chosen.
@@ -471,12 +475,15 @@ import SwiftUI
     func setSelected(_ rules: [CleanupRule], _ selected: Bool) {
         let ids = rules.filter { !$0.selectedOneByOne }.flatMap(candidates(for:)).map(\.id)
         guard canEdit, !ids.isEmpty else { return }
-        if selected { selectedIDs.formUnion(ids) } else { selectedIDs.subtract(ids) }
+        selections.set(ids, ticked: selected)
         noteChoices()
     }
-    func setSelected(_ candidate: Candidate, _ selected: Bool) {
-        guard canEdit, candidates.contains(candidate) else { return }
-        if selected { selectedIDs.insert(candidate.id) } else { selectedIDs.remove(candidate.id) }
+    func setSelected(_ candidate: Candidate, _ selected: Bool) { setSelected([candidate], selected) }
+    /// Ticks or unticks found items on any page; every page that lists them shows it (#349).
+    func setSelected(_ items: [Candidate], _ selected: Bool) {
+        let found = Set(candidates.map(\.id)), ids = items.map(\.id).filter(found.contains)
+        guard canEdit, !ids.isEmpty else { return }
+        selections.set(ids, ticked: selected)
         noteChoices()
     }
 
@@ -493,15 +500,10 @@ import SwiftUI
         let items = recommendedCandidates
         return SizeEstimate(sum: items.map(SizeEstimate.init)).text(upperBound: items.contains { catalog.rule($0.ruleID)?.estimateIsUpperBound == true })
     }
-    /// Smart clean's ticked items as the last scan sees them; the Cleanup plan's selection never changes them (#141).
-    var smartCleanCandidates: [Candidate] { recommendedCandidates.filter(selections.isInSmartClean) }
-    func isInSmartClean(_ candidate: Candidate) -> Bool { selections.isInSmartClean(candidate) }
-    func setSmartClean(_ items: [Candidate], _ included: Bool) {
-        guard canEdit, !items.isEmpty else { return }
-        selections.setSmartClean(items, included: included); noteChoices()
-    }
+    /// Smart clean's ticked items as the last scan sees them: the recommended ones, ticked here or on any page (#349).
+    var smartCleanCandidates: [Candidate] { recommendedCandidates.filter(selections.isTicked) }
     /// Smart clean's selection checked now: the recommended plan with the full checks, minus what was unticked, plus what the
-    /// page listed that the checks now refuse, for the review to explain. Nil when nothing could be checked or the scan changed meanwhile. Never touches the Cleanup plan's selection.
+    /// page listed that the checks now refuse, for the review to explain. Nil when nothing could be checked or the scan changed meanwhile.
     func smartCleanCheckedNow() async -> [Candidate]? {
         guard canEdit, let check = await currentCheck()?.snapshotted() else { return nil }
         // What the page listed stays in when the check now refuses it, so the review says why it will be skipped (#310).
@@ -524,7 +526,7 @@ import SwiftUI
         let refusals = await Task.detached { Dictionary(uniqueKeysWithValues: approval.candidates.compactMap { c in check.check(c).map { (c.id, $0) } }) }.value
         return CatalogReview(approval: approval, refusals: refusals, staying: AppUninstall.staying(chosen: candidates, offered: uninstallable))
     }
-    func execute(_ approval: CatalogApproval, from source: CleanupSelections.Source, cancellation: CleanupCancellation) async {
+    func execute(_ approval: CatalogApproval, cancellation: CleanupCancellation) async {
         guard !isRunning else { return }
         isRunning = true
         defer { isRunning = false; executor = nil }
@@ -536,8 +538,8 @@ import SwiftUI
             result = outcome
             measureStoppedWorkAgain(outcome, of: approval, run: run)
             if !approval.previewOnly { rescanFollowsCleanup = true }
-            // Picked folders keep the large and old files this run didn't act on (#125).
-            selections.finishRun(from: source); selections.revise(); discovered = []; uninstallable = []; pickedFiles = pickedFiles.mapValues { UserFiles.remaining($0, after: outcome) }
+            // What the run took leaves every page (#349). Picked folders keep the large and old files this run didn't act on (#125).
+            selections.finishRun(approval.candidates); selections.revise(); discovered = []; uninstallable = []; pickedFiles = pickedFiles.mapValues { UserFiles.remaining($0, after: outcome) }
             projectBuilds = projectBuilds.mapValues { UserFiles.remaining($0, after: outcome) }; hasScanned = false; noteChoices()
         } catch { message = "CacheDrop couldn’t open its cleanup history, so nothing was changed." }
     }
@@ -564,14 +566,14 @@ import SwiftUI
         if result?.batchID == later.batchID { result = later }
     }
     func cancel() { executor?.cancel() }
-    /// Leaves a finished run's results without starting a new plan: both selections are kept.
+    /// Leaves a finished run's results without starting a new plan: the selection is kept.
     func dismissResult() {
         guard !isRunning else { return }
         result = nil; message = nil
     }
     func endSession() {
         guard !isRunning else { return }
-        // A new plan keeps the Applications page's choices (#270).
+        // A new plan starts the plan over at the recommended default and keeps the Applications page's choices (#270, #349).
         selections.clear(.plan); pickedFiles = [:]; projectBuilds = [:]; result = nil; message = nil; noteChoices()
     }
     private func currentCheck() async -> CandidateCheck? {

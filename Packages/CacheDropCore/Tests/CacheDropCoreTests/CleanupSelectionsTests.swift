@@ -12,24 +12,50 @@ private func item(_ ruleID: String, name: String? = nil) -> Candidate {
 private let catalog = Catalog(rules: fixtureRules)
 private let npm = item("npm-cache"), logs = item("app-logs"), installer = item("downloads-installers"), derived = item("xcode-derived-data")
 private let scan = [npm, logs, installer, derived]
+/// What `RecommendedPlan` takes from `scan`: everything but the new installer.
+private let recommended = [npm, logs, derived]
 
-@Test func smartCleanStartsWithEveryRecommendedItemTicked() {
-    let selections = CleanupSelections()
-    #expect(selections.smartClean(catalog: catalog, found: scan) { _ in nil }.map(\.ruleID) == ["npm-cache", "app-logs", "xcode-derived-data"])
-    #expect([npm, logs, derived].allSatisfy(selections.isInSmartClean))
+/// #349: one selection; recommended items start ticked on every page, and the rest unticked.
+@Test func recommendedItemsArriveTickedOnEveryPage() {
+    var selections = CleanupSelections()
+    selections.keepOnly(scan, recommended: recommended)
+    #expect(selections.chosen(on: .plan, from: scan).map(\.ruleID) == ["npm-cache", "app-logs", "xcode-derived-data"])
+    #expect(!selections.isTicked(installer))
 }
 
-@Test func anUntickedItemIsLeftOutOfTheSmartCleanAndCanBeTickedAgain() {
+@Test func smartCleanStartsWithEveryRecommendedItemTicked() {
     var selections = CleanupSelections()
-    selections.setSmartClean([logs], included: false)
-    #expect(!selections.isInSmartClean(logs))
-    #expect(selections.smartClean(catalog: catalog, found: scan) { _ in nil }.map(\.ruleID) == ["npm-cache", "xcode-derived-data"])
-    selections.setSmartClean([logs], included: true)
+    selections.noteChoices(among: scan, recommended: recommended)
     #expect(selections.smartClean(catalog: catalog, found: scan) { _ in nil }.map(\.ruleID) == ["npm-cache", "app-logs", "xcode-derived-data"])
+    #expect(recommended.allSatisfy(selections.isTicked))
+}
+
+/// #349: one selection, so an untick on Smart clean shows in the plan, and a tick in the plan on Smart clean.
+@Test func anUntickOnOnePageShowsOnEveryPage() {
+    var selections = CleanupSelections()
+    selections.noteChoices(among: scan, recommended: recommended)
+    selections.set([logs], ticked: false)
+    #expect(selections.smartClean(catalog: catalog, found: scan) { _ in nil }.map(\.ruleID) == ["npm-cache", "xcode-derived-data"])
+    #expect(selections.chosen(on: .plan, from: scan).map(\.ruleID) == ["npm-cache", "xcode-derived-data"])
+    selections.set([logs, installer], ticked: true)
+    #expect(selections.smartClean(catalog: catalog, found: scan) { _ in nil }.map(\.ruleID) == ["npm-cache", "app-logs", "xcode-derived-data"])
+    #expect(selections.chosen(on: .plan, from: scan).count == 4, "The plan adds to Smart clean's ticks")
+}
+
+/// #349: a rescan keeps every untick, and a recommended item found for the first time arrives ticked.
+@Test func untickingSurvivesARescanAndNewRecommendedItemsArriveTicked() {
+    var selections = CleanupSelections()
+    selections.keepOnly([npm, logs, installer], recommended: [npm, logs])
+    selections.set([logs], ticked: false)
+    selections.keepOnly(scan, recommended: recommended)
+    #expect(!selections.isTicked(logs))
+    #expect(selections.isTicked(derived), "Found for the first time")
+    #expect(!selections.isTicked(installer), "Never recommended, never ticked for you")
 }
 
 @Test func theSmartCleanRunsTheChecksAtClickTime() {
-    let selections = CleanupSelections()
+    var selections = CleanupSelections()
+    selections.noteChoices(among: scan, recommended: recommended)
     #expect(selections.smartClean(catalog: catalog, found: scan) { $0.ruleID == "npm-cache" ? .ownerRunning("npm") : nil }.map(\.ruleID) == ["app-logs", "xcode-derived-data"])
 }
 
@@ -37,42 +63,49 @@ private let scan = [npm, logs, installer, derived]
 /// as the plan's does. One the page never listed (refused at the scan too), or unticked, stays out.
 @Test func aListedItemTheCheckRefusesAtClickTimeStaysInForItsReviewToExplain() {
     var selections = CleanupSelections()
+    selections.noteChoices(among: scan, recommended: recommended)
     let refused: (Candidate) -> CheckRefusal? = { $0.ruleID == "npm-cache" || $0.ruleID == "app-logs" ? .ownerRunning("Chrome") : nil }
     #expect(selections.smartClean(catalog: catalog, found: scan, listed: [npm, derived], check: refused).map(\.ruleID) == ["npm-cache", "xcode-derived-data"])
-    selections.setSmartClean([npm], included: false)
+    selections.set([npm], ticked: false)
     #expect(selections.smartClean(catalog: catalog, found: scan, listed: [npm, derived], check: refused).map(\.ruleID) == ["xcode-derived-data"])
 }
 
-@Test func buildingOrUntickingASmartCleanNeverChangesTheCleanupPlan() {
+/// #349: Smart clean's run takes only its ticked recommended items; the plan's own ticks stay for the plan.
+@Test func smartCleansRunKeepsThePlansOtherTicks() {
     var selections = CleanupSelections()
-    selections.ticked = [installer.id, npm.id]
-    _ = selections.smartClean(catalog: catalog, found: scan) { _ in nil }
-    selections.setSmartClean([npm, logs], included: false)
-    #expect(selections.ticked == [installer.id, npm.id])
-}
-
-@Test func choosingInTheCleanupPlanNeverChangesTheSmartClean() {
-    var selections = CleanupSelections()
-    selections.setSmartClean([logs], included: false)
-    selections.ticked = [logs.id]
-    selections.ticked.remove(logs.id)
-    #expect(!selections.isInSmartClean(logs))
-    #expect(selections.isInSmartClean(npm))
-}
-
-@Test func aFinishedRunClearsOnlyTheSelectionItCameFrom() {
-    var selections = CleanupSelections()
-    selections.ticked = [installer.id]
-    selections.setSmartClean([logs], included: false)
-
-    selections.finishRun(from: .smartClean)
+    selections.noteChoices(among: scan, recommended: recommended)
+    selections.set([installer], ticked: true)
+    selections.set([logs], ticked: false)
+    let run = selections.smartClean(catalog: catalog, found: scan) { _ in nil }
+    #expect(run.map(\.ruleID) == ["npm-cache", "xcode-derived-data"])
+    selections.finishRun(run)
     #expect(selections.ticked == [installer.id])
-    #expect(selections.isInSmartClean(logs), "A Smart clean starts again with everything ticked")
+    selections.keepOnly([logs, installer], recommended: [logs])
+    #expect(!selections.isTicked(logs), "Its untick outlives another page's run")
+}
 
-    selections.setSmartClean([logs], included: false)
-    selections.finishRun(from: .plan)
+/// #349: what a run took leaves every page; an item it skipped that is still recommended comes back ticked.
+@Test func aFinishedRunClearsWhatItTookFromEveryPage() {
+    var selections = CleanupSelections()
+    selections.noteChoices(among: scan, recommended: recommended)
+    selections.set([installer], ticked: true)
+    selections.finishRun(selections.chosen(on: .plan, from: scan))
     #expect(selections.ticked.isEmpty)
-    #expect(!selections.isInSmartClean(logs))
+    selections.keepOnly([npm], recommended: [npm])
+    #expect(selections.isTicked(npm), "Skipped, found again and still recommended")
+}
+
+/// #349: Overview's "Selected" and the quit warning (#270) show only once the ticks differ from the recommended default.
+@Test func ticksDifferFromTheRecommendedDefaultOnlyOnceTheUserChangesThem() {
+    var selections = CleanupSelections()
+    selections.noteChoices(among: scan, recommended: recommended)
+    #expect(!selections.differsFromRecommended(scan, recommended: recommended))
+    selections.set([installer], ticked: true)
+    #expect(selections.differsFromRecommended(scan, recommended: recommended))
+    #expect(!selections.differsFromRecommended([npm, logs], recommended: recommended), "Only the category that changed")
+    selections.set([installer], ticked: false)
+    selections.set([logs], ticked: false)
+    #expect(selections.differsFromRecommended([logs], recommended: recommended))
 }
 
 /// Decision 51: leftovers of removed apps are chosen and cleaned on the Applications page, the rest in the Cleanup plan.
@@ -80,41 +113,43 @@ private let leftover = item(RemovedAppLeftovers.ruleID, name: "Synth"), related 
 
 @Test func eachPageReviewsOnlyTheItemsItShows() {
     var selections = CleanupSelections()
-    selections.ticked = [installer.id, leftover.id, related.id]
+    selections.set([installer, leftover, related], ticked: true)
     let found = scan + [leftover, related]
     #expect(selections.chosen(on: .plan, from: found).map(\.ruleID) == ["downloads-installers"])
     #expect(selections.chosen(on: .applications, from: found).map(\.ruleID) == [RemovedAppLeftovers.ruleID, RemovedAppLeftovers.possiblyRelatedRuleID])
 }
 
-@Test func aFinishedRunFromOnePageKeepsTheOtherPagesChoices() {
+/// #349: a leftover tied to its removed app is in Smart clean, ticked, and its tick is the Applications page's too.
+@Test func aLeftoverSmartCleanTakesSharesItsTickWithApplications() {
     var selections = CleanupSelections()
-    selections.ticked = [installer.id, leftover.id]
-    selections.finishRun(from: .applications)
-    #expect(selections.ticked == [installer.id])
-
-    selections.ticked = [installer.id, leftover.id]
-    selections.finishRun(from: .plan)
-    #expect(selections.ticked == [leftover.id])
+    selections.noteChoices(among: scan + [leftover], recommended: recommended + [leftover])
+    #expect(selections.chosen(on: .applications, from: scan + [leftover]) == [leftover])
+    selections.set([leftover], ticked: false)
+    #expect(selections.chosen(on: .applications, from: scan + [leftover]).isEmpty)
 }
 
 /// #270: quitting with only leftovers ticked still has choices to lose.
 @Test func leftoversTickedOnApplicationsCountAsChoices() {
     var selections = CleanupSelections()
     let found = scan + [leftover]
-    #expect(!selections.hasChoices(among: found))
-    selections.ticked = [leftover.id]
-    #expect(selections.hasChoices(among: found))
+    #expect(!selections.differsFromRecommended(found, recommended: []))
+    selections.set([leftover], ticked: true)
+    #expect(selections.differsFromRecommended(found, recommended: []))
 }
 
-/// #270: starting a new Cleanup plan clears only the plan's choices, never the Applications page's, even right after a
-/// run, when nothing is found until the next scan.
+/// #270: starting a new Cleanup plan starts only the plan over, never the Applications page, even right after a run,
+/// when nothing is found until the next scan. The plan comes back to the recommended default.
 @Test func clearingOnePageKeepsTheOtherPagesChoices() {
     var selections = CleanupSelections()
-    selections.ticked = [installer.id, leftover.id, related.id]
+    selections.noteChoices(among: scan, recommended: recommended)
+    selections.set([logs], ticked: false)
+    selections.set([installer, leftover, related], ticked: true)
     selections.clear(.plan)
     #expect(selections.ticked == [leftover.id, related.id])
+    selections.noteChoices(among: scan, recommended: recommended)
+    #expect(selections.isTicked(logs), "The plan's unticks went with it")
     selections.clear(.applications)
-    #expect(selections.ticked.isEmpty)
+    #expect(selections.ticked == Set(recommended.map(\.id)))
 }
 
 /// #271: a category row is on the page its rules are on, so the app asks the core instead of checking the category.
@@ -130,24 +165,24 @@ private func revisions(_ selections: CleanupSelections) -> [UInt64] { CleanupSel
 /// #307: an open review sheet closes only when what it was built from changed, never because a scan ended.
 @Test func aScanThatKeepsEveryChoiceLeavesTheRevisionsAlone() {
     var selections = CleanupSelections()
-    selections.ticked = [installer.id, leftover.id]
-    selections.noteChoices(among: scan + [leftover], smartClean: [npm, logs])
+    selections.set([installer, leftover], ticked: true)
+    selections.noteChoices(among: scan + [leftover], recommended: [npm, logs])
     let before = revisions(selections)
-    let dropped = selections.keepOnly(scan + [leftover, related], smartClean: [npm, logs])
+    let dropped = selections.keepOnly(scan + [leftover, related], recommended: [npm, logs])
     #expect(!dropped, "Nothing chosen was dropped")
     #expect(revisions(selections) == before)
-    #expect(selections.ticked == [installer.id, leftover.id])
+    #expect(selections.ticked == [installer.id, leftover.id, npm.id, logs.id])
 }
 
 /// #333: a scan that drops one of the plan's choices moves only the plan's revision.
 @Test func aScanThatDropsAPlanChoiceMovesOnlyThePlansRevision() {
     var selections = CleanupSelections()
-    selections.ticked = [installer.id, leftover.id]
-    selections.noteChoices(among: scan + [leftover], smartClean: [npm, logs])
+    selections.set([installer, leftover], ticked: true)
+    selections.noteChoices(among: scan + [leftover], recommended: [npm, logs])
     let smart = selections.revision(of: .smartClean), apps = selections.revision(of: .applications), plan = selections.revision(of: .plan)
-    let dropped = selections.keepOnly([npm, logs, derived, leftover], smartClean: [npm, logs])
+    let dropped = selections.keepOnly([npm, logs, derived, leftover], recommended: [npm, logs])
     #expect(dropped)
-    #expect(selections.ticked == [leftover.id])
+    #expect(selections.ticked == [leftover.id, npm.id, logs.id])
     #expect(selections.revision(of: .plan) != plan)
     #expect(selections.revision(of: .smartClean) == smart)
     #expect(selections.revision(of: .applications) == apps)
@@ -156,10 +191,10 @@ private func revisions(_ selections: CleanupSelections) -> [UInt64] { CleanupSel
 /// #333: Applications' choices changing moves only its revision.
 @Test func aScanThatDropsAnApplicationsChoiceMovesOnlyItsRevision() {
     var selections = CleanupSelections()
-    selections.ticked = [installer.id, leftover.id]
-    selections.noteChoices(among: scan + [leftover], smartClean: [npm, logs])
+    selections.set([installer, leftover], ticked: true)
+    selections.noteChoices(among: scan + [leftover], recommended: [npm, logs])
     let smart = selections.revision(of: .smartClean), apps = selections.revision(of: .applications), plan = selections.revision(of: .plan)
-    selections.keepOnly(scan, smartClean: [npm, logs])
+    selections.keepOnly(scan, recommended: [npm, logs])
     #expect(selections.revision(of: .applications) != apps)
     #expect(selections.revision(of: .plan) == plan)
     #expect(selections.revision(of: .smartClean) == smart)
@@ -168,10 +203,10 @@ private func revisions(_ selections: CleanupSelections) -> [UInt64] { CleanupSel
 /// #333: Smart clean's picks changing (a recheck drops one, or an owner starts running) moves only Smart clean's revision.
 @Test func aChangeToSmartCleansPicksMovesOnlyItsRevision() {
     var selections = CleanupSelections()
-    selections.ticked = [installer.id, leftover.id]
-    selections.noteChoices(among: scan + [leftover], smartClean: [npm, logs])
+    selections.set([installer, leftover], ticked: true)
+    selections.noteChoices(among: scan + [leftover], recommended: [npm, logs])
     let smart = selections.revision(of: .smartClean), apps = selections.revision(of: .applications), plan = selections.revision(of: .plan)
-    let dropped = selections.keepOnly(scan + [leftover], smartClean: [npm])
+    let dropped = selections.keepOnly(scan + [leftover], recommended: [npm])
     #expect(!dropped)
     #expect(selections.revision(of: .smartClean) != smart)
     #expect(selections.revision(of: .plan) == plan)
@@ -180,14 +215,14 @@ private func revisions(_ selections: CleanupSelections) -> [UInt64] { CleanupSel
 
 @Test func choosingAnItemMovesItsPagesRevisionAndChoosingNothingNewDoesNot() {
     var selections = CleanupSelections()
-    selections.noteChoices(among: scan, smartClean: [])
+    selections.noteChoices(among: scan, recommended: [])
     let plan = selections.revision(of: .plan), smart = selections.revision(of: .smartClean)
-    selections.ticked.insert(npm.id)
-    selections.noteChoices(among: scan, smartClean: [])
+    selections.set([npm], ticked: true)
+    selections.noteChoices(among: scan, recommended: [])
     #expect(selections.revision(of: .plan) != plan)
     #expect(selections.revision(of: .smartClean) == smart)
     let chosen = revisions(selections)
-    selections.noteChoices(among: scan, smartClean: [])
+    selections.noteChoices(among: scan, recommended: [])
     #expect(revisions(selections) == chosen)
     selections.revise()
     #expect(zip(revisions(selections), chosen).allSatisfy { $0 != $1 }, "A change to what every review would do, a dry run or a run, moves all three")

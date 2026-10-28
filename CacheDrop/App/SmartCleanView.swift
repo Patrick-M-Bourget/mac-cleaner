@@ -104,7 +104,7 @@ struct SmartCleanView: View {
     /// those lines, not the items behind them (#229).
     private func category(_ row: CatalogOverview.Row, items: [Candidate]) -> some View {
         let found = items.filter { candidate in row.rules.contains { $0.id == candidate.ruleID } }
-        let ticked = found.filter(model.isInSmartClean).count
+        let ticked = found.filter(model.isSelected).count
         let state: CategorySelectionState = ticked == 0 ? .unchecked : ticked == found.count ? .checked : .mixed
         let lines = lines(row, found: found)
         let expanded = Binding(get: { presentation.expandedCategories.contains(row.category) },
@@ -114,7 +114,7 @@ struct SmartCleanView: View {
         return CategoryRow(category: row.category.storageCategory, state: state, title: row.category.overviewTitle, detail: consequence,
                            size: row.valueText, enabled: model.canEdit, identifier: "smartCleanCategory-" + row.id,
                            itemCount: lines.count > 1 ? lines.count : nil, expanded: expanded,
-                           toggle: { model.setSmartClean(found, state != .checked) }) {
+                           toggle: { model.setSelected(found, state != .checked) }) {
             EmptyView()
         } items: {
             VStack(alignment: .leading, spacing: 0) { ForEach(lines) { line($0) } }
@@ -142,7 +142,7 @@ struct SmartCleanView: View {
                            size: catalogBytes(line.items.reduce(0) { $0 + $1.estimatedBytes }, complete: line.items.allSatisfy(\.sizeComplete),
                                               upperBound: line.rule.estimateIsUpperBound, estimate: line.items.contains(where: \.sizeIsEstimate)),
                            symbol: "folder", inspected: false, inspect: { Finder.reveal(line.items.map(\.url)) }) {
-            Toggle("Include " + line.name, isOn: Binding(get: { line.items.allSatisfy(model.isInSmartClean) }, set: { model.setSmartClean(line.items, $0) }))
+            Toggle("Include " + line.name, isOn: Binding(get: { line.items.allSatisfy(model.isSelected) }, set: { model.setSelected(line.items, $0) }))
                 .labelsHidden().disabled(!model.canEdit).accessibilityIdentifier("smartCleanLine-" + line.id)
         }.help(line.items.map(\.url.path).sorted().joined(separator: "\n"))
     }

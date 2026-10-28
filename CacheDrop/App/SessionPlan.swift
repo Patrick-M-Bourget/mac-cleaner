@@ -168,7 +168,7 @@ struct RefreshRequest: Sendable {
         let lifecycle = AppLifecycleController.shared
         lifecycle.operationInProgress = true
         defer { workspaceRunning = false; workspaceCancellation = nil; lifecycle.operationInProgress = false; lifecycle.hasPendingPlan = hasPendingChoicesOnAnyPage }
-        if let items = review.catalog { await catalog.execute(items.approval, from: review.source, cancellation: cancellation) }
+        if let items = review.catalog { await catalog.execute(items.approval, cancellation: cancellation) }
         workspaceFinished = true
         lifecycle.capacity.request(.cleanupEnded)
     }
