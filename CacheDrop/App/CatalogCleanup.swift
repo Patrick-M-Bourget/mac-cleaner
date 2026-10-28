@@ -311,20 +311,24 @@ import SwiftUI
     /// Asked while a scan runs, it scans again once that one ends. Each scan it starts rechecks the remembered folders once.
     func rescan() async {
         if isScanning { rescanPending = true; return }
-        if await scan() { scanRememberedFolders?() }
+        if await scan(rescan: true) { scanRememberedFolders?() }
     }
     /// Read-only sizing of the catalog's known locations. False when it couldn't start: a scan or a cleanup is running.
-    @discardableResult func scan() async -> Bool {
+    @discardableResult func scan() async -> Bool { await scan(rescan: false) }
+    private func scan(rescan: Bool) async -> Bool {
         let lifecycle = AppLifecycleController.shared
-        // History holds the maintenance lease for a moment: scan once it lets go, never not at all (#310).
+        // History holds the maintenance lease for a moment: scan once it lets go, never not at all (#310). A rescan
+        // waits as a rescan, so it still rechecks the remembered folders once when it runs (#332).
         if lifecycle.maintenanceInProgress, !isScanning, !isRunning, !lifecycle.operationInProgress {
-            lifecycle.afterMaintenance.waitFor("catalogScan") { Task { await self.scan() } }
+            lifecycle.afterMaintenance.waitFor("catalogScan", rescan: rescan) { asRescan in
+                Task { if asRescan { await self.rescan() } else { await self.scan() } }
+            }
             return false
         }
         guard canEdit else { return false }
         await scanCatalog()
         // Something changed on disk while it ran, such as a Put back: scan again, as its own rescan.
-        if rescanPending { rescanPending = false; Task { await rescan() } }
+        if rescanPending { rescanPending = false; Task { await self.rescan() } }
         return true
     }
     private func scanCatalog() async {

@@ -23,3 +23,19 @@ import CacheDropCore
     waiting.released()
     #expect(ran == 1)
 }
+
+/// #332: a rescan deferred by the lease still rechecks the remembered folders once when it runs, even when a plain scan
+/// of the same kind is asked for after it. A plain scan alone never does.
+@Test @MainActor func aRescanDeferredByTheLeaseStillRechecksRememberedFolders() {
+    let waiting = WorkAfterMaintenance()
+    var runs: [Bool] = []
+    waiting.waitFor("catalogScan", rescan: true) { runs.append($0) }
+    waiting.waitFor("catalogScan", rescan: false) { runs.append($0) }
+    waiting.released()
+    waiting.released()
+    #expect(runs == [true])
+
+    waiting.waitFor("catalogScan", rescan: false) { runs.append($0) }
+    waiting.released()
+    #expect(runs == [true, false])
+}
