@@ -14,6 +14,8 @@ struct AppManagedStorageView: View {
             if !protected.isEmpty {
                 FullDiskAccessNote(places: protected.compactMap { model.guidanceRule($0)?.title }).accessibilityIdentifier("guidanceAccess")
             }
+            // Nothing known yet: skeleton rows; a rescan dims the rows already shown (#308).
+            if !model.hasScanned { SkeletonRows(.review, identifier: "guidanceSkeleton") }
             RecommendationGroup {
                 ForEach(Array(model.guidance.enumerated()), id: \.element.id) { index, finding in
                     if let rule = model.guidanceRule(finding), let guidance = rule.guidance {
@@ -30,7 +32,7 @@ struct AppManagedStorageView: View {
                         if let libraries = finding.libraries { LibraryRows(model: model, rule: rule, guidance: guidance, libraries: libraries) }
                     }
                 }
-            }
+            }.waitingForScan(model.isScanning)
             if let status = model.guidanceStatus { StatusRow(text: status, symbol: "info.circle", identifier: "guidanceStatus") }
         }
     }
