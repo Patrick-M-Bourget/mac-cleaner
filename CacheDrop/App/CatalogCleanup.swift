@@ -8,20 +8,20 @@ import SwiftUI
 @MainActor @Observable final class CatalogCleanupModel {
     let catalog = Catalog(rules: BuiltInCatalog.rules)
     /// What the catalog's known locations hold.
-    private(set) var discovered: [Candidate] = [] { didSet { indexPickedFiles() } }
+    private(set) var discovered: [Candidate] = [] { didSet { indexPickedFiles(); summaryChanged(); offeredChanged() } }
     /// Large and old files in each folder the user picked and scanned, keyed by that folder (`UserFiles`).
     private(set) var pickedFiles: [URL: [Candidate]] = [:] { didSet { indexPickedFiles() } }
     /// The picked folders' files the plan offers, by "dev:ino". A file a catalog rule already offers is left to that rule.
-    private(set) var pickedByResource: [String: Candidate] = [:]
+    private(set) var pickedByResource: [String: Candidate] = [:] { didSet { offeredChanged() } }
     /// Build folders in projects inside each folder the user picked and scanned, keyed by that folder (`ProjectBuilds`, #157).
-    private(set) var projectBuilds: [URL: [Candidate]] = [:]
+    private(set) var projectBuilds: [URL: [Candidate]] = [:] { didSet { offeredChanged() } }
     /// The picked folders' build folders, once each, unless a catalog rule already offers one.
     var projectBuildCandidates: [Candidate] {
         var seen = Set(discovered.map(\.resourceID))
         return projectBuilds.keys.sorted { $0.path < $1.path }.flatMap { projectBuilds[$0] ?? [] }.filter { seen.insert($0.resourceID).inserted }
     }
     /// Installed apps with their files, offered on the Applications page to uninstall (#177); never on Overview or in the plan.
-    private(set) var uninstallable: [Candidate] = []
+    private(set) var uninstallable: [Candidate] = [] { didSet { offeredChanged() } }
     /// The plug-ins the last scan read, for the Applications page's Plug-ins section (#176).
     private(set) var plugInInventory: PlugInInventory?
     /// Everything the plan and the Applications page can offer.
@@ -37,9 +37,12 @@ import SwiftUI
         pickedByResource = index
     }
     private(set) var isScanning = false
-    private(set) var hasScanned = false
-    /// The running catalog scan's progress, one location at a time (#128); nil when no scan is running.
-    private(set) var scanProgress: CatalogScanProgress?
+    private(set) var hasScanned = false { didSet { summaryChanged() } }
+    /// The running catalog scan's progress, one location at a time (#128); nil when no scan is running. Only a finished
+    /// location changes Overview's summary, not the phase.
+    private(set) var scanProgress: CatalogScanProgress? {
+        didSet { if oldValue?.finished != scanProgress?.finished || oldValue?.found.count != scanProgress?.found.count { summaryChanged() } }
+    }
     /// Watches for Full Disk Access being granted while CacheDrop was away (#124, `rescanIfFullDiskAccessGranted`).
     var fullDiskAccessRescan = FullDiskAccessRescan()
     /// The one selection Smart clean, the Cleanup plan and Applications share, recommended items ticked to start (#349).
@@ -65,7 +68,7 @@ import SwiftUI
     private(set) var message: String?
     /// The Protected items settings couldn't be read, so nothing could be scanned or checked (#310). Every page that cleans
     /// and Overview say so once, with Try again; never "Your choices changed" or "Nothing to review".
-    private(set) var settingsUnreadable = false
+    private(set) var settingsUnreadable = false { didSet { summaryChanged() } }
     static let settingsUnreadableText = "CacheDrop couldn’t read your Protected items, so it can’t check what’s safe to clean."
     /// Why a rule kept items back, such as copies whose use couldn't be checked.
     private(set) var notes: [CatalogNote] = []
@@ -185,13 +188,26 @@ import SwiftUI
     }
 
     /// Overview's summary. While the first scan runs it covers the locations finished so far, so rows and the total fill in
-    /// as each one completes (#128); nil until the first one has.
+    /// as each one completes (#128); nil until the first one has. Read on every redraw, so it is built once per change in
+    /// `discovered`, `hasScanned`, `settingsUnreadable` or a finished location, not on each read (#362).
     var overview: CatalogOverview? {
-        // Nothing was read, so nothing is "nothing to review" (#310).
-        if settingsUnreadable { return nil }
-        if hasScanned { return CatalogOverview(catalog: catalog, candidates: discovered) }
-        return scanProgress.flatMap { $0.finished > 0 ? CatalogOverview(catalog: catalog, candidates: $0.found) : nil }
+        summary.value(at: summaryRevision) {
+            // Nothing was read, so nothing is "nothing to review" (#310).
+            if settingsUnreadable { return nil }
+            if hasScanned { return CatalogOverview(catalog: catalog, candidates: discovered) }
+            return scanProgress.flatMap { $0.finished > 0 ? CatalogOverview(catalog: catalog, candidates: $0.found) : nil }
+        }
     }
+    /// Moves whenever what `overview` is built from changes. Observed, so a view that read the stored summary redraws.
+    private var summaryRevision: UInt64 = 0
+    @ObservationIgnored private var summary = BuiltPerRevision<CatalogOverview?>()
+    private func summaryChanged() { summaryRevision &+= 1 }
+    /// Every candidate grouped as Overview groups them, for the plan's categories and the Applications page's Leftovers row:
+    /// built once per change in `candidates` (`discovered`, the picked folders' files and builds, `uninstallable`), #362.
+    private var offeredOverview: CatalogOverview { offered.value(at: offeredRevision) { CatalogOverview(catalog: catalog, candidates: candidates) } }
+    private var offeredRevision: UInt64 = 0
+    @ObservationIgnored private var offered = BuiltPerRevision<CatalogOverview>()
+    private func offeredChanged() { offeredRevision &+= 1 }
     /// "Checking Xcode DerivedData… 4 of 31", then each phase after discovery (#308): one quiet line while the catalog scan runs (Decision 25).
     var scanProgressText: String { (scanProgress?.phase ?? .starting).progressText }
     /// Owners of the rule's items that were running at the last scan, in name order.
@@ -281,11 +297,11 @@ import SwiftUI
     func isSelected(_ candidate: Candidate) -> Bool { selectedIDs.contains(candidate.id) }
     /// The plan's categories, grouped as Overview groups them, picked folders' files included. Files from deleted apps
     /// are on the Applications page instead (Decision 51).
-    var planCategories: [CatalogOverview.Row] { CatalogOverview(catalog: catalog, candidates: candidates).rows.filter { CleanupSelections.Source.page(of: $0) == .plan } }
+    var planCategories: [CatalogOverview.Row] { offeredOverview.rows.filter { CleanupSelections.Source.page(of: $0) == .plan } }
     /// Whether the plan has a row for `category` now.
     func plans(_ category: CatalogCategory) -> Bool { planCategories.contains { $0.category == category } }
     /// The Applications page's Leftovers row; nil when none were found.
-    var leftoversRow: CatalogOverview.Row? { CatalogOverview(catalog: catalog, candidates: candidates).rows.first { $0.category == .leftovers } }
+    var leftoversRow: CatalogOverview.Row? { offeredOverview.rows.first { $0.category == .leftovers } }
     /// The items to uninstall an Applications row with, by its id (`AppUninstall.Target.path`): an installed app's (#177), or
     /// a plug-in product's, shared items included (#176); empty when it can't be uninstalled here.
     func uninstallItems(ofRow id: String) -> [Candidate] { uninstallable.filter { $0.isUninstalled(with: id) } }
