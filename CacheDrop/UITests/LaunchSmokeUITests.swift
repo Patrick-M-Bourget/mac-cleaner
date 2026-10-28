@@ -427,7 +427,8 @@ final class ScanAgainUITests: XCTestCase {
         XCTAssertFalse(command.isEnabled, "⌘R waits for the running scan")
         let enabled = NSPredicate(format: "isEnabled == true")
         XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: enabled, object: button)], timeout: 120), .completed)
-        XCTAssertTrue(command.isEnabled)
+        // The menu item's enabled state is validated separately from the button, so it may follow a moment later.
+        XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: enabled, object: command)], timeout: 10), .completed, "⌘R is enabled again")
     }
 }
 
