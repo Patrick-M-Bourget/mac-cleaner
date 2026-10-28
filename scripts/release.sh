@@ -94,7 +94,7 @@ exe="$built/Contents/MacOS/$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutab
 # so no get-task-allow.
 step "Signing the app ($([[ $identity == - ]] && echo "ad hoc" || echo "Developer ID"))"
 timestamp=(--timestamp)
-((adhoc)) && timestamp=(--timestamp=none)
+if ((adhoc)); then timestamp=(--timestamp=none); fi
 sign() { codesign --force --sign "$identity" --options runtime "${timestamp[@]}" "$@"; }
 while IFS= read -r -d '' nested; do
   echo "nested: ${nested#"$built/"}"
@@ -141,7 +141,10 @@ fi
 # 4. DMG: the app and a link to /Applications.
 step "Making the DMG"
 mkdir -p "$out_dir"
-dmg_name="CacheDrop-$version$( ((adhoc)) && echo -adhoc).dmg"
+# An if, not $( ((adhoc)) && … ): under set -e a failing substitution in an assignment ends the script.
+suffix=""
+if ((adhoc)); then suffix="-adhoc"; fi
+dmg_name="CacheDrop-$version$suffix.dmg"
 dmg="$out_dir/$dmg_name"
 mkdir "$work/dmg"
 ditto "$built" "$work/dmg/CacheDrop.app"
