@@ -419,6 +419,9 @@ final class ScanAgainUITests: XCTestCase {
         app.launch()
         XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
         let button = app.buttons["overviewScanAgain"], command = app.menuBars.menuBarItems["View"].menuItems["Scan again"]
+        // #311: Overview's Scan again sits in the bottom bar, as on Storage trends.
+        XCTAssertTrue(button.waitForExistence(timeout: 5))
+        XCTAssertTrue(actionStrip(app).frame.contains(button.frame), "Overview's Scan again is in the bottom bar")
         XCTAssertTrue(app.staticTexts["catalogScanProgress"].waitForExistence(timeout: 10), "The launch scan is running")
         XCTAssertFalse(button.isEnabled, "Overview's Scan again waits for the running scan")
         XCTAssertFalse(command.isEnabled, "⌘R waits for the running scan")

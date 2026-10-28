@@ -301,6 +301,11 @@ private struct WorkspaceView: View {
                         ActionStrip(message: "Records are kept. Nothing resumes automatically.") { EmptyView() }
                     } else if navigationState.localRecordsVisible {
                         ActionStrip()
+                    } else if destination == .overview && !navigationState.appManagedVisible {
+                        // Scan again sits in the bar, as on Storage trends (#311).
+                        ActionStrip(message: nil) {
+                            Button("Scan again", action: scanAgain).disabled(!canScanAgain).help(scanAgainHelp).accessibilityIdentifier("overviewScanAgain")
+                        }
                     } else if destination == .growth {
                         ActionStrip(message: nil) {
                             Button("Scan again", action: scanAgain).disabled(!canScanAgain).help(scanAgainHelp)
@@ -405,11 +410,7 @@ private struct WorkspaceView: View {
 
     private var overview: some View {
         VStack(alignment: .leading, spacing: CacheDropDesign.Space.xl) {
-            HStack(alignment: .top) {
-                PageHeader(title: "Storage overview", subtitle: "A clearer picture of what’s on your Mac.")
-                Spacer(minLength: CacheDropDesign.Space.md)
-                Button("Scan again", action: scanAgain).disabled(!canScanAgain).help(scanAgainHelp).accessibilityIdentifier("overviewScanAgain")
-            }
+            PageHeader(title: "Storage overview", subtitle: "A clearer picture of what’s on your Mac.")
             ScanHistoryRecordingNotice()
             if let context = alerts.openedAlertContext {
                 SummarySurface {
