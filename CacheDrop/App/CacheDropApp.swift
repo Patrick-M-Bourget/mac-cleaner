@@ -297,8 +297,6 @@ private struct WorkspaceView: View {
                             Button("Review plan") { navigate(.plan); navigationState.planReturnsToGrowth = true }.buttonStyle(.borderedProminent)
                                 .accessibilityIdentifier("growthReviewOptions")
                         }
-                    } else if showsPlan {
-                        ActionStrip(message: nil) { Button("Review cleanup") {}.disabled(true) }
                     } else {
                         ActionStrip()
                     }
