@@ -1,14 +1,14 @@
 import Foundation
 import Darwin
 
-/// Leftovers of apps you removed (#173, Decision 41): files in `~/Library` whose app is no longer on this Mac, grouped per app.
+/// Files from deleted apps (#173, Decision 41; named in #357): files in `~/Library` whose app is no longer on this Mac, grouped per app.
 /// An item is tied to a removed app only by its bundle ID or an installer receipt; a name-only match is "possibly related",
 /// shown with its reason and never ticked with its group. Everything goes to Trash, so Put back works.
 public enum RemovedAppLeftovers {
     public static let ruleID = "removed-app-leftovers"
     public static let possiblyRelatedRuleID = "removed-app-possibly-related"
     static let consequence = "Moved to Trash. The app is no longer installed; you can restore them from the Trash in Finder."
-    static let leftoversRule = CleanupRule(id: ruleID, category: .leftovers, title: "Leftovers of removed apps",
+    static let leftoversRule = CleanupRule(id: ruleID, category: .leftovers, title: "Files from deleted apps",
         detail: "Settings, caches and data of apps no longer on this Mac, tied to each app by its bundle ID or installer receipt.",
         consequence: consequence, regen: .userFile, action: .trash, locations: [], owner: nil, protectedDepth: AppCaches.liveWorkDepth,
         family: .removedAppLeftovers)

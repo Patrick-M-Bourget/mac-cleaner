@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import CacheDropCore
 
-// #173: leftovers of apps that are no longer installed. Every test uses a temp home; installed apps, receipts and running
+// #173: files from deleted apps, apps that are no longer installed. Every test uses a temp home; installed apps, receipts and running
 // processes come from fixtures, so tests never ask Launch Services, Spotlight or pkgutil about this Mac.
 
 private func fixtureHome() throws -> URL {
@@ -257,4 +257,9 @@ private struct FixtureHomeTrash: TrashMoving {
     #expect(!offered.isEmpty)
 
     #expect(names(RemovedAppLeftovers.notOffered(by: offered, scan(home))) == ["com.gone.synth.plist"])
+}
+
+@Test func theRulesUseThePlainNames() {
+    // #357: the owner's plain name; "Possibly related" keeps its name.
+    #expect(RemovedAppLeftovers.rules.map(\.title) == ["Files from deleted apps", "Possibly related"])
 }

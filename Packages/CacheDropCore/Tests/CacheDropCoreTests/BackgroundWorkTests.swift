@@ -114,7 +114,7 @@ private let catalog = "Checking npm cache… 4 of 31"
 }
 
 @Test func theCatalogLineNamesEachPhaseAfterDiscovery() {
-    #expect(CatalogScanPhase.removedAppLeftovers.progressText == "Checking leftovers of removed apps…")
+    #expect(CatalogScanPhase.removedAppLeftovers.progressText == "Checking files from deleted apps…")
     #expect(CatalogScanPhase.appsAndPlugIns.progressText == "Checking apps and plug-ins…")
     #expect(CatalogScanPhase.openApps.progressText == "Checking which apps are open…")
     #expect(CatalogScanPhase.storageTrends.progressText == "Recording storage trends…")

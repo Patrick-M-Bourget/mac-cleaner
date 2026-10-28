@@ -64,7 +64,7 @@ public struct SmartCleanReport: Sendable {
         skipped = RecommendedPlan(catalog: catalog, candidates: found, now: now) { _ in nil }.candidates.compactMap { candidate in refusals[candidate.id].map { (candidate, $0) } }
     }
 
-    /// The scan the app runs: the catalog's discovery, then leftovers of removed apps no catalog item covers.
+    /// The scan the app runs: the catalog's discovery, then files from deleted apps no catalog item covers.
     public static func scan(_ sources: Sources) -> [Candidate] {
         let discovered = sources.catalog.discovery(home: sources.home, userFolder: sources.userFolder, exclusions: sources.exclusions, inUse: sources.inUse,
                                                    locateTool: sources.locateTool, systemRoot: sources.systemRoot, cloud: sources.cloud, access: sources.access)

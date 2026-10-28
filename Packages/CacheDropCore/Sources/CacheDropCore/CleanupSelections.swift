@@ -8,7 +8,7 @@ public struct CleanupSelections: Sendable, Equatable {
     /// Which page a review or run came from.
     public enum Source: Sendable, Equatable, CaseIterable {
         case plan, smartClean, applications
-        /// The page that shows and cleans an item: leftovers of removed apps on Applications (Decision 51), the rest in the plan.
+        /// The page that shows and cleans an item: files from deleted apps on Applications (Decision 51), the rest in the plan.
         public static func page(of candidate: Candidate) -> Source { page(ofID: candidate.id) }
         /// The same from a chosen id alone, which starts with its rule's ID, so it holds after a run, when nothing is found yet.
         static func page(ofID id: String) -> Source { page(ofRule: String(id.prefix { $0 != "|" })) }
