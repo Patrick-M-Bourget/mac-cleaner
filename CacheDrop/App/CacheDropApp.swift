@@ -311,6 +311,8 @@ private struct WorkspaceView: View {
         .onChange(of: selection.catalog.selectionRevision) { _, _ in AppLifecycleController.shared.hasPendingPlan = selection.hasPendingChoicesOnAnyPage }
         // Launch stays on Overview; its banner opens Recovery, which checks against disk (#309).
         .task { _ = await recovery.loadOnce() }
+        // The launch scan, whichever page opens first; later scans start in the model when something changes (#306).
+        .task { await selection.catalog.scanIfNeeded() }
         .task { locationsModel.load() }
         .onChange(of: locationsModel.scopes) { _, _ in
             explorerContext.allowedScopes = Set(locationsModel.included.map { URL(fileURLWithPath: $0.path).standardizedFileURL })
@@ -426,8 +428,7 @@ private struct WorkspaceView: View {
                           open: { openPlan($0.categories) })
             scannedLocations
             overviewRecommendations
-        }.task { await selection.catalog.scanIfNeeded() }
-            .task { await TrashModel.shared.refresh() }
+        }.task { await TrashModel.shared.refresh() }
     }
 
     private var overviewRecommendations: some View {

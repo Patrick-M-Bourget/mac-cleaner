@@ -36,7 +36,6 @@ struct SmartCleanView: View {
         }
         // The sheet closes only when the choices it was built from changed, and the page says so (#307).
         .onChange(of: model.selectionRevision) { _, _ in if review != nil { review = nil; approvalError = PlanReviewError.changedMessage } }
-        .task { await model.scanIfNeeded() }
     }
 
     private var page: some View {

@@ -142,6 +142,11 @@ struct RefreshRequest: Sendable {
     }
     func executeWorkspace(_ review: WorkspaceCleanupReview) async throws {
         guard canReview(review.source), catalog.selectionRevision == review.catalogVersion else { throw PlanReviewError.changed }
+        await run(review)
+        // A run empties the catalog, so CacheDrop scans again by itself, whichever page is open (#306).
+        await catalog.rescan()
+    }
+    private func run(_ review: WorkspaceCleanupReview) async {
         runSource = review.source
         let cancellation = CleanupCancellation()
         workspaceCancellation = cancellation; workspaceStopRequested = false

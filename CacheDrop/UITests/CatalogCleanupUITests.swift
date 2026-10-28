@@ -1449,6 +1449,38 @@ extension CatalogCleanupUITests {
         let chosen = NSPredicate(format: "value == 1")
         XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: chosen, object: installer)], timeout: 15), .completed, "The installer is still chosen")
     }
+
+    /// #306: a Smart clean run rescans by itself. After Done the page waits for that scan, with its progress in the bar,
+    /// then fills again and can be cleaned once more. A dry run, so the caches are still there to find.
+    @MainActor func testSmartCleanRescansAfterARunAndThePageFillsAgain() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        let state = try configureIsolatedState(app)
+        let home = try configureCatalogHome(app)
+        turnOnDryRun(app)
+        _ = try addDeveloperCaches(home, folders: ["Library/Caches/Yarn"])
+        defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
+        app.launchEnvironment["CACHEDROP_TEST_DISCOVERY_PAUSE"] = "0.5"
+        app.launch()
+        XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
+        waitForCatalogScan(app)
+        app.typeKey("2", modifierFlags: .command)
+        let developer = app.checkBoxes["smartCleanCategory-developer"]
+        XCTAssertTrue(developer.waitForExistence(timeout: 10))
+        app.buttons["smartCleanCleanUp"].click()
+        XCTAssertTrue(reviewLine(app, "permanentlyRemoved", "developer").waitForExistence(timeout: 10))
+        app.buttons.matching(NSPredicate(format: "label == 'Clean up' AND identifier != 'smartCleanCleanUp'")).firstMatch.click()
+
+        let done = app.buttons["smartCleanDone"]
+        XCTAssertTrue(done.waitForExistence(timeout: 20))
+        done.click()
+        XCTAssertTrue(app.staticTexts["catalogScanProgress"].waitForExistence(timeout: 10), "The run rescans, and the bar shows its progress")
+        XCTAssertTrue(developer.waitForExistence(timeout: 120), "The page fills again after the scan")
+        XCTAssertTrue(app.staticTexts["catalogScanProgress"].waitForNonExistence(timeout: 120))
+        let enabled = NSPredicate(format: "isEnabled == true")
+        XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: enabled, object: app.buttons["smartCleanCleanUp"])], timeout: 10), .completed,
+                       "Clean up works again")
+    }
 }
 
 /// #235: a folder scan's status lives in the bottom bar on every screen, never in the toolbar.

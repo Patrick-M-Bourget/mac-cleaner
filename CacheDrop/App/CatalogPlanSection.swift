@@ -31,7 +31,7 @@ struct CatalogPlanSection: View {
             }
             ForEach(model.notes, id: \.ruleID) { note in StatusRow(text: note.text, symbol: "info.circle", role: .neutral, identifier: "planNote-" + note.ruleID) }
             if let message = model.message { StatusRow(text: message, symbol: "info.circle", role: .caution) }
-        }.task { await model.scanIfNeeded() }
+        }
     }
 }
 
