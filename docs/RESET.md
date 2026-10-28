@@ -1,6 +1,6 @@
 # Still: reset plan
 
-Execution order is the tickets in #75. The phase sections below are background; the **Decisions** section at the end is binding.
+Current work is the [First shareable build](https://github.com/Patrick-M-Bourget/mac-cleaner/milestone/12) milestone (spec #327); #75 is closed. The phase sections below are background; the **Decisions** section at the end is binding.
 
 ## Context
 Codex has worked on Still for 4 days. The result:
@@ -107,7 +107,7 @@ Phase 0 → 1 → 2 → Tier A (2–3 sessions) → Overview/onboarding → Tier
 ## Verification
 - **Unit:** `swift test --package-path Packages/CacheDropCore`, with temp-folder fixtures for every catalog rule (discover → preflight → execute → result), plus a case where the owner app is "running" and is refused.
 - **App:** `DEVELOPER_DIR=… xcodebuild -project CacheDrop/CacheDrop.xcodeproj -scheme CacheDrop build test` locally, with the smoke UI set.
-- **Real-world check:** a run on your Mac compared against a manual `du`/`df` survey, the field note's method. The pass bar: it finds the categories the field scan found, and its measured freed space matches `df`.
+- **Real-world check:** a run on your Mac compared against a manual `du`/`df` survey, the field note's method. The pass bar: it finds the categories the field scan found, and its measured freed space matches `df`. #106 ran M1 on the owner's Mac (2026-10-27), but its `df` comparison was never recorded here; that check moves to the acceptance-pass ticket #317.
 
 ## Decisions (grilled 2026-10-26)
 1. Salvage the core; replace bespoke adapters with one catalog-driven layer.

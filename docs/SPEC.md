@@ -59,7 +59,8 @@ Other actions:
 
 Notes per category:
 
-- **Browsers** (Chrome, Safari, Firefox, Arc, Edge): cache folders only, per profile, only while that browser is closed. Sizes show per browser and per profile. Review says caches are permanently removed, will refill, and pages may load slower at first.
+- **Browsers** (Chrome, Safari, Firefox): cache folders only, per profile, only while that browser is closed. Sizes show per browser and per profile. Review says caches are permanently removed, will refill, and pages may load slower at first.
+- **Arc and Edge** aren't covered yet (#116): their makers don't document where the macOS caches live, so neither has a rule.
 - **Safari** (#117): only WebKit's HTTP cache, `~/Library/Caches/com.apple.Safari/WebKit/NetworkCache`. The rest of that folder (CacheStorage, HSTS), history, bookmarks, cookies and website data are protected. Safari's container and per-profile caches aren't offered until their layout is confirmed. macOS protects Safari's data, so without Full Disk Access the row says not accessible, with the explanation, and nothing there is read.
 - **Chrome code-sign clones** live in the user's own folder under `/private/var/folders`. The copy the running browser has open and the newest copy are always kept.
 - **Old temporary files and app caches** (#132), under App caches: each file or folder at the top of the user's own `T` folder, and in its `C` folder only a folder named after an installed app's bundle identifier, with that app closed (macOS's own daemon caches there, such as `assessmentagent` or `clang`, are never offered). Either is deleted only when the user owns all of it, nothing inside was modified or changed in 3 days, no process of the user's has a file in it open or mapped, it isn't empty, and it isn't macOS's (`com.apple.*`) or another rule's. When open files can't be read, nothing is offered. Open and mapped files are read through the documented libproc calls, once per scan and once per review. A cleanup run reads them again before each item that needs this check once the last reading is more than 5 seconds old, so an item that comes after a long step is checked against what is open then (#142). The check just before acting repeats the in-use check and refuses an item anything inside changed in since the scan. `X` is never touched except by the Chrome rule.
@@ -133,7 +134,7 @@ In M1 (tickets #97–#105):
 - npm cache (#97); remaining developer caches and Homebrew (#99);
 - Downloads installers and old large files to Trash (#98);
 - Xcode DerivedData, unavailable simulators, old iOS DeviceSupport (#100);
-- browser caches for Chrome, Safari, Firefox, Arc and Edge (#101);
+- browser caches for Chrome, Safari and Firefox (#101; Arc and Edge wait on #116);
 - Chrome code-sign clones (#102);
 - updater downloads, per-app caches, logs and crash reports (#103);
 - Hugging Face and Ollama models, VM and disk images (#104);
@@ -154,7 +155,7 @@ After M1 (#92), in rough order:
 
 ## 9. Out of scope
 
-- Uninstaller, duplicate finder, treemap, automatic or scheduled cleanup.
+- Duplicate finder, treemap, automatic or scheduled cleanup. (Uninstalling was listed here; RESET Decisions 41, 50 and 51 brought it into scope: apps, plug-ins and leftovers go to the Trash from the Applications page.)
 - Emptying the Trash.
 - Admin helpers, root daemons, system extensions, anything that needs an admin password.
 - Other users' data and system files; blanket cleanup of System Data, Application Support, containers, snapshots or swap.
