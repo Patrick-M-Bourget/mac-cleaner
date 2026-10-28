@@ -268,7 +268,8 @@ struct StorageExplorerView: View {
                                        action: EmptyStateAction("Clear search") { context.position.query = "" }, identifier: "explorerNoMatches")
                         }
                     } else {
-                        ForEach(visible) { entry in row(entry); Divider() }
+                        // Only on-screen rows are built (#365); the outer stack stays eager so ExplorerViewport is never recycled.
+                        LazyVStack(alignment: .leading, spacing: 0) { ForEach(visible) { entry in row(entry); Divider() } }
                     }
                 }.frame(maxWidth: .infinity, alignment: .leading)
             }.accessibilityIdentifier("explorerList")
@@ -434,6 +435,8 @@ private struct ExplorerViewport: NSViewRepresentable {
             }
             if navigationID != browsing.navigationID {
                 navigationID = browsing.navigationID
+                // Lazy rows (#365): lay out first so the saved offset isn't clamped to a stale document height.
+                scroll.layoutSubtreeIfNeeded()
                 clip?.scroll(to: browsing.position.offset); scroll.reflectScrolledClipView(scroll.contentView)
             }
         }

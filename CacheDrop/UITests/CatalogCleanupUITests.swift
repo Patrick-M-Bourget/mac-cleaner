@@ -1022,6 +1022,37 @@ extension CatalogCleanupUITests {
         XCTAssertEqual(explorerBack.label, "Back to Overview")
     }
 
+    /// #365: a folder with 5,000 direct children opens within a few seconds and builds only the rows on screen.
+    @MainActor func testExplorerOpensAFolderWithThousandsOfFilesQuickly() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        let state = try configureIsolatedState(app)
+        let home = try configureCatalogHome(app)
+        let folder = FileManager.default.temporaryDirectory.resolvingSymlinksInPath().appendingPathComponent("CacheDropPicked-" + UUID().uuidString)
+        defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home); try? FileManager.default.removeItem(at: folder) }
+        let crowded = folder.appendingPathComponent("Crowded")
+        try FileManager.default.createDirectory(at: crowded, withIntermediateDirectories: true)
+        for number in 0..<5_000 { try Data(repeating: 1, count: 16).write(to: crowded.appendingPathComponent(String(format: "file-%04d.txt", number))) }
+        app.launch()
+        XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
+        app.links["overviewScanFolder"].click()
+        let panel = app.sheets.firstMatch.exists ? app.sheets.firstMatch : app.dialogs.firstMatch
+        XCTAssertTrue(panel.waitForExistence(timeout: 5))
+        panel.typeKey("g", modifierFlags: [.command, .shift])
+        app.typeText(folder.path + "\n")
+        panel.buttons["Scan folder"].click()
+        waitForScannedFolder(app, timeout: 60)
+        let explore = app.links["Explore storage"]
+        XCTAssertTrue(explore.waitForExistence(timeout: 20))
+        explore.click()
+        app.buttons["Open folder " + folder.lastPathComponent].click()
+        XCTAssertTrue(app.buttons["Open folder Crowded"].waitForExistence(timeout: 5))
+        app.buttons["Open folder Crowded"].click()
+        let rows = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Inspect file-'"))
+        XCTAssertTrue(rows.firstMatch.waitForExistence(timeout: 3), "The crowded folder shows its rows within a few seconds")
+        XCTAssertLessThan(rows.count, 5_000, "Only the rows on screen are built")
+    }
+
     /// #249: the scanned folder itself is deleted and Scan again can't find it. The explorer keeps its last observation
     /// but marks it as gone, with Overview's orange row and Choose again…, and never lists its old contents as current.
     @MainActor func testExplorerMarksADeletedScannedFolderAsNotFound() throws {
