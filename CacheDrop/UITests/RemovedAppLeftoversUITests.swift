@@ -1,6 +1,6 @@
 import XCTest
 
-/// #173: leftovers of apps you removed, in a fixture home. Installed apps come only from the home's
+/// #173: files from deleted apps, in a fixture home. Installed apps come only from the home's
 /// `.cachedrop-test-installed-apps` (DEBUG seam), so the journey never asks Spotlight or Launch Services about this Mac.
 final class RemovedAppLeftoversUITests: XCTestCase {
     @MainActor func testLeftoversAreGroupedPerAppAndPossiblyRelatedItemsAreNeverTickedWithTheirCategory() throws {

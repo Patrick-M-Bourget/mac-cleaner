@@ -56,13 +56,15 @@ import SwiftUI
     }
 }
 
-/// Applications (Decision 51): apps, plug-in products and leftovers of removed apps on one page. Apps (#177),
-/// leftovers and plug-in products (#176) are chosen and cleaned through the plan's selection, review sheet and run.
+/// Applications (Decision 51): apps, plug-in products and files from deleted apps on one page. Apps (#177),
+/// files from deleted apps and plug-in products (#176) are chosen and cleaned through the plan's selection, review sheet and run.
 struct ApplicationsView: View {
     let selection: SessionPlan
     let model: ApplicationsModel
     var viewHistory: (() -> Void)? = nil
     var reviewRecovery: (() -> Void)? = nil
+    /// Opens the Cleanup plan with these categories revealed, for the review's "Clean in the Cleanup plan" (#354).
+    var openPlan: (([CatalogCategory]) -> Void)? = nil
     @State private var expanded: Set<String> = []
     @State private var leftoversExpanded = false
     @State private var review: WorkspaceCleanupReview?
@@ -90,20 +92,33 @@ struct ApplicationsView: View {
             WorkspaceCleanupConfirmationView(review: snapshot, cancel: { review = nil }) {
                 review = nil
                 Task { do { try await selection.executeWorkspace(snapshot) } catch { approvalError = PlanReviewError.changedMessage } }
-            }
+            } follow: { link in follow(link) }
         }
         // The sheet closes only when the choices it was built from changed, and the page says so (#307).
         .onChange(of: catalog.selectionRevision(for: .applications)) { _, _ in if review != nil { review = nil; approvalError = PlanReviewError.changedMessage } }
         // Read again after each catalog scan, so Scan again refreshes the lists too.
         .task(id: catalog.isScanning) { if !catalog.isScanning { await model.load(plugIns: catalog.plugInInventory) } }
-        // A search opens Leftovers, so its matching groups show.
+        // A search opens Files from deleted apps, so its matching groups show.
         .onChange(of: model.listing.isSearching) { _, searching in if searching { leftoversExpanded = true } }
+    }
+
+    /// A staying line's link (#354): the plan closes the review and opens there; Finder shows the files over it.
+    private func follow(_ link: AppUninstall.Staying.Link) {
+        switch link {
+        case .cleanupPlan(let ruleIDs):
+            var categories: [CatalogCategory] = []
+            for id in ruleIDs { if let category = catalog.catalog.rule(id)?.category, catalog.plans(category), !categories.contains(category) { categories.append(category) } }
+            review = nil
+            openPlan?(categories)
+        case .finder(let paths):
+            model.reveal(paths.map { URL(fileURLWithPath: $0).lastPathComponent }.joined(separator: ", "), paths.map { URL(fileURLWithPath: $0) })
+        }
     }
 
     private var page: some View {
         VStack(alignment: .leading, spacing: CacheDropDesign.Space.lg) {
             HStack(alignment: .bottom, spacing: CacheDropDesign.Space.lg) {
-                PageHeader(title: "Applications", subtitle: "Apps, plug-ins and files that removed apps left behind.")
+                PageHeader(title: "Applications", subtitle: "Apps, plug-ins and files from deleted apps.")
                     .accessibilityElement(children: .combine).accessibilityIdentifier("applicationsHeader")
                 listControls
             }.padding(.bottom, CacheDropDesign.Space.sm)
@@ -114,24 +129,24 @@ struct ApplicationsView: View {
                     empty: ("No apps to list", "Only Apple’s apps are in the Applications folders."))
             section("Plug-ins", id: "plugIns", entries: model.plugIns, category: .audioPlugIns, identifier: "applicationsPlugIn-",
                     empty: ("No plug-ins to list", "No audio plug-ins other than Apple’s were found."))
-            Text("Leftovers").font(CacheDropDesign.TypeStyle.section)
+            Text("Files from deleted apps").font(CacheDropDesign.TypeStyle.section)
             if let row = catalog.leftoversRow {
                 if model.listing.isSearching, !row.rules.flatMap(catalog.candidates(for:)).contains(where: model.listing.matches) { noMatches("leftovers") }
                 else { PlanCategoryRow(model: catalog, row: row, expanded: $leftoversExpanded, listing: model.listing).waitingForScan(catalog.isScanning) }
             } else if catalog.settingsUnreadable {
                 EmptyView() // The notice above says why nothing was read (#310).
             } else if catalog.hasScanned && !catalog.isScanning {
-                state("No leftovers", "Apps you removed left nothing behind that CacheDrop can tie to them.", symbol: "checkmark.circle", id: "applicationsEmpty-leftovers")
+                state("No files from deleted apps", "Apps you removed left nothing behind that CacheDrop can tie to them.", symbol: "checkmark.circle", id: "applicationsEmpty-leftovers")
             } else {
                 loading("leftovers")
             }
         }.padding(CacheDropDesign.Space.page).frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    /// One search and one Sort for Apps, Plug-ins and Leftovers (#295), searching by name or maker.
+    /// One search and one Sort for Apps, Plug-ins and Files from deleted apps (#295), searching by name or maker.
     private var listControls: some View {
         HStack(spacing: CacheDropDesign.Space.sm) {
-            TextField("Search apps, plug-ins and leftovers", text: Bindable(model).listing.search, prompt: Text("Name or maker"))
+            TextField("Search apps, plug-ins and files from deleted apps", text: Bindable(model).listing.search, prompt: Text("Name or maker"))
                 .labelsHidden().textFieldStyle(.roundedBorder).frame(width: CacheDropDesign.Size.searchField)
                 .accessibilityIdentifier("applicationsSearch")
             Picker("Sort", selection: Bindable(model).listing.order) {
@@ -192,8 +207,10 @@ struct ApplicationsView: View {
         let uninstall = catalog.uninstallItems(ofRow: entry.id)
         // A partly removable product also lists what stays (#176, #288): formats and support files that need a password, and AUv3s.
         let target = uninstall.lazy.compactMap(\.uninstall).first { $0.path == entry.id }
+        // Its password paths hold its formats too (#354); each is listed once.
+        let listed = Set(entry.parts.map(\.url.standardizedFileURL.path))
         let locked = (entry.parts.filter { !$0.removable && $0.name != PlugInFormat.auv3.rawValue }
-            + (target?.passwordPaths ?? []).map { InventoryEntry.Part(name: URL(fileURLWithPath: $0).lastPathComponent, url: URL(fileURLWithPath: $0), size: .unknown, removable: false) })
+            + (target?.passwordPaths ?? []).filter { !listed.contains(URL(fileURLWithPath: $0).standardizedFileURL.path) }.map { InventoryEntry.Part(name: URL(fileURLWithPath: $0).lastPathComponent, url: URL(fileURLWithPath: $0), size: .unknown, removable: false) })
         let auv3 = category == .apps ? [] : entry.parts.filter { $0.name == PlugInFormat.auv3.rawValue }
         let staying = uninstall.isEmpty || category == .apps ? [] : locked + auv3
         // "Choose items" counts what can be chosen, and says how many listed parts stay (#290).
@@ -207,7 +224,7 @@ struct ApplicationsView: View {
                            toggle: { if catalog.toggleRow(entry.id) { expanded.insert(entry.id) } }) {
             if entry.needsPassword { passwordLine(entry) }
             else if !uninstall.isEmpty {
-                // Its own uninstaller comes first (Decision 41); a later scan's Leftovers shows what it left.
+                // Its own uninstaller comes first (Decision 41); a later scan's Files from deleted apps shows what it left.
                 if let tool = model.uninstaller(for: entry) {
                     StatusRow(text: category == .apps ? "Has its own uninstaller" : "\(tool.name) can uninstall it", symbol: "shippingbox", identifier: "applicationsUninstaller-" + entry.id,
                               action: StatusAction(title: "Open " + tool.name, identifier: "applicationsOpen-" + entry.id) { model.open(tool) })

@@ -170,7 +170,7 @@ import SwiftUI
         return SystemUbiquitousItems()
     }
 
-    /// Which apps are installed, for leftovers of removed apps (#173). A debug test run never asks Spotlight or Launch Services:
+    /// Which apps are installed, for files from deleted apps (#173). A debug test run never asks Spotlight or Launch Services:
     /// only the bundle IDs listed in `<home>/.cachedrop-test-installed-apps`, one per line, are installed.
     static var appPresence: any AppPresence {
         #if DEBUG
@@ -250,7 +250,7 @@ import SwiftUI
     func estimatedBytes(for rule: CleanupRule) -> Int64 { candidates(for: rule).reduce(0) { $0 + $1.estimatedBytes } }
     func sizeComplete(for rule: CleanupRule) -> Bool { candidates(for: rule).allSatisfy(\.sizeComplete) }
     func sizeIsEstimate(for rule: CleanupRule) -> Bool { candidates(for: rule).contains(where: \.sizeIsEstimate) }
-    /// The Cleanup plan's chosen items; leftovers of removed apps are chosen on the Applications page (Decision 51).
+    /// The Cleanup plan's chosen items; files from deleted apps are chosen on the Applications page (Decision 51).
     var selectedCandidates: [Candidate] { selections.chosen(on: .plan, from: candidates) }
     /// Whether the user changed any page's ticks from the recommended default: what quitting would lose (#270, #349).
     var anyPageDiffersFromRecommended: Bool { selections.differsFromRecommended(candidates) }
@@ -274,7 +274,7 @@ import SwiftUI
     }
     func isSelected(_ rule: CleanupRule) -> Bool { candidates(for: rule).contains { selectedIDs.contains($0.id) } }
     func isSelected(_ candidate: Candidate) -> Bool { selectedIDs.contains(candidate.id) }
-    /// The plan's categories, grouped as Overview groups them, picked folders' files included. Leftovers of removed apps
+    /// The plan's categories, grouped as Overview groups them, picked folders' files included. Files from deleted apps
     /// are on the Applications page instead (Decision 51).
     var planCategories: [CatalogOverview.Row] { CatalogOverview(catalog: catalog, candidates: candidates).rows.filter { CleanupSelections.Source.page(of: $0) == .plan } }
     /// Whether the plan has a row for `category` now.
@@ -382,7 +382,7 @@ import SwiftUI
             // Installer receipts, read once for leftovers, app uninstall, plug-ins and their guidance (#318). A debug test run reads the
             // fixture system root's, so never this Mac's.
             let listings = ReceiptListings.read(under: system), receipts = ReadReceipts(listings, home: home)
-            // Leftovers of removed apps (#173), except what a catalog rule already offers, holds or sits inside.
+            // Files from deleted apps (#173), except what a catalog rule already offers, holds or sits inside.
             let found = RemovedAppLeftovers.scan(home: home, apps: presence, receipts: receipts, exclusions: exclusions)
             let leftovers = RemovedAppLeftovers.notOffered(by: discovered.candidates, found)
             // Installed apps with their files (#177), each read once.
@@ -432,7 +432,7 @@ import SwiftUI
         /// Each candidate's owners' names, by candidate id.
         let ownerNames: [String: [String]]
         let access: FullDiskAccessStatus
-        /// Leftovers of removed apps (#173).
+        /// Files from deleted apps (#173).
         let leftovers: [Candidate]
         /// Installed apps' and plug-in products' items (#177, #176).
         let uninstallable: [Candidate]
@@ -621,7 +621,7 @@ extension CatalogCategory {
         case .icloud: "Downloaded iCloud files"
         case .files: "Large and old files"
         case .managed: "App-managed storage"
-        case .leftovers: "Leftovers of removed apps"
+        case .leftovers: "Files from deleted apps"
         case .apps: "Apps, plug-ins and their files"
         }
     }
@@ -638,7 +638,7 @@ extension CatalogCategory {
         case .icloud: "Local copies of files that stay in iCloud"
         case .files: "Files of 500 MB or more, or not opened in 90 days"
         case .managed: "Data the apps that own it look after"
-        case .leftovers: "Files apps you removed left behind"
+        case .leftovers: "Settings and data they left behind"
         case .apps: "Installed apps you chose to uninstall"
         }
     }

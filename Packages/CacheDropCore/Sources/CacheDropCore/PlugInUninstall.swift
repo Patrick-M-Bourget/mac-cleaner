@@ -94,7 +94,7 @@ public enum PlugInUninstall {
                 // An AUv3 lives inside its app and goes with it.
                 if file.format == .auv3 { target.plugIn?.insideApp += 1; continue }
                 guard var format = item(formatsRule, file.url) else { continue }
-                guard Removability.canMoveToTrash(file.url) else { target.needsPassword += 1; continue }
+                guard Removability.canMoveToTrash(file.url) else { target.needsPassword += 1; target.passwordPaths.append(file.url.path); continue }
                 format.leftover = LeftoverTie(app: product.name, bundleID: file.bundleID, vendor: RemovedAppLeftovers.vendor(of: file.bundleID ?? ""), evidence: .bundleID)
                 own.append(format)
             }
@@ -108,7 +108,11 @@ public enum PlugInUninstall {
                     guard let listers = receipts.listers(of: url.path), let ids = sharers(url.path) else { continue }
                     if ids.count > 1 { if shared[url.path] == nil, let found = item(sharedRule, url) { shared[url.path] = found.shared(by: ids, receipt: receipt).installed(by: listers) }; continue }
                     guard var file = item(filesRule, url).map({ $0.installed(by: listers) }) else { continue }
-                    guard taken(offered, [file]).count == 1 else { target.inPlan += 1; continue }
+                    guard taken(offered, [file]).count == 1 else {
+                        target.inPlan += 1
+                        for id in AppUninstall.planRuleIDs(offering: [file], among: offered) where !target.inPlanRuleIDs.contains(id) { target.inPlanRuleIDs.append(id) }
+                        continue
+                    }
                     guard Removability.canMoveToTrash(url) else { target.needsPassword += 1; target.passwordPaths.append(url.path); continue }
                     file.leftover = LeftoverTie(app: product.name, bundleID: nil, vendor: RemovedAppLeftovers.vendor(of: receipt), evidence: .receipt(receipt))
                     own.append(file)

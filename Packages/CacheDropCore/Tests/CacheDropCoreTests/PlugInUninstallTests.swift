@@ -138,7 +138,13 @@ private func names(_ items: [Candidate]) -> Set<String> { Set(items.map(\.url.la
     let own = items.filter { $0.uninstall?.path == synth && $0.sharedBy.isEmpty }
 
     #expect(!own.contains { $0.url.pathExtension == "component" })
-    #expect(AppUninstall.staying(chosen: own, offered: items).map(\.text).contains("Pro Synth: 1 part stays · Needs your password"))
+    let password = try #require(AppUninstall.staying(chosen: own, offered: items).first { $0.id.hasSuffix("-password") })
+    #expect(password.text == "Pro Synth: 1 file needs your password to remove, so it stays. Remove it in Finder if you want it gone.")
+    #expect(password.link == .finder(paths: [components.appendingPathComponent("Pro Synth.component").path]))
+    // With the vendor's tool installed, the line names it first (Decision 50).
+    let withTool = own.map { item in var item = item; item.uninstall?.plugIn?.tool = "Native Access"; return item }
+    #expect(AppUninstall.staying(chosen: withTool, offered: withTool).first { $0.id.hasSuffix("-password") }?.text
+        == "Pro Synth: 1 file needs Native Access or your password to remove, so it stays. Remove it with Native Access or in Finder if you want it gone.")
 }
 
 @Test func uninstallingMovesTheProductToTrashAndPutBackRestoresEveryItem() async throws {
@@ -210,7 +216,7 @@ private func names(_ items: [Candidate]) -> Set<String> { Set(items.map(\.url.la
     let own = try items.filter { try $0.uninstall?.path == product("Pad", inventory) }
 
     #expect(names(own) == ["Pad.vst3"], "The AUv3 is never moved out of its app")
-    #expect(AppUninstall.staying(chosen: own, offered: own).map(\.text) == ["Pad: 1 part stays · Goes with the app it is in"])
+    #expect(AppUninstall.staying(chosen: own, offered: own).map(\.text) == ["Pad: 1 plug-in lives inside its app and goes when you uninstall that app."])
     #expect(own[0].uninstall?.owner.paths.contains(pad.path) == true, "The app it is in counts as the product running")
 }
 
@@ -269,7 +275,7 @@ private func names(_ items: [Candidate]) -> Set<String> { Set(items.map(\.url.la
     // Pro Delay's formats and the shared folder, its presets left unticked.
     let chosen = items.filter { $0.uninstall?.path == delay && $0.ruleID == PlugInUninstall.formatsRuleID } + [shared]
     let lines = AppUninstall.staying(chosen: chosen, offered: items).map(\.text)
-    #expect(!lines.isEmpty && lines.allSatisfy { $0.hasPrefix("Pro Delay: ") }, "\(lines)")
+    #expect(!lines.isEmpty && lines.allSatisfy { $0.hasPrefix("Pro Delay: ") || $0.contains(" of Pro Delay’s ") }, "\(lines)")
 }
 
 @Test func sharedContentCountsProductsOnlyIsNamedForItsVendorAndIsKeptWhenItsFirstOwnerOffersNothingElse() throws {
@@ -469,7 +475,8 @@ private func unreadableReceipt(_ id: String, in root: URL) throws {
     #expect(!items.contains { ["Presets", "engine.cfg", "Maker Content"].contains($0.url.lastPathComponent) }, "\(items.map(\.url.lastPathComponent))")
     let own = items.filter { $0.uninstall?.path == synth && $0.sharedBy.isEmpty }
     #expect(names(own.filter { $0.ruleID == PlugInUninstall.filesRuleID }) == ["Init.fxp"], "What it recognises next to it is still offered")
-    #expect(AppUninstall.staying(chosen: own, offered: items).map(\.text).contains("Pro Synth: 1 part stays · Holds files CacheDrop doesn’t recognize"))
+    let unknown = try #require(AppUninstall.staying(chosen: own, offered: items).first { $0.id.hasSuffix("-unrecognised") })
+    #expect(unknown.text == "Pro Synth: 1 file is kept to be safe because CacheDrop doesn’t know what it is. You don’t need to do anything.")
 }
 
 @Test func anUnreadableFolderAtAnyDepthRefusesTheItemAtTheScanAndBeforeActing() throws {

@@ -62,7 +62,7 @@ struct PlanCategoryRow: View {
     @Bindable var model: CatalogCleanupModel
     let row: CatalogOverview.Row
     @Binding var expanded: Bool
-    /// The Applications page's Sort and search, for its leftovers (#295); nil lists everything.
+    /// The Applications page's Sort and search, for its files from deleted apps (#295); nil lists everything.
     var listing: ApplicationsListing? = nil
     var body: some View {
         let state = model.selectionState(for: row.rules)

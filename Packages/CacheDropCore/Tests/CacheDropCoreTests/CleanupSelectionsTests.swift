@@ -126,7 +126,7 @@ private let recommended = [npm, logs, derived]
     #expect(selections.differsFromRecommended([logs]))
 }
 
-/// Decision 51: leftovers of removed apps are chosen and cleaned on the Applications page, the rest in the Cleanup plan.
+/// Decision 51: files from deleted apps are chosen and cleaned on the Applications page, the rest in the Cleanup plan.
 private let leftover = item(RemovedAppLeftovers.ruleID, name: "Synth"), related = item(RemovedAppLeftovers.possiblyRelatedRuleID, name: "Gone")
 
 @Test func eachPageReviewsOnlyTheItemsItShows() {

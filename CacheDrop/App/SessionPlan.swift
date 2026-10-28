@@ -359,12 +359,14 @@ struct WorkspaceCleanupConfirmationView: View {
     let review: WorkspaceCleanupReview
     let cancel: () -> Void
     let approve: () -> Void
+    /// Follows a staying line's link (#354).
+    var follow: ((AppUninstall.Staying.Link) -> Void)? = nil
     var body: some View {
         VStack(alignment: .leading, spacing: CacheDropDesign.Space.lg) {
             PageHeader(title: "Review your changes", subtitle: "Check what each action does. You can go back and change your selection.")
             ScrollView {
                 VStack(alignment: .leading, spacing: CacheDropDesign.Space.xl) {
-                    if let items = review.catalog { CatalogConfirmationSection(review: items, catalog: Catalog(rules: BuiltInCatalog.rules)) }
+                    if let items = review.catalog { CatalogConfirmationSection(review: items, catalog: Catalog(rules: BuiltInCatalog.rules), follow: follow) }
                 }.frame(maxWidth: .infinity, alignment: .leading)
             }
             Divider()

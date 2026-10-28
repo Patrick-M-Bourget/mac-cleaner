@@ -101,7 +101,7 @@ public enum CatalogScanPhase: Equatable, Sendable {
         switch self {
         case .starting: "Checking known locations…"
         case .location(let title, let number, let total): "Checking \(title)… \(number) of \(total)"
-        case .removedAppLeftovers: "Checking leftovers of removed apps…"
+        case .removedAppLeftovers: "Checking files from deleted apps…"
         case .appsAndPlugIns: "Checking apps and plug-ins…"
         case .openApps: "Checking which apps are open…"
         case .storageTrends: "Recording storage trends…"
