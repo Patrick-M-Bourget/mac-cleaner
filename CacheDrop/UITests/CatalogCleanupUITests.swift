@@ -1588,8 +1588,11 @@ extension CatalogCleanupUITests {
         turnOnDryRun(app)
         let marker = try addDeveloperCaches(home, folders: ["Library/Caches/Homebrew"])
         defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
-        // An installer nothing has opened or changed for 200 days.
-        let installer = home.appendingPathComponent("Downloads/Old Setup.dmg")
+        // An installer nothing has opened or changed for 200 days. Spotlight imports a .dmg the runner writes, again after every
+        // change to its dates, and each import reads it, so its access time is now and the app rightly finds it recent (#335).
+        // Spotlight skips a .noindex folder, and the installers rule looks inside Downloads' folders.
+        let installer = home.appendingPathComponent("Downloads/Fixture.noindex/Old Setup.dmg")
+        try FileManager.default.createDirectory(at: installer.deletingLastPathComponent(), withIntermediateDirectories: true)
         try Data(repeating: 5, count: 90_000).write(to: installer)
         let old = Date().addingTimeInterval(-200 * 86_400)
         try FileManager.default.setAttributes([.creationDate: old, .modificationDate: old], ofItemAtPath: installer.path)
