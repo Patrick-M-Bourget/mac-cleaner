@@ -46,7 +46,11 @@ import SwiftUI
     private(set) var selections = CleanupSelections()
     /// The Cleanup plan's chosen candidate ids. Nothing is preselected (Decision 28).
     private(set) var selectedIDs: Set<String> { get { selections.ticked } set { selections.ticked = newValue } }
-    private(set) var selectionRevision: UInt64 = 0
+    /// Moves on only when a page's chosen items change, or the dry run does, so an open review sheet stays open while
+    /// background work ends (#307).
+    var selectionRevision: UInt64 { selections.revision }
+    /// Notes each page's choices after a change; the revision moves only if they differ.
+    private func noteChoices() { selections.noteChoices(among: candidates, smartClean: smartCleanCandidates) }
     private(set) var isRunning = false
     /// A cleanup changed files since the last catalog scan, so the next one is recorded as a post-cleanup rescan (#126).
     private var rescanFollowsCleanup = false
@@ -76,7 +80,7 @@ import SwiftUI
     /// The Settings dry run, off by default: with it on, the whole flow runs and nothing changes on disk (Decision 27).
     var dryRun: Bool {
         didSet {
-            selectionRevision &+= 1
+            if oldValue != dryRun { selections.revise() }
             if !LocalStateLocation.isDisposableTest { UserDefaults.standard.set(dryRun, forKey: PreferenceKeys.dryRun) }
         }
     }
@@ -294,7 +298,7 @@ import SwiftUI
         case .clear(let ids): selectedIDs.subtract(ids)
         case .showItems: return true
         }
-        selectionRevision &+= 1
+        noteChoices()
         return false
     }
 
@@ -391,11 +395,9 @@ import SwiftUI
         Thread.sleep(forTimeInterval: min(pause, 2))
     }
     #endif
-    /// Drops chosen items that are no longer offered, and says so.
+    /// Drops chosen items that are no longer offered, and says so. The revision moves only when a page's choices changed (#307).
     private func keepOnlyCurrentChoices() {
-        let found = Set(candidates.map(\.id))
-        if !selectedIDs.isSubset(of: found) { selectedIDs.formIntersection(found); message = "Some items changed or are no longer on this Mac and were removed from your plan." }
-        selectionRevision &+= 1
+        if selections.keepOnly(candidates, smartClean: smartCleanCandidates) { message = "Some items changed or are no longer on this Mac and were removed from your plan." }
     }
 
     /// Lists a picked folder's large and old files from its finished scan, and its projects' build folders. Read-only; nothing is chosen.
@@ -424,12 +426,12 @@ import SwiftUI
         let ids = rules.filter { !$0.selectedOneByOne }.flatMap(candidates(for:)).map(\.id)
         guard canEdit, !ids.isEmpty else { return }
         if selected { selectedIDs.formUnion(ids) } else { selectedIDs.subtract(ids) }
-        selectionRevision &+= 1
+        noteChoices()
     }
     func setSelected(_ candidate: Candidate, _ selected: Bool) {
         guard canEdit, candidates.contains(candidate) else { return }
         if selected { selectedIDs.insert(candidate.id) } else { selectedIDs.remove(candidate.id) }
-        selectionRevision &+= 1
+        noteChoices()
     }
 
     /// The recommended plan as the last scan sees it (`RecommendedPlan`): owners running at the scan are left out.
@@ -450,7 +452,7 @@ import SwiftUI
     func isInSmartClean(_ candidate: Candidate) -> Bool { selections.isInSmartClean(candidate) }
     func setSmartClean(_ items: [Candidate], _ included: Bool) {
         guard canEdit, !items.isEmpty else { return }
-        selections.setSmartClean(items, included: included); selectionRevision &+= 1
+        selections.setSmartClean(items, included: included); noteChoices()
     }
     /// Smart clean's selection checked now: the recommended plan with the full checks, minus what was unticked.
     /// Nil when nothing could be checked or the scan changed meanwhile. Never touches the Cleanup plan's selection.
@@ -489,7 +491,7 @@ import SwiftUI
             if !approval.previewOnly { rescanFollowsCleanup = true }
             // Picked folders keep the large and old files this run didn't act on (#125).
             selections.finishRun(from: source); discovered = []; uninstallable = []; pickedFiles = pickedFiles.mapValues { UserFiles.remaining($0, after: outcome) }
-            projectBuilds = projectBuilds.mapValues { UserFiles.remaining($0, after: outcome) }; hasScanned = false; selectionRevision &+= 1
+            projectBuilds = projectBuilds.mapValues { UserFiles.remaining($0, after: outcome) }; hasScanned = false; noteChoices()
         } catch { message = "The cleanup journal is unavailable. Nothing was changed." }
     }
     /// A stopped daemon-backed tool's work may still be finishing, so its item is measured again a minute later, and
@@ -523,7 +525,7 @@ import SwiftUI
     func endSession() {
         guard !isRunning else { return }
         // A new plan keeps the Applications page's choices (#270).
-        selections.clear(.plan); pickedFiles = [:]; projectBuilds = [:]; result = nil; message = nil; selectionRevision &+= 1
+        selections.clear(.plan); pickedFiles = [:]; projectBuilds = [:]; result = nil; message = nil; noteChoices()
     }
     private func currentCheck() async -> CandidateCheck? {
         do { return CandidateCheck(catalog: catalog, running: SystemRunningAppChecker(), exclusions: try await ExclusionsModel.shared.policyForScan(), cloud: Self.cloud,
