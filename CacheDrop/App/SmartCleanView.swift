@@ -31,10 +31,11 @@ struct SmartCleanView: View {
         .sheet(item: $review) { snapshot in
             WorkspaceCleanupConfirmationView(review: snapshot, cancel: { review = nil }) {
                 review = nil
-                Task { do { try await selection.executeWorkspace(snapshot) } catch { approvalError = "Smart clean changed. Review the latest items before cleaning." } }
+                Task { do { try await selection.executeWorkspace(snapshot) } catch { approvalError = PlanReviewError.changedMessage } }
             }
         }
-        .onChange(of: model.selectionRevision) { _, _ in if review != nil { review = nil } }
+        // The sheet closes only when the choices it was built from changed, and the page says so (#307).
+        .onChange(of: model.selectionRevision) { _, _ in if review != nil { review = nil; approvalError = PlanReviewError.changedMessage } }
         .task { await model.scanIfNeeded() }
     }
 
@@ -142,6 +143,6 @@ struct SmartCleanView: View {
     private func openReview() async {
         do { review = try await selection.prepareSmartCleanReview(); approvalError = nil }
         catch PlanReviewError.nothingToClean { approvalError = "Nothing here can be cleaned right now. Scan again." }
-        catch { approvalError = "Smart clean changed. Review the latest items and try again." }
+        catch { approvalError = PlanReviewError.changedMessage }
     }
 }

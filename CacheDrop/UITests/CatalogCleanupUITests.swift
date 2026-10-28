@@ -1434,3 +1434,50 @@ final class FolderScanProgressUITests: XCTestCase {
         XCTAssertEqual(toolbarItems(), before, "The toolbar is unchanged after the scan")
     }
 }
+
+/// #307: a review sheet closes only when the choices it was built from changed, never because background work finished.
+final class ReviewSheetUITests: XCTestCase {
+    @MainActor func testSmartCleanReviewStaysOpenWhenAFolderScanFinishes() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        let state = try configureIsolatedState(app)
+        let home = try configureCatalogHome(app)
+        turnOnDryRun(app)
+        let folder = FileManager.default.temporaryDirectory.resolvingSymlinksInPath().appendingPathComponent("CacheDropPicked-" + UUID().uuidString)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        try Data(repeating: 1, count: 4_000).write(to: folder.appendingPathComponent("entry.zip"))
+        // The folder scan is held a few seconds after reading the folder, long enough to open the review under it.
+        app.launchEnvironment["CACHEDROP_TEST_FOLDER_SCAN_PAUSE"] = "8"
+        defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home); try? FileManager.default.removeItem(at: folder) }
+        app.launch()
+        XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
+        waitForCatalogScan(app)
+
+        app.buttons["overviewScanFolder"].click()
+        let panel = app.sheets.firstMatch.exists ? app.sheets.firstMatch : app.dialogs.firstMatch
+        XCTAssertTrue(panel.waitForExistence(timeout: 5))
+        panel.typeKey("g", modifierFlags: [.command, .shift])
+        app.typeText(folder.path + "\n")
+        panel.buttons["Scan folder"].click()
+        let progress = app.staticTexts["folderScanProgress"]
+        XCTAssertTrue(progress.waitForExistence(timeout: 10))
+
+        // Smart clean's review opens while the folder scan is still held.
+        let link = app.links["overviewSmartClean"]
+        XCTAssertTrue(link.waitForExistence(timeout: 10))
+        revealAndClick(link, in: app)
+        let cleanUp = app.buttons["smartCleanCleanUp"]
+        XCTAssertTrue(cleanUp.waitForExistence(timeout: 10))
+        cleanUp.click()
+        let line = reviewLine(app, "permanentlyRemoved", "developer")
+        XCTAssertTrue(line.waitForExistence(timeout: 10))
+        XCTAssertTrue(progress.exists, "The review opened before the folder scan finished")
+
+        // The folder scan finishes and lists the folder's files; the review stays open, with nothing said on the page.
+        XCTAssertTrue(progress.waitForNonExistence(timeout: 30))
+        XCTAssertFalse(line.waitForNonExistence(timeout: 3), "The review is still open")
+        XCTAssertFalse(app.staticTexts["smartCleanError"].exists)
+        app.buttons["Cancel"].click()
+        XCTAssertTrue(line.waitForNonExistence(timeout: 5))
+    }
+}
