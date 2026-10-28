@@ -425,6 +425,7 @@ private struct WorkspaceView: View {
                           breakdown: selection.catalog.breakdown(available: startupCapacity?.available, total: startupCapacity?.total, trash: TrashModel.shared.contents),
                           open: { openPlan($0.categories) })
             scannedLocations
+            SettingsUnreadableNotice(model: selection.catalog)
             overviewRecommendations
         }.task { await TrashModel.shared.refresh() }
     }

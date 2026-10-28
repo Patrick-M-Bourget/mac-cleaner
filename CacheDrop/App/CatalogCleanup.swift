@@ -56,6 +56,10 @@ import SwiftUI
     private var rescanFollowsCleanup = false
     private(set) var result: CatalogExecutionResult?
     private(set) var message: String?
+    /// The Protected items settings couldn't be read, so nothing could be scanned or checked (#310). Every page that cleans
+    /// and Overview say so once, with Try again; never "Your choices changed" or "Nothing to review".
+    private(set) var settingsUnreadable = false
+    static let settingsUnreadableText = "CacheDrop couldn’t read your Protected items settings, so it can’t check anything."
     /// Why a rule kept items back, such as copies whose use couldn't be checked.
     private(set) var notes: [CatalogNote] = []
     /// Guidance-only categories found at the last scan. Never candidates, never in a plan. Set only by the guidance
@@ -183,6 +187,8 @@ import SwiftUI
     /// Overview's summary. While the first scan runs it covers the locations finished so far, so rows and the total fill in
     /// as each one completes (#128); nil until the first one has.
     var overview: CatalogOverview? {
+        // Nothing was read, so nothing is "nothing to review" (#310).
+        if settingsUnreadable { return nil }
         if hasScanned { return CatalogOverview(catalog: catalog, candidates: discovered) }
         return scanProgress.flatMap { $0.finished > 0 ? CatalogOverview(catalog: catalog, candidates: $0.found) : nil }
     }
@@ -330,8 +336,9 @@ import SwiftUI
         // Excluded items are never offered (SPEC section 2); without the settings nothing can be offered safely.
         guard let exclusions = try? await ExclusionsModel.shared.policyForScan() else {
             discovered = []; uninstallable = []; notes = []; overriddenRules = []; notAccessibleRules = []; setRunning([:], open: []); ownerNames = [:]
-            message = "Exclusion settings are unavailable, so nothing can be checked. Try again."; return
+            settingsUnreadable = true; return
         }
+        settingsUnreadable = false
         let catalog = catalog
         let locate = Self.locateTool, system = Self.systemRoot
         let userFolder = Self.userFolder, cloud = Self.cloud
@@ -548,7 +555,7 @@ import SwiftUI
     private func currentCheck() async -> CandidateCheck? {
         do { return CandidateCheck(catalog: catalog, running: SystemRunningAppChecker(), exclusions: try await ExclusionsModel.shared.policyForScan(), cloud: Self.cloud,
                                     home: Self.checkHome, apps: Self.appPresence, systemRoot: Self.systemRoot) }
-        catch { message = "Exclusion settings are unavailable, so nothing can be checked. Try again."; return nil }
+        catch { settingsUnreadable = true; return nil }
     }
 }
 

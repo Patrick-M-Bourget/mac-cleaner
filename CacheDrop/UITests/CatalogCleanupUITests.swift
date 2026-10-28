@@ -1375,6 +1375,35 @@ extension CatalogCleanupUITests {
         XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: chosen, object: installer)], timeout: 15), .completed, "The installer is still chosen")
     }
 
+    /// #310: unreadable Protected items settings read as one error line with Try again, on Overview and on the page the user
+    /// is on, never "Nothing to review" or "Nothing to clean"; once they can be read, Try again scans and the line goes.
+    @MainActor func testUnreadableSettingsSayWhyWithTryAgainNeverNothing() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        let state = try configureIsolatedState(app)
+        let home = try configureCatalogHome(app)
+        let rules = state.appendingPathComponent("Exclusions/rules-v1.json")
+        try FileManager.default.createDirectory(at: rules.deletingLastPathComponent(), withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+        try Data("not settings".utf8).write(to: rules)
+        defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
+        app.launch()
+        XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
+        let notice = app.staticTexts["settingsUnreadable"]
+        XCTAssertTrue(notice.waitForExistence(timeout: 30), "Overview says the settings couldn't be read")
+        XCTAssertFalse(app.staticTexts["Nothing to review in the known locations."].exists)
+        XCTAssertTrue(app.buttons["settingsUnreadableTryAgain"].exists)
+
+        app.typeKey("2", modifierFlags: .command)
+        XCTAssertTrue(notice.waitForExistence(timeout: 5), "Smart clean says it too")
+        XCTAssertFalse(app.staticTexts["Nothing to clean right now."].exists)
+        XCTAssertFalse(app.staticTexts["smartCleanError"].exists)
+
+        try FileManager.default.removeItem(at: rules)
+        app.buttons["settingsUnreadableTryAgain"].click()
+        XCTAssertTrue(notice.waitForNonExistence(timeout: 30), "Try again scanned with the settings readable")
+        XCTAssertTrue(app.checkBoxes["smartCleanCategory-developer"].waitForExistence(timeout: 30))
+    }
+
     /// #310: an item Smart clean lists that the check at Clean up refuses is in its review as "will be skipped: <reason>", as
     /// in the plan's, never dropped without a word. The stand-in npm (a shell running npm-cli.js) starts after the scan.
     @MainActor func testSmartCleanReviewSaysWhyAnItemRefusedAtTheClickWillBeSkipped() throws {

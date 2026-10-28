@@ -46,6 +46,7 @@ struct SmartCleanView: View {
                 .accessibilityElement(children: .combine).accessibilityIdentifier("smartCleanHeader")
                 .padding(.bottom, CacheDropDesign.Space.sm)
             meter
+            SettingsUnreadableNotice(model: model)
             if let approvalError { StatusRow(text: approvalError, symbol: "exclamationmark.circle", role: .caution, identifier: "smartCleanError") }
             VStack(alignment: .leading, spacing: 0) {
                 ForEach(rows) { row in
@@ -53,7 +54,7 @@ struct SmartCleanView: View {
                     Divider().padding(.vertical, CacheDropDesign.Space.md)
                 }
             }
-            if rows.isEmpty && model.hasScanned && !model.isScanning {
+            if rows.isEmpty && model.hasScanned && !model.isScanning && !model.settingsUnreadable {
                 Text("Nothing to clean right now.").font(.callout).foregroundStyle(.secondary)
             }
             notIncluded
@@ -141,7 +142,6 @@ struct SmartCleanView: View {
 
     private func openReview() async {
         do { review = try await selection.prepareSmartCleanReview(); approvalError = nil }
-        catch PlanReviewError.nothingToClean { approvalError = "Nothing here can be cleaned right now. Scan again." }
-        catch { approvalError = PlanReviewError.changedMessage }
+        catch { approvalError = PlanReviewError.message(for: error) }
     }
 }

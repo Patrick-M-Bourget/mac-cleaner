@@ -93,6 +93,7 @@ struct ApplicationsView: View {
             PageHeader(title: "Applications", subtitle: "Apps, plug-ins and files that removed apps left behind.")
                 .accessibilityElement(children: .combine).accessibilityIdentifier("applicationsHeader")
                 .padding(.bottom, CacheDropDesign.Space.sm)
+            SettingsUnreadableNotice(model: catalog)
             if let approvalError { StatusRow(text: approvalError, symbol: "exclamationmark.circle", role: .caution) }
             if let status = model.status { StatusRow(text: status, identifier: "applicationsStatus") }
             section("Apps", id: "apps", entries: model.apps, category: .apps, identifier: "applicationsApp-",
@@ -102,6 +103,8 @@ struct ApplicationsView: View {
             Text("Leftovers").font(CacheDropDesign.TypeStyle.section)
             if let row = catalog.leftoversRow {
                 PlanCategoryRow(model: catalog, row: row, expanded: $leftoversExpanded)
+            } else if catalog.settingsUnreadable {
+                EmptyView() // The notice above says why nothing was read (#310).
             } else if catalog.hasScanned && !catalog.isScanning {
                 state("No leftovers", "Apps you removed left nothing behind that CacheDrop can tie to them.", symbol: "checkmark.circle", id: "applicationsEmpty-leftovers")
             } else {
@@ -230,6 +233,6 @@ struct ApplicationsView: View {
 
     private func openReview() async {
         do { review = try await selection.prepareApplicationsReview(); approvalError = nil }
-        catch { approvalError = PlanReviewError.changedMessage }
+        catch { approvalError = PlanReviewError.message(for: error) }
     }
 }
