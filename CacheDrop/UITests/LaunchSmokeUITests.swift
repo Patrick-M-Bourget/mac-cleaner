@@ -324,7 +324,7 @@ final class BackButtonUITests: XCTestCase {
         XCTAssertTrue(manage.waitForExistence(timeout: 5))
         revealAndClick(manage, in: app)
         let back = app.buttons["Back to Locations & access"]
-        assertBackButton(back, isAbove: "Local records", in: app)
+        assertBackButton(back, isAbove: "Saved data", in: app)
         XCTAssertTrue(actionStrip(app).exists, "The bottom bar stays, empty")
         back.click()
         XCTAssertTrue(manage.waitForExistence(timeout: 5))

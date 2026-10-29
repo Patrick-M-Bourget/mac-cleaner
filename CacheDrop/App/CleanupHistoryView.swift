@@ -69,23 +69,23 @@ private enum HistoryActivityItem: Identifiable {
             else { blocked = false; loadError = nil }
             try await GrowthHistoryModel.shared.clearCompletedHistory()
             await ScanActivityHistory.shared.load(maintain: false)
-            let noun = result.0.removedRuns == 1 ? "run" : "runs"
-            message = "Cleared \(result.0.removedRuns) completed cleanup \(noun), scan activity and growth baselines. Recovery facts retained." + compactionMessage(compactionCompleted)
+            let noun = result.0.removedRuns == 1 ? "cleanup" : "cleanups"
+            message = "History cleared: \(result.0.removedRuns) \(noun) and every scan." + compactionMessage(compactionCompleted)
         } catch {
             if let clearedRuns {
-                let noun = clearedRuns == 1 ? "run" : "runs"
-                message = "Cleared \(clearedRuns) completed cleanup \(noun). Scan activity and growth baseline clearing could not be confirmed. Recovery facts remain protected." + compactionMessage(compactionCompleted)
+                let noun = clearedRuns == 1 ? "cleanup" : "cleanups"
+                message = "Cleared \(clearedRuns) \(noun), but CacheDrop couldn’t confirm its scans were cleared." + compactionMessage(compactionCompleted)
             } else {
-                message = "Cleanup history clearing could not be confirmed. Scan activity and growth baselines were not cleared. Recovery facts remain protected."
+                message = "CacheDrop couldn’t confirm its cleanups were cleared, so its scans weren’t cleared either."
             }
         }
     }
     private func compactionMessage(_ completed: Bool) -> String {
-        completed ? " Local journal compacted." : " Journal compaction was deferred or failed; disk reclamation is not confirmed."
+        completed ? "" : " CacheDrop couldn’t shrink its history file yet."
     }
     func reset() async -> Bool {
         let lifecycle = AppLifecycleController.shared
-        guard !busy, !lifecycle.maintenanceInProgress, !lifecycle.operationInProgress, !lifecycle.selection.workspaceRunning else { message = "Reset is blocked while cleanup is running. Stop and review its results first."; return false }
+        guard !busy, !lifecycle.maintenanceInProgress, !lifecycle.operationInProgress, !lifecycle.selection.workspaceRunning else { message = "Wait for the current scan or cleanup to finish, then reset."; return false }
         busy = true; lifecycle.maintenanceInProgress = true
         defer { busy = false; lifecycle.maintenanceInProgress = false }
         enum ResetStage { case journal, appearance, remainingPreferences }
@@ -114,7 +114,7 @@ private enum HistoryActivityItem: Identifiable {
             lifecycle.workspaceNavigation.explorerVisible = false
             lifecycle.workspaceNavigation.planReturnsToExplorer = false
             snapshot = CleanupHistorySnapshot(records: [])
-            message = "CacheDrop’s preferences, custom exclusions, selected locations and completed history were reset. Original files and macOS access grants are unchanged." + (result.1.completed ? "" : " Journal compaction did not finish; disk reclamation is not confirmed.")
+            message = "CacheDrop was reset: its settings, Protected items, chosen folders and history are gone. Your files and the access you gave in System Settings are unchanged." + (result.1.completed ? "" : " CacheDrop couldn’t shrink its history file yet.")
             blocked = false
             return true
         } catch CleanupJournalError.recoveryRequired {
@@ -123,15 +123,15 @@ private enum HistoryActivityItem: Identifiable {
             blocked = true
             switch resetStage {
             case .journal:
-                message = "Reset could not finish safely. The journal is unavailable; preferences are unchanged and some completed history may already be cleared. Review recovery before trying again."
+                message = "Reset couldn’t finish: CacheDrop couldn’t open its history. Your settings are unchanged, and some finished cleanups may already be cleared. Review any interrupted cleanup before you try again."
             case .appearance:
-                message = "Reset could not clear the appearance preference. The current appearance is retained; some completed history may already be cleared. Review recovery before trying again."
+                message = "Reset couldn’t clear the appearance setting, so it stays as it is. Some finished cleanups may already be cleared. Review any interrupted cleanup before you try again."
             case .remainingPreferences:
-                message = "Reset could not finish safely. Appearance was reset to System, but another preference service is unavailable; some completed history may already be cleared. Review recovery before trying again."
+                message = "Reset couldn’t finish: appearance went back to System, but other settings couldn’t be reset. Some finished cleanups may already be cleared. Review any interrupted cleanup before you try again."
             }
         }
         if let downloadsClearedRuns, downloadsClearedRuns > 0 {
-            message = (message ?? "Reset did not finish.") + " Completed cleanup runs cleared: \(downloadsClearedRuns)."
+            message = (message ?? "Reset didn’t finish.") + " Finished cleanups cleared: \(downloadsClearedRuns)."
         }
         return false
     }

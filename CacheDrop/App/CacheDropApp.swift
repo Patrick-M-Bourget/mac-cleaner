@@ -708,7 +708,7 @@ private struct WorkspaceView: View {
     ScrollView {
         VStack(alignment: .leading, spacing: CacheDropDesign.Space.xl) {
             if recoveryVisible {
-                CleanupRecoveryView(model: recovery, back: BackButton(destination: navigationState.localRecordsVisible ? "Local records" : navigationState.recoveryCaller.rawValue) {
+                CleanupRecoveryView(model: recovery, back: BackButton(destination: navigationState.localRecordsVisible ? "Saved data" : navigationState.recoveryCaller.rawValue) {
                     recoveryVisible = false; destination = navigationState.recoveryCaller; navigationState.recoveryCaller = .overview
                 }, viewHistory: { navigate(.history) })
             } else if navigationState.localRecordsVisible {
