@@ -36,21 +36,28 @@ public struct ReviewHeldItems: Sendable {
     }
 
     private mutating func findHolder(of candidate: Candidate, isOpen: ([String]) -> Bool) {
-        let owner = refusals[candidate.id].flatMap { Self.knownHolder(of: candidate, refusal: $0, catalog: catalog) }
+        let owner = refusals[candidate.id].flatMap { CandidateHold($0, of: candidate, catalog: catalog)?.app }
         holders[candidate.id] = owner.flatMap { !$0.bundleIDs.isEmpty && isOpen($0.bundleIDs) ? $0 : nil }
     }
+}
 
-    /// The owner a refusal names, among those the catalog knows for the item: its own owner or a plug-in host while it
-    /// runs, the app whose leaked copy it is while that app uses it. Nil for any other reason or holder.
-    static func knownHolder(of candidate: Candidate, refusal: CheckRefusal, catalog: Catalog) -> RuleOwner? {
-        guard let rule = catalog.rule(candidate.ruleID) else { return nil }
+extension CandidateHold {
+    /// The hold a refusal says something has on `candidate` (#374, #377, Decision 79), the one rule Smart clean's held lines
+    /// and the review's Quit links read: its owner, or a plug-in host, is running (`.ownerRunning`), or something is using it
+    /// (`.inUse`). Its `app` is the owner the refusal names among those the catalog knows for the item: its own owner or a
+    /// plug-in host, or the app whose leaked copy it is; nil for any other holder ("An Android virtual device", any app).
+    /// Nil for any other refusal.
+    public init?(_ refusal: CheckRefusal, of candidate: Candidate, catalog: Catalog) {
+        let rule = catalog.rule(candidate.ruleID)
         switch refusal {
         case .ownerRunning(let name):
-            let owners = catalog.owner(for: candidate).map { [$0] } ?? []
-            return (owners + (candidate.uninstall?.plugIn?.hosts ?? [])).first { $0.name == name }
+            let owners = (catalog.owner(for: candidate).map { [$0] } ?? []) + (candidate.uninstall?.plugIn?.hosts ?? [])
+            self.init(refusal, app: owners.first { $0.name == name })
         case .inUse(let name):
-            guard case .mustNotUse(let owner) = Catalog.ownership(of: candidate, under: rule), owner.name == name else { return nil }
-            return owner
+            guard let rule, case .mustNotUse(let owner) = Catalog.ownership(of: candidate, under: rule), owner.name == name, owner != .anyApp else {
+                self.init(refusal); return
+            }
+            self.init(refusal, app: owner)
         default: return nil
         }
     }
