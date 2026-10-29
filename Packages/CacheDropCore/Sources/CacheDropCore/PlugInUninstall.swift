@@ -238,6 +238,9 @@ public enum PlugInUninstall {
                   let list = try? PropertyListSerialization.propertyList(from: data, format: nil) else { return .unrecognised(name) }
             return hasLicenceKeys(list) ? .protected(name) : nil
         }
+        // An older library's `<Library>_info.nkx` is, with its `_info.nkc`, the stand-in for the `.nicnt` Native Access needs to
+        // add it (NI support 69000879770); every other `.nkx` is a Kontakt sample monolith (#401, Decision 91).
+        if name.lowercased().hasSuffix("_info.nkx") { return .unrecognised(name) }
         return safeKinds.contains(kind) || finderFiles.contains(name) ? nil : .unrecognised(name)
     }
     /// Whether a file sits in a folder (not Preferences) beside preset files.
