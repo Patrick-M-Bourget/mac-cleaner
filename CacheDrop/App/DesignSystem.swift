@@ -332,6 +332,8 @@ struct ActionDisclosureGroup<Content: View>: View {
 struct StatusAction {
     let title: String
     var identifier = ""
+    /// Dimmed while its work runs, such as the review's "Quitting…" (#377).
+    var isDisabled = false
     let action: () -> Void
 }
 struct StatusRow: View {
@@ -344,7 +346,7 @@ struct StatusRow: View {
         HStack(alignment: .firstTextBaseline, spacing: CacheDropDesign.Space.sm) {
             Label { Text(text).fixedSize(horizontal: false, vertical: true).accessibilityIdentifier(identifier) } icon: { Image(systemName: symbol).foregroundStyle(role.color) }
                 .font(.callout).foregroundStyle(.secondary)
-            if let action { Button(action.title, action: action.action).buttonStyle(.link).accessibilityIdentifier(action.identifier) }
+            if let action { Button(action.title, action: action.action).buttonStyle(.link).disabled(action.isDisabled).accessibilityIdentifier(action.identifier) }
         }.frame(maxWidth: .infinity, alignment: .leading)
     }
 }
