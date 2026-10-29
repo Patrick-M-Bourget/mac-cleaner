@@ -114,6 +114,20 @@ public struct StorageExplorerIndex: Sendable {
         return entries.filter { $0.path.hasPrefix(prefix) && $0.path.dropFirst(prefix.count).localizedCaseInsensitiveContains(query) }
             .sorted { Self.finderOrder($0, $0.path[...], $1, $1.path[...]) }
     }
+    /// `entries` as the list's column header sorts them (#373). By name, folders stay first either way round; by size, folders
+    /// and files mix by what each holds on disk, a folder by its subtotal and an unknown size as nothing.
+    public func ordered(_ entries: [Entry], by sort: ListSort) -> [Entry] {
+        let name = { (entry: Entry) in String(entry.path[(entry.path.lastIndex(of: "/").map(entry.path.index(after:)) ?? entry.path.startIndex)...]) }
+        switch sort.column {
+        case .name:
+            let folders = entries.filter { $0.item.kind == .folder }, others = entries.filter { $0.item.kind != .folder }
+            return sort.ordered(folders, name: name, bytes: { _ in 0 }) + sort.ordered(others, name: name, bytes: { _ in 0 })
+        case .size:
+            return sort.ordered(entries, name: name) { entry in
+                entry.item.kind == .folder ? allocatedByFolder[entry.path]?.bytes ?? 0 : entry.item.allocatedBytes ?? 0
+            }
+        }
+    }
     /// Whether `folder` is a shown location or an observed folder.
     public func contains(folder: URL) -> Bool { folderPaths.contains(folder.standardizedFileURL.path) }
     /// The entry with this row identity and resource, if it is still observed.

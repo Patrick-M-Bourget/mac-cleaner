@@ -41,18 +41,21 @@ import SwiftUI
         guard inputs == indexInputs else { return }
         index = built; indexRevision &+= 1
     }
-    /// The last search's matches, so redraws while typing don't filter every entry again (#346).
-    @ObservationIgnored private var lastSearch: (revision: Int, folder: URL, query: String, matches: [StorageExplorerIndex.Entry])?
-    func matches(in folder: URL, query: String) -> [StorageExplorerIndex.Entry] {
-        if let last = lastSearch, last.revision == indexRevision, last.folder == folder, last.query == query { return last.matches }
-        let found = index?.matches(in: folder, query: query) ?? []
-        lastSearch = (indexRevision, folder, query, found)
-        return found
+    /// The last listing, a folder's contents or a search's matches in the chosen order, so redraws while typing don't
+    /// filter or sort every entry again (#346, #373).
+    @ObservationIgnored private var lastListing: (revision: Int, folder: URL, query: String, sort: ListSort, entries: [StorageExplorerIndex.Entry])?
+    /// What `folder` lists: its children, or with a search every match below it, in the column header's order.
+    func listing(in folder: URL, query: String) -> [StorageExplorerIndex.Entry] {
+        if let last = lastListing, last.revision == indexRevision, last.folder == folder, last.query == query, last.sort == sort { return last.entries }
+        guard let index else { return [] }
+        let entries = index.ordered(query.isEmpty ? index.children(of: folder) : index.matches(in: folder, query: query), by: sort)
+        lastListing = (indexRevision, folder, query, sort, entries)
+        return entries
     }
     /// Lists the large and old files offered from picked folders instead of the folder's contents.
     var showsLargeAndOld = false
-    enum FileOrder: String, CaseIterable, Identifiable { case size = "Largest first", lastUsed = "Oldest first"; var id: Self { self } }
-    var fileOrder = FileOrder.size
+    /// The column header's sort for every list here (#373): On disk, largest first, until changed; kept until CacheDrop quits.
+    var sort = ListSort()
     var position = Position()
     private var history: [Position] = []
     var canGoBack: Bool { !history.isEmpty }
@@ -120,8 +123,8 @@ struct StorageExplorerView: View {
         return index.contains(folder: folder)
     }
     private var visible: [Entry] {
-        guard folderAvailable, let folder = context.position.folder, let index else { return [] }
-        return context.position.query.isEmpty ? index.children(of: folder) : context.matches(in: folder, query: context.position.query)
+        guard folderAvailable, let folder = context.position.folder, index != nil else { return [] }
+        return context.listing(in: folder, query: context.position.query)
     }
     private var inspected: Entry? {
         guard let id = context.position.inspectedID, let resource = context.position.inspectedResource,
@@ -204,28 +207,19 @@ struct StorageExplorerView: View {
                 }
                 Spacer(minLength: CacheDropDesign.Space.md)
                 if !selection.catalog.pickedByResource.isEmpty {
-                    if context.showsLargeAndOld {
-                        Picker("Sort", selection: $context.fileOrder) {
-                            ForEach(StorageExplorerContext.FileOrder.allCases) { Text($0.rawValue).tag($0) }
-                        }.labelsHidden().fixedSize().accessibilityIdentifier("explorerFileOrder")
-                    }
                     Button(context.showsLargeAndOld ? "All files" : "Large and old files") { context.showsLargeAndOld.toggle() }
                         .buttonStyle(.link).accessibilityIdentifier("explorerMode")
                 }
             }.font(.callout)
             if folderAvailable, let folder = context.position.folder {
-                TextField("Search this folder", text: $context.position.query).help(folder.path)
-                    .accessibilityIdentifier("explorerSearch")
+                PageSearchField(label: "Search this folder", prompt: "Search this folder", text: $context.position.query, identifier: "explorerSearch")
+                    .help(folder.path)
             }
         }
     }
     private var list: some View {
         VStack(alignment: .leading, spacing: 0) {
-            HStack {
-                Text("Name"); Spacer(); Text("On disk")
-            }.font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
-                .padding(.horizontal, CacheDropDesign.Space.md).padding(.bottom, CacheDropDesign.Space.sm)
-            Divider()
+            ColumnHeader(name: "Name", size: "On disk", sort: $context.sort, identifier: "explorerSort")
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
                     ExplorerViewport(context: context).frame(height: 0)
@@ -236,7 +230,7 @@ struct StorageExplorerView: View {
                         largeAndOldFiles
                     } else if context.position.folder == nil {
                         if scans.isEmpty && goneLocations.isEmpty { EmptyState(title: "No scanned folders", detail: "Add a folder in Locations & access to explore it.", symbol: "folder") }
-                        ForEach(scans, id: \.scope) { scan in
+                        ForEach(context.sort.ordered(scans, name: \.scope.lastPathComponent, bytes: { $0.allocatedBytes ?? 0 }), id: \.scope) { scan in
                             // The size, then only the caveats that apply.
                             InspectableItemRow(name: scan.scope.lastPathComponent,
                                                detail: ([scan.isComplete ? nil : "Partly scanned", (index?.overlaps(scan.scope) ?? false) ? "Overlaps another location" : nil] as [String?]).compactMap { $0 }.joined(separator: " · "),
@@ -324,7 +318,7 @@ struct StorageExplorerView: View {
         item.kind == .file ? selection.catalog.pickedByResource[item.resourceID] : nil
     }
     private var showsLargeAndOld: Bool { context.showsLargeAndOld && !selection.catalog.pickedByResource.isEmpty }
-    /// Files offered from picked folders, under the current folder, in the chosen order. Nothing is preselected.
+    /// Files offered from picked folders, under the current folder, in the column header's order (#373). Nothing is preselected.
     /// Only files observed in the explorer's selected locations are listed, each with its observation.
     private var offeredHere: [(file: Candidate, entry: Entry)] {
         let all = selection.catalog.pickedCandidates.compactMap { file -> (file: Candidate, entry: Entry)? in
@@ -332,10 +326,7 @@ struct StorageExplorerView: View {
             if let folder = context.position.folder, !entry.item.url.pathComponents.starts(with: folder.pathComponents) { return nil }
             return (file, entry)
         }
-        switch context.fileOrder {
-        case .size: return all
-        case .lastUsed: return all.sorted { ($0.file.lastUsed ?? .distantFuture) < ($1.file.lastUsed ?? .distantFuture) }
-        }
+        return context.sort.ordered(all, name: \.file.displayName, bytes: \.file.estimatedBytes)
     }
     private var largeAndOldFiles: some View {
         let files = offeredHere
