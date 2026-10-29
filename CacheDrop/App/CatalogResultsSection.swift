@@ -29,7 +29,7 @@ struct CatalogResultsSection: View {
                 SummarySurface {
                     HStack(alignment: .top, spacing: CacheDropDesign.Space.xl) {
                         if !onlyTrashed {
-                            metric(result.measuredFreedBytes.map { catalogBytes($0) } ?? SizeEstimate.unknown.text, "Measured freed space", followUp: settledLine)
+                            metric(MeasuredFreedSpace.shown(result.measuredFreedBytes).map { catalogBytes($0) } ?? SizeEstimate.unknown.text, "Measured freed space", followUp: settledLine)
                         }
                         let upperBound = upperBound(result.records)
                         metric(catalogBytes(result.estimatedBytes, upperBound: upperBound), upperBound ? "Estimated before cleanup · Upper bound" : "Estimated before cleanup")

@@ -113,7 +113,7 @@ struct EmptyFromTrashSheet: View {
         if result.previewOnly { return "Dry run · Nothing changed" }
         let deleted = "Deleted " + CacheDropDesign.items(result.deletedCount) + " from the Trash"
         guard result.deletedCount > 0 else { return deleted }
-        return deleted + " · Measured freed space: " + (result.measuredFreedBytes.map { catalogBytes($0) } ?? SizeEstimate.unknown.text)
+        return deleted + " · Measured freed space: " + (MeasuredFreedSpace.shown(result.measuredFreedBytes).map { catalogBytes($0) } ?? SizeEstimate.unknown.text)
     }
     /// One item, by name, then its size or outcome.
     private func line(_ record: CleanupRecord, trailing: String) -> some View {

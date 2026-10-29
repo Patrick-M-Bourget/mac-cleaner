@@ -210,7 +210,7 @@ struct CleanupHistoryView: View {
                 note("Dry run · Nothing on disk changed. No space was freed.")
             } else if run.isEmptyFromTrash {
                 // Measured around each item, as Results measures a cleanup (#359).
-                note("Measured freed space: " + (run.measuredFreedBytes.map(bytes) ?? "Unknown") + " · Other activity can affect it.")
+                note("Measured freed space: " + (MeasuredFreedSpace.shown(run.measuredFreedBytes).map(bytes) ?? "Unknown") + " · Other activity can affect it.")
             } else if !run.isPutBack {
                 if run.records.contains(where: { $0.cleanupAction == .trash }) {
                     note("In Trash until you empty it: " + (run.trashHeldAllocatedBytes.map(bytes) ?? "Unknown"))

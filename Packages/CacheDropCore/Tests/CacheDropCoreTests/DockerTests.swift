@@ -751,6 +751,20 @@ private struct NothingRunning: RunningAppChecking { func isRunning(_ owner: Rule
     #expect(later.settledLine(checked: true) == "Couldn’t check the disk again a minute later")
 }
 
+/// #418: other activity can move free space the other way while Docker's space hasn't arrived yet (−274 KB on the owner's
+/// run), so the measured freed space shown is never below 0. The sum itself is kept.
+@Test func measuredFreedSpaceIsNeverShownBelowZero() async throws {
+    let home = try fixtureHome()
+    defer { try? FileManager.default.removeItem(at: home) }
+    let docker = try fakeDocker(home)
+    let volume = FakeVolume()
+    volume.freedPerRead = [0, -274_000]
+    let result = try await dockerRun(home, docker: docker, choose: ["docker-build-cache"], volume: volume)
+    #expect(result.measuredFreedBytes == -274_000)
+    #expect(MeasuredFreedSpace.shown(result.measuredFreedBytes) == 0)
+    #expect(MeasuredFreedSpace.shown(300) == 300 && MeasuredFreedSpace.shown(nil) == nil)
+}
+
 /// #419: one short line per plan row (Decision 25).
 @Test func dockerRowsHaveOneShortLineOfDetail() {
     let catalog = Catalog(rules: fixtureRules)
