@@ -1202,8 +1202,8 @@ struct NothingToCleanUp: View {
 /// The one button rule (#311). 1: every bordered button is a capsule, set once per root (the workspace window, each sheet,
 /// the Settings form) with `cacheDropButtonRule()`. 2: large in the bottom bar (`ActionStrip`) and sheet footers
 /// (`SheetFooter`), regular in page bodies, never small and bordered. 3: anything inside a row, status line, breadcrumb or
-/// the bar's work line is a link (`.buttonStyle(.link)`), except the work line's Stop scan x (#364). 4: a sheet's footer is right-aligned, Cancel then the primary
-/// button; its one close style is `CloseButton`.
+/// the bar's work line is a link (`.buttonStyle(.link)`), except the work line's Stop scan x (#364). 4: a sheet's footer
+/// is right-aligned, Cancel then the primary button; its one close style is `CloseButton`.
 extension View {
     func cacheDropButtonRule() -> some View { buttonBorderShape(.capsule) }
 }
