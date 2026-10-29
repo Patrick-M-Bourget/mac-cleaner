@@ -1957,7 +1957,8 @@ extension CatalogCleanupUITests {
         let skipped = app.staticTexts["reviewSkipped-npm-cache"]
         XCTAssertTrue(skipped.waitForExistence(timeout: 10), "The review says the npm cache will be skipped")
         XCTAssertTrue((skipped.value as? String ?? skipped.label).contains("will be skipped: "), skipped.debugDescription)
-        XCTAssertFalse(app.links["reviewQuit-npm-cache"].exists, "A command-line tool isn't an app: no Quit, only the reason (#377)")
+        XCTAssertFalse(app.links.matching(NSPredicate(format: "identifier BEGINSWITH %@", "reviewQuit-npm-cache|")).firstMatch.exists,
+                       "A command-line tool isn't an app: no Quit, only the reason (#377)")
         app.buttons["Cancel"].click()
     }
 
@@ -2316,7 +2317,7 @@ final class EmptyStateUITests: XCTestCase {
         app.launch()
         XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
         app.typeKey("4", modifierFlags: .command)
-        XCTAssertTrue(app.staticTexts["Baseline recorded"].waitForExistence(timeout: 60), "The launch scan recorded a baseline")
+        XCTAssertTrue(app.staticTexts["No trends yet"].waitForExistence(timeout: 60), "The launch scan recorded a baseline")
 
         // Clearing completed history forgets the baseline, so no scan is recorded.
         app.typeKey("7", modifierFlags: .command)
@@ -2336,7 +2337,7 @@ final class EmptyStateUITests: XCTestCase {
         let scanNow = empty.buttons["growthEmptyAction"]
         XCTAssertEqual(scanNow.label, "Scan now")
         scanNow.click()
-        XCTAssertTrue(app.staticTexts["Baseline recorded"].waitForExistence(timeout: 60), "Scan now records a new baseline")
+        XCTAssertTrue(app.staticTexts["No trends yet"].waitForExistence(timeout: 60), "Scan now records a new baseline")
         XCTAssertFalse(empty.exists)
     }
 }

@@ -224,7 +224,8 @@ public enum PlugInUninstall {
     }
 
     /// Why a file may not go with a product (#291, Decision 53), an allow-list: licence data by name ("registration" or "serial"
-    /// anywhere in its path), a preference list with licence-like keys, or any file not of a kind known to be safe.
+    /// anywhere in its path), a preference list with licence-like keys, a library's registration stand-in (Decision 89), or any
+    /// file not of a kind known to be safe.
     static func fileRefusal(_ path: String) -> CheckRefusal? {
         let url = URL(fileURLWithPath: path), name = url.lastPathComponent, kind = url.pathExtension.lowercased()
         if RemovedAppLeftovers.isNeverOffered(name) || ["registration", "serial"].contains(where: path.lowercased().contains) { return .protected(name) }
@@ -238,6 +239,7 @@ public enum PlugInUninstall {
                   let list = try? PropertyListSerialization.propertyList(from: data, format: nil) else { return .unrecognised(name) }
             return hasLicenceKeys(list) ? .protected(name) : nil
         }
+        if name.lowercased().hasSuffix(libraryRegistrationSuffix) { return .unrecognised(name) }
         return safeKinds.contains(kind) || finderFiles.contains(name) ? nil : .unrecognised(name)
     }
     /// Whether a file sits in a folder (not Preferences) beside preset files.
@@ -249,12 +251,20 @@ public enum PlugInUninstall {
     static let presetKinds: Set<String> = ["fxp", "fxb", "vstpreset", "aupreset", "nmsv", "nksf", "nksn", "adg", "adv", "h2p"]
     /// Finder's own files in any folder: a folder's custom icon and its view settings.
     static let finderFiles: Set<String> = ["Icon\r", ".DS_Store"]
+    /// An older library's `<Library>_info.nkx` is, with its `_info.nkc`, the stand-in for the `.nicnt` Native Access needs to
+    /// add it (NI support 69000879770); every other `.nkx` is a Kontakt sample monolith (#401, Decision 89).
+    static let libraryRegistrationSuffix = "_info.nkx"
     /// File kinds known to hold only sound, presets, pictures or documents (Decision 53). Everything else stays.
     static let safeKinds: Set<String> = [
         // Audio and samples.
         "wav", "wave", "aif", "aiff", "aifc", "flac", "mp3", "m4a", "aac", "caf", "ogg", "w64", "rx2", "rex", "rcy", "ncw", "sfz", "sf2",
         // Presets, patches and instruments: VST, AU, Native Instruments, Ableton, u-he, MIDI.
-        "fxp", "fxb", "vstpreset", "aupreset", "nmsv", "nksf", "nksn", "nki", "nkm", "nkx", "nkc", "nkr", "nkb", "nkp", "nks",
+        // `nkr` is a Kontakt resource container: the scripts, pictures, .nka data, impulse responses and performance views the
+        // library's own instruments link to (KSP manual, "Resource Container",
+        // https://docs.native-instruments.com/online-guides/ksp-manual/en/resource-container). Not `nkc`: an older library's
+        // `<Library>_info.nkc` stands in for the `.nicnt` Native Access needs to add it (NI support 69000879770). Nor `nks`, which
+        // no Native Instruments source describes (#326, Decision 86).
+        "fxp", "fxb", "vstpreset", "aupreset", "nmsv", "nksf", "nksn", "nki", "nkm", "nkx", "nkr", "nkb", "nkp",
         "adg", "adv", "als", "alp", "agr", "ams", "amxd", "h2p", "mid", "midi", "syx",
         // Pictures and documents.
         "png", "jpg", "jpeg", "gif", "tif", "tiff", "bmp", "icns", "svg", "webp", "heic", "pdf", "html", "htm", "rtf",

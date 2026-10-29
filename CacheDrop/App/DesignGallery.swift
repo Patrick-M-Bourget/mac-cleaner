@@ -46,11 +46,11 @@ struct DesignGallery: View {
                         AlertPermissionDetails(authorization: .denied, checked: true, settingsFeedback: "System Settings could not be opened.", openSettings: {})
                     }
                     CapacityGalleryExamples()
-                    Text("Synthetic Local records entry · Inert example").font(.headline)
+                    Text("Synthetic Saved data entry · Inert example").font(.headline)
                     LocalRecordsEntry(action: {})
                     Text("Synthetic Protected items entry · Inert example").font(.headline)
                     ProtectedItemsEntry(action: {})
-                    Text("Synthetic Local records controls · Inert enabled example").font(.headline)
+                    Text("Synthetic Saved data controls · Inert enabled example").font(.headline)
                     LocalRecordsMaintenanceControls(clear: {}, reset: {})
                     StatusRow(text: "Reset waits until the interrupted cleanup is reviewed. Nothing restarts by itself.", symbol: "exclamationmark.triangle", role: .caution)
                     StatusRow(text: "Downloads · Access unavailable", role: .caution, action: StatusAction(title: "Choose again…") {})
@@ -116,7 +116,7 @@ struct DesignGallery: View {
                     SummarySurface {
                         VStack(alignment: .leading, spacing: CacheDropDesign.Space.md) {
                             StatusRow(text: "Completed selected-scope observation", symbol: "checkmark.circle", role: .success)
-                            StatusRow(text: "Partial coverage · Remaining bytes unknown", symbol: "exclamationmark.circle", role: .caution)
+                            StatusRow(text: "Scanned 10:42 · Not fully read", symbol: "exclamationmark.circle", role: .caution)
                             StatusRow(text: "Access unavailable · Choose the folder again", symbol: "lock", role: .failure)
                             ProgressView("Reading metadata…")
                         }
@@ -246,13 +246,15 @@ private struct ListHeaderGalleryExamples: View {
         VStack(alignment: .leading, spacing: CacheDropDesign.Space.md) {
             PageHeader(title: "Example page", subtitle: "Search under the description; sort by clicking a column of the list’s header.")
             PageSearchField(label: "Search the example list", prompt: "Name or maker", text: $search, identifier: "gallerySearch")
-            ColumnHeader(name: "Name", size: "On disk", sort: $sort, identifier: "gallerySort")
-            ForEach(sort.ordered([("Movies", 9_000_000_000), ("archive 2.zip", 800_000_000), ("archive 10.zip", 800_000_000)] as [(String, Int64)],
-                                 name: \.0, bytes: \.1), id: \.0) { row in
-                HStack { Text(row.0); Spacer(); Text(ByteCountFormatter.string(fromByteCount: row.1, countStyle: .decimal)) }.font(.callout)
+            ColumnHeader(nameTitle: "Name", sizeTitle: "On disk", sort: $sort, identifier: "gallerySort")
+            ForEach(sort.ordered(Self.rows, name: \.name, bytes: \.bytes), id: \.name) { row in
+                HStack { Text(row.name); Spacer(); Text(catalogBytes(row.bytes)) }.font(.callout)
             }
         }
     }
+    private struct Row { let name: String; let bytes: Int64 }
+    private static let rows = [Row(name: "Movies", bytes: 9_000_000_000), Row(name: "archive 2.zip", bytes: 800_000_000),
+                               Row(name: "archive 10.zip", bytes: 800_000_000)]
 }
 private struct ShellAppearanceGalleryExamples: View {
     var body: some View {

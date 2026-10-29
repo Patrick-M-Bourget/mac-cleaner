@@ -382,12 +382,11 @@ private struct WorkspaceView: View {
     private var overviewRecommendations: some View {
         let catalog = selection.catalog
         let summary = catalog.overview
-        let visible = summary?.visibleRows ?? []
-        // The scanned folders' iCloud inventory, when the catalog found no local copies of its own; it then stands in for
-        // the empty iCloud row. Hidden at 0 bytes; unknown is never 0.
-        let showsCloudInventory = overviewObservation.map { $0.cloudInventory.localAllocatedBytes != 0 } == true && !visible.contains { $0.category == .icloud && !$0.isEmpty }
+        // The scanned folders' iCloud inventory stands in for an empty iCloud row (Decision 76).
+        let inventory = overviewObservation?.cloudInventory
+        let showsCloudInventory = summary?.showsCloudInventory(inventory) == true
         // Every category, empty ones last as "Empty" (#372).
-        let rows = showsCloudInventory ? visible.filter { !($0.category == .icloud && $0.isEmpty) } : visible
+        let rows = summary?.visibleRows(cloudInventory: inventory) ?? []
         let more = max(0, rows.count - CatalogOverview.leadingRowCount)
         let shown = overviewShowsAllCategories ? rows : Array(rows.prefix(CatalogOverview.leadingRowCount))
         return VStack(alignment: .leading, spacing: CacheDropDesign.Space.md) {
@@ -395,7 +394,7 @@ private struct WorkspaceView: View {
                     Text("Recommended for review").font(CacheDropDesign.TypeStyle.section)
                     Spacer(minLength: CacheDropDesign.Space.md)
                     // Nothing known yet: the size is "—" and the rows are skeletons (#308).
-                    Text(summary.map { recommendedText($0.recommended) } ?? "—")
+                    Text(summary.map { recommendedText($0.recommended) } ?? CacheDropDesign.noValue)
                         .font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary).monospacedDigit().accessibilityIdentifier("overviewRecommendedTotal")
                     // The recommended plan lives on its own page (#141): one quiet link to it.
                     if summary != nil, !catalog.recommendedCandidates.isEmpty {
@@ -454,7 +453,7 @@ private struct WorkspaceView: View {
             // Found nothing: "Empty", muted, with no Review link (#372); "Needs access" when it couldn't be read (62); "—" while a
             // scan may still find something.
             StorageReviewRow(category: row.category.storageCategory, title: row.category.overviewTitle, detail: row.category.overviewDetail,
-                             value: selection.catalog.isScanning ? "—" : row.needsAccess ? "Needs access" : "Empty",
+                             value: selection.catalog.isScanning ? CacheDropDesign.noValue : row.needsAccess ? "Needs access" : "Empty",
                              identifier: "overviewCategory-" + row.id, mutedValue: true)
         } else {
             foundCatalogRow(row)
@@ -708,7 +707,7 @@ private struct WorkspaceView: View {
     ScrollView {
         VStack(alignment: .leading, spacing: CacheDropDesign.Space.xl) {
             if recoveryVisible {
-                CleanupRecoveryView(model: recovery, back: BackButton(destination: navigationState.localRecordsVisible ? "Local records" : navigationState.recoveryCaller.rawValue) {
+                CleanupRecoveryView(model: recovery, back: BackButton(destination: navigationState.localRecordsVisible ? "Saved data" : navigationState.recoveryCaller.rawValue) {
                     recoveryVisible = false; destination = navigationState.recoveryCaller; navigationState.recoveryCaller = .overview
                 }, viewHistory: { navigate(.history) })
             } else if navigationState.localRecordsVisible {
@@ -877,7 +876,7 @@ private struct WorkspaceView: View {
                 }
                 if locationsModel.statuses[scope.id]?.needsRecovery == true,
                    let previous = folderInspection.scopeReports.first(where: { $0.current.scope.path == scope.path })?.lastComplete {
-                    Text("Last complete observation: " + previous.observedAt.formatted() + " · Historical, not current coverage").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
+                    Text("Last full scan: " + previous.observedAt.formatted() + " · May be out of date").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
                 }
                 Divider()
             }
@@ -903,14 +902,15 @@ private struct WorkspaceView: View {
             let candidate = URL(fileURLWithPath: other.path).standardizedFileURL.pathComponents
             return components.starts(with: candidate) || candidate.starts(with: components)
         }
-        return overlaps ? "Overlaps another remembered location · Shared contents are counted once." : nil
+        return overlaps ? "Overlaps another location · Files in both are counted once." : nil
     }
     private func locationStatus(_ scope: RememberedScope) -> String {
-        if !scope.isIncluded { return "Omitted from the next scan" }
+        if !scope.isIncluded { return "Left out of scans" }
         if let status = locationsModel.statuses[scope.id], status.needsRecovery { return status.text }
         if let scan = selection.scans[URL(fileURLWithPath: scope.path)] {
-            if selection.unavailableScopes.contains(scan.scope.standardizedFileURL) { return "Refresh required" }
-            return scan.isComplete ? "Observed · " + scan.observedAt.formatted(date: .omitted, time: .shortened) : "Partial coverage · Uninspected bytes unknown"
+            if selection.unavailableScopes.contains(scan.scope.standardizedFileURL) { return "Scan again to update" }
+            let scanned = "Scanned " + scan.observedAt.formatted(date: .omitted, time: .shortened)
+            return scan.isComplete ? scanned : scanned + " · Not fully read"
         }
         return "Not scanned"
     }

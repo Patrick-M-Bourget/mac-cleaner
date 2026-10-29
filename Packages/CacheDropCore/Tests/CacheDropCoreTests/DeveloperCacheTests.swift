@@ -311,7 +311,7 @@ private func cancellableRun(_ home: URL, brewScript: String, cancellation: Clean
     #expect(tool.state == .cancelled)
     #expect(tool.partlyRemoved != true)
     #expect(tool.message == "Stopped before brew cleanup -s started. Nothing was changed.")
-    #expect(tool.recoveryStateText == "Recorded cancellation · Not started")
+    #expect(tool.recoveryStateText == "Canceled · Not started")
     #expect(next.state == .cancelled && next.message == "Not started")
     #expect(FileManager.default.fileExists(atPath: home.appendingPathComponent("Library/Caches/Homebrew/entry").path))
 }

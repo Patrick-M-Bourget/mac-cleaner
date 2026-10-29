@@ -139,6 +139,31 @@ private func rule(_ id: String, _ category: CatalogCategory, _ action: CleanupAc
     #expect(overview.visibleRows.map(\.category) == [.browser, .leftovers])
 }
 
+@Test func theScannedFoldersICloudInventoryStandsInForAnEmptyICloudRowOnly() throws {
+    let home = try overviewHome()
+    defer { try? FileManager.default.removeItem(at: home) }
+    try write(4096, at: "cache/f", in: home)
+    func inventory(_ bytes: Int64?) -> CloudInventoryReport {
+        CloudInventoryReport(observedAt: Date(), isComplete: bytes != nil, items: [], unknownMembershipCount: 0, localItemCount: 1,
+                             localAllocatedBytes: bytes, cloudOnlyItemCount: 0, cloudOnlyLogicalBytes: nil, unknownStateCount: 0)
+    }
+    let catalog = Catalog(rules: [rule("cache", .browser), rule("mobile", .icloud)])
+    let empty = CatalogOverview(catalog: catalog, candidates: catalog.discover(fixture: home))
+    // Decision 76: the catalog found no local iCloud copies, so the scanned folders' inventory takes the empty iCloud row's place.
+    #expect(empty.showsCloudInventory(inventory(2048)))
+    #expect(empty.visibleRows(cloudInventory: inventory(2048)).map(\.category) == [.browser])
+    // Unknown is never 0, so it shows too; 0 bytes or no inventory keeps the empty row.
+    #expect(empty.showsCloudInventory(inventory(nil)))
+    #expect(!empty.showsCloudInventory(inventory(0)))
+    #expect(!empty.showsCloudInventory(nil))
+    #expect(empty.visibleRows(cloudInventory: nil).map(\.category) == [.browser, .icloud])
+    // The catalog's own local copies keep their row; the inventory isn't shown beside it.
+    try write(8192, at: "mobile/f", in: home)
+    let found = CatalogOverview(catalog: catalog, candidates: catalog.discover(fixture: home))
+    #expect(!found.showsCloudInventory(inventory(2048)))
+    #expect(found.visibleRows(cloudInventory: inventory(2048)).map(\.category) == [.icloud, .browser])
+}
+
 @Test func thePlanShowsRuleRowsOnlyWhenACategoryFoundSomethingForTwoOrMoreRules() throws {
     let home = try overviewHome()
     defer { try? FileManager.default.removeItem(at: home) }

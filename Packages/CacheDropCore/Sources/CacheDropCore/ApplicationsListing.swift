@@ -27,8 +27,6 @@ public struct ApplicationsListing: Sendable, Equatable {
 
     /// The `items` the search matches, in this order.
     public func arranged<T>(_ items: [T], name: (T) -> String, maker: (T) -> String?, bytes: (T) -> Int64) -> [T] {
-        ordered(items.filter { matches(name: name($0), maker: maker($0)) }, name: name, bytes: bytes)
+        sort.ordered(items.filter { matches(name: name($0), maker: maker($0)) }, name: name, bytes: bytes)
     }
-    /// `items` in this order, none left out: for rows already matched another way, such as leftovers.
-    public func ordered<T>(_ items: [T], name: (T) -> String, bytes: (T) -> Int64) -> [T] { sort.ordered(items, name: name, bytes: bytes) }
 }

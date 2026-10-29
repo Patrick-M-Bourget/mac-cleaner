@@ -16,7 +16,7 @@ struct CatalogItemRows: View {
     var onlyHeld = false
     var body: some View {
         let found = model.candidates(for: rule).filter { (app.map($0.isUninstalled(with:)) ?? true) && (!onlyHeld || $0.hold != nil) }
-        let items = listing.map { $0.ordered(found.filter($0.matches), name: \.displayName, bytes: \.estimatedBytes) }
+        let items = listing.map { $0.sort.ordered(found.filter($0.matches), name: \.displayName, bytes: \.estimatedBytes) }
             ?? found.sorted { $0.displayName.localizedStandardCompare($1.displayName) == .orderedAscending }
         LazyVStack(alignment: .leading, spacing: 0) {
             ForEach(items) { item in

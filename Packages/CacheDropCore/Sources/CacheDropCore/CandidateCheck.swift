@@ -142,6 +142,11 @@ public struct CandidateCheck: Sendable {
         guard let rule = catalog.rule(candidate.ruleID) else { return false }
         return rule.copies != nil || rule.unused != nil || rule.id == ProjectBuilds.ruleID || rule.family == .removedAppLeftovers
     }
+    /// Each refused candidate's reason, by candidate id; one that passes has no entry. The review reads it when it opens and
+    /// again after an app quits (#377).
+    public func refusals(of candidates: [Candidate]) -> [String: CheckRefusal] {
+        Dictionary(uniqueKeysWithValues: candidates.compactMap { candidate in check(candidate).map { (candidate.id, $0) } })
+    }
     public func check(_ candidate: Candidate) -> CheckRefusal? {
         // Guidance-only data is never acted on, whatever the candidate or its rule says (SPEC section 3).
         if candidate.action == .guidance || catalog.rule(candidate.ruleID)?.action == .guidance { return .guidanceOnly }

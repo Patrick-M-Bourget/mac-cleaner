@@ -14,16 +14,16 @@ public struct ActionWording: Sendable {
     public let historyPhrase: String?
 
     static let unknown = ActionWording(title: "", previewOutcome: "Would run", succeeded: "Done",
-                                       partlyFailed: "Partly removed", unresolved: "Unresolved · Outcome unknown",
-                                       partlyFailedRecovery: "Recorded failure · It may be partly deleted", historyPhrase: nil)
+                                       partlyFailed: "Partly removed", unresolved: "Unfinished · Outcome unknown",
+                                       partlyFailedRecovery: "Failed · It may be partly deleted", historyPhrase: nil)
     /// Putting an item back from the Trash (#159): a rename, never a delete.
     static let putBack = ActionWording(title: "Put back from Trash", previewOutcome: "Would put back", succeeded: "Put back",
-                                       partlyFailed: "Failed", unresolved: "Unresolved · It is either back in its folder or still in the Trash",
-                                       partlyFailedRecovery: "Recorded failure · Not changed", historyPhrase: nil)
+                                       partlyFailed: "Failed", unresolved: "Unfinished · It is either back in its folder or still in the Trash",
+                                       partlyFailedRecovery: "Failed · Not changed", historyPhrase: nil)
     /// Deleting an item CacheDrop moved to the Trash from the Trash (#359).
     static let emptyFromTrash = ActionWording(title: "Delete from the Trash", previewOutcome: "Would delete from the Trash", succeeded: "Deleted from the Trash",
-                                              partlyFailed: "Partly deleted", unresolved: "Unresolved · It may be partly deleted",
-                                              partlyFailedRecovery: "Recorded failure · It may be partly deleted", historyPhrase: nil)
+                                              partlyFailed: "Partly deleted", unresolved: "Unfinished · It may be partly deleted",
+                                              partlyFailedRecovery: "Failed · It may be partly deleted", historyPhrase: nil)
 }
 
 extension CleanupAction {
@@ -31,24 +31,24 @@ extension CleanupAction {
         switch self {
         case .delete:
             ActionWording(title: "Delete permanently", previewOutcome: "Would delete", succeeded: "Deleted",
-                          partlyFailed: "Partly removed", unresolved: "Unresolved · It may be partly deleted",
-                          partlyFailedRecovery: "Recorded failure · It may be partly deleted", historyPhrase: "deleted")
+                          partlyFailed: "Partly removed", unresolved: "Unfinished · It may be partly deleted",
+                          partlyFailedRecovery: "Failed · It may be partly deleted", historyPhrase: "deleted")
         case .tool:
             ActionWording(title: "Run its cleanup command", previewOutcome: "Would run", succeeded: "Deleted",
-                          partlyFailed: "Partly removed", unresolved: "Unresolved · It may be partly deleted",
-                          partlyFailedRecovery: "Recorded failure · It may be partly deleted", historyPhrase: "deleted")
+                          partlyFailed: "Partly removed", unresolved: "Unfinished · It may be partly deleted",
+                          partlyFailedRecovery: "Failed · It may be partly deleted", historyPhrase: "deleted")
         case .trash:
             ActionWording(title: "Move to Trash", previewOutcome: "Would move to Trash",
-                          succeeded: "Moved to Trash", partlyFailed: "Partly removed", unresolved: "Unresolved · It may or may not be in the Trash",
-                          partlyFailedRecovery: "Recorded failure · It may be partly deleted", historyPhrase: "moved to Trash")
+                          succeeded: "Moved to Trash", partlyFailed: "Partly removed", unresolved: "Unfinished · It may or may not be in the Trash",
+                          partlyFailedRecovery: "Failed · It may be partly deleted", historyPhrase: "moved to Trash")
         case .evict:
             ActionWording(title: "Remove local copy", previewOutcome: "Would remove local copy", succeeded: "Removed local copy", partlyFailed: "Partly removed local copies",
-                          unresolved: "Unresolved · Local copies may be removed · The original stays in iCloud",
-                          partlyFailedRecovery: "Recorded failure · Some local copies were removed · The originals stay in iCloud", historyPhrase: "removed local iCloud copies")
+                          unresolved: "Unfinished · Local copies may be removed · The original stays in iCloud",
+                          partlyFailedRecovery: "Failed · Some local copies were removed · The originals stay in iCloud", historyPhrase: "removed local iCloud copies")
         case .guidance:
             ActionWording(title: "Guidance only", previewOutcome: "Would run", succeeded: "Done",
-                          partlyFailed: "Partly removed", unresolved: "Unresolved · Outcome unknown",
-                          partlyFailedRecovery: "Recorded failure · It may be partly deleted", historyPhrase: nil)
+                          partlyFailed: "Partly removed", unresolved: "Unfinished · Outcome unknown",
+                          partlyFailedRecovery: "Failed · It may be partly deleted", historyPhrase: nil)
         }
     }
 }
@@ -91,10 +91,10 @@ extension CleanupRecord {
         switch state {
         case .pending: return "Not started · Nothing was changed"
         case .intent, .unknown: return wording.unresolved
-        case .succeeded: return "Recorded success · " + outcomeTitle
-        case .failed: return partlyRemoved == true ? wording.partlyFailedRecovery : "Recorded failure · Not changed"
-        case .skipped: return wasPreviewed ? "Dry run · " + outcomeTitle : "Recorded skip · Not changed"
-        case .cancelled: return "Recorded cancellation · Not started"
+        case .succeeded: return "Finished · " + outcomeTitle
+        case .failed: return partlyRemoved == true ? wording.partlyFailedRecovery : "Failed · Not changed"
+        case .skipped: return wasPreviewed ? "Dry run · " + outcomeTitle : "Skipped · Not changed"
+        case .cancelled: return "Canceled · Not started"
         }
     }
 }

@@ -3,7 +3,8 @@ import Foundation
 /// A list's sort as its sortable column header sets it (#352, #373): by Name or by the size column (Applications' Size,
 /// Explore storage's On disk), either way round. Kept for the session, never across launches.
 public struct ListSort: Sendable, Equatable {
-    public enum Column: Sendable, Equatable { case name, size }
+    /// A sortable column; its raw value ends its header's accessibility identifier (`<identifier>-name`, `-size`).
+    public enum Column: String, Sendable, Equatable { case name, size }
     public var column: Column
     /// A to Z, or smallest first.
     public var ascending: Bool
@@ -13,6 +14,14 @@ public struct ListSort: Sendable, Equatable {
     /// Clicking a column's header: the active column flips; another becomes active, names A to Z and sizes largest first.
     public mutating func select(_ clicked: Column) {
         if clicked == column { ascending.toggle() } else { self = ListSort(column: clicked, ascending: clicked == .name) }
+    }
+
+    /// What the order reads as on the active column's header.
+    public var directionText: String {
+        switch column {
+        case .name: ascending ? "A to Z" : "Z to A"
+        case .size: ascending ? "Smallest first" : "Largest first"
+        }
     }
 
     /// `items` in this order. Names sort as Finder does: case and accents don't matter, and numbers read as numbers. Rows

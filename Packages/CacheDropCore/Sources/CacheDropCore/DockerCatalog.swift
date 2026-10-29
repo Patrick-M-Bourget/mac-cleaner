@@ -13,7 +13,13 @@ extension BuiltInCatalog {
         return CleanupRule(id: id, category: .developer, title: title, detail: detail, consequence: "Runs `\(tool.commandLine)`, " + effect + " Docker must be running.",
                            regen: regen, action: .tool, locations: [".docker"], owner: nil, tool: tool, items: .docker(kind))
     }
+    /// Stopped containers come first (#393, Decision 85): `image prune -a` keeps every image a container uses, stopped ones
+    /// included, so pruning images first would leave behind an image only a stopped container used. The run follows this order.
     static let dockerRules = [
+        docker(.stoppedContainers, id: "docker-containers", title: "Stopped Docker containers",
+               detail: "Containers that aren’t running. The size is Docker’s own estimate.",
+               effect: "which permanently removes stopped containers and any changes made inside them. Running containers and volumes are not touched.",
+               regen: .build, arguments: ["container", "prune", "-f"]),
         docker(.images, id: "docker-images", title: "Docker images",
                detail: "Images no container uses. The size is Docker’s own estimate.",
                effect: "which permanently removes every image no container uses. Docker downloads or builds them again when needed.",
@@ -22,10 +28,6 @@ extension BuiltInCatalog {
                detail: "Layers Docker kept to speed up builds. The size is Docker’s own estimate.",
                effect: "which permanently removes all unused build cache. The next build may take longer.",
                regen: .build, arguments: ["builder", "prune", "-a", "-f"]),
-        docker(.stoppedContainers, id: "docker-containers", title: "Stopped Docker containers",
-               detail: "Containers that aren’t running. The size is Docker’s own estimate.",
-               effect: "which permanently removes stopped containers and any changes made inside them. Running containers and volumes are not touched.",
-               regen: .build, arguments: ["container", "prune", "-f"]),
     ]
 }
 

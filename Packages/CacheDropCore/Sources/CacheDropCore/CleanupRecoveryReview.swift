@@ -95,7 +95,7 @@ public struct CleanupRecoveryReview: Sendable {
         func item(_ finding: RecoveryFinding, _ detail: String, at url: URL? = nil) -> CleanupRecoveryItem {
             CleanupRecoveryItem(record: record, finding: finding, foundURL: url, detail: detail)
         }
-        if record.state == .pending { return item(.notStarted, "It was approved but never started. Nothing was changed.") }
+        if record.state == .pending { return item(.notStarted, "It never started. Nothing was changed.") }
         let original = record.originalURL
         var info = stat()
         if lstat(original.path, &info) == 0 {
@@ -109,7 +109,7 @@ public struct CleanupRecoveryReview: Sendable {
             }
         }
         guard errno == ENOENT else { return item(.unknown, "Its original location couldn’t be checked.") }
-        if let aside = renamedAside(record) { return item(.unknown, "It was found renamed aside at \(aside.path).", at: aside) }
+        if let aside = renamedAside(record) { return item(.unknown, "It was found under a temporary name at \(aside.path).", at: aside) }
         switch inTrash(record) {
         case .found(let url): return item(.inTrash, "It is in the Trash.", at: url)
         case .unreadable: return item(.unknown, "It isn’t at its original location, and the Trash couldn’t be checked.")

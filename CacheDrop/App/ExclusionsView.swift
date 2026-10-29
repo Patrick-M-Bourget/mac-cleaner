@@ -21,7 +21,7 @@ import CacheDropCore
             rules = policy.rules; error = nil
             return policy
         } catch {
-            self.error = "CacheDrop couldn’t read your Protected items, so it can’t scan. Reopen CacheDrop, or reset it in Local records."
+            self.error = "CacheDrop couldn’t read your Protected items, so it can’t scan. Reopen CacheDrop, or reset it in Saved data."
             throw error
         }
     }

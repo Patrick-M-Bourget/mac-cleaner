@@ -19,18 +19,12 @@ public struct RecommendedPlan: Sendable {
             let size = SizeEstimate(candidate)
             guard size != .unknown, size != .measured(0), let rule = catalog.rule(candidate.ruleID), Self.recommends(candidate, rule: rule, now: now) else { continue }
             if candidate.hold != nil { held.append(candidate); continue }
-            switch check(candidate) {
-            case nil: taken.append(candidate)
-            case .ownerRunning(let name)?:
-                var found = candidate
-                found.hold = CandidateHold(.ownerRunning(name), app: catalog.owner(for: candidate))
-                held.append(found)
-            case .inUse(let name)?:
-                var found = candidate
-                found.hold = CandidateHold(.inUse(name), app: rule.copies?.owner)
-                held.append(found)
-            default: continue
-            }
+            guard let refusal = check(candidate) else { taken.append(candidate); continue }
+            // One rule says whether the refusal is a hold, and whose (Decision 79).
+            guard let hold = CandidateHold(refusal, of: candidate, catalog: catalog) else { continue }
+            var found = candidate
+            found.hold = hold
+            held.append(found)
         }
         self.candidates = taken; self.held = held
     }

@@ -142,10 +142,10 @@ private struct PlanRuleRows: View {
                                symbol: rule.offersFiles ? "doc.on.doc" : "folder", inspected: false,
                                // Clicking the row ticks the rule, as its checkbox does, with Reveal in Finder beside it (Decision 72). A rule
                                // of items ticked one by one is inert: each item is chosen and revealed on its own (#356).
-                               inspect: rule.ruleRowClick == .tick ? { if model.canEdit { model.setSelected(rule, state != .checked) } } : nil,
+                               inspect: rule.ruleRowClick == .tick ? { model.toggleCategory([rule]) } : nil,
                                detailLineLimit: 1, actionLabel: "Select " + rule.title,
                                reveal: rule.ruleRowClick == .tick ? { Finder.reveal(items.map(\.url)) } : nil, revealIdentifier: "planRuleReveal-" + rule.id) {
-                MacroCategoryCheckbox(state: state, label: rule.title, enabled: model.canEdit && !rule.selectedOneByOne, action: { model.setSelected(rule, state != .checked) },
+                MacroCategoryCheckbox(state: state, label: rule.title, enabled: model.canEdit && !rule.selectedOneByOne, action: { model.toggleCategory([rule]) },
                                       identifier: "planRule-" + rule.id, showsTitle: false).fixedSize()
             }.help(source.map { _ in rule.detail + "\n" + items.map(\.url.path).joined(separator: "\n") } ?? "")
             PlanRunningOwners(model: model, rule: rule).padding(.leading, CacheDropDesign.Space.xl).padding(.bottom, CacheDropDesign.Space.sm)

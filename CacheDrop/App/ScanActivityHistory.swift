@@ -18,14 +18,14 @@ import CacheDropCore
     }
     func begin() async -> UUID? {
         do { return try await store().recordingEpoch() }
-        catch { recordingWarning = "This scan could not be saved to History. Current results and choices remain available."; return nil }
+        catch { recordingWarning = "This scan couldn’t be saved to History. Its results and your choices are still here."; return nil }
     }
     func record(_ activity: ScanActivity, epoch: UUID?) async {
         guard let epoch else { return }
         do {
             let saved = try await store().recordActivity(activity, expectedEpoch: epoch)
             if saved { recordingWarning = nil; await load(maintain: false) }
-        } catch { recordingWarning = "This scan could not be saved to History. Current results and choices remain available." }
+        } catch { recordingWarning = "This scan couldn’t be saved to History. Its results and your choices are still here." }
     }
     func load(maintain: Bool = true) async {
         let request = UUID(); loadRequest = request; isLoading = true
@@ -125,19 +125,19 @@ struct ScanActivitySummary: View {
         switch reason {
         case "excludedScope": "Protected items"
         case "exclusionUnavailable": "Protected items unreadable"
-        case "directoryChanged": "Directory changed during scanning"
+        case "directoryChanged": "Folders changed during the scan"
         case "timeLimit": "Scan time limit reached"
         case "entryLimit": "Entry limit reached"
         case "issueLimit": "Too many unreadable items"
         case "depthLimit": "Folder depth limit reached"
         case "readFailed": "Unreadable locations"
-        case "metadataUnavailable": "Metadata unavailable"
-        case "differentVolume": "Other volumes not inspected"
+        case "metadataUnavailable": "Some details couldn’t be read"
+        case "differentVolume": "On another volume, not scanned"
         case "accessDenied": "Access denied"
         case "accessRevoked": "Access changed during scanning"
         case "locationUnavailable": "Location unavailable"
         case "customExcludedBoundary": "Inside Protected items"
-        case "unmeasuredContents": "Unmeasured package or other entries"
+        case "unmeasuredContents": "Packages not measured"
         default: "Couldn’t read everything"
         }
     }
@@ -276,7 +276,7 @@ struct HistoryActivityGalleryExamples: View {
             }
             VStack(alignment: .leading, spacing: CacheDropDesign.Space.md) {
                 heading("save-failed", "Unrecorded activity feedback")
-                ScanHistoryRecordingFeedback(message: "This scan could not be saved to History. Current results and choices remain available.")
+                ScanHistoryRecordingFeedback(message: "This scan couldn’t be saved to History. Its results and your choices are still here.")
                 end("save-failed", "Current findings remain usable.")
             }
             VStack(alignment: .leading, spacing: CacheDropDesign.Space.md) {

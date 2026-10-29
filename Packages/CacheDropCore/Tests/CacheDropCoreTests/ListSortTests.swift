@@ -26,3 +26,12 @@ private func names(_ sort: ListSort) -> [String] { sort.ordered(sized, name: \.n
     #expect(names(ListSort()) == ["Zebra", "Ableton Live 2", "Ableton Live 12", "logic pro", "Éclair"])
     #expect(names(ListSort(column: .size, ascending: true)) == ["Éclair", "logic pro", "Ableton Live 2", "Ableton Live 12", "Zebra"])
 }
+
+/// #352: the active column's order reads as its header says it; each column names its header's identifier.
+@Test func aSortReadsItsDirectionAndEachColumnNamesItsIdentifier() {
+    #expect(ListSort(column: .name, ascending: true).directionText == "A to Z")
+    #expect(ListSort(column: .name, ascending: false).directionText == "Z to A")
+    #expect(ListSort(column: .size, ascending: true).directionText == "Smallest first")
+    #expect(ListSort().directionText == "Largest first")
+    #expect([ListSort.Column.name, .size].map(\.rawValue) == ["name", "size"])
+}
