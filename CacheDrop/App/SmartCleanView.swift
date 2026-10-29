@@ -103,7 +103,7 @@ struct SmartCleanView: View {
                                set: { if $0 { presentation.expandedCategories.insert(row.category) } else { presentation.expandedCategories.remove(row.category) } })
         // One consequence line per category (#319), from what its rules do.
         let consequence = SmartCleanConsequence.line(for: row.category, rules: row.rules)
-        return CategoryRow(category: row.category.storageCategory, state: state, title: row.category.overviewTitle, detail: consequence,
+        return CategoryRow(category: row.category.storageCategory, state: state, title: row.category.smartCleanTitle, detail: consequence,
                            size: row.valueText, enabled: model.canEdit, identifier: "smartCleanCategory-" + row.id,
                            itemCount: lines.count > 1 ? lines.count : nil, expanded: expanded,
                            toggle: { model.setSelected(state != .checked ? together : found, state != .checked) }) {

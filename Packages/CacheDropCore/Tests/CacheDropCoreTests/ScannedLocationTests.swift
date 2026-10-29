@@ -15,8 +15,8 @@ private func scan(_ scope: String = "/tmp/Projects", bytes: Int64 = 12_000_000, 
                       volumeAvailableMetric: "", exclusionFingerprint: "none", excludedEntryCount: excluded)
 }
 private func megabytes(_ bytes: Int64) -> String { "\(bytes / 1_000_000) MB" }
-private func location(_ scan: ScanResult?, scope: String = "/tmp/Projects") -> ScannedLocationsSummary.Location {
-    ScannedLocationsSummary.Location(scope: URL(fileURLWithPath: scope), scan: scan)
+private func location(_ scan: ScanResult?, scope: String = "/tmp/Projects") -> ScannedLocation {
+    ScannedLocation(scope: URL(fileURLWithPath: scope), scan: scan)
 }
 
 /// #345: each scanned location is one row on Overview, with its name and the size the scan found.

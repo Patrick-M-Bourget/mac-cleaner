@@ -89,9 +89,9 @@ public struct SmartCleanReport: Sendable {
             case .receipt(let id): return "Leftover tied to \(tie.app) by installer receipt \(id)"
             case .nameOnly(let why): return why
             }
-        case .oldInstaller:
+        case .oldDownload:
             let days = candidate.lastUsed.map { Int(now.timeIntervalSince($0) / .secondsPerDay) } ?? 0
-            return "Installer not opened or changed in \(days) days"
+            return "Download not opened or changed in \(days) days"
         case .rebuildsItself where rule.action == .tool:
             return rule.title + ", cleaned by `" + (rule.tool?.commandLine(for: candidate.toolArgument) ?? "its tool") + "`"
         case .rebuildsItself, nil:

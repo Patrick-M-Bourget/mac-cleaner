@@ -12,7 +12,7 @@ private func item(_ ruleID: String, _ name: String, bytes: Int64) -> Candidate {
 private let catalog = Catalog(rules: fixtureRules)
 private let GB: Int64 = 1_000_000_000
 private let npm = item("npm-cache", "npm", bytes: 3 * GB), logs = item("app-logs", "logs", bytes: 1 * GB)
-private let derived = item("xcode-derived-data", "derived", bytes: 12 * GB), installer = item("downloads-installers", "Setup.dmg", bytes: 4 * GB)
+private let derived = item("xcode-derived-data", "derived", bytes: 12 * GB), installer = item("downloads", "Setup.dmg", bytes: 4 * GB)
 private let approval = CatalogApproval(candidates: [npm, derived, logs, installer], previewOnly: false)
 
 /// The run's record for `candidate`, ended in `state`.

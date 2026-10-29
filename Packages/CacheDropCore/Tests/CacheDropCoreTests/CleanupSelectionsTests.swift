@@ -10,7 +10,7 @@ private func item(_ ruleID: String, name: String? = nil) -> Candidate {
                      sizeComplete: true, lastUsed: nil, observedAt: Date(), profile: nil)
 }
 private let catalog = Catalog(rules: fixtureRules)
-private let npm = item("npm-cache"), logs = item("app-logs"), installer = item("downloads-installers"), derived = item("xcode-derived-data")
+private let npm = item("npm-cache"), logs = item("app-logs"), installer = item("downloads"), derived = item("xcode-derived-data")
 private let scan = [npm, logs, installer, derived]
 /// What `RecommendedPlan` takes from `scan`: everything but the new installer.
 private let recommended = [npm, logs, derived]
@@ -133,7 +133,7 @@ private let leftover = item(RemovedAppLeftovers.ruleID, name: "Synth"), related 
     var selections = CleanupSelections()
     selections.set([installer, leftover, related], ticked: true)
     let found = scan + [leftover, related]
-    #expect(selections.chosen(on: .plan, from: found).map(\.ruleID) == ["downloads-installers"])
+    #expect(selections.chosen(on: .plan, from: found).map(\.ruleID) == ["downloads"])
     #expect(selections.chosen(on: .applications, from: found).map(\.ruleID) == [RemovedAppLeftovers.ruleID, RemovedAppLeftovers.possiblyRelatedRuleID])
 }
 

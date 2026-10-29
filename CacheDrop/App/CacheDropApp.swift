@@ -525,10 +525,21 @@ private struct WorkspaceView: View {
         VStack(alignment: .leading, spacing: CacheDropDesign.Space.sm) {
             // One row per problem (#223, #231): each unavailable location names itself and carries the fix.
             ForEach(locationsModel.recoveries, id: \.scope.id) { scope, status in
-                StatusRow(text: recoveryText(scope, status: status), symbol: "info.circle", role: .caution,
-                    identifier: "overviewLocationRecovery", action: StatusAction(title: "Choose again…", identifier: "overviewChooseAgain") {
-                    renewAndScan(scope)
-                }).disabled(folderInspection.isScanning || selection.workspaceRunning)
+                Group {
+                if scope.isBuiltIn {
+                    // Built-in Downloads is never picked (#342, #388): Full Disk Access is its fix, not Choose again….
+                    HStack(alignment: .firstTextBaseline, spacing: CacheDropDesign.Space.sm) {
+                        StatusRow(text: recoveryText(scope, status: status), symbol: "info.circle", role: .caution, identifier: "overviewLocationRecovery").fixedSize()
+                        FullDiskAccessLink(title: "Grant Full Disk Access", symbol: nil)
+                        Spacer(minLength: 0)
+                    }
+                } else {
+                    StatusRow(text: recoveryText(scope, status: status), symbol: "info.circle", role: .caution,
+                        identifier: "overviewLocationRecovery", action: StatusAction(title: "Choose again…", identifier: "overviewChooseAgain") {
+                        renewAndScan(scope)
+                    }).disabled(folderInspection.isScanning || selection.workspaceRunning)
+                }
+                }.help(locationsModel.bookmarkFailures[scope.id]?.summary ?? "") // Why its bookmark failed, to diagnose (#342, #387).
             }
             if let notice = locationsModel.notice { StatusRow(text: notice, symbol: "info.circle", role: .caution) }
             if let message = folderInspection.message, !recoveryRowCovers(folderInspection.unavailableScope) {
@@ -553,7 +564,10 @@ private struct WorkspaceView: View {
                     .disabled(folderInspection.isScanning || selection.workspaceRunning).accessibilityIdentifier("overviewScanFolder")
             }
             if locations.isEmpty {
-                Text("No folders chosen yet").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary).accessibilityIdentifier("overviewNoLocations")
+                // A location in recovery is chosen: its row at the top says what's wrong (#388), so only say this when none is.
+                if locationsModel.recoveries.isEmpty {
+                    Text("No folders chosen yet").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary).accessibilityIdentifier("overviewNoLocations")
+                }
             } else {
                 RecommendationGroup {
                     ForEach(Array(locations.enumerated()), id: \.element.scope) { index, location in
@@ -564,46 +578,45 @@ private struct WorkspaceView: View {
             }
         }
     }
-    private func scannedLocationRow(_ location: ScannedLocationsSummary.Location) -> some View {
+    private func scannedLocationRow(_ location: ScannedLocation) -> some View {
         VStack(alignment: .leading, spacing: 0) {
-            StorageReviewRow(category: .files, title: location.name, detail: location.notes ?? "", value: location.value(overviewBytes),
+            // Built-in Downloads says so (#342); it has no Remove anywhere.
+            StorageReviewRow(category: location.isBuiltIn ? .downloads : .files, title: location.name,
+                             detail: [location.isBuiltIn ? "Built in" : nil, location.notes].compactMap { $0 }.joined(separator: " · "), value: location.value(overviewBytes),
                              actionTitle: "Explore " + location.name, action: location.bytes == nil ? nil : { openExplorer(caller: .overview, at: location.scope) },
                              identifier: "overviewLocation:" + location.scope.path, mutedValue: location.bytes == nil)
                 .help(location.scope.path)
             if let problem = location.problem {
-                Group {
-                    switch location.action {
-                    case .grantFullDiskAccess?:
-                        HStack(alignment: .firstTextBaseline, spacing: CacheDropDesign.Space.sm) {
-                            StatusRow(text: problem, symbol: "exclamationmark.circle", role: .caution, identifier: "overviewLocationProblem:" + location.scope.path).fixedSize()
-                            FullDiskAccessLink(title: "Grant Full Disk Access", symbol: nil)
-                            Spacer(minLength: 0)
-                        }
-                    case .scanAgain?:
-                        StatusRow(text: problem, symbol: "exclamationmark.circle", role: .caution, identifier: "overviewLocationProblem:" + location.scope.path,
-                                  action: StatusAction(title: "Scan again", identifier: "overviewLocationScanAgain", isDisabled: !canScanAgain, action: scanAgain))
-                    case nil:
-                        StatusRow(text: problem, symbol: "exclamationmark.circle", role: .caution, identifier: "overviewLocationProblem:" + location.scope.path)
+                // One caution line; Scan again is its own link, Full Disk Access opens its sheet beside it (#358).
+                HStack(alignment: .firstTextBaseline, spacing: CacheDropDesign.Space.sm) {
+                    StatusRow(text: problem, symbol: "exclamationmark.circle", role: .caution, identifier: "overviewLocationProblem:" + location.scope.path,
+                              action: location.action == .scanAgain ? StatusAction(title: "Scan again", identifier: "overviewLocationScanAgain", isDisabled: !canScanAgain, action: scanAgain) : nil)
+                        .fixedSize(horizontal: location.action == .grantFullDiskAccess, vertical: false)
+                    if location.action == .grantFullDiskAccess {
+                        FullDiskAccessLink(title: "Grant Full Disk Access", symbol: nil)
+                        Spacer(minLength: 0)
                     }
                 }.padding([.horizontal, .bottom], CacheDropDesign.Space.lg)
             }
         }
     }
     /// Included locations with their latest current scan; one with a recovery row is left to that row, so nothing shows twice.
-    private var overviewLocations: [ScannedLocationsSummary.Location] {
+    private var overviewLocations: [ScannedLocation] {
         let recovering = Set(locationsModel.recoveries.map(\.scope.id))
         return locationsModel.included.filter { !recovering.contains($0.id) }.map { scope in
             let url = URL(fileURLWithPath: scope.path).standardizedFileURL
             let current = selection.unavailableScopes.contains(url) ? nil
                 // Scans are keyed by the URL each scan was given; compare standardized paths on both sides (#388).
                 : selection.scans.first { $0.key.standardizedFileURL == url }?.value ?? folderInspection.scopeReports.first { $0.current.scope.standardizedFileURL == url }?.current
-            return ScannedLocationsSummary.Location(scope: url, scan: current)
+            return ScannedLocation(scope: url, scan: current, isBuiltIn: scope.isBuiltIn)
         }
     }
     /// Overview's recovery rows, for the explorer to mark those locations' last observations as gone (#249).
     private var explorerUnavailable: [ExplorerUnavailableLocation] {
         locationsModel.recoveries.map { scope, status in
-            ExplorerUnavailableLocation(scope: URL(fileURLWithPath: scope.path).standardizedFileURL, reason: locationsModel.recoveryReasons[scope.id] ?? status.reason) { renewAndScan(scope) }
+            // Built-in Downloads is checked again rather than picked (#388).
+            ExplorerUnavailableLocation(scope: URL(fileURLWithPath: scope.path).standardizedFileURL, reason: locationsModel.recoveryReasons[scope.id] ?? status.reason,
+                                        actionTitle: scope.isBuiltIn ? "Check again" : "Choose again…") { if scope.isBuiltIn { scanLocations([scope]) } else { renewAndScan(scope) } }
         }
     }
     /// "Folder not found · last scanned <time>" for a deleted or moved folder, "Access unavailable" for an unreadable one (#254).
@@ -630,8 +643,8 @@ private struct WorkspaceView: View {
         return false
     }
     private func isDownloadsLocation(_ url: URL) -> Bool {
-        guard let root = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask).first else { return false }
-        return url.standardizedFileURL.pathComponents.starts(with: root.standardizedFileURL.pathComponents)
+        guard let root = locationsModel.builtInDownloads else { return false }
+        return url.standardizedFileURL.pathComponents.starts(with: URL(fileURLWithPath: root.path).standardizedFileURL.pathComponents)
     }
     private func scanLocations(_ scopes: [RememberedScope]) {
         guard !folderInspection.isScanning, !selection.workspaceRunning else { return }
@@ -840,9 +853,9 @@ private struct WorkspaceView: View {
             if locationsModel.scopes.isEmpty { EmptyState(title: "No locations yet", detail: "Add a folder to scan it now and each time CacheDrop opens.", symbol: "folder.badge.plus") }
             ForEach(locationsModel.scopes) { scope in
                 LocationScopeRow(name: URL(fileURLWithPath: scope.path).lastPathComponent, path: scope.path,
-                    status: locationStatus(scope), overlap: locationOverlap(scope), included: Binding(get: { scope.isIncluded }, set: { included in
+                    status: (scope.isBuiltIn ? "Built in · " : "") + locationStatus(scope), overlap: locationOverlap(scope), included: Binding(get: { scope.isIncluded }, set: { included in
                         if locationsModel.setIncluded(included, scope: scope) { selection.suspendScope(URL(fileURLWithPath: scope.path)) }
-                    }), enabled: !folderInspection.isScanning && !selection.workspaceRunning) {
+                    }), enabled: !folderInspection.isScanning && !selection.workspaceRunning, fixed: scope.isBuiltIn) {
                     HStack {
                         if isScanned(scope), locationsModel.statuses[scope.id]?.needsRecovery != true {
                             Button("Explore") { openExplorer(caller: .locations, at: URL(fileURLWithPath: scope.path)) }
@@ -850,12 +863,16 @@ private struct WorkspaceView: View {
                         }
                         if locationsModel.statuses[scope.id]?.needsRecovery == true {
                             // A row's actions are links (#311).
-                            Button("Choose again…") { chooseAgain(scope) }.buttonStyle(.link)
+                            if scope.isBuiltIn { FullDiskAccessLink(title: "Grant Full Disk Access", symbol: nil) } // Never picked (#388).
+                            else { Button("Choose again…") { chooseAgain(scope) }.buttonStyle(.link) }
                             Button("Reconnect and recheck") { scanLocations([scope]) }.buttonStyle(.link).disabled(!scope.isIncluded)
                         }
-                        Menu("More") {
-                            Button("Forget location") { locationToForget = scope }
-                        }.menuStyle(.borderlessButton).fixedSize().accessibilityIdentifier("locationActions:" + scope.path)
+                        // Built-in Downloads can't be forgotten (#342).
+                        if !scope.isBuiltIn {
+                            Menu("More") {
+                                Button("Forget location") { locationToForget = scope }
+                            }.menuStyle(.borderlessButton).fixedSize().accessibilityIdentifier("locationActions:" + scope.path)
+                        }
                     }
                 }
                 if locationsModel.statuses[scope.id]?.needsRecovery == true,

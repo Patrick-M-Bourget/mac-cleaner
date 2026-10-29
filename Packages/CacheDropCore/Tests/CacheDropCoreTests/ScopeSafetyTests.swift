@@ -41,7 +41,7 @@ private let cargoOnly = Catalog(rules: fixtureRules.filter { $0.id == "cargo-cac
     try write(home, ".cargo/registry/index/entry")
     try write(home, ".cargo/git/db/entry")
     try write(home, "Downloads/setup.dmg")
-    let catalog = Catalog(rules: fixtureRules.filter { ["cargo-cache", "downloads-installers"].contains($0.id) })
+    let catalog = Catalog(rules: fixtureRules.filter { ["cargo-cache", "downloads"].contains($0.id) })
     #expect(catalog.discover(fixture: home).count == 3)
     // An excluded folder, a folder holding an exclusion, and an excluded file.
     let exclusions = ExclusionPolicy(rules: try [".cargo/registry", ".cargo/git/db", "Downloads/setup.dmg"].map { try ExclusionRule.capture(home.appendingPathComponent($0)) })
@@ -119,7 +119,7 @@ private final class RecordingTrash: TrashMoving, @unchecked Sendable {
     let home = try fixtureFolder("CacheDropScopeHome")
     defer { try? FileManager.default.removeItem(at: home) }
     try write(home, "Downloads/setup.dmg")
-    let catalog = Catalog(rules: fixtureRules.filter { $0.id == "downloads-installers" })
+    let catalog = Catalog(rules: fixtureRules.filter { $0.id == "downloads" })
     let candidate = try #require(catalog.discover(fixture: home).first)
     let file = candidate.url
     // The space reading runs after the check and before the move: swap the file there.
@@ -152,7 +152,7 @@ private final class RecordingTrash: TrashMoving, @unchecked Sendable {
     let own = ["CacheDrop", "com.patrickbourget.CacheDrop", "Still", "com.patrickbourget.Still"]
     for folder in own + ["Editor"] { try write(home, "Library/Logs/\(folder)/log.txt") }
     for folder in own { try write(home, "Downloads/\(folder)/setup.dmg") }
-    let found = Catalog(rules: fixtureRules.filter { $0.id == "app-logs" || $0.id == "downloads-installers" }).discover(fixture: home)
+    let found = Catalog(rules: fixtureRules.filter { $0.id == "app-logs" || $0.id == "downloads" }).discover(fixture: home)
     #expect(found.map(\.url.lastPathComponent) == ["Editor"])
 }
 
