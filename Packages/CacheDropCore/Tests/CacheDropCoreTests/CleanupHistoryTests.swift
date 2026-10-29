@@ -156,7 +156,7 @@ private func historyApproval(_ root: URL, names: [String]) async throws -> Fixtu
     #expect(!run.records.movedOnlyToTrash)
 }
 /// #433: a run that only moved items to the Trash shows no measured freed space, in History as in Results (Decision 66).
-@Test func aRunThatOnlyMovedItemsToTheTrashIsTold() async throws {
+@Test func aRunThatOnlyMovedItemsToTheTrashShowsNoMeasuredFreedSpace() async throws {
     let root = FileManager.default.temporaryDirectory.appendingPathComponent("CacheDropHistory-" + UUID().uuidString)
     try FileManager.default.createDirectory(at: root, withIntermediateDirectories: false)
     defer { try? FileManager.default.removeItem(at: root) }
@@ -173,8 +173,9 @@ private func historyApproval(_ root: URL, names: [String]) async throws -> Fixtu
     defer { try? FileManager.default.removeItem(at: root) }
     let record = try #require(try await historyApproval(root, names: ["old.pdf"]).records.first)
     var payload = try #require(try JSONSerialization.jsonObject(with: JSONEncoder().encode(record)) as? [String: Any])
-    payload["capacityObservation"] = ["beforeAvailable": 20, "afterAvailable": 14, "beforeMetric": "available", "afterMetric": "available",
-                                      "beforeDate": 1, "afterDate": 2]
+    let reading = CleanupCapacityObservation(from: CapacitySample(available: 20, total: 100, volumeID: "v", metric: .available, date: Date(timeIntervalSince1970: 1)),
+                                             to: CapacitySample(available: 14, total: 100, volumeID: "v", metric: .available, date: Date(timeIntervalSince1970: 2)))
+    payload["capacityObservation"] = try JSONSerialization.jsonObject(with: JSONEncoder().encode(reading))
     let decoded = try JSONDecoder().decode(CleanupRecord.self, from: JSONSerialization.data(withJSONObject: payload))
     #expect(decoded.id == record.id)
 }

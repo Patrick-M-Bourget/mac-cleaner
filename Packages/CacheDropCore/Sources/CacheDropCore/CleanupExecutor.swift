@@ -14,6 +14,26 @@ public struct CatalogApproval: Sendable, Identifiable {
     }
 }
 
+extension Array where Element == CleanupRecord {
+    /// True when the run moved something to the Trash and removed nothing else: nothing is freed until the Trash is emptied,
+    /// so Results and History show no measured freed space (Decision 66).
+    public var movedOnlyToTrash: Bool {
+        let succeeded = filter { $0.state == .succeeded }
+        return succeeded.contains { $0.cleanupAction == .trash } && succeeded.allSatisfy { $0.cleanupAction == .trash }
+    }
+    /// The sum of the available-space change read around each removed item; nil when any reading is missing. A Trash move
+    /// frees nothing yet, and an item that finished after the stop (#209) freed its space where nothing measured it. Results,
+    /// History and Empty from Trash all read it (#433).
+    var measuredFreedBytes: Int64? {
+        var total: Int64 = 0
+        for record in self where record.state == .succeeded && record.cleanupAction != .trash && !record.finishedAfterStop {
+            guard let change = record.itemCapacity?.observedChange else { return nil }
+            total += change
+        }
+        return total
+    }
+}
+
 /// How a measured freed space is shown (#418): never below 0. Other activity can move free space the other way while an
 /// item's space hasn't reached macOS yet (Docker's, #411); the caption beside it says other activity can affect it.
 public enum MeasuredFreedSpace {

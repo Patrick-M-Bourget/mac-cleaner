@@ -23,7 +23,7 @@ public struct CleanupHistoryRun: Sendable, Identifiable {
         return successes.reduce(0) { $0 + ($1.allocatedBytes ?? 0) }
     }
     /// The available-space change read around each item the run removed, as Results measures it; nil when any reading is
-    /// missing. Shown for an emptying of the Trash (#359).
+    /// missing. Shown for every run but a dry run, a Put back or a run that only moved items to the Trash (#359, #433).
     public var measuredFreedBytes: Int64? { isPreview ? nil : records.measuredFreedBytes }
     public var date: Date { records.compactMap(\.outcomeRecordedAt).max() ?? records.map(\.approvedAt).max() ?? .distantPast }
     public var usesApprovalDate: Bool { records.contains { $0.outcomeRecordedAt == nil } }
