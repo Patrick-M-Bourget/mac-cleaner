@@ -712,8 +712,12 @@ final class CatalogCleanupUITests: XCTestCase {
         XCTAssertTrue(denied.waitForExistence(timeout: 10))
         // Safari's cache is one of the places named; others that need access too (sandboxed app caches, #133) add to the count.
         XCTAssertTrue(denied.staticTexts.matching(NSPredicate(format: "label ENDSWITH 'Full Disk Access ·' AND value CONTAINS 'Safari cache'")).firstMatch.exists)
-        // #372: nothing found, so the browser row is listed as Empty, never as a 0-byte row with a Review link.
+        // #372 and Decision 62: Safari's cache couldn't be read, so the browser row says "Needs access", never "Empty", and has
+        // no Review link.
         XCTAssertFalse(app.buttons["overviewCategory-browser"].exists, "Nothing found, so no browser row to review")
+        let browser = app.descendants(matching: .any)["overviewCategory-browser"]
+        XCTAssertTrue(browser.exists, "The browser row is still listed")
+        XCTAssertTrue((browser.value as? String)?.contains("Needs access") == true, browser.debugDescription)
         revealAndClick(denied.links["fullDiskAccessLink"], in: app)
         XCTAssertTrue(app.staticTexts["Broader access is optional"].waitForExistence(timeout: 5))
         app.buttons["closeFullDiskAccess"].click() // "Not now", never "Open System Settings".
