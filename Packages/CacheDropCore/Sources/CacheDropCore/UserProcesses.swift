@@ -9,11 +9,14 @@ enum UserProcesses {
     /// The pid of each process the current user owns; nil when the list can't be read.
     static func pids() -> [pid_t]? {
         let uid = getuid()
-        return allPids()?.filter { pid in
-            var details = proc_bsdinfo()
-            let size = Int32(MemoryLayout<proc_bsdinfo>.size)
-            return proc_pidinfo(pid, PROC_PIDTBSDINFO, 0, &details, size) == size && details.pbi_uid == uid
-        }
+        return allPids()?.filter { owner($0) == uid }
+    }
+
+    /// The user that owns the process; nil when it can't be read.
+    static func owner(_ pid: pid_t) -> uid_t? {
+        var details = proc_bsdinfo()
+        let size = Int32(MemoryLayout<proc_bsdinfo>.size)
+        return proc_pidinfo(pid, PROC_PIDTBSDINFO, 0, &details, size) == size ? details.pbi_uid : nil
     }
 
     /// The pid of every running process, any user's; nil when the list can't be read.
