@@ -17,6 +17,11 @@ private func treeTool(_ body: String) throws -> URL {
     return script
 }
 
+/// The time limit for a test that stops a stand-in tool once it has started a child. A loaded Mac can take more than
+/// half a second to spawn the stand-in's shell and its child (#337); a shorter limit stops the stand-in before it has one,
+/// and the test fails without having tested stopping it.
+let childStartedLimit: TimeInterval = 2
+
 /// A sleep length unique to this test run, so its processes can be found by their argv.
 func uniqueSleep() -> String { "29.\(Int.random(in: 100_000...999_999))" }
 
@@ -51,12 +56,12 @@ func stillRunning(_ pids: [pid_t]) -> [pid_t] {
     let tool = try treeTool("echo started\n\(recordPid("$$", in: pids))\nsleep \"$1\" &\n\(recordPid("$!", in: pids))\nexec sleep \"$1\"")
     defer { try? FileManager.default.removeItem(at: tool.deletingLastPathComponent()) }
     let started = ProcessInfo.processInfo.systemUptime
-    #expect(throws: ToolTimeout.self) { try BoundedTool.capture(executable: tool, arguments: [uniqueSleep()], timeout: 0.5) }
+    #expect(throws: ToolTimeout.self) { try BoundedTool.capture(executable: tool, arguments: [uniqueSleep()], timeout: childStartedLimit) }
     let elapsed = ProcessInfo.processInfo.systemUptime - started
     let left = stillRunning(recordedPids(pids))
     left.forEach { kill($0, SIGKILL) }
-    #expect(elapsed < 0.5 + 2 + 1)
-    #expect(recordedPids(pids).count == 2)
+    #expect(elapsed < childStartedLimit + BoundedTool.stopGrace + 1)
+    #expect(recordedPids(pids).count == 2, "The stand-in starts its child before the time limit")
     #expect(left.isEmpty)
 }
 
@@ -67,12 +72,12 @@ func stillRunning(_ pids: [pid_t]) -> [pid_t] {
     let tool = try treeTool("trap '' TERM\n\(recordPid("$$", in: pids))\nsleep \"$1\" &\n\(recordPid("$!", in: pids))\nwhile :; do sleep 0.1; done")
     defer { try? FileManager.default.removeItem(at: tool.deletingLastPathComponent()) }
     let started = ProcessInfo.processInfo.systemUptime
-    #expect(throws: ToolPreviewError.timeout) { try BoundedTool.run(executable: tool, arguments: [uniqueSleep()], timeout: 0.5) }
+    #expect(throws: ToolPreviewError.timeout) { try BoundedTool.run(executable: tool, arguments: [uniqueSleep()], timeout: childStartedLimit) }
     let elapsed = ProcessInfo.processInfo.systemUptime - started
     let left = stillRunning(recordedPids(pids))
     left.forEach { kill($0, SIGKILL) }
-    #expect(elapsed < 0.5 + 2 + 1)
-    #expect(recordedPids(pids).count == 2)
+    #expect(elapsed < childStartedLimit + BoundedTool.stopGrace + 1)
+    #expect(recordedPids(pids).count == 2, "The stand-in starts its child before the time limit")
     #expect(left.isEmpty)
 }
 
