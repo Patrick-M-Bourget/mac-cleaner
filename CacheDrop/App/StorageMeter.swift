@@ -17,8 +17,6 @@ struct MeterSegments: View {
         let help: String
         let color: Color
         let bytes: Int64
-        /// Of `bytes`, the part drawn in full colour; the rest is dimmed. nil draws all of it in full.
-        let highlighted: Int64?
         let part: StorageBreakdown.Part?
     }
     private var drawn: [Drawn] {
@@ -26,11 +24,11 @@ struct MeterSegments: View {
             let bytes = breakdown.reclaimableBytes
             guard bytes > 0 else { return [] }
             return [Drawn(id: "reclaimable", title: "Reclaimable", help: "Reclaimable · up to " + CapacityMeter.bytes(bytes),
-                          color: CacheDropDesign.meterReclaimable, bytes: bytes, highlighted: nil, part: nil)]
+                          color: CacheDropDesign.meterReclaimable, bytes: bytes, part: nil)]
         }
         return breakdown.segments.filter { $0.bytes > 0 }.map { segment in
             Drawn(id: segment.id, title: segment.part.title, help: segment.part.title + " · " + segment.sizeText, color: segment.part.color,
-                  bytes: segment.bytes, highlighted: segment.highlightedBytes, part: segment.part)
+                  bytes: segment.bytes, part: segment.part)
         }
     }
 
@@ -58,17 +56,7 @@ struct MeterSegments: View {
     }
 
     @ViewBuilder private func segment(_ segment: Drawn) -> some View {
-        let fill = GeometryReader { geometry in
-            HStack(spacing: 0) {
-                if let highlighted = segment.highlighted {
-                    let lit = geometry.size.width * CGFloat(Double(highlighted) / Double(max(segment.bytes, 1)))
-                    Rectangle().fill(segment.color).frame(width: lit)
-                    Rectangle().fill(segment.color.opacity(CacheDropDesign.Opacity.meterDimmed))
-                } else {
-                    Rectangle().fill(segment.color)
-                }
-            }
-        }.contentShape(Rectangle())
+        let fill = Rectangle().fill(segment.color).contentShape(Rectangle())
         // The tooltip and the label say the same (#344). The tooltip sits on the outermost view, the button itself, not
         // inside its label, where the 0.9.0 build showed none.
         if let open, let part = segment.part, !part.isTrash {
@@ -95,7 +83,7 @@ extension StorageBreakdown.Part {
         switch self {
         case .category(let category): category.storageCategory.color
         case .other: CacheDropDesign.meterOther
-        // What a selection sends to the Trash looks like the Trash: it frees nothing until it is emptied (#343).
+        // What a cleanup sends to the Trash looks like the Trash: it frees nothing until it is emptied (#343).
         case .goingToTrash, .trash: CacheDropDesign.meterTrash
         }
     }

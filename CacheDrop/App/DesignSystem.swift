@@ -32,8 +32,6 @@ enum CacheDropDesign {
         static let inspectorStackedShare: CGFloat = 0.35 }
     /// How strongly a colour tints a surface behind its symbol, as in a category badge.
     enum Opacity { static let badgeTint: Double = 0.10
-        /// A meter segment's part that Smart clean wouldn't free (#164).
-        static let meterDimmed: Double = 0.30
         /// Rows from the last scan while a rescan runs: visible, plainly not live (#308).
         static let waiting: Double = 0.45
         /// The skeleton shimmer's band at its brightest (#308).
