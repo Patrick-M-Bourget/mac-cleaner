@@ -118,7 +118,7 @@ private enum HistoryActivityItem: Identifiable {
             blocked = false
             return true
         } catch CleanupJournalError.recoveryRequired {
-            blocked = true; message = "Reset waits until the interrupted cleanup is reviewed. Nothing restarts by itself."
+            blocked = true; message = "Reset waits until the interrupted cleanup is reviewed."
         } catch {
             blocked = true
             switch resetStage {

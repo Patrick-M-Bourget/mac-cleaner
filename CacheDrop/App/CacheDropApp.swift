@@ -756,7 +756,7 @@ private struct WorkspaceView: View {
                 }
             }
         } else if recoveryVisible {
-            ActionStrip(message: "Nothing restarts by itself.") { EmptyView() }
+            ActionStrip()
         } else if navigationState.localRecordsVisible {
             ActionStrip()
         } else if destination == .overview && !navigationState.appManagedVisible {

@@ -697,6 +697,10 @@ final class RecoveryReviewUITests: XCTestCase {
             XCTAssertTrue(row.waitForExistence(timeout: 10), "\(name) shows its finding")
             XCTAssertTrue((row.value as? String ?? row.label).hasPrefix(title + " · "), "\(name): \(row.value ?? row.label)")
         }
+        // #436: the page says once that nothing restarts, in its subtitle; its bottom bar has no note.
+        let restarts = NSPredicate(format: "label CONTAINS 'Nothing restarts by itself' OR value CONTAINS 'Nothing restarts by itself'")
+        XCTAssertEqual(app.staticTexts.matching(restarts).count, 1)
+        XCTAssertEqual(actionStrip(app).staticTexts.matching(restarts).count, 0)
         app.buttons["recoveryMarkReviewed"].click()
         XCTAssertTrue(app.staticTexts["recoveryMessage"].waitForExistence(timeout: 10))
 
