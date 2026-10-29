@@ -1,9 +1,11 @@
 import Darwin
 import Foundation
 
+#if DEBUG
 /// The quitter of a debug UI test run (#377): it sees only apps run from inside `root`, the run's fixture home, by the
 /// bundle identifier of the app bundle each process runs from, and asks only those to quit (SIGTERM, a normal quit request
 /// to a process that isn't a Cocoa app). A journey quits a fixture app it started itself, never a real app on this Mac.
+/// Debug builds only: a release build has no code that signals another process.
 public struct FixtureAppQuitter: AppQuitting {
     public let root: URL
     public init(root: URL) { self.root = root }
@@ -41,3 +43,4 @@ public struct FixtureAppQuitter: AppQuitting {
         return parts[...last].joined(separator: "/")
     }
 }
+#endif
