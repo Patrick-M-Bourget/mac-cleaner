@@ -7,7 +7,8 @@ public enum ScannedLocationsSummary {
     public struct Location: Equatable, Sendable {
         public let scope: URL
         public let name: String
-        /// The size the scan found; nil until the location is scanned.
+        /// What the scan found on disk (allocated, as Explore storage's "On disk"; a sparse image counts what it uses, #376);
+        /// nil until the location is scanned.
         public let bytes: Int64?
         /// False when the scan left something out, so `bytes` is a lower bound.
         public let complete: Bool
@@ -20,8 +21,8 @@ public enum ScannedLocationsSummary {
         public init(scope: URL, scan: ScanResult?) {
             self.scope = scope.standardizedFileURL
             name = scope.lastPathComponent
-            bytes = scan.map { $0.totalLogicalBytes ?? $0.logicalBytes }
-            complete = scan?.totalLogicalBytes != nil
+            bytes = scan.map { $0.totalAllocatedBytes ?? $0.allocatedBytes ?? 0 }
+            complete = scan?.totalAllocatedBytes != nil
             let issues = scan?.issues ?? []
             func count(_ reasons: Set<ScanIssue.Reason>) -> Int { Set(issues.filter { reasons.contains($0.reason) }.map(\.url.standardizedFileURL)).count }
             let denied = count([.accessDenied, .accessRevoked])

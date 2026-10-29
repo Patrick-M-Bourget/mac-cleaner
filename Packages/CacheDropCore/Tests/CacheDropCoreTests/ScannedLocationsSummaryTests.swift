@@ -3,13 +3,13 @@ import Testing
 @testable import CacheDropCore
 
 /// A scan of `scope` as the folder scanner would record it; nothing here touches disk.
-private func scan(_ scope: String = "/tmp/Projects", bytes: Int64 = 12_000_000, issues: [(String, ScanIssue.Reason)] = [], excluded: Int = 0,
+private func scan(_ scope: String = "/tmp/Projects", bytes: Int64 = 12_000_000, allocated: Int64? = nil, issues: [(String, ScanIssue.Reason)] = [], excluded: Int = 0,
                   kinds: [ObservationKind] = []) -> ScanResult {
     let observations = kinds.enumerated().map { index, kind in
         FileObservation(id: "\(index)", resourceID: "1:\(index)", url: URL(fileURLWithPath: scope + "/item\(index)"), kind: kind, logicalBytes: nil, allocatedBytes: nil,
                         previewAvailability: .local, isDuplicateResource: false, cloud: .unknown)
     }
-    return ScanResult(scope: URL(fileURLWithPath: scope), observedAt: Date(), observations: observations, logicalBytes: bytes, allocatedBytes: bytes,
+    return ScanResult(scope: URL(fileURLWithPath: scope), observedAt: Date(), observations: observations, logicalBytes: bytes, allocatedBytes: allocated ?? bytes,
                       allocatedUnknownCount: 0, volumeCapacityBytes: nil, volumeAvailableBytes: nil,
                       issues: issues.map { ScanIssue(url: URL(fileURLWithPath: $0.0), reason: $0.1) },
                       volumeAvailableMetric: "", exclusionFingerprint: "none", excludedEntryCount: excluded)
@@ -83,4 +83,11 @@ private func location(_ scan: ScanResult?, scope: String = "/tmp/Projects") -> S
     let row = location(scan(issues: [("/tmp/Projects/a", .locationUnavailable), ("/tmp/Projects", .exclusionUnavailable)]))
     #expect(row.problem == "2 items couldn’t be read")
     #expect(row.action == .scanAgain)
+}
+
+/// #376, #388: a location's size is what it takes on disk, as Explore storage's "On disk" shows it. A sparse disk image (Docker's
+/// `Docker.raw`: 288 GB logical, 4 GB used) never makes its folder look huge.
+@Test func aLocationsSizeIsItsOnDiskSize() {
+    #expect(location(scan(bytes: 288_000_000_000, allocated: 4_000_000_000)).value(megabytes) == "4000 MB")
+    #expect(location(scan(bytes: 288_000_000_000, allocated: 4_000_000_000, excluded: 1)).value(megabytes) == "At least 4000 MB")
 }
