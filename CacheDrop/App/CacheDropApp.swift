@@ -575,15 +575,15 @@ private struct WorkspaceView: View {
                     switch location.action {
                     case .grantFullDiskAccess?:
                         HStack(alignment: .firstTextBaseline, spacing: CacheDropDesign.Space.sm) {
-                            StatusRow(text: problem, symbol: "exclamationmark.circle", role: .caution, identifier: "overviewLocationProblem").fixedSize()
+                            StatusRow(text: problem, symbol: "exclamationmark.circle", role: .caution, identifier: "overviewLocationProblem:" + location.scope.path).fixedSize()
                             FullDiskAccessLink(title: "Grant Full Disk Access", symbol: nil)
                             Spacer(minLength: 0)
                         }
                     case .scanAgain?:
-                        StatusRow(text: problem, symbol: "exclamationmark.circle", role: .caution, identifier: "overviewLocationProblem",
+                        StatusRow(text: problem, symbol: "exclamationmark.circle", role: .caution, identifier: "overviewLocationProblem:" + location.scope.path,
                                   action: StatusAction(title: "Scan again", identifier: "overviewLocationScanAgain", isDisabled: !canScanAgain, action: scanAgain))
                     case nil:
-                        StatusRow(text: problem, symbol: "exclamationmark.circle", role: .caution, identifier: "overviewLocationProblem")
+                        StatusRow(text: problem, symbol: "exclamationmark.circle", role: .caution, identifier: "overviewLocationProblem:" + location.scope.path)
                     }
                 }.padding([.horizontal, .bottom], CacheDropDesign.Space.lg)
             }

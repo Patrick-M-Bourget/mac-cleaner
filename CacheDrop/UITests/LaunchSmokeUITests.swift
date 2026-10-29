@@ -603,7 +603,7 @@ final class ScannedLocationsUITests: XCTestCase {
 
         let row = app.descendants(matching: .any)["overviewLocation:" + folder.path]
         XCTAssertTrue((row.value as? String ?? "").contains(folder.lastPathComponent), row.value as? String ?? "")
-        let problem = app.staticTexts["overviewLocationProblem"]
+        let problem = app.staticTexts["overviewLocationProblem:" + folder.path]
         XCTAssertTrue(problem.waitForExistence(timeout: 5))
         XCTAssertEqual(problem.value as? String, "1 folder couldn’t be read")
         XCTAssertEqual(app.links["fullDiskAccessLink"].label, "Grant Full Disk Access")
