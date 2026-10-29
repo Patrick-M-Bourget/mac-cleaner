@@ -554,6 +554,30 @@ private func unreadableReceipt(_ id: String, in root: URL) throws {
     }
 }
 
+/// #401, Decision 91: an older Powered by Kontakt library's `<Library>_info.nkx` is the other half of its `.nicnt` stand-in, so it
+/// stays; every other `.nkx`, Kontakt's sample monolith, still goes.
+@Test func aLibrarysInfoNkxStaysSampleMonolithsGo() throws {
+    let (root, home) = try fixture()
+    defer { try? FileManager.default.removeItem(at: root) }
+    let folder = "Library/Application Support/Maker Content"
+    try write(folder + "/Instruments/Pad.nki", in: root)
+    try write(folder + "/Samples/Pad.nkx", in: root)
+    try write(folder + "/Samples/Info.nkx", in: root)
+    let inventory = PlugInInventory.scan(home: home, systemRoot: root, sizer: KnownLocationSizer(timeBudget: 5), receipts: ReceiptListings.read(under: root))
+    let library = MusicContentItem(name: "Sounds", vendors: ["Maker"], url: root.appendingPathComponent(folder), kind: .installed,
+                                   state: .present(.unknown), owners: [try product("Pro Synth", inventory)], tie: .vendor)
+    func scanned() -> [Candidate] { PlugInUninstall.scan(inventory, apps: [], receipts: ReceiptListings.read(under: root), content: [library], systemRoot: root) }
+    let content = try #require(scanned().first { $0.url == library.url }, "Sample monoliths are offered")
+    #expect(check(home).check(content) == nil)
+
+    for name in ["Maker Content_info.nkx", "Maker Content_INFO.NKX"] {
+        try write(folder + "/" + name, in: root)
+        #expect(check(home).check(content) == .unrecognised(name), "Before acting")
+        #expect(!scanned().contains { $0.url == library.url }, "At the scan")
+        try FileManager.default.removeItem(at: root.appendingPathComponent(folder + "/" + name))
+    }
+}
+
 @Test func aPreferencesPlistAlwaysStaysWhateverItsKeys() throws {
     let (root, home) = try fixture()
     defer { try? FileManager.default.removeItem(at: root) }
