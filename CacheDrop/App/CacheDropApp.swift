@@ -562,7 +562,10 @@ private struct WorkspaceView: View {
                     .disabled(folderInspection.isScanning || selection.workspaceRunning).accessibilityIdentifier("overviewScanFolder")
             }
             if locations.isEmpty {
-                Text("No folders chosen yet").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary).accessibilityIdentifier("overviewNoLocations")
+                // A location in recovery is chosen: its row at the top says what's wrong (#388), so only say this when none is.
+                if locationsModel.recoveries.isEmpty {
+                    Text("No folders chosen yet").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary).accessibilityIdentifier("overviewNoLocations")
+                }
             } else {
                 RecommendationGroup {
                     ForEach(Array(locations.enumerated()), id: \.element.scope) { index, location in
