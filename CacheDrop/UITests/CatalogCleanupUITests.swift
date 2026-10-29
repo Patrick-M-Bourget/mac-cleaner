@@ -1022,6 +1022,37 @@ extension CatalogCleanupUITests {
         XCTAssertEqual(explorerBack.label, "Back to Overview")
     }
 
+    /// #365: a folder with 5,000 direct children opens within a few seconds and builds only the rows on screen.
+    @MainActor func testExplorerOpensAFolderWithThousandsOfFilesQuickly() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        let state = try configureIsolatedState(app)
+        let home = try configureCatalogHome(app)
+        let folder = FileManager.default.temporaryDirectory.resolvingSymlinksInPath().appendingPathComponent("CacheDropPicked-" + UUID().uuidString)
+        defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home); try? FileManager.default.removeItem(at: folder) }
+        let crowded = folder.appendingPathComponent("Crowded")
+        try FileManager.default.createDirectory(at: crowded, withIntermediateDirectories: true)
+        for number in 0..<5_000 { try Data(repeating: 1, count: 16).write(to: crowded.appendingPathComponent(String(format: "file-%04d.txt", number))) }
+        app.launch()
+        XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
+        app.links["overviewScanFolder"].click()
+        let panel = app.sheets.firstMatch.exists ? app.sheets.firstMatch : app.dialogs.firstMatch
+        XCTAssertTrue(panel.waitForExistence(timeout: 5))
+        panel.typeKey("g", modifierFlags: [.command, .shift])
+        app.typeText(folder.path + "\n")
+        panel.buttons["Scan folder"].click()
+        waitForScannedFolder(app, timeout: 60)
+        let explore = app.links["Explore storage"]
+        XCTAssertTrue(explore.waitForExistence(timeout: 20))
+        explore.click()
+        app.buttons["Open folder " + folder.lastPathComponent].click()
+        XCTAssertTrue(app.buttons["Open folder Crowded"].waitForExistence(timeout: 5))
+        app.buttons["Open folder Crowded"].click()
+        let rows = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Inspect file-'"))
+        XCTAssertTrue(rows.firstMatch.waitForExistence(timeout: 3), "The crowded folder shows its rows within a few seconds")
+        XCTAssertLessThan(rows.count, 5_000, "Only the rows on screen are built")
+    }
+
     /// #249: the scanned folder itself is deleted and Scan again can't find it. The explorer keeps its last observation
     /// but marks it as gone, with Overview's orange row and Choose again…, and never lists its old contents as current.
     @MainActor func testExplorerMarksADeletedScannedFolderAsNotFound() throws {
@@ -1556,6 +1587,41 @@ extension CatalogCleanupUITests {
         XCTAssertTrue(card.waitForExistence(timeout: 10))
         XCTAssertTrue(card.staticTexts["startupCapacityAmount"].exists, "The whole card: its available space too")
         XCTAssertTrue(card.descendants(matching: .any)["meterSegment-developer"].exists)
+    }
+
+    /// #355: while a cleanup runs, Cleaning up shows Overview's card with an "X freed" tag at the bar's tip and the run's
+    /// categories ticking off, then the results. A dry run, held a moment per item, so every file stays.
+    @MainActor func testCleaningUpShowsTheCardAndTicksCategoriesOff() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        let state = try configureIsolatedState(app)
+        let home = try configureCatalogHome(app)
+        turnOnDryRun(app)
+        _ = try addDeveloperCaches(home, folders: ["Library/Caches/Yarn"])
+        app.launchEnvironment["CACHEDROP_TEST_CLEANUP_PAUSE"] = "5"
+        defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
+        app.launch()
+        XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
+        waitForCatalogScan(app)
+
+        app.typeKey("2", modifierFlags: .command)
+        XCTAssertTrue(app.buttons["smartCleanCleanUp"].waitForExistence(timeout: 10))
+        app.buttons["smartCleanCleanUp"].click()
+        XCTAssertTrue(reviewLine(app, "permanentlyRemoved", "developer").waitForExistence(timeout: 10))
+        cleanUpFromReview(app)
+
+        XCTAssertTrue(app.staticTexts["Cleaning up…"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.descendants(matching: .any)["cleaningUpCard"].waitForExistence(timeout: 5), "Overview's card")
+        // Each item is held 5 s, since every check here takes about a second; the core tests cover each step of the count.
+        XCTAssertTrue(app.staticTexts["cleaningUpCategory-developer"].waitForExistence(timeout: 5), "The run's categories")
+        let tag = app.descendants(matching: .any)["meterTipTag"].firstMatch
+        XCTAssertTrue(tag.waitForExistence(timeout: 5), "The freed tag rides the tip once an item is done")
+        XCTAssertTrue((tag.value as? String ?? tag.label).hasSuffix("would be freed"), tag.debugDescription)
+
+        XCTAssertTrue(app.staticTexts["catalogPreviewNotice"].waitForExistence(timeout: 15), "Then the results")
+        for kept in [".npm/_cacache/content-v2/sha512/ab/blob", "Library/Caches/Yarn/entry"] {
+            XCTAssertTrue(FileManager.default.fileExists(atPath: home.appendingPathComponent(kept).path), kept)
+        }
     }
 
     /// #348: a click anywhere on a category row toggles it as its checkbox does, on Smart clean and the plan: all on when any

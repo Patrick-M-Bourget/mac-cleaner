@@ -117,6 +117,8 @@ struct DesignGallery: View {
                     // #311: one button rule, one example of each kind.
                     Text("Buttons · One rule").font(.headline)
                     ButtonRuleGalleryExamples()
+                    Text("Search and Sort · Under the description, in the list’s header").font(.headline)
+                    ListHeaderGalleryExamples()
                     // #321: one empty state, saying what's true with at most one action that leads where the user can act.
                     Text("Empty states · One way forward").font(.headline)
                     EmptyState(title: "No scans yet", detail: "A completed scan records a baseline. Check back a day later to see trends.",
@@ -224,6 +226,20 @@ private struct ButtonRuleGalleryExamples: View {
             }.frame(maxWidth: CacheDropDesign.Size.sheetNarrow)
             Text("Bottom bar · Large capsules").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
             ActionStrip(message: "Example note") { Button("Scan again") {}; Button("Review plan") {}.buttonStyle(.borderedProminent) }
+        }
+    }
+}
+/// A page's search under its description, then a list's column header with a plain value label or its Sort right-aligned (#352).
+private struct ListHeaderGalleryExamples: View {
+    @State private var search = ""
+    @State private var order = ApplicationsListing.Order.size
+    var body: some View {
+        VStack(alignment: .leading, spacing: CacheDropDesign.Space.md) {
+            PageHeader(title: "Example page", subtitle: "Search under the description; Sort in the list’s header.")
+            PageSearchField(label: "Search the example list", prompt: "Name or maker", text: $search, identifier: "gallerySearch")
+            ColumnHeader("Name", trailing: "On disk")
+            ColumnHeader(leading: "Name") { SortMenu(order: $order, identifier: "gallerySort") }
+            Text("Example row · sorted by " + order.rawValue).font(.callout)
         }
     }
 }

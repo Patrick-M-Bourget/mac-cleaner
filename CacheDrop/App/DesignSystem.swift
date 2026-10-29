@@ -16,7 +16,7 @@ enum CacheDropDesign {
         static let meterGap: CGFloat = 2; static let meterSegmentMinimum: CGFloat = 3
         /// The bottom bar's row: a large button's height, so the bar is the same with or without buttons or progress (#220).
         static let actionStripRow: CGFloat = 32
-        /// A page header's search field (#295), as wide as the prototype's.
+        /// A page's search field (#295), under its header's description (#352), as wide as the prototype's.
         static let searchField: CGFloat = 210
         /// A skeleton row's title and detail bars (#308), about the height of the text they stand in for.
         static let skeletonTitle: CGFloat = 11; static let skeletonDetail: CGFloat = 8
@@ -188,6 +188,53 @@ struct PageHeader: View {
             Text(title).font(CacheDropDesign.TypeStyle.page).tracking(-0.6)
             if let subtitle { Text(subtitle).font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true) }
         }.frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+/// A page's one search field (#295), just under its header's description (#352): a rounded field with a plain prompt.
+struct PageSearchField: View {
+    let label: String
+    let prompt: String
+    @Binding var text: String
+    let identifier: String
+    var body: some View {
+        TextField(label, text: $text, prompt: Text(prompt)).labelsHidden().textFieldStyle(.roundedBorder)
+            .frame(width: CacheDropDesign.Size.searchField).accessibilityIdentifier(identifier)
+    }
+}
+/// A list's column header, as Explore storage's "Name … On disk" (#352): the name column's label, then, right-aligned, the
+/// value column's label or a control in its place, such as the list's `SortMenu`; a divider closes it. `insets` line the
+/// labels up with the rows' own columns.
+struct ColumnHeader<Trailing: View>: View {
+    let leading: String
+    var insets = EdgeInsets(top: 0, leading: CacheDropDesign.Space.md, bottom: 0, trailing: CacheDropDesign.Space.md)
+    @ViewBuilder var trailing: () -> Trailing
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: CacheDropDesign.Space.md) {
+                Text(leading)
+                Spacer(minLength: CacheDropDesign.Space.md)
+                trailing()
+            }.font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
+                .padding(insets).padding(.bottom, CacheDropDesign.Space.sm)
+            Divider()
+        }
+    }
+}
+extension ColumnHeader where Trailing == Text {
+    /// A header whose value column has a plain label, such as "On disk".
+    init(_ leading: String, trailing: String,
+         insets: EdgeInsets = EdgeInsets(top: 0, leading: CacheDropDesign.Space.md, bottom: 0, trailing: CacheDropDesign.Space.md)) {
+        self.init(leading: leading, insets: insets) { Text(trailing) }
+    }
+}
+/// A list's Sort (#352), right-aligned in its `ColumnHeader` rather than a separate control: a small menu, "Sort by <order>".
+struct SortMenu<Order: Hashable & CaseIterable & RawRepresentable<String>>: View where Order.AllCases: RandomAccessCollection {
+    @Binding var order: Order
+    let identifier: String
+    var body: some View {
+        Picker("Sort by", selection: $order) {
+            ForEach(Order.allCases, id: \.self) { Text($0.rawValue).tag($0) }
+        }.pickerStyle(.menu).controlSize(.small).fixedSize().accessibilityIdentifier(identifier)
     }
 }
 /// The one back button (Decision 47): small, borderless and secondary, just above the page title, reading
@@ -461,6 +508,10 @@ struct CapacityMeter: View {
     var breakdown: StorageBreakdown? = nil
     /// Opens a segment's category in the Cleanup plan.
     var open: ((StorageBreakdown.Part) -> Void)? = nil
+    /// A short tag riding the tip of the used space, such as "12.4 GB freed" while a cleanup shaves it (#355). An empty
+    /// one keeps its place; the caller passes none with Reduce Motion and says it elsewhere.
+    var tipLabel: String? = nil
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     static func bytes(_ value: Int64) -> String { ByteCountFormatter.string(fromByteCount: value, countStyle: .decimal) }
     /// The total, when it and the available space are a consistent whole-disk reading.
     static func validTotal(available: Int64?, total: Int64?) -> Int64? {
@@ -492,8 +543,34 @@ struct CapacityMeter: View {
             }.frame(height: compact ? CacheDropDesign.Size.meterCompact : prominent ? CacheDropDesign.Size.meterProminent : CacheDropDesign.Size.meter)
                 .accessibilityElement(children: breakdown == nil || validTotal == nil ? .ignore : .contain)
                 .accessibilityLabel(validTotal == nil ? "Capacity meter unavailable" : amountText)
+                .overlay(alignment: .topLeading) { tip }
+                // Only a cleanup's bar eases as it shaves; every other meter changes as it always did.
+                .animation(reduceMotion || tipLabel == nil ? nil : .easeOut(duration: CacheDropDesign.Motion.waiting), value: available)
         }
     }
+}
+
+extension CapacityMeter {
+    /// The tip tag, above the bar, ending at the tip of the used space (kept inside the bar's width).
+    @ViewBuilder fileprivate var tip: some View {
+        if let tipLabel, !tipLabel.isEmpty, !reduceMotion, let available, let total = validTotal {
+            GeometryReader { geometry in
+                let tipX = geometry.size.width * CGFloat(Double(total - available) / Double(total))
+                // Ends at the tip, never past either end of the bar; a long tag shrinks rather than spill.
+                let width = min(CacheDropDesign.Size.tipTag, geometry.size.width)
+                Text(tipLabel).font(CacheDropDesign.TypeStyle.caption).monospacedDigit().foregroundStyle(.secondary)
+                    .lineLimit(1).minimumScaleFactor(CacheDropDesign.Scale.oneLineCaption)
+                    .frame(width: width, alignment: .trailing)
+                    .offset(x: min(max(0, tipX - width), geometry.size.width - width), y: -CacheDropDesign.Size.tipTagRise)
+                    .accessibilityIdentifier("meterTipTag")
+            }
+        }
+    }
+}
+extension CacheDropDesign.Size {
+    /// The tip tag's width, and how far above the bar it sits (#355).
+    static let tipTag: CGFloat = 180
+    static let tipTagRise: CGFloat = 18
 }
 
 /// The prototype's device card: the whole disk, used against available, with what CacheDrop found inside the used space (#164).
@@ -508,6 +585,8 @@ struct VolumeSummary: View {
     var name = StartupVolumeCapacity.name ?? "This Mac"
     var breakdown: StorageBreakdown? = nil
     var open: ((StorageBreakdown.Part) -> Void)? = nil
+    /// The bar's tip tag, while a cleanup shaves it (#355).
+    var tipLabel: String? = nil
     private func bytes(_ value: Int64) -> String { CapacityMeter.bytes(value) }
     private var used: Int64? {
         guard let available, let total = CapacityMeter.validTotal(available: available, total: total) else { return nil }
@@ -536,7 +615,9 @@ struct VolumeSummary: View {
                         }
                     }
                 }
-                CapacityMeter(available: available, total: total, showsValue: false, prominent: true, breakdown: breakdown, open: open)
+                CapacityMeter(available: available, total: total, showsValue: false, prominent: true, breakdown: breakdown, open: open, tipLabel: tipLabel)
+                    // Room for the tag from the run's start, so the card never jumps when it appears (#355).
+                    .padding(.top, tipLabel == nil ? 0 : CacheDropDesign.Size.tipTagRise)
                 HStack(alignment: .firstTextBaseline, spacing: CacheDropDesign.Space.md) {
                     Text(used.map { bytes($0) + " used" } ?? "Used space unknown").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary).monospacedDigit()
                     Spacer(minLength: CacheDropDesign.Space.sm)
@@ -810,29 +891,41 @@ struct InspectableItemRow<Selection: View>: View {
     let size: String
     let symbol: String
     let inspected: Bool
-    let inspect: () -> Void
+    /// What clicking the row does; nil makes it a plain, unclickable row (a rule of items ticked one by one, #356).
+    let inspect: (() -> Void)?
     var detailLineLimit = 2
     /// What VoiceOver says the click does, when it isn't inspecting the item (Reveal in Finder, #207).
     var actionLabel: String? = nil
+    /// A link after the size, such as Reveal in Finder beside an item whose click ticks it (#356).
+    var secondary: StatusAction? = nil
     @ViewBuilder var selection: () -> Selection
     var body: some View {
         HStack(alignment: .center, spacing: CacheDropDesign.Space.md) {
             selection()
-            Button(action: inspect) {
-                HStack(spacing: CacheDropDesign.Space.md) {
-                    Image(systemName: symbol).foregroundStyle(.secondary).frame(width: 20)
-                    VStack(alignment: .leading, spacing: CacheDropDesign.Space.xs) {
-                        Text(name).foregroundStyle(.primary)
-                        // An empty detail makes it a one-line row (Smart clean, #141).
-                        if !detail.isEmpty { Text(detail).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary).lineLimit(detailLineLimit) }
-                    }.frame(maxWidth: .infinity, alignment: .leading)
-                    Text(size).font(.callout).monospacedDigit().foregroundStyle(.secondary)
-                }.contentShape(Rectangle())
-            }.buttonStyle(.plain).accessibilityLabel(actionLabel ?? "Inspect " + name)
-                // The button hides its texts from accessibility; keep the detail (e.g. when it was last used) and size readable.
-                .accessibilityValue(detail.isEmpty ? size : detail + ", " + size)
+            if let inspect {
+                Button(action: inspect) { content }.buttonStyle(.plain).accessibilityLabel(actionLabel ?? "Inspect " + name)
+                    // The button hides its texts from accessibility; keep the detail (e.g. when it was last used) and size readable.
+                    .accessibilityValue(detail.isEmpty ? size : detail + ", " + size)
+            } else {
+                content.accessibilityElement(children: .combine)
+            }
+            if let secondary {
+                Button(secondary.title, action: secondary.action).buttonStyle(.link).font(CacheDropDesign.TypeStyle.caption)
+                    .accessibilityLabel(secondary.title + " " + name).accessibilityIdentifier(secondary.identifier)
+            }
         }.padding(CacheDropDesign.Space.md)
             .background(inspected ? Color.accentColor.opacity(0.06) : .clear, in: RoundedRectangle(cornerRadius: CacheDropDesign.Radius.row))
+    }
+    private var content: some View {
+        HStack(spacing: CacheDropDesign.Space.md) {
+            Image(systemName: symbol).foregroundStyle(.secondary).frame(width: 20)
+            VStack(alignment: .leading, spacing: CacheDropDesign.Space.xs) {
+                Text(name).foregroundStyle(.primary)
+                // An empty detail makes it a one-line row (Smart clean, #141).
+                if !detail.isEmpty { Text(detail).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary).lineLimit(detailLineLimit) }
+            }.frame(maxWidth: .infinity, alignment: .leading)
+            Text(size).font(.callout).monospacedDigit().foregroundStyle(.secondary)
+        }.contentShape(Rectangle())
     }
 }
 

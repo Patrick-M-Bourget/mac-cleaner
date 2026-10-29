@@ -28,4 +28,17 @@ extension CleanupRule {
     /// Its items are ticked one by one, never with their category, rule or app (#173: possibly related leftovers; #176: a
     /// plug-in product's shared items): an app family's item-by-item rule.
     public var selectedOneByOne: Bool { family != nil && itemByItem }
+
+    /// What clicking one of its item rows does (#356).
+    public enum ItemRowClick: Sendable, Equatable {
+        /// Ticks or unticks the item; Reveal in Finder is a secondary action beside it.
+        case tick
+        /// Shows the item in Finder; its checkbox ticks it.
+        case reveal
+    }
+    /// An item ticked one by one is chosen in the app, so clicking its row ticks it (#356); every other item's row is a Finder link.
+    public var itemRowClick: ItemRowClick { selectedOneByOne ? .tick : .reveal }
+    /// Whether clicking the rule's own row shows all its items in Finder. Never for items ticked one by one (#356): each is
+    /// chosen and revealed on its own, and the rule's row only shows what is ticked (Decision 49).
+    public var ruleRowReveals: Bool { !selectedOneByOne }
 }
