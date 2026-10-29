@@ -676,7 +676,7 @@ extension CatalogCategory {
         switch self {
         case .developer: "Developer caches and build files"
         case .browser: "Browser caches"
-        case .downloads: "Downloads to review"
+        case .downloads: "Downloads"
         case .system: "App caches"
         case .models: "Models and disk images"
         case .updaters: "App update downloads"
@@ -688,12 +688,14 @@ extension CatalogCategory {
         case .apps: "Apps, plug-ins and their files"
         }
     }
+    /// Smart clean's title: it takes only downloads untouched for 30 days (#342), so it says so.
+    var smartCleanTitle: String { self == .downloads ? "Old downloads" : overviewTitle }
     /// The one short line under a category's title on Overview and in the plan, written per category rather than built from rule names.
     var overviewDetail: String {
         switch self {
         case .developer: "Package caches and build files that tools rebuild"
         case .browser: "Cached pages and images browsers fetch again"
-        case .downloads: "Installers and large files you haven’t opened lately"
+        case .downloads: "Every file in your Downloads folder, to review"
         case .system: "Caches apps rebuild when they need them"
         case .models: "AI models and disk images you can download again"
         case .updaters: "Updates apps downloaded and kept"

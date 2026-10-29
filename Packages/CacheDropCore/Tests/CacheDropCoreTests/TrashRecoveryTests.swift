@@ -31,7 +31,7 @@ private func fixtureDownloads() throws -> (home: URL, downloads: URL) {
     #expect(snapshot.unresolvedCount == 1)
     #expect(snapshot.pendingCount == 1)
     #expect(snapshot.interruptedBatches.first?.records.map(\.action) == ["moveToTrash", "moveToTrash"])
-    #expect(snapshot.interruptedBatches.first?.records.first?.ruleID == "downloads-installers")
+    #expect(snapshot.interruptedBatches.first?.records.first?.ruleID == "downloads")
     #expect(try reader.completedHistory().completedRuns.isEmpty)
     #expect(try reader.completedHistory().protectedRecordCount == 2)
     let writer = try SQLiteCleanupJournal(url: url)
