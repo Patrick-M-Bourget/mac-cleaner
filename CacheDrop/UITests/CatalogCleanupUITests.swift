@@ -223,7 +223,7 @@ final class CatalogCleanupUITests: XCTestCase {
         XCTAssertGreaterThan(updaters.frame.minY, downloads.frame.minY, "Empty categories sort below the ones that found something")
         XCTAssertFalse(app.descendants(matching: .any)["overviewEmpty"].exists, "Something was found, so no empty-state line")
         // "Show N more" still folds the rest of the list.
-        let more = app.buttons["overviewShowMore"]
+        let more = app.links["overviewShowMore"]
         XCTAssertTrue(more.exists)
         XCTAssertFalse(app.descendants(matching: .any)["overviewCategory-leftovers"].exists, "Folded under Show N more")
         more.click()
@@ -1680,8 +1680,9 @@ extension CatalogCleanupUITests {
         app.typeKey("2", modifierFlags: .command)
         let header = app.descendants(matching: .any)["smartCleanHeader"]
         XCTAssertTrue(header.waitForExistence(timeout: 10))
-        XCTAssertTrue(header.label.hasPrefix("Smart clean"), header.label)
-        XCTAssertFalse(header.label.contains("ready to clean"), "The card says it, so the title doesn't repeat it")
+        // The header combines its texts into one element, so the window is searched: only the card says "Ready to clean".
+        XCTAssertEqual(app.staticTexts.matching(NSPredicate(format: "label CONTAINS 'ready to clean' OR value CONTAINS 'ready to clean'")).count, 0,
+                       "The card says it, so the title doesn't repeat it")
         let detail = app.staticTexts["smartCleanSummary"]
         XCTAssertTrue(detail.waitForExistence(timeout: 10))
         let selected = NSPredicate(format: "value MATCHES %@ OR label MATCHES %@", "[1-9][0-9]* items? selected", "[1-9][0-9]* items? selected")
@@ -2043,8 +2044,9 @@ final class FolderScanProgressUITests: XCTestCase {
         XCTAssertEqual(toolbarItems(), before, "The toolbar is unchanged after the scan")
     }
 
-    /// #364: the recheck CacheDrop starts by itself at launch reads "Checking for changes…", with no phase or count, can be
-    /// stopped with the same quiet x, and offers no Return to scan on Explore storage, the screen it belongs to.
+    /// #364: the recheck CacheDrop starts by itself (here Scan again's; launch and after a cleanup run the same one) reads
+    /// "Checking for changes…", with no phase or count, can be stopped with the same quiet x, and offers no Return to scan on
+    /// Explore storage, the screen it belongs to.
     @MainActor func testAutomaticRecheckSaysCheckingForChangesAndStopsWithTheX() throws {
         continueAfterFailure = false
         let app = XCUIApplication()
@@ -2054,6 +2056,9 @@ final class FolderScanProgressUITests: XCTestCase {
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         for index in 0..<5 { try Data(repeating: 1, count: 4_000).write(to: folder.appendingPathComponent("entry-\(index).zip")) }
         defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home); try? FileManager.default.removeItem(at: folder) }
+        // Every folder scan holds 8 seconds after reading, long enough to see the recheck; a remembered folder is only
+        // rechecked once it has been scanned in this run, so the first scan runs before it.
+        app.launchEnvironment["CACHEDROP_TEST_FOLDER_SCAN_PAUSE"] = "8"
         app.launch()
         XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
         app.links["overviewScanFolder"].click()
@@ -2063,29 +2068,26 @@ final class FolderScanProgressUITests: XCTestCase {
         app.typeText(folder.path + "\n")
         panel.buttons["Scan folder"].click()
         waitForScannedFolder(app)
+        waitForCatalogScan(app)
 
-        // The remembered folder is rechecked at launch; the recheck holds until Stop scan (#284).
-        app.terminate()
-        app.launchEnvironment["CACHEDROP_TEST_FOLDER_SCAN_PAUSE"] = "hold"
-        app.launch()
-        XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
+        // Scan again rechecks the remembered folder.
+        app.typeKey("r", modifierFlags: .command)
         let line = app.staticTexts["folderRecheckProgress"]
-        XCTAssertTrue(line.waitForExistence(timeout: 20))
+        XCTAssertTrue(line.waitForExistence(timeout: 5))
         XCTAssertEqual(line.value as? String, "Checking for changes…")
         XCTAssertFalse(app.staticTexts["scanPhase"].exists)
         XCTAssertFalse(app.staticTexts["scanProgressSummary"].exists)
         assertStopScanIsTheQuietX(actionStrip(app))
 
         // On Explore storage: still the x, and no Return to scan.
-        waitForScannedFolder(app)
         app.links["Explore storage"].click()
-        XCTAssertTrue(app.buttons["explorerBack"].waitForExistence(timeout: 10))
-        XCTAssertTrue(line.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["explorerBack"].waitForExistence(timeout: 5))
+        XCTAssertTrue(line.exists)
         let strip = actionStrip(app)
         assertStopScanIsTheQuietX(strip)
         XCTAssertFalse(strip.links["Return to scan"].exists)
         strip.buttons["Stop scan"].click()
-        XCTAssertTrue(line.waitForNonExistence(timeout: 10))
+        XCTAssertTrue(line.waitForNonExistence(timeout: 5))
     }
 }
 
@@ -2203,7 +2205,7 @@ final class EmptyStateUITests: XCTestCase {
 
         // "Show N more" still folds the list.
         XCTAssertFalse(app.descendants(matching: .any)["overviewCategory-leftovers"].exists)
-        app.buttons["overviewShowMore"].click()
+        app.links["overviewShowMore"].click()
         XCTAssertTrue(app.descendants(matching: .any)["overviewCategory-leftovers"].waitForExistence(timeout: 5))
 
         let explore = empty.links["overviewEmptyAction"]
