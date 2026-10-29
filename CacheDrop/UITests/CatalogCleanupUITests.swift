@@ -1132,8 +1132,10 @@ extension CatalogCleanupUITests {
         let back = app.buttons["explorerBack"]
         assertBackButton(back, isAbove: "Explore storage", in: app)
         XCTAssertEqual(back.label, "Back to Locations & access")
-        // The inspector is always there, and the bar's button waits for a tick.
-        XCTAssertTrue(app.descendants(matching: .any)["explorerInspector"].waitForExistence(timeout: 5))
+        // The folder on show has an inspector as tall as its content (#371), and the bar's button waits for a tick.
+        let inspector = app.descendants(matching: .any)["explorerInspector"]
+        XCTAssertTrue(inspector.waitForExistence(timeout: 5))
+        XCTAssertLessThan(inspector.frame.height, app.windows.firstMatch.frame.height / 3, "the inspector sizes to its content")
         let add = actionStrip(app).buttons["Add to cleanup plan"]
         XCTAssertTrue(add.waitForExistence(timeout: 5))
         XCTAssertFalse(add.isEnabled)
@@ -1155,6 +1157,16 @@ extension CatalogCleanupUITests {
         planBack.click()
         XCTAssertTrue(item.waitForExistence(timeout: 5))
         XCTAssertEqual(back.label, "Back to Locations & access")
+
+        // A file's name shows it in the inspector. At the list of locations nothing is picked, so there is
+        // no inspector and the list takes the width (#371); back returns to the folder and its picked file.
+        app.buttons["Inspect large-video.mov"].firstMatch.click()
+        XCTAssertTrue(inspector.staticTexts["large-video.mov"].waitForExistence(timeout: 5))
+        app.links["Scanned folders"].click()
+        XCTAssertTrue(app.buttons["Open folder " + folder.lastPathComponent].waitForExistence(timeout: 5))
+        XCTAssertFalse(inspector.exists)
+        back.click()
+        XCTAssertTrue(inspector.staticTexts["large-video.mov"].waitForExistence(timeout: 5))
     }
 
     /// Opens Explore storage from Overview in its Large and old files mode; returns the fixture's old file toggle.
