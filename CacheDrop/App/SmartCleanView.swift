@@ -89,7 +89,8 @@ struct SmartCleanView: View {
     }
 
     /// The plan's category row (Decision 48): its checkbox ticks or unticks all of its recommended items; "Choose items · N"
-    /// opens one line per rule (or per app or profile when a rule groups them), unless the category has only one. N counts
+    /// opens one line per rule (or per app or profile when a rule groups them), unless the category has only one that can be ticked
+    /// with it. N counts
     /// those lines, not the items behind them (#229).
     private func category(_ row: CatalogOverview.Row, items: [Candidate]) -> some View {
         let found = items.filter { candidate in row.rules.contains { $0.id == candidate.ruleID } }
@@ -102,11 +103,10 @@ struct SmartCleanView: View {
         let consequence = SmartCleanConsequence.line(for: row.category, rules: row.rules)
         return CategoryRow(category: row.category.storageCategory, state: selection.state, title: row.category.smartCleanTitle, detail: consequence,
                            size: row.valueText, enabled: model.canEdit, identifier: "smartCleanCategory-" + row.id,
-                           itemCount: lines.count > 1 ? lines.count : nil, expanded: expanded,
+                           itemCount: lines.count > 1 || selection.toggle == .showItems ? lines.count : nil, expanded: expanded,
                            toggle: {
-            // Nothing may be ticked together: a lone line is the category's own row, so its checkbox ticks it; several open.
-            guard model.toggle(selection) else { return }
-            if lines.count == 1, let only = lines.first { model.setSelected(only.items, true) } else { expanded.wrappedValue = true }
+            // Nothing may be ticked together (#384): the checkbox opens the lines, even a lone one, to tick each on its own.
+            if model.toggle(selection) { expanded.wrappedValue = true }
         }) {
             EmptyView()
         } items: {
