@@ -8,7 +8,7 @@ private func line(_ category: CatalogCategory, _ ids: [String]) -> String {
 }
 
 @Test func trashBoundCategoriesSayTheyGoToTheTrash() {
-    #expect(line(.downloads, ["downloads-installers"]) == "Goes to the Trash; Put back works")
+    #expect(line(.downloads, ["downloads"]) == "Goes to the Trash; Put back works")
     #expect(line(.leftovers, [RemovedAppLeftovers.ruleID]) == "Goes to the Trash; Put back works")
 }
 

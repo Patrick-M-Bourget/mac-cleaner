@@ -25,43 +25,43 @@ private func file(_ downloads: URL, _ path: String, size: Int64 = 10, age: TimeI
 }
 private let megabyte: Int64 = 1_000_000
 
-@Test func downloadsOffersInstallersAtAnyAgeAndOnlyLargeFilesNotOpenedIn90Days() throws {
+/// #342: the plan's Downloads is one place to look: every file in it, at any size or age, under one rule. Packages, symlinks
+/// and protected files are still left alone.
+@Test func downloadsOffersEveryFileUnderOneRule() throws {
     let (home, downloads) = try downloadsHome()
     defer { try? FileManager.default.removeItem(at: home) }
     let now = Date()
     try file(downloads, "Setup.dmg", now: now)
     try file(downloads, "Old Tool.PKG", age: 400 * day, now: now)
     try file(downloads, "nested/archive.zip", now: now)
-    try file(downloads, "notes.txt", age: 400 * day, now: now)
+    try file(downloads, "notes.txt", now: now)
     try file(downloads, "movie-old.mov", size: 600 * megabyte, age: 120 * day, now: now)
-    try file(downloads, "movie-recent.mov", size: 600 * megabyte, age: 30 * day, now: now)
-    try file(downloads, "small-old.mov", size: 499 * megabyte, age: 120 * day, now: now)
-    try file(downloads, "big-old.dmg", size: 600 * megabyte, age: 120 * day, now: now)
+    try file(downloads, "small-recent.mov", size: 2 * megabyte, age: 3 * day, now: now)
     try file(downloads, "Thing.app/Contents/inner.dmg", now: now)
     try file(downloads, "Projects.photoslibrary/big.mov", size: 600 * megabyte, age: 120 * day, now: now)
+    try file(downloads, "music.db", now: now)
     try FileManager.default.createSymbolicLink(at: downloads.appendingPathComponent("link.dmg"), withDestinationURL: downloads.appendingPathComponent("Setup.dmg"))
 
     let candidates = Catalog(rules: fixtureRules).discover(fixture: home, now: now)
     let found = Dictionary(uniqueKeysWithValues: candidates.map { (String($0.url.path.dropFirst(downloads.path.count + 1)), $0) })
-    #expect(Set(found.keys) == ["Setup.dmg", "Old Tool.PKG", "nested/archive.zip", "big-old.dmg", "movie-old.mov"])
-    #expect(found["Setup.dmg"]?.ruleID == "downloads-installers")
-    #expect(found["big-old.dmg"]?.ruleID == "downloads-installers")
-    #expect(found["movie-old.mov"]?.ruleID == "downloads-old-large")
-    #expect(candidates.allSatisfy { $0.action == .trash && !$0.isDirectory && $0.sizeComplete })
+    #expect(Set(found.keys) == ["Setup.dmg", "Old Tool.PKG", "nested/archive.zip", "notes.txt", "movie-old.mov", "small-recent.mov"])
+    #expect(candidates.allSatisfy { $0.ruleID == CleanupRule.downloadsID && $0.action == .trash && !$0.isDirectory && $0.sizeComplete })
     #expect(found["movie-old.mov"]?.logicalBytes == 600 * megabyte)
     let lastUsed = try #require(found["movie-old.mov"]?.lastUsed)
     #expect(abs(lastUsed.timeIntervalSince(now.addingTimeInterval(-120 * day))) < 2)
 }
 
-@Test func aLargeFileOpenedRecentlyIsNotOld() throws {
+/// #336, #342: a download's age is when it was last opened or changed, never its access time, which any read sets.
+@Test func aDownloadReadSinceStillLooksOld() throws {
     let (home, downloads) = try downloadsHome()
     defer { try? FileManager.default.removeItem(at: home) }
     let now = Date()
-    let url = try file(downloads, "video.mov", size: 600 * megabyte, age: 200 * day, now: now)
-    let opened = now.addingTimeInterval(-10 * day)
-    var times = [timeval(tv_sec: Int(opened.timeIntervalSince1970), tv_usec: 0), timeval(tv_sec: Int(now.addingTimeInterval(-200 * day).timeIntervalSince1970), tv_usec: 0)]
+    let url = try file(downloads, "video.mov", age: 200 * day, now: now)
+    let read = now.addingTimeInterval(-1 * day)
+    var times = [timeval(tv_sec: Int(read.timeIntervalSince1970), tv_usec: 0), timeval(tv_sec: Int(now.addingTimeInterval(-200 * day).timeIntervalSince1970), tv_usec: 0)]
     #expect(utimes(url.path, &times) == 0)
-    #expect(Catalog(rules: fixtureRules).discover(fixture: home, now: now).isEmpty)
+    let lastUsed = try #require(Catalog(rules: fixtureRules).discover(fixture: home, now: now).first?.lastUsed)
+    #expect(abs(lastUsed.timeIntervalSince(now.addingTimeInterval(-200 * day))) < 2)
 }
 
 /// Stands in for the Finder Trash so tests never touch the user's real Trash.

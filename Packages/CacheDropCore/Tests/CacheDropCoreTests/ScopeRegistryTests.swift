@@ -98,4 +98,65 @@ final class ScopeRegistryTests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: folder.path))
     }
 
+
+    /// #342: a bookmark that can't be resolved keeps macOS's own error, so a later "Access unavailable" can be diagnosed.
+    func testAnUnresolvableBookmarkKeepsItsError() throws {
+        let root = FileManager.default.temporaryDirectory.resolvingSymlinksInPath().appendingPathComponent(UUID().uuidString)
+        let state = root.appendingPathComponent("State")
+        try FileManager.default.createDirectory(at: state, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+        defer { try? FileManager.default.removeItem(at: root) }
+        let id = UUID()
+        let record: [String: Any] = ["version": 1, "scopes": [["id": id.uuidString, "path": root.path, "isIncluded": true,
+                                                               "kind": "inspection", "bookmark": Data("stale".utf8).base64EncodedString()]]]
+        try JSONSerialization.data(withJSONObject: record).write(to: state.appendingPathComponent("scopes-v1.json"))
+        XCTAssertThrowsError(try ScopeRegistry(directory: state).resolveForScan(id: id)) { error in
+            guard case ScopeRegistryError.chooseAgain(let failure) = error else { return XCTFail("Expected chooseAgain, got \(error)") }
+            XCTAssertEqual(failure.cause, .unresolvable)
+            XCTAssertEqual(failure.domain, NSCocoaErrorDomain)
+            XCTAssertNotNil(failure.code)
+            XCTAssertTrue(failure.summary.hasPrefix("Unresolvable · NSCocoaErrorDomain "), failure.summary)
+        }
+    }
+
+    /// A remembered folder that was moved resolves to its new place, which isn't the folder the user chose: choose it again.
+    func testAMovedFolderIsTold() throws {
+        let root = FileManager.default.temporaryDirectory.resolvingSymlinksInPath().appendingPathComponent(UUID().uuidString)
+        let folder = root.appendingPathComponent("Projects")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = ScopeRegistry(directory: root.appendingPathComponent("State"))
+        let scope = try store.remember(url: folder, kind: .inspection)
+        try FileManager.default.moveItem(at: folder, to: root.appendingPathComponent("Moved"))
+        XCTAssertThrowsError(try store.resolveForScan(id: scope.id)) { error in
+            guard case ScopeRegistryError.chooseAgain(let failure) = error else { return XCTFail("Expected chooseAgain, got \(error)") }
+            XCTAssertEqual(failure.cause, .moved)
+            XCTAssertNil(failure.domain)
+        }
+    }
+
+    /// #342: Downloads is a built-in location at its standard path, never picked: always included, the same identity on every
+    /// launch, and opened without a bookmark.
+    func testBuiltInDownloadsIsOpenedAtItsPathWithoutABookmark() throws {
+        let root = FileManager.default.temporaryDirectory.resolvingSymlinksInPath().appendingPathComponent(UUID().uuidString)
+        let downloads = root.appendingPathComponent("Downloads")
+        try FileManager.default.createDirectory(at: downloads, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = ScopeRegistry(directory: root.appendingPathComponent("State"))
+        let scope = RememberedScope.builtInDownloads(at: downloads)
+        XCTAssertTrue(scope.isBuiltIn)
+        XCTAssertTrue(scope.isIncluded)
+        XCTAssertEqual(scope.kind, .downloads)
+        XCTAssertEqual(scope.path, downloads.path)
+        XCTAssertEqual(scope.id, RememberedScope.builtInDownloads(at: downloads).id)
+        XCTAssertTrue(try store.list().isEmpty, "Never written to the registry")
+        let lease = try store.resolveForScan(scope)
+        XCTAssertEqual(lease.url.path, downloads.path)
+        lease.close()
+        XCTAssertFalse(try store.remember(url: downloads, kind: .inspection).isBuiltIn)
+
+        try FileManager.default.removeItem(at: downloads)
+        XCTAssertThrowsError(try store.resolveForScan(scope)) { error in
+            guard case ScopeRegistryError.unavailable = error else { return XCTFail("Expected unavailable, got \(error)") }
+        }
+    }
 }

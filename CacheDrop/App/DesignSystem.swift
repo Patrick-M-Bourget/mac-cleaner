@@ -1001,6 +1001,8 @@ struct LocationScopeRow<Actions: View>: View {
     var overlap: String? = nil
     @Binding var included: Bool
     let enabled: Bool
+    /// Always included, such as built-in Downloads (#342): its checkbox is shown ticked and can't be changed.
+    var fixed = false
     @ViewBuilder let actions: () -> Actions
     private var identity: some View {
         VStack(alignment: .leading, spacing: CacheDropDesign.Space.sm) {
@@ -1011,7 +1013,7 @@ struct LocationScopeRow<Actions: View>: View {
     }
     var body: some View {
         HStack(alignment: .top, spacing: CacheDropDesign.Space.md) {
-            Toggle("Include " + name, isOn: $included).labelsHidden().disabled(!enabled)
+            Toggle("Include " + name, isOn: $included).labelsHidden().disabled(!enabled || fixed)
             ViewThatFits(in: .horizontal) {
                 HStack(alignment: .top, spacing: CacheDropDesign.Space.md) {
                     identity.frame(minWidth: 240, idealWidth: 240, maxWidth: .infinity)
