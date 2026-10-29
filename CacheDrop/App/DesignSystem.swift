@@ -190,51 +190,64 @@ struct PageHeader: View {
         }.frame(maxWidth: .infinity, alignment: .leading)
     }
 }
-/// A page's one search field (#295), just under its header's description (#352): a rounded field with a plain prompt.
+/// A page's one search field (#295), just under its header's description (#352): rounded with the row radius, as the
+/// prototype's (#352: a native rounded border read as too square), a plain prompt, and the accent ring while typing in it.
 struct PageSearchField: View {
     let label: String
     let prompt: String
     @Binding var text: String
     let identifier: String
+    @FocusState private var focused: Bool
+    @Environment(\.colorSchemeContrast) private var contrast
     var body: some View {
-        TextField(label, text: $text, prompt: Text(prompt)).labelsHidden().textFieldStyle(.roundedBorder)
+        TextField(label, text: $text, prompt: Text(prompt)).labelsHidden().textFieldStyle(.plain).focused($focused)
+            .padding(.horizontal, CacheDropDesign.Space.sm).padding(.vertical, CacheDropDesign.Space.xs)
+            .background(CacheDropDesign.reading, in: RoundedRectangle(cornerRadius: CacheDropDesign.Radius.row))
+            .overlay {
+                RoundedRectangle(cornerRadius: CacheDropDesign.Radius.row)
+                    .strokeBorder(focused ? Color.accentColor : CacheDropDesign.separator, lineWidth: focused || contrast == .increased ? 1 : 0.5)
+            }
             .frame(width: CacheDropDesign.Size.searchField).accessibilityIdentifier(identifier)
     }
 }
-/// A list's column header, as Explore storage's "Name … On disk" (#352): the name column's label, then, right-aligned, the
-/// value column's label or a control in its place, such as the list's `SortMenu`; a divider closes it. `insets` line the
-/// labels up with the rows' own columns.
-struct ColumnHeader<Trailing: View>: View {
-    let leading: String
+/// A list's sortable column header (#352, #373), as Explore storage's "Name … On disk": the name column's label, then,
+/// right-aligned, the size column's; a divider closes it. Clicking the active column flips its direction, clicking the
+/// other switches to it (names A to Z, sizes largest first), and a chevron sits on the active one. Each label is a button
+/// identified `<identifier>-name` or `<identifier>-size`. `insets` line the labels up with the rows' own columns.
+struct ColumnHeader: View {
+    let name: String
+    let size: String
+    @Binding var sort: ListSort
+    let identifier: String
     var insets = EdgeInsets(top: 0, leading: CacheDropDesign.Space.md, bottom: 0, trailing: CacheDropDesign.Space.md)
-    @ViewBuilder var trailing: () -> Trailing
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: CacheDropDesign.Space.md) {
-                Text(leading)
+                column(name, .name)
                 Spacer(minLength: CacheDropDesign.Space.md)
-                trailing()
-            }.font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
+                column(size, .size)
+            }.font(CacheDropDesign.TypeStyle.caption)
                 .padding(insets).padding(.bottom, CacheDropDesign.Space.sm)
             Divider()
         }
     }
-}
-extension ColumnHeader where Trailing == Text {
-    /// A header whose value column has a plain label, such as "On disk".
-    init(_ leading: String, trailing: String,
-         insets: EdgeInsets = EdgeInsets(top: 0, leading: CacheDropDesign.Space.md, bottom: 0, trailing: CacheDropDesign.Space.md)) {
-        self.init(leading: leading, insets: insets) { Text(trailing) }
+    private func column(_ title: String, _ column: ListSort.Column) -> some View {
+        let active = sort.column == column
+        return Button { sort.select(column) } label: {
+            HStack(spacing: CacheDropDesign.Space.xs) {
+                Text(title)
+                if active { Image(systemName: sort.ascending ? "chevron.up" : "chevron.down").imageScale(.small).accessibilityHidden(true) }
+            }.foregroundStyle(active ? .primary : .secondary).contentShape(Rectangle())
+        }.buttonStyle(.plain).help("Sort by " + title)
+            .accessibilityLabel(title).accessibilityValue(active ? direction(column) : "")
+            .accessibilityAddTraits(active ? .isSelected : []).accessibilityIdentifier(identifier + (column == .name ? "-name" : "-size"))
     }
-}
-/// A list's Sort (#352), right-aligned in its `ColumnHeader` rather than a separate control: a small menu, "Sort by <order>".
-struct SortMenu<Order: Hashable & CaseIterable & RawRepresentable<String>>: View where Order.AllCases: RandomAccessCollection {
-    @Binding var order: Order
-    let identifier: String
-    var body: some View {
-        Picker("Sort by", selection: $order) {
-            ForEach(Order.allCases, id: \.self) { Text($0.rawValue).tag($0) }
-        }.pickerStyle(.menu).controlSize(.small).fixedSize().accessibilityIdentifier(identifier)
+    /// What the active column's order reads as.
+    private func direction(_ column: ListSort.Column) -> String {
+        switch column {
+        case .name: sort.ascending ? "A to Z" : "Z to A"
+        case .size: sort.ascending ? "Smallest first" : "Largest first"
+        }
     }
 }
 /// The one back button (Decision 47): small, borderless and secondary, just above the page title, reading

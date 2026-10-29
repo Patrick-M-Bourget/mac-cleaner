@@ -229,17 +229,19 @@ private struct ButtonRuleGalleryExamples: View {
         }
     }
 }
-/// A page's search under its description, then a list's column header with a plain value label or its Sort right-aligned (#352).
+/// A page's search under its description, then a list's sortable column header (#352): click a column to sort by it, again to flip it.
 private struct ListHeaderGalleryExamples: View {
     @State private var search = ""
-    @State private var order = ApplicationsListing.Order.size
+    @State private var sort = ListSort()
     var body: some View {
         VStack(alignment: .leading, spacing: CacheDropDesign.Space.md) {
-            PageHeader(title: "Example page", subtitle: "Search under the description; Sort in the list’s header.")
+            PageHeader(title: "Example page", subtitle: "Search under the description; sort by clicking a column of the list’s header.")
             PageSearchField(label: "Search the example list", prompt: "Name or maker", text: $search, identifier: "gallerySearch")
-            ColumnHeader("Name", trailing: "On disk")
-            ColumnHeader(leading: "Name") { SortMenu(order: $order, identifier: "gallerySort") }
-            Text("Example row · sorted by " + order.rawValue).font(.callout)
+            ColumnHeader(name: "Name", size: "On disk", sort: $sort, identifier: "gallerySort")
+            ForEach(sort.ordered([("Movies", 9_000_000_000), ("archive 2.zip", 800_000_000), ("archive 10.zip", 800_000_000)] as [(String, Int64)],
+                                 name: \.0, bytes: \.1), id: \.0) { row in
+                HStack { Text(row.0); Spacer(); Text(ByteCountFormatter.string(fromByteCount: row.1, countStyle: .decimal)) }.font(.callout)
+            }
         }
     }
 }

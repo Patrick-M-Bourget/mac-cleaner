@@ -10,7 +10,7 @@ private func names(_ listing: ApplicationsListing) -> [String] { listing.arrange
 
 /// #295: Name sorts as Finder does: case and accents don't matter, and numbers read as numbers.
 @Test func nameSortsAsFinderDoes() {
-    #expect(names(ApplicationsListing(order: .name)) == ["Ableton Live 2", "Ableton Live 12", "Éclair", "logic pro", "Zebra"])
+    #expect(names(ApplicationsListing(sort: ListSort(column: .name, ascending: true))) == ["Ableton Live 2", "Ableton Live 12", "Éclair", "logic pro", "Zebra"])
 }
 
 /// #295, Decision 51: Size is largest first, the default; rows of one size go by name.
@@ -21,7 +21,7 @@ private func names(_ listing: ApplicationsListing) -> [String] { listing.arrange
 /// #295: the search matches a row's name or maker, ignoring case and accents; an empty or blank search shows every row.
 @Test func searchMatchesNameOrMaker() {
     #expect(names(ApplicationsListing(search: "ableton ag")) == ["Ableton Live 2", "Ableton Live 12"], "By maker")
-    #expect(names(ApplicationsListing(order: .name, search: "ECLAIR")) == ["Éclair"], "By name, case and accents aside")
+    #expect(names(ApplicationsListing(sort: ListSort(column: .name, ascending: true), search: "ECLAIR")) == ["Éclair"], "By name, case and accents aside")
     #expect(names(ApplicationsListing(search: "U-HE ")) == ["Zebra"], "Spaces around it don't count")
     #expect(names(ApplicationsListing(search: "nothing like it")).isEmpty)
     #expect(names(ApplicationsListing(search: "  ")).count == rows.count, "Clearing it shows everything again")
