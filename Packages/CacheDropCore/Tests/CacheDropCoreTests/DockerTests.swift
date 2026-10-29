@@ -193,6 +193,17 @@ private func dockerRunning(_ home: URL, docker: URL, choose ruleIDs: Set<String>
     #expect(result.estimatedBytes == 2_500_000_000 + 1_234_000_000 + 120_000_000)
 }
 
+/// #393: `image prune -a` keeps every image a container uses, stopped ones included, so stopped containers go first.
+/// Otherwise an image only a stopped container used would survive the run that removes that container.
+@Test func stoppedContainersArePrunedBeforeImages() async throws {
+    let home = try fixtureHome()
+    defer { try? FileManager.default.removeItem(at: home) }
+    let docker = try fakeDocker(home)
+    let result = try await dockerRun(home, docker: docker, choose: ["docker-images", "docker-build-cache", "docker-containers"])
+    #expect(result.records.map(\.ruleID) == ["docker-containers", "docker-images", "docker-build-cache"])
+    #expect(Array(calls(home).dropFirst()) == ["container prune -f", "image prune -a -f", "builder prune -a -f"])
+}
+
 @Test func previewOnlyLogsTheDockerCommandWithoutRunningIt() async throws {
     let home = try fixtureHome()
     defer { try? FileManager.default.removeItem(at: home) }
