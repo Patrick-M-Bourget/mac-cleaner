@@ -15,6 +15,9 @@ jobs:
       # Test seams and process signals stay out of release builds (Decision 79).
       - name: Debug seams check
         run: scripts/check-debug-seams.sh
+      # RESET.md merges by union (.gitattributes); a merge can leave Decisions out of order or doubled.
+      - name: Decisions numbering check
+        run: scripts/check-decisions.sh
       # Hosted runners don't list Xcode 27.x; local development uses 27.1.
       - uses: maxim-lobanov/setup-xcode@v1
         with:
