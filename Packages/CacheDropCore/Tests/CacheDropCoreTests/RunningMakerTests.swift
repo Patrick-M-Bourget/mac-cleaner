@@ -97,3 +97,46 @@ private func maker(_ vendor: String) -> RuleOwner { RuleOwner(name: vendor, bund
     // Owners without a maker never need the list.
     #expect(SystemRunningAppChecker(processes: Processes(list: nil)).isRunning(RuleOwner(name: "Nothing")) == false)
 }
+
+/// Counts how often the process list is read.
+private final class CountingProcesses: ProcessListing, @unchecked Sendable {
+    let list: [RunningProcess]?
+    private let lock = NSLock()
+    private var count = 0
+    init(_ list: [RunningProcess]?) { self.list = list }
+    var reads: Int { lock.withLock { count } }
+    func processes() -> [RunningProcess]? { lock.withLock { count += 1 }; return list }
+}
+
+/// Bundle IDs and command lines are read from the injected listing too, not only makers and paths (#261): an owner whose app
+/// and tool really run on this Mac (the Dock, this test process) isn't running in an empty fixture list, and each check reads
+/// the list once.
+@Test func everyRunningCheckReadsOneInjectedProcessListOnce() throws {
+    let executable = URL(fileURLWithPath: ProcessInfo.processInfo.arguments[0]).lastPathComponent
+    let owner = RuleOwner(name: "Fixture", bundleIDs: ["com.apple.dock"], executables: [executable], paths: ["/Applications/Fixture.app"])
+    let empty = CountingProcesses([])
+    #expect(SystemRunningAppChecker(processes: empty).isRunning(owner) == false)
+    #expect(empty.reads == 1)
+
+    let app = CountingProcesses([RunningProcess(path: "/System/Library/CoreServices/Dock.app/Contents/MacOS/Dock", bundleID: "com.apple.dock")])
+    #expect(SystemRunningAppChecker(processes: app).isRunning(owner) == true)
+    #expect(app.reads == 1)
+    let tool = CountingProcesses([RunningProcess(path: "/usr/local/bin/\(executable)", arguments: ["/usr/local/bin/\(executable)", "--flag"])])
+    #expect(SystemRunningAppChecker(processes: tool).isRunning(owner) == true)
+    #expect(tool.reads == 1)
+    // A process whose command line can't be read (another user's) is only its executable, which a tool owner doesn't match by path.
+    let unread = CountingProcesses([RunningProcess(path: "/opt/other/\(executable)")])
+    #expect(SystemRunningAppChecker(processes: unread).isRunning(owner) == false)
+    let unreadable = CountingProcesses(nil)
+    #expect(SystemRunningAppChecker(processes: unreadable).isRunning(owner) == nil)
+    #expect(unreadable.reads == 1)
+}
+
+/// A review checks many items with one reading of the process table, running owners included (#261).
+@Test func aSnapshottedCheckReadsTheProcessListOnceForManyOwners() {
+    let processes = CountingProcesses([RunningProcess(path: "/usr/bin/tool", arguments: ["/usr/bin/tool"])])
+    let running = SystemRunningAppChecker(processes: processes).snapshot()
+    let owners = [RuleOwner(name: "Tool", executables: ["tool"]), RuleOwner(name: "App", bundleIDs: ["com.example.app"]), maker("com.example")]
+    #expect(owners.map(running.isRunning) == [true, false, false])
+    #expect(processes.reads == 1)
+}

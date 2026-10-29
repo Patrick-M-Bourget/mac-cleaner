@@ -1,11 +1,13 @@
 import AppKit
 import Foundation
 
-/// A running process (#240): its executable, and its bundle ID when it is an app macOS lists as one.
+/// A running process (#240): its executable, its bundle ID when it is an app macOS lists as one, and its command line (argv)
+/// when the current user owns it and it can be read (#261).
 public struct RunningProcess: Sendable, Hashable {
     public let path: String
     public let bundleID: String?
-    public init(path: String, bundleID: String? = nil) { self.path = path; self.bundleID = bundleID }
+    public let arguments: [String]?
+    public init(path: String, bundleID: String? = nil, arguments: [String]? = nil) { self.path = path; self.bundleID = bundleID; self.arguments = arguments }
 }
 
 /// Lists the running processes. Injected so tests list fixture processes, never this Mac's.
@@ -14,7 +16,8 @@ public protocol ProcessListing: Sendable {
     func processes() -> [RunningProcess]?
 }
 
-/// The running apps and every process whose executable can be read, background helpers and daemons included.
+/// The running apps and every process whose executable can be read, background helpers and daemons included, with the
+/// command line of each one the current user owns (#261).
 public struct SystemProcessListing: ProcessListing {
     public init() {}
     public func processes() -> [RunningProcess]? {
@@ -22,7 +25,10 @@ public struct SystemProcessListing: ProcessListing {
         let apps = NSWorkspace.shared.runningApplications.compactMap { app -> RunningProcess? in
             (app.executableURL ?? app.bundleURL).map { RunningProcess(path: $0.path, bundleID: app.bundleIdentifier) }
         }
-        return apps + pids.compactMap { UserProcesses.executablePath($0).map { RunningProcess(path: $0) } }
+        let uid = getuid()
+        return apps + pids.compactMap { pid in
+            UserProcesses.executablePath(pid).map { RunningProcess(path: $0, arguments: UserProcesses.owner(pid) == uid ? UserProcesses.arguments(pid) : nil) }
+        }
     }
 }
 
