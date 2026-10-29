@@ -215,17 +215,19 @@ struct PageSearchField: View {
 /// other switches to it (names A to Z, sizes largest first), and a chevron sits on the active one. Each label is a button
 /// identified `<identifier>-name` or `<identifier>-size`. `insets` line the labels up with the rows' own columns.
 struct ColumnHeader: View {
-    let name: String
-    let size: String
+    /// The name column's title, such as "Name".
+    let nameTitle: String
+    /// The size column's title, such as "Size" or "On disk".
+    let sizeTitle: String
     @Binding var sort: ListSort
     let identifier: String
     var insets = EdgeInsets(top: 0, leading: CacheDropDesign.Space.md, bottom: 0, trailing: CacheDropDesign.Space.md)
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: CacheDropDesign.Space.md) {
-                column(name, .name)
+                column(nameTitle, .name)
                 Spacer(minLength: CacheDropDesign.Space.md)
-                column(size, .size)
+                column(sizeTitle, .size)
             }.font(CacheDropDesign.TypeStyle.caption)
                 .padding(insets).padding(.bottom, CacheDropDesign.Space.sm)
             Divider()

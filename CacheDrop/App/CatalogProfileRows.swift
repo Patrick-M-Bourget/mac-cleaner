@@ -12,9 +12,9 @@ struct CatalogProfileRows: View {
     var listing: ApplicationsListing? = nil
     var body: some View {
         let groups = Dictionary(grouping: model.candidates(for: rule).filter { listing?.matches($0) ?? true }) { $0.group ?? "" }
-        let order = listing?.sort ?? ListSort(column: .name, ascending: true)
+        let sort = listing?.sort ?? ListSort(column: .name, ascending: true)
         VStack(alignment: .leading, spacing: 0) {
-            ForEach(order.ordered(Array(groups.keys), name: { $0 }, bytes: { groups[$0, default: []].reduce(0) { $0 + $1.estimatedBytes } }), id: \.self) { profile in
+            ForEach(sort.ordered(Array(groups.keys), name: { $0 }, bytes: { groups[$0, default: []].reduce(0) { $0 + $1.estimatedBytes } }), id: \.self) { profile in
                 let items = groups[profile] ?? []
                 let ticked = Binding(get: { items.allSatisfy(model.isSelected) }, set: { on in items.forEach { model.setSelected($0, on) } })
                 // Clicking the row ticks the group, as its checkbox does; Finder is its own Reveal link (#367, Decision 72).

@@ -246,7 +246,7 @@ private struct ListHeaderGalleryExamples: View {
         VStack(alignment: .leading, spacing: CacheDropDesign.Space.md) {
             PageHeader(title: "Example page", subtitle: "Search under the description; sort by clicking a column of the list’s header.")
             PageSearchField(label: "Search the example list", prompt: "Name or maker", text: $search, identifier: "gallerySearch")
-            ColumnHeader(name: "Name", size: "On disk", sort: $sort, identifier: "gallerySort")
+            ColumnHeader(nameTitle: "Name", sizeTitle: "On disk", sort: $sort, identifier: "gallerySort")
             ForEach(sort.ordered([("Movies", 9_000_000_000), ("archive 2.zip", 800_000_000), ("archive 10.zip", 800_000_000)] as [(String, Int64)],
                                  name: \.0, bytes: \.1), id: \.0) { row in
                 HStack { Text(row.0); Spacer(); Text(ByteCountFormatter.string(fromByteCount: row.1, countStyle: .decimal)) }.font(.callout)

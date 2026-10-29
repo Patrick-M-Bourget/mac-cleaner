@@ -221,7 +221,7 @@ struct StorageExplorerView: View {
     }
     private var list: some View {
         VStack(alignment: .leading, spacing: 0) {
-            ColumnHeader(name: "Name", size: "On disk", sort: $context.sort, identifier: "explorerSort")
+            ColumnHeader(nameTitle: "Name", sizeTitle: "On disk", sort: $context.sort, identifier: "explorerSort")
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
                     ExplorerViewport(context: context).frame(height: 0)
