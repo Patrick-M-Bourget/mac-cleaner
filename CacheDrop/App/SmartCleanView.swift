@@ -149,7 +149,7 @@ struct SmartCleanView: View {
     /// What Smart clean leaves out, each a link to the Cleanup plan, where it can be chosen by hand.
     private var notIncluded: some View {
         let kinds: [(title: String, category: CatalogCategory?)] = [("newer downloads", .downloads), ("models", .models), ("iCloud copies", .icloud),
-                                                                    ("your files", .files), ("anything a running app is using", nil)]
+                                                                    ("your files", .files)]
         return HStack(alignment: .firstTextBaseline, spacing: CacheDropDesign.Space.xs) {
             Text("Not included:").foregroundStyle(.secondary)
             ForEach(Array(kinds.enumerated()), id: \.offset) { index, kind in
