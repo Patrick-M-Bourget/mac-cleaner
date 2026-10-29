@@ -22,9 +22,11 @@ struct SmartCleanView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            ScrollView {
-                if selection.showsRun(for: .smartClean) { CleanupRunSection(selection: selection) } else { page }
-            }.background(CacheDropDesign.reading)
+            ScrollViewReader { proxy in
+                ScrollView {
+                    if selection.showsRun(for: .smartClean) { CleanupRunSection(selection: selection, reveal: proxy.revealRow) } else { page }
+                }.background(CacheDropDesign.reading)
+            }
             CleanupActionBar(selection: selection, source: .smartClean, viewHistory: viewHistory, reviewRecovery: reviewRecovery) {
                 Button("Done") { selection.dismissResult() }.buttonStyle(.borderedProminent).accessibilityIdentifier("smartCleanDone")
             } idle: {
@@ -46,7 +48,8 @@ struct SmartCleanView: View {
     }
 
     private var page: some View {
-        let items = model.recommendedCandidates
+        // What something holds stays listed, unticked, with why (#374).
+        let items = model.recommendedCandidates + model.recommendedHeld
         let rows = CatalogOverview(catalog: model.catalog, candidates: items).rows
         return VStack(alignment: .leading, spacing: CacheDropDesign.Space.lg) {
             PageHeader(title: "Smart clean", subtitle: "A safe plan from what takes up space. Untick anything you want to keep.")
@@ -91,8 +94,10 @@ struct SmartCleanView: View {
     /// those lines, not the items behind them (#229).
     private func category(_ row: CatalogOverview.Row, items: [Candidate]) -> some View {
         let found = items.filter { candidate in row.rules.contains { $0.id == candidate.ruleID } }
+        // A held item is ticked on its own, never with its category (#374).
+        let free = found.filter { $0.hold == nil }, together = free.isEmpty ? found : free
         let ticked = found.filter(model.isSelected).count
-        let state: CategorySelectionState = ticked == 0 ? .unchecked : ticked == found.count ? .checked : .mixed
+        let state: CategorySelectionState = ticked == 0 ? .unchecked : together.allSatisfy(model.isSelected) ? .checked : .mixed
         let lines = lines(row, found: found)
         let expanded = Binding(get: { presentation.expandedCategories.contains(row.category) },
                                set: { if $0 { presentation.expandedCategories.insert(row.category) } else { presentation.expandedCategories.remove(row.category) } })
@@ -101,7 +106,7 @@ struct SmartCleanView: View {
         return CategoryRow(category: row.category.storageCategory, state: state, title: row.category.overviewTitle, detail: consequence,
                            size: row.valueText, enabled: model.canEdit, identifier: "smartCleanCategory-" + row.id,
                            itemCount: lines.count > 1 ? lines.count : nil, expanded: expanded,
-                           toggle: { model.setSelected(found, state != .checked) }) {
+                           toggle: { model.setSelected(state != .checked ? together : found, state != .checked) }) {
             EmptyView()
         } items: {
             VStack(alignment: .leading, spacing: 0) { ForEach(lines) { line($0) } }
@@ -113,19 +118,25 @@ struct SmartCleanView: View {
         let name: String
         let rule: CleanupRule
         let items: [Candidate]
+        /// What holds these items (#374); nil for free ones.
+        var hold: CandidateHold? = nil
     }
     private func lines(_ row: CatalogOverview.Row, found: [Candidate]) -> [Line] {
         row.rules.flatMap { rule -> [Line] in
             let items = found.filter { $0.ruleID == rule.id }
             let groups = Dictionary(grouping: items) { $0.group }
-            return groups.keys.sorted { ($0 ?? "").localizedStandardCompare($1 ?? "") == .orderedAscending }.map { group in
+            return groups.keys.sorted { ($0 ?? "").localizedStandardCompare($1 ?? "") == .orderedAscending }.flatMap { group in
                 let name = group.map { row.rules.count > 1 ? rule.title + " · " + $0 : $0 } ?? rule.title
-                return Line(id: rule.id + "|" + (group ?? ""), name: name, rule: rule, items: groups[group] ?? [])
+                // Held items get a line of their own per reason, unticked, saying why (#374).
+                let byHold = Dictionary(grouping: groups[group] ?? []) { $0.hold }
+                return byHold.keys.sorted { ($0?.line ?? "") < ($1?.line ?? "") }.map { hold in
+                    Line(id: rule.id + "|" + (group ?? "") + (hold.map { "|held-" + $0.line } ?? ""), name: name, rule: rule, items: byHold[hold] ?? [], hold: hold)
+                }
             }
         }
     }
     private func line(_ line: Line) -> some View {
-        InspectableItemRow(name: line.name, detail: "",
+        InspectableItemRow(name: line.name, detail: line.hold?.line ?? "",
                            size: catalogBytes(line.items.reduce(0) { $0 + $1.estimatedBytes }, complete: line.items.allSatisfy(\.sizeComplete),
                                               upperBound: line.rule.estimateIsUpperBound, estimate: line.items.contains(where: \.sizeIsEstimate)),
                            symbol: "folder", inspected: false,
@@ -140,7 +151,7 @@ struct SmartCleanView: View {
     /// What Smart clean leaves out, each a link to the Cleanup plan, where it can be chosen by hand.
     private var notIncluded: some View {
         let kinds: [(title: String, category: CatalogCategory?)] = [("newer downloads", .downloads), ("models", .models), ("iCloud copies", .icloud),
-                                                                    ("your files", .files), ("anything a running app is using", nil)]
+                                                                    ("your files", .files)]
         return HStack(alignment: .firstTextBaseline, spacing: CacheDropDesign.Space.xs) {
             Text("Not included:").foregroundStyle(.secondary)
             ForEach(Array(kinds.enumerated()), id: \.offset) { index, kind in

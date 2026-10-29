@@ -245,3 +245,29 @@ private func revisions(_ selections: CleanupSelections) -> [UInt64] { CleanupSel
     selections.revise()
     #expect(zip(revisions(selections), chosen).allSatisfy { $0 != $1 }, "A change to what every review would do, a dry run or a run, moves all three")
 }
+
+/// #374: an item held at the scan is never ticked for you, an item ticked for you that becomes held is unticked, and it
+/// arrives ticked again once free. Ticked by hand, a held item stays ticked, and Smart clean takes it for the checks to decide.
+@Test func aHeldItemIsNeverTickedByDefaultButATickTakesIt() {
+    var copy = item("chrome-code-sign-clones", name: "copy")
+    copy.hold = CandidateHold(.inUse("Google Chrome"))
+    let found = scan + [copy]
+    var selections = CleanupSelections()
+    selections.keepOnly(found, recommended: recommended, held: [copy])
+    #expect(!selections.isTicked(copy))
+    #expect(!selections.differsFromRecommended(found))
+
+    // npm starts running: held now, so its tick for you goes; once it quits, it is ticked again.
+    selections.noteChoices(among: found, recommended: [logs, derived], held: [copy, npm])
+    #expect(!selections.isTicked(npm))
+    #expect(!selections.differsFromRecommended(found))
+    selections.noteChoices(among: found, recommended: recommended, held: [copy])
+    #expect(selections.isTicked(npm))
+
+    // Ticked by hand: kept ticked while held, and Smart clean takes it; the check at Clean up skips it if still in use.
+    selections.set([copy], ticked: true)
+    selections.noteChoices(among: found, recommended: recommended, held: [copy])
+    #expect(selections.isTicked(copy))
+    #expect(selections.smartClean(catalog: catalog, found: found, listed: [copy]) { $0.id == copy.id ? .inUse("Google Chrome") : nil }.map(\.ruleID)
+            == ["npm-cache", "app-logs", "xcode-derived-data", "chrome-code-sign-clones"])
+}

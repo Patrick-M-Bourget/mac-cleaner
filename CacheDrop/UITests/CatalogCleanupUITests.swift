@@ -1953,6 +1953,7 @@ extension CatalogCleanupUITests {
         let skipped = app.staticTexts["reviewSkipped-npm-cache"]
         XCTAssertTrue(skipped.waitForExistence(timeout: 10), "The review says the npm cache will be skipped")
         XCTAssertTrue((skipped.value as? String ?? skipped.label).contains("will be skipped: "), skipped.debugDescription)
+        XCTAssertFalse(app.links["reviewQuit-npm-cache"].exists, "A command-line tool isn't an app: no Quit, only the reason (#377)")
         app.buttons["Cancel"].click()
     }
 
@@ -2022,23 +2023,30 @@ extension CatalogCleanupUITests {
         }
     }
 
-    /// #306: a Smart clean run rescans by itself. After Done the page waits for that scan, with its progress in the bar,
-    /// then fills again and can be cleaned once more. A dry run, so the caches are still there to find.
-    @MainActor func testSmartCleanRescansAfterARunAndThePageFillsAgain() throws {
+    /// #306, #375: a Smart clean run rescans by itself. While that scan runs, with its progress in the bar, the page keeps
+    /// the rows the run left, dimmed (#308), never skeleton rows, and what the run cleaned is gone at once; then the page
+    /// fills again and can be cleaned once more.
+    @MainActor func testSmartCleanKeepsItsRowsDimmedDuringTheRescanAfterARun() throws {
         continueAfterFailure = false
         let app = XCUIApplication()
         let state = try configureIsolatedState(app)
         let home = try configureCatalogHome(app)
-        turnOnDryRun(app)
         _ = try addDeveloperCaches(home, folders: ["Library/Caches/Yarn"])
+        let log = home.appendingPathComponent("Library/Logs/FixtureApp/main.log")
+        try FileManager.default.createDirectory(at: log.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Data(repeating: 4, count: 60_000).write(to: log)
         defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
         app.launchEnvironment["CACHEDROP_TEST_DISCOVERY_PAUSE"] = "0.5"
         app.launch()
         XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
         waitForCatalogScan(app)
         app.typeKey("2", modifierFlags: .command)
-        let developer = app.checkBoxes["smartCleanCategory-developer"]
+        let developer = app.checkBoxes["smartCleanCategory-developer"], logs = app.checkBoxes["smartCleanCategory-logs"]
         XCTAssertTrue(developer.waitForExistence(timeout: 10))
+        XCTAssertTrue(logs.exists)
+        // Logs stay: only the developer cache is cleaned.
+        if logs.value as? Int != 0 { revealAndClick(logs, in: app) }
+        XCTAssertEqual(logs.value as? Int, 0)
         app.buttons["smartCleanCleanUp"].click()
         XCTAssertTrue(reviewLine(app, "permanentlyRemoved", "developer").waitForExistence(timeout: 10))
         app.buttons.matching(NSPredicate(format: "label == 'Clean up' AND identifier != 'smartCleanCleanUp'")).firstMatch.click()
@@ -2047,9 +2055,17 @@ extension CatalogCleanupUITests {
         XCTAssertTrue(done.waitForExistence(timeout: 20))
         done.click()
         XCTAssertTrue(app.staticTexts["catalogScanProgress"].waitForExistence(timeout: 10), "The run rescans, and the bar shows its progress")
-        XCTAssertTrue(developer.waitForExistence(timeout: 120), "The page fills again after the scan")
-        XCTAssertTrue(app.staticTexts["catalogScanProgress"].waitForNonExistence(timeout: 120))
+        XCTAssertTrue(logs.waitForExistence(timeout: 5), "The row the run left stays during the rescan")
+        XCTAssertFalse(logs.isEnabled, "Dimmed: it can't be clicked until the scan ends")
+        XCTAssertFalse(developer.exists, "What the run cleaned never shows as still there")
+        XCTAssertFalse(app.descendants(matching: .any)["smartCleanSkeleton"].exists, "Never skeleton rows over content already known")
         let enabled = NSPredicate(format: "isEnabled == true")
+        XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: enabled, object: logs)], timeout: 120), .completed,
+                       "The page fills again after the scan")
+        XCTAssertTrue(app.staticTexts["catalogScanProgress"].waitForNonExistence(timeout: 120))
+        XCTAssertFalse(developer.exists, "The cleaned cache is gone after the scan too")
+        XCTAssertFalse(FileManager.default.fileExists(atPath: home.appendingPathComponent("Library/Caches/Yarn/entry").path))
+        tick(logs, in: app)
         XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: enabled, object: app.buttons["smartCleanCleanUp"])], timeout: 10), .completed,
                        "Clean up works again")
     }
@@ -2316,5 +2332,60 @@ final class EmptyStateUITests: XCTestCase {
         scanNow.click()
         XCTAssertTrue(app.staticTexts["Baseline recorded"].waitForExistence(timeout: 60), "Scan now records a new baseline")
         XCTAssertFalse(empty.exists)
+    }
+}
+
+/// #374: build folders of a project being worked on stay on the plan, unticked, saying why; ticked, the recently edited one
+/// is cleaned (ticking is the override) and the open one is skipped, never forced, and Results say what wasn't cleaned.
+extension CatalogCleanupUITests {
+    @MainActor func testHeldProjectBuildsStayUntickedAndResultsSayWhatWasntCleaned() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        let state = try configureIsolatedState(app)
+        let home = try configureCatalogHome(app)
+        let folder = FileManager.default.temporaryDirectory.resolvingSymlinksInPath().appendingPathComponent("CacheDropPicked-" + UUID().uuidString)
+        // Two projects edited just now; this runner keeps a file open in one of them, as an editor would.
+        for project in ["busy", "recent"] {
+            let module = folder.appendingPathComponent(project + "/node_modules/dep/index.js")
+            try FileManager.default.createDirectory(at: module.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try Data(repeating: 1, count: 50_000).write(to: module)
+            try Data("{}".utf8).write(to: folder.appendingPathComponent(project + "/package.json"))
+        }
+        let open = try FileHandle(forReadingFrom: folder.appendingPathComponent("busy/package.json"))
+        defer { try? open.close(); app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home); try? FileManager.default.removeItem(at: folder) }
+        app.launch()
+
+        XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
+        app.links["overviewScanFolder"].click()
+        let panel = app.sheets.firstMatch.exists ? app.sheets.firstMatch : app.dialogs.firstMatch
+        XCTAssertTrue(panel.waitForExistence(timeout: 5))
+        panel.typeKey("g", modifierFlags: [.command, .shift])
+        app.typeText(folder.path + "\n")
+        panel.buttons["Scan folder"].click()
+        waitForScannedFolder(app)
+
+        app.typeKey("3", modifierFlags: .command)
+        let busy = app.checkBoxes["planProfile-project-builds-busy"], recent = app.checkBoxes["planProfile-project-builds-recent"]
+        if !busy.waitForExistence(timeout: 10) { expandDisclosures(in: app) }
+        XCTAssertTrue(busy.waitForExistence(timeout: 5))
+        XCTAssertEqual(busy.value as? Int, 0, "Held, never ticked by default")
+        XCTAssertEqual(recent.value as? Int, 0)
+        XCTAssertTrue((app.buttons["Select busy"].value as? String ?? "").contains("Its project is open in an app or tool."))
+        XCTAssertTrue((app.buttons["Select recent"].value as? String ?? "").contains("Its project changed in the last 7 days."))
+        // Only the held build folders: untick what arrived ticked as recommended (the fixture's npm cache).
+        let npm = app.checkBoxes["planRule-npm-cache"]
+        if npm.exists && npm.value as? Int != 0 { revealAndClick(npm, in: app) }
+        tick(busy, in: app)
+        tick(recent, in: app)
+        app.buttons["Review cleanup"].click()
+        XCTAssertTrue(reviewLine(app, "movedToTrash", "developer").waitForExistence(timeout: 5))
+        cleanUpFromReview(app)
+
+        let notCleaned = app.links["resultsNotCleaned"]
+        XCTAssertTrue(notCleaned.waitForExistence(timeout: 20))
+        XCTAssertTrue(notCleaned.label.hasPrefix("Not cleaned · 1 item · "), notCleaned.label)
+        notCleaned.click()
+        XCTAssertTrue(FileManager.default.fileExists(atPath: folder.appendingPathComponent("busy/node_modules").path), "Still in use: skipped, never forced")
+        XCTAssertFalse(FileManager.default.fileExists(atPath: folder.appendingPathComponent("recent/node_modules").path), "Ticking overrides a recent edit")
     }
 }

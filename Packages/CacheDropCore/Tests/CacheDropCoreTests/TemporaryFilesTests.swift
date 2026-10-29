@@ -95,12 +95,20 @@ private func temporaryFiles(_ candidates: [Candidate]) -> [String] {
     #expect(temporaryFiles(catalog.discover(fixture: fixtureHome(), userFolder: folder, now: now)).isEmpty)
 }
 
-@Test func anItemAProcessHasOpenIsNeverOfferedAndWhenUseCantBeCheckedNothingIs() throws {
+@Test func anItemAProcessHasOpenIsKeptHeldAndWhenUseCantBeCheckedNothingIsOffered() throws {
     let folder = try fixtureUserFolder()
     defer { try? FileManager.default.removeItem(at: folder) }
     let open = try writeFile("T/open.tmp", in: folder, modified: daysAgo(30))
     let idle = try writeFile("T/idle.bin", in: folder, modified: daysAgo(30))
-    #expect(temporaryFiles(catalog.discover(fixture: fixtureHome(), userFolder: folder, inUse: FakeInUse(open: [open.path]), now: now)) == [idle.path])
+    let found = catalog.discover(fixture: fixtureHome(), userFolder: folder, inUse: FakeInUse(open: [open.path]), now: now)
+    #expect(temporaryFiles(found) == [idle.path, open.path])
+    // Held by some process, not a known app: the line is the check's own reason (#374), and it is checked again at Clean up.
+    let held = try #require(found.first { $0.url.path == open.path })
+    #expect(held.hold == CandidateHold(.inUse("An app")))
+    #expect(held.hold?.line == "An app is using it. It is kept.")
+    #expect(found.first { $0.url.path == idle.path }?.hold == nil)
+    #expect(CandidateCheck(catalog: catalog, running: NothingRunning(), inUse: FakeInUse(open: [open.path]), home: fixtureHome()).check(held) == .inUse("An app"))
+    #expect(CandidateCheck(catalog: catalog, running: NothingRunning(), inUse: FakeInUse(), home: fixtureHome()).check(held) == nil)
     let discovery = catalog.discovery(fixture: fixtureHome(), userFolder: folder, inUse: FakeInUse(unknown: true), now: now)
     #expect(temporaryFiles(discovery.candidates).isEmpty)
     #expect(discovery.notes.contains(CatalogNote(ruleID: "temporary-files", text: "Old temporary files: kept all, because CacheDrop couldn’t tell which ones apps are using.")))

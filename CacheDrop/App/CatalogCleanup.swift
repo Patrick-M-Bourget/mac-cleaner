@@ -55,7 +55,9 @@ import SwiftUI
     /// Every page's revision, for watching whether any page's choices changed.
     var selectionRevisions: [UInt64] { CleanupSelections.Source.allCases.map(selections.revision(of:)) }
     /// Ticks newly recommended items and notes each page's choices after a change; the revision moves only if they differ.
-    private func noteChoices() { selections.noteChoices(among: candidates, recommended: recommendedCandidates) }
+    private func noteChoices() { selections.noteChoices(among: candidates, recommended: recommendedCandidates, held: heldCandidates) }
+    /// What something held at the scan, or whose owner runs now (#374): listed unticked, never ticked for you.
+    private var heldCandidates: [Candidate] { candidates.filter { $0.hold != nil } + recommendedPlan.held }
     private(set) var isRunning = false
     /// A cleanup changed files since the last catalog scan, so the next one is recorded as a post-cleanup rescan (#126).
     private var rescanFollowsCleanup = false
@@ -222,7 +224,11 @@ import SwiftUI
     /// Asks CacheDrop's quitter; a debug UI test run never asks a real app to quit.
     nonisolated static var quitter: any AppQuitting {
         #if DEBUG
-        if LocalStateLocation.isDisposableTest { return SystemAppQuitter(sendsRequests: false) }
+        // Only fixture apps run from the test's own home are seen and asked to quit (#377).
+        if LocalStateLocation.isDisposableTest {
+            return ProcessInfo.processInfo.environment["CACHEDROP_TEST_CATALOG_HOME"].map { FixtureAppQuitter(root: URL(fileURLWithPath: $0)) }
+                ?? SystemAppQuitter(sendsRequests: false)
+        }
         #endif
         return SystemAppQuitter()
     }
@@ -477,7 +483,7 @@ import SwiftUI
     #endif
     /// Drops chosen items that are no longer offered, and says so. The revision moves only when a page's choices changed (#307).
     private func keepOnlyCurrentChoices() {
-        if selections.keepOnly(candidates, recommended: recommendedCandidates) { message = "Some items changed or are no longer on this Mac and were removed from your plan." }
+        if selections.keepOnly(candidates, recommended: recommendedCandidates, held: heldCandidates) { message = "Some items changed or are no longer on this Mac and were removed from your plan." }
     }
 
     /// Lists a picked folder's large and old files from its finished scan, and its projects' build folders. Read-only; nothing is chosen.
@@ -503,7 +509,8 @@ import SwiftUI
     /// Chooses or clears every item the rules found, such as a whole category. Items chosen one by one (possibly related
     /// leftovers, #173) are never chosen with them.
     func setSelected(_ rules: [CleanupRule], _ selected: Bool) {
-        setSelected(rules.filter { !$0.selectedOneByOne }.flatMap(candidates(for:)), selected)
+        // A held item (#374) is ticked only on its own row, but unticking the rules clears it too.
+        setSelected(rules.filter { !$0.selectedOneByOne }.flatMap(candidates(for:)).filter { !selected || $0.hold == nil }, selected)
     }
     func setSelected(_ candidate: Candidate, _ selected: Bool) { setSelected([candidate], selected) }
     /// Ticks or unticks found items on any page; every page that lists them shows it (#349).
@@ -514,13 +521,16 @@ import SwiftUI
         noteChoices()
     }
 
-    /// The recommended plan as the last scan sees it (`RecommendedPlan`): owners running at the scan are left out.
+    /// The recommended plan as the last scan sees it (`RecommendedPlan`): what an owner running at the scan holds is in `recommendedHeld` (#374).
     /// The full checks run when it is chosen, and again in the review.
-    var recommendedCandidates: [Candidate] {
+    var recommendedCandidates: [Candidate] { recommendedPlan.candidates }
+    /// What Smart clean would take but something holds (#374): in use at the scan, or its owner running. Listed unticked.
+    var recommendedHeld: [Candidate] { recommendedPlan.held }
+    private var recommendedPlan: RecommendedPlan {
         let running = runningOwners, names = ownerNames
         return RecommendedPlan(catalog: catalog, candidates: discovered) { item in
             names[item.id]?.first { running.contains($0) }.map(CheckRefusal.ownerRunning)
-        }.candidates
+        }
     }
     /// "Up to" when part of the plan is copies that share disk blocks (SPEC section 6).
     var recommendedSizeText: String {
@@ -528,7 +538,7 @@ import SwiftUI
         return SizeEstimate(sum: items.map(SizeEstimate.init)).text(upperBound: items.contains { catalog.rule($0.ruleID)?.estimateIsUpperBound == true })
     }
     /// Smart clean's ticked items as the last scan sees them: the recommended ones, ticked here or on any page (#349).
-    var smartCleanCandidates: [Candidate] { recommendedCandidates.filter(selections.isTicked) }
+    var smartCleanCandidates: [Candidate] { (recommendedCandidates + recommendedHeld).filter(selections.isTicked) }
     /// Smart clean's selection checked now: the recommended plan with the full checks, minus what was unticked, plus what the
     /// page listed that the checks now refuse, for the review to explain. Nil when nothing could be checked or the scan changed meanwhile.
     func smartCleanCheckedNow() async -> [Candidate]? {
@@ -552,6 +562,12 @@ import SwiftUI
         guard let check = await currentCheck()?.snapshotted() else { return nil }
         let refusals = await Task.detached { Dictionary(uniqueKeysWithValues: approval.candidates.compactMap { c in check.check(c).map { (c.id, $0) } }) }.value
         return CatalogReview(approval: approval, refusals: refusals, staying: AppUninstall.staying(chosen: candidates, offered: uninstallable))
+    }
+    /// The review sheet's rows checked again now, after their app quit (#377): each refused row's new reason, by candidate id.
+    /// Read-only: no choice changes, so the review stays open. Nil when nothing could be checked.
+    func checkedAgain(_ items: [Candidate]) async -> [String: CheckRefusal]? {
+        guard let check = await currentCheck()?.snapshotted() else { return nil }
+        return await Task.detached { Dictionary(uniqueKeysWithValues: items.compactMap { c in check.check(c).map { (c.id, $0) } }) }.value
     }
     func execute(_ approval: CatalogApproval, cancellation: CleanupCancellation) async {
         guard !isRunning else { return }
@@ -579,8 +595,10 @@ import SwiftUI
             measureStoppedWorkAgain(outcome, of: approval, run: run)
             if !approval.previewOnly { rescanFollowsCleanup = true }
             // What the run cleaned leaves every page; what it skipped keeps its tick (#349). Picked folders keep the large and old files this run didn't act on (#125).
-            selections.finishRun(cleaned: outcome.cleanedCandidateIDs); selections.revise(); discovered = []; uninstallable = []; pickedFiles = pickedFiles.mapValues { UserFiles.remaining($0, after: outcome) }
-            projectBuilds = projectBuilds.mapValues { UserFiles.remaining($0, after: outcome) }; hasScanned = false; noteChoices()
+            // The other rows stay, dimmed, until the rescan that follows replaces them (#375).
+            selections.finishRun(cleaned: outcome.cleanedCandidateIDs); selections.revise()
+            discovered = outcome.keptDuringRescan(discovered); uninstallable = outcome.keptDuringRescan(uninstallable); pickedFiles = pickedFiles.mapValues { UserFiles.remaining($0, after: outcome) }
+            projectBuilds = projectBuilds.mapValues { UserFiles.remaining($0, after: outcome) }; noteChoices()
         } catch { message = "CacheDrop couldn’t open its cleanup history, so nothing was changed." }
     }
     /// A stopped daemon-backed tool's work may still be finishing, so its item is measured again a minute later, and

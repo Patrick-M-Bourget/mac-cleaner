@@ -32,8 +32,9 @@ public struct SystemRunningAppChecker: RunningAppChecking {
         // Owners with nothing to look for never need the list.
         guard owner.looksForProcesses else { return false }
         guard let listed = processes.processes() else { return nil }
+        let folders = owner.paths.map { Self.sameForm($0.hasSuffix("/") ? $0 : $0 + "/") }
         if listed.contains(where: { process in
-            process.bundleID.map(owner.bundleIDs.contains) == true || owner.paths.contains { process.path.hasPrefix($0.hasSuffix("/") ? $0 : $0 + "/") }
+            process.bundleID.map(owner.bundleIDs.contains) == true || folders.contains { Self.sameForm(process.path).hasPrefix($0) }
         }) { return true }
         if !owner.bundleIDPrefixes.isEmpty, RunningMakers(listed, resolve: makers.products).runs(owner) { return true }
         return listed.contains { $0.arguments.map(owner.matches) == true }
@@ -42,6 +43,12 @@ public struct SystemRunningAppChecker: RunningAppChecking {
     /// This checker with the process list read once, for checking many owners together at a scan.
     public func listedOnce() -> SystemRunningAppChecker { SystemRunningAppChecker(processes: ListedProcesses(list: processes.processes())) }
     public func snapshot() -> any RunningAppChecking { listedOnce() }
+
+    /// A path in the form `resolvingSymlinksInPath` gives, which drops `/private` from `/private/var`, `/private/tmp` and
+    /// `/private/etc`, while the process table gives the real path (#377).
+    static func sameForm(_ path: String) -> String {
+        ["/private/var/", "/private/tmp/", "/private/etc/"].contains(where: path.hasPrefix) ? String(path.dropFirst("/private".count)) : path
+    }
 }
 
 /// A process list read once.

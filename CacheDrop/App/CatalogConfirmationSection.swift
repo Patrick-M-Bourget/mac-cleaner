@@ -21,7 +21,12 @@ struct CatalogConfirmationSection: View {
     let catalog: Catalog
     /// Follows a staying line's link (#354); without it the lines show no link.
     var follow: ((AppUninstall.Staying.Link) -> Void)? = nil
+    /// The rows' reasons as checked again since the review opened (#377); the review's own when nil.
+    var refusals: [String: CheckRefusal]? = nil
+    /// A row's "Quit X" link, when a known app that is open holds it (#377).
+    var quit: ((Candidate) -> StatusAction?)? = nil
     var body: some View {
+        let refusals = refusals ?? review.refusals
         VStack(alignment: .leading, spacing: CacheDropDesign.Space.lg) {
             if review.approval.previewOnly {
                 StatusRow(text: "Dry run is on. Nothing on disk changes.", symbol: "eye", role: .neutral, identifier: "reviewPreviewNotice")
@@ -44,9 +49,9 @@ struct CatalogConfirmationSection: View {
                                 Text(line.estimate.text(upperBound: line.isUpperBound)).monospacedDigit()
                             }.font(CacheDropDesign.TypeStyle.note).accessibilityElement(children: .combine).accessibilityIdentifier("reviewLine-\(group.consequence)-\(line.id)")
                         }
-                        ForEach(group.candidates.filter { review.refusals[$0.id] != nil }) { item in
-                            StatusRow(text: item.displayName + " will be skipped: " + (review.refusals[item.id]?.reason ?? ""), symbol: "exclamationmark.circle", role: .caution,
-                                      identifier: "reviewSkipped-" + item.ruleID)
+                        ForEach(group.candidates.filter { refusals[$0.id] != nil }) { item in
+                            StatusRow(text: item.displayName + " will be skipped: " + (refusals[item.id]?.reason ?? ""), symbol: "exclamationmark.circle", role: .caution,
+                                      identifier: "reviewSkipped-" + item.ruleID, action: quit?(item))
                         }
                         ActionDisclosureGroup(CacheDropDesign.items(group.candidates.count) + " · Show files") {
                             VStack(alignment: .leading, spacing: CacheDropDesign.Space.md) {

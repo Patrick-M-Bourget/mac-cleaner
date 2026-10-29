@@ -42,7 +42,10 @@ public struct CatalogOverview: Sendable {
         /// How many items the category's rules found.
         public let itemCount: Int
         /// What the cleanup plan shows under the category, decided per scan from what was found.
-        public var planLayout: PlanLayout { rules.count > 1 ? .ruleRows : itemCount > 1 || rules.contains(where: \.selectedOneByOne) ? .items : .categoryOnly }
+        /// A held item (#374) is ticked on its own, so a lone one is listed too.
+        public var planLayout: PlanLayout { rules.count > 1 ? .ruleRows : itemCount > 1 || hasHeld || rules.contains(where: \.selectedOneByOne) ? .items : .categoryOnly }
+        /// Whether something held one of its items at the scan (#374).
+        public var hasHeld = false
         /// Found nothing, or only 0 bytes: Overview lists it as "Empty" (#372). Unknown is never empty.
         public var isEmpty: Bool { estimate == .measured(0) }
         /// Empty only because one of its rules needs Full Disk Access CacheDrop doesn't have: it says so, never "Empty" (62).
@@ -53,7 +56,8 @@ public struct CatalogOverview: Sendable {
     /// (two or more rules). Selection underneath is per item either way.
     public enum PlanLayout: Sendable, Equatable { case categoryOnly, items, ruleRows }
     public let rows: [Row]
-    /// "Recommended for review: up to X": every current candidate whose action releases space (SPEC section 6).
+    /// "Recommended for review: up to X": every current candidate whose action releases space (SPEC section 6), and that
+    /// nothing held at the scan (#374): only cleanable space.
     public let recommended: SizeEstimate
     /// Candidates that go to Trash. That space stays used until the Trash is emptied, so it is never in `recommended`.
     public let proposedForTrash: SizeEstimate
@@ -68,13 +72,15 @@ public struct CatalogOverview: Sendable {
         for rule in catalog.rules where !order.contains(rule.category) && candidates.contains(where: { $0.ruleID == rule.id }) {
             order.append(rule.category)
         }
-        recommended = SizeEstimate(sum: candidates.filter(\.releasesSpace).map(SizeEstimate.init))
+        recommended = SizeEstimate(sum: candidates.filter { $0.releasesSpace && $0.hold == nil }.map(SizeEstimate.init))
         proposedForTrash = SizeEstimate(sum: candidates.filter { !$0.releasesSpace }.map(SizeEstimate.init))
         rows = order.map { category in
             let rules = catalog.rules.filter { rule in rule.category == category && candidates.contains { $0.ruleID == rule.id } }
             let ids = Set(rules.map(\.id))
             let found = candidates.filter { ids.contains($0.ruleID) }
-            return Row(category: category, rules: rules, estimate: SizeEstimate(sum: found.map(SizeEstimate.init)), itemCount: found.count)
+            var row = Row(category: category, rules: rules, estimate: SizeEstimate(sum: found.map(SizeEstimate.init)), itemCount: found.count)
+            row.hasHeld = found.contains { $0.hold != nil }
+            return row
         }
         var categories: [CatalogCategory] = []
         for rule in catalog.rules where !categories.contains(rule.category) && rule.action != .guidance && !rule.fromPickedFolders

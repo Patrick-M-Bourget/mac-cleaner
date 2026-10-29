@@ -82,7 +82,7 @@ private struct FakeInUse: InUseChecking {
     func inUse(_ folders: [URL], by owner: RuleOwner) -> Set<String>? { unknown ? nil : Set(folders.map(\.path)).intersection(open) }
 }
 
-@Test func projectsWithUncommittedChangesRecentEditsOrOpenFilesOfferNothing() throws {
+@Test func buildFoldersOfProjectsWithUncommittedChangesRecentEditsOrOpenFilesAreKeptHeldWithTheirReason() throws {
     let folder = try pickedFolder()
     defer { try? FileManager.default.removeItem(at: folder) }
     _ = try committedProject(in: folder, "clean")
@@ -96,8 +96,34 @@ private struct FakeInUse: InUseChecking {
     try file(folder, "recent/package.json"); try file(folder, "recent/node_modules/x.js"); try file(folder, "recent/src/app.js", age: 2 * day)
     try file(folder, "open/package.json"); try file(folder, "open/node_modules/x.js")
 
-    let found = offered(folder, inUse: FakeInUse(open: [folder.appendingPathComponent("open").path]))
-    #expect(Set(found.keys) == ["clean/node_modules", "untracked/node_modules"])
+    let openUse = FakeInUse(open: [folder.appendingPathComponent("open").path])
+    let found = offered(folder, inUse: openUse)
+    #expect(Set(found.keys) == ["clean/node_modules", "untracked/node_modules", "dirty/node_modules", "recent/node_modules", "open/node_modules"])
+    // Visible, never as free space: each held with why (#374).
+    #expect(found.compactMapValues(\.hold) == ["dirty/node_modules": CandidateHold(.uncommittedChanges), "recent/node_modules": CandidateHold(.recentlyEdited),
+                                                "open/node_modules": CandidateHold(.projectOpen)])
+    #expect(found["open/node_modules"]?.hold?.line == "Its project is open in an app or tool. It is kept.")
+
+    // Ticking is the override for the policy guards; a project in use is still skipped while it is, and cleaned once it isn't.
+    let check = { (item: Candidate?, inUse: any InUseChecking) in
+        CandidateCheck(catalog: Catalog(rules: fixtureRules), running: NothingRunning(), inUse: inUse, home: fixtureNoHome).check(try #require(item))
+    }
+    #expect(try check(found["dirty/node_modules"], openUse) == nil)
+    #expect(try check(found["recent/node_modules"], openUse) == nil)
+    #expect(try check(found["open/node_modules"], openUse) == .projectOpen)
+    #expect(try check(found["open/node_modules"], FixtureNothingInUse()) == nil)
+}
+
+/// Ticking overrides only the guard the user was shown (#374): a build folder held because its project was open, closed by
+/// Clean up, is still kept for a recent edit it was never shown.
+@Test func tickingABuildFolderHeldAsOpenNeverOverridesAGuardItWasNotShown() throws {
+    let folder = try pickedFolder()
+    defer { try? FileManager.default.removeItem(at: folder) }
+    try file(folder, "app/package.json"); try file(folder, "app/node_modules/x.js"); try file(folder, "app/src/app.js", age: 2 * day)
+    let item = try #require(offered(folder, inUse: FakeInUse(open: [folder.appendingPathComponent("app").path]))["app/node_modules"])
+    #expect(item.hold == CandidateHold(.projectOpen))
+    let check = CandidateCheck(catalog: Catalog(rules: fixtureRules), running: NothingRunning(), inUse: FixtureNothingInUse(), home: fixtureNoHome)
+    #expect(check.check(item) == .recentlyEdited)
 }
 
 @Test func theCheckRefusesAProjectThatChangedSinceTheScan() throws {

@@ -52,3 +52,12 @@ private func selection(_ items: [Candidate], chosen: [Candidate] = []) -> Catego
     #expect(overview.rows.map(\.planLayout) == [.items])
     #expect(CatalogOverview(catalog: catalog, candidates: [item(confirmed, "com.gone.synth.plist")]).rows.map(\.planLayout) == [.categoryOnly])
 }
+
+/// #374: an item held at the scan (in use, or its project being worked on) is never ticked with its category; it is ticked on its own.
+@Test func aCategoryNeverTicksAHeldItem() {
+    let free = item(confirmed, "free"), held = { var held = item(confirmed, "held"); held.hold = CandidateHold(.inUse("Synth")); return held }()
+    let none = selection([free, held])
+    #expect(none.toggle == .choose([free.id]))
+    #expect(selection([free, held], chosen: [free]).state == .checked)
+    #expect(selection([held]).toggle == .showItems)
+}

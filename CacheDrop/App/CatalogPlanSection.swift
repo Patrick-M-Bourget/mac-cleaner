@@ -151,6 +151,10 @@ private struct PlanRuleRows: View {
             PlanRunningOwners(model: model, rule: rule).padding(.leading, CacheDropDesign.Space.xl).padding(.bottom, CacheDropDesign.Space.sm)
             if rule.choosesItems && !rule.groupsByProject { CatalogItemRows(model: model, rule: rule, listing: listing).padding(.leading, CacheDropDesign.Space.xl) }
             else if items.contains(where: { $0.group != nil }) { CatalogProfileRows(model: model, rule: rule, listing: listing).padding(.leading, CacheDropDesign.Space.xl) }
+            // Items something holds (#374) are listed under the rule, each ticked on its own.
+            else if items.contains(where: { $0.hold != nil }) {
+                CatalogItemRows(model: model, rule: rule, listing: listing, onlyHeld: true).padding(.leading, CacheDropDesign.Space.xl)
+            }
             Divider()
         }
         }

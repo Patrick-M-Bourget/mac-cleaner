@@ -199,6 +199,64 @@ final class ApplicationsUITests: XCTestCase {
         XCTAssertTrue(app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "Uninstalled Synth · 3 items")).firstMatch.waitForExistence(timeout: 10))
     }
 
+    /// #377: an app that is open when its uninstall is reviewed. Its rows say why they will be skipped, with "Quit Synth"; the
+    /// link asks it to quit, its rows are checked again and become cleanable, and the sheet stays open. Synth is a fixture app the
+    /// journey starts itself (a copy of `sleep` in the fixture home's bundle); a debug run only ever sees and quits apps run
+    /// from its fixture home, so no real app on this Mac is touched. A dry run, so nothing is removed.
+    @MainActor func testTheReviewQuitsTheAppHoldingARowAndTheRowBecomesCleanable() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        let state = try configureIsolatedState(app)
+        let home = try configureCatalogHome(app)
+        turnOnDryRun(app)
+        let synth = try addApp("Synth", id: "com.maker.synth", bytes: 1, in: home)
+        let executable = synth.appendingPathComponent("Contents/MacOS/main")
+        try FileManager.default.removeItem(at: executable)
+        try FileManager.default.copyItem(atPath: "/bin/sleep", toPath: executable.path)
+        let container = home.appendingPathComponent("Library/Containers/com.maker.synth/Data/state.db")
+        try FileManager.default.createDirectory(at: container.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Data(repeating: 4, count: 60_000).write(to: container)
+        let running = Process()
+        running.executableURL = executable
+        running.arguments = ["600"]
+        // The fixture app is stopped whatever happens, before its home is removed.
+        defer {
+            if running.isRunning { running.terminate(); running.waitUntilExit() }
+            app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home)
+        }
+        app.launch()
+        waitForCatalogScan(app)
+        app.typeKey("5", modifierFlags: .command)
+        let row = element(app, "applicationsApp-" + synth.path, .checkBox)
+        XCTAssertTrue(row.waitForExistence(timeout: 10))
+        revealAndClick(row, in: app)
+        XCTAssertEqual(row.value as? Int, 1)
+
+        // The sandboxed test runner quarantines what it writes and may not clear it, so a copied executable can't launch
+        // (Operation not permitted); the journey waits on a fixture app it can start (#383).
+        do { try running.run() } catch let error as NSError where error.domain == NSPOSIXErrorDomain && error.code == Int(EPERM) {
+            throw XCTSkip("The test runner can't launch a fixture app it wrote (#383)")
+        }
+        app.buttons["Review cleanup"].click()
+        let skipped = app.staticTexts["reviewSkipped-uninstall-app"]
+        XCTAssertTrue(skipped.waitForExistence(timeout: 10), "The app's row will be skipped while it is open")
+        XCTAssertTrue((skipped.value as? String ?? skipped.label).contains("Synth is running."), skipped.debugDescription)
+        let quit = app.links["reviewQuit-uninstall-app"]
+        XCTAssertTrue(quit.exists, "An open known app offers Quit")
+        XCTAssertEqual(quit.label, "Quit Synth")
+
+        quit.click()
+        XCTAssertTrue(skipped.waitForNonExistence(timeout: 20), "Once Synth quits, its row is checked again and can be cleaned")
+        XCTAssertFalse(running.isRunning, "The fixture app was asked to quit and did")
+        XCTAssertFalse(app.staticTexts["reviewSkipped-uninstall-app-files"].exists, "Its files were checked again too")
+        XCTAssertFalse(app.links["reviewQuit-uninstall-app"].exists)
+        // The recheck changes no choice, so the sheet stays open (#307).
+        XCTAssertTrue(app.descendants(matching: .any).matching(identifier: "sheetFooter").firstMatch.buttons["Clean up"].exists)
+        XCTAssertFalse(app.staticTexts["Your choices changed. Check the items and try again."].exists)
+        app.buttons["Cancel"].click()
+        XCTAssertTrue(FileManager.default.fileExists(atPath: synth.path))
+    }
+
     /// #305: two apps of one maker. Each row offers only its own files, though the other keeps the maker installed, and once
     /// Synth is uninstalled, Pad's row is unchanged: Synth's untouched support folder is offered nowhere while Pad is installed.
     @MainActor func testAppsOfOneMakerAreEachUninstalledWithOnlyTheirOwnFiles() throws {
@@ -249,7 +307,7 @@ final class ApplicationsUITests: XCTestCase {
     }
 
     /// #303, #306: an uninstall rescans when it ends. After Done, while that scan runs, the bar shows its progress and the
-    /// other app's row stays, dimmed (#308); then its checkbox comes back.
+    /// other app's row stays, dimmed with its checkbox disabled (#308, #375); then it can be clicked again.
     @MainActor func testApplicationsRescansAfterAnUninstallAndRowsWaitDimmed() throws {
         continueAfterFailure = false
         let app = XCUIApplication()
@@ -273,11 +331,14 @@ final class ApplicationsUITests: XCTestCase {
         app.buttons["Done"].click()
 
         XCTAssertTrue(app.staticTexts["catalogScanProgress"].waitForExistence(timeout: 10), "The run rescans, and the bar shows its progress")
-        // #308: the row stays listed, dimmed and without its checkbox, until the rescan says what can go with it.
-        XCTAssertTrue(element(app, "applicationsApp-" + pad.path).waitForExistence(timeout: 5), "The row stays listed during the rescan")
+        // #308, #375: the row stays listed with its checkbox, dimmed and disabled, until the rescan replaces it.
         let padRow = element(app, "applicationsApp-" + pad.path, .checkBox)
-        XCTAssertFalse(padRow.exists, "No checkbox until the scan says what can go with it")
-        XCTAssertTrue(padRow.waitForExistence(timeout: 120), "Its checkbox comes back after the scan")
+        XCTAssertTrue(padRow.waitForExistence(timeout: 5), "The row stays listed during the rescan")
+        XCTAssertFalse(padRow.isEnabled, "It can't be clicked until the scan ends")
+        let enabled = NSPredicate(format: "isEnabled == true")
+        XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: enabled, object: padRow)], timeout: 120), .completed,
+                       "It can be clicked again after the scan")
+        XCTAssertTrue(app.staticTexts["catalogScanProgress"].waitForNonExistence(timeout: 120))
     }
 
     /// #306: Put back from History rescans, so the app it returned is listed on Applications again without Scan again.

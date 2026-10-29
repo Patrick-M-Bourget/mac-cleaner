@@ -138,7 +138,7 @@ struct RefreshRequest: Sendable {
         let review = await catalog.prepareReview(of: items)
         guard let review else { throw failure }
         guard canReview(source), catalog.selectionRevision(for: source) == catalogVersion else { throw PlanReviewError.changed }
-        return WorkspaceCleanupReview(catalog: review, catalogVersion: catalogVersion, source: source)
+        return WorkspaceCleanupReview(catalog: review, catalogVersion: catalogVersion, source: source, model: catalog)
     }
     func prepareWorkspaceReview() async throws -> WorkspaceCleanupReview {
         guard canReview else { throw PlanReviewError.changed }
@@ -146,14 +146,14 @@ struct RefreshRequest: Sendable {
         let items = catalog.selectedCount > 0 ? await catalog.prepareReview() : nil
         if catalog.selectedCount > 0, items == nil, catalog.settingsUnreadable { throw PlanReviewError.settingsUnreadable }
         guard canReview, catalog.selectionRevision(for: .plan) == catalogVersion, catalog.selectedCount == 0 || items != nil else { throw PlanReviewError.changed }
-        return WorkspaceCleanupReview(catalog: items, catalogVersion: catalogVersion)
+        return WorkspaceCleanupReview(catalog: items, catalogVersion: catalogVersion, model: catalog)
     }
     /// Why a review couldn't be built: the settings couldn't be read, or the choices changed meanwhile.
     private var failure: PlanReviewError { catalog.settingsUnreadable ? .settingsUnreadable : .changed }
     func executeWorkspace(_ review: WorkspaceCleanupReview) async throws {
         guard canReview(review.source), catalog.selectionRevision(for: review.source) == review.catalogVersion else { throw PlanReviewError.changed }
         await run(review)
-        // A run empties the catalog, so CacheDrop scans again by itself, whichever page is open (#306).
+        // CacheDrop scans again by itself, whichever page is open (#306); the pages keep the rows the run left, dimmed, until it ends (#375).
         await catalog.rescan()
     }
     private func run(_ review: WorkspaceCleanupReview) async {
@@ -252,7 +252,7 @@ struct LiveCleanupPlanView: View {
         ScrollViewReader { proxy in
         ScrollView {
         if selection.showsRun(for: .plan) {
-            CleanupRunSection(selection: selection)
+            CleanupRunSection(selection: selection, reveal: proxy.revealRow)
         } else {
         VStack(alignment: .leading, spacing: CacheDropDesign.Space.lg) {
             PageHeader(title: "Cleanup plan", subtitle: "Choose categories, adjust items if needed, then review the changes.",
@@ -304,10 +304,14 @@ struct WorkspaceCleanupReview: Identifiable {
     let catalogVersion: UInt64
     /// The selection it came from; a finished run clears only that one (#141).
     var source = CleanupSelections.Source.plan
+    /// Checks the rows again after the review quit an app (#377).
+    weak var model: CatalogCleanupModel?
 }
 /// A running or finished cleanup, from either selection: the header, progress and outcomes.
 struct CleanupRunSection: View {
     let selection: SessionPlan
+    /// Scrolls the page to a result row (`ScrollViewProxy.revealRow`).
+    var reveal: (CleanupRecord.ID) -> Void = { _ in }
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     var body: some View {
         VStack(alignment: .leading, spacing: CacheDropDesign.Space.xl) {
@@ -316,7 +320,7 @@ struct CleanupRunSection: View {
                 if let progress = selection.catalog.runProgress { running(progress) }
                 else { ProgressView(selection.catalog.dryRun ? "Checking selected items…" : "Cleaning selected items…") }
             }
-            if let result = selection.catalog.result { CatalogResultsSection(result: result, catalog: selection.catalog.catalog) }
+            if let result = selection.catalog.result { CatalogResultsSection(result: result, catalog: selection.catalog.catalog, reveal: reveal) }
             if let message = selection.catalog.message { StatusRow(text: message, symbol: "exclamationmark.triangle", role: .caution) }
             SettingsUnreadableNotice(model: selection.catalog)
         }.padding(CacheDropDesign.Space.page)
@@ -420,11 +424,45 @@ struct WorkspaceCleanupConfirmationView: View {
     let approve: () -> Void
     /// Follows a staying line's link (#354).
     var follow: ((AppUninstall.Staying.Link) -> Void)? = nil
+    private let catalog = Catalog(rules: BuiltInCatalog.rules)
+    /// The rows a running app holds, with "Quit X" (#377); checked again here, so the choices and the sheet stay as they are.
+    @State private var held: ReviewHeldItems?
+    @State private var quitting: Set<String> = []
+    @State private var quitAnApp = false
+    init(review: WorkspaceCleanupReview, cancel: @escaping () -> Void, approve: @escaping () -> Void, follow: ((AppUninstall.Staying.Link) -> Void)? = nil) {
+        self.review = review; self.cancel = cancel; self.approve = approve; self.follow = follow
+        let catalog = catalog, quitter = CatalogCleanupModel.quitter
+        _held = State(initialValue: review.catalog.map { ReviewHeldItems(candidates: $0.approval.candidates, refusals: $0.refusals, catalog: catalog, isOpen: quitter.isOpen) })
+    }
     var body: some View {
         ReviewSheetFrame(title: "Review your changes", subtitle: "Check what each action does. You can go back and change your selection.") {
-            if let items = review.catalog { CatalogConfirmationSection(review: items, catalog: Catalog(rules: BuiltInCatalog.rules), follow: follow) }
+            if let items = review.catalog {
+                CatalogConfirmationSection(review: items, catalog: catalog, follow: follow, refusals: held?.refusals, quit: quitAction)
+            }
         } actions: {
-            Button("Cancel", action: cancel).keyboardShortcut(.cancelAction); Button("Clean up", action: approve).buttonStyle(.borderedProminent)
+            Button("Cancel", action: cancelled).keyboardShortcut(.cancelAction); Button("Clean up", action: approve).buttonStyle(.borderedProminent)
+        }
+    }
+    /// The plan's running-owner lines catch up once the sheet is gone, never under it (#307).
+    private func cancelled() {
+        cancel()
+        if quitAnApp, let model = review.model { Task { await model.checkRunningOwnersAgain() } }
+    }
+    private func quitAction(_ item: Candidate) -> StatusAction? {
+        guard let held, let owner = held.holder(of: item), let title = held.quitTitle(for: item) else { return nil }
+        let busy = quitting.contains(owner.name)
+        return StatusAction(title: busy ? "Quitting…" : title, identifier: "reviewQuit-" + item.ruleID, isDisabled: busy) { quit(owner) }
+    }
+    /// A normal quit request, never a force quit; once the app is gone its rows are checked again, otherwise they keep their reason.
+    private func quit(_ owner: RuleOwner) {
+        guard !quitting.contains(owner.name), let rows = held?.candidates(heldBy: owner) else { return }
+        quitting.insert(owner.name); quitAnApp = true
+        Task {
+            let quitter = CatalogCleanupModel.quitter
+            let outcome = await AppQuitRequest(quitter: quitter).quit(owner)
+            let checked = outcome == .quit ? await review.model?.checkedAgain(rows) : nil
+            held?.quitEnded(owner, outcome: checked == nil ? .stillOpen : outcome, isOpen: quitter.isOpen) { checked?[$0.id] }
+            quitting.remove(owner.name)
         }
     }
 }

@@ -41,6 +41,7 @@ private func recommended(_ items: [Candidate], refusing refused: [String: CheckR
 
 @Test func anItemTheChecksWouldRefuseIsNotRecommended() {
     #expect(recommended([item("npm-cache")], refusing: ["npm-cache": .ownerRunning("npm")]).isEmpty)
+    #expect(recommended([item("npm-cache")], refusing: ["npm-cache": .changed]).isEmpty)
     #expect(recommended([item("npm-cache")], refusing: ["npm-cache": .ownerUnknown("npm")]).isEmpty)
     #expect(recommended([item("chrome-code-sign-clones")], refusing: ["chrome-code-sign-clones": .inUse("Google Chrome")]).isEmpty)
     #expect(recommended([item("npm-cache")], refusing: ["npm-cache": .excluded]).isEmpty)
@@ -145,4 +146,20 @@ private func recommended(_ items: [Candidate], refusing refused: [String: CheckR
     let chosen = catalog.rules.filter(\.choosesItems)
     #expect(Set(chosen.map(\.id)).isSuperset(of: ["jetbrains-caches", "temporary-files", "android-system-images", "ollama-models", "icloud-local-copies"]))
     #expect(recommended(chosen.map { item($0.id) } + chosen.map { item($0.id, action: .delete) }).isEmpty)
+}
+
+@Test func anItemHeldByARunningOwnerOrInUseStaysInSmartCleanAsHeldNotTaken() throws {
+    // #374: Smart clean shows it unticked with why, instead of dropping it; any other refusal still leaves it out.
+    var copy = item("chrome-code-sign-clones", name: "held-copy")
+    copy.hold = CandidateHold(.inUse("Google Chrome"))
+    let plan = RecommendedPlan(catalog: catalog, candidates: [item("npm-cache"), item("app-logs"), copy, item("xcode-derived-data")], now: now) {
+        ["npm-cache": CheckRefusal.ownerRunning("npm"), "xcode-derived-data": .excluded][$0.ruleID]
+    }
+    #expect(plan.candidates.map(\.ruleID) == ["app-logs"])
+    #expect(plan.held.map(\.ruleID) == ["npm-cache", "chrome-code-sign-clones"])
+    let npm = try #require(plan.held.first)
+    #expect(npm.hold?.refusal == .ownerRunning("npm") && npm.hold?.app == catalog.owner(for: npm) && npm.hold?.app != nil)
+    #expect(npm.hold?.line == "In use by npm · Quit npm to clean it")
+    // Held items are never taken, even when a check would pass: only a tick takes them (`CleanupSelections`).
+    #expect(RecommendedPlan(catalog: catalog, candidates: [copy], now: now) { _ in nil }.held.map(\.url) == [copy.url])
 }
