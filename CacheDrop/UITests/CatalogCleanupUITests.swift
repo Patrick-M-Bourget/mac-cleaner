@@ -1737,7 +1737,7 @@ extension CatalogCleanupUITests {
         app.typeKey("1", modifierFlags: .command)
         let link = app.links["overviewSmartClean"]
         XCTAssertTrue(link.waitForExistence(timeout: 10))
-        XCTAssertTrue(link.label.hasPrefix("Smart clean · "), link.label)
+        XCTAssertEqual(link.label, "Smart clean ›")
         revealAndClick(link, in: app)
 
         // All ticked; the new installer is not in it, and Yarn can be unticked.
