@@ -63,6 +63,6 @@ public struct CleanupRunProgress: Sendable {
         guard total > 0, used <= total else { return nil }
         // Moved items stay in their category's bytes so the bar can draw them as "Goes to the Trash" instead.
         let categories = remaining.map { entry in (entry.category, SizeEstimate.measured(entry.bytes + (moved[entry.category] ?? 0))) }
-        return StorageBreakdown(used: used, total: total, categories: categories, trash: trash, highlighted: nil, toTrash: moved)
+        return StorageBreakdown(used: used, total: total, categories: categories, trash: trash, toTrash: moved)
     }
 }

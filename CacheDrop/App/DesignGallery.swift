@@ -58,7 +58,7 @@ struct DesignGallery: View {
                     LocalRecordsMaintenanceControls(enabled: false, clear: {}, reset: {})
                     Text("Synthetic Full Disk Access row · Live status check only").font(.headline)
                     FullDiskAccessSetting()
-                    // Explore storage's inspector (#320): always open, one path.
+                    // Explore storage's inspector (#320, #371): one path, as tall as its content.
                     ExplorerInspector(name: "Camera guide.pdf") {
                         Text("Location").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
                         Text("/Example/Downloads/Camera guide.pdf")
@@ -68,13 +68,13 @@ struct DesignGallery: View {
                         Text("Not opened since Mar 2, 2026.")
                         Text("Action").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
                         Text("Move to Trash. The space stays used until you empty the Trash.")
-                    }.frame(height: 220)
+                    }
                     ExplorerInspector(name: "Cloud metadata (synthetic)", close: {}) {
                         Text("Synthetic Gallery metadata; no provider certification.")
                         Text("On disk: Unknown")
                         Text("Cleanup action").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
                         Text("Cloud-managed item. Cloud cleanup is unavailable; no eviction or synced deletion is offered.")
-                    }.frame(height: 220)
+                    }
                     LocationScopeRow(name: "Downloads", path: "/Example/Downloads", status: "Not scanned", included: $selected, enabled: true) { Menu("More") { Button("Forget location") {} } }
                     LocationScopeRow(name: "Downloads B", path: "/Example/Downloads/Long project folder/Downloads B", status: "Location unavailable · Reconnect and recheck", overlap: "Overlaps another remembered location · Shared contents are counted once.", included: $selected, enabled: true) {
                         HStack {
@@ -92,6 +92,9 @@ struct DesignGallery: View {
                         StorageReviewRow(category: .cloud, title: "Downloaded iCloud files", detail: "Example unknown measurement · Eviction unavailable.", value: "Unknown", meaning: "Local allocation", actionTitle: "Review iCloud inventory", action: {})
                         Divider()
                         StorageReviewRow(category: .browser, title: "Browser caches", detail: "No qualified profile inspection.", value: "Not inspected", meaning: "Unavailable")
+                        Divider()
+                        // #372: a category that found nothing stays listed, muted, with no Review link.
+                        StorageReviewRow(category: .logs, title: "Logs and crash reports", detail: "Logs and crash reports apps wrote", value: "Empty", mutedValue: true)
                     }
 
                     SelectionSummary(value: "3 files", detail: "Example selection · No action will run", consequence: "Space stays occupied until Finder empties Trash.")
@@ -124,6 +127,8 @@ struct DesignGallery: View {
                     EmptyState(title: "No scans yet", detail: "A completed scan records a baseline. Check back a day later to see trends.",
                                symbol: "chart.line.uptrend.xyaxis", action: EmptyStateAction("Scan now") {}, identifier: "galleryEmptyAction")
                     NothingToCleanUp(identifier: "galleryNothingToCleanUp", action: EmptyStateAction("Explore storage") {})
+                    // #372: Overview's one line above its list, which stays in place with every category Empty.
+                    NothingToCleanUp(identifier: "galleryNothingToCleanUpCompact", compact: true, action: EmptyStateAction("Explore storage") {})
                     EmptyState(title: "Nothing to review", symbol: "checkmark.circle", identifier: "galleryEmptyPlain")
                     // #308: nothing known yet, skeleton rows in each page's layout; a rescan dims the rows already shown.
                     Text("Waiting for a scan · Skeleton rows").font(.headline)
@@ -166,12 +171,12 @@ struct DesignGallery: View {
                     } items: { EmptyView() }
                     VolumeSummary(available: 40_000_000_000, total: 512_000_000_000, observation: "Synthetic gallery capacity · No category attribution")
                     VolumeSummary(available: nil, total: nil, observation: "No capacity observation · Unknown stays distinct from zero")
-                    // Every segment kind at the tip, as Smart clean draws a selection (#343): lit, dimmed, going to the Trash, in Trash.
-                    VolumeSummary(available: 40_000_000_000, total: 512_000_000_000, observation: "Synthetic found items · Selection highlighted",
+                    // Every segment kind at the tip, as the cleaning bar draws a run (#343, #355): categories, going to the Trash, in Trash.
+                    VolumeSummary(available: 40_000_000_000, total: 512_000_000_000, observation: "Synthetic found items · Some going to the Trash",
                                   breakdown: StorageBreakdown(used: 472_000_000_000, total: 512_000_000_000, categories: [
                                       (.developer, .measured(60_000_000_000)), (.browser, .measured(20_000_000_000)), (.downloads, .measured(25_000_000_000)),
                                       (.logs, .measured(8_000_000_000)),
-                                  ], trash: .holds(12_000_000_000), highlighted: [.developer: 45_000_000_000, .logs: 8_000_000_000], toTrash: [.downloads: 15_000_000_000]))
+                                  ], trash: .holds(12_000_000_000), toTrash: [.downloads: 15_000_000_000]))
                 }.padding(CacheDropDesign.Space.page).frame(maxWidth: .infinity, alignment: .leading)
             }.background(CacheDropDesign.reading)
             // While background work runs, its progress line takes the note's place (Decision 46).

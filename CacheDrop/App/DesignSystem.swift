@@ -32,8 +32,6 @@ enum CacheDropDesign {
         static let inspectorStackedShare: CGFloat = 0.35 }
     /// How strongly a colour tints a surface behind its symbol, as in a category badge.
     enum Opacity { static let badgeTint: Double = 0.10
-        /// A meter segment's part that Smart clean wouldn't free (#164).
-        static let meterDimmed: Double = 0.30
         /// Rows from the last scan while a rescan runs: visible, plainly not live (#308).
         static let waiting: Double = 0.45
         /// The skeleton shimmer's band at its brightest (#308).
@@ -134,7 +132,7 @@ enum StorageCategory {
     }
 }
 private struct OpaqueChromeKey: EnvironmentKey { static let defaultValue = false }
-/// The bar's background work line, with a folder scan's Stop scan and, away from where it started, Return to scan (#235).
+/// The bar's background work line, with a folder scan's Stop scan x (#364) and, away from where it started, Return to scan (#235).
 struct BackgroundWorkStatus {
     let line: BackgroundWork.Line
     var stop: (() -> Void)? = nil
@@ -410,13 +408,23 @@ struct EmptyStateAction {
 
 /// The one empty state (#321): what's true, then at most one action that leads where the user can act. While a page's
 /// content isn't known yet it shows `SkeletonRows` instead, never this. The action is `identifier` + "Action".
+/// `compact` is one status line with the action as a link, above a list that stays in place (Overview, #372).
 struct EmptyState: View {
     let title: String
     var detail = ""
     var symbol = "tray"
     var action: EmptyStateAction? = nil
     var identifier = "emptyState"
+    var compact = false
     var body: some View {
+        if compact {
+            StatusRow(text: title, symbol: symbol, action: action.map { StatusAction(title: $0.title, identifier: identifier + "Action", action: $0.perform) })
+                .accessibilityElement(children: .contain).accessibilityIdentifier(identifier)
+        } else {
+            full
+        }
+    }
+    private var full: some View {
         HStack(alignment: .top, spacing: CacheDropDesign.Space.lg) {
             Image(systemName: symbol).font(.title2).foregroundStyle(.secondary).frame(width: CacheDropDesign.Size.badge).accessibilityHidden(true)
             VStack(alignment: .leading, spacing: CacheDropDesign.Space.sm) {
@@ -464,7 +472,8 @@ extension ActionStrip where Leading == ActionStripMessage, Actions == EmptyView 
     init() { self.init(message: nil) { EmptyView() } }
 }
 /// Background work as one quiet line: a small spinner and "Checking <location>… 4 of 31", plus "+1 more" (Decisions 25, 46).
-/// A folder scan adds its phase and count, and small Stop scan and Return to scan buttons (#235).
+/// A folder scan adds its phase and count (#235); every folder scan, the automatic recheck too, adds a quiet `CloseButton` x
+/// labelled "Stop scan", and away from its screen a Return to scan link (#364).
 struct BackgroundWorkLine: View {
     let status: BackgroundWorkStatus
     var body: some View {
@@ -477,8 +486,8 @@ struct BackgroundWorkLine: View {
                 }
             }.font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary).monospacedDigit().lineLimit(1).truncationMode(.middle)
                 .help(status.line.text)
-            // The bar's work line holds links, never bordered buttons (#311).
-            if let stop = status.stop { Button("Stop scan", action: stop).buttonStyle(.link) }
+            // The bar's work line holds a quiet x and links, never bordered buttons (#311, #364).
+            if let stop = status.stop { CloseButton(label: "Stop scan", action: stop) }
             if let returnToScan = status.returnToScan { Button("Return to scan", action: returnToScan).buttonStyle(.link) }
         }.font(CacheDropDesign.TypeStyle.caption)
     }
@@ -1143,6 +1152,8 @@ extension View {
 extension CacheDropDesign {
     /// What a disabled Review cleanup or Clean up says while a scan runs (#308).
     static let waitForScanHelp = "Wait for the scan to finish"
+    /// The tooltip on the Cleanup plan's and Smart clean's selection totals (#370).
+    static let selectionEstimateHelp = "Sizes are estimates from the scan, not guaranteed space freed. Linked files count once. Each item is checked again just before CacheDrop acts on it."
 }
 
 /// A bar's main action while its click-time checks run (#308): a small spinner beside it, and the action ignores more
@@ -1162,16 +1173,17 @@ struct BusyAction<Content: View>: View {
 /// state (#321). Overview and the plan lead on to Explore storage; Smart clean has its "Not included" links instead.
 struct NothingToCleanUp: View {
     var identifier = "nothingToCleanUp"
+    var compact = false
     var action: EmptyStateAction? = nil
     var body: some View {
-        EmptyState(title: "Nothing to clean up right now", symbol: "checkmark.circle", action: action, identifier: identifier)
+        EmptyState(title: "Nothing to clean up right now", symbol: "checkmark.circle", action: action, identifier: identifier, compact: compact)
     }
 }
 
 /// The one button rule (#311). 1: every bordered button is a capsule, set once per root (the workspace window, each sheet,
 /// the Settings form) with `cacheDropButtonRule()`. 2: large in the bottom bar (`ActionStrip`) and sheet footers
 /// (`SheetFooter`), regular in page bodies, never small and bordered. 3: anything inside a row, status line, breadcrumb or
-/// the bar's work line is a link (`.buttonStyle(.link)`). 4: a sheet's footer is right-aligned, Cancel then the primary
+/// the bar's work line is a link (`.buttonStyle(.link)`), except the work line's Stop scan x (#364). 4: a sheet's footer is right-aligned, Cancel then the primary
 /// button; its one close style is `CloseButton`.
 extension View {
     func cacheDropButtonRule() -> some View { buttonBorderShape(.capsule) }
@@ -1191,13 +1203,14 @@ struct SheetFooter<Leading: View, Actions: View>: View {
 extension SheetFooter where Leading == EmptyView {
     init(@ViewBuilder actions: @escaping () -> Actions) { self.init(leading: { EmptyView() }, actions: actions) }
 }
-/// The one close style (#311): a borderless xmark in secondary text, at a sheet's or panel's top trailing corner.
+/// The one close style (#311): a borderless xmark in secondary text, at a sheet's or panel's top trailing corner, and
+/// the bar's Stop scan (#364). Its label is also its tooltip.
 struct CloseButton: View {
     var label = "Close"
     var identifier: String? = nil
     let action: () -> Void
     var body: some View {
         Button(label, systemImage: "xmark", action: action).labelStyle(.iconOnly).buttonStyle(.borderless)
-            .foregroundStyle(.secondary).modifier(OptionalIdentifier(identifier: identifier))
+            .foregroundStyle(.secondary).help(label).modifier(OptionalIdentifier(identifier: identifier))
     }
 }

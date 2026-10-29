@@ -91,7 +91,7 @@ private func rule(_ id: String, _ category: CatalogCategory, _ action: CleanupAc
     #expect(overview.proposedForTrash == .measured(0))
 }
 
-@Test func visibleRowsAreLargestFirstHideZeroBytesAndKeepUnknownLast() throws {
+@Test func visibleRowsAreLargestFirstKeepUnknownAfterTheSizedOnesAndListEmptyCategoriesLast() throws {
     let home = try overviewHome()
     try write(4096, at: "small/f", in: home)
     try write(16384, at: "large/f", in: home)
@@ -103,11 +103,40 @@ private func rule(_ id: String, _ category: CatalogCategory, _ action: CleanupAc
         try? FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: locked.path)
         try? FileManager.default.removeItem(at: home)
     }
-    let catalog = Catalog(rules: [rule("locked", .logs), rule("small", .browser), rule("empty", .models), rule("large", .developer)])
+    let catalog = Catalog(rules: [rule("missing", .updaters), rule("locked", .logs), rule("small", .browser), rule("empty", .models), rule("large", .developer)])
     let overview = CatalogOverview(catalog: catalog, candidates: catalog.discover(fixture: home))
-    #expect(overview.visibleRows.map(\.category) == [.developer, .browser, .logs])
     #expect(overview.rows.first { $0.category == .models }?.estimate == .measured(0), "An empty location is a 0-byte row")
-    #expect(!overview.visibleRows.contains { $0.estimate == .measured(0) })
+    // #372: a category that found nothing, or only 0 bytes, stays listed as Empty, below every other, in catalog order.
+    #expect(overview.visibleRows.map(\.category) == [.developer, .browser, .logs, .updaters, .models])
+    #expect(overview.visibleRows.map(\.isEmpty) == [false, false, false, true, true])
+}
+
+@Test func anEmptyCategoryWhoseRulesNeedFullDiskAccessSaysSoInsteadOfEmpty() throws {
+    let home = try overviewHome()
+    defer { try? FileManager.default.removeItem(at: home) }
+    let safari = rule("safari", .browser), logs = rule("logs", .logs)
+    let catalog = Catalog(rules: [safari, logs])
+    // Decision 62: a category CacheDrop couldn't read is never shown as nothing; it needs access, not "Empty".
+    let overview = CatalogOverview(catalog: catalog, candidates: catalog.discover(fixture: home), notAccessible: [safari])
+    #expect(overview.visibleRows.map(\.category) == [.browser, .logs])
+    #expect(overview.visibleRows.map(\.needsAccess) == [true, false])
+    #expect(CatalogOverview(catalog: catalog, candidates: []).visibleRows.allSatisfy { !$0.needsAccess })
+}
+
+@Test func overviewNeverListsAsEmptyACategoryItsScanCannotFill() throws {
+    let home = try overviewHome()
+    defer { try? FileManager.default.removeItem(at: home) }
+    func other(_ id: String, _ category: CatalogCategory, action: CleanupAction = .trash, fromPickedFolders: Bool = false, family: AppRuleFamily? = nil) -> CleanupRule {
+        CleanupRule(id: id, category: category, title: id, detail: "", consequence: "", regen: .userFile, action: action, locations: [], owner: nil,
+                    fromPickedFolders: fromPickedFolders, family: family)
+    }
+    // App-managed storage has its own row, large and old files come from picked folders, and apps are only what you chose
+    // to uninstall; files from deleted apps are found by the scan, so they are listed.
+    let catalog = Catalog(rules: [rule("cache", .browser), other("guide", .managed, action: .guidance), other("picked", .files, fromPickedFolders: true),
+                                  other("app", .apps, family: .appUninstall), other("plugin", .apps, family: .plugInUninstall),
+                                  other("left", .leftovers, family: .removedAppLeftovers)])
+    let overview = CatalogOverview(catalog: catalog, candidates: catalog.discover(fixture: home))
+    #expect(overview.visibleRows.map(\.category) == [.browser, .leftovers])
 }
 
 @Test func thePlanShowsRuleRowsOnlyWhenACategoryFoundSomethingForTwoOrMoreRules() throws {

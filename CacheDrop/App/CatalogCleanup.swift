@@ -79,7 +79,7 @@ import SwiftUI
     /// Rules whose owner keeps its data elsewhere by a setting; they offer nothing.
     private(set) var overriddenRules: [CleanupRule] = []
     /// Rules CacheDrop can't read without Full Disk Access (Safari's cache): shown as not accessible, never as 0.
-    private(set) var notAccessibleRules: [CleanupRule] = []
+    private(set) var notAccessibleRules: [CleanupRule] = [] { didSet { summaryChanged() } }
     /// Names of owners that were running at the last scan. Their items stay choosable; the checks refuse them.
     private(set) var runningOwners: Set<String> = []
     /// The running owners themselves, by name, and those whose app (not only a command-line tool) is open (#138).
@@ -194,7 +194,7 @@ import SwiftUI
         summary.value(at: summaryRevision) {
             // Nothing was read, so nothing is "nothing to review" (#310).
             if settingsUnreadable { return nil }
-            if hasScanned { return CatalogOverview(catalog: catalog, candidates: discovered) }
+            if hasScanned { return CatalogOverview(catalog: catalog, candidates: discovered, notAccessible: notAccessibleRules) }
             return scanProgress.flatMap { $0.finished > 0 ? CatalogOverview(catalog: catalog, candidates: $0.found) : nil }
         }
     }
