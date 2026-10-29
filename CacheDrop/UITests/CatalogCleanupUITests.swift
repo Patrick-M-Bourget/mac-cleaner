@@ -1737,7 +1737,7 @@ extension CatalogCleanupUITests {
         app.typeKey("1", modifierFlags: .command)
         let link = app.links["overviewSmartClean"]
         XCTAssertTrue(link.waitForExistence(timeout: 10))
-        XCTAssertTrue(link.label.hasPrefix("Smart clean · "), link.label)
+        XCTAssertEqual(link.label, "Smart clean ›")
         revealAndClick(link, in: app)
 
         // All ticked; the new installer is not in it, and Yarn can be unticked.
@@ -2326,7 +2326,7 @@ final class EmptyStateUITests: XCTestCase {
         let explore = empty.buttons["planEmptyAction"]
         XCTAssertEqual(explore.label, "Explore storage")
         revealAndClick(explore, in: app)
-        XCTAssertTrue(app.buttons["manageLocalRecords"].waitForExistence(timeout: 5), "With no scanned folder, it opens Locations & access")
+        XCTAssertTrue(app.descendants(matching: .any)["manageLocalRecords"].waitForExistence(timeout: 5), "With no scanned folder, it opens Locations & access")
     }
 
     /// #372: Overview on an empty home keeps every category listed as "Empty", with no Review link, and says there's
@@ -2359,7 +2359,7 @@ final class EmptyStateUITests: XCTestCase {
         let explore = empty.links["overviewEmptyAction"]
         XCTAssertEqual(explore.label, "Explore storage")
         revealAndClick(explore, in: app)
-        XCTAssertTrue(app.buttons["manageLocalRecords"].waitForExistence(timeout: 5), "With no scanned folder, it opens Locations & access")
+        XCTAssertTrue(app.descendants(matching: .any)["manageLocalRecords"].waitForExistence(timeout: 5), "With no scanned folder, it opens Locations & access")
     }
 
     /// Storage trends with no recorded scan says so and offers Scan now, which records the first baseline.
@@ -2376,7 +2376,7 @@ final class EmptyStateUITests: XCTestCase {
 
         // Clearing completed history forgets the baseline, so no scan is recorded.
         app.typeKey("7", modifierFlags: .command)
-        let manage = app.buttons["manageLocalRecords"]
+        let manage = app.descendants(matching: .any)["manageLocalRecords"]
         XCTAssertTrue(manage.waitForExistence(timeout: 5))
         revealAndClick(manage, in: app)
         app.buttons["clearHistory"].click()

@@ -86,7 +86,8 @@ struct ProtectedItemsEntry: View {
     var action: () -> Void
     var body: some View {
         SettingsRow(title: "Protected items", detail: "Files and folders CacheDrop leaves out of its scans.") {
-            Button("Manage protected items", action: action).accessibilityIdentifier("openProtectedItems")
+            // A quiet link; the page's buttons are its own actions (#426).
+            Button("Manage protected items", action: action).buttonStyle(.link).accessibilityIdentifier("openProtectedItems")
         }
     }
 }

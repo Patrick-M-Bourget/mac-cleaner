@@ -123,7 +123,8 @@ struct ApplicationsView: View {
             SettingsUnreadableNotice(model: catalog)
             if let approvalError { StatusRow(text: approvalError, symbol: "exclamationmark.circle", role: .caution) }
             if let status = model.status { StatusRow(text: status, identifier: "applicationsStatus") }
-            columnHeader
+            // Nothing listed yet: no Name and Size over empty states (#427).
+            if !model.apps.isEmpty || !model.plugIns.isEmpty || catalog.leftoversRow != nil { columnHeader }
             section("Apps", id: "apps", entries: model.apps, category: .apps, identifier: "applicationsApp-",
                     empty: ("No apps to list", "Only Apple’s apps are in the Applications folders."))
             section("Plug-ins", id: "plugIns", entries: model.plugIns, category: .audioPlugIns, identifier: "applicationsPlugIn-",

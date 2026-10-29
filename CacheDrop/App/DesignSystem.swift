@@ -18,6 +18,10 @@ enum CacheDropDesign {
         static let actionStripRow: CGFloat = 32
         /// A page's search field (#295), under its header's description (#352), as wide as the prototype's.
         static let searchField: CGFloat = 210
+        /// The sidebar's icon column (#424).
+        static let sidebarIcon: CGFloat = 20
+        /// The prototype's search field: 7 points above and below its text.
+        static let searchFieldHeight: CGFloat = 28
         /// A skeleton row's title and detail bars (#308), about the height of the text they stand in for.
         static let skeletonTitle: CGFloat = 11; static let skeletonDetail: CGFloat = 8
         /// How much wider a skeleton row's detail bar is than its title bar, as a share of the column (#308).
@@ -190,24 +194,29 @@ struct PageHeader: View {
         }.frame(maxWidth: .infinity, alignment: .leading)
     }
 }
-/// A page's one search field (#295), just under its header's description (#352): rounded with the row radius, as the
-/// prototype's (#352: a native rounded border read as too square), a plain prompt, and the accent ring while typing in it.
+/// A page's one search field (#295), just under its header's description (#352), drawn as the prototype's: 210 wide, an
+/// 8-point radius, a 1-point border and room around the text. As a Mac search field: a magnifying glass, a clear button
+/// once something is typed, and Esc clears it. The accent ring shows while typing in it. Clicking anywhere in it types there.
 struct PageSearchField: View {
     let label: String
     let prompt: String
     @Binding var text: String
     let identifier: String
     @FocusState private var focused: Bool
-    @Environment(\.colorSchemeContrast) private var contrast
     var body: some View {
-        TextField(label, text: $text, prompt: Text(prompt)).labelsHidden().textFieldStyle(.plain).focused($focused)
-            .padding(.horizontal, CacheDropDesign.Space.sm).padding(.vertical, CacheDropDesign.Space.xs)
-            .background(CacheDropDesign.reading, in: RoundedRectangle(cornerRadius: CacheDropDesign.Radius.row))
-            .overlay {
-                RoundedRectangle(cornerRadius: CacheDropDesign.Radius.row)
-                    .strokeBorder(focused ? Color.accentColor : CacheDropDesign.separator, lineWidth: focused || contrast == .increased ? 1 : 0.5)
+        HStack(spacing: CacheDropDesign.Space.xs) {
+            Image(systemName: "magnifyingglass").foregroundStyle(.secondary).accessibilityHidden(true)
+            TextField(label, text: $text, prompt: Text(prompt)).labelsHidden().textFieldStyle(.plain).focused($focused)
+                .onExitCommand { text = "" }.accessibilityIdentifier(identifier)
+            if !text.isEmpty {
+                Button { text = ""; focused = true } label: { Image(systemName: "xmark.circle.fill").foregroundStyle(.tertiary) }
+                    .buttonStyle(.plain).help("Clear search").accessibilityLabel("Clear search").accessibilityIdentifier(identifier + "Clear")
             }
-            .frame(width: CacheDropDesign.Size.searchField).accessibilityIdentifier(identifier)
+        }
+        .padding(.horizontal, CacheDropDesign.Space.sm).frame(width: CacheDropDesign.Size.searchField, height: CacheDropDesign.Size.searchFieldHeight)
+        .background(CacheDropDesign.reading, in: RoundedRectangle(cornerRadius: CacheDropDesign.Radius.row))
+        .overlay { RoundedRectangle(cornerRadius: CacheDropDesign.Radius.row).strokeBorder(focused ? Color.accentColor : CacheDropDesign.separator, lineWidth: 1) }
+        .contentShape(RoundedRectangle(cornerRadius: CacheDropDesign.Radius.row)).onTapGesture { focused = true }
     }
 }
 /// A list's sortable column header (#352, #373), as Explore storage's "Name … On disk": the name column's label, then,
@@ -668,7 +677,10 @@ struct CacheDropSidebarRow: View {
     var body: some View {
         Button(action: action) {
             HStack(spacing: CacheDropDesign.Space.sm) {
-                Label { Text(title).foregroundStyle(selected ? .primary : .secondary) } icon: { Image(systemName: symbol).foregroundStyle(accent) }
+                // One icon column, so every label starts at the same place whatever the symbol's width (#424).
+                Label { Text(title).foregroundStyle(selected ? .primary : .secondary) } icon: {
+                    Image(systemName: symbol).foregroundStyle(accent).frame(width: CacheDropDesign.Size.sidebarIcon)
+                }
                 Spacer(minLength: 0)
                 if let count = selectedCategories {
                     Text(String(max(0, count))).font(.caption2.weight(.medium)).monospacedDigit()
@@ -1010,7 +1022,9 @@ struct LocationScopeRow<Actions: View>: View {
     }
     var body: some View {
         HStack(alignment: .top, spacing: CacheDropDesign.Space.md) {
-            Toggle("Include " + name, isOn: $included).labelsHidden().disabled(!enabled || fixed)
+            // Always included: no checkbox to grey out, its place kept so the rows line up (Decision 51, #426).
+            if fixed { Color.clear.frame(width: CacheDropDesign.Size.checkbox, height: 1).accessibilityHidden(true) }
+            else { Toggle("Include " + name, isOn: $included).labelsHidden().disabled(!enabled) }
             ViewThatFits(in: .horizontal) {
                 HStack(alignment: .top, spacing: CacheDropDesign.Space.md) {
                     identity.frame(minWidth: 240, idealWidth: 240, maxWidth: .infinity)

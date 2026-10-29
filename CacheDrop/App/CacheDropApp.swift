@@ -394,11 +394,14 @@ private struct WorkspaceView: View {
                     Text("Recommended for review").font(CacheDropDesign.TypeStyle.section)
                     Spacer(minLength: CacheDropDesign.Space.md)
                     // Nothing known yet: the size is "—" and the rows are skeletons (#308).
+                    // What would go to the Trash isn't counted; the tooltip says so rather than a line under the list (#425).
                     Text(summary.map { recommendedText($0.recommended) } ?? CacheDropDesign.noValue)
                         .font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary).monospacedDigit().accessibilityIdentifier("overviewRecommendedTotal")
-                    // The recommended plan lives on its own page (#141): one quiet link to it.
+                        .help(trashNotCounted(summary))
+                    // The recommended plan lives on its own page (#141): one quiet link to it. Its size is on that page, so
+                    // the header shows one figure (#425).
                     if summary != nil, !catalog.recommendedCandidates.isEmpty {
-                        Button("Smart clean · " + catalog.recommendedSizeText + " ›") { navigate(.smartClean) }
+                        Button("Smart clean ›") { navigate(.smartClean) }
                             .buttonStyle(.link).font(CacheDropDesign.TypeStyle.caption).accessibilityIdentifier("overviewSmartClean")
                     }
                 }
@@ -436,9 +439,6 @@ private struct WorkspaceView: View {
                     FullDiskAccessNote(places: catalog.notAccessibleRules.map(\.title)).accessibilityIdentifier("overviewNotAccessible")
                 }
                 TrashNote()
-                if let trash = summary?.proposedForTrash, trash != .measured(0) {
-                    Text("Doesn’t include " + trash.text + " that would go to the Trash.").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
-                }
                 if !catalog.guidance.isEmpty {
                     RecommendationGroup {
                         StorageReviewRow(category: .managed, title: "App-managed storage", detail: "", value: CacheDropDesign.items(catalog.guidance.count),
@@ -478,6 +478,11 @@ private struct WorkspaceView: View {
     private func openPlan(_ categories: [CatalogCategory]) {
         navigate(.plan)
         planPresentation.expandedCategories.formUnion(categories)
+    }
+    /// The recommended total's tooltip: what would go to the Trash isn't counted in it (#425).
+    private func trashNotCounted(_ summary: CatalogOverview?) -> String {
+        guard let trash = summary?.proposedForTrash, trash != .measured(0) else { return "" }
+        return "Doesn’t include " + trash.text + " that would go to the Trash."
     }
     /// SPEC section 6: an estimate, and an upper bound because clones share blocks.
     private func recommendedText(_ estimate: SizeEstimate) -> String {

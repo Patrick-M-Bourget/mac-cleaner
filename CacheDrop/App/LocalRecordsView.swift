@@ -5,7 +5,8 @@ struct LocalRecordsEntry: View {
     var action: () -> Void
     var body: some View {
         SettingsRow(title: "Saved data", detail: "Clear History, or reset CacheDrop’s settings.") {
-            Button("Manage saved data", action: action).accessibilityIdentifier("manageLocalRecords")
+            // A quiet link; the page's buttons are its own actions (#426).
+            Button("Manage saved data", action: action).buttonStyle(.link).accessibilityIdentifier("manageLocalRecords")
         }
     }
 }
