@@ -112,28 +112,25 @@ extension StorageBreakdown.Part {
     }
 }
 
-/// The startup volume's card, on Overview and on Smart clean (#347): one component, reading one capacity, so both show
-/// the same bar. Smart clean's highlights what its ticked items would free.
+/// Overview's startup volume card (#347): the capacity reading with what CacheDrop found at the bar's tip. Smart clean
+/// shows the plan's summary card instead (#370).
 struct StartupVolumeCard: View {
     let catalog: CatalogCleanupModel
-    var highlightingSmartClean = false
     let open: (StorageBreakdown.Part) -> Void
     private var capacity: CapacityRefreshController { AppLifecycleController.shared.capacity }
     var body: some View {
         let reading = capacity.reading
         VolumeSummary(available: reading?.available, total: reading?.total, observation: capacity.observationText, status: capacity.statusText,
                       refreshTitle: "Try again", refreshing: capacity.isRefreshing, refresh: { capacity.request(.manual) },
-                      breakdown: catalog.breakdown(available: reading?.available, total: reading?.total, trash: TrashModel.shared.contents,
-                                                   highlightingSmartClean: highlightingSmartClean),
+                      breakdown: catalog.breakdown(available: reading?.available, total: reading?.total, trash: TrashModel.shared.contents),
                       open: open)
     }
 }
 
 extension CatalogCleanupModel {
-    /// The meter's segments for a capacity reading: Overview's categories, the Trash, and on Smart clean what it would free.
-    func breakdown(available: Int64?, total: Int64?, trash: TrashContents?, highlightingSmartClean: Bool = false) -> StorageBreakdown? {
+    /// The meter's segments for a capacity reading: Overview's categories and the Trash.
+    func breakdown(available: Int64?, total: Int64?, trash: TrashContents?) -> StorageBreakdown? {
         guard let available, let total = CapacityMeter.validTotal(available: available, total: total), let overview else { return nil }
-        return StorageBreakdown(used: total - available, total: total, overview: overview, trash: trash ?? .unknown,
-                                highlighting: highlightingSmartClean ? smartCleanCandidates : nil)
+        return StorageBreakdown(used: total - available, total: total, overview: overview, trash: trash ?? .unknown)
     }
 }

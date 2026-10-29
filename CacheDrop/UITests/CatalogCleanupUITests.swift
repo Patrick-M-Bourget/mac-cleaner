@@ -1627,9 +1627,10 @@ extension CatalogCleanupUITests {
         XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: chosen, object: installer)], timeout: 15), .completed, "The installer is still chosen")
     }
 
-    /// #343, #344, #347: what CacheDrop found ends at the right tip of the used space, each segment's label names it (the
-    /// tooltip carries the same text; this journey reads the label), and Smart clean shows Overview's whole startup volume card.
-    @MainActor func testStorageBarsPutWhatWasFoundAtTheTipNameEachSegmentAndSmartCleanReusesTheCard() throws {
+    /// #343, #344: what CacheDrop found ends at the right tip of the used space and each segment's label names it (the
+    /// tooltip carries the same text; this journey reads the label). #370: Smart clean shows the Cleanup plan's summary
+    /// card, "Ready to clean", not Overview's volume card, and its title is just "Smart clean".
+    @MainActor func testStorageBarsPutWhatWasFoundAtTheTipAndSmartCleanShowsThePlansSummaryCard() throws {
         continueAfterFailure = false
         let app = XCUIApplication()
         let state = try configureIsolatedState(app)
@@ -1646,10 +1647,20 @@ extension CatalogCleanupUITests {
         XCTAssertTrue(developer.label.hasPrefix("Developer caches and build files · up to "), developer.label)
 
         app.typeKey("2", modifierFlags: .command)
-        let card = app.descendants(matching: .any)["smartCleanMeter"]
-        XCTAssertTrue(card.waitForExistence(timeout: 10))
-        XCTAssertTrue(card.staticTexts["startupCapacityAmount"].exists, "The whole card: its available space too")
-        XCTAssertTrue(card.descendants(matching: .any)["meterSegment-developer"].exists)
+        let header = app.descendants(matching: .any)["smartCleanHeader"]
+        XCTAssertTrue(header.waitForExistence(timeout: 10))
+        XCTAssertTrue(header.label.hasPrefix("Smart clean"), header.label)
+        XCTAssertFalse(header.label.contains("ready to clean"), "The card says it, so the title doesn't repeat it")
+        let detail = app.staticTexts["smartCleanSummary"]
+        XCTAssertTrue(detail.waitForExistence(timeout: 10))
+        let selected = NSPredicate(format: "value MATCHES %@ OR label MATCHES %@", "[1-9][0-9]* items? selected", "[1-9][0-9]* items? selected")
+        XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: selected, object: detail)], timeout: 10), .completed, detail.debugDescription)
+        XCTAssertTrue(app.staticTexts["Ready to clean"].exists)
+        let value = app.staticTexts["smartCleanSummaryValue"]
+        XCTAssertTrue(value.exists)
+        XCTAssertNotEqual(value.value as? String ?? value.label, "—", "The ticked caches release space")
+        XCTAssertFalse(app.descendants(matching: .any)["meterSegments"].exists, "No storage bar on Smart clean")
+        XCTAssertFalse(app.staticTexts["startupCapacityAmount"].exists, "Overview's volume card stays on Overview")
     }
 
     /// #355: while a cleanup runs, Cleaning up shows Overview's card with an "X freed" tag at the bar's tip and the run's
@@ -1881,22 +1892,19 @@ extension CatalogCleanupUITests {
         func text(_ line: String) -> XCUIElementQuery { app.staticTexts.matching(NSPredicate(format: "label == %@ OR value == %@", line, line)) }
         XCTAssertEqual(text("Goes to the Trash; Put back works").count, 2, "Installers and leftovers")
         XCTAssertEqual(text("Comes back on its own when your tools and Xcode need it; some tools clean their own").count, 1)
-        // #343: the ticked installers and leftover go to the Trash, so the bar draws them as the Trash's, at the tip.
-        let toTrash = app.descendants(matching: .any)["meterSegment-goingToTrash"].firstMatch
-        XCTAssertTrue(toTrash.exists)
-        XCTAssertTrue(toTrash.label.hasPrefix("Goes to the Trash · "), toTrash.label)
-        let releasing = app.descendants(matching: .any)["smartCleanMeter"].descendants(matching: .any)["meterSegment-developer"]
-        XCTAssertGreaterThan(toTrash.frame.minX, releasing.frame.maxX, "After the categories, at the tip, beside the Trash")
-        // #350: the title counts only what is released, so unticking the Trash-bound installers leaves it as it is.
-        let header = app.descendants(matching: .any)["smartCleanHeader"], titleBefore = header.label
+        // #350, #370: "Ready to clean" counts only what is released, so unticking the Trash-bound installers leaves its
+        // total as it is; the item count drops by the installer.
+        let total = app.staticTexts["smartCleanSummaryValue"], count = app.staticTexts["smartCleanSummary"]
+        let read = { (element: XCUIElement) in element.value as? String ?? element.label }
+        let totalBefore = read(total), countBefore = read(count)
 
-        // #350: unticking the Trash-bound installers changes nothing above the bar.
         let developerTop = developer.frame.minY
         revealAndClick(downloads, in: app)
         XCTAssertEqual(downloads.value as? Int, 0)
         XCTAssertEqual(developer.value as? Int, 1)
-        XCTAssertEqual(developer.frame.minY, developerTop, "Nothing above the bar moved")
-        XCTAssertEqual(header.label, titleBefore, "Installers go to the Trash and were never in the total")
+        XCTAssertEqual(developer.frame.minY, developerTop, "Nothing above the categories moved")
+        XCTAssertEqual(read(total), totalBefore, "Installers go to the Trash and were never in the total")
+        XCTAssertNotEqual(read(count), countBefore, "The unticked installer leaves the count")
         app.buttons["smartCleanCleanUp"].click()
 
         XCTAssertTrue(reviewLine(app, "permanentlyRemoved", "developer").waitForExistence(timeout: 10), "The npm cache")
