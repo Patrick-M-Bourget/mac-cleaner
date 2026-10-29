@@ -111,6 +111,18 @@ private func rule(_ id: String, _ category: CatalogCategory, _ action: CleanupAc
     #expect(overview.visibleRows.map(\.isEmpty) == [false, false, false, true, true])
 }
 
+@Test func anEmptyCategoryWhoseRulesNeedFullDiskAccessSaysSoInsteadOfEmpty() throws {
+    let home = try overviewHome()
+    defer { try? FileManager.default.removeItem(at: home) }
+    let safari = rule("safari", .browser), logs = rule("logs", .logs)
+    let catalog = Catalog(rules: [safari, logs])
+    // Decision 62: a category CacheDrop couldn't read is never shown as nothing; it needs access, not "Empty".
+    let overview = CatalogOverview(catalog: catalog, candidates: catalog.discover(fixture: home), notAccessible: [safari])
+    #expect(overview.visibleRows.map(\.category) == [.browser, .logs])
+    #expect(overview.visibleRows.map(\.needsAccess) == [true, false])
+    #expect(CatalogOverview(catalog: catalog, candidates: []).visibleRows.allSatisfy { !$0.needsAccess })
+}
+
 @Test func overviewNeverListsAsEmptyACategoryItsScanCannotFill() throws {
     let home = try overviewHome()
     defer { try? FileManager.default.removeItem(at: home) }

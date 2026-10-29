@@ -45,6 +45,8 @@ public struct CatalogOverview: Sendable {
         public var planLayout: PlanLayout { rules.count > 1 ? .ruleRows : itemCount > 1 || rules.contains(where: \.selectedOneByOne) ? .items : .categoryOnly }
         /// Found nothing, or only 0 bytes: Overview lists it as "Empty" (#372). Unknown is never empty.
         public var isEmpty: Bool { estimate == .measured(0) }
+        /// Empty only because one of its rules needs Full Disk Access CacheDrop doesn't have: it says so, never "Empty" (62).
+        public var needsAccess = false
     }
     /// The category's checkbox is the only choice (one rule, one item); its items without a rule row (one rule,
     /// several items, or items chosen one by one, which the category's checkbox never chooses, #240); or a row per rule
@@ -58,8 +60,10 @@ public struct CatalogOverview: Sendable {
     /// The categories Overview's scan can fill, in catalog order, for its empty rows (#372). Not App-managed storage, which
     /// has its own row, nor large and old files (picked folders only) or apps and plug-ins (only what you chose to uninstall).
     private let categories: [CatalogCategory]
+    /// The categories of rules that weren't read for lack of Full Disk Access (`CatalogDiscovery.notAccessible`).
+    private let notAccessible: Set<CatalogCategory>
 
-    public init(catalog: Catalog, candidates: [Candidate]) {
+    public init(catalog: Catalog, candidates: [Candidate], notAccessible: [CleanupRule] = []) {
         var order: [CatalogCategory] = []
         for rule in catalog.rules where !order.contains(rule.category) && candidates.contains(where: { $0.ruleID == rule.id }) {
             order.append(rule.category)
@@ -78,6 +82,7 @@ public struct CatalogOverview: Sendable {
             categories.append(rule.category)
         }
         self.categories = categories
+        self.notAccessible = Set(notAccessible.map(\.category))
     }
 
     /// How many rows Overview shows before "Show N more".
@@ -91,8 +96,10 @@ public struct CatalogOverview: Sendable {
                 return a != b ? a > b : left.offset < right.offset
             }.map(\.element)
         let empty = categories.compactMap { category -> Row? in
-            guard let row = rows.first(where: { $0.category == category }) else { return Row(category: category, rules: [], estimate: .measured(0), itemCount: 0) }
-            return row.isEmpty ? row : nil
+            var row = rows.first(where: { $0.category == category }) ?? Row(category: category, rules: [], estimate: .measured(0), itemCount: 0)
+            guard row.isEmpty else { return nil }
+            row.needsAccess = notAccessible.contains(category)
+            return row
         }
         return found + empty
     }

@@ -450,9 +450,11 @@ private struct WorkspaceView: View {
     }
     @ViewBuilder private func catalogRow(_ row: CatalogOverview.Row) -> some View {
         if row.isEmpty {
-            // Found nothing: "Empty", muted, with no Review link (#372); "—" while a scan may still find something.
+            // Found nothing: "Empty", muted, with no Review link (#372); "Needs access" when it couldn't be read (62); "—" while a
+            // scan may still find something.
             StorageReviewRow(category: row.category.storageCategory, title: row.category.overviewTitle, detail: row.category.overviewDetail,
-                             value: selection.catalog.isScanning ? "—" : "Empty", identifier: "overviewCategory-" + row.id, mutedValue: true)
+                             value: selection.catalog.isScanning ? "—" : row.needsAccess ? "Needs access" : "Empty",
+                             identifier: "overviewCategory-" + row.id, mutedValue: true)
         } else {
             foundCatalogRow(row)
         }
