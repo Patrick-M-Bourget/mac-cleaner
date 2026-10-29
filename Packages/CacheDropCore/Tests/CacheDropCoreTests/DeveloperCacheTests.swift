@@ -181,16 +181,16 @@ private func homebrewRun(_ home: URL, script: String, timeout: TimeInterval? = n
     // A stand-in brew that starts its own child, like the real one does.
     let length = uniqueSleep(), lifetime = MarkedProcessLifetime(length), pids = home.appendingPathComponent("pids")
     let script = "echo started\n\(recordPid("$$", in: pids))\nsleep \(length) &\n\(recordPid("$!", in: pids))\nexec sleep \(length)"
-    let result = try await homebrewRun(home, script: script, timeout: 0.5)
+    let result = try await homebrewRun(home, script: script, timeout: childStartedLimit)
     let left = stillRunning(recordedPids(pids))
     // Stopped at the limit, not left to finish its sleep: the tool, timed alone, lived the limit plus the stop's grace at most.
-    #expect(lifetime.seconds < 0.5 + BoundedTool.stopGrace + 1)
+    #expect(lifetime.seconds < childStartedLimit + BoundedTool.stopGrace + 1)
     left.forEach { kill($0, SIGKILL) }
-    #expect(recordedPids(pids).count == 2)
+    #expect(recordedPids(pids).count == 2, "The stand-in starts its child before the time limit")
     #expect(left.isEmpty)
     let record = try #require(result.records.first)
     #expect(record.state == .failed)
-    #expect(record.message == "Stopped at the 1-second time limit. brew cleanup -s may have cleaned part of it; the folder was left in place.")
+    #expect(record.message == "Stopped at the 2-second time limit. brew cleanup -s may have cleaned part of it; the folder was left in place.")
     #expect(record.partlyRemoved == true)
     #expect(record.toolOutput == "started")
     #expect(FileManager.default.fileExists(atPath: home.appendingPathComponent("Library/Caches/Homebrew/entry").path))
