@@ -584,11 +584,9 @@ final class ScannedLocationsUITests: XCTestCase {
         let home = try configureCatalogHome(app)
         let folder = FileManager.default.temporaryDirectory.resolvingSymlinksInPath().appendingPathComponent("CacheDropPicked-" + UUID().uuidString)
         let locked = folder.appendingPathComponent("Locked")
-        defer {
-            app.terminate()
-            try? FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: locked.path)
-            try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home); try? FileManager.default.removeItem(at: folder)
-        }
+        // Removed when the test ends, locked subfolder and all, and swept after a killed run (`FixtureFolders`).
+        FixtureFolders.track(folder)
+        defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
         try FileManager.default.createDirectory(at: locked, withIntermediateDirectories: true)
         try Data(repeating: 1, count: 4_000).write(to: folder.appendingPathComponent("entry.zip"))
         try FileManager.default.setAttributes([.posixPermissions: 0o000], ofItemAtPath: locked.path)
