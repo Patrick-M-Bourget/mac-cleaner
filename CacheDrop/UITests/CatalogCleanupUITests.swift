@@ -1197,10 +1197,12 @@ extension CatalogCleanupUITests {
         let folder = FileManager.default.temporaryDirectory.resolvingSymlinksInPath().appendingPathComponent("CacheDropPicked-" + UUID().uuidString)
         defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home); try? FileManager.default.removeItem(at: folder) }
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-        // Sparse: 600 MB long, so it is large, but it takes no real disk space.
+        // 600 MB on disk, so it is large (#394: a sparse file isn't), preallocated rather than written; removed with the folder.
         let large = folder.appendingPathComponent("large-video.mov")
         try Data(repeating: 1, count: 4_000).write(to: large)
-        let handle = try FileHandle(forWritingTo: large); try handle.truncate(atOffset: 600_000_000); try handle.close()
+        let fd = open(large.path, O_RDWR)
+        var store = fstore_t(fst_flags: UInt32(F_ALLOCATEALL), fst_posmode: F_PEOFPOSMODE, fst_offset: 0, fst_length: 600_000_000, fst_bytesalloc: 0)
+        XCTAssertEqual(fcntl(fd, F_PREALLOCATE, &store), 0); XCTAssertEqual(ftruncate(fd, 600_000_000), 0); close(fd)
         app.launch()
         XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
 

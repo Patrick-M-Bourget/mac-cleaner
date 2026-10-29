@@ -18,9 +18,10 @@ public enum UserFiles {
         regen: .userFile, action: .trash, locations: [], owner: nil,
         protectedExtensions: BuiltInCatalog.downloadsProtectedExtensions, fromPickedFolders: true)
 
-    /// The scan's files that are large or old, largest first. Read-only.
+    /// The scan's files that are large or old, largest first. Read-only. `large` is `largeBytes` except in tests, which can't
+    /// afford files that really take 500 MB on disk.
     public static func candidates(in scan: ScanResult, rule: CleanupRule = rule, exclusions: ExclusionPolicy = ExclusionPolicy(),
-                                  home: URL, now: Date = Date()) -> [Candidate] {
+                                  home: URL, now: Date = Date(), large: Int64 = largeBytes) -> [Candidate] {
         // The scope and its items in canonical form, so containment holds for `/var` against `/private/var`.
         guard let scopePath = realPath(scan.scope.path) else { return [] }
         let catalog = Catalog(rules: [rule]), scope = URL(fileURLWithPath: scopePath, isDirectory: true)
@@ -29,7 +30,8 @@ public enum UserFiles {
         if GitCheckout.encloses(scope, upTo: nil, home: home) { return [] }
         let cutoff = now.addingTimeInterval(-Double(unusedDays) * .secondsPerDay)
         var seen = Set<String>(), found: [Candidate] = []
-        for item in scan.observations.filter({ $0.kind == .file }).sorted(by: { ($0.logicalBytes ?? 0) > ($1.logicalBytes ?? 0) }) {
+        // Largest on disk first (#394): a sparse disk image sorts by what it uses, not its logical size.
+        for item in scan.observations.filter({ $0.kind == .file }).sorted(by: { ($0.allocatedBytes ?? $0.logicalBytes ?? 0) > ($1.allocatedBytes ?? $1.logicalBytes ?? 0) }) {
             guard found.count < listLimit else { break }
             var info = stat()
             guard lstat(item.url.path, &info) == 0, info.st_mode & S_IFMT == S_IFREG, info.resourceID == item.resourceID,
@@ -39,11 +41,12 @@ public enum UserFiles {
                   protection.protectedComponent(of: url, below: scope) == nil, protectedFolder(of: url, home: home) == nil, !GitCheckout.encloses(url, upTo: scope, home: home) else { continue }
             let volume = try? url.resourceValues(forKeys: [.volumeUUIDStringKey]).volumeUUIDString
             if !exclusions.rules.isEmpty, volume.map({ exclusions.covers(url, volumeID: $0) }) ?? true { continue }
-            let size = Int64(info.st_size)
-            if size < largeBytes, statDates(info).max()! > cutoff { continue }
+            // Large is what it takes on disk (#394), as the row shows it.
+            let onDisk = Int64(info.st_blocks) * 512
+            if onDisk < large, statDates(info).max()! > cutoff { continue }
             let lastUsed = Catalog.lastUsed(url, info)
-            guard size >= largeBytes || lastUsed <= cutoff else { continue }
-            found.append(catalog.candidate(rule, url, info, logical: size, allocated: Int64(info.st_blocks) * 512, complete: true, lastUsed: lastUsed).found(under: scope))
+            guard onDisk >= large || lastUsed <= cutoff else { continue }
+            found.append(catalog.candidate(rule, url, info, logical: Int64(info.st_size), allocated: onDisk, complete: true, lastUsed: lastUsed).found(under: scope))
         }
         return found
     }
