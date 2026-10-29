@@ -20,9 +20,11 @@ public enum BackgroundJob: Hashable, Sendable {
         switch self {
         case .catalogScan: catalogProgress
         case .folderRecheck: "Checking for changes…"
-        case .folderScan(let folder): "Scanning \(folder)…"
+        case .folderScan(let folder): Self.scanning(folder) + "…"
         }
     }
+    /// A folder scan's name, which the line follows with its phase or an ellipsis.
+    fileprivate static func scanning(_ folder: String) -> String { "Scanning \(folder)" }
     /// Work that starts at the same moment, as Scan again's two scans do, is ordered folder scans first.
     fileprivate var startOrder: Int { if case .catalogScan = self { 1 } else { 0 } }
 }
@@ -59,7 +61,7 @@ public struct BackgroundWork: Equatable, Sendable {
         guard let first = running.first else { return nil }
         var parts: [Line.Part]
         if case .folderScan(let folder) = first, let folderPhase {
-            parts = [.init(id: first.identifier, text: "Scanning \(folder)"), .init(id: "scanPhase", text: folderPhase.progressText)]
+            parts = [.init(id: first.identifier, text: BackgroundJob.scanning(folder)), .init(id: "scanPhase", text: folderPhase.progressText)]
             if let inspectedEntries { parts.append(.init(id: "scanProgressSummary", text: "\(inspectedEntries) \(inspectedEntries == 1 ? "entry" : "entries") inspected")) }
         } else {
             parts = [.init(id: first.identifier, text: first.text(catalogProgress: catalogProgress))]
