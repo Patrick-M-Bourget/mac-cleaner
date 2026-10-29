@@ -750,3 +750,11 @@ private struct NothingRunning: RunningAppChecking { func isRunning(_ owner: Rule
     #expect(later.settledLine(checked: false) == nil)
     #expect(later.settledLine(checked: true) == "Couldn’t check the disk again a minute later")
 }
+
+/// #419: one short line per plan row (Decision 25).
+@Test func dockerRowsHaveOneShortLineOfDetail() {
+    let catalog = Catalog(rules: fixtureRules)
+    #expect(catalog.rule("docker-containers")?.detail == "Containers that aren’t running. Size is an estimate.")
+    #expect(catalog.rule("docker-images")?.detail == "Images no running container uses. Size is an estimate.")
+    #expect(catalog.rule("docker-build-cache")?.detail == "Layers Docker kept to speed up builds. Size is an estimate.")
+}
