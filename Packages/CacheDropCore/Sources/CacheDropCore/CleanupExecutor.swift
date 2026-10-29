@@ -29,17 +29,7 @@ public struct CatalogExecutionResult: Sendable {
     /// What the scan sized before cleanup (allocated where known), for the approved items.
     public let estimatedBytes: Int64
     /// Sum of the available-space change read around each removed item; nil when any reading is missing.
-    public var measuredFreedBytes: Int64? {
-        // An item that finished after the stop (#209) freed its space after the run, where nothing measured it.
-        let removed = records.filter { $0.state == .succeeded && $0.cleanupAction != .trash && !$0.finishedAfterStop }
-        guard !previewOnly else { return nil }
-        var total: Int64 = 0
-        for record in removed {
-            guard let change = record.itemCapacity?.observedChange else { return nil }
-            total += change
-        }
-        return total
-    }
+    public var measuredFreedBytes: Int64? { previewOnly ? nil : records.measuredFreedBytes }
     /// Results' line under the measured freed space once the disk was read again a minute after completed Docker prunes
     /// (#411). It isn't added to the measured freed space. Before the check (`checked` false) there is none; a check that
     /// couldn't read the disk says so, so Results' "check again" is always answered.

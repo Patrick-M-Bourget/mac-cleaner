@@ -40,7 +40,7 @@ extension CleanupRecord {
                   logicalBytes: original.logicalBytes, allocatedBytes: original.allocatedBytes, state: .pending, trashURL: nil,
                   message: "Approved; not started", observedAt: date, scopeURL: trashURL.deletingLastPathComponent(), scopeResourceID: "",
                   volumeID: original.volumeID, downloadsURL: nil, downloadsResourceID: nil, modifiedSeconds: original.modifiedSeconds,
-                  modifiedNanoseconds: original.modifiedNanoseconds, action: Self.emptyFromTrashAction, policyVersion: 2, capacityObservation: nil,
+                  modifiedNanoseconds: original.modifiedNanoseconds, action: Self.emptyFromTrashAction, policyVersion: 2,
                   outcomeRecordedAt: nil, approvedAt: date, ruleID: original.ruleID, previewOnly: previewOnly, itemName: original.itemName)
         emptyOf = original.id
     }
@@ -107,10 +107,18 @@ public struct TrashEmptyingResult: Sendable {
 }
 
 extension Array where Element == CleanupRecord {
-    /// The sum of the available-space change around each succeeded record; nil when any reading is missing.
+    /// True when the run moved something to the Trash and removed nothing else: nothing is freed until the Trash is emptied,
+    /// so Results and History show no measured freed space (Decision 66).
+    public var movedOnlyToTrash: Bool {
+        let succeeded = filter { $0.state == .succeeded }
+        return succeeded.contains { $0.cleanupAction == .trash } && succeeded.allSatisfy { $0.cleanupAction == .trash }
+    }
+    /// The sum of the available-space change read around each removed item; nil when any reading is missing. A Trash move
+    /// frees nothing yet, and an item that finished after the stop (#209) freed its space where nothing measured it. Results,
+    /// History and Empty from Trash all read it (#433).
     var measuredFreedBytes: Int64? {
         var total: Int64 = 0
-        for record in self where record.state == .succeeded {
+        for record in self where record.state == .succeeded && record.cleanupAction != .trash && !record.finishedAfterStop {
             guard let change = record.itemCapacity?.observedChange else { return nil }
             total += change
         }

@@ -50,7 +50,7 @@ extension CleanupRecord {
                   logicalBytes: original.logicalBytes, allocatedBytes: original.allocatedBytes, state: .pending, trashURL: original.trashURL,
                   message: "Approved; not started", observedAt: date, scopeURL: original.scopeURL, scopeResourceID: original.scopeResourceID,
                   volumeID: original.volumeID, downloadsURL: nil, downloadsResourceID: nil, modifiedSeconds: original.modifiedSeconds,
-                  modifiedNanoseconds: original.modifiedNanoseconds, action: Self.putBackAction, policyVersion: 2, capacityObservation: nil,
+                  modifiedNanoseconds: original.modifiedNanoseconds, action: Self.putBackAction, policyVersion: 2,
                   outcomeRecordedAt: nil, approvedAt: date, ruleID: original.ruleID, itemName: original.itemName)
         putBackOf = original.id
     }
