@@ -36,6 +36,14 @@ public struct CatalogExecutionResult: Sendable {
     }
     /// The candidates the run cleaned, or would have in a dry run, by id: they leave every page's selection (#349).
     public var cleanedCandidateIDs: [String] { records.filter { $0.state == .succeeded || $0.wasPreviewed }.map(\.candidateID) }
+    /// The rows the pages keep, dimmed, while the rescan after this run runs (#375): what they showed, minus what the run
+    /// cleaned, so a cleaned item never shows as still there and the rest never vanish until the rescan replaces them.
+    /// A dry run changed nothing, so it keeps every row.
+    public func keptDuringRescan(_ shown: [Candidate]) -> [Candidate] {
+        guard !previewOnly else { return shown }
+        let cleaned = Set(cleanedCandidateIDs)
+        return shown.filter { !cleaned.contains($0.id) }
+    }
     /// Space held in Trash, never counted as freed.
     public var movedToTrashBytes: Int64 {
         records.filter { $0.state == .succeeded && $0.cleanupAction == .trash }.reduce(0) { $0 + ($1.allocatedBytes ?? $1.logicalBytes) }

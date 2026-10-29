@@ -249,7 +249,7 @@ final class ApplicationsUITests: XCTestCase {
     }
 
     /// #303, #306: an uninstall rescans when it ends. After Done, while that scan runs, the bar shows its progress and the
-    /// other app's row stays, dimmed (#308); then its checkbox comes back.
+    /// other app's row stays, dimmed with its checkbox disabled (#308, #375); then it can be clicked again.
     @MainActor func testApplicationsRescansAfterAnUninstallAndRowsWaitDimmed() throws {
         continueAfterFailure = false
         let app = XCUIApplication()
@@ -273,11 +273,14 @@ final class ApplicationsUITests: XCTestCase {
         app.buttons["Done"].click()
 
         XCTAssertTrue(app.staticTexts["catalogScanProgress"].waitForExistence(timeout: 10), "The run rescans, and the bar shows its progress")
-        // #308: the row stays listed, dimmed and without its checkbox, until the rescan says what can go with it.
-        XCTAssertTrue(element(app, "applicationsApp-" + pad.path).waitForExistence(timeout: 5), "The row stays listed during the rescan")
+        // #308, #375: the row stays listed with its checkbox, dimmed and disabled, until the rescan replaces it.
         let padRow = element(app, "applicationsApp-" + pad.path, .checkBox)
-        XCTAssertFalse(padRow.exists, "No checkbox until the scan says what can go with it")
-        XCTAssertTrue(padRow.waitForExistence(timeout: 120), "Its checkbox comes back after the scan")
+        XCTAssertTrue(padRow.waitForExistence(timeout: 5), "The row stays listed during the rescan")
+        XCTAssertFalse(padRow.isEnabled, "It can't be clicked until the scan ends")
+        let enabled = NSPredicate(format: "isEnabled == true")
+        XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: enabled, object: padRow)], timeout: 120), .completed,
+                       "It can be clicked again after the scan")
+        XCTAssertTrue(app.staticTexts["catalogScanProgress"].waitForNonExistence(timeout: 120))
     }
 
     /// #306: Put back from History rescans, so the app it returned is listed on Applications again without Scan again.

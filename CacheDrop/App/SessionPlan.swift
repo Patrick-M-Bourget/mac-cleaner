@@ -153,7 +153,7 @@ struct RefreshRequest: Sendable {
     func executeWorkspace(_ review: WorkspaceCleanupReview) async throws {
         guard canReview(review.source), catalog.selectionRevision(for: review.source) == review.catalogVersion else { throw PlanReviewError.changed }
         await run(review)
-        // A run empties the catalog, so CacheDrop scans again by itself, whichever page is open (#306).
+        // CacheDrop scans again by itself, whichever page is open (#306); the pages keep the rows the run left, dimmed, until it ends (#375).
         await catalog.rescan()
     }
     private func run(_ review: WorkspaceCleanupReview) async {
