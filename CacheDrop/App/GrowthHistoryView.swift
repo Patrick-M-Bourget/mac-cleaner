@@ -38,14 +38,14 @@ import CacheDropCore
             comparison = value; error = nil
         } catch {
             guard request == current, !Task.isCancelled else { return }
-            comparison = nil; self.error = "Storage trends history is unavailable. No growth can be inferred from missing scans."
+            comparison = nil; self.error = "CacheDrop couldn’t read its saved scans, so it can’t show trends."
         }
     }
 
     /// Before a catalog scan: captures the history's epoch and the home folder's identity.
     func beginCatalog(home: URL, exclusionFingerprint: String) async -> GrowthScanToken? {
         do { return try await GrowthScanRecorder(store: store()).beginCatalog(home: home, exclusionFingerprint: exclusionFingerprint) }
-        catch { self.error = "The home folder’s identity couldn’t be checked, so this scan isn’t recorded in Storage trends."; return nil }
+        catch { self.error = "CacheDrop couldn’t check your home folder, so this scan isn’t saved for Storage trends."; return nil }
     }
 
     /// After a completed catalog scan: records it per category and location and shows the new comparison.
@@ -58,7 +58,7 @@ import CacheDropCore
                                                                                  afterCleanup: afterCleanup)
             if result.state != .unknown { comparison = result }
             error = nil
-        } catch { self.error = "This scan couldn’t be saved to Storage trends. Current results are still usable." }
+        } catch { self.error = "This scan couldn’t be saved for Storage trends. Its results are still shown." }
     }
 
     func invalidateCoverage() async throws { try await store().invalidateCoverage() }
@@ -79,7 +79,7 @@ enum GrowthPresentation {
         switch change.kind {
         case .newlyReadable: change.label + " can now be read, so its size isn’t counted as growth."
         case .newlyUnreadable: change.label + " couldn’t be read this time, so its size isn’t counted."
-        case .newlyScanned: change.label + " is scanned for the first time; its size is the new baseline, not growth."
+        case .newlyScanned: change.label + " is scanned for the first time, so its size isn’t counted as growth."
         case .noLongerScanned: change.label + " wasn’t scanned this time, so its size isn’t counted."
         }
     }
@@ -87,7 +87,7 @@ enum GrowthPresentation {
         switch state {
         case .clearedBaseline: "History was cleared. " + checkBack
         case .missingBaseline: "The earlier scan is no longer kept. " + checkBack
-        case .coverageChanged: "Scan settings changed, such as exclusions, so a new baseline starts. " + checkBack
+        case .coverageChanged: "What CacheDrop scans changed, such as Protected items, so trends start again from this scan. " + checkBack
         default: checkBack
         }
     }
@@ -134,17 +134,17 @@ struct GrowthHistoryView: View {
                     VStack(alignment: .leading, spacing: CacheDropDesign.Space.xl) { compared(comparison, from: from, to: current.observedAt) }
                         .waitingForScan(catalog.isScanning)
                 } else {
-                    PageHeader(title: "Storage trends", subtitle: "Changes in your known locations between two completed scans.")
-                    EmptyState(title: "Baseline recorded", detail: GrowthPresentation.baseline(comparison.state),
+                    PageHeader(title: "Storage trends", subtitle: "What grew or shrank between two scans.")
+                    EmptyState(title: "No trends yet", detail: GrowthPresentation.baseline(comparison.state),
                                symbol: "chart.line.uptrend.xyaxis", identifier: "growthBaselineRecorded")
                 }
             } else if model.loading || catalog.isScanning {
                 // Nothing known yet: skeleton rows, never a blank page (#308).
-                PageHeader(title: "Storage trends", subtitle: "Changes in your known locations between two completed scans.")
+                PageHeader(title: "Storage trends", subtitle: "What grew or shrank between two scans.")
                 SkeletonRows(.line, identifier: "growthSkeleton")
             } else {
-                PageHeader(title: "Storage trends", subtitle: "Changes in your known locations between two completed scans.")
-                EmptyState(title: "No scans yet", detail: "A completed scan records a baseline. Check back a day later to see trends.",
+                PageHeader(title: "Storage trends", subtitle: "What grew or shrank between two scans.")
+                EmptyState(title: "No scans yet", detail: "Scan now, then check back tomorrow to see trends.",
                            symbol: "chart.line.uptrend.xyaxis", action: EmptyStateAction("Scan now", perform: scanNow), identifier: "growthEmpty")
             }
             if let error = model.error, model.comparison != nil { StatusRow(text: error, symbol: "exclamationmark.circle", role: .caution) }
@@ -154,7 +154,7 @@ struct GrowthHistoryView: View {
 
     @ViewBuilder private func compared(_ comparison: GrowthComparison, from: Date, to: Date) -> some View {
         let days = max(1, Calendar.current.dateComponents([.day], from: from, to: to).day ?? 0)
-        PageHeader(title: "Storage trends", subtitle: "Changes in your known locations since " + from.formatted(date: .long, time: .omitted) + ".")
+        PageHeader(title: "Storage trends", subtitle: "What grew or shrank since " + from.formatted(date: .long, time: .omitted) + ".")
         HStack(alignment: .firstTextBaseline, spacing: CacheDropDesign.Space.sm) {
             Text(GrowthPresentation.signed(comparison.logicalDelta ?? 0)).font(CacheDropDesign.TypeStyle.page).monospacedDigit().accessibilityIdentifier("growthNetChange")
             Text("net growth · " + (days == 1 ? "past day" : "past \(days) days")).foregroundStyle(.secondary)
@@ -185,7 +185,7 @@ struct GrowthHistoryView: View {
             }
         }
         if !comparison.coverageChanges.isEmpty {
-            DisclosureGroup("Coverage changed for \(comparison.coverageChanges.count) \(comparison.coverageChanges.count == 1 ? "location" : "locations") · Not counted as growth", isExpanded: $model.coverageExpanded) {
+            DisclosureGroup("Not counted as growth: \(comparison.coverageChanges.count) \(comparison.coverageChanges.count == 1 ? "location" : "locations")", isExpanded: $model.coverageExpanded) {
                 VStack(alignment: .leading, spacing: CacheDropDesign.Space.sm) {
                     ForEach(comparison.coverageChanges) { change in
                         StatusRow(text: GrowthPresentation.coverage(change), symbol: "eye.slash", role: .caution)

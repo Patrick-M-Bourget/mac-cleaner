@@ -267,7 +267,7 @@ final class WhatGrewUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
 
         app.buttons["Storage trends"].click()
-        XCTAssertTrue(app.staticTexts["Baseline recorded"].waitForExistence(timeout: 15))
+        XCTAssertTrue(app.staticTexts["No trends yet"].waitForExistence(timeout: 15))
 
         func grow(_ name: String) throws {
             let grown = home.appendingPathComponent(".npm/_cacache/content-v2/sha512/" + name + "/blob")
@@ -397,7 +397,7 @@ final class KeyboardShortcutsUITests: XCTestCase {
         }
 
         app.typeKey("4", modifierFlags: .command)
-        XCTAssertTrue(app.staticTexts["Baseline recorded"].waitForExistence(timeout: 15))
+        XCTAssertTrue(app.staticTexts["No trends yet"].waitForExistence(timeout: 15))
         let grown = home.appendingPathComponent(".npm/_cacache/content-v2/sha512/cd/blob")
         try FileManager.default.createDirectory(at: grown.deletingLastPathComponent(), withIntermediateDirectories: true)
         try Data(repeating: 9, count: 5_000_000).write(to: grown)
