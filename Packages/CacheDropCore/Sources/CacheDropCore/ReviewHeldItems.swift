@@ -23,8 +23,9 @@ public struct ReviewHeldItems: Sendable {
     public func quitTitle(for candidate: Candidate) -> String? { holders[candidate.id].map { "Quit \($0.name)" } }
     /// The open app the row offers to quit.
     public func holder(of candidate: Candidate) -> RuleOwner? { holders[candidate.id] }
-    /// The rows that offer to quit `owner`, in review order.
-    public func candidates(heldBy owner: RuleOwner) -> [Candidate] { candidates.filter { holders[$0.id]?.name == owner.name } }
+    /// The rows that offer to quit `owner`, in review order. Owners are told apart by what they are, never by their display
+    /// name alone: two apps may both be called "Synth" (#384).
+    public func candidates(heldBy owner: RuleOwner) -> [Candidate] { candidates.filter { holders[$0.id] == owner } }
 
     /// After asking `owner` to quit: when it quit, its rows are checked again with `check`; otherwise nothing changes.
     public mutating func quitEnded(_ owner: RuleOwner, outcome: AppQuitOutcome, isOpen: ([String]) -> Bool, check: (Candidate) -> CheckRefusal?) {

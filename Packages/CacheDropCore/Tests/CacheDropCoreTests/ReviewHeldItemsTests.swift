@@ -96,3 +96,20 @@ private func open(_ ids: [String]) -> Bool { !Set(ids).isDisjoint(with: ["com.ma
     }
     #expect(plan.held.map(\.hold) == [CandidateHold(.ownerRunning("Synth"), app: synth), CandidateHold(.inUse("An Android virtual device"))])
 }
+
+// #384: two apps can share a display name (Synth and another maker's Synth). Each holds only its own rows, and quitting
+// one checks only its rows again.
+@Test func ownersSharingANameHoldOnlyTheirOwnRows() {
+    let other = RuleOwner(name: "Synth", bundleIDs: ["com.other.synth"])
+    let catalog = Catalog(rules: [rule("synth-cache", owner: synth), rule("other-cache", owner: other)])
+    let items = [item("synth-cache"), item("other-cache")]
+    let refusals: [String: CheckRefusal] = [items[0].id: .ownerRunning("Synth"), items[1].id: .ownerRunning("Synth")]
+    var held = ReviewHeldItems(candidates: items, refusals: refusals, catalog: catalog, isOpen: { _ in true })
+    #expect(held.candidates(heldBy: synth).map(\.ruleID) == ["synth-cache"])
+    #expect(held.candidates(heldBy: other).map(\.ruleID) == ["other-cache"])
+
+    var checked: [String] = []
+    held.quitEnded(other, outcome: .quit, isOpen: { _ in true }) { checked.append($0.ruleID); return nil }
+    #expect(checked == ["other-cache"])
+    #expect(held.refusals == [items[0].id: .ownerRunning("Synth")])
+}
