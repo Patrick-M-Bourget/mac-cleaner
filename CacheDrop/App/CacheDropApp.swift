@@ -566,7 +566,9 @@ private struct WorkspaceView: View {
     }
     private func scannedLocationRow(_ location: ScannedLocationsSummary.Location) -> some View {
         VStack(alignment: .leading, spacing: 0) {
-            StorageReviewRow(category: .files, title: location.name, detail: location.notes ?? "", value: location.value(overviewBytes),
+            // Built-in Downloads says so (#342); it has no Remove anywhere.
+            StorageReviewRow(category: locationsModel.builtInDownloads?.path == location.scope.path ? .downloads : .files,
+                             title: location.name, detail: overviewLocationDetail(location), value: location.value(overviewBytes),
                              actionTitle: "Explore " + location.name, action: location.bytes == nil ? nil : { openExplorer(caller: .overview, at: location.scope) },
                              identifier: "overviewLocation:" + location.scope.path, mutedValue: location.bytes == nil)
                 .help(location.scope.path)
@@ -588,6 +590,10 @@ private struct WorkspaceView: View {
                 }.padding([.horizontal, .bottom], CacheDropDesign.Space.lg)
             }
         }
+    }
+    private func overviewLocationDetail(_ location: ScannedLocationsSummary.Location) -> String {
+        let builtIn = locationsModel.builtInDownloads?.path == location.scope.path ? "Built in" : nil
+        return [builtIn, location.notes].compactMap { $0 }.joined(separator: " · ")
     }
     /// Included locations with their latest current scan; one with a recovery row is left to that row, so nothing shows twice.
     private var overviewLocations: [ScannedLocationsSummary.Location] {
@@ -630,8 +636,8 @@ private struct WorkspaceView: View {
         return false
     }
     private func isDownloadsLocation(_ url: URL) -> Bool {
-        guard let root = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask).first else { return false }
-        return url.standardizedFileURL.pathComponents.starts(with: root.standardizedFileURL.pathComponents)
+        guard let root = locationsModel.builtInDownloads else { return false }
+        return url.standardizedFileURL.pathComponents.starts(with: URL(fileURLWithPath: root.path).standardizedFileURL.pathComponents)
     }
     private func scanLocations(_ scopes: [RememberedScope]) {
         guard !folderInspection.isScanning, !selection.workspaceRunning else { return }
@@ -840,9 +846,9 @@ private struct WorkspaceView: View {
             if locationsModel.scopes.isEmpty { EmptyState(title: "No locations yet", detail: "Add a folder to scan it now and each time CacheDrop opens.", symbol: "folder.badge.plus") }
             ForEach(locationsModel.scopes) { scope in
                 LocationScopeRow(name: URL(fileURLWithPath: scope.path).lastPathComponent, path: scope.path,
-                    status: locationStatus(scope), overlap: locationOverlap(scope), included: Binding(get: { scope.isIncluded }, set: { included in
+                    status: (scope.isBuiltIn ? "Built in · " : "") + locationStatus(scope), overlap: locationOverlap(scope), included: Binding(get: { scope.isIncluded }, set: { included in
                         if locationsModel.setIncluded(included, scope: scope) { selection.suspendScope(URL(fileURLWithPath: scope.path)) }
-                    }), enabled: !folderInspection.isScanning && !selection.workspaceRunning) {
+                    }), enabled: !folderInspection.isScanning && !selection.workspaceRunning, fixed: scope.isBuiltIn) {
                     HStack {
                         if isScanned(scope), locationsModel.statuses[scope.id]?.needsRecovery != true {
                             Button("Explore") { openExplorer(caller: .locations, at: URL(fileURLWithPath: scope.path)) }
@@ -853,9 +859,12 @@ private struct WorkspaceView: View {
                             Button("Choose again…") { chooseAgain(scope) }.buttonStyle(.link)
                             Button("Reconnect and recheck") { scanLocations([scope]) }.buttonStyle(.link).disabled(!scope.isIncluded)
                         }
-                        Menu("More") {
-                            Button("Forget location") { locationToForget = scope }
-                        }.menuStyle(.borderlessButton).fixedSize().accessibilityIdentifier("locationActions:" + scope.path)
+                        // Built-in Downloads can't be forgotten (#342).
+                        if !scope.isBuiltIn {
+                            Menu("More") {
+                                Button("Forget location") { locationToForget = scope }
+                            }.menuStyle(.borderlessButton).fixedSize().accessibilityIdentifier("locationActions:" + scope.path)
+                        }
                     }
                 }
                 if locationsModel.statuses[scope.id]?.needsRecovery == true,

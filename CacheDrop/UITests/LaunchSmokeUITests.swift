@@ -507,12 +507,14 @@ final class ScannedLocationsUITests: XCTestCase {
         let state = try configureIsolatedState(app)
         let home = try configureCatalogHome(app)
         defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
-        // A remembered fixture Downloads folder whose bookmark no longer resolves, as after the app was renamed.
-        let folder = home.appendingPathComponent("Downloads")
+        // A remembered fixture folder whose bookmark no longer resolves, as after the app was renamed. Not Downloads, which is
+        // built in (#342).
+        let folder = home.appendingPathComponent("Projects")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         let scopes = state.appendingPathComponent("Scopes")
         try FileManager.default.createDirectory(at: scopes, withIntermediateDirectories: false, attributes: [.posixPermissions: 0o700])
         let record: [String: Any] = ["version": 1, "scopes": [["id": UUID().uuidString, "path": folder.path, "isIncluded": true,
-                                                               "kind": "downloads", "bookmark": Data("stale".utf8).base64EncodedString()]]]
+                                                               "kind": "inspection", "bookmark": Data("stale".utf8).base64EncodedString()]]]
         try JSONSerialization.data(withJSONObject: record).write(to: scopes.appendingPathComponent("scopes-v1.json"))
         app.launch()
         XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
@@ -521,7 +523,7 @@ final class ScannedLocationsUITests: XCTestCase {
         // One message for one problem: the row names the folder and the reason, and carries the fix.
         let row = app.staticTexts["overviewLocationRecovery"]
         XCTAssertTrue(row.waitForExistence(timeout: 15))
-        XCTAssertEqual(row.value as? String, "Downloads · Access unavailable")
+        XCTAssertEqual(row.value as? String, "Projects · Access unavailable")
         XCTAssertFalse(app.staticTexts.matching(NSPredicate(format: "value CONTAINS 'Current coverage'")).firstMatch.exists)
         XCTAssertFalse(app.staticTexts.matching(NSPredicate(format: "value CONTAINS 'Recheck required'")).firstMatch.exists)
         XCTAssertFalse(app.staticTexts.matching(NSPredicate(format: "value CONTAINS 'Choose again to renew'")).firstMatch.exists)
@@ -592,7 +594,10 @@ final class ScannedLocationsUITests: XCTestCase {
         try FileManager.default.setAttributes([.posixPermissions: 0o000], ofItemAtPath: locked.path)
         app.launch()
         XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
-        XCTAssertTrue(app.staticTexts["overviewNoLocations"].waitForExistence(timeout: 5), "No folder chosen yet")
+        // Downloads is built in (#342): listed and scanned with no picking, and says so.
+        let downloads = app.descendants(matching: .any)["overviewLocation:" + home.appendingPathComponent("Downloads").path]
+        XCTAssertTrue(downloads.waitForExistence(timeout: 20))
+        XCTAssertTrue((downloads.value as? String ?? "").contains("Built in"), downloads.value as? String ?? "")
         app.links["overviewScanFolder"].click()
         let panel = app.sheets.firstMatch.exists ? app.sheets.firstMatch : app.dialogs.firstMatch
         XCTAssertTrue(panel.waitForExistence(timeout: 5))
@@ -620,14 +625,16 @@ final class ScannedLocationsUITests: XCTestCase {
         let state = try configureIsolatedState(app)
         let home = try configureCatalogHome(app)
         defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
-        let projects = home.appendingPathComponent("Projects")
+        let projects = home.appendingPathComponent("Projects"), work = home.appendingPathComponent("Work")
         try FileManager.default.createDirectory(at: projects, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: work, withIntermediateDirectories: true)
         let scopes = state.appendingPathComponent("Scopes")
         try FileManager.default.createDirectory(at: scopes, withIntermediateDirectories: false, attributes: [.posixPermissions: 0o700])
         let stale = Data("stale".utf8).base64EncodedString()
         let record: [String: Any] = ["version": 1, "scopes": [
             ["id": UUID().uuidString, "path": home.appendingPathComponent("Downloads").path, "isIncluded": true, "kind": "downloads", "bookmark": stale],
-            ["id": UUID().uuidString, "path": projects.path, "isIncluded": true, "kind": "inspection", "bookmark": stale]]]
+            ["id": UUID().uuidString, "path": projects.path, "isIncluded": true, "kind": "inspection", "bookmark": stale],
+            ["id": UUID().uuidString, "path": work.path, "isIncluded": true, "kind": "inspection", "bookmark": stale]]]
         try JSONSerialization.data(withJSONObject: record).write(to: scopes.appendingPathComponent("scopes-v1.json"))
         app.launch()
         XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
@@ -635,8 +642,10 @@ final class ScannedLocationsUITests: XCTestCase {
         let rows = app.staticTexts.matching(identifier: "overviewLocationRecovery")
         XCTAssertTrue(rows.firstMatch.waitForExistence(timeout: 15))
         let texts = Set(rows.allElementsBoundByIndex.compactMap { $0.value as? String })
-        XCTAssertEqual(texts, ["Downloads · Access unavailable", "Projects · Access unavailable"])
+        // #342: a Downloads picked in an earlier version is quietly forgotten; the built-in one replaces it, with no row.
+        XCTAssertEqual(texts, ["Projects · Access unavailable", "Work · Access unavailable"])
         XCTAssertEqual(app.links.matching(identifier: "overviewChooseAgain").count, 2)
+        XCTAssertTrue(app.descendants(matching: .any)["overviewLocation:" + home.appendingPathComponent("Downloads").path].waitForExistence(timeout: 20))
         XCTAssertFalse(app.staticTexts.matching(NSPredicate(format: "value CONTAINS 'Current coverage'")).firstMatch.exists)
     }
 }

@@ -35,7 +35,8 @@ import XCTest
 /// Scanned locations group (#345), with its size rather than "Not scanned", before it uses the link to open the explorer, which
 /// with no scanned folder opens Locations & access.
 @MainActor func waitForScannedFolder(_ app: XCUIApplication, timeout: TimeInterval = 20, file: StaticString = #filePath, line: UInt = #line) {
-    let scanned = NSPredicate(format: "identifier BEGINSWITH 'overviewLocation:' AND NOT (value CONTAINS 'Not scanned')")
+    // Built-in Downloads (#342) is scanned at launch on its own, so it never counts as the folder a journey picked.
+    let scanned = NSPredicate(format: "identifier BEGINSWITH 'overviewLocation:' AND NOT (identifier ENDSWITH '/Downloads') AND NOT (value CONTAINS 'Not scanned')")
     XCTAssertTrue(app.descendants(matching: .any).matching(scanned).firstMatch.waitForExistence(timeout: timeout),
                   "Overview shows the scanned folder", file: file, line: line)
 }
@@ -1958,7 +1959,7 @@ extension CatalogCleanupUITests {
         app.buttons["Cancel"].click()
     }
 
-    /// #319: Smart clean's wider plan. An installer not opened in 90 days, Homebrew's cache and a leftover an installer receipt
+    /// #319, #342: Smart clean's wider plan. A download not opened or changed in 30 days, under "Old downloads", Homebrew's cache and a leftover an installer receipt
     /// ties to its removed app all start ticked, each category with its consequence line. Unticking the installer leaves the
     /// rest, which the review groups by consequence. A dry run, so nothing changes and the stand-in `brew` never runs.
     @MainActor func testSmartCleanTicksAnOldInstallerAHomebrewCacheAndAReceiptTiedLeftover() throws {
@@ -1971,7 +1972,8 @@ extension CatalogCleanupUITests {
         defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
         // An installer nothing has opened or changed for 200 days. Spotlight imports a .dmg the runner writes, again after every
         // change to its dates, and each import reads it, so its access time is now and the app rightly finds it recent (#335).
-        // Spotlight skips a .noindex folder, and the installers rule looks inside Downloads' folders.
+        // Spotlight skips a .noindex folder, and the Downloads rule looks inside Downloads' folders. The fixture home's new
+        // Setup.dmg is younger than 30 days, so it stays unticked.
         let installer = home.appendingPathComponent("Downloads/Fixture.noindex/Old Setup.dmg")
         try FileManager.default.createDirectory(at: installer.deletingLastPathComponent(), withIntermediateDirectories: true)
         try Data(repeating: 5, count: 90_000).write(to: installer)
@@ -1994,6 +1996,7 @@ extension CatalogCleanupUITests {
         XCTAssertTrue(downloads.waitForExistence(timeout: 30))
         for category in [downloads, developer, leftovers] { XCTAssertEqual(category.value as? Int, 1, category.identifier) }
         func text(_ line: String) -> XCUIElementQuery { app.staticTexts.matching(NSPredicate(format: "label == %@ OR value == %@", line, line)) }
+        XCTAssertEqual(text("Old downloads").count, 1, "Smart clean names its Downloads category by what it takes (#342)")
         XCTAssertEqual(text("Goes to the Trash; Put back works").count, 2, "Installers and leftovers")
         XCTAssertEqual(text("Comes back on its own when your tools and Xcode need it; some tools clean their own").count, 1)
         // #350, #370: "Ready to clean" counts only what is released, so unticking the Trash-bound installers leaves its
