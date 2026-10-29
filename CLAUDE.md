@@ -27,7 +27,7 @@ LIBDISPATCH_COOPERATIVE_POOL_STRICT=1 swift test --package-path Packages/CacheDr
 
 Verify on this Mac, not by pushing to CI. Tests touch only temp fixture folders, never real user paths.
 
-UI tests drive the screen, so run them only when the user isn't using it. Run only the journeys you changed with `scripts/ui-journeys.sh <testName>...` (`--all` for the suite): it resolves each test's class, clears leftover fixtures, stops on a failed build, keeps failure diagnostics off (they would save system logs that may include other apps' activity) and prints one line per test. Before writing or changing a journey, read `docs/agents/ui-testing.md`: how SwiftUI views appear to XCUITest, and the sandboxed runner's limits.
+UI tests drive the screen, so run them only when the user isn't using it; CI runs the whole suite on every PR. Run only the journeys you changed with `scripts/ui-journeys.sh <testName>...` (`--all` for the suite): it resolves each test's class, clears leftover fixtures, stops on a failed build, keeps failure diagnostics off (they would save system logs that may include other apps' activity) and prints one line per test. Before writing or changing a journey, read `docs/agents/ui-testing.md`: how SwiftUI views appear to XCUITest, and the sandboxed runner's limits.
 
 The scheme keeps no test attachments and never records the screen (#153). Never take full-screen screenshots; capture only CacheDrop's window.
 
