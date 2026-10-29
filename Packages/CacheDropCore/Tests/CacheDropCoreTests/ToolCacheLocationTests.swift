@@ -474,6 +474,28 @@ private func writeConfig(_ home: URL, _ relative: String, _ text: String) throws
     #expect(refusal == nil, "\(String(describing: refusal))")
 }
 
+/// A leftover next to a named folder that fails the write-scope checks is refused just before acting too, not only left out
+/// of the scan (#262), and so is one that is a file: discovery offers file leftovers as well as folders.
+@Test func theCheckBeforeActingRefusesALeftoverFolderOrFileInsideAUserFolder() async throws {
+    let home = try fixtureHome()
+    defer { try? FileManager.default.removeItem(at: home) }
+    let folder = "Documents/proj/.cachedrop-deleting-pip-cache-\(UUID().uuidString)"
+    try makeFolder(home, folder)
+    let file = home.appendingPathComponent("Documents/proj/.cachedrop-deleting-pip-cache-\(UUID().uuidString)")
+    try Data(repeating: 1, count: 100).write(to: file)
+    let catalog = Catalog(rules: fixtureRules)
+    let rule = try #require(catalog.rule("pip-cache"))
+    for url in [home.appendingPathComponent(folder), file] {
+        var info = stat()
+        #expect(lstat(url.path, &info) == 0)
+        let candidate = catalog.candidate(rule, url, info, logical: 100, allocated: nil, complete: true, lastUsed: nil, action: .delete).found(under: home)
+        #expect(candidate.isLeftover)
+        #expect(CandidateCheck(catalog: catalog, running: NothingRunning()).check(candidate) == .notACache("It is inside your Documents folder, so it is kept."), "\(url.lastPathComponent)")
+        #expect(try await execute(candidate, catalog: catalog, home: home).state == .skipped)
+        #expect(FileManager.default.fileExists(atPath: url.path))
+    }
+}
+
 /// A folder pip or Homebrew named must still hold that tool's cache markers when it is cleaned, not only when it was found
 /// (#217): one whose markers vanished between the scan and the clean is refused, and Homebrew's cleanup never runs.
 @Test func aNamedFolderWhoseMarkersVanishBetweenScanAndCleanIsRefused() async throws {
