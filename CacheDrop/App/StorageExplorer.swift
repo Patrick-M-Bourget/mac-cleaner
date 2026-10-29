@@ -98,6 +98,8 @@ import SwiftUI
 struct ExplorerUnavailableLocation {
     let scope: URL
     let reason: String
+    /// "Choose again…", or "Check again" for built-in Downloads, which is never picked (#388).
+    var actionTitle = "Choose again…"
     let chooseAgain: () -> Void
     /// When the folder was last observed, as the explorer and Overview both show it (#249, #254).
     static func format(_ lastObserved: Date) -> String { lastObserved.formatted(date: .abbreviated, time: .shortened) }
@@ -149,7 +151,7 @@ struct StorageExplorerView: View {
     private func recoveryRow(_ location: ExplorerUnavailableLocation, lastObserved: Date) -> some View {
         StatusRow(text: UnavailableScannedFolder.text(reason: location.reason, lastObserved: ExplorerUnavailableLocation.format(lastObserved)),
                   symbol: "info.circle", role: .caution, identifier: "explorerLocationRecovery",
-                  action: StatusAction(title: "Choose again…", identifier: "explorerChooseAgain", action: location.chooseAgain))
+                  action: StatusAction(title: location.actionTitle, identifier: "explorerChooseAgain", action: location.chooseAgain))
             .disabled(model.isScanning || selection.workspaceRunning)
     }
     var body: some View {

@@ -13,7 +13,7 @@ private func item(_ ruleID: String, action: CleanupAction? = nil, bytes: Int64 =
     return found
 }
 private let catalog = Catalog(rules: fixtureRules)
-/// A fixed "now", so the 90-day installer boundary is exact.
+/// A fixed "now", so the 7-day Downloads boundary is exact.
 private let now = Date(timeIntervalSince1970: 1_800_000_000)
 private func daysAgo(_ days: Double) -> Date { now.addingTimeInterval(-days * 86_400) }
 private func recommended(_ items: [Candidate], refusing refused: [String: CheckRefusal] = [:]) -> [String] {
@@ -47,22 +47,18 @@ private func recommended(_ items: [Candidate], refusing refused: [String: CheckR
     #expect(recommended([item("npm-cache")], refusing: ["npm-cache": .excluded]).isEmpty)
 }
 
-@Test func installersNotOpenedOrChangedIn90DaysAreRecommended() {
-    // #319: a disk image or package in Downloads, sent to the Trash, once nothing has opened or changed it for 90 days.
-    #expect(recommended([item("downloads-installers", name: "Setup.dmg", lastUsed: daysAgo(91))]) == ["downloads-installers"])
-    #expect(recommended([item("downloads-installers", name: "Tool.PKG", lastUsed: daysAgo(400))]) == ["downloads-installers"])
-    #expect(recommended([item("downloads-installers", name: "Setup.dmg", lastUsed: daysAgo(90))]) == ["downloads-installers"], "90 days to the second is old enough")
+@Test func downloadsNotOpenedOrChangedIn7DaysAreRecommended() {
+    // #342: any file in Downloads, of any kind or size, sent to the Trash once nothing has opened or changed it for 7 days (owner, 2026-10-29).
+    #expect(recommended([item("downloads", name: "Setup.dmg", lastUsed: daysAgo(8))]) == ["downloads"])
+    #expect(recommended([item("downloads", name: "Photos.zip", lastUsed: daysAgo(400))]) == ["downloads"])
+    #expect(recommended([item("downloads", bytes: 10, name: "notes.txt", lastUsed: daysAgo(45))]) == ["downloads"])
+    #expect(recommended([item("downloads", name: "Setup.dmg", lastUsed: daysAgo(7))]) == ["downloads"], "7 days to the second is old enough")
 }
 
-@Test func recentInstallersArchivesAndUndatedInstallersAreNotRecommended() {
-    #expect(recommended([item("downloads-installers", name: "Setup.dmg", lastUsed: daysAgo(89.99))]).isEmpty, "Opened or changed within 90 days")
-    #expect(recommended([item("downloads-installers", name: "Setup.dmg", lastUsed: nil)]).isEmpty, "No date: not known to be old")
-    #expect(recommended([item("downloads-installers", name: "Photos.zip", lastUsed: daysAgo(400))]).isEmpty, "An archive may be anything")
-    #expect(recommended([item("downloads-installers", action: .delete, name: "Setup.dmg", lastUsed: daysAgo(400))]).isEmpty, "Only to the Trash")
-}
-
-@Test func otherLargeOldDownloadsAreNotRecommended() {
-    #expect(recommended([item("downloads-old-large", name: "Movie.mov", lastUsed: daysAgo(400))]).isEmpty)
+@Test func recentAndUndatedDownloadsAreNotRecommended() {
+    #expect(recommended([item("downloads", name: "Setup.dmg", lastUsed: daysAgo(6.99))]).isEmpty, "Opened or changed within 7 days")
+    #expect(recommended([item("downloads", name: "Setup.dmg", lastUsed: nil)]).isEmpty, "No date: not known to be old")
+    #expect(recommended([item("downloads", action: .delete, name: "Setup.dmg", lastUsed: daysAgo(400))]).isEmpty, "Only to the Trash")
 }
 
 @Test func leftoversABundleIDOrReceiptTiesToTheirAppAreRecommended() {
@@ -128,9 +124,9 @@ private func recommended(_ items: [Candidate], refusing refused: [String: CheckR
 }
 
 @Test func onlyTheSafeItemsOfAMixedScanAreRecommended() {
-    let scan = [item("downloads-installers", name: "New.dmg", lastUsed: daysAgo(3)), item("npm-cache"), item("ollama-models"), item("app-logs"), item("homebrew"),
-                item("pip-cache"), item("docker-images"), item("downloads-installers", name: "Old.dmg", lastUsed: daysAgo(200))]
-    #expect(recommended(scan, refusing: ["pip-cache": .ownerRunning("pip")]) == ["npm-cache", "app-logs", "homebrew", "downloads-installers"])
+    let scan = [item("downloads", name: "New.dmg", lastUsed: daysAgo(3)), item("npm-cache"), item("ollama-models"), item("app-logs"), item("homebrew"),
+                item("pip-cache"), item("docker-images"), item("downloads", name: "Old.dmg", lastUsed: daysAgo(200))]
+    #expect(recommended(scan, refusing: ["pip-cache": .ownerRunning("pip")]) == ["npm-cache", "app-logs", "homebrew", "downloads"])
 }
 
 @Test func jetBrainsCachesAndOldTemporaryFilesAreNotRecommended() {

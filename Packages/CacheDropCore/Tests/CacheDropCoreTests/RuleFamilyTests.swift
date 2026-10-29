@@ -21,7 +21,7 @@ import Testing
     let expected: [(id: String, item: CleanupRule.RowClick, rule: CleanupRule.RowClick)] = [
         ("removed-app-leftovers", .tick, .tick), ("removed-app-possibly-related", .tick, .inert),
         ("uninstall-app-possibly-related", .tick, .inert), ("uninstall-plugin-shared", .tick, .inert),
-        (CleanupRule.downloadsInstallersID, .tick, .tick), ("photos-library", .inert, .inert),
+        (CleanupRule.downloadsID, .tick, .tick), ("photos-library", .inert, .inert),
     ]
     for (id, item, rule) in expected {
         let found = try #require(rules[id], "\(id)")

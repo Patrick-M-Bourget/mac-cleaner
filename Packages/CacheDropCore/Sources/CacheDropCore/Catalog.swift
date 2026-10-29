@@ -285,17 +285,13 @@ public enum BuiltInCatalog {
                     regen: .build, action: .tool, locations: ["Library/Developer/CoreSimulator/Devices"], owner: nil,
                     tool: ToolCommand(executables: simctlExecutables, arguments: ["delete", "unavailable"], timeout: 300, daemonBacked: true),
                     items: .unavailableSimulators),
-        // RESET Decision 18. Installers come first so a large old installer is listed once, as an installer.
-        CleanupRule(id: CleanupRule.downloadsInstallersID, category: .downloads, title: "Installers in Downloads",
-                    detail: "Disk images, packages and archives you downloaded, at any age.",
-                    consequence: "Moved to Trash. The space stays used until you empty the Trash; you can restore them from the Trash in Finder.",
-                    regen: .installer, action: .trash, locations: ["Downloads"], owner: nil,
-                    protectedExtensions: downloadsProtectedExtensions, contents: ContentsMatch(extensions: ["dmg", "pkg", "zip"])),
-        CleanupRule(id: "downloads-old-large", category: .downloads, title: "Large files not opened lately",
-                    detail: "Downloads of 500 MB or more not opened in 90 days.",
+        // RESET Decision 83 (#342; amends 18): Downloads is one place to look, every file at any size or age. Smart clean takes
+        // the ones untouched for 7 days (`RecommendedPlan`).
+        CleanupRule(id: CleanupRule.downloadsID, category: .downloads, title: "Downloads",
+                    detail: "Every file in your Downloads folder, at any size or age.",
                     consequence: "Moved to Trash. The space stays used until you empty the Trash; you can restore them from the Trash in Finder.",
                     regen: .userFile, action: .trash, locations: ["Downloads"], owner: nil,
-                    protectedExtensions: downloadsProtectedExtensions, contents: ContentsMatch(minimumBytes: UserFiles.largeBytes, unusedDays: UserFiles.unusedDays)),
+                    protectedExtensions: downloadsProtectedExtensions, contents: ContentsMatch()),
         // #135: restore images Finder (formerly iTunes) downloaded to update or restore a device.
         CleanupRule(id: "ios-software-updates", category: .updaters, title: "Old iOS update files",
                     detail: "iPhone, iPad and iPod software updates downloaded to update or restore a device.",
@@ -674,7 +670,8 @@ public struct Catalog: Sendable {
             if !match.extensions.isEmpty, !match.extensions.contains(ext) { return .continue }
             if let minimum = match.minimumBytes, Int64(info.st_size) < minimum { return .continue }
             if match.besideCompressedSource, !Self.hasCompressedSource(url, size: Int64(info.st_size)) { return .continue }
-            let lastUsed = rule.regen == .installer ? Self.lastOpenedOrChanged(url, info) : Self.lastUsed(url, info)
+            // A download's or installer's age ignores access time (#336), so Smart clean can tell an old one (#342).
+            let lastUsed = rule.regen == .installer || rule.category == .downloads ? Self.lastOpenedOrChanged(url, info) : Self.lastUsed(url, info)
             if let days = match.unusedDays, lastUsed > now.addingTimeInterval(-Double(days) * .secondsPerDay) { return .continue }
             found.append(candidate(rule, url, info, logical: Int64(info.st_size), allocated: Int64(info.st_blocks) * 512, complete: true, lastUsed: lastUsed))
             return .continue

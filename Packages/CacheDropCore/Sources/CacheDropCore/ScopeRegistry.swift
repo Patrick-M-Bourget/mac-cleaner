@@ -9,9 +9,44 @@ public struct RememberedScope: Codable, Sendable, Identifiable, Equatable {
     public var isIncluded: Bool
     public let kind: Kind
     fileprivate let bookmark: Data
+
+    /// Downloads, built in at its standard path (#342): never picked or written to the registry, always included, and read
+    /// with Full Disk Access or macOS's own Downloads prompt, so it has no bookmark.
+    public static func builtInDownloads(at url: URL) -> RememberedScope {
+        RememberedScope(id: builtInDownloadsID, path: url.standardizedFileURL.path, isIncluded: true, kind: .downloads, bookmark: Data())
+    }
+    private static let builtInDownloadsID = UUID(uuidString: "D0A1D0A5-0000-4000-8000-000000000342")!
+    /// Keyed on the fixed ID, never on the empty bookmark, so a stored entry cannot pass as built in and skip its bookmark (#387).
+    public var isBuiltIn: Bool { id == Self.builtInDownloadsID }
 }
 
-public enum ScopeRegistryError: Error { case unknownScope, excluded, chooseAgain, unavailable, invalidStorage }
+public enum ScopeRegistryError: Error { case unknownScope, excluded, chooseAgain(BookmarkFailure), unavailable, invalidStorage }
+
+/// Why a remembered location's access needs renewing (#342). Kept rather than collapsed, so a later "Access unavailable" can
+/// be diagnosed: macOS's own error when the bookmark wouldn't resolve, and whether only its security scope failed.
+public struct BookmarkFailure: Sendable, Equatable {
+    public enum Cause: String, Sendable {
+        /// The security-scoped resolve failed while a plain one finds the same folder: the bookmark was made under another
+        /// signing identifier.
+        case identityMismatch
+        case unresolvable
+        case stale
+        /// It resolves, but to another place: the folder was moved or renamed.
+        case moved
+    }
+    public let cause: Cause
+    public let domain: String?
+    public let code: Int?
+    init(_ cause: Cause, error: (any Error)? = nil) {
+        self.cause = cause
+        domain = error.map { ($0 as NSError).domain }; code = error.map { ($0 as NSError).code }
+    }
+    /// "Unresolvable · NSCocoaErrorDomain 259", for logs and the location's tooltip.
+    public var summary: String {
+        let name = String(cause.rawValue.prefix(1)).uppercased() + cause.rawValue.dropFirst()
+        return [name, domain.map { $0 + (code.map { " \($0)" } ?? "") }].compactMap { $0 }.joined(separator: " · ")
+    }
+}
 
 /// Keeps a resolved grant alive only for an explicit scan. Does not enumerate or open file contents.
 public final class ScopeAccessLease {
@@ -57,14 +92,26 @@ public struct ScopeRegistry: Sendable {
     }
     public func forget(_ id: UUID) throws { try transaction { try write(read().filter { $0.id != id }) } }
     public func reset() throws { try transaction { try write([]) } }
+    /// A built-in location opens at its path; a picked one through its bookmark.
+    public func resolveForScan(_ scope: RememberedScope) throws -> ScopeAccessLease {
+        guard scope.isBuiltIn else { return try resolveForScan(id: scope.id) }
+        let url = URL(fileURLWithPath: scope.path)
+        try checkDirectory(url)
+        return ScopeAccessLease(url: url, accessing: false)
+    }
     public func resolveForScan(id: UUID) throws -> ScopeAccessLease {
         guard let scope = try list().first(where: { $0.id == id }) else { throw ScopeRegistryError.unknownScope }
         guard scope.isIncluded else { throw ScopeRegistryError.excluded }
         var stale = false
         let url: URL
         do { url = try URL(resolvingBookmarkData: scope.bookmark, options: [.withSecurityScope, .withoutUI, .withoutMounting], relativeTo: nil, bookmarkDataIsStale: &stale) }
-        catch { throw ScopeRegistryError.chooseAgain }
-        guard !stale, url.standardizedFileURL.path == scope.path else { throw ScopeRegistryError.chooseAgain }
+        catch {
+            var plainStale = false
+            let plain = try? URL(resolvingBookmarkData: scope.bookmark, options: [.withoutUI, .withoutMounting], relativeTo: nil, bookmarkDataIsStale: &plainStale)
+            throw ScopeRegistryError.chooseAgain(BookmarkFailure(plain?.standardizedFileURL.path == scope.path ? .identityMismatch : .unresolvable, error: error))
+        }
+        guard url.standardizedFileURL.path == scope.path else { throw ScopeRegistryError.chooseAgain(BookmarkFailure(.moved)) }
+        guard !stale else { throw ScopeRegistryError.chooseAgain(BookmarkFailure(.stale)) }
         let started = url.startAccessingSecurityScopedResource()
         do { try checkDirectory(url) }
         catch { if started { url.stopAccessingSecurityScopedResource() }; throw error }
