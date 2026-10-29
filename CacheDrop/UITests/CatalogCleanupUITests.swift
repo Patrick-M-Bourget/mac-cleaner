@@ -867,6 +867,8 @@ final class CatalogCleanupUITests: XCTestCase {
         let npm = app.checkBoxes["planRule-npm-cache"]
         XCTAssertTrue(npm.waitForExistence(timeout: 5))
         if npm.value as? Int != 0 { revealAndClick(npm, in: app) }
+        // Docker's folder only anchors its rules: nothing to reveal (#420).
+        XCTAssertFalse(app.descendants(matching: .any)["planRuleReveal-docker-build-cache"].exists)
         revealAndClick(app.checkBoxes["planRule-docker-build-cache"], in: app)
         app.buttons["Review cleanup"].click()
 

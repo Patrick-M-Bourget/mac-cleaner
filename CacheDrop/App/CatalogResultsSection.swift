@@ -89,6 +89,7 @@ private struct CatalogResultRow: View {
     let record: CleanupRecord
     let rule: CleanupRule?
     let showsDetails: Bool
+    private var showsFolder: Bool { rule?.showsFolder ?? true }
     private var name: String {
         let file = record.originalURL.lastPathComponent
         return record.itemName ?? record.uninstalledName ?? rule?.itemName?(file) ?? (rule?.choosesItems == true ? file : rule?.title ?? file)
@@ -99,9 +100,10 @@ private struct CatalogResultRow: View {
             HStack(alignment: .firstTextBaseline, spacing: CacheDropDesign.Space.md) {
                 Image(systemName: record.state == .succeeded ? "checkmark.circle" : record.wasPreviewed ? "eye" : "exclamationmark.circle").foregroundStyle(role.color)
                     .frame(width: CacheDropDesign.Space.lg)
+                // Docker's rows have no folder of their own to show (#420).
                 (Text(name).font(CacheDropDesign.TypeStyle.rowTitle)
-                    + Text(" · " + PathDisplay.shortLocation(of: record.originalURL, home: CatalogCleanupModel.checkHome)).foregroundStyle(.secondary))
-                    .lineLimit(1).help(record.originalURL.path)
+                    + Text(showsFolder ? " · " + PathDisplay.shortLocation(of: record.originalURL, home: CatalogCleanupModel.checkHome) : "").foregroundStyle(.secondary))
+                    .lineLimit(1).help(showsFolder ? record.originalURL.path : "")
                 Spacer(minLength: CacheDropDesign.Space.md)
                 if record.state == .succeeded, let trashed = record.trashURL {
                     if TrashModel.shared.putBackOutcomes[record.id] == nil, !TrashModel.shared.emptiedIDs.contains(record.id) {
@@ -120,7 +122,7 @@ private struct CatalogResultRow: View {
                         .accessibilityIdentifier("laterMeasurement-" + (record.ruleID ?? ""))
                 }
                 if showsDetails {
-                    Text(record.originalURL.path).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary).textSelection(.enabled)
+                    if showsFolder { Text(record.originalURL.path).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary).textSelection(.enabled) }
                     if !record.needsAttention && !record.finishedAfterStop { Text(record.message).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary) }
                     if let output = record.toolOutput {
                         Text(output).font(CacheDropDesign.TypeStyle.code).foregroundStyle(.secondary).textSelection(.enabled)

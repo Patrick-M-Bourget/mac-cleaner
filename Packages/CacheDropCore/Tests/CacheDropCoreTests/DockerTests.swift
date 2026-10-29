@@ -772,3 +772,12 @@ private struct NothingRunning: RunningAppChecking { func isRunning(_ owner: Rule
     #expect(catalog.rule("docker-images")?.detail == "Images no running container uses. Size is an estimate.")
     #expect(catalog.rule("docker-build-cache")?.detail == "Layers Docker kept to speed up builds. Size is an estimate.")
 }
+
+/// #420: `.docker` only anchors Docker's rules; the prunes work inside Docker's VM, so their rows show no location, path
+/// or Reveal in Finder. Every other rule's folder is what it cleans.
+@Test func dockerRulesShowNoFolder() {
+    let catalog = Catalog(rules: fixtureRules)
+    let docker = catalog.rules.filter { $0.id.hasPrefix("docker-") }, others = catalog.rules.filter { !$0.id.hasPrefix("docker-") }
+    #expect(docker.count == 3 && docker.allSatisfy { !$0.showsFolder })
+    #expect(others.allSatisfy { $0.showsFolder })
+}
