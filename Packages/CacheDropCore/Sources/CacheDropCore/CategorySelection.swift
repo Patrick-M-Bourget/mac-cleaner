@@ -15,7 +15,8 @@ public struct CategorySelection: Sendable {
     /// `candidates` are the items the category's `rules` found; `selected` the chosen item IDs.
     public init(rules: [CleanupRule], candidates: [Candidate], selected: Set<String>) {
         let oneByOne = Set(rules.filter(\.selectedOneByOne).map(\.id))
-        let all = Set(candidates.map(\.id)), together = Set(candidates.filter { !oneByOne.contains($0.ruleID) }.map(\.id))
+        // A held item (#374) is ticked on its own too, never with its category.
+        let all = Set(candidates.map(\.id)), together = Set(candidates.filter { !oneByOne.contains($0.ruleID) && $0.hold == nil }.map(\.id))
         let chosen = all.intersection(selected)
         let full = together.isEmpty ? all : together
         state = chosen.isEmpty ? .unchecked : full.isSubset(of: selected) ? .checked : .mixed

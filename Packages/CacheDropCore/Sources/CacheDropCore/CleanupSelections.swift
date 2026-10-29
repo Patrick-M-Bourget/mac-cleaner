@@ -3,7 +3,7 @@ import Foundation
 /// The one selection a session keeps (#349, superseding #141 and Decision 28): the items ticked on Smart clean, the Cleanup
 /// plan and the Applications page, in one set. Each page shows its own part of it, so a tick or untick on one page shows on
 /// every page that lists the item. Recommended items (`RecommendedPlan`) start ticked and the rest unticked; an untick
-/// survives rescans, and a newly found recommended item arrives ticked.
+/// survives rescans, and a newly found recommended item arrives ticked. An item something holds (#374) is never ticked for you.
 public struct CleanupSelections: Sendable, Equatable {
     /// Which page a review or run came from.
     public enum Source: Sendable, Equatable, CaseIterable {
@@ -45,8 +45,11 @@ public struct CleanupSelections: Sendable, Equatable {
 
     /// Notes the pages' choices after an edit, a run or a scan: ticks the `recommended` items found that the user never
     /// unticked, then moves each page's revision only when its own choices differ from the ones it last moved for.
-    public mutating func noteChoices(among found: [Candidate], recommended: [Candidate]) {
-        let recommended = Set(recommended.map(\.id))
+    /// A `held` item (#374) is never ticked for you: one ticked for you before it was held is unticked until it is free again.
+    public mutating func noteChoices(among found: [Candidate], recommended: [Candidate], held: [Candidate] = []) {
+        let held = Set(held.map(\.id))
+        ticked.subtract(seeded.intersection(held)); seeded.subtract(held)
+        let recommended = Set(recommended.map(\.id)).subtracting(held)
         let tickedForYou = recommended.subtracting(unticked)
         ticked.formUnion(tickedForYou); seeded.formUnion(tickedForYou)
         let ids = ticked.intersection(found.map(\.id))
@@ -59,11 +62,11 @@ public struct CleanupSelections: Sendable, Equatable {
 
     /// A scan ended: drops the ticked items no longer among `found`, ticks the newly recommended ones and notes the
     /// choices. Returns whether an item the user ticked was dropped; one ticked as recommended goes quietly.
-    @discardableResult public mutating func keepOnly(_ found: [Candidate], recommended: [Candidate]) -> Bool {
+    @discardableResult public mutating func keepOnly(_ found: [Candidate], recommended: [Candidate], held: [Candidate] = []) -> Bool {
         let ids = Set(found.map(\.id))
         let dropped = !ticked.subtracting(seeded).isSubset(of: ids)
         ticked.formIntersection(ids); seeded.formIntersection(ids)
-        noteChoices(among: found, recommended: recommended)
+        noteChoices(among: found, recommended: recommended, held: held)
         return dropped
     }
 
@@ -73,12 +76,12 @@ public struct CleanupSelections: Sendable, Equatable {
 
     /// What Smart clean's Clean up takes: the ticked items of the recommended plan with `check` run now (`RecommendedPlan`).
     /// An item the page `listed` that `check` now refuses stays in, so the review says it will be skipped and why (#310);
-    /// the run's own check refuses it again.
+    /// the run's own check refuses it again. A held item (#374) ticked by hand is taken the same way.
     public func smartClean(catalog: Catalog, found: [Candidate], listed: [Candidate] = [], check: (Candidate) -> CheckRefusal?) -> [Candidate] {
         let shown = Set(listed.map(\.id))
-        let passing = Set(RecommendedPlan(catalog: catalog, candidates: found, check: check).candidates.map(\.id))
-        let refused = Set(RecommendedPlan(catalog: catalog, candidates: found.filter { shown.contains($0.id) }) { _ in nil }.candidates.map(\.id)).subtracting(passing)
-        return found.filter { (passing.contains($0.id) || refused.contains($0.id)) && isTicked($0) }
+        let plan = RecommendedPlan(catalog: catalog, candidates: found) { _ in nil }
+        let offered = Set((plan.candidates + plan.held).map(\.id))
+        return found.filter { offered.contains($0.id) && isTicked($0) && (shown.contains($0.id) || check($0) == nil) }
     }
 
     /// The ticked items among `found` that `page` shows (the plan or Applications).

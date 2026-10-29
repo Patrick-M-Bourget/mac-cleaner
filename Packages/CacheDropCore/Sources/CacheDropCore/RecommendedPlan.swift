@@ -6,16 +6,33 @@ import Foundation
 public struct RecommendedPlan: Sendable {
     /// The scan's candidates the plan takes, in scan order.
     public let candidates: [Candidate]
+    /// What the plan would take but something holds now (#374): the scan found it in use, or `check` says its owner is running
+    /// or using it. Smart clean lists them unticked with their `hold`; never taken unless ticked.
+    public let held: [Candidate]
 
-    /// `check` is the check run just before acting (SPEC section 4); anything it would refuse is left out.
+    /// `check` is the check run just before acting (SPEC section 4); anything it would refuse is left out, or held while in use.
     /// `now` dates the installers: one is taken only when nothing opened or changed it in `installerUnusedDays`.
     public init(catalog: Catalog, candidates: [Candidate], now: Date = Date(), check: (Candidate) -> CheckRefusal?) {
-        self.candidates = candidates.filter { candidate in
+        var taken: [Candidate] = [], held: [Candidate] = []
+        for candidate in candidates {
             // Unknown is never 0, and never recommended (SPEC section 1); nor is an item that measures 0 bytes, which frees nothing (#319).
             let size = SizeEstimate(candidate)
-            guard size != .unknown, size != .measured(0), let rule = catalog.rule(candidate.ruleID), Self.recommends(candidate, rule: rule, now: now) else { return false }
-            return check(candidate) == nil
+            guard size != .unknown, size != .measured(0), let rule = catalog.rule(candidate.ruleID), Self.recommends(candidate, rule: rule, now: now) else { continue }
+            if candidate.hold != nil { held.append(candidate); continue }
+            switch check(candidate) {
+            case nil: taken.append(candidate)
+            case .ownerRunning(let name)?:
+                var found = candidate
+                found.hold = CandidateHold(.ownerRunning(name), app: catalog.owner(for: candidate))
+                held.append(found)
+            case .inUse(let name)?:
+                var found = candidate
+                found.hold = CandidateHold(.inUse(name), app: rule.copies?.owner)
+                held.append(found)
+            default: continue
+            }
         }
+        self.candidates = taken; self.held = held
     }
 
     /// Kinds of data that come back on their own when deleted, or cleaned by their tool (Decision 3).
