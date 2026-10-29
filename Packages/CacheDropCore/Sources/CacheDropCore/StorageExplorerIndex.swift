@@ -11,6 +11,7 @@ public struct StorageExplorerIndex: Sendable {
         /// `item.url.path`, read once at indexing.
         public let path: String
         public var id: String { item.id + "|" + item.resourceID }
+        var isFolder: Bool { item.kind == .folder }
     }
     public struct Subtotal: Sendable, Equatable {
         public let bytes: Int64
@@ -59,14 +60,11 @@ public struct StorageExplorerIndex: Sendable {
 
         var children: [String: [(entry: Entry, name: Substring)]] = [:]
         for entry in entries {
-            let path = entry.path
-            let slash = path.lastIndex(of: "/") ?? path.startIndex
-            let parent = slash == path.startIndex ? "/" : String(path[..<slash])
-            children[parent, default: []].append((entry, path[path.index(after: slash)...]))
+            children[Self.parent(of: entry.path), default: []].append((entry, Self.name(of: entry.path)))
         }
         // Siblings share their parent, so their names alone give Finder's order.
         childrenByFolder = children.mapValues { siblings in
-            siblings.sorted { Self.finderOrder($0.entry, $0.name, $1.entry, $1.name) }.map(\.entry)
+            Self.foldersFirst(siblings, isFolder: \.entry.isFolder) { $0.sorted { Self.finderOrder($0.name, $1.name) } }.map(\.entry)
         }
         folderPaths = Set(scans.map(\.scope.path)).union(entries.filter { $0.item.kind == .folder }.map(\.path))
 
@@ -111,20 +109,19 @@ public struct StorageExplorerIndex: Sendable {
     /// sorts them. Only the matches are sorted.
     public func matches(in folder: URL, query: String) -> [Entry] {
         let path = folder.standardizedFileURL.path, prefix = path == "/" ? "/" : path + "/"
-        return entries.filter { $0.path.hasPrefix(prefix) && $0.path.dropFirst(prefix.count).localizedCaseInsensitiveContains(query) }
-            .sorted { Self.finderOrder($0, $0.path[...], $1, $1.path[...]) }
+        let found = entries.filter { $0.path.hasPrefix(prefix) && $0.path.dropFirst(prefix.count).localizedCaseInsensitiveContains(query) }
+        return Self.foldersFirst(found, isFolder: \.isFolder) { $0.sorted { Self.finderOrder($0.path[...], $1.path[...]) } }
     }
     /// `entries` as the list's column header sorts them (#373). By name, folders stay first either way round; by size, folders
     /// and files mix by what each holds on disk, a folder by its subtotal and an unknown size as nothing.
     public func ordered(_ entries: [Entry], by sort: ListSort) -> [Entry] {
-        let name = { (entry: Entry) in String(entry.path[(entry.path.lastIndex(of: "/").map(entry.path.index(after:)) ?? entry.path.startIndex)...]) }
+        let name = { (entry: Entry) in String(Self.name(of: entry.path)) }
         switch sort.column {
         case .name:
-            let folders = entries.filter { $0.item.kind == .folder }, others = entries.filter { $0.item.kind != .folder }
-            return sort.ordered(folders, name: name, bytes: { _ in 0 }) + sort.ordered(others, name: name, bytes: { _ in 0 })
+            return Self.foldersFirst(entries, isFolder: \.isFolder) { sort.ordered($0, name: name, bytes: { _ in 0 }) }
         case .size:
             return sort.ordered(entries, name: name) { entry in
-                entry.item.kind == .folder ? allocatedByFolder[entry.path]?.bytes ?? 0 : entry.item.allocatedBytes ?? 0
+                entry.isFolder ? allocatedByFolder[entry.path]?.bytes ?? 0 : entry.item.allocatedBytes ?? 0
             }
         }
     }
@@ -145,10 +142,17 @@ public struct StorageExplorerIndex: Sendable {
         return Subtotal(bytes: found.bytes, hasUnknownRemainder: found.unknown || excluded || issue)
     }
 
-    /// Folders first, then by `leftKey` and `rightKey` (a name or a path) as Finder sorts them ("file 9" before "file 10").
-    private static func finderOrder(_ left: Entry, _ leftKey: Substring, _ right: Entry, _ rightKey: Substring) -> Bool {
-        if (left.item.kind == .folder) != (right.item.kind == .folder) { return left.item.kind == .folder }
-        return leftKey.localizedStandardCompare(rightKey) == .orderedAscending
+    /// Finder's rule for a list of entries: folders first, then the files, each part in `order`.
+    private static func foldersFirst<T>(_ items: [T], isFolder: (T) -> Bool, _ order: ([T]) -> [T]) -> [T] {
+        order(items.filter(isFolder)) + order(items.filter { !isFolder($0) })
+    }
+    /// A name or a path as Finder sorts them: "file 9" before "file 10".
+    private static func finderOrder(_ left: Substring, _ right: Substring) -> Bool {
+        left.localizedStandardCompare(right) == .orderedAscending
+    }
+    /// The last component of `path`, as the list names the entry.
+    private static func name(of path: String) -> Substring {
+        path[(path.lastIndex(of: "/").map(path.index(after:)) ?? path.startIndex)...]
     }
     private static func parent(of path: String) -> String {
         guard let slash = path.lastIndex(of: "/") else { return path }
