@@ -182,9 +182,9 @@ private func evictor(_ home: URL, cloud: FakeCloud, volume: GrowingVolume = Grow
     var record = CleanupRecord(batchID: UUID(), approvedAt: Date(), candidate: candidate, previewOnly: false)
     #expect(record.actionTitle == "Remove local copy")
     record.state = .intent
-    #expect(record.recoveryStateText == "Unresolved · Local copies may be removed · The original stays in iCloud")
+    #expect(record.recoveryStateText == "Unfinished · Local copies may be removed · The original stays in iCloud")
     record.state = .failed; record.partlyRemoved = true
     #expect(record.outcomeTitle == "Partly removed local copies")
-    #expect(record.recoveryStateText == "Recorded failure · Some local copies were removed · The originals stay in iCloud")
+    #expect(record.recoveryStateText == "Failed · Some local copies were removed · The originals stay in iCloud")
     #expect(CleanupHistoryRun(id: record.batchID, records: [record]).title == "Cleanup · Partly removed local iCloud copies")
 }

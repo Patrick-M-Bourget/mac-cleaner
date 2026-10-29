@@ -85,7 +85,7 @@ import SwiftUI
             message = "Marked as reviewed. History shows what was found."
         } catch {
             markFailed = true
-            message = "Couldn’t record the review. Nothing was changed."
+            message = "Couldn’t save the review. Nothing was changed."
         }
     }
 }
@@ -146,12 +146,12 @@ struct CleanupRecoveryView: View {
                 Button("Show in Finder") { Finder.reveal([found]) }.buttonStyle(.link).help(found.path)
                     .accessibilityLabel("Show " + record.originalURL.lastPathComponent + " in Finder")
             }
-            DisclosureGroup("Recorded details") {
+            DisclosureGroup("Details") {
                 VStack(alignment: .leading, spacing: CacheDropDesign.Space.sm) {
                     Text(record.recoveryStateText + " · " + record.message)
-                    Text("Scope: " + record.scopeURL.path)
-                    Text("Action: " + record.actionTitle + (record.previewOnly == true ? " · Dry run" : "") + " · Policy \(record.policyVersion)")
-                    Text("Resource identity at approval: " + record.resourceID)
+                    Text("Location: " + record.scopeURL.path)
+                    Text("Action: " + record.actionTitle + (record.previewOnly == true ? " · Dry run" : "") + " · Rules version \(record.policyVersion)")
+                    Text("File ID when chosen: " + record.resourceID)
                 }.font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary).textSelection(.enabled)
             }
         }
