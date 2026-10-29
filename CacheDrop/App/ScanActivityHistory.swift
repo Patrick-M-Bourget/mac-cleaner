@@ -125,19 +125,19 @@ struct ScanActivitySummary: View {
         switch reason {
         case "excludedScope": "Protected items"
         case "exclusionUnavailable": "Protected items unreadable"
-        case "directoryChanged": "Directory changed during scanning"
+        case "directoryChanged": "Folders changed during the scan"
         case "timeLimit": "Scan time limit reached"
         case "entryLimit": "Entry limit reached"
         case "issueLimit": "Too many unreadable items"
         case "depthLimit": "Folder depth limit reached"
         case "readFailed": "Unreadable locations"
-        case "metadataUnavailable": "Metadata unavailable"
-        case "differentVolume": "Other volumes not inspected"
+        case "metadataUnavailable": "Some details couldn’t be read"
+        case "differentVolume": "On another volume, not scanned"
         case "accessDenied": "Access denied"
         case "accessRevoked": "Access changed during scanning"
         case "locationUnavailable": "Location unavailable"
         case "customExcludedBoundary": "Inside Protected items"
-        case "unmeasuredContents": "Unmeasured package or other entries"
+        case "unmeasuredContents": "Packages not measured"
         default: "Couldn’t read everything"
         }
     }
