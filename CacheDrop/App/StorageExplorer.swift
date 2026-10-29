@@ -367,7 +367,7 @@ struct StorageExplorerView: View {
     }
     /// A folder's size on disk; "At least" when part of it couldn't be measured.
     private func folderAllocation(_ folder: URL) -> String {
-        guard let subtotal = index?.allocatedSubtotal(in: folder) else { return "—" }
+        guard let subtotal = index?.allocatedSubtotal(in: folder) else { return CacheDropDesign.noValue }
         return (subtotal.hasUnknownRemainder ? "At least " : "") + bytes(subtotal.bytes)
     }
 

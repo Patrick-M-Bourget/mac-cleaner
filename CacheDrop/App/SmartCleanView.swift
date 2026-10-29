@@ -82,7 +82,7 @@ struct SmartCleanView: View {
     /// (#350, SPEC section 6), "Up to" when part of it is copies that share disk blocks; and how many items are ticked.
     private var summary: some View {
         let ticked = model.smartCleanCandidates, releasing = ticked.filter(\.releasesSpace)
-        let value = releasing.isEmpty ? "—" : model.sizeText(of: releasing)
+        let value = releasing.isEmpty ? CacheDropDesign.noValue : model.sizeText(of: releasing)
         return SelectionSummary(value: value, detail: CacheDropDesign.items(ticked.count) + " selected", identifier: "smartCleanSummary",
                                 title: "Ready to clean")
             .help(CacheDropDesign.selectionEstimateHelp)

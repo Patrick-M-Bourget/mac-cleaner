@@ -75,6 +75,8 @@ enum CacheDropDesign {
     static var indigo: Color { adaptive(light: 0x5856D6, dark: 0x8583F5) }
     static func files(_ count: Int) -> String { "\(count) \(count == 1 ? "file" : "files")" }
     static func items(_ count: Int) -> String { "\(count) \(count == 1 ? "item" : "items")" }
+    /// The muted dash for a value not known yet or with nothing to show (Decision 62): never empty, never zero.
+    static let noValue = "—"
     static var capacityFill: Color { adaptive(light: 0x969BA7, dark: 0x858997) }
     static var capacityTrack: Color { adaptive(light: 0xECEEF2, dark: 0x33343D) }
     /// The meter's "Other reclaimable" segment: a slate, 5:1 against the track in light and 6:1 in dark (#164).
@@ -634,7 +636,7 @@ struct VolumeSummary: View {
                             Text(bytes(available)).font(CacheDropDesign.TypeStyle.value).monospacedDigit().accessibilityIdentifier("startupCapacityAmount")
                             Text("available").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
                         } else {
-                            Text("—").font(CacheDropDesign.TypeStyle.value)
+                            Text(CacheDropDesign.noValue).font(CacheDropDesign.TypeStyle.value)
                             Text(refreshing ? "Checking capacity…" : "Available space unavailable").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
                         }
                     }
@@ -1131,7 +1133,7 @@ private struct SkeletonRow: View {
                     bar(geometry.size.width * (width + CacheDropDesign.Size.skeletonDetailExtra), CacheDropDesign.Size.skeletonDetail)
                 }.frame(maxHeight: .infinity, alignment: .center)
             }.frame(height: CacheDropDesign.Size.badge)
-            Text("—").font(CacheDropDesign.TypeStyle.note).foregroundStyle(.secondary)
+            Text(CacheDropDesign.noValue).font(CacheDropDesign.TypeStyle.note).foregroundStyle(.secondary)
         }.padding(layout == .review ? CacheDropDesign.Space.lg : 0).padding(.vertical, layout == .line ? CacheDropDesign.Space.sm : 0)
     }
     private func bar(_ width: CGFloat, _ height: CGFloat) -> some View {
