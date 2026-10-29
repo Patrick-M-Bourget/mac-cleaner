@@ -381,12 +381,14 @@ private struct WorkspaceView: View {
     private var overviewRecommendations: some View {
         let catalog = selection.catalog
         let summary = catalog.overview
-        let rows = summary?.visibleRows ?? []
+        let visible = summary?.visibleRows ?? []
+        // The scanned folders' iCloud inventory, when the catalog found no local copies of its own; it then stands in for
+        // the empty iCloud row. Hidden at 0 bytes; unknown is never 0.
+        let showsCloudInventory = overviewObservation.map { $0.cloudInventory.localAllocatedBytes != 0 } == true && !visible.contains { $0.category == .icloud && !$0.isEmpty }
+        // Every category, empty ones last as "Empty" (#372).
+        let rows = showsCloudInventory ? visible.filter { !($0.category == .icloud && $0.isEmpty) } : visible
         let more = max(0, rows.count - CatalogOverview.leadingRowCount)
         let shown = overviewShowsAllCategories ? rows : Array(rows.prefix(CatalogOverview.leadingRowCount))
-        // The scanned folders' iCloud inventory, when the catalog found no local copies of its own.
-        // Hidden at 0 bytes, like any category; unknown is never 0.
-        let showsCloudInventory = overviewObservation.map { $0.cloudInventory.localAllocatedBytes != 0 } == true && !rows.contains { $0.category == .icloud }
         return VStack(alignment: .leading, spacing: CacheDropDesign.Space.md) {
                 HStack(alignment: .firstTextBaseline) {
                     Text("Recommended for review").font(CacheDropDesign.TypeStyle.section)
@@ -404,26 +406,30 @@ private struct WorkspaceView: View {
                     EmptyView() // Nothing was read: the line above says why, never "nothing" (#310).
                 } else if summary == nil {
                     SkeletonRows(.review, identifier: "overviewSkeleton")
-                } else if showsCloudInventory || !shown.isEmpty {
-                    RecommendationGroup {
-                        if showsCloudInventory {
-                            overviewCloudRow
-                            if overviewCloudExpanded, let report = overviewObservation?.cloudInventory { CloudInventoryView(report: report).padding(CacheDropDesign.Space.md) }
-                        }
-                        // The largest catalog categories that found something; categories are data in CacheDropCore.
-                        ForEach(Array(shown.enumerated()), id: \.element.id) { index, row in
-                            if index > 0 || showsCloudInventory { Divider().padding(.horizontal, CacheDropDesign.Space.lg) }
-                            catalogRow(row)
-                        }
-                        if more > 0 {
-                            Divider().padding(.horizontal, CacheDropDesign.Space.lg)
-                            Button(overviewShowsAllCategories ? "Show fewer" : "Show \(more) more") { overviewShowsAllCategories.toggle() }
-                                .buttonStyle(.link).font(.callout).padding(CacheDropDesign.Space.lg).frame(maxWidth: .infinity, alignment: .leading)
-                                .accessibilityIdentifier("overviewShowMore")
-                        }
-                    }.waitingForScan(catalog.isScanning)
-                } else if !catalog.isScanning {
-                    NothingToCleanUp(identifier: "overviewEmpty", action: EmptyStateAction("Explore storage") { exploreStorage(caller: .overview) })
+                } else {
+                    // Everything empty: one line above the list, which stays in place (#372).
+                    if !showsCloudInventory, rows.allSatisfy(\.isEmpty), !catalog.isScanning {
+                        NothingToCleanUp(identifier: "overviewEmpty", compact: true, action: EmptyStateAction("Explore storage") { exploreStorage(caller: .overview) })
+                    }
+                    if showsCloudInventory || !shown.isEmpty {
+                        RecommendationGroup {
+                            if showsCloudInventory {
+                                overviewCloudRow
+                                if overviewCloudExpanded, let report = overviewObservation?.cloudInventory { CloudInventoryView(report: report).padding(CacheDropDesign.Space.md) }
+                            }
+                            // Every catalog category, largest first and empty ones last; categories are data in CacheDropCore.
+                            ForEach(Array(shown.enumerated()), id: \.element.id) { index, row in
+                                if index > 0 || showsCloudInventory { Divider().padding(.horizontal, CacheDropDesign.Space.lg) }
+                                catalogRow(row)
+                            }
+                            if more > 0 {
+                                Divider().padding(.horizontal, CacheDropDesign.Space.lg)
+                                Button(overviewShowsAllCategories ? "Show fewer" : "Show \(more) more") { overviewShowsAllCategories.toggle() }
+                                    .buttonStyle(.link).font(.callout).padding(CacheDropDesign.Space.lg).frame(maxWidth: .infinity, alignment: .leading)
+                                    .accessibilityIdentifier("overviewShowMore")
+                            }
+                        }.waitingForScan(catalog.isScanning)
+                    }
                 }
                 // Places macOS protects (Safari's cache) without Full Disk Access: one line, never a 0-byte row.
                 if !catalog.notAccessibleRules.isEmpty {
@@ -442,7 +448,16 @@ private struct WorkspaceView: View {
                 }
             }
     }
-    private func catalogRow(_ row: CatalogOverview.Row) -> some View {
+    @ViewBuilder private func catalogRow(_ row: CatalogOverview.Row) -> some View {
+        if row.isEmpty {
+            // Found nothing: "Empty", muted, with no Review link (#372); "—" while a scan may still find something.
+            StorageReviewRow(category: row.category.storageCategory, title: row.category.overviewTitle, detail: row.category.overviewDetail,
+                             value: selection.catalog.isScanning ? "—" : "Empty", identifier: "overviewCategory-" + row.id, mutedValue: true)
+        } else {
+            foundCatalogRow(row)
+        }
+    }
+    private func foundCatalogRow(_ row: CatalogOverview.Row) -> some View {
         let onApplications = CleanupSelections.Source.page(of: row) == .applications
         // "Selected" only once its ticks differ from the recommended default, on whichever page they were made (#349).
         let selected = selection.catalog.selectionDiffersFromRecommended(row.rules)

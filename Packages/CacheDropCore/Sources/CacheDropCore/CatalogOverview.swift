@@ -43,6 +43,8 @@ public struct CatalogOverview: Sendable {
         public let itemCount: Int
         /// What the cleanup plan shows under the category, decided per scan from what was found.
         public var planLayout: PlanLayout { rules.count > 1 ? .ruleRows : itemCount > 1 || rules.contains(where: \.selectedOneByOne) ? .items : .categoryOnly }
+        /// Found nothing, or only 0 bytes: Overview lists it as "Empty" (#372). Unknown is never empty.
+        public var isEmpty: Bool { estimate == .measured(0) }
     }
     /// The category's checkbox is the only choice (one rule, one item); its items without a rule row (one rule,
     /// several items, or items chosen one by one, which the category's checkbox never chooses, #240); or a row per rule
@@ -53,6 +55,9 @@ public struct CatalogOverview: Sendable {
     public let recommended: SizeEstimate
     /// Candidates that go to Trash. That space stays used until the Trash is emptied, so it is never in `recommended`.
     public let proposedForTrash: SizeEstimate
+    /// The categories Overview's scan can fill, in catalog order, for its empty rows (#372). Not App-managed storage, which
+    /// has its own row, nor large and old files (picked folders only) or apps and plug-ins (only what you chose to uninstall).
+    private let categories: [CatalogCategory]
 
     public init(catalog: Catalog, candidates: [Candidate]) {
         var order: [CatalogCategory] = []
@@ -67,18 +72,29 @@ public struct CatalogOverview: Sendable {
             let found = candidates.filter { ids.contains($0.ruleID) }
             return Row(category: category, rules: rules, estimate: SizeEstimate(sum: found.map(SizeEstimate.init)), itemCount: found.count)
         }
+        var categories: [CatalogCategory] = []
+        for rule in catalog.rules where !categories.contains(rule.category) && rule.action != .guidance && !rule.fromPickedFolders
+            && rule.family != .appUninstall && rule.family != .plugInUninstall {
+            categories.append(rule.category)
+        }
+        self.categories = categories
     }
 
     /// How many rows Overview shows before "Show N more".
     public static let leadingRowCount = 5
-    /// Overview's rows, largest first: a category that measured 0 bytes is hidden, and one whose size is unknown
-    /// stays (unknown is never 0) after every sized one. Ties keep catalog order.
+    /// Overview's rows (#372): every category, largest first, one whose size is unknown (never 0) after every sized one,
+    /// then the empty ones, which found nothing or only 0 bytes, in catalog order. Ties keep catalog order.
     public var visibleRows: [Row] {
-        rows.enumerated().filter { $0.element.estimate != .measured(0) }
+        let found = rows.enumerated().filter { !$0.element.isEmpty }
             .sorted { left, right in
                 let a = left.element.estimate.sortBytes, b = right.element.estimate.sortBytes
                 return a != b ? a > b : left.offset < right.offset
             }.map(\.element)
+        let empty = categories.compactMap { category -> Row? in
+            guard let row = rows.first(where: { $0.category == category }) else { return Row(category: category, rules: [], estimate: .measured(0), itemCount: 0) }
+            return row.isEmpty ? row : nil
+        }
+        return found + empty
     }
 }
 

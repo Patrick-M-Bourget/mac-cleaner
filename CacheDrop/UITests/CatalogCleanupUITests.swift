@@ -210,10 +210,24 @@ final class CatalogCleanupUITests: XCTestCase {
         XCTAssertFalse(app.staticTexts["overviewEmpty"].exists)
 
         XCTAssertTrue(progress.waitForNonExistence(timeout: 60))
-        XCTAssertTrue(app.buttons["overviewCategory-downloads"].exists)
+        let downloads = app.buttons["overviewCategory-downloads"]
+        XCTAssertTrue(downloads.exists)
         // Nothing shifts when the scan ends: the rows stay put and the bar keeps its height.
         XCTAssertEqual(developer.frame.minY, rowTop, accuracy: 0.5)
         XCTAssertEqual(actionStrip(app).frame.height, stripHeight, accuracy: 0.5)
+        // #372: a category that found nothing stays listed below the ones that did, as "Empty", with no Review link.
+        let updaters = app.descendants(matching: .any)["overviewCategory-updaters"]
+        XCTAssertTrue(updaters.exists, "An empty category is still listed")
+        XCTAssertFalse(app.buttons["overviewCategory-updaters"].exists, "An empty category has no Review link")
+        XCTAssertTrue((updaters.value as? String)?.contains("Empty") == true, updaters.debugDescription)
+        XCTAssertGreaterThan(updaters.frame.minY, downloads.frame.minY, "Empty categories sort below the ones that found something")
+        XCTAssertFalse(app.descendants(matching: .any)["overviewEmpty"].exists, "Something was found, so no empty-state line")
+        // "Show N more" still folds the rest of the list.
+        let more = app.buttons["overviewShowMore"]
+        XCTAssertTrue(more.exists)
+        XCTAssertFalse(app.descendants(matching: .any)["overviewCategory-leftovers"].exists, "Folded under Show N more")
+        more.click()
+        XCTAssertTrue(app.descendants(matching: .any)["overviewCategory-leftovers"].waitForExistence(timeout: 5))
     }
 
     /// #308: while the first scan runs, Smart clean and the plan show skeleton rows rather than a blank page, and their
@@ -698,7 +712,8 @@ final class CatalogCleanupUITests: XCTestCase {
         XCTAssertTrue(denied.waitForExistence(timeout: 10))
         // Safari's cache is one of the places named; others that need access too (sandboxed app caches, #133) add to the count.
         XCTAssertTrue(denied.staticTexts.matching(NSPredicate(format: "label ENDSWITH 'Full Disk Access ·' AND value CONTAINS 'Safari cache'")).firstMatch.exists)
-        XCTAssertFalse(app.descendants(matching: .any)["overviewCategory-browser"].exists, "Nothing found, so no 0-byte browser row")
+        // #372: nothing found, so the browser row is listed as Empty, never as a 0-byte row with a Review link.
+        XCTAssertFalse(app.buttons["overviewCategory-browser"].exists, "Nothing found, so no browser row to review")
         revealAndClick(denied.links["fullDiskAccessLink"], in: app)
         XCTAssertTrue(app.staticTexts["Broader access is optional"].waitForExistence(timeout: 5))
         app.buttons["closeFullDiskAccess"].click() // "Not now", never "Open System Settings".
@@ -2155,6 +2170,39 @@ final class EmptyStateUITests: XCTestCase {
         XCTAssertTrue(empty.staticTexts["Nothing to clean up right now"].exists)
         XCTAssertFalse(app.descendants(matching: .any)["planSkeleton"].exists, "Never a skeleton and an empty state together")
         let explore = empty.buttons["planEmptyAction"]
+        XCTAssertEqual(explore.label, "Explore storage")
+        explore.click()
+        XCTAssertTrue(app.buttons["manageLocalRecords"].waitForExistence(timeout: 5), "With no scanned folder, it opens Locations & access")
+    }
+
+    /// #372: Overview on an empty home keeps every category listed as "Empty", with no Review link, and says there's
+    /// nothing to clean up in one line above the list, whose Explore storage leads to Locations & access.
+    @MainActor func testOverviewOnAnEmptyHomeListsEveryCategoryAsEmptyUnderOneLine() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        let state = try configureIsolatedState(app)
+        let home = try configureEmptyCatalogHome(app)
+        defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
+        app.launch()
+        XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
+        waitForCatalogScan(app)
+
+        let empty = app.descendants(matching: .any)["overviewEmpty"]
+        XCTAssertTrue(empty.waitForExistence(timeout: 10), "Overview says nothing was found")
+        XCTAssertTrue(empty.staticTexts["Nothing to clean up right now"].exists)
+        let developer = app.descendants(matching: .any)["overviewCategory-developer"]
+        XCTAssertTrue(developer.exists, "The list stays")
+        XCTAssertFalse(app.buttons["overviewCategory-developer"].exists, "An empty category has no Review link")
+        XCTAssertTrue((developer.value as? String)?.contains("Empty") == true, developer.debugDescription)
+        XCTAssertLessThanOrEqual(empty.frame.maxY, developer.frame.minY, "The one line sits above the list")
+        XCTAssertLessThan(empty.frame.height, developer.frame.height, "The empty state is one line, shorter than a row")
+
+        // "Show N more" still folds the list.
+        XCTAssertFalse(app.descendants(matching: .any)["overviewCategory-leftovers"].exists)
+        app.buttons["overviewShowMore"].click()
+        XCTAssertTrue(app.descendants(matching: .any)["overviewCategory-leftovers"].waitForExistence(timeout: 5))
+
+        let explore = empty.links["overviewEmptyAction"]
         XCTAssertEqual(explore.label, "Explore storage")
         explore.click()
         XCTAssertTrue(app.buttons["manageLocalRecords"].waitForExistence(timeout: 5), "With no scanned folder, it opens Locations & access")

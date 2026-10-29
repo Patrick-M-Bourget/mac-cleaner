@@ -92,6 +92,9 @@ struct DesignGallery: View {
                         StorageReviewRow(category: .cloud, title: "Downloaded iCloud files", detail: "Example unknown measurement · Eviction unavailable.", value: "Unknown", meaning: "Local allocation", actionTitle: "Review iCloud inventory", action: {})
                         Divider()
                         StorageReviewRow(category: .browser, title: "Browser caches", detail: "No qualified profile inspection.", value: "Not inspected", meaning: "Unavailable")
+                        Divider()
+                        // #372: a category that found nothing stays listed, muted, with no Review link.
+                        StorageReviewRow(category: .logs, title: "Logs and crash reports", detail: "Logs and crash reports apps wrote", value: "Empty", mutedValue: true)
                     }
 
                     SelectionSummary(value: "3 files", detail: "Example selection · No action will run", consequence: "Space stays occupied until Finder empties Trash.")
@@ -124,6 +127,8 @@ struct DesignGallery: View {
                     EmptyState(title: "No scans yet", detail: "A completed scan records a baseline. Check back a day later to see trends.",
                                symbol: "chart.line.uptrend.xyaxis", action: EmptyStateAction("Scan now") {}, identifier: "galleryEmptyAction")
                     NothingToCleanUp(identifier: "galleryNothingToCleanUp", action: EmptyStateAction("Explore storage") {})
+                    // #372: Overview's one line above its list, which stays in place with every category Empty.
+                    NothingToCleanUp(identifier: "galleryNothingToCleanUpCompact", compact: true, action: EmptyStateAction("Explore storage") {})
                     EmptyState(title: "Nothing to review", symbol: "checkmark.circle", identifier: "galleryEmptyPlain")
                     // #308: nothing known yet, skeleton rows in each page's layout; a rescan dims the rows already shown.
                     Text("Waiting for a scan · Skeleton rows").font(.headline)
