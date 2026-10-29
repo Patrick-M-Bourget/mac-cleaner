@@ -29,6 +29,13 @@ enum UserProcesses {
         return pids.prefix(Int(count)).filter { $0 > 0 }
     }
 
+    /// A path in the form `resolvingSymlinksInPath` gives, which drops `/private` from `/private/var`, `/private/tmp` and
+    /// `/private/etc`, while the process table gives the real path (#377). The running-app check and the fixture quitter
+    /// compare process paths in this form.
+    static func sameForm(_ path: String) -> String {
+        ["/private/var/", "/private/tmp/", "/private/etc/"].contains(where: path.hasPrefix) ? String(path.dropFirst("/private".count)) : path
+    }
+
     /// The process's executable; nil when it can't be read.
     static func executablePath(_ pid: pid_t) -> String? {
         var buffer = [CChar](repeating: 0, count: Int(4 * MAXPATHLEN))

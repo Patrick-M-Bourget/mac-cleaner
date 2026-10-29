@@ -427,7 +427,7 @@ struct WorkspaceCleanupConfirmationView: View {
     private let catalog = Catalog(rules: BuiltInCatalog.rules)
     /// The rows a running app holds, with "Quit X" (#377); checked again here, so the choices and the sheet stay as they are.
     @State private var held: ReviewHeldItems?
-    @State private var quitting: Set<String> = []
+    @State private var quitting: Set<RuleOwner> = []
     @State private var quitAnApp = false
     init(review: WorkspaceCleanupReview, cancel: @escaping () -> Void, approve: @escaping () -> Void, follow: ((AppUninstall.Staying.Link) -> Void)? = nil) {
         self.review = review; self.cancel = cancel; self.approve = approve; self.follow = follow
@@ -450,19 +450,20 @@ struct WorkspaceCleanupConfirmationView: View {
     }
     private func quitAction(_ item: Candidate) -> StatusAction? {
         guard let held, let owner = held.holder(of: item), let title = held.quitTitle(for: item) else { return nil }
-        let busy = quitting.contains(owner.name)
-        return StatusAction(title: busy ? "Quitting…" : title, identifier: "reviewQuit-" + item.ruleID, isDisabled: busy) { quit(owner) }
+        let busy = quitting.contains(owner)
+        // The candidate's id, which starts with its rule's: rows of one rule each get their own link (#384).
+        return StatusAction(title: busy ? "Quitting…" : title, identifier: "reviewQuit-" + item.id, isDisabled: busy) { quit(owner) }
     }
     /// A normal quit request, never a force quit; once the app is gone its rows are checked again, otherwise they keep their reason.
     private func quit(_ owner: RuleOwner) {
-        guard !quitting.contains(owner.name), let rows = held?.candidates(heldBy: owner) else { return }
-        quitting.insert(owner.name); quitAnApp = true
+        guard !quitting.contains(owner), let rows = held?.candidates(heldBy: owner) else { return }
+        quitting.insert(owner); quitAnApp = true
         Task {
             let quitter = CatalogCleanupModel.quitter
             let outcome = await AppQuitRequest(quitter: quitter).quit(owner)
             let checked = outcome == .quit ? await review.model?.checkedAgain(rows) : nil
             held?.quitEnded(owner, outcome: checked == nil ? .stillOpen : outcome, isOpen: quitter.isOpen) { checked?[$0.id] }
-            quitting.remove(owner.name)
+            quitting.remove(owner)
         }
     }
 }

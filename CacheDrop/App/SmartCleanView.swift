@@ -93,19 +93,21 @@ struct SmartCleanView: View {
     /// those lines, not the items behind them (#229).
     private func category(_ row: CatalogOverview.Row, items: [Candidate]) -> some View {
         let found = items.filter { candidate in row.rules.contains { $0.id == candidate.ruleID } }
-        // A held item is ticked on its own, never with its category (#374).
-        let free = found.filter { $0.hold == nil }, together = free.isEmpty ? found : free
-        let ticked = found.filter(model.isSelected).count
-        let state: CategorySelectionState = ticked == 0 ? .unchecked : together.allSatisfy(model.isSelected) ? .checked : .mixed
+        // The plan's rule (#240): a held item is ticked on its own, never with its category (#374).
+        let selection = model.categorySelection(row.rules, items: found)
         let lines = lines(row, found: found)
         let expanded = Binding(get: { presentation.expandedCategories.contains(row.category) },
                                set: { if $0 { presentation.expandedCategories.insert(row.category) } else { presentation.expandedCategories.remove(row.category) } })
         // One consequence line per category (#319), from what its rules do.
         let consequence = SmartCleanConsequence.line(for: row.category, rules: row.rules)
-        return CategoryRow(category: row.category.storageCategory, state: state, title: row.category.smartCleanTitle, detail: consequence,
+        return CategoryRow(category: row.category.storageCategory, state: selection.state, title: row.category.smartCleanTitle, detail: consequence,
                            size: row.valueText, enabled: model.canEdit, identifier: "smartCleanCategory-" + row.id,
                            itemCount: lines.count > 1 ? lines.count : nil, expanded: expanded,
-                           toggle: { model.setSelected(state != .checked ? together : found, state != .checked) }) {
+                           toggle: {
+            // Nothing may be ticked together: a lone line is the category's own row, so its checkbox ticks it; several open.
+            guard model.toggle(selection) else { return }
+            if lines.count == 1, let only = lines.first { model.setSelected(only.items, true) } else { expanded.wrappedValue = true }
+        }) {
             EmptyView()
         } items: {
             VStack(alignment: .leading, spacing: 0) { ForEach(lines) { line($0) } }
@@ -113,7 +115,11 @@ struct SmartCleanView: View {
     }
 
     private struct Line: Identifiable {
-        let id: String
+        /// The rule, the group and the hold (#384): two holds whose lines read alike stay two lines.
+        struct ID: Hashable { let rule: String; let group: String?; let hold: CandidateHold? }
+        let id: ID
+        /// Its accessibility identifier's suffix: "rule|group", then "|held-N" for the Nth held line of that group.
+        let key: String
         let name: String
         let rule: CleanupRule
         let items: [Candidate]
@@ -126,11 +132,13 @@ struct SmartCleanView: View {
             let groups = Dictionary(grouping: items) { $0.group }
             return groups.keys.sorted { ($0 ?? "").localizedStandardCompare($1 ?? "") == .orderedAscending }.flatMap { group in
                 let name = group.map { row.rules.count > 1 ? rule.title + " · " + $0 : $0 } ?? rule.title
-                // Held items get a line of their own per reason, unticked, saying why (#374).
-                let byHold = Dictionary(grouping: groups[group] ?? []) { $0.hold }
-                return byHold.keys.sorted { ($0?.line ?? "") < ($1?.line ?? "") }.map { hold in
-                    Line(id: rule.id + "|" + (group ?? "") + (hold.map { "|held-" + $0.line } ?? ""), name: name, rule: rule, items: byHold[hold] ?? [], hold: hold)
+                // Held items get a line of their own per hold, unticked, saying why (#374), in the order the scan found them (#384).
+                let byHold = CandidateHold.grouped(groups[group] ?? []), base = rule.id + "|" + (group ?? "")
+                func line(_ held: CandidateHold.Group, key: String) -> Line {
+                    Line(id: Line.ID(rule: rule.id, group: group, hold: held.hold), key: key, name: name, rule: rule, items: held.items, hold: held.hold)
                 }
+                return byHold.filter { $0.hold == nil }.map { line($0, key: base) }
+                    + byHold.filter { $0.hold != nil }.enumerated().map { line($1, key: base + "|held-\($0 + 1)") }
             }
         }
     }
@@ -141,9 +149,9 @@ struct SmartCleanView: View {
                            symbol: "folder", inspected: false,
                            // Clicking the line ticks it, as its checkbox does; Finder is its own Reveal link (#367, Decision 72).
                            inspect: line.rule.itemRowClick == .tick ? { if model.canEdit { model.setSelected(line.items, !line.items.allSatisfy(model.isSelected)) } } : nil,
-                           actionLabel: "Include " + line.name, reveal: { Finder.reveal(line.items.map(\.url)) }, revealIdentifier: "smartCleanLineReveal-" + line.id) {
+                           actionLabel: "Include " + line.name, reveal: { Finder.reveal(line.items.map(\.url)) }, revealIdentifier: "smartCleanLineReveal-" + line.key) {
             Toggle("Include " + line.name, isOn: Binding(get: { line.items.allSatisfy(model.isSelected) }, set: { model.setSelected(line.items, $0) }))
-                .labelsHidden().disabled(!model.canEdit).accessibilityIdentifier("smartCleanLine-" + line.id)
+                .labelsHidden().disabled(!model.canEdit).accessibilityIdentifier("smartCleanLine-" + line.key)
         }.help(line.items.map(\.url.path).sorted().joined(separator: "\n"))
     }
 

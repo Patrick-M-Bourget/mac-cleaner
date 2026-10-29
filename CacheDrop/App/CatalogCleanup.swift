@@ -319,13 +319,15 @@ import SwiftUI
         toggle(CategorySelection(rules: AppRuleFamily.uninstallRules, candidates: uninstallItems(ofRow: id), selected: selectedIDs))
     }
     func selectionState(for rules: [CleanupRule]) -> CategorySelectionState { categorySelection(rules).state }
-    private func categorySelection(_ rules: [CleanupRule]) -> CategorySelection {
-        CategorySelection(rules: rules, candidates: rules.flatMap(candidates(for:)), selected: selectedIDs)
+    /// What a checkbox over `rules` shows and does (#240), over `items` when given (Smart clean's recommended items), else
+    /// everything the rules found. Items chosen one by one, and held items (#374), are never ticked with it.
+    func categorySelection(_ rules: [CleanupRule], items: [Candidate]? = nil) -> CategorySelection {
+        CategorySelection(rules: rules, candidates: items ?? rules.flatMap(candidates(for:)), selected: selectedIDs)
     }
-    /// The category's checkbox (#240): chooses what may be chosen together or clears every chosen item. Returns true when
+    /// The category's or rule's checkbox (#240): chooses what may be chosen together or clears every chosen item. Returns true when
     /// nothing may be chosen together and nothing is chosen, so the category lists its items to choose one by one.
-    func toggleCategory(_ rules: [CleanupRule]) -> Bool { toggle(categorySelection(rules)) }
-    private func toggle(_ selection: CategorySelection) -> Bool {
+    @discardableResult func toggleCategory(_ rules: [CleanupRule]) -> Bool { toggle(categorySelection(rules)) }
+    @discardableResult func toggle(_ selection: CategorySelection) -> Bool {
         guard canEdit else { return false }
         switch selection.toggle {
         case .choose(let ids): selections.set(ids, ticked: true)
@@ -504,14 +506,6 @@ import SwiftUI
         if let scope { pickedFiles[scope.standardizedFileURL] = nil; projectBuilds[scope.standardizedFileURL] = nil } else { pickedFiles = [:]; projectBuilds = [:] }
         keepOnlyCurrentChoices()
     }
-    /// Chooses or clears every item the rule found.
-    func setSelected(_ rule: CleanupRule, _ selected: Bool) { setSelected([rule], selected) }
-    /// Chooses or clears every item the rules found, such as a whole category. Items chosen one by one (possibly related
-    /// leftovers, #173) are never chosen with them.
-    func setSelected(_ rules: [CleanupRule], _ selected: Bool) {
-        // A held item (#374) is ticked only on its own row, but unticking the rules clears it too.
-        setSelected(rules.filter { !$0.selectedOneByOne }.flatMap(candidates(for:)).filter { !selected || $0.hold == nil }, selected)
-    }
     func setSelected(_ candidate: Candidate, _ selected: Bool) { setSelected([candidate], selected) }
     /// Ticks or unticks found items on any page; every page that lists them shows it (#349).
     func setSelected(_ items: [Candidate], _ selected: Bool) {
@@ -561,14 +555,14 @@ import SwiftUI
         guard canEdit, !candidates.isEmpty else { return nil }
         let approval = CatalogApproval(candidates: candidates, previewOnly: dryRun)
         guard let check = await currentCheck()?.snapshotted() else { return nil }
-        let refusals = await Task.detached { Dictionary(uniqueKeysWithValues: approval.candidates.compactMap { c in check.check(c).map { (c.id, $0) } }) }.value
+        let refusals = await Task.detached { check.refusals(of: approval.candidates) }.value
         return CatalogReview(approval: approval, refusals: refusals, staying: AppUninstall.staying(chosen: candidates, offered: uninstallable))
     }
     /// The review sheet's rows checked again now, after their app quit (#377): each refused row's new reason, by candidate id.
     /// Read-only: no choice changes, so the review stays open. Nil when nothing could be checked.
     func checkedAgain(_ items: [Candidate]) async -> [String: CheckRefusal]? {
         guard let check = await currentCheck()?.snapshotted() else { return nil }
-        return await Task.detached { Dictionary(uniqueKeysWithValues: items.compactMap { c in check.check(c).map { (c.id, $0) } }) }.value
+        return await Task.detached { check.refusals(of: items) }.value
     }
     func execute(_ approval: CatalogApproval, cancellation: CleanupCancellation) async {
         guard !isRunning else { return }

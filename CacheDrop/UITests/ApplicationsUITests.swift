@@ -241,7 +241,10 @@ final class ApplicationsUITests: XCTestCase {
         let skipped = app.staticTexts["reviewSkipped-uninstall-app"]
         XCTAssertTrue(skipped.waitForExistence(timeout: 10), "The app's row will be skipped while it is open")
         XCTAssertTrue((skipped.value as? String ?? skipped.label).contains("Synth is running."), skipped.debugDescription)
-        let quit = app.links["reviewQuit-uninstall-app"]
+        // Each row's link is its own (#384): the identifier carries the row's candidate id after its rule.
+        let quits = app.links.matching(NSPredicate(format: "identifier BEGINSWITH %@", "reviewQuit-uninstall-app|"))
+        XCTAssertEqual(quits.count, 1, "One link for the app's row")
+        let quit = quits.firstMatch
         XCTAssertTrue(quit.exists, "An open known app offers Quit")
         XCTAssertEqual(quit.label, "Quit Synth")
 
@@ -249,7 +252,7 @@ final class ApplicationsUITests: XCTestCase {
         XCTAssertTrue(skipped.waitForNonExistence(timeout: 20), "Once Synth quits, its row is checked again and can be cleaned")
         XCTAssertFalse(running.isRunning, "The fixture app was asked to quit and did")
         XCTAssertFalse(app.staticTexts["reviewSkipped-uninstall-app-files"].exists, "Its files were checked again too")
-        XCTAssertFalse(app.links["reviewQuit-uninstall-app"].exists)
+        XCTAssertFalse(quits.firstMatch.exists)
         // The recheck changes no choice, so the sheet stays open (#307).
         XCTAssertTrue(app.descendants(matching: .any).matching(identifier: "sheetFooter").firstMatch.buttons["Clean up"].exists)
         XCTAssertFalse(app.staticTexts["Your choices changed. Check the items and try again."].exists)
