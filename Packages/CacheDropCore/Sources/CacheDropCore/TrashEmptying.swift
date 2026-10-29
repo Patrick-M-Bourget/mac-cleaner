@@ -183,9 +183,7 @@ public struct TrashEmptying: Sendable {
         let before = measure(folder)
         Self.delete(original, at: record.originalURL, into: &record)
         if record.state == .succeeded, let before, let after = measure(folder) {
-            record.itemCapacity = CleanupCapacityObservation(beforeAvailable: before.available, afterAvailable: after.available, beforeTotal: before.total, afterTotal: after.total,
-                                                             beforeVolumeID: before.volumeID, afterVolumeID: after.volumeID, beforeMetric: before.metric.rawValue,
-                                                             afterMetric: after.metric.rawValue, beforeDate: before.date, afterDate: after.date)
+            record.itemCapacity = CleanupCapacityObservation(from: before, to: after)
         }
     }
 
