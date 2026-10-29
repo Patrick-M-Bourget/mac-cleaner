@@ -97,3 +97,15 @@ private func maker(_ vendor: String) -> RuleOwner { RuleOwner(name: vendor, bund
     // Owners without a maker never need the list.
     #expect(SystemRunningAppChecker(processes: Processes(list: nil)).isRunning(RuleOwner(name: "Nothing")) == false)
 }
+
+/// #377: CacheDrop's paths come from `resolvingSymlinksInPath`, which drops `/private`; the process table gives the real path.
+/// An app under /var or /tmp (a fixture home) is running whichever of the two forms each side uses.
+@Test func anAppUnderASymlinkedSystemFolderCountsAsRunningFromItsRealPath() {
+    let owner = RuleOwner(name: "Synth", paths: ["/var/folders/ab/T/Home/Applications/Synth.app"])
+    func running(_ path: String) -> Bool? { SystemRunningAppChecker(processes: Processes(list: [RunningProcess(path: path)])).isRunning(owner) }
+    #expect(running("/private/var/folders/ab/T/Home/Applications/Synth.app/Contents/MacOS/Synth") == true)
+    #expect(running("/var/folders/ab/T/Home/Applications/Synth.app/Contents/MacOS/Synth") == true)
+    #expect(running("/private/var/folders/ab/T/Home/Applications/Synth Pro.app/Contents/MacOS/Synth") == false)
+    let real = RuleOwner(name: "Synth", paths: ["/private/tmp/Home/Synth.app"])
+    #expect(SystemRunningAppChecker(processes: Processes(list: [RunningProcess(path: "/tmp/Home/Synth.app/Contents/MacOS/Synth")])).isRunning(real) == true)
+}
