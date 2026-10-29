@@ -14,6 +14,12 @@ public struct CatalogApproval: Sendable, Identifiable {
     }
 }
 
+/// How a measured freed space is shown (#418): never below 0. Other activity can move free space the other way while an
+/// item's space hasn't reached macOS yet (Docker's, #411); the caption beside it says other activity can affect it.
+public enum MeasuredFreedSpace {
+    public static func shown(_ measured: Int64?) -> Int64? { measured.map { max(0, $0) } }
+}
+
 public struct CatalogExecutionResult: Sendable {
     public let batchID: UUID
     public let records: [CleanupRecord]
@@ -33,6 +39,15 @@ public struct CatalogExecutionResult: Sendable {
             total += change
         }
         return total
+    }
+    /// Results' line under the measured freed space once the disk was read again a minute after completed Docker prunes
+    /// (#411). It isn't added to the measured freed space. Before the check (`checked` false) there is none; a check that
+    /// couldn't read the disk says so, so Results' "check again" is always answered.
+    public func settledLine(checked: Bool) -> String? {
+        if let change = records.lazy.compactMap({ $0.settledCapacity?.observedChange }).first {
+            return change > 0 ? ByteCountFormatter.string(fromByteCount: change, countStyle: .decimal) + " more free a minute later" : "No more free space a minute later"
+        }
+        return checked ? "Couldn’t check the disk again a minute later" : nil
     }
     /// The candidates the run cleaned, or would have in a dry run, by id: they leave every page's selection (#349).
     public var cleanedCandidateIDs: [String] { records.filter { $0.state == .succeeded || $0.wasPreviewed }.map(\.candidateID) }
@@ -146,12 +161,16 @@ public actor CleanupExecutor {
     /// recorded at the stop follows the measurement (#209): an item found gone becomes removed, finished after the stop;
     /// one with some of it left stays partly removed. Bounded: at most two waits per run and two measurements per item,
     /// never a retry. Returns `result` unchanged when nothing needs it, the wait was cancelled, or the journal couldn't record it.
+    /// Waits for real; false when the wait was cancelled.
+    public static let sleeping: @Sendable (Duration) async -> Bool = { (try? await Task.sleep(for: $0)) != nil }
+
     public func measureAgainLater(_ result: CatalogExecutionResult, of approval: CatalogApproval,
-                                  wait: @Sendable (Duration) async -> Bool = { (try? await Task.sleep(for: $0)) != nil },
+                                  wait: @Sendable (Duration) async -> Bool = CleanupExecutor.sleeping,
                                   update: @Sendable (CatalogExecutionResult) async -> Void = { _ in },
                                   measure: @Sendable ([Candidate]) async -> [String: LaterMeasurement.Finding]) async -> CatalogExecutionResult {
-        let stopped = Set(result.records.filter { $0.mayStillBeFinishing == true && $0.laterMeasurement == nil }.map(\.id))
-        let first = await measureAgain(stopped, in: result, of: approval, after: Self.laterMeasurementDelay, waiting: Self.laterMeasurementDelay, wait: wait, measure: measure)
+        let stopped = Set(result.records.filter(\.awaitsLaterMeasurement).map(\.id))
+        let first = await measureAgain(stopped, in: result, of: approval, after: Self.laterMeasurementDelay, waiting: Self.laterMeasurementDelay,
+                                       settling: settlingRecord(of: result)?.id, wait: wait, measure: measure)
         // Still shrinking: some went since the scan, and some is left.
         let shrinking = Set(first.records.filter { record in
             guard stopped.contains(record.id), case .remaining(let bytes)? = record.laterMeasurement?.finding else { return false }
@@ -163,16 +182,39 @@ public actor CleanupExecutor {
                                   waiting: Self.lastLaterMeasurementDelay - Self.laterMeasurementDelay, wait: wait, measure: measure)
     }
 
-    /// One wait, then one measurement of the records `ids` names, journaled. A finding that couldn't be measured never
-    /// replaces an earlier one.
+    /// Whether `measureAgainLater` has anything to do for `result`: a stopped daemon-backed item, or a completed Docker prune.
+    public nonisolated func measuresLater(_ result: CatalogExecutionResult) -> Bool {
+        result.records.contains(where: \.awaitsLaterMeasurement) || settlingRecord(of: result) != nil
+    }
+
+    /// Whether the disk is still to be read again a minute after `result`'s completed Docker prunes (#411): Results say a
+    /// check is coming until it's done.
+    public nonisolated func settles(_ result: CatalogExecutionResult) -> Bool { settlingRecord(of: result) != nil }
+
+    /// The run's last completed Docker prune with its available space read (#411): Docker hands freed space back to macOS
+    /// after the prune returns, so the disk is read once more a minute after the run and this record keeps what more was free.
+    private nonisolated func settlingRecord(of result: CatalogExecutionResult) -> CleanupRecord? {
+        guard !result.previewOnly else { return nil }
+        let last = result.records.last { record in
+            record.state == .succeeded && record.mayStillBeFinishing != true && record.itemCapacity != nil && check.catalog.isDocker(record.ruleID)
+        }
+        return last?.settledCapacity == nil ? last : nil
+    }
+
+    /// One wait, then one measurement of the records `ids` names, journaled, and the disk's available space read again for
+    /// the record `settling` names. A finding that couldn't be measured never replaces an earlier one.
     private func measureAgain(_ ids: Set<String>, in result: CatalogExecutionResult, of approval: CatalogApproval, after: Duration, waiting: Duration,
-                              wait: @Sendable (Duration) async -> Bool,
+                              settling: String? = nil, wait: @Sendable (Duration) async -> Bool,
                               measure: @Sendable ([Candidate]) async -> [String: LaterMeasurement.Finding]) async -> CatalogExecutionResult {
         let candidates = approval.candidates.filter { ids.contains(CleanupRecord.id(batchID: approval.id, candidateID: $0.id)) }
-        guard !candidates.isEmpty, await wait(waiting) else { return result }
-        let findings = await measure(candidates)
+        guard !candidates.isEmpty || settling != nil, await wait(waiting) else { return result }
+        let findings = candidates.isEmpty ? [:] : await measure(candidates)
         let measuredAt = clock()
         var records = result.records
+        if let index = records.firstIndex(where: { $0.id == settling }), let withReading = settled(records[index], after: records, of: approval) {
+            // Shown only once the journal has it, as below.
+            if (try? journal.outcome(withReading)) != nil { records[index] = withReading }
+        }
         for index in records.indices where ids.contains(records[index].id) {
             var record = records[index]
             let finding = findings[record.candidateID] ?? .unmeasured
@@ -186,6 +228,18 @@ public actor CleanupExecutor {
         }
         return CatalogExecutionResult(batchID: result.batchID, records: records, previewOnly: result.previewOnly, rejectedReplay: result.rejectedReplay,
                                       journalFailure: result.journalFailure, estimatedBytes: result.estimatedBytes)
+    }
+
+    /// `record` with the disk's available space now, against the run's last reading: items after Docker's (simulators,
+    /// Android) freed space the run already counted. Nil without a reading.
+    private func settled(_ record: CleanupRecord, after run: [CleanupRecord], of approval: CatalogApproval) -> CleanupRecord? {
+        guard let after = run.last(where: { $0.itemCapacity != nil })?.itemCapacity, let candidate = approval.candidates.first(where: { $0.id == record.candidateID }),
+              let now = self.measure(candidate.url.deletingLastPathComponent()) else { return nil }
+        var settled = record
+        settled.settledCapacity = CleanupCapacityObservation(beforeAvailable: after.afterAvailable, afterAvailable: now.available, beforeTotal: after.afterTotal,
+                                                             afterTotal: now.total, beforeVolumeID: after.afterVolumeID, afterVolumeID: now.volumeID,
+                                                             beforeMetric: after.afterMetric, afterMetric: now.metric.rawValue, beforeDate: after.afterDate, afterDate: now.date)
+        return settled
     }
 
     private func perform(_ candidate: Candidate, check: CandidateCheck, previewOnly: Bool, into record: inout CleanupRecord) async {

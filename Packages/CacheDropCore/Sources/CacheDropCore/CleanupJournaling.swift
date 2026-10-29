@@ -32,6 +32,9 @@ public struct CleanupRecord: Codable, Sendable, Identifiable {
     public var previewOnly: Bool? = nil
     /// Available space read right before and right after this item.
     public var itemCapacity: CleanupCapacityObservation? = nil
+    /// On a run's last completed Docker prune (#411): available space right after it, then once more a minute after the run,
+    /// since Docker hands freed space back to macOS later. Nil on every other record and in older journals.
+    public var settledCapacity: CleanupCapacityObservation? = nil
     /// The end of a tool action's output, shown in results.
     public var toolOutput: String? = nil
     /// `action` as a type; nil for an action this version doesn't know.

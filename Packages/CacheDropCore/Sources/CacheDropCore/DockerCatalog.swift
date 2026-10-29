@@ -17,15 +17,15 @@ extension BuiltInCatalog {
     /// included, so pruning images first would leave behind an image only a stopped container used. The run follows this order.
     static let dockerRules = [
         docker(.stoppedContainers, id: "docker-containers", title: "Stopped Docker containers",
-               detail: "Containers that aren’t running. The size is Docker’s own estimate.",
+               detail: "Containers that aren’t running. Size is an estimate.",
                effect: "which permanently removes stopped containers and any changes made inside them. Running containers and volumes are not touched.",
                regen: .build, arguments: ["container", "prune", "-f"]),
         docker(.images, id: "docker-images", title: "Docker images",
-               detail: "Images no running container uses, once stopped containers are removed too. The size is an estimate.",
+               detail: "Images no running container uses. Size is an estimate.",
                effect: "which permanently removes every image no container uses. Docker downloads or builds them again when needed.",
                regen: .cache, arguments: ["image", "prune", "-a", "-f"]),
         docker(.buildCache, id: "docker-build-cache", title: "Docker build cache",
-               detail: "Layers Docker kept to speed up builds. Layers an image still in use shares stay, and aren’t counted. The size is an estimate.",
+               detail: "Layers Docker kept to speed up builds. Size is an estimate.",
                effect: "which permanently removes all unused build cache. The next build may take longer.",
                regen: .build, arguments: ["builder", "prune", "-a", "-f"]),
     ]
@@ -199,6 +199,15 @@ public enum DockerDiskUsage {
 }
 
 extension Catalog {
+    /// The review sheet's one note when the run prunes Docker (#411): its space reaches macOS a little after the prune, so
+    /// Results' "check again" isn't a surprise. Nil without a Docker item.
+    public func dockerReviewNote(for candidates: [Candidate]) -> String? {
+        candidates.contains { isDocker($0.ruleID) } ? "Space from Docker reaches macOS up to a minute after it finishes." : nil
+    }
+
+    /// Whether `ruleID` names one of Docker's prune rules.
+    func isDocker(_ ruleID: String?) -> Bool { ruleID.flatMap(rule)?.isDocker == true }
+
     /// The candidate for one prune kind: the rule's `.docker` folder, sized by what its prune removes (#407).
     /// Nothing is offered for a kind with nothing to remove.
     func dockerCandidate(_ kind: DockerPruneKind, at url: URL, rule: CleanupRule, toolURL: URL?, usage: [DockerStorageCategory]) -> Candidate? {

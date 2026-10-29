@@ -62,6 +62,10 @@ struct CatalogConfirmationSection: View {
                 }
                 Divider()
             }
+            // Docker's space arrives after its prune (#411); Results check again a minute later.
+            if !review.approval.previewOnly, let note = catalog.dockerReviewNote(for: review.approval.candidates) {
+                StatusRow(text: note, symbol: "clock", identifier: "reviewDockerSettles")
+            }
             // What an uninstall leaves, why and what to do, with a link to where it can be cleaned (#177, #354).
             ForEach(review.staying) { line in
                 StatusRow(text: line.text, symbol: "info.circle", identifier: "reviewStaying-" + line.id,

@@ -8,6 +8,10 @@ import SwiftUI
 struct CatalogResultsSection: View {
     let result: CatalogExecutionResult
     let catalog: Catalog
+    /// The disk is still to be read again a minute after the run's Docker prunes (#411).
+    var settling = false
+    /// What that check found, shown under the measured freed space (#411).
+    var settledLine: String? = nil
     /// Scrolls the page's own scroll view to a result row, for the "Not cleaned" line (#374): `ScrollViewProxy.revealRow`.
     var reveal: (CleanupRecord.ID) -> Void = { _ in }
     /// One switch for every row's path and messages, so the list stays one line per item until asked.
@@ -24,14 +28,23 @@ struct CatalogResultsSection: View {
                 let onlyTrashed = result.movedToTrashBytes > 0 && result.records.allSatisfy { $0.state != .succeeded || $0.cleanupAction == .trash }
                 SummarySurface {
                     HStack(alignment: .top, spacing: CacheDropDesign.Space.xl) {
-                        if !onlyTrashed { metric(result.measuredFreedBytes.map { catalogBytes($0) } ?? SizeEstimate.unknown.text, "Measured freed space") }
+                        if !onlyTrashed {
+                            metric(MeasuredFreedSpace.shown(result.measuredFreedBytes).map { catalogBytes($0) } ?? SizeEstimate.unknown.text, "Measured freed space", followUp: settledLine)
+                        }
                         let upperBound = upperBound(result.records)
                         metric(catalogBytes(result.estimatedBytes, upperBound: upperBound), upperBound ? "Estimated before cleanup · Upper bound" : "Estimated before cleanup")
                         if result.movedToTrashBytes > 0 { metric(catalogBytes(result.movedToTrashBytes), "In the Trash · Freed when you empty it") }
                     }
                 }
                 notCleaned
-                if !onlyTrashed {
+                // One explanation (Decision 25): while Docker hands space back, the note says a check is coming instead (#411).
+                if settling {
+                    HStack(spacing: CacheDropDesign.Space.sm) {
+                        ProgressView().controlSize(.small).accessibilityHidden(true)
+                        Text("Docker returns space to macOS over the next minute. CacheDrop will check again.")
+                            .font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary).accessibilityIdentifier("resultsSettling")
+                    }
+                } else if !onlyTrashed {
                     Text("Measured from the change in available space around each item. Other activity on this Mac can affect it.")
                         .font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
                 }
@@ -61,10 +74,12 @@ struct CatalogResultsSection: View {
         }
     }
     private func upperBound(_ records: [CleanupRecord]) -> Bool { records.contains { $0.ruleID.flatMap { catalog.rule($0)?.estimateIsUpperBound } == true } }
-    private func metric(_ value: String, _ label: String) -> some View {
+    /// A figure and its label; `followUp` adds a later finding below it, never into the figure (#411).
+    private func metric(_ value: String, _ label: String, followUp: String? = nil) -> some View {
         VStack(alignment: .leading, spacing: CacheDropDesign.Space.xs) {
             Text(value).font(CacheDropDesign.TypeStyle.value).monospacedDigit()
             Text(label).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
+            if let followUp { Text(followUp).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary).monospacedDigit().accessibilityIdentifier("resultsSettled") }
         }
     }
 }
@@ -74,6 +89,7 @@ private struct CatalogResultRow: View {
     let record: CleanupRecord
     let rule: CleanupRule?
     let showsDetails: Bool
+    private var showsFolder: Bool { rule?.showsFolder ?? true }
     private var name: String {
         let file = record.originalURL.lastPathComponent
         return record.itemName ?? record.uninstalledName ?? rule?.itemName?(file) ?? (rule?.choosesItems == true ? file : rule?.title ?? file)
@@ -84,9 +100,10 @@ private struct CatalogResultRow: View {
             HStack(alignment: .firstTextBaseline, spacing: CacheDropDesign.Space.md) {
                 Image(systemName: record.state == .succeeded ? "checkmark.circle" : record.wasPreviewed ? "eye" : "exclamationmark.circle").foregroundStyle(role.color)
                     .frame(width: CacheDropDesign.Space.lg)
+                // Docker's rows have no folder of their own to show (#420).
                 (Text(name).font(CacheDropDesign.TypeStyle.rowTitle)
-                    + Text(" · " + PathDisplay.shortLocation(of: record.originalURL, home: CatalogCleanupModel.checkHome)).foregroundStyle(.secondary))
-                    .lineLimit(1).help(record.originalURL.path)
+                    + Text(showsFolder ? " · " + PathDisplay.shortLocation(of: record.originalURL, home: CatalogCleanupModel.checkHome) : "").foregroundStyle(.secondary))
+                    .lineLimit(1).help(showsFolder ? record.originalURL.path : "")
                 Spacer(minLength: CacheDropDesign.Space.md)
                 if record.state == .succeeded, let trashed = record.trashURL {
                     if TrashModel.shared.putBackOutcomes[record.id] == nil, !TrashModel.shared.emptiedIDs.contains(record.id) {
@@ -105,7 +122,7 @@ private struct CatalogResultRow: View {
                         .accessibilityIdentifier("laterMeasurement-" + (record.ruleID ?? ""))
                 }
                 if showsDetails {
-                    Text(record.originalURL.path).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary).textSelection(.enabled)
+                    if showsFolder { Text(record.originalURL.path).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary).textSelection(.enabled) }
                     if !record.needsAttention && !record.finishedAfterStop { Text(record.message).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary) }
                     if let output = record.toolOutput {
                         Text(output).font(CacheDropDesign.TypeStyle.code).foregroundStyle(.secondary).textSelection(.enabled)

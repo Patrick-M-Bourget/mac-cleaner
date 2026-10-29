@@ -144,7 +144,8 @@ private struct PlanRuleRows: View {
                                // of items ticked one by one is inert: each item is chosen and revealed on its own (#356).
                                inspect: rule.ruleRowClick == .tick ? { model.toggleCategory([rule]) } : nil,
                                detailLineLimit: 1, actionLabel: "Select " + rule.title,
-                               reveal: rule.ruleRowClick == .tick ? { Finder.reveal(items.map(\.url)) } : nil, revealIdentifier: "planRuleReveal-" + rule.id) {
+                               // Docker's folder only anchors its rules, so there's nothing to reveal (#420).
+                               reveal: rule.ruleRowClick == .tick && rule.showsFolder ? { Finder.reveal(items.map(\.url)) } : nil, revealIdentifier: "planRuleReveal-" + rule.id) {
                 MacroCategoryCheckbox(state: state, label: rule.title, enabled: model.canEdit && !rule.selectedOneByOne, action: { model.toggleCategory([rule]) },
                                       identifier: "planRule-" + rule.id, showsTitle: false).fixedSize()
             }.help(source.map { _ in rule.detail + "\n" + items.map(\.url.path).joined(separator: "\n") } ?? "")

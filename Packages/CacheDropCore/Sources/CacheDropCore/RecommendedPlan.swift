@@ -71,4 +71,7 @@ extension CleanupRule {
     public static let downloadsID = "downloads"
     /// A Docker prune rule (#112).
     var isDocker: Bool { if case .docker = items { true } else { false } }
+    /// Whether its rows show the folder (location, path, Reveal in Finder). Docker's `.docker` only anchors its rules: the
+    /// prunes work inside Docker's VM (#420).
+    public var showsFolder: Bool { !isDocker }
 }

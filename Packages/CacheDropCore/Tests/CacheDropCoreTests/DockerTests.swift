@@ -265,8 +265,12 @@ private final class FakeVolume: @unchecked Sendable {
     private let lock = NSLock()
     private var available: Int64 = 1_000_000
     var freedPerRead: [Int64] = []
+    /// After this many readings, the volume can't be read.
+    var readable = Int.max
     func read(_ url: URL) -> CapacitySample? {
         lock.lock(); defer { lock.unlock() }
+        guard readable > 0 else { return nil }
+        readable -= 1
         if !freedPerRead.isEmpty { available += freedPerRead.removeFirst() }
         return CapacitySample(available: available, total: 10_000_000, volumeID: "fake-volume", metric: .important, date: Date())
     }
@@ -591,8 +595,9 @@ private func dockerRunning(_ home: URL, docker: URL, choose ruleIDs: Set<String>
     #expect(later.records.first?.outcomeTitle != "Removed")
 }
 
-/// Nothing to measure again means no wait; a cancelled wait measures nothing and records nothing.
-@Test func onlyStoppedDaemonWorkIsMeasuredAgainAndACancelledWaitRecordsNothing() async throws {
+/// A prune that finished isn't measured again; its run waits only to read the disk once more (#411). A dry run doesn't wait.
+/// A cancelled wait measures nothing and records nothing.
+@Test func aFinishedPruneIsOnlyReadAgainAndACancelledWaitRecordsNothing() async throws {
     let home = try fixtureHome()
     defer { try? FileManager.default.removeItem(at: home) }
     let docker = try fakeDocker(home)
@@ -602,7 +607,10 @@ private func dockerRunning(_ home: URL, docker: URL, choose ruleIDs: Set<String>
     let untouched = await finished.run.measureAgainLater(finished.result, of: finished.approval, wait: { _ in waited.increment(); return true }) { _ in
         Issue.record("measured an item whose tool finished"); return [:]
     }
-    #expect(waited.value == 0 && untouched.records.first?.laterMeasurement == nil)
+    #expect(waited.value == 1 && untouched.records.first?.laterMeasurement == nil)
+    #expect(untouched.records.first?.settledCapacity != nil)
+    let dryRun = try await dockerRunning(home, docker: docker, choose: ["docker-images"], previewOnly: true)
+    #expect(!dryRun.run.measuresLater(dryRun.result) && finished.run.measuresLater(finished.result))
 
     let length = uniqueSleep()
     let slow = try fakeDocker(home, prune: "sleep \(length)")
@@ -631,4 +639,145 @@ private final class Counter: @unchecked Sendable {
     private var count = 0
     func increment() { lock.lock(); count += 1; lock.unlock() }
     var value: Int { lock.lock(); defer { lock.unlock() }; return count }
+}
+
+/// #411: Docker hands freed space back to macOS after the prune returns (about 30 s on #376's real run), so a minute after
+/// a run whose Docker prunes completed, the disk's free space is read once more. Results show it under the measured freed
+/// space, which doesn't change; the last Docker item's record keeps it for History.
+@Test func aMinuteAfterCompletedPrunesTheDisksFreeSpaceIsReadOnceMore() async throws {
+    let home = try fixtureHome()
+    defer { try? FileManager.default.removeItem(at: home) }
+    let docker = try fakeDocker(home)
+    let volume = FakeVolume()
+    // Before and after each prune, then a minute later.
+    volume.freedPerRead = [0, 100, 0, 200, 2_000_000]
+    let done = try await dockerRunning(home, docker: docker, choose: ["docker-images", "docker-build-cache"], volume: volume)
+    #expect(done.result.records.allSatisfy { $0.state == .succeeded && $0.laterMeasurementText == nil })
+    // Results say a check is coming until it's done.
+    #expect(done.run.settles(done.result) && done.result.settledLine(checked: false) == nil)
+    let waits = Delays()
+    let later = await done.run.measureAgainLater(done.result, of: done.approval, wait: { waits.append($0); return true }) { _ in
+        Issue.record("Nothing was stopped, so nothing is measured again"); return [:]
+    }
+    #expect(waits.values == [.seconds(60)])
+    let byRule = Dictionary(uniqueKeysWithValues: later.records.map { ($0.ruleID ?? "", $0) })
+    #expect(later.settledLine(checked: true) == "2 MB more free a minute later")
+    #expect(!done.run.settles(later))
+    #expect(later.measuredFreedBytes == 300)
+    // No row repeats it in Results. The build cache is pruned last, so its record carries the reading for History.
+    #expect(later.records.allSatisfy { $0.laterMeasurementText == nil })
+    #expect(byRule["docker-images"]?.settledText == nil)
+    #expect(byRule["docker-build-cache"]?.settledText == "A minute later, the disk had 2 MB more free.")
+    let journaled = try #require(try done.journal.records().first { $0.ruleID == "docker-build-cache" })
+    #expect(journaled.settledText == "A minute later, the disk had 2 MB more free.")
+}
+
+/// #411: a stopped prune and a completed one in the same run share the one wait. When the disk has no more free space a
+/// minute later, the line says so, never a size.
+@Test func aStoppedAndACompletedPruneShareTheMinutesWait() async throws {
+    let home = try fixtureHome()
+    defer { try? FileManager.default.removeItem(at: home) }
+    let length = uniqueSleep()
+    // Only the image prune outlasts the time limit.
+    let docker = try fakeDocker(home, prune: "case \"$*\" in image*) sleep \(length);; *) echo 'Total reclaimed space: 1GB';; esac")
+    let volume = FakeVolume()
+    // Before the images (stopped, so no after), before and after the build cache, then a minute later: 50 bytes less free.
+    volume.freedPerRead = [0, 0, 100, -50]
+    let done = try await dockerRunning(home, docker: docker, choose: ["docker-images", "docker-build-cache"], volume: volume, timeout: 0.5)
+    survivorsAfterSettling(length).forEach { kill($0, SIGKILL) }
+    let byRule = Dictionary(uniqueKeysWithValues: done.result.records.map { ($0.ruleID ?? "", $0) })
+    #expect(byRule["docker-images"]?.mayStillBeFinishing == true && byRule["docker-build-cache"]?.state == .succeeded)
+    let waits = Delays()
+    let later = await done.run.measureAgainLater(done.result, of: done.approval, wait: { waits.append($0); return true }) { candidates in
+        Dictionary(uniqueKeysWithValues: candidates.map { ($0.id, LaterMeasurement.Finding.gone) })
+    }
+    #expect(waits.values == [.seconds(60)])
+    let after = Dictionary(uniqueKeysWithValues: later.records.map { ($0.ruleID ?? "", $0) })
+    #expect(after["docker-images"]?.laterMeasurement?.finding == .gone)
+    #expect(later.settledLine(checked: true) == "No more free space a minute later")
+    #expect(after["docker-build-cache"]?.settledText == "A minute later, the disk had no more free space.")
+}
+
+/// #411: an item cleaned after the last Docker prune (simulators and Android come after Docker) freed space the run already
+/// counted, so the minute's reading is against the run's last reading, never the Docker item's.
+@Test func theMinutesReadingIsAgainstTheRunsLastReading() async throws {
+    let home = try fixtureHome()
+    defer { try? FileManager.default.removeItem(at: home) }
+    let docker = try fakeDocker(home)
+    try FileManager.default.createDirectory(at: home.appendingPathComponent("Library/Caches/Yarn"), withIntermediateDirectories: true)
+    try Data(count: 4096).write(to: home.appendingPathComponent("Library/Caches/Yarn/package.tgz"))
+    let catalog = Catalog(rules: fixtureRules)
+    let found = try await discoveredOffThePool(home, docker)
+    let cache = try #require(found.first { $0.ruleID == "docker-build-cache" }), yarn = try #require(found.first { $0.ruleID == "yarn-cache" })
+    let volume = FakeVolume()
+    // Before and after the build cache, before and after Yarn's cache (5 kB freed), then a minute later 2 MB more.
+    volume.freedPerRead = [0, 100, 0, 5_000, 2_000_000]
+    let journal = try SQLiteCleanupJournal(url: home.appendingPathComponent("journal.sqlite"))
+    let run = CleanupExecutor(journal: journal, check: CandidateCheck(catalog: catalog, running: NothingRunning()), measure: volume.read, trash: TrashNeverUsed())
+    let approval = CatalogApproval(candidates: [cache, yarn], previewOnly: false)
+    let result = await run.execute(approval)
+    #expect(result.records.map(\.state) == [.succeeded, .succeeded])
+    let later = await run.measureAgainLater(result, of: approval, wait: { _ in true }) { _ in [:] }
+    #expect(later.settledLine(checked: true) == "2 MB more free a minute later")
+}
+/// No owner is running, so an owned rule such as Yarn's is cleaned.
+private struct NothingRunning: RunningAppChecking { func isRunning(_ owner: RuleOwner) -> Bool? { false } }
+
+/// #411: the review sheet says before the run, once, that Docker's space reaches macOS a little after its prune, so
+/// Results' "check again" isn't a surprise. Nothing else gets the note.
+@Test func theReviewSheetSaysDockersSpaceArrivesAfterThePrune() async throws {
+    let home = try fixtureHome()
+    defer { try? FileManager.default.removeItem(at: home) }
+    let docker = try fakeDocker(home)
+    let catalog = Catalog(rules: fixtureRules)
+    let found = try await discoveredOffThePool(home, docker)
+    #expect(catalog.dockerReviewNote(for: found) == "Space from Docker reaches macOS up to a minute after it finishes.")
+    #expect(catalog.dockerReviewNote(for: found.filter { !$0.ruleID.hasPrefix("docker-") }) == nil)
+    #expect(catalog.rule("docker-images")?.consequence.hasSuffix("Docker must be running.") == true)
+}
+
+/// #411: a reading a minute later that can't be made still answers Results' "check again", never leaving it unresolved.
+@Test func aMinutesReadingThatCantBeMadeSaysSo() async throws {
+    let home = try fixtureHome()
+    defer { try? FileManager.default.removeItem(at: home) }
+    let docker = try fakeDocker(home)
+    let volume = FakeVolume()
+    // Before and after the prune; the minute's reading fails.
+    volume.readable = 2
+    let done = try await dockerRunning(home, docker: docker, choose: ["docker-build-cache"], volume: volume)
+    let later = await done.run.measureAgainLater(done.result, of: done.approval, wait: { _ in true }) { _ in [:] }
+    #expect(later.records.first?.settledText == nil)
+    #expect(later.settledLine(checked: false) == nil)
+    #expect(later.settledLine(checked: true) == "Couldn’t check the disk again a minute later")
+}
+
+/// #418: other activity can move free space the other way while Docker's space hasn't arrived yet (−274 KB on the owner's
+/// run), so the measured freed space shown is never below 0. The sum itself is kept.
+@Test func measuredFreedSpaceIsNeverShownBelowZero() async throws {
+    let home = try fixtureHome()
+    defer { try? FileManager.default.removeItem(at: home) }
+    let docker = try fakeDocker(home)
+    let volume = FakeVolume()
+    volume.freedPerRead = [0, -274_000]
+    let result = try await dockerRun(home, docker: docker, choose: ["docker-build-cache"], volume: volume)
+    #expect(result.measuredFreedBytes == -274_000)
+    #expect(MeasuredFreedSpace.shown(result.measuredFreedBytes) == 0)
+    #expect(MeasuredFreedSpace.shown(300) == 300 && MeasuredFreedSpace.shown(nil) == nil)
+}
+
+/// #419: one short line per plan row (Decision 25).
+@Test func dockerRowsHaveOneShortLineOfDetail() {
+    let catalog = Catalog(rules: fixtureRules)
+    #expect(catalog.rule("docker-containers")?.detail == "Containers that aren’t running. Size is an estimate.")
+    #expect(catalog.rule("docker-images")?.detail == "Images no running container uses. Size is an estimate.")
+    #expect(catalog.rule("docker-build-cache")?.detail == "Layers Docker kept to speed up builds. Size is an estimate.")
+}
+
+/// #420: `.docker` only anchors Docker's rules; the prunes work inside Docker's VM, so their rows show no location, path
+/// or Reveal in Finder. Every other rule's folder is what it cleans.
+@Test func dockerRulesShowNoFolder() {
+    let catalog = Catalog(rules: fixtureRules)
+    let docker = catalog.rules.filter { $0.id.hasPrefix("docker-") }, others = catalog.rules.filter { !$0.id.hasPrefix("docker-") }
+    #expect(docker.count == 3 && docker.allSatisfy { !$0.showsFolder })
+    #expect(others.allSatisfy { $0.showsFolder })
 }

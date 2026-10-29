@@ -210,7 +210,7 @@ struct CleanupHistoryView: View {
                 note("Dry run · Nothing on disk changed. No space was freed.")
             } else if run.isEmptyFromTrash {
                 // Measured around each item, as Results measures a cleanup (#359).
-                note("Measured freed space: " + (run.measuredFreedBytes.map(bytes) ?? "Unknown") + " · Other activity can affect it.")
+                note("Measured freed space: " + (MeasuredFreedSpace.shown(run.measuredFreedBytes).map(bytes) ?? "Unknown") + " · Other activity can affect it.")
             } else if !run.isPutBack {
                 if run.records.contains(where: { $0.cleanupAction == .trash }) {
                     note("In Trash until you empty it: " + (run.trashHeldAllocatedBytes.map(bytes) ?? "Unknown"))
@@ -222,7 +222,7 @@ struct CleanupHistoryView: View {
                     VStack(alignment: .leading, spacing: CacheDropDesign.Space.xs) {
                         Text(record.originalURL.lastPathComponent + " · " + PathDisplay.shortLocation(of: record.originalURL.path))
                             .lineLimit(1).truncationMode(.middle).help(record.originalURL.path)
-                        Text(record.outcomeLine + (record.laterMeasurementText.map { " " + $0 } ?? "")).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
+                        Text(record.outcomeLine + ((record.laterMeasurementText ?? record.settledText).map { " " + $0 } ?? "")).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
                             .fixedSize(horizontal: false, vertical: true).help("Action: " + record.actionTitle + (record.previewOnly == true ? " · Dry run" : ""))
                     }.frame(maxWidth: .infinity, alignment: .leading)
                     let putBack = run.putBackIDs.contains(record.id) || TrashModel.shared.putBackOutcomes[record.id] == .restored(record.originalURL)

@@ -46,6 +46,16 @@ extension CleanupRecord {
     static let finishedAfterStopMessage = "Finished after you stopped it."
     /// A stopped daemon-backed tool's item that a later measurement found gone (#209): its outcome reads "Removed".
     public var finishedAfterStop: Bool { state == .succeeded && mayStillBeFinishing == true && laterMeasurement?.finding == .gone }
+    /// A stopped daemon-backed tool's item not yet measured again (#190).
+    var awaitsLaterMeasurement: Bool { mayStillBeFinishing == true && laterMeasurement == nil }
+
+    /// History's line on the run's last Docker record once the disk was read again a minute after the run (#411); nil
+    /// before then and on every other record. Other apps change free space too, so it never says Docker freed it.
+    public var settledText: String? {
+        guard let change = settledCapacity?.observedChange else { return nil }
+        return change > 0 ? "A minute later, the disk had \(ByteCountFormatter.string(fromByteCount: change, countStyle: .decimal)) more free."
+            : "A minute later, the disk had no more free space."
+    }
 
     /// One line for Results and History once the item was measured again; nil before then.
     public var laterMeasurementText: String? {

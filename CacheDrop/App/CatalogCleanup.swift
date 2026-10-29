@@ -62,6 +62,14 @@ import SwiftUI
     /// A cleanup changed files since the last catalog scan, so the next one is recorded as a post-cleanup rescan (#126).
     private var rescanFollowsCleanup = false
     private(set) var result: CatalogExecutionResult?
+    /// The run whose disk is read again a minute after its Docker prunes (#411), and whether that check has finished.
+    private var settleCheck: (batchID: UUID, finished: Bool)?
+    /// Results' line under the measured freed space for `result` (#411): nil until the check finishes, then what it found.
+    func settledLine(for result: CatalogExecutionResult) -> String? {
+        result.settledLine(checked: settleCheck?.batchID == result.batchID && settleCheck?.finished == true)
+    }
+    /// Whether Results say a check is coming for `result`: until the minute's line is there (#411).
+    func isSettling(_ result: CatalogExecutionResult) -> Bool { settleCheck?.batchID == result.batchID && settledLine(for: result) == nil }
     /// The running cleanup as the Cleaning up screen draws it (#355); nil when none runs.
     private(set) var runProgress: CleanupRunProgress?
     /// The startup disk's used space and total when the run began, which the screen's bar shaves from (#355).
@@ -482,6 +490,12 @@ import SwiftUI
         guard LocalStateLocation.isDisposableTest, let pause = ProcessInfo.processInfo.environment["CACHEDROP_TEST_CLEANUP_PAUSE"].flatMap(Double.init), pause > 0 else { return }
         try? await Task.sleep(for: .seconds(min(pause, 5)))
     }
+    /// A disposable test run can shorten the wait before measuring again (`CACHEDROP_TEST_LATER_WAIT`, seconds), so a UI
+    /// journey sees Results' "check again" resolve (#411). Never set outside tests.
+    private static func laterWaitForTests() -> Double? {
+        guard LocalStateLocation.isDisposableTest, let seconds = ProcessInfo.processInfo.environment["CACHEDROP_TEST_LATER_WAIT"].flatMap(Double.init), seconds >= 0 else { return nil }
+        return min(seconds, 10)
+    }
     #endif
     /// Drops chosen items that are no longer offered, and says so. The revision moves only when a page's choices changed (#307).
     private func keepOnlyCurrentChoices() {
@@ -598,12 +612,19 @@ import SwiftUI
     }
     /// A stopped daemon-backed tool's work may still be finishing, so its item is measured again a minute later, and
     /// once more at about 5 minutes if it was still shrinking, as the scan measures it; the journal records what went
-    /// (#190, #209). Results show each finding if they are still open.
+    /// (#190, #209). After a completed Docker prune, the disk's free space is read again a minute later, since Docker hands
+    /// space back to macOS after it returns (#411). Results show each finding if they are still open.
     private func measureStoppedWorkAgain(_ outcome: CatalogExecutionResult, of approval: CatalogApproval, run: CleanupExecutor) {
-        guard outcome.records.contains(where: { $0.mayStillBeFinishing == true }), let home = Self.home else { return }
+        guard run.measuresLater(outcome), let home = Self.home else { return }
         let catalog = catalog, userFolder = Self.userFolder, locate = Self.locateTool, system = Self.systemRoot, cloud = Self.cloud
+        if run.settles(outcome) { settleCheck = (outcome.batchID, false) }
+        var wait = CleanupExecutor.sleeping
+        #if DEBUG
+        if let seconds = Self.laterWaitForTests() { wait = { _ in (try? await Task.sleep(for: .seconds(seconds))) != nil } }
+        #endif
         Task {
-            let later = await run.measureAgainLater(outcome, of: approval, update: { [weak self] partial in await self?.showLaterMeasurement(partial) }) { candidates in
+            defer { if settleCheck?.batchID == outcome.batchID { settleCheck?.finished = true } }
+            let later = await run.measureAgainLater(outcome, of: approval, wait: wait, update: { [weak self] partial in await self?.showLaterMeasurement(partial) }) { candidates in
                 // Without the exclusions the scan used, nothing is measured: every item stays unmeasured.
                 guard let exclusions = try? await ExclusionsModel.shared.policyForScan() else { return [:] }
                 return await Task.detached(priority: .utility) {
