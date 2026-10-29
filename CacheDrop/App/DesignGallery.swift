@@ -58,7 +58,7 @@ struct DesignGallery: View {
                     LocalRecordsMaintenanceControls(enabled: false, clear: {}, reset: {})
                     Text("Synthetic Full Disk Access row · Live status check only").font(.headline)
                     FullDiskAccessSetting()
-                    // Explore storage's inspector (#320): always open, one path.
+                    // Explore storage's inspector (#320, #371): one path, as tall as its content.
                     ExplorerInspector(name: "Camera guide.pdf") {
                         Text("Location").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
                         Text("/Example/Downloads/Camera guide.pdf")
@@ -68,13 +68,13 @@ struct DesignGallery: View {
                         Text("Not opened since Mar 2, 2026.")
                         Text("Action").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
                         Text("Move to Trash. The space stays used until you empty the Trash.")
-                    }.frame(height: 220)
+                    }
                     ExplorerInspector(name: "Cloud metadata (synthetic)", close: {}) {
                         Text("Synthetic Gallery metadata; no provider certification.")
                         Text("On disk: Unknown")
                         Text("Cleanup action").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
                         Text("Cloud-managed item. Cloud cleanup is unavailable; no eviction or synced deletion is offered.")
-                    }.frame(height: 220)
+                    }
                     LocationScopeRow(name: "Downloads", path: "/Example/Downloads", status: "Not scanned", included: $selected, enabled: true) { Menu("More") { Button("Forget location") {} } }
                     LocationScopeRow(name: "Downloads B", path: "/Example/Downloads/Long project folder/Downloads B", status: "Location unavailable · Reconnect and recheck", overlap: "Overlaps another remembered location · Shared contents are counted once.", included: $selected, enabled: true) {
                         HStack {
