@@ -42,6 +42,10 @@ import CacheDropCore
     var builtInDownloads: RememberedScope? {
         CatalogCleanupModel.home.map { RememberedScope.builtInDownloads(at: $0.appendingPathComponent("Downloads", isDirectory: true)) }
     }
+    /// The built-in locations, first in every list.
+    private var builtIn: [RememberedScope] { builtInDownloads.map { [$0] } ?? [] }
+    /// A registry entry the built-in Downloads replaces: one picked in an earlier version, or one carrying its ID.
+    private func replacedByBuiltIn(_ scope: RememberedScope) -> Bool { builtIn.contains { $0.path == scope.path || $0.id == scope.id } }
     private(set) var notice: String?
     var message: String? {
         get {
@@ -58,13 +62,17 @@ import CacheDropCore
         ScopeRegistry(directory: try LocalStateLocation.root(create: true).appendingPathComponent("Scopes", isDirectory: true))
     }
     func load() {
-        let builtIn = builtInDownloads
-        do {
-            let registry = try registry()
-            // A Downloads folder picked in an earlier version is quietly forgotten: the built-in one replaces it (#342).
-            for picked in try registry.list() where picked.path == builtIn?.path { try registry.forget(picked.id) }
-            scopes = [builtIn].compactMap { $0 } + (try registry.list()); message = nil
-        } catch { scopes = [builtIn].compactMap { $0 }; message = "Remembered locations could not be read. No locations were scanned." }
+        let saved: [RememberedScope]
+        do { saved = try registry().list(); message = nil }
+        catch { scopes = builtIn; message = "Remembered locations could not be read. No locations were scanned."; return }
+        scopes = builtIn + saved.filter { !replacedByBuiltIn($0) }
+        forgetReplaced(saved)
+    }
+    /// A Downloads folder picked in an earlier version is quietly forgotten: the built-in one replaces it (#342). It is left out
+    /// of the list either way, so a failed forget is only tried again at the next load (#387).
+    private func forgetReplaced(_ saved: [RememberedScope]) {
+        guard let registry = try? registry() else { return }
+        for picked in saved where replacedByBuiltIn(picked) { try? registry.forget(picked.id) }
     }
     @discardableResult func remember(_ url: URL, downloads: Bool) -> Bool {
         // Downloads itself is built in: nothing to remember, it is scanned as it is (#342).
@@ -101,7 +109,7 @@ import CacheDropCore
     }
     func leases(for urls: [URL]) throws -> [ScopeAccessLease] {
         let registry = try registry()
-        let saved = [builtInDownloads].compactMap { $0 } + (try registry.list())
+        let saved = builtIn + (try registry.list())
         var leases: [ScopeAccessLease] = []
         do {
             for url in Set(urls.map(\.standardizedFileURL)) {
@@ -112,6 +120,6 @@ import CacheDropCore
         } catch { for lease in leases { lease.close() }; throw error }
     }
     func reset() throws {
-        try registry().reset(); scopes = [builtInDownloads].compactMap { $0 }; statuses = [:]; recoveryReasons = [:]; bookmarkFailures = [:]; message = nil
+        try registry().reset(); scopes = builtIn; statuses = [:]; recoveryReasons = [:]; bookmarkFailures = [:]; message = nil
     }
 }
