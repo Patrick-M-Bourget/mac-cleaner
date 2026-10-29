@@ -61,8 +61,7 @@ public struct CatalogOverview: Sendable {
     public let recommended: SizeEstimate
     /// Candidates that go to Trash. That space stays used until the Trash is emptied, so it is never in `recommended`.
     public let proposedForTrash: SizeEstimate
-    /// The categories Overview's scan can fill, in catalog order, for its empty rows (#372). Not App-managed storage, which
-    /// has its own row, nor large and old files (picked folders only) or apps and plug-ins (only what you chose to uninstall).
+    /// The categories Overview's scan can fill (`CleanupRule.fillsOverviewCategory`), in catalog order, for its empty rows (#372).
     private let categories: [CatalogCategory]
     /// The categories of rules that weren't read for lack of Full Disk Access (`CatalogDiscovery.notAccessible`).
     private let notAccessible: Set<CatalogCategory>
@@ -83,8 +82,7 @@ public struct CatalogOverview: Sendable {
             return row
         }
         var categories: [CatalogCategory] = []
-        for rule in catalog.rules where !categories.contains(rule.category) && rule.action != .guidance && !rule.fromPickedFolders
-            && rule.family != .appUninstall && rule.family != .plugInUninstall {
+        for rule in catalog.rules where !categories.contains(rule.category) && rule.fillsOverviewCategory {
             categories.append(rule.category)
         }
         self.categories = categories
@@ -119,6 +117,14 @@ public struct CatalogOverview: Sendable {
     public func visibleRows(cloudInventory: CloudInventoryReport?) -> [Row] {
         let rows = visibleRows
         return showsCloudInventory(cloudInventory) ? rows.filter { !($0.category == .icloud && $0.isEmpty) } : rows
+    }
+}
+
+extension CleanupRule {
+    /// Whether Overview's scan can fill the rule's category, so it is listed even when empty (#372). Not App-managed storage,
+    /// which has its own row, nor large and old files (picked folders only) or apps and plug-ins (only what you chose to uninstall).
+    var fillsOverviewCategory: Bool {
+        action != .guidance && !fromPickedFolders && family != .appUninstall && family != .plugInUninstall
     }
 }
 
