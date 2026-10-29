@@ -286,7 +286,7 @@ public enum BuiltInCatalog {
                     tool: ToolCommand(executables: simctlExecutables, arguments: ["delete", "unavailable"], timeout: 300, daemonBacked: true),
                     items: .unavailableSimulators),
         // RESET Decision 83 (#342; amends 18): Downloads is one place to look, every file at any size or age. Smart clean takes
-        // the ones untouched for 30 days (`RecommendedPlan`).
+        // the ones untouched for 7 days (`RecommendedPlan`).
         CleanupRule(id: CleanupRule.downloadsID, category: .downloads, title: "Downloads",
                     detail: "Every file in your Downloads folder, at any size or age.",
                     consequence: "Moved to Trash. The space stays used until you empty the Trash; you can restore them from the Trash in Finder.",

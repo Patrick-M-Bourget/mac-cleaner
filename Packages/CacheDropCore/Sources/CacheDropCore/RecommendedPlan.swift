@@ -38,8 +38,9 @@ public struct RecommendedPlan: Sendable {
     /// Kinds of data that come back on their own when deleted, or cleaned by their tool (Decision 3).
     static let rebuildsItself: Set<RegenClass> = [.cache, .build, .updaterDownload, .log, .leakedCopy]
     /// A file in Downloads, of any kind or size, is taken once it hasn't been opened or changed in this many days (#342,
-    /// amending #319's 90-day installers). The Cleanup plan still offers every download at any age (Decision 83).
-    public static let downloadUnusedDays = 30
+    /// amending #319's 90-day installers; 7 by the owner, 2026-10-29: Put back covers a mistake). The Cleanup plan still
+    /// offers every download at any age (Decision 83).
+    public static let downloadUnusedDays = 7
 
     /// Whether the plan takes `candidate`, found by `rule`. The candidate must be acted on as its rule acts: a leftover of a
     /// tool rule (Homebrew) is offered as a plain delete, so it is left to the user.

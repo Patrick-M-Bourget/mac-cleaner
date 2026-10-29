@@ -13,7 +13,7 @@ private func item(_ ruleID: String, action: CleanupAction? = nil, bytes: Int64 =
     return found
 }
 private let catalog = Catalog(rules: fixtureRules)
-/// A fixed "now", so the 30-day Downloads boundary is exact.
+/// A fixed "now", so the 7-day Downloads boundary is exact.
 private let now = Date(timeIntervalSince1970: 1_800_000_000)
 private func daysAgo(_ days: Double) -> Date { now.addingTimeInterval(-days * 86_400) }
 private func recommended(_ items: [Candidate], refusing refused: [String: CheckRefusal] = [:]) -> [String] {
@@ -47,16 +47,16 @@ private func recommended(_ items: [Candidate], refusing refused: [String: CheckR
     #expect(recommended([item("npm-cache")], refusing: ["npm-cache": .excluded]).isEmpty)
 }
 
-@Test func downloadsNotOpenedOrChangedIn30DaysAreRecommended() {
-    // #342: any file in Downloads, of any kind or size, sent to the Trash once nothing has opened or changed it for 30 days.
-    #expect(recommended([item("downloads", name: "Setup.dmg", lastUsed: daysAgo(31))]) == ["downloads"])
+@Test func downloadsNotOpenedOrChangedIn7DaysAreRecommended() {
+    // #342: any file in Downloads, of any kind or size, sent to the Trash once nothing has opened or changed it for 7 days (owner, 2026-10-29).
+    #expect(recommended([item("downloads", name: "Setup.dmg", lastUsed: daysAgo(8))]) == ["downloads"])
     #expect(recommended([item("downloads", name: "Photos.zip", lastUsed: daysAgo(400))]) == ["downloads"])
     #expect(recommended([item("downloads", bytes: 10, name: "notes.txt", lastUsed: daysAgo(45))]) == ["downloads"])
-    #expect(recommended([item("downloads", name: "Setup.dmg", lastUsed: daysAgo(30))]) == ["downloads"], "30 days to the second is old enough")
+    #expect(recommended([item("downloads", name: "Setup.dmg", lastUsed: daysAgo(7))]) == ["downloads"], "7 days to the second is old enough")
 }
 
 @Test func recentAndUndatedDownloadsAreNotRecommended() {
-    #expect(recommended([item("downloads", name: "Setup.dmg", lastUsed: daysAgo(29.99))]).isEmpty, "Opened or changed within 30 days")
+    #expect(recommended([item("downloads", name: "Setup.dmg", lastUsed: daysAgo(6.99))]).isEmpty, "Opened or changed within 7 days")
     #expect(recommended([item("downloads", name: "Setup.dmg", lastUsed: nil)]).isEmpty, "No date: not known to be old")
     #expect(recommended([item("downloads", action: .delete, name: "Setup.dmg", lastUsed: daysAgo(400))]).isEmpty, "Only to the Trash")
 }

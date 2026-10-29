@@ -688,7 +688,7 @@ extension CatalogCategory {
         case .apps: "Apps, plug-ins and their files"
         }
     }
-    /// Smart clean's title: it takes only downloads untouched for 30 days (#342), so it says so.
+    /// Smart clean's title: it takes only downloads untouched for 7 days (#342), so it says so.
     var smartCleanTitle: String { self == .downloads ? "Old downloads" : overviewTitle }
     /// The one short line under a category's title on Overview and in the plan, written per category rather than built from rule names.
     var overviewDetail: String {

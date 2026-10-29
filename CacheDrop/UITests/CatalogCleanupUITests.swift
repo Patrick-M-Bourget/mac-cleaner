@@ -1959,7 +1959,7 @@ extension CatalogCleanupUITests {
         app.buttons["Cancel"].click()
     }
 
-    /// #319, #342: Smart clean's wider plan. A download not opened or changed in 30 days, under "Old downloads", Homebrew's cache and a leftover an installer receipt
+    /// #319, #342: Smart clean's wider plan. A download not opened or changed in 7 days, under "Old downloads", Homebrew's cache and a leftover an installer receipt
     /// ties to its removed app all start ticked, each category with its consequence line. Unticking the installer leaves the
     /// rest, which the review groups by consequence. A dry run, so nothing changes and the stand-in `brew` never runs.
     @MainActor func testSmartCleanTicksAnOldInstallerAHomebrewCacheAndAReceiptTiedLeftover() throws {
@@ -1973,7 +1973,7 @@ extension CatalogCleanupUITests {
         // An installer nothing has opened or changed for 200 days. Spotlight imports a .dmg the runner writes, again after every
         // change to its dates, and each import reads it, so its access time is now and the app rightly finds it recent (#335).
         // Spotlight skips a .noindex folder, and the Downloads rule looks inside Downloads' folders. The fixture home's new
-        // Setup.dmg is younger than 30 days, so it stays unticked.
+        // Setup.dmg is younger than 7 days, so it stays unticked.
         let installer = home.appendingPathComponent("Downloads/Fixture.noindex/Old Setup.dmg")
         try FileManager.default.createDirectory(at: installer.deletingLastPathComponent(), withIntermediateDirectories: true)
         try Data(repeating: 5, count: 90_000).write(to: installer)
