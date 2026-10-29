@@ -236,9 +236,7 @@ public actor CleanupExecutor {
         guard let after = run.last(where: { $0.itemCapacity != nil })?.itemCapacity, let candidate = approval.candidates.first(where: { $0.id == record.candidateID }),
               let now = self.measure(candidate.url.deletingLastPathComponent()) else { return nil }
         var settled = record
-        settled.settledCapacity = CleanupCapacityObservation(beforeAvailable: after.afterAvailable, afterAvailable: now.available, beforeTotal: after.afterTotal,
-                                                             afterTotal: now.total, beforeVolumeID: after.afterVolumeID, afterVolumeID: now.volumeID,
-                                                             beforeMetric: after.afterMetric, afterMetric: now.metric.rawValue, beforeDate: after.afterDate, afterDate: now.date)
+        settled.settledCapacity = after.continued(to: now)
         return settled
     }
 
@@ -274,7 +272,7 @@ public actor CleanupExecutor {
         case .guidance: record.state = .skipped; record.message = CheckRefusal.guidanceOnly.reason
         }
         if record.state == .succeeded, let before, let after = measure(candidate.url.deletingLastPathComponent()) {
-            record.itemCapacity = CleanupCapacityObservation(beforeAvailable: before.available, afterAvailable: after.available, beforeTotal: before.total, afterTotal: after.total, beforeVolumeID: before.volumeID, afterVolumeID: after.volumeID, beforeMetric: before.metric.rawValue, afterMetric: after.metric.rawValue, beforeDate: before.date, afterDate: after.date)
+            record.itemCapacity = CleanupCapacityObservation(from: before, to: after)
         }
         let state = record.state.rawValue
         Self.log.info("\(state, privacy: .public) \(verb, privacy: .public) \(candidate.url.path, privacy: .public)")

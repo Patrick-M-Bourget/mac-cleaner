@@ -79,6 +79,19 @@ public struct CleanupCapacityObservation: Codable, Sendable {
         self.beforeMetric = beforeMetric; self.afterMetric = afterMetric
         self.beforeDate = beforeDate; self.afterDate = afterDate
     }
+    /// The change between two readings, so no field lands in the wrong half (#416).
+    public init(from before: CapacitySample, to after: CapacitySample) {
+        self.init(beforeAvailable: before.available, afterAvailable: after.available, beforeTotal: before.total, afterTotal: after.total,
+                  beforeVolumeID: before.volumeID, afterVolumeID: after.volumeID, beforeMetric: before.metric.rawValue,
+                  afterMetric: after.metric.rawValue, beforeDate: before.date, afterDate: after.date)
+    }
+    /// The change from this observation's after reading to `now` (#416). Not through `init(from:to:)`: the stored metric is a
+    /// string, and reading it back as a `CapacityMetric` could fail.
+    public func continued(to now: CapacitySample) -> CleanupCapacityObservation {
+        CleanupCapacityObservation(beforeAvailable: afterAvailable, afterAvailable: now.available, beforeTotal: afterTotal, afterTotal: now.total,
+                                   beforeVolumeID: afterVolumeID, afterVolumeID: now.volumeID, beforeMetric: afterMetric,
+                                   afterMetric: now.metric.rawValue, beforeDate: afterDate, afterDate: now.date)
+    }
     public var observedChange: Int64? {
         guard let id = beforeVolumeID, id == afterVolumeID, beforeMetric == afterMetric,
               let total = beforeTotal, total > 0, total == afterTotal,

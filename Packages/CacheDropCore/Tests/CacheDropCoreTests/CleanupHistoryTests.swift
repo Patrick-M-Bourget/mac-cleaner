@@ -103,6 +103,29 @@ private func historyApproval(_ root: URL, names: [String]) async throws -> Fixtu
     #expect(record.allocatedBytes.map { $0 > 1 } == true)
     #expect(run.plannedBytes == record.allocatedBytes)
 }
+/// #416: an observation built from two readings puts each in its own half.
+@Test func capacityObservationFromTwoReadingsKeepsEachInItsHalf() {
+    let before = CapacitySample(available: 20, total: 100, volumeID: "before-volume", metric: .important, date: Date(timeIntervalSince1970: 1))
+    let after = CapacitySample(available: 14, total: 101, volumeID: "after-volume", metric: .available, date: Date(timeIntervalSince1970: 2))
+    let observation = CleanupCapacityObservation(from: before, to: after)
+    #expect(observation.beforeAvailable == 20 && observation.afterAvailable == 14)
+    #expect(observation.beforeTotal == 100 && observation.afterTotal == 101)
+    #expect(observation.beforeVolumeID == "before-volume" && observation.afterVolumeID == "after-volume")
+    #expect(observation.beforeMetric == "important" && observation.afterMetric == "available")
+    #expect(observation.beforeDate == Date(timeIntervalSince1970: 1) && observation.afterDate == Date(timeIntervalSince1970: 2))
+}
+/// #416: continuing an observation starts from its after half, as the settle line does from a run's last reading.
+@Test func capacityObservationContinuedStartsFromItsAfterHalf() {
+    let run = CleanupCapacityObservation(beforeAvailable: 20, afterAvailable: 14, beforeTotal: 100, afterTotal: 101, beforeVolumeID: "first-volume", afterVolumeID: "run-volume",
+                                         beforeMetric: "available", afterMetric: "important", beforeDate: Date(timeIntervalSince1970: 1), afterDate: Date(timeIntervalSince1970: 2))
+    let now = CapacitySample(available: 30, total: 102, volumeID: "now-volume", metric: .available, date: Date(timeIntervalSince1970: 3))
+    let settled = run.continued(to: now)
+    #expect(settled.beforeAvailable == 14 && settled.afterAvailable == 30)
+    #expect(settled.beforeTotal == 101 && settled.afterTotal == 102)
+    #expect(settled.beforeVolumeID == "run-volume" && settled.afterVolumeID == "now-volume")
+    #expect(settled.beforeMetric == "important" && settled.afterMetric == "available")
+    #expect(settled.beforeDate == Date(timeIntervalSince1970: 2) && settled.afterDate == Date(timeIntervalSince1970: 3))
+}
 @Test func deferredCompactionAndByteRetentionPreserveJournalAuthority() async throws {
     let root = FileManager.default.temporaryDirectory.appendingPathComponent("CacheDropHistory-" + UUID().uuidString)
     try FileManager.default.createDirectory(at: root, withIntermediateDirectories: false)
