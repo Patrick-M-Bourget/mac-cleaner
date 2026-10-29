@@ -10,6 +10,8 @@ struct CatalogResultsSection: View {
     let catalog: Catalog
     /// The disk is still to be read again a minute after the run's Docker prunes (#411).
     var settling = false
+    /// What that check found, shown under the measured freed space (#411).
+    var settledLine: String? = nil
     /// Scrolls the page's own scroll view to a result row, for the "Not cleaned" line (#374): `ScrollViewProxy.revealRow`.
     var reveal: (CleanupRecord.ID) -> Void = { _ in }
     /// One switch for every row's path and messages, so the list stays one line per item until asked.
@@ -27,7 +29,7 @@ struct CatalogResultsSection: View {
                 SummarySurface {
                     HStack(alignment: .top, spacing: CacheDropDesign.Space.xl) {
                         if !onlyTrashed {
-                            metric(result.measuredFreedBytes.map { catalogBytes($0) } ?? SizeEstimate.unknown.text, "Measured freed space", then: result.settledLine)
+                            metric(result.measuredFreedBytes.map { catalogBytes($0) } ?? SizeEstimate.unknown.text, "Measured freed space", followUp: settledLine)
                         }
                         let upperBound = upperBound(result.records)
                         metric(catalogBytes(result.estimatedBytes, upperBound: upperBound), upperBound ? "Estimated before cleanup · Upper bound" : "Estimated before cleanup")
@@ -72,12 +74,12 @@ struct CatalogResultsSection: View {
         }
     }
     private func upperBound(_ records: [CleanupRecord]) -> Bool { records.contains { $0.ruleID.flatMap { catalog.rule($0)?.estimateIsUpperBound } == true } }
-    /// A figure and its label; `then` adds a later finding below it, never into the figure (#411).
-    private func metric(_ value: String, _ label: String, then: String? = nil) -> some View {
+    /// A figure and its label; `followUp` adds a later finding below it, never into the figure (#411).
+    private func metric(_ value: String, _ label: String, followUp: String? = nil) -> some View {
         VStack(alignment: .leading, spacing: CacheDropDesign.Space.xs) {
             Text(value).font(CacheDropDesign.TypeStyle.value).monospacedDigit()
             Text(label).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
-            if let then { Text(then).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary).monospacedDigit().accessibilityIdentifier("resultsSettled") }
+            if let followUp { Text(followUp).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary).monospacedDigit().accessibilityIdentifier("resultsSettled") }
         }
     }
 }

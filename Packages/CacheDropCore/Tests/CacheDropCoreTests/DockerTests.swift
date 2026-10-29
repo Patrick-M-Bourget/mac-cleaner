@@ -265,8 +265,12 @@ private final class FakeVolume: @unchecked Sendable {
     private let lock = NSLock()
     private var available: Int64 = 1_000_000
     var freedPerRead: [Int64] = []
+    /// After this many readings, the volume can't be read.
+    var readable = Int.max
     func read(_ url: URL) -> CapacitySample? {
         lock.lock(); defer { lock.unlock() }
+        guard readable > 0 else { return nil }
+        readable -= 1
         if !freedPerRead.isEmpty { available += freedPerRead.removeFirst() }
         return CapacitySample(available: available, total: 10_000_000, volumeID: "fake-volume", metric: .important, date: Date())
     }
@@ -650,14 +654,14 @@ private final class Counter: @unchecked Sendable {
     let done = try await dockerRunning(home, docker: docker, choose: ["docker-images", "docker-build-cache"], volume: volume)
     #expect(done.result.records.allSatisfy { $0.state == .succeeded && $0.laterMeasurementText == nil })
     // Results say a check is coming until it's done.
-    #expect(done.run.settles(done.result) && done.result.settledLine == nil)
+    #expect(done.run.settles(done.result) && done.result.settledLine(checked: false) == nil)
     let waits = Delays()
     let later = await done.run.measureAgainLater(done.result, of: done.approval, wait: { waits.append($0); return true }) { _ in
         Issue.record("Nothing was stopped, so nothing is measured again"); return [:]
     }
     #expect(waits.values == [.seconds(60)])
     let byRule = Dictionary(uniqueKeysWithValues: later.records.map { ($0.ruleID ?? "", $0) })
-    #expect(later.settledLine == "2 MB more free a minute later")
+    #expect(later.settledLine(checked: true) == "2 MB more free a minute later")
     #expect(!done.run.settles(later))
     #expect(later.measuredFreedBytes == 300)
     // No row repeats it in Results. The build cache is pruned last, so its record carries the reading for History.
@@ -690,7 +694,7 @@ private final class Counter: @unchecked Sendable {
     #expect(waits.values == [.seconds(60)])
     let after = Dictionary(uniqueKeysWithValues: later.records.map { ($0.ruleID ?? "", $0) })
     #expect(after["docker-images"]?.laterMeasurement?.finding == .gone)
-    #expect(later.settledLine == "No more free space a minute later")
+    #expect(later.settledLine(checked: true) == "No more free space a minute later")
     #expect(after["docker-build-cache"]?.settledText == "A minute later, the disk had no more free space.")
 }
 
@@ -714,7 +718,7 @@ private final class Counter: @unchecked Sendable {
     let result = await run.execute(approval)
     #expect(result.records.map(\.state) == [.succeeded, .succeeded])
     let later = await run.measureAgainLater(result, of: approval, wait: { _ in true }) { _ in [:] }
-    #expect(later.settledLine == "2 MB more free a minute later")
+    #expect(later.settledLine(checked: true) == "2 MB more free a minute later")
 }
 /// No owner is running, so an owned rule such as Yarn's is cleaned.
 private struct NothingRunning: RunningAppChecking { func isRunning(_ owner: RuleOwner) -> Bool? { false } }
@@ -730,4 +734,19 @@ private struct NothingRunning: RunningAppChecking { func isRunning(_ owner: Rule
     #expect(catalog.dockerReviewNote(for: found) == "Space from Docker reaches macOS up to a minute after it finishes.")
     #expect(catalog.dockerReviewNote(for: found.filter { !$0.ruleID.hasPrefix("docker-") }) == nil)
     #expect(catalog.rule("docker-images")?.consequence.hasSuffix("Docker must be running.") == true)
+}
+
+/// #411: a reading a minute later that can't be made still answers Results' "check again", never leaving it unresolved.
+@Test func aMinutesReadingThatCantBeMadeSaysSo() async throws {
+    let home = try fixtureHome()
+    defer { try? FileManager.default.removeItem(at: home) }
+    let docker = try fakeDocker(home)
+    let volume = FakeVolume()
+    // Before and after the prune; the minute's reading fails.
+    volume.readable = 2
+    let done = try await dockerRunning(home, docker: docker, choose: ["docker-build-cache"], volume: volume)
+    let later = await done.run.measureAgainLater(done.result, of: done.approval, wait: { _ in true }) { _ in [:] }
+    #expect(later.records.first?.settledText == nil)
+    #expect(later.settledLine(checked: false) == nil)
+    #expect(later.settledLine(checked: true) == "Couldn’t check the disk again a minute later")
 }

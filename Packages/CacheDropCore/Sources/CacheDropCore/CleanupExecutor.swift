@@ -35,10 +35,13 @@ public struct CatalogExecutionResult: Sendable {
         return total
     }
     /// Results' line under the measured freed space once the disk was read again a minute after completed Docker prunes
-    /// (#411); nil before then. It isn't added to the measured freed space.
-    public var settledLine: String? {
-        guard let change = records.lazy.compactMap({ $0.settledCapacity?.observedChange }).first else { return nil }
-        return change > 0 ? ByteCountFormatter.string(fromByteCount: change, countStyle: .decimal) + " more free a minute later" : "No more free space a minute later"
+    /// (#411). It isn't added to the measured freed space. Before the check (`checked` false) there is none; a check that
+    /// couldn't read the disk says so, so Results' "check again" is always answered.
+    public func settledLine(checked: Bool) -> String? {
+        if let change = records.lazy.compactMap({ $0.settledCapacity?.observedChange }).first {
+            return change > 0 ? ByteCountFormatter.string(fromByteCount: change, countStyle: .decimal) + " more free a minute later" : "No more free space a minute later"
+        }
+        return checked ? "Couldn’t check the disk again a minute later" : nil
     }
     /// The candidates the run cleaned, or would have in a dry run, by id: they leave every page's selection (#349).
     public var cleanedCandidateIDs: [String] { records.filter { $0.state == .succeeded || $0.wasPreviewed }.map(\.candidateID) }
@@ -152,8 +155,11 @@ public actor CleanupExecutor {
     /// recorded at the stop follows the measurement (#209): an item found gone becomes removed, finished after the stop;
     /// one with some of it left stays partly removed. Bounded: at most two waits per run and two measurements per item,
     /// never a retry. Returns `result` unchanged when nothing needs it, the wait was cancelled, or the journal couldn't record it.
+    /// Waits for real; false when the wait was cancelled.
+    public static let sleeping: @Sendable (Duration) async -> Bool = { (try? await Task.sleep(for: $0)) != nil }
+
     public func measureAgainLater(_ result: CatalogExecutionResult, of approval: CatalogApproval,
-                                  wait: @Sendable (Duration) async -> Bool = { (try? await Task.sleep(for: $0)) != nil },
+                                  wait: @Sendable (Duration) async -> Bool = CleanupExecutor.sleeping,
                                   update: @Sendable (CatalogExecutionResult) async -> Void = { _ in },
                                   measure: @Sendable ([Candidate]) async -> [String: LaterMeasurement.Finding]) async -> CatalogExecutionResult {
         let stopped = Set(result.records.filter(\.awaitsLaterMeasurement).map(\.id))
@@ -184,8 +190,7 @@ public actor CleanupExecutor {
     private nonisolated func settlingRecord(of result: CatalogExecutionResult) -> CleanupRecord? {
         guard !result.previewOnly else { return nil }
         let last = result.records.last { record in
-            guard record.state == .succeeded, record.mayStillBeFinishing != true, record.itemCapacity != nil, let ruleID = record.ruleID else { return false }
-            return check.catalog.rule(ruleID)?.isDocker == true
+            record.state == .succeeded && record.mayStillBeFinishing != true && record.itemCapacity != nil && check.catalog.isDocker(record.ruleID)
         }
         return last?.settledCapacity == nil ? last : nil
     }
@@ -200,9 +205,9 @@ public actor CleanupExecutor {
         let findings = candidates.isEmpty ? [:] : await measure(candidates)
         let measuredAt = clock()
         var records = result.records
-        if let index = records.firstIndex(where: { $0.id == settling }), let settled = settled(records[index], after: records, of: approval) {
+        if let index = records.firstIndex(where: { $0.id == settling }), let withReading = settled(records[index], after: records, of: approval) {
             // Shown only once the journal has it, as below.
-            if (try? journal.outcome(settled)) != nil { records[index] = settled }
+            if (try? journal.outcome(withReading)) != nil { records[index] = withReading }
         }
         for index in records.indices where ids.contains(records[index].id) {
             var record = records[index]

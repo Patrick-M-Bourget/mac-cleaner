@@ -62,8 +62,14 @@ import SwiftUI
     /// A cleanup changed files since the last catalog scan, so the next one is recorded as a post-cleanup rescan (#126).
     private var rescanFollowsCleanup = false
     private(set) var result: CatalogExecutionResult?
-    /// The run whose disk is still to be read again a minute after its Docker prunes (#411); Results say a check is coming.
-    private(set) var settlingBatchID: UUID?
+    /// The run whose disk is read again a minute after its Docker prunes (#411), and whether that check has finished.
+    private var settleCheck: (batchID: UUID, finished: Bool)?
+    /// Results' line under the measured freed space for `result` (#411): nil until the check finishes, then what it found.
+    func settledLine(for result: CatalogExecutionResult) -> String? {
+        result.settledLine(checked: settleCheck?.batchID == result.batchID && settleCheck?.finished == true)
+    }
+    /// Whether Results say a check is coming for `result`: until the minute's line is there (#411).
+    func isSettling(_ result: CatalogExecutionResult) -> Bool { settleCheck?.batchID == result.batchID && settledLine(for: result) == nil }
     /// The running cleanup as the Cleaning up screen draws it (#355); nil when none runs.
     private(set) var runProgress: CleanupRunProgress?
     /// The startup disk's used space and total when the run began, which the screen's bar shaves from (#355).
@@ -611,13 +617,13 @@ import SwiftUI
     private func measureStoppedWorkAgain(_ outcome: CatalogExecutionResult, of approval: CatalogApproval, run: CleanupExecutor) {
         guard run.measuresLater(outcome), let home = Self.home else { return }
         let catalog = catalog, userFolder = Self.userFolder, locate = Self.locateTool, system = Self.systemRoot, cloud = Self.cloud
-        if run.settles(outcome) { settlingBatchID = outcome.batchID }
-        var wait: @Sendable (Duration) async -> Bool = { (try? await Task.sleep(for: $0)) != nil }
+        if run.settles(outcome) { settleCheck = (outcome.batchID, false) }
+        var wait = CleanupExecutor.sleeping
         #if DEBUG
         if let seconds = Self.laterWaitForTests() { wait = { _ in (try? await Task.sleep(for: .seconds(seconds))) != nil } }
         #endif
         Task {
-            defer { if settlingBatchID == outcome.batchID { settlingBatchID = nil } }
+            defer { if settleCheck?.batchID == outcome.batchID { settleCheck?.finished = true } }
             let later = await run.measureAgainLater(outcome, of: approval, wait: wait, update: { [weak self] partial in await self?.showLaterMeasurement(partial) }) { candidates in
                 // Without the exclusions the scan used, nothing is measured: every item stays unmeasured.
                 guard let exclusions = try? await ExclusionsModel.shared.policyForScan() else { return [:] }
