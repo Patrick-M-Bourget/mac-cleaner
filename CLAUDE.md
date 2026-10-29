@@ -47,6 +47,10 @@ Issues live in GitHub Issues for Patrick-M-Bourget/mac-cleaner, via the `gh` CLI
 
 Default vocabulary: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`. See `docs/agents/triage-labels.md`.
 
+### Parallel ticket batches
+
+Running several tickets at once with one agent each: `docs/agents/implementer-brief.md`.
+
 ### Domain docs
 
 Single-context. See `docs/agents/domain.md`.
