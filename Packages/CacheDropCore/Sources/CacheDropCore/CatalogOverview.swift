@@ -109,6 +109,17 @@ public struct CatalogOverview: Sendable {
         }
         return found + empty
     }
+    /// Whether Overview shows the scanned folders' iCloud inventory (Decision 76): only when the catalog found no local iCloud
+    /// copies of its own, and never at 0 bytes (unknown is never 0). It then stands in for the empty iCloud row.
+    public func showsCloudInventory(_ inventory: CloudInventoryReport?) -> Bool {
+        guard let inventory, inventory.localAllocatedBytes != 0 else { return false }
+        return !rows.contains { $0.category == .icloud && !$0.isEmpty }
+    }
+    /// `visibleRows` beside the scanned folders' iCloud inventory: when it shows, it stands in for the empty iCloud row.
+    public func visibleRows(cloudInventory: CloudInventoryReport?) -> [Row] {
+        let rows = visibleRows
+        return showsCloudInventory(cloudInventory) ? rows.filter { !($0.category == .icloud && $0.isEmpty) } : rows
+    }
 }
 
 extension SizeEstimate {

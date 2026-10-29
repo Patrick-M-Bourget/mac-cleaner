@@ -382,12 +382,11 @@ private struct WorkspaceView: View {
     private var overviewRecommendations: some View {
         let catalog = selection.catalog
         let summary = catalog.overview
-        let visible = summary?.visibleRows ?? []
-        // The scanned folders' iCloud inventory, when the catalog found no local copies of its own; it then stands in for
-        // the empty iCloud row. Hidden at 0 bytes; unknown is never 0.
-        let showsCloudInventory = overviewObservation.map { $0.cloudInventory.localAllocatedBytes != 0 } == true && !visible.contains { $0.category == .icloud && !$0.isEmpty }
+        // The scanned folders' iCloud inventory stands in for an empty iCloud row (Decision 76).
+        let inventory = overviewObservation?.cloudInventory
+        let showsCloudInventory = summary?.showsCloudInventory(inventory) == true
         // Every category, empty ones last as "Empty" (#372).
-        let rows = showsCloudInventory ? visible.filter { !($0.category == .icloud && $0.isEmpty) } : visible
+        let rows = summary?.visibleRows(cloudInventory: inventory) ?? []
         let more = max(0, rows.count - CatalogOverview.leadingRowCount)
         let shown = overviewShowsAllCategories ? rows : Array(rows.prefix(CatalogOverview.leadingRowCount))
         return VStack(alignment: .leading, spacing: CacheDropDesign.Space.md) {
