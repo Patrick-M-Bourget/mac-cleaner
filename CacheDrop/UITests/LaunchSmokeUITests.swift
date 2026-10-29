@@ -320,7 +320,7 @@ final class BackButtonUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
 
         app.typeKey("7", modifierFlags: .command)
-        let manage = app.buttons["manageLocalRecords"]
+        let manage = app.descendants(matching: .any)["manageLocalRecords"]
         XCTAssertTrue(manage.waitForExistence(timeout: 5))
         revealAndClick(manage, in: app)
         let back = app.buttons["Back to Locations & access"]
@@ -344,7 +344,7 @@ final class ProtectedItemsUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
 
         app.typeKey("7", modifierFlags: .command)
-        let open = app.buttons["openProtectedItems"]
+        let open = app.descendants(matching: .any)["openProtectedItems"]
         XCTAssertTrue(open.waitForExistence(timeout: 5))
         revealAndClick(open, in: app)
         let back = app.buttons["Back to Locations & access"]

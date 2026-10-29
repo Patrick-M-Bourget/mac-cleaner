@@ -18,10 +18,10 @@ enum CacheDropDesign {
         static let actionStripRow: CGFloat = 32
         /// A page's search field (#295), under its header's description (#352), as wide as the prototype's.
         static let searchField: CGFloat = 210
-        /// The prototype's search field: 7 points above and below its text.
-        static let searchFieldHeight: CGFloat = 28
         /// The sidebar's icon column (#424).
         static let sidebarIcon: CGFloat = 20
+        /// The prototype's search field: 7 points above and below its text.
+        static let searchFieldHeight: CGFloat = 28
         /// A skeleton row's title and detail bars (#308), about the height of the text they stand in for.
         static let skeletonTitle: CGFloat = 11; static let skeletonDetail: CGFloat = 8
         /// How much wider a skeleton row's detail bar is than its title bar, as a share of the column (#308).
@@ -1022,7 +1022,9 @@ struct LocationScopeRow<Actions: View>: View {
     }
     var body: some View {
         HStack(alignment: .top, spacing: CacheDropDesign.Space.md) {
-            Toggle("Include " + name, isOn: $included).labelsHidden().disabled(!enabled || fixed)
+            // Always included: no checkbox to grey out, its place kept so the rows line up (Decision 51, #426).
+            if fixed { Color.clear.frame(width: CacheDropDesign.Size.checkbox, height: 1).accessibilityHidden(true) }
+            else { Toggle("Include " + name, isOn: $included).labelsHidden().disabled(!enabled) }
             ViewThatFits(in: .horizontal) {
                 HStack(alignment: .top, spacing: CacheDropDesign.Space.md) {
                     identity.frame(minWidth: 240, idealWidth: 240, maxWidth: .infinity)
