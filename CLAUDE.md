@@ -54,3 +54,7 @@ Default vocabulary: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-
 ### Domain docs
 
 Single-context. See `docs/agents/domain.md`.
+
+### Copy and names
+
+Every string users see follows Decision 92 in `docs/RESET.md`, and every name comes from `GLOSSARY.md`. Add a new term there before using it.
