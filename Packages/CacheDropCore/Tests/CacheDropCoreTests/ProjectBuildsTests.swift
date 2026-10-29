@@ -114,6 +114,18 @@ private struct FakeInUse: InUseChecking {
     #expect(try check(found["open/node_modules"], FixtureNothingInUse()) == nil)
 }
 
+/// Ticking overrides only the guard the user was shown (#374): a build folder held because its project was open, closed by
+/// Clean up, is still kept for a recent edit it was never shown.
+@Test func tickingABuildFolderHeldAsOpenNeverOverridesAGuardItWasNotShown() throws {
+    let folder = try pickedFolder()
+    defer { try? FileManager.default.removeItem(at: folder) }
+    try file(folder, "app/package.json"); try file(folder, "app/node_modules/x.js"); try file(folder, "app/src/app.js", age: 2 * day)
+    let item = try #require(offered(folder, inUse: FakeInUse(open: [folder.appendingPathComponent("app").path]))["app/node_modules"])
+    #expect(item.hold == CandidateHold(.projectOpen))
+    let check = CandidateCheck(catalog: Catalog(rules: fixtureRules), running: NothingRunning(), inUse: FixtureNothingInUse(), home: fixtureNoHome)
+    #expect(check.check(item) == .recentlyEdited)
+}
+
 @Test func theCheckRefusesAProjectThatChangedSinceTheScan() throws {
     let folder = try pickedFolder()
     defer { try? FileManager.default.removeItem(at: folder) }

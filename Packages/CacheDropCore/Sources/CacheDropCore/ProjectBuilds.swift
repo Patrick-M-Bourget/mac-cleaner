@@ -123,6 +123,8 @@ public enum ProjectBuilds {
 
     /// Why a project's build folders are listed but held rather than dropped (#374): it is in use, or a policy guard ticking overrides.
     static let heldReasons: Set<CheckRefusal> = [.projectOpen, .recentlyEdited, .uncommittedChanges]
+    /// The policy guards ticking overrides, when the scan showed one of them (#374); an open project is never overridden.
+    static let policyReasons: Set<CheckRefusal> = [.recentlyEdited, .uncommittedChanges]
 
     /// The project-wide reasons: open, recently changed, or uncommitted changes to tracked files.
     private static func refusal(ofProject project: URL, lastChange: Date, inUse: any InUseChecking, home: URL, now: Date, overridingPolicy: Bool = false) -> CheckRefusal? {

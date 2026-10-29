@@ -202,9 +202,11 @@ public struct CandidateCheck: Sendable {
         if !uninstalling, let tie = candidate.leftover, let refusal = RemovedAppLeftovers.refusal(for: candidate.url, tie: tie, below: root, apps: apps) { return refusal }
         // An app and its files (#177): removable without a password now, whoever owns them (Decision 50).
         if uninstalling, let refusal = AppUninstall.refusal(for: candidate, rule: rule, below: root, apps: apps, receipts: receipts) { return refusal }
-        // A project being worked on keeps its build folders (#157), unless the user ticked one the scan showed held (#374).
+        // A project being worked on keeps its build folders (#157), unless the user ticked one the scan showed held by a policy
+        // guard (#374); one shown only as open still meets every guard.
         if rule.id == ProjectBuilds.ruleID,
-           let refusal = ProjectBuilds.refusal(for: candidate.url, inUse: inUse, home: home, overridingPolicy: candidate.hold != nil) { return refusal }
+           let refusal = ProjectBuilds.refusal(for: candidate.url, inUse: inUse, home: home,
+                                               overridingPolicy: candidate.hold.map { ProjectBuilds.policyReasons.contains($0.refusal) } == true) { return refusal }
         // A system image a virtual device started using since the scan is kept (#134).
         if rule.items == .androidSystemImages, AndroidSDK.referencedImages(home: home).map({ $0.contains(AndroidSDK.key(candidate.url)) }) ?? true {
             return .inUse("An Android virtual device")
