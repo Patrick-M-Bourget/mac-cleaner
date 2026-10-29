@@ -11,6 +11,7 @@ struct CatalogResultsSection: View {
     /// One switch for every row's path and messages, so the list stays one line per item until asked.
     @State private var showsDetails = false
     var body: some View {
+        ScrollViewReader { proxy in
         VStack(alignment: .leading, spacing: CacheDropDesign.Space.lg) {
             if result.previewOnly {
                 let previewed = result.records.filter(\.wasPreviewed)
@@ -28,6 +29,7 @@ struct CatalogResultsSection: View {
                         if result.movedToTrashBytes > 0 { metric(catalogBytes(result.movedToTrashBytes), "In the Trash · Freed when you empty it") }
                     }
                 }
+                notCleaned(proxy)
                 if !onlyTrashed {
                     Text("Measured from the change in available space around each item. Other activity on this Mac can affect it.")
                         .font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
@@ -41,11 +43,21 @@ struct CatalogResultsSection: View {
                         .buttonStyle(.link).font(CacheDropDesign.TypeStyle.caption).accessibilityIdentifier("resultsDetailsToggle")
                 }
                 ForEach(result.records.attentionFirst) { record in
-                    CatalogResultRow(record: record, rule: record.ruleID.flatMap { catalog.rule($0) }, showsDetails: showsDetails)
+                    CatalogResultRow(record: record, rule: record.ruleID.flatMap { catalog.rule($0) }, showsDetails: showsDetails).id(record.id)
                     Divider()
                 }
             }
             if let failure = result.journalFailure { StatusRow(text: failure, symbol: "exclamationmark.triangle", role: .caution) }
+        }
+        }
+    }
+    /// What the run didn't clean (#374), in one line under the metrics that leads to those rows, listed first below.
+    @ViewBuilder private func notCleaned(_ proxy: ScrollViewProxy) -> some View {
+        let skipped = result.records.filter(\.needsAttention)
+        if let first = skipped.first {
+            Button("Not cleaned · " + CacheDropDesign.items(skipped.count) + " · " + catalogBytes(skipped.reduce(0) { $0 + $1.recordedBytes })) {
+                withAnimation { proxy.scrollTo(first.id, anchor: .top) }
+            }.buttonStyle(.link).accessibilityIdentifier("resultsNotCleaned")
         }
     }
     private func upperBound(_ records: [CleanupRecord]) -> Bool { records.contains { $0.ruleID.flatMap { catalog.rule($0)?.estimateIsUpperBound } == true } }
