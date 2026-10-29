@@ -51,6 +51,11 @@ private func fakeDocker(_ home: URL, df: String = "cat \"$(dirname \"$0\")/df.js
     try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: tool.path)
     return tool
 }
+/// The fixture's candidates with `docker` as the only tool, discovered on a thread of its own: discovery waits on each
+/// `docker` call, and these tests make several, so they must not hold a Swift concurrency thread (#200, `onOwnThread`).
+private func discoveredOffThePool(_ home: URL, _ docker: URL) async throws -> [Candidate] {
+    try await onOwnThread { Catalog(rules: fixtureRules).discover(fixture: home, locateTool: { $0.executables.contains("/usr/local/bin/docker") ? docker : nil }) }
+}
 private func calls(_ home: URL) -> [String] {
     ((try? String(contentsOf: home.appendingPathComponent("tools/calls"), encoding: .utf8)) ?? "").split(separator: "\n").map(String.init)
 }
@@ -119,7 +124,7 @@ private func calls(_ home: URL) -> [String] {
 
 /// #407: `builder prune -a` removes the whole build cache, so it is sized by its total, never by Reclaimable, which read
 /// 12.29 kB for this same 642.8 MB cache on a real run (#376).
-@Test func theBuildCacheIsSizedByItsTotalSinceThePruneRemovesAllOfIt() throws {
+@Test func theBuildCacheIsSizedByItsTotalSinceThePruneRemovesAllOfIt() async throws {
     let home = try fixtureHome()
     defer { try? FileManager.default.removeItem(at: home) }
     let docker = try fakeDocker(home, df: """
@@ -128,14 +133,14 @@ private func calls(_ home: URL) -> [String] {
     echo '{"Active":"0","Reclaimable":"0B","Size":"0B","TotalCount":"0","Type":"Local Volumes"}'
     echo '{"Active":"0","Reclaimable":"12.29kB","Size":"642.8MB","TotalCount":"11","Type":"Build Cache"}'
     """)
-    let found = Catalog(rules: fixtureRules).discover(fixture: home, locateTool: { $0.executables.contains("/usr/local/bin/docker") ? docker : nil })
+    let found = try await discoveredOffThePool(home, docker)
     #expect(found.map(\.ruleID) == ["docker-build-cache"])
     #expect(found.first?.estimatedBytes == 642_800_000)
 }
 
 /// #407: `image prune -a` runs after the stopped containers go (Decision 85), so with no container running it removes every
 /// image, including one Reclaimable counts as in use by a stopped container (13.66 MB estimated, 348.8 MB removed on #376).
-@Test func withNoContainerRunningEveryImageIsCounted() throws {
+@Test func withNoContainerRunningEveryImageIsCounted() async throws {
     let home = try fixtureHome()
     defer { try? FileManager.default.removeItem(at: home) }
     let docker = try fakeDocker(home, df: """
@@ -144,7 +149,7 @@ private func calls(_ home: URL) -> [String] {
     echo '{"Active":"0","Reclaimable":"0B","Size":"0B","TotalCount":"0","Type":"Local Volumes"}'
     echo '{"Active":"0","Reclaimable":"0B","Size":"0B","TotalCount":"0","Type":"Build Cache"}'
     """)
-    let found = Catalog(rules: fixtureRules).discover(fixture: home, locateTool: { $0.executables.contains("/usr/local/bin/docker") ? docker : nil })
+    let found = try await discoveredOffThePool(home, docker)
     let byRule = Dictionary(uniqueKeysWithValues: found.map { ($0.ruleID, $0.estimatedBytes) })
     #expect(byRule == ["docker-images": 362_500_000, "docker-containers": 4_096])
     // Nothing runs, so nothing is kept: the plain `system df` is enough.
@@ -153,7 +158,7 @@ private func calls(_ home: URL) -> [String] {
 
 /// #407: with a container running, `image prune -a` keeps the images running containers use and removes the rest, so
 /// images are every image's size less those. Shapes from a real Docker Desktop 29.9.2 run.
-@Test func imagesARunningContainerUsesAreTheOnlyOnesLeftOut() throws {
+@Test func imagesARunningContainerUsesAreTheOnlyOnesLeftOut() async throws {
     let home = try fixtureHome()
     defer { try? FileManager.default.removeItem(at: home) }
     let docker = try fakeDocker(home, df: """
@@ -164,7 +169,7 @@ private func calls(_ home: URL) -> [String] {
     """, verbose: """
     echo '{"Images":[{"Containers":"1","CreatedAt":"2026-04-16 19:53:24 -0400 EDT","CreatedSince":"6 months ago","Digest":"","ID":"sha256:d9e853e87e55526f6b2917df91a2115c36dd7c696a35be12163d44e6e2a4b6bc","Repository":"alpine","SharedSize":"0B","Size":"13.7MB","Tag":"3.20","UniqueSize":"13.66MB"},{"Containers":"0","CreatedAt":"2025-10-08 07:10:40 -0400 EDT","CreatedSince":"12 months ago","Digest":"","ID":"sha256:6baf43584bcb78f2e5847d1de515f23499913ac9f12bdf834811a3145eb11ca1","Repository":"alpine","SharedSize":"0B","Size":"11.9MB","Tag":"3.19","UniqueSize":"11.86MB"},{"Containers":"1","CreatedAt":"2023-05-18 18:34:17 -0400 EDT","CreatedSince":"3 years ago","Digest":"","ID":"sha256:73aaf090f3d85aa34ee199857f03fa3a95c8ede2ffd4cc2cdb5b94e566b11662","Repository":"busybox","SharedSize":"0B","Size":"6.14MB","Tag":"1.36","UniqueSize":"6.139MB"}],"Containers":[{"Command":"\\"true\\"","CreatedAt":"2026-10-29 13:28:58 -0400 EDT","HealthStatus":"none","ID":"f57f2f889c094f3e4be74babf3023056d199f0ebd74acfcce0b8c4bd6fd3edc0","Image":"busybox:1.36","Labels":"desktop.docker.io/ports.scheme=v2","LocalVolumes":"0","Mounts":"","Names":"cd-stopped","Networks":"bridge","Platform":null,"Ports":"","RunningFor":"2 seconds ago","Size":"4.1kB","State":"created","Status":"Created"},{"Command":"\\"sleep 3600\\"","CreatedAt":"2026-10-29 13:28:58 -0400 EDT","HealthStatus":"none","ID":"599fd72b00222737605657c7d1fb4a4fb926340c1be882590317cc2717ae4835","Image":"alpine:3.20","Labels":"desktop.docker.io/ports.scheme=v2","LocalVolumes":"0","Mounts":"","Names":"cd-running","Networks":"bridge","Platform":null,"Ports":"","RunningFor":"2 seconds ago","Size":"4.1kB","State":"running","Status":"Up 2 seconds"}],"Volumes":[],"BuildCache":[{"CacheType":"regular","CreatedAt":"2026-10-29 17:28:59.418305256 +0000 UTC","CreatedSince":"1 second ago","Description":"","ID":"0oxs9y37g2l3zvuf6v7owml5e","InUse":"false","LastUsedAt":"2026-10-29 17:29:00.767080507 +0000 UTC","LastUsedSince":"Less than a second ago","Parent":"","Shared":"true","Size":"13.6MB","UsageCount":"1"}]}'
     """)
-    let found = Catalog(rules: fixtureRules).discover(fixture: home, locateTool: { $0.executables.contains("/usr/local/bin/docker") ? docker : nil })
+    let found = try await discoveredOffThePool(home, docker)
     let byRule = Dictionary(uniqueKeysWithValues: found.map { ($0.ruleID, $0.estimatedBytes) })
     // 31.69 MB of images less alpine:3.20's 13.7 MB, which the running container keeps.
     #expect(byRule["docker-images"] == 17_990_000)
@@ -174,25 +179,25 @@ private func calls(_ home: URL) -> [String] {
 }
 
 /// A running container whose image can't be found in the list falls back to Reclaimable, which can only count too little.
-@Test func aRunningImageThatCantBeMatchedFallsBackToReclaimable() throws {
+@Test func aRunningImageThatCantBeMatchedFallsBackToReclaimable() async throws {
     let home = try fixtureHome()
     defer { try? FileManager.default.removeItem(at: home) }
     try verboseReport.replacingOccurrences(of: "\"Image\":\"postgres:latest\"", with: "\"Image\":\"mysql:8\"")
         .write(to: home.appendingPathComponent("unmatched.json"), atomically: true, encoding: .utf8)
     let docker = try fakeDocker(home, verbose: "cat '\(home.path)/unmatched.json'")
-    let found = Catalog(rules: fixtureRules).discover(fixture: home, locateTool: { $0.executables.contains("/usr/local/bin/docker") ? docker : nil })
+    let found = try await discoveredOffThePool(home, docker)
     #expect(found.first { $0.ruleID == "docker-images" }?.estimatedBytes == 2_500_000_000)
     #expect(found.count == 3)
 }
 
 /// With a container running, a `-v` list that can't be read leaves images and build cache at an unknown size, never a guess
 /// that could be too much or read as gone (Decision 45). Stopped containers keep their size.
-@Test func aListThatCantBeReadLeavesImagesAndBuildCacheUnknown() throws {
+@Test func aListThatCantBeReadLeavesImagesAndBuildCacheUnknown() async throws {
     let home = try fixtureHome()
     defer { try? FileManager.default.removeItem(at: home) }
     for verbose in ["echo json", "exit 1"] {
         let docker = try fakeDocker(home, verbose: verbose)
-        let found = Catalog(rules: fixtureRules).discover(fixture: home, locateTool: { $0.executables.contains("/usr/local/bin/docker") ? docker : nil })
+        let found = try await discoveredOffThePool(home, docker)
         let byRule = Dictionary(uniqueKeysWithValues: found.map { ($0.ruleID, $0) })
         #expect(byRule["docker-images"].map(SizeEstimate.init) == .unknown, "\(verbose)")
         #expect(byRule["docker-build-cache"].map(SizeEstimate.init) == .unknown, "\(verbose)")
@@ -201,20 +206,20 @@ private func calls(_ home: URL) -> [String] {
 }
 
 /// `container prune` leaves paused and restarting containers, so their images stay too; exited, created and dead ones go.
-@Test func aPausedContainersImageStays() throws {
+@Test func aPausedContainersImageStays() async throws {
     let home = try fixtureHome()
     defer { try? FileManager.default.removeItem(at: home) }
     try verboseReport.replacingOccurrences(of: "\"State\":\"exited\"", with: "\"State\":\"paused\"")
         .write(to: home.appendingPathComponent("paused.json"), atomically: true, encoding: .utf8)
     let docker = try fakeDocker(home, verbose: "cat '\(home.path)/paused.json'")
-    let found = Catalog(rules: fixtureRules).discover(fixture: home, locateTool: { $0.executables.contains("/usr/local/bin/docker") ? docker : nil })
+    let found = try await discoveredOffThePool(home, docker)
     // 4 GB less postgres (1.5 GB) and node (2 GB): only alpine:3.19 goes.
     #expect(found.first { $0.ruleID == "docker-images" }?.estimatedBytes == 500_000_000)
 }
 
 /// The image a running container names may be its tag, a bare repository meaning `latest`, a short or full ID, or a digest.
 /// Anything else isn't the kept image, so images fall back to Reclaimable.
-@Test func aRunningContainersImageIsFoundByTagIDOrDigest() throws {
+@Test func aRunningContainersImageIsFoundByTagIDOrDigest() async throws {
     let home = try fixtureHome()
     defer { try? FileManager.default.removeItem(at: home) }
     let names = ["postgres:latest": true, "postgres": true, "5f2b4c1a9e8d": true, "sha256:5f2b4c1a9e8d7c6b5a4f3e2d1c0b9a8f7e6d5c4b3a2f1e0d9c8b7a6f5e4d3c2b": true,
@@ -225,7 +230,7 @@ private func calls(_ home: URL) -> [String] {
         try verboseReport.replacingOccurrences(of: "\"Image\":\"postgres:latest\"", with: "\"Image\":\"\(name)\"")
             .write(to: home.appendingPathComponent("named.json"), atomically: true, encoding: .utf8)
         let docker = try fakeDocker(home, df: "cat '\(home.path)/df2.json'", verbose: "cat '\(home.path)/named.json'")
-        let images = Catalog(rules: fixtureRules).discover(fixture: home, locateTool: { $0.executables.contains("/usr/local/bin/docker") ? docker : nil })
+        let images = try await discoveredOffThePool(home, docker)
             .first { $0.ruleID == "docker-images" }
         // 4 GB less postgres's 1.5 GB when it's found; Reclaimable's 2 GB when it isn't.
         #expect(images?.estimatedBytes == (found ? 2_500_000_000 : 2_000_000_000), "\(name)")
