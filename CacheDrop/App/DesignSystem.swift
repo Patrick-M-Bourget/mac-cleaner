@@ -239,15 +239,8 @@ struct ColumnHeader: View {
                 if active { Image(systemName: sort.ascending ? "chevron.up" : "chevron.down").imageScale(.small).accessibilityHidden(true) }
             }.foregroundStyle(active ? .primary : .secondary).contentShape(Rectangle())
         }.buttonStyle(.plain).help("Sort by " + title)
-            .accessibilityLabel(title).accessibilityValue(active ? direction(column) : "")
-            .accessibilityAddTraits(active ? .isSelected : []).accessibilityIdentifier(identifier + (column == .name ? "-name" : "-size"))
-    }
-    /// What the active column's order reads as.
-    private func direction(_ column: ListSort.Column) -> String {
-        switch column {
-        case .name: sort.ascending ? "A to Z" : "Z to A"
-        case .size: sort.ascending ? "Smallest first" : "Largest first"
-        }
+            .accessibilityLabel(title).accessibilityValue(active ? sort.directionText : "")
+            .accessibilityAddTraits(active ? .isSelected : []).accessibilityIdentifier(identifier + "-" + column.rawValue)
     }
 }
 /// The one back button (Decision 47): small, borderless and secondary, just above the page title, reading
