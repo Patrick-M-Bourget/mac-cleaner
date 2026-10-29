@@ -555,7 +555,7 @@ final class ScannedLocationsUITests: XCTestCase {
         try Data(repeating: 1, count: 4_000).write(to: folder.appendingPathComponent("entry.zip"))
         app.launch()
         XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
-        app.links["overviewScanFolder"].click()
+        chooseFolderToScan(app)
         let panel = app.sheets.firstMatch.exists ? app.sheets.firstMatch : app.dialogs.firstMatch
         XCTAssertTrue(panel.waitForExistence(timeout: 5))
         panel.typeKey("g", modifierFlags: [.command, .shift])
@@ -593,10 +593,10 @@ final class ScannedLocationsUITests: XCTestCase {
         app.launch()
         XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
         // Downloads is built in (#342): listed and scanned with no picking, and says so.
-        let downloads = app.descendants(matching: .any)["overviewLocation:" + home.appendingPathComponent("Downloads").path]
+        let downloads = element(identifier: "overviewLocation:" + home.appendingPathComponent("Downloads").path, in: app)
         XCTAssertTrue(downloads.waitForExistence(timeout: 20))
         XCTAssertTrue((downloads.value as? String ?? "").contains("Built in"), downloads.value as? String ?? "")
-        app.links["overviewScanFolder"].click()
+        chooseFolderToScan(app)
         let panel = app.sheets.firstMatch.exists ? app.sheets.firstMatch : app.dialogs.firstMatch
         XCTAssertTrue(panel.waitForExistence(timeout: 5))
         panel.typeKey("g", modifierFlags: [.command, .shift])
@@ -604,16 +604,18 @@ final class ScannedLocationsUITests: XCTestCase {
         panel.buttons["Scan folder"].click()
         waitForScannedFolder(app)
 
-        let row = app.descendants(matching: .any)["overviewLocation:" + folder.path]
+        let row = element(identifier: "overviewLocation:" + folder.path, in: app)
         XCTAssertTrue((row.value as? String ?? "").contains(folder.lastPathComponent), row.value as? String ?? "")
-        let problem = app.staticTexts["overviewLocationProblem:" + folder.path]
+        let problem = element(identifier: "overviewLocationProblem:" + folder.path, in: app)
         XCTAssertTrue(problem.waitForExistence(timeout: 5))
         XCTAssertEqual(problem.value as? String, "1 folder couldn’t be read")
         XCTAssertEqual(app.links["fullDiskAccessLink"].label, "Grant Full Disk Access")
         XCTAssertFalse(app.staticTexts.matching(NSPredicate(format: "value CONTAINS 'couldn’t be read in full'")).firstMatch.exists)
 
-        revealAndClick(row, in: app)
-        XCTAssertTrue(explorerMode(app).waitForExistence(timeout: 10), "Explore opens the explorer at that folder")
+        // The row is one button, labelled for what it does (#358).
+        revealAndClick(app.buttons["Explore " + folder.lastPathComponent], in: app)
+        // The explorer's own action; its mode toggle shows only once large or old files were found, and this folder has none.
+        XCTAssertTrue(app.buttons["Add to cleanup plan"].waitForExistence(timeout: 10), "Explore opens the explorer at that folder")
     }
 
     /// #231: two stale folders get a row each, each with its own Choose again…, and no grey "Scanned now" row.
@@ -643,7 +645,7 @@ final class ScannedLocationsUITests: XCTestCase {
         // #342: a Downloads picked in an earlier version is quietly forgotten; the built-in one replaces it, with no row.
         XCTAssertEqual(texts, ["Projects · Access unavailable", "Work · Access unavailable"])
         XCTAssertEqual(app.links.matching(identifier: "overviewChooseAgain").count, 2)
-        XCTAssertTrue(app.descendants(matching: .any)["overviewLocation:" + home.appendingPathComponent("Downloads").path].waitForExistence(timeout: 20))
+        XCTAssertTrue(element(identifier: "overviewLocation:" + home.appendingPathComponent("Downloads").path, in: app).waitForExistence(timeout: 20))
         XCTAssertFalse(app.staticTexts.matching(NSPredicate(format: "value CONTAINS 'can’t be reached'")).firstMatch.exists)
     }
 }

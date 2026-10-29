@@ -10,7 +10,9 @@ struct TrashEmptyHint: View {
     @State private var sheet = EmptyFromTrashSheetState()
     private var trash = TrashModel.shared
     var body: some View {
-        Group {
+        // A stack, not a Group: a Group passes `.task` to its children, and with the line not shown yet it has none, so the
+        // reading after the run never started and the line never appeared (#392).
+        VStack(alignment: .leading, spacing: 0) {
             // The shared reading, so a put back (#159) or an emptying updates the line too.
             if measured, let text = sheet.line(TrashSpace.emptyHint(bytes: trash.emptyableBytes)) {
                 TrashLine(text: text, identifier: "resultsTrash", empty: { sheet.open(text) }).emptyFromTrashSheet($sheet.request)

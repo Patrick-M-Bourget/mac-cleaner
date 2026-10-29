@@ -130,6 +130,21 @@ import XCTest
 }
 
 /// Reveals and clicks an element inside a scrolling page.
+/// Overview's Scan a folder link: it waits while a folder scan runs (Downloads is scanned at launch, Decision 83) and sits
+/// below the categories (#345), so wait for it to be enabled and scroll to it before clicking.
+@MainActor func chooseFolderToScan(_ app: XCUIApplication, file: StaticString = #filePath, line: UInt = #line) {
+    let link = app.links["overviewScanFolder"]
+    let enabled = XCTNSPredicateExpectation(predicate: NSPredicate(format: "isEnabled == true"), object: link)
+    XCTAssertEqual(XCTWaiter().wait(for: [enabled], timeout: 30), .completed, "Scan a folder stayed disabled", file: file, line: line)
+    revealAndClick(link, in: app)
+}
+
+/// An element by an identifier longer than XCUITest's 128-character limit for identifier queries: a fixture folder's
+/// path makes `overviewLocation:` identifiers that long.
+@MainActor func element(identifier: String, in app: XCUIApplication) -> XCUIElement {
+    app.descendants(matching: .any).matching(NSPredicate(format: "identifier == %@", identifier)).firstMatch
+}
+
 @MainActor func revealAndClick(_ element: XCUIElement, in app: XCUIApplication) {
     reveal(element, in: app)
     element.click()
@@ -309,7 +324,7 @@ final class CatalogCleanupUITests: XCTestCase {
         }
         // #234: the explorer's bar is the same height too. It carries no note by design (617288f).
         app.typeKey("1", modifierFlags: .command)
-        app.links["overviewScanFolder"].click()
+        chooseFolderToScan(app)
         let panel = app.sheets.firstMatch.exists ? app.sheets.firstMatch : app.dialogs.firstMatch
         XCTAssertTrue(panel.waitForExistence(timeout: 5))
         panel.typeKey("g", modifierFlags: [.command, .shift])
@@ -318,7 +333,7 @@ final class CatalogCleanupUITests: XCTestCase {
         waitForScannedFolder(app)
         let explore = app.links["Explore storage"]
         XCTAssertTrue(explore.waitForExistence(timeout: 20))
-        explore.click()
+        revealAndClick(explore, in: app)
         XCTAssertTrue(app.buttons["Open folder " + folder.lastPathComponent].waitForExistence(timeout: 10))
         XCTAssertTrue(actionStrip(app).waitForExistence(timeout: 5))
         XCTAssertEqual(actionStrip(app).frame.height, height, accuracy: 0.5, "Explore storage")
@@ -898,7 +913,8 @@ final class CatalogCleanupUITests: XCTestCase {
         XCTAssertTrue(row.waitForExistence(timeout: 10))
         revealAndClick(row, in: app)
 
-        XCTAssertTrue(app.staticTexts["planNote-docker-images"].waitForExistence(timeout: 5))
+        // The notice sits on the first Docker rule: stopped containers, since they're pruned first (Decision 85).
+        XCTAssertTrue(app.staticTexts["planNote-docker-containers"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "value BEGINSWITH 'Docker isn’t running'")).firstMatch.exists)
         XCTAssertFalse(app.checkBoxes["planRule-docker-images"].exists)
         XCTAssertFalse(FileManager.default.fileExists(atPath: marker.path))
@@ -981,7 +997,7 @@ extension CatalogCleanupUITests {
 
         XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
         // #125: a clear Scan a folder action on Overview picks the folder and scans it right away.
-        app.links["overviewScanFolder"].click()
+        chooseFolderToScan(app)
         let panel = app.sheets.firstMatch.exists ? app.sheets.firstMatch : app.dialogs.firstMatch
         XCTAssertTrue(panel.waitForExistence(timeout: 5))
         panel.typeKey("g", modifierFlags: [.command, .shift])
@@ -991,7 +1007,7 @@ extension CatalogCleanupUITests {
         waitForScannedFolder(app)
         let explore = app.links["Explore storage"]
         XCTAssertTrue(explore.waitForExistence(timeout: 20))
-        explore.click()
+        revealAndClick(explore, in: app)
         // #222: inside a folder, back names where it goes, then leaves the explorer.
         let back = app.buttons["explorerBack"]
         assertBackButton(back, isAbove: "Explore storage", in: app)
@@ -1057,7 +1073,7 @@ extension CatalogCleanupUITests {
         }
         app.launch()
         XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
-        app.links["overviewScanFolder"].click()
+        chooseFolderToScan(app)
         let panel = app.sheets.firstMatch.exists ? app.sheets.firstMatch : app.dialogs.firstMatch
         XCTAssertTrue(panel.waitForExistence(timeout: 5))
         panel.typeKey("g", modifierFlags: [.command, .shift])
@@ -1066,7 +1082,7 @@ extension CatalogCleanupUITests {
         waitForScannedFolder(app)
         let explore = app.links["Explore storage"]
         XCTAssertTrue(explore.waitForExistence(timeout: 20))
-        explore.click()
+        revealAndClick(explore, in: app)
         app.buttons["Open folder " + folder.lastPathComponent].click()
 
         let rows = [app.buttons["Inspect a-big.bin"].firstMatch, app.buttons["Open folder Zeta"].firstMatch, app.buttons["Inspect b-small.bin"].firstMatch]
@@ -1117,7 +1133,7 @@ extension CatalogCleanupUITests {
         try Data(repeating: 1, count: 4_000).write(to: folder.appendingPathComponent("Inner/entry.zip"))
         app.launch()
         XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
-        app.links["overviewScanFolder"].click()
+        chooseFolderToScan(app)
         let panel = app.sheets.firstMatch.exists ? app.sheets.firstMatch : app.dialogs.firstMatch
         XCTAssertTrue(panel.waitForExistence(timeout: 5))
         panel.typeKey("g", modifierFlags: [.command, .shift])
@@ -1126,7 +1142,7 @@ extension CatalogCleanupUITests {
         waitForScannedFolder(app)
         let explore = app.links["Explore storage"]
         XCTAssertTrue(explore.waitForExistence(timeout: 20))
-        explore.click()
+        revealAndClick(explore, in: app)
         app.buttons["Open folder " + folder.lastPathComponent].click()
         XCTAssertTrue(app.textFields["explorerSearch"].waitForExistence(timeout: 5))
 
@@ -1162,7 +1178,7 @@ extension CatalogCleanupUITests {
         for number in 0..<5_000 { try Data(repeating: 1, count: 16).write(to: crowded.appendingPathComponent(String(format: "file-%04d.txt", number))) }
         app.launch()
         XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
-        app.links["overviewScanFolder"].click()
+        chooseFolderToScan(app)
         let panel = app.sheets.firstMatch.exists ? app.sheets.firstMatch : app.dialogs.firstMatch
         XCTAssertTrue(panel.waitForExistence(timeout: 5))
         panel.typeKey("g", modifierFlags: [.command, .shift])
@@ -1171,7 +1187,7 @@ extension CatalogCleanupUITests {
         waitForScannedFolder(app, timeout: 60)
         let explore = app.links["Explore storage"]
         XCTAssertTrue(explore.waitForExistence(timeout: 20))
-        explore.click()
+        revealAndClick(explore, in: app)
         app.buttons["Open folder " + folder.lastPathComponent].click()
         XCTAssertTrue(app.buttons["Open folder Crowded"].waitForExistence(timeout: 5))
         app.buttons["Open folder Crowded"].click()
@@ -1193,7 +1209,7 @@ extension CatalogCleanupUITests {
         try Data(repeating: 1, count: 4_000).write(to: folder.appendingPathComponent("Inner/entry.zip"))
         app.launch()
         XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
-        app.links["overviewScanFolder"].click()
+        chooseFolderToScan(app)
         let panel = app.sheets.firstMatch.exists ? app.sheets.firstMatch : app.dialogs.firstMatch
         XCTAssertTrue(panel.waitForExistence(timeout: 5))
         panel.typeKey("g", modifierFlags: [.command, .shift])
@@ -1202,7 +1218,7 @@ extension CatalogCleanupUITests {
         waitForScannedFolder(app)
         let explore = app.links["Explore storage"]
         XCTAssertTrue(explore.waitForExistence(timeout: 20))
-        explore.click()
+        revealAndClick(explore, in: app)
         app.buttons["Open folder " + folder.lastPathComponent].click()
         XCTAssertTrue(app.buttons["Open folder Inner"].waitForExistence(timeout: 5))
 
@@ -1242,10 +1258,8 @@ extension CatalogCleanupUITests {
         app.launch()
         XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
 
-        // With no scanned folder, Overview's quiet link leads to Locations & access, where folders are added.
-        let overviewExplore = app.links["Explore storage"]
-        XCTAssertTrue(overviewExplore.waitForExistence(timeout: 10))
-        overviewExplore.click()
+        // Downloads is always a scanned location (Decision 83), so folders are added from Locations & access in the sidebar.
+        app.buttons["Locations & access"].click()
         XCTAssertTrue(app.staticTexts["Locations & access"].waitForExistence(timeout: 5))
         app.buttons["Add folder…"].click()
         let panel = app.sheets.firstMatch.exists ? app.sheets.firstMatch : app.dialogs.firstMatch
@@ -1257,7 +1271,7 @@ extension CatalogCleanupUITests {
         // A predicate: the identifier is longer than a subscript query allows.
         let explore = app.descendants(matching: .any).matching(NSPredicate(format: "identifier == %@", "locationExplore:" + folder.path)).firstMatch
         XCTAssertTrue(explore.waitForExistence(timeout: 20))
-        explore.click()
+        revealAndClick(explore, in: app)
         let back = app.buttons["explorerBack"]
         assertBackButton(back, isAbove: "Explore storage", in: app)
         XCTAssertEqual(back.label, "Back to Locations & access")
@@ -1303,7 +1317,7 @@ extension CatalogCleanupUITests {
         waitForScannedFolder(app, timeout: 30)
         let explore = app.links["Explore storage"]
         XCTAssertTrue(explore.waitForExistence(timeout: 30))
-        explore.click()
+        revealAndClick(explore, in: app)
         let mode = explorerMode(app)
         XCTAssertTrue(mode.waitForExistence(timeout: 20))
         // The explorer keeps its mode within a run; turn it on only when it's off.
@@ -1665,13 +1679,14 @@ final class TrashSpaceUITests: XCTestCase {
 
         app.typeKey("6", modifierFlags: .command)
         func run(_ title: String) -> XCUIElement {
-            app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS %@ OR value CONTAINS %@", title, title)).firstMatch
+            // Ignoring case: a run that also deleted reads "Deleted and moved to Trash".
+            app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS[c] %@ OR value CONTAINS[c] %@", title, title)).firstMatch
         }
         XCTAssertTrue(run("Emptied from the Trash · 1 item").waitForExistence(timeout: 10))
         let cleanup = run("Moved to Trash")
         XCTAssertTrue(cleanup.waitForExistence(timeout: 10))
         revealAndClick(cleanup, in: app)
-        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH 'Setup.dmg'")).firstMatch.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH 'Setup.dmg' OR value BEGINSWITH 'Setup.dmg'")).firstMatch.waitForExistence(timeout: 5))
         XCTAssertFalse(app.descendants(matching: .any)["putBack-Setup.dmg"].exists, "History drops the emptied item's Put back")
     }
 }
@@ -2132,10 +2147,14 @@ final class FolderScanProgressUITests: XCTestCase {
         waitForCatalogScan(app)
         let toolbar = app.toolbars.firstMatch
         let toolbarItems = { toolbar.descendants(matching: .any).allElementsBoundByIndex.map { $0.identifier + "|" + $0.label } }
+        // Downloads is scanned at launch (Decision 83) and this journey holds every scan, so stop that one first.
+        let launchScan = app.buttons["Stop scan"]
+        if launchScan.waitForExistence(timeout: 10) { launchScan.click() }
+        XCTAssertTrue(launchScan.waitForNonExistence(timeout: 10))
         let before = toolbarItems()
         let height = actionStrip(app).frame.height
 
-        app.links["overviewScanFolder"].click()
+        chooseFolderToScan(app)
         let panel = app.sheets.firstMatch.exists ? app.sheets.firstMatch : app.dialogs.firstMatch
         XCTAssertTrue(panel.waitForExistence(timeout: 5))
         panel.typeKey("g", modifierFlags: [.command, .shift])
@@ -2190,7 +2209,7 @@ final class FolderScanProgressUITests: XCTestCase {
         app.launchEnvironment["CACHEDROP_TEST_FOLDER_SCAN_PAUSE"] = "8"
         app.launch()
         XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
-        app.links["overviewScanFolder"].click()
+        chooseFolderToScan(app)
         let panel = app.sheets.firstMatch.exists ? app.sheets.firstMatch : app.dialogs.firstMatch
         XCTAssertTrue(panel.waitForExistence(timeout: 5))
         panel.typeKey("g", modifierFlags: [.command, .shift])
@@ -2209,7 +2228,7 @@ final class FolderScanProgressUITests: XCTestCase {
         assertStopScanIsTheQuietX(actionStrip(app))
 
         // On Explore storage: still the x, and no Return to scan.
-        app.links["Explore storage"].click()
+        revealAndClick(app.links["Explore storage"], in: app)
         XCTAssertTrue(app.buttons["explorerBack"].waitForExistence(timeout: 5))
         XCTAssertTrue(line.exists)
         let strip = actionStrip(app)
@@ -2248,7 +2267,7 @@ final class ReviewSheetUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
         waitForCatalogScan(app)
 
-        app.links["overviewScanFolder"].click()
+        chooseFolderToScan(app)
         let panel = app.sheets.firstMatch.exists ? app.sheets.firstMatch : app.dialogs.firstMatch
         XCTAssertTrue(panel.waitForExistence(timeout: 5))
         panel.typeKey("g", modifierFlags: [.command, .shift])
@@ -2306,7 +2325,7 @@ final class EmptyStateUITests: XCTestCase {
         XCTAssertFalse(app.descendants(matching: .any)["planSkeleton"].exists, "Never a skeleton and an empty state together")
         let explore = empty.buttons["planEmptyAction"]
         XCTAssertEqual(explore.label, "Explore storage")
-        explore.click()
+        revealAndClick(explore, in: app)
         XCTAssertTrue(app.buttons["manageLocalRecords"].waitForExistence(timeout: 5), "With no scanned folder, it opens Locations & access")
     }
 
@@ -2339,7 +2358,7 @@ final class EmptyStateUITests: XCTestCase {
 
         let explore = empty.links["overviewEmptyAction"]
         XCTAssertEqual(explore.label, "Explore storage")
-        explore.click()
+        revealAndClick(explore, in: app)
         XCTAssertTrue(app.buttons["manageLocalRecords"].waitForExistence(timeout: 5), "With no scanned folder, it opens Locations & access")
     }
 
@@ -2399,7 +2418,7 @@ extension CatalogCleanupUITests {
         app.launch()
 
         XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
-        app.links["overviewScanFolder"].click()
+        chooseFolderToScan(app)
         let panel = app.sheets.firstMatch.exists ? app.sheets.firstMatch : app.dialogs.firstMatch
         XCTAssertTrue(panel.waitForExistence(timeout: 5))
         panel.typeKey("g", modifierFlags: [.command, .shift])
