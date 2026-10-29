@@ -524,7 +524,7 @@ final class ScannedLocationsUITests: XCTestCase {
         let row = app.staticTexts["overviewLocationRecovery"]
         XCTAssertTrue(row.waitForExistence(timeout: 15))
         XCTAssertEqual(row.value as? String, "Projects · Access unavailable")
-        XCTAssertFalse(app.staticTexts.matching(NSPredicate(format: "value CONTAINS 'Current coverage'")).firstMatch.exists)
+        XCTAssertFalse(app.staticTexts.matching(NSPredicate(format: "value CONTAINS 'can’t be reached'")).firstMatch.exists)
         XCTAssertFalse(app.staticTexts.matching(NSPredicate(format: "value CONTAINS 'since you included it'")).firstMatch.exists)
         XCTAssertFalse(app.staticTexts.matching(NSPredicate(format: "value CONTAINS 'Choose the folder again'")).firstMatch.exists)
 
@@ -644,7 +644,7 @@ final class ScannedLocationsUITests: XCTestCase {
         XCTAssertEqual(texts, ["Projects · Access unavailable", "Work · Access unavailable"])
         XCTAssertEqual(app.links.matching(identifier: "overviewChooseAgain").count, 2)
         XCTAssertTrue(app.descendants(matching: .any)["overviewLocation:" + home.appendingPathComponent("Downloads").path].waitForExistence(timeout: 20))
-        XCTAssertFalse(app.staticTexts.matching(NSPredicate(format: "value CONTAINS 'Current coverage'")).firstMatch.exists)
+        XCTAssertFalse(app.staticTexts.matching(NSPredicate(format: "value CONTAINS 'can’t be reached'")).firstMatch.exists)
     }
 }
 

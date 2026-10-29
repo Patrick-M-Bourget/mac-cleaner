@@ -48,7 +48,7 @@ final class FolderInspection {
         picker.canChooseDirectories = true
         picker.allowsMultipleSelection = false
         picker.treatsFilePackagesAsDirectories = false
-        picker.message = "Scans inspect metadata only. Cleanup choices come from the cleanup plan."
+        picker.message = "CacheDrop reads only names and sizes. You choose what to clean in the Cleanup plan."
         if downloads { picker.directoryURL = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask).first }
         picker.prompt = remembering ? "Remember folder" : "Scan folder"
         if remembering { picker.message = "Choose the same folder again to renew access." }
@@ -175,7 +175,7 @@ final class FolderInspection {
                 refreshRequest = nil
                 progress = nil
                 isScanningCurrent = false
-                message = error is CancellationError ? "Scan stopped. Choose a folder to try again." : ExclusionsModel.shared.error ?? "This folder could not be inspected. Choose the folder again or check access in System Settings."
+                message = error is CancellationError ? "Scan stopped. Choose a folder to try again." : ExclusionsModel.shared.error ?? "CacheDrop couldn’t scan this folder. Choose it again, or check access in System Settings."
                 activity?.failed(url)
                 if !grouped { await finishActivity() }
                 if scanAgainTask == nil { AppLifecycleController.shared.capacity.request(.scanEnded) }
@@ -214,7 +214,7 @@ final class FolderInspection {
             .max { $0.observedAt < $1.observedAt }
     }
 
-    static let unavailableMessage = "Current coverage: Unknown · This location is unavailable. Reconnect and recheck, or choose it again in Locations & access."
+    static let unavailableMessage = "This folder can’t be reached, so its size is unknown. Reconnect it and recheck, or choose it again in Locations & access."
     func markUnavailable(_ url: URL) {
         scope = url
         let previous = scopeReports.first { $0.current.scope.path == url.path }
@@ -241,7 +241,7 @@ final class FolderInspection {
     func invalidateCoverage() async {
         cancel(); closePreviewAccess()
         result = nil; lastComplete = nil; scopeReports = []; selected = nil; previewURL = nil
-        message = "Exclusion settings changed. Recheck this folder to observe the new coverage."
+        message = "Protected items changed. Scan this folder again to see what it holds now."
         await session.clear()
     }
     func resetSession() async {
@@ -269,7 +269,7 @@ final class FolderInspection {
         task?.cancel()
         generation = UUID()
         if let refreshRequest { selection.cancelRefresh(refreshRequest); self.refreshRequest = nil }
-        if isScanningCurrent { message = "Stop requested. The current metadata operation may still return; selected choices need a complete refresh before review." }
+        if isScanningCurrent { message = "Scan stopped. Scan again before you review what to clean." }
         progress = nil
         isScanningCurrent = false
     }
@@ -278,7 +278,7 @@ final class FolderInspection {
         closePreviewAccess()
         if let scope {
             do { previewLease = try AppLifecycleController.shared.locations.leases(for: [scope]).first }
-            catch { message = "Renew access to this location before previewing. No download was requested."; return }
+            catch { message = "Choose this folder again in Locations & access to preview it. Nothing was downloaded."; return }
         }
         if let scope, scope.startAccessingSecurityScopedResource() { previewAccessScope = scope }
         let token = UUID(); previewGeneration = token
@@ -291,7 +291,7 @@ final class FolderInspection {
             catch {
                 guard previewGeneration == token else { return }
                 closePreviewAccess()
-                message = "Preview unavailable: local contents or resource identity could not be confirmed. No download was requested."
+                message = "Can’t preview this file: CacheDrop couldn’t confirm it’s on this Mac and unchanged. Nothing was downloaded."
             }
         }
     }
