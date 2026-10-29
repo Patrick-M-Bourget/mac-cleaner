@@ -2022,23 +2022,30 @@ extension CatalogCleanupUITests {
         }
     }
 
-    /// #306: a Smart clean run rescans by itself. After Done the page waits for that scan, with its progress in the bar,
-    /// then fills again and can be cleaned once more. A dry run, so the caches are still there to find.
-    @MainActor func testSmartCleanRescansAfterARunAndThePageFillsAgain() throws {
+    /// #306, #375: a Smart clean run rescans by itself. While that scan runs, with its progress in the bar, the page keeps
+    /// the rows the run left, dimmed (#308), never skeleton rows, and what the run cleaned is gone at once; then the page
+    /// fills again and can be cleaned once more.
+    @MainActor func testSmartCleanKeepsItsRowsDimmedDuringTheRescanAfterARun() throws {
         continueAfterFailure = false
         let app = XCUIApplication()
         let state = try configureIsolatedState(app)
         let home = try configureCatalogHome(app)
-        turnOnDryRun(app)
         _ = try addDeveloperCaches(home, folders: ["Library/Caches/Yarn"])
+        let log = home.appendingPathComponent("Library/Logs/FixtureApp/main.log")
+        try FileManager.default.createDirectory(at: log.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Data(repeating: 4, count: 60_000).write(to: log)
         defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
         app.launchEnvironment["CACHEDROP_TEST_DISCOVERY_PAUSE"] = "0.5"
         app.launch()
         XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
         waitForCatalogScan(app)
         app.typeKey("2", modifierFlags: .command)
-        let developer = app.checkBoxes["smartCleanCategory-developer"]
+        let developer = app.checkBoxes["smartCleanCategory-developer"], logs = app.checkBoxes["smartCleanCategory-logs"]
         XCTAssertTrue(developer.waitForExistence(timeout: 10))
+        XCTAssertTrue(logs.exists)
+        // Logs stay: only the developer cache is cleaned.
+        if logs.value as? Int != 0 { revealAndClick(logs, in: app) }
+        XCTAssertEqual(logs.value as? Int, 0)
         app.buttons["smartCleanCleanUp"].click()
         XCTAssertTrue(reviewLine(app, "permanentlyRemoved", "developer").waitForExistence(timeout: 10))
         app.buttons.matching(NSPredicate(format: "label == 'Clean up' AND identifier != 'smartCleanCleanUp'")).firstMatch.click()
@@ -2047,9 +2054,17 @@ extension CatalogCleanupUITests {
         XCTAssertTrue(done.waitForExistence(timeout: 20))
         done.click()
         XCTAssertTrue(app.staticTexts["catalogScanProgress"].waitForExistence(timeout: 10), "The run rescans, and the bar shows its progress")
-        XCTAssertTrue(developer.waitForExistence(timeout: 120), "The page fills again after the scan")
-        XCTAssertTrue(app.staticTexts["catalogScanProgress"].waitForNonExistence(timeout: 120))
+        XCTAssertTrue(logs.waitForExistence(timeout: 5), "The row the run left stays during the rescan")
+        XCTAssertFalse(logs.isEnabled, "Dimmed: it can't be clicked until the scan ends")
+        XCTAssertFalse(developer.exists, "What the run cleaned never shows as still there")
+        XCTAssertFalse(app.descendants(matching: .any)["smartCleanSkeleton"].exists, "Never skeleton rows over content already known")
         let enabled = NSPredicate(format: "isEnabled == true")
+        XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: enabled, object: logs)], timeout: 120), .completed,
+                       "The page fills again after the scan")
+        XCTAssertTrue(app.staticTexts["catalogScanProgress"].waitForNonExistence(timeout: 120))
+        XCTAssertFalse(developer.exists, "The cleaned cache is gone after the scan too")
+        XCTAssertFalse(FileManager.default.fileExists(atPath: home.appendingPathComponent("Library/Caches/Yarn/entry").path))
+        tick(logs, in: app)
         XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: enabled, object: app.buttons["smartCleanCleanUp"])], timeout: 10), .completed,
                        "Clean up works again")
     }

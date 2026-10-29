@@ -579,8 +579,10 @@ import SwiftUI
             measureStoppedWorkAgain(outcome, of: approval, run: run)
             if !approval.previewOnly { rescanFollowsCleanup = true }
             // What the run cleaned leaves every page; what it skipped keeps its tick (#349). Picked folders keep the large and old files this run didn't act on (#125).
-            selections.finishRun(cleaned: outcome.cleanedCandidateIDs); selections.revise(); discovered = []; uninstallable = []; pickedFiles = pickedFiles.mapValues { UserFiles.remaining($0, after: outcome) }
-            projectBuilds = projectBuilds.mapValues { UserFiles.remaining($0, after: outcome) }; hasScanned = false; noteChoices()
+            // The other rows stay, dimmed, until the rescan that follows replaces them (#375).
+            selections.finishRun(cleaned: outcome.cleanedCandidateIDs); selections.revise()
+            discovered = outcome.keptDuringRescan(discovered); uninstallable = outcome.keptDuringRescan(uninstallable); pickedFiles = pickedFiles.mapValues { UserFiles.remaining($0, after: outcome) }
+            projectBuilds = projectBuilds.mapValues { UserFiles.remaining($0, after: outcome) }; noteChoices()
         } catch { message = "CacheDrop couldn’t open its cleanup history, so nothing was changed." }
     }
     /// A stopped daemon-backed tool's work may still be finishing, so its item is measured again a minute later, and
