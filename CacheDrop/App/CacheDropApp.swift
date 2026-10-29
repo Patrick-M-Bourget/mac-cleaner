@@ -382,12 +382,11 @@ private struct WorkspaceView: View {
     private var overviewRecommendations: some View {
         let catalog = selection.catalog
         let summary = catalog.overview
-        let visible = summary?.visibleRows ?? []
-        // The scanned folders' iCloud inventory, when the catalog found no local copies of its own; it then stands in for
-        // the empty iCloud row. Hidden at 0 bytes; unknown is never 0.
-        let showsCloudInventory = overviewObservation.map { $0.cloudInventory.localAllocatedBytes != 0 } == true && !visible.contains { $0.category == .icloud && !$0.isEmpty }
+        // The scanned folders' iCloud inventory stands in for an empty iCloud row (Decision 76).
+        let inventory = overviewObservation?.cloudInventory
+        let showsCloudInventory = summary?.showsCloudInventory(inventory) == true
         // Every category, empty ones last as "Empty" (#372).
-        let rows = showsCloudInventory ? visible.filter { !($0.category == .icloud && $0.isEmpty) } : visible
+        let rows = summary?.visibleRows(cloudInventory: inventory) ?? []
         let more = max(0, rows.count - CatalogOverview.leadingRowCount)
         let shown = overviewShowsAllCategories ? rows : Array(rows.prefix(CatalogOverview.leadingRowCount))
         return VStack(alignment: .leading, spacing: CacheDropDesign.Space.md) {
@@ -395,7 +394,7 @@ private struct WorkspaceView: View {
                     Text("Recommended for review").font(CacheDropDesign.TypeStyle.section)
                     Spacer(minLength: CacheDropDesign.Space.md)
                     // Nothing known yet: the size is "—" and the rows are skeletons (#308).
-                    Text(summary.map { recommendedText($0.recommended) } ?? "—")
+                    Text(summary.map { recommendedText($0.recommended) } ?? CacheDropDesign.noValue)
                         .font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary).monospacedDigit().accessibilityIdentifier("overviewRecommendedTotal")
                     // The recommended plan lives on its own page (#141): one quiet link to it.
                     if summary != nil, !catalog.recommendedCandidates.isEmpty {
@@ -454,7 +453,7 @@ private struct WorkspaceView: View {
             // Found nothing: "Empty", muted, with no Review link (#372); "Needs access" when it couldn't be read (62); "—" while a
             // scan may still find something.
             StorageReviewRow(category: row.category.storageCategory, title: row.category.overviewTitle, detail: row.category.overviewDetail,
-                             value: selection.catalog.isScanning ? "—" : row.needsAccess ? "Needs access" : "Empty",
+                             value: selection.catalog.isScanning ? CacheDropDesign.noValue : row.needsAccess ? "Needs access" : "Empty",
                              identifier: "overviewCategory-" + row.id, mutedValue: true)
         } else {
             foundCatalogRow(row)

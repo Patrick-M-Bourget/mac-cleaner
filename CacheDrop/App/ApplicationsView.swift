@@ -154,7 +154,7 @@ struct ApplicationsView: View {
     }
     /// The list's sortable header, one sort for every section (#295, #352): "Name" over the rows' titles, "Size" over their sizes.
     private var columnHeader: some View {
-        ColumnHeader(name: "Name", size: "Size", sort: Bindable(model).listing.sort, identifier: "applicationsSort",
+        ColumnHeader(nameTitle: "Name", sizeTitle: "Size", sort: Bindable(model).listing.sort, identifier: "applicationsSort",
                      insets: EdgeInsets(top: 0, leading: CacheDropDesign.Size.categoryContentIndent, bottom: 0, trailing: 0))
     }
     private func noMatches(_ id: String) -> some View {

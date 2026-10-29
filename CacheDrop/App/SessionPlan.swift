@@ -26,7 +26,7 @@ struct RefreshRequest: Sendable {
     var hasPendingChoicesOnAnyPage: Bool { catalog.anyPageDiffersFromRecommended }
     var workspaceSelectedCount: Int { catalog.selectedCount }
     var workspaceSelectedSize: String {
-        if !hasPendingChoices { return "—" }
+        if !hasPendingChoices { return CacheDropDesign.noValue }
         return ByteCountFormatter.string(fromByteCount: catalog.estimatedBytes, countStyle: .decimal)
     }
     /// The last run left records whose outcome is unknown; they must be reviewed before another plan.

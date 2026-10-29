@@ -533,9 +533,10 @@ import SwiftUI
         }
     }
     /// "Up to" when part of the plan is copies that share disk blocks (SPEC section 6).
-    var recommendedSizeText: String {
-        let items = recommendedCandidates
-        return SizeEstimate(sum: items.map(SizeEstimate.init)).text(upperBound: items.contains { catalog.rule($0.ruleID)?.estimateIsUpperBound == true })
+    var recommendedSizeText: String { sizeText(of: recommendedCandidates) }
+    /// The items' total size; "Up to" when part of it is copies that share disk blocks (SPEC section 6).
+    func sizeText(of items: [Candidate]) -> String {
+        SizeEstimate(sum: items.map(SizeEstimate.init)).text(upperBound: items.contains { catalog.rule($0.ruleID)?.estimateIsUpperBound == true })
     }
     /// Smart clean's ticked items as the last scan sees them: the recommended ones, ticked here or on any page (#349).
     var smartCleanCandidates: [Candidate] { (recommendedCandidates + recommendedHeld).filter(selections.isTicked) }

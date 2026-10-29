@@ -75,6 +75,8 @@ enum CacheDropDesign {
     static var indigo: Color { adaptive(light: 0x5856D6, dark: 0x8583F5) }
     static func files(_ count: Int) -> String { "\(count) \(count == 1 ? "file" : "files")" }
     static func items(_ count: Int) -> String { "\(count) \(count == 1 ? "item" : "items")" }
+    /// The muted dash for a value not known yet or with nothing to show (Decision 62): never empty, never zero.
+    static let noValue = "—"
     static var capacityFill: Color { adaptive(light: 0x969BA7, dark: 0x858997) }
     static var capacityTrack: Color { adaptive(light: 0xECEEF2, dark: 0x33343D) }
     /// The meter's "Other reclaimable" segment: a slate, 5:1 against the track in light and 6:1 in dark (#164).
@@ -213,17 +215,19 @@ struct PageSearchField: View {
 /// other switches to it (names A to Z, sizes largest first), and a chevron sits on the active one. Each label is a button
 /// identified `<identifier>-name` or `<identifier>-size`. `insets` line the labels up with the rows' own columns.
 struct ColumnHeader: View {
-    let name: String
-    let size: String
+    /// The name column's title, such as "Name".
+    let nameTitle: String
+    /// The size column's title, such as "Size" or "On disk".
+    let sizeTitle: String
     @Binding var sort: ListSort
     let identifier: String
     var insets = EdgeInsets(top: 0, leading: CacheDropDesign.Space.md, bottom: 0, trailing: CacheDropDesign.Space.md)
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: CacheDropDesign.Space.md) {
-                column(name, .name)
+                column(nameTitle, .name)
                 Spacer(minLength: CacheDropDesign.Space.md)
-                column(size, .size)
+                column(sizeTitle, .size)
             }.font(CacheDropDesign.TypeStyle.caption)
                 .padding(insets).padding(.bottom, CacheDropDesign.Space.sm)
             Divider()
@@ -237,15 +241,8 @@ struct ColumnHeader: View {
                 if active { Image(systemName: sort.ascending ? "chevron.up" : "chevron.down").imageScale(.small).accessibilityHidden(true) }
             }.foregroundStyle(active ? .primary : .secondary).contentShape(Rectangle())
         }.buttonStyle(.plain).help("Sort by " + title)
-            .accessibilityLabel(title).accessibilityValue(active ? direction(column) : "")
-            .accessibilityAddTraits(active ? .isSelected : []).accessibilityIdentifier(identifier + (column == .name ? "-name" : "-size"))
-    }
-    /// What the active column's order reads as.
-    private func direction(_ column: ListSort.Column) -> String {
-        switch column {
-        case .name: sort.ascending ? "A to Z" : "Z to A"
-        case .size: sort.ascending ? "Smallest first" : "Largest first"
-        }
+            .accessibilityLabel(title).accessibilityValue(active ? sort.directionText : "")
+            .accessibilityAddTraits(active ? .isSelected : []).accessibilityIdentifier(identifier + "-" + column.rawValue)
     }
 }
 /// The one back button (Decision 47): small, borderless and secondary, just above the page title, reading
@@ -634,7 +631,7 @@ struct VolumeSummary: View {
                             Text(bytes(available)).font(CacheDropDesign.TypeStyle.value).monospacedDigit().accessibilityIdentifier("startupCapacityAmount")
                             Text("available").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
                         } else {
-                            Text("—").font(CacheDropDesign.TypeStyle.value)
+                            Text(CacheDropDesign.noValue).font(CacheDropDesign.TypeStyle.value)
                             Text(refreshing ? "Checking capacity…" : "Available space unavailable").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
                         }
                     }
@@ -1131,7 +1128,7 @@ private struct SkeletonRow: View {
                     bar(geometry.size.width * (width + CacheDropDesign.Size.skeletonDetailExtra), CacheDropDesign.Size.skeletonDetail)
                 }.frame(maxHeight: .infinity, alignment: .center)
             }.frame(height: CacheDropDesign.Size.badge)
-            Text("—").font(CacheDropDesign.TypeStyle.note).foregroundStyle(.secondary)
+            Text(CacheDropDesign.noValue).font(CacheDropDesign.TypeStyle.note).foregroundStyle(.secondary)
         }.padding(layout == .review ? CacheDropDesign.Space.lg : 0).padding(.vertical, layout == .line ? CacheDropDesign.Space.sm : 0)
     }
     private func bar(_ width: CGFloat, _ height: CGFloat) -> some View {
@@ -1200,8 +1197,8 @@ struct NothingToCleanUp: View {
 /// The one button rule (#311). 1: every bordered button is a capsule, set once per root (the workspace window, each sheet,
 /// the Settings form) with `cacheDropButtonRule()`. 2: large in the bottom bar (`ActionStrip`) and sheet footers
 /// (`SheetFooter`), regular in page bodies, never small and bordered. 3: anything inside a row, status line, breadcrumb or
-/// the bar's work line is a link (`.buttonStyle(.link)`), except the work line's Stop scan x (#364). 4: a sheet's footer is right-aligned, Cancel then the primary
-/// button; its one close style is `CloseButton`.
+/// the bar's work line is a link (`.buttonStyle(.link)`), except the work line's Stop scan x (#364). 4: a sheet's footer
+/// is right-aligned, Cancel then the primary button; its one close style is `CloseButton`.
 extension View {
     func cacheDropButtonRule() -> some View { buttonBorderShape(.capsule) }
 }

@@ -50,6 +50,8 @@ private let picked = scan("/P", [
     let explorer = index([picked])
     #expect(explorer.matches(in: URL(fileURLWithPath: "/P"), query: "SUB/").map(\.item.url.lastPathComponent) == ["link.bin", "unknown", "x.bin"])
     #expect(explorer.matches(in: URL(fileURLWithPath: "/P/Sub"), query: "sub").isEmpty, "Only the path inside the folder is searched")
+    #expect(explorer.matches(in: URL(fileURLWithPath: "/P"), query: "b").map(\.item.url.path) == ["/P/Sub", "/P/b.txt", "/P/Sub/link.bin", "/P/Sub/unknown", "/P/Sub/x.bin"],
+            "Folders first, then by path as Finder sorts them")
     #expect(explorer.entry(resource: "r:/P/b.txt")?.item.url.lastPathComponent == "b.txt")
 }
 
