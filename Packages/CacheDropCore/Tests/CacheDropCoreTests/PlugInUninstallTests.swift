@@ -554,7 +554,7 @@ private func unreadableReceipt(_ id: String, in root: URL) throws {
     }
 }
 
-/// #401, Decision 91: an older Powered by Kontakt library's `<Library>_info.nkx` is the other half of its `.nicnt` stand-in, so it
+/// #401, Decision 89: an older Powered by Kontakt library's `<Library>_info.nkx` is the other half of its `.nicnt` stand-in, so it
 /// stays; every other `.nkx`, Kontakt's sample monolith, still goes.
 @Test func aLibrarysInfoNkxStaysSampleMonolithsGo() throws {
     let (root, home) = try fixture()
