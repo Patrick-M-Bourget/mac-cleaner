@@ -12,6 +12,12 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
+      # Test seams and process signals stay out of release builds (Decision 79).
+      - name: Debug seams check
+        run: scripts/check-debug-seams.sh
+      # RESET.md merges by union (.gitattributes); a merge can leave Decisions out of order or doubled.
+      - name: Decisions numbering check
+        run: scripts/check-decisions.sh
       # Hosted runners don't list Xcode 27.x; local development uses 27.1.
       - uses: maxim-lobanov/setup-xcode@v1
         with:
@@ -32,3 +38,14 @@ jobs:
         run: xcrun swift test --package-path CacheDrop/Packages/StorageAlerts
       - name: Build app
         run: xcodebuild build -project CacheDrop/CacheDrop.xcodeproj -scheme CacheDrop -configuration Debug -destination 'platform=macOS' -derivedDataPath .build/xcode
+  # The whole UI suite (about 80 journeys, ~40 min), on a hosted runner's own screen, so nobody's Mac is taken over.
+  ui-suite:
+    runs-on: macos-26
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: '26.6'
+      - name: UI suite
+        run: DEVELOPER_DIR="$(xcode-select -p)" scripts/ui-journeys.sh --all

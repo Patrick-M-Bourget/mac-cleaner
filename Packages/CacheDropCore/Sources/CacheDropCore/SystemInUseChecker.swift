@@ -37,7 +37,7 @@ final class SystemInUseSnapshot: InUseChecking, @unchecked Sendable {
             guard owner.matches([executable]) else { continue }
             // One of the owner's processes: an unreadable file list means in-use status is unknown.
             guard let paths = cachedPaths(pid) else {
-                if kill(pid, 0) != 0, errno == ESRCH { continue }
+                if kill(pid, 0) != 0, errno == ESRCH { continue } // seam-check: allow (signal 0 only probes)
                 return nil
             }
             used.formUnion(paths.compactMap(folder(holding:)))
