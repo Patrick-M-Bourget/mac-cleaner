@@ -267,7 +267,7 @@ final class WhatGrewUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
 
         app.buttons["Storage trends"].click()
-        XCTAssertTrue(app.staticTexts["Baseline recorded"].waitForExistence(timeout: 15))
+        XCTAssertTrue(app.staticTexts["No trends yet"].waitForExistence(timeout: 15))
 
         func grow(_ name: String) throws {
             let grown = home.appendingPathComponent(".npm/_cacache/content-v2/sha512/" + name + "/blob")
@@ -324,7 +324,7 @@ final class BackButtonUITests: XCTestCase {
         XCTAssertTrue(manage.waitForExistence(timeout: 5))
         revealAndClick(manage, in: app)
         let back = app.buttons["Back to Locations & access"]
-        assertBackButton(back, isAbove: "Local records", in: app)
+        assertBackButton(back, isAbove: "Saved data", in: app)
         XCTAssertTrue(actionStrip(app).exists, "The bottom bar stays, empty")
         back.click()
         XCTAssertTrue(manage.waitForExistence(timeout: 5))
@@ -397,7 +397,7 @@ final class KeyboardShortcutsUITests: XCTestCase {
         }
 
         app.typeKey("4", modifierFlags: .command)
-        XCTAssertTrue(app.staticTexts["Baseline recorded"].waitForExistence(timeout: 15))
+        XCTAssertTrue(app.staticTexts["No trends yet"].waitForExistence(timeout: 15))
         let grown = home.appendingPathComponent(".npm/_cacache/content-v2/sha512/cd/blob")
         try FileManager.default.createDirectory(at: grown.deletingLastPathComponent(), withIntermediateDirectories: true)
         try Data(repeating: 9, count: 5_000_000).write(to: grown)
@@ -524,9 +524,9 @@ final class ScannedLocationsUITests: XCTestCase {
         let row = app.staticTexts["overviewLocationRecovery"]
         XCTAssertTrue(row.waitForExistence(timeout: 15))
         XCTAssertEqual(row.value as? String, "Projects · Access unavailable")
-        XCTAssertFalse(app.staticTexts.matching(NSPredicate(format: "value CONTAINS 'Current coverage'")).firstMatch.exists)
-        XCTAssertFalse(app.staticTexts.matching(NSPredicate(format: "value CONTAINS 'Recheck required'")).firstMatch.exists)
-        XCTAssertFalse(app.staticTexts.matching(NSPredicate(format: "value CONTAINS 'Choose again to renew'")).firstMatch.exists)
+        XCTAssertFalse(app.staticTexts.matching(NSPredicate(format: "value CONTAINS 'can’t be reached'")).firstMatch.exists)
+        XCTAssertFalse(app.staticTexts.matching(NSPredicate(format: "value CONTAINS 'since you included it'")).firstMatch.exists)
+        XCTAssertFalse(app.staticTexts.matching(NSPredicate(format: "value CONTAINS 'Choose the folder again'")).firstMatch.exists)
 
         let chooseAgain = app.links["overviewChooseAgain"]
         XCTAssertEqual(chooseAgain.label, "Choose again…")
@@ -644,7 +644,7 @@ final class ScannedLocationsUITests: XCTestCase {
         XCTAssertEqual(texts, ["Projects · Access unavailable", "Work · Access unavailable"])
         XCTAssertEqual(app.links.matching(identifier: "overviewChooseAgain").count, 2)
         XCTAssertTrue(app.descendants(matching: .any)["overviewLocation:" + home.appendingPathComponent("Downloads").path].waitForExistence(timeout: 20))
-        XCTAssertFalse(app.staticTexts.matching(NSPredicate(format: "value CONTAINS 'Current coverage'")).firstMatch.exists)
+        XCTAssertFalse(app.staticTexts.matching(NSPredicate(format: "value CONTAINS 'can’t be reached'")).firstMatch.exists)
     }
 }
 

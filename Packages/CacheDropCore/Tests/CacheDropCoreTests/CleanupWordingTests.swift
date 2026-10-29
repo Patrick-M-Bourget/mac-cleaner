@@ -28,8 +28,8 @@ private func records(_ actions: [CleanupAction], previewOnly: Bool = false) thro
     #expect(trash.outcomeTitle == "Moved to Trash")
     delete.state = .unknown; trash.state = .intent
     #expect(delete.outcomeTitle == "Unresolved")
-    #expect(delete.recoveryStateText == "Unresolved · It may be partly deleted")
-    #expect(trash.recoveryStateText == "Unresolved · It may or may not be in the Trash")
+    #expect(delete.recoveryStateText == "Unfinished · It may be partly deleted")
+    #expect(trash.recoveryStateText == "Unfinished · It may or may not be in the Trash")
     delete.state = .skipped
     #expect(delete.outcomeTitle == "Skipped")
     let (toolHome, toolRecords) = try records([.tool])
@@ -40,15 +40,15 @@ private func records(_ actions: [CleanupAction], previewOnly: Bool = false) thro
     // #312: one verb for the same kind of result; a cleanup command's removal is permanent too.
     #expect(tool.outcomeTitle == "Deleted")
     tool.state = .unknown
-    #expect(tool.recoveryStateText == "Unresolved · It may be partly deleted")
-    #expect(delete.recoveryStateText == "Recorded skip · Not changed")
+    #expect(tool.recoveryStateText == "Unfinished · It may be partly deleted")
+    #expect(delete.recoveryStateText == "Skipped · Not changed")
 }
 
 @Test func downloadsEraRecordsReadAsTrashMoves() throws {
     let legacy = #"{"action":"moveToTrash","approvedAt":0,"batchID":"FD8FB579-0EB5-4CC1-925B-F038F4B44EEB","id":"x","logicalBytes":3,"message":"Moved to Trash","modifiedNanoseconds":0,"modifiedSeconds":0,"observedAt":0,"originalURL":"file:\/\/\/x\/Setup.dmg","policyVersion":1,"resourceID":"1:2","scopeResourceID":"1:1","scopeURL":"file:\/\/\/x\/","state":"succeeded"}"#
     let record = try JSONDecoder().decode(CleanupRecord.self, from: Data(legacy.utf8))
     #expect(record.outcomeTitle == "Moved to Trash")
-    #expect(record.recoveryStateText == "Recorded success · Moved to Trash")
+    #expect(record.recoveryStateText == "Finished · Moved to Trash")
 }
 
 @Test func aDryRunReadsAsADryRunNotAsSkippedOrFailed() async throws {
@@ -104,12 +104,12 @@ private func records(_ actions: [CleanupAction], previewOnly: Bool = false) thro
     delete.state = .failed; delete.partlyRemoved = true
     tool.state = .failed; tool.partlyRemoved = true
     #expect(delete.outcomeTitle == "Partly removed")
-    #expect(delete.recoveryStateText == "Recorded failure · It may be partly deleted")
+    #expect(delete.recoveryStateText == "Failed · It may be partly deleted")
     #expect(tool.outcomeTitle == "Partly removed")
-    #expect(tool.recoveryStateText == "Recorded failure · It may be partly deleted")
+    #expect(tool.recoveryStateText == "Failed · It may be partly deleted")
     #expect(CleanupHistorySnapshot(records: [delete, tool]).completedRuns.first?.title == "Cleanup · Partly deleted")
     delete.partlyRemoved = nil
-    #expect(delete.recoveryStateText == "Recorded failure · Not changed")
+    #expect(delete.recoveryStateText == "Failed · Not changed")
 }
 
 /// #312: History shows a record's message only when it adds to its outcome ("Moved to Trash · Moved to Trash" read twice).

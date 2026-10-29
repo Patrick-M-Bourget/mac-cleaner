@@ -49,6 +49,7 @@ private func interruptedRun(_ names: [String], started: Set<String>, unknown: Se
     #expect(items.map(\.finding) == [.atOriginalLocation, .inTrash, .gone, .unknown, .notStarted])
     #expect(items[1].foundURL?.lastPathComponent == "b 2.dmg")
     #expect(items.map(\.title) == ["Not removed", "Moved to Trash", "Removed", "Unknown", "Not started"])
+    #expect(items[4].detail == "It never started. Nothing was changed.")
     #expect(items.filter(\.needsConfirmation).map(\.record.originalURL.lastPathComponent) == ["d.dmg"])
 }
 

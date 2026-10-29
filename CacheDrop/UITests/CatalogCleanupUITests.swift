@@ -2316,7 +2316,7 @@ final class EmptyStateUITests: XCTestCase {
         app.launch()
         XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
         app.typeKey("4", modifierFlags: .command)
-        XCTAssertTrue(app.staticTexts["Baseline recorded"].waitForExistence(timeout: 60), "The launch scan recorded a baseline")
+        XCTAssertTrue(app.staticTexts["No trends yet"].waitForExistence(timeout: 60), "The launch scan recorded a baseline")
 
         // Clearing completed history forgets the baseline, so no scan is recorded.
         app.typeKey("7", modifierFlags: .command)
@@ -2336,7 +2336,7 @@ final class EmptyStateUITests: XCTestCase {
         let scanNow = empty.buttons["growthEmptyAction"]
         XCTAssertEqual(scanNow.label, "Scan now")
         scanNow.click()
-        XCTAssertTrue(app.staticTexts["Baseline recorded"].waitForExistence(timeout: 60), "Scan now records a new baseline")
+        XCTAssertTrue(app.staticTexts["No trends yet"].waitForExistence(timeout: 60), "Scan now records a new baseline")
         XCTAssertFalse(empty.exists)
     }
 }

@@ -46,11 +46,11 @@ struct DesignGallery: View {
                         AlertPermissionDetails(authorization: .denied, checked: true, settingsFeedback: "System Settings could not be opened.", openSettings: {})
                     }
                     CapacityGalleryExamples()
-                    Text("Synthetic Local records entry · Inert example").font(.headline)
+                    Text("Synthetic Saved data entry · Inert example").font(.headline)
                     LocalRecordsEntry(action: {})
                     Text("Synthetic Protected items entry · Inert example").font(.headline)
                     ProtectedItemsEntry(action: {})
-                    Text("Synthetic Local records controls · Inert enabled example").font(.headline)
+                    Text("Synthetic Saved data controls · Inert enabled example").font(.headline)
                     LocalRecordsMaintenanceControls(clear: {}, reset: {})
                     StatusRow(text: "Reset waits until the interrupted cleanup is reviewed. Nothing restarts by itself.", symbol: "exclamationmark.triangle", role: .caution)
                     StatusRow(text: "Downloads · Access unavailable", role: .caution, action: StatusAction(title: "Choose again…") {})
@@ -116,7 +116,7 @@ struct DesignGallery: View {
                     SummarySurface {
                         VStack(alignment: .leading, spacing: CacheDropDesign.Space.md) {
                             StatusRow(text: "Completed selected-scope observation", symbol: "checkmark.circle", role: .success)
-                            StatusRow(text: "Partial coverage · Remaining bytes unknown", symbol: "exclamationmark.circle", role: .caution)
+                            StatusRow(text: "Scanned 10:42 · Not fully read", symbol: "exclamationmark.circle", role: .caution)
                             StatusRow(text: "Access unavailable · Choose the folder again", symbol: "lock", role: .failure)
                             ProgressView("Reading metadata…")
                         }
