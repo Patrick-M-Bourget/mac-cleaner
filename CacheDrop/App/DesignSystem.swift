@@ -410,13 +410,23 @@ struct EmptyStateAction {
 
 /// The one empty state (#321): what's true, then at most one action that leads where the user can act. While a page's
 /// content isn't known yet it shows `SkeletonRows` instead, never this. The action is `identifier` + "Action".
+/// `compact` is one status line with the action as a link, above a list that stays in place (Overview, #372).
 struct EmptyState: View {
     let title: String
     var detail = ""
     var symbol = "tray"
     var action: EmptyStateAction? = nil
     var identifier = "emptyState"
+    var compact = false
     var body: some View {
+        if compact {
+            StatusRow(text: title, symbol: symbol, action: action.map { StatusAction(title: $0.title, identifier: identifier + "Action", action: $0.perform) })
+                .accessibilityElement(children: .contain).accessibilityIdentifier(identifier)
+        } else {
+            full
+        }
+    }
+    private var full: some View {
         HStack(alignment: .top, spacing: CacheDropDesign.Space.lg) {
             Image(systemName: symbol).font(.title2).foregroundStyle(.secondary).frame(width: CacheDropDesign.Size.badge).accessibilityHidden(true)
             VStack(alignment: .leading, spacing: CacheDropDesign.Space.sm) {
@@ -1162,9 +1172,10 @@ struct BusyAction<Content: View>: View {
 /// state (#321). Overview and the plan lead on to Explore storage; Smart clean has its "Not included" links instead.
 struct NothingToCleanUp: View {
     var identifier = "nothingToCleanUp"
+    var compact = false
     var action: EmptyStateAction? = nil
     var body: some View {
-        EmptyState(title: "Nothing to clean up right now", symbol: "checkmark.circle", action: action, identifier: identifier)
+        EmptyState(title: "Nothing to clean up right now", symbol: "checkmark.circle", action: action, identifier: identifier, compact: compact)
     }
 }
 
