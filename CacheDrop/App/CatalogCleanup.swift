@@ -598,9 +598,10 @@ import SwiftUI
     }
     /// A stopped daemon-backed tool's work may still be finishing, so its item is measured again a minute later, and
     /// once more at about 5 minutes if it was still shrinking, as the scan measures it; the journal records what went
-    /// (#190, #209). Results show each finding if they are still open.
+    /// (#190, #209). After a completed Docker prune, the disk's free space is read again a minute later, since Docker hands
+    /// space back to macOS after it returns (#411). Results show each finding if they are still open.
     private func measureStoppedWorkAgain(_ outcome: CatalogExecutionResult, of approval: CatalogApproval, run: CleanupExecutor) {
-        guard outcome.records.contains(where: { $0.mayStillBeFinishing == true }), let home = Self.home else { return }
+        guard run.measuresLater(outcome), let home = Self.home else { return }
         let catalog = catalog, userFolder = Self.userFolder, locate = Self.locateTool, system = Self.systemRoot, cloud = Self.cloud
         Task {
             let later = await run.measureAgainLater(outcome, of: approval, update: { [weak self] partial in await self?.showLaterMeasurement(partial) }) { candidates in

@@ -46,10 +46,18 @@ extension CleanupRecord {
     static let finishedAfterStopMessage = "Finished after you stopped it."
     /// A stopped daemon-backed tool's item that a later measurement found gone (#209): its outcome reads "Removed".
     public var finishedAfterStop: Bool { state == .succeeded && mayStillBeFinishing == true && laterMeasurement?.finding == .gone }
+    /// A stopped daemon-backed tool's item not yet measured again (#190).
+    var awaitsLaterMeasurement: Bool { mayStillBeFinishing == true && laterMeasurement == nil }
 
-    /// One line for Results and History once the item was measured again; nil before then.
+    /// One line for Results and History once the item was measured again, or once the disk was read again after a
+    /// completed Docker prune (#411); nil before then. Other apps change free space too, so it never says Docker freed it.
     public var laterMeasurementText: String? {
-        guard let finding = laterMeasurement?.finding else { return nil }
+        guard let finding = laterMeasurement?.finding else {
+            guard let change = settledCapacity?.observedChange else { return nil }
+            return change > 0
+                ? "A minute later, the disk had \(ByteCountFormatter.string(fromByteCount: change, countStyle: .decimal)) more free. Docker can hand space back to macOS after a prune."
+                : "A minute later, the disk had no more free space."
+        }
         let scanned = allocatedBytes ?? logicalBytes
         func size(_ bytes: Int64) -> String { ByteCountFormatter.string(fromByteCount: bytes, countStyle: .decimal) }
         let later = Self.laterMeasurementWhen(laterMeasurement?.afterSeconds ?? 60)
