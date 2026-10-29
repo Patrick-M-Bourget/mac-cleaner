@@ -2,8 +2,8 @@ import Foundation
 import Darwin
 
 /// Old items in the user's own temp (`T`) and cache (`C`) folders under `/private/var/folders` (#132). Each visible
-/// file or folder directly inside a location is one item. It is offered only when the user owns everything in it,
-/// nothing in it changed for `unusedDays`, and no process of the user's has a file in it open or mapped
+/// file or folder directly inside a location is one item. It is offered only when the user owns everything in it and
+/// nothing in it changed for `unusedDays`; one a process of the user's has a file in open or mapped is held (#374)
 /// (on top of any `itemOwner`, which must also be closed).
 public struct UnusedItems: Sendable {
     /// Days since anything inside last changed (modified or its metadata changed).
@@ -67,9 +67,11 @@ extension Catalog {
         guard let used = checker.inUse(found.map(\.0), by: .anyApp) else {
             return ([], CatalogNote(ruleID: rule.id, text: "\(rule.title): kept all, because CacheDrop couldn’t tell which ones apps are using."))
         }
-        return (found.filter { !used.contains($0.0.path) }.map { url, info, size in
+        return (found.map { url, info, size in
             var found = candidate(rule, url, info, logical: size.logicalBytes, allocated: size.allocatedBytes, complete: size.complete, lastUsed: nil)
             if rule.itemOwner != nil, case .mustBeClosed(let owner) = Self.ownership(of: url, under: rule) { found.appName = owner.name }
+            // One a process has open stays visible, held (#374); the check skips it while it is still open.
+            if used.contains(url.path) { found.hold = CandidateHold(.inUse(RuleOwner.anyApp.name)) }
             return found
         }, nil)
     }
