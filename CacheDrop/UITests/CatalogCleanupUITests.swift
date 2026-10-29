@@ -1679,13 +1679,14 @@ final class TrashSpaceUITests: XCTestCase {
 
         app.typeKey("6", modifierFlags: .command)
         func run(_ title: String) -> XCUIElement {
-            app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS %@ OR value CONTAINS %@", title, title)).firstMatch
+            // Ignoring case: a run that also deleted reads "Deleted and moved to Trash".
+            app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS[c] %@ OR value CONTAINS[c] %@", title, title)).firstMatch
         }
         XCTAssertTrue(run("Emptied from the Trash · 1 item").waitForExistence(timeout: 10))
         let cleanup = run("Moved to Trash")
         XCTAssertTrue(cleanup.waitForExistence(timeout: 10))
         revealAndClick(cleanup, in: app)
-        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH 'Setup.dmg'")).firstMatch.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH 'Setup.dmg' OR value BEGINSWITH 'Setup.dmg'")).firstMatch.waitForExistence(timeout: 5))
         XCTAssertFalse(app.descendants(matching: .any)["putBack-Setup.dmg"].exists, "History drops the emptied item's Put back")
     }
 }

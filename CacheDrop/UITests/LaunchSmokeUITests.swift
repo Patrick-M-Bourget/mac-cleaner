@@ -614,7 +614,8 @@ final class ScannedLocationsUITests: XCTestCase {
 
         // The row is one button, labelled for what it does (#358).
         revealAndClick(app.buttons["Explore " + folder.lastPathComponent], in: app)
-        XCTAssertTrue(explorerMode(app).waitForExistence(timeout: 10), "Explore opens the explorer at that folder")
+        // The explorer's own action; its mode toggle shows only once large or old files were found, and this folder has none.
+        XCTAssertTrue(app.buttons["Add to cleanup plan"].waitForExistence(timeout: 10), "Explore opens the explorer at that folder")
     }
 
     /// #231: two stale folders get a row each, each with its own Choose again…, and no grey "Scanned now" row.
