@@ -18,7 +18,7 @@ This spec covers behavior the prototype can't show. The screens, layout and copy
 
 These hold for every category, in every milestone.
 
-- **User files go to Trash.** CacheDrop never empties the Trash, and never deletes anything from it.
+- **User files go to Trash.** CacheDrop never empties the Trash. It deletes from the Trash only items it moved there itself, and only when you ask (RESET Decision 68). Finder's Empty Trash is never scripted, and the user's own trashed files are never touched.
 - **Never touched:** browser logins, cookies, history, passwords, autofill, site data (IndexedDB, Local Storage, service-worker data), sessions and profile settings; the Photos, Mail and Messages databases; app binaries and signed bundles (except Chrome's leaked code-sign copies, section 3, and an app or plug-in the user chose to uninstall, which goes to the Trash, RESET Decisions 41 and 50); other users' data; system files.
 - **Protected rules in the catalog.** Codex's protected-data lists become catalog rules that no cleanup rule can override: Chrome logins, cookies, history and profiles; Xcode Archives and anything outside DerivedData (project source). Everything inside DerivedData, built products and dSYMs included, is regenerable build output.
 - **A cache folder can hold live work.** A git working tree inside a cache folder is never a candidate. One exception (#160): SwiftPM's own dependency clones, a `.git` folder at exactly `.build/checkouts/<name>/.git` in a `.build` beside its `Package.swift`, are build output it fetches again, so they don't keep that `.build`; any other git working tree in it, a nested one included, still does, at the scan and at the check. Known load-bearing caches (such as ccache) and CacheDrop's own tools are never offered, nor CacheDrop's own folders or those of Still, its former name (#149).
@@ -110,7 +110,7 @@ An item that fails any check is skipped, and the results say which check failed.
 ## 6. Estimated vs measured freed space
 
 - **Estimated** space is what the scan sizes before cleanup, from allocated size where available. Overview's "Recommended for review: up to X GB" is the sum of current catalog candidates whose action frees space (delete or run a tool), labeled as an estimate. Items bound for the Trash are shown separately, because their space stays used until the Trash is emptied.
-- **Moved to Trash** is reported on its own. That space is still used until the user empties the Trash, and is never counted as freed.
+- **Moved to Trash** is reported on its own. That space is still used until the user empties the Trash, and is never counted as freed. Results and Overview offer **Empty from Trash…** for CacheDrop's own items still there (RESET Decision 68); that emptying is measured around each item, as a cleanup is.
 - **Measured freed space** is the change in the volume's available space, read right before and right after each item. Results report the measured total, separately from the estimate.
 - **Why both:** on APFS, clones share disk blocks. Deleting a clone frees only the blocks no other file uses. Chrome's code-sign copies showed 52 GB but freed about 2 GB. For categories made of clones, the estimate is labeled as an upper bound.
 - **Why measure per item:** on a nearly full disk, macOS releases purgeable space on its own, so a single before/after reading for the whole run overstates what CacheDrop freed.
@@ -156,7 +156,7 @@ After M1 (#92), in rough order:
 ## 9. Out of scope
 
 - Duplicate finder, treemap, automatic or scheduled cleanup. (Uninstalling was listed here; RESET Decisions 41, 50 and 51 brought it into scope: apps, plug-ins and files from deleted apps go to the Trash from the Applications page.)
-- Emptying the Trash.
+- Emptying the Trash. (Deleting from it only what CacheDrop moved there, when asked, is in scope: RESET Decision 68.)
 - Admin helpers, root daemons, system extensions, anything that needs an admin password.
 - Other users' data and system files; blanket cleanup of System Data, Application Support, containers, snapshots or swap.
 - Changing Photos, Mail or Messages libraries or databases.

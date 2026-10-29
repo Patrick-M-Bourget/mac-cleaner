@@ -5,6 +5,8 @@ public struct CleanupHistoryRun: Sendable, Identifiable {
     public let records: [CleanupRecord]
     /// Ids of this run's Trash moves that were put back since (#159).
     public var putBackIDs: Set<String> = []
+    /// Ids of this run's Trash moves that were deleted from the Trash since (#359): they have no Put back.
+    public var emptiedIDs: Set<String> = []
     /// The reviewed records appended after this run was interrupted (#309); `records` already shows their findings.
     public var reviewRecords: [CleanupRecord] = []
     public var capacity: CleanupCapacityObservation? { records.compactMap(\.capacityObservation).first }
@@ -17,10 +19,13 @@ public struct CleanupHistoryRun: Sendable, Identifiable {
     }
     public var trashHeldAllocatedBytes: Int64? {
         var seen = Set<String>()
-        let successes = records.filter { $0.state == .succeeded && $0.cleanupAction == .trash && $0.recoveryFinding != .gone && !putBackIDs.contains($0.id) && seen.insert($0.resourceID).inserted }
+        let successes = records.filter { $0.state == .succeeded && $0.cleanupAction == .trash && $0.recoveryFinding != .gone && !putBackIDs.contains($0.id) && !emptiedIDs.contains($0.id) && seen.insert($0.resourceID).inserted }
         guard successes.allSatisfy({ $0.allocatedBytes != nil }) else { return nil }
         return successes.reduce(0) { $0 + ($1.allocatedBytes ?? 0) }
     }
+    /// The available-space change read around each item the run removed, as Results measures it; nil when any reading is
+    /// missing. Shown for an emptying of the Trash (#359).
+    public var measuredFreedBytes: Int64? { isPreview ? nil : records.measuredFreedBytes }
     public var date: Date { records.compactMap(\.outcomeRecordedAt).max() ?? records.map(\.approvedAt).max() ?? .distantPast }
     public var usesApprovalDate: Bool { records.contains { $0.outcomeRecordedAt == nil } }
 }
@@ -29,9 +34,13 @@ public struct CleanupHistorySnapshot: Sendable {
     public let protectedRecordCount: Int
     /// Ids of Trash moves that were put back (#159), from the put-back records that succeeded.
     public let putBackIDs: Set<String>
+    /// Ids of Trash moves whose items were deleted from the Trash (#359), or may have been.
+    public let emptiedIDs: Set<String>
     public init(records: [CleanupRecord]) {
         let putBack = Set(records.filter { $0.isPutBack && $0.state == .succeeded }.compactMap(\.putBackOf))
         putBackIDs = putBack
+        let emptied = TrashLedger(records).emptiedIDs
+        emptiedIDs = emptied
         let groups = Dictionary(grouping: records, by: \.batchID)
         var completed: [CleanupHistoryRun] = []
         var protected = 0
@@ -39,7 +48,8 @@ public struct CleanupHistorySnapshot: Sendable {
             let batch = ReviewedBatch(records)
             if batch.isInterrupted { protected += records.count }
             else {
-                completed.append(CleanupHistoryRun(id: id, records: batch.shown, putBackIDs: putBack.intersection(batch.items.map(\.id)), reviewRecords: batch.reviews))
+                completed.append(CleanupHistoryRun(id: id, records: batch.shown, putBackIDs: putBack.intersection(batch.items.map(\.id)),
+                                                   emptiedIDs: emptied.intersection(batch.items.map(\.id)), reviewRecords: batch.reviews))
             }
         }
         completedRuns = completed.sorted { $0.date > $1.date }

@@ -269,8 +269,9 @@ struct ApplicationsView: View {
             LazyVStack(alignment: .leading, spacing: 0) {
                 ForEach(entry.parts, id: \.url) { part in
                     InspectableItemRow(name: part.name, detail: PathDisplay.shortLocation(of: part.url, home: CatalogCleanupModel.checkHome), size: part.size.text,
-                                       symbol: category.symbol, inspected: false, inspect: { model.reveal(part.name, [part.url]) },
-                                       detailLineLimit: 1, actionLabel: "Reveal \(part.name) in Finder") { EmptyView() }
+                                       // Nothing here is chosen: an inert row with its own Reveal link (#367, Decision 72).
+                                       symbol: category.symbol, inspected: false, inspect: nil, detailLineLimit: 1,
+                                       reveal: { model.reveal(part.name, [part.url]) }, revealIdentifier: "applicationsPartReveal-" + part.url.path) { EmptyView() }
                         .help(part.url.path)
                 }
             }

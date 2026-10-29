@@ -18,15 +18,12 @@ struct CatalogItemRows: View {
             ?? found.sorted { $0.displayName.localizedStandardCompare($1.displayName) == .orderedAscending }
         LazyVStack(alignment: .leading, spacing: 0) {
             ForEach(items) { item in
-                // An item ticked one by one (a possibly related leftover) is chosen in the app by clicking its row; Reveal in Finder
-                // is beside it (#356). Any other item's row shows it in Finder.
-                let reveal = { Finder.reveal([item.url]) }
-                let ticks = rule.itemRowClick == .tick
+                // Clicking the row ticks the item, as its checkbox does; Finder is its own Reveal link (#356, #367, Decision 72).
                 InspectableItemRow(name: item.displayName, detail: detail(item), size: catalogBytes(item.estimatedBytes, estimate: item.sizeIsEstimate),
                                    symbol: item.isDirectory ? "folder" : "doc", inspected: false,
-                                   inspect: ticks ? { if model.canEdit { model.setSelected(item, !model.isSelected(item)) } } : reveal,
-                                   detailLineLimit: 1, actionLabel: ticks ? "Select " + item.displayName : nil,
-                                   secondary: ticks ? StatusAction(title: "Reveal in Finder", identifier: "planItemReveal-" + item.displayName, action: reveal) : nil) {
+                                   inspect: rule.itemRowClick == .tick ? { if model.canEdit { model.setSelected(item, !model.isSelected(item)) } } : nil,
+                                   detailLineLimit: 1, actionLabel: "Select " + item.displayName,
+                                   reveal: { Finder.reveal([item.url]) }, revealIdentifier: "planItemReveal-" + item.displayName) {
                     Toggle("Select " + item.displayName, isOn: Binding(get: { model.isSelected(item) }, set: { model.setSelected(item, $0) }))
                         .labelsHidden().disabled(!model.canEdit).accessibilityIdentifier("planItem-" + item.displayName)
                 }.help(item.url.path)

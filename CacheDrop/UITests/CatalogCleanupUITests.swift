@@ -1223,10 +1223,10 @@ final class GuidanceUITests: XCTestCase {
         XCTAssertTrue((photos.value as? String)?.contains("3 libraries") == true, String(describing: photos.value))
         // Each library with its volume and size, revealed in Finder, never offered (#180).
         openDisclosure(app.disclosureTriangles.matching(NSPredicate(format: "label == 'Show libraries · 3'")).firstMatch, in: app)
-        let external = app.buttons["Reveal Family in Finder"]
+        let external = app.links["Reveal Family in Finder"]
         XCTAssertTrue(external.waitForExistence(timeout: 5))
         XCTAssertTrue((external.value as? String)?.hasPrefix("External") == true, String(describing: external.value))
-        XCTAssertTrue(app.buttons["Reveal Trip 2019 in Finder"].exists)
+        XCTAssertTrue(app.links["Reveal Trip 2019 in Finder"].exists)
         XCTAssertTrue(app.links["guidanceLearnMore-photos-library"].exists)
         revealAndClick(external, in: app)
         XCTAssertTrue(app.staticTexts["guidanceStatus"].waitForExistence(timeout: 5))
@@ -1279,7 +1279,7 @@ final class GuidanceUITests: XCTestCase {
         XCTAssertEqual(row.label, "Open Final Cut Pro")
         XCTAssertTrue((row.value as? String)?.contains("2 libraries") == true, String(describing: row.value))
         openDisclosure(app.disclosureTriangles.matching(NSPredicate(format: "label == 'Show libraries · 2'")).firstMatch, in: app)
-        let external = app.buttons["Reveal Client Cut in Finder"]
+        let external = app.links["Reveal Client Cut in Finder"]
         XCTAssertTrue(external.waitForExistence(timeout: 5))
         XCTAssertTrue((external.value as? String)?.hasPrefix("Shuttle") == true, String(describing: external.value))
         XCTAssertTrue(app.staticTexts.containing(NSPredicate(format: "value CONTAINS 'Delete Generated Library Files'")).firstMatch.exists)
@@ -1317,10 +1317,10 @@ final class GuidanceUITests: XCTestCase {
         XCTAssertEqual(previews.label, "Open Lightroom Classic")
         XCTAssertTrue((previews.value as? String)?.contains("1 catalog") == true, String(describing: previews.value))
         openDisclosure(app.disclosureTriangles.matching(NSPredicate(format: "label == 'Show catalogs · 1'")).firstMatch, in: app)
-        XCTAssertTrue(app.buttons["Reveal Lightroom Catalog Previews in Finder"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.links["Reveal Lightroom Catalog Previews in Finder"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts.containing(NSPredicate(format: "value CONTAINS 'Discard 1:1 Previews'")).firstMatch.exists)
         XCTAssertTrue(app.links["guidanceLearnMore-lightroom-previews"].exists)
-        XCTAssertFalse(app.buttons["Reveal Lightroom Catalog in Finder"].exists)
+        XCTAssertFalse(app.links["Reveal Lightroom Catalog in Finder"].exists)
         revealAndClick(smart, in: app)
         XCTAssertTrue(app.staticTexts["guidanceStatus"].waitForExistence(timeout: 5))
         XCTAssertEqual(app.staticTexts["guidanceStatus"].value as? String, "Test run: would open Lightroom Classic.")
@@ -1355,7 +1355,7 @@ final class GuidanceUITests: XCTestCase {
         XCTAssertTrue((row.value as? String)?.contains("1 product · AU, VST3") == true, String(describing: row.value))
         openDisclosure(app.disclosureTriangles.matching(NSPredicate(format: "label == 'Show products · 1'")).firstMatch, in: app)
         // #207: the label says what the click does, and the line is short: the place is in the tooltip.
-        let product = app.buttons["Reveal Pro Synth in Finder"]
+        let product = app.links["Reveal Pro Synth in Finder"]
         XCTAssertTrue(product.waitForExistence(timeout: 5))
         XCTAssertTrue((product.value as? String)?.hasPrefix("2.1 · AU, VST3,") == true, String(describing: product.value))
         revealAndClick(product, in: app)
@@ -1469,6 +1469,69 @@ final class TrashSpaceUITests: XCTestCase {
         app.typeKey("1", modifierFlags: .command)
         XCTAssertTrue(line.waitForExistence(timeout: 10))
         XCTAssertEqual(lineText(), before, "The Trash holds what it held before the run")
+    }
+
+    /// #359, Decision 68: an installer a run moved to the (fixture) Trash is deleted from it from Results: Empty from Trash…,
+    /// the review sheet, Empty. Only that item goes; History shows "Emptied from the Trash · 1 item" and the item has no
+    /// Put back. Debug test runs trash into, and empty from, the fixture home's `.Trash`, never the real one.
+    @MainActor func testEmptyFromTrashDeletesWhatARunMovedThereAndHistoryRecordsIt() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        let state = try configureIsolatedState(app)
+        let home = try configureCatalogHome(app)
+        defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
+        // The user's own trashed file, which emptying never touches.
+        let mine = home.appendingPathComponent(".Trash/Old installer.dmg")
+        try FileManager.default.createDirectory(at: mine.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Data(repeating: 5, count: 300_000).write(to: mine)
+        app.launch()
+
+        XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
+        waitForCatalogScan(app)
+        let row = app.buttons["overviewCategory-downloads"]
+        XCTAssertTrue(row.waitForExistence(timeout: 10))
+        revealAndClick(row, in: app)
+        let category = app.checkBoxes["planCategory-downloads"]
+        XCTAssertTrue(category.waitForExistence(timeout: 5))
+        revealAndClick(category, in: app)
+        app.buttons["Review cleanup"].click()
+        XCTAssertTrue(reviewLine(app, "movedToTrash", "downloads").waitForExistence(timeout: 5))
+        cleanUpFromReview(app)
+
+        let inTrash = home.appendingPathComponent(".Trash/Setup.dmg")
+        XCTAssertTrue(app.descendants(matching: .any)["putBack-Setup.dmg"].waitForExistence(timeout: 10))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: inTrash.path))
+        let line = app.staticTexts["resultsTrash"]
+        XCTAssertTrue(line.waitForExistence(timeout: 10))
+        let text = [line.label, line.value as? String ?? ""].first { !$0.isEmpty } ?? ""
+        XCTAssertTrue(text.hasSuffix("is in the Trash. Empty it to free the space. ·"), text)
+        let empty = app.descendants(matching: .any)["resultsTrashEmpty"]
+        XCTAssertTrue(empty.waitForExistence(timeout: 5))
+        revealAndClick(empty, in: app)
+
+        XCTAssertTrue(app.staticTexts["Empty from the Trash"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Deleted permanently. They can’t be put back."].exists)
+        XCTAssertTrue(app.descendants(matching: .any)["emptyItem-Setup.dmg"].exists)
+        XCTAssertFalse(app.descendants(matching: .any)["emptyItem-Old installer.dmg"].exists, "The user's own trashed file isn't offered")
+        app.buttons["emptyFromTrashConfirm"].click()
+        let done = app.buttons["emptyFromTrashDone"]
+        XCTAssertTrue(done.waitForExistence(timeout: 10))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: inTrash.path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: mine.path), "Emptying deletes only what CacheDrop moved there")
+        done.click()
+        XCTAssertFalse(app.descendants(matching: .any)["putBack-Setup.dmg"].exists, "An emptied item can't be put back")
+        XCTAssertFalse(empty.exists, "Nothing of CacheDrop's is left to empty")
+
+        app.typeKey("6", modifierFlags: .command)
+        func run(_ title: String) -> XCUIElement {
+            app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS %@ OR value CONTAINS %@", title, title)).firstMatch
+        }
+        XCTAssertTrue(run("Emptied from the Trash · 1 item").waitForExistence(timeout: 10))
+        let cleanup = run("Moved to Trash")
+        XCTAssertTrue(cleanup.waitForExistence(timeout: 10))
+        revealAndClick(cleanup, in: app)
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH 'Setup.dmg'")).firstMatch.waitForExistence(timeout: 5))
+        XCTAssertFalse(app.descendants(matching: .any)["putBack-Setup.dmg"].exists, "History drops the emptied item's Put back")
     }
 }
 

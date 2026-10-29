@@ -57,7 +57,8 @@ private struct LibraryRows: View {
                 LazyVStack(alignment: .leading, spacing: 0) {
                     ForEach(libraries) { library in
                         InspectableItemRow(name: library.name, detail: library.volume, size: library.size.text, symbol: rule.librarySymbol,
-                                           inspected: false, inspect: { model.reveal(library) }, actionLabel: "Reveal \(library.name) in Finder") { EmptyView() }
+                                           // Never chosen: an inert row with its own Reveal link (#367, Decision 72).
+                                           inspected: false, inspect: nil, reveal: { model.reveal(library) }) { EmptyView() }
                             .help(library.url.path)
                     }
                 }

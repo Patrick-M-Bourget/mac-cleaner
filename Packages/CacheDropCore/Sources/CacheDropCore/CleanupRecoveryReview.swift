@@ -27,16 +27,17 @@ public struct CleanupRecoveryItem: Sendable, Identifiable {
     public var id: String { record.id }
     /// Stays unknown, so the user confirms it before it is marked reviewed.
     public var needsConfirmation: Bool { finding == .unknown }
-    public var title: String { finding.title(putBack: record.isPutBack) }
+    public var title: String { finding.title(putBack: record.isPutBack, emptying: record.isEmptyFromTrash) }
 }
 
 extension RecoveryFinding {
-    /// How results and History name it. A put back's original location is where it was going, not where it came from.
-    public func title(putBack: Bool) -> String {
+    /// How results and History name it. A put back's original location is where it was going, not where it came from; an
+    /// emptying's is its place in the Trash (#359).
+    public func title(putBack: Bool, emptying: Bool = false) -> String {
         switch self {
         case .notStarted: "Not started"
         case .atOriginalLocation: putBack ? "Put back" : "Not removed"
-        case .inTrash: putBack ? "Not put back" : "Moved to Trash"
+        case .inTrash: putBack ? "Not put back" : emptying ? "Not removed" : "Moved to Trash"
         case .gone: "Removed"
         case .unknown: "Unknown"
         }
@@ -57,8 +58,9 @@ extension CleanupRecord {
         case .notStarted: state = .cancelled
         case .atOriginalLocation: state = putBack ? .succeeded : .skipped
         case .inTrash:
-            state = putBack ? .skipped : .succeeded
-            trashURL = item.foundURL
+            // An emptying found its item still in the Trash: it wasn't deleted.
+            state = putBack || item.record.isEmptyFromTrash ? .skipped : .succeeded
+            if !item.record.isEmptyFromTrash { trashURL = item.foundURL }
         case .gone: state = putBack ? .skipped : .succeeded
             if !putBack { trashURL = nil }
         case .unknown: state = .unknown
@@ -101,7 +103,9 @@ public struct CleanupRecoveryReview: Sendable {
             switch record.cleanupAction {
             case .evict: return item(.unknown, "It is at its original location; its local copy may or may not have been removed. The original stays in iCloud.")
             case .tool: return item(.unknown, "It is at its original location; its tool may have cleaned part of it.")
-            default: return item(.atOriginalLocation, record.isPutBack ? "It is back at its original location." : "It is at its original location, unchanged.")
+            default:
+                let detail = record.isPutBack ? "It is back at its original location." : record.isEmptyFromTrash ? "It is still in the Trash, unchanged." : "It is at its original location, unchanged."
+                return item(.atOriginalLocation, detail)
             }
         }
         guard errno == ENOENT else { return item(.unknown, "Its original location couldn’t be checked.") }
@@ -113,9 +117,11 @@ public struct CleanupRecoveryReview: Sendable {
         }
     }
 
-    /// A delete renames its item aside before removing it (`Catalog.leftoverName`); the same item may still be there.
+    /// A delete, and an emptying of the Trash (#359), renames its item aside before removing it (`Catalog.leftoverName`);
+    /// the same item may still be there.
     private func renamedAside(_ record: CleanupRecord) -> URL? {
-        guard [.delete, .tool].contains(record.cleanupAction), let ruleID = record.ruleID else { return nil }
+        let ruleID = record.isEmptyFromTrash ? record.ruleID ?? CleanupRecord.emptyAsideRuleID : record.ruleID
+        guard [.delete, .tool].contains(record.cleanupAction) || record.isEmptyFromTrash, let ruleID else { return nil }
         let folder = record.originalURL.deletingLastPathComponent()
         let names = (try? FileManager.default.contentsOfDirectory(atPath: folder.path)) ?? []
         return names.filter { Catalog.isLeftover($0, of: ruleID) }.map { folder.appendingPathComponent($0) }.first { matches($0, record) }

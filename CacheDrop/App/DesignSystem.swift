@@ -891,27 +891,32 @@ struct InspectableItemRow<Selection: View>: View {
     let size: String
     let symbol: String
     let inspected: Bool
-    /// What clicking the row does; nil makes it a plain, unclickable row (a rule of items ticked one by one, #356).
+    /// What clicking the row does: ticks a choosable item (Decision 72), or inspects one in Explore storage. Nil makes the row
+    /// inert, for what can't be chosen or a rule of items ticked one by one (#356, #367).
     let inspect: (() -> Void)?
     var detailLineLimit = 2
-    /// What VoiceOver says the click does, when it isn't inspecting the item (Reveal in Finder, #207).
+    /// What VoiceOver says the click does, when it isn't inspecting the item ("Select <name>").
     var actionLabel: String? = nil
-    /// A link after the size, such as Reveal in Finder beside an item whose click ticks it (#356).
-    var secondary: StatusAction? = nil
+    /// Shows the item in Finder: its own "Reveal in Finder" link after the size, never a row click (Decision 72).
+    var reveal: (() -> Void)? = nil
+    var revealIdentifier = ""
     @ViewBuilder var selection: () -> Selection
+    private var summary: String { detail.isEmpty ? size : detail + ", " + size }
     var body: some View {
         HStack(alignment: .center, spacing: CacheDropDesign.Space.md) {
             selection()
             if let inspect {
                 Button(action: inspect) { content }.buttonStyle(.plain).accessibilityLabel(actionLabel ?? "Inspect " + name)
                     // The button hides its texts from accessibility; keep the detail (e.g. when it was last used) and size readable.
-                    .accessibilityValue(detail.isEmpty ? size : detail + ", " + size)
+                    .accessibilityValue(summary)
             } else {
                 content.accessibilityElement(children: .combine)
             }
-            if let secondary {
-                Button(secondary.title, action: secondary.action).buttonStyle(.link).font(CacheDropDesign.TypeStyle.caption)
-                    .accessibilityLabel(secondary.title + " " + name).accessibilityIdentifier(secondary.identifier)
+            if let reveal {
+                // An inert row's link is its one control, so it carries the detail and size too (#207).
+                Button("Reveal in Finder", action: reveal).buttonStyle(.link).font(CacheDropDesign.TypeStyle.caption)
+                    .accessibilityLabel("Reveal \(name) in Finder").accessibilityValue(inspect == nil ? summary : "")
+                    .accessibilityIdentifier(revealIdentifier)
             }
         }.padding(CacheDropDesign.Space.md)
             .background(inspected ? Color.accentColor.opacity(0.06) : .clear, in: RoundedRectangle(cornerRadius: CacheDropDesign.Radius.row))

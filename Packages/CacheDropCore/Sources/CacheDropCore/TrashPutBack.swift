@@ -60,7 +60,8 @@ extension CleanupRecord {
 /// and after, and journaled (pending, intent, outcome) as its own History run.
 ///
 /// It only ever renames the one recorded item out of the Trash, with a no-overwrite rename; it never deletes anything,
-/// in the Trash or at the original location (SPEC section 2).
+/// in the Trash or at the original location (SPEC section 2). Deleting CacheDrop's own items from the Trash, when asked,
+/// is `TrashEmptying` (Decision 68).
 public struct TrashPutBack: Sendable {
     private static let log = Logger(subsystem: "CacheDrop", category: "putBack")
     private let journal: any CleanupJournaling
@@ -77,6 +78,8 @@ public struct TrashPutBack: Sendable {
         if records.contains(where: { $0.putBackOf == original.id && $0.state != .skipped && $0.state != .failed && $0.state != .cancelled }) {
             return .refused(.alreadyPutBack)
         }
+        // Deleted from the Trash (#359), or possibly: there is nothing left to put back.
+        if TrashLedger(records).emptiedIDs.contains(original.id) { return .refused(.notInTrash) }
         if let refusal = Self.check(original, trashURL: trashURL) { return .refused(refusal) }
 
         let date = clock()
@@ -117,7 +120,8 @@ public struct TrashPutBack: Sendable {
     }
 
     /// The Trash item is the one moved there: same identity, not a symlink, and a file not written to since.
-    private static func changed(_ info: stat, _ original: CleanupRecord) -> PutBackRefusal? {
+    /// Emptying from the Trash (#359) uses the same check.
+    static func changed(_ info: stat, _ original: CleanupRecord) -> PutBackRefusal? {
         let type = info.st_mode & S_IFMT
         guard type != S_IFLNK, info.resourceID == original.resourceID else { return .changed }
         if type == S_IFREG, Int64(info.st_mtimespec.tv_sec) != original.modifiedSeconds || Int64(info.st_mtimespec.tv_nsec) != original.modifiedNanoseconds {

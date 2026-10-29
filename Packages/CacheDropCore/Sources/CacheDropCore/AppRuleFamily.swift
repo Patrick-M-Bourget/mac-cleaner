@@ -29,16 +29,16 @@ extension CleanupRule {
     /// plug-in product's shared items): an app family's item-by-item rule.
     public var selectedOneByOne: Bool { family != nil && itemByItem }
 
-    /// What clicking one of its item rows does (#356).
-    public enum ItemRowClick: Sendable, Equatable {
-        /// Ticks or unticks the item; Reveal in Finder is a secondary action beside it.
+    /// What clicking a row does (#356, #367, Decision 72). Finder is always the row's own Reveal in Finder link, never a click.
+    public enum RowClick: Sendable, Equatable {
+        /// Ticks or unticks it, as its checkbox does.
         case tick
-        /// Shows the item in Finder; its checkbox ticks it.
-        case reveal
+        /// Nothing: it can't be chosen here.
+        case inert
     }
-    /// An item ticked one by one is chosen in the app, so clicking its row ticks it (#356); every other item's row is a Finder link.
-    public var itemRowClick: ItemRowClick { selectedOneByOne ? .tick : .reveal }
-    /// Whether clicking the rule's own row shows all its items in Finder. Never for items ticked one by one (#356): each is
-    /// chosen and revealed on its own, and the rule's row only shows what is ticked (Decision 49).
-    public var ruleRowReveals: Bool { !selectedOneByOne }
+    /// Clicking one of its item rows ticks the item; a guidance rule's libraries are never chosen, so their rows are inert.
+    public var itemRowClick: RowClick { action == .guidance ? .inert : .tick }
+    /// Clicking the rule's own row ticks the rule, as its checkbox does. Inert for items ticked one by one (Decision 49), each
+    /// chosen on its own row, and for a guidance rule.
+    public var ruleRowClick: RowClick { selectedOneByOne || action == .guidance ? .inert : .tick }
 }
