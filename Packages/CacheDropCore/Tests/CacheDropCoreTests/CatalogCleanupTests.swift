@@ -48,6 +48,22 @@ private func npmCandidate(_ home: URL) throws -> Candidate {
     try #require(Catalog(rules: fixtureRules).discover(fixture: home).first)
 }
 
+/// #384: the review and its recheck after an app quits read every item's refusal from one place, keyed by candidate id;
+/// an item that passes has no entry.
+@Test func refusalsListOnlyTheRefusedItemsByID() throws {
+    let home = try fixtureHome(), other = try fixtureHome()
+    defer { try? FileManager.default.removeItem(at: home); try? FileManager.default.removeItem(at: other) }
+    _ = try writeNpmCache(in: home)
+    let candidate = try npmCandidate(home)
+    _ = try writeNpmCache(in: other)
+    let gone = try npmCandidate(other)
+    try FileManager.default.removeItem(at: other.appendingPathComponent(".npm"))
+    let catalog = Catalog(rules: fixtureRules)
+    #expect(CandidateCheck(catalog: catalog, running: FakeRunning()).refusals(of: [candidate, gone]) == [gone.id: .missing])
+    #expect(CandidateCheck(catalog: catalog, running: FakeRunning(running: ["npm"])).refusals(of: [candidate, gone])
+            == [candidate.id: .ownerRunning("npm"), gone.id: .ownerRunning("npm")])
+}
+
 @Test func aCandidateWhoseOwnerIsRunningIsRefusedWithAReason() throws {
     let home = try fixtureHome()
     defer { try? FileManager.default.removeItem(at: home) }

@@ -560,14 +560,14 @@ import SwiftUI
         guard canEdit, !candidates.isEmpty else { return nil }
         let approval = CatalogApproval(candidates: candidates, previewOnly: dryRun)
         guard let check = await currentCheck()?.snapshotted() else { return nil }
-        let refusals = await Task.detached { Dictionary(uniqueKeysWithValues: approval.candidates.compactMap { c in check.check(c).map { (c.id, $0) } }) }.value
+        let refusals = await Task.detached { check.refusals(of: approval.candidates) }.value
         return CatalogReview(approval: approval, refusals: refusals, staying: AppUninstall.staying(chosen: candidates, offered: uninstallable))
     }
     /// The review sheet's rows checked again now, after their app quit (#377): each refused row's new reason, by candidate id.
     /// Read-only: no choice changes, so the review stays open. Nil when nothing could be checked.
     func checkedAgain(_ items: [Candidate]) async -> [String: CheckRefusal]? {
         guard let check = await currentCheck()?.snapshotted() else { return nil }
-        return await Task.detached { Dictionary(uniqueKeysWithValues: items.compactMap { c in check.check(c).map { (c.id, $0) } }) }.value
+        return await Task.detached { check.refusals(of: items) }.value
     }
     func execute(_ approval: CatalogApproval, cancellation: CleanupCancellation) async {
         guard !isRunning else { return }
