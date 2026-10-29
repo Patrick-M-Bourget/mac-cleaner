@@ -16,7 +16,8 @@ public struct RememberedScope: Codable, Sendable, Identifiable, Equatable {
         RememberedScope(id: builtInDownloadsID, path: url.standardizedFileURL.path, isIncluded: true, kind: .downloads, bookmark: Data())
     }
     private static let builtInDownloadsID = UUID(uuidString: "D0A1D0A5-0000-4000-8000-000000000342")!
-    public var isBuiltIn: Bool { bookmark.isEmpty }
+    /// Keyed on the fixed ID, never on the empty bookmark, so a stored entry cannot pass as built in and skip its bookmark (#387).
+    public var isBuiltIn: Bool { id == Self.builtInDownloadsID }
 }
 
 public enum ScopeRegistryError: Error { case unknownScope, excluded, chooseAgain(BookmarkFailure), unavailable, invalidStorage }
