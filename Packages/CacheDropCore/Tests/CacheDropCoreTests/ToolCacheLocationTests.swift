@@ -475,7 +475,9 @@ private func writeConfig(_ home: URL, _ relative: String, _ text: String) throws
 }
 
 /// A leftover next to a named folder that fails the write-scope checks is refused just before acting too, not only left out
-/// of the scan (#262), and so is one that is a file: discovery offers file leftovers as well as folders.
+/// of the scan (#262), and so is one that is a file: discovery offers file leftovers as well as folders. The candidate is
+/// built where the scan would never offer it: a leftover moved after the scan is already refused as missing or changed,
+/// since the check reads its scanned path without following links, so this branch only guards a candidate that is wrong.
 @Test func theCheckBeforeActingRefusesALeftoverFolderOrFileInsideAUserFolder() async throws {
     let home = try fixtureHome()
     defer { try? FileManager.default.removeItem(at: home) }
