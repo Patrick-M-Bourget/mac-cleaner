@@ -17,8 +17,6 @@ struct MeterSegments: View {
         let help: String
         let color: Color
         let bytes: Int64
-        /// Of `bytes`, the part drawn in full colour; the rest is dimmed. nil draws all of it in full.
-        let highlighted: Int64?
         let part: StorageBreakdown.Part?
     }
     private var drawn: [Drawn] {
@@ -26,11 +24,11 @@ struct MeterSegments: View {
             let bytes = breakdown.reclaimableBytes
             guard bytes > 0 else { return [] }
             return [Drawn(id: "reclaimable", title: "Reclaimable", help: "Reclaimable · up to " + CapacityMeter.bytes(bytes),
-                          color: CacheDropDesign.meterReclaimable, bytes: bytes, highlighted: nil, part: nil)]
+                          color: CacheDropDesign.meterReclaimable, bytes: bytes, part: nil)]
         }
         return breakdown.segments.filter { $0.bytes > 0 }.map { segment in
             Drawn(id: segment.id, title: segment.part.title, help: segment.part.title + " · " + segment.sizeText, color: segment.part.color,
-                  bytes: segment.bytes, highlighted: segment.highlightedBytes, part: segment.part)
+                  bytes: segment.bytes, part: segment.part)
         }
     }
 
@@ -58,17 +56,7 @@ struct MeterSegments: View {
     }
 
     @ViewBuilder private func segment(_ segment: Drawn) -> some View {
-        let fill = GeometryReader { geometry in
-            HStack(spacing: 0) {
-                if let highlighted = segment.highlighted {
-                    let lit = geometry.size.width * CGFloat(Double(highlighted) / Double(max(segment.bytes, 1)))
-                    Rectangle().fill(segment.color).frame(width: lit)
-                    Rectangle().fill(segment.color.opacity(CacheDropDesign.Opacity.meterDimmed))
-                } else {
-                    Rectangle().fill(segment.color)
-                }
-            }
-        }.contentShape(Rectangle())
+        let fill = Rectangle().fill(segment.color).contentShape(Rectangle())
         // The tooltip and the label say the same (#344). The tooltip sits on the outermost view, the button itself, not
         // inside its label, where the 0.9.0 build showed none.
         if let open, let part = segment.part, !part.isTrash {
@@ -95,7 +83,7 @@ extension StorageBreakdown.Part {
         switch self {
         case .category(let category): category.storageCategory.color
         case .other: CacheDropDesign.meterOther
-        // What a selection sends to the Trash looks like the Trash: it frees nothing until it is emptied (#343).
+        // What a cleanup sends to the Trash looks like the Trash: it frees nothing until it is emptied (#343).
         case .goingToTrash, .trash: CacheDropDesign.meterTrash
         }
     }
@@ -112,28 +100,25 @@ extension StorageBreakdown.Part {
     }
 }
 
-/// The startup volume's card, on Overview and on Smart clean (#347): one component, reading one capacity, so both show
-/// the same bar. Smart clean's highlights what its ticked items would free.
+/// Overview's startup volume card (#347): the capacity reading with what CacheDrop found at the bar's tip. Smart clean
+/// shows the plan's summary card instead (#370).
 struct StartupVolumeCard: View {
     let catalog: CatalogCleanupModel
-    var highlightingSmartClean = false
     let open: (StorageBreakdown.Part) -> Void
     private var capacity: CapacityRefreshController { AppLifecycleController.shared.capacity }
     var body: some View {
         let reading = capacity.reading
         VolumeSummary(available: reading?.available, total: reading?.total, observation: capacity.observationText, status: capacity.statusText,
                       refreshTitle: "Try again", refreshing: capacity.isRefreshing, refresh: { capacity.request(.manual) },
-                      breakdown: catalog.breakdown(available: reading?.available, total: reading?.total, trash: TrashModel.shared.contents,
-                                                   highlightingSmartClean: highlightingSmartClean),
+                      breakdown: catalog.breakdown(available: reading?.available, total: reading?.total, trash: TrashModel.shared.contents),
                       open: open)
     }
 }
 
 extension CatalogCleanupModel {
-    /// The meter's segments for a capacity reading: Overview's categories, the Trash, and on Smart clean what it would free.
-    func breakdown(available: Int64?, total: Int64?, trash: TrashContents?, highlightingSmartClean: Bool = false) -> StorageBreakdown? {
+    /// The meter's segments for a capacity reading: Overview's categories and the Trash.
+    func breakdown(available: Int64?, total: Int64?, trash: TrashContents?) -> StorageBreakdown? {
         guard let available, let total = CapacityMeter.validTotal(available: available, total: total), let overview else { return nil }
-        return StorageBreakdown(used: total - available, total: total, overview: overview, trash: trash ?? .unknown,
-                                highlighting: highlightingSmartClean ? smartCleanCandidates : nil)
+        return StorageBreakdown(used: total - available, total: total, overview: overview, trash: trash ?? .unknown)
     }
 }

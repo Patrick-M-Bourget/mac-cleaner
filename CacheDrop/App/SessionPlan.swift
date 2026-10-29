@@ -262,7 +262,7 @@ struct LiveCleanupPlanView: View {
             SelectionSummary(value: selection.workspaceSelectedSize,
                              detail: CacheDropDesign.items(selection.catalog.selectedCount) + " selected",
                              identifier: "liveSelectionSummary", title: "Potential space released")
-                .help("Sizes are estimates from the scan, not guaranteed space freed. Linked files count once. Each item is checked again just before CacheDrop acts on it.")
+                .help(CacheDropDesign.selectionEstimateHelp)
             SettingsUnreadableNotice(model: selection.catalog)
             if let approvalError { StatusRow(text: approvalError, symbol: "exclamationmark.circle", role: .caution) }
             CatalogPlanSection(model: selection.catalog, expanded: $presentation.expandedCategories, exploreStorage: exploreStorage)

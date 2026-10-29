@@ -49,10 +49,10 @@ struct SmartCleanView: View {
         let items = model.recommendedCandidates
         let rows = CatalogOverview(catalog: model.catalog, candidates: items).rows
         return VStack(alignment: .leading, spacing: CacheDropDesign.Space.lg) {
-            PageHeader(title: title, subtitle: "A safe plan from what takes up space. Untick anything you want to keep.")
+            PageHeader(title: "Smart clean", subtitle: "A safe plan from what takes up space. Untick anything you want to keep.")
                 .accessibilityElement(children: .combine).accessibilityIdentifier("smartCleanHeader")
                 .padding(.bottom, CacheDropDesign.Space.sm)
-            meter
+            summary
             SettingsUnreadableNotice(model: model)
             if let approvalError { StatusRow(text: approvalError, symbol: "exclamationmark.circle", role: .caution, identifier: "smartCleanError") }
             if nothingToClean {
@@ -75,20 +75,15 @@ struct SmartCleanView: View {
         }.padding(CacheDropDesign.Space.page).frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    /// Overview's startup volume card (#347), with what Smart clean would free in full colour, what it sends to the Trash
-    /// in the Trash's grey (#343), and the rest dimmed (#164).
-    private var meter: some View {
-        StartupVolumeCard(catalog: model, highlightingSmartClean: true, open: { part in part.categories.forEach { openPlan($0) } })
-            .accessibilityElement(children: .contain).accessibilityIdentifier("smartCleanMeter").padding(.bottom, CacheDropDesign.Space.sm)
-    }
-
-    /// "Smart clean · X ready to clean": the space the ticked items release, never what goes to the Trash (#350, SPEC
-    /// section 6); "Up to" when part of it is copies that share disk blocks.
-    private var title: String {
-        let ticked = model.smartCleanCandidates.filter(\.releasesSpace)
-        guard !ticked.isEmpty else { return "Smart clean" }
-        let upperBound = ticked.contains { model.catalog.rule($0.ruleID)?.estimateIsUpperBound == true }
-        return "Smart clean · " + SizeEstimate(sum: ticked.map(SizeEstimate.init)).text(upperBound: upperBound) + " ready to clean"
+    /// The Cleanup plan's summary card (#370, Decision 74): what the ticked items release, never what goes to the Trash
+    /// (#350, SPEC section 6), "Up to" when part of it is copies that share disk blocks; and how many items are ticked.
+    private var summary: some View {
+        let ticked = model.smartCleanCandidates, releasing = ticked.filter(\.releasesSpace)
+        let upperBound = releasing.contains { model.catalog.rule($0.ruleID)?.estimateIsUpperBound == true }
+        let value = releasing.isEmpty ? "—" : SizeEstimate(sum: releasing.map(SizeEstimate.init)).text(upperBound: upperBound)
+        return SelectionSummary(value: value, detail: CacheDropDesign.items(ticked.count) + " selected", identifier: "smartCleanSummary",
+                                title: "Ready to clean")
+            .help(CacheDropDesign.selectionEstimateHelp)
     }
 
     /// The plan's category row (Decision 48): its checkbox ticks or unticks all of its recommended items; "Choose items · N"

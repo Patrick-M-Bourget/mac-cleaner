@@ -32,8 +32,6 @@ enum CacheDropDesign {
         static let inspectorStackedShare: CGFloat = 0.35 }
     /// How strongly a colour tints a surface behind its symbol, as in a category badge.
     enum Opacity { static let badgeTint: Double = 0.10
-        /// A meter segment's part that Smart clean wouldn't free (#164).
-        static let meterDimmed: Double = 0.30
         /// Rows from the last scan while a rescan runs: visible, plainly not live (#308).
         static let waiting: Double = 0.45
         /// The skeleton shimmer's band at its brightest (#308).
@@ -1144,6 +1142,8 @@ extension View {
 extension CacheDropDesign {
     /// What a disabled Review cleanup or Clean up says while a scan runs (#308).
     static let waitForScanHelp = "Wait for the scan to finish"
+    /// The tooltip on the Cleanup plan's and Smart clean's selection totals (#370).
+    static let selectionEstimateHelp = "Sizes are estimates from the scan, not guaranteed space freed. Linked files count once. Each item is checked again just before CacheDrop acts on it."
 }
 
 /// A bar's main action while its click-time checks run (#308): a small spinner beside it, and the action ignores more
