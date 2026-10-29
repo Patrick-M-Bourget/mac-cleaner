@@ -1973,16 +1973,17 @@ final class FolderScanProgressUITests: XCTestCase {
         app.typeText(folder.path + "\n")
         panel.buttons["Scan folder"].click()
 
-        // On the screen that started it: the folder, phase and count, and Stop scan, in the bar; no Return to scan.
+        // On the screen that started it: the folder, phase and count, and Stop scan's quiet x, in the bar; no Return to scan.
         let line = app.staticTexts["folderScanProgress"]
         XCTAssertTrue(line.waitForExistence(timeout: 10))
         XCTAssertEqual(line.value as? String, "Scanning " + folder.lastPathComponent)
         let strip = actionStrip(app)
-        for element in [line, app.staticTexts["scanPhase"], app.staticTexts["scanProgressSummary"], strip.links["Stop scan"]] {
+        for element in [line, app.staticTexts["scanPhase"], app.staticTexts["scanProgressSummary"], strip.buttons["Stop scan"]] {
             XCTAssertTrue(element.waitForExistence(timeout: 5), element.debugDescription)
             XCTAssertTrue(strip.frame.contains(element.frame), element.debugDescription)
         }
         XCTAssertTrue((app.staticTexts["scanProgressSummary"].value as? String)?.hasSuffix("inspected") == true)
+        assertStopScanIsTheQuietX(strip)
         XCTAssertFalse(strip.links["Return to scan"].exists)
         XCTAssertEqual(strip.frame.height, height, accuracy: 0.5)
         XCTAssertEqual(toolbarItems(), before, "The toolbar is unchanged during the scan")
@@ -1991,17 +1992,72 @@ final class FolderScanProgressUITests: XCTestCase {
         for key in ["4", "6"] {
             app.typeKey(key, modifierFlags: .command)
             XCTAssertTrue(actionStrip(app).links["Return to scan"].waitForExistence(timeout: 5), key)
-            XCTAssertTrue(actionStrip(app).links["Stop scan"].exists, key)
+            XCTAssertTrue(actionStrip(app).buttons["Stop scan"].exists, key)
             XCTAssertTrue(app.staticTexts["scanPhase"].exists, key)
             XCTAssertEqual(actionStrip(app).frame.height, height, accuracy: 0.5, key)
         }
         actionStrip(app).links["Return to scan"].click()
         XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 5))
-        actionStrip(app).links["Stop scan"].click()
+        actionStrip(app).buttons["Stop scan"].click()
         XCTAssertTrue(line.waitForNonExistence(timeout: 10))
         XCTAssertEqual(actionStrip(app).frame.height, height, accuracy: 0.5)
         XCTAssertEqual(toolbarItems(), before, "The toolbar is unchanged after the scan")
     }
+
+    /// #364: the recheck CacheDrop starts by itself at launch reads "Checking for changes…", with no phase or count, can be
+    /// stopped with the same quiet x, and offers no Return to scan on Explore storage, the screen it belongs to.
+    @MainActor func testAutomaticRecheckSaysCheckingForChangesAndStopsWithTheX() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        let state = try configureIsolatedState(app)
+        let home = try configureCatalogHome(app)
+        let folder = FileManager.default.temporaryDirectory.resolvingSymlinksInPath().appendingPathComponent("CacheDropPicked-" + UUID().uuidString)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        for index in 0..<5 { try Data(repeating: 1, count: 4_000).write(to: folder.appendingPathComponent("entry-\(index).zip")) }
+        defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home); try? FileManager.default.removeItem(at: folder) }
+        app.launch()
+        XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
+        app.links["overviewScanFolder"].click()
+        let panel = app.sheets.firstMatch.exists ? app.sheets.firstMatch : app.dialogs.firstMatch
+        XCTAssertTrue(panel.waitForExistence(timeout: 5))
+        panel.typeKey("g", modifierFlags: [.command, .shift])
+        app.typeText(folder.path + "\n")
+        panel.buttons["Scan folder"].click()
+        waitForScannedFolder(app)
+
+        // The remembered folder is rechecked at launch; the recheck holds until Stop scan (#284).
+        app.terminate()
+        app.launchEnvironment["CACHEDROP_TEST_FOLDER_SCAN_PAUSE"] = "hold"
+        app.launch()
+        XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
+        let line = app.staticTexts["folderRecheckProgress"]
+        XCTAssertTrue(line.waitForExistence(timeout: 20))
+        XCTAssertEqual(line.value as? String, "Checking for changes…")
+        XCTAssertFalse(app.staticTexts["scanPhase"].exists)
+        XCTAssertFalse(app.staticTexts["scanProgressSummary"].exists)
+        assertStopScanIsTheQuietX(actionStrip(app))
+
+        // On Explore storage: still the x, and no Return to scan.
+        waitForScannedFolder(app)
+        app.links["Explore storage"].click()
+        XCTAssertTrue(app.buttons["explorerBack"].waitForExistence(timeout: 10))
+        XCTAssertTrue(line.waitForExistence(timeout: 5))
+        let strip = actionStrip(app)
+        assertStopScanIsTheQuietX(strip)
+        XCTAssertFalse(strip.links["Return to scan"].exists)
+        strip.buttons["Stop scan"].click()
+        XCTAssertTrue(line.waitForNonExistence(timeout: 10))
+    }
+}
+
+/// #364: a scan's Stop in the bar's work line is the design-system x, a button (not a link) labelled and tooltipped
+/// "Stop scan", inside the bar.
+@MainActor func assertStopScanIsTheQuietX(_ strip: XCUIElement, file: StaticString = #filePath, line: UInt = #line) {
+    let stop = strip.buttons["Stop scan"]
+    XCTAssertTrue(stop.waitForExistence(timeout: 5), "Stop scan is a button", file: file, line: line)
+    XCTAssertFalse(strip.links["Stop scan"].exists, "Stop scan is no longer a link", file: file, line: line)
+    XCTAssertTrue(strip.frame.contains(stop.frame), file: file, line: line)
+    XCTAssertLessThan(stop.frame.width, 40, "A small x, not a labelled button", file: file, line: line)
 }
 
 /// #307: a review sheet closes only when the choices it was built from changed, never because background work finished.

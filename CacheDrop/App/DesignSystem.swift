@@ -134,7 +134,7 @@ enum StorageCategory {
     }
 }
 private struct OpaqueChromeKey: EnvironmentKey { static let defaultValue = false }
-/// The bar's background work line, with a folder scan's Stop scan and, away from where it started, Return to scan (#235).
+/// The bar's background work line, with a folder scan's Stop scan x (#364) and, away from where it started, Return to scan (#235).
 struct BackgroundWorkStatus {
     let line: BackgroundWork.Line
     var stop: (() -> Void)? = nil
@@ -464,7 +464,8 @@ extension ActionStrip where Leading == ActionStripMessage, Actions == EmptyView 
     init() { self.init(message: nil) { EmptyView() } }
 }
 /// Background work as one quiet line: a small spinner and "Checking <location>… 4 of 31", plus "+1 more" (Decisions 25, 46).
-/// A folder scan adds its phase and count, and small Stop scan and Return to scan buttons (#235).
+/// A folder scan adds its phase and count (#235); every folder scan, the automatic recheck too, adds a quiet `CloseButton` x
+/// labelled "Stop scan", and away from its screen a Return to scan link (#364).
 struct BackgroundWorkLine: View {
     let status: BackgroundWorkStatus
     var body: some View {
@@ -477,8 +478,8 @@ struct BackgroundWorkLine: View {
                 }
             }.font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary).monospacedDigit().lineLimit(1).truncationMode(.middle)
                 .help(status.line.text)
-            // The bar's work line holds links, never bordered buttons (#311).
-            if let stop = status.stop { Button("Stop scan", action: stop).buttonStyle(.link) }
+            // The bar's work line holds a quiet x and links, never bordered buttons (#311, #364).
+            if let stop = status.stop { CloseButton(label: "Stop scan", action: stop) }
             if let returnToScan = status.returnToScan { Button("Return to scan", action: returnToScan).buttonStyle(.link) }
         }.font(CacheDropDesign.TypeStyle.caption)
     }
@@ -1171,7 +1172,7 @@ struct NothingToCleanUp: View {
 /// The one button rule (#311). 1: every bordered button is a capsule, set once per root (the workspace window, each sheet,
 /// the Settings form) with `cacheDropButtonRule()`. 2: large in the bottom bar (`ActionStrip`) and sheet footers
 /// (`SheetFooter`), regular in page bodies, never small and bordered. 3: anything inside a row, status line, breadcrumb or
-/// the bar's work line is a link (`.buttonStyle(.link)`). 4: a sheet's footer is right-aligned, Cancel then the primary
+/// the bar's work line is a link (`.buttonStyle(.link)`), except the work line's Stop scan x (#364). 4: a sheet's footer is right-aligned, Cancel then the primary
 /// button; its one close style is `CloseButton`.
 extension View {
     func cacheDropButtonRule() -> some View { buttonBorderShape(.capsule) }
@@ -1191,13 +1192,14 @@ struct SheetFooter<Leading: View, Actions: View>: View {
 extension SheetFooter where Leading == EmptyView {
     init(@ViewBuilder actions: @escaping () -> Actions) { self.init(leading: { EmptyView() }, actions: actions) }
 }
-/// The one close style (#311): a borderless xmark in secondary text, at a sheet's or panel's top trailing corner.
+/// The one close style (#311): a borderless xmark in secondary text, at a sheet's or panel's top trailing corner, and
+/// the bar's Stop scan (#364). Its label is also its tooltip.
 struct CloseButton: View {
     var label = "Close"
     var identifier: String? = nil
     let action: () -> Void
     var body: some View {
         Button(label, systemImage: "xmark", action: action).labelStyle(.iconOnly).buttonStyle(.borderless)
-            .foregroundStyle(.secondary).modifier(OptionalIdentifier(identifier: identifier))
+            .foregroundStyle(.secondary).help(label).modifier(OptionalIdentifier(identifier: identifier))
     }
 }

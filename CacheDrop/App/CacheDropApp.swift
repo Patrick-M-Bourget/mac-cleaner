@@ -153,7 +153,8 @@ private struct WorkspaceView: View {
     @State private var locationToForget: RememberedScope?
     /// Work running in the background, earliest first, for every screen's bottom bar (Decision 46).
     @State private var backgroundWork = BackgroundWork()
-    /// The bar's line; a folder scan's carries its phase and count, Stop scan, and Return to scan away from its screen (#235).
+    /// The bar's line; a folder scan's carries its phase and count, and every folder scan's Stop scan, and Return to scan away
+    /// from its screen (#235, #364).
     private var backgroundWorkStatus: BackgroundWorkStatus? {
         guard let line = backgroundWork.line(catalogProgress: selection.catalog.scanProgressText,
                                              folderPhase: folderInspection.isScanning ? folderInspection.progress?.phase ?? .enumerating : nil,
@@ -295,9 +296,11 @@ private struct WorkspaceView: View {
         if let contextLabel, !contextLabel.isEmpty { Text(contextLabel).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary).lineLimit(1) }
     }
 
+    /// Return to scan, hidden on the screen the scan belongs to: where it started, and for the recheck of the selected
+    /// locations also Explore storage, which shows them (#364).
     private var scanReturnAction: (() -> Void)? {
         let atOrigin = destination == scanOrigin && !navigationState.localRecordsVisible && !navigationState.appManagedVisible && !nativeInspectionVisible && !exclusionsVisible && !recoveryVisible
-        if atOrigin { return nil }
+        if atOrigin || (folderInspection.isRechecking && nativeInspectionVisible) { return nil }
         return { returnToScanOrigin() }
     }
 

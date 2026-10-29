@@ -14,7 +14,7 @@ private let catalog = "Checking npm cache… 4 of 31"
 
 @Test func eachTaskIsLabelledByWhatItIs() {
     #expect(BackgroundJob.catalogScan.text(catalogProgress: catalog) == "Checking npm cache… 4 of 31")
-    #expect(BackgroundJob.folderRecheck.text(catalogProgress: catalog) == "Rechecking selected locations…")
+    #expect(BackgroundJob.folderRecheck.text(catalogProgress: catalog) == "Checking for changes…")
     #expect(BackgroundJob.folderScan(folder: "Projects").text(catalogProgress: catalog) == "Scanning Projects…")
 }
 
@@ -44,7 +44,7 @@ private let catalog = "Checking npm cache… 4 of 31"
     work.update(running: [.folderRecheck])
     work.update(running: [.catalogScan, .folderRecheck])
     #expect(work.line(catalogProgress: catalog)?.id == "folderRecheckProgress")
-    #expect(work.line(catalogProgress: catalog)?.text == "Rechecking selected locations… · +1 more")
+    #expect(work.line(catalogProgress: catalog)?.text == "Checking for changes… · +1 more")
 }
 
 @Test func whenTheEarliestFinishesTheNextTakesItsPlace() {
@@ -52,10 +52,10 @@ private let catalog = "Checking npm cache… 4 of 31"
     work.update(running: [.catalogScan])
     work.update(running: [.catalogScan, .folderRecheck])
     work.update(running: [.folderRecheck])
-    #expect(work.line(catalogProgress: catalog)?.text == "Rechecking selected locations…")
+    #expect(work.line(catalogProgress: catalog)?.text == "Checking for changes…")
     // Work that starts again later goes to the back.
     work.update(running: [.folderRecheck, .catalogScan])
-    #expect(work.line(catalogProgress: catalog)?.text == "Rechecking selected locations… · +1 more")
+    #expect(work.line(catalogProgress: catalog)?.text == "Checking for changes… · +1 more")
 }
 
 @Test func workStartedTogetherShowsTheFolderScanFirst() {
@@ -82,13 +82,14 @@ private let catalog = "Checking npm cache… 4 of 31"
     #expect(line?.parts.map(\.id) == ["folderScanProgress", "scanPhase", "scanProgressSummary"])
 }
 
-@Test func aRecheckNamesEachPhase() {
+// #364: the recheck CacheDrop starts by itself reads "Checking for changes…", with no phase or count, and can be stopped.
+@Test func aRecheckReadsCheckingForChangesWithoutPhaseOrCount() {
     var work = BackgroundWork()
     work.update(running: [.folderRecheck, .catalogScan])
-    #expect(work.line(catalogProgress: catalog, folderPhase: .checkingDirectories, inspectedEntries: 3)?.text
-        == "Rechecking selected locations · Checking directory stability… · 3 entries inspected · +1 more")
-    #expect(work.line(catalogProgress: catalog, folderPhase: .rechecking, inspectedEntries: 1)?.text
-        == "Rechecking selected locations · Rechecking changed coverage… · 1 entry inspected · +1 more")
+    let line = work.line(catalogProgress: catalog, folderPhase: .checkingDirectories, inspectedEntries: 3)
+    #expect(line?.text == "Checking for changes… · +1 more")
+    #expect(line?.parts.map(\.id) == ["folderRecheckProgress", "backgroundWorkMore"])
+    #expect(line?.runsFolderScan == true)
 }
 
 @Test func theCatalogScanLeadingIgnoresFolderProgress() {

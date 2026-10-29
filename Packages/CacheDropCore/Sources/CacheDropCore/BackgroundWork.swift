@@ -2,7 +2,7 @@
 public enum BackgroundJob: Hashable, Sendable {
     /// The catalog's scan of its known locations.
     case catalogScan
-    /// Scan again's recheck of the selected locations.
+    /// The recheck of the selected locations CacheDrop runs at launch, after a cleanup and on Scan again.
     case folderRecheck
     /// A new folder picked with "Scan a folder…" or "Add folder…".
     case folderScan(folder: String)
@@ -19,16 +19,8 @@ public enum BackgroundJob: Hashable, Sendable {
     public func text(catalogProgress: String) -> String {
         switch self {
         case .catalogScan: catalogProgress
-        case .folderRecheck: "Rechecking selected locations…"
+        case .folderRecheck: "Checking for changes…"
         case .folderScan(let folder): "Scanning \(folder)…"
-        }
-    }
-    /// The work's name when its progress follows it on the line.
-    var title: String {
-        switch self {
-        case .catalogScan: "Checking known locations"
-        case .folderRecheck: "Rechecking selected locations"
-        case .folderScan(let folder): "Scanning \(folder)"
         }
     }
     /// Work that starts at the same moment, as Scan again's two scans do, is ordered folder scans first.
@@ -36,7 +28,8 @@ public enum BackgroundJob: Hashable, Sendable {
 }
 
 /// Background work the bottom bar reports as one quiet line (Decision 46): the work that started first, plus how many more
-/// are running ("Checking npm cache… 4 of 31 · +1 more"). A folder scan's line also carries its phase and count (#235).
+/// are running ("Checking npm cache… 4 of 31 · +1 more"). A new folder's scan also carries its phase and count (#235); a
+/// recheck says only "Checking for changes…" (#364).
 public struct BackgroundWork: Equatable, Sendable {
     public struct Line: Equatable, Sendable {
         /// One piece of the line, with its own accessibility identifier ("scanPhase", "scanProgressSummary").
@@ -65,8 +58,8 @@ public struct BackgroundWork: Equatable, Sendable {
     public func line(catalogProgress: String, folderPhase: ScanPhase? = nil, inspectedEntries: Int? = nil) -> Line? {
         guard let first = running.first else { return nil }
         var parts: [Line.Part]
-        if first != .catalogScan, let folderPhase {
-            parts = [.init(id: first.identifier, text: first.title), .init(id: "scanPhase", text: folderPhase.progressText)]
+        if case .folderScan(let folder) = first, let folderPhase {
+            parts = [.init(id: first.identifier, text: "Scanning \(folder)"), .init(id: "scanPhase", text: folderPhase.progressText)]
             if let inspectedEntries { parts.append(.init(id: "scanProgressSummary", text: "\(inspectedEntries) \(inspectedEntries == 1 ? "entry" : "entries") inspected")) }
         } else {
             parts = [.init(id: first.identifier, text: first.text(catalogProgress: catalogProgress))]
