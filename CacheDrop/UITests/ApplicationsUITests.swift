@@ -199,6 +199,60 @@ final class ApplicationsUITests: XCTestCase {
         XCTAssertTrue(app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "Uninstalled Synth · 3 items")).firstMatch.waitForExistence(timeout: 10))
     }
 
+    /// #377: an app that is open when its uninstall is reviewed. Its rows say why they will be skipped, with "Quit Synth"; the
+    /// link asks it to quit, its rows are checked again and become cleanable, and the sheet stays open. Synth is a fixture app the
+    /// journey starts itself (a copy of `sleep` in the fixture home's bundle); a debug run only ever sees and quits apps run
+    /// from its fixture home, so no real app on this Mac is touched. A dry run, so nothing is removed.
+    @MainActor func testTheReviewQuitsTheAppHoldingARowAndTheRowBecomesCleanable() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        let state = try configureIsolatedState(app)
+        let home = try configureCatalogHome(app)
+        turnOnDryRun(app)
+        let synth = try addApp("Synth", id: "com.maker.synth", bytes: 1, in: home)
+        let executable = synth.appendingPathComponent("Contents/MacOS/main")
+        try FileManager.default.removeItem(at: executable)
+        try FileManager.default.copyItem(atPath: "/bin/sleep", toPath: executable.path)
+        let container = home.appendingPathComponent("Library/Containers/com.maker.synth/Data/state.db")
+        try FileManager.default.createDirectory(at: container.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Data(repeating: 4, count: 60_000).write(to: container)
+        let running = Process()
+        running.executableURL = executable
+        running.arguments = ["600"]
+        // The fixture app is stopped whatever happens, before its home is removed.
+        defer {
+            if running.isRunning { running.terminate(); running.waitUntilExit() }
+            app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home)
+        }
+        app.launch()
+        waitForCatalogScan(app)
+        app.typeKey("5", modifierFlags: .command)
+        let row = element(app, "applicationsApp-" + synth.path, .checkBox)
+        XCTAssertTrue(row.waitForExistence(timeout: 10))
+        revealAndClick(row, in: app)
+        XCTAssertEqual(row.value as? Int, 1)
+
+        try running.run()
+        app.buttons["Review cleanup"].click()
+        let skipped = app.staticTexts["reviewSkipped-uninstall-app"]
+        XCTAssertTrue(skipped.waitForExistence(timeout: 10), "The app's row will be skipped while it is open")
+        XCTAssertTrue((skipped.value as? String ?? skipped.label).contains("Synth is running."), skipped.debugDescription)
+        let quit = app.links["reviewQuit-uninstall-app"]
+        XCTAssertTrue(quit.exists, "An open known app offers Quit")
+        XCTAssertEqual(quit.label, "Quit Synth")
+
+        quit.click()
+        XCTAssertTrue(skipped.waitForNonExistence(timeout: 20), "Once Synth quits, its row is checked again and can be cleaned")
+        XCTAssertFalse(running.isRunning, "The fixture app was asked to quit and did")
+        XCTAssertFalse(app.staticTexts["reviewSkipped-uninstall-app-files"].exists, "Its files were checked again too")
+        XCTAssertFalse(app.links["reviewQuit-uninstall-app"].exists)
+        // The recheck changes no choice, so the sheet stays open (#307).
+        XCTAssertTrue(app.descendants(matching: .any).matching(identifier: "sheetFooter").firstMatch.buttons["Clean up"].exists)
+        XCTAssertFalse(app.staticTexts["Your choices changed. Check the items and try again."].exists)
+        app.buttons["Cancel"].click()
+        XCTAssertTrue(FileManager.default.fileExists(atPath: synth.path))
+    }
+
     /// #305: two apps of one maker. Each row offers only its own files, though the other keeps the maker installed, and once
     /// Synth is uninstalled, Pad's row is unchanged: Synth's untouched support folder is offered nowhere while Pad is installed.
     @MainActor func testAppsOfOneMakerAreEachUninstalledWithOnlyTheirOwnFiles() throws {

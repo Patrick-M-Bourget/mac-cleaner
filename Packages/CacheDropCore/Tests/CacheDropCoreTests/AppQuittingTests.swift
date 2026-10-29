@@ -61,3 +61,37 @@ private final class FakeQuitter: AppQuitting, @unchecked Sendable {
     #expect(await !quitter.waitUntilClosed(["com.apple.finder"], timeout: .milliseconds(100)))
     #expect(await quitter.waitUntilClosed(["com.example.not-installed-\(UUID())"], timeout: .seconds(5)))
 }
+
+/// #377: the quitter a debug UI test run uses. It sees and asks to quit only apps run from inside its fixture folder, so a
+/// journey can quit a fixture app it started and never a real one. The fixture app is a copy of `sleep` in a bundle.
+@Test func theFixtureQuitterQuitsOnlyAnAppRunFromItsFolder() async throws {
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent("CacheDropFixtureApps-\(UUID())").resolvingSymlinksInPath()
+    let outside = FileManager.default.temporaryDirectory.appendingPathComponent("CacheDropOtherApps-\(UUID())").resolvingSymlinksInPath()
+    func start(_ name: String, id: String, in folder: URL) throws -> Process {
+        let bundle = folder.appendingPathComponent("Applications/\(name).app/Contents")
+        try FileManager.default.createDirectory(at: bundle.appendingPathComponent("MacOS"), withIntermediateDirectories: true)
+        try PropertyListSerialization.data(fromPropertyList: ["CFBundleIdentifier": id], format: .xml, options: 0).write(to: bundle.appendingPathComponent("Info.plist"))
+        try FileManager.default.copyItem(atPath: "/bin/sleep", toPath: bundle.appendingPathComponent("MacOS/\(name)").path)
+        let process = Process()
+        process.executableURL = bundle.appendingPathComponent("MacOS/\(name)")
+        process.arguments = ["60"]
+        try process.run()
+        return process
+    }
+    let synth = try start("Synth", id: "com.maker.synth", in: root), other = try start("Other", id: "com.maker.other", in: outside)
+    defer {
+        for process in [synth, other] where process.isRunning { process.terminate() }
+        try? FileManager.default.removeItem(at: root); try? FileManager.default.removeItem(at: outside)
+    }
+    let quitter = FixtureAppQuitter(root: root)
+    #expect(quitter.isOpen(["com.maker.synth"]))
+    #expect(!quitter.isOpen(["com.maker.other"]), "Never an app outside its folder")
+    #expect(!quitter.isOpen(["com.apple.finder"]))
+    #expect(!quitter.requestQuit(["com.maker.other"]))
+    #expect(other.isRunning)
+
+    #expect(quitter.requestQuit(["com.maker.synth"]))
+    #expect(await quitter.waitUntilClosed(["com.maker.synth"], timeout: .seconds(5)))
+    #expect(!synth.isRunning)
+    #expect(!quitter.isOpen(["com.maker.synth"]))
+}
