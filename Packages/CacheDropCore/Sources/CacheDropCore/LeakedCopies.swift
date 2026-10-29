@@ -50,7 +50,7 @@ extension Catalog {
         return folder
     }
 
-    /// Every copy inside `root` except the ones in use and the newest. When in-use status can't be
+    /// Every copy inside `root` except the newest; one in use is held (#374). When in-use status can't be
     /// determined, nothing is offered and the note says why.
     func leakedCopies(_ rule: CleanupRule, _ copies: LeakedCopies, in root: URL, sizer: KnownLocationSizer, inUse checker: any InUseChecking) -> ([Candidate], CatalogNote?) {
         var rootInfo = stat()
@@ -70,9 +70,12 @@ extension Catalog {
         }
         func created(_ info: stat) -> (Int, Int) { (info.st_birthtimespec.tv_sec, info.st_birthtimespec.tv_nsec) }
         let newest = Set(found.sorted { created($0.1) > created($1.1) }.prefix(copies.keepNewest).map(\.0.path))
-        return (found.filter { !used.contains($0.0.path) && !newest.contains($0.0.path) }.map { url, info in
+        // A copy in use stays visible, held by its app (#374); the check skips it while the app still uses it.
+        return (found.filter { !newest.contains($0.0.path) }.map { url, info in
             let size = sizer.size(url)
-            return candidate(rule, url, info, logical: size.logicalBytes, allocated: size.allocatedBytes, complete: size.complete, lastUsed: nil)
+            var found = candidate(rule, url, info, logical: size.logicalBytes, allocated: size.allocatedBytes, complete: size.complete, lastUsed: nil)
+            if used.contains(url.path) { found.hold = CandidateHold(.inUse(owner.name), app: owner) }
+            return found
         }, nil)
     }
 }

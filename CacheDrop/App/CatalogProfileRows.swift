@@ -32,6 +32,8 @@ struct CatalogProfileRows: View {
     }
     /// The folders' names; for a project, also when it last changed (#157).
     private func detail(_ items: [Candidate]) -> String {
+        // A project being worked on (#374): unticked, saying why.
+        if let hold = items.lazy.compactMap(\.hold).first { return hold.line }
         let names = items.map(\.url.lastPathComponent).sorted().joined(separator: ", ")
         guard rule.groupsByProject, let changed = items.compactMap(\.lastUsed).max() else { return names }
         return names + " · Modified " + changed.formatted(date: .abbreviated, time: .omitted)

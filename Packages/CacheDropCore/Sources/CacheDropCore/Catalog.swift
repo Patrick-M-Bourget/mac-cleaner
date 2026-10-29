@@ -382,6 +382,20 @@ public struct Candidate: Sendable, Identifiable, Hashable {
     /// The receipts that listed a plug-in support item, or anything in it, at the scan: it is moved only while no other receipt
     /// lists it and they still list all of it, read again before acting (#288, #291).
     public internal(set) var installedBy: Set<String>? = nil
+    /// Why the scan found it held (#374): an app or process using it, or a project being worked on. It stays on the plan,
+    /// unticked unless the user ticks it, and is checked again at Clean up; nil when nothing held it.
+    public internal(set) var hold: CandidateHold? = nil
+}
+
+/// What held an item at the scan (#374), so the plan shows it unticked with why, never as free space.
+public struct CandidateHold: Sendable, Hashable {
+    /// The reason a run would skip it now.
+    public let refusal: CheckRefusal
+    /// The known app holding it, which quitting frees; nil when the holder isn't a known app (any process, a project).
+    public let app: RuleOwner?
+    public init(_ refusal: CheckRefusal, app: RuleOwner? = nil) { self.refusal = refusal; self.app = app }
+    /// The row's line: "In use by X · Quit X to clean it", or the refusal's own reason without a known app.
+    public var line: String { app.map { "In use by \($0.name) · Quit \($0.name) to clean it" } ?? refusal.reason }
 }
 
 public struct Catalog: Sendable {

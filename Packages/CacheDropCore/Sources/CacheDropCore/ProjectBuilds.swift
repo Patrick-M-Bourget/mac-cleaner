@@ -66,7 +66,8 @@ public enum ProjectBuilds {
     }
 
     /// The build folders in `scope`, a folder the user picked, grouped by project (`profile`) and dated by the project's
-    /// last change (`lastUsed`). A project being worked on (`refusal(for:)`) offers nothing. Read-only.
+    /// last change (`lastUsed`). A project being worked on (open, recently changed, uncommitted changes) keeps its build folders
+    /// listed, held with that reason (#374); one that can't be checked offers nothing. Read-only.
     public static func candidates(in scope: URL, rule: CleanupRule = rule, exclusions: ExclusionPolicy = ExclusionPolicy(), home: URL,
                                   inUse: any InUseChecking = SystemInUseChecker(), now: Date = Date()) -> [Candidate] {
         guard let scopePath = realPath(scope.path) else { return [] }
@@ -87,7 +88,9 @@ public enum ProjectBuilds {
             return level < depth ? .continue : .skip
         }
         return projects.flatMap { project, found -> [Candidate] in
-            guard let lastChange = lastChange(in: project), refusal(ofProject: project, lastChange: lastChange, inUse: inUse, home: home, now: now) == nil else { return [] }
+            guard let lastChange = lastChange(in: project) else { return [] }
+            let held = refusal(ofProject: project, lastChange: lastChange, inUse: inUse, home: home, now: now)
+            if let held, !heldReasons.contains(held) { return [] }
             let name = project.path == scope.path ? scope.lastPathComponent : String(project.path.dropFirst(scope.path.count + 1))
             return found.compactMap { url in
                 var info = stat()
@@ -100,6 +103,7 @@ public enum ProjectBuilds {
                                               lastUsed: lastChange, profile: name)
                 // Named with its project, so a review or result line says which `node_modules` it was.
                 found.itemName = url.lastPathComponent + " in " + project.lastPathComponent
+                found.hold = held.map { CandidateHold($0) }
                 return found.found(under: scope)
             }
         }
@@ -107,19 +111,25 @@ public enum ProjectBuilds {
 
     /// Why a project's build folder is kept now (SPEC section 4), checked at the scan and again just before acting: it is no
     /// longer beside its marker, the project is open in an app or tool, it changed in the last `recentDays`, git has
-    /// uncommitted changes to its tracked files, or git tracks the build folder itself. Nil when it may go.
-    static func refusal(for buildFolder: URL, inUse: any InUseChecking, home: URL, now: Date = Date()) -> CheckRefusal? {
+    /// uncommitted changes to its tracked files, or git tracks the build folder itself. Nil when it may go. With `overridingPolicy`
+    /// (the user ticked a build folder the scan showed held, #374), recent changes and uncommitted changes no longer keep it.
+    static func refusal(for buildFolder: URL, inUse: any InUseChecking, home: URL, now: Date = Date(), overridingPolicy: Bool = false) -> CheckRefusal? {
         let project = buildFolder.deletingLastPathComponent()
         guard buildFolders(in: project).contains(where: { $0.path == buildFolder.path }) else { return .changed }
         guard let lastChange = lastChange(in: project) else { return .projectUnchecked }
-        return refusal(ofProject: project, lastChange: lastChange, inUse: inUse, home: home, now: now) ?? trackedRefusal(buildFolder, home: home)
+        return refusal(ofProject: project, lastChange: lastChange, inUse: inUse, home: home, now: now, overridingPolicy: overridingPolicy)
+            ?? trackedRefusal(buildFolder, home: home)
     }
 
+    /// Why a project's build folders are listed but held rather than dropped (#374): it is in use, or a policy guard ticking overrides.
+    static let heldReasons: Set<CheckRefusal> = [.projectOpen, .recentlyEdited, .uncommittedChanges]
+
     /// The project-wide reasons: open, recently changed, or uncommitted changes to tracked files.
-    private static func refusal(ofProject project: URL, lastChange: Date, inUse: any InUseChecking, home: URL, now: Date) -> CheckRefusal? {
+    private static func refusal(ofProject project: URL, lastChange: Date, inUse: any InUseChecking, home: URL, now: Date, overridingPolicy: Bool = false) -> CheckRefusal? {
         // Any process working in the project counts: its editor, a build tool, a shell or a running build.
         guard let used = inUse.inUse([project], by: .anyApp) else { return .projectUnchecked }
         if !used.isEmpty { return .projectOpen }
+        if overridingPolicy { return nil }
         if lastChange > now.addingTimeInterval(-Double(recentDays) * .secondsPerDay) { return .recentlyEdited }
         guard GitCheckout.encloses(project.appendingPathComponent(".git"), upTo: nil, home: home) else { return nil }
         guard let changes = git(project, ["status", "--porcelain", "--untracked-files=no", "--ignore-submodules=dirty", "--no-renames"]) else { return .projectUnchecked }

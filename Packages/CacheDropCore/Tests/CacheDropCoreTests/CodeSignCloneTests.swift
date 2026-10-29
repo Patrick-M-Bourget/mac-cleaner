@@ -30,7 +30,7 @@ private struct NothingRunning: RunningAppChecking { func isRunning(_ owner: Rule
 private let catalog = Catalog(rules: fixtureRules)
 private func day(_ n: Double) -> Date { Date(timeIntervalSince1970: 1_790_000_000 + n * 86_400) }
 
-@Test func everyCodeSignCopyIsOfferedExceptTheOneInUseAndTheNewest() throws {
+@Test func everyCodeSignCopyIsOfferedExceptTheNewestAndTheOneInUseIsKeptHeldByChrome() throws {
     let home = FileManager.default.temporaryDirectory.appendingPathComponent("CacheDropCatalog-\(UUID())")
     let folder = try fixtureUserFolder()
     defer { try? FileManager.default.removeItem(at: folder) }
@@ -39,8 +39,17 @@ private func day(_ n: Double) -> Date { Date(timeIntervalSince1970: 1_790_000_00
     let middle = try writeClone("code_sign_clone.cccccc", in: folder, created: day(3))
     try writeClone("code_sign_clone.dddddd", in: folder, created: day(4))
     let candidates = catalog.discover(fixture: home, userFolder: folder, inUse: FakeInUse(open: [inUse.path]))
-    #expect(candidates.map(\.url.path).sorted() == [oldest.path, middle.path])
+    #expect(candidates.map(\.url.path).sorted() == [oldest.path, inUse.path, middle.path])
     #expect(candidates.allSatisfy { $0.ruleID == "chrome-code-sign-clones" && $0.action == .delete && $0.isDirectory })
+    // The copy Chrome uses stays visible, held, never offered as free (#374).
+    let held = try #require(candidates.first { $0.url.path == inUse.path }?.hold)
+    #expect(held.refusal == .inUse("Google Chrome") && held.app?.bundleIDs == ["com.google.Chrome"])
+    #expect(held.line == "In use by Google Chrome · Quit Google Chrome to clean it")
+    #expect(candidates.filter { $0.hold != nil }.map(\.url.path) == [inUse.path])
+    // Ticked, it is checked again at Clean up: skipped with the same reason while Chrome uses it, cleaned once free. No force.
+    let heldCopy = try #require(candidates.first { $0.hold != nil })
+    #expect(CandidateCheck(catalog: catalog, running: NothingRunning(), inUse: FakeInUse(open: [inUse.path])).check(heldCopy) == held.refusal)
+    #expect(CandidateCheck(catalog: catalog, running: NothingRunning(), inUse: FakeInUse()).check(heldCopy) == nil)
     #expect(candidates.allSatisfy { ($0.allocatedBytes ?? 0) >= 4096 })
 }
 
