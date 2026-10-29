@@ -451,7 +451,8 @@ struct WorkspaceCleanupConfirmationView: View {
     private func quitAction(_ item: Candidate) -> StatusAction? {
         guard let held, let owner = held.holder(of: item), let title = held.quitTitle(for: item) else { return nil }
         let busy = quitting.contains(owner)
-        return StatusAction(title: busy ? "Quitting…" : title, identifier: "reviewQuit-" + item.ruleID, isDisabled: busy) { quit(owner) }
+        // The candidate's id, which starts with its rule's: rows of one rule each get their own link (#384).
+        return StatusAction(title: busy ? "Quitting…" : title, identifier: "reviewQuit-" + item.id, isDisabled: busy) { quit(owner) }
     }
     /// A normal quit request, never a force quit; once the app is gone its rows are checked again, otherwise they keep their reason.
     private func quit(_ owner: RuleOwner) {
