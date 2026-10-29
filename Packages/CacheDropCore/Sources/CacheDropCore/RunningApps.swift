@@ -14,36 +14,34 @@ extension RuleOwner {
         guard !scripts.isEmpty, let script = arguments.dropFirst().first(where: { !$0.hasPrefix("-") }) else { return false }
         return matches(scripts, URL(fileURLWithPath: script).lastPathComponent)
     }
+
+    /// Whether anything running could be this owner: it names an app, a maker, a folder or a command line to look for.
+    var looksForProcesses: Bool {
+        !bundleIDs.isEmpty || !bundleIDPrefixes.isEmpty || !paths.isEmpty || !executables.isEmpty || !scripts.isEmpty || !arguments.isEmpty
+    }
 }
 
-/// Apps by bundle identifier; command-line tools by the current user's process command lines.
-/// A maker (`bundleIDPrefixes`) by every running process, background helpers included (#240), listed through `processes`.
+/// Whether an owner is running, from one reading of `processes` per check (#261): apps and helpers by bundle ID, a maker
+/// (`bundleIDPrefixes`) by every running process, background helpers included (#240), an app's folder by any process run from
+/// inside it (#281), and command-line tools by the current user's command lines.
 public struct SystemRunningAppChecker: RunningAppChecking {
     let processes: any ProcessListing
     private let makers = RunningMakerCache()
     public init(processes: any ProcessListing = SystemProcessListing()) { self.processes = processes }
     public func isRunning(_ owner: RuleOwner) -> Bool? {
-        if !UserProcesses.apps(owner.bundleIDs).isEmpty { return true }
-        if !owner.bundleIDPrefixes.isEmpty {
-            guard let running = processes.processes() else { return nil }
-            if RunningMakers(running, resolve: makers.products).runs(owner) { return true }
-        }
-        // An app's helpers and login items: any process, background ones included, by bundle ID or run from inside the app (#281).
-        let listed = owner.paths.isEmpty ? nil : processes.processes()
-        if let listed, listed.contains(where: { process in
+        // Owners with nothing to look for never need the list.
+        guard owner.looksForProcesses else { return false }
+        guard let listed = processes.processes() else { return nil }
+        if listed.contains(where: { process in
             process.bundleID.map(owner.bundleIDs.contains) == true || owner.paths.contains { process.path.hasPrefix($0.hasSuffix("/") ? $0 : $0 + "/") }
         }) { return true }
-        // Every process's executable was listed, so a folder owner needs no command lines.
-        guard !owner.executables.isEmpty || !owner.scripts.isEmpty || !owner.arguments.isEmpty || (!owner.paths.isEmpty && listed == nil) else { return false }
-        guard let commands = Self.userCommandLines() else { return nil }
-        return commands.contains { owner.matches($0) }
+        if !owner.bundleIDPrefixes.isEmpty, RunningMakers(listed, resolve: makers.products).runs(owner) { return true }
+        return listed.contains { $0.arguments.map(owner.matches) == true }
     }
 
     /// This checker with the process list read once, for checking many owners together at a scan.
     public func listedOnce() -> SystemRunningAppChecker { SystemRunningAppChecker(processes: ListedProcesses(list: processes.processes())) }
-
-    /// argv of every process the current user owns, or nil when the list can't be read.
-    static func userCommandLines() -> [[String]]? { UserProcesses.pids()?.compactMap(UserProcesses.arguments) }
+    public func snapshot() -> any RunningAppChecking { listedOnce() }
 }
 
 /// A process list read once.
