@@ -127,5 +127,16 @@ private final class CountingProcesses: ProcessListing, @unchecked Sendable {
     // A process whose command line can't be read (another user's) is only its executable, which a tool owner doesn't match by path.
     let unread = CountingProcesses([RunningProcess(path: "/opt/other/\(executable)")])
     #expect(SystemRunningAppChecker(processes: unread).isRunning(owner) == false)
-    #expect(SystemRunningAppChecker(processes: CountingProcesses(nil)).isRunning(owner) == nil)
+    let unreadable = CountingProcesses(nil)
+    #expect(SystemRunningAppChecker(processes: unreadable).isRunning(owner) == nil)
+    #expect(unreadable.reads == 1)
+}
+
+/// A review checks many items with one reading of the process table, running owners included (#261).
+@Test func aSnapshottedCheckReadsTheProcessListOnceForManyOwners() {
+    let processes = CountingProcesses([RunningProcess(path: "/usr/bin/tool", arguments: ["/usr/bin/tool"])])
+    let running = SystemRunningAppChecker(processes: processes).snapshot()
+    let owners = [RuleOwner(name: "Tool", executables: ["tool"]), RuleOwner(name: "App", bundleIDs: ["com.example.app"]), maker("com.example")]
+    #expect(owners.map(running.isRunning) == [true, false, false])
+    #expect(processes.reads == 1)
 }

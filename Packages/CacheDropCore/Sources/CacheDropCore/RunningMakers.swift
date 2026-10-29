@@ -16,7 +16,8 @@ public protocol ProcessListing: Sendable {
     func processes() -> [RunningProcess]?
 }
 
-/// The running apps and every process whose executable can be read, background helpers and daemons included.
+/// The running apps and every process whose executable can be read, background helpers and daemons included, with the
+/// command line of each one the current user owns (#261).
 public struct SystemProcessListing: ProcessListing {
     public init() {}
     public func processes() -> [RunningProcess]? {

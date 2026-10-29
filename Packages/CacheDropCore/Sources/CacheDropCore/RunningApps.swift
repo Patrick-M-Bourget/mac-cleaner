@@ -14,6 +14,11 @@ extension RuleOwner {
         guard !scripts.isEmpty, let script = arguments.dropFirst().first(where: { !$0.hasPrefix("-") }) else { return false }
         return matches(scripts, URL(fileURLWithPath: script).lastPathComponent)
     }
+
+    /// Whether anything running could be this owner: it names an app, a maker, a folder or a command line to look for.
+    var looksForProcesses: Bool {
+        !bundleIDs.isEmpty || !bundleIDPrefixes.isEmpty || !paths.isEmpty || !executables.isEmpty || !scripts.isEmpty || !arguments.isEmpty
+    }
 }
 
 /// Whether an owner is running, from one reading of `processes` per check (#261): apps and helpers by bundle ID, a maker
@@ -25,8 +30,7 @@ public struct SystemRunningAppChecker: RunningAppChecking {
     public init(processes: any ProcessListing = SystemProcessListing()) { self.processes = processes }
     public func isRunning(_ owner: RuleOwner) -> Bool? {
         // Owners with nothing to look for never need the list.
-        guard !owner.bundleIDs.isEmpty || !owner.bundleIDPrefixes.isEmpty || !owner.paths.isEmpty || !owner.executables.isEmpty
-                || !owner.scripts.isEmpty || !owner.arguments.isEmpty else { return false }
+        guard owner.looksForProcesses else { return false }
         guard let listed = processes.processes() else { return nil }
         if listed.contains(where: { process in
             process.bundleID.map(owner.bundleIDs.contains) == true || owner.paths.contains { process.path.hasPrefix($0.hasSuffix("/") ? $0 : $0 + "/") }
@@ -37,6 +41,7 @@ public struct SystemRunningAppChecker: RunningAppChecking {
 
     /// This checker with the process list read once, for checking many owners together at a scan.
     public func listedOnce() -> SystemRunningAppChecker { SystemRunningAppChecker(processes: ListedProcesses(list: processes.processes())) }
+    public func snapshot() -> any RunningAppChecking { listedOnce() }
 }
 
 /// A process list read once.

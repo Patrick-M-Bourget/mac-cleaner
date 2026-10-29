@@ -4,6 +4,11 @@ import Darwin
 /// Whether a rule's owner is running. `nil` means it could not be determined, which refuses.
 public protocol RunningAppChecking: Sendable {
     func isRunning(_ owner: RuleOwner) -> Bool?
+    /// A checker that lists processes once and keeps what it reads, for checking many items together (#261).
+    func snapshot() -> any RunningAppChecking
+}
+extension RunningAppChecking {
+    public func snapshot() -> any RunningAppChecking { self }
 }
 
 /// Why a candidate was not acted on. Shown in results and recorded in the journal.
@@ -129,7 +134,7 @@ public struct CandidateCheck: Sendable {
     }
     /// This check with one reading of the process table, for checking many items together (a review or a cleanup run).
     public func snapshotted() -> CandidateCheck {
-        CandidateCheck(catalog: catalog, running: running, exclusions: exclusions, inUse: inUse.snapshot(), cloud: cloud, home: home, apps: apps.snapshot(),
+        CandidateCheck(catalog: catalog, running: running.snapshot(), exclusions: exclusions, inUse: inUse.snapshot(), cloud: cloud, home: home, apps: apps.snapshot(),
                        systemRoot: receipts.systemRoot)
     }
     /// Whether checking this candidate asks what processes have open: leaked copies and old temporary items.
