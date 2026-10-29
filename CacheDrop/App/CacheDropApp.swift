@@ -372,9 +372,10 @@ private struct WorkspaceView: View {
                 }
             }
             StartupVolumeCard(catalog: selection.catalog, open: { openPlan($0.categories) })
-            scannedLocations
+            locationRecoveries
             SettingsUnreadableNotice(model: selection.catalog)
             overviewRecommendations
+            scannedLocations
         }.task { await TrashModel.shared.refresh() }
     }
 
@@ -519,24 +520,9 @@ private struct WorkspaceView: View {
         locationsModel.load()
         if !locationsModel.included.isEmpty { scanKnownLocations() }
     }
-    private var scannedLocations: some View {
+    /// A location that can't be reached keeps its recovery row near the top, since it affects the results below it (#223, #231, #345).
+    private var locationRecoveries: some View {
         VStack(alignment: .leading, spacing: CacheDropDesign.Space.sm) {
-            HStack(alignment: .firstTextBaseline, spacing: CacheDropDesign.Space.sm) {
-                Text("Scanned locations").font(.caption.weight(.medium))
-                Text(scannedSummary).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
-                    .help(overviewObservation?.scope.path ?? "").accessibilityIdentifier("overviewScopeCoverage")
-                // Always there (#320): with no scanned folder it leads to Locations & access, where folders are added.
-                Button("Explore storage") { exploreStorage(caller: .overview) }
-                    .buttonStyle(.link).font(CacheDropDesign.TypeStyle.caption).disabled(selection.workspaceRunning)
-                Spacer(minLength: 0)
-                // One clear action: pick a folder, remember it and scan it now (#125).
-                Button("Scan a folder…", systemImage: "folder.badge.plus", action: chooseFolderForScan)
-                    .buttonStyle(.link).font(CacheDropDesign.TypeStyle.caption)
-                    .disabled(folderInspection.isScanning || selection.workspaceRunning).accessibilityIdentifier("overviewScanFolder")
-            }
-            if selection.scans.values.contains(where: { !$0.isComplete }) || overviewObservation.map({ $0.excludedEntryCount > 0 || $0.hasUnmeasuredContents }) == true {
-                StatusRow(text: "Some places couldn’t be read in full, so they may hold more than shown.", symbol: "exclamationmark.circle", role: .caution)
-            }
             // One row per problem (#223, #231): each unavailable location names itself and carries the fix.
             ForEach(locationsModel.recoveries, id: \.scope.id) { scope, status in
                 StatusRow(text: recoveryText(scope, status: status), symbol: "info.circle", role: .caution,
@@ -548,6 +534,69 @@ private struct WorkspaceView: View {
             if let message = folderInspection.message, !recoveryRowCovers(folderInspection.unavailableScope) {
                 StatusRow(text: message, symbol: "info.circle")
             }
+        }
+    }
+    /// Scanned locations (#345), under the recommended categories: one row per location with its size and an Explore link, and
+    /// its own reason when the scan couldn't read everything (#358).
+    private var scannedLocations: some View {
+        let locations = overviewLocations
+        return VStack(alignment: .leading, spacing: CacheDropDesign.Space.md) {
+            HStack(alignment: .firstTextBaseline, spacing: CacheDropDesign.Space.md) {
+                Text("Scanned locations").font(CacheDropDesign.TypeStyle.section)
+                Spacer(minLength: CacheDropDesign.Space.md)
+                // Always there (#320): with no scanned folder it leads to Locations & access, where folders are added.
+                Button("Explore storage") { exploreStorage(caller: .overview) }
+                    .buttonStyle(.link).font(CacheDropDesign.TypeStyle.caption).disabled(selection.workspaceRunning)
+                // One clear action: pick a folder, remember it and scan it now (#125).
+                Button("Scan a folder…", systemImage: "folder.badge.plus", action: chooseFolderForScan)
+                    .buttonStyle(.link).font(CacheDropDesign.TypeStyle.caption)
+                    .disabled(folderInspection.isScanning || selection.workspaceRunning).accessibilityIdentifier("overviewScanFolder")
+            }
+            if locations.isEmpty {
+                Text("No folders chosen yet").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary).accessibilityIdentifier("overviewNoLocations")
+            } else {
+                RecommendationGroup {
+                    ForEach(Array(locations.enumerated()), id: \.element.scope) { index, location in
+                        if index > 0 { Divider().padding(.horizontal, CacheDropDesign.Space.lg) }
+                        scannedLocationRow(location)
+                    }
+                }.waitingForScan(folderInspection.isScanning)
+            }
+        }
+    }
+    private func scannedLocationRow(_ location: ScannedLocationsSummary.Location) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            StorageReviewRow(category: .files, title: location.name, detail: location.notes ?? "", value: location.value(overviewBytes),
+                             actionTitle: "Explore " + location.name, action: location.bytes == nil ? nil : { openExplorer(caller: .overview, at: location.scope) },
+                             identifier: "overviewLocation:" + location.scope.path, mutedValue: location.bytes == nil)
+                .help(location.scope.path)
+            if let problem = location.problem {
+                Group {
+                    switch location.action {
+                    case .grantFullDiskAccess?:
+                        HStack(alignment: .firstTextBaseline, spacing: CacheDropDesign.Space.sm) {
+                            StatusRow(text: problem, symbol: "exclamationmark.circle", role: .caution, identifier: "overviewLocationProblem").fixedSize()
+                            FullDiskAccessLink(title: "Grant Full Disk Access", symbol: nil)
+                            Spacer(minLength: 0)
+                        }
+                    case .scanAgain?:
+                        StatusRow(text: problem, symbol: "exclamationmark.circle", role: .caution, identifier: "overviewLocationProblem",
+                                  action: StatusAction(title: "Scan again", identifier: "overviewLocationScanAgain", isDisabled: !canScanAgain, action: scanAgain))
+                    case nil:
+                        StatusRow(text: problem, symbol: "exclamationmark.circle", role: .caution, identifier: "overviewLocationProblem")
+                    }
+                }.padding([.horizontal, .bottom], CacheDropDesign.Space.lg)
+            }
+        }
+    }
+    /// Included locations with their latest current scan; one with a recovery row is left to that row, so nothing shows twice.
+    private var overviewLocations: [ScannedLocationsSummary.Location] {
+        let recovering = Set(locationsModel.recoveries.map(\.scope.id))
+        return locationsModel.included.filter { !recovering.contains($0.id) }.map { scope in
+            let url = URL(fileURLWithPath: scope.path).standardizedFileURL
+            let current = selection.unavailableScopes.contains(url) ? nil
+                : selection.scans[URL(fileURLWithPath: scope.path)] ?? folderInspection.scopeReports.first { $0.current.scope.standardizedFileURL == url }?.current
+            return ScannedLocationsSummary.Location(scope: url, scan: current)
         }
     }
     /// Overview's recovery rows, for the explorer to mark those locations' last observations as gone (#249).
@@ -572,14 +621,6 @@ private struct WorkspaceView: View {
         guard let scope else { return false }
         return locationsModel.recoveries.contains { URL(fileURLWithPath: $0.scope.path).standardizedFileURL == scope }
     }
-    /// Folders the user picked plus the catalog's known locations; unknown coverage is left to the recovery row (#223).
-    private var scannedSummary: String {
-        let result = overviewObservation
-        return ScannedLocationsSummary.text(folders: result.map { _ in selection.scans.count },
-            observedSize: (result.map { $0.isComplete ? $0.totalLogicalBytes : $0.logicalBytes } ?? nil).map { overviewBytes($0) }, complete: result?.isComplete ?? false,
-            knownCacheFolders: selection.catalog.overview?.rows.reduce(0) { $0 + $1.rules.count }, checking: selection.catalog.isScanning)
-    }
-
     /// Renews a remembered location's access: the user picks the same folder again. Shared by Locations & access and Overview (#223).
     @discardableResult private func chooseAgain(_ scope: RememberedScope) -> Bool {
         guard let url = FolderInspection.chooseFolder(remembering: true) else { return false }

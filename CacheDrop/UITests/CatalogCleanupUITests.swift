@@ -31,12 +31,13 @@ import XCTest
     XCTAssertTrue(app.staticTexts["catalogScanProgress"].waitForNonExistence(timeout: timeout), "The catalog scan finished", file: file, line: line)
 }
 
-/// #320: Overview's Explore storage link is always there, so a journey waits for the scanned folder to show on Overview
-/// ("… in 1 folder") before it uses the link to open the explorer, which with no scanned folder opens Locations & access.
+/// #320: Overview's Explore storage link is always there, so a journey waits for the scanned folder to show in Overview's
+/// Scanned locations group (#345), with its size rather than "Not scanned", before it uses the link to open the explorer, which
+/// with no scanned folder opens Locations & access.
 @MainActor func waitForScannedFolder(_ app: XCUIApplication, timeout: TimeInterval = 20, file: StaticString = #filePath, line: UInt = #line) {
-    let scanned = NSPredicate(format: "value MATCHES %@", ".*[0-9]+ folders?( .*)?")
-    XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: scanned, object: app.staticTexts["overviewScopeCoverage"])], timeout: timeout), .completed,
-                   "Overview shows the scanned folder", file: file, line: line)
+    let scanned = NSPredicate(format: "identifier BEGINSWITH 'overviewLocation:' AND NOT (value CONTAINS 'Not scanned')")
+    XCTAssertTrue(app.descendants(matching: .any).matching(scanned).firstMatch.waitForExistence(timeout: timeout),
+                  "Overview shows the scanned folder", file: file, line: line)
 }
 
 /// The explorer's quiet Large and old files toggle (#320), a text link.

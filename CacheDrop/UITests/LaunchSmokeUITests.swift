@@ -572,6 +572,47 @@ final class ScannedLocationsUITests: XCTestCase {
         XCTAssertEqual(app.links["overviewChooseAgain"].label, "Choose again…")
     }
 
+    /// #345, #358: a scanned folder is a row in Overview's Scanned locations group, under the recommended categories, with its
+    /// size and an Explore link; a subfolder it couldn't read gives that row its own reason and Full Disk Access, and the generic
+    /// "couldn't be read in full" line is gone.
+    @MainActor func testAScannedFolderIsARowWithItsOwnReasonAndExploreLink() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        let state = try configureIsolatedState(app)
+        let home = try configureCatalogHome(app)
+        let folder = FileManager.default.temporaryDirectory.resolvingSymlinksInPath().appendingPathComponent("CacheDropPicked-" + UUID().uuidString)
+        let locked = folder.appendingPathComponent("Locked")
+        defer {
+            app.terminate()
+            try? FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: locked.path)
+            try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home); try? FileManager.default.removeItem(at: folder)
+        }
+        try FileManager.default.createDirectory(at: locked, withIntermediateDirectories: true)
+        try Data(repeating: 1, count: 4_000).write(to: folder.appendingPathComponent("entry.zip"))
+        try FileManager.default.setAttributes([.posixPermissions: 0o000], ofItemAtPath: locked.path)
+        app.launch()
+        XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["overviewNoLocations"].waitForExistence(timeout: 5), "No folder chosen yet")
+        app.links["overviewScanFolder"].click()
+        let panel = app.sheets.firstMatch.exists ? app.sheets.firstMatch : app.dialogs.firstMatch
+        XCTAssertTrue(panel.waitForExistence(timeout: 5))
+        panel.typeKey("g", modifierFlags: [.command, .shift])
+        app.typeText(folder.path + "\n")
+        panel.buttons["Scan folder"].click()
+        waitForScannedFolder(app)
+
+        let row = app.descendants(matching: .any)["overviewLocation:" + folder.path]
+        XCTAssertTrue((row.value as? String ?? "").contains(folder.lastPathComponent), row.value as? String ?? "")
+        let problem = app.staticTexts["overviewLocationProblem"]
+        XCTAssertTrue(problem.waitForExistence(timeout: 5))
+        XCTAssertEqual(problem.value as? String, "1 folder couldn’t be read")
+        XCTAssertEqual(app.links["fullDiskAccessLink"].label, "Grant Full Disk Access")
+        XCTAssertFalse(app.staticTexts.matching(NSPredicate(format: "value CONTAINS 'couldn’t be read in full'")).firstMatch.exists)
+
+        revealAndClick(row, in: app)
+        XCTAssertTrue(explorerMode(app).waitForExistence(timeout: 10), "Explore opens the explorer at that folder")
+    }
+
     /// #231: two stale folders get a row each, each with its own Choose again…, and no grey "Scanned now" row.
     @MainActor func testTwoStaleFoldersShowARowEach() throws {
         continueAfterFailure = false
