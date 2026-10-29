@@ -254,7 +254,12 @@ public enum PlugInUninstall {
         // Audio and samples.
         "wav", "wave", "aif", "aiff", "aifc", "flac", "mp3", "m4a", "aac", "caf", "ogg", "w64", "rx2", "rex", "rcy", "ncw", "sfz", "sf2",
         // Presets, patches and instruments: VST, AU, Native Instruments, Ableton, u-he, MIDI.
-        "fxp", "fxb", "vstpreset", "aupreset", "nmsv", "nksf", "nksn", "nki", "nkm", "nkx", "nkc", "nkr", "nkb", "nkp", "nks",
+        // `nkr` is a Kontakt resource container: the scripts, pictures, .nka data, impulse responses and performance views the
+        // library's own instruments link to (KSP manual, "Resource Container",
+        // https://docs.native-instruments.com/online-guides/ksp-manual/en/resource-container). Not `nkc`: an older library's
+        // `<Library>_info.nkc` stands in for the `.nicnt` Native Access needs to add it (NI support 69000879770). Nor `nks`, which
+        // no Native Instruments source describes (#326, Decision 86).
+        "fxp", "fxb", "vstpreset", "aupreset", "nmsv", "nksf", "nksn", "nki", "nkm", "nkx", "nkr", "nkb", "nkp",
         "adg", "adv", "als", "alp", "agr", "ams", "amxd", "h2p", "mid", "midi", "syx",
         // Pictures and documents.
         "png", "jpg", "jpeg", "gif", "tif", "tiff", "bmp", "icns", "svg", "webp", "heic", "pdf", "html", "htm", "rtf",
