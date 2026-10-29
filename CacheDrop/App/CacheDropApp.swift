@@ -153,8 +153,8 @@ private struct WorkspaceView: View {
     @State private var locationToForget: RememberedScope?
     /// Work running in the background, earliest first, for every screen's bottom bar (Decision 46).
     @State private var backgroundWork = BackgroundWork()
-    /// The bar's line; a folder scan's carries its phase and count, and every folder scan's Stop scan, and Return to scan away
-    /// from its screen (#235, #364).
+    /// The bar's line; a new folder's scan carries its phase and count, the explorer's recheck only "Checking for changes…";
+    /// every folder scan has the Stop scan x, and Return to scan away from its screen (#235, #364).
     private var backgroundWorkStatus: BackgroundWorkStatus? {
         guard let line = backgroundWork.line(catalogProgress: selection.catalog.scanProgressText,
                                              folderPhase: folderInspection.isScanning ? folderInspection.progress?.phase ?? .enumerating : nil,
