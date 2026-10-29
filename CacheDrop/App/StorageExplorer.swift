@@ -163,12 +163,12 @@ struct StorageExplorerView: View {
                 // The screen's one explanation (Decision 25).
                 Text(showsLargeAndOld ? "Files of 500 MB or more, or not opened in 90 days." : "Click a name to open or inspect it. Tick a file to add it to your cleanup plan.")
                     .font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary).lineLimit(1).accessibilityIdentifier("explorerHint")
-                // The inspector is always there, showing one path (#320).
+                // The inspector shows one path, only for a picked item or a folder on show (#320, #371).
                 HStack(alignment: .top, spacing: CacheDropDesign.Space.lg) {
                     list.frame(maxWidth: .infinity, maxHeight: .infinity)
-                    if wide { inspector.frame(width: CacheDropDesign.Size.inspector) }
+                    if wide && showsInspector { inspector.frame(width: CacheDropDesign.Size.inspector) }
                 }.frame(maxHeight: .infinity)
-                if !wide { inspector.frame(maxHeight: min(CacheDropDesign.Size.inspectorStacked, geometry.size.height * CacheDropDesign.Size.inspectorStackedShare)) }
+                if !wide && showsInspector { inspector.frame(maxHeight: min(CacheDropDesign.Size.inspectorStacked, geometry.size.height * CacheDropDesign.Size.inspectorStackedShare)) }
             }.padding(CacheDropDesign.Space.page)
         }
         .quickLookPreview($model.previewURL)
@@ -288,7 +288,9 @@ struct StorageExplorerView: View {
             if let offered = offered(item) { planToggle(offered) }
         }.help(item.url.path)
     }
-    /// The inspected item, or else the folder on show, or else the list of locations.
+    /// At the list of locations, with nothing picked, there is no inspector and the list takes the width (#371).
+    private var showsInspector: Bool { inspected != nil || (folderAvailable && context.position.folder != nil) }
+    /// The inspected item, or else the folder on show.
     @ViewBuilder private var inspector: some View {
         if let entry = inspected {
             ExplorerInspector(name: entry.item.url.lastPathComponent) {
@@ -312,10 +314,6 @@ struct StorageExplorerView: View {
             ExplorerInspector(name: folder.lastPathComponent) {
                 inspectorField("Location", folder.path)
                 inspectorField("On disk", folderAllocation(folder))
-            }
-        } else {
-            ExplorerInspector(name: context.rootName) {
-                Text(scans.count == 1 ? "1 scanned folder" : "\(scans.count) scanned folders").font(.callout).foregroundStyle(.secondary)
             }
         }
     }
@@ -390,6 +388,7 @@ struct StorageExplorerView: View {
 }
 
 /// Shared bounded inspector surface: the host chooses a side pane or compact panel. Without `close` it stays open.
+/// It is as tall as its content, and scrolls only when the host's space is too short for it (#371).
 struct ExplorerInspector<Content: View>: View {
     let name: String
     var close: (() -> Void)? = nil
@@ -401,15 +400,19 @@ struct ExplorerInspector<Content: View>: View {
                     Text(name).font(CacheDropDesign.TypeStyle.section).lineLimit(2); Spacer()
                     if let close { CloseButton(label: "Close inspector", action: close) }
                 }
-                ScrollView {
-                    VStack(alignment: .leading, spacing: CacheDropDesign.Space.sm) { content() }
-                        // Selectable native text extends its accessibility frame beyond
-                        // its glyph origin; keep that frame inside the scroll viewport.
-                        .padding(.horizontal, CacheDropDesign.Space.xs)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                }.accessibilityIdentifier("inspectorEvidenceScroll")
+                ViewThatFits(in: .vertical) {
+                    evidence
+                    ScrollView { evidence }.accessibilityIdentifier("inspectorEvidenceScroll")
+                }
             }
         }.accessibilityIdentifier("explorerInspector")
+    }
+    private var evidence: some View {
+        VStack(alignment: .leading, spacing: CacheDropDesign.Space.sm) { content() }
+            // Selectable native text extends its accessibility frame beyond
+            // its glyph origin; keep that frame inside the scroll viewport.
+            .padding(.horizontal, CacheDropDesign.Space.xs)
+            .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
