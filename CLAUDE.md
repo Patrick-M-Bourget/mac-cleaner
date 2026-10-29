@@ -27,11 +27,7 @@ LIBDISPATCH_COOPERATIVE_POOL_STRICT=1 swift test --package-path Packages/CacheDr
 
 Verify on this Mac, not by pushing to CI. Tests touch only temp fixture folders, never real user paths.
 
-UI tests drive the screen, so run them only when the user isn't using it. Run only the journey you changed, and always turn off failure diagnostics, which would otherwise save system logs that may include other apps' activity:
-
-```sh
-xcodebuild test -project CacheDrop/CacheDrop.xcodeproj -scheme CacheDrop -destination 'platform=macOS' -derivedDataPath .build/xcode -collect-test-diagnostics never -only-testing:CacheDropUITests/<Class>/<test>
-```
+UI tests drive the screen, so run them only when the user isn't using it. Run only the journeys you changed with `scripts/ui-journeys.sh <testName>...` (`--all` for the suite): it resolves each test's class, clears leftover fixtures, stops on a failed build, keeps failure diagnostics off (they would save system logs that may include other apps' activity) and prints one line per test.
 
 The scheme keeps no test attachments and never records the screen (#153). Never take full-screen screenshots; capture only CacheDrop's window.
 
