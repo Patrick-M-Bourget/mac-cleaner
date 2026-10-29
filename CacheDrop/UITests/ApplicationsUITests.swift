@@ -232,7 +232,11 @@ final class ApplicationsUITests: XCTestCase {
         revealAndClick(row, in: app)
         XCTAssertEqual(row.value as? Int, 1)
 
-        try running.run()
+        // The sandboxed test runner quarantines what it writes and may not clear it, so a copied executable can't launch
+        // (Operation not permitted); the journey waits on a fixture app it can start (#383).
+        do { try running.run() } catch let error as NSError where error.domain == NSPOSIXErrorDomain && error.code == Int(EPERM) {
+            throw XCTSkip("The test runner can't launch a fixture app it wrote (#383)")
+        }
         app.buttons["Review cleanup"].click()
         let skipped = app.staticTexts["reviewSkipped-uninstall-app"]
         XCTAssertTrue(skipped.waitForExistence(timeout: 10), "The app's row will be skipped while it is open")
