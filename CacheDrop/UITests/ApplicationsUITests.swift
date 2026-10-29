@@ -90,8 +90,8 @@ final class ApplicationsUITests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: leftover.path))
     }
 
-    /// #295: one Sort (Size or Name) and one search orders and filters every section; a ticked row the search hides stays
-    /// ticked and counted in the bar, and clearing the search shows it again.
+    /// #295, #352: one sortable column header (Name or Size, either way round) and one search order and filter every section;
+    /// a ticked row the search hides stays ticked and counted in the bar, and clearing the search shows it again.
     @MainActor func testApplicationsSortByNameOrSizeAndSearchByMakerKeepsTicks() throws {
         continueAfterFailure = false
         let app = XCUIApplication()
@@ -113,12 +113,21 @@ final class ApplicationsUITests: XCTestCase {
         func order() -> [CGFloat] { rows.map(\.frame.minY) }
         XCTAssertTrue(order()[0] < order()[2] && order()[2] < order()[1], "Size, largest first, by default")
 
-        let sort = app.popUpButtons["applicationsSort"]
-        XCTAssertTrue(sort.exists)
-        sort.click(); app.menuItems["Name"].click()
+        // #352: the column header sorts; the active column carries the chevron and says its direction.
+        let byName = app.buttons["applicationsSort-name"], bySize = app.buttons["applicationsSort-size"]
+        XCTAssertTrue(bySize.exists && byName.exists)
+        XCTAssertEqual(bySize.value as? String, "Largest first")
+        byName.click()
         XCTAssertTrue(order()[1] < order()[0] && order()[0] < order()[2], "Name: Apex, Big Synth, Zed Tool")
-        sort.click(); app.menuItems["Size"].click()
+        XCTAssertEqual(byName.value as? String, "A to Z")
+        byName.click()
+        XCTAssertTrue(order()[2] < order()[0] && order()[0] < order()[1], "Clicking the active column flips it: Zed Tool, Big Synth, Apex")
+        XCTAssertEqual(byName.value as? String, "Z to A")
+        bySize.click()
         XCTAssertTrue(order()[0] < order()[2] && order()[2] < order()[1], "Back to largest first")
+        bySize.click()
+        XCTAssertTrue(order()[1] < order()[2] && order()[2] < order()[0], "Smallest first")
+        bySize.click()
 
         revealAndClick(rows[1], in: app)
         XCTAssertEqual(rows[1].value as? Int, 1)

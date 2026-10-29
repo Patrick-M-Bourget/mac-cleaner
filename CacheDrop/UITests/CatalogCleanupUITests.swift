@@ -992,6 +992,76 @@ extension CatalogCleanupUITests {
         XCTAssertTrue(openLargeAndOld(app).waitForExistence(timeout: 30))
     }
 
+    /// #373: Explore storage sorts its folder list and its large and old files from the column header, On disk largest
+    /// first by default, by Name with folders first; clicking the active column flips it, and the choice holds across lists.
+    @MainActor func testExplorerSortsByNameOrOnDiskAndSearches() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        let state = try configureIsolatedState(app)
+        let home = try configureCatalogHome(app)
+        let folder = FileManager.default.temporaryDirectory.resolvingSymlinksInPath().appendingPathComponent("CacheDropPicked-" + UUID().uuidString)
+        defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home); try? FileManager.default.removeItem(at: folder) }
+        try FileManager.default.createDirectory(at: folder.appendingPathComponent("Zeta"), withIntermediateDirectories: true)
+        // Both files are old, so both are also large and old files; Zeta holds a size between theirs.
+        let big = folder.appendingPathComponent("a-big.bin"), small = folder.appendingPathComponent("b-small.bin")
+        try Data(repeating: 1, count: 40_000).write(to: big)
+        try Data(repeating: 2, count: 4_000).write(to: small)
+        try Data(repeating: 3, count: 12_000).write(to: folder.appendingPathComponent("Zeta/inner.bin"))
+        let then = Date().addingTimeInterval(-200 * 86_400)
+        for file in [big, small] {
+            try FileManager.default.setAttributes([.creationDate: then, .modificationDate: then], ofItemAtPath: file.path)
+            var times = [timeval(tv_sec: Int(then.timeIntervalSince1970), tv_usec: 0), timeval(tv_sec: Int(then.timeIntervalSince1970), tv_usec: 0)]
+            XCTAssertEqual(utimes(file.path, &times), 0)
+        }
+        app.launch()
+        XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
+        app.links["overviewScanFolder"].click()
+        let panel = app.sheets.firstMatch.exists ? app.sheets.firstMatch : app.dialogs.firstMatch
+        XCTAssertTrue(panel.waitForExistence(timeout: 5))
+        panel.typeKey("g", modifierFlags: [.command, .shift])
+        app.typeText(folder.path + "\n")
+        panel.buttons["Scan folder"].click()
+        waitForScannedFolder(app)
+        let explore = app.links["Explore storage"]
+        XCTAssertTrue(explore.waitForExistence(timeout: 20))
+        explore.click()
+        app.buttons["Open folder " + folder.lastPathComponent].click()
+
+        let rows = [app.buttons["Inspect a-big.bin"].firstMatch, app.buttons["Open folder Zeta"].firstMatch, app.buttons["Inspect b-small.bin"].firstMatch]
+        XCTAssertTrue(rows[0].waitForExistence(timeout: 5))
+        func order() -> [CGFloat] { rows.map(\.frame.minY) }
+        let byName = app.buttons["explorerSort-name"], bySize = app.buttons["explorerSort-size"]
+        XCTAssertEqual(bySize.value as? String, "Largest first")
+        XCTAssertTrue(order()[0] < order()[1] && order()[1] < order()[2], "On disk, largest first: a-big, Zeta, b-small")
+        byName.click()
+        XCTAssertEqual(byName.value as? String, "A to Z")
+        XCTAssertTrue(order()[1] < order()[0] && order()[0] < order()[2], "Name, folders first: Zeta, a-big, b-small")
+        byName.click()
+        XCTAssertEqual(byName.value as? String, "Z to A")
+        XCTAssertTrue(order()[1] < order()[2] && order()[2] < order()[0], "Flipped, folders still first: Zeta, b-small, a-big")
+
+        // The rounded search field filters the folder; clearing it lists everything again.
+        let search = app.textFields["explorerSearch"]
+        search.click(); search.typeText("big")
+        XCTAssertTrue(rows[2].waitForNonExistence(timeout: 5))
+        XCTAssertTrue(rows[0].exists)
+        search.typeKey("a", modifierFlags: .command); search.typeKey(.delete, modifierFlags: [])
+        XCTAssertTrue(rows[2].waitForExistence(timeout: 5))
+
+        // Large and old files keep the chosen sort, and follow the header too.
+        bySize.click()
+        let mode = explorerMode(app)
+        XCTAssertTrue(mode.waitForExistence(timeout: 10))
+        mode.click()
+        let files = [app.checkBoxes["explorerChoose-a-big.bin"], app.checkBoxes["explorerChoose-b-small.bin"]]
+        XCTAssertTrue(files[0].waitForExistence(timeout: 5))
+        XCTAssertEqual(bySize.value as? String, "Largest first")
+        XCTAssertTrue(files[0].frame.minY < files[1].frame.minY, "Largest first")
+        bySize.click()
+        XCTAssertEqual(bySize.value as? String, "Smallest first")
+        XCTAssertTrue(files[1].frame.minY < files[0].frame.minY, "Smallest first")
+    }
+
     /// #227, #228: the explorer's back buttons name their destination. The Cleanup plan opened from the explorer goes back to
     /// "Explore storage", and a folder that went away leaves only the back button to the list of locations.
     @MainActor func testExplorerBackButtonsNameTheirDestination() throws {
