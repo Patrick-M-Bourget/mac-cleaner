@@ -62,4 +62,21 @@ extension CandidateHold {
         default: return nil
         }
     }
+
+    /// Items with the same hold, together (#374, #384).
+    public struct Group: Sendable {
+        /// What holds them; nil for free items.
+        public let hold: CandidateHold?
+        public let items: [Candidate]
+    }
+    /// `candidates` grouped by their hold, told apart by what holds them, never by the line's wording: free items first,
+    /// then each hold in the order it first appears. Smart clean gives each group a line of its own.
+    public static func grouped(_ candidates: [Candidate]) -> [Group] {
+        var holds: [CandidateHold?] = [], items: [CandidateHold?: [Candidate]] = [:]
+        for candidate in candidates {
+            if items[candidate.hold] == nil { holds.append(candidate.hold) }
+            items[candidate.hold, default: []].append(candidate)
+        }
+        return (holds.filter { $0 == nil } + holds.filter { $0 != nil }).map { Group(hold: $0, items: items[$0] ?? []) }
+    }
 }

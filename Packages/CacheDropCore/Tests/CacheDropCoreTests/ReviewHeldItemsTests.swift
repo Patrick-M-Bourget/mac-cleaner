@@ -113,3 +113,16 @@ private func open(_ ids: [String]) -> Bool { !Set(ids).isDisjoint(with: ["com.ma
     #expect(checked == ["other-cache"])
     #expect(held.refusals == [items[0].id: .ownerRunning("Synth")])
 }
+
+// #384: Smart clean gives held items a line per hold. Holds are told apart by what they are, not by their line's text: an
+// owner running and the same app using a copy both read "In use by Synth · Quit Synth to clean it". Free items come first,
+// then each hold in the order the scan found it.
+@Test func heldItemsAreGroupedByTheirHoldNotItsWording() {
+    func held(_ ruleID: String, _ hold: CandidateHold?) -> Candidate { var found = item(ruleID); found.hold = hold; return found }
+    let running = CandidateHold(.ownerRunning("Synth"), app: synth), using = CandidateHold(.inUse("Synth"), app: synth)
+    #expect(running.line == using.line)
+    let items = [held("synth-cache", using), held("browser-copies", nil), held("npm-cache", running), held("synth-presets", using)]
+    let groups = CandidateHold.grouped(items)
+    #expect(groups.map(\.hold) == [nil, using, running])
+    #expect(groups.map { $0.items.map(\.ruleID) } == [["browser-copies"], ["synth-cache", "synth-presets"], ["npm-cache"]])
+}
