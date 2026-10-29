@@ -2184,8 +2184,11 @@ final class FolderScanProgressUITests: XCTestCase {
             XCTAssertTrue(app.staticTexts["scanPhase"].exists, key)
             XCTAssertEqual(actionStrip(app).frame.height, height, accuracy: 0.5, key)
         }
-        actionStrip(app).links["Return to scan"].click()
-        XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 5))
+        // Back where it started: the link goes, so a failure here says whether the click landed or the screen was slow (#422).
+        let returnToScan = actionStrip(app).links["Return to scan"]
+        returnToScan.click()
+        XCTAssertTrue(returnToScan.waitForNonExistence(timeout: 10), "Return to scan is still offered")
+        XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
         actionStrip(app).buttons["Stop scan"].click()
         XCTAssertTrue(line.waitForNonExistence(timeout: 10))
         XCTAssertEqual(actionStrip(app).frame.height, height, accuracy: 0.5)
