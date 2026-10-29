@@ -95,3 +95,19 @@ private let picked = scan("/P", [
     let paths = (0..<20).map { _ in index([picked]).entry(resource: "r:/P/Sub/x.bin")?.item.url.path }
     #expect(Set(paths) == ["/P/Sub/link.bin"])
 }
+
+/// #373: a folder's list sorts as its column header says. By Name, folders stay first, either way round; by On disk,
+/// folders and files mix by what each holds, a folder by its subtotal.
+@Test func aFoldersListSortsByNameWithFoldersFirstOrByOnDisk() {
+    let explorer = index([scan("/S", [
+        observed("/S/big.bin", bytes: 5_000), observed("/S/Small", .folder), observed("/S/Small/a", bytes: 500),
+        observed("/S/mid.txt", bytes: 2_000), observed("/S/Zip", .folder), observed("/S/Zip/b", bytes: 3_000),
+    ])])
+    func names(_ sort: ListSort) -> [String] {
+        explorer.ordered(explorer.children(of: URL(fileURLWithPath: "/S")), by: sort).map(\.item.url.lastPathComponent)
+    }
+    #expect(names(ListSort()) == ["big.bin", "Zip", "mid.txt", "Small"], "On disk, largest first, by default")
+    #expect(names(ListSort(column: .size, ascending: true)) == ["Small", "mid.txt", "Zip", "big.bin"])
+    #expect(names(ListSort(column: .name, ascending: true)) == ["Small", "Zip", "big.bin", "mid.txt"])
+    #expect(names(ListSort(column: .name, ascending: false)) == ["Zip", "Small", "mid.txt", "big.bin"])
+}

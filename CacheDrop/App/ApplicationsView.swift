@@ -150,11 +150,10 @@ struct ApplicationsView: View {
                             identifier: "applicationsSearch")
         }.padding(.bottom, CacheDropDesign.Space.sm)
     }
-    /// The list's header, with the one Sort for every section right-aligned in it (#295, #352); "Name" sits over the rows' titles.
+    /// The list's sortable header, one sort for every section (#295, #352): "Name" over the rows' titles, "Size" over their sizes.
     private var columnHeader: some View {
-        ColumnHeader(leading: "Name", insets: EdgeInsets(top: 0, leading: CacheDropDesign.Size.categoryContentIndent, bottom: 0, trailing: 0)) {
-            SortMenu(order: Bindable(model).listing.order, identifier: "applicationsSort")
-        }
+        ColumnHeader(name: "Name", size: "Size", sort: Bindable(model).listing.sort, identifier: "applicationsSort",
+                     insets: EdgeInsets(top: 0, leading: CacheDropDesign.Size.categoryContentIndent, bottom: 0, trailing: 0))
     }
     private func noMatches(_ id: String) -> some View {
         state("No matches", "Nothing here has “\(model.listing.search.trimmingCharacters(in: .whitespaces))” in its name or maker.", symbol: "magnifyingglass",

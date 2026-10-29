@@ -1,19 +1,14 @@
 import Foundation
 
-/// How the Applications page orders and filters its Apps, Plug-ins and leftover groups (#295): one Sort and one search for
-/// all three. Searching only hides rows; it never changes what is ticked. Kept for the session, never across launches.
+/// How the Applications page orders and filters its Apps, Plug-ins and leftover groups (#295): one sort, set by the list's
+/// sortable column header (#352), and one search for all three. Searching only hides rows; it never changes what is
+/// ticked. Kept for the session, never across launches.
 public struct ApplicationsListing: Sendable, Equatable {
-    public enum Order: String, Sendable, CaseIterable, Identifiable {
-        /// Largest first, the Decision 51 default.
-        case size = "Size"
-        /// As Finder sorts names: case and accents don't matter, and numbers read as numbers.
-        case name = "Name"
-        public var id: String { rawValue }
-    }
-    public var order: Order
+    /// The sortable column header's choice (#352): Size, largest first, by default (Decision 51).
+    public var sort: ListSort
     /// What the search field holds; blank matches every row.
     public var search: String
-    public init(order: Order = .size, search: String = "") { self.order = order; self.search = search }
+    public init(sort: ListSort = ListSort(), search: String = "") { self.sort = sort; self.search = search }
 
     /// Whether something is being searched for.
     public var isSearching: Bool { !query.isEmpty }
@@ -35,11 +30,5 @@ public struct ApplicationsListing: Sendable, Equatable {
         ordered(items.filter { matches(name: name($0), maker: maker($0)) }, name: name, bytes: bytes)
     }
     /// `items` in this order, none left out: for rows already matched another way, such as leftovers.
-    public func ordered<T>(_ items: [T], name: (T) -> String, bytes: (T) -> Int64) -> [T] {
-        func byName(_ left: T, _ right: T) -> Bool { name(left).localizedStandardCompare(name(right)) == .orderedAscending }
-        switch order {
-        case .name: return items.sorted(by: byName)
-        case .size: return items.sorted { bytes($0) != bytes($1) ? bytes($0) > bytes($1) : byName($0, $1) }
-        }
-    }
+    public func ordered<T>(_ items: [T], name: (T) -> String, bytes: (T) -> Int64) -> [T] { sort.ordered(items, name: name, bytes: bytes) }
 }
