@@ -199,6 +199,12 @@ public enum DockerDiskUsage {
 }
 
 extension Catalog {
+    /// The review sheet's one note when the run prunes Docker (#411): its space reaches macOS a little after the prune, so
+    /// Results' "check again" isn't a surprise. Nil without a Docker item.
+    public func dockerReviewNote(for candidates: [Candidate]) -> String? {
+        candidates.contains { rule($0.ruleID)?.isDocker == true } ? "Space from Docker reaches macOS up to a minute after it finishes." : nil
+    }
+
     /// The candidate for one prune kind: the rule's `.docker` folder, sized by what its prune removes (#407).
     /// Nothing is offered for a kind with nothing to remove.
     func dockerCandidate(_ kind: DockerPruneKind, at url: URL, rule: CleanupRule, toolURL: URL?, usage: [DockerStorageCategory]) -> Candidate? {

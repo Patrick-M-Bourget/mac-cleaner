@@ -320,7 +320,7 @@ struct CleanupRunSection: View {
                 if let progress = selection.catalog.runProgress { running(progress) }
                 else { ProgressView(selection.catalog.dryRun ? "Checking selected items…" : "Cleaning selected items…") }
             }
-            if let result = selection.catalog.result { CatalogResultsSection(result: result, catalog: selection.catalog.catalog, reveal: reveal) }
+            if let result = selection.catalog.result { CatalogResultsSection(result: result, catalog: selection.catalog.catalog, settling: selection.catalog.settlingBatchID == result.batchID, reveal: reveal) }
             if let message = selection.catalog.message { StatusRow(text: message, symbol: "exclamationmark.triangle", role: .caution) }
             SettingsUnreadableNotice(model: selection.catalog)
         }.padding(CacheDropDesign.Space.page)

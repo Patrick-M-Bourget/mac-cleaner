@@ -847,6 +847,40 @@ final class CatalogCleanupUITests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: marker.path))
     }
 
+    /// #411: the review sheet says Docker's space reaches macOS after the prune; Results say a check is coming, then show
+    /// what more was free under the measured freed space. The wait is shortened for the journey.
+    @MainActor func testADockerRunSaysItWillCheckAgainThenShowsWhatMoreWasFree() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        let state = try configureIsolatedState(app)
+        let home = try configureCatalogHome(app)
+        app.launchEnvironment["CACHEDROP_TEST_LATER_WAIT"] = "3"
+        let marker = try addDocker(home, daemonAnswers: true)
+        defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
+        app.launch()
+
+        XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
+        waitForCatalogScan(app)
+        let row = app.buttons["overviewCategory-developer"]
+        XCTAssertTrue(row.waitForExistence(timeout: 10))
+        revealAndClick(row, in: app)
+        let npm = app.checkBoxes["planRule-npm-cache"]
+        XCTAssertTrue(npm.waitForExistence(timeout: 5))
+        if npm.value as? Int != 0 { revealAndClick(npm, in: app) }
+        revealAndClick(app.checkBoxes["planRule-docker-build-cache"], in: app)
+        app.buttons["Review cleanup"].click()
+
+        XCTAssertTrue(app.staticTexts["reviewDockerSettles"].waitForExistence(timeout: 5))
+        cleanUpFromReview(app)
+
+        XCTAssertTrue(app.staticTexts["resultsSettling"].waitForExistence(timeout: 10))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: marker.path))
+        let settled = app.staticTexts["resultsSettled"]
+        XCTAssertTrue(settled.waitForExistence(timeout: 15))
+        XCTAssertTrue((settled.value as? String)?.hasSuffix("a minute later") == true)
+        XCTAssertFalse(app.staticTexts["resultsSettling"].exists)
+    }
+
     @MainActor func testDockerShowsANoticeInsteadOfRowsWhenItsDaemonIsntRunning() throws {
         continueAfterFailure = false
         let app = XCUIApplication()

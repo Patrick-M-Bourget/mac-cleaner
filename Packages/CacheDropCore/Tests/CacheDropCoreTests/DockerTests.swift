@@ -638,8 +638,8 @@ private final class Counter: @unchecked Sendable {
 }
 
 /// #411: Docker hands freed space back to macOS after the prune returns (about 30 s on #376's real run), so a minute after
-/// a run whose Docker prunes completed, the disk's free space is read once more. The last Docker item's record gains what
-/// more was free; the freed space measured during the run doesn't change.
+/// a run whose Docker prunes completed, the disk's free space is read once more. Results show it under the measured freed
+/// space, which doesn't change; the last Docker item's record keeps it for History.
 @Test func aMinuteAfterCompletedPrunesTheDisksFreeSpaceIsReadOnceMore() async throws {
     let home = try fixtureHome()
     defer { try? FileManager.default.removeItem(at: home) }
@@ -649,18 +649,23 @@ private final class Counter: @unchecked Sendable {
     volume.freedPerRead = [0, 100, 0, 200, 2_000_000]
     let done = try await dockerRunning(home, docker: docker, choose: ["docker-images", "docker-build-cache"], volume: volume)
     #expect(done.result.records.allSatisfy { $0.state == .succeeded && $0.laterMeasurementText == nil })
+    // Results say a check is coming until it's done.
+    #expect(done.run.settles(done.result) && done.result.settledLine == nil)
     let waits = Delays()
     let later = await done.run.measureAgainLater(done.result, of: done.approval, wait: { waits.append($0); return true }) { _ in
         Issue.record("Nothing was stopped, so nothing is measured again"); return [:]
     }
     #expect(waits.values == [.seconds(60)])
     let byRule = Dictionary(uniqueKeysWithValues: later.records.map { ($0.ruleID ?? "", $0) })
-    // The build cache is pruned last, so its record carries the reading.
-    #expect(byRule["docker-images"]?.laterMeasurementText == nil)
-    #expect(byRule["docker-build-cache"]?.laterMeasurementText == "A minute later, the disk had 2 MB more free. Docker can hand space back to macOS after a prune.")
+    #expect(later.settledLine == "2 MB more free a minute later")
+    #expect(!done.run.settles(later))
     #expect(later.measuredFreedBytes == 300)
+    // No row repeats it in Results. The build cache is pruned last, so its record carries the reading for History.
+    #expect(later.records.allSatisfy { $0.laterMeasurementText == nil })
+    #expect(byRule["docker-images"]?.settledText == nil)
+    #expect(byRule["docker-build-cache"]?.settledText == "A minute later, the disk had 2 MB more free.")
     let journaled = try #require(try done.journal.records().first { $0.ruleID == "docker-build-cache" })
-    #expect(journaled.laterMeasurementText == byRule["docker-build-cache"]?.laterMeasurementText)
+    #expect(journaled.settledText == "A minute later, the disk had 2 MB more free.")
 }
 
 /// #411: a stopped prune and a completed one in the same run share the one wait. When the disk has no more free space a
@@ -685,7 +690,8 @@ private final class Counter: @unchecked Sendable {
     #expect(waits.values == [.seconds(60)])
     let after = Dictionary(uniqueKeysWithValues: later.records.map { ($0.ruleID ?? "", $0) })
     #expect(after["docker-images"]?.laterMeasurement?.finding == .gone)
-    #expect(after["docker-build-cache"]?.laterMeasurementText == "A minute later, the disk had no more free space.")
+    #expect(later.settledLine == "No more free space a minute later")
+    #expect(after["docker-build-cache"]?.settledText == "A minute later, the disk had no more free space.")
 }
 
 /// #411: an item cleaned after the last Docker prune (simulators and Android come after Docker) freed space the run already
@@ -697,7 +703,7 @@ private final class Counter: @unchecked Sendable {
     try FileManager.default.createDirectory(at: home.appendingPathComponent("Library/Caches/Yarn"), withIntermediateDirectories: true)
     try Data(count: 4096).write(to: home.appendingPathComponent("Library/Caches/Yarn/package.tgz"))
     let catalog = Catalog(rules: fixtureRules)
-    let found = catalog.discover(fixture: home, locateTool: { $0.executables.contains("/usr/local/bin/docker") ? docker : nil })
+    let found = try await discoveredOffThePool(home, docker)
     let cache = try #require(found.first { $0.ruleID == "docker-build-cache" }), yarn = try #require(found.first { $0.ruleID == "yarn-cache" })
     let volume = FakeVolume()
     // Before and after the build cache, before and after Yarn's cache (5 kB freed), then a minute later 2 MB more.
@@ -708,8 +714,20 @@ private final class Counter: @unchecked Sendable {
     let result = await run.execute(approval)
     #expect(result.records.map(\.state) == [.succeeded, .succeeded])
     let later = await run.measureAgainLater(result, of: approval, wait: { _ in true }) { _ in [:] }
-    #expect(later.records.first { $0.ruleID == "docker-build-cache" }?.laterMeasurementText
-            == "A minute later, the disk had 2 MB more free. Docker can hand space back to macOS after a prune.")
+    #expect(later.settledLine == "2 MB more free a minute later")
 }
 /// No owner is running, so an owned rule such as Yarn's is cleaned.
 private struct NothingRunning: RunningAppChecking { func isRunning(_ owner: RuleOwner) -> Bool? { false } }
+
+/// #411: the review sheet says before the run, once, that Docker's space reaches macOS a little after its prune, so
+/// Results' "check again" isn't a surprise. Nothing else gets the note.
+@Test func theReviewSheetSaysDockersSpaceArrivesAfterThePrune() async throws {
+    let home = try fixtureHome()
+    defer { try? FileManager.default.removeItem(at: home) }
+    let docker = try fakeDocker(home)
+    let catalog = Catalog(rules: fixtureRules)
+    let found = try await discoveredOffThePool(home, docker)
+    #expect(catalog.dockerReviewNote(for: found) == "Space from Docker reaches macOS up to a minute after it finishes.")
+    #expect(catalog.dockerReviewNote(for: found.filter { !$0.ruleID.hasPrefix("docker-") }) == nil)
+    #expect(catalog.rule("docker-images")?.consequence.hasSuffix("Docker must be running.") == true)
+}

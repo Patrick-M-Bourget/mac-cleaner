@@ -34,6 +34,12 @@ public struct CatalogExecutionResult: Sendable {
         }
         return total
     }
+    /// Results' line under the measured freed space once the disk was read again a minute after completed Docker prunes
+    /// (#411); nil before then. It isn't added to the measured freed space.
+    public var settledLine: String? {
+        guard let change = records.lazy.compactMap({ $0.settledCapacity?.observedChange }).first else { return nil }
+        return change > 0 ? ByteCountFormatter.string(fromByteCount: change, countStyle: .decimal) + " more free a minute later" : "No more free space a minute later"
+    }
     /// The candidates the run cleaned, or would have in a dry run, by id: they leave every page's selection (#349).
     public var cleanedCandidateIDs: [String] { records.filter { $0.state == .succeeded || $0.wasPreviewed }.map(\.candidateID) }
     /// The rows the pages keep, dimmed, while the rescan after this run runs (#375): what they showed, minus what the run
@@ -169,15 +175,19 @@ public actor CleanupExecutor {
         result.records.contains(where: \.awaitsLaterMeasurement) || settlingRecord(of: result) != nil
     }
 
+    /// Whether the disk is still to be read again a minute after `result`'s completed Docker prunes (#411): Results say a
+    /// check is coming until it's done.
+    public nonisolated func settles(_ result: CatalogExecutionResult) -> Bool { settlingRecord(of: result) != nil }
+
     /// The run's last completed Docker prune with its available space read (#411): Docker hands freed space back to macOS
     /// after the prune returns, so the disk is read once more a minute after the run and this record keeps what more was free.
     private nonisolated func settlingRecord(of result: CatalogExecutionResult) -> CleanupRecord? {
         guard !result.previewOnly else { return nil }
-        return result.records.last { record in
-            guard record.state == .succeeded, record.mayStillBeFinishing != true, record.itemCapacity != nil, record.settledCapacity == nil,
-                  let ruleID = record.ruleID else { return false }
+        let last = result.records.last { record in
+            guard record.state == .succeeded, record.mayStillBeFinishing != true, record.itemCapacity != nil, let ruleID = record.ruleID else { return false }
             return check.catalog.rule(ruleID)?.isDocker == true
         }
+        return last?.settledCapacity == nil ? last : nil
     }
 
     /// One wait, then one measurement of the records `ids` names, journaled, and the disk's available space read again for
