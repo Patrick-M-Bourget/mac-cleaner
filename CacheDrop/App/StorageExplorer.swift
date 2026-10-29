@@ -405,7 +405,7 @@ struct ExplorerInspector<Content: View>: View {
                     ScrollView { evidence }.accessibilityIdentifier("inspectorEvidenceScroll")
                 }
             }
-        }.accessibilityIdentifier("explorerInspector")
+        }.accessibilityElement(children: .contain).accessibilityIdentifier("explorerInspector")
     }
     private var evidence: some View {
         VStack(alignment: .leading, spacing: CacheDropDesign.Space.sm) { content() }
