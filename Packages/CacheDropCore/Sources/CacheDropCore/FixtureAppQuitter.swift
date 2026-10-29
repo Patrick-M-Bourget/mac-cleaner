@@ -27,9 +27,9 @@ public struct FixtureAppQuitter: AppQuitting {
 
     /// The current user's processes run from inside an app bundle under `root` with one of these identifiers.
     private func processes(_ bundleIDs: [String]) -> [pid_t] {
-        let base = SystemRunningAppChecker.sameForm(root.resolvingSymlinksInPath().path + "/")
+        let base = UserProcesses.sameForm(root.resolvingSymlinksInPath().path + "/")
         return (UserProcesses.pids() ?? []).filter { pid in
-            guard let path = UserProcesses.executablePath(pid).map(SystemRunningAppChecker.sameForm), path.hasPrefix(base),
+            guard let path = UserProcesses.executablePath(pid).map(UserProcesses.sameForm), path.hasPrefix(base),
                   let bundle = Self.enclosingApp(path) else { return false }
             let info = NSDictionary(contentsOfFile: bundle + "/Contents/Info.plist")
             return (info?["CFBundleIdentifier"] as? String).map(bundleIDs.contains) == true
