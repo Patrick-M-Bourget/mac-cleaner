@@ -12,8 +12,10 @@ struct CatalogItemRows: View {
     var app: String? = nil
     /// The Applications page's Sort and search, for its leftovers (#295); nil lists every item by name.
     var listing: ApplicationsListing? = nil
+    /// Only the items something holds (#374), under a rule row that otherwise lists none.
+    var onlyHeld = false
     var body: some View {
-        let found = model.candidates(for: rule).filter { app.map($0.isUninstalled(with:)) ?? true }
+        let found = model.candidates(for: rule).filter { (app.map($0.isUninstalled(with:)) ?? true) && (!onlyHeld || $0.hold != nil) }
         let items = listing.map { $0.ordered(found.filter($0.matches), name: \.displayName, bytes: \.estimatedBytes) }
             ?? found.sorted { $0.displayName.localizedStandardCompare($1.displayName) == .orderedAscending }
         LazyVStack(alignment: .leading, spacing: 0) {
@@ -31,6 +33,8 @@ struct CatalogItemRows: View {
         }
     }
     private func detail(_ item: Candidate) -> String {
+        // Held at the scan (#374): unticked, saying what holds it.
+        if let hold = item.hold { return hold.line }
         // A possibly related leftover says why it is shown (#173).
         if let reason = item.leftover?.reason { return reason }
         // A plug-in item other products use too (#176, Decision 52).

@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-import CacheDropCore
+@testable import CacheDropCore
 
 /// A temp home folder; tests never read or write the real home.
 private func overviewHome() throws -> URL {
@@ -162,4 +162,22 @@ private func rule(_ id: String, _ category: CatalogCategory, _ action: CleanupAc
     let overview = CatalogOverview(catalog: catalog, candidates: candidates)
     #expect(overview.rows.map(\.planLayout) == [.items])
     #expect(overview.rows.first?.itemCount == 2)
+}
+
+/// #374: a held item shows on the plan, listed so it can be ticked on its own, but Overview's main size counts only cleanable space.
+@Test func aHeldItemIsListedOnThePlanButNotCountedInTheMainSize() throws {
+    let home = try overviewHome()
+    defer { try? FileManager.default.removeItem(at: home) }
+    try write(4096, at: "single/f", in: home)
+    try write(8192, at: "held/f", in: home)
+    let catalog = Catalog(rules: [rule("single", .developer), rule("held", .browser)])
+    let candidates = catalog.discover(fixture: home).map { found in
+        var found = found
+        if found.ruleID == "held" { found.hold = CandidateHold(.inUse("Browser")) }
+        return found
+    }
+    let overview = CatalogOverview(catalog: catalog, candidates: candidates)
+    #expect(overview.rows.map(\.category) == [.developer, .browser])
+    #expect(overview.recommended == SizeEstimate(sum: candidates.filter { $0.ruleID == "single" }.map(SizeEstimate.init)))
+    #expect(overview.rows.map(\.planLayout) == [.categoryOnly, .items], "A lone held item is listed, to be ticked on its own")
 }
