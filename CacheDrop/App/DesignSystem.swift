@@ -20,6 +20,8 @@ enum CacheDropDesign {
         static let searchField: CGFloat = 210
         /// The prototype's search field: 7 points above and below its text.
         static let searchFieldHeight: CGFloat = 28
+        /// The sidebar's icon column (#424).
+        static let sidebarIcon: CGFloat = 20
         /// A skeleton row's title and detail bars (#308), about the height of the text they stand in for.
         static let skeletonTitle: CGFloat = 11; static let skeletonDetail: CGFloat = 8
         /// How much wider a skeleton row's detail bar is than its title bar, as a share of the column (#308).
@@ -675,7 +677,10 @@ struct CacheDropSidebarRow: View {
     var body: some View {
         Button(action: action) {
             HStack(spacing: CacheDropDesign.Space.sm) {
-                Label { Text(title).foregroundStyle(selected ? .primary : .secondary) } icon: { Image(systemName: symbol).foregroundStyle(accent) }
+                // One icon column, so every label starts at the same place whatever the symbol's width (#424).
+                Label { Text(title).foregroundStyle(selected ? .primary : .secondary) } icon: {
+                    Image(systemName: symbol).foregroundStyle(accent).frame(width: CacheDropDesign.Size.sidebarIcon)
+                }
                 Spacer(minLength: 0)
                 if let count = selectedCategories {
                     Text(String(max(0, count))).font(.caption2.weight(.medium)).monospacedDigit()
