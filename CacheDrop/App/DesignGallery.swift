@@ -116,7 +116,7 @@ struct DesignGallery: View {
                     SummarySurface {
                         VStack(alignment: .leading, spacing: CacheDropDesign.Space.md) {
                             StatusRow(text: "Completed selected-scope observation", symbol: "checkmark.circle", role: .success)
-                            StatusRow(text: "Partial coverage · Remaining bytes unknown", symbol: "exclamationmark.circle", role: .caution)
+                            StatusRow(text: "Scanned 10:42 · Not fully read", symbol: "exclamationmark.circle", role: .caution)
                             StatusRow(text: "Access unavailable · Choose the folder again", symbol: "lock", role: .failure)
                             ProgressView("Reading metadata…")
                         }

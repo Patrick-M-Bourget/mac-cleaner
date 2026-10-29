@@ -11,11 +11,11 @@ import CacheDropCore
         var text: String {
             switch self {
             case .notScanned: "Not scanned"
-            case .ready: "Ready for manual scan"
-            case .chooseAgain: "Access unavailable · Choose again to renew"
-            case .unavailable: "Location unavailable · Reconnect and recheck"
-            case .omitted: "Omitted from the next scan"
-            case .recheck: "Not scanned · Recheck required"
+            case .ready: "Ready to scan"
+            case .chooseAgain: "Access unavailable · Choose the folder again"
+            case .unavailable: "Location unavailable · Reconnect it, then recheck"
+            case .omitted: "Left out of scans"
+            case .recheck: "Not scanned since you included it"
             }
         }
         /// The short reason Overview's recovery row gives next to the location's name (#223).
@@ -64,7 +64,7 @@ import CacheDropCore
     func load() {
         let saved: [RememberedScope]
         do { saved = try registry().list(); message = nil }
-        catch { scopes = builtIn; message = "Remembered locations could not be read. No locations were scanned."; return }
+        catch { scopes = builtIn; message = "CacheDrop couldn’t read your list of folders, so none were scanned."; return }
         scopes = builtIn + saved.filter { !replacedByBuiltIn($0) }
         forgetReplaced(saved)
     }
@@ -82,7 +82,7 @@ import CacheDropCore
         do {
             let scope = try registry().remember(url: url, kind: downloads ? .downloads : .inspection)
             load(); statuses[scope.id] = .notScanned; recoveryReasons[scope.id] = nil; return true
-        } catch { message = "This location could not be remembered. Choose it again or check access."; return false }
+        } catch { message = "CacheDrop couldn’t save this folder. Choose it again, or check access in System Settings."; return false }
     }
     var included: [RememberedScope] { scopes.filter(\.isIncluded) }
     func resolve(_ scope: RememberedScope) -> ScopeAccessLease? {
@@ -100,12 +100,12 @@ import CacheDropCore
     @discardableResult func setIncluded(_ value: Bool, scope: RememberedScope) -> Bool {
         guard !scope.isBuiltIn else { return false }
         do { try registry().setIncluded(value, id: scope.id); load(); statuses[scope.id] = value ? .recheck : .omitted; return true }
-        catch { message = "The location setting could not be saved."; return false }
+        catch { message = "CacheDrop couldn’t save this change."; return false }
     }
     @discardableResult func forget(_ scope: RememberedScope) -> Bool {
         guard !scope.isBuiltIn else { return false }
         do { try registry().forget(scope.id); load(); statuses[scope.id] = nil; recoveryReasons[scope.id] = nil; return true }
-        catch { message = "The location could not be forgotten. No files were changed."; return false }
+        catch { message = "CacheDrop couldn’t forget this folder. No files were changed."; return false }
     }
     func leases(for urls: [URL]) throws -> [ScopeAccessLease] {
         let registry = try registry()

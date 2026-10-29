@@ -877,7 +877,7 @@ private struct WorkspaceView: View {
                 }
                 if locationsModel.statuses[scope.id]?.needsRecovery == true,
                    let previous = folderInspection.scopeReports.first(where: { $0.current.scope.path == scope.path })?.lastComplete {
-                    Text("Last complete observation: " + previous.observedAt.formatted() + " · Historical, not current coverage").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
+                    Text("Last full scan: " + previous.observedAt.formatted() + " · May be out of date").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
                 }
                 Divider()
             }
@@ -903,14 +903,15 @@ private struct WorkspaceView: View {
             let candidate = URL(fileURLWithPath: other.path).standardizedFileURL.pathComponents
             return components.starts(with: candidate) || candidate.starts(with: components)
         }
-        return overlaps ? "Overlaps another remembered location · Shared contents are counted once." : nil
+        return overlaps ? "Overlaps another location · Files in both are counted once." : nil
     }
     private func locationStatus(_ scope: RememberedScope) -> String {
-        if !scope.isIncluded { return "Omitted from the next scan" }
+        if !scope.isIncluded { return "Left out of scans" }
         if let status = locationsModel.statuses[scope.id], status.needsRecovery { return status.text }
         if let scan = selection.scans[URL(fileURLWithPath: scope.path)] {
-            if selection.unavailableScopes.contains(scan.scope.standardizedFileURL) { return "Refresh required" }
-            return scan.isComplete ? "Observed · " + scan.observedAt.formatted(date: .omitted, time: .shortened) : "Partial coverage · Uninspected bytes unknown"
+            if selection.unavailableScopes.contains(scan.scope.standardizedFileURL) { return "Scan again to update" }
+            let scanned = "Scanned " + scan.observedAt.formatted(date: .omitted, time: .shortened)
+            return scan.isComplete ? scanned : scanned + " · Not fully read"
         }
         return "Not scanned"
     }

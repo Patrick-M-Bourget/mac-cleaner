@@ -525,8 +525,8 @@ final class ScannedLocationsUITests: XCTestCase {
         XCTAssertTrue(row.waitForExistence(timeout: 15))
         XCTAssertEqual(row.value as? String, "Projects · Access unavailable")
         XCTAssertFalse(app.staticTexts.matching(NSPredicate(format: "value CONTAINS 'Current coverage'")).firstMatch.exists)
-        XCTAssertFalse(app.staticTexts.matching(NSPredicate(format: "value CONTAINS 'Recheck required'")).firstMatch.exists)
-        XCTAssertFalse(app.staticTexts.matching(NSPredicate(format: "value CONTAINS 'Choose again to renew'")).firstMatch.exists)
+        XCTAssertFalse(app.staticTexts.matching(NSPredicate(format: "value CONTAINS 'since you included it'")).firstMatch.exists)
+        XCTAssertFalse(app.staticTexts.matching(NSPredicate(format: "value CONTAINS 'Choose the folder again'")).firstMatch.exists)
 
         let chooseAgain = app.links["overviewChooseAgain"]
         XCTAssertEqual(chooseAgain.label, "Choose again…")
