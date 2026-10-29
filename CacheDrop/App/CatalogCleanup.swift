@@ -509,8 +509,8 @@ import SwiftUI
     /// Chooses or clears every item the rules found, such as a whole category. Items chosen one by one (possibly related
     /// leftovers, #173) are never chosen with them.
     func setSelected(_ rules: [CleanupRule], _ selected: Bool) {
-        // A held item (#374) is ticked on its own too.
-        setSelected(rules.filter { !$0.selectedOneByOne }.flatMap(candidates(for:)).filter { $0.hold == nil }, selected)
+        // A held item (#374) is ticked only on its own row, but unticking the rules clears it too.
+        setSelected(rules.filter { !$0.selectedOneByOne }.flatMap(candidates(for:)).filter { !selected || $0.hold == nil }, selected)
     }
     func setSelected(_ candidate: Candidate, _ selected: Bool) { setSelected([candidate], selected) }
     /// Ticks or unticks found items on any page; every page that lists them shows it (#349).
