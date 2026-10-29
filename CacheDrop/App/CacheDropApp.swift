@@ -595,7 +595,8 @@ private struct WorkspaceView: View {
         return locationsModel.included.filter { !recovering.contains($0.id) }.map { scope in
             let url = URL(fileURLWithPath: scope.path).standardizedFileURL
             let current = selection.unavailableScopes.contains(url) ? nil
-                : selection.scans[URL(fileURLWithPath: scope.path)] ?? folderInspection.scopeReports.first { $0.current.scope.standardizedFileURL == url }?.current
+                // Scans are keyed by the URL each scan was given; compare standardized paths on both sides (#388).
+                : selection.scans.first { $0.key.standardizedFileURL == url }?.value ?? folderInspection.scopeReports.first { $0.current.scope.standardizedFileURL == url }?.current
             return ScannedLocationsSummary.Location(scope: url, scan: current)
         }
     }
