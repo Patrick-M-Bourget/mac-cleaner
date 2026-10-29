@@ -252,7 +252,7 @@ struct LiveCleanupPlanView: View {
         ScrollViewReader { proxy in
         ScrollView {
         if selection.showsRun(for: .plan) {
-            CleanupRunSection(selection: selection)
+            CleanupRunSection(selection: selection, reveal: proxy.revealRow)
         } else {
         VStack(alignment: .leading, spacing: CacheDropDesign.Space.lg) {
             PageHeader(title: "Cleanup plan", subtitle: "Choose categories, adjust items if needed, then review the changes.",
@@ -310,6 +310,8 @@ struct WorkspaceCleanupReview: Identifiable {
 /// A running or finished cleanup, from either selection: the header, progress and outcomes.
 struct CleanupRunSection: View {
     let selection: SessionPlan
+    /// Scrolls the page to a result row (`ScrollViewProxy.revealRow`).
+    var reveal: (CleanupRecord.ID) -> Void = { _ in }
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     var body: some View {
         VStack(alignment: .leading, spacing: CacheDropDesign.Space.xl) {
@@ -318,7 +320,7 @@ struct CleanupRunSection: View {
                 if let progress = selection.catalog.runProgress { running(progress) }
                 else { ProgressView(selection.catalog.dryRun ? "Checking selected items…" : "Cleaning selected items…") }
             }
-            if let result = selection.catalog.result { CatalogResultsSection(result: result, catalog: selection.catalog.catalog) }
+            if let result = selection.catalog.result { CatalogResultsSection(result: result, catalog: selection.catalog.catalog, reveal: reveal) }
             if let message = selection.catalog.message { StatusRow(text: message, symbol: "exclamationmark.triangle", role: .caution) }
             SettingsUnreadableNotice(model: selection.catalog)
         }.padding(CacheDropDesign.Space.page)

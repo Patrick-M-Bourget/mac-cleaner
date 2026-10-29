@@ -8,10 +8,11 @@ import SwiftUI
 struct CatalogResultsSection: View {
     let result: CatalogExecutionResult
     let catalog: Catalog
+    /// Scrolls the page's own scroll view to a result row, for the "Not cleaned" line (#374): `ScrollViewProxy.revealRow`.
+    var reveal: (CleanupRecord.ID) -> Void = { _ in }
     /// One switch for every row's path and messages, so the list stays one line per item until asked.
     @State private var showsDetails = false
     var body: some View {
-        ScrollViewReader { proxy in
         VStack(alignment: .leading, spacing: CacheDropDesign.Space.lg) {
             if result.previewOnly {
                 let previewed = result.records.filter(\.wasPreviewed)
@@ -29,7 +30,7 @@ struct CatalogResultsSection: View {
                         if result.movedToTrashBytes > 0 { metric(catalogBytes(result.movedToTrashBytes), "In the Trash · Freed when you empty it") }
                     }
                 }
-                notCleaned(proxy)
+                notCleaned
                 if !onlyTrashed {
                     Text("Measured from the change in available space around each item. Other activity on this Mac can affect it.")
                         .font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
@@ -49,15 +50,14 @@ struct CatalogResultsSection: View {
             }
             if let failure = result.journalFailure { StatusRow(text: failure, symbol: "exclamationmark.triangle", role: .caution) }
         }
-        }
     }
     /// What the run didn't clean (#374), in one line under the metrics that leads to those rows, listed first below.
-    @ViewBuilder private func notCleaned(_ proxy: ScrollViewProxy) -> some View {
+    @ViewBuilder private var notCleaned: some View {
         let skipped = result.records.filter(\.needsAttention)
         if let first = skipped.first {
             Button("Not cleaned · " + CacheDropDesign.items(skipped.count) + " · " + catalogBytes(skipped.reduce(0) { $0 + $1.recordedBytes })) {
-                withAnimation { proxy.scrollTo(first.id, anchor: .top) }
-            }.buttonStyle(.link).accessibilityIdentifier("resultsNotCleaned")
+                reveal(first.id)
+            }.buttonStyle(.link).font(CacheDropDesign.TypeStyle.caption).accessibilityIdentifier("resultsNotCleaned")
         }
     }
     private func upperBound(_ records: [CleanupRecord]) -> Bool { records.contains { $0.ruleID.flatMap { catalog.rule($0)?.estimateIsUpperBound } == true } }
@@ -115,4 +115,10 @@ private struct CatalogResultRow: View {
             }.padding(.leading, CacheDropDesign.Space.lg + CacheDropDesign.Space.md)
         }.padding(.vertical, CacheDropDesign.Space.md)
     }
+}
+
+extension ScrollViewProxy {
+    /// Brings a result row to the top of the page's scroll view (#374). A `ScrollViewReader` reaches only scroll views inside
+    /// it, so each page that shows results reads its own and hands this down.
+    func revealRow(_ id: CleanupRecord.ID) { withAnimation { scrollTo(id, anchor: .top) } }
 }

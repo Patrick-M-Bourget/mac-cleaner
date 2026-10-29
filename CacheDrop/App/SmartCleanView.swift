@@ -22,9 +22,11 @@ struct SmartCleanView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            ScrollView {
-                if selection.showsRun(for: .smartClean) { CleanupRunSection(selection: selection) } else { page }
-            }.background(CacheDropDesign.reading)
+            ScrollViewReader { proxy in
+                ScrollView {
+                    if selection.showsRun(for: .smartClean) { CleanupRunSection(selection: selection, reveal: proxy.revealRow) } else { page }
+                }.background(CacheDropDesign.reading)
+            }
             CleanupActionBar(selection: selection, source: .smartClean, viewHistory: viewHistory, reviewRecovery: reviewRecovery) {
                 Button("Done") { selection.dismissResult() }.buttonStyle(.borderedProminent).accessibilityIdentifier("smartCleanDone")
             } idle: {

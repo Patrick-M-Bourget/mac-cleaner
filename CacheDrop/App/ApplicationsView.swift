@@ -74,9 +74,11 @@ struct ApplicationsView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            ScrollView {
-                if selection.showsRun(for: .applications) { CleanupRunSection(selection: selection) } else { page }
-            }.background(CacheDropDesign.reading)
+            ScrollViewReader { proxy in
+                ScrollView {
+                    if selection.showsRun(for: .applications) { CleanupRunSection(selection: selection, reveal: proxy.revealRow) } else { page }
+                }.background(CacheDropDesign.reading)
+            }
             // Every ticked item is counted, those the search hides too (#295).
             CleanupActionBar(selection: selection, source: .applications, viewHistory: viewHistory, reviewRecovery: reviewRecovery,
                              idleNote: catalog.applicationsSelected.isEmpty ? nil : CacheDropDesign.items(catalog.applicationsSelected.count) + " selected") {
