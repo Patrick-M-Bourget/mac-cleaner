@@ -352,7 +352,7 @@ struct StorageExplorerView: View {
         return file.lastUsed.map { folder + " · Last used " + $0.formatted(date: .abbreviated, time: .omitted) } ?? folder
     }
     private func whyListed(_ file: Candidate) -> String {
-        let large = file.logicalBytes >= UserFiles.largeBytes ? "500 MB or more" : nil
+        let large = file.estimatedBytes >= UserFiles.largeBytes ? "500 MB or more" : nil // On disk, as the list judged it (#394).
         let old = file.lastUsed.flatMap { $0 < Date().addingTimeInterval(-Double(UserFiles.unusedDays) * .secondsPerDay) ? "not opened since " + $0.formatted(date: .abbreviated, time: .omitted) : nil }
         return ([large, old].compactMap { $0 }.joined(separator: " and ") + ".").capitalizedFirst + " Age and size don’t mean it’s unwanted; you decide."
     }
