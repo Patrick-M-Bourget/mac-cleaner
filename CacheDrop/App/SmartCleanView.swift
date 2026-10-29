@@ -94,19 +94,21 @@ struct SmartCleanView: View {
     /// those lines, not the items behind them (#229).
     private func category(_ row: CatalogOverview.Row, items: [Candidate]) -> some View {
         let found = items.filter { candidate in row.rules.contains { $0.id == candidate.ruleID } }
-        // A held item is ticked on its own, never with its category (#374).
-        let free = found.filter { $0.hold == nil }, together = free.isEmpty ? found : free
-        let ticked = found.filter(model.isSelected).count
-        let state: CategorySelectionState = ticked == 0 ? .unchecked : together.allSatisfy(model.isSelected) ? .checked : .mixed
+        // The plan's rule (#240): a held item is ticked on its own, never with its category (#374).
+        let selection = model.categorySelection(row.rules, items: found)
         let lines = lines(row, found: found)
         let expanded = Binding(get: { presentation.expandedCategories.contains(row.category) },
                                set: { if $0 { presentation.expandedCategories.insert(row.category) } else { presentation.expandedCategories.remove(row.category) } })
         // One consequence line per category (#319), from what its rules do.
         let consequence = SmartCleanConsequence.line(for: row.category, rules: row.rules)
-        return CategoryRow(category: row.category.storageCategory, state: state, title: row.category.smartCleanTitle, detail: consequence,
+        return CategoryRow(category: row.category.storageCategory, state: selection.state, title: row.category.smartCleanTitle, detail: consequence,
                            size: row.valueText, enabled: model.canEdit, identifier: "smartCleanCategory-" + row.id,
                            itemCount: lines.count > 1 ? lines.count : nil, expanded: expanded,
-                           toggle: { model.setSelected(state != .checked ? together : found, state != .checked) }) {
+                           toggle: {
+            // Nothing may be ticked together: a lone line is the category's own row, so its checkbox ticks it; several open.
+            guard model.toggle(selection) else { return }
+            if lines.count == 1, let only = lines.first { model.setSelected(only.items, true) } else { expanded.wrappedValue = true }
+        }) {
             EmptyView()
         } items: {
             VStack(alignment: .leading, spacing: 0) { ForEach(lines) { line($0) } }
