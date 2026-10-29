@@ -525,10 +525,19 @@ private struct WorkspaceView: View {
         VStack(alignment: .leading, spacing: CacheDropDesign.Space.sm) {
             // One row per problem (#223, #231): each unavailable location names itself and carries the fix.
             ForEach(locationsModel.recoveries, id: \.scope.id) { scope, status in
-                StatusRow(text: recoveryText(scope, status: status), symbol: "info.circle", role: .caution,
-                    identifier: "overviewLocationRecovery", action: StatusAction(title: "Choose again…", identifier: "overviewChooseAgain") {
-                    renewAndScan(scope)
-                }).disabled(folderInspection.isScanning || selection.workspaceRunning)
+                if scope.isBuiltIn {
+                    // Built-in Downloads is never picked (#342, #388): Full Disk Access is its fix, not Choose again….
+                    HStack(alignment: .firstTextBaseline, spacing: CacheDropDesign.Space.sm) {
+                        StatusRow(text: recoveryText(scope, status: status), symbol: "info.circle", role: .caution, identifier: "overviewLocationRecovery").fixedSize()
+                        FullDiskAccessLink(title: "Grant Full Disk Access", symbol: nil)
+                        Spacer(minLength: 0)
+                    }
+                } else {
+                    StatusRow(text: recoveryText(scope, status: status), symbol: "info.circle", role: .caution,
+                        identifier: "overviewLocationRecovery", action: StatusAction(title: "Choose again…", identifier: "overviewChooseAgain") {
+                        renewAndScan(scope)
+                    }).disabled(folderInspection.isScanning || selection.workspaceRunning)
+                }
             }
             if let notice = locationsModel.notice { StatusRow(text: notice, symbol: "info.circle", role: .caution) }
             if let message = folderInspection.message, !recoveryRowCovers(folderInspection.unavailableScope) {
@@ -609,7 +618,9 @@ private struct WorkspaceView: View {
     /// Overview's recovery rows, for the explorer to mark those locations' last observations as gone (#249).
     private var explorerUnavailable: [ExplorerUnavailableLocation] {
         locationsModel.recoveries.map { scope, status in
-            ExplorerUnavailableLocation(scope: URL(fileURLWithPath: scope.path).standardizedFileURL, reason: locationsModel.recoveryReasons[scope.id] ?? status.reason) { renewAndScan(scope) }
+            // Built-in Downloads is checked again rather than picked (#388).
+            ExplorerUnavailableLocation(scope: URL(fileURLWithPath: scope.path).standardizedFileURL, reason: locationsModel.recoveryReasons[scope.id] ?? status.reason,
+                                        actionTitle: scope.isBuiltIn ? "Check again" : "Choose again…") { if scope.isBuiltIn { scanLocations([scope]) } else { renewAndScan(scope) } }
         }
     }
     /// "Folder not found · last scanned <time>" for a deleted or moved folder, "Access unavailable" for an unreadable one (#254).
@@ -856,7 +867,8 @@ private struct WorkspaceView: View {
                         }
                         if locationsModel.statuses[scope.id]?.needsRecovery == true {
                             // A row's actions are links (#311).
-                            Button("Choose again…") { chooseAgain(scope) }.buttonStyle(.link)
+                            if scope.isBuiltIn { FullDiskAccessLink(title: "Grant Full Disk Access", symbol: nil) } // Never picked (#388).
+                            else { Button("Choose again…") { chooseAgain(scope) }.buttonStyle(.link) }
                             Button("Reconnect and recheck") { scanLocations([scope]) }.buttonStyle(.link).disabled(!scope.isIncluded)
                         }
                         // Built-in Downloads can't be forgotten (#342).
