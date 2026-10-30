@@ -110,6 +110,45 @@ final class LaunchSmokeUITests: XCTestCase {
         XCTAssertFalse(app.staticTexts["Still"].exists)
     }
 
+    /// #440: the developer gallery is a separate reusable window; local appearance never changes the workspace.
+    @MainActor func testDebugGalleryOpensSwitchesAppearanceAndReopensWithoutNavigatingTheWorkspace() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        let state = try configureIsolatedState(app)
+        let home = try configureCatalogHome(app)
+        defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
+        app.launch()
+        let workspace = app.windows["CacheDrop"]
+        XCTAssertTrue(workspace.staticTexts["Storage overview"].waitForExistence(timeout: 10))
+        func openGallery() {
+            app.menuBars.menuBarItems["Debug"].click()
+            app.menuItems["Design gallery"].click()
+        }
+        openGallery()
+        let gallery = app.windows["Design gallery"]
+        XCTAssertTrue(gallery.staticTexts["designGalleryTitle"].waitForExistence(timeout: 10))
+        XCTAssertTrue(workspace.staticTexts["Storage overview"].exists)
+        openGallery()
+        XCTAssertEqual(app.windows.matching(identifier: "Design gallery").count, 1, "The command reuses the gallery window")
+        let appearance = gallery.popUpButtons["Appearance"]
+        XCTAssertTrue(appearance.exists)
+        for title in ["Dark", "Light"] {
+            appearance.click()
+            app.menuItems[title].click()
+            XCTAssertEqual(appearance.value as? String, title)
+        }
+        gallery.buttons["closeDesignGallery"].click()
+        XCTAssertTrue(gallery.waitForNonExistence(timeout: 5))
+        workspace.click()
+        app.typeKey("3", modifierFlags: .command)
+        XCTAssertTrue(workspace.staticTexts["Cleanup plan"].waitForExistence(timeout: 5))
+        openGallery()
+        XCTAssertTrue(gallery.staticTexts["designGalleryTitle"].waitForExistence(timeout: 5))
+        gallery.buttons["closeDesignGallery"].click()
+        XCTAssertTrue(gallery.waitForNonExistence(timeout: 5))
+        XCTAssertTrue(workspace.staticTexts["Cleanup plan"].exists, "Opening and closing the gallery leaves the workspace's page intact")
+    }
+
     /// #156: the standard About panel shows the app icon, CacheDrop, its version and its build.
     @MainActor func testAboutPanelShowsIconNameVersionAndBuild() throws {
         continueAfterFailure = false
