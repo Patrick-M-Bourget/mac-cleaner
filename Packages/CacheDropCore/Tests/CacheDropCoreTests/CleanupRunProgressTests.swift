@@ -13,11 +13,11 @@ private let catalog = Catalog(rules: fixtureRules)
 private let GB: Int64 = 1_000_000_000
 private let npm = item("npm-cache", "npm", bytes: 3 * GB), logs = item("app-logs", "logs", bytes: 1 * GB)
 private let derived = item("xcode-derived-data", "derived", bytes: 12 * GB), installer = item("downloads", "Setup.dmg", bytes: 4 * GB)
-private let approval = CatalogApproval(candidates: [npm, derived, logs, installer], previewOnly: false)
+private let approval = CatalogApproval(candidates: [npm, derived, logs, installer], dryRun: false)
 
 /// The run's record for `candidate`, ended in `state`.
 private func record(_ candidate: Candidate, _ state: CleanupTargetState) -> CleanupRecord {
-    var record = CleanupRecord(batchID: approval.id, approvedAt: approval.approvedAt, candidate: candidate, previewOnly: false)
+    var record = CleanupRecord(batchID: approval.id, approvedAt: approval.approvedAt, candidate: candidate, dryRun: false)
     record.state = state
     return record
 }
@@ -57,8 +57,8 @@ private func record(_ candidate: Candidate, _ state: CleanupTargetState) -> Clea
 
 /// #355: in a dry run nothing is released, but what would be is counted, so the screen reads the same.
 @Test func aDryRunCountsWhatItWouldRelease() {
-    let dry = CatalogApproval(candidates: [npm], previewOnly: true)
-    var would = CleanupRecord(batchID: dry.id, approvedAt: dry.approvedAt, candidate: npm, previewOnly: true)
+    let dry = CatalogApproval(candidates: [npm], dryRun: true)
+    var would = CleanupRecord(batchID: dry.id, approvedAt: dry.approvedAt, candidate: npm, dryRun: true)
     would.state = .skipped; would.message = "Dry run: would delete (3 GB). Checks passed; nothing changed."
     let progress = CleanupRunProgress(approval: dry, catalog: catalog, records: [would])
     #expect(progress.releasedBytes == 3 * GB)
@@ -67,8 +67,8 @@ private func record(_ candidate: Candidate, _ state: CleanupTargetState) -> Clea
 
 /// #355 review: a dry run releases nothing, so its bar stays where it was; only the count says what would be freed.
 @Test func aDryRunsBarStaysStill() throws {
-    let dry = CatalogApproval(candidates: [npm], previewOnly: true)
-    var would = CleanupRecord(batchID: dry.id, approvedAt: dry.approvedAt, candidate: npm, previewOnly: true)
+    let dry = CatalogApproval(candidates: [npm], dryRun: true)
+    var would = CleanupRecord(batchID: dry.id, approvedAt: dry.approvedAt, candidate: npm, dryRun: true)
     would.state = .skipped; would.message = "Dry run: would delete (3 GB). Checks passed; nothing changed."
     let progress = CleanupRunProgress(approval: dry, catalog: catalog, records: [would])
     let bar = try #require(progress.breakdown(usedAtStart: 400 * GB, total: 1000 * GB, trash: .empty, releasing: false))

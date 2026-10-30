@@ -18,8 +18,8 @@ struct CatalogResultsSection: View {
     @State private var showsDetails = false
     var body: some View {
         VStack(alignment: .leading, spacing: CacheDropDesign.Space.lg) {
-            if result.previewOnly {
-                let previewed = result.records.filter(\.wasPreviewed)
+            if result.dryRun {
+                let previewed = result.records.filter(\.wasDryRun)
                 StatusRow(text: "Dry run · Nothing changed · " + SizeFormatter.text(previewed.reduce(0) { $0 + $1.recordedBytes }, upperBound: upperBound(previewed)) + " would be affected",
                           symbol: "eye", role: .neutral, identifier: "catalogPreviewNotice")
             } else {
@@ -95,10 +95,10 @@ private struct CatalogResultRow: View {
         return record.itemName ?? record.uninstalledName ?? rule?.itemName?(file) ?? (rule?.choosesItems == true ? file : rule?.title ?? file)
     }
     var body: some View {
-        let role: StatusRole = record.state == .succeeded ? .success : record.wasPreviewed ? .neutral : .caution
+        let role: StatusRole = record.state == .succeeded ? .success : record.wasDryRun ? .neutral : .caution
         VStack(alignment: .leading, spacing: CacheDropDesign.Space.xs) {
             HStack(alignment: .firstTextBaseline, spacing: CacheDropDesign.Space.md) {
-                Image(systemName: record.state == .succeeded ? "checkmark.circle" : record.wasPreviewed ? "eye" : "exclamationmark.circle").foregroundStyle(role.color)
+                Image(systemName: record.state == .succeeded ? "checkmark.circle" : record.wasDryRun ? "eye" : "exclamationmark.circle").foregroundStyle(role.color)
                     .frame(width: CacheDropDesign.Space.lg)
                 // Docker's rows have no folder of their own to show (#420).
                 (Text(name).font(CacheDropDesign.TypeStyle.rowTitle)

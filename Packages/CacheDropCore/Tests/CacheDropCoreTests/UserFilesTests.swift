@@ -117,7 +117,7 @@ private func executor(trash: URL) -> CleanupExecutor {
     let found = try await offered(folder, now: now)
     let chosen = try #require(found["movie.mov"])
 
-    let result = await executor(trash: trash).execute(CatalogApproval(candidates: [chosen], previewOnly: false))
+    let result = await executor(trash: trash).execute(CatalogApproval(candidates: [chosen], dryRun: false))
     #expect(result.records.map(\.state) == [.succeeded])
     #expect(result.records.first?.action == "moveToTrash")
     #expect(result.records.first?.trashURL == trash.appendingPathComponent("movie.mov"))
@@ -126,13 +126,13 @@ private func executor(trash: URL) -> CleanupExecutor {
     #expect(result.movedToTrashBytes == chosen.allocatedBytes)
 }
 
-@Test func previewOnlyLeavesPickedFilesInPlace() async throws {
+@Test func dryRunLeavesPickedFilesInPlace() async throws {
     let folder = try pickedFolder(), trash = try pickedFolder()
     defer { try? FileManager.default.removeItem(at: folder); try? FileManager.default.removeItem(at: trash) }
     let movie = try file(folder, "movie.mov", size: 6 * megabyte, now: Date())
     let found = try await offered(folder, now: Date())
 
-    let result = await executor(trash: trash).execute(CatalogApproval(candidates: Array(found.values), previewOnly: true))
+    let result = await executor(trash: trash).execute(CatalogApproval(candidates: Array(found.values), dryRun: true))
     #expect(result.records.map(\.state) == [.skipped])
     #expect(result.records.first?.message.hasPrefix("Dry run: would move to Trash") == true)
     #expect(FileManager.default.fileExists(atPath: movie.path))
@@ -146,7 +146,7 @@ private func executor(trash: URL) -> CleanupExecutor {
     let chosen = try #require(try await offered(folder, now: Date())["work/movie.mov"])
     try FileManager.default.createDirectory(at: folder.appendingPathComponent("work/.git"), withIntermediateDirectories: true)
 
-    let result = await executor(trash: trash).execute(CatalogApproval(candidates: [chosen], previewOnly: false))
+    let result = await executor(trash: trash).execute(CatalogApproval(candidates: [chosen], dryRun: false))
     #expect(result.records.map(\.state) == [.skipped])
     #expect(result.records.first?.message == CheckRefusal.protected(".git").reason)
     #expect(FileManager.default.fileExists(atPath: movie.path))
@@ -176,7 +176,7 @@ private func executor(trash: URL) -> CleanupExecutor {
     // The check just before acting looks above the picked folder, as discovery does.
     try FileManager.default.createDirectory(at: outer.appendingPathComponent(".git"), withIntermediateDirectories: true)
 
-    let result = await executor(trash: trash).execute(CatalogApproval(candidates: [chosen], previewOnly: false))
+    let result = await executor(trash: trash).execute(CatalogApproval(candidates: [chosen], dryRun: false))
     #expect(result.records.map(\.state) == [.skipped])
     #expect(result.records.first?.message == CheckRefusal.protected(".git").reason)
     #expect(FileManager.default.fileExists(atPath: movie.path))
@@ -192,7 +192,7 @@ private func executor(trash: URL) -> CleanupExecutor {
     let found = try await offered(folder, now: now)
     let movie = try #require(found["movie.mov"]), other = try #require(found["other.mov"])
 
-    let result = await executor(trash: trash).execute(CatalogApproval(candidates: [movie], previewOnly: false))
+    let result = await executor(trash: trash).execute(CatalogApproval(candidates: [movie], dryRun: false))
     #expect(UserFiles.remaining([movie, other], after: result) == [other])
 }
 
@@ -202,6 +202,6 @@ private func executor(trash: URL) -> CleanupExecutor {
     try file(folder, "movie.mov", size: 6 * megabyte, now: Date())
     let movie = try #require(try await offered(folder, now: Date())["movie.mov"])
 
-    let result = await executor(trash: trash).execute(CatalogApproval(candidates: [movie], previewOnly: true))
+    let result = await executor(trash: trash).execute(CatalogApproval(candidates: [movie], dryRun: true))
     #expect(UserFiles.remaining([movie], after: result) == [movie])
 }

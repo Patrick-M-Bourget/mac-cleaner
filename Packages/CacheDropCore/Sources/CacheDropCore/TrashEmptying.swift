@@ -35,13 +35,13 @@ extension CleanupRecord {
 
     /// A pending deletion of `original` from its `trashURL`: that location is the record's own, so a review of an
     /// interrupted emptying checks the Trash (#309).
-    init(emptying original: CleanupRecord, trashURL: URL, batchID: UUID, at date: Date, previewOnly: Bool) {
+    init(emptying original: CleanupRecord, trashURL: URL, batchID: UUID, at date: Date, dryRun: Bool) {
         self.init(id: batchID.uuidString + "|emptyFromTrash|" + original.id, batchID: batchID, originalURL: trashURL, resourceID: original.resourceID,
                   logicalBytes: original.logicalBytes, allocatedBytes: original.allocatedBytes, state: .pending, trashURL: nil,
                   message: "Approved; not started", observedAt: date, scopeURL: trashURL.deletingLastPathComponent(), scopeResourceID: "",
                   volumeID: original.volumeID, downloadsURL: nil, downloadsResourceID: nil, modifiedSeconds: original.modifiedSeconds,
                   modifiedNanoseconds: original.modifiedNanoseconds, action: Self.emptyFromTrashAction, policyVersion: 2,
-                  outcomeRecordedAt: nil, approvedAt: date, ruleID: original.ruleID, previewOnly: previewOnly, itemName: original.itemName)
+                  outcomeRecordedAt: nil, approvedAt: date, ruleID: original.ruleID, dryRun: dryRun, itemName: original.itemName)
         emptyOf = original.id
     }
 }
@@ -60,7 +60,7 @@ struct TrashLedger {
             [.skipped, .failed, .cancelled].contains(reviews[record.id]?.state ?? record.state)
         }
         putBackIDs = Set(records.filter { $0.isPutBack && $0.reviewOf == nil && !settled($0) }.compactMap(\.putBackOf))
-        emptiedIDs = Set(records.filter { $0.isEmptyFromTrash && $0.reviewOf == nil && $0.previewOnly != true && !settled($0) }.compactMap(\.emptyOf))
+        emptiedIDs = Set(records.filter { $0.isEmptyFromTrash && $0.reviewOf == nil && $0.dryRun != true && !settled($0) }.compactMap(\.emptyOf))
         var latest: [String: CleanupRecord] = [:], order: [String] = []
         for var record in records where record.canPutBack {
             if let reviewed = record.reviewOf { record.id = reviewed }
@@ -92,16 +92,16 @@ public struct TrashEmptyingReview: Sendable {
 /// What one emptying did, item by item.
 public struct TrashEmptyingResult: Sendable {
     public let records: [CleanupRecord]
-    public let previewOnly: Bool
+    public let dryRun: Bool
     /// Set when the journal couldn't record the emptying, or what happened.
     public let journalFailure: String?
-    public init(records: [CleanupRecord], previewOnly: Bool, journalFailure: String? = nil) {
-        self.records = records; self.previewOnly = previewOnly; self.journalFailure = journalFailure
+    public init(records: [CleanupRecord], dryRun: Bool, journalFailure: String? = nil) {
+        self.records = records; self.dryRun = dryRun; self.journalFailure = journalFailure
     }
     public var deletedCount: Int { records.filter { $0.state == .succeeded }.count }
     /// The available-space change read around each deleted item, as a cleanup measures it; nil when any reading is missing.
     public var measuredFreedBytes: Int64? {
-        guard !previewOnly else { return nil }
+        guard !dryRun else { return nil }
         return records.measuredFreedBytes
     }
 }
@@ -127,18 +127,18 @@ public struct TrashEmptying: Sendable {
     }
 
     /// Deletes `items` from the Trash, each checked again first; one that fails a check is skipped and left alone, with its
-    /// reason. With `previewOnly` (the Settings dry run) each is checked and nothing changes. Items that were never Trash
+    /// reason. With `dryRun` (the Settings dry run) each is checked and nothing changes. Items that were never Trash
     /// moves are left out, and with none left nothing is recorded.
-    public func empty(_ items: [CleanupRecord], previewOnly: Bool) -> TrashEmptyingResult {
+    public func empty(_ items: [CleanupRecord], dryRun: Bool) -> TrashEmptyingResult {
         func result(_ records: [CleanupRecord], _ failure: String? = nil) -> TrashEmptyingResult {
-            TrashEmptyingResult(records: records, previewOnly: previewOnly, journalFailure: failure)
+            TrashEmptyingResult(records: records, dryRun: dryRun, journalFailure: failure)
         }
         guard let records = try? journal.records() else { return result([], "CacheDrop couldn’t read its history, so nothing was changed.") }
         let ledger = TrashLedger(records)
         let originals = items.filter { ledger.refusal($0) != .notEmptyable }
         guard !originals.isEmpty else { return result([]) }
         let date = clock(), batchID = UUID()
-        let pending = originals.map { CleanupRecord(emptying: $0, trashURL: $0.trashURL!, batchID: batchID, at: date, previewOnly: previewOnly) }
+        let pending = originals.map { CleanupRecord(emptying: $0, trashURL: $0.trashURL!, batchID: batchID, at: date, dryRun: dryRun) }
         do { guard try journal.claim(batchID: batchID, records: pending) else { return result([]) } }
         catch { return result([], "CacheDrop couldn’t save the emptying before starting, so nothing was changed.") }
 
@@ -151,7 +151,7 @@ public struct TrashEmptying: Sendable {
             record.state = .intent; record.message = "Started; outcome not yet recorded"
             do { try journal.intent(record) }
             catch { record.state = .cancelled; record.message = "CacheDrop couldn’t save its progress, so it stopped. This item wasn’t changed."; failure = record.message; done.append(record); continue }
-            perform(original, previewOnly: previewOnly, ledger: ledger, into: &record)
+            perform(original, dryRun: dryRun, ledger: ledger, into: &record)
             do { try journal.outcome(record) }
             catch { record.state = .unknown; record.message = "CacheDrop couldn’t save what happened. Review the interrupted cleanup before cleaning again."; failure = record.message }
             Self.log.info("\(record.state.rawValue, privacy: .public) delete from the Trash \(record.originalURL.path, privacy: .public)")
@@ -160,9 +160,9 @@ public struct TrashEmptying: Sendable {
         return result(done, failure)
     }
 
-    private func perform(_ original: CleanupRecord, previewOnly: Bool, ledger: TrashLedger, into record: inout CleanupRecord) {
+    private func perform(_ original: CleanupRecord, dryRun: Bool, ledger: TrashLedger, into record: inout CleanupRecord) {
         if let refusal = ledger.refusal(original) { record.state = .skipped; record.message = refusal.reason; return }
-        if previewOnly {
+        if dryRun {
             let size = SizeFormatter.text(original.recordedBytes)
             record.state = .skipped; record.message = CleanupRecord.previewPrefix + " would delete from the Trash (\(size)). Checks passed; nothing changed."
             return

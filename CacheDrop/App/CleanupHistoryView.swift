@@ -223,7 +223,7 @@ struct CleanupHistoryView: View {
                         Text(record.originalURL.lastPathComponent + " · " + PathDisplay.shortLocation(of: record.originalURL.path))
                             .lineLimit(1).truncationMode(.middle).help(record.originalURL.path)
                         Text(record.outcomeLine + ((record.laterMeasurementText ?? record.settledText).map { " " + $0 } ?? "")).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
-                            .fixedSize(horizontal: false, vertical: true).help("Action: " + record.actionTitle + (record.previewOnly == true ? " · Dry run" : ""))
+                            .fixedSize(horizontal: false, vertical: true).help("Action: " + record.actionTitle + (record.dryRun == true ? " · Dry run" : ""))
                     }.frame(maxWidth: .infinity, alignment: .leading)
                     let putBack = run.putBackIDs.contains(record.id) || TrashModel.shared.putBackOutcomes[record.id] == .restored(record.originalURL)
                     // Deleted from the Trash (#359): no Reveal in Trash and no Put back.

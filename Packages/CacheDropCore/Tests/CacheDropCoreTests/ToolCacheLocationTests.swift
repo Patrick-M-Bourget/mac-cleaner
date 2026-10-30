@@ -28,7 +28,7 @@ private func fakeNPM(_ home: URL, answer: String) throws -> URL { try fakeTool(h
 private func execute(_ candidate: Candidate, catalog: Catalog, home: URL) async throws -> CleanupRecord {
     let journal = try SQLiteCleanupJournal(url: home.appendingPathComponent("journal.sqlite"))
     let run = CleanupExecutor(journal: journal, check: CandidateCheck(catalog: catalog, running: FixtureNothingRunning()), measure: FixtureSameVolume().read, trash: TrashNeverUsed())
-    return try #require(await run.execute(CatalogApproval(candidates: [candidate], previewOnly: false)).records.first)
+    return try #require(await run.execute(CatalogApproval(candidates: [candidate], dryRun: false)).records.first)
 }
 
 @Test func aCustomNPMCacheIsFoundAndCleanedAndThePlanSaysNPMNamedIt() async throws {

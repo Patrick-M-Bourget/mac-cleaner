@@ -36,7 +36,7 @@ public enum ConsequenceGroup: Int, CaseIterable, Sendable, Comparable {
 
 extension CleanupRecord {
     /// Not done and not a clean preview: skipped, failed, not started or unresolved. Results list these first, with their reason.
-    public var needsAttention: Bool { !wasPreviewed && state != .succeeded }
+    public var needsAttention: Bool { !wasDryRun && state != .succeeded }
     /// The size the scan recorded, allocated where known.
     public var recordedBytes: Int64 { allocatedBytes ?? logicalBytes }
 }

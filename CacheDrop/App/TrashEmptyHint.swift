@@ -95,7 +95,7 @@ struct EmptyFromTrashSheet: View {
     }
 
     @ViewBuilder private func outcome(_ result: TrashEmptyingResult) -> some View {
-        StatusRow(text: summary(result), symbol: result.previewOnly ? "eye" : "checkmark.circle", role: result.previewOnly ? .neutral : .success,
+        StatusRow(text: summary(result), symbol: result.dryRun ? "eye" : "checkmark.circle", role: result.dryRun ? .neutral : .success,
                   identifier: "emptyFromTrashSummary")
         if let failure = result.journalFailure { StatusRow(text: failure, symbol: "exclamationmark.triangle", role: .caution) }
         VStack(alignment: .leading, spacing: CacheDropDesign.Space.sm) {
@@ -112,7 +112,7 @@ struct EmptyFromTrashSheet: View {
     }
     /// "Dry run · Nothing changed", or what was deleted and the space measured around each item (SPEC section 6).
     private func summary(_ result: TrashEmptyingResult) -> String {
-        if result.previewOnly { return "Dry run · Nothing changed" }
+        if result.dryRun { return "Dry run · Nothing changed" }
         let deleted = "Deleted " + CacheDropDesign.items(result.deletedCount) + " from the Trash"
         guard result.deletedCount > 0 else { return deleted }
         return deleted + " · Measured freed space: " + (MeasuredFreedSpace.shown(result.measuredFreedBytes).map { SizeFormatter.text($0) } ?? SizeEstimate.unknown.text)

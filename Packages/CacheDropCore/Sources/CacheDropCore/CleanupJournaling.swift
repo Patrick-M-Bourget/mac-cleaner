@@ -32,7 +32,7 @@ public struct CleanupRecord: Codable, Sendable, Identifiable {
     /// Catalog records only. Optional so journals written before the catalog still decode.
     public var ruleID: String? = nil
     /// True when the dry run was on: the item was checked and nothing changed on disk.
-    public var previewOnly: Bool? = nil
+    public var dryRun: Bool? = nil
     /// Available space read right before and right after this item.
     public var itemCapacity: CleanupCapacityObservation? = nil
     /// On a run's last completed Docker prune (#411): available space right after it, then once more a minute after the run,
@@ -69,7 +69,7 @@ public struct CleanupRecord: Codable, Sendable, Identifiable {
             scopeURL = "scopeURL", scopeResourceID = "scopeResourceID", volumeID = "volumeID", downloadsURL = "downloadsURL",
             downloadsResourceID = "downloadsResourceID", modifiedSeconds = "modifiedSeconds", modifiedNanoseconds = "modifiedNanoseconds",
             action = "action", policyVersion = "policyVersion", outcomeRecordedAt = "outcomeRecordedAt", approvedAt = "approvedAt",
-            ruleID = "ruleID", previewOnly = "previewOnly", itemCapacity = "itemCapacity", settledCapacity = "settledCapacity",
+            ruleID = "ruleID", dryRun = "previewOnly", itemCapacity = "itemCapacity", settledCapacity = "settledCapacity",
             toolOutput = "toolOutput", partlyRemoved = "partlyRemoved", itemName = "itemName", toolItem = "toolItem",
             putBackOf = "putBackOf", emptyOf = "emptyOf", mayStillBeFinishing = "mayStillBeFinishing",
             laterMeasurement = "laterMeasurement", reviewOf = "reviewOf", recoveryFinding = "recoveryFinding"

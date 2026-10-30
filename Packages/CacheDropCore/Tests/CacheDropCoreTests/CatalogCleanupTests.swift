@@ -170,7 +170,7 @@ private func executor(_ home: URL, running: FakeRunning = FakeRunning(), catalog
     let volume = FixtureVolume()
     volume.freedPerRead = [0, 4096]
     let (run, journal) = try executor(home, volume: volume)
-    let approval = CatalogApproval(candidates: [candidate], previewOnly: false)
+    let approval = CatalogApproval(candidates: [candidate], dryRun: false)
     let result = await run.execute(approval)
     #expect(result.records.map(\.state) == [.succeeded])
     #expect(!FileManager.default.fileExists(atPath: cache.path))
@@ -199,21 +199,21 @@ private func snapshot(_ root: URL) throws -> [String: Data] {
     return result
 }
 
-@Test func previewOnlyRunsTheWholeFlowAndChangesNothingOnDisk() async throws {
+@Test func dryRunRunsTheWholeFlowAndChangesNothingOnDisk() async throws {
     let home = try fixtureHome()
     defer { try? FileManager.default.removeItem(at: home) }
     let cache = try writeNpmCache(in: home)
     let candidate = try npmCandidate(home)
     let before = try snapshot(cache)
     let (run, _) = try executor(home)
-    let result = await run.execute(CatalogApproval(candidates: [candidate], previewOnly: true))
+    let result = await run.execute(CatalogApproval(candidates: [candidate], dryRun: true))
     #expect(try snapshot(cache) == before)
     #expect(try FileManager.default.contentsOfDirectory(atPath: home.appendingPathComponent(".npm").path) == ["_cacache"])
     let record = try #require(result.records.first)
-    #expect(record.previewOnly == true)
+    #expect(record.dryRun == true)
     #expect(record.state == .skipped)
     #expect(record.message.hasPrefix("Dry run: would delete"))
-    #expect(result.previewOnly)
+    #expect(result.dryRun)
     #expect(result.measuredFreedBytes == nil)
     #expect(result.estimatedBytes == candidate.allocatedBytes)
 }
@@ -234,7 +234,7 @@ private func snapshot(_ root: URL) throws -> [String: Data] {
     try FileManager.default.removeItem(at: home.appendingPathComponent("a/cache"))
     try FileManager.default.createDirectory(at: home.appendingPathComponent("a/cache"), withIntermediateDirectories: true)
     let (run, _) = try executor(home, running: FakeRunning(running: ["Tool C"]), catalog: catalog)
-    let result = await run.execute(CatalogApproval(candidates: candidates, previewOnly: false))
+    let result = await run.execute(CatalogApproval(candidates: candidates, dryRun: false))
     #expect(result.records.map(\.state) == [.skipped, .succeeded, .skipped])
     #expect(result.records.map(\.message) == ["Changed since the scan.", "Permanently removed", "Tool C is running. Quit it, then scan again."])
     #expect(FileManager.default.fileExists(atPath: home.appendingPathComponent("a/cache").path))
@@ -247,7 +247,7 @@ private func snapshot(_ root: URL) throws -> [String: Data] {
     defer { try? FileManager.default.removeItem(at: home) }
     _ = try writeNpmCache(in: home)
     let (run, journal) = try executor(home)
-    _ = await run.execute(CatalogApproval(candidates: [try npmCandidate(home)], previewOnly: false))
+    _ = await run.execute(CatalogApproval(candidates: [try npmCandidate(home)], dryRun: false))
     let history = try journal.completedHistory()
     #expect(history.completedRuns.count == 1)
     #expect(history.completedRuns.first?.trashHeldAllocatedBytes == 0)

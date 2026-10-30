@@ -31,7 +31,7 @@ public struct CleanupRunProgress: Sendable {
         let byCandidate = Dictionary(records.map { ($0.candidateID, $0) }, uniquingKeysWith: { _, last in last })
         let category = { (candidate: Candidate) in catalog.rule(candidate.ruleID)?.category ?? .files }
         let resolved = { (record: CleanupRecord?) in record.map { $0.state != .pending && $0.state != .intent } ?? false }
-        let cleaned = { (record: CleanupRecord) in record.state == .succeeded || record.wasPreviewed }
+        let cleaned = { (record: CleanupRecord) in record.state == .succeeded || record.wasDryRun }
         var order: [CatalogCategory] = []
         for candidate in approval.candidates where !order.contains(category(candidate)) { order.append(category(candidate)) }
         let current = approval.candidates.first { !resolved(byCandidate[$0.id]) }.map(category)

@@ -2,7 +2,7 @@ import Foundation
 import Testing
 import CacheDropCore
 
-private func records(_ actions: [CleanupAction], previewOnly: Bool = false) throws -> (URL, [CleanupRecord]) {
+private func records(_ actions: [CleanupAction], dryRun: Bool = false) throws -> (URL, [CleanupRecord]) {
     let home = FileManager.default.temporaryDirectory.appendingPathComponent("CacheDropWording-\(UUID())").resolvingSymlinksInPath()
     var rules: [CleanupRule] = []
     for (index, action) in actions.enumerated() {
@@ -11,7 +11,7 @@ private func records(_ actions: [CleanupAction], previewOnly: Bool = false) thro
                                  tool: action == .tool ? ToolCommand(executables: ["/usr/bin/true"], arguments: [], timeout: 1) : nil))
     }
     let batch = UUID()
-    let made = Catalog(rules: rules).discover(fixture: home, locateTool: { _ in home.appendingPathComponent("tool") }).map { CleanupRecord(batchID: batch, approvedAt: Date(), candidate: $0, previewOnly: previewOnly) }
+    let made = Catalog(rules: rules).discover(fixture: home, locateTool: { _ in home.appendingPathComponent("tool") }).map { CleanupRecord(batchID: batch, approvedAt: Date(), candidate: $0, dryRun: dryRun) }
     // One record per action, so tests can index them without crashing.
     try #require(made.count == actions.count)
     return (home, made)
@@ -52,7 +52,7 @@ private func records(_ actions: [CleanupAction], previewOnly: Bool = false) thro
 }
 
 @Test func aDryRunReadsAsADryRunNotAsSkippedOrFailed() async throws {
-    let (home, made) = try records([.delete, .trash], previewOnly: true)
+    let (home, made) = try records([.delete, .trash], dryRun: true)
     defer { try? FileManager.default.removeItem(at: home) }
     let journal = try SQLiteCleanupJournal(url: home.appendingPathComponent("j.sqlite"))
     let catalog = Catalog(rules: [
@@ -62,7 +62,7 @@ private func records(_ actions: [CleanupAction], previewOnly: Bool = false) thro
     let candidates = catalog.discover(fixture: home)
     #expect(candidates.count == made.count)
     let result = await CleanupExecutor(journal: journal, check: CandidateCheck(catalog: catalog, running: FixtureNothingRunning()), measure: { _ in nil }, trash: TrashNeverUsed())
-        .execute(CatalogApproval(candidates: candidates, previewOnly: true))
+        .execute(CatalogApproval(candidates: candidates, dryRun: true))
     #expect(result.records.map(\.outcomeTitle) == ["Would delete", "Would move to Trash"])
     #expect(result.records.allSatisfy { $0.message.hasPrefix("Dry run: would ") })
     #expect(result.records.first?.recoveryStateText == "Dry run · Would delete")
@@ -74,12 +74,12 @@ private func records(_ actions: [CleanupAction], previewOnly: Bool = false) thro
 }
 
 /// Records journaled while the switch was called "Preview only" still read as a dry run.
-@Test func previewOnlyEraRecordsStillReadAsADryRun() throws {
-    let (home, made) = try records([.delete], previewOnly: true)
+@Test func dryRunEraRecordsStillReadAsADryRun() throws {
+    let (home, made) = try records([.delete], dryRun: true)
     defer { try? FileManager.default.removeItem(at: home) }
     var record = try #require(made.first)
     record.state = .skipped; record.message = "Dry run: would delete (10 KB). Checks passed; nothing changed."
-    #expect(record.wasPreviewed)
+    #expect(record.wasDryRun)
     #expect(record.outcomeTitle == "Would delete")
     #expect(CleanupHistorySnapshot(records: [record]).completedRuns.first?.title == "Dry run · Nothing changed")
 }

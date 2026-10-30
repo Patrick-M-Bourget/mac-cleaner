@@ -278,7 +278,7 @@ private func catalogWith(_ apps: Apps) -> Catalog {
     #expect(check.check(gpu) == nil)
     let journal = try SQLiteCleanupJournal(url: home.appendingPathComponent("journal.sqlite"))
     let run = CleanupExecutor(journal: journal, check: check, measure: { _ in nil }, trash: TrashNeverUsed())
-    #expect(try #require(await run.execute(CatalogApproval(candidates: [gpu], previewOnly: false)).records.first).state == .succeeded)
+    #expect(try #require(await run.execute(CatalogApproval(candidates: [gpu], dryRun: false)).records.first).state == .succeeded)
     #expect(!FileManager.default.fileExists(atPath: caches + "/com.example.Chat/Default/GPUCache"))
     for kept in ["Local State", "Default/Cookies", "Default/Login Data", "Default/Local Storage/leveldb/000003.log", "Default/Cache/Cache_Data/data_0"] {
         #expect(FileManager.default.fileExists(atPath: home.appendingPathComponent(app + "/" + kept).path), "\(kept)")
@@ -351,7 +351,7 @@ private let spotify = InstalledApp(name: "Spotify", bundleID: "com.spotify.clien
     #expect(check.check(data) == nil)
     let journal = try SQLiteCleanupJournal(url: home.appendingPathComponent("journal.sqlite"))
     let run = CleanupExecutor(journal: journal, check: check, measure: { _ in nil }, trash: TrashNeverUsed())
-    #expect(try #require(await run.execute(CatalogApproval(candidates: found, previewOnly: false)).records.allSatisfy { $0.state == .succeeded }))
+    #expect(try #require(await run.execute(CatalogApproval(candidates: found, dryRun: false)).records.allSatisfy { $0.state == .succeeded }))
     for kept in ["Default/Cookies", "Default/Login Data", "Default/Local Storage/leveldb/000003.log", "Default/Preferences",
                  "Browser/Cookies", "Browser/Local Storage/leveldb/000003.log", "My Music/v2/track", "My Music/offline.bnk"] {
         #expect(FileManager.default.fileExists(atPath: app + "/" + kept), "\(kept)")

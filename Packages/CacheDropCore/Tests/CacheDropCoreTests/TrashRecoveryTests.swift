@@ -15,12 +15,12 @@ private func fixtureDownloads() throws -> (home: URL, downloads: URL) {
     defer { try? FileManager.default.removeItem(at: home) }
     for name in ["a.dmg", "b.pkg"] { try Data([1, 2]).write(to: downloads.appendingPathComponent(name)) }
     let candidates = Catalog(rules: fixtureRules).discover(fixture: home).sorted { $0.url.path < $1.url.path }
-    let approval = CatalogApproval(candidates: candidates, previewOnly: false)
+    let approval = CatalogApproval(candidates: candidates, dryRun: false)
     let url = home.appendingPathComponent("cleanup.sqlite")
     do {
         // The app quits after recording intent for the first item, before any outcome.
         let journal = try SQLiteCleanupJournal(url: url)
-        let records = candidates.map { CleanupRecord(batchID: approval.id, approvedAt: approval.approvedAt, candidate: $0, previewOnly: false) }
+        let records = candidates.map { CleanupRecord(batchID: approval.id, approvedAt: approval.approvedAt, candidate: $0, dryRun: false) }
         #expect(try journal.claim(batchID: approval.id, records: records))
         var started = records[0]; started.state = .intent
         try journal.intent(started)
@@ -58,7 +58,7 @@ private let legacyRecord = #"{"action":"moveToTrash","allocatedBytes":4096,"appr
     #expect(record.policyVersion == 1)
     #expect(record.action == "moveToTrash")
     #expect(record.ruleID == nil)
-    #expect(record.previewOnly == nil)
+    #expect(record.dryRun == nil)
     #expect(record.downloadsURL?.path == "/private/tmp/CacheDropLegacy")
     #expect(try CleanupRecoverySnapshot(journal: reader).unresolvedCount == 1)
 }
@@ -88,7 +88,7 @@ private func twoInstallers() throws -> (URL, [Candidate]) {
     let journal = try SQLiteCleanupJournal(url: url)
     let check = CandidateCheck(catalog: Catalog(rules: fixtureRules), running: FixtureNothingRunning())
     let result = await CleanupExecutor(journal: FailOutcomeJournal(base: journal), check: check, measure: { _ in nil }, trash: RefusingTrash())
-        .execute(CatalogApproval(candidates: candidates, previewOnly: false))
+        .execute(CatalogApproval(candidates: candidates, dryRun: false))
     #expect(result.records.map(\.state) == [.unknown, .cancelled])
     #expect(result.journalFailure != nil)
     let recovered = try SQLiteCleanupJournal(url: url).records()
@@ -103,7 +103,7 @@ private func twoInstallers() throws -> (URL, [Candidate]) {
     let cancellation = CleanupCancellation()
     let check = CandidateCheck(catalog: Catalog(rules: fixtureRules), running: FixtureNothingRunning())
     let result = await CleanupExecutor(journal: journal, check: check, measure: { _ in nil }, trash: RefusingTrash(cancellation: cancellation), cancellation: cancellation)
-        .execute(CatalogApproval(candidates: candidates, previewOnly: false))
+        .execute(CatalogApproval(candidates: candidates, dryRun: false))
     #expect(result.records.map(\.state) == [.failed, .cancelled])
     #expect(try journal.records().map(\.state) == [.failed, .cancelled])
     #expect(try CleanupRecoverySnapshot(journal: journal).interruptedBatches.isEmpty)

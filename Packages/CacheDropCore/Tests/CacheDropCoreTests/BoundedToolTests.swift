@@ -72,7 +72,7 @@ func stillRunning(_ pids: [pid_t]) -> [pid_t] {
     let tool = try treeTool("trap '' TERM\n\(recordPid("$$", in: pids))\nsleep \"$1\" &\n\(recordPid("$!", in: pids))\nwhile :; do sleep 0.1; done")
     defer { try? FileManager.default.removeItem(at: tool.deletingLastPathComponent()) }
     let started = ProcessInfo.processInfo.systemUptime
-    #expect(throws: ToolPreviewError.timeout) { try BoundedTool.run(executable: tool, arguments: [uniqueSleep()], timeout: childStartedLimit) }
+    #expect(throws: ToolDryRunError.timeout) { try BoundedTool.run(executable: tool, arguments: [uniqueSleep()], timeout: childStartedLimit) }
     let elapsed = ProcessInfo.processInfo.systemUptime - started
     let left = stillRunning(recordedPids(pids))
     left.forEach { kill($0, SIGKILL) }

@@ -135,7 +135,7 @@ private func day(_ n: Double) -> Date { Date(timeIntervalSince1970: 1_790_000_00
     volume.freedPerRead = [0, 100, 0, 200]
     let journal = try SQLiteCleanupJournal(url: folder.appendingPathComponent("journal.sqlite"))
     let run = CleanupExecutor(journal: journal, check: CandidateCheck(catalog: catalog, running: FixtureNothingRunning(), inUse: FakeInUse()), measure: volume.read, trash: TrashNeverUsed())
-    let result = await run.execute(CatalogApproval(candidates: candidates, previewOnly: false))
+    let result = await run.execute(CatalogApproval(candidates: candidates, dryRun: false))
     #expect(result.records.map(\.state) == [.succeeded, .succeeded])
     #expect(result.measuredFreedBytes == 300)
     #expect(result.estimatedBytes >= 8192)

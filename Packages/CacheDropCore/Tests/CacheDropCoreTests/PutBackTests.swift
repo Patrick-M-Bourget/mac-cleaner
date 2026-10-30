@@ -17,7 +17,7 @@ private func trashedInstaller(named name: String = "Setup.dmg") async throws -> 
     let journal = try SQLiteCleanupJournal(url: home.appendingPathComponent("journal.sqlite"))
     let executor = CleanupExecutor(journal: journal, check: CandidateCheck(catalog: Catalog(rules: fixtureRules), running: FixtureNothingRunning()), measure: { _ in nil },
                                    trash: FixtureHomeTrash(home: home))
-    let result = await executor.execute(CatalogApproval(candidates: candidates, previewOnly: false))
+    let result = await executor.execute(CatalogApproval(candidates: candidates, dryRun: false))
     let record = try #require(result.records.first)
     #expect(record.state == .succeeded && record.trashURL != nil)
     return (home, journal, record)
@@ -114,7 +114,7 @@ private func trashedInstaller(named name: String = "Setup.dmg") async throws -> 
     defer { try? FileManager.default.removeItem(at: home) }
     let records = try journal.records()
     // A dry-run record and a record whose recorded Trash location isn't in a Trash are never put back.
-    var preview = record; preview.previewOnly = true
+    var preview = record; preview.dryRun = true
     var outside = record; outside.trashURL = home.appendingPathComponent("Downloads/Elsewhere.dmg")
     for refused in [preview, outside] {
         #expect(!refused.canPutBack)

@@ -23,7 +23,7 @@ import CacheDropCore
     let cleaned = try #require(byRule["cleaned"]), skipped = try #require(byRule["skipped"]), unchosen = try #require(byRule["unchosen"])
     let journal = try SQLiteCleanupJournal(url: home.appendingPathComponent("j.sqlite"))
     let result = await CleanupExecutor(journal: journal, check: CandidateCheck(catalog: catalog, running: OnlyBusyOpen()), measure: { _ in nil }, trash: TrashNeverUsed())
-        .execute(CatalogApproval(candidates: [cleaned, skipped], previewOnly: false))
+        .execute(CatalogApproval(candidates: [cleaned, skipped], dryRun: false))
     #expect(result.cleanedCandidateIDs == [cleaned.id])
     #expect(result.keptDuringRescan(shown).map(\.ruleID).sorted() == ["skipped", "unchosen"])
     #expect(result.keptDuringRescan([unchosen]) == [unchosen])
@@ -41,7 +41,7 @@ import CacheDropCore
     try #require(shown.count == 1)
     let journal = try SQLiteCleanupJournal(url: home.appendingPathComponent("j.sqlite"))
     let result = await CleanupExecutor(journal: journal, check: CandidateCheck(catalog: catalog, running: FixtureNothingRunning()), measure: { _ in nil }, trash: TrashNeverUsed())
-        .execute(CatalogApproval(candidates: shown, previewOnly: true))
+        .execute(CatalogApproval(candidates: shown, dryRun: true))
     #expect(result.cleanedCandidateIDs == shown.map(\.id))
     #expect(result.keptDuringRescan(shown) == shown)
 }

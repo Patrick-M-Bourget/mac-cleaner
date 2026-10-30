@@ -40,7 +40,7 @@ extension CleanupRecord {
     public var isPutBack: Bool { action == Self.putBackAction }
     /// Moved to the Trash by a real run, with where it landed recorded inside a Trash folder.
     public var canPutBack: Bool {
-        guard state == .succeeded, cleanupAction == .trash, previewOnly != true, let trashURL else { return false }
+        guard state == .succeeded, cleanupAction == .trash, dryRun != true, let trashURL else { return false }
         return trashURL.standardizedFileURL.pathComponents.dropLast().contains(where: Protection.trashNames.contains)
     }
 

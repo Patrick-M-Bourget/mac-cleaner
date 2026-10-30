@@ -228,7 +228,7 @@ private func check(_ home: URL, running: Running = Running(), apps: Apps = Apps(
     let journal = try SQLiteCleanupJournal(url: home.appendingPathComponent("journal.sqlite"))
     let executor = CleanupExecutor(journal: journal, check: check(home), measure: { _ in nil }, trash: FixtureFolderTrash(folder: home.appendingPathComponent(".Trash")))
 
-    let result = await executor.execute(CatalogApproval(candidates: found, previewOnly: false))
+    let result = await executor.execute(CatalogApproval(candidates: found, dryRun: false))
     let record = try #require(result.records.first)
     #expect(record.state == .succeeded && record.trashURL != nil)
     #expect(!FileManager.default.fileExists(atPath: home.appendingPathComponent("Library/Caches/com.gone.synth").path))
@@ -248,7 +248,7 @@ private func check(_ home: URL, running: Running = Running(), apps: Apps = Apps(
     let journal = try SQLiteCleanupJournal(url: home.appendingPathComponent("journal.sqlite"))
     let executor = CleanupExecutor(journal: journal, check: check(home), measure: { _ in nil }, trash: FixtureFolderTrash(folder: home.appendingPathComponent(".Trash")))
 
-    let result = await executor.execute(CatalogApproval(candidates: chosen, previewOnly: false))
+    let result = await executor.execute(CatalogApproval(candidates: chosen, dryRun: false))
     let record = try #require(result.records.first)
     #expect(result.records.count == 1 && record.state == .succeeded && record.trashURL != nil)
     #expect(!FileManager.default.fileExists(atPath: home.appendingPathComponent("Library/Application Support/Gone").path))

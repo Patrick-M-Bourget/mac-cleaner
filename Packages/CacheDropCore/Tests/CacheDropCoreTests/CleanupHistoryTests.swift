@@ -6,7 +6,7 @@ import Testing
 private struct FixtureBatch { let id: UUID; let records: [CleanupRecord] }
 private func fixtureBatch(_ root: URL) -> FixtureBatch {
     let id = UUID()
-    return FixtureBatch(id: id, records: fixtureCandidates(root, action: .trash).map { CleanupRecord(batchID: id, approvedAt: Date(), candidate: $0, previewOnly: false) })
+    return FixtureBatch(id: id, records: fixtureCandidates(root, action: .trash).map { CleanupRecord(batchID: id, approvedAt: Date(), candidate: $0, dryRun: false) })
 }
 /// The files in `root` as a rule with `action` finds them: Downloads-style user files for the Trash, a cache to delete.
 private func fixtureCandidates(_ root: URL, action: CleanupAction) -> [Candidate] {
@@ -139,7 +139,7 @@ private func historyApproval(_ root: URL, names: [String]) async throws -> Fixtu
     try Data([7]).write(to: downloads.appendingPathComponent("setup.dmg"))
     let id = UUID()
     let records = (fixtureCandidates(caches, action: .delete) + fixtureCandidates(downloads, action: .trash))
-        .map { CleanupRecord(batchID: id, approvedAt: Date(), candidate: $0, previewOnly: false) }
+        .map { CleanupRecord(batchID: id, approvedAt: Date(), candidate: $0, dryRun: false) }
     let url = root.appendingPathComponent("cleanup.sqlite")
     let journal = try SQLiteCleanupJournal(url: url)
     #expect(try journal.claim(batchID: id, records: records))

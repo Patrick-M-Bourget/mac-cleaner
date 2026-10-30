@@ -63,8 +63,8 @@ extension CleanupRecord {
     static let legacyPreviewPrefix = "Preview only:"
     private var wording: ActionWording { cleanupAction?.wording ?? (isPutBack ? .putBack : isEmptyFromTrash ? .emptyFromTrash : .unknown) }
     /// Checked with the dry run on: every check passed and nothing changed.
-    public var wasPreviewed: Bool {
-        previewOnly == true && state == .skipped && (message.hasPrefix(Self.previewPrefix) || message.hasPrefix(Self.legacyPreviewPrefix))
+    public var wasDryRun: Bool {
+        dryRun == true && state == .skipped && (message.hasPrefix(Self.previewPrefix) || message.hasPrefix(Self.legacyPreviewPrefix))
     }
     /// The app or plug-in product an uninstall removed, by name (e.g. "Synth"); nil for its files and for any other record.
     public var uninstalledName: String? {
@@ -72,7 +72,7 @@ extension CleanupRecord {
     }
     public var actionTitle: String { cleanupAction?.wording.title ?? (isPutBack || isEmptyFromTrash ? wording.title : action) }
     public var outcomeTitle: String {
-        if wasPreviewed { return wording.previewOutcome }
+        if wasDryRun { return wording.previewOutcome }
         if let recoveryFinding { return recoveryFinding.title(putBack: isPutBack, emptying: isEmptyFromTrash) }
         switch state {
         case .succeeded: return finishedAfterStop ? "Removed" : wording.succeeded
@@ -95,7 +95,7 @@ extension CleanupRecord {
         case .intent, .unknown: return wording.unresolved
         case .succeeded: return "Finished · " + outcomeTitle
         case .failed: return partlyRemoved == true ? wording.partlyFailedRecovery : "Failed · Not changed"
-        case .skipped: return wasPreviewed ? "Dry run · " + outcomeTitle : "Skipped · Not changed"
+        case .skipped: return wasDryRun ? "Dry run · " + outcomeTitle : "Skipped · Not changed"
         case .cancelled: return "Canceled · Not started"
         }
     }
@@ -103,7 +103,7 @@ extension CleanupRecord {
 
 extension CleanupHistoryRun {
     /// Every record was checked with the dry run on; nothing changed on disk.
-    public var isPreview: Bool { !records.isEmpty && records.allSatisfy { $0.previewOnly == true } }
+    public var isPreview: Bool { !records.isEmpty && records.allSatisfy { $0.dryRun == true } }
     /// A put back from the Trash (#159), recorded as its own run.
     public var isPutBack: Bool { !records.isEmpty && records.allSatisfy(\.isPutBack) }
     /// A deletion of CacheDrop's own items from the Trash (#359), recorded as its own run.

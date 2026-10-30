@@ -50,7 +50,7 @@ The names CacheDrop shows, what they mean, and where they live in code. Copy fol
 | Empty from Trash → Deleted from the Trash | Deletes only what CacheDrop moved to the Trash | `TrashEmptying` |
 | Remove local copies | Frees iCloud files' space on this Mac | action `evict` |
 | Scan again | Any action that scans | `CatalogCleanupModel`, `FolderInspection` |
-| Dry run | Runs the whole flow; nothing changes | `previewOnly` |
+| Dry run | Runs the whole flow; nothing changes | `dryRun` |
 | Measured freed space | Free space measured around each item, not the estimate | `MeasuredFreedSpace` |
 | Up to, About | A size that's an upper bound or an estimate | `SizeEstimate` |
 | free | Disk space you can use | `CapacitySample`, `SidebarCapacityText` |

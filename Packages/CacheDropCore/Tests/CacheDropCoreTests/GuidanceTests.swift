@@ -45,7 +45,7 @@ private func write(_ bytes: Int, at relative: String, in home: URL) throws {
 
     let journal = try SQLiteCleanupJournal(url: home.appendingPathComponent("journal.sqlite"))
     let executor = CleanupExecutor(journal: journal, check: check, measure: { _ in nil }, trash: TrashNeverUsed())
-    let result = await executor.execute(CatalogApproval(candidates: [candidate], previewOnly: false))
+    let result = await executor.execute(CatalogApproval(candidates: [candidate], dryRun: false))
     #expect(result.records.map(\.state) == [.skipped])
     #expect(result.records.first?.message == CheckRefusal.guidanceOnly.reason)
     #expect(FileManager.default.fileExists(atPath: archives.appendingPathComponent("2026-10-26/App.xcarchive/Info.plist").path))

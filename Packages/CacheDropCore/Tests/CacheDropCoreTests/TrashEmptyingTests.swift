@@ -43,7 +43,7 @@ private struct Fixture {
 }
 
 /// A fixture home whose `.Trash` holds one file of the user's own, and the Downloads installers a real run moved there.
-private func trashedInstallers(_ names: [String] = ["Setup.dmg", "Other.pkg"], previewOnly: Bool = false) async throws -> Fixture {
+private func trashedInstallers(_ names: [String] = ["Setup.dmg", "Other.pkg"], dryRun: Bool = false) async throws -> Fixture {
     let home = FileManager.default.temporaryDirectory.appendingPathComponent("CacheDropEmpty-\(UUID())").resolvingSymlinksInPath()
     try FileManager.default.createDirectory(at: home.appendingPathComponent(".Trash"), withIntermediateDirectories: true)
     try FileManager.default.createDirectory(at: home.appendingPathComponent("Downloads"), withIntermediateDirectories: true)
@@ -53,7 +53,7 @@ private func trashedInstallers(_ names: [String] = ["Setup.dmg", "Other.pkg"], p
     let journal = try SQLiteCleanupJournal(url: home.appendingPathComponent("journal.sqlite"))
     let executor = CleanupExecutor(journal: journal, check: CandidateCheck(catalog: Catalog(rules: fixtureRules), running: FixtureNothingRunning()), measure: { _ in nil },
                                    trash: FixtureHomeTrash(home: home))
-    let result = await executor.execute(CatalogApproval(candidates: candidates, previewOnly: previewOnly))
+    let result = await executor.execute(CatalogApproval(candidates: candidates, dryRun: dryRun))
     #expect(result.records.count == names.count)
     return Fixture(home: home, journal: journal, records: result.records)
 }
@@ -71,7 +71,7 @@ private func trashedInstallers(_ names: [String] = ["Setup.dmg", "Other.pkg"], p
 }
 
 @Test func aDryRunsRecordsOfferNothing() async throws {
-    let fixture = try await trashedInstallers(previewOnly: true)
+    let fixture = try await trashedInstallers(dryRun: true)
     defer { try? FileManager.default.removeItem(at: fixture.home) }
     #expect(try fixture.emptying().review().items.isEmpty)
 }
@@ -96,7 +96,7 @@ private func trashedInstallers(_ names: [String] = ["Setup.dmg", "Other.pkg"], p
     let volume = FreeingVolume()
     let emptying = fixture.emptying(measure: volume.read)
 
-    let result = emptying.empty(try emptying.review().items, previewOnly: false)
+    let result = emptying.empty(try emptying.review().items, dryRun: false)
 
     #expect(result.records.count == 2 && result.records.allSatisfy { $0.state == .succeeded })
     #expect(result.records.allSatisfy { $0.outcomeTitle == "Deleted from the Trash" })
@@ -121,7 +121,7 @@ private func trashedInstallers(_ names: [String] = ["Setup.dmg", "Other.pkg"], p
     let fixture = try await trashedInstallers(["Setup.dmg"])
     defer { try? FileManager.default.removeItem(at: fixture.home) }
     let emptying = fixture.emptying()
-    _ = emptying.empty(try emptying.review().items, previewOnly: false)
+    _ = emptying.empty(try emptying.review().items, dryRun: false)
     #expect(try fixture.journal.completedHistory().completedRuns.first { $0.isEmptyFromTrash }?.title == "Emptied from the Trash · 1 item")
 }
 
@@ -141,7 +141,7 @@ private func trashedInstallers(_ names: [String] = ["Setup.dmg", "Other.pkg"], p
     #expect(TrashPutBack(journal: fixture.journal).putBack(try fixture.record("Back.dmg")) == .restored(try fixture.record("Back.dmg").originalURL))
     let before = try fixture.trashListing()
 
-    let result = emptying.empty(offered, previewOnly: false)
+    let result = emptying.empty(offered, dryRun: false)
 
     func outcome(_ name: String) throws -> CleanupRecord { try #require(result.records.first { $0.originalURL.lastPathComponent == name }) }
     #expect(try outcome("Setup.dmg").state == .succeeded)
@@ -154,18 +154,18 @@ private func trashedInstallers(_ names: [String] = ["Setup.dmg", "Other.pkg"], p
     #expect(try fixture.journal.completedHistory().completedRuns.first { $0.isEmptyFromTrash }?.title == "Emptied from the Trash · 1 item")
 
     // Emptied once, never again.
-    let again = emptying.empty([try fixture.record("Setup.dmg")], previewOnly: false)
+    let again = emptying.empty([try fixture.record("Setup.dmg")], dryRun: false)
     #expect(again.records.first?.message == EmptyRefusal.alreadyEmptied.reason)
 }
 
 @Test func onlyItemsMovedToTheTrashCanBeEmptiedAndARefusalWritesNothing() async throws {
     let fixture = try await trashedInstallers(["Setup.dmg"])
     defer { try? FileManager.default.removeItem(at: fixture.home) }
-    var preview = try fixture.record("Setup.dmg"); preview.previewOnly = true
+    var preview = try fixture.record("Setup.dmg"); preview.dryRun = true
     var outside = try fixture.record("Setup.dmg"); outside.trashURL = fixture.home.appendingPathComponent("Downloads/Elsewhere.dmg")
     let count = try fixture.journal.records().count
 
-    let result = fixture.emptying().empty([preview, outside], previewOnly: false)
+    let result = fixture.emptying().empty([preview, outside], dryRun: false)
 
     #expect(result.records.isEmpty)
     #expect(try fixture.journal.records().count == count)
@@ -178,10 +178,10 @@ private func trashedInstallers(_ names: [String] = ["Setup.dmg", "Other.pkg"], p
     let emptying = fixture.emptying()
     let before = try fixture.trashListing()
 
-    let result = emptying.empty(try emptying.review().items, previewOnly: true)
+    let result = emptying.empty(try emptying.review().items, dryRun: true)
 
-    #expect(result.previewOnly && result.measuredFreedBytes == nil)
-    #expect(result.records.allSatisfy { $0.wasPreviewed && $0.outcomeTitle == "Would delete from the Trash" })
+    #expect(result.dryRun && result.measuredFreedBytes == nil)
+    #expect(result.records.allSatisfy { $0.wasDryRun && $0.outcomeTitle == "Would delete from the Trash" })
     #expect(try fixture.trashListing() == before)
     let history = try fixture.journal.completedHistory()
     #expect(history.completedRuns.first { $0.isEmptyFromTrash }?.title == "Dry run · Nothing changed")
@@ -200,7 +200,7 @@ private func trashedInstallers(_ names: [String] = ["Setup.dmg", "Other.pkg"], p
 
     let offered = try emptying.review().items
     #expect(offered.count == 1)
-    #expect(emptying.empty(offered, previewOnly: false).records.first?.state == .succeeded)
+    #expect(emptying.empty(offered, dryRun: false).records.first?.state == .succeeded)
     try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: fixture.trash.path)
     #expect(try fixture.trashListing() == ["Mine.txt": Data(repeating: 7, count: 500)])
 }
@@ -225,7 +225,7 @@ private func trashedInstallers(_ names: [String] = ["Setup.dmg", "Other.pkg"], p
     let original = try fixture.record("Setup.dmg")
     // A journal that loses the outcome: the record stays at intent.
     let losing = OutcomeLosingJournal(fixture.journal)
-    _ = TrashEmptying(journal: losing, measure: fixtureMeasure).empty([original], previewOnly: false)
+    _ = TrashEmptying(journal: losing, measure: fixtureMeasure).empty([original], dryRun: false)
     let snapshot = try CleanupRecoverySnapshot(journal: fixture.journal)
     #expect(snapshot.unresolvedCount == 1)
     #expect(try fixture.emptying().review().items.isEmpty)

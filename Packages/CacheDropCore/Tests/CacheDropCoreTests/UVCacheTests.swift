@@ -24,10 +24,10 @@ private func fakeUV(_ home: URL, dir: String, prune: String = "exit 0") throws -
     return tool
 }
 
-private func execute(_ candidate: Candidate, catalog: Catalog, home: URL, previewOnly: Bool = false) async throws -> CleanupRecord {
+private func execute(_ candidate: Candidate, catalog: Catalog, home: URL, dryRun: Bool = false) async throws -> CleanupRecord {
     let journal = try SQLiteCleanupJournal(url: home.appendingPathComponent("journal.sqlite"))
     let run = CleanupExecutor(journal: journal, check: CandidateCheck(catalog: catalog, running: FixtureNothingRunning()), measure: FixtureSameVolume().read, trash: TrashNeverUsed())
-    return try #require(await run.execute(CatalogApproval(candidates: [candidate], previewOnly: previewOnly)).records.first)
+    return try #require(await run.execute(CatalogApproval(candidates: [candidate], dryRun: dryRun)).records.first)
 }
 
 @Test func uvsCacheIsPrunedWithItsOwnCommandAndItsFolderKept() async throws {
@@ -126,7 +126,7 @@ private func execute(_ candidate: Candidate, catalog: Catalog, home: URL, previe
     let uv = try fakeUV(home, dir: "echo '\(home.path)/.cache/uv'", prune: "touch '\(marker.path)'")
     let catalog = Catalog(rules: fixtureRules)
     let candidate = try #require(catalog.discover(fixture: home, locateTool: onlyTool("uv", uv)).first { $0.ruleID == "uv-cache" })
-    let record = try await execute(candidate, catalog: catalog, home: home, previewOnly: true)
+    let record = try await execute(candidate, catalog: catalog, home: home, dryRun: true)
     #expect(record.state == .skipped && record.message.hasPrefix(CleanupRecord.previewPrefix))
     #expect(!FileManager.default.fileExists(atPath: marker.path))
     #expect(FileManager.default.fileExists(atPath: home.appendingPathComponent(".cache/uv/entry").path))

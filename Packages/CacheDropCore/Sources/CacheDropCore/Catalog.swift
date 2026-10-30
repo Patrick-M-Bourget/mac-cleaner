@@ -466,9 +466,9 @@ public struct Catalog: Sendable {
         var notMeasured: [String: Set<String>] = [:]
         // `docker system df` runs once per scan for every Docker rule, whenever the CLI is installed: without its folder
         // nothing is offered, but a daemon that doesn't answer is still shown.
-        var dockerUsage: [String: Result<[DockerStorageCategory], ToolPreviewError>] = [:]
+        var dockerUsage: [String: Result<[DockerStorageCategory], ToolDryRunError>] = [:]
         // simctl's lists are read once per scan for both simulator rules (#134).
-        var simulators: [String: Result<SimulatorInventory, ToolPreviewError>] = [:]
+        var simulators: [String: Result<SimulatorInventory, ToolDryRunError>] = [:]
         let overridden = Set(overriddenRules(home: home, systemRoot: systemRoot).map(\.id))
         // Guidance rules are sized by `guidance(home:)` and never become candidates.
         let checked = rules.filter { $0.action != .guidance && !overridden.contains($0.id) && ($0.base == .home || userBase != nil) }

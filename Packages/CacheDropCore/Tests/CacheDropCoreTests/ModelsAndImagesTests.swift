@@ -70,11 +70,11 @@ private struct Running: RunningAppChecking {
     var names: Set<String> = []
     func isRunning(_ owner: RuleOwner) -> Bool? { names.contains(owner.name) }
 }
-private func run(_ home: URL, _ candidates: [Candidate], running: Running = Running(), previewOnly: Bool = false) async throws -> CatalogExecutionResult {
+private func run(_ home: URL, _ candidates: [Candidate], running: Running = Running(), dryRun: Bool = false) async throws -> CatalogExecutionResult {
     let journal = try SQLiteCleanupJournal(url: home.appendingPathComponent("journal.sqlite"))
     let check = CandidateCheck(catalog: Catalog(rules: fixtureRules), running: running)
     let executor = CleanupExecutor(journal: journal, check: check, measure: { _ in nil }, trash: FixtureFolderTrash(folder: home.appendingPathComponent("FixtureFolderTrash")))
-    return await executor.execute(CatalogApproval(candidates: candidates, previewOnly: previewOnly))
+    return await executor.execute(CatalogApproval(candidates: candidates, dryRun: dryRun))
 }
 
 @Test func aChosenHuggingFaceModelGoesToTrashAndTheOthersStay() async throws {
@@ -243,7 +243,7 @@ private func fakeOllama(_ home: URL, _ script: String = "echo \"$@\" >> \"$(dirn
     let candidates = Catalog(rules: fixtureRules).discover(fixture: home, locateTool: onlyTool("ollama", ollama))
     let chosen = try #require(candidates.first { $0.itemName == "someone/tuned:v2" })
 
-    let preview = try await run(home, [chosen], previewOnly: true)
+    let preview = try await run(home, [chosen], dryRun: true)
     #expect(preview.records.first?.message.hasPrefix("Dry run: would run ollama rm someone/tuned:v2") == true)
     #expect(!FileManager.default.fileExists(atPath: home.appendingPathComponent("tools/calls").path))
 

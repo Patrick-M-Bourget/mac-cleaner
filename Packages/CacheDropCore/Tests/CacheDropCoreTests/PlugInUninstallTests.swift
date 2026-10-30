@@ -156,7 +156,7 @@ private func names(_ items: [Candidate]) -> Set<String> { Set(items.map(\.url.la
     let journal = try SQLiteCleanupJournal(url: root.appendingPathComponent("journal.sqlite"))
 
     let result = await CleanupExecutor(journal: journal, check: check(home), measure: { _ in nil }, trash: RootTrash(root: root))
-        .execute(CatalogApproval(candidates: chosen, previewOnly: false))
+        .execute(CatalogApproval(candidates: chosen, dryRun: false))
 
     #expect(result.records.count == 3 && result.records.allSatisfy { $0.state == .succeeded }, "\(result.records.map(\.message))")
     #expect(FileManager.default.fileExists(atPath: root.appendingPathComponent(plugIns + "VST3/Pro Delay.vst3").path), "Another product stays")

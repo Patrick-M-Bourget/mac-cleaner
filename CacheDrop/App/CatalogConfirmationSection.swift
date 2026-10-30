@@ -28,7 +28,7 @@ struct CatalogConfirmationSection: View {
     var body: some View {
         let refusals = refusals ?? review.refusals
         VStack(alignment: .leading, spacing: CacheDropDesign.Space.lg) {
-            if review.approval.previewOnly {
+            if review.approval.dryRun {
                 StatusRow(text: "Dry run is on. Nothing on disk changes.", symbol: "eye", role: .neutral, identifier: "reviewPreviewNotice")
             }
             ForEach(ReviewGroup.groups(catalog: catalog, candidates: review.approval.candidates)) { group in
@@ -63,7 +63,7 @@ struct CatalogConfirmationSection: View {
                 Divider()
             }
             // Docker's space arrives after its prune (#411); Results check again a minute later.
-            if !review.approval.previewOnly, let note = catalog.dockerReviewNote(for: review.approval.candidates) {
+            if !review.approval.dryRun, let note = catalog.dockerReviewNote(for: review.approval.candidates) {
                 StatusRow(text: note, symbol: "clock", identifier: "reviewDockerSettles")
             }
             // What an uninstall leaves, why and what to do, with a link to where it can be cleaned (#177, #354).

@@ -31,14 +31,14 @@ struct SimulatorInventory: Sendable {
         return SimulatorInventory(devices: devices, runtimes: runtimes.keys.sorted().compactMap { runtimes[$0] })
     }
     /// Runs both listings with the tool's own folder first on PATH, as tool actions run.
-    static func read(_ simctl: URL) -> Result<SimulatorInventory, ToolPreviewError> {
+    static func read(_ simctl: URL) -> Result<SimulatorInventory, ToolDryRunError> {
         var environment = BoundedTool.defaultEnvironment
         environment["PATH"] = simctl.deletingLastPathComponent().path + ":" + (environment["PATH"] ?? "")
         do {
             let devices = try BoundedTool.run(executable: simctl, arguments: ["list", "devices", "-j"], timeout: timeout, outputLimit: 4_000_000, environment: environment)
             let runtimes = try BoundedTool.run(executable: simctl, arguments: ["runtime", "list", "-j"], timeout: timeout, outputLimit: 4_000_000, environment: environment)
             return .success(try parse(devices: devices, runtimes: runtimes))
-        } catch let error as ToolPreviewError { return .failure(error) }
+        } catch let error as ToolDryRunError { return .failure(error) }
         catch { return .failure(.invalidOutput) }
     }
     static let notice = "Couldn’t read the simulator list, so simulators aren’t shown. Scan again."
