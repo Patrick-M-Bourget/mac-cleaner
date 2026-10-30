@@ -1,0 +1,19 @@
+{
+  "scopes": [
+    {
+      "bookmark": "Ym9va21hcmstZml4dHVyZS1tdXNpYw==",
+      "id": "C9B4E101-7090-4FD0-AFFB-4937C2235F88",
+      "isIncluded": false,
+      "kind": "inspection",
+      "path": "/Users/x/Music"
+    },
+    {
+      "bookmark": "Ym9va21hcmstZml4dHVyZS1kb3dubG9hZHM=",
+      "id": "21698AE2-FDA7-46CC-A708-8F393EFB35CB",
+      "isIncluded": true,
+      "kind": "downloads",
+      "path": "/Users/x/Downloads"
+    }
+  ],
+  "version": 1
+}
