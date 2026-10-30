@@ -5,10 +5,14 @@ import CacheDropCore
 /// A Downloads-style Trash batch over the files in `root`, as the executor would claim it.
 private struct FixtureBatch { let id: UUID; let records: [CleanupRecord] }
 private func fixtureBatch(_ root: URL) -> FixtureBatch {
-    let rule = CleanupRule(id: "fixture-files", category: .downloads, title: "Files", detail: "", consequence: "", regen: .userFile, action: .trash, locations: [""], owner: nil, contents: ContentsMatch())
     let id = UUID()
-    let candidates = Catalog(rules: [rule]).discover(fixture: root).sorted { $0.url.path < $1.url.path }
-    return FixtureBatch(id: id, records: candidates.map { CleanupRecord(batchID: id, approvedAt: Date(), candidate: $0, previewOnly: false) })
+    return FixtureBatch(id: id, records: fixtureCandidates(root, action: .trash).map { CleanupRecord(batchID: id, approvedAt: Date(), candidate: $0, previewOnly: false) })
+}
+/// The files in `root` as a rule with `action` finds them: Downloads-style user files for the Trash, a cache to delete.
+private func fixtureCandidates(_ root: URL, action: CleanupAction) -> [Candidate] {
+    let rule = CleanupRule(id: "fixture-" + action.rawValue, category: action == .trash ? .downloads : .developer, title: "Files", detail: "", consequence: "",
+                           regen: action == .trash ? .userFile : .cache, action: action, locations: [""], owner: nil, contents: ContentsMatch())
+    return Catalog(rules: [rule]).discover(fixture: root).sorted { $0.url.path < $1.url.path }
 }
 private func historyApproval(_ root: URL, names: [String]) async throws -> FixtureBatch {
     for name in names { try Data([7]).write(to: root.appendingPathComponent(name)) }
@@ -85,7 +89,7 @@ private func historyApproval(_ root: URL, names: [String]) async throws -> Fixtu
     #expect(try journal.retainCompletedRuns(now: Date(timeIntervalSince1970: 100 * 86400)).removedRuns == 1)
     #expect(try journal.claim(batchID: approved.id, records: approved.records) == false)
 }
-@Test func completedHistorySeparatesPersistedCapacityFromPlannedSizes() async throws {
+@Test func completedHistoryShowsThePlannedSizeResultsShows() async throws {
     let root = FileManager.default.temporaryDirectory.appendingPathComponent("CacheDropHistory-" + UUID().uuidString)
     try FileManager.default.createDirectory(at: root, withIntermediateDirectories: false)
     defer { try? FileManager.default.removeItem(at: root) }
@@ -95,10 +99,7 @@ private func historyApproval(_ root: URL, names: [String]) async throws -> Fixtu
     #expect(try journal.claim(batchID: approval.id, records: approval.records))
     var record = try #require(approval.records.first); record.state = .succeeded
     try journal.outcome(record)
-    let observation = CleanupCapacityObservation(beforeAvailable: 20, afterAvailable: 14, beforeTotal: 100, afterTotal: 100, beforeVolumeID: "owned-volume", afterVolumeID: "owned-volume", beforeMetric: "available", afterMetric: "available", beforeDate: Date(timeIntervalSince1970: 1), afterDate: Date(timeIntervalSince1970: 2))
-    try journal.recordCapacity(observation, batchID: approval.id)
     let run = try #require(SQLiteCleanupJournal(url: url, readOnly: true).completedHistory().completedRuns.first)
-    #expect(run.capacity?.observedChange == -6)
     // #312: History shows the size Results showed for the same items, allocated where known.
     #expect(record.allocatedBytes.map { $0 > 1 } == true)
     #expect(run.plannedBytes == record.allocatedBytes)
@@ -125,6 +126,58 @@ private func historyApproval(_ root: URL, names: [String]) async throws -> Fixtu
     #expect(settled.beforeVolumeID == "run-volume" && settled.afterVolumeID == "now-volume")
     #expect(settled.beforeMetric == "important" && settled.afterMetric == "available")
     #expect(settled.beforeDate == Date(timeIntervalSince1970: 2) && settled.afterDate == Date(timeIntervalSince1970: 3))
+}
+/// #433: History measures freed space as Results does, around each removed item; a Trash move frees nothing yet, so it
+/// neither counts nor makes the run's figure unknown.
+@Test func historyMeasuresFreedSpaceAroundRemovedItemsAndLeavesTrashMovesOut() async throws {
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent("CacheDropHistory-" + UUID().uuidString)
+    let caches = root.appendingPathComponent("caches"), downloads = root.appendingPathComponent("downloads")
+    try FileManager.default.createDirectory(at: caches, withIntermediateDirectories: true)
+    try FileManager.default.createDirectory(at: downloads, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: root) }
+    try Data([7]).write(to: caches.appendingPathComponent("cache.bin"))
+    try Data([7]).write(to: downloads.appendingPathComponent("setup.dmg"))
+    let id = UUID()
+    let records = (fixtureCandidates(caches, action: .delete) + fixtureCandidates(downloads, action: .trash))
+        .map { CleanupRecord(batchID: id, approvedAt: Date(), candidate: $0, previewOnly: false) }
+    let url = root.appendingPathComponent("cleanup.sqlite")
+    let journal = try SQLiteCleanupJournal(url: url)
+    #expect(try journal.claim(batchID: id, records: records))
+    for var record in records {
+        record.state = .succeeded
+        if record.cleanupAction == .delete {
+            record.itemCapacity = CleanupCapacityObservation(from: CapacitySample(available: 14, total: 100, volumeID: "v", metric: .important, date: Date(timeIntervalSince1970: 1)),
+                                                            to: CapacitySample(available: 20, total: 100, volumeID: "v", metric: .important, date: Date(timeIntervalSince1970: 2)))
+        }
+        try journal.outcome(record)
+    }
+    let run = try #require(SQLiteCleanupJournal(url: url, readOnly: true).completedHistory().completedRuns.first)
+    #expect(run.measuredFreedBytes == 6)
+    #expect(!run.records.movedOnlyToTrash)
+}
+/// #433: a run that only moved items to the Trash shows no measured freed space, in History as in Results (Decision 66).
+@Test func aRunThatOnlyMovedItemsToTheTrashShowsNoMeasuredFreedSpace() async throws {
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent("CacheDropHistory-" + UUID().uuidString)
+    try FileManager.default.createDirectory(at: root, withIntermediateDirectories: false)
+    defer { try? FileManager.default.removeItem(at: root) }
+    let approval = try await historyApproval(root, names: ["setup.dmg"])
+    var record = try #require(approval.records.first)
+    #expect(!approval.records.movedOnlyToTrash, "Nothing has moved yet")
+    record.state = .succeeded
+    #expect([record].movedOnlyToTrash)
+}
+/// #433: records journaled before the whole-run reading was dropped still carry its key; they still decode.
+@Test func aRecordWithTheDroppedWholeRunReadingStillDecodes() async throws {
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent("CacheDropHistory-" + UUID().uuidString)
+    try FileManager.default.createDirectory(at: root, withIntermediateDirectories: false)
+    defer { try? FileManager.default.removeItem(at: root) }
+    let record = try #require(try await historyApproval(root, names: ["old.pdf"]).records.first)
+    var payload = try #require(try JSONSerialization.jsonObject(with: JSONEncoder().encode(record)) as? [String: Any])
+    let reading = CleanupCapacityObservation(from: CapacitySample(available: 20, total: 100, volumeID: "v", metric: .available, date: Date(timeIntervalSince1970: 1)),
+                                             to: CapacitySample(available: 14, total: 100, volumeID: "v", metric: .available, date: Date(timeIntervalSince1970: 2)))
+    payload["capacityObservation"] = try JSONSerialization.jsonObject(with: JSONEncoder().encode(reading))
+    let decoded = try JSONDecoder().decode(CleanupRecord.self, from: JSONSerialization.data(withJSONObject: payload))
+    #expect(decoded.id == record.id)
 }
 @Test func deferredCompactionAndByteRetentionPreserveJournalAuthority() async throws {
     let root = FileManager.default.temporaryDirectory.appendingPathComponent("CacheDropHistory-" + UUID().uuidString)

@@ -101,18 +101,6 @@ public final class SQLiteCleanupJournal: CleanupJournaling, @unchecked Sendable 
             results.append(try JSONDecoder().decode(CleanupRecord.self, from: Data(bytes: bytes, count: Int(sqlite3_column_bytes(statement, 0)))))
         }
     }
-    public func recordCapacity(_ observation: CleanupCapacityObservation, batchID: UUID) throws {
-        guard !isReadOnly else { throw CleanupJournalError.unavailable }
-        lock.lock(); defer { lock.unlock() }
-        try run("BEGIN IMMEDIATE")
-        do {
-            for var record in try readRecords() where record.batchID == batchID {
-                record.capacityObservation = observation
-                try run("UPDATE records SET payload=? WHERE id=?", values: [try JSONEncoder().encode(record), Data(record.id.utf8)])
-            }
-            try run("COMMIT")
-        } catch { try? run("ROLLBACK"); throw error }
-    }
     public func completedHistory() throws -> CleanupHistorySnapshot {
         CleanupHistorySnapshot(records: try records())
     }

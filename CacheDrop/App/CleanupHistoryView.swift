@@ -208,14 +208,14 @@ struct CleanupHistoryView: View {
             if run.usesApprovalDate { note("Shows when you started the cleanup; this version of CacheDrop didn’t record when it finished.") }
             if run.isPreview {
                 note("Dry run · Nothing on disk changed. No space was freed.")
-            } else if run.isEmptyFromTrash {
-                // Measured around each item, as Results measures a cleanup (#359).
-                note("Measured freed space: " + (MeasuredFreedSpace.shown(run.measuredFreedBytes).map(bytes) ?? "Unknown") + " · Other activity can affect it.")
             } else if !run.isPutBack {
                 if run.records.contains(where: { $0.cleanupAction == .trash }) {
                     note("In Trash until you empty it: " + (run.trashHeldAllocatedBytes.map(bytes) ?? "Unknown"))
                 }
-                note("Free space change: " + (run.capacity?.observedChange.map { ($0 >= 0 ? "+" : "−") + bytes(abs($0)) } ?? "Unknown") + " · Other activity can affect it.")
+                // Measured around each item, as Results shows it, for a cleanup and an emptying of the Trash alike (#359, #433).
+                if !run.records.movedOnlyToTrash {
+                    note("Measured freed space: " + (MeasuredFreedSpace.shown(run.measuredFreedBytes).map(bytes) ?? "Unknown") + " · Other activity can affect it.")
+                }
             }
             ForEach(run.records) { record in
                 HStack(alignment: .firstTextBaseline, spacing: CacheDropDesign.Space.md) {

@@ -25,7 +25,7 @@ struct CatalogResultsSection: View {
             } else {
                 // SPEC section 6: measured and estimated, reported separately; Trash is never counted as freed.
                 // Everything went to the Trash (#312): nothing is freed yet, so no "Zero KB · Measured freed space".
-                let onlyTrashed = result.movedToTrashBytes > 0 && result.records.allSatisfy { $0.state != .succeeded || $0.cleanupAction == .trash }
+                let onlyTrashed = result.records.movedOnlyToTrash
                 SummarySurface {
                     HStack(alignment: .top, spacing: CacheDropDesign.Space.xl) {
                         if !onlyTrashed {

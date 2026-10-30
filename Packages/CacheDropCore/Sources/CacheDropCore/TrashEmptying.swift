@@ -40,7 +40,7 @@ extension CleanupRecord {
                   logicalBytes: original.logicalBytes, allocatedBytes: original.allocatedBytes, state: .pending, trashURL: nil,
                   message: "Approved; not started", observedAt: date, scopeURL: trashURL.deletingLastPathComponent(), scopeResourceID: "",
                   volumeID: original.volumeID, downloadsURL: nil, downloadsResourceID: nil, modifiedSeconds: original.modifiedSeconds,
-                  modifiedNanoseconds: original.modifiedNanoseconds, action: Self.emptyFromTrashAction, policyVersion: 2, capacityObservation: nil,
+                  modifiedNanoseconds: original.modifiedNanoseconds, action: Self.emptyFromTrashAction, policyVersion: 2,
                   outcomeRecordedAt: nil, approvedAt: date, ruleID: original.ruleID, previewOnly: previewOnly, itemName: original.itemName)
         emptyOf = original.id
     }
@@ -103,18 +103,6 @@ public struct TrashEmptyingResult: Sendable {
     public var measuredFreedBytes: Int64? {
         guard !previewOnly else { return nil }
         return records.measuredFreedBytes
-    }
-}
-
-extension Array where Element == CleanupRecord {
-    /// The sum of the available-space change around each succeeded record; nil when any reading is missing.
-    var measuredFreedBytes: Int64? {
-        var total: Int64 = 0
-        for record in self where record.state == .succeeded {
-            guard let change = record.itemCapacity?.observedChange else { return nil }
-            total += change
-        }
-        return total
     }
 }
 

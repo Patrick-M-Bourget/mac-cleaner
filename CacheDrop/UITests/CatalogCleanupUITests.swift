@@ -510,6 +510,16 @@ final class CatalogCleanupUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Deleted"].waitForExistence(timeout: 10))
         XCTAssertFalse(app.staticTexts["catalogPreviewNotice"].exists)
         XCTAssertFalse(FileManager.default.fileExists(atPath: home.appendingPathComponent(".npm/_cacache").path))
+
+        // #433: History shows the run's measured freed space, as Results does, never an unknown "Free space change".
+        app.typeKey("6", modifierFlags: .command)
+        let run = app.descendants(matching: .any).matching(NSPredicate(format: "identifier BEGINSWITH 'cleanupRun:'")).firstMatch
+        XCTAssertTrue(run.waitForExistence(timeout: 10))
+        revealAndClick(run, in: app)
+        let measured = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH 'Measured freed space: ' OR value BEGINSWITH 'Measured freed space: '")).firstMatch
+        XCTAssertTrue(measured.waitForExistence(timeout: 5))
+        XCTAssertFalse((measured.value as? String ?? measured.label).contains("Unknown"), measured.debugDescription)
+        XCTAssertFalse(app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH 'Free space change'")).firstMatch.exists)
     }
 
     /// #123: after a cleanup, an Overview category opens a fresh plan, not the last run's results.
