@@ -593,6 +593,8 @@ final class CatalogCleanupUITests: XCTestCase {
         XCTAssertEqual(item.value as? Int, 0)
         // #350: the installer goes to the Trash, so the total doesn't count it, and nothing on the page moves.
         let total = app.staticTexts["liveSelectionSummaryValue"], before = total.value as? String
+        // #481: nothing is selected on Applications, so the count stands alone.
+        XCTAssertFalse(element(identifier: "liveSelectionSummaryElsewhere", in: app).exists)
         let below = app.checkBoxes["planCategory-developer"], top = below.frame.minY
         revealAndClick(item, in: app)
         XCTAssertEqual(item.value as? Int, 1)

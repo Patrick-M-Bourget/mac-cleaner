@@ -261,7 +261,7 @@ struct LiveCleanupPlanView: View {
             ScanHistoryRecordingNotice()
             SelectionSummary(value: selection.workspaceSelectedSize,
                              detail: CacheDropDesign.items(selection.catalog.selectedCount) + " selected",
-                             identifier: "liveSelectionSummary", title: "Potential space released", elsewhere: applicationsSelected)
+                             identifier: "liveSelectionSummary", title: "Potential space released", elsewhere: applicationsLink)
                 .help(CacheDropDesign.selectionEstimateHelp)
             SettingsUnreadableNotice(model: selection.catalog)
             if let approvalError { StatusRow(text: approvalError, symbol: "exclamationmark.circle", role: .caution) }
@@ -290,7 +290,7 @@ struct LiveCleanupPlanView: View {
         .onChange(of: selection.catalog.selectionRevision(for: .plan)) { _, _ in if review != nil { review = nil; approvalError = PlanReviewError.changedMessage } }
     }
     /// The shared selection's part on Applications, which the plan's count leaves out (#481): Smart clean counts it too.
-    private var applicationsSelected: (title: String, open: () -> Void)? {
+    private var applicationsLink: (title: String, open: () -> Void)? {
         let count = selection.catalog.applicationsSelected.count
         guard count > 0, let openApplications else { return nil }
         return ("\(count) on Applications", openApplications)
