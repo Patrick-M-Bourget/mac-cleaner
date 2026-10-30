@@ -121,9 +121,9 @@ func aCacheHoldingOneOfOurOwnFoldersIsProtected(name: String) throws {
     let cache = try writeNpmCache(in: home)
     let candidate = try npmCandidate(home)
     let catalog = Catalog(rules: fixtureRules)
-    let outer = ExclusionPolicy(rules: [try ExclusionRule.capture(home.appendingPathComponent(".npm"))])
+    let outer = ProtectedItemsPolicy(rules: [try ProtectedItemsRule.capture(home.appendingPathComponent(".npm"))])
     #expect(CandidateCheck(catalog: catalog, running: FakeRunning(), exclusions: outer).check(candidate) == .excluded)
-    let inner = ExclusionPolicy(rules: [try ExclusionRule.capture(cache.appendingPathComponent("index-v5"))])
+    let inner = ProtectedItemsPolicy(rules: [try ProtectedItemsRule.capture(cache.appendingPathComponent("index-v5"))])
     #expect(CandidateCheck(catalog: catalog, running: FakeRunning(), exclusions: inner).check(candidate) == .excluded)
     // #313: the reason names where exclusions live, Locations & access's Protected items.
     #expect(CheckRefusal.excluded.reason == "In Protected items, in Locations & access.")

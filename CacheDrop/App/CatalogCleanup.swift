@@ -243,7 +243,7 @@ import SwiftUI
 
     /// Plug-in products to uninstall (#176): their formats, own support files and shared items, never what is `offered` elsewhere.
     nonisolated private static func plugIns(home: URL, system: URL, installed: [InstalledApp], receipts: ReceiptListings, offered: [Candidate],
-                                            exclusions: ExclusionPolicy) -> (PlugInInventory, [Candidate]) {
+                                            exclusions: ProtectedItemsPolicy) -> (PlugInInventory, [Candidate]) {
         let inventory = PlugInInventory.scan(home: home, systemRoot: system, receipts: receipts)
         let owners = ApplicationsInventory.plugIns(inventory).map { ContentOwner($0) } + installed.map { ContentOwner($0) }
         let content = MusicContent.scan(owners: owners, home: home, systemRoot: system).items
@@ -381,7 +381,7 @@ import SwiftUI
         defer { isScanning = false; hasScanned = true; scanProgress = nil }
         guard let home = Self.home else { discovered = []; uninstallable = []; notes = []; overriddenRules = []; notAccessibleRules = []; setRunning([:], open: []); ownerNames = [:]; return }
         // Excluded items are never offered (SPEC section 2); without the settings nothing can be offered safely.
-        guard let exclusions = try? await ExclusionsModel.shared.policyForScan() else {
+        guard let exclusions = try? await ProtectedItemsModel.shared.policyForScan() else {
             discovered = []; uninstallable = []; notes = []; overriddenRules = []; notAccessibleRules = []; setRunning([:], open: []); ownerNames = [:]
             settingsUnreadable = true; return
         }
@@ -503,7 +503,7 @@ import SwiftUI
 
     /// Lists a picked folder's large and old files from its finished scan, and its projects' build folders. Read-only; nothing is chosen.
     func showPickedFiles(_ scan: ScanResult) async {
-        guard !isRunning, let exclusions = try? await ExclusionsModel.shared.policyForScan() else { return }
+        guard !isRunning, let exclusions = try? await ProtectedItemsModel.shared.policyForScan() else { return }
         let home = Self.checkHome
         let (found, builds) = await Task.detached(priority: .userInitiated) {
             (UserFiles.candidates(in: scan, exclusions: exclusions, home: home), ProjectBuilds.candidates(in: scan.scope, exclusions: exclusions, home: home))
@@ -628,7 +628,7 @@ import SwiftUI
             defer { if settleCheck?.batchID == outcome.batchID { settleCheck?.finished = true } }
             let later = await run.measureAgainLater(outcome, of: approval, wait: wait, update: { [weak self] partial in await self?.showLaterMeasurement(partial) }) { candidates in
                 // Without the exclusions the scan used, nothing is measured: every item stays unmeasured.
-                guard let exclusions = try? await ExclusionsModel.shared.policyForScan() else { return [:] }
+                guard let exclusions = try? await ProtectedItemsModel.shared.policyForScan() else { return [:] }
                 return await Task.detached(priority: .utility) {
                     let only = catalog.only(candidates)
                     return catalog.measuredAgain(candidates, in: only.discovery(home: home, userFolder: userFolder, exclusions: exclusions, locateTool: locate,
@@ -662,7 +662,7 @@ import SwiftUI
         return await currentCheck()?.snapshotted()
     }
     private func currentCheck() async -> CandidateCheck? {
-        do { return CandidateCheck(catalog: catalog, running: SystemRunningAppChecker(), exclusions: try await ExclusionsModel.shared.policyForScan(), cloud: Self.cloud,
+        do { return CandidateCheck(catalog: catalog, running: SystemRunningAppChecker(), exclusions: try await ProtectedItemsModel.shared.policyForScan(), cloud: Self.cloud,
                                     home: Self.checkHome, apps: Self.appPresence, systemRoot: Self.systemRoot) }
         catch { settingsUnreadable = true; return nil }
     }

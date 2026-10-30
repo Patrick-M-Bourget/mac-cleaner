@@ -128,7 +128,7 @@ public actor FolderScanner {
     }
 
     /// Reads a folder's metadata within the entry and time limits, reporting unreadable or incomplete portions as issues.
-    public func scan(_ scope: URL, cancellation: ScanCancellation? = nil, onProgress: (@Sendable (ScanProgress) -> Void)? = nil, exclusions: ExclusionPolicy = ExclusionPolicy()) throws -> ScanResult {
+    public func scan(_ scope: URL, cancellation: ScanCancellation? = nil, onProgress: (@Sendable (ScanProgress) -> Void)? = nil, exclusions: ProtectedItemsPolicy = ProtectedItemsPolicy()) throws -> ScanResult {
         try Task.checkCancellation()
         if cancellation?.isCancellationRequested == true { throw CancellationError() }
         let budget = ScanWorkBudget(duration: maximumDuration)
@@ -153,7 +153,7 @@ public actor FolderScanner {
     // Foundation objects are confined to this nonisolated stack and autorelease pool.
     private nonisolated static func enumerate(_ scope: URL, maximumEntries: Int, maximumIssues: Int,
         supplement: any MetadataSupplementReading, access: any ScanAccessChecking,
-        cancellation: ScanCancellation?, onProgress: (@Sendable (ScanProgress) -> Void)?, budget: ScanWorkBudget, phase: ScanPhase, expectedRoot: DirectoryEvidence?, exclusions: ExclusionPolicy) throws -> ScanResult {
+        cancellation: ScanCancellation?, onProgress: (@Sendable (ScanProgress) -> Void)?, budget: ScanWorkBudget, phase: ScanPhase, expectedRoot: DirectoryEvidence?, exclusions: ProtectedItemsPolicy) throws -> ScanResult {
         guard scope.isFileURL else { throw CocoaError(.fileReadUnsupportedScheme) }
         func checkCancellation() throws {
             try Task.checkCancellation()

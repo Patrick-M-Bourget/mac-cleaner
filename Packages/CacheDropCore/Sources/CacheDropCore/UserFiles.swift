@@ -20,7 +20,7 @@ public enum UserFiles {
 
     /// The scan's files that are large or old, largest first. Read-only. `large` is `largeBytes` except in tests, which can't
     /// afford files that really take 500 MB on disk.
-    public static func candidates(in scan: ScanResult, rule: CleanupRule = rule, exclusions: ExclusionPolicy = ExclusionPolicy(),
+    public static func candidates(in scan: ScanResult, rule: CleanupRule = rule, exclusions: ProtectedItemsPolicy = ProtectedItemsPolicy(),
                                   home: URL, now: Date = Date(), large: Int64 = largeBytes) -> [Candidate] {
         // The scope and its items in canonical form, so containment holds for `/var` against `/private/var`.
         guard let scopePath = realPath(scan.scope.path) else { return [] }

@@ -77,11 +77,11 @@ extension Catalog {
     /// Discovery as tests run it, reading nothing outside the fixture: the fixture home stands in for the system root,
     /// no tool is installed unless `locateTool` finds a stand-in, there's no user folder unless one is given,
     /// and no copy is in use.
-    func discover(fixture home: URL, userFolder: URL? = nil, exclusions: ExclusionPolicy = ExclusionPolicy(), inUse: any InUseChecking = FixtureNothingInUse(),
+    func discover(fixture home: URL, userFolder: URL? = nil, exclusions: ProtectedItemsPolicy = ProtectedItemsPolicy(), inUse: any InUseChecking = FixtureNothingInUse(),
                   now: Date = Date(), locateTool: (ToolCommand) -> URL? = { _ in nil }, systemRoot: URL? = nil, cloud: any UbiquitousItemAccess = FakeCloud()) -> [Candidate] {
         discovery(fixture: home, userFolder: userFolder, exclusions: exclusions, inUse: inUse, now: now, locateTool: locateTool, systemRoot: systemRoot, cloud: cloud).candidates
     }
-    func discovery(fixture home: URL, userFolder: URL? = nil, exclusions: ExclusionPolicy = ExclusionPolicy(), inUse: any InUseChecking = FixtureNothingInUse(),
+    func discovery(fixture home: URL, userFolder: URL? = nil, exclusions: ProtectedItemsPolicy = ProtectedItemsPolicy(), inUse: any InUseChecking = FixtureNothingInUse(),
                    now: Date = Date(), locateTool: (ToolCommand) -> URL? = { _ in nil }, systemRoot: URL? = nil, cloud: any UbiquitousItemAccess = FakeCloud(),
                    access: FullDiskAccessStatus = .granted) -> CatalogDiscovery {
         discovery(home: home, userFolder: userFolder, exclusions: exclusions, inUse: inUse, now: now, locateTool: locateTool, systemRoot: systemRoot ?? home, cloud: cloud,
@@ -143,7 +143,7 @@ let fixtureNoHome = FileManager.default.temporaryDirectory.appendingPathComponen
 
 extension CandidateCheck {
     /// The check as tests run it when the home folder doesn't matter.
-    init(catalog: Catalog, running: any RunningAppChecking, exclusions: ExclusionPolicy = ExclusionPolicy(), inUse: any InUseChecking = SystemInUseChecker(),
+    init(catalog: Catalog, running: any RunningAppChecking, exclusions: ProtectedItemsPolicy = ProtectedItemsPolicy(), inUse: any InUseChecking = SystemInUseChecker(),
          cloud: any UbiquitousItemAccess = SystemUbiquitousItems()) {
         self.init(catalog: catalog, running: running, exclusions: exclusions, inUse: inUse, cloud: cloud, home: fixtureNoHome)
     }

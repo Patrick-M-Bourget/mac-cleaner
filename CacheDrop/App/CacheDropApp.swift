@@ -138,13 +138,13 @@ private struct WorkspaceView: View {
     @State private var recovery = AppLifecycleController.shared.recovery
     private var recoveryVisible: Bool { get { navigationState.recoveryVisible } nonmutating set { navigationState.recoveryVisible = newValue } }
     private var nativeInspectionVisible: Bool { get { navigationState.explorerVisible } nonmutating set { navigationState.explorerVisible = newValue } }
-    @State private var exclusionsVisible = false
+    @State private var protectedItemsVisible = false
     /// Where the page on show keeps its scroll position; nil for a page that keeps none. Out of the view builder, where
     /// the if-chain timed out CI's type checker (#264).
     private var scrollOffset: Binding<CGPoint?>? {
         if recoveryVisible { return nil }
         if navigationState.localRecordsVisible { return $navigationState.localRecordsOffset }
-        if exclusionsVisible || navigationState.appManagedVisible { return nil }
+        if protectedItemsVisible || navigationState.appManagedVisible { return nil }
         switch destination {
         case .history: return $navigationState.historyOffset
         case .growth: return $navigationState.growthOffset
@@ -158,7 +158,7 @@ private struct WorkspaceView: View {
     private var scrollIdentity: String {
         if recoveryVisible { return "recovery" }
         if navigationState.localRecordsVisible { return "local-records" }
-        if exclusionsVisible { return "exclusions" }
+        if protectedItemsVisible { return "exclusions" }
         if navigationState.appManagedVisible { return "app-managed" }
         return destination.rawValue
     }
@@ -196,7 +196,7 @@ private struct WorkspaceView: View {
     private var startupCapacity: StartupCapacityReading? { capacity.reading }
     /// The destination's own page shows: no records, recovery, inspection, exclusions or app-managed page covers it.
     private func showsOwnPage(_ page: Destination, evenUnderAppManaged: Bool = false) -> Bool {
-        destination == page && !navigationState.localRecordsVisible && !recoveryVisible && !nativeInspectionVisible && !exclusionsVisible
+        destination == page && !navigationState.localRecordsVisible && !recoveryVisible && !nativeInspectionVisible && !protectedItemsVisible
             && (evenUnderAppManaged || !navigationState.appManagedVisible)
     }
     private var showsSmartClean: Bool { showsOwnPage(.smartClean) }
@@ -211,7 +211,7 @@ private struct WorkspaceView: View {
         if recoveryVisible { return "Review interrupted cleanup" }
         if selection.hasWorkspaceResult && showsPlan { return nil }
         if nativeInspectionVisible { return nil }
-        if exclusionsVisible { return nil }
+        if protectedItemsVisible { return nil }
         if navigationState.appManagedVisible { return nil }
         switch destination {
         case .overview: return nil
@@ -297,7 +297,7 @@ private struct WorkspaceView: View {
             AppLifecycleController.shared.openSmartClean = { navigate(.smartClean) }
             selection.catalog.scanRememberedFolders = { scanRememberedFolders() }
         }
-        .onReceive(NotificationCenter.default.publisher(for: .cacheDropAlertOpened)) { _ in destination = .overview; navigationState.localRecordsVisible = false; navigationState.appManagedVisible = false; exclusionsVisible = false; recoveryVisible = false; nativeInspectionVisible = false }
+        .onReceive(NotificationCenter.default.publisher(for: .cacheDropAlertOpened)) { _ in destination = .overview; navigationState.localRecordsVisible = false; navigationState.appManagedVisible = false; protectedItemsVisible = false; recoveryVisible = false; nativeInspectionVisible = false }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in Task { await alerts.activated() } }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in Task { await selection.catalog.rescanIfFullDiskAccessGranted() } }
         .onReceive(NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.didWakeNotification)) { _ in Task { await alerts.activated() } }
@@ -320,7 +320,7 @@ private struct WorkspaceView: View {
     /// Return to scan, hidden on the screen the scan belongs to: where it started, and for the recheck of the selected
     /// locations also Explore storage, which shows them (#364).
     private var scanReturnAction: (() -> Void)? {
-        let atOrigin = destination == scanOrigin && !navigationState.localRecordsVisible && !navigationState.appManagedVisible && !nativeInspectionVisible && !exclusionsVisible && !recoveryVisible
+        let atOrigin = destination == scanOrigin && !navigationState.localRecordsVisible && !navigationState.appManagedVisible && !nativeInspectionVisible && !protectedItemsVisible && !recoveryVisible
         if atOrigin || (folderInspection.isRechecking && nativeInspectionVisible) { return nil }
         return { returnToScanOrigin() }
     }
@@ -329,7 +329,7 @@ private struct WorkspaceView: View {
         destination = scanOrigin
         navigationState.localRecordsVisible = false; navigationState.appManagedVisible = false
         nativeInspectionVisible = false
-        exclusionsVisible = false; recoveryVisible = false
+        protectedItemsVisible = false; recoveryVisible = false
         planReturnsToExplorer = false
     }
 
@@ -341,7 +341,7 @@ private struct WorkspaceView: View {
         if value == .smartClean && selection.showsRun(for: .smartClean) { selection.dismissResult() }
         if value == .applications && selection.showsRun(for: .applications) { selection.dismissResult() }
         navigationState.localRecordsVisible = false; navigationState.appManagedVisible = false
-        exclusionsVisible = false
+        protectedItemsVisible = false
         recoveryVisible = false; navigationState.recoveryCaller = .overview; nativeInspectionVisible = false
     }
 
@@ -735,9 +735,9 @@ private struct WorkspaceView: View {
                                      navigationState.localRecordsVisible = false
                                      destination = navigationState.localRecordsCaller
                                  })
-            } else if exclusionsVisible {
-                ExclusionsView(model: ExclusionsModel.shared, back: BackButton(destination: Destination.locations.rawValue, enabled: !ExclusionsModel.shared.editingBlocked) {
-                    exclusionsVisible = false; destination = .locations
+            } else if protectedItemsVisible {
+                ProtectedItemsView(model: ProtectedItemsModel.shared, back: BackButton(destination: Destination.locations.rawValue, enabled: !ProtectedItemsModel.shared.editingBlocked) {
+                    protectedItemsVisible = false; destination = .locations
                 })
             } else if navigationState.appManagedVisible {
                 AppManagedStorageView(model: selection.catalog) { navigationState.appManagedVisible = false }
@@ -761,13 +761,13 @@ private struct WorkspaceView: View {
     /// The bottom bar under a scrolling page.
     @ViewBuilder private var pageBar: some View {
     Group {
-        if exclusionsVisible {
+        if protectedItemsVisible {
             ActionStrip(message: "Protecting an item never changes it.") {
-                if ExclusionsModel.shared.preview != nil {
-                    Button("Cancel") { ExclusionsModel.shared.preview = nil }.disabled(ExclusionsModel.shared.editingBlocked)
-                    Button("Protect") { Task { await ExclusionsModel.shared.save() } }.buttonStyle(.borderedProminent).disabled(ExclusionsModel.shared.editingBlocked)
+                if ProtectedItemsModel.shared.preview != nil {
+                    Button("Cancel") { ProtectedItemsModel.shared.preview = nil }.disabled(ProtectedItemsModel.shared.editingBlocked)
+                    Button("Protect") { Task { await ProtectedItemsModel.shared.save() } }.buttonStyle(.borderedProminent).disabled(ProtectedItemsModel.shared.editingBlocked)
                 } else {
-                    Button("Choose file or folder…") { Task { await ExclusionsModel.shared.choose() } }.buttonStyle(.borderedProminent).disabled(ExclusionsModel.shared.editingBlocked).accessibilityIdentifier("chooseExclusion")
+                    Button("Choose file or folder…") { Task { await ProtectedItemsModel.shared.choose() } }.buttonStyle(.borderedProminent).disabled(ProtectedItemsModel.shared.editingBlocked).accessibilityIdentifier("chooseExclusion")
                 }
             }
         } else if recoveryVisible {
@@ -852,7 +852,7 @@ private struct WorkspaceView: View {
 
     private func didResetLocalRecords() {
         nativeInspectionVisible = false
-        exclusionsVisible = false
+        protectedItemsVisible = false
     }
 
     private var history: some View {
@@ -902,7 +902,7 @@ private struct WorkspaceView: View {
             }
             if let message = locationsModel.message { StatusRow(text: message, symbol: "info.circle") }
             FullDiskAccessSetting()
-            ProtectedItemsEntry { exclusionsVisible = true }
+            ProtectedItemsEntry { protectedItemsVisible = true }
             LocalRecordsEntry { openLocalRecords(caller: .locations) }
         }.confirmationDialog("Forget location?", isPresented: Binding(get: { locationToForget != nil }, set: { if !$0 { locationToForget = nil } }), titleVisibility: .visible) {
             if let scope = locationToForget {

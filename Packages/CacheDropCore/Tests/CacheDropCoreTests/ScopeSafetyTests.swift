@@ -43,7 +43,7 @@ private let cargoOnly = Catalog(rules: fixtureRules.filter { $0.id == "cargo-cac
     let catalog = Catalog(rules: fixtureRules.filter { ["cargo-cache", "downloads"].contains($0.id) })
     #expect(catalog.discover(fixture: home).count == 3)
     // An excluded folder, a folder holding an exclusion, and an excluded file.
-    let exclusions = ExclusionPolicy(rules: try [".cargo/registry", ".cargo/git/db", "Downloads/setup.dmg"].map { try ExclusionRule.capture(home.appendingPathComponent($0)) })
+    let exclusions = ProtectedItemsPolicy(rules: try [".cargo/registry", ".cargo/git/db", "Downloads/setup.dmg"].map { try ProtectedItemsRule.capture(home.appendingPathComponent($0)) })
     #expect(catalog.discover(fixture: home, exclusions: exclusions).isEmpty)
 }
 

@@ -36,7 +36,7 @@ public struct ScannedLocation: Equatable, Sendable {
         if stopped { parts.append("Scan stopped early") }
         problem = parts.isEmpty ? nil : parts.joined(separator: " · ")
         action = denied > 0 ? .grantFullDiskAccess : unread > 0 || stopped ? .scanAgain : nil
-        // Left out on purpose or by design, so never a warning: the user's Exclusions, packages the scan lists without opening
+        // Left out on purpose or by design, so never a warning: the user's Protected items, packages the scan lists without opening
         // (`hasUnmeasuredContents`: their contents aren't counted), special files and other volumes.
         let observations = scan?.observations ?? []
         let packages = observations.filter { $0.kind == .package }.count

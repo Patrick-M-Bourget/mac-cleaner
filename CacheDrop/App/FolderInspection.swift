@@ -142,9 +142,9 @@ final class FolderInspection {
             }
             defer { continuation.finish(); receiver.cancel() }
             do {
-                let policy = try await ExclusionsModel.shared.policyForScan()
+                let policy = try await ProtectedItemsModel.shared.policyForScan()
                 guard !Task.isCancelled, token == generation else { return }
-                selection.expectExclusions(policy.fingerprint)
+                selection.expectProtectedItems(policy.fingerprint)
                 request = selection.beginRefresh(url)
                 refreshRequest = request
                 let report = try await session.inspect(url, cancellation: scanCancellation, onProgress: { continuation.yield($0) }, exclusions: policy)
@@ -175,7 +175,7 @@ final class FolderInspection {
                 refreshRequest = nil
                 progress = nil
                 isScanningCurrent = false
-                message = error is CancellationError ? "Scan stopped. Choose a folder to try again." : ExclusionsModel.shared.error ?? "CacheDrop couldn’t scan this folder. Choose it again, or check access in System Settings."
+                message = error is CancellationError ? "Scan stopped. Choose a folder to try again." : ProtectedItemsModel.shared.error ?? "CacheDrop couldn’t scan this folder. Choose it again, or check access in System Settings."
                 activity?.failed(url)
                 if !grouped { await finishActivity() }
                 if scanAgainTask == nil { AppLifecycleController.shared.capacity.request(.scanEnded) }

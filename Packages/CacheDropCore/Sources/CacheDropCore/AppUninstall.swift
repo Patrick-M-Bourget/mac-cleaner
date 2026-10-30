@@ -75,7 +75,7 @@ public enum AppUninstall {
     /// What the Cleanup plan `offered` stays there, so no space is offered twice.
     /// Its own `uninstaller` (`ApplicationsInventory.withUninstallers`) goes with it, in its App group (#285).
     public static func scan(_ app: InstalledApp, uninstaller: InstalledApp? = nil, excluding ownBundleID: String?, home: URL, apps: any AppPresence, receipts: any InstallerReceiptReading,
-                            leftovers: [Candidate], offered: [Candidate] = [], exclusions: ExclusionPolicy = ExclusionPolicy(),
+                            leftovers: [Candidate], offered: [Candidate] = [], exclusions: ProtectedItemsPolicy = ProtectedItemsPolicy(),
                             sizer: KnownLocationSizer = KnownLocationSizer()) -> [Candidate] {
         let url = URL(fileURLWithPath: app.path).standardizedFileURL
         var info = stat()

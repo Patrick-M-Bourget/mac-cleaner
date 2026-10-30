@@ -30,7 +30,7 @@ private struct Receipts: InstallerReceiptReading {
 }
 private let editor = InstalledApp(name: "Editor", bundleID: "com.here.editor", path: "/Applications/Editor.app")
 
-private func scan(_ home: URL, apps: Apps = Apps(), receipts: Receipts = Receipts(), exclusions: ExclusionPolicy = ExclusionPolicy()) -> [Candidate] {
+private func scan(_ home: URL, apps: Apps = Apps(), receipts: Receipts = Receipts(), exclusions: ProtectedItemsPolicy = ProtectedItemsPolicy()) -> [Candidate] {
     RemovedAppLeftovers.scan(home: home, apps: apps, receipts: receipts, exclusions: exclusions)
 }
 private func names(_ found: [Candidate]) -> Set<String> { Set(found.map(\.url.lastPathComponent)) }
@@ -97,9 +97,9 @@ private func names(_ found: [Candidate]) -> Set<String> { Set(found.map(\.url.la
                      "Library/Caches/com.gone.excluded/x"] {
         try write(home, relative)
     }
-    let excluded = try ExclusionRule.capture(home.appendingPathComponent("Library/Caches/com.gone.excluded"))
+    let excluded = try ProtectedItemsRule.capture(home.appendingPathComponent("Library/Caches/com.gone.excluded"))
 
-    #expect(scan(home, exclusions: ExclusionPolicy(rules: [excluded])).isEmpty)
+    #expect(scan(home, exclusions: ProtectedItemsPolicy(rules: [excluded])).isEmpty)
 }
 
 @Test func aLaunchAgentWhoseProgramIsStillThereIsNeverOffered() throws {

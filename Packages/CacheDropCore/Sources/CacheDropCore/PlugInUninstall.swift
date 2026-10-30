@@ -45,7 +45,7 @@ public enum PlugInUninstall {
     /// Every product's items, ready to tick. `receipts` is every installer receipt's listing (`ReceiptListings.read`); `content`
     /// the vendor content tied to products (`MusicContent`, by product ID). What `offered` already holds stays there.
     public static func scan(_ inventory: PlugInInventory, apps: [InstalledApp], receipts: ReceiptListings, content: [MusicContentItem] = [],
-                            systemRoot: URL, offered: [Candidate] = [], exclusions: ExclusionPolicy = ExclusionPolicy(),
+                            systemRoot: URL, offered: [Candidate] = [], exclusions: ProtectedItemsPolicy = ProtectedItemsPolicy(),
                             sizer: KnownLocationSizer = KnownLocationSizer()) -> [Candidate] {
         let products = inventory.products.filter { !$0.isApple }
         let catalog = Catalog(rules: rules)

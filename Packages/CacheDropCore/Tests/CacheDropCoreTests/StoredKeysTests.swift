@@ -211,15 +211,15 @@ private func json(_ url: URL) throws -> NSDictionary? { try JSONSerialization.js
     let fixture = try StoredKeysFixture.data("rules")
     let directory = try storeFolder(with: fixture, as: "rules-v1.json")
     defer { try? FileManager.default.removeItem(at: directory) }
-    let store = ExclusionStore(directory: directory)
+    let store = ProtectedItemsStore(directory: directory)
     let rules = try await store.policy().rules
     #expect(rules.map(\.id) == [UUID(uuidString: "015E69C6-7BA5-4963-A9E9-648E82CF050B"), UUID(uuidString: "7FF09155-338A-4666-AB36-F198E82C6DBE")])
     #expect(rules.map(\.path) == ["/Users/x/Music", "/Users/x/Music Projects/song.wav"])
     #expect(rules.allSatisfy { $0.volumeID == "00000000-0000-4000-8000-0000000000AA" })
     #expect(rules.map(\.boundary) == [.folder, .file])
-    StoredKeysFixture.expectEveryPropertyStored(rules[0], in: try StoredKeysFixture.keys(fixture, at: ["rules", "0"]), "ExclusionRule")
+    StoredKeysFixture.expectEveryPropertyStored(rules[0], in: try StoredKeysFixture.keys(fixture, at: ["rules", "0"]), "ProtectedItemsRule")
     // The fingerprint Storage trends keeps for these rules depends on the boundary's raw value, so it must not move either.
-    #expect(ExclusionPolicy(rules: rules).fingerprint == "path-volume-v1:3af3cc28b5581eea62b5df0f41b68c59c9e9f28805536468aebfff16e8431fd3")
+    #expect(ProtectedItemsPolicy(rules: rules).fingerprint == "path-volume-v1:3af3cc28b5581eea62b5df0f41b68c59c9e9f28805536468aebfff16e8431fd3")
     try await store.remove(UUID())
     #expect(try json(directory.appendingPathComponent("rules-v1.json")) == (try JSONSerialization.jsonObject(with: fixture) as? NSDictionary))
 }
@@ -247,5 +247,5 @@ private final class MemoryPreferences: MigrationPreferences, @unchecked Sendable
     #expect(AppearanceChoice.allCases.map(\.rawValue) == ["Automatic", "Light", "Dark"])
     #expect([CapacityMetric.important, .available].map(\.rawValue) == ["important", "available"])
     #expect([RememberedScope.Kind.downloads, .inspection].map(\.rawValue) == ["downloads", "inspection"])
-    #expect([ExclusionRule.Boundary.file, .folder].map(\.rawValue) == ["file", "folder"])
+    #expect([ProtectedItemsRule.Boundary.file, .folder].map(\.rawValue) == ["file", "folder"])
 }

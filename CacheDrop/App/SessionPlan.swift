@@ -44,13 +44,13 @@ struct RefreshRequest: Sendable {
         guard canReview else { return 0 }
         return catalog.selectedRuleCount
     }
-    private var expectedExclusionFingerprint = "none"
+    private var expectedProtectedItemsFingerprint = "none"
     func invalidateCoverage() {
         refreshRequests.removeAll(); scans.removeAll()
         catalog.forgetPickedFiles()
     }
-    func expectExclusions(_ fingerprint: String) {
-        if expectedExclusionFingerprint != fingerprint { invalidateCoverage(); expectedExclusionFingerprint = fingerprint }
+    func expectProtectedItems(_ fingerprint: String) {
+        if expectedProtectedItemsFingerprint != fingerprint { invalidateCoverage(); expectedProtectedItemsFingerprint = fingerprint }
     }
     private var refreshRequests: [URL: RefreshRequest] = [:]
     func beginRefreshBatch(_ scopes: [URL]) -> [RefreshRequest] {
@@ -71,13 +71,13 @@ struct RefreshRequest: Sendable {
         refreshRequests[request.scope] = nil
     }
     func finishRefresh(_ request: RefreshRequest, scan: ScanResult) async {
-        guard scan.exclusionFingerprint == expectedExclusionFingerprint else { cancelRefresh(request); return }
+        guard scan.exclusionFingerprint == expectedProtectedItemsFingerprint else { cancelRefresh(request); return }
         guard refreshRequests[request.scope]?.id == request.id else { return }
         if scan.isComplete { unavailableScopes.remove(scan.scope.standardizedFileURL) }
         refreshRequests[request.scope] = nil
     }
     func observe(_ scan: ScanResult) {
-        guard scan.exclusionFingerprint == expectedExclusionFingerprint else { return }
+        guard scan.exclusionFingerprint == expectedProtectedItemsFingerprint else { return }
         if let newer = scans[scan.scope], newer.observedAt > scan.observedAt { return }
         unavailableScopes.remove(scan.scope.standardizedFileURL)
         scans[scan.scope] = scan
