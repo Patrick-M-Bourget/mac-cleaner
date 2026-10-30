@@ -593,6 +593,9 @@ final class CatalogCleanupUITests: XCTestCase {
         XCTAssertEqual(item.value as? Int, 0)
         // #350: the installer goes to the Trash, so the total doesn't count it, and nothing on the page moves.
         let total = app.staticTexts["liveSelectionSummaryValue"], before = total.value as? String
+        // #484, Decision 92: the card's title is "Ready to clean", as on Smart clean.
+        XCTAssertTrue(app.staticTexts["Ready to clean"].exists)
+        XCTAssertFalse(app.staticTexts["Potential space released"].exists)
         let below = app.checkBoxes["planCategory-developer"], top = below.frame.minY
         revealAndClick(item, in: app)
         XCTAssertEqual(item.value as? Int, 1)

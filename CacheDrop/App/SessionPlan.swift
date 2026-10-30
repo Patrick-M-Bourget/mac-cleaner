@@ -259,7 +259,7 @@ struct LiveCleanupPlanView: View {
             ScanHistoryRecordingNotice()
             SelectionSummary(value: selection.workspaceSelectedSize,
                              detail: CacheDropDesign.items(selection.catalog.selectedCount) + " selected",
-                             identifier: "liveSelectionSummary", title: "Potential space released")
+                             identifier: "liveSelectionSummary", title: "Ready to clean")
                 .help(CacheDropDesign.selectionEstimateHelp)
             SettingsUnreadableNotice(model: selection.catalog)
             if let approvalError { StatusRow(text: approvalError, symbol: "exclamationmark.circle", role: .caution) }
