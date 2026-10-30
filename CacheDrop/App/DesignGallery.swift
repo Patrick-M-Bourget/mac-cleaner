@@ -262,7 +262,7 @@ private struct ListHeaderGalleryExamples: View {
             PageSearchField(label: "Search the example list", prompt: "Name or maker", text: $search, identifier: "gallerySearch")
             ColumnHeader(nameTitle: "Name", sizeTitle: "On disk", sort: $sort, identifier: "gallerySort")
             ForEach(sort.ordered(Self.rows, name: \.name, bytes: \.bytes), id: \.name) { row in
-                HStack { Text(row.name); Spacer(); Text(catalogBytes(row.bytes)) }.font(CacheDropDesign.TypeStyle.note)
+                HStack { Text(row.name); Spacer(); Text(SizeFormatter.text(row.bytes)) }.font(CacheDropDesign.TypeStyle.note)
             }
         }
     }

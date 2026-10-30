@@ -81,7 +81,7 @@ struct EmptyFromTrashSheet: View {
             heading
             VStack(alignment: .leading, spacing: CacheDropDesign.Space.sm) {
                 Text("Deleted permanently. They can’t be put back.").font(CacheDropDesign.TypeStyle.note).foregroundStyle(.secondary)
-                ForEach(items) { item in line(item, trailing: catalogBytes(item.recordedBytes)) }
+                ForEach(items) { item in line(item, trailing: SizeFormatter.text(item.recordedBytes)) }
             }.padding(.leading, CacheDropDesign.Size.badgeIndent)
         }
     }
@@ -90,7 +90,7 @@ struct EmptyFromTrashSheet: View {
             ConsequenceGroup.permanentlyRemoved.badge
             Text(CacheDropDesign.items(items.count)).font(CacheDropDesign.TypeStyle.section)
             Spacer()
-            Text(catalogBytes(items.reduce(0) { $0 + $1.recordedBytes })).font(CacheDropDesign.TypeStyle.section).monospacedDigit()
+            Text(SizeFormatter.text(items.reduce(0) { $0 + $1.recordedBytes })).font(CacheDropDesign.TypeStyle.section).monospacedDigit()
         }
     }
 
@@ -115,7 +115,7 @@ struct EmptyFromTrashSheet: View {
         if result.previewOnly { return "Dry run · Nothing changed" }
         let deleted = "Deleted " + CacheDropDesign.items(result.deletedCount) + " from the Trash"
         guard result.deletedCount > 0 else { return deleted }
-        return deleted + " · Measured freed space: " + (MeasuredFreedSpace.shown(result.measuredFreedBytes).map { catalogBytes($0) } ?? SizeEstimate.unknown.text)
+        return deleted + " · Measured freed space: " + (MeasuredFreedSpace.shown(result.measuredFreedBytes).map { SizeFormatter.text($0) } ?? SizeEstimate.unknown.text)
     }
     /// One item, by name, then its size or outcome.
     private func line(_ record: CleanupRecord, trailing: String) -> some View {

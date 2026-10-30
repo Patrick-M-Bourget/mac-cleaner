@@ -146,7 +146,7 @@ struct SmartCleanView: View {
     }
     private func line(_ line: Line) -> some View {
         InspectableItemRow(name: line.name, detail: line.hold?.line ?? "",
-                           size: catalogBytes(line.items.reduce(0) { $0 + $1.estimatedBytes }, complete: line.items.allSatisfy(\.sizeComplete),
+                           size: SizeFormatter.text(line.items.reduce(0) { $0 + $1.estimatedBytes }, complete: line.items.allSatisfy(\.sizeComplete),
                                               upperBound: line.rule.estimateIsUpperBound, estimate: line.items.contains(where: \.sizeIsEstimate)),
                            symbol: "folder", inspected: false,
                            // Clicking the line ticks it, as its checkbox does; Finder is its own Reveal link (#367, Decision 72).

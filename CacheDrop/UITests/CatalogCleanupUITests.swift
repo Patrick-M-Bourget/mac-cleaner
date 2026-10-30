@@ -713,6 +713,10 @@ final class CatalogCleanupUITests: XCTestCase {
         let profile = app.checkBoxes["planProfile-chrome-cache-Default"]
         XCTAssertTrue(profile.exists)
         XCTAssertTrue(app.checkBoxes["planProfile-chrome-cache-Profile 1"].exists)
+        let profileRow = app.buttons["Select Default"]
+        XCTAssertTrue(profileRow.exists)
+        XCTAssertTrue((profileRow.value as? String)?.range(of: #", [0-9.,]+ (bytes|KB|MB|GB|TB)$"#, options: .regularExpression) != nil,
+                      "An exact profile has the same unhedged decimal size as its category: \(profileRow.value ?? "")")
         XCTAssertFalse(app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS 'Cookies' OR label CONTAINS 'Local Storage' OR value CONTAINS 'Cookies' OR value CONTAINS 'Local Storage'")).firstMatch.exists)
         tick(profile, in: app)
         app.buttons["Review cleanup"].click()
@@ -1422,7 +1426,7 @@ final class GuidanceUITests: XCTestCase {
         // One access note for the page, never a link per row.
         XCTAssertTrue(app.descendants(matching: .any)["guidanceAccess"].exists)
         XCTAssertEqual(app.links.matching(identifier: "fullDiskAccessLink").count, 1)
-        XCTAssertTrue((app.buttons["guidance-time-machine-snapshots"].value as? String)?.contains("2 snapshots · Size unknown") == true)
+        XCTAssertTrue((app.buttons["guidance-time-machine-snapshots"].value as? String)?.contains("2 snapshots · Unknown") == true)
         XCTAssertTrue(app.buttons["guidance-xcode-archives"].exists)
         let workspaces = app.buttons["guidance-agent-workspaces"]
         XCTAssertEqual(workspaces.label, "Open in Finder")
@@ -1597,7 +1601,7 @@ final class TrashSpaceUITests: XCTestCase {
         let developer = app.buttons["meterSegment-developer"]
         XCTAssertTrue(developer.waitForExistence(timeout: 15))
         // #344: the label says what the tooltip says.
-        XCTAssertTrue(developer.label.hasPrefix("Developer caches and build files · up to "), developer.label)
+        XCTAssertTrue(developer.label.hasPrefix("Developer caches and build files · Up to "), developer.label)
         XCTAssertTrue(app.buttons["meterSegment-downloads"].exists)
         let trash = app.descendants(matching: .any)["meterSegment-trash"]
         XCTAssertTrue(trash.waitForExistence(timeout: 10))
@@ -1832,7 +1836,7 @@ extension CatalogCleanupUITests {
         let developer = app.descendants(matching: .any)["meterSegment-developer"].firstMatch
         XCTAssertTrue(developer.waitForExistence(timeout: 10))
         XCTAssertGreaterThan(developer.frame.minX, meter.frame.minX + 10, "The rest of the used space comes first; what was found sits at the tip")
-        XCTAssertTrue(developer.label.hasPrefix("Developer caches and build files · up to "), developer.label)
+        XCTAssertTrue(developer.label.hasPrefix("Developer caches and build files · Up to "), developer.label)
 
         app.typeKey("2", modifierFlags: .command)
         let header = app.descendants(matching: .any)["smartCleanHeader"]

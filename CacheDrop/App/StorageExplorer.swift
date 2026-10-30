@@ -235,7 +235,7 @@ struct StorageExplorerView: View {
                             // The size, then only the caveats that apply.
                             InspectableItemRow(name: scan.scope.lastPathComponent,
                                                detail: ([scan.isComplete ? nil : "Partly scanned", (index?.overlaps(scan.scope) ?? false) ? "Overlaps another location" : nil] as [String?]).compactMap { $0 }.joined(separator: " · "),
-                                               size: scan.totalAllocatedBytes.map { bytes($0) } ?? "At least " + bytes(scan.allocatedBytes), symbol: "folder",
+                                               size: SizeFormatter.text(scan.totalAllocatedBytes ?? scan.allocatedBytes, complete: scan.totalAllocatedBytes != nil), symbol: "folder",
                                                inspected: false, inspect: { context.enter(scan.scope) }, actionLabel: "Open folder " + scan.scope.lastPathComponent) { EmptyView() }
                                 .help(scan.scope.path)
                             Divider()
@@ -276,7 +276,7 @@ struct StorageExplorerView: View {
         let folder = item.kind == .folder
         return InspectableItemRow(name: item.url.lastPathComponent,
                                   detail: !context.position.query.isEmpty ? PathDisplay.shortLocation(of: item.url.path) : "",
-                                  size: folder ? folderAllocation(item.url) : bytes(item.allocatedBytes), symbol: folder ? "folder" : "doc",
+                                  size: folder ? folderAllocation(item.url) : SizeFormatter.text(item.allocatedBytes), symbol: folder ? "folder" : "doc",
                                   inspected: context.position.inspectedID == item.id && context.position.inspectedResource == item.resourceID,
                                   inspect: { if folder { context.enter(item.url) } else { context.inspect(item) } },
                                   detailLineLimit: 1, actionLabel: (folder ? "Open folder " : "Inspect ") + item.url.lastPathComponent) {
@@ -290,7 +290,7 @@ struct StorageExplorerView: View {
         if let entry = inspected {
             ExplorerInspector(name: entry.item.url.lastPathComponent) {
                 inspectorField("Location", entry.item.url.path)
-                inspectorField("On disk", entry.item.kind == .folder ? folderAllocation(entry.item.url) : bytes(entry.item.allocatedBytes))
+                inspectorField("On disk", entry.item.kind == .folder ? folderAllocation(entry.item.url) : SizeFormatter.text(entry.item.allocatedBytes))
                 if let offered = offered(entry.item) {
                     inspectorField("Why it’s listed", whyListed(offered))
                     inspectorField("Action", "Move to Trash. The space stays used until you empty the Trash.")
@@ -333,7 +333,7 @@ struct StorageExplorerView: View {
             if files.isEmpty { EmptyState(title: "No large or old files here", detail: "Nothing here is 500 MB or more, or unopened for 90 days.", symbol: "doc") }
             LazyVStack(alignment: .leading, spacing: 0) {
                 ForEach(files, id: \.file.id) { file, entry in
-                    InspectableItemRow(name: file.displayName, detail: fileDetail(file), size: catalogBytes(file.estimatedBytes), symbol: "doc",
+                    InspectableItemRow(name: file.displayName, detail: fileDetail(file), size: SizeFormatter.text(file.estimatedBytes), symbol: "doc",
                                        inspected: context.position.inspectedID == entry.item.id,
                                        inspect: { context.inspect(entry.item) }) { planToggle(file) }
                         .help(file.url.path)
@@ -367,7 +367,7 @@ struct StorageExplorerView: View {
     /// A folder's size on disk; "At least" when part of it couldn't be measured.
     private func folderAllocation(_ folder: URL) -> String {
         guard let subtotal = index?.allocatedSubtotal(in: folder) else { return CacheDropDesign.noValue }
-        return (subtotal.hasUnknownRemainder ? "At least " : "") + bytes(subtotal.bytes)
+        return SizeFormatter.text(subtotal.bytes, complete: !subtotal.hasUnknownRemainder)
     }
 
     private func breadcrumbs(for folder: URL) -> [URL] {
@@ -376,7 +376,6 @@ struct StorageExplorerView: View {
         for component in folder.pathComponents.dropFirst(root.pathComponents.count) { result.append(result.last!.appendingPathComponent(component)) }
         return result
     }
-    private func bytes(_ value: Int64?) -> String { value.map { ByteCountFormatter.string(fromByteCount: $0, countStyle: .decimal) } ?? "Unknown" }
 }
 
 /// Shared bounded inspector surface: the host chooses a side pane or compact panel. Without `close` it stays open.

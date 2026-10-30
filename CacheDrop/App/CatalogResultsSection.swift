@@ -20,7 +20,7 @@ struct CatalogResultsSection: View {
         VStack(alignment: .leading, spacing: CacheDropDesign.Space.lg) {
             if result.previewOnly {
                 let previewed = result.records.filter(\.wasPreviewed)
-                StatusRow(text: "Dry run · Nothing changed · " + catalogBytes(previewed.reduce(0) { $0 + $1.recordedBytes }, upperBound: upperBound(previewed)) + " would be affected",
+                StatusRow(text: "Dry run · Nothing changed · " + SizeFormatter.text(previewed.reduce(0) { $0 + $1.recordedBytes }, upperBound: upperBound(previewed)) + " would be affected",
                           symbol: "eye", role: .neutral, identifier: "catalogPreviewNotice")
             } else {
                 // SPEC section 6: measured and estimated, reported separately; Trash is never counted as freed.
@@ -29,11 +29,11 @@ struct CatalogResultsSection: View {
                 SummarySurface {
                     HStack(alignment: .top, spacing: CacheDropDesign.Space.xl) {
                         if !onlyTrashed {
-                            metric(MeasuredFreedSpace.shown(result.measuredFreedBytes).map { catalogBytes($0) } ?? SizeEstimate.unknown.text, "Measured freed space", followUp: settledLine)
+                            metric(MeasuredFreedSpace.shown(result.measuredFreedBytes).map { SizeFormatter.text($0) } ?? SizeEstimate.unknown.text, "Measured freed space", followUp: settledLine)
                         }
                         let upperBound = upperBound(result.records)
-                        metric(catalogBytes(result.estimatedBytes, upperBound: upperBound), upperBound ? "Estimated before cleanup · Upper bound" : "Estimated before cleanup")
-                        if result.movedToTrashBytes > 0 { metric(catalogBytes(result.movedToTrashBytes), "In the Trash · Freed when you empty it") }
+                        metric(SizeFormatter.text(result.estimatedBytes, upperBound: upperBound), upperBound ? "Estimated before cleanup · Upper bound" : "Estimated before cleanup")
+                        if result.movedToTrashBytes > 0 { metric(SizeFormatter.text(result.movedToTrashBytes), "In the Trash · Freed when you empty it") }
                     }
                 }
                 notCleaned
@@ -68,7 +68,7 @@ struct CatalogResultsSection: View {
     @ViewBuilder private var notCleaned: some View {
         let skipped = result.records.filter(\.needsAttention)
         if let first = skipped.first {
-            Button("Not cleaned · " + CacheDropDesign.items(skipped.count) + " · " + catalogBytes(skipped.reduce(0) { $0 + $1.recordedBytes })) {
+            Button("Not cleaned · " + CacheDropDesign.items(skipped.count) + " · " + SizeFormatter.text(skipped.reduce(0) { $0 + $1.recordedBytes })) {
                 reveal(first.id)
             }.buttonStyle(.link).font(CacheDropDesign.TypeStyle.caption).accessibilityIdentifier("resultsNotCleaned")
         }
@@ -113,7 +113,7 @@ private struct CatalogResultRow: View {
                     PutBackLink(record: record)
                 }
                 Text(record.outcomeTitle).font(CacheDropDesign.TypeStyle.note)
-                Text(catalogBytes(record.recordedBytes)).font(CacheDropDesign.TypeStyle.note).monospacedDigit().foregroundStyle(.secondary)
+                Text(SizeFormatter.text(record.recordedBytes)).font(CacheDropDesign.TypeStyle.note).monospacedDigit().foregroundStyle(.secondary)
             }
             VStack(alignment: .leading, spacing: CacheDropDesign.Space.xs) {
                 if record.needsAttention || record.finishedAfterStop { Text(record.message).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true) }

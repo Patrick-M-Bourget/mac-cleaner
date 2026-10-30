@@ -111,12 +111,7 @@ public struct SmartCleanReport: Sendable {
         let home = self.home.standardizedFileURL.path
         func path(_ url: URL) -> String { url.path.hasPrefix(home + "/") ? "~" + url.path.dropFirst(home.count) : url.path }
         func size(_ items: [Candidate]) -> String {
-            switch SizeEstimate(sum: items.map(SizeEstimate.init)) {
-            case .measured(let bytes): ByteCountFormatter.string(fromByteCount: bytes, countStyle: .decimal)
-            case .about(let bytes): "about " + ByteCountFormatter.string(fromByteCount: bytes, countStyle: .decimal)
-            case .atLeast(let bytes): "at least " + ByteCountFormatter.string(fromByteCount: bytes, countStyle: .decimal)
-            case .unknown: "unknown size"
-            }
+            SizeFormatter.text(SizeEstimate(sum: items.map(SizeEstimate.init)))
         }
         let all = picked.map(\.candidate), trash = all.filter { $0.action == .trash }
         var lines = ["Smart clean report for \(home), \(ISO8601DateFormatter().string(from: date))",

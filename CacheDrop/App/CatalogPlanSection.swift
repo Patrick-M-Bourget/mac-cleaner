@@ -133,7 +133,7 @@ private struct PlanRuleRows: View {
         let source = items.lazy.compactMap(\.folderSource).first
         VStack(alignment: .leading, spacing: 0) {
             InspectableItemRow(name: rule.title, detail: source ?? rule.detail,
-                               size: catalogBytes(model.estimatedBytes(for: rule), complete: model.sizeComplete(for: rule), upperBound: rule.estimateIsUpperBound,
+                               size: SizeFormatter.text(model.estimatedBytes(for: rule), complete: model.sizeComplete(for: rule), upperBound: rule.estimateIsUpperBound,
                                                   estimate: model.sizeIsEstimate(for: rule)),
                                symbol: rule.offersFiles ? "doc.on.doc" : "folder", inspected: false,
                                // Clicking the row ticks the rule, as its checkbox does, with Reveal in Finder beside it (Decision 72). A rule

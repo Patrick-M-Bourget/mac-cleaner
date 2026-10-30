@@ -45,20 +45,19 @@ extension TrashContents {
     /// Access the Trash is usually unreadable, so an unknown line would be permanent noise (Decision 25).
     public var overviewText: String? {
         guard case .holds(let bytes) = self else { return nil }
-        return "Trash holds " + TrashSpace.bytes(bytes)
+        return "Trash holds " + SizeFormatter.text(bytes)
     }
     /// Overview's line with CacheDrop's own items in the Trash (#359), e.g. "Trash holds 9.4 GB · 7.1 GB from CacheDrop";
     /// the whole Trash's part only when it can be read. With none of CacheDrop's items left, `overviewText`.
     public func overviewText(fromCacheDrop bytes: Int64) -> String? {
         guard bytes > 0 else { return overviewText }
-        return (overviewText.map { $0 + " · " } ?? "") + TrashSpace.bytes(bytes) + " from CacheDrop"
+        return (overviewText.map { $0 + " · " } ?? "") + SizeFormatter.text(bytes) + " from CacheDrop"
     }
 }
 
 extension TrashSpace {
     /// The results line while CacheDrop's own items hold `bytes` in the Trash (#359), from their recorded sizes; nil with none.
     public static func emptyHint(bytes: Int64) -> String? {
-        bytes > 0 ? Self.bytes(bytes) + " is in the Trash. Empty it to free the space." : nil
+        bytes > 0 ? SizeFormatter.text(bytes) + " is in the Trash. Empty it to free the space." : nil
     }
-    static func bytes(_ value: Int64) -> String { ByteCountFormatter.string(fromByteCount: value, countStyle: .decimal) }
 }

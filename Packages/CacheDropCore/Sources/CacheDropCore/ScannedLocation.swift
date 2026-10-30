@@ -2,7 +2,7 @@ import Foundation
 
 /// A row of Overview's Scanned locations group (#345): one per scanned location, under the recommended categories, with the
 /// location's name, the size its scan found and an Explore link. A location that can't be reached keeps its recovery row
-/// near the top of Overview instead (#223, #231). The caller formats sizes with Overview's own byte formatter (#232).
+/// near the top of Overview instead (#223, #231). Sizes use the shared formatter (#441).
 public struct ScannedLocation: Equatable, Sendable {
     public let scope: URL
     public let name: String
@@ -54,8 +54,8 @@ public struct ScannedLocation: Equatable, Sendable {
     private static func count(_ value: Int, _ noun: String) -> String { "\(value) \(noun)" + (value == 1 ? "" : "s") }
 
     /// "12 MB", "At least 12 MB" when the scan left something out, or "Not scanned".
-    public func value(_ format: (Int64) -> String) -> String {
+    public var value: String {
         guard let bytes else { return "Not scanned" }
-        return complete ? format(bytes) : "At least " + format(bytes)
+        return SizeFormatter.text(bytes, complete: complete)
     }
 }

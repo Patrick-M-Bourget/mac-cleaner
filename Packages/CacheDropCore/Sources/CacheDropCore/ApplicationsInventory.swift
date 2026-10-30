@@ -161,10 +161,7 @@ public enum ApplicationsInventory {
     }
 
     static func largestFirst(_ entries: [InventoryEntry]) -> [InventoryEntry] {
-        func bytes(_ size: SizeEstimate) -> Int64 {
-            switch size { case .measured(let b), .atLeast(let b), .about(let b): b; case .unknown: 0 }
-        }
-        return entries.sorted { (bytes($0.size), $1.name) > (bytes($1.size), $0.name) }
+        return entries.sorted { ($0.size.sortBytes, $1.name) > ($1.size.sortBytes, $0.name) }
     }
 }
 
