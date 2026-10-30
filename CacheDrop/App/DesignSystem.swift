@@ -1021,12 +1021,22 @@ struct NativeWindowContract: NSViewRepresentable {
             DispatchQueue.main.async { self.fit(window) }
         }
         private func fit(_ window: NSWindow) {
-            guard let screen = window.screen ?? NSScreen.main else { return }
+            var screen = window.screen ?? NSScreen.main
+            #if DEBUG
+            let visualCapture = LocalStateLocation.isDisposableTest && ProcessInfo.processInfo.environment["CACHEDROP_TEST_VISUAL_WINDOW"] == "1"
+            if visualCapture { screen = NSScreen.screens.first }
+            #endif
+            guard let screen else { return }
             let visible = screen.visibleFrame
             var requested = window.frame
             let minimum = NSSize(width: min(CacheDropDesign.Size.minimumWindow.width, visible.width), height: min(CacheDropDesign.Size.minimumWindow.height, visible.height))
             window.minSize = minimum
             #if DEBUG
+            // Window-only captures must start on the primary display; XCTest cannot reliably drag across displays.
+            if visualCapture {
+                window.setFrameAutosaveName("")
+                requested = NSRect(x: visible.minX + 40, y: visible.maxY - 800, width: 1000, height: 760)
+            }
             // A disposable UI test can open the window at its minimum size (#234) without saving that frame for later launches.
             if LocalStateLocation.isDisposableTest, ProcessInfo.processInfo.environment["CACHEDROP_TEST_MINIMUM_WINDOW"] == "1" {
                 window.setFrameAutosaveName("")

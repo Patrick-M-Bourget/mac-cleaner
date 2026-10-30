@@ -1,6 +1,6 @@
 #!/bin/bash
 # Runs what CI runs, on this Mac: the source checks, the Core suite (normal, then strict pool with the pool guard alone,
-# #242), StorageAlerts' suite and the app build. Run it before every commit; UI journeys are separate
+# #242), StorageAlerts' suite and Debug/Release app builds. Run it before every commit; UI journeys are separate
 # (scripts/ui-journeys.sh). Prints one line per step and the output of any that fail.
 #
 #   scripts/check.sh            everything
@@ -28,5 +28,6 @@ if [ "$fast" -eq 0 ]; then
   step "pool guard, strict pool, alone" env LIBDISPATCH_COOPERATIVE_POOL_STRICT=1 swift test --package-path Packages/CacheDropCore --filter "$guard"
   step "StorageAlerts tests" swift test --package-path CacheDrop/Packages/StorageAlerts
   step "app build" xcodebuild build -project CacheDrop/CacheDrop.xcodeproj -scheme CacheDrop -configuration Debug -destination 'platform=macOS' -derivedDataPath .build/xcode
+  step "Release exclusion check" scripts/check-release.sh
 fi
 exit $failed

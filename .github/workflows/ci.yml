@@ -45,3 +45,6 @@ jobs:
         run: xcrun swift test --package-path CacheDrop/Packages/StorageAlerts
       - name: Build app
         run: xcodebuild build -project CacheDrop/CacheDrop.xcodeproj -scheme CacheDrop -configuration Debug -destination 'platform=macOS' -derivedDataPath .build/xcode
+
+      - name: Release exclusion check
+        run: scripts/check-release.sh
