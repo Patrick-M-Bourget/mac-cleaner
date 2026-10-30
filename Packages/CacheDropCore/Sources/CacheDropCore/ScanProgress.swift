@@ -7,6 +7,8 @@ public struct ScanProgress: Sendable {
     public let visitedEntries: Int
     public let retainedObservations: Int
     public let knownLogicalSubtotal: Int64
+    /// The size on disk found so far; nil when some file's couldn't be read (#447).
+    public let knownAllocatedSubtotal: Int64?
     public let recentObservations: [FileObservation]
     public let elapsed: TimeInterval
     public let phase: ScanPhase
