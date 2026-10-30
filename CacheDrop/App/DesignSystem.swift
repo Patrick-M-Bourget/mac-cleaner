@@ -186,16 +186,22 @@ struct PageHeader: View {
     let title: String
     var subtitle: String? = nil
     var back: BackButton? = nil
+    /// A page's one search, on the right of the title and level with its description, so the header is one band and the
+    /// page keeps one left edge (Applications).
+    var search: PageSearchField? = nil
     var body: some View {
-        VStack(alignment: .leading, spacing: CacheDropDesign.Space.sm) {
-            if let back { back }
-            Text(title).font(CacheDropDesign.TypeStyle.page).tracking(-0.6)
-            if let subtitle { Text(subtitle).font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true) }
-        }.frame(maxWidth: .infinity, alignment: .leading)
+        HStack(alignment: .bottom, spacing: CacheDropDesign.Space.lg) {
+            VStack(alignment: .leading, spacing: CacheDropDesign.Space.sm) {
+                if let back { back }
+                Text(title).font(CacheDropDesign.TypeStyle.page).tracking(-0.6)
+                if let subtitle { Text(subtitle).font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true) }
+            }.frame(maxWidth: .infinity, alignment: .leading)
+            if let search { search }
+        }
     }
 }
-/// A page's one search field (#295), just under its header's description (#352), drawn as the prototype's: 210 wide, an
-/// 8-point radius, a 1-point border and room around the text. As a Mac search field: a magnifying glass, a clear button
+/// A page's one search field (#295): under its header's description (#352), or on the header's right (`PageHeader.search`). 210 wide,
+/// a capsule, a 1-point border and room around the text. As a Mac search field: a magnifying glass, a clear button
 /// once something is typed, and Esc clears it. The accent ring shows while typing in it. Clicking anywhere in it types there.
 struct PageSearchField: View {
     let label: String
@@ -235,17 +241,25 @@ struct ColumnHeader: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: CacheDropDesign.Space.md) {
-                column(nameTitle, .name)
+                SortButton(title: nameTitle, column: .name, sort: $sort, identifier: identifier)
                 Spacer(minLength: CacheDropDesign.Space.md)
-                column(sizeTitle, .size)
+                SortButton(title: sizeTitle, column: .size, sort: $sort, identifier: identifier)
             }.font(CacheDropDesign.TypeStyle.caption)
                 .padding(insets).padding(.bottom, CacheDropDesign.Space.sm)
             Divider()
         }
     }
-    private func column(_ title: String, _ column: ListSort.Column) -> some View {
+}
+/// One sortable label (#352, Decision 77): clicking the active one flips its direction, clicking the other switches to it,
+/// and a chevron sits on the active one. Identified `<identifier>-name` or `<identifier>-size`.
+struct SortButton: View {
+    let title: String
+    let column: ListSort.Column
+    @Binding var sort: ListSort
+    let identifier: String
+    var body: some View {
         let active = sort.column == column
-        return Button { sort.select(column) } label: {
+        Button { sort.select(column) } label: {
             HStack(spacing: CacheDropDesign.Space.xs) {
                 Text(title)
                 if active { Image(systemName: sort.ascending ? "chevron.up" : "chevron.down").imageScale(.small).accessibilityHidden(true) }
@@ -438,6 +452,9 @@ struct EmptyState: View {
     var action: EmptyStateAction? = nil
     var identifier = "emptyState"
     var compact = false
+    /// In a list of category rows, a section's empty state takes the rows' columns: its symbol where their icons are, its
+    /// text on their titles' line (Applications).
+    var inList = false
     var body: some View {
         if compact {
             StatusRow(text: title, symbol: symbol, action: action.map { StatusAction(title: $0.title, identifier: identifier + "Action", action: $0.perform) })
@@ -447,7 +464,7 @@ struct EmptyState: View {
         }
     }
     private var full: some View {
-        HStack(alignment: .top, spacing: CacheDropDesign.Space.lg) {
+        HStack(alignment: .top, spacing: inList ? CacheDropDesign.Space.md : CacheDropDesign.Space.lg) {
             Image(systemName: symbol).font(.title2).foregroundStyle(.secondary).frame(width: CacheDropDesign.Size.badge).accessibilityHidden(true)
             VStack(alignment: .leading, spacing: CacheDropDesign.Space.sm) {
                 Text(title).font(CacheDropDesign.TypeStyle.section)
@@ -456,7 +473,8 @@ struct EmptyState: View {
                     Button(action.title, action: action.perform).accessibilityIdentifier(identifier + "Action").padding(.top, CacheDropDesign.Space.xs)
                 }
             }
-        }.frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, CacheDropDesign.Space.xl)
+        }.padding(.leading, inList ? CacheDropDesign.Size.checkbox + CacheDropDesign.Space.md : 0)
+            .frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, inList ? CacheDropDesign.Space.md : CacheDropDesign.Space.xl)
             .accessibilityElement(children: .contain).accessibilityIdentifier(identifier)
     }
 }
@@ -772,6 +790,7 @@ struct CategorySelectionHeader<Below: View>: View {
     let size: String
     let enabled: Bool
     var identifier: String? = nil
+    var icon: NSImage? = nil
     let action: () -> Void
     @ViewBuilder var below: () -> Below
     /// A parent's `.disabled` (a scan dimming the rows), which the native checkbox follows too.
@@ -790,7 +809,10 @@ struct CategorySelectionHeader<Below: View>: View {
     private var clickable: some View {
         HStack(alignment: .top, spacing: CacheDropDesign.Space.md) {
             // Without a checkbox, the badge keeps its place, so titles line up with the rows that have one.
-            CategoryBadge(category: category).padding(.leading, state == nil ? CacheDropDesign.Size.checkbox + CacheDropDesign.Space.md : 0)
+            Group {
+                if let icon { Image(nsImage: icon).resizable().interpolation(.high).frame(width: CacheDropDesign.Size.badge, height: CacheDropDesign.Size.badge).accessibilityHidden(true) }
+                else { CategoryBadge(category: category) }
+            }.padding(.leading, state == nil ? CacheDropDesign.Size.checkbox + CacheDropDesign.Space.md : 0)
             VStack(alignment: .leading, spacing: CacheDropDesign.Space.xs) {
                 Text(title).font(CacheDropDesign.TypeStyle.section)
                 // No detail (an app with no maker) leaves no empty line (#298).
@@ -825,6 +847,8 @@ struct CategoryRow<Notice: View, Items: View>: View {
     let identifier: String
     let itemCount: Int?
     var staying = 0
+    /// An app's own icon, in the badge's place (Applications).
+    var icon: NSImage? = nil
     @Binding var expanded: Bool
     let toggle: () -> Void
     @ViewBuilder var notice: () -> Notice
@@ -834,7 +858,7 @@ struct CategoryRow<Notice: View, Items: View>: View {
             // With no detail (an app with no maker), the notice takes the detail's place, right under the title, rather than
             // below the badge (#298).
             CategorySelectionHeader(category: category, state: state, title: title, detail: detail, size: size, enabled: enabled,
-                                    identifier: identifier, action: toggle) {
+                                    identifier: identifier, icon: icon, action: toggle) {
                 if detail.isEmpty { notice() }
             }
             if !detail.isEmpty { notice().padding(.leading, CacheDropDesign.Size.categoryContentIndent) }
