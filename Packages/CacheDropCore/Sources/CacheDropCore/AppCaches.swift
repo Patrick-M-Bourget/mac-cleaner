@@ -19,18 +19,16 @@ public enum AppCaches {
         return parts.count >= 3 && parts.allSatisfy { part in !part.isEmpty && part.allSatisfy { $0.isASCII && ($0.isLetter || $0.isNumber || $0 == "-" || $0 == "_") } }
             && parts[0].first?.isLetter == true
     }
-    /// macOS's own caches and CacheDrop's (or Still's) are never offered, whoever asks.
-    static func isExcluded(_ bundleID: String) -> Bool {
-        bundleID.lowercased().hasPrefix("com.apple.") || isOwn(bundleID)
+    /// A folder of macOS's own, CacheDrop's or Still's, by bundle identifier or name. Never offered under any rule,
+    /// so logs and every other location leave them alone as app caches do.
+    static func isExcluded(_ name: String) -> Bool {
+        name.lowercased().hasPrefix("com.apple.") || isOwn(name)
     }
     /// A folder or bundle ID of CacheDrop's or Still's, any of their apps or UI-test runners, by name or ID prefix.
     static func isOwn(_ name: String) -> Bool {
         let id = name.lowercased()
         return ownNames.contains(name) || id.hasPrefix("com.patrickbourget.still") || id.hasPrefix("com.patrickbourget.cachedrop")
     }
-    /// A folder of macOS's own, CacheDrop's or Still's, by bundle identifier or name. Never offered under any rule,
-    /// so logs and every other location leave them alone as app caches do.
-    static func isMacOSOrOwn(_ name: String) -> Bool { isExcluded(name) }
     /// The installed app a folder named by bundle identifier belongs to, or nil when that can't be determined.
     static func installedOwner(_ folder: String, apps: any AppLookup) -> RuleOwner? {
         guard isBundleID(folder), !isExcluded(folder), let app = apps.app(bundleID: folder) else { return nil }
@@ -98,14 +96,6 @@ public enum AppCaches {
         let parts = url.standardizedFileURL.pathComponents
         guard let caches = parts.indices.dropLast().last(where: { parts[$0] == "Library" && parts[$0 + 1] == "Caches" }), caches + 2 < parts.count else { return nil }
         return URL(fileURLWithPath: NSString.path(withComponents: Array(parts[...(caches + 2)])), isDirectory: true)
-    }
-
-    /// Whether `folder` directly holds sign-in data: a web-view profile.
-    static func isWebViewProfile(_ folder: URL) -> Bool {
-        signInNames.contains { name in
-            var info = stat()
-            return lstat(folder.appendingPathComponent(name).path, &info) == 0
-        }
     }
 
     /// The paths of the folders that directly hold an entry named in `names`, up to `depth` levels inside `folder`;

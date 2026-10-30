@@ -242,7 +242,7 @@ struct HistoryActivityGalleryExamples: View {
     }
     private var cases: [HistoryGalleryCase] { [
         .init(id: "complete", title: "Complete observation", activity: activity(.complete, [.init(path: "/Example/Complete Downloads", observedAt: date, outcome: .complete, entryCount: 6, logicalBytes: 4_100_000, allocatedBytes: 4_200_000, knownLogicalBytes: 4_100_000, baselineID: UUID())])),
-        .init(id: "partial", title: "Partial coverage", activity: activity(.partial, [.init(path: "/Example/Partial coverage", observedAt: date, outcome: .partial, entryCount: 9, knownLogicalBytes: 512, reasons: ["directoryChanged": 1, "metadataUnavailable": 2])])),
+        .init(id: "partial", title: "Not fully read", activity: activity(.partial, [.init(path: "/Example/Not fully read", observedAt: date, outcome: .partial, entryCount: 9, knownLogicalBytes: 512, reasons: ["directoryChanged": 1, "metadataUnavailable": 2])])),
         .init(id: "stopped", title: "Stopped with an unattempted location", activity: activity(.stopped, [.init(path: "/Example/Stopped location", observedAt: date, outcome: .stopped, entryCount: 3, knownLogicalBytes: 32), .init(path: "/Example/Not attempted")])),
         .init(id: "failed", title: "Failed without measurements", activity: activity(.failed, [.init(path: "/Example/Unavailable", observedAt: date, outcome: .failed, reasons: ["accessDenied": 1])])),
         .init(id: "multi", title: "Same-named recorded roots", activity: activity(.complete, [.init(path: "/Example/Work/Documents", observedAt: date, outcome: .complete, entryCount: 2, logicalBytes: 12, allocatedBytes: 4096, knownLogicalBytes: 12), .init(path: "/Example/Personal/Documents", observedAt: date, outcome: .complete, entryCount: 4, logicalBytes: 22, allocatedBytes: 4096, knownLogicalBytes: 22)])),
@@ -263,15 +263,15 @@ struct HistoryActivityGalleryExamples: View {
                 HistoryStoreFailure(message: "CacheDrop couldn’t read its scan history.", retryTitle: "Try scan history again", retry: {})
                 HistoryStoreFailure(message: "CacheDrop couldn’t read its cleanup history. Clear and Reset are off until it can.", retryTitle: "Try cleanup history again", retry: {})
                 HistoryActivityUnavailableState()
-                end("unavailable", "Each action reloads its own records only.")
+                end("unavailable", "Each Try again reloads only its own history")
             }
             ForEach(HistoryActivityFilter.allCases, id: \.self) { filter in
                 let id = filter == .all ? "empty-all" : filter == .scans ? "empty-scans" : "empty-cleanups"
                 VStack(alignment: .leading, spacing: CacheDropDesign.Space.md) {
-                    heading(id, filter.rawValue + " · No retained records")
+                    heading(id, filter.rawValue + " · Empty")
                     HistoryActivityEmptyState(filter: filter, goOverview: {})
                     if filter == .all { HistoryRetentionNote() }
-                    end(id, "Retained records, not a lifetime activity count.")
+                    end(id, "Counts only what History keeps")
                 }
             }
             VStack(alignment: .leading, spacing: CacheDropDesign.Space.md) {
@@ -281,7 +281,7 @@ struct HistoryActivityGalleryExamples: View {
             }
             VStack(alignment: .leading, spacing: CacheDropDesign.Space.md) {
                 heading("partial-clear", "Partial maintenance outcome")
-                StatusRow(text: "Cleared 1 completed cleanup run. Scan activity and growth baseline clearing could not be confirmed. Recovery facts remain protected.", symbol: "info.circle")
+                StatusRow(text: "Cleared 1 cleanup; clearing scan history and storage trends couldn’t be confirmed, and interrupted cleanups stay protected.", symbol: "info.circle")
                 end("partial-clear", "Clear applies across all History filters.")
             }
         }

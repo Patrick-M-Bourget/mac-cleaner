@@ -5,6 +5,7 @@ import Darwin
 public enum CleanupTargetState: String, Codable, Sendable {
     case pending = "pending", intent = "intent", succeeded = "succeeded", failed = "failed", skipped = "skipped", cancelled = "cancelled", unknown = "unknown"
 }
+/// One approved item's persisted identity, action and latest outcome, retained for History and recovery.
 public struct CleanupRecord: Codable, Sendable, Identifiable {
     public internal(set) var id: String
     public let batchID: UUID
@@ -74,6 +75,7 @@ public struct CleanupRecord: Codable, Sendable, Identifiable {
             laterMeasurement = "laterMeasurement", reviewOf = "reviewOf", recoveryFinding = "recoveryFinding"
     }
 }
+/// Durable batch claims, item intents and outcomes used by cleanup, History and recovery.
 public protocol CleanupJournaling: Sendable {
     /// Writes every record as pending in one transaction; false when the batch was already claimed.
     func claim(batchID: UUID, records: [CleanupRecord]) throws -> Bool

@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-import CacheDropCore
+@testable import CacheDropCore
 
 private let GB: Int64 = 1_000_000_000
 

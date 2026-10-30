@@ -2,8 +2,8 @@ import AppKit
 import CacheDropCore
 import SwiftUI
 
-/// Smart clean (#141, #319): the recommended plan on its own page, grouped by category with one consequence line each, all
-/// ticked and each untickable, with one Clean up that opens the review sheet. Its selection is its own; the Cleanup plan's never changes.
+/// Smart clean (#141, #319): recommended items and held rows, grouped by category with one consequence line each.
+/// Recommended items start ticked; choices are shared with the plan and Applications (Decision 67). Clean up opens the review sheet.
 struct SmartCleanView: View {
     let selection: SessionPlan
     /// Opens the Cleanup plan, with a category open when one is named.

@@ -4,7 +4,7 @@ import Observation
 import CacheDropCore
 import SwiftUI
 
-/// Single items a rule found (Downloads files, models, disk images), each chosen on its own. Nothing is preselected.
+/// Individual items a rule found, using the selection shared by every page; recommended items start ticked (Decision 67).
 struct CatalogItemRows: View {
     @Bindable var model: CatalogCleanupModel
     let rule: CleanupRule

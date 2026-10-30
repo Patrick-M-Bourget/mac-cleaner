@@ -135,7 +135,7 @@ public final class SQLiteCleanupJournal: CleanupJournaling, @unchecked Sendable 
             return CleanupHistoryMaintenance(removedRuns: removed.count, removedRecords: removed.reduce(0) { $0 + $1.records.count }, protectedRecords: snapshot.protectedRecordCount)
         } catch { try? run("ROLLBACK"); throw error }
     }
-    public func storageBytes() throws -> Int64 {
+    func storageBytes() throws -> Int64 {
         lock.lock(); defer { lock.unlock() }
         return try measuredStorageBytes()
     }

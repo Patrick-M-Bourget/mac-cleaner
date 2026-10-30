@@ -25,7 +25,7 @@ struct Protection {
 
     /// Whether a single file or folder name is protected: by name, by extension, or as macOS's, CacheDrop's or Still's own folder.
     func protects(_ name: String) -> Bool {
-        names.contains(name) || extensions.contains((name as NSString).pathExtension.lowercased()) || (AppCaches.isMacOSOrOwn(name) && !macOSNamesAllowed.contains(name))
+        names.contains(name) || extensions.contains((name as NSString).pathExtension.lowercased()) || (AppCaches.isExcluded(name) && !macOSNamesAllowed.contains(name))
     }
 
     /// The Trash, the user's and a volume's: no rule or check acts on it wherever it lies on the path, the base included,

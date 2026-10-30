@@ -97,7 +97,6 @@ enum Destination: String, CaseIterable, Identifiable {
     @ObservationIgnored var historyOffset: CGPoint?
     @ObservationIgnored var growthOffset: CGPoint?
     var planReturnsToGrowth = false
-    var routeGeneration = UUID()
     @ObservationIgnored var overviewOffset: CGPoint?
     @ObservationIgnored var locationsOffset: CGPoint?
     var localRecordsVisible = false
@@ -315,7 +314,6 @@ private struct WorkspaceView: View {
     }
 
     private func navigate(_ value: Destination) {
-        navigationState.routeGeneration = UUID()
         navigationState.planReturnsToGrowth = false
         destination = value
         planReturnsToExplorer = false
@@ -510,11 +508,11 @@ private struct WorkspaceView: View {
     private func scanKnownLocations() {
         scanLocations(locationsModel.included)
     }
-    /// Rechecks capacity, the catalog's known locations and any included folders. Read-only.
     /// The same conditions that enable the Overview's Scan again button.
     private var canScanAgain: Bool { AppLifecycleController.shared.scanAgainBlockedReason == nil }
     /// "A scan is already running" while one runs (#310).
     private var scanAgainHelp: String { AppLifecycleController.shared.scanAgainBlockedReason ?? "" }
+    /// Rechecks capacity, the catalog's known locations and any included folders. Read-only.
     private func scanAgain() {
         capacity.request(.manual)
         Task { await selection.catalog.scan() }
@@ -536,7 +534,7 @@ private struct WorkspaceView: View {
                     // Built-in Downloads is never picked (#342, #388): Full Disk Access is its fix, not Choose again….
                     HStack(alignment: .firstTextBaseline, spacing: CacheDropDesign.Space.sm) {
                         StatusRow(text: recoveryText(scope, status: status), symbol: "info.circle", role: .caution, identifier: "overviewLocationRecovery").fixedSize()
-                        FullDiskAccessLink(title: "Grant Full Disk Access", symbol: nil)
+                        FullDiskAccessLink(title: "Grant Full Disk Access")
                         Spacer(minLength: 0)
                     }
                 } else {
@@ -599,7 +597,7 @@ private struct WorkspaceView: View {
                               action: location.action == .scanAgain ? StatusAction(title: "Scan again", identifier: "overviewLocationScanAgain", isDisabled: !canScanAgain, action: scanAgain) : nil)
                         .fixedSize(horizontal: location.action == .grantFullDiskAccess, vertical: false)
                     if location.action == .grantFullDiskAccess {
-                        FullDiskAccessLink(title: "Grant Full Disk Access", symbol: nil)
+                        FullDiskAccessLink(title: "Grant Full Disk Access")
                         Spacer(minLength: 0)
                     }
                 }.padding([.horizontal, .bottom], CacheDropDesign.Space.lg)
@@ -676,8 +674,6 @@ private struct WorkspaceView: View {
         if let folder { explorerContext.openLocation(folder) }
         explorerCaller = caller; nativeInspectionVisible = true; planReturnsToExplorer = false
     }
-    /// Explore storage, as Overview's link and the empty states lead there (#320, #321): with no scanned folder yet,
-    /// Locations & access, where folders are added.
     /// Explore storage with its bar: "N selected", then Add to cleanup plan once something is ticked (#320).
     @ViewBuilder private var explorerPage: some View {
         StorageExplorerView(model: folderInspection, selection: selection, context: explorerContext,
@@ -808,6 +804,7 @@ private struct WorkspaceView: View {
         destination = .plan
     }
 
+    /// Opens Explore storage, or Locations & access when no included folder has been scanned (#320, #321).
     private func exploreStorage(caller: Destination) {
         if hasScannedFolder { openExplorer(caller: caller) } else { navigate(.locations) }
     }
@@ -870,9 +867,9 @@ private struct WorkspaceView: View {
                         }
                         if locationsModel.statuses[scope.id]?.needsRecovery == true {
                             // A row's actions are links (#311).
-                            if scope.isBuiltIn { FullDiskAccessLink(title: "Grant Full Disk Access", symbol: nil) } // Never picked (#388).
+                            if scope.isBuiltIn { FullDiskAccessLink(title: "Grant Full Disk Access") } // Never picked (#388).
                             else { Button("Choose again…") { chooseAgain(scope) }.buttonStyle(.link) }
-                            Button("Reconnect and recheck") { scanLocations([scope]) }.buttonStyle(.link).disabled(!scope.isIncluded)
+                            Button("Scan again") { scanLocations([scope]) }.buttonStyle(.link).disabled(!scope.isIncluded)
                         }
                         // Built-in Downloads can't be forgotten (#342).
                         if !scope.isBuiltIn {

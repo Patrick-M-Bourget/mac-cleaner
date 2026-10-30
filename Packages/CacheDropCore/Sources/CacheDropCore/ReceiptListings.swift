@@ -34,8 +34,10 @@ public struct ReceiptListings: Sendable {
 
     /// Every non-Apple receipt in `<systemRoot>/var/db/receipts`, listed with `lsbom` once each (#318). One that can't be read, or
     /// lists more than 64 MB or takes over 20 seconds, is `unread`, as is one with a relative install prefix (#291).
-    /// `lsbom` stands in for the tool in tests: it gets the BOM and returns what `lsbom -s` prints, nil when it fails.
-    public static func read(under systemRoot: URL, lsbom: (URL) -> String? = Self.lsbom) -> ReceiptListings {
+    public static func read(under systemRoot: URL) -> ReceiptListings { read(under: systemRoot, lsbom: lsbom) }
+    /// `read(under:)` with `lsbom` standing in for the tool in tests: it gets the BOM and returns what `lsbom -s` prints,
+    /// nil when it fails.
+    static func read(under systemRoot: URL, lsbom: (URL) -> String?) -> ReceiptListings {
         let folder = systemRoot.appendingPathComponent("var/db/receipts")
         var found: [String: Set<String>] = [:], unread: [String] = [], listed: [Listed] = []
         for name in ((try? FileManager.default.contentsOfDirectory(atPath: folder.path)) ?? []).sorted() where name.hasSuffix(".plist") && !name.hasPrefix("com.apple.") {
@@ -55,7 +57,7 @@ public struct ReceiptListings: Sendable {
         return ReceiptListings(found, unread: unread, listed: listed)
     }
     /// `lsbom -s` on a BOM, nil when it fails, takes over 20 seconds or prints more than 64 MB.
-    public static func lsbom(_ bom: URL) -> String? {
+    static func lsbom(_ bom: URL) -> String? {
         try? BoundedTool.run(executable: URL(fileURLWithPath: "/usr/bin/lsbom"), arguments: ["-s", bom.path], timeout: 20, outputLimit: 64 << 20)
     }
 }

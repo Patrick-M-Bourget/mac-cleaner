@@ -280,7 +280,6 @@ import SwiftUI
         if runningOwners.contains(name) { quitStates[name] = outcome == .quit ? nil : .stillOpen }
     }
 
-    var rulesFound: [CleanupRule] { catalog.rules.filter { rule in candidates.contains { $0.ruleID == rule.id } } }
     func candidates(for rule: CleanupRule) -> [Candidate] { candidates.filter { $0.ruleID == rule.id } }
     func estimatedBytes(for rule: CleanupRule) -> Int64 { candidates(for: rule).reduce(0) { $0 + $1.estimatedBytes } }
     func sizeComplete(for rule: CleanupRule) -> Bool { candidates(for: rule).allSatisfy(\.sizeComplete) }
@@ -541,7 +540,6 @@ import SwiftUI
         }
     }
     /// "Up to" when part of the plan is copies that share disk blocks (SPEC section 6).
-    var recommendedSizeText: String { sizeText(of: recommendedCandidates) }
     /// The items' total size; "Up to" when part of it is copies that share disk blocks (SPEC section 6).
     func sizeText(of items: [Candidate]) -> String {
         SizeEstimate(sum: items.map(SizeEstimate.init)).text(upperBound: items.contains { catalog.rule($0.ruleID)?.estimateIsUpperBound == true })

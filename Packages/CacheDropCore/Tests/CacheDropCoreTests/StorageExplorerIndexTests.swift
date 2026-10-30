@@ -9,8 +9,7 @@ private func observed(_ path: String, _ kind: ObservationKind = .file, bytes: In
 }
 private func scan(_ scope: String, at time: Double = 0, _ observations: [FileObservation], issues: [ScanIssue] = []) -> ScanResult {
     ScanResult(scope: URL(fileURLWithPath: scope), observedAt: Date(timeIntervalSince1970: time), observations: observations, logicalBytes: 0, allocatedBytes: 0,
-               allocatedUnknownCount: 0, volumeCapacityBytes: nil, volumeAvailableBytes: nil, issues: issues,
-               volumeAvailableMetric: "", exclusionFingerprint: "none", excludedEntryCount: 0)
+               issues: issues, exclusionFingerprint: "none", excludedEntryCount: 0)
 }
 private func index(_ scans: [ScanResult], reports: [ScanResult] = []) -> StorageExplorerIndex {
     StorageExplorerIndex(scans: scans, reports: reports, allowedScopes: nil) { _, _ in false }

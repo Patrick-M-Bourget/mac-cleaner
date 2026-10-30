@@ -79,19 +79,6 @@ public struct ScanIssue: Sendable {
     }
     public let url: URL
     public let reason: Reason
-    public var recovery: String {
-        switch reason {
-        case .accessDenied, .accessRevoked: "Choose this folder again, then recheck access."
-        case .locationUnavailable: "Reconnect the volume or choose the folder again, then recheck."
-        case .differentVolume: "Choose this volume explicitly to inspect it."
-        case .excludedScope: "This location is excluded. Manage custom exclusions, then explicitly recheck if you remove its rule."
-        case .exclusionUnavailable: "Volume identity could not be verified. Exclusion rules were not bypassed; reconnect or recheck this location."
-        case .directoryChanged: "This directory changed during scanning. Wait for other activity to finish, then recheck this folder."
-        case .timeLimit: "The metadata time budget was reached. Choose a smaller folder and recheck."
-        case .entryLimit, .issueLimit, .depthLimit: "Choose a smaller folder and scan it explicitly."
-        case .readFailed, .metadataUnavailable: "Recheck this location; unreadable bytes remain unknown."
-        }
-    }
 }
 
 public struct ScanResult: Sendable {
@@ -101,9 +88,6 @@ public struct ScanResult: Sendable {
     /// Totals count repeated file identities once. They are not reclaimable-space estimates.
     public let logicalBytes: Int64
     public let allocatedBytes: Int64?
-    public let allocatedUnknownCount: Int
-    public let volumeCapacityBytes: Int64?
-    public let volumeAvailableBytes: Int64?
     public let issues: [ScanIssue]
     public var isComplete: Bool { issues.isEmpty }
     /// Known observed subtotal is not the complete scope size when coverage failed.
@@ -111,7 +95,6 @@ public struct ScanResult: Sendable {
     public var totalLogicalBytes: Int64? { excludedEntryCount == 0 ? includedLogicalBytes : nil }
     public var totalAllocatedBytes: Int64? { isComplete && !hasUnmeasuredContents && excludedEntryCount == 0 ? allocatedBytes : nil }
     public var hasUnmeasuredContents: Bool { observations.contains { $0.kind == .package || $0.kind == .other } }
-    public let volumeAvailableMetric: String
     public let exclusionFingerprint: String
     public let excludedEntryCount: Int
 }
@@ -144,6 +127,7 @@ public actor FolderScanner {
         return observation.url
     }
 
+    /// Reads a folder's metadata within the entry and time limits, reporting unreadable or incomplete portions as issues.
     public func scan(_ scope: URL, cancellation: ScanCancellation? = nil, onProgress: (@Sendable (ScanProgress) -> Void)? = nil, exclusions: ExclusionPolicy = ExclusionPolicy()) throws -> ScanResult {
         try Task.checkCancellation()
         if cancellation?.isCancellationRequested == true { throw CancellationError() }
@@ -198,14 +182,14 @@ public actor FolderScanner {
             lastProgressCount = observations.count; lastProgressTime = now
         }
         do { try access.check(scope) }
-        catch { try checkCancellation(); return ScanResult(scope: scope, observedAt: Date(), observations: [], logicalBytes: 0, allocatedBytes: nil, allocatedUnknownCount: 0, volumeCapacityBytes: nil, volumeAvailableBytes: nil, issues: [.init(url: scope, reason: ScanIssue.classify(error))], volumeAvailableMetric: "Unavailable", exclusionFingerprint: policyFingerprint, excludedEntryCount: 0) }
+        catch { try checkCancellation(); return ScanResult(scope: scope, observedAt: Date(), observations: [], logicalBytes: 0, allocatedBytes: nil, issues: [.init(url: scope, reason: ScanIssue.classify(error))], exclusionFingerprint: policyFingerprint, excludedEntryCount: 0) }
         var rootMetadata = stat()
         guard scope.isFileURL, lstat(scope.path, &rootMetadata) == 0,
               (rootMetadata.st_mode & S_IFMT) == S_IFDIR else {
             throw CocoaError(.fileReadUnsupportedScheme)
         }
         guard let expectedRoot, DirectoryEvidence(rootMetadata).sameIdentity(as: expectedRoot) else {
-            return ScanResult(scope: scope, observedAt: Date(), observations: [], logicalBytes: 0, allocatedBytes: nil, allocatedUnknownCount: 0, volumeCapacityBytes: nil, volumeAvailableBytes: nil, issues: [.init(url: scope, reason: .locationUnavailable)], volumeAvailableMetric: "Unavailable", exclusionFingerprint: policyFingerprint, excludedEntryCount: 0)
+            return ScanResult(scope: scope, observedAt: Date(), observations: [], logicalBytes: 0, allocatedBytes: nil, issues: [.init(url: scope, reason: .locationUnavailable)], exclusionFingerprint: policyFingerprint, excludedEntryCount: 0)
         }
         guard (try? scope.resourceValues(forKeys: [.isPackageKey]).isPackage) != true else {
             throw CocoaError(.fileReadNoPermission)
@@ -213,10 +197,10 @@ public actor FolderScanner {
         let canonicalScope = scope.resolvingSymlinksInPath().standardizedFileURL
         let exclusionVolume = exclusions.rules.isEmpty ? nil : try? scope.resourceValues(forKeys: [.volumeUUIDStringKey]).volumeUUIDString
         if !exclusions.rules.isEmpty && exclusionVolume == nil {
-            return ScanResult(scope: scope, observedAt: Date(), observations: [], logicalBytes: 0, allocatedBytes: nil, allocatedUnknownCount: 0, volumeCapacityBytes: nil, volumeAvailableBytes: nil, issues: [.init(url: scope, reason: .exclusionUnavailable)], volumeAvailableMetric: "Unavailable", exclusionFingerprint: policyFingerprint, excludedEntryCount: 0)
+            return ScanResult(scope: scope, observedAt: Date(), observations: [], logicalBytes: 0, allocatedBytes: nil, issues: [.init(url: scope, reason: .exclusionUnavailable)], exclusionFingerprint: policyFingerprint, excludedEntryCount: 0)
         }
         if let volume = exclusionVolume, exclusions.matches(canonicalScope, volumeID: volume) {
-            return ScanResult(scope: scope, observedAt: Date(), observations: [], logicalBytes: 0, allocatedBytes: nil, allocatedUnknownCount: 0, volumeCapacityBytes: nil, volumeAvailableBytes: nil, issues: [.init(url: scope, reason: .excludedScope)], volumeAvailableMetric: "Unavailable", exclusionFingerprint: policyFingerprint, excludedEntryCount: 1)
+            return ScanResult(scope: scope, observedAt: Date(), observations: [], logicalBytes: 0, allocatedBytes: nil, issues: [.init(url: scope, reason: .excludedScope)], exclusionFingerprint: policyFingerprint, excludedEntryCount: 1)
         }
         var directories: [URL: DirectoryEvidence] = [scope.standardizedFileURL: DirectoryEvidence(rootMetadata)]
         func identitiesStillValid(through parent: URL) throws -> Bool {
@@ -363,12 +347,11 @@ public actor FolderScanner {
         if issues.contains(where: { $0.reason == .directoryChanged }) && budget.visited >= maximumEntries && !issues.contains(where: { $0.reason == .entryLimit }) {
             issues.append(.init(url: scope, reason: .entryLimit))
         }
-        let volume = try? scope.resourceValues(forKeys: [.volumeTotalCapacityKey, .volumeAvailableCapacityForImportantUsageKey, .volumeAvailableCapacityKey])
         try checkCancellation()
         if budget.expired && !issues.contains(where: { $0.reason == .timeLimit }) { issues.append(.init(url: scope, reason: .timeLimit)) }
         return ScanResult(scope: scope, observedAt: Date(), observations: observations.sorted { $0.url.path < $1.url.path },
-            logicalBytes: logical, allocatedBytes: allocationUnknown == 0 ? allocated : nil, allocatedUnknownCount: allocationUnknown,
-            volumeCapacityBytes: volume?.volumeTotalCapacity.map(Int64.init), volumeAvailableBytes: volume?.volumeAvailableCapacityForImportantUsage ?? volume?.volumeAvailableCapacity.map(Int64.init), issues: issues, volumeAvailableMetric: volume?.volumeAvailableCapacityForImportantUsage != nil ? "Important usage" : volume?.volumeAvailableCapacity != nil ? "Available capacity fallback" : "Unavailable", exclusionFingerprint: policyFingerprint, excludedEntryCount: excludedEntryCount)
+            logicalBytes: logical, allocatedBytes: allocationUnknown == 0 ? allocated : nil,
+            issues: issues, exclusionFingerprint: policyFingerprint, excludedEntryCount: excludedEntryCount)
     }
 }
 

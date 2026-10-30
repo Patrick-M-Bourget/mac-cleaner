@@ -13,7 +13,7 @@ import CacheDropCore
             case .notScanned: "Not scanned"
             case .ready: "Ready to scan"
             case .chooseAgain: "Access unavailable · Choose the folder again"
-            case .unavailable: "Location unavailable · Reconnect it, then recheck"
+            case .unavailable: "Location unavailable · Reconnect it, then scan again"
             case .omitted: "Left out of scans"
             case .recheck: "Not scanned since you included it"
             }

@@ -197,6 +197,7 @@ extension CleanupRule {
     public var choosesItems: Bool { contents != nil || regen == .model || action == .evict || fromPickedFolders || items?.choosesEachItem == true || itemByItem }
 }
 
+/// The built-in cleanup and guidance rules, assembled with the installed apps that own their data.
 public enum BuiltInCatalog {
     private static let pnpmOwner = RuleOwner(name: "pnpm", executables: ["pnpm", "pnpx"], scripts: ["pnpm", "pnpx", "pnpm.js", "pnpm.cjs", "pnpx.js", "pnpx.cjs"])
     /// The catalog as the app uses it, with installed apps found through LaunchServices.
@@ -399,6 +400,7 @@ public struct CandidateHold: Sendable, Hashable {
     public var line: String { app.map { "In use by \($0.name) · Quit \($0.name) to clean it" } ?? refusal.reason }
 }
 
+/// Cleanup rules and their shared discovery, ownership and protection decisions.
 public struct Catalog: Sendable {
     public let rules: [CleanupRule]
     public init(rules: [CleanupRule]) { self.rules = rules }
@@ -443,7 +445,7 @@ public struct Catalog: Sendable {
     /// A `.tool` rule appears only when `locateTool` finds its executable. Rules based in the user's
     /// `/private/var/folders` entry appear only when `userFolder` is given (`Catalog.currentUserFolder()` in the app).
     /// Absolute paths in a rule's layout overrides are read under `systemRoot`.
-    public func discover(home: URL, userFolder: URL? = nil, exclusions: ExclusionPolicy = ExclusionPolicy(), inUse: any InUseChecking = SystemInUseChecker(), sizer: KnownLocationSizer = KnownLocationSizer(), now: Date = Date(), locateTool: (ToolCommand) -> URL? = ToolCommand.installed,
+    func discover(home: URL, userFolder: URL? = nil, exclusions: ExclusionPolicy = ExclusionPolicy(), inUse: any InUseChecking = SystemInUseChecker(), sizer: KnownLocationSizer = KnownLocationSizer(), now: Date = Date(), locateTool: (ToolCommand) -> URL? = ToolCommand.installed,
                          systemRoot: URL = URL(fileURLWithPath: "/"), cloud: any UbiquitousItemAccess = SystemUbiquitousItems()) -> [Candidate] {
         discovery(home: home, userFolder: userFolder, exclusions: exclusions, inUse: inUse, sizer: sizer, now: now, locateTool: locateTool, systemRoot: systemRoot, cloud: cloud).candidates
     }

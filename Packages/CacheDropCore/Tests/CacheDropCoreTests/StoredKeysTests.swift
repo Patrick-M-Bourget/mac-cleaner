@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-import CacheDropCore
+@testable import CacheDropCore
 
 /// What CacheDrop writes to disk, pinned before any rename (#448): each fixture was written by main before the pin, so a
 /// renamed property or case that changes a stored key fails here instead of reading old journals, trends or settings as empty.

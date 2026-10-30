@@ -3,7 +3,7 @@ import Foundation
 public struct ScopeReport: Sendable {
     public let current: ScanResult
     public let lastComplete: ScanResult?
-    public var requiresRecheck: Bool { !current.isComplete }
+    var requiresRecheck: Bool { !current.isComplete }
 }
 
 /// Independently selected locations retain their own observations and recovery status.

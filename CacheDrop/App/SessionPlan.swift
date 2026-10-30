@@ -24,7 +24,6 @@ struct RefreshRequest: Sendable {
     var hasPendingChoices: Bool { catalog.selectedCount > 0 }
     /// Choices on the plan or the Applications page, which quitting would lose (#270).
     var hasPendingChoicesOnAnyPage: Bool { catalog.anyPageDiffersFromRecommended }
-    var workspaceSelectedCount: Int { catalog.selectedCount }
     var workspaceSelectedSize: String {
         if !hasPendingChoices { return CacheDropDesign.noValue }
         return ByteCountFormatter.string(fromByteCount: catalog.estimatedBytes, countStyle: .decimal)
@@ -54,15 +53,11 @@ struct RefreshRequest: Sendable {
         if expectedExclusionFingerprint != fingerprint { invalidateCoverage(); expectedExclusionFingerprint = fingerprint }
     }
     private var refreshRequests: [URL: RefreshRequest] = [:]
-    private var isRefreshingBatch = false
-    var isRefreshing: Bool { isRefreshingBatch || !refreshRequests.isEmpty }
     func beginRefreshBatch(_ scopes: [URL]) -> [RefreshRequest] {
-        isRefreshingBatch = true
         return scopes.map { beginRefresh($0) }
     }
     func endRefreshBatch(_ unfinished: [RefreshRequest]) {
         for request in unfinished { cancelRefresh(request) }
-        isRefreshingBatch = false
     }
     var refreshScopes: [URL] { scans.keys.sorted { $0.path < $1.path } }
     func beginRefresh(_ scope: URL) -> RefreshRequest {
@@ -118,7 +113,7 @@ struct RefreshRequest: Sendable {
         defer { isCheckingReview = false }
         return try await prepare()
     }
-    /// Smart clean's review (#141): its own selection, checked now, through the same review and executor as the plan.
+    /// Smart clean's review: the recommended part of the shared selection, checked now through the plan's review and executor (Decision 67).
     func prepareSmartCleanReview() async throws -> WorkspaceCleanupReview {
         guard canReviewSmartClean else { throw PlanReviewError.changed }
         let catalogVersion = catalog.selectionRevision(for: .smartClean)
@@ -166,7 +161,7 @@ struct RefreshRequest: Sendable {
         workspaceFinished = true
         lifecycle.capacity.request(.cleanupEnded)
     }
-    /// Leaves a finished Smart clean's results; the Cleanup plan's selection is kept (#141).
+    /// Leaves a finished run's results; the shared selection already excludes the items the run cleaned (#349).
     func dismissResult() {
         guard !workspaceRunning, !catalog.isRunning else { return }
         workspaceFinished = false; catalog.dismissResult()
@@ -175,7 +170,7 @@ struct RefreshRequest: Sendable {
     func endSession() {
         guard !workspaceRunning && !catalog.isRunning else { return }
         catalog.endSession(); scans.removeAll(); unavailableScopes.removeAll()
-        isRefreshingBatch = false; refreshRequests.removeAll(); AppLifecycleController.shared.hasPendingPlan = hasPendingChoicesOnAnyPage
+        refreshRequests.removeAll(); AppLifecycleController.shared.hasPendingPlan = hasPendingChoicesOnAnyPage
     }
 }
 enum PlanReviewError: Error {
@@ -188,7 +183,6 @@ enum PlanReviewError: Error {
     static func message(for error: Error) -> String? {
         switch error as? PlanReviewError {
         case .settingsUnreadable: nil
-        case .nothingToClean: "Nothing here can be cleaned right now. Scan again."
         default: changedMessage
         }
     }
@@ -214,15 +208,12 @@ private struct PlanScrollTarget: ViewModifier {
 }
 
 @MainActor @Observable final class CleanupPlanPresentation {
-    var search = ""
-    var choosingItems = false
-    var inspected: FileObservation?
     var offset: CGPoint?
     /// Categories whose "Choose items" is open; opening a category from Overview opens it.
     var expandedCategories: Set<CatalogCategory> = []
     /// A category to bring into view once the plan shows it (#351); cleared once scrolled to.
     var scrollTarget: CatalogCategory?
-    func reset() { search = ""; choosingItems = false; inspected = nil; offset = nil; expandedCategories = []; scrollTarget = nil }
+    func reset() { offset = nil; expandedCategories = []; scrollTarget = nil }
     /// Opens `category` and scrolls to it, instead of restoring where the plan was left (#351).
     func reveal(_ category: CatalogCategory) { expandedCategories.insert(category); scrollTarget = category; offset = nil }
 }
@@ -308,12 +299,12 @@ struct WorkspaceCleanupReview: Identifiable {
     let id = UUID()
     let catalog: CatalogReview?
     let catalogVersion: UInt64
-    /// The selection it came from; a finished run clears only that one (#141).
+    /// The page that opened the review; cleaned items leave the shared selection on every page (#349).
     var source = CleanupSelections.Source.plan
     /// Checks the rows again after the review quit an app (#377).
     weak var model: CatalogCleanupModel?
 }
-/// A running or finished cleanup, from either selection: the header, progress and outcomes.
+/// A running or finished cleanup from any page: the header, progress and outcomes.
 struct CleanupRunSection: View {
     let selection: SessionPlan
     /// Scrolls the page to a result row (`ScrollViewProxy.revealRow`).

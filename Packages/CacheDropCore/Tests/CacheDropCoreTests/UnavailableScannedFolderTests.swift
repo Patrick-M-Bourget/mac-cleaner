@@ -58,7 +58,6 @@ import Testing
 private enum ScanResultFixture {
     static func scan(scope: String, at date: Date) -> ScanResult {
         ScanResult(scope: URL(fileURLWithPath: scope), observedAt: date, observations: [], logicalBytes: 0, allocatedBytes: 0,
-                   allocatedUnknownCount: 0, volumeCapacityBytes: nil, volumeAvailableBytes: nil, issues: [],
-                   volumeAvailableMetric: "", exclusionFingerprint: "none", excludedEntryCount: 0)
+                   issues: [], exclusionFingerprint: "none", excludedEntryCount: 0)
     }
 }

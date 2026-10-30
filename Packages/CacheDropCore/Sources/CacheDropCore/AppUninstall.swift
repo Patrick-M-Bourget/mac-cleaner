@@ -6,9 +6,9 @@ import Darwin
 /// ticked one by one). Only what macOS lets the user move to the Trash without a password is offered, checked at the scan
 /// and again before acting (`CandidateCheck`). Everything goes to the Trash, so Put back works.
 public enum AppUninstall {
-    public static let appRuleID = "uninstall-app"
-    public static let filesRuleID = "uninstall-app-files"
-    public static let possiblyRelatedRuleID = "uninstall-app-possibly-related"
+    static let appRuleID = "uninstall-app"
+    static let filesRuleID = "uninstall-app-files"
+    static let possiblyRelatedRuleID = "uninstall-app-possibly-related"
     static let consequence = ""
     static let appRule = CleanupRule(id: appRuleID, category: .apps, title: "App", detail: "The app itself.", consequence: consequence, regen: .userFile,
         action: .trash, locations: [], owner: nil, unprotectedExtensions: ["app"], family: .appUninstall)

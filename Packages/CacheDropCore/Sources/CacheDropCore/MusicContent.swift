@@ -120,7 +120,7 @@ public struct MusicContentItem: Sendable, Equatable, Identifiable {
     public internal(set) var owners: [String]
     public internal(set) var tie: Tie
     public var id: String { url.path }
-    public var isShared: Bool { owners.count > 1 }
+    var isShared: Bool { owners.count > 1 }
 }
 
 /// Every music vendor's content found on this Mac, each item once with all its confirmed owners (#175).

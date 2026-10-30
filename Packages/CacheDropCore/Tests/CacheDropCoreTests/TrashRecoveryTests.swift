@@ -1,7 +1,7 @@
 import Foundation
 import SQLite3
 import Testing
-import CacheDropCore
+@testable import CacheDropCore
 
 private func fixtureDownloads() throws -> (home: URL, downloads: URL) {
     let home = FileManager.default.temporaryDirectory.appendingPathComponent("CacheDropTrashRecovery-\(UUID())").resolvingSymlinksInPath()
