@@ -11,7 +11,7 @@ struct RefreshRequest: Sendable {
 
 /// The session's cleanup plan: catalog categories (Downloads and browser caches included).
 /// Folder scans are kept for inspection only; they never authorize cleanup.
-@MainActor @Observable final class SessionPlan {
+@MainActor @Observable final class CleanupPlan {
     let catalog = CatalogCleanupModel()
     private(set) var workspaceRunning = false
     private(set) var workspaceFinished = false
@@ -191,7 +191,7 @@ enum PlanReviewError: Error {
 /// Scrolls the plan to `presentation.scrollTarget` once its row is drawn, after the viewport settles (#351). A target the
 /// plan can't show now (a run's results, or nothing found there) is dropped, so it never jumps the plan later.
 private struct PlanScrollTarget: ViewModifier {
-    let selection: SessionPlan
+    let selection: CleanupPlan
     let presentation: CleanupPlanPresentation
     let proxy: ScrollViewProxy
     func body(content: Content) -> some View {
@@ -224,7 +224,7 @@ private struct PlanScrollTarget: ViewModifier {
 }
 
 struct LiveCleanupPlanView: View {
-    @Bindable var selection: SessionPlan
+    @Bindable var selection: CleanupPlan
     var viewHistory: (() -> Void)? = nil
     var newPlan: (() -> Void)? = nil
     var reviewRecovery: (() -> Void)? = nil
@@ -306,7 +306,7 @@ struct WorkspaceCleanupReview: Identifiable {
 }
 /// A running or finished cleanup from any page: the header, progress and outcomes.
 struct CleanupRunSection: View {
-    let selection: SessionPlan
+    let selection: CleanupPlan
     /// Scrolls the page to a result row (`ScrollViewProxy.revealRow`).
     var reveal: (CleanupRecord.ID) -> Void = { _ in }
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -384,7 +384,7 @@ extension CleanupRunSection {
 /// The bottom bar of a page that cleans (Decision 46): Stop while its run goes, the result's buttons after it, and the
 /// page's own actions otherwise. `finish` is the result's last button: Done, or Start a new plan.
 struct CleanupActionBar<Finish: View, Idle: View>: View {
-    let selection: SessionPlan
+    let selection: CleanupPlan
     let source: CleanupSelections.Source
     var viewHistory: (() -> Void)? = nil
     var reviewRecovery: (() -> Void)? = nil
@@ -411,7 +411,7 @@ struct CleanupActionBar<Finish: View, Idle: View>: View {
 }
 /// The running cleanup's one action.
 struct CleanupStopStrip: View {
-    let selection: SessionPlan
+    let selection: CleanupPlan
     var body: some View {
         ActionStrip(message: "Stopping won’t undo what’s done. A tool stopped midway may have removed part of its cache.", showsBackgroundWork: false, wrapsNote: true) {
             Button(selection.workspaceStopRequested ? "Stop requested" : "Stop cleanup") { selection.cancelWorkspace() }.disabled(selection.workspaceStopRequested)

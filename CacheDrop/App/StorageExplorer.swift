@@ -107,7 +107,7 @@ struct ExplorerUnavailableLocation {
 /// Browses observed metadata only. The workspace supplies its fixed sibling action strip.
 struct StorageExplorerView: View {
     @Bindable var model: ExploreStorage
-    @Bindable var selection: SessionPlan
+    @Bindable var selection: CleanupPlan
     @Bindable var context: StorageExplorerContext
     /// The page the explorer was opened from, which back returns to.
     let caller: String

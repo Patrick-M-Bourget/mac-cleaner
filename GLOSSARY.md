@@ -9,7 +9,7 @@ The names CacheDrop shows, what they mean, and where they live in code. Copy fol
 | Design gallery (Debug only) | Synthetic examples of shared components, opened from the Debug menu | `DesignGallery` |
 | Overview | Free space, what can be cleaned by category, and the scanned locations | `Destination.overview`, `CacheDropApp.swift` |
 | Smart clean | The recommended items, ready to clean in one go | `SmartCleanView`, `RecommendedPlan` |
-| Cleanup plan | Every category and item, to tick what to clean | `SessionPlan`, `CatalogCleanupModel` |
+| Cleanup plan | Every category and item, to tick what to clean | `CleanupPlan`, `CatalogCleanupModel` |
 | Applications | Apps, plug-ins and files from deleted apps | `ApplicationsView`, `ApplicationsInventory` |
 | Storage trends | What grew or shrank between two scans | `StorageTrends*` (`StorageTrendsHistoryView`, `StorageTrendsHistoryStore`) |
 | History | Past cleanups and scans | `CleanupHistoryView`, `ScanActivityHistory` |
