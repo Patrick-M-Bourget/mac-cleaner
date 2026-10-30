@@ -3,6 +3,10 @@ import Darwin
 
 public struct GrowthFingerprint: Codable, Sendable, Equatable {
     public let scopeID, rootID, volumeID, access, rules, exclusions, classification: String
+    /// Stored in Storage trends' history (#448): a renamed property keeps its key here; a new field needs its key here and in the StoredKeys fixture.
+    private enum CodingKeys: String, CodingKey {
+        case scopeID = "scopeID", rootID = "rootID", volumeID = "volumeID", access = "access", rules = "rules", exclusions = "exclusions", classification = "classification"
+    }
     public init(scopeID: String, rootID: String, volumeID: String, access: String, rules: String, exclusions: String, classification: String) {
         self.scopeID = scopeID; self.rootID = rootID; self.volumeID = volumeID; self.access = access
         self.rules = rules; self.exclusions = exclusions; self.classification = classification
@@ -11,7 +15,8 @@ public struct GrowthFingerprint: Codable, Sendable, Equatable {
     public var isCatalog: Bool { scopeID.hasPrefix("catalog:") }
 }
 /// `location` groups come from catalog scans: one per rule location, with its catalog category and whether it could be read.
-public enum GrowthDimension: String, Codable, Sendable { case folder, category, location }
+/// Raw values are stored in Storage trends' history (#448): a renamed case keeps its string.
+public enum GrowthDimension: String, Codable, Sendable { case folder = "folder", category = "category", location = "location" }
 public struct GrowthAggregate: Codable, Sendable, Identifiable {
     public let id, label: String
     public let logicalBytes: Int64
@@ -22,13 +27,18 @@ public struct GrowthAggregate: Codable, Sendable, Identifiable {
     /// False when the location couldn't be fully read (no Full Disk Access, unreadable folders): its size is not a measurement.
     /// Nil in records made before catalog scans, which were always measured.
     public let measured: Bool?
+    /// Stored in Storage trends' history (#448): a renamed property keeps its key here; a new field needs its key here and in the StoredKeys fixture.
+    private enum CodingKeys: String, CodingKey {
+        case id = "id", label = "label", logicalBytes = "logicalBytes", dimension = "dimension", category = "category", ruleID = "ruleID", measured = "measured"
+    }
     public init(id: String, label: String, logicalBytes: Int64, dimension: GrowthDimension = .folder, category: CatalogCategory? = nil, ruleID: String? = nil, measured: Bool? = nil) {
         self.id = id; self.label = label; self.logicalBytes = logicalBytes; self.dimension = dimension
         self.category = category; self.ruleID = ruleID; self.measured = measured
     }
     var isMeasured: Bool { measured != false }
 }
-public enum GrowthCoverage: String, Codable, Sendable { case complete, partial, cancelled, unmeasured }
+/// Raw values are stored in Storage trends' history (#448): a renamed case keeps its string.
+public enum GrowthCoverage: String, Codable, Sendable { case complete = "complete", partial = "partial", cancelled = "cancelled", unmeasured = "unmeasured" }
 public struct GrowthSnapshot: Codable, Sendable, Identifiable {
     public let id: UUID
     public let fingerprint: GrowthFingerprint
@@ -39,6 +49,10 @@ public struct GrowthSnapshot: Codable, Sendable, Identifiable {
     /// A rescan right after a cleanup (#126). It can be the latest scan, but never the baseline a later scan compares with.
     /// Nil in records made before this was tracked.
     private let cleanup: Bool?
+    /// Stored in Storage trends' history (#448): a renamed property keeps its key here; a new field needs its key here and in the StoredKeys fixture.
+    private enum CodingKeys: String, CodingKey {
+        case id = "id", fingerprint = "fingerprint", scopeLabel = "scopeLabel", observedAt = "observedAt", groups = "groups", coverage = "coverage", cleanup = "cleanup"
+    }
     public var afterCleanup: Bool { cleanup == true }
     public init(fingerprint: GrowthFingerprint, scopeLabel: String, observedAt: Date, groups: [GrowthAggregate], coverage: GrowthCoverage = .complete, afterCleanup: Bool = false) {
         id = UUID(); self.fingerprint = fingerprint; self.scopeLabel = scopeLabel
@@ -46,9 +60,12 @@ public struct GrowthSnapshot: Codable, Sendable, Identifiable {
     }
     public var logicalBytes: Int64 { groups.filter { $0.dimension != .category && $0.isMeasured }.reduce(0) { $0 + $1.logicalBytes } }
 }
-public enum GrowthComparisonState: String, Codable, Sendable { case firstBaseline, clearedBaseline, missingBaseline, coverageChanged, unknown, compared
+/// Raw values are stored in Storage trends' history as each entry's origin (#448): a renamed case keeps its string.
+public enum GrowthComparisonState: String, Codable, Sendable {
+    case firstBaseline = "firstBaseline", clearedBaseline = "clearedBaseline", missingBaseline = "missingBaseline"
+    case coverageChanged = "coverageChanged", unknown = "unknown", compared = "compared"
     /// Earlier scans exist, but none is old enough (or each is a rescan right after a cleanup): check back tomorrow.
-    case waitingForBaseline
+    case waitingForBaseline = "waitingForBaseline"
 }
 public struct GrowthChange: Sendable, Identifiable {
     public let id, label: String
@@ -90,8 +107,17 @@ public struct GrowthRetention: Sendable {
 }
 /// Owns aggregate and opaque epoch/lock files. It never opens, enumerates or evicts operation journals.
 public actor GrowthHistoryStore {
-    private struct Entry: Codable { let snapshot: GrowthSnapshot; let origin: GrowthComparisonState }
-    private struct Archive: Codable { var version = 1; var entries: [Entry] = []; var hadHistory = false; var cleared = false; var activities: [ScanActivity]? = nil }
+    /// The history file's stored keys (#448): a renamed property keeps its key here; a new field needs its key here and in the fixture.
+    private struct Entry: Codable {
+        let snapshot: GrowthSnapshot; let origin: GrowthComparisonState
+        private enum CodingKeys: String, CodingKey { case snapshot = "snapshot", origin = "origin" }
+    }
+    private struct Archive: Codable {
+        var version = 1; var entries: [Entry] = []; var hadHistory = false; var cleared = false; var activities: [ScanActivity]? = nil
+        private enum CodingKeys: String, CodingKey {
+            case version = "version", entries = "entries", hadHistory = "hadHistory", cleared = "cleared", activities = "activities"
+        }
+    }
     /// How much older a scan must be to serve as the baseline: about a day, a little under 24 h so a check at about
     /// the same time each day compares with the day before (#126).
     public static let minimumBaselineAge: TimeInterval = 20 * 3_600

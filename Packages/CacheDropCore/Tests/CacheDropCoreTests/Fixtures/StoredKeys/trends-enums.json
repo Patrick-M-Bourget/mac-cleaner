@@ -1,0 +1,42 @@
+{
+  "categories" : [
+    "developer",
+    "browser",
+    "downloads",
+    "system",
+    "models",
+    "updaters",
+    "logs",
+    "icloud",
+    "files",
+    "managed",
+    "leftovers",
+    "apps"
+  ],
+  "comparisonStates" : [
+    "firstBaseline",
+    "clearedBaseline",
+    "missingBaseline",
+    "coverageChanged",
+    "unknown",
+    "compared",
+    "waitingForBaseline"
+  ],
+  "coverages" : [
+    "complete",
+    "partial",
+    "cancelled",
+    "unmeasured"
+  ],
+  "dimensions" : [
+    "folder",
+    "category",
+    "location"
+  ],
+  "scanOutcomes" : [
+    "complete",
+    "partial",
+    "stopped",
+    "failed"
+  ]
+}
