@@ -748,6 +748,14 @@ final class CatalogCleanupUITests: XCTestCase {
         revealAndClick(denied.links["fullDiskAccessLink"], in: app)
         XCTAssertTrue(app.staticTexts["Broader access is optional"].waitForExistence(timeout: 5))
         app.buttons["closeFullDiskAccess"].click() // "Not now", never "Open System Settings".
+
+        // #435: the Cleanup plan says it the way Overview does, plural-correct, with the places in its value.
+        app.typeKey("3", modifierFlags: .command)
+        let planDenied = app.descendants(matching: .any)["planNotAccessible"]
+        XCTAssertTrue(planDenied.waitForExistence(timeout: 10))
+        let planLine = planDenied.staticTexts.matching(NSPredicate(format: "label ENDSWITH 'Full Disk Access ·' AND value CONTAINS 'Safari cache'")).firstMatch
+        XCTAssertTrue(planLine.exists, planDenied.debugDescription)
+        XCTAssertTrue(planLine.label.hasPrefix("1 location needs") || planLine.label.range(of: #"^\d+ locations need"#, options: .regularExpression) != nil, planLine.label)
         app.terminate()
 
         // Granted: the Safari folder opens.
@@ -2180,7 +2188,7 @@ final class FolderScanProgressUITests: XCTestCase {
             XCTAssertTrue(element.waitForExistence(timeout: 5), element.debugDescription)
             XCTAssertTrue(strip.frame.contains(element.frame), element.debugDescription)
         }
-        XCTAssertTrue((app.staticTexts["scanProgressSummary"].value as? String)?.hasSuffix("inspected") == true)
+        XCTAssertTrue((app.staticTexts["scanProgressSummary"].value as? String)?.hasSuffix(" read") == true)
         assertStopScanIsTheQuietX(strip)
         XCTAssertFalse(strip.links["Return to scan"].exists)
         XCTAssertEqual(strip.frame.height, height, accuracy: 0.5)

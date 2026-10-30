@@ -62,7 +62,7 @@ public struct BackgroundWork: Equatable, Sendable {
         var parts: [Line.Part]
         if case .folderScan(let folder) = first, let folderPhase {
             parts = [.init(id: first.identifier, text: BackgroundJob.scanning(folder)), .init(id: "scanPhase", text: folderPhase.progressText)]
-            if let inspectedEntries { parts.append(.init(id: "scanProgressSummary", text: "\(inspectedEntries) \(inspectedEntries == 1 ? "entry" : "entries") inspected")) }
+            if let inspectedEntries { parts.append(.init(id: "scanProgressSummary", text: inspectedEntries.formatted() + (inspectedEntries == 1 ? " file read" : " files read"))) }
         } else {
             parts = [.init(id: first.identifier, text: first.text(catalogProgress: catalogProgress))]
         }
@@ -75,9 +75,9 @@ extension ScanPhase {
     /// The phase as a folder scan's progress line names it (#235).
     public var progressText: String {
         switch self {
-        case .enumerating: "Reading file metadata…"
-        case .checkingDirectories: "Checking directory stability…"
-        case .rechecking: "Rechecking changed coverage…"
+        case .enumerating: "Reading files…"
+        case .checkingDirectories: "Checking folders…"
+        case .rechecking: "Checking changed folders again…"
         }
     }
 }
@@ -94,7 +94,7 @@ public enum CatalogScanPhase: Equatable, Sendable {
 
     public var progressText: String {
         switch self {
-        case .starting: "Checking known locations…"
+        case .starting: "Starting scan…"
         case .location(let title, let number, let total): "Checking \(title)… \(number) of \(total)"
         case .removedAppLeftovers: "Checking files from deleted apps…"
         case .appsAndPlugIns: "Checking apps and plug-ins…"

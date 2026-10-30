@@ -76,7 +76,10 @@ struct CatalogConfirmationSection: View {
     private func files(_ rule: CleanupRule, _ items: [Candidate]) -> some View {
         VStack(alignment: .leading, spacing: CacheDropDesign.Space.xs) {
             Text(rule.title).font(CacheDropDesign.TypeStyle.caption.weight(.medium))
-            Text(rule.consequence).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            // Only what this rule adds to its group's line (Decision 92 rules 2 and 7); most Trash rules add nothing.
+            if !rule.consequence.isEmpty {
+                Text(rule.consequence).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            }
             // An app's files are grouped by the folder they are in (#177).
             if rule.category == .apps {
                 ForEach(AppUninstall.byPlace(items), id: \.place) { place in

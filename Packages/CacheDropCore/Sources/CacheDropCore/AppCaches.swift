@@ -189,13 +189,13 @@ public enum AppCaches {
         [
             CleanupRule(id: "updater-downloads", category: .updaters, title: "App update downloads",
                         detail: "Updates apps downloaded through Sparkle, Squirrel or electron-updater, per app.",
-                        consequence: "Permanently removed. An update that wasn’t installed yet is downloaded again the next time the app updates. An app must be closed first.",
+                        consequence: "An update that wasn’t installed yet downloads again the next time the app updates.",
                         regen: .updaterDownload, action: .delete,
                         locations: ["Library/Caches/*/" + sparkleFolder, "Library/Caches/*.ShipIt", "Library/Caches/*-updater"], owner: nil,
                         itemOwner: { updaterOwner($0, apps: apps) }, protectedDepth: liveWorkDepth),
             CleanupRule(id: appCachesRuleID, category: .system, title: "App caches",
                         detail: "Files apps keep in your Library to start and work faster, per app.",
-                        consequence: "Permanently removed. Each app rebuilds its cache as you use it, so it may be slower at first. An app must be closed first; CacheDrop never quits it for you.",
+                        consequence: "Each app rebuilds its cache as you use it.",
                         regen: .cache, action: .delete, locations: ["Library/Caches/*"], owner: nil,
                         protectedNames: signInNames + keptNames,
                         // A web-view profile's cache part belongs to the app whose folder holds it (#203).
@@ -204,12 +204,12 @@ public enum AppCaches {
             // Crash reports first, so ~/Library/Logs/DiagnosticReports is listed once, as crash reports.
             CleanupRule(id: "crash-reports", category: .logs, title: "Crash reports",
                         detail: "Reports macOS wrote when your apps crashed or stopped responding.",
-                        consequence: "Permanently removed. They can no longer be sent to a developer; macOS writes new ones if an app crashes again.",
+                        consequence: "They can no longer be sent to a developer; macOS writes new ones if an app crashes again.",
                         regen: .log, action: .delete, locations: ["Library/Logs/DiagnosticReports"], owner: nil,
                         protectedDepth: liveWorkDepth),
             CleanupRule(id: "app-logs", category: .logs, title: "App logs",
                         detail: "Logs apps keep in your Library, per app.",
-                        consequence: "Permanently removed. Apps write new logs as they run; past logs are no longer available for troubleshooting.",
+                        consequence: "Past logs are gone for troubleshooting; apps write new ones as they run.",
                         regen: .log, action: .delete, locations: ["Library/Logs/*"], owner: nil,
                         yieldsToOtherRules: true, protectedDepth: liveWorkDepth),
         ]

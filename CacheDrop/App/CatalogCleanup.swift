@@ -550,13 +550,15 @@ import SwiftUI
     var smartCleanCandidates: [Candidate] { (recommendedCandidates + recommendedHeld).filter(selections.isTicked) }
     /// Smart clean's selection checked now: the recommended plan with the full checks, minus what was unticked, plus what the
     /// page listed that the checks now refuse, for the review to explain. Nil when nothing could be checked or the scan changed meanwhile.
-    func smartCleanCheckedNow() async -> [Candidate]? {
+    /// Smart clean's items checked now, with the check that read them, so its review reuses the same snapshot of what's open
+    /// instead of reading every process again (#463).
+    func smartCleanCheckedNow() async -> (items: [Candidate], check: CandidateCheck)? {
         guard canEdit, let check = await currentCheck()?.snapshotted() else { return nil }
         // What the page listed stays in when the check now refuses it, so the review says why it will be skipped (#310).
         let catalog = catalog, found = discovered, selections = selections, listed = smartCleanCandidates
         let items = await Task.detached { selections.smartClean(catalog: catalog, found: found, listed: listed, check: check.check) }.value
         guard canEdit, discovered == found else { return nil }
-        return items
+        return (items, check)
     }
 
     /// Freezes the Cleanup plan's chosen candidates and checks them once so the review can show what would be refused.
@@ -565,10 +567,12 @@ import SwiftUI
         return await prepareReview(of: selectedCandidates)
     }
     /// Freezes `candidates`, from either selection, and checks them once (#141: one review path).
-    func prepareReview(of candidates: [Candidate]) async -> CatalogReview? {
+    /// `snapshot` is a check taken earlier in the same click (Smart clean's); without one, the review takes its own. Reading every
+    /// open process is the slowest part of a check (#463), and Clean up checks each item again when it runs.
+    func prepareReview(of candidates: [Candidate], using snapshot: CandidateCheck? = nil) async -> CatalogReview? {
         guard canEdit, !candidates.isEmpty else { return nil }
         let approval = CatalogApproval(candidates: candidates, previewOnly: dryRun)
-        guard let check = await currentCheck()?.snapshotted() else { return nil }
+        guard let check = await snapshotOrCurrent(snapshot) else { return nil }
         let refusals = await Task.detached { check.refusals(of: approval.candidates) }.value
         return CatalogReview(approval: approval, refusals: refusals, staying: AppUninstall.staying(chosen: candidates, offered: uninstallable))
     }
@@ -654,6 +658,10 @@ import SwiftUI
         guard !isRunning else { return }
         // A new plan starts the plan over at the recommended default and keeps the Applications page's choices (#270, #349).
         selections.clear(.plan); pickedFiles = [:]; projectBuilds = [:]; result = nil; message = nil; noteChoices()
+    }
+    private func snapshotOrCurrent(_ snapshot: CandidateCheck?) async -> CandidateCheck? {
+        if let snapshot { return snapshot }
+        return await currentCheck()?.snapshotted()
     }
     private func currentCheck() async -> CandidateCheck? {
         do { return CandidateCheck(catalog: catalog, running: SystemRunningAppChecker(), exclusions: try await ExclusionsModel.shared.policyForScan(), cloud: Self.cloud,

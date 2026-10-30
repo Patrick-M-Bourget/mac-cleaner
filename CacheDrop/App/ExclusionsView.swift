@@ -72,6 +72,9 @@ import CacheDropCore
         rules = policy.rules; error = nil
         lifecycle.selection.expectExclusions(policy.fingerprint)
         await lifecycle.inspection.invalidateCoverage()
+        // What's protected now leaves every page by itself, as after a cleanup (Decision 58, #437); the rescan waits for
+        // this change's maintenance lease to end.
+        await lifecycle.selection.catalog.rescan()
     }
     /// Called only inside the history model's fresh recovery guard and maintenance lease.
     func reset() async throws {

@@ -20,7 +20,7 @@ public enum AppDataCaches {
     static func vsCode(id: String, name: String, nameShort: String, bundleID: String) -> CleanupRule {
         CleanupRule(id: id, category: .developer, title: name + " caches",
                     detail: "Cached code, graphics and extension downloads.",
-                    consequence: "Permanently removed. Settings, extensions and unsaved work are kept. \(name) rebuilds its caches; it may start more slowly at first.",
+                    consequence: "Settings, extensions and unsaved work are kept, and \(name) rebuilds its caches.",
                     regen: .cache, action: .delete,
                     locations: ["Cache", "CachedData", "CachedExtensionVSIXs", "Code Cache", "GPUCache"].map { "Library/Application Support/\(nameShort)/\($0)" },
                     owner: RuleOwner(name: name, bundleIDs: [bundleID], executables: [nameShort, nameShort + " Helper*"]),
@@ -79,7 +79,7 @@ public enum AppDataCaches {
     static func jetBrains(apps: any AppLookup) -> CleanupRule {
         CleanupRule(id: "jetbrains-caches", category: .developer, title: "Old JetBrains IDE caches",
                     detail: "Caches and indexes of older IDE versions. The versions you have installed, and the newest of each IDE, are kept.",
-                    consequence: "Permanently removed, with that version’s local history. Newer versions keep their own caches and history.",
+                    consequence: "That version’s local history goes too; newer versions keep their own.",
                     regen: .cache, action: .delete, locations: ["Library/Caches/JetBrains/*"], owner: nil,
                     itemOwner: { jetBrainsOwner($0, apps: apps) }, protectedDepth: AppCaches.liveWorkDepth, itemByItem: true)
     }
@@ -93,7 +93,7 @@ public enum AppDataCaches {
     static let adobeMediaCache = CleanupRule(
         id: "adobe-media-cache", category: .system, title: "Adobe media cache",
         detail: "Conformed audio, peak and index files Premiere, After Effects and Media Encoder made from your media.",
-        consequence: "Permanently removed. Your projects and media are not touched. Adobe apps rebuild these files when you open a project, which takes a while at first.",
+        consequence: "Your projects and media are kept, and Adobe apps rebuild these files when you open a project.",
         regen: .cache, action: .delete,
         locations: ["Library/Application Support/Adobe/Common/Media Cache Files", "Library/Application Support/Adobe/Common/Media Cache"],
         owner: RuleOwner(name: "Adobe video apps",
@@ -110,7 +110,7 @@ public enum AppDataCaches {
     static let abletonCache = CleanupRule(
         id: "ableton-cache", category: .system, title: "Ableton Live cache",
         detail: "WAV files Live decoded from your MP3, AAC and other compressed samples.",
-        consequence: "Permanently removed. Your Sets, samples and Packs are not touched. Live decodes compressed samples again when it next plays them.",
+        consequence: "Your Sets, samples and Packs are kept, and Live decodes samples again when it next plays them.",
         regen: .cache, action: .delete, locations: ["Library/Caches/Ableton/Cache"],
         owner: RuleOwner(name: "Ableton Live", bundleIDs: ["com.ableton.live"], executables: ["Live"]))
 
@@ -131,7 +131,7 @@ public enum AppDataCaches {
     static func sandboxedCaches(apps: any AppLookup) -> CleanupRule {
         CleanupRule(id: "container-caches", category: .system, title: "Sandboxed app caches",
                     detail: "Files sandboxed apps keep to start and work faster, per app.",
-                    consequence: "Permanently removed. Only each app’s caches folder; its documents, settings and other data are kept. An app must be closed first; CacheDrop never quits it for you.",
+                    consequence: "Only each app’s caches folder goes; its documents, settings and other data are kept.",
                     regen: .cache, action: .delete, locations: [containerCaches], owner: nil,
                     itemOwner: { containerOwner($0, apps: apps) }, protectedDepth: AppCaches.liveWorkDepth, requiresFullDiskAccess: true)
     }

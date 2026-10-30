@@ -219,10 +219,11 @@ struct PageSearchField: View {
                     .buttonStyle(.plain).help("Clear search").accessibilityLabel("Clear search").accessibilityIdentifier(identifier + "Clear")
             }
         }
-        .padding(.horizontal, CacheDropDesign.Space.sm).frame(width: CacheDropDesign.Size.searchField, height: CacheDropDesign.Size.searchFieldHeight)
-        .background(CacheDropDesign.reading, in: RoundedRectangle(cornerRadius: CacheDropDesign.Radius.row))
-        .overlay { RoundedRectangle(cornerRadius: CacheDropDesign.Radius.row).strokeBorder(focused ? Color.accentColor : CacheDropDesign.separator, lineWidth: 1) }
-        .contentShape(RoundedRectangle(cornerRadius: CacheDropDesign.Radius.row)).onTapGesture { focused = true }
+        // A capsule, like the capsule buttons beside it (Decision 77, #464); the wider inset keeps the icon off the curve.
+        .padding(.horizontal, CacheDropDesign.Space.md).frame(width: CacheDropDesign.Size.searchField, height: CacheDropDesign.Size.searchFieldHeight)
+        .background(CacheDropDesign.reading, in: Capsule())
+        .overlay { Capsule().strokeBorder(focused ? Color.accentColor : CacheDropDesign.separator, lineWidth: 1) }
+        .contentShape(Capsule()).onTapGesture { focused = true }
     }
 }
 /// A list's sortable column header (#352, #373), as Explore storage's "Name … On disk": the name column's label, then,

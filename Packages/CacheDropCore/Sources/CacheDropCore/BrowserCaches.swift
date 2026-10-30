@@ -8,7 +8,7 @@ import Foundation
 /// The Browser Company and Microsoft don't document where their macOS caches live. Arc and Edge are Chromium,
 /// so once their data folder is confirmed each is one `chromium(...)` line. Safari's layout comes from WebKit's source (#117).
 public enum BrowserCaches {
-    static let consequence = "Permanently removed. Logins, cookies, history, site data and settings are kept. The cache refills as you browse; pages may load more slowly at first."
+    static let consequence = "Logins, cookies, history, site data and settings are kept, and the cache refills as you browse."
 
     /// Chromium on macOS keeps a profile's caches under ~/Library/Caches, at the profile's path relative to
     /// ~/Library/Application Support (docs/user_data_dir.md; `chrome::GetUserCacheDirectory`). The HTTP cache is

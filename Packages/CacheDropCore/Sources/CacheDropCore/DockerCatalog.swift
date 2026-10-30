@@ -6,11 +6,11 @@ import Darwin
 /// Sizes are what each prune removes, read from `docker system df` (#407), shown as estimates.
 extension BuiltInCatalog {
     static let dockerExecutables = ["/usr/local/bin/docker", "/opt/homebrew/bin/docker", NSHomeDirectory() + "/.docker/bin/docker"]
-    /// `effect` says what the command does; the consequence starts with the exact command, from `arguments`, so the two never drift.
+    /// `effect` is the consequence: what the command removes and what stays. The review shows the exact command, from `arguments`, under the files.
     private static func docker(_ kind: DockerPruneKind, id: String, title: String, detail: String, effect: String, regen: RegenClass, arguments: [String]) -> CleanupRule {
         let tool = ToolCommand(executables: dockerExecutables, arguments: arguments, timeout: 600, daemonBacked: true)
         // `.docker` is the CLI's own folder; it anchors the rule in the home folder. The command never touches it.
-        return CleanupRule(id: id, category: .developer, title: title, detail: detail, consequence: "Runs `\(tool.commandLine)`, " + effect + " Docker must be running.",
+        return CleanupRule(id: id, category: .developer, title: title, detail: detail, consequence: effect,
                            regen: regen, action: .tool, locations: [".docker"], owner: nil, tool: tool, items: .docker(kind))
     }
     /// Stopped containers come first (#393, Decision 85): `image prune -a` keeps every image a container uses, stopped ones
@@ -18,15 +18,15 @@ extension BuiltInCatalog {
     static let dockerRules = [
         docker(.stoppedContainers, id: "docker-containers", title: "Stopped Docker containers",
                detail: "Containers that aren’t running. Size is an estimate.",
-               effect: "which permanently removes stopped containers and any changes made inside them. Running containers and volumes are not touched.",
+               effect: "Stopped containers go with any changes made inside them; running containers and volumes are kept.",
                regen: .build, arguments: ["container", "prune", "-f"]),
         docker(.images, id: "docker-images", title: "Docker images",
                detail: "Images no running container uses. Size is an estimate.",
-               effect: "which permanently removes every image no container uses. Docker downloads or builds them again when needed.",
+               effect: "Images no container uses go, and Docker downloads or builds them again when needed.",
                regen: .cache, arguments: ["image", "prune", "-a", "-f"]),
         docker(.buildCache, id: "docker-build-cache", title: "Docker build cache",
                detail: "Layers Docker kept to speed up builds. Size is an estimate.",
-               effect: "which permanently removes all unused build cache. The next build may take longer.",
+               effect: "All unused build cache goes, and Docker rebuilds it on the next build.",
                regen: .build, arguments: ["builder", "prune", "-a", "-f"]),
     ]
 }

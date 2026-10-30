@@ -123,6 +123,11 @@ struct ApplicationsView: View {
             SettingsUnreadableNotice(model: catalog)
             if let approvalError { StatusRow(text: approvalError, symbol: "exclamationmark.circle", role: .caution) }
             if let status = model.status { StatusRow(text: status, identifier: "applicationsStatus") }
+            if nothingMatches {
+                // One empty state for the whole page, with its one way forward (Decision 63, #468).
+                EmptyState(title: "No matches", detail: "Nothing here has “\(searchText)” in its name or maker.", symbol: "magnifyingglass",
+                           action: EmptyStateAction("Clear search") { model.listing.search = "" }, identifier: "applicationsNoMatches")
+            } else {
             // Nothing listed yet: no Name and Size over empty states (#427).
             if !model.apps.isEmpty || !model.plugIns.isEmpty || catalog.leftoversRow != nil { columnHeader }
             section("Apps", id: "apps", entries: model.apps, category: .apps, identifier: "applicationsApp-",
@@ -135,10 +140,13 @@ struct ApplicationsView: View {
                 else { PlanCategoryRow(model: catalog, row: row, expanded: $leftoversExpanded, listing: model.listing).waitingForScan(catalog.isScanning) }
             } else if catalog.settingsUnreadable {
                 EmptyView() // The notice above says why nothing was read (#310).
+            } else if catalog.hasScanned && !catalog.isScanning && model.listing.isSearching {
+                noMatches("leftovers")
             } else if catalog.hasScanned && !catalog.isScanning {
                 state("No files from deleted apps", "Apps you removed left nothing behind that CacheDrop can tie to them.", symbol: "checkmark.circle", id: "applicationsEmpty-leftovers")
             } else {
                 loading("leftovers")
+            }
             }
         }.padding(CacheDropDesign.Space.page).frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -163,8 +171,16 @@ struct ApplicationsView: View {
     private func sectionHeader(_ title: String) -> some View {
         Text(title).font(CacheDropDesign.TypeStyle.section).padding(.leading, CacheDropDesign.Size.categoryContentIndent)
     }
+    private var searchText: String { model.listing.search.trimmingCharacters(in: .whitespaces) }
+    /// A search that matches nothing in any section, once the lists are read (#468).
+    private var nothingMatches: Bool {
+        guard model.listing.isSearching, !listsLoading, !model.appsUnreadable, !catalog.settingsUnreadable else { return false }
+        let leftovers = catalog.leftoversRow.map { $0.rules.flatMap(catalog.candidates(for:)).contains(where: model.listing.matches) } ?? false
+        let listed = (model.apps + model.plugIns).contains { model.listing.matches(name: $0.name, maker: $0.maker) }
+        return !leftovers && !listed
+    }
     private func noMatches(_ id: String) -> some View {
-        state("No matches", "Nothing here has “\(model.listing.search.trimmingCharacters(in: .whitespaces))” in its name or maker.", symbol: "magnifyingglass",
+        state("No matches", "Nothing here has “\(searchText)” in its name or maker.", symbol: "magnifyingglass",
               id: "applicationsNoMatches-" + id)
     }
 
@@ -177,6 +193,7 @@ struct ApplicationsView: View {
         sectionHeader(title)
         if entries.isEmpty {
             if listsLoading { loading(id) }
+            else if model.listing.isSearching, !(id == "apps" && model.appsUnreadable) { noMatches(id) }
             else if id == "apps", model.appsUnreadable {
                 // Spotlight didn't answer: unknown, never "Only Apple's apps" (#310), as the one empty state (#321). Try again
                 // scans again, so uninstalls are read too.

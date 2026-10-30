@@ -11,7 +11,7 @@ public enum ProjectBuilds {
 
     public static let rule = CleanupRule(id: ruleID, category: .developer, title: "Build folders in your projects",
         detail: "node_modules, .build, target and other build output in folders you picked.",
-        consequence: "Moved to Trash. The project rebuilds them on its next install or build; you can restore them from the Trash in Finder.",
+        consequence: "The project rebuilds them on its next install or build.",
         regen: .build, action: .trash, locations: [], owner: nil, fromPickedFolders: true)
 
     /// Each build folder kind and the files, any one of which marks its project. `*.xcodeproj` matches by extension.

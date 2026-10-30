@@ -7,7 +7,7 @@ extension BuiltInCatalog {
     static let huggingFaceModels = CleanupRule(
         id: "huggingface-models", category: .models, title: "Hugging Face models",
         detail: "Models downloaded to the Hugging Face cache. Check when each was last used.",
-        consequence: "Moved to Trash. You can restore them from the Trash; otherwise they download again the next time a project uses them.",
+        consequence: "They download again the next time a project uses them.",
         regen: .model, action: .trash, locations: [".cache/huggingface/hub/models--*"],
         // Installed by pip, both run as `python …/bin/hf`, so the script is matched as well as the executable.
         owner: RuleOwner(name: "Hugging Face CLI", executables: ["huggingface-cli", "hf"], scripts: ["huggingface-cli", "hf"]),
@@ -20,7 +20,7 @@ extension BuiltInCatalog {
     static let lmStudioModels = CleanupRule(
         id: "lmstudio-models", category: .models, title: "LM Studio models",
         detail: "Models downloaded in LM Studio. Check when each was last used.",
-        consequence: "Moved to Trash. You can restore them from the Trash; otherwise download them again in LM Studio. Quit LM Studio first.",
+        consequence: "You can download them again in LM Studio.",
         regen: .model, action: .trash, locations: [".lmstudio/models/*/*"],
         owner: RuleOwner(name: "LM Studio", bundleIDs: ["ai.elementlabs.lmstudio"]))
     /// Ollama's own server must be running for `ollama rm`, so the rule has no owner to close. `ollama rm` asks that
@@ -28,7 +28,7 @@ extension BuiltInCatalog {
     static let ollamaModels = CleanupRule(
         id: "ollama-models", category: .models, title: "Ollama models",
         detail: "Models Ollama downloaded. Sizes count only the files no other model shares. Check when each was last used.",
-        consequence: "Runs `ollama rm` for each model, which permanently removes it and any files no other model uses. Run `ollama pull` to download it again. Ollama must be open.",
+        consequence: "Each model goes with the files no other model uses; Ollama must be open.",
         regen: .model, action: .tool, locations: [".ollama/models/manifests"], owner: nil,
         tool: ToolCommand(executables: ["/usr/local/bin/ollama", "/opt/homebrew/bin/ollama", "/Applications/Ollama.app/Contents/Resources/ollama"],
                           arguments: ["rm", "<model>"], timeout: 120, itemPlaceholder: "<model>", daemonBacked: true),
@@ -39,7 +39,7 @@ extension BuiltInCatalog {
     static let appVMImages = CleanupRule(
         id: "app-vm-images", category: .models, title: "Unpacked VM disk images",
         detail: "Disk images an app unpacked from a compressed copy it keeps beside them. Check when each was last used.",
-        consequence: "Moved to Trash. The compressed copy stays, and the app unpacks or downloads the image again when it next needs it. Quit the app first.",
+        consequence: "The compressed copy stays, and the app unpacks or downloads the image again when it needs it.",
         regen: .model, action: .trash, locations: ["Library/Application Support/Claude/vm_bundles/*"],
         owner: RuleOwner(name: "Claude", bundleIDs: ["com.anthropic.claudefordesktop"]),
         contents: ContentsMatch(minimumBytes: 100_000_000, besideCompressedSource: true),

@@ -3,7 +3,7 @@ import Foundation
 extension BuiltInCatalog {
     private static func guidanceRule(_ id: String, _ title: String, detail: String, locations: [String], protected: Bool = false, _ guidance: Guidance) -> CleanupRule {
         CleanupRule(id: id, category: .managed, title: title, detail: detail,
-                    consequence: "Guidance only. CacheDrop shows the size and where to manage it, and never changes it.",
+                    consequence: "Guidance only: CacheDrop shows the size and where to manage it, and never changes it.",
                     regen: .userFile, action: .guidance, locations: locations, owner: nil, requiresFullDiskAccess: protected, guidance: guidance)
     }
     /// Logic Pro's Sound Library (documented below), named for `MusicContent`, which lists the same places (#277).

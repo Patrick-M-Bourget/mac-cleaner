@@ -75,18 +75,49 @@ final class SystemInUseSnapshot: InUseChecking, @unchecked Sendable {
             let infoSize = Int32(MemoryLayout<vnode_fdinfowithpath>.size)
             if proc_pidfdinfo(pid, fd.proc_fd, PROC_PIDFDVNODEPATHINFO, &info, infoSize) == infoSize { paths.append(path(info.pvip.vip_path)) }
         }
-        // Mapped files, such as a framework loaded from a copy, hold no descriptor.
-        var address: UInt64 = 0
+        // Mapped files, such as a framework loaded from a copy, hold no descriptor. A process that maps nothing readable is
+        // unknown, never "uses nothing": a live one maps at least its executable.
+        guard let mapped = mappedPaths(pid) else { return nil }
+        return paths + mapped
+    }
+
+    /// macOS's region reading that skips memory no file backs (`PROC_PIDREGIONPATHINFO2` in the kernel's proc_info.h; the
+    /// public SDK leaves it out). A process has thousands of such regions, so on the owner's Mac it reads 455 processes in
+    /// 0.27 s where the full walk takes 2.5 s (#463).
+    static let fileBackedRegions: Int32 = 22
+    /// Whether the faster reading gives exactly the mapped files the full walk gives, checked once per launch on CacheDrop's
+    /// own process, which maps hundreds. A macOS that changed or dropped it gets the full walk, so nothing reads as unused
+    /// that is mapped. A file mapped between the two readings can make one try differ, so it tries three times.
+    static let fileBackedRegionsAgree: Bool = (0..<3).contains { _ in
+        guard let fast = mappedPaths(getpid(), flavor: fileBackedRegions), let full = mappedPaths(getpid(), flavor: PROC_PIDREGIONPATHINFO),
+              !full.isEmpty else { return false }
+        return Set(fast) == Set(full)
+    }
+    /// The files mapped into `pid`'s memory, with the faster reading when it agrees. It can't tell the end of memory from a
+    /// region whose file is going away (a volume unmounted while mapped), so where it stops the full walk is asked to finish;
+    /// and a process it can't read at all is read the full way (#463, review of #474).
+    static func mappedPaths(_ pid: pid_t) -> [String]? {
+        guard fileBackedRegionsAgree else { return mappedPaths(pid, flavor: PROC_PIDREGIONPATHINFO) }
+        guard let fast = mappedPaths(pid, flavor: fileBackedRegions, from: 0) else { return mappedPaths(pid, flavor: PROC_PIDREGIONPATHINFO) }
+        return fast.paths + (mappedPaths(pid, flavor: PROC_PIDREGIONPATHINFO, from: fast.stoppedAt)?.paths ?? [])
+    }
+    /// The files mapped into `pid`'s memory, region by region with `flavor`; nil when not even the first region can be read.
+    static func mappedPaths(_ pid: pid_t, flavor: Int32) -> [String]? { mappedPaths(pid, flavor: flavor, from: 0)?.paths }
+    /// The walk from `address`, and where it stopped; nil when no region at or after `address` can be read.
+    private static func mappedPaths(_ pid: pid_t, flavor: Int32, from start: UInt64) -> (paths: [String], stoppedAt: UInt64)? {
+        var paths: [String] = []
+        var address = start, read = false
         var region = proc_regionwithpathinfo()
         let regionSize = Int32(MemoryLayout<proc_regionwithpathinfo>.size)
-        while proc_pidinfo(pid, PROC_PIDREGIONPATHINFO, address, &region, regionSize) == regionSize {
+        while proc_pidinfo(pid, flavor, address, &region, regionSize) == regionSize {
+            read = true
             let mapped = path(region.prp_vip.vip_path)
             if !mapped.isEmpty { paths.append(mapped) }
             let next = region.prp_prinfo.pri_address &+ region.prp_prinfo.pri_size
             guard next > address else { break }
             address = next
         }
-        return paths
+        return read ? (paths, address) : nil
     }
 
     private static func path<T>(_ tuple: T) -> String {
