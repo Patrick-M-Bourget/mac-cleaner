@@ -163,8 +163,11 @@ print(json.dumps(pages[int(cursor) if cursor else 0]))
         for page in [{}, {'errors': [{'message': 'Unavailable'}]}]:
             self.assertEqual(self.check([page], '--expect-none').returncode, 2)
 
-    def test_head_change_during_pagination_is_rejected(self):
+    def test_head_or_body_change_during_pagination_is_rejected(self):
         pages = [self.page([], True, '1'), self.page([], head='different')]
+        self.assertEqual(self.check(pages, '--expect-none').returncode, 2)
+        pages = [self.page([], True, '1'), self.page([])]
+        pages[1]['data']['repository']['pullRequest']['body'] = 'Edited during validation'
         self.assertEqual(self.check(pages, '--expect-none').returncode, 2)
 
     def test_expectation_must_be_explicit(self):

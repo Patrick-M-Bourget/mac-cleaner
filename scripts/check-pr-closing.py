@@ -10,7 +10,7 @@ ROOT = Path(__file__).resolve().parent.parent
 QUERY = '''query($owner: String!, $name: String!, $pr: Int!, $cursor: String) {
   repository(owner: $owner, name: $name) {
     pullRequest(number: $pr) {
-      url headRefOid
+      url headRefOid body
       closingIssuesReferences(first: 100, after: $cursor) {
         nodes { number repository { nameWithOwner } }
         pageInfo { hasNextPage endCursor }
@@ -46,17 +46,18 @@ def issue(value, default_repo):
 def references(repo, number):
     owner, name = repo.split('/')
     actual, cursors = set(), set()
-    cursor = head = url = None
+    cursor = head = body = url = None
     while True:
         args = ['api', 'graphql', '-f', 'query=' + QUERY, '-f', 'owner=' + owner,
                 '-f', 'name=' + name, '-F', 'pr=' + str(number)]
         if cursor is not None:
             args += ['-f', 'cursor=' + cursor]
         pr = gh(*args)['data']['repository']['pullRequest']
-        current_head = pr['headRefOid']
-        if not isinstance(current_head, str) or not current_head or (head is not None and head != current_head):
-            raise ValueError('PR head is missing or changed during validation; retry')
-        head, url = current_head, pr['url']
+        current_head, current_body = pr['headRefOid'], pr['body']
+        if (not isinstance(current_head, str) or not current_head or not isinstance(current_body, str)
+                or (head is not None and (head != current_head or body != current_body))):
+            raise ValueError('PR head or body is missing or changed during validation; retry')
+        head, body, url = current_head, current_body, pr['url']
         if not isinstance(url, str) or not url:
             raise ValueError('GitHub omitted the PR URL')
         links = pr['closingIssuesReferences']
