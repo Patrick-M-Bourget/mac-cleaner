@@ -121,8 +121,9 @@ final class LaunchSmokeUITests: XCTestCase {
         let workspace = app.windows["CacheDrop"]
         XCTAssertTrue(workspace.staticTexts["Storage overview"].waitForExistence(timeout: 10))
         func openGallery() {
-            app.menuBars.menuBarItems["Debug"].click()
-            app.menuItems["Design gallery"].click()
+            let debug = app.menuBars.menuBarItems["Debug"]
+            debug.click()
+            debug.menuItems["Design gallery"].click()
         }
         openGallery()
         let gallery = app.windows["Design gallery"]
