@@ -12,6 +12,19 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
+      # The source checks scripts/check.sh runs first: no Xcode needed.
+      # Test seams and process signals stay out of release builds (Decision 79).
+      - name: Debug seams check
+        run: scripts/check-debug-seams.sh
+      # RESET.md merges by union (.gitattributes); a merge can leave Decisions out of order or doubled.
+      - name: Decisions numbering check
+        run: scripts/check-decisions.sh
+      # Strings users see keep GLOSSARY's off-screen terms out (Decision 92).
+      - name: Copy terms check
+        run: scripts/check-copy.sh
+      # Saved types pin their stored keys, so a rename keeps them (#448).
+      - name: Stored keys check
+        run: scripts/check-stored-keys.sh
       # Hosted runners don't list Xcode 27.x; local development uses 27.1.
       - uses: maxim-lobanov/setup-xcode@v1
         with:
