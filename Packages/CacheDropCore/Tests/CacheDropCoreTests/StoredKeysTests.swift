@@ -168,9 +168,14 @@ private struct TrendsEnumsFixture: Codable {
     #expect(enums.comparisonStates == [.firstBaseline, .clearedBaseline, .missingBaseline, .coverageChanged, .unknown, .compared, .waitingForBaseline])
     #expect(enums.scanOutcomes == [.complete, .partial, .stopped, .failed])
     // A scan's `reasons` are keyed by these raw values, and a history with a key it doesn't know reads as corrupt.
-    for reason in ["excludedScope", "exclusionUnavailable", "directoryChanged", "timeLimit", "entryLimit", "issueLimit", "depthLimit", "readFailed",
-                   "metadataUnavailable", "differentVolume", "accessDenied", "accessRevoked", "locationUnavailable"] {
-        #expect(ScanIssue.Reason(rawValue: reason) != nil, "\(reason) is still a scan issue's stored reason")
-    }
+    let issueReasons = ["excludedScope", "exclusionUnavailable", "directoryChanged", "timeLimit", "entryLimit", "issueLimit", "depthLimit", "readFailed",
+                        "metadataUnavailable", "differentVolume", "accessDenied", "accessRevoked", "locationUnavailable"]
+    for reason in issueReasons { #expect(ScanIssue.Reason(rawValue: reason) != nil, "\(reason) is still a scan issue's stored reason") }
+    // Every stored reason, the two `ScanActivityLocation(scan:)` writes as literals included, is still accepted when saved.
+    let reasons = Dictionary(uniqueKeysWithValues: (issueReasons + ["customExcludedBoundary", "unmeasuredContents"]).map { ($0, 1) })
+    let every = ScanActivity(startedAt: at(800_090_030), completedAt: at(800_090_040), outcome: .partial,
+                             locations: [ScanActivityLocation(path: "/Users/x/Music", observedAt: at(800_090_035), outcome: .partial, reasons: reasons)])
+    #expect(try await store.recordActivity(every, now: now, expectedEpoch: try await store.recordingEpoch()))
+    #expect(try await store.activities(now: now, maintain: false).first?.locations.first?.reasons == reasons)
     #expect(enums.categories == [.developer, .browser, .downloads, .system, .models, .updaters, .logs, .icloud, .files, .managed, .leftovers, .apps])
 }
