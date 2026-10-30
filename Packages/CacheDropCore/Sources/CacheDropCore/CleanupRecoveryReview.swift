@@ -2,18 +2,19 @@ import Foundation
 import Darwin
 
 /// Where an interrupted cleanup's item was found when checked against disk (#309).
+/// Raw values are stored in the journal (#448): a renamed case keeps its string.
 public enum RecoveryFinding: String, Codable, Sendable {
     /// Pending: the journal shows it never started, so nothing is checked.
-    case notStarted
+    case notStarted = "notStarted"
     /// At its original path, with the identity it had at approval.
-    case atOriginalLocation
+    case atOriginalLocation = "atOriginalLocation"
     /// In the Trash, with the identity it had at approval.
-    case inTrash
+    case inTrash = "inTrash"
     /// Neither at its original path nor in the Trash.
-    case gone
+    case gone = "gone"
     /// CacheDrop can't tell: something else is at its path, it was found elsewhere, or a place couldn't be read.
     /// The user confirms it.
-    case unknown
+    case unknown = "unknown"
 }
 
 /// One unresolved record of an interrupted batch, with what a read-only check found.

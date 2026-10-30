@@ -11,11 +11,17 @@ public struct LaterMeasurement: Codable, Sendable, Equatable {
         case remaining(bytes: Int64)
         /// It couldn't be measured again: its tool or daemon didn't answer, or its size was never known.
         case unmeasured
+        /// Stored in the journal (#448): a renamed case keeps its key here.
+        private enum CodingKeys: String, CodingKey { case gone = "gone", remaining = "remaining", unmeasured = "unmeasured" }
+        private enum GoneCodingKeys: CodingKey {}
+        private enum RemainingCodingKeys: String, CodingKey { case bytes = "bytes" }
+        private enum UnmeasuredCodingKeys: CodingKey {}
     }
     public let measuredAt: Date
     public let finding: Finding
     /// How long after the run it was measured (#209); nil in journals written before, which measured once at 60 s.
     public let afterSeconds: Int?
+    private enum CodingKeys: String, CodingKey { case measuredAt = "measuredAt", finding = "finding", afterSeconds = "afterSeconds" }
     public init(measuredAt: Date, finding: Finding, afterSeconds: Int) {
         self.measuredAt = measuredAt; self.finding = finding; self.afterSeconds = afterSeconds
     }
