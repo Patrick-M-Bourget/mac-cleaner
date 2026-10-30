@@ -63,26 +63,44 @@ private final class FakeQuitter: AppQuitting, @unchecked Sendable {
 }
 
 /// #377: the quitter a debug UI test run uses. It sees and asks to quit only apps run from inside its fixture folder, so a
-/// journey can quit a fixture app it started and never a real one. The fixture app is a copy of `sleep` in a bundle.
+/// journey can quit a fixture app it started and never a real one. The local copy of `sleep` is signed as its fixture
+/// bundle before launch: its system signature is invalid inside an app and otherwise triggers a damaged-app dialog.
 @Test func theFixtureQuitterQuitsOnlyAnAppRunFromItsFolder() async throws {
     let root = FileManager.default.temporaryDirectory.appendingPathComponent("CacheDropFixtureApps-\(UUID())").resolvingSymlinksInPath()
     let outside = FileManager.default.temporaryDirectory.appendingPathComponent("CacheDropOtherApps-\(UUID())").resolvingSymlinksInPath()
+    var started: [Process] = []
+    defer {
+        for process in started where process.isRunning { process.terminate() }
+        for process in started { process.waitUntilExit() }
+        try? FileManager.default.removeItem(at: root); try? FileManager.default.removeItem(at: outside)
+    }
+    func codeSign(_ arguments: [String]) throws {
+        let command = Process()
+        command.executableURL = URL(fileURLWithPath: "/usr/bin/codesign")
+        command.arguments = arguments
+        let errors = Pipe()
+        command.standardError = errors
+        try command.run()
+        command.waitUntilExit()
+        let diagnostic = String(decoding: errors.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
+        try #require(command.terminationStatus == 0, "Fixture signing or verification failed before launch: \(diagnostic)")
+    }
     func start(_ name: String, id: String, in folder: URL) throws -> Process {
         let bundle = folder.appendingPathComponent("Applications/\(name).app/Contents")
         try FileManager.default.createDirectory(at: bundle.appendingPathComponent("MacOS"), withIntermediateDirectories: true)
-        try PropertyListSerialization.data(fromPropertyList: ["CFBundleIdentifier": id], format: .xml, options: 0).write(to: bundle.appendingPathComponent("Info.plist"))
+        let info = ["CFBundleIdentifier": id, "CFBundleExecutable": name, "CFBundleName": name, "CFBundlePackageType": "APPL"]
+        try PropertyListSerialization.data(fromPropertyList: info, format: .xml, options: 0).write(to: bundle.appendingPathComponent("Info.plist"))
         try FileManager.default.copyItem(atPath: "/bin/sleep", toPath: bundle.appendingPathComponent("MacOS/\(name)").path)
+        try codeSign(["--force", "--sign", "-", bundle.deletingLastPathComponent().path])
+        try codeSign(["--verify", "--strict", bundle.deletingLastPathComponent().path])
         let process = Process()
         process.executableURL = bundle.appendingPathComponent("MacOS/\(name)")
         process.arguments = ["60"]
         try process.run()
+        started.append(process)
         return process
     }
     let synth = try start("Synth", id: "com.maker.synth", in: root), other = try start("Other", id: "com.maker.other", in: outside)
-    defer {
-        for process in [synth, other] where process.isRunning { process.terminate() }
-        try? FileManager.default.removeItem(at: root); try? FileManager.default.removeItem(at: outside)
-    }
     let quitter = FixtureAppQuitter(root: root)
     #expect(quitter.isOpen(["com.maker.synth"]))
     #expect(!quitter.isOpen(["com.maker.other"]), "Never an app outside its folder")
