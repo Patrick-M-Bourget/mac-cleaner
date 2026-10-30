@@ -419,13 +419,15 @@ private func dockerRunning(_ home: URL, docker: URL, choose ruleIDs: Set<String>
     #expect(found.notMeasured["docker-images"] == [".docker"])
 }
 
+/// The review shows each tool rule's exact command under its files, from the rule's own `tool`, so the two never drift; the
+/// consequence says only what goes and what stays, never the command again (#462, Decision 92).
 @Test func everyToolRuleShowsTheExactCommandItRuns() {
     for rule in fixtureRules where rule.action == .tool {
-        // A command run per item names the item last (`ollama rm <model>`); its text names the command without it.
-        let command = rule.tool.map { $0.itemPlaceholder == nil ? $0.commandLine : $0.commandLine(for: "").trimmingCharacters(in: .whitespaces) } ?? ""
-        #expect(rule.consequence.contains("`" + command + "`"), "\(rule.id): \(command)")
+        let command = try? #require(rule.tool?.commandLine)
+        #expect(command?.isEmpty == false, "\(rule.id)")
+        #expect(!rule.consequence.contains("`"), "\(rule.id): \(rule.consequence)")
     }
-    #expect(fixtureRules.first { $0.id == "docker-build-cache" }?.consequence.hasPrefix("Runs `docker builder prune -a -f`") == true)
+    #expect(fixtureRules.first { $0.id == "docker-build-cache" }?.tool?.commandLine == "docker builder prune -a -f")
 }
 
 /// Docker's daemon does the pruning, outside the CLI's process group: stopping the CLI doesn't stop the work (#185).
@@ -733,7 +735,8 @@ private struct NothingRunning: RunningAppChecking { func isRunning(_ owner: Rule
     let found = try await discoveredOffThePool(home, docker)
     #expect(catalog.dockerReviewNote(for: found) == "Space from Docker reaches macOS up to a minute after it finishes.")
     #expect(catalog.dockerReviewNote(for: found.filter { !$0.ruleID.hasPrefix("docker-") }) == nil)
-    #expect(catalog.rule("docker-images")?.consequence.hasSuffix("Docker must be running.") == true)
+    // Docker not running has its own notice instead of rows (#376), so the consequence doesn't repeat it.
+    #expect(catalog.rule("docker-images")?.consequence.contains("Docker must be running") == false)
 }
 
 /// #411: a reading a minute later that can't be made still answers Results' "check again", never leaving it unresolved.

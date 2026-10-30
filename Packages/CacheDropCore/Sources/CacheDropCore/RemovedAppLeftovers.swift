@@ -7,7 +7,7 @@ import Darwin
 public enum RemovedAppLeftovers {
     public static let ruleID = "removed-app-leftovers"
     public static let possiblyRelatedRuleID = "removed-app-possibly-related"
-    static let consequence = "Moved to Trash. The app is no longer installed; you can restore them from the Trash in Finder."
+    static let consequence = ""
     static let leftoversRule = CleanupRule(id: ruleID, category: .leftovers, title: "Files from deleted apps",
         detail: "Settings, caches and data of apps no longer on this Mac, tied to each app by its bundle ID or installer receipt.",
         consequence: consequence, regen: .userFile, action: .trash, locations: [], owner: nil, protectedDepth: AppCaches.liveWorkDepth,

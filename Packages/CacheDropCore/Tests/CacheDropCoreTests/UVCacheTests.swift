@@ -43,7 +43,7 @@ private func execute(_ candidate: Candidate, catalog: Catalog, home: URL, previe
     #expect(rule.action == .tool)
     #expect(rule.tool?.commandLine == "uv cache prune")
     #expect(rule.tool?.deletesLocationAfter == false)
-    #expect(rule.consequence.hasPrefix("Runs `uv cache prune`"))
+    #expect(rule.consequence == "Only unused cache entries go, and uv downloads or builds packages again as needed.")
 
     let candidate = try #require(catalog.discover(fixture: home, locateTool: onlyTool("uv", uv)).first { $0.ruleID == "uv-cache" })
     #expect(candidate.action == .tool && candidate.toolURL == uv)

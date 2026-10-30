@@ -14,7 +14,7 @@ public enum UserFiles {
 
     public static let rule = CleanupRule(id: ruleID, category: .files, title: "Large and old files",
         detail: "Files in folders you picked: 500 MB or more, or not opened in 90 days.",
-        consequence: "Moved to Trash. The space stays used until you empty the Trash; you can restore them from the Trash in Finder.",
+        consequence: "",
         regen: .userFile, action: .trash, locations: [], owner: nil,
         protectedExtensions: BuiltInCatalog.downloadsProtectedExtensions, fromPickedFolders: true)
 
