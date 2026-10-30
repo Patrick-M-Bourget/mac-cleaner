@@ -5,7 +5,7 @@ import CacheDropCore
 @Test func scanActivityArchiveRejectsRawErrorDescriptionsWithoutReplacingSavedActivity() async throws {
     let root = FileManager.default.temporaryDirectory.appendingPathComponent("CacheDropActivity-" + UUID().uuidString)
     defer { try? FileManager.default.removeItem(at: root) }
-    let store = GrowthHistoryStore(directory: root)
+    let store = StorageTrendsHistoryStore(directory: root)
     let now = Date(timeIntervalSince1970: 1000)
     let epoch = try await store.recordingEpoch()
     let valid = ScanActivity(startedAt: now.addingTimeInterval(-2), completedAt: now, outcome: .partial,
@@ -14,7 +14,7 @@ import CacheDropCore
     let invalid = ScanActivity(startedAt: now, completedAt: now, outcome: .failed,
         locations: [ScanActivityLocation(path: "/Example/Downloads", observedAt: now, outcome: .failed, reasons: ["Private-file.pdf failed to read": 1])])
     await #expect(throws: (any Error).self) { try await store.recordActivity(invalid, now: now, expectedEpoch: epoch) }
-    let reopened = GrowthHistoryStore(directory: root)
+    let reopened = StorageTrendsHistoryStore(directory: root)
     #expect(try await reopened.activities(now: now).map(\.id) == [valid.id])
 }
 
@@ -25,7 +25,7 @@ import CacheDropCore
     let archive = root.appendingPathComponent("aggregates-v1.json")
     let missing = root.appendingPathComponent("Missing-records")
     try FileManager.default.createSymbolicLink(at: archive, withDestinationURL: missing)
-    let store = GrowthHistoryStore(directory: root)
+    let store = StorageTrendsHistoryStore(directory: root)
     await #expect(throws: (any Error).self) { try await store.activities() }
     #expect(try FileManager.default.destinationOfSymbolicLink(atPath: archive.path) == missing.path)
     #expect(!FileManager.default.fileExists(atPath: missing.path))
@@ -34,7 +34,7 @@ import CacheDropCore
 @Test func readOnlyActivityHistoryExcludesExpiredRecordsWithoutRewritingArchive() async throws {
     let root = FileManager.default.temporaryDirectory.appendingPathComponent("CacheDropActivity-" + UUID().uuidString)
     defer { try? FileManager.default.removeItem(at: root) }
-    let store = GrowthHistoryStore(directory: root)
+    let store = StorageTrendsHistoryStore(directory: root)
     let then = Date(timeIntervalSince1970: 1000)
     let epoch = try await store.recordingEpoch()
     let activity = ScanActivity(startedAt: then, completedAt: then, outcome: .complete,
@@ -49,7 +49,7 @@ import CacheDropCore
 @Test func activityArchiveRetainsMoreThanThirtyActivitiesAndClearRejectsLateWrites() async throws {
     let root = FileManager.default.temporaryDirectory.appendingPathComponent("CacheDropActivity-" + UUID().uuidString)
     defer { try? FileManager.default.removeItem(at: root) }
-    let store = GrowthHistoryStore(directory: root)
+    let store = StorageTrendsHistoryStore(directory: root)
     let epoch = try await store.recordingEpoch()
     var latest: ScanActivity!
     for index in 0..<35 {
@@ -59,7 +59,7 @@ import CacheDropCore
         #expect(try await store.recordActivity(latest, now: time, expectedEpoch: epoch))
     }
     let now = Date(timeIntervalSince1970: 1100)
-    let reopened = GrowthHistoryStore(directory: root)
+    let reopened = StorageTrendsHistoryStore(directory: root)
     #expect(try await reopened.activities(now: now).count == 35)
     #expect(try await reopened.activities(now: now).first?.id == latest.id)
     try await reopened.clearCompletedHistory()
@@ -75,7 +75,7 @@ import CacheDropCore
     try FileManager.default.createDirectory(at: scope.appendingPathComponent("private-library.photoslibrary"), withIntermediateDirectories: true)
     defer { try? FileManager.default.removeItem(at: root) }
     let scan = try await FolderScanner().scan(scope)
-    let store = GrowthHistoryStore(directory: root.appendingPathComponent("State"))
+    let store = StorageTrendsHistoryStore(directory: root.appendingPathComponent("State"))
     let now = Date()
     let activity = ScanActivity(startedAt: scan.observedAt.addingTimeInterval(-1), completedAt: now, outcome: .complete, locations: [.init(scan: scan)])
     #expect(try await store.recordActivity(activity, now: now, expectedEpoch: store.recordingEpoch()))
@@ -90,10 +90,10 @@ import CacheDropCore
 @Test func scanAndGrowthRecordsShareEncodedBudgetAndPreserveLegacyBaseline() async throws {
     let root = FileManager.default.temporaryDirectory.appendingPathComponent("CacheDropActivity-" + UUID().uuidString)
     defer { try? FileManager.default.removeItem(at: root) }
-    let store = GrowthHistoryStore(directory: root, policy: .init(bytes: 1400))
+    let store = StorageTrendsHistoryStore(directory: root, policy: .init(bytes: 1400))
     let time = Date(timeIntervalSince1970: 1000)
     let epoch = try await store.recordingEpoch()
-    let baseline = GrowthSnapshot(fingerprint: .init(scopeID: "scope", rootID: "root", volumeID: "volume", access: "complete", rules: "one", exclusions: "none", classification: "one"), scopeLabel: "Folder", observedAt: time, groups: [.init(id: "files", label: "Files", logicalBytes: 10)])
+    let baseline = StorageTrendsSnapshot(fingerprint: .init(scopeID: "scope", rootID: "root", volumeID: "volume", access: "complete", rules: "one", exclusions: "none", classification: "one"), scopeLabel: "Folder", observedAt: time, groups: [.init(id: "files", label: "Files", logicalBytes: 10)])
     _ = try await store.record(baseline, now: time, expectedEpoch: epoch)
     let file = root.appendingPathComponent("aggregates-v1.json")
     // A genuine pre-activity v1 archive has no activities key.
@@ -111,7 +111,7 @@ import CacheDropCore
     let later = time.addingTimeInterval(10)
     #expect(try Data(contentsOf: file).count <= 1400)
     #expect(try await store.snapshots(now: later).isEmpty)
-    let retained = try await GrowthHistoryStore(directory: root, policy: .init(bytes: 1400)).activities(now: later)
+    let retained = try await StorageTrendsHistoryStore(directory: root, policy: .init(bytes: 1400)).activities(now: later)
     #expect(retained.count < 9)
     #expect(retained.first?.completedAt == time.addingTimeInterval(8))
 }
@@ -119,7 +119,7 @@ import CacheDropCore
 @Test func invalidOrUnwritableActivityArchiveNeverClaimsSavedOrOverwritesUnknownData() async throws {
     let root = FileManager.default.temporaryDirectory.appendingPathComponent("CacheDropActivity-" + UUID().uuidString)
     defer { try? FileManager.default.removeItem(at: root) }
-    let store = GrowthHistoryStore(directory: root)
+    let store = StorageTrendsHistoryStore(directory: root)
     let epoch = try await store.recordingEpoch()
     let time = Date(timeIntervalSince1970: 1000)
     let activity = ScanActivity(startedAt: time, completedAt: time, outcome: .failed, locations: [.init(path: "/Example/Downloads", outcome: .failed)])
@@ -139,12 +139,12 @@ import CacheDropCore
 @Test func oversizedActivityIsRejectedWholeWhileThirtyBaselineLimitIsGlobal() async throws {
     let root = FileManager.default.temporaryDirectory.appendingPathComponent("CacheDropActivity-" + UUID().uuidString)
     defer { try? FileManager.default.removeItem(at: root) }
-    let store = GrowthHistoryStore(directory: root)
+    let store = StorageTrendsHistoryStore(directory: root)
     let epoch = try await store.recordingEpoch()
     for index in 0..<31 {
         let time = Date(timeIntervalSince1970: Double(1000 + index))
         let scope = "Scope-\(index)"
-        let snapshot = GrowthSnapshot(fingerprint: .init(scopeID: scope, rootID: scope, volumeID: "volume", access: "complete", rules: "one", exclusions: "none", classification: "one"), scopeLabel: scope, observedAt: time, groups: [.init(id: "files", label: "Files", logicalBytes: 1)])
+        let snapshot = StorageTrendsSnapshot(fingerprint: .init(scopeID: scope, rootID: scope, volumeID: "volume", access: "complete", rules: "one", exclusions: "none", classification: "one"), scopeLabel: scope, observedAt: time, groups: [.init(id: "files", label: "Files", logicalBytes: 1)])
         _ = try await store.record(snapshot, now: time, expectedEpoch: epoch)
     }
     let now = Date(timeIntervalSince1970: 1100)
@@ -152,13 +152,13 @@ import CacheDropCore
     #expect(snapshots.count == 30)
     #expect(snapshots.first?.scopeLabel == "Scope-1")
     let smallRoot = root.appendingPathComponent("Small")
-    let small = GrowthHistoryStore(directory: smallRoot, policy: .init(bytes: 600))
+    let small = StorageTrendsHistoryStore(directory: smallRoot, policy: .init(bytes: 600))
     let smallEpoch = try await small.recordingEpoch()
     let fitting = ScanActivity(startedAt: now, completedAt: now, outcome: .stopped, locations: [.init(path: "/Example")])
     #expect(try await small.recordActivity(fitting, now: now, expectedEpoch: smallEpoch))
     let oversized = ScanActivity(startedAt: now, completedAt: now, outcome: .stopped, locations: [.init(path: "/" + String(repeating: "a", count: 2000))])
     await #expect(throws: (any Error).self) { try await small.recordActivity(oversized, now: now, expectedEpoch: smallEpoch) }
-    #expect(try await GrowthHistoryStore(directory: smallRoot, policy: .init(bytes: 600)).activities(now: now).map(\.id) == [fitting.id])
+    #expect(try await StorageTrendsHistoryStore(directory: smallRoot, policy: .init(bytes: 600)).activities(now: now).map(\.id) == [fitting.id])
 }
 
 /// #447 (Decision 94): a History scan row shows the size on disk, as Overview's Scanned locations and Explore storage do.

@@ -11,10 +11,10 @@ import CacheDropCore
     var recordingWarning: String?
     var isLoading = false
     private var loadRequest = UUID()
-    private var archive: GrowthHistoryStore?
-    func store() throws -> GrowthHistoryStore {
+    private var archive: StorageTrendsHistoryStore?
+    func store() throws -> StorageTrendsHistoryStore {
         if let archive { return archive }
-        let value = GrowthHistoryStore(directory: try LocalStateLocation.root(create: true).appendingPathComponent("Growth", isDirectory: true))
+        let value = StorageTrendsHistoryStore(directory: try LocalStateLocation.root(create: true).appendingPathComponent("Growth", isDirectory: true))
         archive = value; return value
     }
     func begin() async -> UUID? {

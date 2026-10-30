@@ -1,7 +1,7 @@
 import Foundation
 import Darwin
 
-public struct GrowthFingerprint: Codable, Sendable, Equatable {
+public struct StorageTrendsFingerprint: Codable, Sendable, Equatable {
     public let scopeID, rootID, volumeID, access, rules, exclusions, classification: String
     /// Stored in Storage trends' history (#448): a renamed property keeps its key here; a new field needs its key here and in the StoredKeys fixture.
     private enum CodingKeys: String, CodingKey {
@@ -16,12 +16,12 @@ public struct GrowthFingerprint: Codable, Sendable, Equatable {
 }
 /// `location` groups come from catalog scans: one per rule location, with its catalog category and whether it could be read.
 /// Raw values are stored in Storage trends' history (#448): a renamed case keeps its string.
-public enum GrowthDimension: String, Codable, Sendable { case folder = "folder", category = "category", location = "location" }
-public struct GrowthAggregate: Codable, Sendable, Identifiable {
+public enum StorageTrendsDimension: String, Codable, Sendable { case folder = "folder", category = "category", location = "location" }
+public struct StorageTrendsAggregate: Codable, Sendable, Identifiable {
     public let id, label: String
     /// Its size on disk, each item's as Overview shows it (`Candidate.estimatedBytes`, Decision 94); the name and stored key predate that.
     public let logicalBytes: Int64
-    public let dimension: GrowthDimension
+    public let dimension: StorageTrendsDimension
     /// A location group's catalog category and rule.
     public let category: CatalogCategory?
     public let ruleID: String?
@@ -32,21 +32,21 @@ public struct GrowthAggregate: Codable, Sendable, Identifiable {
     private enum CodingKeys: String, CodingKey {
         case id = "id", label = "label", logicalBytes = "logicalBytes", dimension = "dimension", category = "category", ruleID = "ruleID", measured = "measured"
     }
-    public init(id: String, label: String, logicalBytes: Int64, dimension: GrowthDimension = .folder, category: CatalogCategory? = nil, ruleID: String? = nil, measured: Bool? = nil) {
+    public init(id: String, label: String, logicalBytes: Int64, dimension: StorageTrendsDimension = .folder, category: CatalogCategory? = nil, ruleID: String? = nil, measured: Bool? = nil) {
         self.id = id; self.label = label; self.logicalBytes = logicalBytes; self.dimension = dimension
         self.category = category; self.ruleID = ruleID; self.measured = measured
     }
     var isMeasured: Bool { measured != false }
 }
 /// Raw values are stored in Storage trends' history (#448): a renamed case keeps its string.
-public enum GrowthCoverage: String, Codable, Sendable { case complete = "complete", partial = "partial", cancelled = "cancelled", unmeasured = "unmeasured" }
-public struct GrowthSnapshot: Codable, Sendable, Identifiable {
+public enum StorageTrendsCoverage: String, Codable, Sendable { case complete = "complete", partial = "partial", cancelled = "cancelled", unmeasured = "unmeasured" }
+public struct StorageTrendsSnapshot: Codable, Sendable, Identifiable {
     public let id: UUID
-    public let fingerprint: GrowthFingerprint
+    public let fingerprint: StorageTrendsFingerprint
     public let scopeLabel: String
     public let observedAt: Date
-    public let groups: [GrowthAggregate]
-    public let coverage: GrowthCoverage
+    public let groups: [StorageTrendsAggregate]
+    public let coverage: StorageTrendsCoverage
     /// A rescan right after a cleanup (#126). It can be the latest scan, but never the baseline a later scan compares with.
     /// Nil in records made before this was tracked.
     private let cleanup: Bool?
@@ -60,28 +60,28 @@ public struct GrowthSnapshot: Codable, Sendable, Identifiable {
     public var afterCleanup: Bool { cleanup == true }
     /// Whether its sizes are sizes on disk, as Overview and Explore storage show them (Decision 94). Only such snapshots are compared.
     public var sizesOnDisk: Bool { onDisk == true }
-    public init(fingerprint: GrowthFingerprint, scopeLabel: String, observedAt: Date, groups: [GrowthAggregate], coverage: GrowthCoverage = .complete, afterCleanup: Bool = false) {
+    public init(fingerprint: StorageTrendsFingerprint, scopeLabel: String, observedAt: Date, groups: [StorageTrendsAggregate], coverage: StorageTrendsCoverage = .complete, afterCleanup: Bool = false) {
         id = UUID(); self.fingerprint = fingerprint; self.scopeLabel = scopeLabel
         self.observedAt = observedAt; self.groups = groups; self.coverage = coverage; cleanup = afterCleanup; onDisk = true
     }
     public var logicalBytes: Int64 { groups.filter { $0.dimension != .category && $0.isMeasured }.reduce(0) { $0 + $1.logicalBytes } }
 }
 /// Raw values are stored in Storage trends' history as each entry's origin (#448): a renamed case keeps its string.
-public enum GrowthComparisonState: String, Codable, Sendable {
+public enum StorageTrendsComparisonState: String, Codable, Sendable {
     case firstBaseline = "firstBaseline", clearedBaseline = "clearedBaseline", missingBaseline = "missingBaseline"
     case coverageChanged = "coverageChanged", unknown = "unknown", compared = "compared"
     /// Earlier scans exist, but none is old enough (or each is a rescan right after a cleanup): check back tomorrow.
     case waitingForBaseline = "waitingForBaseline"
 }
-public struct GrowthChange: Sendable, Identifiable {
+public struct StorageTrendsChange: Sendable, Identifiable {
     public let id, label: String
     public let logicalDelta: Int64
-    public let dimension: GrowthDimension
+    public let dimension: StorageTrendsDimension
     public var category: CatalogCategory? = nil
     public var ruleID: String? = nil
 }
 /// A location whose coverage differs between the two scans. Its size change is never counted as growth.
-public struct GrowthCoverageChange: Sendable, Identifiable, Equatable {
+public struct StorageTrendsCoverageChange: Sendable, Identifiable, Equatable {
     /// `checkedDifferently`: the rules that read one folder changed in different ways between the scans (some new, some gone,
     /// some newly readable), as when Downloads' rules changed (#482).
     public enum Kind: String, Sendable { case newlyReadable, newlyUnreadable, newlyScanned, noLongerScanned, checkedDifferently }
@@ -90,32 +90,32 @@ public struct GrowthCoverageChange: Sendable, Identifiable, Equatable {
     public let category: CatalogCategory?
     public let ruleID: String?
 }
-public struct GrowthComparison: Sendable {
-    public let state: GrowthComparisonState
-    public static var unknown: GrowthComparison { GrowthComparison(state: .unknown, current: nil, from: nil, groups: []) }
-    public let current: GrowthSnapshot?
+public struct StorageTrendsComparison: Sendable {
+    public let state: StorageTrendsComparisonState
+    public static var unknown: StorageTrendsComparison { StorageTrendsComparison(state: .unknown, current: nil, from: nil, groups: []) }
+    public let current: StorageTrendsSnapshot?
     public let from: Date?
     public var to: Date? { current?.observedAt }
-    public let groups: [GrowthChange]
+    public let groups: [StorageTrendsChange]
     /// Catalog locations whose coverage changed; left out of `groups` and `logicalDelta`.
-    public var coverageChanges: [GrowthCoverageChange] = []
+    public var coverageChanges: [StorageTrendsCoverageChange] = []
     public var logicalDelta: Int64? { state == .compared ? groups.filter { $0.dimension != .category }.reduce(0) { $0 + $1.logicalDelta } : nil }
     /// The category that grew most, which Storage trends names and opens in the plan (#351); nil when none grew.
-    public var mostGrowth: GrowthChange? {
+    public var mostGrowth: StorageTrendsChange? {
         groups.filter { $0.dimension == .category && $0.logicalDelta > 0 }.max { $0.logicalDelta < $1.logicalDelta }
     }
 }
-public struct GrowthRetention: Sendable {
+public struct StorageTrendsRetention: Sendable {
     public let days, baselines, bytes: Int
     public init(days: Int = 90, baselines: Int = 30, bytes: Int = 250_000_000) {
         self.days = min(90, max(1, days)); self.baselines = min(30, max(1, baselines)); self.bytes = min(250_000_000, max(256, bytes))
     }
 }
 /// Owns aggregate and opaque epoch/lock files. It never opens, enumerates or evicts operation journals.
-public actor GrowthHistoryStore {
+public actor StorageTrendsHistoryStore {
     /// The history file's stored keys (#448): a renamed property keeps its key here; a new field needs its key here and in the fixture.
     private struct Entry: Codable {
-        let snapshot: GrowthSnapshot; let origin: GrowthComparisonState
+        let snapshot: StorageTrendsSnapshot; let origin: StorageTrendsComparisonState
         private enum CodingKeys: String, CodingKey { case snapshot = "snapshot", origin = "origin" }
     }
     private struct Archive: Codable {
@@ -128,10 +128,10 @@ public actor GrowthHistoryStore {
     /// the same time each day compares with the day before (#126).
     public static let minimumBaselineAge: TimeInterval = 20 * 3_600
     private let directory: URL
-    private let policy: GrowthRetention
+    private let policy: StorageTrendsRetention
     private let baselineAge: TimeInterval
     /// `minimumBaselineAge` is a test seam; the app always uses the default.
-    public init(directory: URL, policy: GrowthRetention = GrowthRetention(), minimumBaselineAge: TimeInterval = GrowthHistoryStore.minimumBaselineAge) {
+    public init(directory: URL, policy: StorageTrendsRetention = StorageTrendsRetention(), minimumBaselineAge: TimeInterval = StorageTrendsHistoryStore.minimumBaselineAge) {
         self.directory = directory; self.policy = policy; baselineAge = max(0, minimumBaselineAge)
     }
     public func activities(now: Date = Date(), maintain: Bool = true) throws -> [ScanActivity] {
@@ -154,12 +154,12 @@ public actor GrowthHistoryStore {
             try save(value); return true
         }
     }
-    public func snapshots(now: Date = Date()) throws -> [GrowthSnapshot] { try withStoreLock { try retained(now).entries.map(\.snapshot) } }
-    public func latest(now: Date = Date()) throws -> GrowthComparison { try withStoreLock { let value = try retained(now); return comparison(in: value, id: value.entries.last?.snapshot.id) } }
-    public func comparison(id: UUID, now: Date = Date()) throws -> GrowthComparison { try withStoreLock { comparison(in: try retained(now), id: id) } }
+    public func snapshots(now: Date = Date()) throws -> [StorageTrendsSnapshot] { try withStoreLock { try retained(now).entries.map(\.snapshot) } }
+    public func latest(now: Date = Date()) throws -> StorageTrendsComparison { try withStoreLock { let value = try retained(now); return comparison(in: value, id: value.entries.last?.snapshot.id) } }
+    public func comparison(id: UUID, now: Date = Date()) throws -> StorageTrendsComparison { try withStoreLock { comparison(in: try retained(now), id: id) } }
     /// Capture before observation; retain across awaits. Never refresh an old capture at commit.
     public func recordingEpoch() throws -> UUID { try withStoreLock { try currentEpoch() } }
-    public func record(_ snapshot: GrowthSnapshot, now: Date = Date(), expectedEpoch: UUID) throws -> GrowthComparison {
+    public func record(_ snapshot: StorageTrendsSnapshot, now: Date = Date(), expectedEpoch: UUID) throws -> StorageTrendsComparison {
         try withStoreLock {
             try Task.checkCancellation()
             if try currentEpoch() != expectedEpoch { return .unknown }
@@ -168,17 +168,17 @@ public actor GrowthHistoryStore {
                   Set(snapshot.groups.map(\.id)).count == snapshot.groups.count,
                   snapshot.groups.allSatisfy({ $0.logicalBytes >= 0 && $0.logicalBytes <= Int64.max / 512 && $0.id.utf8.count <= 512 && $0.label.utf8.count <= 512 }),
                   snapshot.observedAt <= now, value.entries.last.map({ $0.snapshot.observedAt < snapshot.observedAt }) ?? true else {
-                return GrowthComparison(state: .unknown, current: snapshot, from: nil, groups: [])
+                return StorageTrendsComparison(state: .unknown, current: snapshot, from: nil, groups: [])
             }
             value.entries.removeAll { now.timeIntervalSince($0.snapshot.observedAt) > Double(policy.days) * .secondsPerDay }
             let hasLocationHistory = value.entries.contains { $0.snapshot.fingerprint.scopeID == snapshot.fingerprint.scopeID }
-            let origin: GrowthComparisonState = value.cleared ? .clearedBaseline
+            let origin: StorageTrendsComparisonState = value.cleared ? .clearedBaseline
                 : hasLocationHistory ? .missingBaseline : .firstBaseline
             value.entries.append(Entry(snapshot: snapshot, origin: origin)); value.hadHistory = true; value.cleared = false
             value.entries = thinned(value.entries)
             try trim(&value, now: now)
             try save(value)
-            return value.entries.contains(where: { $0.snapshot.id == snapshot.id }) ? comparison(in: value, id: snapshot.id) : GrowthComparison(state: .unknown, current: snapshot, from: nil, groups: [])
+            return value.entries.contains(where: { $0.snapshot.id == snapshot.id }) ? comparison(in: value, id: snapshot.id) : StorageTrendsComparison(state: .unknown, current: snapshot, from: nil, groups: [])
         }
     }
     /// Reject observations started under previous settings while retaining compatible historical aggregates.
@@ -202,21 +202,21 @@ public actor GrowthHistoryStore {
             } else if errno != ENOENT { throw CocoaError(.fileWriteNoPermission) }
         }
     }
-    private func comparison(in value: Archive, id: UUID?) -> GrowthComparison {
+    private func comparison(in value: Archive, id: UUID?) -> StorageTrendsComparison {
         guard let index = value.entries.firstIndex(where: { $0.snapshot.id == id }) else {
-            return GrowthComparison(state: value.cleared ? .clearedBaseline : value.hadHistory ? .missingBaseline : .firstBaseline, current: nil, from: nil, groups: [])
+            return StorageTrendsComparison(state: value.cleared ? .clearedBaseline : value.hadHistory ? .missingBaseline : .firstBaseline, current: nil, from: nil, groups: [])
         }
         let current = value.entries[index].snapshot
         guard let previous = baselineIndex(in: value.entries, for: index).map({ value.entries[$0].snapshot }) else {
             let earlier = value.entries[..<index].contains { $0.snapshot.fingerprint.scopeID == current.fingerprint.scopeID }
-            return GrowthComparison(state: earlier ? .waitingForBaseline : value.entries[index].origin, current: current, from: nil, groups: [])
+            return StorageTrendsComparison(state: earlier ? .waitingForBaseline : value.entries[index].origin, current: current, from: nil, groups: [])
         }
-        guard current.fingerprint == previous.fingerprint else { return GrowthComparison(state: .coverageChanged, current: current, from: previous.observedAt, groups: []) }
+        guard current.fingerprint == previous.fingerprint else { return StorageTrendsComparison(state: .coverageChanged, current: current, from: previous.observedAt, groups: []) }
         if (current.groups + previous.groups).contains(where: { $0.dimension == .location }) { return Self.catalogComparison(previous, current) }
         let older = Dictionary(uniqueKeysWithValues: previous.groups.map { ($0.id, $0) })
         let newer = Dictionary(uniqueKeysWithValues: current.groups.map { ($0.id, $0) })
-        let changes = Set(older.keys).union(newer.keys).map { key in GrowthChange(id: key, label: newer[key]?.label ?? older[key]!.label, logicalDelta: (newer[key]?.logicalBytes ?? 0) - (older[key]?.logicalBytes ?? 0), dimension: newer[key]?.dimension ?? older[key]!.dimension) }.sorted { $0.id < $1.id }
-        return GrowthComparison(state: .compared, current: current, from: previous.observedAt, groups: changes)
+        let changes = Set(older.keys).union(newer.keys).map { key in StorageTrendsChange(id: key, label: newer[key]?.label ?? older[key]!.label, logicalDelta: (newer[key]?.logicalBytes ?? 0) - (older[key]?.logicalBytes ?? 0), dimension: newer[key]?.dimension ?? older[key]!.dimension) }.sorted { $0.id < $1.id }
+        return StorageTrendsComparison(state: .compared, current: current, from: previous.observedAt, groups: changes)
     }
     /// The scan the one at `index` compares with: the newest earlier scan of the same location at least about a day
     /// older that isn't a rescan right after a cleanup, unless the settings changed since: then that scan starts a new
@@ -253,17 +253,17 @@ public actor GrowthHistoryStore {
     private struct DayKey: Hashable { let scope: String; let day: Date }
     /// Compares catalog scans location by location. Only a location measured in both scans counts toward growth,
     /// per location and in its category; any other difference is a coverage change.
-    static func catalogComparison(_ previous: GrowthSnapshot, _ current: GrowthSnapshot) -> GrowthComparison {
+    static func catalogComparison(_ previous: StorageTrendsSnapshot, _ current: StorageTrendsSnapshot) -> StorageTrendsComparison {
         let older = Dictionary(uniqueKeysWithValues: previous.groups.filter { $0.dimension == .location }.map { ($0.id, $0) })
         let newer = Dictionary(uniqueKeysWithValues: current.groups.filter { $0.dimension == .location }.map { ($0.id, $0) })
-        var changes: [GrowthChange] = [], coverage: [GrowthCoverageChange] = [], categories: [CatalogCategory?: Int64] = [:]
+        var changes: [StorageTrendsChange] = [], coverage: [StorageTrendsCoverageChange] = [], categories: [CatalogCategory?: Int64] = [:]
         for key in Set(older.keys).union(newer.keys).sorted() {
             let group = (newer[key] ?? older[key])!
-            func covered(_ kind: GrowthCoverageChange.Kind) { coverage.append(GrowthCoverageChange(id: key, label: group.label, kind: kind, category: group.category, ruleID: group.ruleID)) }
+            func covered(_ kind: StorageTrendsCoverageChange.Kind) { coverage.append(StorageTrendsCoverageChange(id: key, label: group.label, kind: kind, category: group.category, ruleID: group.ruleID)) }
             switch (older[key], newer[key]) {
             case let (old?, new?) where old.isMeasured && new.isMeasured:
                 let delta = new.logicalBytes - old.logicalBytes
-                changes.append(GrowthChange(id: key, label: group.label, logicalDelta: delta, dimension: .location, category: group.category, ruleID: group.ruleID))
+                changes.append(StorageTrendsChange(id: key, label: group.label, logicalDelta: delta, dimension: .location, category: group.category, ruleID: group.ruleID))
                 categories[group.category, default: 0] += delta
             case let (old?, new?) where old.isMeasured != new.isMeasured: covered(new.isMeasured ? .newlyReadable : .newlyUnreadable)
             case (nil, _?): covered(.newlyScanned)
@@ -271,20 +271,20 @@ public actor GrowthHistoryStore {
             default: break // Unreadable in both scans: nothing to compare.
             }
         }
-        changes += categories.map { GrowthChange(id: "category:" + ($0.key?.rawValue ?? ""), label: $0.key?.rawValue ?? "", logicalDelta: $0.value, dimension: .category, category: $0.key) }
-        var result = GrowthComparison(state: .compared, current: current, from: previous.observedAt, groups: changes.sorted { $0.id < $1.id })
+        changes += categories.map { StorageTrendsChange(id: "category:" + ($0.key?.rawValue ?? ""), label: $0.key?.rawValue ?? "", logicalDelta: $0.value, dimension: .category, category: $0.key) }
+        var result = StorageTrendsComparison(state: .compared, current: current, from: previous.observedAt, groups: changes.sorted { $0.id < $1.id })
         result.coverageChanges = perLocation(coverage)
         return result
     }
     /// One coverage change per folder (#482): rules that share one (Docker's three prunes at ~/.docker) are one line, kept
     /// under the first rule's id; rules there that changed in different ways are one `checkedDifferently` line.
-    static func perLocation(_ coverage: [GrowthCoverageChange]) -> [GrowthCoverageChange] {
+    static func perLocation(_ coverage: [StorageTrendsCoverageChange]) -> [StorageTrendsCoverageChange] {
         let byLabel = Dictionary(grouping: coverage, by: \.label)
         var seen = Set<String>()
         return coverage.compactMap { change in
             guard seen.insert(change.label).inserted, let same = byLabel[change.label] else { return nil }
             let kind = Set(same.map(\.kind)).count == 1 ? change.kind : .checkedDifferently
-            return GrowthCoverageChange(id: change.id, label: change.label, kind: kind, category: change.category, ruleID: same.count == 1 ? change.ruleID : nil)
+            return StorageTrendsCoverageChange(id: change.id, label: change.label, kind: kind, category: change.category, ruleID: same.count == 1 ? change.ruleID : nil)
         }
     }
     private func trim(_ value: inout Archive, now: Date) throws {

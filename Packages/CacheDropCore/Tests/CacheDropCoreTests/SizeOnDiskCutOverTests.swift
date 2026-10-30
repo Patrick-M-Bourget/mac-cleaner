@@ -5,16 +5,16 @@ import CacheDropCore
 /// #447 (Decision 94): Storage trends store sizes on disk from now on. A snapshot saved before then is never compared, so trends
 /// start again once two new scans exist. Nothing is migrated: older snapshots still decode and age out as before.
 private let hour: Double = 3_600
-private let fingerprint = GrowthFingerprint(scopeID: "catalog:home", rootID: "home", volumeID: "volume", access: "per-location", rules: "catalog", exclusions: "none", classification: "catalog")
+private let fingerprint = StorageTrendsFingerprint(scopeID: "catalog:home", rootID: "home", volumeID: "volume", access: "per-location", rules: "catalog", exclusions: "none", classification: "catalog")
 private func at(_ hours: Double) -> Date { Date(timeIntervalSince1970: 1_000_000 + hours * hour) }
-private func scan(_ hours: Double, _ bytes: Int64) -> GrowthSnapshot {
-    GrowthSnapshot(fingerprint: fingerprint, scopeLabel: "Known locations", observedAt: at(hours),
-                   groups: [GrowthAggregate(id: "location:npm", label: "~/.npm", logicalBytes: bytes, dimension: .location, category: .developer, ruleID: "npm", measured: true)])
+private func scan(_ hours: Double, _ bytes: Int64) -> StorageTrendsSnapshot {
+    StorageTrendsSnapshot(fingerprint: fingerprint, scopeLabel: "Known locations", observedAt: at(hours),
+                   groups: [StorageTrendsAggregate(id: "location:npm", label: "~/.npm", logicalBytes: bytes, dimension: .location, category: .developer, ruleID: "npm", measured: true)])
 }
 /// A store whose history holds `hours`' scans as saved before #447: the same file, without the snapshots' `onDisk` key.
-private func storeWithEarlierScans(_ hours: [Double]) async throws -> (GrowthHistoryStore, URL) {
+private func storeWithEarlierScans(_ hours: [Double]) async throws -> (StorageTrendsHistoryStore, URL) {
     let directory = FileManager.default.temporaryDirectory.appendingPathComponent("CacheDropCutOver-" + UUID().uuidString)
-    let store = GrowthHistoryStore(directory: directory)
+    let store = StorageTrendsHistoryStore(directory: directory)
     for hour in hours { _ = try await store.record(scan(hour, 100), now: at(hour), expectedEpoch: try await store.recordingEpoch()) }
     let file = directory.appendingPathComponent("aggregates-v1.json")
     var archive = try #require(try JSONSerialization.jsonObject(with: Data(contentsOf: file)) as? [String: Any])
@@ -25,7 +25,7 @@ private func storeWithEarlierScans(_ hours: [Double]) async throws -> (GrowthHis
     try JSONSerialization.data(withJSONObject: archive).write(to: file)
     return (store, directory)
 }
-private func record(_ snapshot: GrowthSnapshot, in store: GrowthHistoryStore) async throws -> GrowthComparison {
+private func record(_ snapshot: StorageTrendsSnapshot, in store: StorageTrendsHistoryStore) async throws -> StorageTrendsComparison {
     try await store.record(snapshot, now: snapshot.observedAt, expectedEpoch: try await store.recordingEpoch())
 }
 

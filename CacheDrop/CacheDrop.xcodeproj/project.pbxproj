@@ -97,7 +97,7 @@ AA1300000000000000000002 = { isa = PBXBuildFile; fileRef = AA1300000000000000000
 AA1200000000000000000003 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = App/LocalStateLocation.swift; sourceTree = "<group>"; };
 AA1200000000000000000004 = { isa = PBXBuildFile; fileRef = AA1200000000000000000003; };
 
-AA2600000000000000000001 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = App/GrowthHistoryView.swift; sourceTree = "<group>"; };
+AA2600000000000000000001 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = App/StorageTrendsHistoryView.swift; sourceTree = "<group>"; };
 AA2600000000000000000002 = { isa = PBXBuildFile; fileRef = AA2600000000000000000001; };
 AA1200000000000000000007 = { isa = PBXBuildFile; productRef = AA0000000000000000000004; };
 AA1200000000000000000008 = { isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (AA1200000000000000000007); runOnlyForDeploymentPostprocessing = 0; };

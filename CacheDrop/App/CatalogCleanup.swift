@@ -390,7 +390,7 @@ import SwiftUI
         let locate = Self.locateTool, system = Self.systemRoot
         let userFolder = Self.userFolder, cloud = Self.cloud
         // What grew records each completed catalog scan (#119).
-        let growth = await GrowthHistoryModel.shared.beginCatalog(home: home, exclusionFingerprint: exclusions.fingerprint)
+        let growth = await StorageTrendsHistoryModel.shared.beginCatalog(home: home, exclusionFingerprint: exclusions.fingerprint)
         let quitter = Self.quitter
         // Discovery reports each location as it goes; the steps reach the main actor in order (#128).
         // After discovery, each later phase is named too (#308).
@@ -446,7 +446,7 @@ import SwiftUI
         }.value
         await progress.value
         scanProgress?.phase = .storageTrends
-        await GrowthHistoryModel.shared.completeCatalog(scanned.discovery, catalog: catalog, fullDiskAccess: scanned.access, token: growth, afterCleanup: rescanFollowsCleanup)
+        await StorageTrendsHistoryModel.shared.completeCatalog(scanned.discovery, catalog: catalog, fullDiskAccess: scanned.access, token: growth, afterCleanup: rescanFollowsCleanup)
         rescanFollowsCleanup = false
         fullDiskAccessRescan.scanned(scanned.access)
         discovered = scanned.discovery.candidates + scanned.leftovers; uninstallable = scanned.uninstallable; plugInInventory = scanned.plugIns

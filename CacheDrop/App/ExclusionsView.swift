@@ -66,7 +66,7 @@ import CacheDropCore
         let lifecycle = AppLifecycleController.shared
         lifecycle.inspection.cancel()
         lifecycle.selection.invalidateCoverage()
-        try await GrowthHistoryModel.shared.invalidateCoverage()
+        try await StorageTrendsHistoryModel.shared.invalidateCoverage()
         try await operation(open())
         let policy = try await open().policy()
         rules = policy.rules; error = nil

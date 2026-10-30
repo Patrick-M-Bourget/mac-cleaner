@@ -488,7 +488,7 @@ private struct WorkspaceView: View {
             value: row.valueText,
             meaning: row.estimate == .unknown ? "Couldn’t be measured" : selected ? "Selected"
                 : row.rules.allSatisfy { $0.action == .delete } ? "Rebuildable" : row.rules.allSatisfy { $0.action == .evict } ? "Local copies" : "Review files",
-            actionTitle: "Review " + GrowthPresentation.inSentence(row.category) + (onApplications ? " in Applications" : " in the Cleanup plan"),
+            actionTitle: "Review " + StorageTrendsPresentation.inSentence(row.category) + (onApplications ? " in Applications" : " in the Cleanup plan"),
             // Files from deleted apps are on the Applications page (Decision 51).
             action: { if onApplications { navigate(.applications) } else { navigate(.plan); planPresentation.expandedCategories.insert(row.category) } },
             identifier: "overviewCategory-" + row.id)
@@ -743,7 +743,7 @@ private struct WorkspaceView: View {
                 AppManagedStorageView(model: selection.catalog) { navigationState.appManagedVisible = false }
             } else {
                 switch destination {
-                case .growth: GrowthHistoryView(model: GrowthHistoryModel.shared, catalog: selection.catalog, scanNow: { if canScanAgain { scanAgain() } },
+                case .growth: StorageTrendsHistoryView(model: StorageTrendsHistoryModel.shared, catalog: selection.catalog, scanNow: { if canScanAgain { scanAgain() } },
                                                     reviewTitle: growthReview.title, review: growthReview.open)
                 case .overview: overview
                 case .plan, .smartClean, .applications: EmptyView()
@@ -794,15 +794,15 @@ private struct WorkspaceView: View {
     /// can be cleaned (the plan, or Applications for files from deleted apps), named in its accessibility label and tooltip; the
     /// plan alone when that category offers nothing now.
     private var growthReview: (title: String, open: () -> Void) {
-        let grew = GrowthHistoryModel.shared.comparison?.mostGrowth?.category
+        let grew = StorageTrendsHistoryModel.shared.comparison?.mostGrowth?.category
         if let grew, let row = selection.catalog.leftoversRow, row.category == grew {
-            return ("Review " + GrowthPresentation.inSentence(grew) + " in Applications", { navigate(.applications) })
+            return ("Review " + StorageTrendsPresentation.inSentence(grew) + " in Applications", { navigate(.applications) })
         }
         let returnHere = { navigationState.planReturnsToGrowth = true }
         guard let grew, selection.catalog.plans(grew) else {
             return ("Review plan", { navigate(.plan); returnHere() })
         }
-        return ("Review " + GrowthPresentation.inSentence(grew) + " in the Cleanup plan", { navigate(.plan); returnHere(); planPresentation.reveal(grew) })
+        return ("Review " + StorageTrendsPresentation.inSentence(grew) + " in the Cleanup plan", { navigate(.plan); returnHere(); planPresentation.reveal(grew) })
     }
     /// The plan's back button: to Storage trends or Explore storage when the plan was opened from there, otherwise none.
     private var planBack: (() -> Void)? {

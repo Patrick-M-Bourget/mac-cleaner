@@ -4,18 +4,18 @@ import CacheDropCore
 
 /// #126: Storage trends compares against the newest scan about a day older that isn't a rescan right after a cleanup.
 private let hour: Double = 3_600
-private let fingerprint = GrowthFingerprint(scopeID: "catalog:home", rootID: "home", volumeID: "volume", access: "per-location", rules: "catalog", exclusions: "none", classification: "catalog")
-private func scan(_ hours: Double, _ bytes: Int64, afterCleanup: Bool = false, exclusions: String = "none") -> GrowthSnapshot {
-    let print = GrowthFingerprint(scopeID: fingerprint.scopeID, rootID: fingerprint.rootID, volumeID: fingerprint.volumeID, access: fingerprint.access,
+private let fingerprint = StorageTrendsFingerprint(scopeID: "catalog:home", rootID: "home", volumeID: "volume", access: "per-location", rules: "catalog", exclusions: "none", classification: "catalog")
+private func scan(_ hours: Double, _ bytes: Int64, afterCleanup: Bool = false, exclusions: String = "none") -> StorageTrendsSnapshot {
+    let print = StorageTrendsFingerprint(scopeID: fingerprint.scopeID, rootID: fingerprint.rootID, volumeID: fingerprint.volumeID, access: fingerprint.access,
                                   rules: fingerprint.rules, exclusions: exclusions, classification: fingerprint.classification)
-    return GrowthSnapshot(fingerprint: print, scopeLabel: "Known locations", observedAt: Date(timeIntervalSince1970: 1_000_000 + hours * hour),
-                          groups: [GrowthAggregate(id: "location:npm", label: "~/.npm", logicalBytes: bytes, dimension: .location, category: .developer, ruleID: "npm", measured: true)],
+    return StorageTrendsSnapshot(fingerprint: print, scopeLabel: "Known locations", observedAt: Date(timeIntervalSince1970: 1_000_000 + hours * hour),
+                          groups: [StorageTrendsAggregate(id: "location:npm", label: "~/.npm", logicalBytes: bytes, dimension: .location, category: .developer, ruleID: "npm", measured: true)],
                           afterCleanup: afterCleanup)
 }
-private func record(_ snapshots: [GrowthSnapshot]) async throws -> (GrowthHistoryStore, GrowthComparison, URL) {
+private func record(_ snapshots: [StorageTrendsSnapshot]) async throws -> (StorageTrendsHistoryStore, StorageTrendsComparison, URL) {
     let directory = FileManager.default.temporaryDirectory.appendingPathComponent("CacheDropTrends-" + UUID().uuidString)
-    let store = GrowthHistoryStore(directory: directory)
-    var last = GrowthComparison.unknown
+    let store = StorageTrendsHistoryStore(directory: directory)
+    var last = StorageTrendsComparison.unknown
     for snapshot in snapshots { last = try await store.record(snapshot, now: snapshot.observedAt, expectedEpoch: try await store.recordingEpoch()) }
     return (store, last, directory)
 }
@@ -34,7 +34,7 @@ private func record(_ snapshots: [GrowthSnapshot]) async throws -> (GrowthHistor
     let (_, result, directory) = try await record([scan(0, 100), scan(23, 400)])
     defer { try? FileManager.default.removeItem(at: directory) }
     #expect(result.state == .compared)
-    #expect(GrowthHistoryStore.minimumBaselineAge >= 20 * hour && GrowthHistoryStore.minimumBaselineAge <= 24 * hour)
+    #expect(StorageTrendsHistoryStore.minimumBaselineAge >= 20 * hour && StorageTrendsHistoryStore.minimumBaselineAge <= 24 * hour)
 }
 
 @Test func aRescanRightAfterACleanupIsNeverTheBaseline() async throws {
@@ -78,7 +78,7 @@ private func record(_ snapshots: [GrowthSnapshot]) async throws -> (GrowthHistor
 
 @Test func scansRecordedBeforeTheCleanupMarkerExistedDecodeAsOrdinaryScans() throws {
     let data = Data(#"{"id":"\#(UUID().uuidString)","fingerprint":{"scopeID":"s","rootID":"r","volumeID":"v","access":"a","rules":"r","exclusions":"e","classification":"c"},"scopeLabel":"Known locations","observedAt":0,"groups":[{"id":"g","label":"G","logicalBytes":1,"dimension":"location"}],"coverage":"complete"}"#.utf8)
-    let snapshot = try JSONDecoder().decode(GrowthSnapshot.self, from: data)
+    let snapshot = try JSONDecoder().decode(StorageTrendsSnapshot.self, from: data)
     #expect(snapshot.afterCleanup == false)
 }
 
@@ -120,7 +120,7 @@ private func record(_ snapshots: [GrowthSnapshot]) async throws -> (GrowthHistor
 @Test func theHistoryStillFitsItsSizeLimit() async throws {
     let directory = FileManager.default.temporaryDirectory.appendingPathComponent("CacheDropTrends-" + UUID().uuidString)
     defer { try? FileManager.default.removeItem(at: directory) }
-    let store = GrowthHistoryStore(directory: directory, policy: GrowthRetention(bytes: 4_000))
+    let store = StorageTrendsHistoryStore(directory: directory, policy: StorageTrendsRetention(bytes: 4_000))
     for index in 0..<20 {
         let snapshot = scan(Double(index) * 24, 100)
         _ = try await store.record(snapshot, now: snapshot.observedAt, expectedEpoch: try await store.recordingEpoch())

@@ -41,7 +41,7 @@ struct DesignGallery: View {
                     DisclosureGroup("Synthetic History activity examples", isExpanded: $historyExamplesExpanded) {
                         HistoryActivityGalleryExamples()
                     }
-                    DisclosureGroup("Synthetic Storage trends examples", isExpanded: $growthExamplesExpanded) { GrowthGalleryExamples() }
+                    DisclosureGroup("Synthetic Storage trends examples", isExpanded: $growthExamplesExpanded) { StorageTrendsGalleryExamples() }
                     DisclosureGroup("Synthetic storage alert settings", isExpanded: $alertExamplesExpanded) {
                         AlertThresholdEditor(draft: .constant("60"), canApply: true, apply: {})
                         AlertThresholdEditor(draft: .constant("invalid"), canApply: false, invalidDraft: true, apply: {})

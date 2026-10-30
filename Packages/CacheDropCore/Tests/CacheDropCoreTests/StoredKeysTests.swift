@@ -107,7 +107,7 @@ private struct JournalFixture: Codable {
 }
 
 private struct TrendsEnumsFixture: Codable {
-    let dimensions: [GrowthDimension]; let coverages: [GrowthCoverage]; let comparisonStates: [GrowthComparisonState]
+    let dimensions: [StorageTrendsDimension]; let coverages: [StorageTrendsCoverage]; let comparisonStates: [StorageTrendsComparisonState]
     let scanOutcomes: [ScanActivityOutcome]; let categories: [CatalogCategory]
 }
 
@@ -120,7 +120,7 @@ private struct TrendsEnumsFixture: Codable {
     let file = directory.appendingPathComponent("aggregates-v1.json")
     let fixture = try StoredKeysFixture.data("trends")
     try fixture.write(to: file)
-    let store = GrowthHistoryStore(directory: directory)
+    let store = StorageTrendsHistoryStore(directory: directory)
 
     let snapshots = try await store.snapshots(now: now)
     #expect(snapshots.map(\.id) == [UUID(uuidString: "2755AF01-DD05-4F6F-9FA0-63144649ECB3"), UUID(uuidString: "494B9606-49E6-4BF6-81A0-F654A417BAA9")])
@@ -128,7 +128,7 @@ private struct TrendsEnumsFixture: Codable {
     #expect(snapshots.map(\.afterCleanup) == [false, true])
     #expect(snapshots.map(\.sizesOnDisk) == [false, true], "A snapshot saved before sizes on disk (#447) reads as not on disk")
     #expect(snapshots.allSatisfy { $0.scopeLabel == "Known locations" && $0.coverage == .complete })
-    #expect(snapshots[0].fingerprint == GrowthFingerprint(scopeID: "catalog:known", rootID: "root-1", volumeID: "vol-a", access: "fullDiskAccess",
+    #expect(snapshots[0].fingerprint == StorageTrendsFingerprint(scopeID: "catalog:known", rootID: "root-1", volumeID: "vol-a", access: "fullDiskAccess",
                                                           rules: "rules-v7", exclusions: "excl-1", classification: "class-2"))
     let groups = snapshots[0].groups
     #expect(groups.map(\.id) == ["folder:/Users/x/Library/Caches", "category:developer", "location:npm-cache"])
@@ -150,9 +150,9 @@ private struct TrendsEnumsFixture: Codable {
     #expect(location.logicalBytes == 4_000); #expect(location.allocatedBytes == 4_096); #expect(location.knownLogicalBytes == 3_900); #expect(location.knownAllocatedBytes == 3_968)
     #expect(location.reasons == ["accessDenied": 2, "timeLimit": 1])
     #expect(location.baselineID == UUID(uuidString: "AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE"))
-    StoredKeysFixture.expectEveryPropertyStored(snapshots[1], in: try StoredKeysFixture.keys(fixture, at: ["entries", "1", "snapshot"]), "GrowthSnapshot")
-    StoredKeysFixture.expectEveryPropertyStored(snapshots[0].fingerprint, in: try StoredKeysFixture.keys(fixture, at: ["entries", "0", "snapshot", "fingerprint"]), "GrowthFingerprint")
-    StoredKeysFixture.expectEveryPropertyStored(groups[2], in: try StoredKeysFixture.keys(fixture, at: ["entries", "0", "snapshot", "groups", "2"]), "GrowthAggregate")
+    StoredKeysFixture.expectEveryPropertyStored(snapshots[1], in: try StoredKeysFixture.keys(fixture, at: ["entries", "1", "snapshot"]), "StorageTrendsSnapshot")
+    StoredKeysFixture.expectEveryPropertyStored(snapshots[0].fingerprint, in: try StoredKeysFixture.keys(fixture, at: ["entries", "0", "snapshot", "fingerprint"]), "StorageTrendsFingerprint")
+    StoredKeysFixture.expectEveryPropertyStored(groups[2], in: try StoredKeysFixture.keys(fixture, at: ["entries", "0", "snapshot", "groups", "2"]), "StorageTrendsAggregate")
     StoredKeysFixture.expectEveryPropertyStored(activity, in: try StoredKeysFixture.keys(fixture, at: ["activities", "0"]), "ScanActivity")
     StoredKeysFixture.expectEveryPropertyStored(location, in: try StoredKeysFixture.keys(fixture, at: ["activities", "0", "locations", "0"]), "ScanActivityLocation")
     let empty = activity.locations[1]

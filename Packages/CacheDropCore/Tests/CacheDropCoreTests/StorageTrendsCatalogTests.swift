@@ -2,16 +2,16 @@ import Foundation
 import Testing
 import CacheDropCore
 
-private func growthStore() -> (GrowthHistoryStore, URL) {
+private func growthStore() -> (StorageTrendsHistoryStore, URL) {
     let directory = FileManager.default.temporaryDirectory.appendingPathComponent("CacheDropCatalogGrowth-" + UUID().uuidString)
-    return (GrowthHistoryStore(directory: directory, minimumBaselineAge: 0), directory)
+    return (StorageTrendsHistoryStore(directory: directory, minimumBaselineAge: 0), directory)
 }
-private let catalogFingerprint = GrowthFingerprint(scopeID: "catalog", rootID: "home", volumeID: "volume", access: "per-location", rules: "catalog", exclusions: "none", classification: "catalog")
-private func location(_ id: String, _ category: CatalogCategory, _ bytes: Int64, measured: Bool = true) -> GrowthAggregate {
-    GrowthAggregate(id: "location:" + id, label: "~/" + id, logicalBytes: bytes, dimension: .location, category: category, ruleID: id, measured: measured)
+private let catalogFingerprint = StorageTrendsFingerprint(scopeID: "catalog", rootID: "home", volumeID: "volume", access: "per-location", rules: "catalog", exclusions: "none", classification: "catalog")
+private func location(_ id: String, _ category: CatalogCategory, _ bytes: Int64, measured: Bool = true) -> StorageTrendsAggregate {
+    StorageTrendsAggregate(id: "location:" + id, label: "~/" + id, logicalBytes: bytes, dimension: .location, category: category, ruleID: id, measured: measured)
 }
-private func catalogSnapshot(_ time: Double, _ groups: [GrowthAggregate]) -> GrowthSnapshot {
-    GrowthSnapshot(fingerprint: catalogFingerprint, scopeLabel: "Known locations", observedAt: Date(timeIntervalSince1970: time), groups: groups)
+private func catalogSnapshot(_ time: Double, _ groups: [StorageTrendsAggregate]) -> StorageTrendsSnapshot {
+    StorageTrendsSnapshot(fingerprint: catalogFingerprint, scopeLabel: "Known locations", observedAt: Date(timeIntervalSince1970: time), groups: groups)
 }
 
 @Test func catalogComparisonReportsGrowthPerLocationAndPerCategory() async throws {
@@ -73,7 +73,7 @@ private func write(_ bytes: Int, at path: String, in home: URL) throws {
     try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
     try Data(repeating: 1, count: bytes).write(to: file)
 }
-private func recordCatalogScan(_ catalog: Catalog, home: URL, recorder: GrowthScanRecorder, access: FullDiskAccessStatus = .granted) async throws -> GrowthComparison {
+private func recordCatalogScan(_ catalog: Catalog, home: URL, recorder: StorageTrendsScanRecorder, access: FullDiskAccessStatus = .granted) async throws -> StorageTrendsComparison {
     let token = try await recorder.beginCatalog(home: home, exclusionFingerprint: ExclusionPolicy().fingerprint)
     let discovery = catalog.discovery(fixture: home, access: access)
     return try await recorder.completeCatalog(discovery, catalog: catalog, fullDiskAccess: access, token: token)
@@ -82,7 +82,7 @@ private func recordCatalogScan(_ catalog: Catalog, home: URL, recorder: GrowthSc
 @Test func theFirstCatalogScanRecordsABaselineAndTheNextShowsGrowthPerCategoryAndLocation() async throws {
     let home = try fixtureHome(), (store, directory) = growthStore()
     defer { try? FileManager.default.removeItem(at: home); try? FileManager.default.removeItem(at: directory) }
-    let catalog = Catalog(rules: fixtureRules), recorder = GrowthScanRecorder(store: store)
+    let catalog = Catalog(rules: fixtureRules), recorder = StorageTrendsScanRecorder(store: store)
     try write(10_000, at: ".npm/_cacache/content-v2/one", in: home)
     let first = try await recordCatalogScan(catalog, home: home, recorder: recorder)
     #expect(first.state == .firstBaseline)
@@ -110,7 +110,7 @@ private func recordCatalogScan(_ catalog: Catalog, home: URL, recorder: GrowthSc
     defer { try? FileManager.default.removeItem(at: home); try? FileManager.default.removeItem(at: directory) }
     let safari = CleanupRule(id: "safari-fixture", category: .browser, title: "Safari cache", detail: "", consequence: "", regen: .cache, action: .delete,
                              locations: ["Library/Caches/com.apple.Safari"], owner: nil, requiresFullDiskAccess: true)
-    let catalog = Catalog(rules: [safari]), recorder = GrowthScanRecorder(store: store)
+    let catalog = Catalog(rules: [safari]), recorder = StorageTrendsScanRecorder(store: store)
     try write(4_000_000, at: "Library/Caches/com.apple.Safari/blob", in: home)
     let first = try await recordCatalogScan(catalog, home: home, recorder: recorder, access: .notGranted)
     #expect(first.current?.groups.first?.measured == false)
@@ -124,7 +124,7 @@ private func recordCatalogScan(_ catalog: Catalog, home: URL, recorder: GrowthSc
 @Test func theBuiltInCatalogFitsInOneGrowthSnapshot() async throws {
     let home = try fixtureHome(), (store, directory) = growthStore()
     defer { try? FileManager.default.removeItem(at: home); try? FileManager.default.removeItem(at: directory) }
-    let result = try await recordCatalogScan(Catalog(rules: fixtureRules), home: home, recorder: GrowthScanRecorder(store: store))
+    let result = try await recordCatalogScan(Catalog(rules: fixtureRules), home: home, recorder: StorageTrendsScanRecorder(store: store))
     #expect(result.state == .firstBaseline)
 }
 
@@ -136,7 +136,7 @@ private func recordCatalogScan(_ catalog: Catalog, home: URL, recorder: GrowthSc
     try write(1_000, at: "Library/FixtureCaches/one/blob", in: home)
     try write(2_000, at: "Library/FixtureCaches/two/blob", in: home)
     try write(4_000, at: "Library/FixtureCaches/.cachedrop-deleting-fixture-caches-\(UUID().uuidString)/blob", in: home)
-    let result = try await recordCatalogScan(Catalog(rules: [rule]), home: home, recorder: GrowthScanRecorder(store: store))
+    let result = try await recordCatalogScan(Catalog(rules: [rule]), home: home, recorder: StorageTrendsScanRecorder(store: store))
     let groups = try #require(result.current?.groups)
     #expect(groups.count == 1)
     #expect(groups.first?.label == "~/Library/FixtureCaches")
@@ -146,14 +146,14 @@ private func recordCatalogScan(_ catalog: Catalog, home: URL, recorder: GrowthSc
 @Test func catalogSnapshotsKeepTheRetentionLimits() async throws {
     let directory = FileManager.default.temporaryDirectory.appendingPathComponent("CacheDropCatalogGrowth-" + UUID().uuidString)
     defer { try? FileManager.default.removeItem(at: directory) }
-    let store = GrowthHistoryStore(directory: directory, policy: GrowthRetention(days: 1, baselines: 2))
+    let store = StorageTrendsHistoryStore(directory: directory, policy: StorageTrendsRetention(days: 1, baselines: 2))
     for time in [100.0, 200, 300] {
         _ = try await store.record(catalogSnapshot(time, [location("npm", .developer, Int64(time))]), now: Date(timeIntervalSince1970: time), expectedEpoch: try await store.recordingEpoch())
     }
     #expect(try await store.snapshots(now: Date(timeIntervalSince1970: 300)).map(\.observedAt.timeIntervalSince1970) == [200, 300])
     #expect(try await store.snapshots(now: Date(timeIntervalSince1970: 300 + 86_401)).isEmpty)
     // The limits never loosen past 90 days and 30 baselines.
-    let widest = GrowthRetention(days: 365, baselines: 100, bytes: .max)
+    let widest = StorageTrendsRetention(days: 365, baselines: 100, bytes: .max)
     #expect(widest.days == 90 && widest.baselines == 30 && widest.bytes == 250_000_000)
 }
 
@@ -162,8 +162,8 @@ private func recordCatalogScan(_ catalog: Catalog, home: URL, recorder: GrowthSc
 @Test func coverageChangesAreOnePerLocationAndMixedChangesReadAsChecked() async throws {
     let (store, directory) = growthStore()
     defer { try? FileManager.default.removeItem(at: directory) }
-    func rule(_ rule: String, at label: String, _ bytes: Int64, measured: Bool = true) -> GrowthAggregate {
-        GrowthAggregate(id: "location:" + rule + "|" + label, label: label, logicalBytes: bytes, dimension: .location, category: .developer, ruleID: rule, measured: measured)
+    func rule(_ rule: String, at label: String, _ bytes: Int64, measured: Bool = true) -> StorageTrendsAggregate {
+        StorageTrendsAggregate(id: "location:" + rule + "|" + label, label: label, logicalBytes: bytes, dimension: .location, category: .developer, ruleID: rule, measured: measured)
     }
     let first = catalogSnapshot(100, [rule("npm", at: "~/.npm", 100), rule("downloads-old", at: "~/Downloads", 50), rule("downloads-keep", at: "~/Downloads", 10)])
     _ = try await store.record(first, now: first.observedAt, expectedEpoch: try await store.recordingEpoch())
@@ -189,7 +189,7 @@ private func recordCatalogScan(_ catalog: Catalog, home: URL, recorder: GrowthSc
         CleanupRule(id: "fixture-downloads", category: .downloads, title: "Fixture downloads", detail: "", consequence: "", regen: .installer, action: .trash,
                     locations: ["FixtureDownloads"], owner: nil, contents: ContentsMatch(extensions: ["dmg"])),
     ]
-    let catalog = Catalog(rules: rules), recorder = GrowthScanRecorder(store: store)
+    let catalog = Catalog(rules: rules), recorder = StorageTrendsScanRecorder(store: store)
     try write(3_000_000, at: "Library/FixtureCache/blob", in: home)
     try write(2_000_000, at: "Library/FixtureCaches/one/blob", in: home)
     try write(1_000_000, at: "FixtureDownloads/app.dmg", in: home)
@@ -211,15 +211,15 @@ private func recordCatalogScan(_ catalog: Catalog, home: URL, recorder: GrowthSc
 @Test func clearAndResetRejectAnEarlierCatalogScanEvenThroughAnotherStoreInstance() async throws {
     let home = try fixtureHome(), (store, directory) = growthStore()
     defer { try? FileManager.default.removeItem(at: home); try? FileManager.default.removeItem(at: directory) }
-    let catalog = Catalog(rules: fixtureRules), recorder = GrowthScanRecorder(store: store)
+    let catalog = Catalog(rules: fixtureRules), recorder = StorageTrendsScanRecorder(store: store)
     try write(10_000, at: ".npm/_cacache/content-v2/one", in: home)
     for reset in [false, true] {
         let token = try await recorder.beginCatalog(home: home, exclusionFingerprint: ExclusionPolicy().fingerprint)
         let discovery = catalog.discovery(fixture: home, access: .granted)
-        let maintenance = GrowthHistoryStore(directory: directory)
+        let maintenance = StorageTrendsHistoryStore(directory: directory)
         if reset { try await maintenance.resetHistory() } else { try await maintenance.clearCompletedHistory() }
         #expect(try await recorder.completeCatalog(discovery, catalog: catalog, fullDiskAccess: .granted, token: token).state == .unknown)
-        let reopened = GrowthHistoryStore(directory: directory)
+        let reopened = StorageTrendsHistoryStore(directory: directory)
         #expect(try await reopened.snapshots().isEmpty)
         #expect(try await reopened.latest().state == (reset ? .firstBaseline : .clearedBaseline))
     }
@@ -228,7 +228,7 @@ private func recordCatalogScan(_ catalog: Catalog, home: URL, recorder: GrowthSc
 @Test func changingCoverageRejectsAnInflightCatalogScanWithoutClearingHistory() async throws {
     let home = try fixtureHome(), (store, directory) = growthStore()
     defer { try? FileManager.default.removeItem(at: home); try? FileManager.default.removeItem(at: directory) }
-    let catalog = Catalog(rules: fixtureRules), recorder = GrowthScanRecorder(store: store)
+    let catalog = Catalog(rules: fixtureRules), recorder = StorageTrendsScanRecorder(store: store)
     try write(10_000, at: ".npm/_cacache/content-v2/one", in: home)
     #expect(try await recordCatalogScan(catalog, home: home, recorder: recorder).state == .firstBaseline)
     let stale = try await recorder.beginCatalog(home: home, exclusionFingerprint: ExclusionPolicy().fingerprint)
@@ -242,7 +242,7 @@ private func recordCatalogScan(_ catalog: Catalog, home: URL, recorder: GrowthSc
 @Test func aCatalogRescanAfterACleanupIsRecordedAsOne() async throws {
     let home = try fixtureHome(), (store, directory) = growthStore()
     defer { try? FileManager.default.removeItem(at: home); try? FileManager.default.removeItem(at: directory) }
-    let catalog = Catalog(rules: fixtureRules), recorder = GrowthScanRecorder(store: store)
+    let catalog = Catalog(rules: fixtureRules), recorder = StorageTrendsScanRecorder(store: store)
     let first = try await recordCatalogScan(catalog, home: home, recorder: recorder)
     #expect(first.current?.afterCleanup == false)
     let token = try await recorder.beginCatalog(home: home, exclusionFingerprint: ExclusionPolicy().fingerprint)
