@@ -103,19 +103,9 @@ private func offered(_ folder: URL, now: Date, rule: CleanupRule = UserFiles.rul
 }
 
 /// Stands in for the Finder Trash so tests never touch the user's real Trash.
-private struct FixtureTrash: TrashMoving {
-    let folder: URL
-    func moveToTrash(_ url: URL) throws -> URL? {
-        let destination = folder.appendingPathComponent(url.lastPathComponent)
-        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-        try FileManager.default.moveItem(at: url, to: destination)
-        return destination
-    }
-}
-private struct AlwaysClosed: RunningAppChecking { func isRunning(_ owner: RuleOwner) -> Bool? { false } }
 private func executor(trash: URL) -> CleanupExecutor {
     let journal = try! SQLiteCleanupJournal(url: trash.deletingLastPathComponent().appendingPathComponent("journal-\(UUID()).sqlite"))
-    return CleanupExecutor(journal: journal, check: CandidateCheck(catalog: Catalog(rules: fixtureRules), running: AlwaysClosed()), measure: { _ in nil }, trash: FixtureTrash(folder: trash))
+    return CleanupExecutor(journal: journal, check: CandidateCheck(catalog: Catalog(rules: fixtureRules), running: FixtureNothingRunning()), measure: { _ in nil }, trash: FixtureFolderTrash(folder: trash))
 }
 
 @Test func chosenFilesFromAPickedFolderGoToTrashAndOthersStay() async throws {
@@ -173,7 +163,7 @@ private func executor(trash: URL) -> CleanupExecutor {
 
     // A candidate from before the rule applied is refused just before acting.
     let fromEarlierScan = try #require(UserFiles.candidates(in: scan, home: trash, now: Date()).first { $0.url == cookies })
-    let check = CandidateCheck(catalog: Catalog(rules: fixtureRules), running: AlwaysClosed(), home: home)
+    let check = CandidateCheck(catalog: Catalog(rules: fixtureRules), running: FixtureNothingRunning(), home: home)
     #expect(check.check(fromEarlierScan) == .protected("Library"))
 }
 

@@ -106,7 +106,7 @@ private struct FakeInUse: InUseChecking {
 
     // Ticking is the override for the policy guards; a project in use is still skipped while it is, and cleaned once it isn't.
     let check = { (item: Candidate?, inUse: any InUseChecking) in
-        CandidateCheck(catalog: Catalog(rules: fixtureRules), running: NothingRunning(), inUse: inUse, home: fixtureNoHome).check(try #require(item))
+        CandidateCheck(catalog: Catalog(rules: fixtureRules), running: FixtureNothingRunning(), inUse: inUse, home: fixtureNoHome).check(try #require(item))
     }
     #expect(try check(found["dirty/node_modules"], openUse) == nil)
     #expect(try check(found["recent/node_modules"], openUse) == nil)
@@ -122,7 +122,7 @@ private struct FakeInUse: InUseChecking {
     try file(folder, "app/package.json"); try file(folder, "app/node_modules/x.js"); try file(folder, "app/src/app.js", age: 2 * day)
     let item = try #require(offered(folder, inUse: FakeInUse(open: [folder.appendingPathComponent("app").path]))["app/node_modules"])
     #expect(item.hold == CandidateHold(.projectOpen))
-    let check = CandidateCheck(catalog: Catalog(rules: fixtureRules), running: NothingRunning(), inUse: FixtureNothingInUse(), home: fixtureNoHome)
+    let check = CandidateCheck(catalog: Catalog(rules: fixtureRules), running: FixtureNothingRunning(), inUse: FixtureNothingInUse(), home: fixtureNoHome)
     #expect(check.check(item) == .recentlyEdited)
 }
 
@@ -132,7 +132,7 @@ private struct FakeInUse: InUseChecking {
     let project = try committedProject(in: folder, "app")
     let item = try #require(offered(folder)["app/node_modules"])
     let check = { (inUse: any InUseChecking) in
-        CandidateCheck(catalog: Catalog(rules: fixtureRules), running: NothingRunning(), inUse: inUse, home: fixtureNoHome).check(item)
+        CandidateCheck(catalog: Catalog(rules: fixtureRules), running: FixtureNothingRunning(), inUse: inUse, home: fixtureNoHome).check(item)
     }
     #expect(check(FixtureNothingInUse()) == nil)
     #expect(check(FakeInUse(open: [project.path])) == .projectOpen)
@@ -164,8 +164,6 @@ private struct FakeInUse: InUseChecking {
     #expect(Set(offered(folder).keys) == ["site/node_modules"])
 }
 
-private struct NothingRunning: RunningAppChecking { func isRunning(_ owner: RuleOwner) -> Bool? { false } }
-
 @Test func theWalkNeverLooksInsideAFoundBuildFolderButFindsNestedProjects() throws {
     let folder = try pickedFolder()
     defer { try? FileManager.default.removeItem(at: folder) }
@@ -187,8 +185,8 @@ private struct NothingRunning: RunningAppChecking { func isRunning(_ owner: Rule
     #expect(RecommendedPlan(catalog: catalog, candidates: [item], check: { _ in nil }).candidates.isEmpty)
 
     let journal = try SQLiteCleanupJournal(url: trash.appendingPathComponent("journal.sqlite"))
-    let check = CandidateCheck(catalog: catalog, running: NothingRunning(), inUse: FixtureNothingInUse(), home: fixtureNoHome)
-    let result = await CleanupExecutor(journal: journal, check: check, measure: { _ in nil }, trash: FolderTrash(folder: trash.appendingPathComponent("Trash")))
+    let check = CandidateCheck(catalog: catalog, running: FixtureNothingRunning(), inUse: FixtureNothingInUse(), home: fixtureNoHome)
+    let result = await CleanupExecutor(journal: journal, check: check, measure: { _ in nil }, trash: FixtureFolderTrash(folder: trash.appendingPathComponent("Trash")))
         .execute(CatalogApproval(candidates: [item], previewOnly: false))
     #expect(result.records.map(\.state) == [.succeeded])
     #expect(result.records.first?.action == "moveToTrash")
@@ -198,15 +196,6 @@ private struct NothingRunning: RunningAppChecking { func isRunning(_ owner: Rule
 }
 
 /// Stands in for the Finder Trash so tests never touch the user's real Trash.
-private struct FolderTrash: TrashMoving {
-    let folder: URL
-    func moveToTrash(_ url: URL) throws -> URL? {
-        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-        let destination = folder.appendingPathComponent(url.lastPathComponent)
-        try FileManager.default.moveItem(at: url, to: destination)
-        return destination
-    }
-}
 
 /// A fake git clone: a `.git` folder with a `HEAD`, as SwiftPM leaves in `.build/checkouts`.
 private func gitClone(_ folder: URL, _ path: String) throws { try file(folder, path + "/.git/HEAD"); try file(folder, path + "/Sources/a.swift") }
@@ -227,7 +216,7 @@ private func gitClone(_ folder: URL, _ path: String) throws { try file(folder, p
     let found = offered(folder)
     #expect(Set(found.keys) == ["pkg/.build"])
     let item = try #require(found["pkg/.build"])
-    let check = CandidateCheck(catalog: Catalog(rules: fixtureRules), running: NothingRunning(), inUse: FixtureNothingInUse(), home: fixtureNoHome)
+    let check = CandidateCheck(catalog: Catalog(rules: fixtureRules), running: FixtureNothingRunning(), inUse: FixtureNothingInUse(), home: fixtureNoHome)
     #expect(check.check(item) == nil)
 
     // A git working tree that appears elsewhere in it after the scan is refused at the check.

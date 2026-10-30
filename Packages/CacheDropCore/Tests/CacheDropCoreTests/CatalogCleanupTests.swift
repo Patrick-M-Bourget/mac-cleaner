@@ -157,17 +157,7 @@ func aCacheHoldingOneOfOurOwnFoldersIsProtected(name: String) throws {
 }
 
 /// A fake volume whose available space grows by what each item frees.
-private final class FakeVolume: @unchecked Sendable {
-    private let lock = NSLock()
-    private var available: Int64 = 1_000_000
-    var freedPerRead: [Int64] = []
-    func read(_ url: URL) -> CapacitySample? {
-        lock.lock(); defer { lock.unlock() }
-        if !freedPerRead.isEmpty { available += freedPerRead.removeFirst() }
-        return CapacitySample(available: available, total: 10_000_000, volumeID: "fake-volume", metric: .important, date: Date())
-    }
-}
-private func executor(_ home: URL, running: FakeRunning = FakeRunning(), catalog: Catalog = Catalog(rules: fixtureRules), volume: FakeVolume = FakeVolume()) throws -> (CleanupExecutor, SQLiteCleanupJournal) {
+private func executor(_ home: URL, running: FakeRunning = FakeRunning(), catalog: Catalog = Catalog(rules: fixtureRules), volume: FixtureVolume = FixtureVolume()) throws -> (CleanupExecutor, SQLiteCleanupJournal) {
     let journal = try SQLiteCleanupJournal(url: home.appendingPathComponent("journal.sqlite"))
     return (CleanupExecutor(journal: journal, check: CandidateCheck(catalog: catalog, running: running), measure: volume.read, trash: TrashNeverUsed()), journal)
 }
@@ -177,7 +167,7 @@ private func executor(_ home: URL, running: FakeRunning = FakeRunning(), catalog
     defer { try? FileManager.default.removeItem(at: home) }
     let cache = try writeNpmCache(in: home)
     let candidate = try npmCandidate(home)
-    let volume = FakeVolume()
+    let volume = FixtureVolume()
     volume.freedPerRead = [0, 4096]
     let (run, journal) = try executor(home, volume: volume)
     let approval = CatalogApproval(candidates: [candidate], previewOnly: false)

@@ -13,7 +13,6 @@ private func write(_ root: URL, _ relative: String, bytes: Int = 100) throws {
     try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
     try Data(repeating: 1, count: bytes).write(to: file)
 }
-private struct NothingRunning: RunningAppChecking { func isRunning(_ owner: RuleOwner) -> Bool? { false } }
 private let cargoOnly = Catalog(rules: fixtureRules.filter { $0.id == "cargo-cache" })
 
 @Test func aCacheReachedThroughASymlinkOutOfHomeIsNeverOffered() throws {
@@ -32,7 +31,7 @@ private let cargoOnly = Catalog(rules: fixtureRules.filter { $0.id == "cargo-cac
     // The same folder, moved out of home and reached through a symlink: identity alone would pass it.
     try FileManager.default.moveItem(at: home.appendingPathComponent(".cargo"), to: outside.appendingPathComponent("cargo"))
     try FileManager.default.createSymbolicLink(at: home.appendingPathComponent(".cargo"), withDestinationURL: outside.appendingPathComponent("cargo"))
-    #expect(CandidateCheck(catalog: cargoOnly, running: NothingRunning()).check(candidate) == .changed)
+    #expect(CandidateCheck(catalog: cargoOnly, running: FixtureNothingRunning()).check(candidate) == .changed)
 }
 
 @Test func excludedItemsAreNeverCandidates() throws {
@@ -56,7 +55,7 @@ private let cargoOnly = Catalog(rules: fixtureRules.filter { $0.id == "cargo-cac
     #expect(cargoOnly.discover(fixture: home).map(\.url.lastPathComponent) == ["registry"])
     let registry = try #require(cargoOnly.discover(fixture: home).first)
     try write(home, ".cargo/registry/src/crate/v1/.git/HEAD")
-    #expect(CandidateCheck(catalog: cargoOnly, running: NothingRunning()).check(registry) == .protected(".git"))
+    #expect(CandidateCheck(catalog: cargoOnly, running: FixtureNothingRunning()).check(registry) == .protected(".git"))
 }
 
 @Test func aDeleteThatFailsPartwayIsRecordedAsPartlyRemovedAndOfferedAgain() async throws {
@@ -71,7 +70,7 @@ private let cargoOnly = Catalog(rules: fixtureRules.filter { $0.id == "cargo-cac
     let candidate = try #require(cargoOnly.discover(fixture: home).first)
     try FileManager.default.setAttributes([.posixPermissions: 0o500], ofItemAtPath: locked.path)
     let journal = try SQLiteCleanupJournal(url: home.appendingPathComponent("journal.sqlite"))
-    let run = CleanupExecutor(journal: journal, check: CandidateCheck(catalog: cargoOnly, running: NothingRunning()), measure: { _ in nil }, trash: TrashNeverUsed())
+    let run = CleanupExecutor(journal: journal, check: CandidateCheck(catalog: cargoOnly, running: FixtureNothingRunning()), measure: { _ in nil }, trash: TrashNeverUsed())
     let record = try #require(await run.execute(CatalogApproval(candidates: [candidate], previewOnly: false)).records.first)
     #expect(record.state == .failed)
     #expect(record.partlyRemoved == true)
@@ -103,7 +102,7 @@ private let cargoOnly = Catalog(rules: fixtureRules.filter { $0.id == "cargo-cac
     #expect(found.allSatisfy { $0.action == .delete })
     for leftover in found {
         #expect(catalog.owner(for: leftover) == nil)
-        #expect(CandidateCheck(catalog: catalog, running: NothingRunning()).check(leftover) == nil)
+        #expect(CandidateCheck(catalog: catalog, running: FixtureNothingRunning()).check(leftover) == nil)
     }
 }
 
@@ -130,7 +129,7 @@ private final class RecordingTrash: TrashMoving, @unchecked Sendable {
     }
     let trash = RecordingTrash()
     let journal = try SQLiteCleanupJournal(url: home.appendingPathComponent("journal.sqlite"))
-    let run = CleanupExecutor(journal: journal, check: CandidateCheck(catalog: catalog, running: NothingRunning()), measure: swap, trash: trash)
+    let run = CleanupExecutor(journal: journal, check: CandidateCheck(catalog: catalog, running: FixtureNothingRunning()), measure: swap, trash: trash)
     let record = try #require(await run.execute(CatalogApproval(candidates: [candidate], previewOnly: false)).records.first)
     #expect(trash.calls.isEmpty)
     #expect(record.state == .skipped)
@@ -173,6 +172,6 @@ private final class RecordingTrash: TrashMoving, @unchecked Sendable {
     let catalog = Catalog(rules: fixtureRules)
     let found = catalog.discover(fixture: home)
     #expect(Set(found.map(\.url.lastPathComponent)) == ["kept.dmg", "Editor", "registry"])
-    let check = CandidateCheck(catalog: catalog, running: NothingRunning())
+    let check = CandidateCheck(catalog: catalog, running: FixtureNothingRunning())
     for candidate in found { #expect(check.check(candidate) == nil, "\(candidate.url.path)") }
 }

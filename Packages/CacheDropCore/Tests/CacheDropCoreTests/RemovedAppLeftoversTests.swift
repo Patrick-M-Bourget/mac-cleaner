@@ -220,23 +220,13 @@ private func check(_ home: URL, running: Running = Running(), apps: Apps = Apps(
     #expect(forged.map(check(home).check).allSatisfy { if case .protected = $0 { true } else { false } })
 }
 
-private struct FixtureHomeTrash: TrashMoving {
-    let home: URL
-    func moveToTrash(_ url: URL) throws -> URL? {
-        let destination = home.appendingPathComponent(".Trash/" + url.lastPathComponent)
-        try FileManager.default.createDirectory(at: destination.deletingLastPathComponent(), withIntermediateDirectories: true)
-        try FileManager.default.moveItem(at: url, to: destination)
-        return destination
-    }
-}
-
 @Test func leftoversGoToTrashAndPutBackRestoresThem() async throws {
     let home = try fixtureHome()
     defer { try? FileManager.default.removeItem(at: home) }
     try write(home, "Library/Caches/com.gone.synth/Cache.db", bytes: 2_000)
     let found = scan(home)
     let journal = try SQLiteCleanupJournal(url: home.appendingPathComponent("journal.sqlite"))
-    let executor = CleanupExecutor(journal: journal, check: check(home), measure: { _ in nil }, trash: FixtureHomeTrash(home: home))
+    let executor = CleanupExecutor(journal: journal, check: check(home), measure: { _ in nil }, trash: FixtureFolderTrash(folder: home.appendingPathComponent(".Trash")))
 
     let result = await executor.execute(CatalogApproval(candidates: found, previewOnly: false))
     let record = try #require(result.records.first)
@@ -256,7 +246,7 @@ private struct FixtureHomeTrash: TrashMoving {
     let chosen = scan(home).filter { $0.ruleID == RemovedAppLeftovers.possiblyRelatedRuleID }
     #expect(names(chosen) == ["Gone"])
     let journal = try SQLiteCleanupJournal(url: home.appendingPathComponent("journal.sqlite"))
-    let executor = CleanupExecutor(journal: journal, check: check(home), measure: { _ in nil }, trash: FixtureHomeTrash(home: home))
+    let executor = CleanupExecutor(journal: journal, check: check(home), measure: { _ in nil }, trash: FixtureFolderTrash(folder: home.appendingPathComponent(".Trash")))
 
     let result = await executor.execute(CatalogApproval(candidates: chosen, previewOnly: false))
     let record = try #require(result.records.first)

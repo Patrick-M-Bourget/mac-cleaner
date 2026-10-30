@@ -28,10 +28,6 @@ private func write(_ bytes: Int, at relative: String, in home: URL) throws {
     #expect(catalog.rule("photos-library")?.action == .guidance)
 }
 
-private struct NothingRunning: RunningAppChecking {
-    func isRunning(_ owner: RuleOwner) -> Bool? { false }
-}
-
 @Test func aGuidanceItemThatReachesTheExecutorIsRefusedAndLeftAsIs() async throws {
     let home = try guidanceHome()
     defer { try? FileManager.default.removeItem(at: home) }
@@ -44,7 +40,7 @@ private struct NothingRunning: RunningAppChecking {
     // Discovery never builds one; this stands in for a bug or a forged plan.
     var candidate = catalog.candidate(rule, archives, info, logical: 8192, allocated: nil, complete: true, lastUsed: nil)
     candidate.scopeRoot = home
-    let check = CandidateCheck(catalog: catalog, running: NothingRunning())
+    let check = CandidateCheck(catalog: catalog, running: FixtureNothingRunning())
     #expect(check.check(candidate) == .guidanceOnly)
 
     let journal = try SQLiteCleanupJournal(url: home.appendingPathComponent("journal.sqlite"))

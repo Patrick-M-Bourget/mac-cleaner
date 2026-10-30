@@ -6,16 +6,6 @@ import Testing
 // only when you ask. Every test uses a temp home whose `.Trash` stands in for the Finder Trash; the real Trash is never
 // read or changed.
 
-private struct FixtureHomeTrash: TrashMoving {
-    let home: URL
-    func moveToTrash(_ url: URL) throws -> URL? {
-        let destination = home.appendingPathComponent(".Trash/" + url.lastPathComponent)
-        try FileManager.default.moveItem(at: url, to: destination)
-        return destination
-    }
-}
-private struct Closed: RunningAppChecking { func isRunning(_ owner: RuleOwner) -> Bool? { false } }
-
 /// A fixed reading around each item: 4 KB more available after than before.
 private let fixtureMeasure: @Sendable (URL) -> CapacitySample? = { _ in
     CapacitySample(available: 1_000_000, total: 10_000_000, volumeID: "fixture", metric: .important, date: Date(timeIntervalSince1970: 0))
@@ -61,7 +51,7 @@ private func trashedInstallers(_ names: [String] = ["Setup.dmg", "Other.pkg"], p
     for name in names { try Data(repeating: 4, count: 3_000).write(to: home.appendingPathComponent("Downloads/" + name)) }
     let candidates = Catalog(rules: fixtureRules).discover(fixture: home)
     let journal = try SQLiteCleanupJournal(url: home.appendingPathComponent("journal.sqlite"))
-    let executor = CleanupExecutor(journal: journal, check: CandidateCheck(catalog: Catalog(rules: fixtureRules), running: Closed()), measure: { _ in nil },
+    let executor = CleanupExecutor(journal: journal, check: CandidateCheck(catalog: Catalog(rules: fixtureRules), running: FixtureNothingRunning()), measure: { _ in nil },
                                    trash: FixtureHomeTrash(home: home))
     let result = await executor.execute(CatalogApproval(candidates: candidates, previewOnly: previewOnly))
     #expect(result.records.count == names.count)

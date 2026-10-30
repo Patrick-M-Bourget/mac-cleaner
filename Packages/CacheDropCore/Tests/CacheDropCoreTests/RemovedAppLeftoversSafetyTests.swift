@@ -141,7 +141,6 @@ private func confirmed(_ found: [Candidate]) -> Set<String> { names(found.filter
 }
 
 /// Running nothing; the check reads presence from `apps`.
-private struct NothingRunning: RunningAppChecking { func isRunning(_ owner: RuleOwner) -> Bool? { false } }
 
 @Test func theCheckBeforeActingAppliesTheSameRules() throws {
     let home = try fixtureFolder("Home"), root = try fixtureFolder("Root")
@@ -162,7 +161,7 @@ private struct NothingRunning: RunningAppChecking { func isRunning(_ owner: Rule
             item.leftover = LeftoverTie(app: "Gone", bundleID: id, vendor: RemovedAppLeftovers.vendor(of: id), evidence: .bundleID)
             return try #require(item.found(under: home) as Candidate?)
         }
-    let check = CandidateCheck(catalog: catalog, running: NothingRunning(), inUse: FixtureNothingInUse(), home: home, apps: installed(home, root))
+    let check = CandidateCheck(catalog: catalog, running: FixtureNothingRunning(), inUse: FixtureNothingInUse(), home: home, apps: installed(home, root))
 
     #expect(forged.map(check.check).allSatisfy { $0 != nil }, "\(forged.map(check.check))")
 }

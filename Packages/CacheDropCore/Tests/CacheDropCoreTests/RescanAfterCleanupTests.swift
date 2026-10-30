@@ -35,13 +35,12 @@ import CacheDropCore
     defer { try? FileManager.default.removeItem(at: home) }
     try FileManager.default.createDirectory(at: home.appendingPathComponent("item"), withIntermediateDirectories: true)
     try Data(count: 4096).write(to: home.appendingPathComponent("item/blob"))
-    struct Closed: RunningAppChecking { func isRunning(_ owner: RuleOwner) -> Bool? { false } }
     let catalog = Catalog(rules: [CleanupRule(id: "item", category: .developer, title: "Item", detail: "", consequence: "", regen: .cache, action: .delete,
                                               locations: ["item"], owner: nil)])
     let shown = catalog.discover(fixture: home)
     try #require(shown.count == 1)
     let journal = try SQLiteCleanupJournal(url: home.appendingPathComponent("j.sqlite"))
-    let result = await CleanupExecutor(journal: journal, check: CandidateCheck(catalog: catalog, running: Closed()), measure: { _ in nil }, trash: TrashNeverUsed())
+    let result = await CleanupExecutor(journal: journal, check: CandidateCheck(catalog: catalog, running: FixtureNothingRunning()), measure: { _ in nil }, trash: TrashNeverUsed())
         .execute(CatalogApproval(candidates: shown, previewOnly: true))
     #expect(result.cleanedCandidateIDs == shown.map(\.id))
     #expect(result.keptDuringRescan(shown) == shown)

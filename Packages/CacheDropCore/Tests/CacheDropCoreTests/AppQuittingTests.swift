@@ -110,6 +110,8 @@ private final class FakeQuitter: AppQuitting, @unchecked Sendable {
 
     #expect(quitter.requestQuit(["com.maker.synth"]))
     #expect(await quitter.waitUntilClosed(["com.maker.synth"], timeout: .seconds(5)))
+    // The process can disappear from libproc before Foundation delivers its termination notification.
+    synth.waitUntilExit()
     #expect(!synth.isRunning)
     #expect(!quitter.isOpen(["com.maker.synth"]))
 }

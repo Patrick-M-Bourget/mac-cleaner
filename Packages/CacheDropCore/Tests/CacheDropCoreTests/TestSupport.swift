@@ -24,6 +24,55 @@ struct TrashNeverUsed: TrashMoving {
     }
 }
 
+/// No owning app or tool is running in tests that do not exercise owner checks.
+struct FixtureNothingRunning: RunningAppChecking {
+    func isRunning(_ owner: RuleOwner) -> Bool? { false }
+}
+
+/// A fixed reading on one fixture volume, for tests that do not measure changing free space.
+struct FixtureSameVolume {
+    func read(_ url: URL) -> CapacitySample? {
+        CapacitySample(available: 1_000, total: 10_000, volumeID: "fake", metric: .important, date: Date())
+    }
+}
+
+/// Free space advances by each test-supplied amount; every instance belongs to one test.
+final class FixtureVolume: @unchecked Sendable {
+    private let lock = NSLock()
+    private var available: Int64 = 1_000_000
+    private var changes: [Int64] = []
+    var freedPerRead: [Int64] {
+        get { lock.lock(); defer { lock.unlock() }; return changes }
+        set { lock.lock(); defer { lock.unlock() }; changes = newValue }
+    }
+    func read(_ url: URL) -> CapacitySample? {
+        lock.lock(); defer { lock.unlock() }
+        if !changes.isEmpty { available += changes.removeFirst() }
+        return CapacitySample(available: available, total: 10_000_000, volumeID: "fake-volume", metric: .important, date: Date())
+    }
+}
+
+/// Moves to a fixture home's existing Trash; tests create that folder when required.
+struct FixtureHomeTrash: TrashMoving {
+    let home: URL
+    func moveToTrash(_ url: URL) throws -> URL? {
+        let destination = home.appendingPathComponent(".Trash/" + url.lastPathComponent)
+        try FileManager.default.moveItem(at: url, to: destination)
+        return destination
+    }
+}
+
+/// Creates a fixture destination folder before moving an item into it unchanged.
+struct FixtureFolderTrash: TrashMoving {
+    let folder: URL
+    func moveToTrash(_ url: URL) throws -> URL? {
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let destination = folder.appendingPathComponent(url.lastPathComponent)
+        try FileManager.default.moveItem(at: url, to: destination)
+        return destination
+    }
+}
+
 extension Catalog {
     /// Discovery as tests run it, reading nothing outside the fixture: the fixture home stands in for the system root,
     /// no tool is installed unless `locateTool` finds a stand-in, there's no user folder unless one is given,

@@ -23,12 +23,10 @@ private func fakeUV(_ home: URL, dir: String, prune: String = "exit 0") throws -
     try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: tool.path)
     return tool
 }
-private struct NothingRunning: RunningAppChecking { func isRunning(_ owner: RuleOwner) -> Bool? { false } }
-private struct SameVolume { func read(_ url: URL) -> CapacitySample? { CapacitySample(available: 1_000, total: 10_000, volumeID: "fake", metric: .important, date: Date()) } }
 
 private func execute(_ candidate: Candidate, catalog: Catalog, home: URL, previewOnly: Bool = false) async throws -> CleanupRecord {
     let journal = try SQLiteCleanupJournal(url: home.appendingPathComponent("journal.sqlite"))
-    let run = CleanupExecutor(journal: journal, check: CandidateCheck(catalog: catalog, running: NothingRunning()), measure: SameVolume().read, trash: TrashNeverUsed())
+    let run = CleanupExecutor(journal: journal, check: CandidateCheck(catalog: catalog, running: FixtureNothingRunning()), measure: FixtureSameVolume().read, trash: TrashNeverUsed())
     return try #require(await run.execute(CatalogApproval(candidates: [candidate], previewOnly: previewOnly)).records.first)
 }
 

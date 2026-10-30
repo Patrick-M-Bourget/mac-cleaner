@@ -716,7 +716,7 @@ private final class Counter: @unchecked Sendable {
     // Before and after the build cache, before and after Yarn's cache (5 kB freed), then a minute later 2 MB more.
     volume.freedPerRead = [0, 100, 0, 5_000, 2_000_000]
     let journal = try SQLiteCleanupJournal(url: home.appendingPathComponent("journal.sqlite"))
-    let run = CleanupExecutor(journal: journal, check: CandidateCheck(catalog: catalog, running: NothingRunning()), measure: volume.read, trash: TrashNeverUsed())
+    let run = CleanupExecutor(journal: journal, check: CandidateCheck(catalog: catalog, running: FixtureNothingRunning()), measure: volume.read, trash: TrashNeverUsed())
     let approval = CatalogApproval(candidates: [cache, yarn], previewOnly: false)
     let result = await run.execute(approval)
     #expect(result.records.map(\.state) == [.succeeded, .succeeded])
@@ -724,7 +724,6 @@ private final class Counter: @unchecked Sendable {
     #expect(later.settledLine(checked: true) == "2 MB more free a minute later")
 }
 /// No owner is running, so an owned rule such as Yarn's is cleaned.
-private struct NothingRunning: RunningAppChecking { func isRunning(_ owner: RuleOwner) -> Bool? { false } }
 
 /// #411: the review sheet says before the run, once, that Docker's space reaches macOS a little after its prune, so
 /// Results' "check again" isn't a surprise. Nothing else gets the note.

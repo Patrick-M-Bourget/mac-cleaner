@@ -66,15 +66,6 @@ private let hub = ".cache/huggingface/hub"
 }
 
 /// Stands in for the Finder Trash so tests never touch the user's real Trash.
-private struct FixtureTrash: TrashMoving {
-    let folder: URL
-    func moveToTrash(_ url: URL) throws -> URL? {
-        let destination = folder.appendingPathComponent(url.lastPathComponent)
-        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-        try FileManager.default.moveItem(at: url, to: destination)
-        return destination
-    }
-}
 private struct Running: RunningAppChecking {
     var names: Set<String> = []
     func isRunning(_ owner: RuleOwner) -> Bool? { names.contains(owner.name) }
@@ -82,7 +73,7 @@ private struct Running: RunningAppChecking {
 private func run(_ home: URL, _ candidates: [Candidate], running: Running = Running(), previewOnly: Bool = false) async throws -> CatalogExecutionResult {
     let journal = try SQLiteCleanupJournal(url: home.appendingPathComponent("journal.sqlite"))
     let check = CandidateCheck(catalog: Catalog(rules: fixtureRules), running: running)
-    let executor = CleanupExecutor(journal: journal, check: check, measure: { _ in nil }, trash: FixtureTrash(folder: home.appendingPathComponent("FixtureTrash")))
+    let executor = CleanupExecutor(journal: journal, check: check, measure: { _ in nil }, trash: FixtureFolderTrash(folder: home.appendingPathComponent("FixtureFolderTrash")))
     return await executor.execute(CatalogApproval(candidates: candidates, previewOnly: previewOnly))
 }
 

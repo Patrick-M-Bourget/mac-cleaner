@@ -79,8 +79,6 @@ private func state(downloaded: CloudDownloadState = .current, uploaded: Bool? = 
     #expect(getiopolicy_np(IOPOL_TYPE_VFS_MATERIALIZE_DATALESS_FILES, IOPOL_SCOPE_THREAD) != IOPOL_MATERIALIZE_DATALESS_FILES_OFF)
 }
 
-private struct NothingRunning: RunningAppChecking { func isRunning(_ owner: RuleOwner) -> Bool? { false } }
-
 @Test func theCheckJustBeforeActingRefusesCopiesThatMustNowStay() throws {
     let (home, drive) = try cloudHome()
     defer { try? FileManager.default.removeItem(at: home) }
@@ -88,7 +86,7 @@ private struct NothingRunning: RunningAppChecking { func isRunning(_ owner: Rule
     let cloud = FakeCloud([file: state()])
     let catalog = Catalog(rules: fixtureRules)
     let candidate = try #require(catalog.discover(fixture: home, cloud: cloud).first)
-    let check = CandidateCheck(catalog: catalog, running: NothingRunning(), cloud: cloud)
+    let check = CandidateCheck(catalog: catalog, running: FixtureNothingRunning(), cloud: cloud)
     #expect(check.check(candidate) == nil)
     let cases: [(CloudMetadata, CheckRefusal)] = [
         (state(pinned: true), .keptDownloaded), (state(pinned: nil), .cloudUnknown), (state(uploaded: false), .notUploaded),
@@ -103,19 +101,9 @@ private struct NothingRunning: RunningAppChecking { func isRunning(_ owner: Rule
 }
 
 /// Available space that grows by what each removal frees.
-private final class GrowingVolume: @unchecked Sendable {
-    private let lock = NSLock()
-    private var available: Int64 = 1_000_000
-    var freedPerRead: [Int64] = []
-    func read(_ url: URL) -> CapacitySample? {
-        lock.lock(); defer { lock.unlock() }
-        if !freedPerRead.isEmpty { available += freedPerRead.removeFirst() }
-        return CapacitySample(available: available, total: 10_000_000, volumeID: "fake-volume", metric: .important, date: Date())
-    }
-}
-private func evictor(_ home: URL, cloud: FakeCloud, volume: GrowingVolume = GrowingVolume()) throws -> CleanupExecutor {
+private func evictor(_ home: URL, cloud: FakeCloud, volume: FixtureVolume = FixtureVolume()) throws -> CleanupExecutor {
     let journal = try SQLiteCleanupJournal(url: home.appendingPathComponent("journal.sqlite"))
-    let check = CandidateCheck(catalog: Catalog(rules: fixtureRules), running: NothingRunning(), cloud: cloud)
+    let check = CandidateCheck(catalog: Catalog(rules: fixtureRules), running: FixtureNothingRunning(), cloud: cloud)
     return CleanupExecutor(journal: journal, check: check, measure: volume.read, trash: TrashNeverUsed())
 }
 
@@ -128,7 +116,7 @@ private func evictor(_ home: URL, cloud: FakeCloud, volume: GrowingVolume = Grow
     let cloud = FakeCloud([file: state(), inside[0]: state(), inside[1]: state(), kept: state(pinned: true)])
     let candidates = Catalog(rules: fixtureRules).discover(fixture: home, cloud: cloud)
     #expect(candidates.count == 2)
-    let volume = GrowingVolume()
+    let volume = FixtureVolume()
     volume.freedPerRead = [0, 8192, 0, 4096]
     let result = try await evictor(home, cloud: cloud, volume: volume).execute(CatalogApproval(candidates: candidates, previewOnly: false))
     #expect(result.records.map(\.state) == [.succeeded, .succeeded])

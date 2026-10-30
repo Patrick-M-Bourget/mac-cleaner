@@ -27,9 +27,6 @@ private struct Receipts: InstallerReceiptReading {
     let all: [InstallerReceipt]
     func receipts() -> [InstallerReceipt] { all }
 }
-private struct NothingRuns: RunningAppChecking {
-    func isRunning(_ owner: RuleOwner) -> Bool? { false }
-}
 
 /// A fixture home with an npm cache, an old and a new installer, a receipt-tied leftover and a possibly related one.
 private func fixture(now: Date) throws -> (home: URL, sources: SmartCleanReport.Sources) {
@@ -45,7 +42,7 @@ private func fixture(now: Date) throws -> (home: URL, sources: SmartCleanReport.
                                                    paths: [home.path + "/Library/Application Support/FooData/presets.db"])])
     let sources = SmartCleanReport.Sources(catalog: Catalog(rules: fixtureRules), home: home, userFolder: nil, exclusions: ExclusionPolicy(), apps: Apps(),
                                            receipts: receipts, locateTool: { _ in nil }, systemRoot: home, cloud: FakeCloud(), inUse: FixtureNothingInUse(),
-                                           running: NothingRuns(), access: .granted)
+                                           running: FixtureNothingRunning(), access: .granted)
     return (home, sources)
 }
 

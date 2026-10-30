@@ -72,8 +72,6 @@ private func owner(_ id: String) throws -> RuleOwner { try #require(fixtureRules
     #expect(greedy.discover(fixture: home).map(\.url.lastPathComponent) == ["Yarn"])
 }
 
-private struct NothingRunning: RunningAppChecking { func isRunning(_ owner: RuleOwner) -> Bool? { false } }
-
 @Test func aFolderHoldingACcacheStoreIsRefusedJustBeforeActing() throws {
     let home = try fixtureHome()
     defer { try? FileManager.default.removeItem(at: home) }
@@ -81,7 +79,7 @@ private struct NothingRunning: RunningAppChecking { func isRunning(_ owner: Rule
     let catalog = Catalog(rules: fixtureRules)
     let candidate = try #require(catalog.discover(fixture: home).first)
     try makeFolder(home, "Library/Caches/pip/ccache")
-    #expect(CandidateCheck(catalog: catalog, running: NothingRunning()).check(candidate) == .protected("ccache"))
+    #expect(CandidateCheck(catalog: catalog, running: FixtureNothingRunning()).check(candidate) == .protected("ccache"))
 }
 
 /// A stand-in tool script inside the fixture; the real brew is never run by tests.
@@ -115,18 +113,8 @@ private func fakeTool(_ home: URL, _ script: String) throws -> URL {
 }
 
 /// A fake volume whose available space grows by what each item frees.
-private final class FakeVolume: @unchecked Sendable {
-    private let lock = NSLock()
-    private var available: Int64 = 1_000_000
-    var freedPerRead: [Int64] = []
-    func read(_ url: URL) -> CapacitySample? {
-        lock.lock(); defer { lock.unlock() }
-        if !freedPerRead.isEmpty { available += freedPerRead.removeFirst() }
-        return CapacitySample(available: available, total: 10_000_000, volumeID: "fake-volume", metric: .important, date: Date())
-    }
-}
 /// The Homebrew rule pointed at a fake brew, optionally with a shorter time limit.
-private func homebrewRun(_ home: URL, script: String, timeout: TimeInterval? = nil, volume: FakeVolume = FakeVolume(), previewOnly: Bool = false) async throws -> CatalogExecutionResult {
+private func homebrewRun(_ home: URL, script: String, timeout: TimeInterval? = nil, volume: FixtureVolume = FixtureVolume(), previewOnly: Bool = false) async throws -> CatalogExecutionResult {
     let brew = try fakeTool(home, script)
     var rules = fixtureRules
     if let timeout, let index = rules.firstIndex(where: { $0.id == "homebrew" }) {
@@ -137,7 +125,7 @@ private func homebrewRun(_ home: URL, script: String, timeout: TimeInterval? = n
     let catalog = Catalog(rules: rules)
     let candidate = try #require(catalog.discover(fixture: home, locateTool: onlyTool("brew", brew)).first)
     let journal = try SQLiteCleanupJournal(url: home.appendingPathComponent("journal.sqlite"))
-    let run = CleanupExecutor(journal: journal, check: CandidateCheck(catalog: catalog, running: NothingRunning()), measure: volume.read, trash: TrashNeverUsed())
+    let run = CleanupExecutor(journal: journal, check: CandidateCheck(catalog: catalog, running: FixtureNothingRunning()), measure: volume.read, trash: TrashNeverUsed())
     return await run.execute(CatalogApproval(candidates: [candidate], previewOnly: previewOnly))
 }
 
@@ -145,7 +133,7 @@ private func homebrewRun(_ home: URL, script: String, timeout: TimeInterval? = n
     let home = try fixtureHome()
     defer { try? FileManager.default.removeItem(at: home) }
     try makeFolder(home, "Library/Caches/Homebrew", bytes: 2000)
-    let volume = FakeVolume()
+    let volume = FixtureVolume()
     volume.freedPerRead = [0, 8192]
     let marker = home.appendingPathComponent("ran")
     let result = try await homebrewRun(home, script: "echo \"$@\" > '\(marker.path)'\necho 'Removing: /opt/homebrew/Cellar/node/20.1 (2,000 files, 60MB)'", volume: volume)
@@ -232,7 +220,7 @@ private func homebrewRun(_ home: URL, script: String, timeout: TimeInterval? = n
 }
 
 /// Homebrew's cleanup followed by a plain delete (pnpm's metadata cache), run with `cancellation`.
-private func cancellableRun(_ home: URL, brewScript: String, cancellation: CleanupCancellation, measure: @escaping @Sendable (URL) -> CapacitySample? = FakeVolume().read) async throws -> CatalogExecutionResult {
+private func cancellableRun(_ home: URL, brewScript: String, cancellation: CleanupCancellation, measure: @escaping @Sendable (URL) -> CapacitySample? = FixtureVolume().read) async throws -> CatalogExecutionResult {
     try makeFolder(home, "Library/Caches/Homebrew")
     try makeFolder(home, "Library/Caches/pnpm")
     let brew = try fakeTool(home, brewScript)
@@ -241,7 +229,7 @@ private func cancellableRun(_ home: URL, brewScript: String, cancellation: Clean
     let homebrew = try #require(found.first { $0.ruleID == "homebrew" })
     let pnpm = try #require(found.first { $0.ruleID == "pnpm-cache" })
     let journal = try SQLiteCleanupJournal(url: home.appendingPathComponent("journal.sqlite"))
-    let run = CleanupExecutor(journal: journal, check: CandidateCheck(catalog: catalog, running: NothingRunning()), measure: measure, trash: TrashNeverUsed(), cancellation: cancellation)
+    let run = CleanupExecutor(journal: journal, check: CandidateCheck(catalog: catalog, running: FixtureNothingRunning()), measure: measure, trash: TrashNeverUsed(), cancellation: cancellation)
     return await run.execute(CatalogApproval(candidates: [homebrew, pnpm], previewOnly: false))
 }
 
@@ -348,7 +336,7 @@ private func cancellableRun(_ home: URL, brewScript: String, cancellation: Clean
     #expect(metadata.ruleID == "pnpm-cache" && metadata.action == .delete)
 
     let journal = try SQLiteCleanupJournal(url: home.appendingPathComponent("journal.sqlite"))
-    let run = CleanupExecutor(journal: journal, check: CandidateCheck(catalog: catalog, running: NothingRunning()), measure: FakeVolume().read, trash: TrashNeverUsed())
+    let run = CleanupExecutor(journal: journal, check: CandidateCheck(catalog: catalog, running: FixtureNothingRunning()), measure: FixtureVolume().read, trash: TrashNeverUsed())
     let result = await run.execute(CatalogApproval(candidates: [store], previewOnly: false))
     #expect(result.records.first?.state == .succeeded)
     #expect(try String(contentsOf: marker, encoding: .utf8) == "store prune\n")

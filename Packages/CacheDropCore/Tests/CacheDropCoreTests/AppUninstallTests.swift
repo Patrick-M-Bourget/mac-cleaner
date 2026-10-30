@@ -15,14 +15,6 @@ private struct Running: RunningAppChecking {
     var names: Set<String> = []
     func isRunning(_ owner: RuleOwner) -> Bool? { names.contains(owner.name) }
 }
-private struct HomeTrash: TrashMoving {
-    let home: URL
-    func moveToTrash(_ url: URL) throws -> URL? {
-        let destination = home.appendingPathComponent(".Trash/" + url.lastPathComponent)
-        try FileManager.default.moveItem(at: url, to: destination)
-        return destination
-    }
-}
 
 /// A home with Synth installed (its bundle, container, preferences and a folder only named like it) and the leftovers of an
 /// app removed earlier.
@@ -106,7 +98,7 @@ private func names(_ items: [Candidate], _ rule: String) -> Set<String> { Set(it
     chmod(app.path, 0o555)
 
     let journal = try SQLiteCleanupJournal(url: home.appendingPathComponent("journal.sqlite"))
-    let result = await CleanupExecutor(journal: journal, check: check(home), measure: { _ in nil }, trash: HomeTrash(home: home))
+    let result = await CleanupExecutor(journal: journal, check: check(home), measure: { _ in nil }, trash: FixtureHomeTrash(home: home))
         .execute(CatalogApproval(candidates: [bundle], previewOnly: false))
 
     #expect(result.records.first?.state == .skipped)
@@ -167,7 +159,7 @@ private struct Processes: ProcessListing {
     let chosen = scan(home, synth, apps).filter { $0.ruleID != AppUninstall.possiblyRelatedRuleID }
     let journal = try SQLiteCleanupJournal(url: home.appendingPathComponent("journal.sqlite"))
 
-    let result = await CleanupExecutor(journal: journal, check: check(home), measure: { _ in nil }, trash: HomeTrash(home: home))
+    let result = await CleanupExecutor(journal: journal, check: check(home), measure: { _ in nil }, trash: FixtureHomeTrash(home: home))
         .execute(CatalogApproval(candidates: chosen, previewOnly: false))
 
     #expect(result.records.count == 3 && result.records.allSatisfy { $0.state == .succeeded })
@@ -271,7 +263,7 @@ private struct Processes: ProcessListing {
     #expect(names(found, AppUninstall.appRuleID) == ["Synth.app", "Uninstall Synth.app"], "It goes with the app, in its App group")
     let journal = try SQLiteCleanupJournal(url: home.appendingPathComponent("journal.sqlite"))
     let installed = Apps(installed: [app])
-    _ = await CleanupExecutor(journal: journal, check: check(home, apps: installed), measure: { _ in nil }, trash: HomeTrash(home: home))
+    _ = await CleanupExecutor(journal: journal, check: check(home, apps: installed), measure: { _ in nil }, trash: FixtureHomeTrash(home: home))
         .execute(CatalogApproval(candidates: found.filter { $0.ruleID == AppUninstall.appRuleID }, previewOnly: false))
     #expect(try journal.completedHistory().completedRuns.first?.title == "Uninstalled Synth · 2 items")
 }
@@ -300,7 +292,7 @@ private struct Processes: ProcessListing {
     let chosen = found.filter { $0.ruleID != AppUninstall.possiblyRelatedRuleID }
     #expect(chosen.allSatisfy { check(home).check($0) == nil }, "The check before acting agrees")
     let journal = try SQLiteCleanupJournal(url: home.appendingPathComponent("journal.sqlite"))
-    let result = await CleanupExecutor(journal: journal, check: check(home), measure: { _ in nil }, trash: HomeTrash(home: home))
+    let result = await CleanupExecutor(journal: journal, check: check(home), measure: { _ in nil }, trash: FixtureHomeTrash(home: home))
         .execute(CatalogApproval(candidates: chosen, previewOnly: false))
     #expect(result.records.count == 4 && result.records.allSatisfy { $0.state == .succeeded })
     #expect(!FileManager.default.fileExists(atPath: home.appendingPathComponent("Library/Preferences/com.maker.synth.plist").path))
@@ -344,7 +336,7 @@ private func twoApps() throws -> (home: URL, synth: InstalledApp, pad: Installed
     let before = Set(scan(home, pad, Apps(installed: [synth, pad])).map(\.url))
     let synths = scan(home, synth, Apps(installed: [synth, pad]))
     let journal = try SQLiteCleanupJournal(url: home.appendingPathComponent("journal.sqlite"))
-    let result = await CleanupExecutor(journal: journal, check: check(home, apps: Apps(installed: [synth, pad])), measure: { _ in nil }, trash: HomeTrash(home: home))
+    let result = await CleanupExecutor(journal: journal, check: check(home, apps: Apps(installed: [synth, pad])), measure: { _ in nil }, trash: FixtureHomeTrash(home: home))
         .execute(CatalogApproval(candidates: synths.filter { $0.ruleID != AppUninstall.possiblyRelatedRuleID }, previewOnly: false))
     #expect(result.records.count == 3 && result.records.allSatisfy { $0.state == .succeeded })
     // Synth's support folder stays, as it wasn't ticked. Pad is installed, so its maker's files are no removed app's leftovers either.
