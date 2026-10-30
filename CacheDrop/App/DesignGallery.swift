@@ -187,7 +187,7 @@ struct DesignGallery: View {
             ActionStrip(message: "Developer gallery · Actions are inert examples") { ReviewCleanupButton(enabled: false, focusRequest: 0, action: {}) }
                 .environment(\.cacheDropBackgroundWork, BackgroundWorkStatus(line: .init(parts: [.init(id: "galleryProgress", text: "Checking Example cache… 4 of 31"), .init(id: "galleryMore", text: "+1 more")])))
             ActionStrip(message: "Developer gallery · Actions are inert examples") { ReviewCleanupButton(enabled: false, focusRequest: 0, action: {}) }
-                .environment(\.cacheDropBackgroundWork, BackgroundWorkStatus(line: .init(parts: [.init(id: "galleryFolderScan", text: "Scanning Downloads"), .init(id: "galleryPhase", text: "Reading file metadata…"), .init(id: "galleryCount", text: "1240 entries inspected")], runsFolderScan: true), stop: {}, returnToScan: {}))
+                .environment(\.cacheDropBackgroundWork, BackgroundWorkStatus(line: .init(parts: [.init(id: "galleryFolderScan", text: "Scanning Downloads"), .init(id: "galleryPhase", text: "Reading files…"), .init(id: "galleryCount", text: "1,240 files read")], runsFolderScan: true), stop: {}, returnToScan: {}))
             ActionStrip(message: "Developer gallery · Actions are inert examples") { ReviewCleanupButton(enabled: false, focusRequest: 0, action: {}) }
         }
         .cacheDropButtonRule()

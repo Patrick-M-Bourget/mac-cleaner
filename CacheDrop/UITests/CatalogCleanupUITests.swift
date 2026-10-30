@@ -2180,7 +2180,7 @@ final class FolderScanProgressUITests: XCTestCase {
             XCTAssertTrue(element.waitForExistence(timeout: 5), element.debugDescription)
             XCTAssertTrue(strip.frame.contains(element.frame), element.debugDescription)
         }
-        XCTAssertTrue((app.staticTexts["scanProgressSummary"].value as? String)?.hasSuffix("inspected") == true)
+        XCTAssertTrue((app.staticTexts["scanProgressSummary"].value as? String)?.hasSuffix(" read") == true)
         assertStopScanIsTheQuietX(strip)
         XCTAssertFalse(strip.links["Return to scan"].exists)
         XCTAssertEqual(strip.frame.height, height, accuracy: 0.5)
