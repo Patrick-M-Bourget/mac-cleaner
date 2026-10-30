@@ -1,7 +1,8 @@
 import Foundation
 
 /// Which available-space figure a reading is: for important usage, or the plain fallback.
-public enum CapacityMetric: String, Codable, Sendable { case important, available }
+/// Raw values are stored in the journal as each record's capacity metric (#448): a renamed case keeps its string.
+public enum CapacityMetric: String, Codable, Sendable { case important = "important", available = "available" }
 
 /// The volume's available space at one moment.
 public struct CapacitySample: Sendable {

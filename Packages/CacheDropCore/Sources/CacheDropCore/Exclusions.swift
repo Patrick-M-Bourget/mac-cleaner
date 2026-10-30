@@ -3,11 +3,14 @@ import Darwin
 import CryptoKit
 
 public struct ExclusionRule: Codable, Sendable, Identifiable, Equatable {
-    public enum Boundary: String, Codable, Sendable { case file, folder }
+    /// Raw values are stored in Protected items and in Storage trends' fingerprint of them (#448): a renamed case keeps its string.
+    public enum Boundary: String, Codable, Sendable { case file = "file", folder = "folder" }
     public let id: UUID
     public let path: String
     public let volumeID: String
     public let boundary: Boundary
+    /// Stored in Protected items (#448): a renamed property keeps its key here; a new field needs its key here and in the fixture.
+    private enum CodingKeys: String, CodingKey { case id = "id", path = "path", volumeID = "volumeID", boundary = "boundary" }
     public static func capture(_ url: URL) throws -> ExclusionRule {
         guard url.isFileURL else { throw CocoaError(.fileReadUnsupportedScheme) }
         let resolved = url.resolvingSymlinksInPath().standardizedFileURL
@@ -46,7 +49,10 @@ public struct ExclusionPolicy: Sendable {
 }
 /// This store owns one bounded settings file; it has no plan or cleanup/journal authority.
 public actor ExclusionStore {
-    private struct Archive: Codable { let version: Int; let rules: [ExclusionRule] }
+    private struct Archive: Codable {
+        let version: Int; let rules: [ExclusionRule]
+        private enum CodingKeys: String, CodingKey { case version = "version", rules = "rules" }
+    }
     private let directory: URL
     public init(directory: URL) { self.directory = directory }
     public func policy() throws -> ExclusionPolicy { try transaction { try read() } }

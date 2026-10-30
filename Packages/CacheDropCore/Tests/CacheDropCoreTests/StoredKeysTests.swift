@@ -173,3 +173,70 @@ private struct TrendsEnumsFixture: Codable {
     }
     #expect(enums.categories == [.developer, .browser, .downloads, .system, .models, .updaters, .logs, .icloud, .files, .managed, .leftovers, .apps])
 }
+
+/// Copies a fixture into a fresh store folder as `file`, owner-only as the stores require.
+private func storeFolder(with fixture: Data, as file: String) throws -> URL {
+    let directory = FileManager.default.temporaryDirectory.appendingPathComponent("stored-keys-\(UUID())")
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+    try fixture.write(to: directory.appendingPathComponent(file))
+    try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: directory.appendingPathComponent(file).path)
+    return directory
+}
+private func json(_ url: URL) throws -> NSDictionary? { try JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? NSDictionary }
+
+@Test func rememberedLocationsStillReadWhatWasSavedBeforeThePin() throws {
+    let fixture = try StoredKeysFixture.data("scopes")
+    let directory = try storeFolder(with: fixture, as: "scopes-v1.json")
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let registry = ScopeRegistry(directory: directory)
+    let scopes = try registry.list()
+    #expect(scopes.map(\.id) == [UUID(uuidString: "C9B4E101-7090-4FD0-AFFB-4937C2235F88"), UUID(uuidString: "21698AE2-FDA7-46CC-A708-8F393EFB35CB")])
+    #expect(scopes.map(\.path) == ["/Users/x/Music", "/Users/x/Downloads"])
+    #expect(scopes.map(\.isIncluded) == [false, true])
+    #expect(scopes.map(\.kind) == [.inspection, .downloads])
+    StoredKeysFixture.expectEveryPropertyStored(scopes[0], in: try StoredKeysFixture.keys(fixture, at: ["scopes", "0"]), "RememberedScope")
+    // Saving again (the bookmark is kept as read) writes the same file.
+    try registry.setIncluded(false, id: scopes[0].id)
+    #expect(try json(directory.appendingPathComponent("scopes-v1.json")) == (try JSONSerialization.jsonObject(with: fixture) as? NSDictionary))
+}
+
+@Test func protectedItemsStillReadWhatWasSavedBeforeThePin() async throws {
+    let fixture = try StoredKeysFixture.data("rules")
+    let directory = try storeFolder(with: fixture, as: "rules-v1.json")
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let store = ExclusionStore(directory: directory)
+    let rules = try await store.policy().rules
+    #expect(rules.map(\.id) == [UUID(uuidString: "015E69C6-7BA5-4963-A9E9-648E82CF050B"), UUID(uuidString: "7FF09155-338A-4666-AB36-F198E82C6DBE")])
+    #expect(rules.map(\.path) == ["/Users/x/Music", "/Users/x/Music Projects/song.wav"])
+    #expect(rules.allSatisfy { $0.volumeID == "00000000-0000-4000-8000-0000000000AA" })
+    #expect(rules.map(\.boundary) == [.folder, .file])
+    StoredKeysFixture.expectEveryPropertyStored(rules[0], in: try StoredKeysFixture.keys(fixture, at: ["rules", "0"]), "ExclusionRule")
+    // The fingerprint Storage trends keeps for these rules depends on the boundary's raw value, so it must not move either.
+    #expect(ExclusionPolicy(rules: rules).fingerprint == "path-volume-v1:3af3cc28b5581eea62b5df0f41b68c59c9e9f28805536468aebfff16e8431fd3")
+    try await store.remove(UUID())
+    #expect(try json(directory.appendingPathComponent("rules-v1.json")) == (try JSONSerialization.jsonObject(with: fixture) as? NSDictionary))
+}
+
+private final class MemoryPreferences: MigrationPreferences, @unchecked Sendable {
+    var values: [String: Any] = [:]
+    func object(forKey key: String) -> Any? { values[key] }
+    func set(_ value: Any?, forKey key: String) { values[key] = value }
+}
+
+@Test func settingsKeepTheirStoredKeysAndValues() {
+    // Defaults keys, as the app's defaults domain holds them today.
+    #expect(PreferenceKeys.dryRun == "CacheDropDryRun")
+    #expect(PreferenceKeys.showsMenuBarItem == "CacheDrop.showsMenuBarItem")
+    #expect(PreferenceKeys.startAtLogin == "CacheDrop.startAtLogin")
+    #expect(FirstRunWelcome.stateKey == "CacheDrop.welcomeState")
+    #expect(LegacyStillMigration.completedKey == "CacheDrop.migratedFromStill")
+    #expect(RenamedPreferenceKeys.completedKey == "CacheDrop.renamedPreferenceKeys")
+    let preferences = MemoryPreferences()
+    FirstRunWelcome(preferences: preferences).markSeen()
+    #expect(preferences.values["CacheDrop.welcomeState"] as? String == "seen")
+    // Raw values stored as values: the appearance file's contents, and each journal record's capacity metric.
+    #expect(AppearanceChoice.allCases.map(\.rawValue) == ["Automatic", "Light", "Dark"])
+    #expect([CapacityMetric.important, .available].map(\.rawValue) == ["important", "available"])
+    #expect([RememberedScope.Kind.downloads, .inspection].map(\.rawValue) == ["downloads", "inspection"])
+    #expect([ExclusionRule.Boundary.file, .folder].map(\.rawValue) == ["file", "folder"])
+}
