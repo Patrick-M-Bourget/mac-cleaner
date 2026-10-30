@@ -123,13 +123,11 @@ struct ApplicationsView: View {
             SettingsUnreadableNotice(model: catalog)
             if let approvalError { StatusRow(text: approvalError, symbol: "exclamationmark.circle", role: .caution) }
             if let status = model.status { StatusRow(text: status, identifier: "applicationsStatus") }
-            // Nothing listed yet: no Name and Size over empty states (#427).
-            if !model.apps.isEmpty || !model.plugIns.isEmpty || catalog.leftoversRow != nil { columnHeader }
             section("Apps", id: "apps", entries: model.apps, category: .apps, identifier: "applicationsApp-",
                     empty: ("No apps to list", "Only Apple’s apps are in the Applications folders."))
             section("Plug-ins", id: "plugIns", entries: model.plugIns, category: .audioPlugIns, identifier: "applicationsPlugIn-",
                     empty: ("No plug-ins to list", "No audio plug-ins other than Apple’s were found."))
-            Text("Files from deleted apps").font(CacheDropDesign.TypeStyle.section)
+            sectionHeader("Files from deleted apps", sorts: false)
             if let row = catalog.leftoversRow {
                 if model.listing.isSearching, !row.rules.flatMap(catalog.candidates(for:)).contains(where: model.listing.matches) { noMatches("leftovers") }
                 else { PlanCategoryRow(model: catalog, row: row, expanded: $leftoversExpanded, listing: model.listing).waitingForScan(catalog.isScanning) }
@@ -143,21 +141,25 @@ struct ApplicationsView: View {
         }.padding(CacheDropDesign.Space.page).frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    /// The title and description, then under them the one search for Apps, Plug-ins and Files from deleted apps (#295, #352),
-    /// by name or maker.
+    /// The title and description, with the one search for Apps, Plug-ins and Files from deleted apps on their right (#295, #352),
+    /// by name or maker: one header band, one left edge.
     private var header: some View {
-        VStack(alignment: .leading, spacing: CacheDropDesign.Space.md) {
-            PageHeader(title: "Applications", subtitle: "Apps, plug-ins and files from deleted apps.")
-                .accessibilityElement(children: .combine).accessibilityIdentifier("applicationsHeader")
-            PageSearchField(label: "Search apps, plug-ins and files from deleted apps", prompt: "Name or maker", text: Bindable(model).listing.search,
-                            identifier: "applicationsSearch")
-        }.padding(.bottom, CacheDropDesign.Space.sm)
+        PageHeader(title: "Applications", subtitle: "Apps, plug-ins and files from deleted apps",
+                   search: PageSearchField(label: "Search apps, plug-ins and files from deleted apps", prompt: "Name or maker",
+                                           text: Bindable(model).listing.search, identifier: "applicationsSearch"))
+            .padding(.bottom, CacheDropDesign.Space.sm)
     }
-    /// The list's sortable header, one sort for every section (#295, #352): "Name" over the rows' titles, "Size" over their sizes.
-    private var columnHeader: some View {
-        ColumnHeader(nameTitle: "Name", sizeTitle: "Size", sort: Bindable(model).listing.sort, identifier: "applicationsSort",
-                     insets: EdgeInsets(top: 0, leading: CacheDropDesign.Size.categoryContentIndent, bottom: 0, trailing: 0))
+    /// A section's heading at the page's left edge; the first listed one carries the one sort for every section, over the
+    /// sizes (#295, #352), so no label sits indented over the names.
+    private func sectionHeader(_ title: String, sorts: Bool) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: CacheDropDesign.Space.md) {
+            Text(title).font(CacheDropDesign.TypeStyle.section)
+            Spacer(minLength: CacheDropDesign.Space.md)
+            if sorts { SortLabels(nameTitle: "Name", sizeTitle: "Size", sort: Bindable(model).listing.sort, identifier: "applicationsSort") }
+        }
     }
+    /// Whether anything is listed yet, so the sort shows only over rows (#427).
+    private var listsAnything: Bool { !model.apps.isEmpty || !model.plugIns.isEmpty || catalog.leftoversRow != nil }
     private func noMatches(_ id: String) -> some View {
         state("No matches", "Nothing here has “\(model.listing.search.trimmingCharacters(in: .whitespaces))” in its name or maker.", symbol: "magnifyingglass",
               id: "applicationsNoMatches-" + id)
@@ -169,7 +171,8 @@ struct ApplicationsView: View {
     @ViewBuilder private func section(_ title: String, id: String, entries: [InventoryEntry], category: StorageCategory, identifier: String,
                                       empty: (title: String, detail: String)) -> some View {
         let shown = model.listing.arranged(entries, name: \.name, maker: \.maker, bytes: { size(of: $0).sortBytes })
-        Text(title).font(CacheDropDesign.TypeStyle.section)
+        // Apps comes first, so it carries the sort while anything is listed; nothing listed shows no sort over empty states (#427).
+        sectionHeader(title, sorts: id == "apps" && listsAnything)
         if entries.isEmpty {
             if listsLoading { loading(id) }
             else if id == "apps", model.appsUnreadable {
@@ -224,7 +227,8 @@ struct ApplicationsView: View {
                            size: size(of: entry).text,
                            enabled: uninstall.isEmpty || catalog.canEdit, identifier: identifier,
                            // An app alone is its only item: no "Choose items · 1" (#270).
-                           itemCount: count > 1 || !staying.isEmpty ? count : nil, staying: staying.count, expanded: isExpanded,
+                           itemCount: count > 1 || !staying.isEmpty ? count : nil, staying: staying.count,
+                           icon: category == .apps ? AppIcon.of(entry.id) : nil, expanded: isExpanded,
                            toggle: { if catalog.toggleRow(entry.id) { expanded.insert(entry.id) } }) {
             if entry.needsPassword { passwordLine(entry) }
             else if !uninstall.isEmpty {
@@ -301,5 +305,17 @@ struct ApplicationsView: View {
             guard let checked = try await selection.checkingReview(selection.prepareApplicationsReview) else { return }
             review = checked; approvalError = nil
         } catch { approvalError = PlanReviewError.message(for: error) }
+    }
+}
+
+/// An app's own icon, as Finder shows it, read once per app: rows are drawn again on every change, and the icon never changes
+/// while the page is open.
+@MainActor enum AppIcon {
+    private static let cache = NSCache<NSString, NSImage>()
+    static func of(_ path: String) -> NSImage {
+        if let icon = cache.object(forKey: path as NSString) { return icon }
+        let icon = NSWorkspace.shared.icon(forFile: path)
+        cache.setObject(icon, forKey: path as NSString)
+        return icon
     }
 }
