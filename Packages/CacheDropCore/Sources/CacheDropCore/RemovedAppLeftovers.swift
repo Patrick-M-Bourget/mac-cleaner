@@ -177,8 +177,8 @@ public enum RemovedAppLeftovers {
     /// other apps of the maker, or a reinstall, still need.
     static func isNeverOffered(_ name: String) -> Bool {
         let lower = name.lowercased()
-        if AppCaches.isMacOSOrOwn(name) || lower.hasPrefix("group.com.apple.") || lower.contains(".com.apple.") { return true }
-        if bundleID(inName: name).map({ AppCaches.isMacOSOrOwn($0) || isAppleLegacy($0) || isSharedFramework($0) }) == true { return true }
+        if AppCaches.isExcluded(name) || lower.hasPrefix("group.com.apple.") || lower.contains(".com.apple.") { return true }
+        if bundleID(inName: name).map({ AppCaches.isExcluded($0) || isAppleLegacy($0) || isSharedFramework($0) }) == true { return true }
         return licenseWords.contains { lower.contains($0) }
     }
     /// Apple's IDs outside `com.apple.`: Shortcuts keeps Workflow's (`is.workflow.*`, `group.is.workflow.*`), and its data

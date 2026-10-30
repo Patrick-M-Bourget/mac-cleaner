@@ -147,6 +147,7 @@ public struct CandidateCheck: Sendable {
     public func refusals(of candidates: [Candidate]) -> [String: CheckRefusal] {
         Dictionary(uniqueKeysWithValues: candidates.compactMap { candidate in check(candidate).map { (candidate.id, $0) } })
     }
+    /// Revalidates an item against its rule and current safety checks; nil means it may be acted on now.
     public func check(_ candidate: Candidate) -> CheckRefusal? {
         // Guidance-only data is never acted on, whatever the candidate or its rule says (SPEC section 3).
         if candidate.action == .guidance || catalog.rule(candidate.ruleID)?.action == .guidance { return .guidanceOnly }

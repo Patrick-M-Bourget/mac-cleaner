@@ -1897,6 +1897,11 @@ extension CatalogCleanupUITests {
         let smart = app.checkBoxes["smartCleanCategory-developer"]
         XCTAssertTrue(smart.waitForExistence(timeout: 10))
         XCTAssertEqual(smart.value as? Int, 1)
+        XCTAssertTrue(smart.isEnabled)
+        revealAndClick(smart, in: app)
+        XCTAssertEqual(smart.value as? Int, 0, "The native checkbox unticks the category")
+        revealAndClick(smart, in: app)
+        XCTAssertEqual(smart.value as? Int, 1, "The native checkbox ticks the category again")
         revealAndClick(app.staticTexts[title].firstMatch, in: app)
         XCTAssertEqual(smart.value as? Int, 0, "The row's title unticks it")
         openDisclosure(app.disclosureTriangles.matching(NSPredicate(format: "label BEGINSWITH 'Choose items'")).firstMatch, in: app)
@@ -1910,6 +1915,11 @@ extension CatalogCleanupUITests {
         app.typeKey("3", modifierFlags: .command)
         let plan = app.checkBoxes["planCategory-developer"]
         XCTAssertTrue(plan.waitForExistence(timeout: 10))
+        XCTAssertEqual(plan.value as? Int, 1)
+        XCTAssertTrue(plan.isEnabled)
+        revealAndClick(plan, in: app)
+        XCTAssertEqual(plan.value as? Int, 0, "The plan's native checkbox shares the same action")
+        revealAndClick(plan, in: app)
         XCTAssertEqual(plan.value as? Int, 1)
         revealAndClick(app.staticTexts[title].firstMatch, in: app)
         XCTAssertEqual(plan.value as? Int, 0, "The same on the plan")

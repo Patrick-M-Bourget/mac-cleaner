@@ -10,9 +10,8 @@ private func scan(_ scope: String = "/tmp/Projects", bytes: Int64 = 12_000_000, 
                         previewAvailability: .local, isDuplicateResource: false, cloud: .unknown)
     }
     return ScanResult(scope: URL(fileURLWithPath: scope), observedAt: Date(), observations: observations, logicalBytes: bytes, allocatedBytes: allocated ?? bytes,
-                      allocatedUnknownCount: 0, volumeCapacityBytes: nil, volumeAvailableBytes: nil,
                       issues: issues.map { ScanIssue(url: URL(fileURLWithPath: $0.0), reason: $0.1) },
-                      volumeAvailableMetric: "", exclusionFingerprint: "none", excludedEntryCount: excluded)
+                      exclusionFingerprint: "none", excludedEntryCount: excluded)
 }
 private func megabytes(_ bytes: Int64) -> String { "\(bytes / 1_000_000) MB" }
 private func location(_ scan: ScanResult?, scope: String = "/tmp/Projects") -> ScannedLocation {

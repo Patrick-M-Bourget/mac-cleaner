@@ -233,6 +233,16 @@ final class ApplicationsUITests: XCTestCase {
             if running.isRunning { running.terminate(); running.waitUntilExit() }
             app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home)
         }
+        // A copied system binary has an invalid bundle signature. Skip before attempting its launch, which can show
+        // a damaged-app dialog even when Process.run() later throws the known sandbox error (#383).
+        let verification = Process()
+        verification.executableURL = URL(fileURLWithPath: "/usr/bin/codesign")
+        verification.arguments = ["--verify", "--strict", synth.path]
+        verification.standardOutput = FileHandle.nullDevice
+        verification.standardError = FileHandle.nullDevice
+        try verification.run()
+        verification.waitUntilExit()
+        try XCTSkipIf(verification.terminationStatus != 0, "The fixture app needs a valid bundle signature before launch (#383)")
         app.launch()
         waitForCatalogScan(app)
         app.typeKey("5", modifierFlags: .command)

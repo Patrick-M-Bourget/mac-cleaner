@@ -40,9 +40,9 @@ enum CacheDropDesign {
         static let waiting: Double = 0.45
         /// The skeleton shimmer's band at its brightest (#308).
         static let shimmer: Double = 0.6 }
-    /// How long motion takes: the skeleton's shimmer crossing once, and rows dimming as a rescan starts or ends (#308).
     /// How far a one-line caption may shrink before it truncates, so it stays one line at larger text sizes (#353).
     enum Scale { static let oneLineCaption: CGFloat = 0.75 }
+    /// How long motion takes: the skeleton's shimmer crossing once, and rows dimming as a rescan starts or ends (#308).
     enum Motion { static let shimmer: Double = 2.4; static let waiting: Double = 0.2 }
     enum TypeStyle {
         /// The app name in the sidebar header.
@@ -77,7 +77,6 @@ enum CacheDropDesign {
     /// App-managed storage and the catalog categories that share its colour: the system indigo, a step lighter in dark
     /// mode so a meter segment keeps 3:1 against the track (#164).
     static var indigo: Color { adaptive(light: 0x5856D6, dark: 0x8583F5) }
-    static func files(_ count: Int) -> String { "\(count) \(count == 1 ? "file" : "files")" }
     static func items(_ count: Int) -> String { "\(count) \(count == 1 ? "item" : "items")" }
     /// The muted dash for a value not known yet or with nothing to show (Decision 62): never empty, never zero.
     static let noValue = "—"
@@ -310,8 +309,7 @@ struct SelectionSummary: View {
     let value: String
     let detail: String
     var identifier = ""
-    var consequence: String? = nil
-    var title = "Selected for Trash"
+    let title: String
     /// What's selected on another page, as a link there after the detail: "· 1 on Applications" (#481, Decision 65 rule 3).
     var elsewhere: (title: String, open: () -> Void)? = nil
     var body: some View {
@@ -333,7 +331,6 @@ struct SelectionSummary: View {
                 }.font(CacheDropDesign.TypeStyle.caption)
             }
         }
-        if let consequence { Text(consequence).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true) }
         }
     }
 }
@@ -666,10 +663,10 @@ struct VolumeSummary: View {
                     VStack(alignment: .trailing, spacing: CacheDropDesign.Space.xs) {
                         if let available, available >= 0 {
                             Text(bytes(available)).font(CacheDropDesign.TypeStyle.value).monospacedDigit().accessibilityIdentifier("startupCapacityAmount")
-                            Text("available").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
+                            Text("free").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
                         } else {
                             Text(CacheDropDesign.noValue).font(CacheDropDesign.TypeStyle.value)
-                            Text(refreshing ? "Checking capacity…" : "Available space unavailable").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
+                            Text(refreshing ? "Checking capacity…" : "Free space unknown").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
                         }
                     }
                 }
@@ -733,26 +730,13 @@ struct CacheDropSidebarRow: View {
     }
 }
 
-struct MacroCategoryCheckbox: View {
-    let state: CategorySelectionState
-    let label: String
-    let enabled: Bool
-    let action: () -> Void
-    var identifier = "downloadsCategorySelection"
-    var showsTitle = true
-    var body: some View {
-        NativeCategoryCheckbox(state: state, label: label, enabled: enabled, action: action,
-            identifier: identifier, showsTitle: showsTitle).disabled(!enabled)
-    }
-}
-
-private struct NativeCategoryCheckbox: NSViewRepresentable {
+struct NativeCategoryCheckbox: NSViewRepresentable {
 
     let state: CategorySelectionState
     let label: String
     let enabled: Bool
     let action: () -> Void
-    var identifier = "downloadsCategorySelection"
+    let identifier: String
     var showsTitle = true
     func makeCoordinator() -> Coordinator { Coordinator(action) }
     func makeNSView(context: Context) -> NSButton {
@@ -807,7 +791,7 @@ struct CategorySelectionHeader<Below: View>: View {
     var body: some View {
         let row = HStack(alignment: .top, spacing: CacheDropDesign.Space.md) {
             if let state {
-                MacroCategoryCheckbox(state: state, label: title, enabled: enabled, action: action, identifier: identifier ?? (category == .downloads ? "downloadsCategorySelection" : "\(category)-CategorySelection"), showsTitle: false)
+                NativeCategoryCheckbox(state: state, label: title, enabled: enabled, action: action, identifier: identifier ?? (category == .downloads ? "downloadsCategorySelection" : "\(category)-CategorySelection"), showsTitle: false)
                     .fixedSize().padding(.top, CacheDropDesign.Space.sm)
             }
             clickable
@@ -843,8 +827,8 @@ extension CategorySelectionHeader where Below == EmptyView {
 
 /// A category in the Cleanup plan or Smart clean (Decision 48): the header, whose checkbox ticks the whole category, then
 /// an optional notice and the items behind "Choose items · N", or "Choose items · N · M stay(s)" when `staying` parts are listed
-/// that can't be chosen (#290). A nil `itemCount` draws no "Choose items". Each screen
-/// keeps its own selection and its own open/closed state.
+/// that can't be chosen (#290). A nil `itemCount` draws no "Choose items". Selection is shared (Decision 67);
+/// each screen keeps its own open/closed state.
 struct CategoryRow<Notice: View, Items: View>: View {
     let category: StorageCategory
     /// Nil for a row that can't be chosen: no checkbox (Decision 51).

@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-import CacheDropCore
+@testable import CacheDropCore
 
 // #359, Decision 68: CacheDrop never empties the Trash. It deletes from the Trash only items it moved there itself, and
 // only when you ask. Every test uses a temp home whose `.Trash` stands in for the Finder Trash; the real Trash is never

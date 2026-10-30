@@ -33,7 +33,7 @@ public struct StorageBreakdown: Sendable, Equatable {
     public let total: Int64
     public let segments: [Segment]
     /// The estimates were larger than the used space (copies that share disk blocks) and were scaled to fit.
-    public let isScaled: Bool
+    let isScaled: Bool
     /// The sidebar's one "Reclaimable" segment: every category, without the Trash or what a cleanup sent there.
     public var reclaimableBytes: Int64 { segments.filter { !$0.part.isTrash }.reduce(0) { $0 + $1.bytes } }
 

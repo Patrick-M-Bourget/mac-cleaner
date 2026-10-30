@@ -143,8 +143,8 @@ struct CleanupRecoveryView: View {
             StatusRow(text: item.title + " · " + item.detail, symbol: item.needsConfirmation ? "exclamationmark.circle" : "checkmark.circle",
                       role: item.needsConfirmation ? .caution : .neutral, identifier: "recoveryState-" + record.originalURL.lastPathComponent)
             if let found = item.foundURL {
-                Button("Show in Finder") { Finder.reveal([found]) }.buttonStyle(.link).help(found.path)
-                    .accessibilityLabel("Show " + record.originalURL.lastPathComponent + " in Finder")
+                Button("Reveal in Finder") { Finder.reveal([found]) }.buttonStyle(.link).help(found.path)
+                    .accessibilityLabel("Reveal " + record.originalURL.lastPathComponent + " in Finder")
             }
             DisclosureGroup("Details") {
                 VStack(alignment: .leading, spacing: CacheDropDesign.Space.sm) {

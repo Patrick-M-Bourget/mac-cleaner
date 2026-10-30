@@ -193,7 +193,7 @@ private func catalogWith(_ apps: Apps) -> Catalog {
 /// #182: the UI-test runners' folders, Still's and CacheDrop's, are protected like the apps' own.
 @Test func ownTestRunnerFoldersAreNeverOffered() {
     for name in ["CacheDrop", "Still", "com.patrickbourget.CacheDrop", "com.patrickbourget.Still", "com.patrickbourget.StillUITests", "com.patrickbourget.CacheDropUITests", "com.patrickbourget.CacheDropUITests.xctrunner"] {
-        #expect(AppCaches.isMacOSOrOwn(name))
+        #expect(AppCaches.isExcluded(name))
     }
 }
 

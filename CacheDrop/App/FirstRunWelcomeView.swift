@@ -57,7 +57,7 @@ struct FirstRunWelcomeView: View {
                           symbol: "hand.raised", identifier: "welcomeNeverTouches")
             case 1:
                 PageHeader(title: FullDiskAccessGuide.title, subtitle: FullDiskAccessGuide.summary)
-                FullDiskAccessLink(title: "Learn more", model: access, symbol: nil)
+                FullDiskAccessLink(title: "Learn more", model: access)
             default:
                 PageHeader(title: catalog.isScanning ? "Your first scan is running" : "Your first scan is done",
                            subtitle: "Scans only read. Nothing is cleaned until you review it.")

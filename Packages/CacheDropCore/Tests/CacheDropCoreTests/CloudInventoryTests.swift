@@ -30,7 +30,6 @@ private struct CloudFixtureMetadata: MetadataSupplementReading {
     #expect(report.cloudOnlyLogicalBytes == 1_000)
     #expect(report.unknownMembershipCount == 1)
     #expect(report.items.first { $0.url.lastPathComponent == "current.bin" }?.cloud.uploaded == nil)
-    #expect(report.evictionAvailable == false)
 }
 
 private struct DeniedCloudScope: ScanAccessChecking {

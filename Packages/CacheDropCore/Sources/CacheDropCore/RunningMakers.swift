@@ -77,7 +77,7 @@ struct RunningMakers {
             found.append(InstalledApp(name: parts[index + 1], bundleID: "", path: process.path, maker: parts[index + 1]))
         }
         // A process of macOS or CacheDrop names no maker, whatever folder it runs from.
-        if found.contains(where: { !$0.bundleID.isEmpty && AppCaches.isMacOSOrOwn($0.bundleID) }) { return [] }
+        if found.contains(where: { !$0.bundleID.isEmpty && AppCaches.isExcluded($0.bundleID) }) { return [] }
         return found
     }
     static let bundleExtensions = InstalledBundles.extensions.union(PlugInFormat.allCases.map(\.bundleExtension))

@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-import CacheDropCore
+@testable import CacheDropCore
 
 /// A Downloads-style Trash batch over the files in `root`, as the executor would claim it.
 private struct FixtureBatch { let id: UUID; let records: [CleanupRecord] }

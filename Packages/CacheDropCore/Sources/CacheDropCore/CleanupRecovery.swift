@@ -12,13 +12,13 @@ public struct CleanupRecoverySnapshot: Sendable {
             return CleanupRecoveryBatch(id: id, records: batch.items)
         }.sorted { ($0.records.first?.approvedAt ?? .distantPast) > ($1.records.first?.approvedAt ?? .distantPast) }
     }
-    public var unresolvedCount: Int { interruptedBatches.reduce(0) { $0 + $1.unresolvedCount } }
+    var unresolvedCount: Int { interruptedBatches.reduce(0) { $0 + $1.unresolvedCount } }
     public var pendingCount: Int { interruptedBatches.reduce(0) { $0 + $1.pendingCount } }
 }
 public struct CleanupRecoveryBatch: Sendable, Identifiable {
     public let id: UUID
     public let records: [CleanupRecord]
-    public var unresolvedCount: Int { records.filter { $0.state == .intent || $0.state == .unknown }.count }
+    var unresolvedCount: Int { records.filter { $0.state == .intent || $0.state == .unknown }.count }
     public var pendingCount: Int { records.filter { $0.state == .pending }.count }
 }
 

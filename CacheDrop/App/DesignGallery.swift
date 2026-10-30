@@ -80,10 +80,10 @@ struct DesignGallery: View {
                     // Built in (#342): always included, so its checkbox can't change, and no Forget.
                     LocationScopeRow(name: "Downloads", path: "/Example/Downloads", status: "Built in · Not scanned", included: .constant(true), enabled: true, fixed: true) { EmptyView() }
                     LocationScopeRow(name: "Projects", path: "/Example/Projects", status: "Not scanned", included: $selected, enabled: true) { Menu("More") { Button("Forget location") {} } }
-                    LocationScopeRow(name: "Downloads B", path: "/Example/Downloads/Long project folder/Downloads B", status: "Location unavailable · Reconnect and recheck", overlap: "Overlaps another remembered location · Shared contents are counted once.", included: $selected, enabled: true) {
+                    LocationScopeRow(name: "Downloads B", path: "/Example/Downloads/Long project folder/Downloads B", status: "Location unavailable · Reconnect it, then scan again", overlap: "Overlaps another remembered location · Shared contents are counted once.", included: $selected, enabled: true) {
                         HStack {
                             Button("Choose again…") {}
-                            Button("Reconnect and recheck") {}
+                            Button("Scan again") {}
                             Menu("More") { Button("Forget location") {} }
                         }
                     }.frame(maxWidth: 520)
@@ -101,16 +101,16 @@ struct DesignGallery: View {
                         StorageReviewRow(category: .logs, title: "Logs and crash reports", detail: "Logs and crash reports apps wrote", value: "Empty", mutedValue: true)
                     }
 
-                    SelectionSummary(value: "3 files", detail: "Example selection · No action will run", consequence: "Space stays occupied until Finder empties Trash.")
-                    SelectionSummary(value: "Synthetic mixed selection", detail: "Downloads and browser caches · No action will run", consequence: "Caches are permanently removed; Downloads go to Trash.", title: "Selected for cleanup")
+                    SelectionSummary(value: "3 files", detail: "Example selection · No action will run", title: "Ready to clean")
+                    SelectionSummary(value: "Synthetic mixed selection", detail: "Downloads and browser caches · No action will run", title: "Ready to clean")
                     HStack(spacing: CacheDropDesign.Space.lg) {
                         ForEach(0..<5) { index in CategoryBadge(category: [StorageCategory.cloud, .developer, .downloads, .browser, .managed][index]) }
                     }
                     SettingsRow(title: "Selection states", detail: "Native controls retain focus, Space, disabled and mixed semantics.") {
-                        MacroCategoryCheckbox(state: .unchecked, label: "Unchecked", enabled: true, action: {}, identifier: "galleryUnchecked")
-                        MacroCategoryCheckbox(state: .mixed, label: "Mixed selection", enabled: true, action: {}, identifier: "galleryMixed")
-                        MacroCategoryCheckbox(state: .checked, label: "Selected", enabled: true, action: {}, identifier: "gallerySelected")
-                        MacroCategoryCheckbox(state: .unchecked, label: "Unavailable · Access required", enabled: false, action: {}, identifier: "galleryDisabled")
+                        NativeCategoryCheckbox(state: .unchecked, label: "Unchecked", enabled: true, action: {}, identifier: "galleryUnchecked")
+                        NativeCategoryCheckbox(state: .mixed, label: "Mixed selection", enabled: true, action: {}, identifier: "galleryMixed")
+                        NativeCategoryCheckbox(state: .checked, label: "Selected", enabled: true, action: {}, identifier: "gallerySelected")
+                        NativeCategoryCheckbox(state: .unchecked, label: "Unavailable · Access required", enabled: false, action: {}, identifier: "galleryDisabled")
                         Toggle("Interactive native checkbox", isOn: $selected)
                     }
                     SummarySurface {
@@ -156,7 +156,7 @@ struct DesignGallery: View {
                         CacheDropSidebarRow(title: "Cleanup plan", symbol: "checklist", selected: true, accent: CacheDropDesign.teal) {}
                     }
                     CategorySelectionHeader(category: .downloads, state: .mixed, title: "Downloads · Example mixed selection", detail: "The checkbox or a click on the row changes selection; filenames remain inspection controls.", size: "16 MB", enabled: true, action: {})
-                    CategoryRow(category: .developer, state: .checked, title: "Developer · Example category row", detail: "Plan and Smart clean share this row; each keeps its own selection.",
+                    CategoryRow(category: .developer, state: .checked, title: "Developer · Example category row", detail: "Plan and Smart clean share one selection",
                                 size: "1.2 GB", enabled: true, identifier: "galleryCategoryRow", itemCount: 2, staying: 1, expanded: $categoryRowExpanded, toggle: {}) {
                         EmptyView()
                     } items: {

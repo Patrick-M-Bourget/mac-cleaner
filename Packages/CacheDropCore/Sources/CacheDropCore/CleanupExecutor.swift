@@ -7,7 +7,7 @@ public struct CatalogApproval: Sendable, Identifiable {
     public let id: UUID
     public let candidates: [Candidate]
     public let approvedAt: Date
-    /// Decision 16: run the whole flow, change nothing on disk.
+    /// Decision 27: the Settings dry-run switch runs the flow without changing anything on disk.
     public let previewOnly: Bool
     public init(candidates: [Candidate], previewOnly: Bool, approvedAt: Date = Date()) {
         id = UUID(); self.candidates = candidates; self.previewOnly = previewOnly; self.approvedAt = approvedAt
@@ -117,6 +117,7 @@ public actor CleanupExecutor {
     }
     public nonisolated func cancel() { cancellation.cancel() }
 
+    /// Claims an approval once, then rechecks, journals and acts on each item, reporting dry-run or measured outcomes.
     public func execute(_ approval: CatalogApproval, progress: @Sendable (CleanupExecutionProgress) async -> Void = { _ in }) async -> CatalogExecutionResult {
         var seen = Set<String>()
         let estimate = approval.candidates.filter { seen.insert(check.catalog.spaceKey(of: $0)).inserted }.reduce(Int64(0)) { $0 + $1.estimatedBytes }
@@ -165,15 +166,15 @@ public actor CleanupExecutor {
     /// Docker's prunes can take minutes.
     public static let lastLaterMeasurementDelay: Duration = .seconds(300)
 
-    /// After `result`, waits (`wait`, given how long), then measures every item whose daemon-backed tool was stopped again
-    /// with `measure` and records what it found in the journal (#190). An item still shrinking compared with its size at the
+    /// Waits for real; false when the wait was cancelled.
+    public static let sleeping: @Sendable (Duration) async -> Bool = { (try? await Task.sleep(for: $0)) != nil }
+
+    /// After `result`, waits, checks free space after a completed Docker prune (#411), and remeasures stopped daemon-backed
+    /// items with `measure`, recording the findings (#190). An item still shrinking compared with its size at the
     /// scan is measured once more at `lastLaterMeasurementDelay`; `update` gets the result in between (#209). The outcome
     /// recorded at the stop follows the measurement (#209): an item found gone becomes removed, finished after the stop;
     /// one with some of it left stays partly removed. Bounded: at most two waits per run and two measurements per item,
     /// never a retry. Returns `result` unchanged when nothing needs it, the wait was cancelled, or the journal couldn't record it.
-    /// Waits for real; false when the wait was cancelled.
-    public static let sleeping: @Sendable (Duration) async -> Bool = { (try? await Task.sleep(for: $0)) != nil }
-
     public func measureAgainLater(_ result: CatalogExecutionResult, of approval: CatalogApproval,
                                   wait: @Sendable (Duration) async -> Bool = CleanupExecutor.sleeping,
                                   update: @Sendable (CatalogExecutionResult) async -> Void = { _ in },

@@ -214,7 +214,7 @@ final class FolderInspection {
             .max { $0.observedAt < $1.observedAt }
     }
 
-    static let unavailableMessage = "This folder can’t be reached, so its size is unknown. Reconnect it and recheck, or choose it again in Locations & access."
+    static let unavailableMessage = "This folder’s size is unknown because it can’t be reached; reconnect it and scan again, or choose it again in Locations & access."
     func markUnavailable(_ url: URL) {
         scope = url
         let previous = scopeReports.first { $0.current.scope.path == url.path }
