@@ -1,0 +1,15 @@
+# term<TAB>literal: strings that already use a term GLOSSARY.md keeps off screen. #491 fixes them.
+# Remove a line with its fix; scripts/check-copy.sh fails on a line that no longer matches any string.
+approval	Needs approval in System Settings
+available	Available space unavailable
+available	Measured from the change in available space around each item. Other activity on this Mac can affect it.
+baseline	Cleared 1 completed cleanup run. Scan activity and growth baseline clearing could not be confirmed. Recovery facts remain protected.
+coverage	/Example/Partial coverage
+coverage	Partial coverage
+Recheck	Location unavailable · Reconnect it, then recheck
+Recheck	Reconnect and recheck
+Recheck	This folder can’t be reached, so its size is unknown. Reconnect it and recheck, or choose it again in Locations & access.
+records	 · No retained records
+records	Each action reloads its own records only.
+records	Retained records, not a lifetime activity count.
+Show in Finder	Show in Finder

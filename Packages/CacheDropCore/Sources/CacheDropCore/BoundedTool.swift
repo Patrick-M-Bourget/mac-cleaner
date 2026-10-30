@@ -124,19 +124,19 @@ private final class ToolGroup {
     }
 
     /// Whether anything is still running in the tool's process group.
-    private var groupAlive: Bool { kill(-pid, 0) == 0 || errno != ESRCH }
+    private var groupAlive: Bool { kill(-pid, 0) == 0 || errno != ESRCH } // seam-check: allow (signal 0 only probes)
 
     /// Stops the whole group: SIGTERM, up to `stopGrace` for everything to exit, then SIGKILL.
     func stop() {
         guard !reap() || groupAlive else { return }
-        kill(-pid, SIGTERM)
+        kill(-pid, SIGTERM) // seam-check: allow (the tool group CacheDrop started)
         let deadline = ProcessInfo.processInfo.systemUptime + BoundedTool.stopGrace
         while ProcessInfo.processInfo.systemUptime < deadline {
             reap()
             if status != nil && !groupAlive { return }
             usleep(10_000)
         }
-        kill(-pid, SIGKILL)
+        kill(-pid, SIGKILL) // seam-check: allow (the tool group CacheDrop started)
         if status == nil { var raw: Int32 = 0; _ = waitpid(pid, &raw, 0); status = raw & 0x7f }
     }
 }
