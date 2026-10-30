@@ -71,7 +71,7 @@ def compare(before, after, tolerance):
         with Image.open(before / name) as a, Image.open(after / name) as b:
             if a.size != b.size:
                 raise ValueError(f"{name}: image dimensions differ: {a.size} vs {b.size}")
-            delta = ImageChops.difference(a.convert("RGB"), b.convert("RGB"))
+            delta = ImageChops.difference(a.convert("RGBA"), b.convert("RGBA"))
         mask = Image.new("1", delta.size, 0)
         draw = ImageDraw.Draw(mask)
         if manifests[0][name]["width"] != manifests[1][name]["width"] or manifests[0][name]["height"] != manifests[1][name]["height"]:
@@ -91,7 +91,7 @@ def compare(before, after, tolerance):
         if excluded == delta.width * delta.height:
             raise ValueError(f"{name}: masks exclude the whole image")
         raw_changed = sum(max(pixel) > tolerance for pixel in delta.getdata())
-        delta.paste((0, 0, 0), mask=mask)
+        delta.paste((0, 0, 0, 0), mask=mask)
         results.append({"image": name, "raw_changed_pixels": raw_changed,
                         "unmasked_changed_pixels": sum(max(pixel) > tolerance for pixel in delta.getdata()),
                         "maximum_unmasked_channel_difference": max(high for low, high in delta.getextrema()),
