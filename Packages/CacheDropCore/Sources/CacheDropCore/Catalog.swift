@@ -3,7 +3,7 @@ import Darwin
 import CoreServices
 
 /// What kind of data a rule covers; it decides how the data comes back.
-public enum RegenClass: String, Codable, Sendable { case cache, build, updaterDownload, leakedCopy, log, installer, model, userFile, cloudCopy }
+public enum RegenClass: String, Sendable { case cache, build, updaterDownload, leakedCopy, log, installer, model, userFile, cloudCopy }
 /// Decision 3: regenerable data is deleted; user files go to Trash. A few rules run the tool's own command (Decision 21).
 /// Trash keeps the "moveToTrash" string that Downloads-era journal records use.
 /// Evict removes only the local copy of an iCloud file (Decision 13); the original stays in iCloud.
