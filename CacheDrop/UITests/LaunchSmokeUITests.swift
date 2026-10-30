@@ -357,6 +357,39 @@ final class ProtectedItemsUITests: XCTestCase {
         XCTAssertTrue(open.waitForExistence(timeout: 5))
         XCTAssertFalse(back.exists)
     }
+
+    /// #437, Decision 58: protecting an item CacheDrop offers takes it off every page by itself, with no Scan again.
+    @MainActor func testProtectingAnOfferedItemRescansByItself() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        let state = try configureIsolatedState(app)
+        let home = try configureCatalogHome(app)
+        defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
+        app.launch()
+        XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
+        waitForCatalogScan(app)
+        let developer = app.descendants(matching: .any)["overviewCategory-developer"]
+        XCTAssertTrue(developer.waitForExistence(timeout: 10))
+        XCTAssertFalse((developer.value as? String)?.contains("Empty") == true, "The npm cache is offered")
+
+        app.typeKey("7", modifierFlags: .command)
+        let open = app.descendants(matching: .any)["openProtectedItems"]
+        XCTAssertTrue(open.waitForExistence(timeout: 5))
+        revealAndClick(open, in: app)
+        app.buttons["chooseExclusion"].click()
+        let panel = app.sheets.firstMatch.exists ? app.sheets.firstMatch : app.dialogs.firstMatch
+        XCTAssertTrue(panel.waitForExistence(timeout: 5))
+        panel.typeKey("g", modifierFlags: [.command, .shift])
+        app.typeText(home.appendingPathComponent(".npm").path + "\n")
+        panel.buttons["Choose"].click()
+        XCTAssertTrue(app.buttons["Protect"].waitForExistence(timeout: 10))
+        app.buttons["Protect"].click()
+
+        // No Scan again: Overview's developer row empties once the rescan the change started has run.
+        app.typeKey("1", modifierFlags: .command)
+        let emptied = NSPredicate(format: "value CONTAINS 'Empty'")
+        XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: emptied, object: developer)], timeout: 60), .completed, developer.debugDescription)
+    }
 }
 
 /// Overview keeps its scroll position across pages, and scrolling it never re-renders the workspace: the position is
