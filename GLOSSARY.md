@@ -16,7 +16,7 @@ The names CacheDrop shows, what they mean, and where they live in code. Copy fol
 | Locations & access | Scanned locations, Full Disk Access, Protected items, Saved data | `CacheDropApp.swift`, `RememberedLocations` |
 | Explore storage | Browse a scanned folder by size | `StorageExplorer`, `FolderInspection` |
 | Protected items | Paths CacheDrop never offers | `ProtectedItems*` (`ProtectedItemsView`, `ProtectedItemsPolicy`) |
-| Saved data | What CacheDrop keeps on this Mac, and Reset | `LocalRecords*` (`LocalRecordsView`) |
+| Saved data | What CacheDrop keeps on this Mac, and Reset | `SavedData*` (`SavedDataView`) |
 | App-managed storage | Space only its app can clear; CacheDrop shows where | `Guidance*` (`GuidanceSection`, `GuidanceCatalog`) |
 | Review sheet | Lists exactly what Clean up will do, grouped by consequence | `CatalogConfirmationSection` |
 | Results | What a cleanup did, outcomes first | `CatalogResultsSection` |

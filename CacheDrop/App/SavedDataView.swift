@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// Both callers use the same maintenance presentation and the existing guarded model.
-struct LocalRecordsEntry: View {
+struct SavedDataEntry: View {
     var action: () -> Void
     var body: some View {
         SettingsRow(title: "Saved data", detail: "Clear History, or reset CacheDrop’s settings.") {
@@ -11,7 +11,7 @@ struct LocalRecordsEntry: View {
     }
 }
 
-struct LocalRecordsView: View {
+struct SavedDataView: View {
     @Bindable var model: CleanupHistoryModel
     @ObservedObject private var lifecycle = AppLifecycleController.shared
     @State private var confirmingClear = false
@@ -32,7 +32,7 @@ struct LocalRecordsView: View {
                     Button("Review interrupted cleanup", action: showRecovery).accessibilityIdentifier("localRecordsRecovery")
                 }
             }
-            LocalRecordsMaintenanceControls(enabled: !model.busy && !lifecycle.operationInProgress,
+            SavedDataMaintenanceControls(enabled: !model.busy && !lifecycle.operationInProgress,
                 clear: { confirmingClear = true }, reset: { confirmingReset = true })
         }
         .task { await model.load(maintainCompleted: false) }
@@ -46,7 +46,7 @@ struct LocalRecordsView: View {
 }
 
 /// Pure presentation shared with inert Gallery examples. Maintenance stays in the model.
-struct LocalRecordsMaintenanceControls: View {
+struct SavedDataMaintenanceControls: View {
     var enabled = true
     var clear: () -> Void
     var reset: () -> Void

@@ -399,7 +399,7 @@ final class StorageTrendsUITests: XCTestCase {
 
 /// #222: a page reached from another keeps its back button above the title; its bottom bar stays, without it.
 final class BackButtonUITests: XCTestCase {
-    @MainActor func testLocalRecordsBackButtonSitsAboveTheTitleAndReturns() throws {
+    @MainActor func testSavedDataBackButtonSitsAboveTheTitleAndReturns() throws {
         continueAfterFailure = false
         let app = XCUIApplication()
         let state = try configureIsolatedState(app)

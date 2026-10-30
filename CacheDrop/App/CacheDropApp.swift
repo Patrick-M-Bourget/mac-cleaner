@@ -119,9 +119,9 @@ enum Destination: String, CaseIterable, Identifiable {
     var planReturnsToGrowth = false
     @ObservationIgnored var overviewOffset: CGPoint?
     @ObservationIgnored var locationsOffset: CGPoint?
-    var localRecordsVisible = false
-    var localRecordsCaller = Destination.history
-    @ObservationIgnored var localRecordsOffset: CGPoint?
+    var savedDataVisible = false
+    var savedDataCaller = Destination.history
+    @ObservationIgnored var savedDataOffset: CGPoint?
     /// Overview's App-managed storage page (Decision 25).
     var appManagedVisible = false
 }
@@ -143,7 +143,7 @@ private struct WorkspaceView: View {
     /// the if-chain timed out CI's type checker (#264).
     private var scrollOffset: Binding<CGPoint?>? {
         if recoveryVisible { return nil }
-        if navigationState.localRecordsVisible { return $navigationState.localRecordsOffset }
+        if navigationState.savedDataVisible { return $navigationState.savedDataOffset }
         if protectedItemsVisible || navigationState.appManagedVisible { return nil }
         switch destination {
         case .history: return $navigationState.historyOffset
@@ -157,7 +157,7 @@ private struct WorkspaceView: View {
     /// chained ternary timed out CI's type checker (#264).
     private var scrollIdentity: String {
         if recoveryVisible { return "recovery" }
-        if navigationState.localRecordsVisible { return "local-records" }
+        if navigationState.savedDataVisible { return "local-records" }
         if protectedItemsVisible { return "exclusions" }
         if navigationState.appManagedVisible { return "app-managed" }
         return destination.rawValue
@@ -196,7 +196,7 @@ private struct WorkspaceView: View {
     private var startupCapacity: StartupCapacityReading? { capacity.reading }
     /// The destination's own page shows: no records, recovery, inspection, exclusions or app-managed page covers it.
     private func showsOwnPage(_ page: Destination, evenUnderAppManaged: Bool = false) -> Bool {
-        destination == page && !navigationState.localRecordsVisible && !recoveryVisible && !nativeInspectionVisible && !protectedItemsVisible
+        destination == page && !navigationState.savedDataVisible && !recoveryVisible && !nativeInspectionVisible && !protectedItemsVisible
             && (evenUnderAppManaged || !navigationState.appManagedVisible)
     }
     private var showsSmartClean: Bool { showsOwnPage(.smartClean) }
@@ -207,7 +207,7 @@ private struct WorkspaceView: View {
     /// The toolbar's note, which only reports state (Decision 25: no toolbar subtitles). A screen returns nil to show none.
     private var contextLabel: String? {
         if selection.workspaceRunning { return "Cleaning up…" }
-        if navigationState.localRecordsVisible && !recoveryVisible { return "" }
+        if navigationState.savedDataVisible && !recoveryVisible { return "" }
         if recoveryVisible { return "Review interrupted cleanup" }
         if selection.hasWorkspaceResult && showsPlan { return nil }
         if nativeInspectionVisible { return nil }
@@ -297,7 +297,7 @@ private struct WorkspaceView: View {
             AppLifecycleController.shared.openSmartClean = { navigate(.smartClean) }
             selection.catalog.scanRememberedFolders = { scanRememberedFolders() }
         }
-        .onReceive(NotificationCenter.default.publisher(for: .cacheDropAlertOpened)) { _ in destination = .overview; navigationState.localRecordsVisible = false; navigationState.appManagedVisible = false; protectedItemsVisible = false; recoveryVisible = false; nativeInspectionVisible = false }
+        .onReceive(NotificationCenter.default.publisher(for: .cacheDropAlertOpened)) { _ in destination = .overview; navigationState.savedDataVisible = false; navigationState.appManagedVisible = false; protectedItemsVisible = false; recoveryVisible = false; nativeInspectionVisible = false }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in Task { await alerts.activated() } }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in Task { await selection.catalog.rescanIfFullDiskAccessGranted() } }
         .onReceive(NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.didWakeNotification)) { _ in Task { await alerts.activated() } }
@@ -320,14 +320,14 @@ private struct WorkspaceView: View {
     /// Return to scan, hidden on the screen the scan belongs to: where it started, and for the recheck of the selected
     /// locations also Explore storage, which shows them (#364).
     private var scanReturnAction: (() -> Void)? {
-        let atOrigin = destination == scanOrigin && !navigationState.localRecordsVisible && !navigationState.appManagedVisible && !nativeInspectionVisible && !protectedItemsVisible && !recoveryVisible
+        let atOrigin = destination == scanOrigin && !navigationState.savedDataVisible && !navigationState.appManagedVisible && !nativeInspectionVisible && !protectedItemsVisible && !recoveryVisible
         if atOrigin || (folderInspection.isRechecking && nativeInspectionVisible) { return nil }
         return { returnToScanOrigin() }
     }
 
     private func returnToScanOrigin() {
         destination = scanOrigin
-        navigationState.localRecordsVisible = false; navigationState.appManagedVisible = false
+        navigationState.savedDataVisible = false; navigationState.appManagedVisible = false
         nativeInspectionVisible = false
         protectedItemsVisible = false; recoveryVisible = false
         planReturnsToExplorer = false
@@ -340,7 +340,7 @@ private struct WorkspaceView: View {
         if value == .plan && selection.showsRun(for: .plan) { startNewPlan() }
         if value == .smartClean && selection.showsRun(for: .smartClean) { selection.dismissResult() }
         if value == .applications && selection.showsRun(for: .applications) { selection.dismissResult() }
-        navigationState.localRecordsVisible = false; navigationState.appManagedVisible = false
+        navigationState.savedDataVisible = false; navigationState.appManagedVisible = false
         protectedItemsVisible = false
         recoveryVisible = false; navigationState.recoveryCaller = .overview; nativeInspectionVisible = false
     }
@@ -726,14 +726,14 @@ private struct WorkspaceView: View {
     ScrollView {
         VStack(alignment: .leading, spacing: CacheDropDesign.Space.xl) {
             if recoveryVisible {
-                CleanupRecoveryView(model: recovery, back: BackButton(destination: navigationState.localRecordsVisible ? "Saved data" : navigationState.recoveryCaller.rawValue) {
+                CleanupRecoveryView(model: recovery, back: BackButton(destination: navigationState.savedDataVisible ? "Saved data" : navigationState.recoveryCaller.rawValue) {
                     recoveryVisible = false; destination = navigationState.recoveryCaller; navigationState.recoveryCaller = .overview
                 }, viewHistory: { navigate(.history) })
-            } else if navigationState.localRecordsVisible {
-                LocalRecordsView(model: navigationState.historyModel, showRecovery: { openRecovery(caller: navigationState.localRecordsCaller) }, didReset: didResetLocalRecords,
-                                 back: BackButton(destination: navigationState.localRecordsCaller.rawValue) {
-                                     navigationState.localRecordsVisible = false
-                                     destination = navigationState.localRecordsCaller
+            } else if navigationState.savedDataVisible {
+                SavedDataView(model: navigationState.historyModel, showRecovery: { openRecovery(caller: navigationState.savedDataCaller) }, didReset: didResetSavedData,
+                                 back: BackButton(destination: navigationState.savedDataCaller.rawValue) {
+                                     navigationState.savedDataVisible = false
+                                     destination = navigationState.savedDataCaller
                                  })
             } else if protectedItemsVisible {
                 ProtectedItemsView(model: ProtectedItemsModel.shared, back: BackButton(destination: Destination.locations.rawValue, enabled: !ProtectedItemsModel.shared.editingBlocked) {
@@ -772,7 +772,7 @@ private struct WorkspaceView: View {
             }
         } else if recoveryVisible {
             ActionStrip()
-        } else if navigationState.localRecordsVisible {
+        } else if navigationState.savedDataVisible {
             ActionStrip()
         } else if destination == .overview && !navigationState.appManagedVisible {
             // Scan again sits in the bar, as on Storage trends (#311).
@@ -842,15 +842,15 @@ private struct WorkspaceView: View {
         Task { await recovery.refresh() }
     }
 
-    private func openLocalRecords(caller: Destination) {
-        navigationState.localRecordsCaller = caller
-        navigationState.localRecordsOffset = nil
-        navigationState.localRecordsVisible = true
+    private func openSavedData(caller: Destination) {
+        navigationState.savedDataCaller = caller
+        navigationState.savedDataOffset = nil
+        navigationState.savedDataVisible = true
         recoveryVisible = false
         destination = caller
     }
 
-    private func didResetLocalRecords() {
+    private func didResetSavedData() {
         nativeInspectionVisible = false
         protectedItemsVisible = false
     }
@@ -903,7 +903,7 @@ private struct WorkspaceView: View {
             if let message = locationsModel.message { StatusRow(text: message, symbol: "info.circle") }
             FullDiskAccessSetting()
             ProtectedItemsEntry { protectedItemsVisible = true }
-            LocalRecordsEntry { openLocalRecords(caller: .locations) }
+            SavedDataEntry { openSavedData(caller: .locations) }
         }.confirmationDialog("Forget location?", isPresented: Binding(get: { locationToForget != nil }, set: { if !$0 { locationToForget = nil } }), titleVisibility: .visible) {
             if let scope = locationToForget {
                 Button("Forget location", role: .destructive) { if locationsModel.forget(scope) { selection.suspendScope(URL(fileURLWithPath: scope.path)) }; locationToForget = nil }
