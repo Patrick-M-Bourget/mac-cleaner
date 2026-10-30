@@ -21,7 +21,7 @@ struct CatalogItemRows: View {
         LazyVStack(alignment: .leading, spacing: 0) {
             ForEach(items) { item in
                 // Clicking the row ticks the item, as its checkbox does; Finder is its own Reveal link (#356, #367, Decision 72).
-                InspectableItemRow(name: item.displayName, detail: detail(item), size: catalogBytes(item.estimatedBytes, estimate: item.sizeIsEstimate),
+                InspectableItemRow(name: item.displayName, detail: detail(item), size: SizeEstimate(item).text,
                                    symbol: item.isDirectory ? "folder" : "doc", inspected: false,
                                    inspect: rule.itemRowClick == .tick ? { if model.canEdit { model.setSelected(item, !model.isSelected(item)) } } : nil,
                                    detailLineLimit: 1, actionLabel: "Select " + item.displayName,

@@ -161,11 +161,49 @@ import CacheDropCore
     #expect(try await GrowthHistoryStore(directory: smallRoot, policy: .init(bytes: 600)).activities(now: now).map(\.id) == [fitting.id])
 }
 
-@Test func observedSizeSumsCompleteSizesAndMarksKnownMinimums() {
+/// #447 (Decision 94): a History scan row shows the size on disk, as Overview's Scanned locations and Explore storage do.
+@Test func observedSizeSumsSizesOnDiskAndMarksKnownMinimums() {
     let date = Date(timeIntervalSince1970: 1000)
     func activity(_ locations: [ScanActivityLocation]) -> ScanActivity { ScanActivity(startedAt: date, completedAt: date, outcome: .complete, locations: locations) }
-    #expect(activity([.init(path: "/A", logicalBytes: 10, knownLogicalBytes: 10), .init(path: "/B", logicalBytes: 5)]).observedSize == ScanActivitySize(bytes: 15, complete: true))
-    #expect(activity([.init(path: "/A", logicalBytes: 10), .init(path: "/B", knownLogicalBytes: 4)]).observedSize == ScanActivitySize(bytes: 14, complete: false))
-    #expect(activity([.init(path: "/A", logicalBytes: 10), .init(path: "/B")]).observedSize == ScanActivitySize(bytes: 10, complete: false))
+    #expect(activity([.init(path: "/A", logicalBytes: 10, allocatedBytes: 4_096, knownLogicalBytes: 10, knownAllocatedBytes: 4_096),
+                      .init(path: "/B", logicalBytes: 5, allocatedBytes: 8_192)]).observedSize == ScanActivitySize(bytes: 12_288, complete: true))
+    #expect(activity([.init(path: "/A", allocatedBytes: 4_096), .init(path: "/B", knownLogicalBytes: 4, knownAllocatedBytes: 512)]).observedSize
+            == ScanActivitySize(bytes: 4_608, complete: false))
+    #expect(activity([.init(path: "/A", allocatedBytes: 4_096), .init(path: "/B")]).observedSize == ScanActivitySize(bytes: 4_096, complete: false))
+    // A logical size alone (a record saved before #447, or allocation unknown) is never shown as the size on disk.
+    #expect(activity([.init(path: "/A", logicalBytes: 10, knownLogicalBytes: 10), .init(path: "/B", knownLogicalBytes: 4)]).observedSize == nil)
     #expect(activity([.init(path: "/A"), .init(path: "/B")]).observedSize == nil)
+}
+
+/// A folder holding one 10-byte file and a package, whose contents a scan doesn't count; with the file's size on disk, read on its own.
+private func folderWithAPackage() throws -> (root: URL, fileOnDisk: Int64) {
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent("CacheDropActivityOnDisk-" + UUID().uuidString, isDirectory: true)
+    try FileManager.default.createDirectory(at: root.appendingPathComponent("Thing.app", isDirectory: true), withIntermediateDirectories: true)
+    let file = root.appendingPathComponent("notes.txt")
+    try Data(repeating: 7, count: 10).write(to: file)
+    let onDisk = try #require(try file.resourceValues(forKeys: [.totalFileAllocatedSizeKey]).totalFileAllocatedSize)
+    return (root, Int64(onDisk))
+}
+
+@Test func aScanRowRecordsTheSizeOnDiskItFoundEvenWhenIncomplete() async throws {
+    let (root, onDisk) = try folderWithAPackage()
+    defer { try? FileManager.default.removeItem(at: root) }
+    #expect(onDisk > 10, "The fixture's size on disk differs from its logical size")
+    let location = ScanActivityLocation(scan: try await FolderScanner().scan(root))
+    #expect(location.allocatedBytes == nil, "The package's contents aren't counted, so the size is a known minimum")
+    #expect(location.knownAllocatedBytes == onDisk)
+    let date = Date()
+    #expect(ScanActivity(startedAt: date, completedAt: date, outcome: .complete, locations: [location]).observedSize == ScanActivitySize(bytes: onDisk, complete: false))
+}
+
+/// A scan the user stops is recorded from its last progress, so that carries the size on disk found so far too.
+@Test func scanProgressCarriesTheSizeOnDiskFoundSoFar() async throws {
+    let (root, onDisk) = try folderWithAPackage()
+    defer { try? FileManager.default.removeItem(at: root) }
+    final class Last: @unchecked Sendable { let lock = NSLock(); var value: ScanProgress? }
+    let last = Last()
+    _ = try await FolderScanner().scan(root, onProgress: { progress in last.lock.lock(); last.value = progress; last.lock.unlock() })
+    let progress = try #require(last.value)
+    #expect(progress.knownLogicalSubtotal == 10)
+    #expect(progress.knownAllocatedSubtotal == onDisk)
 }

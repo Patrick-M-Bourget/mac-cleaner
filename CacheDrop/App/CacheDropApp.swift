@@ -507,24 +507,18 @@ private struct WorkspaceView: View {
     }
     /// SPEC section 6: an estimate, and an upper bound because clones share blocks.
     private func recommendedText(_ estimate: SizeEstimate) -> String {
-        switch estimate {
-        case .measured(let bytes): "Up to " + catalogBytes(bytes) + " estimated"
-        case .about(let bytes): "About " + catalogBytes(bytes) + " estimated"
-        case .atLeast(let bytes): "At least " + catalogBytes(bytes) + " estimated · Some sizes unknown"
-        case .unknown: "Size unknown"
-        }
+        let size = SizeFormatter.text(estimate, upperBound: true)
+        if case .atLeast = estimate { return size + " · Some sizes unknown" }
+        return size
     }
 
     private var overviewCloudRow: some View {
         let action: (() -> Void)? = overviewObservation == nil ? nil : { overviewCloudExpanded.toggle() }
         let value = overviewObservation.map { result in
             let report = result.cloudInventory
-            return report.totalIsUnknown ? "Unknown" : overviewBytes(report.localAllocatedBytes)
+            return report.totalIsUnknown ? "Unknown" : SizeFormatter.text(report.localAllocatedBytes)
         } ?? "Not scanned"
         return StorageReviewRow(category: .cloud, title: "Downloaded iCloud files", detail: "Copies of iCloud files kept on this Mac", value: value, meaning: "On this Mac", actionTitle: overviewCloudExpanded ? "Hide iCloud files" : "Review iCloud files", action: action, identifier: "overviewCloudFinding")
-    }
-    private func overviewBytes(_ bytes: Int64?) -> String {
-        bytes.map { ByteCountFormatter.string(fromByteCount: $0, countStyle: .decimal) } ?? "Unknown"
     }
     private func scanKnownLocations() {
         scanLocations(locationsModel.included)
@@ -607,7 +601,7 @@ private struct WorkspaceView: View {
         VStack(alignment: .leading, spacing: 0) {
             // Built-in Downloads says so (#342); it has no Remove anywhere.
             StorageReviewRow(category: location.isBuiltIn ? .downloads : .files, title: location.name,
-                             detail: [location.isBuiltIn ? "Built in" : nil, location.notes].compactMap { $0 }.joined(separator: " · "), value: location.value(overviewBytes),
+                             detail: [location.isBuiltIn ? "Built in" : nil, location.notes].compactMap { $0 }.joined(separator: " · "), value: location.value,
                              actionTitle: "Explore " + location.name, action: location.bytes == nil ? nil : { openExplorer(caller: .overview, at: location.scope) },
                              identifier: "overviewLocation:" + location.scope.path, mutedValue: location.bytes == nil)
                 .help(location.scope.path)

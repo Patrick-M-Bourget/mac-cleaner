@@ -1,6 +1,6 @@
 import Testing
 import Foundation
-import StorageAlerts
+import CacheDropCore
 
 private let en = Locale(identifier: "en_US")
 

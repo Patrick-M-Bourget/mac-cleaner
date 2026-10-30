@@ -102,7 +102,7 @@ extension GuidanceSize {
         case .estimate(let estimate): estimate.text
         case .notAccessible: "Not accessible"
         case .unavailable: "Not available"
-        case .snapshots(let count): (count == 1 ? "1 snapshot" : "\(count) snapshots") + " · Size unknown"
+        case .snapshots(let count): (count == 1 ? "1 snapshot" : "\(count) snapshots") + " · " + SizeFormatter.text(SizeEstimate.unknown)
         }
     }
 }

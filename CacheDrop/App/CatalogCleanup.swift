@@ -731,36 +731,9 @@ extension CatalogCategory {
     }
 }
 
-extension SizeEstimate {
-    /// Unknown stays unknown, never 0 (SPEC section 1).
-    var text: String {
-        switch self {
-        case .measured(let bytes): catalogBytes(bytes)
-        case .atLeast(let bytes): catalogBytes(bytes, complete: false)
-        case .about(let bytes): catalogBytes(bytes, estimate: true)
-        case .unknown: "Unknown"
-        }
-    }
-}
-
-extension SizeEstimate {
-    /// "Up to" when part of it is copies that share disk blocks (SPEC section 6).
-    func text(upperBound: Bool) -> String {
-        if upperBound, case .measured(let bytes) = self { return catalogBytes(bytes, upperBound: true) }
-        return text
-    }
-}
-
 extension CatalogOverview.Row {
     /// The row's size; "Up to" when part of it is copies that share disk blocks.
     var valueText: String { estimate.text(upperBound: rules.contains(where: \.estimateIsUpperBound)) }
-}
-
-/// A size as text. An incomplete size of 0 is unknown, as in `SizeEstimate`.
-/// `upperBound` is for copies that share disk blocks (SPEC section 6): less may come back. An estimate reads "About".
-func catalogBytes(_ value: Int64, complete: Bool = true, upperBound: Bool = false, estimate: Bool = false) -> String {
-    if !complete && value == 0 { return SizeEstimate.unknown.text }
-    return (!complete ? "At least " : upperBound ? "Up to " : estimate ? "About " : "") + ByteCountFormatter.string(fromByteCount: value, countStyle: .decimal)
 }
 
 extension CleanupRule {

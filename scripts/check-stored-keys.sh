@@ -12,7 +12,7 @@ set -uo pipefail
 cd "$(dirname "$0")/.."
 python3 - <<'PY'
 import re, subprocess, sys
-files = subprocess.check_output(['git', 'ls-files', 'Packages/*/Sources/*.swift', 'CacheDrop/Packages/*/Sources/*.swift']).decode().split()
+files = subprocess.check_output(['git', 'ls-files', 'Packages/*/Sources/*.swift',]).decode().split()
 declaration = re.compile(r'\b(struct|class|enum)\s+(\w+)\s*:\s*([^{]*)\{')
 found = False
 for path in files:

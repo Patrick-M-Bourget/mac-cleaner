@@ -106,16 +106,13 @@ public struct PlugInInventory: Sendable, Equatable {
             if let vendor = file.vendor { tie("bundle|\(vendor)|\(file.groupingName)", i) }
         }
         let groups = Dictionary(grouping: files.indices, by: root).values
-        // Biggest first; an unknown size counts as 0 for ordering only.
-        func bytes(_ size: SizeEstimate) -> Int64 {
-            switch size { case .measured(let b), .atLeast(let b), .about(let b): b; case .unknown: 0 }
-        }
+        // Biggest first, with unknown after every measured size.
         return groups.map { indices in
             let members = indices.map { files[$0] }
             let installedBy = Set(members.flatMap { receipts[$0.url.standardizedFileURL.path] ?? [] }).sorted()
             return PlugInProduct(files: members, grouping: !installedBy.isEmpty ? .receipt : members.contains { $0.vendor != nil } ? .bundleID : .none,
                                  receipts: installedBy)
-        }.sorted { (bytes($0.size), $1.name) > (bytes($1.size), $0.name) }
+        }.sorted { ($0.size.sortBytes, $1.name) > ($1.size.sortBytes, $0.name) }
     }
 
     /// The receipts that list each plug-in bundle path. Receipts that can't be read are left out, so their files stand alone

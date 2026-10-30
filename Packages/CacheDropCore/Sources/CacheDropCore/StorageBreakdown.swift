@@ -105,16 +105,9 @@ extension StorageBreakdown.Part {
 }
 
 extension StorageBreakdown.Segment {
-    /// The tooltip's size, e.g. "up to 12.2 GB": the same estimate as Overview. Found items are an upper bound because
+    /// The tooltip's size, e.g. "Up to 12.2 GB": the same estimate as Overview. Found items are an upper bound because
     /// copies can share disk blocks (SPEC section 6); the Trash is measured as it is.
     public var sizeText: String {
-        let bytes = { ByteCountFormatter.string(fromByteCount: $0, countStyle: .decimal) }
-        if part == .trash, case .measured(let value) = estimate { return bytes(value) }
-        switch estimate {
-        case .measured(let value): return "up to " + bytes(value)
-        case .about(let value): return "about " + bytes(value)
-        case .atLeast(let value): return "at least " + bytes(value)
-        case .unknown: return "size unknown"
-        }
+        SizeFormatter.text(estimate, upperBound: part != .trash)
     }
 }

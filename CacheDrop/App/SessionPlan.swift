@@ -26,7 +26,7 @@ struct RefreshRequest: Sendable {
     var hasPendingChoicesOnAnyPage: Bool { catalog.anyPageDiffersFromRecommended }
     var workspaceSelectedSize: String {
         if !hasPendingChoices { return CacheDropDesign.noValue }
-        return ByteCountFormatter.string(fromByteCount: catalog.estimatedBytes, countStyle: .decimal)
+        return catalog.sizeText(of: catalog.selectedCandidates.filter(\.releasesSpace))
     }
     /// The last run left records whose outcome is unknown; they must be reviewed before another plan.
     var requiresRecoveryReview: Bool {
@@ -361,8 +361,8 @@ extension CleanupRunSection {
     /// What the run has done so far: what it freed, or else what it moved to the Trash (Decision 69: that frees nothing
     /// until the Trash is emptied); nil before anything finished. A dry run says what it would do.
     fileprivate static func freed(_ progress: CleanupRunProgress, dryRun: Bool) -> String? {
-        if progress.releasedBytes > 0 { return CapacityMeter.bytes(progress.releasedBytes) + (dryRun ? " would be freed" : " freed") }
-        if progress.movedToTrashBytes > 0 { return CapacityMeter.bytes(progress.movedToTrashBytes) + (dryRun ? " would go to the Trash" : " moved to the Trash") }
+        if progress.releasedBytes > 0 { return SizeFormatter.text(progress.releasedBytes) + (dryRun ? " would be freed" : " freed") }
+        if progress.movedToTrashBytes > 0 { return SizeFormatter.text(progress.movedToTrashBytes) + (dryRun ? " would go to the Trash" : " moved to the Trash") }
         return nil
     }
     /// "2 of 3", or "Done" once every item in the category is finished.

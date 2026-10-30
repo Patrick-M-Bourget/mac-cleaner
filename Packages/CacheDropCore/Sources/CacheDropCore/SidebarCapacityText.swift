@@ -6,16 +6,15 @@ public struct SidebarCapacityText: Sendable, Equatable {
     public let line: String
     public let description: String
     public init(available: Int64?, total: Int64?) {
-        func bytes(_ value: Int64) -> String { ByteCountFormatter.string(fromByteCount: value, countStyle: .decimal) }
         guard let available, available >= 0 else {
             line = "Free space unavailable"; description = line; return
         }
         if let total = Self.validTotal(available: available, total: total) {
-            line = "\(bytes(available)) free of \(bytes(total))"
-            description = "\(bytes(available)) available of \(bytes(total))"
+            line = "\(SizeFormatter.text(available)) free of \(SizeFormatter.text(total))"
+            description = "\(SizeFormatter.text(available)) available of \(SizeFormatter.text(total))"
         } else {
-            line = "\(bytes(available)) free"
-            description = "\(bytes(available)) available · Total capacity unavailable"
+            line = "\(SizeFormatter.text(available)) free"
+            description = "\(SizeFormatter.text(available)) available · Total capacity unavailable"
         }
     }
     /// The total, when it and the available space are a consistent whole-disk reading.

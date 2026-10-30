@@ -26,7 +26,7 @@ step "Core tests" swift test --package-path Packages/CacheDropCore
 if [ "$fast" -eq 0 ]; then
   step "Core tests, strict pool" env LIBDISPATCH_COOPERATIVE_POOL_STRICT=1 swift test --package-path Packages/CacheDropCore --skip "$guard"
   step "pool guard, strict pool, alone" env LIBDISPATCH_COOPERATIVE_POOL_STRICT=1 swift test --package-path Packages/CacheDropCore --filter "$guard"
-  step "StorageAlerts tests" swift test --package-path CacheDrop/Packages/StorageAlerts
+  step "StorageAlerts tests" swift test --package-path Packages/StorageAlerts
   step "app build" xcodebuild build -project CacheDrop/CacheDrop.xcodeproj -scheme CacheDrop -configuration Debug -destination 'platform=macOS' -derivedDataPath .build/xcode
   step "Release exclusion check" scripts/check-release.sh
 fi

@@ -202,7 +202,7 @@ struct CleanupHistoryView: View {
     }
     private func cleanup(_ run: CleanupHistoryRun) -> some View {
         HistoryRow(symbol: run.isPreview ? "eye" : run.isPutBack ? "arrow.uturn.backward" : run.isEmptyFromTrash ? "xmark.bin" : "checklist", title: run.title, date: run.date,
-                   size: bytes(run.plannedBytes), sizeNote: run.isPutBack || run.isEmptyFromTrash ? "From Trash" : "Estimated",
+                   size: SizeFormatter.text(run.plannedBytes), sizeNote: run.isPutBack || run.isEmptyFromTrash ? "From Trash" : "Estimated",
                    expanded: Binding(get: { expandedRuns.contains(run.id) }, set: { if $0 { expandedRuns.insert(run.id) } else { expandedRuns.remove(run.id) } }),
                    identifier: "cleanupRun:" + run.id.uuidString) {
             if run.usesApprovalDate { note("Shows when you started the cleanup; this version of CacheDrop didn’t record when it finished.") }
@@ -210,11 +210,11 @@ struct CleanupHistoryView: View {
                 note("Dry run · Nothing on disk changed. No space was freed.")
             } else if !run.isPutBack {
                 if run.records.contains(where: { $0.cleanupAction == .trash }) {
-                    note("In Trash until you empty it: " + (run.trashHeldAllocatedBytes.map(bytes) ?? "Unknown"))
+                    note("In Trash until you empty it: " + SizeFormatter.text(run.trashHeldAllocatedBytes))
                 }
                 // Measured around each item, as Results shows it, for a cleanup and an emptying of the Trash alike (#359, #433).
                 if !run.records.movedOnlyToTrash {
-                    note("Measured freed space: " + (MeasuredFreedSpace.shown(run.measuredFreedBytes).map(bytes) ?? "Unknown") + " · Other activity can affect it.")
+                    note("Measured freed space: " + SizeFormatter.text(MeasuredFreedSpace.shown(run.measuredFreedBytes)) + " · Other activity can affect it.")
                 }
             }
             ForEach(run.records) { record in
@@ -239,5 +239,4 @@ struct CleanupHistoryView: View {
         }
     }
     private func note(_ text: String) -> some View { Text(text).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true) }
-    private func bytes(_ value: Int64) -> String { ByteCountFormatter.string(fromByteCount: value, countStyle: .decimal) }
 }

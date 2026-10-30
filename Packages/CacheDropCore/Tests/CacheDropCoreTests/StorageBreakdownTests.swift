@@ -83,7 +83,7 @@ private let GB: Int64 = 1_000_000_000
     let breakdown = StorageBreakdown(used: 400 * GB, total: 1000 * GB, categories: [
         (.developer, .measured(12_200_000_000)), (.downloads, .atLeast(5 * GB)), (.models, .about(3 * GB)),
     ], trash: .holds(2 * GB))
-    #expect(breakdown.segments.map(\.sizeText) == ["up to 12.2 GB", "at least 5 GB", "about 3 GB", "2 GB"])
+    #expect(breakdown.segments.map(\.sizeText) == ["Up to 12.2 GB", "At least 5 GB", "About 3 GB", "2 GB"])
 }
 
 /// #343: what a cleanup moved to the Trash frees nothing until the Trash is emptied (SPEC section 6), so it leaves its
@@ -93,7 +93,7 @@ private let GB: Int64 = 1_000_000_000
                                      trash: .holds(GB), toTrash: [.downloads: 4 * GB])
     #expect(breakdown.segments.map(\.part) == [.category(.developer), .category(.downloads), .goingToTrash, .trash])
     #expect(breakdown.segments.map(\.bytes) == [12 * GB, 1 * GB, 4 * GB, 1 * GB])
-    #expect(breakdown.segments.map(\.sizeText) == ["up to 12 GB", "up to 1 GB", "up to 4 GB", "1 GB"], "Downloads names what stays, never the 4 GB twice")
+    #expect(breakdown.segments.map(\.sizeText) == ["Up to 12 GB", "Up to 1 GB", "Up to 4 GB", "1 GB"], "Downloads names what stays, never the 4 GB twice")
     #expect(breakdown.reclaimableBytes == 13 * GB, "Neither Trash part is reclaimable yet")
 }
 

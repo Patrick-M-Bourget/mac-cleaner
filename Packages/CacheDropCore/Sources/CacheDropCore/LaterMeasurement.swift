@@ -57,7 +57,7 @@ extension CleanupRecord {
     /// before then and on every other record. Other apps change free space too, so it never says Docker freed it.
     public var settledText: String? {
         guard let change = settledCapacity?.observedChange else { return nil }
-        return change > 0 ? "A minute later, the disk had \(ByteCountFormatter.string(fromByteCount: change, countStyle: .decimal)) more free."
+        return change > 0 ? "A minute later, the disk had \(SizeFormatter.text(change)) more free."
             : "A minute later, the disk had no more free space."
     }
 
@@ -65,12 +65,11 @@ extension CleanupRecord {
     public var laterMeasurementText: String? {
         guard let finding = laterMeasurement?.finding else { return nil }
         let scanned = allocatedBytes ?? logicalBytes
-        func size(_ bytes: Int64) -> String { ByteCountFormatter.string(fromByteCount: bytes, countStyle: .decimal) }
         let later = Self.laterMeasurementWhen(laterMeasurement?.afterSeconds ?? 60)
         switch finding {
-        case .gone: return "Measured again \(later): it’s gone (\(size(scanned)) at the scan)."
+        case .gone: return "Measured again \(later): it’s gone (\(SizeFormatter.text(scanned)) at the scan)."
         case .remaining(let bytes) where bytes < scanned:
-            return "Measured again \(later): \(size(scanned - bytes)) of \(size(scanned)) went; \(size(bytes)) is left."
+            return "Measured again \(later): \(SizeFormatter.text(scanned - bytes)) of \(SizeFormatter.text(scanned)) went; \(SizeFormatter.text(bytes)) is left."
         case .remaining: return "Measured again \(later): nothing went yet."
         case .unmeasured: return "Couldn’t measure it again \(later)."
         }
