@@ -31,12 +31,8 @@ struct CatalogPlanSection: View {
                           symbol: "info.circle", role: .neutral, identifier: "planOverridden-" + rule.id)
             }
             if !model.notAccessibleRules.isEmpty {
-                HStack(spacing: CacheDropDesign.Space.sm) {
-                    StatusRow(text: ListFormatter.localizedString(byJoining: model.notAccessibleRules.map(\.title)) + " needs Full Disk Access.", symbol: "lock",
-                              identifier: "planNotAccessible").fixedSize()
-                    FullDiskAccessLink(title: "Learn more", symbol: nil)
-                    Spacer(minLength: 0)
-                }
+                // Overview's line, so both say it the same way, plural-correct, with the places in its tooltip (#435).
+                FullDiskAccessNote(places: model.notAccessibleRules.map(\.title)).accessibilityIdentifier("planNotAccessible")
             }
             ForEach(model.notes, id: \.ruleID) { note in StatusRow(text: note.text, symbol: "info.circle", role: .neutral, identifier: "planNote-" + note.ruleID) }
             if let message = model.message { StatusRow(text: message, symbol: "info.circle", role: .caution) }
