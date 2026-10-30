@@ -13,9 +13,7 @@ public struct LaterMeasurement: Codable, Sendable, Equatable {
         case unmeasured
         /// Stored in the journal (#448): a renamed case keeps its key here.
         private enum CodingKeys: String, CodingKey { case gone = "gone", remaining = "remaining", unmeasured = "unmeasured" }
-        private enum GoneCodingKeys: CodingKey {}
         private enum RemainingCodingKeys: String, CodingKey { case bytes = "bytes" }
-        private enum UnmeasuredCodingKeys: CodingKey {}
     }
     public let measuredAt: Date
     public let finding: Finding

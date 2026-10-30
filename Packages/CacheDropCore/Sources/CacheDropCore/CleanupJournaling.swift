@@ -60,7 +60,8 @@ public struct CleanupRecord: Codable, Sendable, Identifiable {
     public var reviewOf: String? = nil
     /// On a reviewed record, and on the record History shows for it, what checking against disk found (#309).
     public var recoveryFinding: RecoveryFinding? = nil
-    /// The journal's stored keys (#448): a renamed property keeps its key here, so older journals still read.
+    /// The journal's stored keys (#448): a renamed property keeps its key here, so older journals still read. A new field
+    /// needs its key here, or it is never saved, and in the StoredKeys fixture.
     private enum CodingKeys: String, CodingKey {
         case id = "id", batchID = "batchID", originalURL = "originalURL", resourceID = "resourceID", logicalBytes = "logicalBytes",
             allocatedBytes = "allocatedBytes", state = "state", trashURL = "trashURL", message = "message", observedAt = "observedAt",

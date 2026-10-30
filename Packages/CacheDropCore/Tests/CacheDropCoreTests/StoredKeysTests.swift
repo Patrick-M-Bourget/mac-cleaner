@@ -17,6 +17,17 @@ enum StoredKeysFixture {
         #expect(again == (try JSONSerialization.jsonObject(with: data) as? NSDictionary), "Encoding \(name) again changed its keys")
         return value
     }
+    /// Checks that every stored property of `value` is among `keys`, the fixture's keys for it. With explicit `CodingKeys`, a
+    /// new `var x: T? = nil` left out of them compiles and is never saved; this catches it. Add a new field's key to the fixture too.
+    static func expectEveryPropertyStored(_ value: Any, in keys: some Collection<String>, _ name: String) {
+        let properties = Set(Mirror(reflecting: value).children.compactMap(\.label))
+        #expect(properties == Set(keys), "\(name): a stored property and the fixture's keys differ")
+    }
+    static func keys(_ data: Data, at path: [String]) throws -> [String] {
+        var object: Any = try JSONSerialization.jsonObject(with: data)
+        for key in path { object = try #require((object as? [String: Any])?[key]) }
+        return try #require(object as? [String: Any]).map(\.key)
+    }
 }
 
 private struct JournalFixture: Codable {
@@ -65,6 +76,11 @@ private struct JournalFixture: Codable {
     #expect(record.laterMeasurement == LaterMeasurement(measuredAt: at(800_000_300), finding: .remaining(bytes: 77), afterSeconds: 300))
     #expect(record.reviewOf == "interrupted-1")
     #expect(record.recoveryFinding == .inTrash)
+
+    let data = try StoredKeysFixture.data("journal")
+    StoredKeysFixture.expectEveryPropertyStored(record, in: try StoredKeysFixture.keys(data, at: ["record"]), "CleanupRecord")
+    StoredKeysFixture.expectEveryPropertyStored(try #require(record.itemCapacity), in: try StoredKeysFixture.keys(data, at: ["record", "itemCapacity"]), "CleanupCapacityObservation")
+    StoredKeysFixture.expectEveryPropertyStored(try #require(record.laterMeasurement), in: try StoredKeysFixture.keys(data, at: ["record", "laterMeasurement"]), "LaterMeasurement")
 
     let item = try #require(record.itemCapacity)
     #expect(item.beforeAvailable == 1_000); #expect(item.afterAvailable == 2_000)
