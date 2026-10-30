@@ -7,23 +7,23 @@ struct AppManagedStorageView: View {
     @Bindable var model: CatalogCleanupModel
     let back: () -> Void
     var body: some View {
-        let protected = model.guidance.filter { $0.size == .notAccessible }
+        let protected = model.appManaged.filter { $0.size == .notAccessible }
         VStack(alignment: .leading, spacing: CacheDropDesign.Space.xl) {
             PageHeader(title: "App-managed storage", subtitle: "Review protected data in the app that owns it.",
                        back: BackButton(destination: Destination.overview.rawValue, identifier: "appManagedBack", action: back))
             if !protected.isEmpty {
-                FullDiskAccessNote(places: protected.compactMap { model.guidanceRule($0)?.title }).accessibilityIdentifier("guidanceAccess")
+                FullDiskAccessNote(places: protected.compactMap { model.appManagedRule($0)?.title }).accessibilityIdentifier("guidanceAccess")
             }
             // Nothing known yet: skeleton rows; a rescan dims the rows already shown (#308).
             if !model.hasScanned { SkeletonRows(.review, identifier: "guidanceSkeleton") }
             // A plain empty state: nothing here to act on (#321).
-            else if model.guidance.isEmpty && !model.isScanning {
+            else if model.appManaged.isEmpty && !model.isScanning {
                 EmptyState(title: "No app-managed storage found", symbol: "checkmark.circle", identifier: "guidanceEmpty")
             }
-            if !model.guidance.isEmpty {
+            if !model.appManaged.isEmpty {
                 RecommendationGroup {
-                    ForEach(Array(model.guidance.enumerated()), id: \.element.id) { index, finding in
-                        if let rule = model.guidanceRule(finding), let guidance = rule.guidance {
+                    ForEach(Array(model.appManaged.enumerated()), id: \.element.id) { index, finding in
+                        if let rule = model.appManagedRule(finding), let guidance = rule.guidance {
                             if index > 0 { Divider().padding(.horizontal, CacheDropDesign.Space.lg) }
                             let needsAccess = finding.size == .notAccessible
                             StorageReviewRow(category: rule.managedCategory, title: rule.title,
@@ -39,7 +39,7 @@ struct AppManagedStorageView: View {
                     }
                 }.waitingForScan(model.isScanning)
             }
-            if let status = model.guidanceStatus { StatusRow(text: status, symbol: "info.circle", identifier: "guidanceStatus") }
+            if let status = model.appManagedStatus { StatusRow(text: status, symbol: "info.circle", identifier: "guidanceStatus") }
         }
     }
 }

@@ -83,9 +83,9 @@ import SwiftUI
     /// Why a rule kept items back, such as copies whose use couldn't be checked.
     private(set) var notes: [CatalogNote] = []
     /// Guidance-only categories found at the last scan. Never candidates, never in a plan. Set only by the guidance
-    /// scan (`CatalogCleanupModel+Guidance.swift`), which lives in its own file and so can't use a private setter.
-    var guidance: [GuidanceFinding] = []
-    var guidanceStatus: String?
+    /// scan (`CatalogCleanupModel+AppManaged.swift`), which lives in its own file and so can't use a private setter.
+    var appManaged: [GuidanceFinding] = []
+    var appManagedStatus: String?
     /// Rules whose owner keeps its data elsewhere by a setting; they offer nothing.
     private(set) var overriddenRules: [CleanupRule] = []
     /// Rules CacheDrop can't read without Full Disk Access (Safari's cache): shown as not accessible, never as 0.
@@ -454,7 +454,7 @@ import SwiftUI
         setRunning(scanned.owners, open: scanned.openOwners); ownerNames = scanned.ownerNames
         keepOnlyCurrentChoices()
         scanProgress?.phase = .appManagedStorage
-        await scanGuidance(home: home, fullDiskAccess: scanned.access, receipts: scanned.receipts)
+        await scanAppManaged(home: home, fullDiskAccess: scanned.access, receipts: scanned.receipts)
         // Full Disk Access granted while it ran (from the welcome, during the launch scan): scan again once, by itself (#310).
         if fullDiskAccessRescan.scanEnded(probing: FullDiskAccessProbe(home: home)) { rescanPending = true }
     }
