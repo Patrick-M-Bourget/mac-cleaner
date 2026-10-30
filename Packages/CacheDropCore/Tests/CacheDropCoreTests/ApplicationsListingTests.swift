@@ -42,7 +42,7 @@ private struct NoReceipts: InstallerReceiptReading { func receipts() -> [Install
         try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
         try Data([1]).write(to: file)
     }
-    let found = RemovedAppLeftovers.scan(home: home, apps: NoApps(), receipts: NoReceipts(), exclusions: ExclusionPolicy())
+    let found = RemovedAppLeftovers.scan(home: home, apps: NoApps(), receipts: NoReceipts(), exclusions: ProtectedItemsPolicy())
     func matched(_ search: String) -> [String] { found.filter(ApplicationsListing(search: search).matches).map(\.url.lastPathComponent) }
     #expect(found.count == 2)
     #expect(matched("synth") == ["com.gone.synth.plist"], "By the app's name")

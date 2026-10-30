@@ -445,14 +445,14 @@ public struct Catalog: Sendable {
     /// A `.tool` rule appears only when `locateTool` finds its executable. Rules based in the user's
     /// `/private/var/folders` entry appear only when `userFolder` is given (`Catalog.currentUserFolder()` in the app).
     /// Absolute paths in a rule's layout overrides are read under `systemRoot`.
-    func discover(home: URL, userFolder: URL? = nil, exclusions: ExclusionPolicy = ExclusionPolicy(), inUse: any InUseChecking = SystemInUseChecker(), sizer: KnownLocationSizer = KnownLocationSizer(), now: Date = Date(), locateTool: (ToolCommand) -> URL? = ToolCommand.installed,
+    func discover(home: URL, userFolder: URL? = nil, exclusions: ProtectedItemsPolicy = ProtectedItemsPolicy(), inUse: any InUseChecking = SystemInUseChecker(), sizer: KnownLocationSizer = KnownLocationSizer(), now: Date = Date(), locateTool: (ToolCommand) -> URL? = ToolCommand.installed,
                          systemRoot: URL = URL(fileURLWithPath: "/"), cloud: any UbiquitousItemAccess = SystemUbiquitousItems()) -> [Candidate] {
         discovery(home: home, userFolder: userFolder, exclusions: exclusions, inUse: inUse, sizer: sizer, now: now, locateTool: locateTool, systemRoot: systemRoot, cloud: cloud).candidates
     }
 
     /// `discover`, plus notes on rules that kept items back, such as copies kept because their use couldn't be checked.
     /// A rule that needs Full Disk Access CacheDrop doesn't have (`access`) is never read; it comes back in `notAccessible`.
-    public func discovery(home: URL, userFolder: URL? = nil, exclusions: ExclusionPolicy = ExclusionPolicy(), inUse: any InUseChecking = SystemInUseChecker(), sizer: KnownLocationSizer = KnownLocationSizer(), now: Date = Date(), locateTool: (ToolCommand) -> URL? = ToolCommand.installed,
+    public func discovery(home: URL, userFolder: URL? = nil, exclusions: ProtectedItemsPolicy = ProtectedItemsPolicy(), inUse: any InUseChecking = SystemInUseChecker(), sizer: KnownLocationSizer = KnownLocationSizer(), now: Date = Date(), locateTool: (ToolCommand) -> URL? = ToolCommand.installed,
                           systemRoot: URL = URL(fileURLWithPath: "/"), cloud: any UbiquitousItemAccess = SystemUbiquitousItems(), access: FullDiskAccessStatus = .unknown,
                           progress: (CatalogDiscoveryProgress) -> Void = { _ in }) -> CatalogDiscovery {
         // Guidance rules report their own access (`guidance(home:)`).

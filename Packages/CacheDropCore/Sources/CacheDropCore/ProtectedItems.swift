@@ -2,7 +2,7 @@ import Foundation
 import Darwin
 import CryptoKit
 
-public struct ExclusionRule: Codable, Sendable, Identifiable, Equatable {
+public struct ProtectedItemsRule: Codable, Sendable, Identifiable, Equatable {
     /// Raw values are stored in Protected items and in Storage trends' fingerprint of them (#448): a renamed case keeps its string.
     public enum Boundary: String, Codable, Sendable { case file = "file", folder = "folder" }
     public let id: UUID
@@ -11,18 +11,18 @@ public struct ExclusionRule: Codable, Sendable, Identifiable, Equatable {
     public let boundary: Boundary
     /// Stored in Protected items (#448): a renamed property keeps its key here; a new field needs its key here and in the fixture.
     private enum CodingKeys: String, CodingKey { case id = "id", path = "path", volumeID = "volumeID", boundary = "boundary" }
-    public static func capture(_ url: URL) throws -> ExclusionRule {
+    public static func capture(_ url: URL) throws -> ProtectedItemsRule {
         guard url.isFileURL else { throw CocoaError(.fileReadUnsupportedScheme) }
         let resolved = url.resolvingSymlinksInPath().standardizedFileURL
         var info = stat()
         guard lstat(resolved.path, &info) == 0, [S_IFREG, S_IFDIR].contains(info.st_mode & S_IFMT),
               let volume = try resolved.resourceValues(forKeys: [.volumeUUIDStringKey]).volumeUUIDString else { throw CocoaError(.fileReadNoPermission) }
-        return ExclusionRule(id: UUID(), path: resolved.path, volumeID: volume, boundary: info.st_mode & S_IFMT == S_IFDIR ? .folder : .file)
+        return ProtectedItemsRule(id: UUID(), path: resolved.path, volumeID: volume, boundary: info.st_mode & S_IFMT == S_IFDIR ? .folder : .file)
     }
 }
-public struct ExclusionPolicy: Sendable {
-    public let rules: [ExclusionRule]
-    public init(rules: [ExclusionRule] = []) { self.rules = rules }
+public struct ProtectedItemsPolicy: Sendable {
+    public let rules: [ProtectedItemsRule]
+    public init(rules: [ProtectedItemsRule] = []) { self.rules = rules }
     public var fingerprint: String {
         guard !rules.isEmpty else { return "none" }
         let normalized = Set(rules.map { [ $0.volumeID, $0.boundary.rawValue, $0.path ] }).sorted { $0.lexicographicallyPrecedes($1) }
@@ -48,15 +48,15 @@ public struct ExclusionPolicy: Sendable {
     }
 }
 /// This store owns one bounded settings file; it has no plan or cleanup/journal authority.
-public actor ExclusionStore {
+public actor ProtectedItemsStore {
     private struct Archive: Codable {
-        let version: Int; let rules: [ExclusionRule]
+        let version: Int; let rules: [ProtectedItemsRule]
         private enum CodingKeys: String, CodingKey { case version = "version", rules = "rules" }
     }
     private let directory: URL
     public init(directory: URL) { self.directory = directory }
-    public func policy() throws -> ExclusionPolicy { try transaction { try read() } }
-    public func add(_ rule: ExclusionRule) throws {
+    public func policy() throws -> ProtectedItemsPolicy { try transaction { try read() } }
+    public func add(_ rule: ProtectedItemsRule) throws {
         try transaction {
             var rules = try read().rules
             guard !rules.contains(where: { $0.path == rule.path && $0.volumeID == rule.volumeID && $0.boundary == rule.boundary }) else { return }
@@ -79,21 +79,21 @@ public actor ExclusionStore {
         guard flock(descriptor, LOCK_EX) == 0 else { throw CocoaError(.fileWriteNoPermission) }
         return try body()
     }
-    private func read() throws -> ExclusionPolicy { try Self.policy(readingOnly: directory) }
+    private func read() throws -> ProtectedItemsPolicy { try Self.policy(readingOnly: directory) }
     /// The saved rules without the lock or creating anything, for a read-only report (#319): a missing file means none.
-    public static func policy(readingOnly directory: URL) throws -> ExclusionPolicy {
+    public static func policy(readingOnly directory: URL) throws -> ProtectedItemsPolicy {
         let file = directory.appendingPathComponent("rules-v1.json")
         var info = stat()
         if lstat(file.path, &info) != 0 {
-            if errno == ENOENT { return ExclusionPolicy() }; throw CocoaError(.fileReadNoPermission)
+            if errno == ENOENT { return ProtectedItemsPolicy() }; throw CocoaError(.fileReadNoPermission)
         }
         guard info.st_mode & S_IFMT == S_IFREG, info.st_uid == geteuid(), info.st_size <= 1_000_000 else { throw CocoaError(.fileReadCorruptFile) }
         let archive = try JSONDecoder().decode(Archive.self, from: Data(contentsOf: file))
         guard archive.version == 1, archive.rules.count <= 100, Set(archive.rules.map(\.id)).count == archive.rules.count,
               archive.rules.allSatisfy({ $0.path.hasPrefix("/") && $0.path.utf8.count <= 8192 && !$0.volumeID.isEmpty && $0.volumeID.utf8.count <= 512 }) else { throw CocoaError(.fileReadCorruptFile) }
-        return ExclusionPolicy(rules: archive.rules)
+        return ProtectedItemsPolicy(rules: archive.rules)
     }
-    private func write(_ rules: [ExclusionRule]) throws {
+    private func write(_ rules: [ProtectedItemsRule]) throws {
         let data = try JSONEncoder().encode(Archive(version: 1, rules: rules))
         guard data.count <= 1_000_000 else { throw CocoaError(.fileWriteOutOfSpace) }
         let file = directory.appendingPathComponent("rules-v1.json")

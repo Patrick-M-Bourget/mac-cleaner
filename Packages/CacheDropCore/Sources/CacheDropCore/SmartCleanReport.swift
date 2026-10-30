@@ -14,7 +14,7 @@ public struct SmartCleanReport: Sendable {
         public let catalog: Catalog
         public let home: URL
         public let userFolder: URL?
-        public let exclusions: ExclusionPolicy
+        public let exclusions: ProtectedItemsPolicy
         public let apps: any AppPresence
         public let receipts: any InstallerReceiptReading
         public let locateTool: @Sendable (ToolCommand) -> URL?
@@ -23,7 +23,7 @@ public struct SmartCleanReport: Sendable {
         public let inUse: any InUseChecking
         public let running: any RunningAppChecking
         public let access: FullDiskAccessStatus
-        public init(catalog: Catalog, home: URL, userFolder: URL?, exclusions: ExclusionPolicy, apps: any AppPresence, receipts: any InstallerReceiptReading,
+        public init(catalog: Catalog, home: URL, userFolder: URL?, exclusions: ProtectedItemsPolicy, apps: any AppPresence, receipts: any InstallerReceiptReading,
                     locateTool: @escaping @Sendable (ToolCommand) -> URL?, systemRoot: URL, cloud: any UbiquitousItemAccess, inUse: any InUseChecking,
                     running: any RunningAppChecking, access: FullDiskAccessStatus) {
             self.catalog = catalog; self.home = home; self.userFolder = userFolder; self.exclusions = exclusions; self.apps = apps; self.receipts = receipts
@@ -34,7 +34,7 @@ public struct SmartCleanReport: Sendable {
         /// Debug only: the owner's opt-in report test calls it, and Release never does (#334).
         public static func thisMac() throws -> Sources {
             let home = FileManager.default.homeDirectoryForCurrentUser.resolvingSymlinksInPath()
-            let exclusions = try ExclusionStore.policy(readingOnly: LocalStateLocation.root(create: false).appendingPathComponent("Exclusions", isDirectory: true))
+            let exclusions = try ProtectedItemsStore.policy(readingOnly: LocalStateLocation.root(create: false).appendingPathComponent("Exclusions", isDirectory: true))
             return Sources(catalog: Catalog(rules: BuiltInCatalog.rules), home: home, userFolder: Catalog.currentUserFolder(), exclusions: exclusions,
                            apps: SystemAppPresence(), receipts: ReadReceipts(ReceiptListings.read(under: URL(fileURLWithPath: "/")), home: home), locateTool: ToolCommand.installed,
                            systemRoot: URL(fileURLWithPath: "/"), cloud: SystemUbiquitousItems(), inUse: SystemInUseChecker(), running: SystemRunningAppChecker(),

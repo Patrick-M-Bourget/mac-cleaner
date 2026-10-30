@@ -40,7 +40,7 @@ private func fixture(now: Date) throws -> (home: URL, sources: SmartCleanReport.
     try write(home, "Library/Preferences/com.gone.app.plist")
     let receipts = Receipts(all: [InstallerReceipt(id: "com.foocorp.foo.pkg", apps: [home.path + "/Applications/Foo.app"],
                                                    paths: [home.path + "/Library/Application Support/FooData/presets.db"])])
-    let sources = SmartCleanReport.Sources(catalog: Catalog(rules: fixtureRules), home: home, userFolder: nil, exclusions: ExclusionPolicy(), apps: Apps(),
+    let sources = SmartCleanReport.Sources(catalog: Catalog(rules: fixtureRules), home: home, userFolder: nil, exclusions: ProtectedItemsPolicy(), apps: Apps(),
                                            receipts: receipts, locateTool: { _ in nil }, systemRoot: home, cloud: FakeCloud(), inUse: FixtureNothingInUse(),
                                            running: FixtureNothingRunning(), access: .granted)
     return (home, sources)

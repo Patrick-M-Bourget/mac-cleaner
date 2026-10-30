@@ -35,7 +35,7 @@ private func file(_ folder: URL, _ path: String, size: Int64 = 10, sparse: Bool 
     return url
 }
 /// The picked folder's files as the explorer offers them, relative to the folder.
-private func offered(_ folder: URL, now: Date, rule: CleanupRule = UserFiles.rule, exclusions: ExclusionPolicy = ExclusionPolicy()) async throws -> [String: Candidate] {
+private func offered(_ folder: URL, now: Date, rule: CleanupRule = UserFiles.rule, exclusions: ProtectedItemsPolicy = ProtectedItemsPolicy()) async throws -> [String: Candidate] {
     let scan = try await FolderScanner().scan(folder)
     let found = UserFiles.candidates(in: scan, rule: rule, exclusions: exclusions, home: fixtureNoHome, now: now, large: large)
     return Dictionary(uniqueKeysWithValues: found.map { (String($0.url.path.dropFirst(folder.path.count + 1)), $0) })
@@ -76,7 +76,7 @@ private func offered(_ folder: URL, now: Date, rule: CleanupRule = UserFiles.rul
     #expect(found == ["movie.mov", "old/report.pdf", "Old VM.raw"])
 }
 
-@Test func protectedExtensionsGitCheckoutsAndExclusionsAreNeverOffered() async throws {
+@Test func protectedExtensionsGitCheckoutsAndProtectedItemsAreNeverOffered() async throws {
     let folder = try pickedFolder()
     defer { try? FileManager.default.removeItem(at: folder) }
     let now = Date(), old = 200 * day
@@ -88,7 +88,7 @@ private func offered(_ folder: URL, now: Date, rule: CleanupRule = UserFiles.rul
     try file(folder, "a/deep/repo/.git/HEAD", now: now)
     try file(folder, "a/deep/repo/sub/old.bin", age: old, now: now)
     try file(folder, "private/old.txt", age: old, now: now)
-    let excluded = ExclusionPolicy(rules: [try ExclusionRule.capture(folder.appendingPathComponent("private"))])
+    let excluded = ProtectedItemsPolicy(rules: [try ProtectedItemsRule.capture(folder.appendingPathComponent("private"))])
 
     let found = try await offered(folder, now: now, exclusions: excluded)
     #expect(Set(found.keys) == ["keep.mov"])

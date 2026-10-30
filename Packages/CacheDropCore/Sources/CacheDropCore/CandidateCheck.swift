@@ -62,7 +62,7 @@ public enum CheckRefusal: Sendable, Hashable {
 public struct CandidateCheck: Sendable {
     public let catalog: Catalog
     public let running: any RunningAppChecking
-    public let exclusions: ExclusionPolicy
+    public let exclusions: ProtectedItemsPolicy
     /// Whether a leaked copy is in use now (rules with `copies`).
     public let inUse: any InUseChecking
     /// iCloud state, for evict candidates.
@@ -126,7 +126,7 @@ public struct CandidateCheck: Sendable {
         }
         return opened ? found : "unreadable folder"
     }
-    public init(catalog: Catalog, running: any RunningAppChecking, exclusions: ExclusionPolicy = ExclusionPolicy(), inUse: any InUseChecking = SystemInUseChecker(),
+    public init(catalog: Catalog, running: any RunningAppChecking, exclusions: ProtectedItemsPolicy = ProtectedItemsPolicy(), inUse: any InUseChecking = SystemInUseChecker(),
                 cloud: any UbiquitousItemAccess = SystemUbiquitousItems(), home: URL, apps: any AppPresence = SystemAppPresence(),
                 systemRoot: URL = URL(fileURLWithPath: "/")) {
         self.catalog = catalog; self.running = running; self.exclusions = exclusions; self.inUse = inUse; self.cloud = cloud; self.home = home; self.apps = apps

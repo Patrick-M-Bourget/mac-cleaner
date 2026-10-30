@@ -423,7 +423,7 @@ final class BackButtonUITests: XCTestCase {
 
 /// #313: custom exclusions are reached from Locations & access, as its Protected items row.
 final class ProtectedItemsUITests: XCTestCase {
-    @MainActor func testProtectedItemsOpensExclusionsFromLocationsAndReturns() throws {
+    @MainActor func testProtectedItemsOpensFromLocationsAndReturns() throws {
         continueAfterFailure = false
         let app = XCUIApplication()
         let state = try configureIsolatedState(app)

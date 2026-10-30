@@ -68,7 +68,7 @@ public enum ProjectBuilds {
     /// The build folders in `scope`, a folder the user picked, grouped by project (`profile`) and dated by the project's
     /// last change (`lastUsed`). A project being worked on (open, recently changed, uncommitted changes) keeps its build folders
     /// listed, held with that reason (#374); one that can't be checked offers nothing. Read-only.
-    public static func candidates(in scope: URL, rule: CleanupRule = rule, exclusions: ExclusionPolicy = ExclusionPolicy(), home: URL,
+    public static func candidates(in scope: URL, rule: CleanupRule = rule, exclusions: ProtectedItemsPolicy = ProtectedItemsPolicy(), home: URL,
                                   inUse: any InUseChecking = SystemInUseChecker(), now: Date = Date()) -> [Candidate] {
         guard let scopePath = realPath(scope.path) else { return [] }
         let scope = URL(fileURLWithPath: scopePath, isDirectory: true), catalog = Catalog(rules: [rule]), protection = Protection(rule)

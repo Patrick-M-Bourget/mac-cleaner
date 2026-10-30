@@ -74,7 +74,7 @@ private func write(_ bytes: Int, at path: String, in home: URL) throws {
     try Data(repeating: 1, count: bytes).write(to: file)
 }
 private func recordCatalogScan(_ catalog: Catalog, home: URL, recorder: StorageTrendsScanRecorder, access: FullDiskAccessStatus = .granted) async throws -> StorageTrendsComparison {
-    let token = try await recorder.beginCatalog(home: home, exclusionFingerprint: ExclusionPolicy().fingerprint)
+    let token = try await recorder.beginCatalog(home: home, exclusionFingerprint: ProtectedItemsPolicy().fingerprint)
     let discovery = catalog.discovery(fixture: home, access: access)
     return try await recorder.completeCatalog(discovery, catalog: catalog, fullDiskAccess: access, token: token)
 }
@@ -214,7 +214,7 @@ private func recordCatalogScan(_ catalog: Catalog, home: URL, recorder: StorageT
     let catalog = Catalog(rules: fixtureRules), recorder = StorageTrendsScanRecorder(store: store)
     try write(10_000, at: ".npm/_cacache/content-v2/one", in: home)
     for reset in [false, true] {
-        let token = try await recorder.beginCatalog(home: home, exclusionFingerprint: ExclusionPolicy().fingerprint)
+        let token = try await recorder.beginCatalog(home: home, exclusionFingerprint: ProtectedItemsPolicy().fingerprint)
         let discovery = catalog.discovery(fixture: home, access: .granted)
         let maintenance = StorageTrendsHistoryStore(directory: directory)
         if reset { try await maintenance.resetHistory() } else { try await maintenance.clearCompletedHistory() }
@@ -231,7 +231,7 @@ private func recordCatalogScan(_ catalog: Catalog, home: URL, recorder: StorageT
     let catalog = Catalog(rules: fixtureRules), recorder = StorageTrendsScanRecorder(store: store)
     try write(10_000, at: ".npm/_cacache/content-v2/one", in: home)
     #expect(try await recordCatalogScan(catalog, home: home, recorder: recorder).state == .firstBaseline)
-    let stale = try await recorder.beginCatalog(home: home, exclusionFingerprint: ExclusionPolicy().fingerprint)
+    let stale = try await recorder.beginCatalog(home: home, exclusionFingerprint: ProtectedItemsPolicy().fingerprint)
     let discovery = catalog.discovery(fixture: home, access: .granted)
     try await store.invalidateCoverage()
     #expect(try await recorder.completeCatalog(discovery, catalog: catalog, fullDiskAccess: .granted, token: stale).state == .unknown)
@@ -245,7 +245,7 @@ private func recordCatalogScan(_ catalog: Catalog, home: URL, recorder: StorageT
     let catalog = Catalog(rules: fixtureRules), recorder = StorageTrendsScanRecorder(store: store)
     let first = try await recordCatalogScan(catalog, home: home, recorder: recorder)
     #expect(first.current?.afterCleanup == false)
-    let token = try await recorder.beginCatalog(home: home, exclusionFingerprint: ExclusionPolicy().fingerprint)
+    let token = try await recorder.beginCatalog(home: home, exclusionFingerprint: ProtectedItemsPolicy().fingerprint)
     let rescan = try await recorder.completeCatalog(catalog.discovery(fixture: home, access: .granted), catalog: catalog, fullDiskAccess: .granted, token: token,
                                                     afterCleanup: true)
     #expect(rescan.current?.afterCleanup == true)

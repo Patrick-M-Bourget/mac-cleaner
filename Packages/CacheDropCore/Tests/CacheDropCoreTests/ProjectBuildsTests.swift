@@ -17,7 +17,7 @@ private func file(_ folder: URL, _ path: String, age: TimeInterval = 30 * day) t
     try FileManager.default.setAttributes([.modificationDate: Date().addingTimeInterval(-age)], ofItemAtPath: url.path)
 }
 /// The build folders a picked folder offers, relative to it.
-private func offered(_ folder: URL, inUse: any InUseChecking = FixtureNothingInUse(), exclusions: ExclusionPolicy = ExclusionPolicy()) -> [String: Candidate] {
+private func offered(_ folder: URL, inUse: any InUseChecking = FixtureNothingInUse(), exclusions: ProtectedItemsPolicy = ProtectedItemsPolicy()) -> [String: Candidate] {
     let found = ProjectBuilds.candidates(in: folder, exclusions: exclusions, home: fixtureNoHome, inUse: inUse)
     return Dictionary(uniqueKeysWithValues: found.map { (String($0.url.path.dropFirst(folder.path.count + 1)), $0) })
 }

@@ -2,19 +2,19 @@ import SwiftUI
 import Observation
 import CacheDropCore
 
-@MainActor @Observable final class ExclusionsModel {
-    static let shared = ExclusionsModel()
-    private var store: ExclusionStore?
-    private(set) var rules: [ExclusionRule] = []
+@MainActor @Observable final class ProtectedItemsModel {
+    static let shared = ProtectedItemsModel()
+    private var store: ProtectedItemsStore?
+    private(set) var rules: [ProtectedItemsRule] = []
     private(set) var busy = false
     private(set) var error: String?
-    var preview: ExclusionRule?
-    private func open() throws -> ExclusionStore {
+    var preview: ProtectedItemsRule?
+    private func open() throws -> ProtectedItemsStore {
         if let store { return store }
-        let value = ExclusionStore(directory: try LocalStateLocation.root(create: true).appendingPathComponent("Exclusions", isDirectory: true))
+        let value = ProtectedItemsStore(directory: try LocalStateLocation.root(create: true).appendingPathComponent("Exclusions", isDirectory: true))
         store = value; return value
     }
-    func policyForScan() async throws -> ExclusionPolicy {
+    func policyForScan() async throws -> ProtectedItemsPolicy {
         guard !busy else { throw CocoaError(.fileReadNoPermission) }
         do {
             let policy = try await open().policy()
@@ -41,7 +41,7 @@ import CacheDropCore
         guard panel.runModal() == .OK, let url = panel.url else { return }
         let access = url.startAccessingSecurityScopedResource()
         defer { if access { url.stopAccessingSecurityScopedResource() } }
-        do { preview = try await Task.detached { try ExclusionRule.capture(url) }.value; error = nil }
+        do { preview = try await Task.detached { try ProtectedItemsRule.capture(url) }.value; error = nil }
         catch { self.error = "CacheDrop couldn’t check that item. Nothing was saved." }
     }
     func save() async {
@@ -49,20 +49,20 @@ import CacheDropCore
         busy = true; AppLifecycleController.shared.maintenanceInProgress = true
         defer { busy = false; AppLifecycleController.shared.maintenanceInProgress = false }
         do {
-            let verified = try await Task.detached { try ExclusionRule.capture(URL(fileURLWithPath: preview.path)) }.value
+            let verified = try await Task.detached { try ProtectedItemsRule.capture(URL(fileURLWithPath: preview.path)) }.value
             guard verified.path == preview.path, verified.volumeID == preview.volumeID, verified.boundary == preview.boundary else { throw CocoaError(.fileReadUnknown) }
             try await mutate { try await $0.add(preview) }
             self.preview = nil
         } catch { self.error = "CacheDrop couldn’t save it. Choose the item again; up to 100 items can be protected." }
     }
-    func remove(_ rule: ExclusionRule) async {
+    func remove(_ rule: ProtectedItemsRule) async {
         guard !editingBlocked else { return }
         busy = true; AppLifecycleController.shared.maintenanceInProgress = true
         defer { busy = false; AppLifecycleController.shared.maintenanceInProgress = false }
         do { try await mutate { try await $0.remove(rule.id) } }
         catch { self.error = "CacheDrop couldn’t remove it." }
     }
-    private func mutate(_ operation: (ExclusionStore) async throws -> Void) async throws {
+    private func mutate(_ operation: (ProtectedItemsStore) async throws -> Void) async throws {
         let lifecycle = AppLifecycleController.shared
         lifecycle.inspection.cancel()
         lifecycle.selection.invalidateCoverage()
@@ -70,7 +70,7 @@ import CacheDropCore
         try await operation(open())
         let policy = try await open().policy()
         rules = policy.rules; error = nil
-        lifecycle.selection.expectExclusions(policy.fingerprint)
+        lifecycle.selection.expectProtectedItems(policy.fingerprint)
         await lifecycle.inspection.invalidateCoverage()
         // What's protected now leaves every page by itself, as after a cleanup (Decision 58, #437); the rescan waits for
         // this change's maintenance lease to end.
@@ -80,7 +80,7 @@ import CacheDropCore
     func reset() async throws {
         try await open().reset()
         rules = []; preview = nil; error = nil
-        AppLifecycleController.shared.selection.expectExclusions("none")
+        AppLifecycleController.shared.selection.expectProtectedItems("none")
     }
 }
 
@@ -95,8 +95,8 @@ struct ProtectedItemsEntry: View {
     }
 }
 
-struct ExclusionsView: View {
-    @Bindable var model: ExclusionsModel
+struct ProtectedItemsView: View {
+    @Bindable var model: ProtectedItemsModel
     /// The back button above the title, from the page that opened this one.
     var back: BackButton? = nil
     var body: some View {

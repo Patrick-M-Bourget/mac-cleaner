@@ -67,7 +67,7 @@ extension Catalog {
 
     /// The files and packages in `root` (or `root` itself) whose local copies can be removed. Never follows symlinks,
     /// crosses volumes or enters placeholders, protected or excluded folders; packages count as one item, as iCloud syncs them.
-    static func cloudCopies(in root: URL, rule: CleanupRule, cloud: any UbiquitousItemAccess, exclusions: ExclusionPolicy, volumeID: String?) -> CloudCopies {
+    static func cloudCopies(in root: URL, rule: CleanupRule, cloud: any UbiquitousItemAccess, exclusions: ProtectedItemsPolicy, volumeID: String?) -> CloudCopies {
         withoutDownloads {
             let protection = Protection(rule)
             var found = CloudCopies()
@@ -101,7 +101,7 @@ extension Catalog {
     }
 
     /// Each visible file or folder in an iCloud location whose local copies can be removed, sized by what removal releases.
-    func cloudCandidates(in location: URL, rule: CleanupRule, cloud: any UbiquitousItemAccess, exclusions: ExclusionPolicy) -> [Candidate] {
+    func cloudCandidates(in location: URL, rule: CleanupRule, cloud: any UbiquitousItemAccess, exclusions: ProtectedItemsPolicy) -> [Candidate] {
         let names = Self.withoutDownloads { (try? FileManager.default.contentsOfDirectory(atPath: location.path)) ?? [] }
         return names.sorted().filter { !$0.hasPrefix(".") }.compactMap { name -> Candidate? in
             let url = location.appendingPathComponent(name)

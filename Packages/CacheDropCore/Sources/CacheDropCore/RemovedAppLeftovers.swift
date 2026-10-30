@@ -44,7 +44,7 @@ public enum RemovedAppLeftovers {
 
     /// The leftovers under `home`. Read-only. Offers nothing when the installed apps can't be listed: an app counts as removed
     /// only when no copy is found, by Launch Services or Spotlight, on any volume.
-    public static func scan(home: URL, apps: any AppPresence, receipts: any InstallerReceiptReading, exclusions: ExclusionPolicy = ExclusionPolicy(),
+    public static func scan(home: URL, apps: any AppPresence, receipts: any InstallerReceiptReading, exclusions: ProtectedItemsPolicy = ProtectedItemsPolicy(),
                             sizer: KnownLocationSizer = KnownLocationSizer(), skipping: Set<String> = []) -> [Candidate] {
         guard let installed = apps.installedApps() else { return [] }
         let base = home.resolvingSymlinksInPath()
