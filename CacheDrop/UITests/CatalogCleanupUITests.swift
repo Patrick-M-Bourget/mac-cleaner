@@ -505,7 +505,7 @@ final class CatalogCleanupUITests: XCTestCase {
         XCTAssertEqual(category.value as? Int, 1)
 
         // The plan's bottom bar has only Review cleanup.
-        XCTAssertFalse(app.descendants(matching: .any)["previewOnlyToggle"].exists)
+        XCTAssertFalse(app.descendants(matching: .any)["dryRunToggle"].exists)
         let review = app.buttons["Review cleanup"]
         XCTAssertTrue(review.waitForExistence(timeout: 5))
         XCTAssertTrue(review.isEnabled)

@@ -68,7 +68,7 @@ private struct JournalFixture: Codable {
     #expect(record.outcomeRecordedAt == at(800_000_002))
     #expect(record.approvedAt == at(800_000_000))
     #expect(record.ruleID == "npm-cache")
-    #expect(record.previewOnly == true)
+    #expect(record.dryRun == true)
     #expect(record.toolOutput == "pruned 3 images")
     #expect(record.partlyRemoved == false)
     #expect(record.itemName == "Llama 3")
@@ -81,7 +81,7 @@ private struct JournalFixture: Codable {
     #expect(record.recoveryFinding == .inTrash)
 
     let data = try StoredKeysFixture.data("journal")
-    StoredKeysFixture.expectEveryPropertyStored(record, in: try StoredKeysFixture.keys(data, at: ["record"]), "CleanupRecord")
+    StoredKeysFixture.expectEveryPropertyStored(record, in: try StoredKeysFixture.keys(data, at: ["record"]), renamed: ["dryRun": "previewOnly"], "CleanupRecord")
     StoredKeysFixture.expectEveryPropertyStored(try #require(record.itemCapacity), in: try StoredKeysFixture.keys(data, at: ["record", "itemCapacity"]), "CleanupCapacityObservation")
     StoredKeysFixture.expectEveryPropertyStored(try #require(record.laterMeasurement), in: try StoredKeysFixture.keys(data, at: ["record", "laterMeasurement"]), "LaterMeasurement")
 

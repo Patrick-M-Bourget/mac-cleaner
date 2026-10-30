@@ -114,7 +114,7 @@ private func fakeTool(_ home: URL, _ script: String) throws -> URL {
 
 /// A fake volume whose available space grows by what each item frees.
 /// The Homebrew rule pointed at a fake brew, optionally with a shorter time limit.
-private func homebrewRun(_ home: URL, script: String, timeout: TimeInterval? = nil, volume: FixtureVolume = FixtureVolume(), previewOnly: Bool = false) async throws -> CatalogExecutionResult {
+private func homebrewRun(_ home: URL, script: String, timeout: TimeInterval? = nil, volume: FixtureVolume = FixtureVolume(), dryRun: Bool = false) async throws -> CatalogExecutionResult {
     let brew = try fakeTool(home, script)
     var rules = fixtureRules
     if let timeout, let index = rules.firstIndex(where: { $0.id == "homebrew" }) {
@@ -126,7 +126,7 @@ private func homebrewRun(_ home: URL, script: String, timeout: TimeInterval? = n
     let candidate = try #require(catalog.discover(fixture: home, locateTool: onlyTool("brew", brew)).first)
     let journal = try SQLiteCleanupJournal(url: home.appendingPathComponent("journal.sqlite"))
     let run = CleanupExecutor(journal: journal, check: CandidateCheck(catalog: catalog, running: FixtureNothingRunning()), measure: volume.read, trash: TrashNeverUsed())
-    return await run.execute(CatalogApproval(candidates: [candidate], previewOnly: previewOnly))
+    return await run.execute(CatalogApproval(candidates: [candidate], dryRun: dryRun))
 }
 
 @Test func homebrewRunsCleanupThenRemovesItsCacheAndReportsOutputAndMeasuredSpace() async throws {
@@ -148,12 +148,12 @@ private func homebrewRun(_ home: URL, script: String, timeout: TimeInterval? = n
     #expect(try reopened.records().first?.toolOutput == record.toolOutput)
 }
 
-@Test func previewOnlyLogsTheCommandWithoutRunningIt() async throws {
+@Test func dryRunLogsTheCommandWithoutRunningIt() async throws {
     let home = try fixtureHome()
     defer { try? FileManager.default.removeItem(at: home) }
     try makeFolder(home, "Library/Caches/Homebrew")
     let marker = home.appendingPathComponent("ran")
-    let result = try await homebrewRun(home, script: "touch '\(marker.path)'", previewOnly: true)
+    let result = try await homebrewRun(home, script: "touch '\(marker.path)'", dryRun: true)
     let record = try #require(result.records.first)
     #expect(record.state == .skipped)
     #expect(record.message.hasPrefix("Dry run: would run brew cleanup -s, then delete the folder"))
@@ -212,7 +212,7 @@ private func homebrewRun(_ home: URL, script: String, timeout: TimeInterval? = n
         group.addTask {
             while !homes.allSatisfy({ FileManager.default.fileExists(atPath: $0.appendingPathComponent("running").path) }) { try await Task.sleep(nanoseconds: 20_000_000) }
             FileManager.default.createFile(atPath: release.path, contents: nil)
-            return CatalogExecutionResult(batchID: UUID(), records: [], previewOnly: false, rejectedReplay: false, journalFailure: nil, estimatedBytes: 0)
+            return CatalogExecutionResult(batchID: UUID(), records: [], dryRun: false, rejectedReplay: false, journalFailure: nil, estimatedBytes: 0)
         }
         for try await result in group { #expect(result.records.allSatisfy { $0.state == .succeeded }) }
     }
@@ -230,7 +230,7 @@ private func cancellableRun(_ home: URL, brewScript: String, cancellation: Clean
     let pnpm = try #require(found.first { $0.ruleID == "pnpm-cache" })
     let journal = try SQLiteCleanupJournal(url: home.appendingPathComponent("journal.sqlite"))
     let run = CleanupExecutor(journal: journal, check: CandidateCheck(catalog: catalog, running: FixtureNothingRunning()), measure: measure, trash: TrashNeverUsed(), cancellation: cancellation)
-    return await run.execute(CatalogApproval(candidates: [homebrew, pnpm], previewOnly: false))
+    return await run.execute(CatalogApproval(candidates: [homebrew, pnpm], dryRun: false))
 }
 
 @Test func cancellingDuringAToolStopsItWithinTheGracePeriodAndRecordsItAsPartlyRemoved() async throws {
@@ -337,7 +337,7 @@ private func cancellableRun(_ home: URL, brewScript: String, cancellation: Clean
 
     let journal = try SQLiteCleanupJournal(url: home.appendingPathComponent("journal.sqlite"))
     let run = CleanupExecutor(journal: journal, check: CandidateCheck(catalog: catalog, running: FixtureNothingRunning()), measure: FixtureVolume().read, trash: TrashNeverUsed())
-    let result = await run.execute(CatalogApproval(candidates: [store], previewOnly: false))
+    let result = await run.execute(CatalogApproval(candidates: [store], dryRun: false))
     #expect(result.records.first?.state == .succeeded)
     #expect(try String(contentsOf: marker, encoding: .utf8) == "store prune\n")
     #expect(FileManager.default.fileExists(atPath: home.appendingPathComponent("Library/pnpm/store").path))

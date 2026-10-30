@@ -139,13 +139,13 @@ private let nothingRunning = Running(names: [])
 
     for app in ["com.apple.iphonesimulator", "com.apple.dt.Xcode"] {
         let check = CandidateCheck(catalog: catalog, running: Running(names: [app]))
-        let refused = await CleanupExecutor(journal: journal, check: check, trash: TrashNeverUsed()).execute(CatalogApproval(candidates: items, previewOnly: false))
+        let refused = await CleanupExecutor(journal: journal, check: check, trash: TrashNeverUsed()).execute(CatalogApproval(candidates: items, dryRun: false))
         #expect(refused.records.allSatisfy { $0.state == .skipped && $0.message == "Simulator or Xcode is running. Quit it, then scan again." })
     }
     #expect(simctlLog(home).isEmpty)
 
     let result = await CleanupExecutor(journal: journal, check: CandidateCheck(catalog: catalog, running: nothingRunning), trash: TrashNeverUsed())
-        .execute(CatalogApproval(candidates: items, previewOnly: false))
+        .execute(CatalogApproval(candidates: items, dryRun: false))
     #expect(result.records.map(\.state) == [.succeeded, .succeeded])
     #expect(result.records.map(\.message) == ["Ran simctl delete \(shutdownUDID)", "Ran simctl runtime delete \(unusedRuntime)"])
     #expect(result.records.map(\.itemName) == ["iPhone 16 (iOS 18.0)", "watchOS 11.0 (22R349)"])
@@ -336,7 +336,7 @@ private final class FixtureTrash: TrashMoving, @unchecked Sendable {
     let journal = try SQLiteCleanupJournal(url: home.appendingPathComponent("journal.sqlite"))
     for process in ["emulator", "qemu-system-aarch64", "com.google.android.studio"] {
         let check = CandidateCheck(catalog: catalog, running: Running(names: [process]), home: home)
-        let result = await CleanupExecutor(journal: journal, check: check, trash: TrashNeverUsed()).execute(CatalogApproval(candidates: items, previewOnly: false))
+        let result = await CleanupExecutor(journal: journal, check: check, trash: TrashNeverUsed()).execute(CatalogApproval(candidates: items, dryRun: false))
         #expect(result.records.allSatisfy { $0.state == .skipped && $0.message == "Android Studio or the emulator is running. Quit it, then scan again." }, "\(process)")
     }
     #expect(FileManager.default.fileExists(atPath: home.appendingPathComponent(avdHome + "/Pixel.avd/userdata-qemu.img").path))
@@ -356,7 +356,7 @@ private final class FixtureTrash: TrashMoving, @unchecked Sendable {
     let trash = FixtureTrash(home.appendingPathComponent("fixture-trash"))
     let check = CandidateCheck(catalog: catalog, running: nothingRunning, home: home)
     let result = await CleanupExecutor(journal: try SQLiteCleanupJournal(url: home.appendingPathComponent("journal.sqlite")), check: check, trash: trash)
-        .execute(CatalogApproval(candidates: items, previewOnly: false))
+        .execute(CatalogApproval(candidates: items, dryRun: false))
     #expect(result.records.allSatisfy { $0.state == .succeeded }, "\(result.records.map(\.message))")
     #expect(Set(trash.moved) == ["Pixel.avd", "Pixel.ini"])
     #expect(!FileManager.default.fileExists(atPath: home.appendingPathComponent(images + "/android-30/default/x86_64").path))

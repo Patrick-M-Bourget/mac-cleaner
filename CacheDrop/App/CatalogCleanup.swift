@@ -569,7 +569,7 @@ import SwiftUI
     /// open process is the slowest part of a check (#463), and Clean up checks each item again when it runs.
     func prepareReview(of candidates: [Candidate], using snapshot: CandidateCheck? = nil) async -> CatalogReview? {
         guard canEdit, !candidates.isEmpty else { return nil }
-        let approval = CatalogApproval(candidates: candidates, previewOnly: dryRun)
+        let approval = CatalogApproval(candidates: candidates, dryRun: dryRun)
         guard let check = await snapshotOrCurrent(snapshot) else { return nil }
         let refusals = await Task.detached { check.refusals(of: approval.candidates) }.value
         return CatalogReview(approval: approval, refusals: refusals, staying: AppUninstall.staying(chosen: candidates, offered: uninstallable))
@@ -604,7 +604,7 @@ import SwiftUI
             }
             result = outcome
             measureStoppedWorkAgain(outcome, of: approval, run: run)
-            if !approval.previewOnly { rescanFollowsCleanup = true }
+            if !approval.dryRun { rescanFollowsCleanup = true }
             // What the run cleaned leaves every page; what it skipped keeps its tick (#349). Picked folders keep the large and old files this run didn't act on (#125).
             // The other rows stay, dimmed, until the rescan that follows replaces them (#375).
             selections.finishRun(cleaned: outcome.cleanedCandidateIDs); selections.revise()

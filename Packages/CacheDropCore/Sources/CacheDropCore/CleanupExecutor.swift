@@ -8,9 +8,9 @@ public struct CatalogApproval: Sendable, Identifiable {
     public let candidates: [Candidate]
     public let approvedAt: Date
     /// Decision 27: the Settings dry-run switch runs the flow without changing anything on disk.
-    public let previewOnly: Bool
-    public init(candidates: [Candidate], previewOnly: Bool, approvedAt: Date = Date()) {
-        id = UUID(); self.candidates = candidates; self.previewOnly = previewOnly; self.approvedAt = approvedAt
+    public let dryRun: Bool
+    public init(candidates: [Candidate], dryRun: Bool, approvedAt: Date = Date()) {
+        id = UUID(); self.candidates = candidates; self.dryRun = dryRun; self.approvedAt = approvedAt
     }
 }
 
@@ -43,13 +43,13 @@ public enum MeasuredFreedSpace {
 public struct CatalogExecutionResult: Sendable {
     public let batchID: UUID
     public let records: [CleanupRecord]
-    public let previewOnly: Bool
+    public let dryRun: Bool
     public let rejectedReplay: Bool
     public let journalFailure: String?
     /// What the scan sized before cleanup (allocated where known), for the approved items.
     public let estimatedBytes: Int64
     /// Sum of the available-space change read around each removed item; nil when any reading is missing.
-    public var measuredFreedBytes: Int64? { previewOnly ? nil : records.measuredFreedBytes }
+    public var measuredFreedBytes: Int64? { dryRun ? nil : records.measuredFreedBytes }
     /// Results' line under the measured freed space once the disk was read again a minute after completed Docker prunes
     /// (#411). It isn't added to the measured freed space. Before the check (`checked` false) there is none; a check that
     /// couldn't read the disk says so, so Results' "check again" is always answered.
@@ -60,12 +60,12 @@ public struct CatalogExecutionResult: Sendable {
         return checked ? "Couldn’t check the disk again a minute later" : nil
     }
     /// The candidates the run cleaned, or would have in a dry run, by id: they leave every page's selection (#349).
-    public var cleanedCandidateIDs: [String] { records.filter { $0.state == .succeeded || $0.wasPreviewed }.map(\.candidateID) }
+    public var cleanedCandidateIDs: [String] { records.filter { $0.state == .succeeded || $0.wasDryRun }.map(\.candidateID) }
     /// The rows the pages keep, dimmed, while the rescan after this run runs (#375): what they showed, minus what the run
     /// cleaned, so a cleaned item never shows as still there and the rest never vanish until the rescan replaces them.
     /// A dry run changed nothing, so it keeps every row.
     public func keptDuringRescan(_ shown: [Candidate]) -> [Candidate] {
-        guard !previewOnly else { return shown }
+        guard !dryRun else { return shown }
         let cleaned = Set(cleanedCandidateIDs)
         return shown.filter { !cleaned.contains($0.id) }
     }
@@ -82,7 +82,7 @@ extension CleanupRecord {
     var candidateID: String { String(id.dropFirst(batchID.uuidString.count + 1)) }
 
     /// A pending record for one approved candidate, written when a run claims its batch.
-    public init(batchID: UUID, approvedAt: Date, candidate: Candidate, previewOnly: Bool) {
+    public init(batchID: UUID, approvedAt: Date, candidate: Candidate, dryRun: Bool) {
         id = Self.id(batchID: batchID, candidateID: candidate.id); self.batchID = batchID; originalURL = candidate.url
         resourceID = candidate.resourceID; logicalBytes = candidate.logicalBytes; allocatedBytes = candidate.allocatedBytes
         state = .pending; trashURL = nil; message = "Approved; not started"; observedAt = candidate.observedAt
@@ -92,7 +92,7 @@ extension CleanupRecord {
         volumeID = candidate.volumeID; downloadsURL = nil; downloadsResourceID = nil
         modifiedSeconds = candidate.modifiedSeconds; modifiedNanoseconds = candidate.modifiedNanoseconds
         action = candidate.action.rawValue; policyVersion = 2; self.approvedAt = approvedAt
-        ruleID = candidate.ruleID; self.previewOnly = previewOnly
+        ruleID = candidate.ruleID; self.dryRun = dryRun
         itemName = candidate.itemName; toolItem = candidate.toolItem
     }
 }
@@ -122,13 +122,13 @@ public actor CleanupExecutor {
         var seen = Set<String>()
         let estimate = approval.candidates.filter { seen.insert(check.catalog.spaceKey(of: $0)).inserted }.reduce(Int64(0)) { $0 + $1.estimatedBytes }
         func result(_ records: [CleanupRecord], replay: Bool = false, failure: String? = nil) -> CatalogExecutionResult {
-            CatalogExecutionResult(batchID: approval.id, records: records, previewOnly: approval.previewOnly, rejectedReplay: replay, journalFailure: failure, estimatedBytes: estimate)
+            CatalogExecutionResult(batchID: approval.id, records: records, dryRun: approval.dryRun, rejectedReplay: replay, journalFailure: failure, estimatedBytes: estimate)
         }
         guard !running else { return result([], replay: true) }
         running = true
         defer { running = false }
         let total = approval.candidates.count
-        let pending = approval.candidates.map { CleanupRecord(batchID: approval.id, approvedAt: approval.approvedAt, candidate: $0, previewOnly: approval.previewOnly) }
+        let pending = approval.candidates.map { CleanupRecord(batchID: approval.id, approvedAt: approval.approvedAt, candidate: $0, dryRun: approval.dryRun) }
         await progress(.init(resolved: 0, total: total, last: nil))
         do { guard try journal.claim(batchID: approval.id, records: pending) else { return result([], replay: true) } }
         catch { return result([], failure: "CacheDrop couldn’t save the cleanup before starting, so nothing was changed.") }
@@ -149,7 +149,7 @@ public actor CleanupExecutor {
             if self.check.needsInUseCheck(candidate), reading.map({ clock().timeIntervalSince($0.takenAt) > Self.inUseReadingMaxAge }) ?? true {
                 reading = (self.check.snapshotted(), clock())
             }
-            await perform(candidate, check: reading?.check ?? self.check, previewOnly: approval.previewOnly, into: &record)
+            await perform(candidate, check: reading?.check ?? self.check, dryRun: approval.dryRun, into: &record)
             do { try journal.outcome(record) }
             catch { record.state = .unknown; record.message = "CacheDrop couldn’t save what happened. Review the interrupted cleanup before cleaning again."; failure = record.message }
             if record.state == .unknown { failure = record.message }
@@ -205,7 +205,7 @@ public actor CleanupExecutor {
     /// The run's last completed Docker prune with its available space read (#411): Docker hands freed space back to macOS
     /// after the prune returns, so the disk is read once more a minute after the run and this record keeps what more was free.
     private nonisolated func settlingRecord(of result: CatalogExecutionResult) -> CleanupRecord? {
-        guard !result.previewOnly else { return nil }
+        guard !result.dryRun else { return nil }
         let last = result.records.last { record in
             record.state == .succeeded && record.mayStillBeFinishing != true && record.itemCapacity != nil && check.catalog.isDocker(record.ruleID)
         }
@@ -237,7 +237,7 @@ public actor CleanupExecutor {
             // Shown only once the journal has it, so Results and History never disagree.
             do { try journal.outcome(record); records[index] = record } catch { continue }
         }
-        return CatalogExecutionResult(batchID: result.batchID, records: records, previewOnly: result.previewOnly, rejectedReplay: result.rejectedReplay,
+        return CatalogExecutionResult(batchID: result.batchID, records: records, dryRun: result.dryRun, rejectedReplay: result.rejectedReplay,
                                       journalFailure: result.journalFailure, estimatedBytes: result.estimatedBytes)
     }
 
@@ -251,7 +251,7 @@ public actor CleanupExecutor {
         return settled
     }
 
-    private func perform(_ candidate: Candidate, check: CandidateCheck, previewOnly: Bool, into record: inout CleanupRecord) async {
+    private func perform(_ candidate: Candidate, check: CandidateCheck, dryRun: Bool, into record: inout CleanupRecord) async {
         let command = check.catalog.rule(candidate.ruleID)?.tool
         let verb = switch candidate.action {
         case .delete: "delete"
@@ -265,7 +265,7 @@ public actor CleanupExecutor {
             Self.log.info("Skipped \(candidate.url.path, privacy: .public): \(refusal.reason, privacy: .public)")
             return
         }
-        if previewOnly {
+        if dryRun {
             let size = SizeEstimate(candidate).text
             record.state = .skipped; record.message = CleanupRecord.previewPrefix + " would \(verb) (\(size)). Checks passed; nothing changed."
             Self.log.info("Dry run: would \(verb, privacy: .public) \(candidate.url.path, privacy: .public), \(size, privacy: .public)")
@@ -324,7 +324,7 @@ public actor CleanupExecutor {
             record.state = .cancelled; record.message = "Stopped before \(name) started. Nothing was changed."
         case .failure(let error as ToolCancelled):
             Self.recordStopped(.cancelled, output: error.output, command: command, name: name, candidate: candidate, into: &record)
-        case .failure(ToolPreviewError.unavailable):
+        case .failure(ToolDryRunError.unavailable):
             record.state = .skipped; record.message = "\(name) is no longer installed."
         case .failure:
             record.state = .failed; record.message = "Couldn’t run \(name). Nothing was changed."

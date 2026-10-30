@@ -187,7 +187,7 @@ private struct FakeInUse: InUseChecking {
     let journal = try SQLiteCleanupJournal(url: trash.appendingPathComponent("journal.sqlite"))
     let check = CandidateCheck(catalog: catalog, running: FixtureNothingRunning(), inUse: FixtureNothingInUse(), home: fixtureNoHome)
     let result = await CleanupExecutor(journal: journal, check: check, measure: { _ in nil }, trash: FixtureFolderTrash(folder: trash.appendingPathComponent("Trash")))
-        .execute(CatalogApproval(candidates: [item], previewOnly: false))
+        .execute(CatalogApproval(candidates: [item], dryRun: false))
     #expect(result.records.map(\.state) == [.succeeded])
     #expect(result.records.first?.action == "moveToTrash")
     #expect(!FileManager.default.fileExists(atPath: folder.appendingPathComponent("app/target").path))

@@ -20,9 +20,9 @@ private func interruptedRun(_ names: [String], started: Set<String>, unknown: Se
     for name in names { try Data(name.utf8).write(to: downloads.appendingPathComponent(name)) }
     let candidates = Catalog(rules: fixtureRules).discover(fixture: home).filter { $0.url.deletingLastPathComponent().lastPathComponent == "Downloads" }
         .sorted { $0.url.path < $1.url.path }
-    let approval = CatalogApproval(candidates: candidates, previewOnly: false)
+    let approval = CatalogApproval(candidates: candidates, dryRun: false)
     let journal = try SQLiteCleanupJournal(url: home.appendingPathComponent("cleanup.sqlite"))
-    let records = candidates.map { CleanupRecord(batchID: approval.id, approvedAt: approval.approvedAt, candidate: $0, previewOnly: false) }
+    let records = candidates.map { CleanupRecord(batchID: approval.id, approvedAt: approval.approvedAt, candidate: $0, dryRun: false) }
     #expect(try journal.claim(batchID: approval.id, records: records))
     for var record in records where started.contains(record.originalURL.lastPathComponent) || unknown.contains(record.originalURL.lastPathComponent) {
         record.state = .intent; record.message = "Started; outcome not yet recorded"

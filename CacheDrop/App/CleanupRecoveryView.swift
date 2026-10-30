@@ -150,7 +150,7 @@ struct CleanupRecoveryView: View {
                 VStack(alignment: .leading, spacing: CacheDropDesign.Space.sm) {
                     Text(record.recoveryStateText + " · " + record.message)
                     Text("Location: " + record.scopeURL.path)
-                    Text("Action: " + record.actionTitle + (record.previewOnly == true ? " · Dry run" : "") + " · Rules version \(record.policyVersion)")
+                    Text("Action: " + record.actionTitle + (record.dryRun == true ? " · Dry run" : "") + " · Rules version \(record.policyVersion)")
                     Text("File ID when chosen: " + record.resourceID)
                 }.font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary).textSelection(.enabled)
             }

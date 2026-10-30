@@ -275,9 +275,9 @@ private final class FakeVolume: @unchecked Sendable {
         return CapacitySample(available: available, total: 10_000_000, volumeID: "fake-volume", metric: .important, date: Date())
     }
 }
-private func dockerRun(_ home: URL, docker: URL, choose ruleIDs: Set<String>, volume: FakeVolume = FakeVolume(), previewOnly: Bool = false,
+private func dockerRun(_ home: URL, docker: URL, choose ruleIDs: Set<String>, volume: FakeVolume = FakeVolume(), dryRun: Bool = false,
                        timeout: TimeInterval? = nil, cancellation: CleanupCancellation = CleanupCancellation()) async throws -> CatalogExecutionResult {
-    try await dockerRunning(home, docker: docker, choose: ruleIDs, volume: volume, previewOnly: previewOnly, timeout: timeout, cancellation: cancellation).result
+    try await dockerRunning(home, docker: docker, choose: ruleIDs, volume: volume, dryRun: dryRun, timeout: timeout, cancellation: cancellation).result
 }
 /// A finished run with what measuring it again needs.
 private struct DockerRun {
@@ -287,7 +287,7 @@ private struct DockerRun {
     let catalog: Catalog
     let journal: SQLiteCleanupJournal
 }
-private func dockerRunning(_ home: URL, docker: URL, choose ruleIDs: Set<String>, volume: FakeVolume = FakeVolume(), previewOnly: Bool = false,
+private func dockerRunning(_ home: URL, docker: URL, choose ruleIDs: Set<String>, volume: FakeVolume = FakeVolume(), dryRun: Bool = false,
                            timeout: TimeInterval? = nil, cancellation: CleanupCancellation = CleanupCancellation()) async throws -> DockerRun {
     // A copy of each chosen rule with a shorter time limit, otherwise the same rule.
     let catalog = Catalog(rules: fixtureRules.map { rule in
@@ -300,7 +300,7 @@ private func dockerRunning(_ home: URL, docker: URL, choose ruleIDs: Set<String>
     try #require(chosen.count == ruleIDs.count)
     let journal = try SQLiteCleanupJournal(url: home.appendingPathComponent("journal.sqlite"))
     let run = CleanupExecutor(journal: journal, check: CandidateCheck(catalog: catalog, running: EverythingRunning()), measure: volume.read, trash: TrashNeverUsed(), cancellation: cancellation)
-    let approval = CatalogApproval(candidates: chosen, previewOnly: previewOnly)
+    let approval = CatalogApproval(candidates: chosen, dryRun: dryRun)
     return DockerRun(result: await run.execute(approval), run: run, approval: approval, catalog: catalog, journal: journal)
 }
 
@@ -343,11 +343,11 @@ private func dockerRunning(_ home: URL, docker: URL, choose ruleIDs: Set<String>
     #expect(Array(calls(home).dropFirst(2)) == ["container prune -f", "image prune -a -f", "builder prune -a -f"])
 }
 
-@Test func previewOnlyLogsTheDockerCommandWithoutRunningIt() async throws {
+@Test func dryRunLogsTheDockerCommandWithoutRunningIt() async throws {
     let home = try fixtureHome()
     defer { try? FileManager.default.removeItem(at: home) }
     let docker = try fakeDocker(home)
-    let result = try await dockerRun(home, docker: docker, choose: ["docker-build-cache"], previewOnly: true)
+    let result = try await dockerRun(home, docker: docker, choose: ["docker-build-cache"], dryRun: true)
     let record = try #require(result.records.first)
     #expect(record.state == .skipped)
     #expect(record.message.hasPrefix("Dry run: would run docker builder prune -a -f (About 1.23 GB)"))
@@ -612,7 +612,7 @@ private func dockerRunning(_ home: URL, docker: URL, choose ruleIDs: Set<String>
     }
     #expect(waited.value == 1 && untouched.records.first?.laterMeasurement == nil)
     #expect(untouched.records.first?.settledCapacity != nil)
-    let dryRun = try await dockerRunning(home, docker: docker, choose: ["docker-images"], previewOnly: true)
+    let dryRun = try await dockerRunning(home, docker: docker, choose: ["docker-images"], dryRun: true)
     #expect(!dryRun.run.measuresLater(dryRun.result) && finished.run.measuresLater(finished.result))
 
     let length = uniqueSleep()
@@ -717,7 +717,7 @@ private final class Counter: @unchecked Sendable {
     volume.freedPerRead = [0, 100, 0, 5_000, 2_000_000]
     let journal = try SQLiteCleanupJournal(url: home.appendingPathComponent("journal.sqlite"))
     let run = CleanupExecutor(journal: journal, check: CandidateCheck(catalog: catalog, running: FixtureNothingRunning()), measure: volume.read, trash: TrashNeverUsed())
-    let approval = CatalogApproval(candidates: [cache, yarn], previewOnly: false)
+    let approval = CatalogApproval(candidates: [cache, yarn], dryRun: false)
     let result = await run.execute(approval)
     #expect(result.records.map(\.state) == [.succeeded, .succeeded])
     let later = await run.measureAgainLater(result, of: approval, wait: { _ in true }) { _ in [:] }

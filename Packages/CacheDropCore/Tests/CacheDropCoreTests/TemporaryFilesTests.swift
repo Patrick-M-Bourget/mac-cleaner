@@ -171,7 +171,7 @@ private func temporaryFiles(_ candidates: [Candidate]) -> [String] {
     let journal = try SQLiteCleanupJournal(url: folder.appendingPathComponent("journal.sqlite"))
     let check = CandidateCheck(catalog: catalog, running: FixtureNothingRunning(), inUse: FakeInUse(), home: fixtureHome())
     let run = CleanupExecutor(journal: journal, check: check, measure: volume.read, trash: TrashNeverUsed())
-    let result = await run.execute(CatalogApproval(candidates: candidates, previewOnly: false))
+    let result = await run.execute(CatalogApproval(candidates: candidates, dryRun: false))
     #expect(result.records.map(\.state) == [.succeeded, .succeeded])
     #expect(result.measuredFreedBytes == 20_480)
     #expect(!FileManager.default.fileExists(atPath: file.path) && !FileManager.default.fileExists(atPath: folder.appendingPathComponent("C/com.example.editor").path))
@@ -220,7 +220,7 @@ private final class CountingInUse: InUseChecking, @unchecked Sendable {
     let journal = try SQLiteCleanupJournal(url: folder.appendingPathComponent("journal.sqlite"))
     let run = CleanupExecutor(journal: journal, check: CandidateCheck(catalog: catalog, running: FixtureNothingRunning(), inUse: counting, home: fixtureHome()),
                               measure: { _ in nil }, trash: TrashNeverUsed(), clock: { now })
-    let result = await run.execute(CatalogApproval(candidates: candidates.filter { $0.ruleID.hasPrefix("temporary-") }, previewOnly: true))
+    let result = await run.execute(CatalogApproval(candidates: candidates.filter { $0.ruleID.hasPrefix("temporary-") }, dryRun: true))
     #expect(result.records.count == 3)
     #expect(counting.snapshots == 2)
 }
@@ -278,7 +278,7 @@ private final class TimedInUse: InUseChecking, @unchecked Sendable {
     let start = clock.now
     // Each item takes a little longer than the reading may be old, except the third, which follows quickly.
     let steps: [TimeInterval] = [CleanupExecutor.inUseReadingMaxAge + 1, 1, CleanupExecutor.inUseReadingMaxAge + 1]
-    let result = await run.execute(CatalogApproval(candidates: approved, previewOnly: true)) { progress in
+    let result = await run.execute(CatalogApproval(candidates: approved, dryRun: true)) { progress in
         if progress.resolved >= 1, progress.resolved <= steps.count { clock.advance(steps[progress.resolved - 1]) }
     }
     #expect(result.records.count == 4)
@@ -302,7 +302,7 @@ private final class TimedInUse: InUseChecking, @unchecked Sendable {
     let descriptor = Descriptor()
     defer { descriptor.close() }
     // After the first item, this process opens the second file, and the run goes on long enough for a new reading.
-    let result = await run.execute(CatalogApproval(candidates: approved, previewOnly: true)) { progress in
+    let result = await run.execute(CatalogApproval(candidates: approved, dryRun: true)) { progress in
         guard progress.resolved == 1 else { return }
         descriptor.open(later.path)
         clock.advance(CleanupExecutor.inUseReadingMaxAge + 1)

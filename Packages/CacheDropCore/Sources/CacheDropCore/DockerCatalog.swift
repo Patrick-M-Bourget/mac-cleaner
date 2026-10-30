@@ -126,12 +126,12 @@ public enum DockerDiskUsage {
             enum CodingKeys: String, CodingKey { case category = "Type", total = "TotalCount", active = "Active", reclaimable = "Reclaimable", size = "Size" }
         }
         let lines = output.split(whereSeparator: \.isNewline).filter { !$0.allSatisfy(\.isWhitespace) }
-        guard !lines.isEmpty, lines.count <= 8 else { throw ToolPreviewError.invalidOutput }
+        guard !lines.isEmpty, lines.count <= 8 else { throw ToolDryRunError.invalidOutput }
         let rows = try lines.map { try JSONDecoder().decode(Row.self, from: Data($0.utf8)) }
-        guard Set(rows.map(\.category)).count == rows.count else { throw ToolPreviewError.invalidOutput }
+        guard Set(rows.map(\.category)).count == rows.count else { throw ToolDryRunError.invalidOutput }
         return try rows.map { row in
             guard ["Images", "Containers", "Local Volumes", "Build Cache"].contains(row.category), let total = Int(row.total), let active = Int(row.active),
-                  total >= 0, active >= 0, active <= total, row.reclaimable.utf8.count <= 80, row.size.utf8.count <= 80 else { throw ToolPreviewError.invalidOutput }
+                  total >= 0, active >= 0, active <= total, row.reclaimable.utf8.count <= 80, row.size.utf8.count <= 80 else { throw ToolDryRunError.invalidOutput }
             return DockerStorageCategory(name: row.category, total: total, active: active, reclaimableBytes: bytes(row.reclaimable), sizeBytes: bytes(row.size))
         }
     }
@@ -154,7 +154,7 @@ public enum DockerDiskUsage {
     /// - build cache: all but what Docker marks shared with an image, which stays with it;
     /// - when `-v` can't be read, neither size is known, so it is never read as gone (Decision 45).
     /// Stopped containers are what Reclaimable says.
-    static func read(_ docker: URL) -> Result<[DockerStorageCategory], ToolPreviewError> {
+    static func read(_ docker: URL) -> Result<[DockerStorageCategory], ToolDryRunError> {
         var environment = BoundedTool.defaultEnvironment
         environment["PATH"] = docker.deletingLastPathComponent().path + ":" + (environment["PATH"] ?? "")
         func run(_ arguments: [String], outputLimit: Int) throws -> String {
@@ -162,7 +162,7 @@ public enum DockerDiskUsage {
         }
         var rows: [DockerStorageCategory]
         do { rows = try parse(run(arguments, outputLimit: 65_536)) }
-        catch let error as ToolPreviewError { return .failure(error) }
+        catch let error as ToolDryRunError { return .failure(error) }
         catch { return .failure(.invalidOutput) }
         // Docker counts running, paused and restarting containers as Active: the ones `container prune` leaves.
         let active = rows.first { $0.name == DockerPruneKind.stoppedContainers.rawValue }?.active ?? 0
@@ -189,7 +189,7 @@ public enum DockerDiskUsage {
     private enum Staying { case nothing, kept(DockerKept), unreadable }
 
     /// The notice shown instead of Docker's rows; never a size of 0.
-    static func notice(_ error: ToolPreviewError) -> String {
+    static func notice(_ error: ToolDryRunError) -> String {
         switch error {
         case .timeout: "Docker didn’t answer within \(Int(timeout)) seconds, so its space isn’t shown. Scan again once Docker is running."
         case .invalidOutput, .outputLimit: "Couldn’t read Docker’s disk usage, so its space isn’t shown."

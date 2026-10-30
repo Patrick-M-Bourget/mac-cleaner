@@ -50,7 +50,7 @@ private func fixture(_ rules: [CleanupRule]) throws -> (URL, Catalog, [Candidate
     let (home, _, candidates) = try fixture(rules)
     defer { try? FileManager.default.removeItem(at: home) }
     let batch = UUID()
-    var records = candidates.map { CleanupRecord(batchID: batch, approvedAt: Date(), candidate: $0, previewOnly: false) }
+    var records = candidates.map { CleanupRecord(batchID: batch, approvedAt: Date(), candidate: $0, dryRun: false) }
     try #require(records.count == 4)
     records[0].state = .succeeded; records[1].state = .skipped; records[2].state = .succeeded; records[3].state = .failed
     #expect(records.attentionFirst.map(\.ruleID) == ["b", "d", "a", "c"])
@@ -60,7 +60,7 @@ private func fixture(_ rules: [CleanupRule]) throws -> (URL, Catalog, [Candidate
 @Test func aCleanPreviewNeedsNoAttention() throws {
     let (home, _, candidates) = try fixture([rule("a", .developer, .delete)])
     defer { try? FileManager.default.removeItem(at: home) }
-    var record = try #require(candidates.first.map { CleanupRecord(batchID: UUID(), approvedAt: Date(), candidate: $0, previewOnly: true) })
+    var record = try #require(candidates.first.map { CleanupRecord(batchID: UUID(), approvedAt: Date(), candidate: $0, dryRun: true) })
     record.state = .skipped; record.message = "Dry run: would delete (10 KB). Checks passed; nothing changed."
     #expect(!record.needsAttention)
     record.message = "Google Chrome is running. Quit it, then scan again."

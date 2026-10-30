@@ -118,7 +118,7 @@ private func evictor(_ home: URL, cloud: FakeCloud, volume: FixtureVolume = Fixt
     #expect(candidates.count == 2)
     let volume = FixtureVolume()
     volume.freedPerRead = [0, 8192, 0, 4096]
-    let result = try await evictor(home, cloud: cloud, volume: volume).execute(CatalogApproval(candidates: candidates, previewOnly: false))
+    let result = try await evictor(home, cloud: cloud, volume: volume).execute(CatalogApproval(candidates: candidates, dryRun: false))
     #expect(result.records.map(\.state) == [.succeeded, .succeeded])
     #expect(Set(cloud.evicted) == Set(([file] + inside).map(\.path)))
     #expect(result.records.map(\.action) == ["evict", "evict"])
@@ -132,13 +132,13 @@ private func evictor(_ home: URL, cloud: FakeCloud, volume: FixtureVolume = Fixt
     #expect(history.title == "Cleanup · Removed local iCloud copies")
 }
 
-@Test func previewOnlyListsWhatWouldBeEvictedAndChangesNothing() async throws {
+@Test func dryRunListsWhatWouldBeEvictedAndChangesNothing() async throws {
     let (home, drive) = try cloudHome()
     defer { try? FileManager.default.removeItem(at: home) }
     let file = try write(drive.appendingPathComponent("ready.pdf"))
     let cloud = FakeCloud([file: state()])
     let candidates = Catalog(rules: fixtureRules).discover(fixture: home, cloud: cloud)
-    let result = try await evictor(home, cloud: cloud).execute(CatalogApproval(candidates: candidates, previewOnly: true))
+    let result = try await evictor(home, cloud: cloud).execute(CatalogApproval(candidates: candidates, dryRun: true))
     let record = try #require(result.records.first)
     #expect(cloud.evicted.isEmpty)
     #expect(record.state == .skipped)
@@ -155,7 +155,7 @@ private func evictor(_ home: URL, cloud: FakeCloud, volume: FixtureVolume = Fixt
     let candidates = Catalog(rules: fixtureRules).discover(fixture: home, cloud: cloud)
     cloud.set(pinned, state(pinned: true))
     cloud.evictionError = CocoaError(.fileWriteUnknown)
-    let result = try await evictor(home, cloud: cloud).execute(CatalogApproval(candidates: candidates, previewOnly: false))
+    let result = try await evictor(home, cloud: cloud).execute(CatalogApproval(candidates: candidates, dryRun: false))
     #expect(result.records.map(\.state) == [.skipped, .failed])
     #expect(result.records[0].message == CheckRefusal.keptDownloaded.reason)
     #expect(result.records[1].message == "Couldn’t remove the local copy. Nothing was changed.")
@@ -167,7 +167,7 @@ private func evictor(_ home: URL, cloud: FakeCloud, volume: FixtureVolume = Fixt
     defer { try? FileManager.default.removeItem(at: home) }
     let file = try write(drive.appendingPathComponent("ready.pdf"))
     let candidate = try #require(Catalog(rules: fixtureRules).discover(fixture: home, cloud: FakeCloud([file: state()])).first)
-    var record = CleanupRecord(batchID: UUID(), approvedAt: Date(), candidate: candidate, previewOnly: false)
+    var record = CleanupRecord(batchID: UUID(), approvedAt: Date(), candidate: candidate, dryRun: false)
     #expect(record.actionTitle == "Remove local copy")
     record.state = .intent
     #expect(record.recoveryStateText == "Unfinished · Local copies may be removed · The original stays in iCloud")

@@ -159,7 +159,7 @@ private struct StillRunning: RunningAppChecking {
     try FileManager.default.createDirectory(at: legacy, withIntermediateDirectories: true)
     let journal = try SQLiteCleanupJournal(url: legacy.appendingPathComponent("cleanup.sqlite"))
     let batch = UUID()
-    #expect(try journal.claim(batchID: batch, records: candidates.map { CleanupRecord(batchID: batch, approvedAt: Date(), candidate: $0, previewOnly: false) }))
+    #expect(try journal.claim(batchID: batch, records: candidates.map { CleanupRecord(batchID: batch, approvedAt: Date(), candidate: $0, dryRun: false) }))
     // Still's connection stays open, so its records are still in the write-ahead log, not the main file.
     let wal = try FileManager.default.attributesOfItem(atPath: legacy.appendingPathComponent("cleanup.sqlite-wal").path)[.size] as? Int
     #expect((wal ?? 0) > 0)

@@ -50,15 +50,15 @@ import SwiftUI
         guard !isEmptying, !items.isEmpty else { return }
         isEmptying = true
         defer { isEmptying = false }
-        let previewOnly = AppLifecycleController.shared.selection.catalog.dryRun
+        let dryRun = AppLifecycleController.shared.selection.catalog.dryRun
         let result = await Task.detached(priority: .userInitiated) { () -> TrashEmptyingResult in
             guard let journal = try? CleanupJournalLocation.writer() else {
-                return TrashEmptyingResult(records: [], previewOnly: previewOnly, journalFailure: "CacheDrop couldn’t open its cleanup history, so nothing was changed.")
+                return TrashEmptyingResult(records: [], dryRun: dryRun, journalFailure: "CacheDrop couldn’t open its cleanup history, so nothing was changed.")
             }
-            return TrashEmptying(journal: journal).empty(items, previewOnly: previewOnly)
+            return TrashEmptying(journal: journal).empty(items, dryRun: dryRun)
         }.value
         emptyingResult = result
-        if !result.previewOnly { emptiedIDs.formUnion(result.records.filter { $0.state == .succeeded }.compactMap(\.emptyOf)) }
+        if !result.dryRun { emptiedIDs.formUnion(result.records.filter { $0.state == .succeeded }.compactMap(\.emptyOf)) }
         await refresh()
     }
     func dismissEmptyingResult() { emptyingResult = nil }

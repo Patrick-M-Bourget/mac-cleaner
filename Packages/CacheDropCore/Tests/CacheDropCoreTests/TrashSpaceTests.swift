@@ -164,7 +164,7 @@ private func inTrash(_ url: URL, _ home: URL) -> Bool { url.standardizedFileURL.
     }
     let journal = try SQLiteCleanupJournal(url: home.appendingPathComponent("journal.sqlite"))
     let result = await CleanupExecutor(journal: journal, check: check, measure: { _ in nil }, trash: TrashNeverUsed())
-        .execute(CatalogApproval(candidates: candidates, previewOnly: false))
+        .execute(CatalogApproval(candidates: candidates, dryRun: false))
     #expect(result.records.allSatisfy { $0.state == .skipped })
     for path in ["movie.mov", "Setup.dmg", "_cacache/content-v2/blob"] { #expect(FileManager.default.fileExists(atPath: trash.appendingPathComponent(path).path)) }
 }

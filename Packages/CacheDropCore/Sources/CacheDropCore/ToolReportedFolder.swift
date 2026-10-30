@@ -169,12 +169,12 @@ extension Catalog {
     /// The folder the tool prints for `query`: one absolute path with no `.` or `..` parts. Anything else is a failure,
     /// and so is a tool that fails or doesn't answer within `timeout`. Run like the cleanup command, with the tool's folder on PATH
     /// and no shell, so no shell startup file runs.
-    static func reportedFolder(by tool: URL, query: [String], timeout: TimeInterval) -> Result<URL, ToolPreviewError> {
+    static func reportedFolder(by tool: URL, query: [String], timeout: TimeInterval) -> Result<URL, ToolDryRunError> {
         var environment = BoundedTool.defaultEnvironment
         environment["PATH"] = tool.deletingLastPathComponent().path + ":" + (environment["PATH"] ?? "")
         let output: String
         do { output = try BoundedTool.run(executable: tool, arguments: query, timeout: timeout, outputLimit: 4096, environment: environment) }
-        catch let error as ToolPreviewError { return .failure(error) }
+        catch let error as ToolDryRunError { return .failure(error) }
         catch { return .failure(.failed) }
         let path = output.trimmingCharacters(in: .whitespacesAndNewlines)
         guard path.hasPrefix("/"), path != "/", !path.contains("\n"),

@@ -99,7 +99,7 @@ private func names(_ items: [Candidate], _ rule: String) -> Set<String> { Set(it
 
     let journal = try SQLiteCleanupJournal(url: home.appendingPathComponent("journal.sqlite"))
     let result = await CleanupExecutor(journal: journal, check: check(home), measure: { _ in nil }, trash: FixtureHomeTrash(home: home))
-        .execute(CatalogApproval(candidates: [bundle], previewOnly: false))
+        .execute(CatalogApproval(candidates: [bundle], dryRun: false))
 
     #expect(result.records.first?.state == .skipped)
     #expect(result.records.first?.message == CheckRefusal.notPermitted.reason)
@@ -160,7 +160,7 @@ private struct Processes: ProcessListing {
     let journal = try SQLiteCleanupJournal(url: home.appendingPathComponent("journal.sqlite"))
 
     let result = await CleanupExecutor(journal: journal, check: check(home), measure: { _ in nil }, trash: FixtureHomeTrash(home: home))
-        .execute(CatalogApproval(candidates: chosen, previewOnly: false))
+        .execute(CatalogApproval(candidates: chosen, dryRun: false))
 
     #expect(result.records.count == 3 && result.records.allSatisfy { $0.state == .succeeded })
     #expect(!FileManager.default.fileExists(atPath: synth.path))
@@ -264,7 +264,7 @@ private struct Processes: ProcessListing {
     let journal = try SQLiteCleanupJournal(url: home.appendingPathComponent("journal.sqlite"))
     let installed = Apps(installed: [app])
     _ = await CleanupExecutor(journal: journal, check: check(home, apps: installed), measure: { _ in nil }, trash: FixtureHomeTrash(home: home))
-        .execute(CatalogApproval(candidates: found.filter { $0.ruleID == AppUninstall.appRuleID }, previewOnly: false))
+        .execute(CatalogApproval(candidates: found.filter { $0.ruleID == AppUninstall.appRuleID }, dryRun: false))
     #expect(try journal.completedHistory().completedRuns.first?.title == "Uninstalled Synth · 2 items")
 }
 
@@ -293,7 +293,7 @@ private struct Processes: ProcessListing {
     #expect(chosen.allSatisfy { check(home).check($0) == nil }, "The check before acting agrees")
     let journal = try SQLiteCleanupJournal(url: home.appendingPathComponent("journal.sqlite"))
     let result = await CleanupExecutor(journal: journal, check: check(home), measure: { _ in nil }, trash: FixtureHomeTrash(home: home))
-        .execute(CatalogApproval(candidates: chosen, previewOnly: false))
+        .execute(CatalogApproval(candidates: chosen, dryRun: false))
     #expect(result.records.count == 4 && result.records.allSatisfy { $0.state == .succeeded })
     #expect(!FileManager.default.fileExists(atPath: home.appendingPathComponent("Library/Preferences/com.maker.synth.plist").path))
 }
@@ -337,7 +337,7 @@ private func twoApps() throws -> (home: URL, synth: InstalledApp, pad: Installed
     let synths = scan(home, synth, Apps(installed: [synth, pad]))
     let journal = try SQLiteCleanupJournal(url: home.appendingPathComponent("journal.sqlite"))
     let result = await CleanupExecutor(journal: journal, check: check(home, apps: Apps(installed: [synth, pad])), measure: { _ in nil }, trash: FixtureHomeTrash(home: home))
-        .execute(CatalogApproval(candidates: synths.filter { $0.ruleID != AppUninstall.possiblyRelatedRuleID }, previewOnly: false))
+        .execute(CatalogApproval(candidates: synths.filter { $0.ruleID != AppUninstall.possiblyRelatedRuleID }, dryRun: false))
     #expect(result.records.count == 3 && result.records.allSatisfy { $0.state == .succeeded })
     // Synth's support folder stays, as it wasn't ticked. Pad is installed, so its maker's files are no removed app's leftovers either.
     let apps = Apps(installed: [pad])

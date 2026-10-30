@@ -1,13 +1,13 @@
 import Foundation
 import Darwin
 
-public enum ToolPreviewError: Error { case unavailable, timeout, outputLimit, failed, invalidOutput }
+public enum ToolDryRunError: Error { case unavailable, timeout, outputLimit, failed, invalidOutput }
 /// Synchronous blocking system boundary. Call from a bounded background worker, never MainActor.
 public enum BoundedTool {
     public static func run(executable: URL, arguments: [String], timeout: TimeInterval = 5, outputLimit: Int = 65_536, environment: [String: String]? = nil) throws -> String {
         let (status, output) = try launch(executable: executable, arguments: arguments, timeout: timeout, outputLimit: outputLimit, keepTail: false, environment: environment)
-        guard status == 0 else { throw ToolPreviewError.failed }
-        guard let output = String(data: output, encoding: .utf8) else { throw ToolPreviewError.invalidOutput }
+        guard status == 0 else { throw ToolDryRunError.failed }
+        guard let output = String(data: output, encoding: .utf8) else { throw ToolDryRunError.invalidOutput }
         return output
     }
 
@@ -28,7 +28,7 @@ public enum BoundedTool {
 
     private static func launch(executable: URL, arguments: [String], timeout: TimeInterval, outputLimit: Int, keepTail: Bool, environment: [String: String]?, cancellation: CleanupCancellation? = nil) throws -> (Int32, Data) {
         guard executable.isFileURL, executable.path.hasPrefix("/"), timeout > 0, outputLimit > 0,
-              FileManager.default.isExecutableFile(atPath: executable.path) else { throw ToolPreviewError.unavailable }
+              FileManager.default.isExecutableFile(atPath: executable.path) else { throw ToolDryRunError.unavailable }
         guard cancellation?.isCancelled != true else { throw ToolCancelled(output: "", started: false) }
         let tool = try ToolGroup(executable: executable.path, arguments: arguments, environment: environment ?? defaultEnvironment)
         var finished = false
@@ -42,11 +42,11 @@ public enum BoundedTool {
         while true {
             let count = Darwin.read(descriptor, &buffer, buffer.count)
             if count > 0 {
-                guard keepTail || data.count + count <= outputLimit else { throw ToolPreviewError.outputLimit }
+                guard keepTail || data.count + count <= outputLimit else { throw ToolDryRunError.outputLimit }
                 data.append(contentsOf: buffer.prefix(count))
                 if data.count > outputLimit { data.removeFirst(data.count - outputLimit) }
             } else if count == 0 && tool.reap() { break }
-            else if count < 0 && errno != EAGAIN && errno != EWOULDBLOCK { throw ToolPreviewError.failed }
+            else if count < 0 && errno != EAGAIN && errno != EWOULDBLOCK { throw ToolDryRunError.failed }
             // Polled with the read loop, so a cancel reaches the tool within about 5 ms. A tool that already exited
             // (something it started still holds the output open) reports its own result; what it left is still stopped.
             if cancellation?.isCancelled == true {
@@ -54,13 +54,13 @@ public enum BoundedTool {
                 // The tool's output still in the pipe is kept: read until it is empty (never waiting for EOF), at most `outputLimit` more.
                 var drained = 0
                 while drained < outputLimit, case let more = Darwin.read(descriptor, &buffer, buffer.count), more > 0 {
-                    guard keepTail || data.count + more <= outputLimit else { throw ToolPreviewError.outputLimit }
+                    guard keepTail || data.count + more <= outputLimit else { throw ToolDryRunError.outputLimit }
                     data.append(contentsOf: buffer.prefix(more)); drained += more
                     if data.count > outputLimit { data.removeFirst(data.count - outputLimit) }
                 }
                 tool.stop(); break
             }
-            guard ProcessInfo.processInfo.systemUptime < deadline else { throw keepTail ? ToolTimeout(output: String(decoding: data, as: UTF8.self)) : ToolPreviewError.timeout }
+            guard ProcessInfo.processInfo.systemUptime < deadline else { throw keepTail ? ToolTimeout(output: String(decoding: data, as: UTF8.self)) : ToolDryRunError.timeout }
             if count <= 0 { usleep(5_000) }
         }
         finished = true
@@ -79,11 +79,11 @@ private final class ToolGroup {
 
     init(executable: String, arguments: [String], environment: [String: String]) throws {
         var fds: [Int32] = [-1, -1]
-        guard pipe(&fds) == 0 else { throw ToolPreviewError.failed }
+        guard pipe(&fds) == 0 else { throw ToolDryRunError.failed }
         // Close-on-exec, so a tool another thread starts at the same time never inherits this pipe and holds it open.
         for fd in fds { _ = fcntl(fd, F_SETFD, FD_CLOEXEC) }
         defer { close(fds[1]) }
-        guard fcntl(fds[0], F_SETFL, O_NONBLOCK) != -1 else { close(fds[0]); throw ToolPreviewError.failed }
+        guard fcntl(fds[0], F_SETFL, O_NONBLOCK) != -1 else { close(fds[0]); throw ToolDryRunError.failed }
 
         var actions: posix_spawn_file_actions_t?
         posix_spawn_file_actions_init(&actions)
@@ -108,7 +108,7 @@ private final class ToolGroup {
         defer { (argv + envp).forEach { free($0) } }
         var pid: pid_t = 0
         let result = posix_spawn(&pid, executable, &actions, &attributes, argv, envp)
-        guard result == 0 else { close(fds[0]); throw result == ENOENT || result == EACCES ? ToolPreviewError.unavailable : ToolPreviewError.failed }
+        guard result == 0 else { close(fds[0]); throw result == ENOENT || result == EACCES ? ToolDryRunError.unavailable : ToolDryRunError.failed }
         self.pid = pid
         self.output = fds[0]
     }

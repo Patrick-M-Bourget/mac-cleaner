@@ -91,7 +91,7 @@ private func trashExecutor(_ home: URL, trash: FixtureTrash) throws -> (CleanupE
     let chosen = try #require(candidates.first { $0.url == installer })
     let trash = FixtureTrash(folder: home.appendingPathComponent("FixtureTrash"))
     let (run, journal) = try trashExecutor(home, trash: trash)
-    let result = await run.execute(CatalogApproval(candidates: [chosen], previewOnly: false))
+    let result = await run.execute(CatalogApproval(candidates: [chosen], dryRun: false))
     let record = try #require(result.records.first)
     #expect(record.state == .succeeded)
     #expect(record.action == "moveToTrash")
@@ -110,17 +110,17 @@ private func trashExecutor(_ home: URL, trash: FixtureTrash) throws -> (CleanupE
     try file(downloads, "a.dmg", now: Date()); try file(downloads, "b.dmg", now: Date())
     let candidates = Catalog(rules: fixtureRules).discover(fixture: home).sorted { $0.url.path < $1.url.path }
     let (run, _) = try trashExecutor(home, trash: FixtureTrash(folder: home.appendingPathComponent("FixtureTrash"), substitute: true))
-    let result = await run.execute(CatalogApproval(candidates: candidates, previewOnly: false))
+    let result = await run.execute(CatalogApproval(candidates: candidates, dryRun: false))
     #expect(result.records.map(\.state) == [.unknown, .cancelled])
     #expect(FileManager.default.fileExists(atPath: downloads.appendingPathComponent("b.dmg").path))
 }
 
-@Test func previewOnlyLeavesDownloadsInPlace() async throws {
+@Test func dryRunLeavesDownloadsInPlace() async throws {
     let (home, downloads) = try downloadsHome()
     defer { try? FileManager.default.removeItem(at: home) }
     let installer = try file(downloads, "Setup.dmg", now: Date())
     let (run, _) = try trashExecutor(home, trash: FixtureTrash(folder: home.appendingPathComponent("FixtureTrash")))
-    let result = await run.execute(CatalogApproval(candidates: Catalog(rules: fixtureRules).discover(fixture: home), previewOnly: true))
+    let result = await run.execute(CatalogApproval(candidates: Catalog(rules: fixtureRules).discover(fixture: home), dryRun: true))
     #expect(result.records.map(\.state) == [.skipped])
     #expect(result.records.first?.message.hasPrefix("Dry run: would move to Trash") == true)
     #expect(result.movedToTrashBytes == 0)
@@ -169,7 +169,7 @@ private func trashExecutor(_ home: URL, trash: FixtureTrash) throws -> (CleanupE
     let chosen = try #require(Catalog(rules: fixtureRules).discover(fixture: home).first { $0.url == ipsw })
     let trash = FixtureTrash(folder: home.appendingPathComponent("FixtureTrash"))
     let (run, _) = try trashExecutor(home, trash: trash)
-    let record = try #require(await run.execute(CatalogApproval(candidates: [chosen], previewOnly: false)).records.first)
+    let record = try #require(await run.execute(CatalogApproval(candidates: [chosen], dryRun: false)).records.first)
     #expect(record.state == .succeeded)
     #expect(record.action == "moveToTrash")
     #expect(!FileManager.default.fileExists(atPath: ipsw.path))
