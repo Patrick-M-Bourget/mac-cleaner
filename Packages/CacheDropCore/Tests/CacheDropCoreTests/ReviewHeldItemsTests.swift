@@ -125,4 +125,5 @@ private func open(_ ids: [String]) -> Bool { !Set(ids).isDisjoint(with: ["com.ma
     let groups = CandidateHold.grouped(items)
     #expect(groups.map(\.hold) == [nil, using, running])
     #expect(groups.map { $0.items.map(\.ruleID) } == [["browser-copies"], ["synth-cache", "synth-presets"], ["npm-cache"]])
+    #expect(CandidateHold.grouped(items.filter { $0.hold != nil }).map(\.hold) == [using, running])
 }

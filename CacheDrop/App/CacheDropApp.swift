@@ -384,9 +384,10 @@ private struct WorkspaceView: View {
         let summary = catalog.overview
         // The scanned folders' iCloud inventory stands in for an empty iCloud row (Decision 76).
         let inventory = overviewObservation?.cloudInventory
-        let showsCloudInventory = summary?.showsCloudInventory(inventory) == true
+        let presentation = summary?.presentation(cloudInventory: inventory)
+        let showsCloudInventory = presentation?.showsCloudInventory == true
         // Every category, empty ones last as "Empty" (#372).
-        let rows = summary?.visibleRows(cloudInventory: inventory) ?? []
+        let rows = presentation?.rows ?? []
         let more = max(0, rows.count - CatalogOverview.leadingRowCount)
         let shown = overviewShowsAllCategories ? rows : Array(rows.prefix(CatalogOverview.leadingRowCount))
         return VStack(alignment: .leading, spacing: CacheDropDesign.Space.md) {

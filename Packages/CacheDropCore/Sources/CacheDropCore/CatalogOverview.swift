@@ -107,17 +107,21 @@ public struct CatalogOverview: Sendable {
         }
         return found + empty
     }
-    /// Whether Overview shows the scanned folders' iCloud inventory (Decision 76): only when the catalog found no local iCloud
-    /// copies of its own, and never at 0 bytes (unknown is never 0). It then stands in for the empty iCloud row.
-    public func showsCloudInventory(_ inventory: CloudInventoryReport?) -> Bool {
-        guard let inventory, inventory.localAllocatedBytes != 0 else { return false }
-        return !rows.contains { $0.category == .icloud && !$0.isEmpty }
+    /// Category rows and scanned-folder iCloud visibility, decided together (Decision 76).
+    public struct Presentation: Sendable {
+        public let rows: [Row]
+        public let showsCloudInventory: Bool
     }
-    /// `visibleRows` beside the scanned folders' iCloud inventory: when it shows, it stands in for the empty iCloud row.
-    public func visibleRows(cloudInventory: CloudInventoryReport?) -> [Row] {
-        let rows = visibleRows
-        return showsCloudInventory(cloudInventory) ? rows.filter { !($0.category == .icloud && $0.isEmpty) } : rows
+    /// The scanned folders' inventory stands in for the empty iCloud category only when it is nonzero or unknown,
+    /// and the catalog found no local iCloud copies of its own. Unknown is never empty.
+    public func presentation(cloudInventory: CloudInventoryReport?) -> Presentation {
+        let showsInventory = cloudInventory.map { $0.localAllocatedBytes != 0 } == true
+            && !rows.contains { $0.category == .icloud && !$0.isEmpty }
+        let visible = visibleRows
+        return Presentation(rows: showsInventory ? visible.filter { !($0.category == .icloud && $0.isEmpty) } : visible,
+                            showsCloudInventory: showsInventory)
     }
+
 }
 
 extension CleanupRule {
