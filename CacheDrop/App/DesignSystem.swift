@@ -451,6 +451,9 @@ struct EmptyState: View {
     var action: EmptyStateAction? = nil
     var identifier = "emptyState"
     var compact = false
+    /// In a list of category rows, a section's empty state takes the rows' columns: its symbol where their icons are, its
+    /// text on their titles' line (Applications).
+    var inList = false
     var body: some View {
         if compact {
             StatusRow(text: title, symbol: symbol, action: action.map { StatusAction(title: $0.title, identifier: identifier + "Action", action: $0.perform) })
@@ -460,7 +463,7 @@ struct EmptyState: View {
         }
     }
     private var full: some View {
-        HStack(alignment: .top, spacing: CacheDropDesign.Space.lg) {
+        HStack(alignment: .top, spacing: inList ? CacheDropDesign.Space.md : CacheDropDesign.Space.lg) {
             Image(systemName: symbol).font(.title2).foregroundStyle(.secondary).frame(width: CacheDropDesign.Size.badge).accessibilityHidden(true)
             VStack(alignment: .leading, spacing: CacheDropDesign.Space.sm) {
                 Text(title).font(CacheDropDesign.TypeStyle.section)
@@ -469,7 +472,8 @@ struct EmptyState: View {
                     Button(action.title, action: action.perform).accessibilityIdentifier(identifier + "Action").padding(.top, CacheDropDesign.Space.xs)
                 }
             }
-        }.frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, CacheDropDesign.Space.xl)
+        }.padding(.leading, inList ? CacheDropDesign.Size.checkbox + CacheDropDesign.Space.md : 0)
+            .frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, inList ? CacheDropDesign.Space.md : CacheDropDesign.Space.xl)
             .accessibilityElement(children: .contain).accessibilityIdentifier(identifier)
     }
 }

@@ -149,6 +149,8 @@ struct ApplicationsView: View {
         PageHeader(title: "Applications", subtitle: "Apps, plug-ins and files from deleted apps",
                    search: PageSearchField(label: "Search apps, plug-ins and files from deleted apps", prompt: "Name or maker",
                                            text: Bindable(model).listing.search, identifier: "applicationsSearch"))
+            // A container, not one combined element: the search inside stays its own field.
+            .accessibilityElement(children: .contain).accessibilityIdentifier("applicationsHeader")
             .padding(.bottom, CacheDropDesign.Space.sm)
     }
     /// The list's quiet table header, one sort for every section (#295, #352): "Name" over the names, "Size" over the sizes.
@@ -196,7 +198,7 @@ struct ApplicationsView: View {
 
     private func loading(_ id: String) -> some View { SkeletonRows(.category, count: 2, identifier: "applicationsLoading-" + id) }
     private func state(_ title: String, _ detail: String, symbol: String, id: String) -> some View {
-        EmptyState(title: title, detail: detail, symbol: symbol, identifier: id)
+        EmptyState(title: title, detail: detail, symbol: symbol, identifier: id, inList: true)
     }
 
     /// The size a row shows, and Size sorts by: shared items count on no product's row, so the page counts them once
