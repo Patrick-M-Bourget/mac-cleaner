@@ -71,6 +71,12 @@ public struct CleanupCapacityObservation: Codable, Sendable {
     public let beforeVolumeID: String?, afterVolumeID: String?
     public let beforeMetric: String, afterMetric: String
     public let beforeDate: Date, afterDate: Date
+    /// Stored in the journal (#448): a renamed property keeps its key here.
+    private enum CodingKeys: String, CodingKey {
+        case beforeAvailable = "beforeAvailable", afterAvailable = "afterAvailable", beforeTotal = "beforeTotal", afterTotal = "afterTotal"
+        case beforeVolumeID = "beforeVolumeID", afterVolumeID = "afterVolumeID", beforeMetric = "beforeMetric", afterMetric = "afterMetric"
+        case beforeDate = "beforeDate", afterDate = "afterDate"
+    }
     public init(beforeAvailable: Int64?, afterAvailable: Int64?, beforeTotal: Int64?, afterTotal: Int64?, beforeVolumeID: String?, afterVolumeID: String?, beforeMetric: String, afterMetric: String, beforeDate: Date, afterDate: Date) {
         self.beforeAvailable = beforeAvailable; self.afterAvailable = afterAvailable
         self.beforeTotal = beforeTotal; self.afterTotal = afterTotal

@@ -3,12 +3,15 @@ import Darwin
 
 /// Configuration only. Kind is a presentation hint, never permission to clean a path.
 public struct RememberedScope: Codable, Sendable, Identifiable, Equatable {
-    public enum Kind: String, Codable, Sendable { case downloads, inspection }
+    /// Raw values are stored in remembered locations (#448): a renamed case keeps its string.
+    public enum Kind: String, Codable, Sendable { case downloads = "downloads", inspection = "inspection" }
     public let id: UUID
     public let path: String
     public var isIncluded: Bool
     public let kind: Kind
     fileprivate let bookmark: Data
+    /// Stored in remembered locations (#448): a renamed property keeps its key here; a new field needs its key here and in the fixture.
+    private enum CodingKeys: String, CodingKey { case id = "id", path = "path", isIncluded = "isIncluded", kind = "kind", bookmark = "bookmark" }
 
     /// Downloads, built in at its standard path (#342): never picked or written to the registry, always included, and read
     /// with Full Disk Access or macOS's own Downloads prompt, so it has no bookmark.
@@ -59,7 +62,10 @@ public final class ScopeAccessLease {
 
 /// Bounded app-local configuration; no observations, selection, execution or recovery authority.
 public struct ScopeRegistry: Sendable {
-    private struct Archive: Codable { let version: Int; let scopes: [RememberedScope] }
+    private struct Archive: Codable {
+        let version: Int; let scopes: [RememberedScope]
+        private enum CodingKeys: String, CodingKey { case version = "version", scopes = "scopes" }
+    }
     private let directory: URL
     public init(directory: URL) { self.directory = directory }
     public func list() throws -> [RememberedScope] { try transaction { try read() } }

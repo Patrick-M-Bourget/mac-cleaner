@@ -1,0 +1,123 @@
+{
+  "activities" : [
+    {
+      "completedAt" : 800090020,
+      "id" : "12345678-1234-1234-1234-123456789ABC",
+      "locations" : [
+        {
+          "allocatedBytes" : 4096,
+          "baselineID" : "AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE",
+          "entryCount" : 12,
+          "knownLogicalBytes" : 3900,
+          "logicalBytes" : 4000,
+          "observedAt" : 800090010,
+          "outcome" : "partial",
+          "path" : "/Users/x/Library/Caches",
+          "reasons" : {
+            "accessDenied" : 2,
+            "timeLimit" : 1
+          }
+        },
+        {
+          "path" : "/Users/x/Downloads",
+          "reasons" : {
+
+          }
+        }
+      ],
+      "outcome" : "stopped",
+      "startedAt" : 800090000
+    }
+  ],
+  "cleared" : false,
+  "entries" : [
+    {
+      "origin" : "firstBaseline",
+      "snapshot" : {
+        "cleanup" : false,
+        "coverage" : "complete",
+        "fingerprint" : {
+          "access" : "fullDiskAccess",
+          "classification" : "class-2",
+          "exclusions" : "excl-1",
+          "rootID" : "root-1",
+          "rules" : "rules-v7",
+          "scopeID" : "catalog:known",
+          "volumeID" : "vol-a"
+        },
+        "groups" : [
+          {
+            "dimension" : "folder",
+            "id" : "folder:/Users/x/Library/Caches",
+            "label" : "Caches",
+            "logicalBytes" : 1000
+          },
+          {
+            "category" : "developer",
+            "dimension" : "category",
+            "id" : "category:developer",
+            "label" : "Developer caches and build files",
+            "logicalBytes" : 2000
+          },
+          {
+            "category" : "developer",
+            "dimension" : "location",
+            "id" : "location:npm-cache",
+            "label" : "npm cache",
+            "logicalBytes" : 3000,
+            "measured" : false,
+            "ruleID" : "npm-cache"
+          }
+        ],
+        "id" : "2755AF01-DD05-4F6F-9FA0-63144649ECB3",
+        "observedAt" : 800000000,
+        "scopeLabel" : "Known locations"
+      }
+    },
+    {
+      "origin" : "missingBaseline",
+      "snapshot" : {
+        "cleanup" : true,
+        "coverage" : "complete",
+        "fingerprint" : {
+          "access" : "fullDiskAccess",
+          "classification" : "class-2",
+          "exclusions" : "excl-1",
+          "rootID" : "root-1",
+          "rules" : "rules-v7",
+          "scopeID" : "catalog:known",
+          "volumeID" : "vol-a"
+        },
+        "groups" : [
+          {
+            "dimension" : "folder",
+            "id" : "folder:/Users/x/Library/Caches",
+            "label" : "Caches",
+            "logicalBytes" : 1000
+          },
+          {
+            "category" : "developer",
+            "dimension" : "category",
+            "id" : "category:developer",
+            "label" : "Developer caches and build files",
+            "logicalBytes" : 2000
+          },
+          {
+            "category" : "developer",
+            "dimension" : "location",
+            "id" : "location:npm-cache",
+            "label" : "npm cache",
+            "logicalBytes" : 3000,
+            "measured" : false,
+            "ruleID" : "npm-cache"
+          }
+        ],
+        "id" : "494B9606-49E6-4BF6-81A0-F654A417BAA9",
+        "observedAt" : 800090000,
+        "scopeLabel" : "Known locations"
+      }
+    }
+  ],
+  "hadHistory" : true,
+  "version" : 1
+}

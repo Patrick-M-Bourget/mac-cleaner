@@ -1,0 +1,29 @@
+{
+  "currentMetric" : "important",
+  "currentVolume" : "vol-b",
+  "enabled" : true,
+  "episodes" : {
+    "vol-a" : {
+      "acceptedAt" : 800000010,
+      "lastAttempt" : 800000000,
+      "recoveryBytes" : 55000000000,
+      "reminderPending" : true,
+      "reserved" : false,
+      "snoozeUntil" : 800086420,
+      "suppressed" : true
+    },
+    "vol-b" : {
+      "lastAttempt" : 800000040,
+      "recoveryBytes" : 55000000000,
+      "reminderPending" : false,
+      "reservationID" : "3CA6D8EA-15C9-4592-AD45-CC53BE1BC4E6",
+      "reserved" : true,
+      "suppressed" : false
+    }
+  },
+  "lastSample" : 800000000,
+  "notificationRequestIdentifiers" : [
+    "request-1"
+  ],
+  "thresholdBytes" : 50000000000
+}

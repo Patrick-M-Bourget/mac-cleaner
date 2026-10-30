@@ -1,0 +1,17 @@
+{
+  "rules": [
+    {
+      "boundary": "folder",
+      "id": "015E69C6-7BA5-4963-A9E9-648E82CF050B",
+      "path": "/Users/x/Music",
+      "volumeID": "00000000-0000-4000-8000-0000000000AA"
+    },
+    {
+      "boundary": "file",
+      "id": "7FF09155-338A-4666-AB36-F198E82C6DBE",
+      "path": "/Users/x/Music Projects/song.wav",
+      "volumeID": "00000000-0000-4000-8000-0000000000AA"
+    }
+  ],
+  "version": 1
+}

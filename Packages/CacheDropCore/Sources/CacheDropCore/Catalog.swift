@@ -8,7 +8,8 @@ public enum RegenClass: String, Codable, Sendable { case cache, build, updaterDo
 /// Trash keeps the "moveToTrash" string that Downloads-era journal records use.
 /// Evict removes only the local copy of an iCloud file (Decision 13); the original stays in iCloud.
 /// Guidance never acts: the rule is sized and points to where the user manages it (SPEC section 3).
-public enum CleanupAction: String, Codable, Sendable { case delete; case trash = "moveToTrash"; case tool; case evict; case guidance }
+/// Raw values are stored in the journal as each record's `action` (#448): a renamed case keeps its string.
+public enum CleanupAction: String, Codable, Sendable { case delete = "delete"; case trash = "moveToTrash"; case tool = "tool"; case evict = "evict"; case guidance = "guidance" }
 
 /// A command a `.tool` rule runs, with a time limit. The executable and its arguments are fixed in the rule.
 public struct ToolCommand: Sendable, Hashable {
@@ -51,7 +52,11 @@ public struct ToolCommand: Sendable, Hashable {
 }
 /// Whether none, some or all of a category's items are chosen.
 public enum CategorySelectionState: Sendable { case unchecked, mixed, checked }
-public enum CatalogCategory: String, Codable, Sendable { case developer, browser, downloads, system, models, updaters, logs, icloud, files, managed, leftovers, apps }
+/// Raw values are stored in Storage trends' history (#448): a renamed case keeps its string.
+public enum CatalogCategory: String, Codable, Sendable {
+    case developer = "developer", browser = "browser", downloads = "downloads", system = "system", models = "models", updaters = "updaters"
+    case logs = "logs", icloud = "icloud", files = "files", managed = "managed", leftovers = "leftovers", apps = "apps"
+}
 
 /// Who must be closed before a rule's data is touched.
 public struct RuleOwner: Sendable, Hashable {

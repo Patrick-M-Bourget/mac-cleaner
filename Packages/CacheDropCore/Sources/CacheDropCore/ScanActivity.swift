@@ -1,6 +1,7 @@
 import Foundation
 
-public enum ScanActivityOutcome: String, Codable, Sendable { case complete, partial, stopped, failed }
+/// Raw values are stored in Storage trends' history (#448): a renamed case keeps its string.
+public enum ScanActivityOutcome: String, Codable, Sendable { case complete = "complete", partial = "partial", stopped = "stopped", failed = "failed" }
 public struct ScanActivityLocation: Codable, Sendable, Identifiable {
     public var id: String { path }
     public let path: String
@@ -12,6 +13,11 @@ public struct ScanActivityLocation: Codable, Sendable, Identifiable {
     public let knownLogicalBytes: Int64?
     public let reasons: [String: Int]
     public let baselineID: UUID?
+    /// Stored in Storage trends' history (#448): a renamed property keeps its key here; a new field needs its key here and in the StoredKeys fixture.
+    private enum CodingKeys: String, CodingKey {
+        case path = "path", observedAt = "observedAt", outcome = "outcome", entryCount = "entryCount", logicalBytes = "logicalBytes"
+        case allocatedBytes = "allocatedBytes", knownLogicalBytes = "knownLogicalBytes", reasons = "reasons", baselineID = "baselineID"
+    }
     public init(path: String, observedAt: Date? = nil, outcome: ScanActivityOutcome? = nil, entryCount: Int? = nil, logicalBytes: Int64? = nil, allocatedBytes: Int64? = nil, knownLogicalBytes: Int64? = nil, reasons: [String: Int] = [:], baselineID: UUID? = nil) {
         self.path = path; self.observedAt = observedAt; self.outcome = outcome; self.entryCount = entryCount
         self.logicalBytes = logicalBytes; self.allocatedBytes = allocatedBytes; self.knownLogicalBytes = knownLogicalBytes; self.reasons = reasons; self.baselineID = baselineID
@@ -31,6 +37,8 @@ public struct ScanActivity: Codable, Sendable, Identifiable {
     public let startedAt, completedAt: Date
     public let outcome: ScanActivityOutcome
     public let locations: [ScanActivityLocation]
+    /// Stored in Storage trends' history (#448): a renamed property keeps its key here; a new field needs its key here and in the StoredKeys fixture.
+    private enum CodingKeys: String, CodingKey { case id = "id", startedAt = "startedAt", completedAt = "completedAt", outcome = "outcome", locations = "locations" }
     public init(id: UUID = UUID(), startedAt: Date, completedAt: Date, outcome: ScanActivityOutcome, locations: [ScanActivityLocation]) {
         self.id = id; self.startedAt = startedAt; self.completedAt = completedAt; self.outcome = outcome; self.locations = locations
     }
