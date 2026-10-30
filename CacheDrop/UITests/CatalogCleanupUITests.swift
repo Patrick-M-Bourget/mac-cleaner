@@ -1362,10 +1362,10 @@ extension CatalogCleanupUITests {
     }
 }
 
-final class GuidanceUITests: XCTestCase {
+final class AppManagedStorageUITests: XCTestCase {
     /// Three Photos libraries, Xcode archives, unreadable Messages attachments and two local snapshots in the fixture home.
     /// The snapshot count comes from a debug fixture file, so tmutil never runs, and opening is a debug no-op.
-    @MainActor private func addGuidanceData(_ home: URL) throws -> URL {
+    @MainActor private func addAppManagedData(_ home: URL) throws -> URL {
         // Photos libraries (#180): the default one, a renamed one and one on a connected volume (`<home>/Volumes` here).
         for path in ["Pictures/Photos Library.photoslibrary/originals/a.heic", "Pictures/Trip 2019.photoslibrary/originals/b.heic",
                      "Volumes/External/Family.photoslibrary/originals/c.heic", "Library/Developer/Xcode/Archives/2026-10-26/App.xcarchive/Info.plist",
@@ -1389,12 +1389,12 @@ final class GuidanceUITests: XCTestCase {
         return locked
     }
 
-    @MainActor func testGuidanceCategoriesShowSizeOrNotAccessibleAndNeverJoinThePlan() throws {
+    @MainActor func testAppManagedCategoriesShowSizeOrNotAccessibleAndNeverJoinThePlan() throws {
         continueAfterFailure = false
         let app = XCUIApplication()
         let state = try configureIsolatedState(app)
         let home = try configureCatalogHome(app)
-        let locked = try addGuidanceData(home)
+        let locked = try addAppManagedData(home)
         defer {
             app.terminate(); try? FileManager.default.removeItem(at: state)
             try? FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: locked.path)

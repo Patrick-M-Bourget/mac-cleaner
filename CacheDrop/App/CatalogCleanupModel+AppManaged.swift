@@ -3,15 +3,15 @@ import CacheDropCore
 
 /// Guidance-only categories (SPEC section 3): sized and shown with where to manage them, never in a plan.
 extension CatalogCleanupModel {
-    func guidanceRule(_ finding: GuidanceFinding) -> CleanupRule? { catalog.rule(finding.ruleID) }
+    func appManagedRule(_ finding: GuidanceFinding) -> CleanupRule? { catalog.rule(finding.ruleID) }
     /// Seconds each guidance location is sized for: short, so a large Photos library doesn't hold up the scan.
-    nonisolated static let guidanceTimeBudget: TimeInterval = 10
-    /// Sizes the guidance rules from metadata only. Read-only. A size cut short by `guidanceTimeBudget` reads "At least".
+    nonisolated static let appManagedTimeBudget: TimeInterval = 10
+    /// Sizes the guidance rules from metadata only. Read-only. A size cut short by `appManagedTimeBudget` reads "At least".
     /// `fullDiskAccess` is the catalog scan's own probe, so one scan never probes twice.
-    func scanGuidance(home: URL, fullDiskAccess: FullDiskAccessStatus, receipts: ReceiptListings) async {
+    func scanAppManaged(home: URL, fullDiskAccess: FullDiskAccessStatus, receipts: ReceiptListings) async {
         let catalog = catalog, system = Self.systemRoot, snapshots = Self.snapshots, apps = Self.appPresence
-        guidance = await Task.detached(priority: .utility) {
-            catalog.guidance(home: home, systemRoot: system, sizer: KnownLocationSizer(timeBudget: Self.guidanceTimeBudget), snapshots: snapshots,
+        appManaged = await Task.detached(priority: .utility) {
+            catalog.guidance(home: home, systemRoot: system, sizer: KnownLocationSizer(timeBudget: Self.appManagedTimeBudget), snapshots: snapshots,
                              fullDiskAccess: fullDiskAccess, appPresence: apps, receipts: receipts)
         }.value
     }
@@ -24,8 +24,8 @@ extension CatalogCleanupModel {
     }
     /// Opens where the finding is managed: its app, a System Settings pane, or the folder in Finder.
     func open(_ finding: GuidanceFinding) async {
-        let name = guidanceRule(finding)?.guidance?.placeName ?? "it"
-        guidanceStatus = await catalog.open(finding, using: Self.guidanceOpener) ? Self.openedStatus(name) : "Couldn’t open \(name)."
+        let name = appManagedRule(finding)?.guidance?.placeName ?? "it"
+        appManagedStatus = await catalog.open(finding, using: Self.appManagedOpener) ? Self.openedStatus(name) : "Couldn’t open \(name)."
     }
     /// Shows a plug-in product's files selected in Finder. A debug test run reveals nothing.
     func reveal(_ product: PlugInProduct) { reveal(product.name, product.files.map(\.url)) }
@@ -33,7 +33,7 @@ extension CatalogCleanupModel {
     func reveal(_ library: FoundLibrary) { reveal(library.name, [library.url]) }
     private func reveal(_ name: String, _ urls: [URL]) {
         #if DEBUG
-        if LocalStateLocation.isDisposableTest { guidanceStatus = "Test run: would reveal \(name)."; return }
+        if LocalStateLocation.isDisposableTest { appManagedStatus = "Test run: would reveal \(name)."; return }
         #endif
         Finder.reveal(urls)
     }
@@ -44,7 +44,7 @@ extension CatalogCleanupModel {
         return nil
     }
     /// What opens guidance places. A debug test run opens nothing.
-    static var guidanceOpener: any GuidanceOpening {
+    static var appManagedOpener: any GuidanceOpening {
         #if DEBUG
         if LocalStateLocation.isDisposableTest { return NothingOpens() }
         #endif

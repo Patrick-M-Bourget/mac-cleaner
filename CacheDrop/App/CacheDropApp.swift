@@ -460,9 +460,9 @@ private struct WorkspaceView: View {
                     FullDiskAccessNote(places: catalog.notAccessibleRules.map(\.title)).accessibilityIdentifier("overviewNotAccessible")
                 }
                 TrashNote()
-                if !catalog.guidance.isEmpty {
+                if !catalog.appManaged.isEmpty {
                     RecommendationGroup {
-                        StorageReviewRow(category: .managed, title: "App-managed storage", detail: "", value: CacheDropDesign.items(catalog.guidance.count),
+                        StorageReviewRow(category: .managed, title: "App-managed storage", detail: "", value: CacheDropDesign.items(catalog.appManaged.count),
                                          actionTitle: "Review app-managed storage", action: { navigationState.appManagedVisible = true },
                                          identifier: "overviewAppManaged", mutedValue: true)
                     }.waitingForScan(catalog.isScanning)

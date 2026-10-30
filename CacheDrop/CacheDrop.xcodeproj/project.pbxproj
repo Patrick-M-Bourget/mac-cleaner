@@ -17,11 +17,11 @@ AA7600000000000000000009 = { isa = PBXFileReference; lastKnownFileType = sourcec
 AA7600000000000000000010 = { isa = PBXBuildFile; fileRef = AA7600000000000000000009; };
 AA7600000000000000000011 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "App/FixtureUbiquitousItems.swift"; sourceTree = "<group>"; };
 AA7600000000000000000012 = { isa = PBXBuildFile; fileRef = AA7600000000000000000011; };
-AA7600000000000000000013 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "App/CatalogCleanupModel+Guidance.swift"; sourceTree = "<group>"; };
+AA7600000000000000000013 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "App/CatalogCleanupModel+AppManaged.swift"; sourceTree = "<group>"; };
 AA7600000000000000000014 = { isa = PBXBuildFile; fileRef = AA7600000000000000000013; };
 AA7600000000000000000015 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "App/WorkspaceGuidanceOpener.swift"; sourceTree = "<group>"; };
 AA7600000000000000000016 = { isa = PBXBuildFile; fileRef = AA7600000000000000000015; };
-AA7600000000000000000017 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "App/GuidanceSection.swift"; sourceTree = "<group>"; };
+AA7600000000000000000017 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "App/AppManagedStorageView.swift"; sourceTree = "<group>"; };
 AA7600000000000000000018 = { isa = PBXBuildFile; fileRef = AA7600000000000000000017; };
 AA1740000000000000000001 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "App/PlugInProductRows.swift"; sourceTree = "<group>"; };
 AA1740000000000000000002 = { isa = PBXBuildFile; fileRef = AA1740000000000000000001; };
