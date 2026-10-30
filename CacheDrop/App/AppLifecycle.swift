@@ -43,6 +43,13 @@ import CacheDropCore
     }
     /// Opens the Smart clean page, for the menu bar item (#131, #141).
     var openSmartClean: (() -> Void)?
+    /// Requests both stops before waiting. Completion includes discovery and every final History/Storage trends write.
+    func stopScansAndWait() async {
+        selection.catalog.requestScanStop()
+        inspection.requestScanStop()
+        await selection.catalog.waitForScanCompletion()
+        await inspection.waitForScanCompletion()
+    }
     /// The menu bar item is shown unless turned off in Settings (#131).
     var menuBarItemShown: Bool { UserDefaults.standard.object(forKey: PreferenceKeys.showsMenuBarItem) as? Bool ?? true }
     private var capacityTimer: Timer?
@@ -62,6 +69,8 @@ import CacheDropCore
     }
     /// Scans asked for while the maintenance lease is held, run once it is released (#310).
     let afterMaintenance = WorkAfterMaintenance()
+    /// Optional post-cleanup measurements have a separate completion from cleanup itself (#512).
+    let laterMeasurements = LaterMeasurements()
     var quitPending = false
     /// #130: asked before quitting stops a running cleanup.
     let quitDuringCleanup = QuitDuringCleanupPrompt(ask: QuitDuringCleanupAlert.ask)

@@ -13,6 +13,7 @@ This spec covers behavior the prototype can't show. The screens, layout and copy
 - Estimated space, space moved to Trash and measured freed space are three separate numbers, always labeled (section 6).
 - No account, server, telemetry or AI service. All scanning and cleanup happen on the Mac.
 - No automatic cleanup. CacheDrop only acts when the user confirms a reviewed plan.
+- Catalog and Explore storage expose lifecycle completion only after discovery and final History and Storage trends writes finish, including when stopped (Decision 98). Optional later cleanup measurements have separate completion: a lifecycle handoff skips sleeping checks and awaits running measurements and saved findings; ordinary cleanup and quit policy stay unchanged (Decision 99).
 
 ## 2. Safety rules
 

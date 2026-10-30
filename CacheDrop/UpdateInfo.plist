@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+    <key>SUPublicEDKey</key><string>dbugwfdqmiKKRO2QcO8iivl86IfqhiZeVF1RIvfRTL4=</string>
+    <key>SUFeedURL</key><string>https://cachedrop.io/updates/appcast.xml</string>
+    <key>SUEnableAutomaticChecks</key><false/>
+    <key>SUAutomaticallyUpdate</key><false/>
+    <key>SUAllowsAutomaticUpdates</key><false/>
+    <key>SUEnableSystemProfiling</key><false/>
+</dict></plist>

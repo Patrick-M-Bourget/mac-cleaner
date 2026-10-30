@@ -15,6 +15,7 @@ final class ExploreStorage {
         scanner = FolderScanner()
         session = InspectionSession(scanner: scanner)
     }
+    private let scanLifecycle = ScanLifecycle()
     private var task: Task<Void, Never>?
     private var scanAgainTask: Task<Void, Never>?
     private var scanAgainGeneration = UUID()
@@ -77,7 +78,7 @@ final class ExploreStorage {
         let token = UUID()
         scanAgainGeneration = token
         batchRequests = selection.beginRefreshBatch(roots)
-        scanAgainTask = Task {
+        scanAgainTask = scanLifecycle.start { [self] in
             defer { for lease in leases { lease.close() } }
             let epoch = await ScanActivityHistory.shared.begin()
             guard !Task.isCancelled, token == scanAgainGeneration else { return }
@@ -125,7 +126,7 @@ final class ExploreStorage {
         if !sameScope { result = nil; selected = nil; lastComplete = nil }
         message = nil
         isScanningCurrent = true
-        task = Task {
+        task = scanLifecycle.start { [self] in
             if !grouped {
                 let epoch = await ScanActivityHistory.shared.begin()
                 guard !Task.isCancelled, token == generation else { return }
@@ -255,7 +256,7 @@ final class ExploreStorage {
             if isScanningCurrent { operation.stopped(scope, progress: progress) }
             let summary = operation.summary(stopped: true)
             activity = nil
-            Task { await ScanActivityHistory.shared.record(summary, epoch: operation.epoch) }
+            scanLifecycle.start { await ScanActivityHistory.shared.record(summary, epoch: operation.epoch) }
         }
         scanAgainGeneration = UUID()
         scanAgainTask?.cancel(); scanAgainTask = nil
@@ -264,6 +265,14 @@ final class ExploreStorage {
         cancelCurrentScan()
         if hadLogicalScan { AppLifecycleController.shared.capacity.request(.scanEnded) }
     }
+    /// A lifecycle caller must await the owned discovery and final History writes, even after Stop clears the bar.
+    func requestScanStop() { cancel() }
+    func stopScanningAndWait() async {
+        requestScanStop()
+        await scanLifecycle.waitForCompletion()
+    }
+    func waitForScanCompletion() async { await scanLifecycle.waitForCompletion() }
+
     private func cancelCurrentScan() {
         cancellation?.cancel()
         task?.cancel()

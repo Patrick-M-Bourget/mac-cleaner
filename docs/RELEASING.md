@@ -1,0 +1,69 @@
+# Preparing a local release
+
+Version preparation and release building are separate owner-run commands. Neither publishes anything.
+
+```sh
+scripts/release.sh --bump 0.10.0
+git diff -- CacheDrop/CacheDrop.xcodeproj/project.pbxproj
+# Review and commit the version/build edits, then build from the clean checkout.
+```
+
+Preparation requires a stable, increasing `x.y.z` version and increments the shared build number. It changes only the app's version/build settings. Commit or stash existing project-file edits first. Unrelated changes are preserved; the later release build requires the whole checkout to be clean and exports committed HEAD.
+
+## Sparkle prerequisite setup
+
+The app embeds **Sparkle 2.10.1**, pinned exactly in the Xcode project and Package.resolved. It does not create an updater or initiate update checks. `CacheDrop/UpdateInfo.plist` contains the public EdDSA key, canonical feed URL, and disabled automatic-update/profiling defaults. Only the public key belongs in source. The matching private key stays in the owner's login Keychain, Sparkle account `ed25519`.
+
+Use the tools from the matching official distribution:
+
+```sh
+mkdir -p .build/sparkle-tools
+gh release download 2.10.1 --repo sparkle-project/Sparkle \
+  --pattern Sparkle-2.10.1.tar.xz --dir .build/sparkle-tools
+shasum -a 256 .build/sparkle-tools/Sparkle-2.10.1.tar.xz
+# Expected SHA-256: 1a856d2a9edb8e628de88121d7be04cf0e2167f8641650b78fca00b14244cf27
+tar -xJf .build/sparkle-tools/Sparkle-2.10.1.tar.xz -C .build/sparkle-tools
+.build/sparkle-tools/bin/generate_keys -p
+```
+
+`generate_keys -p` looks up only the existing public key. If setting up a new owner's installation without a key, run `generate_keys` once to generate one directly in Keychain, then review and commit its public key to `CacheDrop/UpdateInfo.plist`. Do not generate a replacement for an existing distribution key. Do not export the private key, pass it on a command line, or put it in an environment variable. Release tooling accepts a Keychain account only. A missing key or a public-key mismatch fails before building.
+
+Signed builds also require a valid **Developer ID Application** identity for team **8F5K2ZRP5T**, and the `cachedrop-notary` notarytool Keychain profile. Bundle identity remains **com.patrickbourget.CacheDrop**.
+
+## Build and verify
+
+Write and review a brief HTML fragment for release notes. Supply a versioned, immutable HTTPS artifact directory explicitly. Production publication will use the public Supabase updates bucket; its actual URL must be configured by the owner. Do not use the private website download URL or GitHub Releases as the enclosure URL. For acceptance, supply a separate test bucket/path and retain the resulting local feed separately. No production upload, website update, feed promotion or deployment occurs here.
+
+```sh
+scripts/release.sh \
+  --sparkle-tools "$PWD/.build/sparkle-tools/bin" \
+  --artifact-base-url 'https://YOUR-TEST-HOST/isolated-updates/0.10.0/' \
+  --release-notes /absolute/path/to/reviewed-0.10.0.html
+```
+
+The command exports HEAD, builds Release, signs every Sparkle helper (Installer, Downloader with its entitlements preserved, Autoupdate, Updater), then the framework and app. It verifies each nested Mach-O's signature, Hardened Runtime, Developer ID team, and absence of development entitlements. It notarizes/staples the app, creates/signs/notarizes/staples `CacheDrop-x.y.z.dmg`, and only then EdDSA-signs the final DMG. Sparkle's generator creates a local full-update-only appcast with embedded reviewed notes. A separate signature verification and metadata check must pass before metadata is saved. No subsequent step changes the signed DMG bytes.
+
+Outputs in `build/release/`:
+
+- `CacheDrop.app` and `CacheDrop-x.y.z.dmg`: the verified app and full update archive.
+- `appcast.xml` and `CacheDrop-x.y.z.html`: the local feed and reviewed notes.
+- `release-identity.json`: full source commit, bundle/team, marketing/build versions, exact DMG URL, size, SHA-256, public key, EdDSA signature and notes SHA-256 for later immutable staging.
+
+Keep this output set together. Before staging, independently repeat verification (substitute the actual version and original reviewed notes path):
+
+```sh
+scripts/sign-release-app.sh --verify build/release/CacheDrop.app - 8F5K2ZRP5T
+spctl -a -t exec -vv build/release/CacheDrop.app
+spctl -a -t open --context context:primary-signature -vv build/release/CacheDrop-0.10.0.dmg
+xcrun stapler validate build/release/CacheDrop.app
+xcrun stapler validate build/release/CacheDrop-0.10.0.dmg
+python3 scripts/sparkle-release.py verify \
+  --app build/release/CacheDrop.app --dmg build/release/CacheDrop-0.10.0.dmg \
+  --tools .build/sparkle-tools/bin \
+  --artifact-base-url 'https://YOUR-TEST-HOST/isolated-updates/0.10.0/' \
+  --release-notes /absolute/path/to/reviewed-0.10.0.html
+```
+
+Use `--keychain-account` on release.sh, or `--account` on sparkle-release.py, if the owner uses a nondefault Sparkle account. Never modify the DMG after signing; a rebuild is a new artifact requiring all checks again. `scripts/release.sh --adhoc` supports local build checks, produces `-adhoc.dmg`, and does not produce a distribution appcast. Automated fixtures and ad-hoc builds do not establish Developer ID/notarization correctness or a real signed A → B update.
+
+Signing order and entitlement handling follow [Sparkle's custom-signing guidance](https://sparkle-project.org/documentation/sandboxing/#code-signing). Feed generation follows [Sparkle's publishing guidance](https://sparkle-project.org/documentation/publishing/).
