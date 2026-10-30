@@ -13,7 +13,6 @@ private func scan(_ scope: String = "/tmp/Projects", bytes: Int64 = 12_000_000, 
                       issues: issues.map { ScanIssue(url: URL(fileURLWithPath: $0.0), reason: $0.1) },
                       exclusionFingerprint: "none", excludedEntryCount: excluded)
 }
-private func megabytes(_ bytes: Int64) -> String { "\(bytes / 1_000_000) MB" }
 private func location(_ scan: ScanResult?, scope: String = "/tmp/Projects") -> ScannedLocation {
     ScannedLocation(scope: URL(fileURLWithPath: scope), scan: scan)
 }
@@ -22,17 +21,17 @@ private func location(_ scan: ScanResult?, scope: String = "/tmp/Projects") -> S
 @Test func aScannedLocationShowsItsNameAndSize() {
     let row = location(scan())
     #expect(row.name == "Projects")
-    #expect(row.value(megabytes) == "12 MB")
+    #expect(row.value == "12 MB")
 }
 
 @Test func aLocationNotScannedYetSaysSo() {
-    #expect(location(nil).value(megabytes) == "Not scanned")
+    #expect(location(nil).value == "Not scanned")
 }
 
 @Test func aSizeThatLeavesSomethingOutIsALowerBound() {
-    #expect(location(scan(issues: [("/tmp/Projects/a", .accessDenied)])).value(megabytes) == "At least 12 MB")
-    #expect(location(scan(excluded: 2)).value(megabytes) == "At least 12 MB")
-    #expect(location(scan(kinds: [.package])).value(megabytes) == "At least 12 MB")
+    #expect(location(scan(issues: [("/tmp/Projects/a", .accessDenied)])).value == "At least 12 MB")
+    #expect(location(scan(excluded: 2)).value == "At least 12 MB")
+    #expect(location(scan(kinds: [.package])).value == "At least 12 MB")
 }
 
 
@@ -87,6 +86,6 @@ private func location(_ scan: ScanResult?, scope: String = "/tmp/Projects") -> S
 /// #376, #388: a location's size is what it takes on disk, as Explore storage's "On disk" shows it. A sparse disk image (Docker's
 /// `Docker.raw`: 288 GB logical, 4 GB used) never makes its folder look huge.
 @Test func aLocationsSizeIsItsOnDiskSize() {
-    #expect(location(scan(bytes: 288_000_000_000, allocated: 4_000_000_000)).value(megabytes) == "4000 MB")
-    #expect(location(scan(bytes: 288_000_000_000, allocated: 4_000_000_000, excluded: 1)).value(megabytes) == "At least 4000 MB")
+    #expect(location(scan(bytes: 288_000_000_000, allocated: 4_000_000_000)).value == "4 GB")
+    #expect(location(scan(bytes: 288_000_000_000, allocated: 4_000_000_000, excluded: 1)).value == "At least 4 GB")
 }

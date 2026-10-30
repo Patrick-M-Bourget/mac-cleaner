@@ -106,14 +106,14 @@ struct ScanActivitySummary: View {
     }
     private var size: String {
         guard let size = activity.observedSize else { return "Not measured" }
-        return (size.complete ? "" : "At least ") + ByteCountFormatter.string(fromByteCount: size.bytes, countStyle: .decimal)
+        return SizeFormatter.text(size.bytes, complete: size.complete)
     }
     private func locationDetail(_ location: ScanActivityLocation) -> String {
         var parts = [location.outcome.map { $0 == .complete ? "Complete" : $0.rawValue.capitalized + " · Not fully read" } ?? "Not attempted"]
         if let count = location.entryCount { parts.append("\(count) entries") }
         // Sizes on disk, as the row's total and Overview show them (Decision 94).
-        if let bytes = location.allocatedBytes { parts.append(format(bytes)) }
-        else if let known = location.knownAllocatedBytes { parts.append("At least " + format(known)) }
+        if let bytes = location.allocatedBytes { parts.append(SizeFormatter.text(bytes)) }
+        else if let known = location.knownAllocatedBytes { parts.append(SizeFormatter.text(known, complete: false)) }
         return parts.joined(separator: " · ")
     }
     private var locationSummary: String {
@@ -143,7 +143,6 @@ struct ScanActivitySummary: View {
         default: "Couldn’t read everything"
         }
     }
-    private func format(_ value: Int64) -> String { ByteCountFormatter.string(fromByteCount: value, countStyle: .decimal) }
 }
 
 struct HistoryActivityFilterControl: View {

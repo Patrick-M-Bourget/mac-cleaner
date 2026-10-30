@@ -600,7 +600,6 @@ struct CapacityMeter: View {
     /// one keeps its place; the caller passes none with Reduce Motion and says it elsewhere.
     var tipLabel: String? = nil
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    static func bytes(_ value: Int64) -> String { ByteCountFormatter.string(fromByteCount: value, countStyle: .decimal) }
     /// The total, when it and the available space are a consistent whole-disk reading.
     static func validTotal(available: Int64?, total: Int64?) -> Int64? {
         SidebarCapacityText.validTotal(available: available, total: total)
@@ -670,7 +669,6 @@ struct VolumeSummary: View {
     var open: ((StorageBreakdown.Part) -> Void)? = nil
     /// The bar's tip tag, while a cleanup shaves it (#355).
     var tipLabel: String? = nil
-    private func bytes(_ value: Int64) -> String { CapacityMeter.bytes(value) }
     private var used: Int64? {
         guard let available, let total = CapacityMeter.validTotal(available: available, total: total) else { return nil }
         return total - available
@@ -685,12 +683,12 @@ struct VolumeSummary: View {
                         .accessibilityHidden(true)
                     VStack(alignment: .leading, spacing: CacheDropDesign.Space.xs) {
                         Text(name).font(CacheDropDesign.TypeStyle.section)
-                        Text("Startup volume · " + (total.map(bytes) ?? "Total capacity unavailable")).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
+                        Text("Startup volume · " + (total.map { SizeFormatter.text($0) } ?? "Total capacity unavailable")).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
                     }.frame(height: CacheDropDesign.Size.deviceIcon)
                     Spacer(minLength: CacheDropDesign.Space.sm)
                     VStack(alignment: .trailing, spacing: CacheDropDesign.Space.xs) {
                         if let available, available >= 0 {
-                            Text(bytes(available)).font(CacheDropDesign.TypeStyle.value).monospacedDigit().accessibilityIdentifier("startupCapacityAmount")
+                            Text(SizeFormatter.text(available)).font(CacheDropDesign.TypeStyle.value).monospacedDigit().accessibilityIdentifier("startupCapacityAmount")
                             Text("free").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
                         } else {
                             Text(CacheDropDesign.noValue).font(CacheDropDesign.TypeStyle.value)
@@ -702,7 +700,7 @@ struct VolumeSummary: View {
                     // Room for the tag from the run's start, so the card never jumps when it appears (#355).
                     .padding(.top, tipLabel == nil ? 0 : CacheDropDesign.Size.tipTagRise)
                 HStack(alignment: .firstTextBaseline, spacing: CacheDropDesign.Space.md) {
-                    Text(used.map { bytes($0) + " used" } ?? "Used space unknown").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary).monospacedDigit()
+                    Text(used.map { SizeFormatter.text($0) + " used" } ?? "Used space unknown").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary).monospacedDigit()
                     Spacer(minLength: CacheDropDesign.Space.sm)
                     Text(observation).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
                         .help(observation).accessibilityValue(observation).accessibilityIdentifier("capacityObservation")

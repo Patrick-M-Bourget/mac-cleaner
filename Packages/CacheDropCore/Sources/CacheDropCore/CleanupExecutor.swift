@@ -55,7 +55,7 @@ public struct CatalogExecutionResult: Sendable {
     /// couldn't read the disk says so, so Results' "check again" is always answered.
     public func settledLine(checked: Bool) -> String? {
         if let change = records.lazy.compactMap({ $0.settledCapacity?.observedChange }).first {
-            return change > 0 ? ByteCountFormatter.string(fromByteCount: change, countStyle: .decimal) + " more free a minute later" : "No more free space a minute later"
+            return change > 0 ? SizeFormatter.text(change) + " more free a minute later" : "No more free space a minute later"
         }
         return checked ? "Couldn’t check the disk again a minute later" : nil
     }
@@ -266,7 +266,7 @@ public actor CleanupExecutor {
             return
         }
         if previewOnly {
-            let size = ByteCountFormatter.string(fromByteCount: candidate.estimatedBytes, countStyle: .decimal)
+            let size = SizeFormatter.text(candidate.estimatedBytes)
             record.state = .skipped; record.message = CleanupRecord.previewPrefix + " would \(verb) (\(size)). Checks passed; nothing changed."
             Self.log.info("Dry run: would \(verb, privacy: .public) \(candidate.url.path, privacy: .public), \(size, privacy: .public)")
             return

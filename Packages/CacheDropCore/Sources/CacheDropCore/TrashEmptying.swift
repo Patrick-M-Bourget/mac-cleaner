@@ -163,7 +163,7 @@ public struct TrashEmptying: Sendable {
     private func perform(_ original: CleanupRecord, previewOnly: Bool, ledger: TrashLedger, into record: inout CleanupRecord) {
         if let refusal = ledger.refusal(original) { record.state = .skipped; record.message = refusal.reason; return }
         if previewOnly {
-            let size = ByteCountFormatter.string(fromByteCount: original.recordedBytes, countStyle: .decimal)
+            let size = SizeFormatter.text(original.recordedBytes)
             record.state = .skipped; record.message = CleanupRecord.previewPrefix + " would delete from the Trash (\(size)). Checks passed; nothing changed."
             return
         }

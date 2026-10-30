@@ -68,7 +68,7 @@ import CacheDropCore
 
 enum GrowthPresentation {
     static func signed(_ bytes: Int64) -> String {
-        (bytes > 0 ? "+" : bytes < 0 ? "−" : "") + ByteCountFormatter.string(fromByteCount: bytes == .min ? .max : abs(bytes), countStyle: .decimal)
+        (bytes > 0 ? "+" : bytes < 0 ? "−" : "") + SizeFormatter.text(bytes == .min ? .max : abs(bytes))
     }
     /// A category group's title, as in Overview.
     static func categoryTitle(_ category: CatalogCategory?) -> String { category?.overviewTitle ?? "Other" }
@@ -94,7 +94,7 @@ enum GrowthPresentation {
     }
     static let checkBack = "Check back tomorrow to see trends."
     static let retention = "History is stored on this Mac: sizes per category and location only, at most \(GrowthRetention().baselines) scans over \(GrowthRetention().days) days, "
-        + "and no more than \(ByteCountFormatter.string(fromByteCount: Int64(GrowthRetention().bytes), countStyle: .decimal))."
+        + "and no more than \(SizeFormatter.text(Int64(GrowthRetention().bytes)))."
 }
 
 /// A growth row as in the prototype: name, what it is, a bar relative to the largest change, and the signed change.

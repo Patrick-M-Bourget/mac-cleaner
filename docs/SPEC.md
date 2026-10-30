@@ -109,6 +109,7 @@ An item that fails any check is skipped, and the results say which check failed.
 
 ## 6. Estimated vs measured freed space
 
+- **Size wording** (Decision 96): every page and report shares decimal formatting. Exact values are unqualified; estimates say "About", upper bounds "Up to", partial positive measurements "At least", and unreadable sizes "Unknown", never zero. Profile rows retain the same qualifiers as their category's size policy.
 - **Estimated** space is what the scan sizes before cleanup, from allocated size where available. Overview's "Recommended for review: up to X GB" is the sum of current catalog candidates whose action frees space (delete or run a tool), labeled as an estimate. Items bound for the Trash are shown separately, because their space stays used until the Trash is emptied.
 - **Moved to Trash** is reported on its own. That space is still used until the user empties the Trash, and is never counted as freed. Results and Overview offer **Empty from Trash…** for CacheDrop's own items still there (RESET Decision 68); that emptying is measured around each item, as a cleanup is.
 - **Measured freed space** is the change in the volume's available space, read right before and right after each item. Results report the measured total, separately from the estimate. After Docker prunes, what more was free a minute later shows under it, never in it (Decision 91).
