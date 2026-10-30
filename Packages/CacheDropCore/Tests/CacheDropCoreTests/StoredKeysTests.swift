@@ -238,6 +238,8 @@ private final class MemoryPreferences: MigrationPreferences, @unchecked Sendable
     #expect(LegacyStillMigration.completedKey == "CacheDrop.migratedFromStill")
     #expect(RenamedPreferenceKeys.completedKey == "CacheDrop.renamedPreferenceKeys")
     let preferences = MemoryPreferences()
+    #expect(FirstRunWelcome(preferences: preferences).shouldShow(migration: nil, stateExisted: false))
+    #expect(preferences.values["CacheDrop.welcomeState"] as? String == "pending")
     FirstRunWelcome(preferences: preferences).markSeen()
     #expect(preferences.values["CacheDrop.welcomeState"] as? String == "seen")
     // Raw values stored as values: the appearance file's contents, and each journal record's capacity metric.
