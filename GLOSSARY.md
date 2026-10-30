@@ -14,7 +14,7 @@ The names CacheDrop shows, what they mean, and where they live in code. Copy fol
 | Storage trends | What grew or shrank between two scans | `StorageTrends*` (`StorageTrendsHistoryView`, `StorageTrendsHistoryStore`) |
 | History | Past cleanups and scans | `CleanupHistoryView`, `ScanActivityHistory` |
 | Locations & access | Scanned locations, Full Disk Access, Protected items, Saved data | `CacheDropApp.swift`, `RememberedLocations` |
-| Explore storage | Browse a scanned folder by size | `StorageExplorer`, `FolderInspection` |
+| Explore storage | Browse a scanned folder by size | `StorageExplorer`, `ExploreStorage` |
 | Protected items | Paths CacheDrop never offers | `ProtectedItems*` (`ProtectedItemsView`, `ProtectedItemsPolicy`) |
 | Saved data | What CacheDrop keeps on this Mac, and Reset | `SavedData*` (`SavedDataView`) |
 | App-managed storage | Space only its app can clear; CacheDrop shows where | `Guidance*` (`GuidanceSection`, `GuidanceCatalog`) |
@@ -49,7 +49,7 @@ The names CacheDrop shows, what they mean, and where they live in code. Copy fol
 | Move to Trash → Put back | Goes to the Trash and can come back | action `trash`, `TrashPutBack` |
 | Empty from Trash → Deleted from the Trash | Deletes only what CacheDrop moved to the Trash | `TrashEmptying` |
 | Remove local copies | Frees iCloud files' space on this Mac | action `evict` |
-| Scan again | Any action that scans | `CatalogCleanupModel`, `FolderInspection` |
+| Scan again | Any action that scans | `CatalogCleanupModel`, `ExploreStorage` |
 | Dry run | Runs the whole flow; nothing changes | `dryRun` |
 | Measured freed space | Free space measured around each item, not the estimate | `MeasuredFreedSpace` |
 | Up to, About | A size that's an upper bound or an estimate | `SizeEstimate` |
