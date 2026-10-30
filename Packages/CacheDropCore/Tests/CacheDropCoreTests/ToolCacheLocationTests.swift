@@ -24,12 +24,10 @@ private func fakeTool(_ home: URL, _ name: String, asked: String, query: String,
     return tool
 }
 private func fakeNPM(_ home: URL, answer: String) throws -> URL { try fakeTool(home, "npm", asked: "config get cache", query: answer) }
-private struct NothingRunning: RunningAppChecking { func isRunning(_ owner: RuleOwner) -> Bool? { false } }
-private struct SameVolume { func read(_ url: URL) -> CapacitySample? { CapacitySample(available: 1_000, total: 10_000, volumeID: "fake", metric: .important, date: Date()) } }
 
 private func execute(_ candidate: Candidate, catalog: Catalog, home: URL) async throws -> CleanupRecord {
     let journal = try SQLiteCleanupJournal(url: home.appendingPathComponent("journal.sqlite"))
-    let run = CleanupExecutor(journal: journal, check: CandidateCheck(catalog: catalog, running: NothingRunning()), measure: SameVolume().read, trash: TrashNeverUsed())
+    let run = CleanupExecutor(journal: journal, check: CandidateCheck(catalog: catalog, running: FixtureNothingRunning()), measure: FixtureSameVolume().read, trash: TrashNeverUsed())
     return try #require(await run.execute(CatalogApproval(candidates: [candidate], previewOnly: false)).records.first)
 }
 
@@ -403,7 +401,7 @@ private func writeConfig(_ home: URL, _ relative: String, _ text: String) throws
     let candidate = try #require(catalog.discover(fixture: home).first { $0.ruleID == "pip-cache" })
     try FileManager.default.removeItem(at: home.appendingPathComponent(".pip-cache/http-v2"))
     try makeFolder(home, ".pip-cache/notes")
-    #expect(CandidateCheck(catalog: catalog, running: NothingRunning()).check(candidate) == .notACache("It doesn’t look like pip’s cache, so it is kept."))
+    #expect(CandidateCheck(catalog: catalog, running: FixtureNothingRunning()).check(candidate) == .notACache("It doesn’t look like pip’s cache, so it is kept."))
     #expect(try await execute(candidate, catalog: catalog, home: home).state == .skipped)
     #expect(FileManager.default.fileExists(atPath: home.appendingPathComponent(".pip-cache/notes/entry").path))
 }
@@ -470,7 +468,7 @@ private func writeConfig(_ home: URL, _ relative: String, _ text: String) throws
     try makeFolder(home, "Library/Caches/pip")
     let catalog = Catalog(rules: fixtureRules)
     let candidate = try #require(catalog.discover(fixture: home).first { $0.isLeftover && $0.ruleID == "pip-cache" })
-    let refusal = CandidateCheck(catalog: catalog, running: NothingRunning()).check(candidate)
+    let refusal = CandidateCheck(catalog: catalog, running: FixtureNothingRunning()).check(candidate)
     #expect(refusal == nil, "\(String(describing: refusal))")
 }
 
@@ -492,7 +490,7 @@ private func writeConfig(_ home: URL, _ relative: String, _ text: String) throws
         #expect(lstat(url.path, &info) == 0)
         let candidate = catalog.candidate(rule, url, info, logical: 100, allocated: nil, complete: true, lastUsed: nil, action: .delete).found(under: home)
         #expect(candidate.isLeftover)
-        #expect(CandidateCheck(catalog: catalog, running: NothingRunning()).check(candidate) == .notACache("It is inside your Documents folder, so it is kept."), "\(url.lastPathComponent)")
+        #expect(CandidateCheck(catalog: catalog, running: FixtureNothingRunning()).check(candidate) == .notACache("It is inside your Documents folder, so it is kept."), "\(url.lastPathComponent)")
         #expect(try await execute(candidate, catalog: catalog, home: home).state == .skipped)
         #expect(FileManager.default.fileExists(atPath: url.path))
     }
@@ -516,7 +514,7 @@ private func writeConfig(_ home: URL, _ relative: String, _ text: String) throws
         try FileManager.default.removeItem(at: home.appendingPathComponent("\(folder)/\(marker)"))
         try makeFolder(home, "\(folder)/notes")
     }
-    let check = CandidateCheck(catalog: catalog, running: NothingRunning())
+    let check = CandidateCheck(catalog: catalog, running: FixtureNothingRunning())
     #expect(check.check(pip) == .notACache("It doesn’t look like pip’s cache, so it is kept."))
     #expect(check.check(homebrew) == .notACache("It doesn’t look like Homebrew’s cache, so it is kept."))
     #expect(try await execute(pip, catalog: catalog, home: home).state == .skipped)
@@ -538,7 +536,7 @@ private func writeConfig(_ home: URL, _ relative: String, _ text: String) throws
     let pip = try #require(catalog.discovery(fixture: home, locateTool: onlyTool("python3", python)).candidates.first { $0.ruleID == "pip-cache" })
     try FileManager.default.moveItem(at: home.appendingPathComponent("work"), to: home.appendingPathComponent("Documents/work"))
     try FileManager.default.createSymbolicLink(at: home.appendingPathComponent("work"), withDestinationURL: home.appendingPathComponent("Documents/work"))
-    #expect(CandidateCheck(catalog: catalog, running: NothingRunning()).check(pip) != nil)
+    #expect(CandidateCheck(catalog: catalog, running: FixtureNothingRunning()).check(pip) != nil)
     #expect(try await execute(pip, catalog: catalog, home: home).state == .skipped)
     #expect(FileManager.default.fileExists(atPath: home.appendingPathComponent("Documents/work/pip/http-v2/entry").path))
 }

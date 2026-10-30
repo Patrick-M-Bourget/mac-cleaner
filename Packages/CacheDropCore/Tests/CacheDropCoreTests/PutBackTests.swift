@@ -6,15 +6,6 @@ import CacheDropCore
 // `.Trash` stands in for the Finder Trash; the real Trash is never read or changed.
 
 /// Moves items into the fixture home's `.Trash`, as Finder's Trash would.
-private struct FixtureHomeTrash: TrashMoving {
-    let home: URL
-    func moveToTrash(_ url: URL) throws -> URL? {
-        let destination = home.appendingPathComponent(".Trash/" + url.lastPathComponent)
-        try FileManager.default.moveItem(at: url, to: destination)
-        return destination
-    }
-}
-private struct Closed: RunningAppChecking { func isRunning(_ owner: RuleOwner) -> Bool? { false } }
 
 /// A fixture home with an empty `.Trash`, and one Downloads installer CacheDrop has moved to it.
 private func trashedInstaller(named name: String = "Setup.dmg") async throws -> (home: URL, journal: SQLiteCleanupJournal, record: CleanupRecord) {
@@ -24,7 +15,7 @@ private func trashedInstaller(named name: String = "Setup.dmg") async throws -> 
     try Data(repeating: 4, count: 3_000).write(to: home.appendingPathComponent("Downloads/" + name))
     let candidates = Catalog(rules: fixtureRules).discover(fixture: home)
     let journal = try SQLiteCleanupJournal(url: home.appendingPathComponent("journal.sqlite"))
-    let executor = CleanupExecutor(journal: journal, check: CandidateCheck(catalog: Catalog(rules: fixtureRules), running: Closed()), measure: { _ in nil },
+    let executor = CleanupExecutor(journal: journal, check: CandidateCheck(catalog: Catalog(rules: fixtureRules), running: FixtureNothingRunning()), measure: { _ in nil },
                                    trash: FixtureHomeTrash(home: home))
     let result = await executor.execute(CatalogApproval(candidates: candidates, previewOnly: false))
     let record = try #require(result.records.first)

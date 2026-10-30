@@ -55,14 +55,13 @@ private func records(_ actions: [CleanupAction], previewOnly: Bool = false) thro
     let (home, made) = try records([.delete, .trash], previewOnly: true)
     defer { try? FileManager.default.removeItem(at: home) }
     let journal = try SQLiteCleanupJournal(url: home.appendingPathComponent("j.sqlite"))
-    struct Closed: RunningAppChecking { func isRunning(_ owner: RuleOwner) -> Bool? { false } }
     let catalog = Catalog(rules: [
         CleanupRule(id: "r0", category: .developer, title: "R", detail: "", consequence: "", regen: .cache, action: .delete, locations: ["item0"], owner: nil),
         CleanupRule(id: "r1", category: .developer, title: "R", detail: "", consequence: "", regen: .cache, action: .trash, locations: ["item1"], owner: nil),
     ])
     let candidates = catalog.discover(fixture: home)
     #expect(candidates.count == made.count)
-    let result = await CleanupExecutor(journal: journal, check: CandidateCheck(catalog: catalog, running: Closed()), measure: { _ in nil }, trash: TrashNeverUsed())
+    let result = await CleanupExecutor(journal: journal, check: CandidateCheck(catalog: catalog, running: FixtureNothingRunning()), measure: { _ in nil }, trash: TrashNeverUsed())
         .execute(CatalogApproval(candidates: candidates, previewOnly: true))
     #expect(result.records.map(\.outcomeTitle) == ["Would delete", "Would move to Trash"])
     #expect(result.records.allSatisfy { $0.message.hasPrefix("Dry run: would ") })

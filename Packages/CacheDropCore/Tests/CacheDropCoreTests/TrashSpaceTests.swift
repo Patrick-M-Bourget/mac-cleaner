@@ -158,7 +158,7 @@ private func inTrash(_ url: URL, _ home: URL) -> Bool { url.standardizedFileURL.
     // Items a picked Trash folder, or one inside it, would hold; and a cache folder a rule might be pointed at.
     let candidates = [forged(UserFiles.rule, "movie.mov", under: trash), forged(UserFiles.rule, "Setup.dmg", under: trash),
                       forged(npm, "_cacache", under: trash.appendingPathComponent("_cacache")), forged(npm, "_cacache", under: home)]
-    let check = CandidateCheck(catalog: catalog, running: FakeNothingRunning(), inUse: FixtureNothingInUse(), cloud: FakeCloud())
+    let check = CandidateCheck(catalog: catalog, running: FixtureNothingRunning(), inUse: FixtureNothingInUse(), cloud: FakeCloud())
     for candidate in candidates {
         #expect(check.check(candidate) == .protected(".Trash"), "\(candidate.ruleID) \(candidate.url.lastPathComponent)")
     }
@@ -167,8 +167,4 @@ private func inTrash(_ url: URL, _ home: URL) -> Bool { url.standardizedFileURL.
         .execute(CatalogApproval(candidates: candidates, previewOnly: false))
     #expect(result.records.allSatisfy { $0.state == .skipped })
     for path in ["movie.mov", "Setup.dmg", "_cacache/content-v2/blob"] { #expect(FileManager.default.fileExists(atPath: trash.appendingPathComponent(path).path)) }
-}
-
-private struct FakeNothingRunning: RunningAppChecking {
-    func isRunning(_ owner: RuleOwner) -> Bool? { false }
 }

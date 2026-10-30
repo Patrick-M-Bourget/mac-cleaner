@@ -63,7 +63,6 @@ private let legacyRecord = #"{"action":"moveToTrash","allocatedBytes":4096,"appr
     #expect(try CleanupRecoverySnapshot(journal: reader).unresolvedCount == 1)
 }
 
-private struct Closed: RunningAppChecking { func isRunning(_ owner: RuleOwner) -> Bool? { false } }
 private struct RefusingTrash: TrashMoving {
     var cancellation: CleanupCancellation?
     func moveToTrash(_ url: URL) throws -> URL? { cancellation?.cancel(); throw CocoaError(.fileWriteNoPermission) }
@@ -87,7 +86,7 @@ private func twoInstallers() throws -> (URL, [Candidate]) {
     defer { try? FileManager.default.removeItem(at: home) }
     let url = home.appendingPathComponent("journal.sqlite")
     let journal = try SQLiteCleanupJournal(url: url)
-    let check = CandidateCheck(catalog: Catalog(rules: fixtureRules), running: Closed())
+    let check = CandidateCheck(catalog: Catalog(rules: fixtureRules), running: FixtureNothingRunning())
     let result = await CleanupExecutor(journal: FailOutcomeJournal(base: journal), check: check, measure: { _ in nil }, trash: RefusingTrash())
         .execute(CatalogApproval(candidates: candidates, previewOnly: false))
     #expect(result.records.map(\.state) == [.unknown, .cancelled])
@@ -102,7 +101,7 @@ private func twoInstallers() throws -> (URL, [Candidate]) {
     defer { try? FileManager.default.removeItem(at: home) }
     let journal = try SQLiteCleanupJournal(url: home.appendingPathComponent("journal.sqlite"))
     let cancellation = CleanupCancellation()
-    let check = CandidateCheck(catalog: Catalog(rules: fixtureRules), running: Closed())
+    let check = CandidateCheck(catalog: Catalog(rules: fixtureRules), running: FixtureNothingRunning())
     let result = await CleanupExecutor(journal: journal, check: check, measure: { _ in nil }, trash: RefusingTrash(cancellation: cancellation), cancellation: cancellation)
         .execute(CatalogApproval(candidates: candidates, previewOnly: false))
     #expect(result.records.map(\.state) == [.failed, .cancelled])

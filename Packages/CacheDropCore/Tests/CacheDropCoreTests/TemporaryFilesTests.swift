@@ -37,7 +37,6 @@ private struct FakeInUse: InUseChecking {
         unknown ? nil : Set(folders.map(\.path)).intersection(open)
     }
 }
-private struct NothingRunning: RunningAppChecking { func isRunning(_ owner: RuleOwner) -> Bool? { false } }
 /// One installed app, so a `C` folder named after it has an owner.
 private struct OneApp: AppLookup {
     func app(bundleID: String) -> InstalledApp? {
@@ -107,8 +106,8 @@ private func temporaryFiles(_ candidates: [Candidate]) -> [String] {
     #expect(held.hold == CandidateHold(.inUse("An app")))
     #expect(held.hold?.line == "An app is using it. It is kept.")
     #expect(found.first { $0.url.path == idle.path }?.hold == nil)
-    #expect(CandidateCheck(catalog: catalog, running: NothingRunning(), inUse: FakeInUse(open: [open.path]), home: fixtureHome()).check(held) == .inUse("An app"))
-    #expect(CandidateCheck(catalog: catalog, running: NothingRunning(), inUse: FakeInUse(), home: fixtureHome()).check(held) == nil)
+    #expect(CandidateCheck(catalog: catalog, running: FixtureNothingRunning(), inUse: FakeInUse(open: [open.path]), home: fixtureHome()).check(held) == .inUse("An app"))
+    #expect(CandidateCheck(catalog: catalog, running: FixtureNothingRunning(), inUse: FakeInUse(), home: fixtureHome()).check(held) == nil)
     let discovery = catalog.discovery(fixture: fixtureHome(), userFolder: folder, inUse: FakeInUse(unknown: true), now: now)
     #expect(temporaryFiles(discovery.candidates).isEmpty)
     #expect(discovery.notes.contains(CatalogNote(ruleID: "temporary-files", text: "Old temporary files: kept all, because CacheDrop couldn’t tell which ones apps are using.")))
@@ -144,7 +143,7 @@ private func temporaryFiles(_ candidates: [Candidate]) -> [String] {
     try age("T/job", in: folder, to: daysAgo(30))
     let candidate = try #require(catalog.discover(fixture: fixtureHome(), userFolder: folder, now: now).first { $0.ruleID == "temporary-files" })
     let home = fixtureHome()
-    func check(_ inUse: FakeInUse) -> CheckRefusal? { CandidateCheck(catalog: catalog, running: NothingRunning(), inUse: inUse, home: home).check(candidate) }
+    func check(_ inUse: FakeInUse) -> CheckRefusal? { CandidateCheck(catalog: catalog, running: FixtureNothingRunning(), inUse: inUse, home: home).check(candidate) }
     #expect(check(FakeInUse()) == nil)
     let refusal = check(FakeInUse(open: [candidate.url.path]))
     #expect(refusal == .inUse("An app"))
@@ -157,16 +156,6 @@ private func temporaryFiles(_ candidates: [Candidate]) -> [String] {
 }
 
 /// Available space grows by what each deleted item really frees.
-private final class FakeVolume: @unchecked Sendable {
-    private let lock = NSLock()
-    private var available: Int64 = 1_000_000
-    var freedPerRead: [Int64] = []
-    func read(_ url: URL) -> CapacitySample? {
-        lock.lock(); defer { lock.unlock() }
-        if !freedPerRead.isEmpty { available += freedPerRead.removeFirst() }
-        return CapacitySample(available: available, total: 10_000_000, volumeID: "fake-volume", metric: .important, date: Date())
-    }
-}
 
 @Test func deletingTemporaryFilesReportsMeasuredFreedSpace() async throws {
     let folder = try fixtureUserFolder()
@@ -177,10 +166,10 @@ private final class FakeVolume: @unchecked Sendable {
     let recent = try writeFile("T/recent.tmp", in: folder, modified: daysAgo(1))
     let candidates = catalog.discover(fixture: fixtureHome(), userFolder: folder, now: now).filter { $0.ruleID.hasPrefix("temporary-") }
     #expect(candidates.count == 2)
-    let volume = FakeVolume()
+    let volume = FixtureVolume()
     volume.freedPerRead = [0, 8192, 0, 12_288]
     let journal = try SQLiteCleanupJournal(url: folder.appendingPathComponent("journal.sqlite"))
-    let check = CandidateCheck(catalog: catalog, running: NothingRunning(), inUse: FakeInUse(), home: fixtureHome())
+    let check = CandidateCheck(catalog: catalog, running: FixtureNothingRunning(), inUse: FakeInUse(), home: fixtureHome())
     let run = CleanupExecutor(journal: journal, check: check, measure: volume.read, trash: TrashNeverUsed())
     let result = await run.execute(CatalogApproval(candidates: candidates, previewOnly: false))
     #expect(result.records.map(\.state) == [.succeeded, .succeeded])
@@ -229,7 +218,7 @@ private final class CountingInUse: InUseChecking, @unchecked Sendable {
     #expect(temporaryFiles(candidates).count == 3)
     #expect(counting.snapshots == 1)
     let journal = try SQLiteCleanupJournal(url: folder.appendingPathComponent("journal.sqlite"))
-    let run = CleanupExecutor(journal: journal, check: CandidateCheck(catalog: catalog, running: NothingRunning(), inUse: counting, home: fixtureHome()),
+    let run = CleanupExecutor(journal: journal, check: CandidateCheck(catalog: catalog, running: FixtureNothingRunning(), inUse: counting, home: fixtureHome()),
                               measure: { _ in nil }, trash: TrashNeverUsed(), clock: { now })
     let result = await run.execute(CatalogApproval(candidates: candidates.filter { $0.ruleID.hasPrefix("temporary-") }, previewOnly: true))
     #expect(result.records.count == 3)
@@ -284,7 +273,7 @@ private final class TimedInUse: InUseChecking, @unchecked Sendable {
     let clock = StepClock()
     let inUse = TimedInUse(clock: clock)
     let journal = try SQLiteCleanupJournal(url: folder.appendingPathComponent("journal.sqlite"))
-    let run = CleanupExecutor(journal: journal, check: CandidateCheck(catalog: catalog, running: NothingRunning(), inUse: inUse, home: fixtureHome()),
+    let run = CleanupExecutor(journal: journal, check: CandidateCheck(catalog: catalog, running: FixtureNothingRunning(), inUse: inUse, home: fixtureHome()),
                               measure: { _ in nil }, trash: TrashNeverUsed(), clock: { clock.now })
     let start = clock.now
     // Each item takes a little longer than the reading may be old, except the third, which follows quickly.
@@ -308,7 +297,7 @@ private final class TimedInUse: InUseChecking, @unchecked Sendable {
     let clock = StepClock()
     let journal = try SQLiteCleanupJournal(url: folder.appendingPathComponent("journal.sqlite"))
     // Only this test's own process is read, so other processes can't make the answer unknown.
-    let check = CandidateCheck(catalog: catalog, running: NothingRunning(), inUse: SystemInUseChecker(onlyProcess: getpid()), home: fixtureHome())
+    let check = CandidateCheck(catalog: catalog, running: FixtureNothingRunning(), inUse: SystemInUseChecker(onlyProcess: getpid()), home: fixtureHome())
     let run = CleanupExecutor(journal: journal, check: check, measure: { _ in nil }, trash: TrashNeverUsed(), clock: { clock.now })
     let descriptor = Descriptor()
     defer { descriptor.close() }

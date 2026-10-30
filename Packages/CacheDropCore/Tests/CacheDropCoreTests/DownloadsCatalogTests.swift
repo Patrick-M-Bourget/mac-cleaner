@@ -76,10 +76,9 @@ private struct FixtureTrash: TrashMoving {
         return destination
     }
 }
-private struct AlwaysClosed: RunningAppChecking { func isRunning(_ owner: RuleOwner) -> Bool? { false } }
 private func trashExecutor(_ home: URL, trash: FixtureTrash) throws -> (CleanupExecutor, SQLiteCleanupJournal) {
     let journal = try SQLiteCleanupJournal(url: home.appendingPathComponent("journal.sqlite"))
-    let check = CandidateCheck(catalog: Catalog(rules: fixtureRules), running: AlwaysClosed())
+    let check = CandidateCheck(catalog: Catalog(rules: fixtureRules), running: FixtureNothingRunning())
     return (CleanupExecutor(journal: journal, check: check, measure: { _ in nil }, trash: trash), journal)
 }
 

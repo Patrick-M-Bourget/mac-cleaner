@@ -26,7 +26,6 @@ private struct FakeInUse: InUseChecking {
         unknown ? nil : Set(folders.map(\.path)).intersection(open)
     }
 }
-private struct NothingRunning: RunningAppChecking { func isRunning(_ owner: RuleOwner) -> Bool? { false } }
 private let catalog = Catalog(rules: fixtureRules)
 private func day(_ n: Double) -> Date { Date(timeIntervalSince1970: 1_790_000_000 + n * 86_400) }
 
@@ -48,8 +47,8 @@ private func day(_ n: Double) -> Date { Date(timeIntervalSince1970: 1_790_000_00
     #expect(candidates.filter { $0.hold != nil }.map(\.url.path) == [inUse.path])
     // Ticked, it is checked again at Clean up: skipped with the same reason while Chrome uses it, cleaned once free. No force.
     let heldCopy = try #require(candidates.first { $0.hold != nil })
-    #expect(CandidateCheck(catalog: catalog, running: NothingRunning(), inUse: FakeInUse(open: [inUse.path])).check(heldCopy) == held.refusal)
-    #expect(CandidateCheck(catalog: catalog, running: NothingRunning(), inUse: FakeInUse()).check(heldCopy) == nil)
+    #expect(CandidateCheck(catalog: catalog, running: FixtureNothingRunning(), inUse: FakeInUse(open: [inUse.path])).check(heldCopy) == held.refusal)
+    #expect(CandidateCheck(catalog: catalog, running: FixtureNothingRunning(), inUse: FakeInUse()).check(heldCopy) == nil)
     #expect(candidates.allSatisfy { ($0.allocatedBytes ?? 0) >= 4096 })
 }
 
@@ -111,24 +110,14 @@ private func day(_ n: Double) -> Date { Date(timeIntervalSince1970: 1_790_000_00
     let old = try writeClone("code_sign_clone.a", in: folder, created: day(1))
     try writeClone("code_sign_clone.b", in: folder, created: day(2))
     let candidate = try #require(catalog.discover(fixture: home, userFolder: folder, inUse: FakeInUse()).first)
-    #expect(CandidateCheck(catalog: catalog, running: NothingRunning(), inUse: FakeInUse()).check(candidate) == nil)
-    let refusal = CandidateCheck(catalog: catalog, running: NothingRunning(), inUse: FakeInUse(open: [old.path])).check(candidate)
+    #expect(CandidateCheck(catalog: catalog, running: FixtureNothingRunning(), inUse: FakeInUse()).check(candidate) == nil)
+    let refusal = CandidateCheck(catalog: catalog, running: FixtureNothingRunning(), inUse: FakeInUse(open: [old.path])).check(candidate)
     #expect(refusal == .inUse("Google Chrome"))
     #expect(refusal?.reason == "Google Chrome is using it. It is kept.")
-    #expect(CandidateCheck(catalog: catalog, running: NothingRunning(), inUse: FakeInUse(unknown: true)).check(candidate) == .inUseUnknown("Google Chrome"))
+    #expect(CandidateCheck(catalog: catalog, running: FixtureNothingRunning(), inUse: FakeInUse(unknown: true)).check(candidate) == .inUseUnknown("Google Chrome"))
 }
 
 /// Available space grows by what each deleted copy really frees.
-private final class FakeVolume: @unchecked Sendable {
-    private let lock = NSLock()
-    private var available: Int64 = 1_000_000
-    var freedPerRead: [Int64] = []
-    func read(_ url: URL) -> CapacitySample? {
-        lock.lock(); defer { lock.unlock() }
-        if !freedPerRead.isEmpty { available += freedPerRead.removeFirst() }
-        return CapacitySample(available: available, total: 10_000_000, volumeID: "fake-volume", metric: .important, date: Date())
-    }
-}
 
 @Test func deletingCopiesReportsMeasuredFreedSpaceAndTheEstimateIsAnUpperBound() async throws {
     let home = FileManager.default.temporaryDirectory.appendingPathComponent("CacheDropCatalog-\(UUID())")
@@ -142,10 +131,10 @@ private final class FakeVolume: @unchecked Sendable {
     #expect(catalog.rule("chrome-code-sign-clones")?.estimateIsUpperBound == true)
     #expect(catalog.rule("npm-cache")?.estimateIsUpperBound == false)
     // Clones share blocks: each copy frees far less than its size.
-    let volume = FakeVolume()
+    let volume = FixtureVolume()
     volume.freedPerRead = [0, 100, 0, 200]
     let journal = try SQLiteCleanupJournal(url: folder.appendingPathComponent("journal.sqlite"))
-    let run = CleanupExecutor(journal: journal, check: CandidateCheck(catalog: catalog, running: NothingRunning(), inUse: FakeInUse()), measure: volume.read, trash: TrashNeverUsed())
+    let run = CleanupExecutor(journal: journal, check: CandidateCheck(catalog: catalog, running: FixtureNothingRunning(), inUse: FakeInUse()), measure: volume.read, trash: TrashNeverUsed())
     let result = await run.execute(CatalogApproval(candidates: candidates, previewOnly: false))
     #expect(result.records.map(\.state) == [.succeeded, .succeeded])
     #expect(result.measuredFreedBytes == 300)

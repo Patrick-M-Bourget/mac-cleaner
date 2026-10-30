@@ -114,7 +114,6 @@ private func fakeSimctl(_ home: URL, _ script: String) throws -> URL {
     try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: tool.path)
     return tool
 }
-private struct NothingRunning: RunningAppChecking { func isRunning(_ owner: RuleOwner) -> Bool? { false } }
 private let devices = "Library/Developer/CoreSimulator/Devices"
 
 @Test func unavailableSimulatorsAreOfferedOnlyWithSimctlAndTheirSizeIsUnknown() throws {
@@ -145,7 +144,7 @@ private let devices = "Library/Developer/CoreSimulator/Devices"
     let catalog = Catalog(rules: fixtureRules)
     let candidate = try #require(catalog.discover(fixture: home, locateTool: onlyTool("simctl", simctl)).first)
     let journal = try SQLiteCleanupJournal(url: home.appendingPathComponent("journal.sqlite"))
-    let check = CandidateCheck(catalog: catalog, running: NothingRunning())
+    let check = CandidateCheck(catalog: catalog, running: FixtureNothingRunning())
 
     let preview = await CleanupExecutor(journal: journal, check: check, trash: TrashNeverUsed()).execute(CatalogApproval(candidates: [candidate], previewOnly: true))
     #expect(preview.records.first?.message.hasPrefix("Dry run: would run simctl delete unavailable") == true)
