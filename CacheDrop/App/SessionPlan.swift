@@ -242,6 +242,8 @@ struct LiveCleanupPlanView: View {
     @Bindable var presentation: CleanupPlanPresentation
     /// Where the plan's empty state leads (#321).
     var exploreStorage: (() -> Void)? = nil
+    /// Opens Applications, where files from deleted apps are chosen (#481).
+    var openApplications: (() -> Void)? = nil
     @State private var review: WorkspaceCleanupReview?
     @State private var approvalError: String?
     @State private var reviewFocusRequest = 0
@@ -259,7 +261,7 @@ struct LiveCleanupPlanView: View {
             ScanHistoryRecordingNotice()
             SelectionSummary(value: selection.workspaceSelectedSize,
                              detail: CacheDropDesign.items(selection.catalog.selectedCount) + " selected",
-                             identifier: "liveSelectionSummary", title: "Potential space released")
+                             identifier: "liveSelectionSummary", title: "Ready to clean", elsewhere: applicationsLink)
                 .help(CacheDropDesign.selectionEstimateHelp)
             SettingsUnreadableNotice(model: selection.catalog)
             if let approvalError { StatusRow(text: approvalError, symbol: "exclamationmark.circle", role: .caution) }
@@ -286,6 +288,12 @@ struct LiveCleanupPlanView: View {
         }
         // The sheet closes only when the choices it was built from changed, and the page says so (#307).
         .onChange(of: selection.catalog.selectionRevision(for: .plan)) { _, _ in if review != nil { review = nil; approvalError = PlanReviewError.changedMessage } }
+    }
+    /// The shared selection's part on Applications, which the plan's count leaves out (#481): Smart clean counts it too.
+    private var applicationsLink: (title: String, open: () -> Void)? {
+        let count = selection.catalog.applicationsSelected.count
+        guard count > 0, let openApplications else { return nil }
+        return ("\(count) on Applications", openApplications)
     }
     private func openReview() async {
         do {

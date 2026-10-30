@@ -512,6 +512,13 @@ final class ApplicationsUITests: XCTestCase {
         XCTAssertTrue(category.waitForExistence(timeout: 10))
         // Tied to its removed app by its container, so it arrives ticked: the recommended default, not "Selected".
         XCTAssertEqual(category.value as? Int, 1)
+        // #481: the plan's count leaves it out, so its summary says one more is selected on Applications, with a link there.
+        app.typeKey("3", modifierFlags: .command)
+        let elsewhere = element(app, "liveSelectionSummaryElsewhere")
+        XCTAssertTrue(elsewhere.waitForExistence(timeout: 5), "The plan says what's selected on Applications")
+        XCTAssertEqual(elsewhere.label, "1 on Applications")
+        elsewhere.click()
+        XCTAssertTrue(app.checkBoxes["planCategory-leftovers"].waitForExistence(timeout: 5), "The link opens Applications")
         app.typeKey("1", modifierFlags: .command)
         let row = app.buttons["overviewCategory-leftovers"]
         XCTAssertTrue(row.waitForExistence(timeout: 5))
