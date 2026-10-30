@@ -469,7 +469,7 @@ private struct WorkspaceView: View {
             value: row.valueText,
             meaning: row.estimate == .unknown ? "Couldn’t be measured" : selected ? "Selected"
                 : row.rules.allSatisfy { $0.action == .delete } ? "Rebuildable" : row.rules.allSatisfy { $0.action == .evict } ? "Local copies" : "Review files",
-            actionTitle: "Review " + GrowthPresentation.inSentence(row.category) + (onApplications ? " in Applications" : " in the cleanup plan"),
+            actionTitle: "Review " + GrowthPresentation.inSentence(row.category) + (onApplications ? " in Applications" : " in the Cleanup plan"),
             // Files from deleted apps are on the Applications page (Decision 51).
             action: { if onApplications { navigate(.applications) } else { navigate(.plan); planPresentation.expandedCategories.insert(row.category) } },
             identifier: "overviewCategory-" + row.id)
@@ -731,7 +731,8 @@ private struct WorkspaceView: View {
                 AppManagedStorageView(model: selection.catalog) { navigationState.appManagedVisible = false }
             } else {
                 switch destination {
-                case .growth: GrowthHistoryView(model: GrowthHistoryModel.shared, catalog: selection.catalog, scanNow: { if canScanAgain { scanAgain() } })
+                case .growth: GrowthHistoryView(model: GrowthHistoryModel.shared, catalog: selection.catalog, scanNow: { if canScanAgain { scanAgain() } },
+                                                    reviewTitle: growthReview.title, review: growthReview.open)
                 case .overview: overview
                 case .plan, .smartClean, .applications: EmptyView()
                 case .history: history
@@ -770,8 +771,6 @@ private struct WorkspaceView: View {
             ActionStrip(message: nil) {
                 Button("Scan again", action: scanAgain).disabled(!canScanAgain).help(scanAgainHelp)
                     .accessibilityIdentifier("growthScanAgain")
-                Button(growthReview.title, action: growthReview.open).buttonStyle(.borderedProminent)
-                    .accessibilityIdentifier("growthReviewOptions")
             }
         } else {
             ActionStrip()
@@ -779,8 +778,9 @@ private struct WorkspaceView: View {
     }
     }
 
-    /// Storage trends' one review button (#351): the category that grew most, opened and scrolled to where it can be cleaned
-    /// (the plan, or Applications for files from deleted apps), named in the button; the plan alone when that category offers nothing now.
+    /// Storage trends' Review link on its growth card (#351, #461): the category that grew most, opened and scrolled to where it
+    /// can be cleaned (the plan, or Applications for files from deleted apps), named in its accessibility label and tooltip; the
+    /// plan alone when that category offers nothing now.
     private var growthReview: (title: String, open: () -> Void) {
         let grew = GrowthHistoryModel.shared.comparison?.mostGrowth?.category
         if let grew, let row = selection.catalog.leftoversRow, row.category == grew {
@@ -790,7 +790,7 @@ private struct WorkspaceView: View {
         guard let grew, selection.catalog.plans(grew) else {
             return ("Review plan", { navigate(.plan); returnHere() })
         }
-        return ("Review " + GrowthPresentation.inSentence(grew) + " in the cleanup plan", { navigate(.plan); returnHere(); planPresentation.reveal(grew) })
+        return ("Review " + GrowthPresentation.inSentence(grew) + " in the Cleanup plan", { navigate(.plan); returnHere(); planPresentation.reveal(grew) })
     }
     /// The plan's back button: to Storage trends or Explore storage when the plan was opened from there, otherwise none.
     private var planBack: (() -> Void)? {

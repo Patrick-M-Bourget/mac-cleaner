@@ -61,7 +61,7 @@ struct MeterSegments: View {
         // inside its label, where the 0.9.0 build showed none.
         if let open, let part = segment.part, !part.isTrash {
             Button { open(part) } label: { fill }.buttonStyle(.plain).help(segment.help)
-                .accessibilityLabel(segment.help).accessibilityHint("Opens in the cleanup plan")
+                .accessibilityLabel(segment.help).accessibilityHint("Opens in the Cleanup plan")
                 .accessibilityIdentifier("meterSegment-" + segment.id)
         } else {
             fill.help(segment.help).accessibilityElement().accessibilityLabel(segment.help).accessibilityIdentifier("meterSegment-" + segment.id)

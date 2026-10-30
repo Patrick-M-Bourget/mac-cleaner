@@ -294,17 +294,20 @@ final class WhatGrewUITests: XCTestCase {
         app.radioButtons["Locations"].firstMatch.click()
         XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "value BEGINSWITH '~/.npm/_cacache'")).firstMatch.waitForExistence(timeout: 5))
 
-        // #221, #351: the button names the category that grew and opens it in the plan.
-        XCTAssertEqual(app.buttons["growthReviewOptions"].label, "Review developer caches and build files in the cleanup plan")
+        // #221, #351, #461: the growth card's Review link names the category that grew and opens it in the plan; it's in the
+        // card, not the bottom bar, whose only button is Scan again.
+        XCTAssertEqual(app.links["growthReviewOptions"].label, "Review developer caches and build files in the Cleanup plan")
+        XCTAssertFalse(actionStrip(app).frame.contains(app.links["growthReviewOptions"].frame))
+        XCTAssertEqual(actionStrip(app).buttons.count, 1)
         XCTAssertFalse(app.staticTexts["Review plan shows what can be cleaned there now."].exists)
-        app.buttons["growthReviewOptions"].click()
+        app.links["growthReviewOptions"].click()
         XCTAssertTrue(app.checkBoxes["planCategory-developer"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.checkBoxes["planCategory-developer"].isHittable, "Scrolled to the category that grew")
         // #222: the quiet back button sits above the page title, and returns to Storage trends.
         let back = app.buttons["Back to Storage trends"]
         assertBackButton(back, isAbove: "Cleanup plan", in: app)
         back.click()
-        XCTAssertTrue(app.buttons["growthReviewOptions"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.links["growthReviewOptions"].waitForExistence(timeout: 5))
     }
 }
 
