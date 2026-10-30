@@ -11,3 +11,18 @@ import Testing
     #expect(try #require(SystemInUseSnapshot.mappedPaths(getpid(), flavor: SystemInUseSnapshot.fileBackedRegions)).isEmpty == false)
     #expect(SystemInUseSnapshot.fileBackedRegionsAgree)
 }
+
+/// A file mapped from a temporary folder holds no descriptor once mapped; the faster reading still finds it, so a mapped
+/// copy reads as in use (review of #474).
+@Test func aFileMappedFromATemporaryFolderIsFoundByTheFasterReading() throws {
+    let folder = FileManager.default.temporaryDirectory.appendingPathComponent("CacheDropMapped-" + UUID().uuidString)
+    try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: false)
+    defer { try? FileManager.default.removeItem(at: folder) }
+    let file = folder.appendingPathComponent("mapped.bin")
+    try Data(repeating: 5, count: 64 * 1024).write(to: file)
+    let mapped = try Data(contentsOf: file, options: .alwaysMapped)
+    defer { withExtendedLifetime(mapped) {} }
+    let real = try #require(realPath(file.path))
+    #expect(try #require(SystemInUseSnapshot.mappedPaths(getpid(), flavor: SystemInUseSnapshot.fileBackedRegions)).contains(real))
+    #expect(try #require(SystemInUseSnapshot.mappedPaths(getpid())).contains(real))
+}
