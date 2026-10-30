@@ -74,7 +74,7 @@ extension Catalog {
         return (found.filter { !newest.contains($0.0.path) }.map { url, info in
             let size = sizer.size(url)
             var found = candidate(rule, url, info, logical: size.logicalBytes, allocated: size.allocatedBytes, complete: size.complete, lastUsed: nil)
-            if used.contains(url.path) { found.hold = CandidateHold(.inUse(owner.name), app: owner) }
+            if used.contains(url.path) { found.hold = CandidateHold(.inUse(owner.name), of: found, catalog: self) }
             return found
         }, nil)
     }

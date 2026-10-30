@@ -13,9 +13,11 @@ public struct ActionWording: Sendable {
     /// In a History run's title, e.g. "moved to Trash"; nil for an action that never changes anything.
     public let historyPhrase: String?
 
+    fileprivate static let partlyDeletedRecovery = "Failed · It may be partly deleted"
+
     static let unknown = ActionWording(title: "", previewOutcome: "Would run", succeeded: "Done",
                                        partlyFailed: "Partly removed", unresolved: "Unfinished · Outcome unknown",
-                                       partlyFailedRecovery: "Failed · It may be partly deleted", historyPhrase: nil)
+                                       partlyFailedRecovery: partlyDeletedRecovery, historyPhrase: nil)
     /// Putting an item back from the Trash (#159): a rename, never a delete.
     static let putBack = ActionWording(title: "Put back from Trash", previewOutcome: "Would put back", succeeded: "Put back",
                                        partlyFailed: "Failed", unresolved: "Unfinished · It is either back in its folder or still in the Trash",
@@ -23,7 +25,7 @@ public struct ActionWording: Sendable {
     /// Deleting an item CacheDrop moved to the Trash from the Trash (#359).
     static let emptyFromTrash = ActionWording(title: "Delete from the Trash", previewOutcome: "Would delete from the Trash", succeeded: "Deleted from the Trash",
                                               partlyFailed: "Partly deleted", unresolved: "Unfinished · It may be partly deleted",
-                                              partlyFailedRecovery: "Failed · It may be partly deleted", historyPhrase: nil)
+                                              partlyFailedRecovery: partlyDeletedRecovery, historyPhrase: nil)
 }
 
 extension CleanupAction {
@@ -32,15 +34,15 @@ extension CleanupAction {
         case .delete:
             ActionWording(title: "Delete permanently", previewOutcome: "Would delete", succeeded: "Deleted",
                           partlyFailed: "Partly removed", unresolved: "Unfinished · It may be partly deleted",
-                          partlyFailedRecovery: "Failed · It may be partly deleted", historyPhrase: "deleted")
+                          partlyFailedRecovery: ActionWording.partlyDeletedRecovery, historyPhrase: "deleted")
         case .tool:
             ActionWording(title: "Run its cleanup command", previewOutcome: "Would run", succeeded: "Deleted",
                           partlyFailed: "Partly removed", unresolved: "Unfinished · It may be partly deleted",
-                          partlyFailedRecovery: "Failed · It may be partly deleted", historyPhrase: "deleted")
+                          partlyFailedRecovery: ActionWording.partlyDeletedRecovery, historyPhrase: "deleted")
         case .trash:
             ActionWording(title: "Move to Trash", previewOutcome: "Would move to Trash",
                           succeeded: "Moved to Trash", partlyFailed: "Partly removed", unresolved: "Unfinished · It may or may not be in the Trash",
-                          partlyFailedRecovery: "Failed · It may be partly deleted", historyPhrase: "moved to Trash")
+                          partlyFailedRecovery: ActionWording.partlyDeletedRecovery, historyPhrase: "moved to Trash")
         case .evict:
             ActionWording(title: "Remove local copy", previewOutcome: "Would remove local copy", succeeded: "Removed local copy", partlyFailed: "Partly removed local copies",
                           unresolved: "Unfinished · Local copies may be removed · The original stays in iCloud",
@@ -48,7 +50,7 @@ extension CleanupAction {
         case .guidance:
             ActionWording(title: "Guidance only", previewOutcome: "Would run", succeeded: "Done",
                           partlyFailed: "Partly removed", unresolved: "Unfinished · Outcome unknown",
-                          partlyFailedRecovery: "Failed · It may be partly deleted", historyPhrase: nil)
+                          partlyFailedRecovery: ActionWording.partlyDeletedRecovery, historyPhrase: nil)
         }
     }
 }
