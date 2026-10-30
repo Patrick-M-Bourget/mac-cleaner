@@ -158,7 +158,7 @@ public actor FolderScanner {
             try Task.checkCancellation()
             if cancellation?.isCancellationRequested == true { throw CancellationError() }
             onProgress?(.init(scope: scope, visitedEntries: budget.visited, retainedObservations: 0,
-                knownLogicalSubtotal: 0, recentObservations: [], elapsed: budget.elapsed, phase: .rechecking))
+                knownLogicalSubtotal: 0, knownAllocatedSubtotal: 0, recentObservations: [], elapsed: budget.elapsed, phase: .rechecking))
             result = try Self.enumerate(scope, maximumEntries: maximumEntries, maximumIssues: maximumIssues,
                 supplement: supplement, access: access, cancellation: cancellation, onProgress: onProgress, budget: budget, phase: .rechecking, expectedRoot: original, exclusions: exclusions)
         }
@@ -194,7 +194,7 @@ public actor FolderScanner {
             guard force || lastProgressCount == 0 || now - lastProgressTime >= 0.1 else { return }
             let start = max(lastProgressCount, observations.count - 256)
             onProgress(.init(scope: scope, visitedEntries: visited, retainedObservations: observations.count,
-                knownLogicalSubtotal: logical, recentObservations: Array(observations[start...]), elapsed: budget.elapsed, phase: phase))
+                knownLogicalSubtotal: logical, knownAllocatedSubtotal: allocationUnknown == 0 ? allocated : nil, recentObservations: Array(observations[start...]), elapsed: budget.elapsed, phase: phase))
             lastProgressCount = observations.count; lastProgressTime = now
         }
         do { try access.check(scope) }
@@ -341,7 +341,7 @@ public actor FolderScanner {
         try checkCancellation()
         emitProgress(force: true)
         onProgress?(.init(scope: scope, visitedEntries: visited, retainedObservations: observations.count,
-            knownLogicalSubtotal: logical, recentObservations: [], elapsed: budget.elapsed, phase: .checkingDirectories))
+            knownLogicalSubtotal: logical, knownAllocatedSubtotal: allocationUnknown == 0 ? allocated : nil, recentObservations: [], elapsed: budget.elapsed, phase: .checkingDirectories))
         for (url, evidence) in directories {
             try checkCancellation()
             guard !budget.expired else { issues.append(.init(url: scope, reason: .timeLimit)); break }

@@ -147,7 +147,7 @@ private struct TrendsEnumsFixture: Codable {
     #expect(activity.locations.map(\.path) == ["/Users/x/Library/Caches", "/Users/x/Downloads"])
     let location = activity.locations[0]
     #expect(location.observedAt == at(800_090_010)); #expect(location.outcome == .partial); #expect(location.entryCount == 12)
-    #expect(location.logicalBytes == 4_000); #expect(location.allocatedBytes == 4_096); #expect(location.knownLogicalBytes == 3_900)
+    #expect(location.logicalBytes == 4_000); #expect(location.allocatedBytes == 4_096); #expect(location.knownLogicalBytes == 3_900); #expect(location.knownAllocatedBytes == 3_968)
     #expect(location.reasons == ["accessDenied": 2, "timeLimit": 1])
     #expect(location.baselineID == UUID(uuidString: "AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE"))
     StoredKeysFixture.expectEveryPropertyStored(snapshots[1], in: try StoredKeysFixture.keys(fixture, at: ["entries", "1", "snapshot"]), "GrowthSnapshot")
@@ -156,7 +156,7 @@ private struct TrendsEnumsFixture: Codable {
     StoredKeysFixture.expectEveryPropertyStored(activity, in: try StoredKeysFixture.keys(fixture, at: ["activities", "0"]), "ScanActivity")
     StoredKeysFixture.expectEveryPropertyStored(location, in: try StoredKeysFixture.keys(fixture, at: ["activities", "0", "locations", "0"]), "ScanActivityLocation")
     let empty = activity.locations[1]
-    #expect(empty.observedAt == nil && empty.outcome == nil && empty.entryCount == nil && empty.reasons.isEmpty && empty.baselineID == nil)
+    #expect(empty.observedAt == nil && empty.outcome == nil && empty.entryCount == nil && empty.knownAllocatedBytes == nil && empty.reasons.isEmpty && empty.baselineID == nil)
 
     // Saving it again writes the same keys: the store re-records the same scan in place.
     try await store.recordActivity(activity, now: now, expectedEpoch: try await store.recordingEpoch())

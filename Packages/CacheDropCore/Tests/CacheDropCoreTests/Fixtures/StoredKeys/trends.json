@@ -8,6 +8,7 @@
           "allocatedBytes" : 4096,
           "baselineID" : "AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE",
           "entryCount" : 12,
+          "knownAllocatedBytes" : 3968,
           "knownLogicalBytes" : 3900,
           "logicalBytes" : 4000,
           "observedAt" : 800090010,
