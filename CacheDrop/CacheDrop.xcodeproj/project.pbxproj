@@ -111,7 +111,7 @@ AA3700000000000000000003 = { isa = PBXFileReference; lastKnownFileType = sourcec
 AA3700000000000000000004 = { isa = PBXBuildFile; fileRef = AA3700000000000000000003; };
 
 
-AA0700000000000000000001 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = App/SessionPlan.swift; sourceTree = "<group>"; };
+AA0700000000000000000001 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = App/CleanupPlan.swift; sourceTree = "<group>"; };
 AA0700000000000000000002 = { isa = PBXBuildFile; fileRef = AA0700000000000000000001; };
 
 AA0500000000000000000001 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = App/CloudInventoryView.swift; sourceTree = "<group>"; };

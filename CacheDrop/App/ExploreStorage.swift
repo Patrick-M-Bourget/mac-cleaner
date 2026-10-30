@@ -9,8 +9,8 @@ import QuickLook
 final class ExploreStorage {
     private let scanner: FolderScanner
     private let session: InspectionSession
-    private let selection: SessionPlan
-    init(selection: SessionPlan) {
+    private let selection: CleanupPlan
+    init(selection: CleanupPlan) {
         self.selection = selection
         scanner = FolderScanner()
         session = InspectionSession(scanner: scanner)

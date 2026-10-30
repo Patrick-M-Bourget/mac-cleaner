@@ -59,7 +59,7 @@ import SwiftUI
 /// Applications (Decision 51): apps, plug-in products and files from deleted apps on one page. Apps (#177),
 /// files from deleted apps and plug-in products (#176) are chosen and cleaned through the plan's selection, review sheet and run.
 struct ApplicationsView: View {
-    let selection: SessionPlan
+    let selection: CleanupPlan
     let model: ApplicationsModel
     var viewHistory: (() -> Void)? = nil
     var reviewRecovery: (() -> Void)? = nil

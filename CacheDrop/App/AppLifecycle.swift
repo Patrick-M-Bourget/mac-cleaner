@@ -23,7 +23,7 @@ import CacheDropCore
     let alerts = StorageAlertsController()
     let capacity = CapacityRefreshController(system: NativeCapacityRefreshSystem())
     let appearance = AppearancePreferenceController(store: NativeAppearancePreferenceStore())
-    let selection = SessionPlan()
+    let selection = CleanupPlan()
     let recovery = CleanupRecoveryModel()
     let workspaceNavigation = WorkspaceNavigation()
     let locations = RememberedLocations()

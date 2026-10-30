@@ -5,7 +5,7 @@ import SwiftUI
 /// Smart clean (#141, #319): recommended items and held rows, grouped by category with one consequence line each.
 /// Recommended items start ticked; choices are shared with the plan and Applications (Decision 67). Clean up opens the review sheet.
 struct SmartCleanView: View {
-    let selection: SessionPlan
+    let selection: CleanupPlan
     /// Opens the Cleanup plan, with a category open when one is named.
     let openPlan: (CatalogCategory?) -> Void
     var viewHistory: (() -> Void)? = nil
