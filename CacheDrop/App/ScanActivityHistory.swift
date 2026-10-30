@@ -5,6 +5,7 @@ import CacheDropCore
 
 @MainActor @Observable final class ScanActivityHistory {
     static let shared = ScanActivityHistory()
+    static let recordingFailure = "This scan couldn’t be saved to History. Its results and your choices are still here."
     var records: [ScanActivity]?
     var loadError: String?
     var recordingWarning: String?
@@ -18,14 +19,14 @@ import CacheDropCore
     }
     func begin() async -> UUID? {
         do { return try await store().recordingEpoch() }
-        catch { recordingWarning = "This scan couldn’t be saved to History. Its results and your choices are still here."; return nil }
+        catch { recordingWarning = Self.recordingFailure; return nil }
     }
     func record(_ activity: ScanActivity, epoch: UUID?) async {
         guard let epoch else { return }
         do {
             let saved = try await store().recordActivity(activity, expectedEpoch: epoch)
             if saved { recordingWarning = nil; await load(maintain: false) }
-        } catch { recordingWarning = "This scan couldn’t be saved to History. Its results and your choices are still here." }
+        } catch { recordingWarning = Self.recordingFailure }
     }
     func load(maintain: Bool = true) async {
         let request = UUID(); loadRequest = request; isLoading = true
@@ -276,7 +277,7 @@ struct HistoryActivityGalleryExamples: View {
             }
             VStack(alignment: .leading, spacing: CacheDropDesign.Space.md) {
                 heading("save-failed", "Unrecorded activity feedback")
-                ScanHistoryRecordingFeedback(message: "This scan couldn’t be saved to History. Its results and your choices are still here.")
+                ScanHistoryRecordingFeedback(message: ScanActivityHistory.recordingFailure)
                 end("save-failed", "Current findings remain usable.")
             }
             VStack(alignment: .leading, spacing: CacheDropDesign.Space.md) {

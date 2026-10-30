@@ -66,7 +66,7 @@ public struct StorageExplorerIndex: Sendable {
         childrenByFolder = children.mapValues { siblings in
             Self.foldersFirst(siblings, isFolder: \.entry.isFolder) { $0.sorted { Self.finderOrder($0.name, $1.name) } }.map(\.entry)
         }
-        folderPaths = Set(scans.map(\.scope.path)).union(entries.filter { $0.item.kind == .folder }.map(\.path))
+        folderPaths = Set(scans.map(\.scope.path)).union(entries.filter(\.isFolder).map(\.path))
 
         // One pass: each file adds to every folder above it, through any location that contains its own (#346 review:
         // overlapping locations). Only identities seen more than once (hard links) are remembered per folder, so each still

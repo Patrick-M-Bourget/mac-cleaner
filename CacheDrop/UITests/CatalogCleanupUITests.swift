@@ -449,6 +449,7 @@ final class CatalogCleanupUITests: XCTestCase {
         let app = XCUIApplication()
         let state = try configureIsolatedState(app)
         let home = try configureCatalogHome(app)
+        _ = try addDeveloperCaches(home, folders: ["Library/Caches/Yarn"])
         let script = home.appendingPathComponent(".cachedrop-test-npm/npm-cli.js")
         try FileManager.default.createDirectory(at: script.deletingLastPathComponent(), withIntermediateDirectories: true)
         try "while :; do sleep 1; done\n".write(to: script, atomically: true, encoding: .utf8)
@@ -461,6 +462,14 @@ final class CatalogCleanupUITests: XCTestCase {
 
         XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
         waitForCatalogScan(app)
+        app.typeKey("2", modifierFlags: .command)
+        expandDisclosures(in: app)
+        XCTAssertTrue(app.checkBoxes["smartCleanLine-yarn-cache|"].waitForExistence(timeout: 5), "The free rule keeps its original identifier")
+        let held = app.checkBoxes["smartCleanLine-npm-cache||held-1"]
+        XCTAssertTrue(held.waitForExistence(timeout: 5), "Held numbering starts at one beside free items")
+        XCTAssertEqual(held.value as? Int, 0)
+        XCTAssertFalse(app.checkBoxes["smartCleanLine-npm-cache||held-2"].exists)
+        app.typeKey("1", modifierFlags: .command)
         let row = app.buttons["overviewCategory-developer"]
         XCTAssertTrue(row.waitForExistence(timeout: 10))
         revealAndClick(row, in: app)

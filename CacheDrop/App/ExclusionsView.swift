@@ -112,7 +112,7 @@ struct ExclusionsView: View {
                         Text(preview.path).textSelection(.enabled)
                         Text(preview.boundary == .folder ? "This folder and everything in it" : "This file")
                         Text("Disk " + preview.volumeID).font(CacheDropDesign.TypeStyle.caption).textSelection(.enabled)
-                        Text("After you save, scan again: what’s protected is left out and not counted.").font(.callout)
+                        Text("After you save, scan again: what’s protected is left out and not counted.").font(CacheDropDesign.TypeStyle.note)
                     }
                 }
             }

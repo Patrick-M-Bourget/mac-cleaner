@@ -142,3 +142,19 @@ private func day(_ n: Double) -> Date { Date(timeIntervalSince1970: 1_790_000_00
     #expect(!FileManager.default.fileExists(atPath: old.path) && !FileManager.default.fileExists(atPath: older.path))
     #expect(FileManager.default.fileExists(atPath: newest.path))
 }
+
+/// Discovery must use the same known-owner rule as review: an arbitrary process never becomes an app to quit.
+@Test func aLeakedCopyUsedByAnyAppDoesNotOfferAnAppToQuit() throws {
+    let home = FileManager.default.temporaryDirectory.appendingPathComponent("CacheDropAnyAppCopies-\(UUID())")
+    defer { try? FileManager.default.removeItem(at: home) }
+    let copy = home.appendingPathComponent("copies/old-copy")
+    try FileManager.default.createDirectory(at: copy, withIntermediateDirectories: true)
+    try Data([1]).write(to: copy.appendingPathComponent("entry"))
+    let rule = CleanupRule(id: "copies", category: .browser, title: "Copies", detail: "", consequence: "", regen: .leakedCopy,
+                           action: .delete, locations: ["copies"], owner: nil, copies: LeakedCopies(owner: .anyApp, keepNewest: 0))
+    let found = Catalog(rules: [rule]).discover(fixture: home, inUse: FakeInUse(open: [copy.path]))
+    let hold = try #require(found.first?.hold)
+    #expect(hold.refusal == .inUse(RuleOwner.anyApp.name))
+    #expect(hold.app == nil)
+    #expect(hold.line == hold.refusal.reason)
+}

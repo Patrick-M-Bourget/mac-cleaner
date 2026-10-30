@@ -19,11 +19,14 @@ struct CacheDropApp: App {
     var body: some Scene {
         Window("CacheDrop", id: "workspace") {
             WorkspaceView(alerts: lifecycle.alerts)
-                .frame(minWidth: 900).background { NativeWindowContract() }
+                .frame(minWidth: CacheDropDesign.Size.minimumWindow.width).background { NativeWindowContract() }
                 .cacheDropButtonRule()
         }
-        .defaultSize(width: 1120, height: 760)
+        .defaultSize(width: CacheDropDesign.Size.defaultWindow.width, height: CacheDropDesign.Size.defaultWindow.height)
         .commands {
+            #if DEBUG
+            DebugGalleryCommands()
+            #endif
             CommandGroup(after: .windowArrangement) {
                 Button("Show CacheDrop") { lifecycle.openWorkspace?() }
             }
@@ -34,6 +37,10 @@ struct CacheDropApp: App {
                 Button("Welcome to CacheDrop") { lifecycle.openWorkspace?(); WelcomeModel.shared.isShowing = true }
             }
         }
+        #if DEBUG
+        Window("Design gallery", id: "design-gallery") { DesignGallery() }
+            .defaultSize(width: CacheDropDesign.Size.defaultWindow.width, height: CacheDropDesign.Size.defaultWindow.height)
+        #endif
         Settings { CacheDropSettingsView() }
         // #131: free space in the menu bar, shown unless turned off in Settings.
         // The binding ignores no-op writes: MenuBarExtra writes it back on every update, and an unconditional
@@ -43,6 +50,19 @@ struct CacheDropApp: App {
         } label: { CacheDropMenuBarLabel(capacity: lifecycle.capacity) }
     }
 }
+
+#if DEBUG
+/// Developer-only access to synthetic examples, separate from product navigation.
+private struct DebugGalleryCommands: Commands {
+    @Environment(\.openWindow) private var openWindow
+    var body: some Commands {
+        CommandMenu("Debug") {
+            Button("Design gallery") { openWindow(id: "design-gallery") }
+                .accessibilityIdentifier("openDesignGallery")
+        }
+    }
+}
+#endif
 
 /// ⌘R: disabled while a scan or cleanup runs, with the reason as its tooltip (#310).
 private struct ScanAgainCommand: View {
@@ -219,20 +239,20 @@ private struct WorkspaceView: View {
             navigation(.locations)
             Spacer()
             VStack(alignment: .leading, spacing: CacheDropDesign.Space.md) {
-                Label("This Mac", systemImage: "laptopcomputer").font(.callout)
+                Label("This Mac", systemImage: "laptopcomputer").font(CacheDropDesign.TypeStyle.note)
                 CapacityMeter(available: startupCapacity?.available, total: startupCapacity?.total, compact: true,
                               breakdown: selection.catalog.breakdown(available: startupCapacity?.available, total: startupCapacity?.total, trash: TrashModel.shared.contents))
-                Text(capacity.sidebarObservationText).font(.caption2).foregroundStyle(.secondary)
-                    .lineLimit(1).frame(height: 14, alignment: .leading)
+                Text(capacity.sidebarObservationText).font(CacheDropDesign.TypeStyle.sidebarNote).foregroundStyle(.secondary)
+                    .lineLimit(1).frame(height: CacheDropDesign.Size.sidebarCaptionHeight, alignment: .leading)
                     .help(capacity.observationText).accessibilityLabel(capacity.observationText)
                     .accessibilityIdentifier("sidebarCapacityObservation")
-                Text(capacity.statusText.isEmpty ? " " : capacity.statusText).font(.caption2).foregroundStyle(.secondary)
-                    .frame(height: 14, alignment: .leading)
+                Text(capacity.statusText.isEmpty ? " " : capacity.statusText).font(CacheDropDesign.TypeStyle.sidebarNote).foregroundStyle(.secondary)
+                    .frame(height: CacheDropDesign.Size.sidebarCaptionHeight, alignment: .leading)
             }.padding(.horizontal, CacheDropDesign.Space.sm)
         
         }
         .padding(.horizontal, CacheDropDesign.Space.md).padding(.vertical, CacheDropDesign.Space.lg)
-        .frame(width: 190)
+        .frame(width: CacheDropDesign.Size.sidebarWidth)
         .frame(maxHeight: .infinity)
         .background { ChromeSurface(role: .sidebar) }
     }
@@ -384,9 +404,10 @@ private struct WorkspaceView: View {
         let summary = catalog.overview
         // The scanned folders' iCloud inventory stands in for an empty iCloud row (Decision 76).
         let inventory = overviewObservation?.cloudInventory
-        let showsCloudInventory = summary?.showsCloudInventory(inventory) == true
+        let presentation = summary?.presentation(cloudInventory: inventory)
+        let showsCloudInventory = presentation?.showsCloudInventory == true
         // Every category, empty ones last as "Empty" (#372).
-        let rows = summary?.visibleRows(cloudInventory: inventory) ?? []
+        let rows = presentation?.rows ?? []
         let more = max(0, rows.count - CatalogOverview.leadingRowCount)
         let shown = overviewShowsAllCategories ? rows : Array(rows.prefix(CatalogOverview.leadingRowCount))
         return VStack(alignment: .leading, spacing: CacheDropDesign.Space.md) {
@@ -428,7 +449,7 @@ private struct WorkspaceView: View {
                             if more > 0 {
                                 Divider().padding(.horizontal, CacheDropDesign.Space.lg)
                                 Button(overviewShowsAllCategories ? "Show fewer" : "Show \(more) more") { overviewShowsAllCategories.toggle() }
-                                    .buttonStyle(.link).font(.callout).padding(CacheDropDesign.Space.lg).frame(maxWidth: .infinity, alignment: .leading)
+                                    .buttonStyle(.link).font(CacheDropDesign.TypeStyle.note).padding(CacheDropDesign.Space.lg).frame(maxWidth: .infinity, alignment: .leading)
                                     .accessibilityIdentifier("overviewShowMore")
                             }
                         }.waitingForScan(catalog.isScanning)
