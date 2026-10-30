@@ -312,6 +312,8 @@ struct SelectionSummary: View {
     var identifier = ""
     var consequence: String? = nil
     var title = "Selected for Trash"
+    /// What's selected on another page, as a link there after the detail: "· 1 on Applications" (#481, Decision 65 rule 3).
+    var elsewhere: (title: String, open: () -> Void)? = nil
     var body: some View {
         VStack(alignment: .leading, spacing: CacheDropDesign.Space.md) {
         SummarySurface {
@@ -321,7 +323,14 @@ struct SelectionSummary: View {
                     Text(value).font(CacheDropDesign.TypeStyle.value).monospacedDigit().accessibilityIdentifier(identifier.isEmpty ? "" : identifier + "Value")
                 }
                 Spacer(minLength: CacheDropDesign.Space.lg)
-                Text(detail).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary).multilineTextAlignment(.trailing).accessibilityIdentifier(identifier)
+                HStack(spacing: CacheDropDesign.Space.xs) {
+                    Text(detail).foregroundStyle(.secondary).multilineTextAlignment(.trailing).accessibilityIdentifier(identifier)
+                    if let elsewhere {
+                        Text("·").foregroundStyle(.secondary).accessibilityHidden(true)
+                        Button(elsewhere.title, action: elsewhere.open).buttonStyle(.link)
+                            .accessibilityIdentifier(identifier.isEmpty ? "" : identifier + "Elsewhere")
+                    }
+                }.font(CacheDropDesign.TypeStyle.caption)
             }
         }
         if let consequence { Text(consequence).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true) }

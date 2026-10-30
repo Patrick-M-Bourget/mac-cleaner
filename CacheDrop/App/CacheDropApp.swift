@@ -696,7 +696,8 @@ private struct WorkspaceView: View {
             reviewRecovery: { openRecovery(caller: .plan) },
             backToExplorer: planBack,
             backToExplorerDestination: backDestination,
-            presentation: planPresentation, exploreStorage: { exploreStorage(caller: .plan) })
+            presentation: planPresentation, exploreStorage: { exploreStorage(caller: .plan) },
+            openApplications: { navigate(.applications) })
     }
 
     private var smartCleanPage: some View {
