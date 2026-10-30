@@ -309,6 +309,52 @@ final class WhatGrewUITests: XCTestCase {
         back.click()
         XCTAssertTrue(app.links["growthReviewOptions"].waitForExistence(timeout: 5))
     }
+
+    /// #447 (Decision 94): trends store and show sizes on disk. A scan saved before then is never compared, so trends start
+    /// again once two new scans exist; a sparse file counts what it takes on disk, not its logical size.
+    @MainActor func testAScanSavedBeforeSizesOnDiskIsNotComparedAndTrendsShowSizeOnDisk() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        let state = try configureIsolatedState(app)
+        let home = try configureCatalogHome(app)
+        defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
+        // Every scan is old enough to be a baseline, so only the cut-over keeps two scans from being compared.
+        app.launchEnvironment["CACHEDROP_TEST_TRENDS_BASELINE_AGE"] = "0"
+        app.launch()
+        waitForCatalogScan(app)
+        app.terminate()
+
+        // Make the saved scan one from before #447: the same history, without its snapshots' `onDisk` key.
+        let file = state.appendingPathComponent("Growth/aggregates-v1.json")
+        var archive = try XCTUnwrap(try JSONSerialization.jsonObject(with: Data(contentsOf: file)) as? [String: Any])
+        let entries = try XCTUnwrap(archive["entries"] as? [[String: Any]])
+        XCTAssertEqual(entries.count, 1, "The launch scan was saved for Storage trends")
+        archive["entries"] = entries.map { entry -> [String: Any] in
+            var entry = entry, snapshot = entry["snapshot"] as? [String: Any] ?? [:]
+            snapshot.removeValue(forKey: "onDisk"); entry["snapshot"] = snapshot; return entry
+        }
+        try JSONSerialization.data(withJSONObject: archive).write(to: file)
+
+        app.launch()
+        waitForCatalogScan(app)
+        app.buttons["Storage trends"].click()
+        XCTAssertTrue(app.staticTexts["No trends yet"].waitForExistence(timeout: 15), "The new launch scan isn't compared with the earlier one")
+        XCTAssertFalse(app.staticTexts["growthNetChange"].exists)
+
+        // 200 MB logical, a few KB on disk.
+        let sparse = home.appendingPathComponent(".npm/_cacache/content-v2/sha512/sp/blob")
+        try FileManager.default.createDirectory(at: sparse.deletingLastPathComponent(), withIntermediateDirectories: true)
+        FileManager.default.createFile(atPath: sparse.path, contents: nil)
+        let handle = try FileHandle(forWritingTo: sparse)
+        try handle.seek(toOffset: 200_000_000 - 1); try handle.write(contentsOf: Data([1])); try handle.close()
+
+        app.buttons["growthScanAgain"].click()
+        let net = app.staticTexts["growthNetChange"]
+        XCTAssertTrue(net.waitForExistence(timeout: 30), "Two new scans are compared")
+        let text = (net.value as? String).flatMap { $0.isEmpty ? nil : $0 } ?? net.label
+        XCTAssertTrue(text.hasPrefix("+"), "The sparse file grew the cache: \(text)")
+        XCTAssertFalse(text.contains("MB") || text.contains("GB"), "The sparse file counts its size on disk, not its 200 MB: \(text)")
+    }
 }
 
 /// #222: a page reached from another keeps its back button above the title; its bottom bar stays, without it.
