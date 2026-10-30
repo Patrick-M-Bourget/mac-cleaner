@@ -123,6 +123,9 @@ struct GrowthHistoryView: View {
     let catalog: CatalogCleanupModel
     /// The empty state's Scan now (#321): the same scan as the bar's Scan again.
     var scanNow: () -> Void = {}
+    /// The growth card's Review link (#461): where the category that grew most can be cleaned, named in full for VoiceOver.
+    var reviewTitle = "Review plan"
+    var review: () -> Void = {}
     var body: some View {
         VStack(alignment: .leading, spacing: CacheDropDesign.Space.xl) {
             if let error = model.error, model.comparison == nil {
@@ -178,9 +181,13 @@ struct GrowthHistoryView: View {
         }
         if let top = comparison.mostGrowth {
             SummarySurface {
-                HStack(alignment: .top, spacing: CacheDropDesign.Space.md) {
+                // The action belongs to the card, so it's a link in it, not a bar button (Decision 65 rule 3, #461).
+                HStack(alignment: .center, spacing: CacheDropDesign.Space.md) {
                     CategoryBadge(category: GrowthPresentation.storageCategory(top.category))
-                    Text("Most growth is in " + GrowthPresentation.inSentence(top.category) + ".").font(CacheDropDesign.TypeStyle.rowTitle)
+                    Text("Most growth is in " + GrowthPresentation.inSentence(top.category)).font(CacheDropDesign.TypeStyle.rowTitle)
+                    Spacer(minLength: CacheDropDesign.Space.md)
+                    Button("Review", action: review).buttonStyle(.link).help(reviewTitle)
+                        .accessibilityLabel(reviewTitle).accessibilityIdentifier("growthReviewOptions")
                 }
             }
         }
