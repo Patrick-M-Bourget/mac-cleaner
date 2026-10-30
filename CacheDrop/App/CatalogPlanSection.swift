@@ -142,7 +142,7 @@ private struct PlanRuleRows: View {
                                detailLineLimit: 1, actionLabel: "Select " + rule.title,
                                // Docker's folder only anchors its rules, so there's nothing to reveal (#420).
                                reveal: rule.ruleRowClick == .tick && rule.showsFolder ? { Finder.reveal(items.map(\.url)) } : nil, revealIdentifier: "planRuleReveal-" + rule.id) {
-                MacroCategoryCheckbox(state: state, label: rule.title, enabled: model.canEdit && !rule.selectedOneByOne, action: { model.toggleCategory([rule]) },
+                NativeCategoryCheckbox(state: state, label: rule.title, enabled: model.canEdit && !rule.selectedOneByOne, action: { model.toggleCategory([rule]) },
                                       identifier: "planRule-" + rule.id, showsTitle: false).fixedSize()
             }.help(source.map { _ in rule.detail + "\n" + items.map(\.url.path).joined(separator: "\n") } ?? "")
             PlanRunningOwners(model: model, rule: rule).padding(.leading, CacheDropDesign.Space.xl).padding(.bottom, CacheDropDesign.Space.sm)

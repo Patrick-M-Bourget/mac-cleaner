@@ -77,7 +77,6 @@ enum CacheDropDesign {
     /// App-managed storage and the catalog categories that share its colour: the system indigo, a step lighter in dark
     /// mode so a meter segment keeps 3:1 against the track (#164).
     static var indigo: Color { adaptive(light: 0x5856D6, dark: 0x8583F5) }
-    static func files(_ count: Int) -> String { "\(count) \(count == 1 ? "file" : "files")" }
     static func items(_ count: Int) -> String { "\(count) \(count == 1 ? "item" : "items")" }
     /// The muted dash for a value not known yet or with nothing to show (Decision 62): never empty, never zero.
     static let noValue = "—"
@@ -310,8 +309,7 @@ struct SelectionSummary: View {
     let value: String
     let detail: String
     var identifier = ""
-    var consequence: String? = nil
-    var title = "Selected for Trash"
+    let title: String
     /// What's selected on another page, as a link there after the detail: "· 1 on Applications" (#481, Decision 65 rule 3).
     var elsewhere: (title: String, open: () -> Void)? = nil
     var body: some View {
@@ -333,7 +331,6 @@ struct SelectionSummary: View {
                 }.font(CacheDropDesign.TypeStyle.caption)
             }
         }
-        if let consequence { Text(consequence).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true) }
         }
     }
 }
@@ -733,26 +730,13 @@ struct CacheDropSidebarRow: View {
     }
 }
 
-struct MacroCategoryCheckbox: View {
-    let state: CategorySelectionState
-    let label: String
-    let enabled: Bool
-    let action: () -> Void
-    var identifier = "downloadsCategorySelection"
-    var showsTitle = true
-    var body: some View {
-        NativeCategoryCheckbox(state: state, label: label, enabled: enabled, action: action,
-            identifier: identifier, showsTitle: showsTitle).disabled(!enabled)
-    }
-}
-
-private struct NativeCategoryCheckbox: NSViewRepresentable {
+struct NativeCategoryCheckbox: NSViewRepresentable {
 
     let state: CategorySelectionState
     let label: String
     let enabled: Bool
     let action: () -> Void
-    var identifier = "downloadsCategorySelection"
+    let identifier: String
     var showsTitle = true
     func makeCoordinator() -> Coordinator { Coordinator(action) }
     func makeNSView(context: Context) -> NSButton {
@@ -807,7 +791,7 @@ struct CategorySelectionHeader<Below: View>: View {
     var body: some View {
         let row = HStack(alignment: .top, spacing: CacheDropDesign.Space.md) {
             if let state {
-                MacroCategoryCheckbox(state: state, label: title, enabled: enabled, action: action, identifier: identifier ?? (category == .downloads ? "downloadsCategorySelection" : "\(category)-CategorySelection"), showsTitle: false)
+                NativeCategoryCheckbox(state: state, label: title, enabled: enabled, action: action, identifier: identifier ?? (category == .downloads ? "downloadsCategorySelection" : "\(category)-CategorySelection"), showsTitle: false)
                     .fixedSize().padding(.top, CacheDropDesign.Space.sm)
             }
             clickable

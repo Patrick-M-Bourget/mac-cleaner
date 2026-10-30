@@ -58,7 +58,6 @@ import SwiftUI
     var sort = ListSort()
     var position = Position()
     private var history: [Position] = []
-    var canGoBack: Bool { !history.isEmpty }
     /// The explorer's own title, which a page opened from it names when it goes back (#228).
     var title: String { "Explore storage" }
     /// The list of locations the explorer starts at.

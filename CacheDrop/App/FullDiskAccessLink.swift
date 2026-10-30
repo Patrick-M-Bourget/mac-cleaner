@@ -2,15 +2,11 @@ import SwiftUI
 
 /// Opens the shared Full Disk Access explanation. Every "not accessible" place uses this.
 struct FullDiskAccessLink: View {
-    var title = "Learn about broader access"
+    let title: String
     var model: FullDiskAccessModel?
-    /// nil draws the link as text only, as inside `FullDiskAccessNote`.
-    var symbol: String? = "lock.shield"
     @State private var showing = false
     var body: some View {
-        Group {
-            if let symbol { Button(title, systemImage: symbol) { showing = true } } else { Button(title) { showing = true } }
-        }
+        Button(title) { showing = true }
             .buttonStyle(.link)
             .accessibilityIdentifier("fullDiskAccessLink")
             .sheet(isPresented: $showing) { FullDiskAccessSheet(model: model ?? FullDiskAccessModel()) { showing = false } }
@@ -26,7 +22,7 @@ struct FullDiskAccessNote: View {
             Image(systemName: "lock.shield").foregroundStyle(.secondary).accessibilityHidden(true)
             Text((places.count == 1 ? "1 location needs" : "\(places.count) locations need") + " Full Disk Access ·").foregroundStyle(.secondary)
                 .help(places.joined(separator: ", ")).accessibilityValue(places.joined(separator: ", "))
-            FullDiskAccessLink(title: "Learn more", symbol: nil)
+            FullDiskAccessLink(title: "Learn more")
         }.font(CacheDropDesign.TypeStyle.caption).frame(maxWidth: .infinity, alignment: .leading)
             .accessibilityElement(children: .contain)
     }
