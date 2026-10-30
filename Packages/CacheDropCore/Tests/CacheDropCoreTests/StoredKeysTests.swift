@@ -18,9 +18,10 @@ enum StoredKeysFixture {
         return value
     }
     /// Checks that every stored property of `value` is among `keys`, the fixture's keys for it. With explicit `CodingKeys`, a
-    /// new `var x: T? = nil` left out of them compiles and is never saved; this catches it. Add a new field's key to the fixture too.
-    static func expectEveryPropertyStored(_ value: Any, in keys: some Collection<String>, _ name: String) {
-        let properties = Set(Mirror(reflecting: value).children.compactMap(\.label))
+    /// new `var x: T? = nil` left out of them compiles and is never saved; this catches it. Add a new field's key to the fixture
+    /// too. A rename that keeps its stored key (#449) lists it in `renamed`, property name to stored key.
+    static func expectEveryPropertyStored(_ value: Any, in keys: some Collection<String>, renamed: [String: String] = [:], _ name: String) {
+        let properties = Set(Mirror(reflecting: value).children.compactMap(\.label).map { renamed[$0] ?? $0 })
         #expect(properties == Set(keys), "\(name): a stored property and the fixture's keys differ")
     }
     static func keys(_ data: Data, at path: [String]) throws -> [String] {
@@ -167,10 +168,15 @@ private struct TrendsEnumsFixture: Codable {
     #expect(enums.comparisonStates == [.firstBaseline, .clearedBaseline, .missingBaseline, .coverageChanged, .unknown, .compared, .waitingForBaseline])
     #expect(enums.scanOutcomes == [.complete, .partial, .stopped, .failed])
     // A scan's `reasons` are keyed by these raw values, and a history with a key it doesn't know reads as corrupt.
-    for reason in ["excludedScope", "exclusionUnavailable", "directoryChanged", "timeLimit", "entryLimit", "issueLimit", "depthLimit", "readFailed",
-                   "metadataUnavailable", "differentVolume", "accessDenied", "accessRevoked", "locationUnavailable"] {
-        #expect(ScanIssue.Reason(rawValue: reason) != nil, "\(reason) is still a scan issue's stored reason")
-    }
+    let issueReasons = ["excludedScope", "exclusionUnavailable", "directoryChanged", "timeLimit", "entryLimit", "issueLimit", "depthLimit", "readFailed",
+                        "metadataUnavailable", "differentVolume", "accessDenied", "accessRevoked", "locationUnavailable"]
+    for reason in issueReasons { #expect(ScanIssue.Reason(rawValue: reason) != nil, "\(reason) is still a scan issue's stored reason") }
+    // Every stored reason, the two `ScanActivityLocation(scan:)` writes as literals included, is still accepted when saved.
+    let reasons = Dictionary(uniqueKeysWithValues: (issueReasons + ["customExcludedBoundary", "unmeasuredContents"]).map { ($0, 1) })
+    let every = ScanActivity(startedAt: at(800_090_030), completedAt: at(800_090_040), outcome: .partial,
+                             locations: [ScanActivityLocation(path: "/Users/x/Music", observedAt: at(800_090_035), outcome: .partial, reasons: reasons)])
+    #expect(try await store.recordActivity(every, now: now, expectedEpoch: try await store.recordingEpoch()))
+    #expect(try await store.activities(now: now, maintain: false).first?.locations.first?.reasons == reasons)
     #expect(enums.categories == [.developer, .browser, .downloads, .system, .models, .updaters, .logs, .icloud, .files, .managed, .leftovers, .apps])
 }
 
