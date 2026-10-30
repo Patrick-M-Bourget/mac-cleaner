@@ -18,9 +18,10 @@ enum StoredKeysFixture {
         return value
     }
     /// Checks that every stored property of `value` is among `keys`, the fixture's keys for it. With explicit `CodingKeys`, a
-    /// new `var x: T? = nil` left out of them compiles and is never saved; this catches it. Add a new field's key to the fixture too.
-    static func expectEveryPropertyStored(_ value: Any, in keys: some Collection<String>, _ name: String) {
-        let properties = Set(Mirror(reflecting: value).children.compactMap(\.label))
+    /// new `var x: T? = nil` left out of them compiles and is never saved; this catches it. Add a new field's key to the fixture
+    /// too. A rename that keeps its stored key (#449) lists it in `renamed`, property name to stored key.
+    static func expectEveryPropertyStored(_ value: Any, in keys: some Collection<String>, renamed: [String: String] = [:], _ name: String) {
+        let properties = Set(Mirror(reflecting: value).children.compactMap(\.label).map { renamed[$0] ?? $0 })
         #expect(properties == Set(keys), "\(name): a stored property and the fixture's keys differ")
     }
     static func keys(_ data: Data, at path: [String]) throws -> [String] {
