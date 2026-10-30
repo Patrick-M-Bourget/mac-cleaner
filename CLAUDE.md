@@ -9,7 +9,7 @@ GitHub account: `Patrick-M-Bourget`. Run `gh auth status` before any `git push`.
 
 ## Build and test
 
-`scripts/check.sh` runs what CI runs, one line per step: the source checks (test seams, Decision numbering, copy terms, stored keys), the Core suite normal and on the strict pool (#200, with its guard run alone, #242), StorageAlerts' suite, the Debug app build and the Release exclusion check. `--fast` stops after the Core suite. Full Xcode is installed, but `xcode-select` points at the Command Line Tools, so commands of your own set `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer`; the scripts do. The app it builds is `.build/xcode/Build/Products/Debug/CacheDrop.app`.
+`scripts/check.sh` runs what CI runs, one line per step: the source checks (test seams, Decision numbering, copy terms, stored keys), tooling tests, the Core suite normal and on the strict pool (#200, with its guard run alone, #242), StorageAlerts' suite, the Debug app build and the Release exclusion check. `--fast` stops after the Core suite. Failed steps keep separate full logs under `.build/check-logs/` and print their paths; earlier failures skip app builds. Full Xcode is installed, but `xcode-select` points at the Command Line Tools, so commands of your own set `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer`; the scripts do. The app it builds is `.build/xcode/Build/Products/Debug/CacheDrop.app`.
 
 Run StorageAlerts alone with `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer swift test --package-path Packages/StorageAlerts`.
 
@@ -22,7 +22,7 @@ The scheme keeps no test attachments and never records the screen (#153). Never 
 ## Workflow
 
 - One logical change per commit and about 500 lines or less per PR. Run `scripts/check.sh` before every commit.
-- Push a branch, open a PR (`/pr`) based on `main`, and say what to smoke-test locally. Merge only after the user confirms. A PR based on another PR's branch closes when that branch is deleted on merge.
+- Push a branch, open a PR (`/pr`) based on `main`, and say what to smoke-test locally. After creating or editing a PR and immediately before merging, validate its closing references as `docs/agents/issue-tracker.md` describes. Merge only after the user confirms. A PR based on another PR's branch closes when that branch is deleted on merge.
 - Commit no screenshots, evidence reports or session essays. A finding that matters goes into `docs/RESET.md` (Decisions) or an issue.
 
 ## Agent skills
