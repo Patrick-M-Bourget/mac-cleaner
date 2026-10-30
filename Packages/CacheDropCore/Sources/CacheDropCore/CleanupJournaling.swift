@@ -1,7 +1,10 @@
 import Foundation
 import Darwin
 
-public enum CleanupTargetState: String, Codable, Sendable { case pending, intent, succeeded, failed, skipped, cancelled, unknown }
+/// Raw values are stored in the journal (#448): a renamed case keeps its string.
+public enum CleanupTargetState: String, Codable, Sendable {
+    case pending = "pending", intent = "intent", succeeded = "succeeded", failed = "failed", skipped = "skipped", cancelled = "cancelled", unknown = "unknown"
+}
 public struct CleanupRecord: Codable, Sendable, Identifiable {
     public internal(set) var id: String
     public let batchID: UUID
@@ -57,6 +60,19 @@ public struct CleanupRecord: Codable, Sendable, Identifiable {
     public var reviewOf: String? = nil
     /// On a reviewed record, and on the record History shows for it, what checking against disk found (#309).
     public var recoveryFinding: RecoveryFinding? = nil
+    /// The journal's stored keys (#448): a renamed property keeps its key here, so older journals still read. A new field
+    /// needs its key here, or it is never saved, and in the StoredKeys fixture.
+    private enum CodingKeys: String, CodingKey {
+        case id = "id", batchID = "batchID", originalURL = "originalURL", resourceID = "resourceID", logicalBytes = "logicalBytes",
+            allocatedBytes = "allocatedBytes", state = "state", trashURL = "trashURL", message = "message", observedAt = "observedAt",
+            scopeURL = "scopeURL", scopeResourceID = "scopeResourceID", volumeID = "volumeID", downloadsURL = "downloadsURL",
+            downloadsResourceID = "downloadsResourceID", modifiedSeconds = "modifiedSeconds", modifiedNanoseconds = "modifiedNanoseconds",
+            action = "action", policyVersion = "policyVersion", outcomeRecordedAt = "outcomeRecordedAt", approvedAt = "approvedAt",
+            ruleID = "ruleID", previewOnly = "previewOnly", itemCapacity = "itemCapacity", settledCapacity = "settledCapacity",
+            toolOutput = "toolOutput", partlyRemoved = "partlyRemoved", itemName = "itemName", toolItem = "toolItem",
+            putBackOf = "putBackOf", emptyOf = "emptyOf", mayStillBeFinishing = "mayStillBeFinishing",
+            laterMeasurement = "laterMeasurement", reviewOf = "reviewOf", recoveryFinding = "recoveryFinding"
+    }
 }
 public protocol CleanupJournaling: Sendable {
     /// Writes every record as pending in one transaction; false when the batch was already claimed.

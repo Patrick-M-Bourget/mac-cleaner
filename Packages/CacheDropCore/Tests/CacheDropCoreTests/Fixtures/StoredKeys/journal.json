@@ -1,0 +1,118 @@
+{
+  "cleanupActions" : [
+    "delete",
+    "moveToTrash",
+    "tool",
+    "evict",
+    "guidance"
+  ],
+  "laterMeasurements" : [
+    {
+      "afterSeconds" : 60,
+      "finding" : {
+        "gone" : {
+
+        }
+      },
+      "measuredAt" : 800000060
+    },
+    {
+      "afterSeconds" : 300,
+      "finding" : {
+        "remaining" : {
+          "bytes" : 77
+        }
+      },
+      "measuredAt" : 800000300
+    },
+    {
+      "afterSeconds" : 900,
+      "finding" : {
+        "unmeasured" : {
+
+        }
+      },
+      "measuredAt" : 800000900
+    }
+  ],
+  "record" : {
+    "action" : "moveToTrash",
+    "allocatedBytes" : 131072,
+    "approvedAt" : 800000000,
+    "batchID" : "11111111-2222-3333-4444-555555555555",
+    "downloadsResourceID" : "res-dl",
+    "downloadsURL" : "file:///Users/x/Downloads",
+    "emptyOf" : "trash-2",
+    "id" : "npm-cache|/Users/x/.npm/_cacache",
+    "itemCapacity" : {
+      "afterAvailable" : 2000,
+      "afterDate" : 800000010,
+      "afterMetric" : "available",
+      "afterTotal" : 10001,
+      "afterVolumeID" : "vol-b",
+      "beforeAvailable" : 1000,
+      "beforeDate" : 800000000,
+      "beforeMetric" : "importantUsage",
+      "beforeTotal" : 10000,
+      "beforeVolumeID" : "vol-a"
+    },
+    "itemName" : "Llama 3",
+    "laterMeasurement" : {
+      "afterSeconds" : 300,
+      "finding" : {
+        "remaining" : {
+          "bytes" : 77
+        }
+      },
+      "measuredAt" : 800000300
+    },
+    "logicalBytes" : 123456,
+    "mayStillBeFinishing" : true,
+    "message" : "Moved",
+    "modifiedNanoseconds" : 42,
+    "modifiedSeconds" : 799999999,
+    "observedAt" : 800000001,
+    "originalURL" : "file:///Users/x/.npm/_cacache",
+    "outcomeRecordedAt" : 800000002,
+    "partlyRemoved" : false,
+    "policyVersion" : 3,
+    "previewOnly" : true,
+    "putBackOf" : "trash-1",
+    "recoveryFinding" : "inTrash",
+    "resourceID" : "res-1",
+    "reviewOf" : "interrupted-1",
+    "ruleID" : "npm-cache",
+    "scopeResourceID" : "res-scope",
+    "scopeURL" : "file:///Users/x/.npm",
+    "settledCapacity" : {
+      "afterAvailable" : 3000,
+      "afterDate" : 800000080,
+      "afterMetric" : "importantUsage",
+      "afterTotal" : 10002,
+      "afterVolumeID" : "vol-c",
+      "beforeDate" : 800000020,
+      "beforeMetric" : "available"
+    },
+    "state" : "succeeded",
+    "toolItem" : "UDID-1",
+    "toolOutput" : "pruned 3 images",
+    "trashURL" : "file:///Users/x/.Trash/_cacache",
+    "volumeID" : "vol-a"
+  },
+  "recoveryFindings" : [
+    "notStarted",
+    "atOriginalLocation",
+    "inTrash",
+    "gone",
+    "unknown"
+  ],
+  "targetStates" : [
+    "pending",
+    "intent",
+    "succeeded",
+    "failed",
+    "skipped",
+    "cancelled",
+    "unknown"
+  ]
+}
