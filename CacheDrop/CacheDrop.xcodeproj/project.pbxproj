@@ -83,7 +83,7 @@ AA9900000000000000000001 = { isa = PBXFileReference; lastKnownFileType = sourcec
 AA9900000000000000000002 = { isa = PBXBuildFile; fileRef = AA9900000000000000000001; };
 AA5300000000000000000011 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = App/AppearancePreferences.swift; sourceTree = "<group>"; };
 AA5300000000000000000012 = { isa = PBXBuildFile; fileRef = AA5300000000000000000011; };
-AA6200000000000000000001 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = App/LocalRecordsView.swift; sourceTree = "<group>"; };
+AA6200000000000000000001 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = App/SavedDataView.swift; sourceTree = "<group>"; };
 AA6200000000000000000002 = { isa = PBXBuildFile; fileRef = AA6200000000000000000001; };
 AA5600000000000000000003 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = App/StorageExplorer.swift; sourceTree = "<group>"; };
 AA5600000000000000000004 = { isa = PBXBuildFile; fileRef = AA5600000000000000000003; };

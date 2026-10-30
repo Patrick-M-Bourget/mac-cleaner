@@ -49,17 +49,17 @@ struct DesignGallery: View {
                     }
                     CapacityGalleryExamples()
                     Text("Synthetic Saved data entry · Inert example").font(.headline)
-                    LocalRecordsEntry(action: {})
+                    SavedDataEntry(action: {})
                     Text("Synthetic Protected items entry · Inert example").font(.headline)
                     ProtectedItemsEntry(action: {})
                     Text("Synthetic Saved data controls · Inert enabled example").font(.headline)
-                    LocalRecordsMaintenanceControls(clear: {}, reset: {})
+                    SavedDataMaintenanceControls(clear: {}, reset: {})
                     StatusRow(text: "Reset waits until the interrupted cleanup is reviewed.", symbol: "exclamationmark.triangle", role: .caution)
                     StatusRow(text: "Downloads · Access unavailable", role: .caution, action: StatusAction(title: "Choose again…") {})
                     StatusRow(text: "Synth will be skipped: Synth is running. Quit it, then scan again.", symbol: "exclamationmark.circle", role: .caution,
                               action: StatusAction(title: "Quitting…", isDisabled: true) {})
                     Text("Synthetic unavailable controls · Cleanup or maintenance in progress").font(.headline)
-                    LocalRecordsMaintenanceControls(enabled: false, clear: {}, reset: {})
+                    SavedDataMaintenanceControls(enabled: false, clear: {}, reset: {})
                     Text("Full Disk Access · Inert example").font(.headline)
                     SettingsRow(title: "Full Disk Access", detail: "Optional access to more protected folders") {
                         StatusRow(text: "Not granted", symbol: "lock.shield")
