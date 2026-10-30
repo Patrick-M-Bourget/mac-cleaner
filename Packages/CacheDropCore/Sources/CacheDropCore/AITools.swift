@@ -12,7 +12,7 @@ public enum AITools {
     static let claudeCodeTranscripts = CleanupRule(
         id: "claude-code-transcripts", category: .logs, title: "Old Claude Code transcripts",
         detail: "Conversations with Claude Code not opened in 90 days.",
-        consequence: "Moved to Trash. Those sessions can no longer be resumed; settings, credentials and project memory are kept.",
+        consequence: "Those sessions can no longer be resumed; settings, credentials and project memory are kept.",
         regen: .log, action: .trash, locations: [".claude/projects"], owner: nil, protectedNames: ["memory"],
         contents: ContentsMatch(extensions: ["jsonl"], unusedDays: transcriptDays))
 
@@ -22,7 +22,7 @@ public enum AITools {
     static let codexTranscripts = CleanupRule(
         id: "codex-transcripts", category: .logs, title: "Old Codex transcripts and logs",
         detail: "Codex sessions and logs not opened in 90 days.",
-        consequence: "Moved to Trash. Those sessions can no longer be resumed; settings and sign-in are kept.",
+        consequence: "Those sessions can no longer be resumed; settings and sign-in are kept.",
         regen: .log, action: .trash, locations: [".codex/sessions", ".codex/archived_sessions", ".codex/log"], owner: nil,
         contents: ContentsMatch(extensions: ["jsonl", "log"], unusedDays: transcriptDays))
 
@@ -32,7 +32,7 @@ public enum AITools {
     static let agentWorkspaces = CleanupRule(
         id: "agent-workspaces", category: .managed, title: "AI agent workspaces",
         detail: "Checkouts and build scratch AI coding agents keep in their own folders. Review them before removing any; work there may not be pushed.",
-        consequence: "Guidance only. CacheDrop shows the size and where they are, and never changes them.",
+        consequence: "Guidance only: CacheDrop shows the size and where they are, and never changes them.",
         regen: .userFile, action: .guidance,
         locations: [".codex/worktrees", "Library/Caches/Codex", "/private/tmp/claude-\(getuid())"], owner: nil,
         guidance: Guidance(sizing: .agentWorkspaces, place: .folder, placeName: "in Finder"))

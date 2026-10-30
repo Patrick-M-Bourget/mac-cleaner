@@ -12,7 +12,7 @@ extension BuiltInCatalog {
     static let simulatorRuntimes = CleanupRule(
         id: "simulator-runtimes", category: .developer, title: "Simulator runtimes",
         detail: "Simulator OS versions no simulator uses.",
-        consequence: "Runs `simctl runtime delete` for each runtime, which permanently removes it. Xcode downloads it again when you need it.",
+        consequence: "Xcode downloads each runtime again when you need it.",
         // The user's CoreSimulator folder anchors the rule in the home folder; the runtimes themselves live outside it.
         regen: .build, action: .tool, locations: ["Library/Developer/CoreSimulator"], owner: simulatorOwner,
         tool: ToolCommand(executables: simctlExecutables, arguments: ["runtime", "delete", "<runtime>"], timeout: 600, itemPlaceholder: "<runtime>", daemonBacked: true),
@@ -20,7 +20,7 @@ extension BuiltInCatalog {
     static let simulatorDevices = CleanupRule(
         id: "simulator-devices", category: .developer, title: "Simulators",
         detail: "Simulator devices that aren’t running.",
-        consequence: "Runs `simctl delete` for each simulator, which permanently removes it with its apps and data. Create it again in Xcode if you need it.",
+        consequence: "Each simulator goes with its apps and data; create it again in Xcode if you need it.",
         regen: .build, action: .tool, locations: ["Library/Developer/CoreSimulator/Devices"], owner: simulatorOwner,
         tool: ToolCommand(executables: simctlExecutables, arguments: ["delete", "<device>"], timeout: 120, itemPlaceholder: "<device>", daemonBacked: true),
         items: .simulatorDevices)
@@ -30,12 +30,12 @@ extension BuiltInCatalog {
     static let androidVirtualDevices = CleanupRule(
         id: "android-virtual-devices", category: .developer, title: "Android emulators",
         detail: "Virtual devices Android Studio created.",
-        consequence: "Moved to Trash with its settings file, including the apps and data inside it. You can restore it from the Trash.",
+        consequence: "Its settings file and the apps and data inside it go too.",
         regen: .model, action: .trash, locations: [".android/avd"], owner: androidOwner, items: .androidVirtualDevices)
     static let androidSystemImages = CleanupRule(
         id: "android-system-images", category: .developer, title: "Android system images",
         detail: "Emulator system images no virtual device uses.",
-        consequence: "Permanently removed. Android Studio’s SDK Manager downloads them again when you need them.",
+        consequence: "Android Studio’s SDK Manager downloads them again when you need them.",
         regen: .build, action: .delete, locations: ["Library/Android/sdk/system-images"], owner: androidOwner, items: .androidSystemImages)
 
     static let developerDeviceRules = [simulatorRuntimes, simulatorDevices, androidVirtualDevices, androidSystemImages]

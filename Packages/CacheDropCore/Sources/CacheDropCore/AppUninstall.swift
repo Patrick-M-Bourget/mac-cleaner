@@ -9,7 +9,7 @@ public enum AppUninstall {
     public static let appRuleID = "uninstall-app"
     public static let filesRuleID = "uninstall-app-files"
     public static let possiblyRelatedRuleID = "uninstall-app-possibly-related"
-    static let consequence = "Moved to Trash. You can put them back from History, or restore them from the Trash in Finder."
+    static let consequence = ""
     static let appRule = CleanupRule(id: appRuleID, category: .apps, title: "App", detail: "The app itself.", consequence: consequence, regen: .userFile,
         action: .trash, locations: [], owner: nil, unprotectedExtensions: ["app"], family: .appUninstall)
     static let filesRule = CleanupRule(id: filesRuleID, category: .apps, title: "Its files",

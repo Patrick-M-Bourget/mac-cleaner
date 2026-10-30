@@ -438,7 +438,7 @@ struct WorkspaceCleanupConfirmationView: View {
         _held = State(initialValue: review.catalog.map { ReviewHeldItems(candidates: $0.approval.candidates, refusals: $0.refusals, catalog: catalog, isOpen: quitter.isOpen) })
     }
     var body: some View {
-        ReviewSheetFrame(title: "Review your changes", subtitle: "Check what each action does. You can go back and change your selection.") {
+        ReviewSheetFrame(title: "Review your cleanup", subtitle: "Clean up does exactly what’s listed here.") {
             if let items = review.catalog {
                 CatalogConfirmationSection(review: items, catalog: catalog, follow: follow, refusals: held?.refusals, quit: quitAction)
             }

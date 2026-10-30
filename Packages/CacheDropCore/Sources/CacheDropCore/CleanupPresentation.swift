@@ -25,10 +25,10 @@ public enum ConsequenceGroup: Int, CaseIterable, Sendable, Comparable {
     /// The one sentence the review shows for the group.
     public var consequence: String {
         switch self {
-        case .permanentlyRemoved: "Apps download or rebuild these as needed, so the next use may take longer. They can’t be restored from the Trash."
-        case .movedToTrash: "Recoverable in Finder until you empty the Trash. The space stays used until then."
+        case .permanentlyRemoved: "Apps download or rebuild these when they need them."
+        case .movedToTrash: "You can put these back until you empty the Trash."
         case .localCopiesRemoved: "The files stay in iCloud and download again when you open them, which needs an internet connection."
-        case .commandsRun: "CacheDrop runs each tool’s own cleanup command, shown with the files. What a command removes is permanently removed."
+        case .commandsRun: "Each tool’s own cleanup command deletes these permanently."
         }
     }
     public static func < (lhs: Self, rhs: Self) -> Bool { lhs.rawValue < rhs.rawValue }

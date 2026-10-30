@@ -122,6 +122,6 @@ extension BuiltInCatalog {
     /// RESET Decision 13: iCloud Drive files downloaded to this Mac. Only the local copy is removed; never a delete.
     static let iCloudLocalCopies = CleanupRule(id: "icloud-local-copies", category: .icloud, title: "Downloaded iCloud Drive files",
         detail: "Files in iCloud Drive that are also stored on this Mac. Files set to Keep Downloaded, not yet uploaded or in conflict are not offered.",
-        consequence: "Only the copies on this Mac are removed. The files stay in iCloud and download again when you open them; that needs an internet connection.",
+        consequence: "",
         regen: .cloudCopy, action: .evict, locations: [iCloudDrivePath], owner: nil)
 }
