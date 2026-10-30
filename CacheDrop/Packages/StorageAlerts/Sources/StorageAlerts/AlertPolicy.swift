@@ -26,11 +26,21 @@ public struct AlertPolicy: Sendable, Codable {
         var reminderPending = false
         var lastAttempt: Date?
         var acceptedAt: Date?
+        private enum CodingKeys: String, CodingKey {
+            case suppressed = "suppressed", reserved = "reserved", reservationID = "reservationID", recoveryBytes = "recoveryBytes"
+            case snoozeUntil = "snoozeUntil", reminderPending = "reminderPending", lastAttempt = "lastAttempt", acceptedAt = "acceptedAt"
+        }
     }
     private var episodes: [String: Episode] = [:]
     private var currentVolume: String?
     private var currentMetric: String?
     private var lastSample: Date?
+    /// The alert state file's stored keys (#448): a renamed property keeps its key here; a new field needs its key here and
+    /// in the fixture (`AlertStateKeysTests`).
+    private enum CodingKeys: String, CodingKey {
+        case enabled = "enabled", notificationRequestIdentifiers = "notificationRequestIdentifiers", thresholdBytes = "thresholdBytes"
+        case episodes = "episodes", currentVolume = "currentVolume", currentMetric = "currentMetric", lastSample = "lastSample"
+    }
     public init() {}
     public var pendingSubmission: AlertSubmissionReservation? {
         guard let volume = currentVolume, let episode = episodes[volume], episode.reserved, let id = episode.reservationID else { return nil }
