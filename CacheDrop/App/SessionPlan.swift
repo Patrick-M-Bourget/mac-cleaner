@@ -35,7 +35,6 @@ struct RefreshRequest: Sendable {
         return result.rejectedReplay || result.journalFailure != nil || result.records.contains { $0.state == .unknown || $0.state == .intent }
     }
     private(set) var scans: [URL: ScanResult] = [:]
-    private(set) var message: String?
     private(set) var unavailableScopes: Set<URL> = []
     var canReview: Bool {
         !AppLifecycleController.shared.maintenanceInProgress && !workspaceRunning
@@ -50,7 +49,6 @@ struct RefreshRequest: Sendable {
     func invalidateCoverage() {
         refreshRequests.removeAll(); scans.removeAll()
         catalog.forgetPickedFiles()
-        message = "Protected items changed. Scan again to see what’s offered now."
     }
     func expectExclusions(_ fingerprint: String) {
         if expectedExclusionFingerprint != fingerprint { invalidateCoverage(); expectedExclusionFingerprint = fingerprint }
