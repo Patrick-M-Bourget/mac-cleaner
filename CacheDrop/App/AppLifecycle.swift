@@ -187,7 +187,7 @@ struct LoginSettingsView: View {
             .task { lifecycle.refreshLogin() }
         if let error = lifecycle.loginError { StatusRow(text: error, symbol: "exclamationmark.circle") }
         if lifecycle.loginStatus == .requiresApproval {
-            LabeledContent("Needs approval in System Settings") {
+            LabeledContent("Allow it in System Settings") {
                 Button("Review Login Items") { SMAppService.openSystemSettingsLoginItems() }
             }
         } else if lifecycle.loginStatus == .unavailable {

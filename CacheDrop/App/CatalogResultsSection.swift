@@ -45,7 +45,7 @@ struct CatalogResultsSection: View {
                             .font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary).accessibilityIdentifier("resultsSettling")
                     }
                 } else if !onlyTrashed {
-                    Text("Measured from the change in available space around each item. Other activity on this Mac can affect it.")
+                    Text("Measured from the change in free space around each item, so other activity on this Mac can affect it.")
                         .font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
                 }
                 if result.movedToTrashBytes > 0 { TrashEmptyHint() }

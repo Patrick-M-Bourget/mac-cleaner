@@ -666,10 +666,10 @@ struct VolumeSummary: View {
                     VStack(alignment: .trailing, spacing: CacheDropDesign.Space.xs) {
                         if let available, available >= 0 {
                             Text(bytes(available)).font(CacheDropDesign.TypeStyle.value).monospacedDigit().accessibilityIdentifier("startupCapacityAmount")
-                            Text("available").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
+                            Text("free").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
                         } else {
                             Text(CacheDropDesign.noValue).font(CacheDropDesign.TypeStyle.value)
-                            Text(refreshing ? "Checking capacity…" : "Available space unavailable").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
+                            Text(refreshing ? "Checking capacity…" : "Free space unknown").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
                         }
                     }
                 }

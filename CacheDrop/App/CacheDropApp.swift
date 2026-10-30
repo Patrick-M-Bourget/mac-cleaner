@@ -872,7 +872,7 @@ private struct WorkspaceView: View {
                             // A row's actions are links (#311).
                             if scope.isBuiltIn { FullDiskAccessLink(title: "Grant Full Disk Access", symbol: nil) } // Never picked (#388).
                             else { Button("Choose again…") { chooseAgain(scope) }.buttonStyle(.link) }
-                            Button("Reconnect and recheck") { scanLocations([scope]) }.buttonStyle(.link).disabled(!scope.isIncluded)
+                            Button("Scan again") { scanLocations([scope]) }.buttonStyle(.link).disabled(!scope.isIncluded)
                         }
                         // Built-in Downloads can't be forgotten (#342).
                         if !scope.isBuiltIn {

@@ -80,10 +80,10 @@ struct DesignGallery: View {
                     // Built in (#342): always included, so its checkbox can't change, and no Forget.
                     LocationScopeRow(name: "Downloads", path: "/Example/Downloads", status: "Built in · Not scanned", included: .constant(true), enabled: true, fixed: true) { EmptyView() }
                     LocationScopeRow(name: "Projects", path: "/Example/Projects", status: "Not scanned", included: $selected, enabled: true) { Menu("More") { Button("Forget location") {} } }
-                    LocationScopeRow(name: "Downloads B", path: "/Example/Downloads/Long project folder/Downloads B", status: "Location unavailable · Reconnect and recheck", overlap: "Overlaps another remembered location · Shared contents are counted once.", included: $selected, enabled: true) {
+                    LocationScopeRow(name: "Downloads B", path: "/Example/Downloads/Long project folder/Downloads B", status: "Location unavailable · Reconnect it, then scan again", overlap: "Overlaps another remembered location · Shared contents are counted once.", included: $selected, enabled: true) {
                         HStack {
                             Button("Choose again…") {}
-                            Button("Reconnect and recheck") {}
+                            Button("Scan again") {}
                             Menu("More") { Button("Forget location") {} }
                         }
                     }.frame(maxWidth: 520)

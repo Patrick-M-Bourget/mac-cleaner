@@ -761,6 +761,9 @@ final class RecoveryReviewUITests: XCTestCase {
             XCTAssertTrue(row.waitForExistence(timeout: 10), "\(name) shows its finding")
             XCTAssertTrue((row.value as? String ?? row.label).hasPrefix(title + " · "), "\(name): \(row.value ?? row.label)")
         }
+        for name in ["Kept.dmg", "Trashed.dmg"] {
+            XCTAssertTrue(app.links["Reveal " + name + " in Finder"].exists, "Recovery uses the glossary's Reveal in Finder action")
+        }
         // #436: the page says once that nothing restarts, in its subtitle; its bottom bar has no note.
         let restarts = NSPredicate(format: "label CONTAINS 'Nothing restarts by itself' OR value CONTAINS 'Nothing restarts by itself'")
         XCTAssertEqual(app.staticTexts.matching(restarts).count, 1)
