@@ -25,7 +25,9 @@ enum StoredKeysFixture {
     }
     static func keys(_ data: Data, at path: [String]) throws -> [String] {
         var object: Any = try JSONSerialization.jsonObject(with: data)
-        for key in path { object = try #require((object as? [String: Any])?[key]) }
+        for key in path {
+            if let index = Int(key), let array = object as? [Any] { object = array[index] } else { object = try #require((object as? [String: Any])?[key]) }
+        }
         return try #require(object as? [String: Any]).map(\.key)
     }
 }
@@ -101,4 +103,73 @@ private struct JournalFixture: Codable {
     #expect(fixture.targetStates == [.pending, .intent, .succeeded, .failed, .skipped, .cancelled, .unknown])
     #expect(fixture.recoveryFindings == [.notStarted, .atOriginalLocation, .inTrash, .gone, .unknown])
     #expect(fixture.cleanupActions == [.delete, .trash, .tool, .evict, .guidance])
+}
+
+private struct TrendsEnumsFixture: Codable {
+    let dimensions: [GrowthDimension]; let coverages: [GrowthCoverage]; let comparisonStates: [GrowthComparisonState]
+    let scanOutcomes: [ScanActivityOutcome]; let categories: [CatalogCategory]
+}
+
+@Test func storageTrendsStillReadAHistoryWrittenBeforeThePin() async throws {
+    let at = { (s: TimeInterval) in Date(timeIntervalSinceReferenceDate: s) }
+    let now = at(800_090_100)
+    let directory = FileManager.default.temporaryDirectory.appendingPathComponent("stored-keys-trends-\(UUID())")
+    defer { try? FileManager.default.removeItem(at: directory) }
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+    let file = directory.appendingPathComponent("aggregates-v1.json")
+    let fixture = try StoredKeysFixture.data("trends")
+    try fixture.write(to: file)
+    let store = GrowthHistoryStore(directory: directory)
+
+    let snapshots = try await store.snapshots(now: now)
+    #expect(snapshots.map(\.id) == [UUID(uuidString: "2755AF01-DD05-4F6F-9FA0-63144649ECB3"), UUID(uuidString: "494B9606-49E6-4BF6-81A0-F654A417BAA9")])
+    #expect(snapshots.map(\.observedAt) == [at(800_000_000), at(800_090_000)])
+    #expect(snapshots.map(\.afterCleanup) == [false, true])
+    #expect(snapshots.allSatisfy { $0.scopeLabel == "Known locations" && $0.coverage == .complete })
+    #expect(snapshots[0].fingerprint == GrowthFingerprint(scopeID: "catalog:known", rootID: "root-1", volumeID: "vol-a", access: "fullDiskAccess",
+                                                          rules: "rules-v7", exclusions: "excl-1", classification: "class-2"))
+    let groups = snapshots[0].groups
+    #expect(groups.map(\.id) == ["folder:/Users/x/Library/Caches", "category:developer", "location:npm-cache"])
+    #expect(groups.map(\.label) == ["Caches", "Developer caches and build files", "npm cache"])
+    #expect(groups.map(\.logicalBytes) == [1_000, 2_000, 3_000])
+    #expect(groups.map(\.dimension) == [.folder, .category, .location])
+    #expect(groups.map(\.category) == [nil, .developer, .developer])
+    #expect(groups.map(\.ruleID) == [nil, nil, "npm-cache"])
+    #expect(groups.map(\.measured) == [nil, nil, false])
+    #expect(try await store.comparison(id: snapshots[0].id, now: now).state == .firstBaseline, "The first entry's origin reads back")
+
+    let activity = try #require(try await store.activities(now: now, maintain: false).first)
+    #expect(activity.id == UUID(uuidString: "12345678-1234-1234-1234-123456789ABC"))
+    #expect(activity.startedAt == at(800_090_000)); #expect(activity.completedAt == at(800_090_020))
+    #expect(activity.outcome == .stopped)
+    #expect(activity.locations.map(\.path) == ["/Users/x/Library/Caches", "/Users/x/Downloads"])
+    let location = activity.locations[0]
+    #expect(location.observedAt == at(800_090_010)); #expect(location.outcome == .partial); #expect(location.entryCount == 12)
+    #expect(location.logicalBytes == 4_000); #expect(location.allocatedBytes == 4_096); #expect(location.knownLogicalBytes == 3_900)
+    #expect(location.reasons == ["accessDenied": 2, "timeLimit": 1])
+    #expect(location.baselineID == UUID(uuidString: "AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE"))
+    StoredKeysFixture.expectEveryPropertyStored(snapshots[0], in: try StoredKeysFixture.keys(fixture, at: ["entries", "0", "snapshot"]), "GrowthSnapshot")
+    StoredKeysFixture.expectEveryPropertyStored(snapshots[0].fingerprint, in: try StoredKeysFixture.keys(fixture, at: ["entries", "0", "snapshot", "fingerprint"]), "GrowthFingerprint")
+    StoredKeysFixture.expectEveryPropertyStored(groups[2], in: try StoredKeysFixture.keys(fixture, at: ["entries", "0", "snapshot", "groups", "2"]), "GrowthAggregate")
+    StoredKeysFixture.expectEveryPropertyStored(activity, in: try StoredKeysFixture.keys(fixture, at: ["activities", "0"]), "ScanActivity")
+    StoredKeysFixture.expectEveryPropertyStored(location, in: try StoredKeysFixture.keys(fixture, at: ["activities", "0", "locations", "0"]), "ScanActivityLocation")
+    let empty = activity.locations[1]
+    #expect(empty.observedAt == nil && empty.outcome == nil && empty.entryCount == nil && empty.reasons.isEmpty && empty.baselineID == nil)
+
+    // Saving it again writes the same keys: the store re-records the same scan in place.
+    try await store.recordActivity(activity, now: now, expectedEpoch: try await store.recordingEpoch())
+    let saved = try JSONSerialization.jsonObject(with: Data(contentsOf: file)) as? NSDictionary
+    #expect(saved == (try JSONSerialization.jsonObject(with: fixture) as? NSDictionary), "Saving the history again changed its keys")
+
+    let enums = try StoredKeysFixture.decodeAndReencode(TrendsEnumsFixture.self, "trends-enums")
+    #expect(enums.dimensions == [.folder, .category, .location])
+    #expect(enums.coverages == [.complete, .partial, .cancelled, .unmeasured])
+    #expect(enums.comparisonStates == [.firstBaseline, .clearedBaseline, .missingBaseline, .coverageChanged, .unknown, .compared, .waitingForBaseline])
+    #expect(enums.scanOutcomes == [.complete, .partial, .stopped, .failed])
+    // A scan's `reasons` are keyed by these raw values, and a history with a key it doesn't know reads as corrupt.
+    for reason in ["excludedScope", "exclusionUnavailable", "directoryChanged", "timeLimit", "entryLimit", "issueLimit", "depthLimit", "readFailed",
+                   "metadataUnavailable", "differentVolume", "accessDenied", "accessRevoked", "locationUnavailable"] {
+        #expect(ScanIssue.Reason(rawValue: reason) != nil, "\(reason) is still a scan issue's stored reason")
+    }
+    #expect(enums.categories == [.developer, .browser, .downloads, .system, .models, .updaters, .logs, .icloud, .files, .managed, .leftovers, .apps])
 }

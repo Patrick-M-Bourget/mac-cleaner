@@ -52,7 +52,11 @@ public struct ToolCommand: Sendable, Hashable {
 }
 /// Whether none, some or all of a category's items are chosen.
 public enum CategorySelectionState: Sendable { case unchecked, mixed, checked }
-public enum CatalogCategory: String, Codable, Sendable { case developer, browser, downloads, system, models, updaters, logs, icloud, files, managed, leftovers, apps }
+/// Raw values are stored in Storage trends' history (#448): a renamed case keeps its string.
+public enum CatalogCategory: String, Codable, Sendable {
+    case developer = "developer", browser = "browser", downloads = "downloads", system = "system", models = "models", updaters = "updaters"
+    case logs = "logs", icloud = "icloud", files = "files", managed = "managed", leftovers = "leftovers", apps = "apps"
+}
 
 /// Who must be closed before a rule's data is touched.
 public struct RuleOwner: Sendable, Hashable {

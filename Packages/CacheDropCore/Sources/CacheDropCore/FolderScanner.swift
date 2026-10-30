@@ -70,7 +70,13 @@ public struct FileObservation: Sendable, Identifiable {
 }
 
 public struct ScanIssue: Sendable {
-    public enum Reason: String, Sendable { case excludedScope, exclusionUnavailable, directoryChanged, timeLimit, entryLimit, issueLimit, depthLimit, readFailed, metadataUnavailable, differentVolume, accessDenied, accessRevoked, locationUnavailable }
+    /// Raw values are stored in Storage trends' scan activity as `reasons` keys (#448): a renamed case keeps its string.
+    public enum Reason: String, Sendable {
+        case excludedScope = "excludedScope", exclusionUnavailable = "exclusionUnavailable", directoryChanged = "directoryChanged"
+        case timeLimit = "timeLimit", entryLimit = "entryLimit", issueLimit = "issueLimit", depthLimit = "depthLimit", readFailed = "readFailed"
+        case metadataUnavailable = "metadataUnavailable", differentVolume = "differentVolume", accessDenied = "accessDenied"
+        case accessRevoked = "accessRevoked", locationUnavailable = "locationUnavailable"
+    }
     public let url: URL
     public let reason: Reason
     public var recovery: String {
